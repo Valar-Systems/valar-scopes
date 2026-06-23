@@ -23,6 +23,15 @@ struct TrackedAircraft {
     String typeCode = "";
     String operatorName = "";
     String registration = "";
+    String photoUrl = "";    // adsbdb url_photo_thumbnail; fetched/decoded on inspect
+
+    // Flight route, looked up by callsign from adsbdb only when the aircraft is
+    // inspected (detail view). routeCallsign records the callsign the route was
+    // resolved for -- including a "" result for unknown routes -- so it isn't
+    // re-queried until the callsign changes.
+    String routeOrigin = "";
+    String routeDest = "";
+    String routeCallsign = "";
 
     // Recent display positions for the fading trail, stored as geographic
     // coordinates (so they reproject correctly) in a ring buffer sampled once a

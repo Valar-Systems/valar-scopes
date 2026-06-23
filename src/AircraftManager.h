@@ -27,7 +27,14 @@ private:
     enum class ViewMode { Radar, Detail };
     ViewMode viewMode = ViewMode::Radar;
     String selectedIcao = "";
+    int detailPage = 0;      // 0 = photo card, 1 = full-data card (only when a photo exists)
     bool wasTouched = false; // edge-detect so a held finger registers one tap
+
+    // Decoded aircraft photo for the detail view. The sprite is created once and
+    // reused; photoIcao/photoReady track which aircraft it currently holds.
+    LGFX_Sprite photoSprite;
+    String photoIcao = "";
+    bool photoReady = false;
 
     // Parallel to AIRCRAFT_INFO_FIELDS: which info lines the user has enabled.
     // Populated once in Initialise() (config changes restart the device).
@@ -51,10 +58,17 @@ private:
     void DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const;
-    void DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked) const;
+    void DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked);
 
     void HandleTouch();           // poll the touchscreen and act on a new tap
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal
+
+    // Resolve the selected aircraft's metadata, route, then photo -- one blocking
+    // lookup per frame so the detail card fills in progressively. Runs for the
+    // inspected aircraft even when the radar's enrichment fields are disabled.
+    void ProcessDetailLookups();
+    void LookupRoute(const String& callsign, TrackedAircraft& tracked);
+    void LoadPhoto(const String& url);
 
     // Resolve type/operator/registration for tracked aircraft via adsbdb.com,
     // one at a time and throttled, so the blocking HTTP calls don't stall the

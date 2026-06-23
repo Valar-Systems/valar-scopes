@@ -6,6 +6,10 @@
 constexpr int SCREEN_SIZE = 240;
 constexpr int SCREEN_SIZE_DIV_2 = (SCREEN_SIZE / 2);
 
+// adsbdb thumbnails (airport-data.com) are a standard 150x100
+constexpr int PHOTO_W = 150;
+constexpr int PHOTO_H = 100;
+
 #include <ArduinoJson.h>
 
 void AircraftManager::Initialise()
@@ -78,6 +82,10 @@ void AircraftManager::Initialise()
 void AircraftManager::Update()
 {
     unsigned long now = millis();
+
+    // fill in the selected aircraft's details first, so the detail card from the
+    // prior frame's tap stays on screen during each brief lookup
+    ProcessDetailLookups();
 
     // handle taps every loop so the UI stays responsive between fetches
     HandleTouch();
@@ -160,6 +168,7 @@ void AircraftManager::Draw(LGFX_Sprite& backbuffer)
         }
         viewMode = ViewMode::Radar;
         selectedIcao = "";
+        detailPage = 0;
     }
 
     DrawRadarCircles(backbuffer);
@@ -299,10 +308,17 @@ void AircraftManager::HandleTouch()
 
 void AircraftManager::HandleTap(int tx, int ty)
 {
-    // in the detail view, any tap returns to the radar
+    // in the detail view: if the photo card is showing, flip to the full-data
+    // page; otherwise (data page, or no photo) the tap closes the card
     if (viewMode == ViewMode::Detail) {
-        viewMode = ViewMode::Radar;
-        selectedIcao = "";
+        const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
+        if (hasPhoto && detailPage == 0) {
+            detailPage = 1;
+        } else {
+            viewMode = ViewMode::Radar;
+            selectedIcao = "";
+            detailPage = 0;
+        }
         return;
     }
 
@@ -329,13 +345,118 @@ void AircraftManager::HandleTap(int tx, int ty)
     if (!bestIcao.isEmpty()) {
         selectedIcao = bestIcao;
         viewMode = ViewMode::Detail;
+        detailPage = 0;
         Serial.printf("[touch] tap (%d,%d) selected %s\n", tx, ty, bestIcao.c_str());
     } else {
         Serial.printf("[touch] tap (%d,%d) hit nothing\n", tx, ty);
     }
 }
 
-void AircraftManager::DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked) const
+void AircraftManager::ProcessDetailLookups()
+{
+    if (viewMode != ViewMode::Detail)
+        return;
+
+    auto it = trackedAircraft.find(selectedIcao);
+    if (it == trackedAircraft.end())
+        return;
+    TrackedAircraft& tracked = it->second;
+
+    // 1. metadata (type/operator/registration + photo URL). Done here -- not only
+    //    in the throttled radar path -- so the card is complete even when the
+    //    enrichment fields are disabled. One blocking call per frame, then return.
+    if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
+        LookupAircraftMetadata(selectedIcao, tracked);
+        return;
+    }
+
+    // 2. route, once per callsign
+    String callsign = tracked.state.callsign;
+    callsign.trim();
+    if (!callsign.isEmpty() && tracked.routeCallsign != callsign) {
+        LookupRoute(callsign, tracked);
+        return;
+    }
+
+    // 3. photo, once per aircraft
+    if (photoIcao != selectedIcao) {
+        photoIcao = selectedIcao; // mark attempted regardless of outcome (no retry)
+        photoReady = false;
+        if (!tracked.photoUrl.isEmpty())
+            LoadPhoto(tracked.photoUrl);
+        else
+            Serial.printf("[photo] %s has no photo\n", selectedIcao.c_str());
+    }
+}
+
+void AircraftManager::LoadPhoto(const String& url)
+{
+    const uint32_t heapBefore = ESP.getFreeHeap();
+    const HttpResult result = http.Get(url);
+
+    if (!result.success) {
+        Serial.printf("[photo] fetch failed: %s\n", result.errorMessage.c_str());
+        return; // photoReady stays false; photoIcao already set so we don't retry
+    }
+
+    // create the decode sprite once and reuse it across selections
+    if (photoSprite.getBuffer() == nullptr) {
+        photoSprite.setColorDepth(8);
+        photoSprite.createSprite(PHOTO_W, PHOTO_H);
+    }
+
+    photoSprite.fillScreen(lgfx::color888(0, 0, 0));
+    photoReady = photoSprite.drawJpg((const uint8_t*)result.response.c_str(),
+                                     result.response.length(), 0, 0, PHOTO_W, PHOTO_H);
+
+    Serial.printf("[photo] %s bytes=%u decoded=%d heap %u->%u\n",
+                  photoIcao.c_str(), (unsigned)result.response.length(),
+                  photoReady ? 1 : 0, heapBefore, ESP.getFreeHeap());
+}
+
+void AircraftManager::LookupRoute(const String& callsign, TrackedAircraft& tracked)
+{
+    const HttpResult result = http.Get("https://api.adsbdb.com/v0/callsign/" + callsign);
+
+    // network-level failure is transient: leave routeCallsign unset to retry
+    if (!result.success && result.statusCode <= 0) {
+        Serial.printf("[adsbdb] route %s failed: %s\n", callsign.c_str(), result.errorMessage.c_str());
+        return;
+    }
+
+    // any definitive HTTP response (incl. 404 unknown callsign) is final
+    tracked.routeCallsign = callsign;
+    tracked.routeOrigin = "";
+    tracked.routeDest = "";
+
+    JsonDocument doc;
+    if (deserializeJson(doc, result.response))
+        return;
+
+    JsonObject flightroute = doc["response"]["flightroute"];
+    if (flightroute.isNull()) {
+        Serial.printf("[adsbdb] route %s -> unknown\n", callsign.c_str());
+        return;
+    }
+
+    // prefer the short IATA code, fall back to ICAO
+    auto airportCode = [](JsonObject airport) -> String {
+        if (airport.isNull()) return "";
+        if (!airport["iata_code"].isNull()) return airport["iata_code"].as<String>();
+        if (!airport["icao_code"].isNull()) return airport["icao_code"].as<String>();
+        return "";
+    };
+
+    JsonObject origin = flightroute["origin"];
+    JsonObject destination = flightroute["destination"];
+    tracked.routeOrigin = airportCode(origin);
+    tracked.routeDest = airportCode(destination);
+
+    Serial.printf("[adsbdb] route %s -> %s->%s\n", callsign.c_str(),
+                  tracked.routeOrigin.c_str(), tracked.routeDest.c_str());
+}
+
+void AircraftManager::DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked)
 {
     const Aircraft& s = tracked.state;
     constexpr int cx = SCREEN_SIZE_DIV_2;
@@ -356,33 +477,51 @@ void AircraftManager::DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircr
         title = s.icao24;
         title.toUpperCase();
     }
+
+    // Page 0 leads with the photo (when decoded) and a tighter text set; page 1
+    // (and any aircraft without a photo) uses the full-height text layout.
+    const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
+    const bool showPhoto = hasPhoto && detailPage == 0;
+
+    int y;
     backbuffer.setTextSize(2);
     backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-    centered(title, 36);
+    if (showPhoto) {
+        photoSprite.pushSprite(&backbuffer, cx - PHOTO_W / 2, 30);
+        centered(title, 136);
+        y = 162;
+    } else {
+        centered(title, 36);
+        y = 70;
+    }
 
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     const int lineHeight = backbuffer.fontHeight() + 5;
-    int y = 70;
     auto line = [&](const String& str) {
         if (str.isEmpty()) return;
         centered(str, y);
         y += lineHeight;
     };
 
-    // enrichment (shown when adsbdb has resolved it)
+    // identity first (route + type + operator), shown in both layouts
+    if (!tracked.routeOrigin.isEmpty() && !tracked.routeDest.isEmpty())
+        line(tracked.routeOrigin + " -> " + tracked.routeDest);
     if (!tracked.typeCode.isEmpty())     line("Type: " + tracked.typeCode);
     if (!tracked.operatorName.isEmpty()) line(tracked.operatorName);
-    if (!tracked.registration.isEmpty()) line("Reg: " + tracked.registration);
 
-    // live telemetry
-    line("Alt: " + String(lroundf(s.baroAltitude)) + " m");
-    line("Spd: " + String(lroundf(s.velocity)) + " m/s");
-    line("Hdg: " + String(lroundf(s.trueTrack)) + " deg");
-    if (!s.squawk.isEmpty()) line("Sqk: " + s.squawk);
+    // the photo page hides the full telemetry for space; the data page (and
+    // photo-less aircraft) show everything
+    if (!showPhoto) {
+        if (!tracked.registration.isEmpty()) line("Reg: " + tracked.registration);
+        line("Alt: " + String(lroundf(s.baroAltitude)) + " m");
+        line("Spd: " + String(lroundf(s.velocity)) + " m/s");
+        line("Hdg: " + String(lroundf(s.trueTrack)) + " deg");
+        if (!s.squawk.isEmpty()) line("Sqk: " + s.squawk);
+    }
 
     backbuffer.setTextColor(lgfx::color888(0, 110, 0));
-    centered("tap to go back", SCREEN_SIZE - 34);
+    centered(showPhoto ? "tap for details" : "tap to go back", SCREEN_SIZE - 34);
 }
 
 void AircraftManager::ProcessMetadataLookups()
@@ -436,9 +575,10 @@ void AircraftManager::LookupAircraftMetadata(const String& icao24, TrackedAircra
         return;
     }
 
-    tracked.typeCode     = aircraft["icao_type"].isNull()        ? "" : aircraft["icao_type"].as<String>();
-    tracked.operatorName = aircraft["registered_owner"].isNull() ? "" : aircraft["registered_owner"].as<String>();
-    tracked.registration = aircraft["registration"].isNull()     ? "" : aircraft["registration"].as<String>();
+    tracked.typeCode     = aircraft["icao_type"].isNull()           ? "" : aircraft["icao_type"].as<String>();
+    tracked.operatorName = aircraft["registered_owner"].isNull()    ? "" : aircraft["registered_owner"].as<String>();
+    tracked.registration = aircraft["registration"].isNull()        ? "" : aircraft["registration"].as<String>();
+    tracked.photoUrl     = aircraft["url_photo_thumbnail"].isNull() ? "" : aircraft["url_photo_thumbnail"].as<String>();
 
     Serial.printf("[adsbdb] %s -> type=%s operator=%s reg=%s\n",
                   icao24.c_str(), tracked.typeCode.c_str(),
