@@ -93,6 +93,10 @@ void setup()
   Serial.printf("[WiFi] autoConnect() returned %s\n",
                 connected ? "true (connected)" : "false (portal timed out / not connected)");
 
+  // start NTP in UTC; the on-screen clock applies the configured offset, and the
+  // solar auto-dim works directly in UTC
+  configTime(0, 0, "pool.ntp.org");
+
   // begin background server for configuration
   configServer.Initialise();
 

@@ -60,6 +60,13 @@ private:
     unsigned long fetchInterval = 0;
     unsigned long lastFetch = 999999;
 
+    // backlight + clock
+    uint8_t configuredBrightness = 255; // day/base level from the slider
+    uint8_t currentBrightness = 255;    // currently applied level (avoids redundant writes)
+    bool autoDim = true;                // dim at night based on solar elevation
+    long utcOffsetSec = 0;              // local time = UTC + this, for the clock
+    unsigned long lastBrightnessCheck = 0;
+
     ConfigurationWebServer& configServer;
     OpenSkyAuthTokenHandler& authHandler;
     HttpRequestManager& http;
@@ -77,7 +84,10 @@ private:
     void DrawList(LGFX_Sprite& backbuffer);
     void DrawStats(LGFX_Sprite& backbuffer);
     void DrawScreenIndicator(LGFX_Sprite& backbuffer) const;
+    void DrawClock(LGFX_Sprite& backbuffer) const;
     std::vector<String> SortedAircraftByDistance();
+
+    void UpdateBrightness(); // apply solar day/night dimming (throttled)
 
     void HandleTouch();             // poll the touch panel, classify tap vs swipe
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal

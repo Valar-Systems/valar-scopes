@@ -121,6 +121,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             %HIGHLIGHT%
                             class="px-3 sm:px-1 accent-green-500">
                     </label>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Auto-dim at night:</span>
+                        <input
+                            name="autodim"
+                            type="checkbox"
+                            %AUTODIM%
+                            class="px-3 sm:px-1 accent-green-500">
+                    </label>
                 </div>
 
                 <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -132,6 +140,18 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         max="255"
                         value='%BRIGHTNESS%'
                         class="flex-1 w-full accent-green-500">
+                </label>
+
+                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <span>Clock UTC offset (hrs):</span>
+                    <input
+                        name="tz-offset"
+                        type="number"
+                        min="-12"
+                        max="14"
+                        step="0.5"
+                        value='%TZ_OFFSET%'
+                        class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
                 </label>
 
                 <fieldset class="border border-green-500 p-3">
@@ -251,7 +271,12 @@ void ConfigurationWebServer::Initialise() {
         const String trailEnabled = prefs.getString("trail", "true");
         const String altColorEnabled = prefs.getString("altcolor", "true");
         const String highlightEnabled = prefs.getString("highlight", "true");
+        const String autoDimEnabled = prefs.getString("autodim", "true");
         const String brightness = prefs.getString("brightness", "255");
+        // default the clock offset to the nominal zone from longitude (15 deg/hour)
+        const String tzOffset = prefs.isKey("tz-offset")
+            ? prefs.getString("tz-offset", "0")
+            : String((int)round(longitude.toFloat() / 15.0));
 
         // Build the per-field info checkboxes from the shared table so the form
         // always reflects exactly the fields the renderer knows how to draw.
@@ -278,7 +303,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, brightness, infoFieldsHtml]
+            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, infoFieldsHtml]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -293,7 +318,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
                 if (var == "ALTCOLOR")       return altColorEnabled == "true" ? "checked" : "";
                 if (var == "HIGHLIGHT")      return highlightEnabled == "true" ? "checked" : "";
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
+                if (var == "TZ_OFFSET")      return tzOffset;
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 return "";
             }
@@ -326,6 +353,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("radius");
         TrySaveParam("radius-unit");
         TrySaveParam("brightness");
+        TrySaveParam("tz-offset");
         TrySaveParam("opensky-id");
 
         const auto* param = request->getParam("opensky-secret", true);
@@ -341,6 +369,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("trail", request->hasParam("trail", true) ? "true" : "false");
         prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");
         prefs.putString("highlight", request->hasParam("highlight", true) ? "true" : "false");
+        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
         prefs.putString("infotext", request->hasParam("infotext", true) ? "true" : "false");
 
         // an unchecked checkbox isn't sent in the form body, so hasParam() is the

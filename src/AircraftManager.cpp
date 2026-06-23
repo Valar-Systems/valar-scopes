@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <time.h>
 
 constexpr int SCREEN_SIZE = 240;
 constexpr int SCREEN_SIZE_DIV_2 = (SCREEN_SIZE / 2);
@@ -35,6 +36,31 @@ uint32_t altitudeColor(float altMeters)
     if (altMeters < 6000.0f) return lgfx::color888(255, 255, 0);   // yellow
     if (altMeters < 9000.0f) return lgfx::color888(0, 255, 255);   // cyan
     return lgfx::color888(255, 255, 255);                          // white   - high
+}
+
+// True when the sun is below the horizon at (lat, lon) for the given UTC time.
+// Uses the NOAA solar-position equations and evaluates the sun's elevation
+// directly, which sidesteps the UTC day-wrap pitfalls of comparing against
+// sunrise/sunset clock times.
+bool isNightNow(double latDeg, double lonDeg, time_t nowUtc)
+{
+    struct tm t;
+    gmtime_r(&nowUtc, &t);
+
+    const double gamma = 2.0 * PI / 365.0 * (t.tm_yday + (t.tm_hour - 12) / 24.0);
+    const double eqTime = 229.18 * (0.000075 + 0.001868 * cos(gamma) - 0.032077 * sin(gamma)
+                          - 0.014615 * cos(2 * gamma) - 0.040849 * sin(2 * gamma));
+    const double decl = 0.006918 - 0.399912 * cos(gamma) + 0.070257 * sin(gamma)
+                        - 0.006758 * cos(2 * gamma) + 0.000907 * sin(2 * gamma)
+                        - 0.002697 * cos(3 * gamma) + 0.00148 * sin(3 * gamma);
+
+    const double nowMin = t.tm_hour * 60.0 + t.tm_min + t.tm_sec / 60.0;
+    const double trueSolarMin = nowMin + eqTime + 4.0 * lonDeg; // longitude east-positive
+    const double hourAngle = radians(trueSolarMin / 4.0 - 180.0);
+    const double latRad = radians(latDeg);
+    const double elevation = asin(sin(latRad) * sin(decl) + cos(latRad) * cos(decl) * cos(hourAngle));
+
+    return degrees(elevation) < -0.833; // standard sunrise/sunset refraction angle
 }
 
 } // namespace
@@ -110,11 +136,23 @@ void AircraftManager::Initialise()
     fetchInterval = MS_PER_DAY / dailyRequestBudget;
 
     // backlight brightness (PWM). Default full; clamp away from 0 so the screen
-    // can't be saved completely dark.
+    // can't be saved completely dark. This is the daytime/base level; auto-dim
+    // reduces it at night.
     const String brightnessStr = configServer.GetStoredString("brightness");
-    const uint8_t brightness = brightnessStr.isEmpty()
+    configuredBrightness = brightnessStr.isEmpty()
         ? 255 : (uint8_t)constrain(brightnessStr.toInt(), 10, 255);
-    tft.setBrightness(brightness);
+    tft.setBrightness(configuredBrightness);
+    currentBrightness = configuredBrightness;
+
+    const String autoDimStr = configServer.GetStoredString("autodim");
+    autoDim = autoDimStr.isEmpty() ? true : (autoDimStr == "true");
+
+    // clock offset: default to the nominal zone from longitude (15 deg/hour)
+    const String tzStr = configServer.GetStoredString("tz-offset");
+    utcOffsetSec = tzStr.isEmpty() ? (long)lround(lon / 15.0) * 3600
+                                   : (long)(tzStr.toFloat() * 3600.0f);
+
+    lastBrightnessCheck = 0; // re-evaluate dimming promptly after a reload
 
     // Force the next Update() to fetch immediately. On a config reload this means
     // a changed location/radius refreshes the radar right away rather than after
@@ -126,6 +164,9 @@ void AircraftManager::Initialise()
 void AircraftManager::Update()
 {
     unsigned long now = millis();
+
+    // solar day/night backlight dimming (self-throttled)
+    UpdateBrightness();
 
     // fill in the selected aircraft's details first, so the detail card from the
     // prior frame's tap stays on screen during each brief lookup
@@ -221,6 +262,7 @@ void AircraftManager::Draw(LGFX_Sprite& backbuffer)
         default:            DrawRadar(backbuffer);  break;
     }
     DrawScreenIndicator(backbuffer);
+    DrawClock(backbuffer);
 }
 
 void AircraftManager::DrawRadar(LGFX_Sprite& backbuffer)
@@ -408,6 +450,46 @@ void AircraftManager::DrawScreenIndicator(LGFX_Sprite& backbuffer) const
         const bool active = (i == (int)screen);
         backbuffer.fillCircle(cx - 12 + i * 12, y, active ? 3 : 2,
                               active ? lgfx::color888(0, 255, 0) : lgfx::color888(0, 80, 0));
+    }
+}
+
+void AircraftManager::DrawClock(LGFX_Sprite& backbuffer) const
+{
+    const time_t utc = time(nullptr);
+    if (utc < 1600000000) return; // NTP not synced yet
+
+    const time_t local = utc + utcOffsetSec;
+    struct tm t;
+    gmtime_r(&local, &t);
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02d:%02d", t.tm_hour, t.tm_min);
+
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(0, 170, 0));
+    backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, SCREEN_SIZE - 30);
+}
+
+void AircraftManager::UpdateBrightness()
+{
+    const unsigned long now = millis();
+    if (now - lastBrightnessCheck < 20000) return; // re-evaluate every 20s
+    lastBrightnessCheck = now;
+
+    uint8_t target = configuredBrightness;
+
+    const time_t utc = time(nullptr);
+    const bool synced = utc > 1600000000; // NTP has set the clock (>~2020)
+    const bool night = synced && isNightNow(lat, lon, utc);
+    if (autoDim && night) {
+        target = configuredBrightness / 5; // ~20% of day level at night
+        if (target < 10) target = 10;
+    }
+
+    if (target != currentBrightness) {
+        tft.setBrightness(target);
+        currentBrightness = target;
+        Serial.printf("[dim] brightness -> %u (%s)\n",
+                      target, target < configuredBrightness ? "night" : "day");
     }
 }
 
