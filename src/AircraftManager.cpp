@@ -79,6 +79,9 @@ void AircraftManager::Update()
 {
     unsigned long now = millis();
 
+    // handle taps every loop so the UI stays responsive between fetches
+    HandleTouch();
+
     // enrich a tracked aircraft with adsbdb metadata (throttled internally)
     ProcessMetadataLookups();
 
@@ -147,6 +150,18 @@ void AircraftManager::Update()
 
 void AircraftManager::Draw(LGFX_Sprite& backbuffer)
 {
+    // detail view: show the selected aircraft's card, falling back to the radar
+    // if it has since dropped out of the feed
+    if (viewMode == ViewMode::Detail) {
+        auto it = trackedAircraft.find(selectedIcao);
+        if (it != trackedAircraft.end()) {
+            DrawDetailCard(backbuffer, it->second);
+            return;
+        }
+        viewMode = ViewMode::Radar;
+        selectedIcao = "";
+    }
+
     DrawRadarCircles(backbuffer);
 
     for (auto& [icao, tracked] : trackedAircraft) {
@@ -268,6 +283,106 @@ void AircraftManager::DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAi
     // connect the most recent sample to the live aircraft position so the trail
     // stays attached to the marker between samples
     backbuffer.drawLine(prevX, prevY, headX, headY, lgfx::color888(0, 220, 0));
+}
+
+void AircraftManager::HandleTouch()
+{
+    int32_t tx = 0, ty = 0;
+    const bool touched = tft.getTouch(&tx, &ty);
+
+    // act only on the press edge so a finger held down counts as a single tap
+    if (touched && !wasTouched)
+        HandleTap(tx, ty);
+
+    wasTouched = touched;
+}
+
+void AircraftManager::HandleTap(int tx, int ty)
+{
+    // in the detail view, any tap returns to the radar
+    if (viewMode == ViewMode::Detail) {
+        viewMode = ViewMode::Radar;
+        selectedIcao = "";
+        return;
+    }
+
+    // radar view: select the nearest airborne aircraft within the tap radius
+    constexpr int TAP_RADIUS = 20;
+    int bestDist2 = TAP_RADIUS * TAP_RADIUS;
+    String bestIcao = "";
+
+    for (auto& [icao, tracked] : trackedAircraft) {
+        if (tracked.state.onGround) continue;
+
+        auto [lat, lon] = tracked.GetDisplayPosition();
+        auto [x, y] = ProjectCoordinateToScreen(lat, lon);
+        const int dx = x - tx;
+        const int dy = y - ty;
+        const int dist2 = dx * dx + dy * dy;
+
+        if (dist2 <= bestDist2) {
+            bestDist2 = dist2;
+            bestIcao = icao;
+        }
+    }
+
+    if (!bestIcao.isEmpty()) {
+        selectedIcao = bestIcao;
+        viewMode = ViewMode::Detail;
+        Serial.printf("[touch] tap (%d,%d) selected %s\n", tx, ty, bestIcao.c_str());
+    } else {
+        Serial.printf("[touch] tap (%d,%d) hit nothing\n", tx, ty);
+    }
+}
+
+void AircraftManager::DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked) const
+{
+    const Aircraft& s = tracked.state;
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+
+    backbuffer.fillScreen(lgfx::color888(0, 0, 0));
+    // frame ring to match the round display
+    backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
+
+    auto centered = [&](const String& str, int yy) {
+        const int x = cx - static_cast<int>(backbuffer.textWidth(str)) / 2;
+        backbuffer.drawString(str, x, yy);
+    };
+
+    // title: callsign, or the ICAO address if there's no callsign
+    String title = s.callsign;
+    title.trim();
+    if (title.isEmpty()) {
+        title = s.icao24;
+        title.toUpperCase();
+    }
+    backbuffer.setTextSize(2);
+    backbuffer.setTextColor(lgfx::color888(0, 255, 0));
+    centered(title, 36);
+
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    const int lineHeight = backbuffer.fontHeight() + 5;
+    int y = 70;
+    auto line = [&](const String& str) {
+        if (str.isEmpty()) return;
+        centered(str, y);
+        y += lineHeight;
+    };
+
+    // enrichment (shown when adsbdb has resolved it)
+    if (!tracked.typeCode.isEmpty())     line("Type: " + tracked.typeCode);
+    if (!tracked.operatorName.isEmpty()) line(tracked.operatorName);
+    if (!tracked.registration.isEmpty()) line("Reg: " + tracked.registration);
+
+    // live telemetry
+    line("Alt: " + String(lroundf(s.baroAltitude)) + " m");
+    line("Spd: " + String(lroundf(s.velocity)) + " m/s");
+    line("Hdg: " + String(lroundf(s.trueTrack)) + " deg");
+    if (!s.squawk.isEmpty()) line("Sqk: " + s.squawk);
+
+    backbuffer.setTextColor(lgfx::color888(0, 110, 0));
+    centered("tap to go back", SCREEN_SIZE - 34);
 }
 
 void AircraftManager::ProcessMetadataLookups()

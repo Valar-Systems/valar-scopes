@@ -7,6 +7,7 @@ class LGFX : public lgfx::LGFX_Device
     lgfx::Panel_GC9A01 _panel;
     lgfx::Bus_SPI _bus;
     lgfx::Light_PWM _light;
+    lgfx::Touch_CST816S _touch;
 
 public:
     LGFX(void)
@@ -36,6 +37,25 @@ public:
             cfg.invert = false;
             _light.config(cfg);
             _panel.setLight(&_light);
+        }
+        {
+            // CST816S capacitive touch on its own I2C bus (not the display SPI)
+            auto cfg = _touch.config();
+            cfg.x_min = 0;
+            cfg.x_max = 239;
+            cfg.y_min = 0;
+            cfg.y_max = 239;
+            cfg.pin_int = 0;
+            cfg.pin_rst = 1;
+            cfg.bus_shared = false;
+            cfg.offset_rotation = 0;
+            cfg.i2c_port = 0;
+            cfg.pin_sda = 4;
+            cfg.pin_scl = 5;
+            cfg.i2c_addr = 0x15;
+            cfg.freq = 400000;
+            _touch.config(cfg);
+            _panel.setTouch(&_touch);
         }
         setPanel(&_panel);
     }

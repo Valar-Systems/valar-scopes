@@ -113,7 +113,7 @@ void loop()
   backbuffer.fillScreen(lgfx::color888(0, 0, 0));
 
   String renderScanlines = configServer.GetStoredString("scanline");
-  if (renderScanlines.isEmpty() || renderScanlines == "true") {
+  if ((renderScanlines.isEmpty() || renderScanlines == "true") && !aircraftManager.IsDetailView()) {
     DrawScanLines(backbuffer,
       SCREEN_SIZE_DIV_2 - 1,
       SCREEN_SIZE_DIV_2 - 1,
