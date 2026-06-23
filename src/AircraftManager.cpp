@@ -904,7 +904,7 @@ void AircraftManager::SendFlyoverNotification(const TrackedAircraft& tracked)
 
     const HttpResult result = http.Post(
         "https://ntfy.sh/" + ntfyTopic, body,
-        { { "Title", "MicroRadar flyover" }, { "Tags", "airplane" } });
+        { { "Title", "Blipscope flyover" }, { "Tags", "airplane" } });
 
     Serial.printf("[ntfy] %s -> %s\n", callsign.c_str(),
                   result.success ? "sent" : result.errorMessage.c_str());

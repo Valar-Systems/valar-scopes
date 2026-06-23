@@ -6,7 +6,7 @@
 
 namespace WiFiManagerHelpers
 {
-    // Per-device setup hotspot name, e.g. "MicroRadar-A1B2C3", so multiple
+    // Per-device setup hotspot name, e.g. "Blipscope-A1B2C3", so multiple
     // boards in setup mode on the same network can be told apart.
     inline const String& WiFiManagerName() { return DeviceIdentity::Name(); }
 
@@ -15,7 +15,7 @@ namespace WiFiManagerHelpers
         // DEV level prints the SSID/password the portal actually received, plus the
         // full connect flow -- lets us confirm the portal didn't mangle the credentials.
         wm.setDebugOutput(true, WM_DEBUG_DEV);
-        wm.setTitle("Micro Radar - Setup WiFi");
+        wm.setTitle("Blipscope - Setup WiFi");
         wm.setCustomHeadElement("<style>body{background:#111;color:#00ff00;font-family:monospace;} div:has(> a){background:#00ff00;} a:hover{color:#111;}</style>");
 
         // unique DHCP/mDNS hostname so the router lists each board distinctly

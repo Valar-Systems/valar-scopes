@@ -1,5 +1,5 @@
 <h1 align=center>
-  📡 Micro Radar
+  📡 Blipscope
 </h1>
 <h6 align=center>
   a tiny open-source flight radar for your desk
@@ -163,13 +163,13 @@ Read more about PlatformIO [here](https://docs.platformio.org/en/latest/).
 
 ### First Boot
 
-On first boot, the radar broadcasts a WiFi hotspot called `MicroRadar-Setup`. Connect to it from your phone or laptop and a configuration page will appear automatically (or go to your browser if it doesn't). Enter your WiFi credentials and hit save. The board will restart and connect to your network.
+On first boot, the radar broadcasts a WiFi hotspot called `Blipscope-Setup`. Connect to it from your phone or laptop and a configuration page will appear automatically (or go to your browser if it doesn't). Enter your WiFi credentials and hit save. The board will restart and connect to your network.
 
 If the hotspot doesn't appear straight away, give it a moment. If it still hasn't appeared after 30 seconds, exit the WiFi settings on your device and go back in to force a refresh. It'll usually show up then.
 
 ### Configuration
 
-Once connected to your network, the radar config is accessible at [http://microradar.local](http://microradar.local) from any device on the same network.
+Once connected to your network, the radar config is accessible at [http://blipscope.local](http://blipscope.local) from any device on the same network.
 
 Here you can set:
 

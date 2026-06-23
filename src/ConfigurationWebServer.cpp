@@ -9,12 +9,12 @@ static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Configure Micro Radar</title>
+        <title>Configure Blipscope</title>
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
     </head>
     <body class="font-mono bg-gray-900 text-green-500 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
         <fieldset class="border border-green-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Micro Radar</legend>
+            <legend class="px-2">Configure Blipscope</legend>
 
             <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
 
@@ -263,7 +263,7 @@ void ConfigurationWebServer::Initialise() {
     prefs.begin("config", false);
     prefs.end();
 
-    // start mDNS with a per-device hostname (e.g. MicroRadar-A1B2C3.local)
+    // start mDNS with a per-device hostname (e.g. Blipscope-A1B2C3.local)
     // so multiple boards on the same network don't collide
     if (!MDNS.begin(DeviceIdentity::Name().c_str())) {
         Serial.println("[WARN] Failed to start mDNS. Continuing without mDNS...");
