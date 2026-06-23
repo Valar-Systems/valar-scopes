@@ -37,8 +37,10 @@ void AircraftManager::Initialise()
     // configuration
     const String renderText = configServer.GetStoredString("infotext");
     const String renderTris = configServer.GetStoredString("triangle");
+    const String renderTrail = configServer.GetStoredString("trail");
     if (!renderText.isEmpty()) displayInfoText = renderText == "true" ? true : false;
     if (!renderTris.isEmpty()) displayTriangles = renderTris == "true" ? true : false;
+    if (!renderTrail.isEmpty()) displayTrails = renderTrail == "true" ? true : false;
 
     // which individual info lines to show. An unset key (device never saved, or
     // an older save predating this field) falls back to the field's default.
@@ -151,8 +153,16 @@ void AircraftManager::Draw(LGFX_Sprite& backbuffer)
         if (tracked.state.onGround) continue;
 
         tracked.Tick();
+
+        if (displayTrails)
+            tracked.SampleTrail();
+
         auto [predLat, predLon] = tracked.GetDisplayPosition();
         auto [x, y] = ProjectCoordinateToScreen(predLat, predLon);
+
+        // draw the trail first so the marker and label sit on top of it
+        if (displayTrails)
+            DrawAircraftTrail(backbuffer, tracked, x, y);
 
         if (displayInfoText)
             DrawAircraftInfo(backbuffer, x, y, tracked);
@@ -229,6 +239,35 @@ void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y
     const float rightY = y - dy * TRIANGLE_LENGTH * 0.5f - py * TRIANGLE_WIDTH * 0.5f;
 
     backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, lgfx::color888(0, 255, 0));
+}
+
+void AircraftManager::DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const
+{
+    const int n = tracked.TrailSize();
+    if (n < 1) return;
+
+    int prevX = 0, prevY = 0;
+    bool havePrev = false;
+    for (int i = 0; i < n; ++i) {
+        auto [lat, lon] = tracked.TrailPointAt(i);
+        auto [x, y] = ProjectCoordinateToScreen(lat, lon);
+
+        if (havePrev) {
+            // Fade from dim (oldest) to bright (newest). The floor of 40 keeps
+            // the tail above the 8-bit display's green quantization step so it
+            // doesn't vanish.
+            const uint8_t brightness = 40 + static_cast<uint8_t>((180 * i) / n);
+            backbuffer.drawLine(prevX, prevY, x, y, lgfx::color888(0, brightness, 0));
+        }
+
+        prevX = x;
+        prevY = y;
+        havePrev = true;
+    }
+
+    // connect the most recent sample to the live aircraft position so the trail
+    // stays attached to the marker between samples
+    backbuffer.drawLine(prevX, prevY, headX, headY, lgfx::color888(0, 220, 0));
 }
 
 void AircraftManager::ProcessMetadataLookups()

@@ -24,6 +24,17 @@ struct TrackedAircraft {
     String operatorName = "";
     String registration = "";
 
+    // Recent display positions for the fading trail, stored as geographic
+    // coordinates (so they reproject correctly) in a ring buffer sampled once a
+    // second. ~TRAIL_CAPACITY seconds of history.
+    struct TrailPoint { float lat; float lon; };
+    static constexpr int TRAIL_CAPACITY = 60;
+    static constexpr unsigned long TRAIL_SAMPLE_MS = 1000;
+    TrailPoint trail[TRAIL_CAPACITY];
+    int trailWrite = 0;                 // index of the next slot to overwrite
+    int trailCount = 0;                 // valid points so far (<= TRAIL_CAPACITY)
+    unsigned long lastTrailSample = 0;
+
     // first appearance, no blend needed
     TrackedAircraft(const Aircraft& ac, unsigned long now)
         : state(ac), lastSeen(now),
@@ -51,6 +62,29 @@ struct TrackedAircraft {
 
         const float blendSpeed = 0.15f; // lower = slower, higher = faster
         blendAlpha = min(blendAlpha + deltaSeconds * blendSpeed, 1.0f);
+    }
+
+    // Append the current display position to the trail at most once per
+    // TRAIL_SAMPLE_MS; call every frame (it self-throttles).
+    void SampleTrail() {
+        unsigned long now = millis();
+        if (trailCount > 0 && now - lastTrailSample < TRAIL_SAMPLE_MS)
+            return;
+        lastTrailSample = now;
+
+        auto [lat, lon] = GetDisplayPosition();
+        trail[trailWrite] = { lat, lon };
+        trailWrite = (trailWrite + 1) % TRAIL_CAPACITY;
+        if (trailCount < TRAIL_CAPACITY)
+            ++trailCount;
+    }
+
+    int TrailSize() const { return trailCount; }
+
+    // Trail points oldest (i = 0) to newest (i = TrailSize() - 1).
+    std::pair<float, float> TrailPointAt(int i) const {
+        const int idx = (trailWrite - trailCount + i + TRAIL_CAPACITY) % TRAIL_CAPACITY;
+        return { trail[idx].lat, trail[idx].lon };
     }
 
     std::pair<float, float> GetDisplayPosition() const {

@@ -20,6 +20,7 @@ private:
 
     bool displayInfoText = true;
     bool displayTriangles = true;
+    bool displayTrails = true;
 
     // Parallel to AIRCRAFT_INFO_FIELDS: which info lines the user has enabled.
     // Populated once in Initialise() (config changes restart the device).
@@ -42,6 +43,7 @@ private:
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
     void DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
+    void DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const;
 
     // Resolve type/operator/registration for tracked aircraft via adsbdb.com,
     // one at a time and throttled, so the blocking HTTP calls don't stall the
