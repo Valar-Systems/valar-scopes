@@ -57,6 +57,13 @@ private:
     bool metadataNeeded = false;
     unsigned long lastMetadataLookup = 0;
 
+    // Watchlist: aircraft whose callsign/icao/registration/type starts with one
+    // of these (lowercased) prefixes is flagged on screen and triggers an ntfy
+    // flyover alert. Empty watchlist disables all of it.
+    std::vector<String> watchlist;
+    String ntfyTopic = "";
+    unsigned long lastNotifyCheck = 0;
+
     unsigned long fetchInterval = 0;
     unsigned long lastFetch = 999999;
 
@@ -105,6 +112,10 @@ private:
     // render loop more than the existing OpenSky fetch already does.
     void ProcessMetadataLookups();
     void LookupAircraftMetadata(const String& icao24, TrackedAircraft& tracked);
+
+    bool MatchesWatchlist(const TrackedAircraft& tracked) const;
+    void ProcessWatchlistNotifications();
+    void SendFlyoverNotification(const TrackedAircraft& tracked);
 
 public:
     AircraftManager(ConfigurationWebServer& config, OpenSkyAuthTokenHandler& auth, HttpRequestManager& httpManager, LGFX& tftGfx)

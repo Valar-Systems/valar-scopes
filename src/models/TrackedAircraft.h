@@ -20,6 +20,7 @@ struct TrackedAircraft {
     // aircraft adsbdb doesn't know), so it's never looked up again.
     enum class MetadataState : uint8_t { NotFetched, Fetched };
     MetadataState metadataState = MetadataState::NotFetched;
+    bool watchNotified = false;  // a flyover alert has been sent for this tracking session
     String typeCode = "";    // adsbdb icao_type, e.g. "B738"
     String typeName = "";    // adsbdb full model, e.g. "Boeing 737-800"
     String operatorName = "";

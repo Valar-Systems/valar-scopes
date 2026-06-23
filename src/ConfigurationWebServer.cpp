@@ -170,6 +170,24 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     </div>
                 </fieldset>
 
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Watchlist &amp; alerts</legend>
+                    <label class="flex flex-col gap-1">
+                        <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
+                        <textarea
+                            name="watchlist"
+                            rows="2"
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">%WATCHLIST%</textarea>
+                    </label>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                        <span>ntfy.sh topic (phone alerts):</span>
+                        <input
+                            name="ntfy-topic"
+                            value='%NTFY_TOPIC%'
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                </fieldset>
+
                 <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
                     <input
                         type="submit"
@@ -277,6 +295,8 @@ void ConfigurationWebServer::Initialise() {
         const String tzOffset = prefs.isKey("tz-offset")
             ? prefs.getString("tz-offset", "0")
             : String((int)round(longitude.toFloat() / 15.0));
+        const String watchlist = prefs.getString("watchlist", "");
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
 
         // Build the per-field info checkboxes from the shared table so the form
         // always reflects exactly the fields the renderer knows how to draw.
@@ -303,7 +323,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, infoFieldsHtml]
+            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, infoFieldsHtml]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -321,6 +341,8 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "TZ_OFFSET")      return tzOffset;
+                if (var == "WATCHLIST")      return watchlist;
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 return "";
             }
@@ -354,6 +376,8 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("radius-unit");
         TrySaveParam("brightness");
         TrySaveParam("tz-offset");
+        TrySaveParam("watchlist");
+        TrySaveParam("ntfy-topic");
         TrySaveParam("opensky-id");
 
         const auto* param = request->getParam("opensky-secret", true);

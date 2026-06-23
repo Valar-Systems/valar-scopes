@@ -122,6 +122,26 @@ void AircraftManager::Initialise()
             metadataNeeded = true;
     }
 
+    // watchlist: split on commas/newlines/semicolons into lowercased prefixes
+    watchlist.clear();
+    const String wl = configServer.GetStoredString("watchlist");
+    int tokenStart = 0;
+    for (int i = 0; i <= (int)wl.length(); ++i) {
+        const char c = (i < (int)wl.length()) ? wl[i] : ',';
+        if (c == ',' || c == ';' || c == '\n' || c == '\r') {
+            String token = wl.substring(tokenStart, i);
+            token.trim();
+            token.toLowerCase();
+            if (!token.isEmpty()) watchlist.push_back(token);
+            tokenStart = i + 1;
+        }
+    }
+    ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfyTopic.trim();
+
+    // a watchlist needs registration/type, so make sure metadata gets fetched
+    if (!watchlist.empty()) metadataNeeded = true;
+
     // calculate how often we can call OpenSky API before being rate limited
     constexpr int MS_PER_DAY = 24 * 60 * 60 * 1000;
     constexpr int ANONYMOUS_TOKENS_PER_DAY = 400;
@@ -177,6 +197,9 @@ void AircraftManager::Update()
 
     // enrich a tracked aircraft with adsbdb metadata (throttled internally)
     ProcessMetadataLookups();
+
+    // alert on watchlisted aircraft (throttled internally)
+    ProcessWatchlistNotifications();
 
     // fetch cycle
     if (now - lastFetch >= fetchInterval) {
@@ -331,6 +354,18 @@ void AircraftManager::DrawRadar(LGFX_Sprite& backbuffer)
             if (icao == fastestIcao) highlight("FAST");
         }
 
+        // watchlisted contact: amber ring + always-on callsign
+        if (MatchesWatchlist(tracked)) {
+            const uint32_t AMBER = lgfx::color888(255, 140, 0);
+            backbuffer.drawCircle(x, y, 8, AMBER);
+            String cs = tracked.state.callsign;
+            cs.trim();
+            if (cs.isEmpty()) { cs = icao; cs.toUpperCase(); }
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(AMBER);
+            backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y - 16);
+        }
+
         // pinned ("tracked") contact: white reticle + always-on callsign
         if (icao == pinnedIcao) {
             const uint32_t PIN = lgfx::color888(255, 255, 255);
@@ -383,8 +418,10 @@ void AircraftManager::DrawList(LGFX_Sprite& backbuffer)
         const String alt = String(lroundf(t.state.baroAltitude)) + "m";
 
         const int y = LIST_ROW_TOP + r * LIST_ROW_H;
-        backbuffer.setTextColor(order[idx] == pinnedIcao ? lgfx::color888(255, 255, 255)
-                                                         : lgfx::color888(0, 200, 0));
+        uint32_t rowColor = lgfx::color888(0, 200, 0);
+        if (MatchesWatchlist(t))         rowColor = lgfx::color888(255, 140, 0); // amber
+        if (order[idx] == pinnedIcao)    rowColor = lgfx::color888(255, 255, 255); // pin wins
+        backbuffer.setTextColor(rowColor);
         backbuffer.drawString(cs, 40, y);
         backbuffer.drawString(type, 120, y);
         backbuffer.drawString(alt, 162, y);
@@ -813,6 +850,64 @@ void AircraftManager::LoadPhoto(const String& url)
     Serial.printf("[photo] %s bytes=%u decoded=%d heap %u->%u\n",
                   photoIcao.c_str(), (unsigned)result.response.length(),
                   photoReady ? 1 : 0, heapBefore, ESP.getFreeHeap());
+}
+
+bool AircraftManager::MatchesWatchlist(const TrackedAircraft& tracked) const
+{
+    if (watchlist.empty())
+        return false;
+
+    String callsign = tracked.state.callsign; callsign.trim(); callsign.toLowerCase();
+    String icao = tracked.state.icao24; icao.toLowerCase();
+    String reg = tracked.registration; reg.toLowerCase();
+    String type = tracked.typeCode; type.toLowerCase();
+
+    for (const String& w : watchlist) {
+        if (callsign.startsWith(w) && !callsign.isEmpty()) return true;
+        if (icao.startsWith(w) && !icao.isEmpty())         return true;
+        if (reg.startsWith(w) && !reg.isEmpty())           return true;
+        if (type.startsWith(w) && !type.isEmpty())         return true;
+    }
+    return false;
+}
+
+void AircraftManager::ProcessWatchlistNotifications()
+{
+    if (watchlist.empty() || ntfyTopic.isEmpty())
+        return;
+
+    const unsigned long now = millis();
+    if (now - lastNotifyCheck < 2000) // one blocking POST at a time, spaced out
+        return;
+    lastNotifyCheck = now;
+
+    for (auto& [icao, tracked] : trackedAircraft) {
+        if (tracked.state.onGround || tracked.watchNotified) continue;
+        if (!MatchesWatchlist(tracked)) continue;
+
+        SendFlyoverNotification(tracked);
+        tracked.watchNotified = true;
+        return; // at most one notification per tick
+    }
+}
+
+void AircraftManager::SendFlyoverNotification(const TrackedAircraft& tracked)
+{
+    String callsign = tracked.state.callsign;
+    callsign.trim();
+    if (callsign.isEmpty()) { callsign = tracked.state.icao24; callsign.toUpperCase(); }
+
+    String body = callsign;
+    if (!tracked.typeCode.isEmpty())     body += " (" + tracked.typeCode + ")";
+    if (!tracked.operatorName.isEmpty()) body += " " + tracked.operatorName;
+    body += " at " + String(lroundf(tracked.state.baroAltitude)) + " m";
+
+    const HttpResult result = http.Post(
+        "https://ntfy.sh/" + ntfyTopic, body,
+        { { "Title", "MicroRadar flyover" }, { "Tags", "airplane" } });
+
+    Serial.printf("[ntfy] %s -> %s\n", callsign.c_str(),
+                  result.success ? "sent" : result.errorMessage.c_str());
 }
 
 void AircraftManager::LookupRoute(const String& callsign, TrackedAircraft& tracked)
