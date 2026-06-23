@@ -21,6 +21,7 @@ private:
     bool displayInfoText = true;
     bool displayTriangles = true;
     bool displayTrails = true;
+    bool displayAltColor = true;  // color aircraft markers by altitude band
 
     // Tap-to-select view state. Radar is the normal scope; Detail shows a single
     // aircraft's info card. selectedIcao is the trackedAircraft key being shown.
@@ -56,8 +57,9 @@ private:
     void DrawRadarCircles(LGFX_Sprite& backbuffer) const;
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
     void DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
-    void DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
+    void DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const;
     void DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const;
+    void DrawEmergencyAlert(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked);
 
     void HandleTouch();           // poll the touchscreen and act on a new tap

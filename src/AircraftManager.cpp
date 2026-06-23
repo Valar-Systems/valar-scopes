@@ -12,6 +12,28 @@ constexpr int PHOTO_H = 100;
 
 #include <ArduinoJson.h>
 
+namespace {
+
+// The international emergency squawk codes. These always trigger the alert
+// styling regardless of display settings.
+bool isEmergencySquawk(const String& squawk)
+{
+    return squawk == "7500" || squawk == "7600" || squawk == "7700";
+}
+
+// Marker color by barometric altitude (meters), low to high. Deliberately
+// avoids red, which is reserved for the emergency alert.
+uint32_t altitudeColor(float altMeters)
+{
+    if (altMeters < 1000.0f) return lgfx::color888(0, 255, 0);     // green   - low
+    if (altMeters < 3000.0f) return lgfx::color888(170, 255, 0);   // lime
+    if (altMeters < 6000.0f) return lgfx::color888(255, 255, 0);   // yellow
+    if (altMeters < 9000.0f) return lgfx::color888(0, 255, 255);   // cyan
+    return lgfx::color888(255, 255, 255);                          // white   - high
+}
+
+} // namespace
+
 void AircraftManager::Initialise()
 {
     // get centre point + radius
@@ -42,9 +64,11 @@ void AircraftManager::Initialise()
     const String renderText = configServer.GetStoredString("infotext");
     const String renderTris = configServer.GetStoredString("triangle");
     const String renderTrail = configServer.GetStoredString("trail");
+    const String renderAltColor = configServer.GetStoredString("altcolor");
     if (!renderText.isEmpty()) displayInfoText = renderText == "true" ? true : false;
     if (!renderTris.isEmpty()) displayTriangles = renderTris == "true" ? true : false;
     if (!renderTrail.isEmpty()) displayTrails = renderTrail == "true" ? true : false;
+    if (!renderAltColor.isEmpty()) displayAltColor = renderAltColor == "true" ? true : false;
 
     // which individual info lines to show. An unset key (device never saved, or
     // an older save predating this field) falls back to the field's default.
@@ -191,10 +215,18 @@ void AircraftManager::Draw(LGFX_Sprite& backbuffer)
         if (displayInfoText)
             DrawAircraftInfo(backbuffer, x, y, tracked);
 
-        if (displayTriangles)
-            DrawAircraftTriangle(backbuffer, x, y, tracked);
-        else
-            backbuffer.fillCircle(x, y, 3, lgfx::color888(0, 255, 0));
+        if (isEmergencySquawk(tracked.state.squawk)) {
+            DrawEmergencyAlert(backbuffer, x, y, tracked);
+        } else {
+            const uint32_t markerColor = displayAltColor
+                ? altitudeColor(tracked.state.baroAltitude)
+                : lgfx::color888(0, 255, 0);
+
+            if (displayTriangles)
+                DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
+            else
+                backbuffer.fillCircle(x, y, 3, markerColor);
+        }
     }
 }
 
@@ -245,7 +277,7 @@ void AircraftManager::DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, co
     }
 }
 
-void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
 {
     const float dx = std::sin(radians(tracked.state.trueTrack));
     const float dy = -std::cos(radians(tracked.state.trueTrack));
@@ -262,7 +294,28 @@ void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y
     const float rightX = x - dx * TRIANGLE_LENGTH * 0.5f - px * TRIANGLE_WIDTH * 0.5f;
     const float rightY = y - dy * TRIANGLE_LENGTH * 0.5f - py * TRIANGLE_WIDTH * 0.5f;
 
-    backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, lgfx::color888(0, 255, 0));
+    backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, color);
+}
+
+void AircraftManager::DrawEmergencyAlert(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+{
+    // expanding, fading "ping" ring to draw the eye to the emergency
+    const float phase = (millis() % 900) / 900.0f;   // 0..1, ~0.9s period
+    const int ringRadius = 4 + static_cast<int>(phase * 16.0f);
+    const uint8_t ringBrightness = static_cast<uint8_t>((1.0f - phase) * 255.0f);
+    backbuffer.drawCircle(x, y, ringRadius, lgfx::color888(ringBrightness, 0, 0));
+
+    // steady red marker
+    backbuffer.fillCircle(x, y, 3, lgfx::color888(255, 0, 0));
+
+    // always-visible red label: squawk code + what it means
+    const char* descriptor = "EMERG";
+    if (tracked.state.squawk == "7500")      descriptor = "HIJACK";
+    else if (tracked.state.squawk == "7600") descriptor = "NORDO";
+
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(255, 0, 0));
+    backbuffer.drawString(tracked.state.squawk + " " + descriptor, x + 6, y - 10);
 }
 
 void AircraftManager::DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const

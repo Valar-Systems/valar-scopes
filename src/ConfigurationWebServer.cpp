@@ -105,6 +105,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             %TRAIL%
                             class="px-3 sm:px-1 accent-green-500">
                     </label>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Altitude colors:</span>
+                        <input
+                            name="altcolor"
+                            type="checkbox"
+                            %ALTCOLOR%
+                            class="px-3 sm:px-1 accent-green-500">
+                    </label>
                 </div>
 
                 <fieldset class="border border-green-500 p-3">
@@ -208,6 +216,7 @@ void ConfigurationWebServer::Initialise() {
         const String infoTextEnabled = prefs.getString("infotext", "true");
         const String triangleEnabled = prefs.getString("triangle", "true");
         const String trailEnabled = prefs.getString("trail", "true");
+        const String altColorEnabled = prefs.getString("altcolor", "true");
 
         // Build the per-field info checkboxes from the shared table so the form
         // always reflects exactly the fields the renderer knows how to draw.
@@ -234,7 +243,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, infoFieldsHtml]
+            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, infoFieldsHtml]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -247,6 +256,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
+                if (var == "ALTCOLOR")       return altColorEnabled == "true" ? "checked" : "";
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 return "";
             }
@@ -291,6 +301,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("scanline", request->hasParam("scanline", true) ? "true" : "false");
         prefs.putString("triangle", request->hasParam("triangle", true) ? "true" : "false");
         prefs.putString("trail", request->hasParam("trail", true) ? "true" : "false");
+        prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");
         prefs.putString("infotext", request->hasParam("infotext", true) ? "true" : "false");
 
         // an unchecked checkbox isn't sent in the form body, so hasParam() is the
