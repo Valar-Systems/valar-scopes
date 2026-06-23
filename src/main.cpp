@@ -9,6 +9,7 @@
 #include "HttpRequestManager.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "AircraftManager.h"
+#include "OtaUpdater.h"
 #include "DrawHelpers.h"
 #include "models/Aircraft.h"
 #include "models/TrackedAircraft.h"
@@ -97,6 +98,10 @@ void setup()
   // solar auto-dim works directly in UTC
   configTime(0, 0, "pool.ntp.org");
 
+  // self-update from the latest GitHub release before normal startup; reboots
+  // into the new firmware if one is newer than this build
+  MaybeUpdateFirmware(tft);
+
   // begin background server for configuration
   configServer.Initialise();
 
@@ -111,6 +116,13 @@ void loop()
     wm.resetSettings();
     delay(200); // let the HTTP response flush before the reboot
     ESP.restart();
+  }
+
+  // re-check for firmware updates once a day for always-on devices
+  static unsigned long lastOtaCheck = 0;
+  if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
+    lastOtaCheck = millis();
+    MaybeUpdateFirmware(tft);
   }
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
