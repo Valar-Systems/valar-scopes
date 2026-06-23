@@ -40,6 +40,19 @@ void AircraftManager::Initialise()
     if (!renderText.isEmpty()) displayInfoText = renderText == "true" ? true : false;
     if (!renderTris.isEmpty()) displayTriangles = renderTris == "true" ? true : false;
 
+    // which individual info lines to show. An unset key (device never saved, or
+    // an older save predating this field) falls back to the field's default.
+    infoFieldEnabled.resize(AIRCRAFT_INFO_FIELD_COUNT);
+    metadataNeeded = false;
+    for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
+        const String stored = configServer.GetStoredString(AIRCRAFT_INFO_FIELDS[i].key);
+        infoFieldEnabled[i] = stored.isEmpty() ? AIRCRAFT_INFO_FIELDS[i].defaultOn
+                                               : (stored == "true");
+        // only spend network calls on adsbdb when an enrichment field is shown
+        if (infoFieldEnabled[i] && AIRCRAFT_INFO_FIELDS[i].needsLookup)
+            metadataNeeded = true;
+    }
+
     // calculate how often we can call OpenSky API before being rate limited
     constexpr int MS_PER_DAY = 24 * 60 * 60 * 1000;
     constexpr int ANONYMOUS_TOKENS_PER_DAY = 400;
@@ -52,11 +65,20 @@ void AircraftManager::Initialise()
         dailyRequestBudget = AUTHED_TOKENS_PER_DAY - TOKEN_BUFFER; // authed tokens minus buffer
 
     fetchInterval = MS_PER_DAY / dailyRequestBudget;
+
+    // Force the next Update() to fetch immediately. On a config reload this means
+    // a changed location/radius refreshes the radar right away rather than after
+    // a full interval; subtracting the interval (unsigned millis() wraparound)
+    // makes the next "now - lastFetch >= fetchInterval" check true at any uptime.
+    lastFetch = millis() - fetchInterval;
 }
 
 void AircraftManager::Update()
 {
     unsigned long now = millis();
+
+    // enrich a tracked aircraft with adsbdb metadata (throttled internally)
+    ProcessMetadataLookups();
 
     // fetch cycle
     if (now - lastFetch >= fetchInterval) {
@@ -80,7 +102,11 @@ void AircraftManager::Update()
               {"lamin", String(lat - radLat, 6)},
               {"lamax", String(lat + radLat, 6)},
               {"lomin", String(lon - radLon, 6)},
-              {"lomax", String(lon + radLon, 6)}
+              {"lomax", String(lon + radLon, 6)},
+              // category (state vector index 17) is omitted from the default
+              // response; without extended=1 the array stops at index 16 and the
+              // Category info line is always blank
+              {"extended", "1"}
             },
             headers
         );
@@ -168,9 +194,21 @@ void AircraftManager::DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, co
 
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(0, 128, 0));
-    backbuffer.drawString(tracked.state.callsign, x + 5, y + 5);
-    backbuffer.drawString(String(tracked.state.velocity) + "m/s", x + 5, y + 5 + lineHeight);
-    backbuffer.drawString(String(tracked.state.baroAltitude) + "m", x + 5, y + 5 + lineHeight * 2);
+
+    // Stack only the enabled fields; a field that formats to "" (e.g. no squawk
+    // reported) is skipped so it doesn't leave a blank gap between lines.
+    int line = 0;
+    for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
+        if (i >= infoFieldEnabled.size() || !infoFieldEnabled[i])
+            continue;
+
+        const String text = AIRCRAFT_INFO_FIELDS[i].format(tracked);
+        if (text.isEmpty())
+            continue;
+
+        backbuffer.drawString(text, x + 5, y + 5 + lineHeight * line);
+        ++line;
+    }
 }
 
 void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const
@@ -191,4 +229,64 @@ void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y
     const float rightY = y - dy * TRIANGLE_LENGTH * 0.5f - py * TRIANGLE_WIDTH * 0.5f;
 
     backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, lgfx::color888(0, 255, 0));
+}
+
+void AircraftManager::ProcessMetadataLookups()
+{
+    if (!metadataNeeded)
+        return;
+
+    const unsigned long now = millis();
+    // Space lookups out so a burst of new aircraft doesn't fire many blocking
+    // HTTP calls back to back, and to stay friendly to the free adsbdb service.
+    constexpr unsigned long METADATA_LOOKUP_INTERVAL = 1500;
+    if (now - lastMetadataLookup < METADATA_LOOKUP_INTERVAL)
+        return;
+
+    // Resolve the first aircraft still awaiting a lookup, then stop for this tick.
+    for (auto& [icao, tracked] : trackedAircraft) {
+        if (tracked.metadataState != TrackedAircraft::MetadataState::NotFetched)
+            continue;
+
+        lastMetadataLookup = now;
+        LookupAircraftMetadata(icao, tracked);
+        return;
+    }
+}
+
+void AircraftManager::LookupAircraftMetadata(const String& icao24, TrackedAircraft& tracked)
+{
+    const HttpResult result = http.Get("https://api.adsbdb.com/v0/aircraft/" + icao24);
+
+    // A network-level failure (no HTTP response at all) is transient: leave the
+    // state NotFetched so a later tick retries.
+    if (!result.success) {
+        Serial.printf("[adsbdb] lookup for %s failed: %s\n", icao24.c_str(), result.errorMessage.c_str());
+        return;
+    }
+
+    // Any definitive HTTP response -- including 404 "unknown aircraft" -- is a
+    // final answer: mark Fetched so this aircraft is never looked up again.
+    tracked.metadataState = TrackedAircraft::MetadataState::Fetched;
+
+    JsonDocument doc;
+    if (deserializeJson(doc, result.response))
+        return; // malformed body: treat as no data, but don't retry
+
+    // adsbdb wraps the record in { "response": { "aircraft": {...} } }; when the
+    // address is unknown it returns { "response": "unknown aircraft" }, leaving
+    // this lookup null.
+    JsonObject aircraft = doc["response"]["aircraft"];
+    if (aircraft.isNull()) {
+        Serial.printf("[adsbdb] %s -> unknown aircraft\n", icao24.c_str());
+        return;
+    }
+
+    tracked.typeCode     = aircraft["icao_type"].isNull()        ? "" : aircraft["icao_type"].as<String>();
+    tracked.operatorName = aircraft["registered_owner"].isNull() ? "" : aircraft["registered_owner"].as<String>();
+    tracked.registration = aircraft["registration"].isNull()     ? "" : aircraft["registration"].as<String>();
+
+    Serial.printf("[adsbdb] %s -> type=%s operator=%s reg=%s\n",
+                  icao24.c_str(), tracked.typeCode.c_str(),
+                  tracked.operatorName.c_str(), tracked.registration.c_str());
 }

@@ -1,6 +1,7 @@
 #include "ConfigurationWebServer.h"
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
+#include "AircraftInfoFields.h"
 
 // HTML stored in flash
 // %PLACEHOLDER% tokens are substituted at serve time by the template processor
@@ -89,14 +90,6 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             class="px-3 sm:px-1 accent-green-500">
                     </label>
                     <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Aircraft Info:</span>
-                        <input
-                            name="infotext"
-                            type="checkbox"
-                            %INFOTEXT%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                         <span>Directional Aircraft:</span>
                         <input
                             name="triangle"
@@ -105,6 +98,22 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             class="px-3 sm:px-1 accent-green-500">
                     </label>
                 </div>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">
+                        <label class="flex items-center gap-2">
+                            <span>Aircraft Info</span>
+                            <input
+                                name="infotext"
+                                type="checkbox"
+                                %INFOTEXT%
+                                class="accent-green-500">
+                        </label>
+                    </legend>
+                    <div id="info-fields" class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
+                        %INFO_FIELDS%
+                    </div>
+                </fieldset>
 
                 <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
                     <input
@@ -144,6 +153,16 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 updateRadiusMax();
             });
             updateRadiusMax();
+
+            // dim the per-field list when the master Aircraft Info toggle is off.
+            // purely cosmetic -- the inputs stay enabled so their state still saves.
+            const infoMaster = document.querySelector('input[name="infotext"]');
+            const infoFields = document.getElementById('info-fields');
+            function syncInfoFields() {
+                infoFields.style.opacity = infoMaster.checked ? '1' : '0.4';
+            }
+            infoMaster.addEventListener('change', syncInfoFields);
+            syncInfoFields();
         </script>
     </body>
 </html>
@@ -180,6 +199,23 @@ void ConfigurationWebServer::Initialise() {
         const String scanlineEnabled = prefs.getString("scanline", "true");
         const String infoTextEnabled = prefs.getString("infotext", "true");
         const String triangleEnabled = prefs.getString("triangle", "true");
+
+        // Build the per-field info checkboxes from the shared table so the form
+        // always reflects exactly the fields the renderer knows how to draw.
+        String infoFieldsHtml;
+        for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
+            const AircraftInfoFieldDef& field = AIRCRAFT_INFO_FIELDS[i];
+            const bool checked = prefs.isKey(field.key)
+                ? (prefs.getString(field.key, "") == "true")
+                : field.defaultOn;
+            infoFieldsHtml += F("<label class=\"flex items-center gap-2\"><input type=\"checkbox\" class=\"accent-green-500\" name=\"");
+            infoFieldsHtml += field.key;
+            infoFieldsHtml += '"';
+            if (checked) infoFieldsHtml += F(" checked");
+            infoFieldsHtml += F("><span>");
+            infoFieldsHtml += field.label;
+            infoFieldsHtml += F("</span></label>");
+        }
         prefs.end();
 
         // mask secret before sending to client
@@ -189,7 +225,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled]
+            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, scanlineEnabled, infoTextEnabled, triangleEnabled, infoFieldsHtml]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -201,6 +237,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
+                if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 return "";
             }
         );
@@ -241,14 +278,32 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("scanline", request->hasParam("scanline", true) ? "true" : "false");
         prefs.putString("triangle", request->hasParam("triangle", true) ? "true" : "false");
         prefs.putString("infotext", request->hasParam("infotext", true) ? "true" : "false");
+
+        // an unchecked checkbox isn't sent in the form body, so hasParam() is the
+        // on/off signal for each individual info field
+        for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
+            const char* key = AIRCRAFT_INFO_FIELDS[i].key;
+            prefs.putString(key, request->hasParam(key, true) ? "true" : "false");
+        }
         prefs.end();
 
-        request->send(200, "text/html", "Saved - restarting device...");
-        ESP.restart();
+        // No reboot: flag the change and let loop() re-read settings on the main
+        // task. NVS is already committed by the putString() calls above, so the
+        // reload will see the new values.
+        configChanged = true;
+        request->send(200, "text/html", "Saved - settings applied.");
         }
     );
 
     server.begin();
+}
+
+bool ConfigurationWebServer::ConsumeConfigChanged()
+{
+    if (!configChanged)
+        return false;
+    configChanged = false;
+    return true;
 }
 
 const String ConfigurationWebServer::GetStoredString(const char* key)

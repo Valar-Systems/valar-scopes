@@ -46,9 +46,16 @@ const String OpenSkyAuthTokenHandler::GetValidToken(const String& clientId, cons
     if (clientId.isEmpty() || clientSecret.isEmpty())
         return "";
 
-    if (bearerToken.isEmpty() || millis() > tokenExpiry) {
+    // Refetch when the cache is empty, expired, or the credentials changed since
+    // the cached token was issued (e.g. the user just saved new keys) so updated
+    // credentials take effect immediately instead of after the token expires.
+    const bool credentialsChanged = clientId != tokenClientId || clientSecret != tokenClientSecret;
+
+    if (bearerToken.isEmpty() || millis() > tokenExpiry || credentialsChanged) {
         bearerToken = FetchBearerToken(url, clientId, clientSecret);
         tokenExpiry = millis() + (29 * 60 * 1000);  // 29 mins, 1 min buffer
+        tokenClientId = clientId;
+        tokenClientSecret = clientSecret;
     }
 
     return bearerToken;

@@ -13,6 +13,17 @@ struct TrackedAircraft {
 
     unsigned long lastTick = 0;
 
+    // adsbdb.com enrichment: type/operator/registration aren't in the OpenSky
+    // feed, so they're looked up once per aircraft by ICAO address and cached
+    // here. NotFetched -> the manager may attempt a lookup; Fetched -> a
+    // definitive answer arrived (which can still leave the strings empty for
+    // aircraft adsbdb doesn't know), so it's never looked up again.
+    enum class MetadataState : uint8_t { NotFetched, Fetched };
+    MetadataState metadataState = MetadataState::NotFetched;
+    String typeCode = "";
+    String operatorName = "";
+    String registration = "";
+
     // first appearance, no blend needed
     TrackedAircraft(const Aircraft& ac, unsigned long now)
         : state(ac), lastSeen(now),

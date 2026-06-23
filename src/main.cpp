@@ -101,6 +101,12 @@ void setup()
 
 void loop()
 {
+  // Apply settings saved via the web UI without rebooting. Done here, on the
+  // loop task, so all AircraftManager state changes stay on a single task
+  // rather than racing the async web-server callback.
+  if (configServer.ConsumeConfigChanged())
+    aircraftManager.Initialise();
+
   aircraftManager.Update();
 
   // draw cycle
