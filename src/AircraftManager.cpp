@@ -179,6 +179,11 @@ void AircraftManager::Initialise()
     // a full interval; subtracting the interval (unsigned millis() wraparound)
     // makes the next "now - lastFetch >= fetchInterval" check true at any uptime.
     lastFetch = millis() - fetchInterval;
+
+    // start the touch watchdog clock from now so it doesn't fire right after the
+    // controller's own boot-time init in setup()
+    lastTouchActivityMs = millis();
+    lastTouchReinitMs = millis();
 }
 
 void AircraftManager::Update()
@@ -694,6 +699,7 @@ void AircraftManager::HandleTouch()
     const bool touched = tft.getTouch(&tx, &ty);
 
     if (touched) {
+        lastTouchActivityMs = millis(); // proof the controller is alive; reset the watchdog
         if (!wasTouched) { touchStartX = tx; touchStartY = ty; } // press edge
         touchLastX = tx;
         touchLastY = ty;
@@ -713,6 +719,24 @@ void AircraftManager::HandleTouch()
     }
 
     wasTouched = touched;
+
+    // Touch-controller watchdog. The LovyanGFX CST816S driver latches its init
+    // flag on the first good read and then silently treats every later I2C
+    // failure as "no touch" -- so once the controller wedges (standby stops
+    // ACKing, or the bus locks up) the panel is dead until a reboot. We can't
+    // tell a wedged read from a genuinely idle one through getTouch(), so when
+    // the panel has been quiet for a few seconds we periodically pulse its reset
+    // line and re-run init. A live, in-use panel keeps refreshing
+    // lastTouchActivityMs, so this only fires while idle (or already wedged),
+    // where the ~20 ms reset is invisible.
+    constexpr unsigned long TOUCH_IDLE_MS = 5000;            // quiet period before we'll consider a reset
+    constexpr unsigned long TOUCH_REINIT_INTERVAL_MS = 20000; // and at most this often while idle
+    const unsigned long now = millis();
+    if (now - lastTouchActivityMs > TOUCH_IDLE_MS &&
+        now - lastTouchReinitMs   > TOUCH_REINIT_INTERVAL_MS) {
+        tft.ReinitTouch();
+        lastTouchReinitMs = now;
+    }
 }
 
 void AircraftManager::HandleTap(int tx, int ty)

@@ -94,6 +94,15 @@ void setup()
   Serial.printf("[WiFi] autoConnect() returned %s\n",
                 connected ? "true (connected)" : "false (portal timed out / not connected)");
 
+  // Disable Wi-Fi modem-sleep. By default the radio sleeps between beacons and
+  // wakes each DTIM to listen, pulsing the supply current at the beacon rate.
+  // On this board that periodic load makes the decoupling caps near the ESP32-C3
+  // sing -- a faint, steady buzz. Keeping the radio always-on flattens the draw
+  // and silences it. The device is USB/mains powered, so the extra ~20-30 mA is
+  // a non-issue, and latency/throughput actually improve.
+  if (connected)
+    WiFi.setSleep(WIFI_PS_NONE);
+
   // start NTP in UTC; the on-screen clock applies the configured offset, and the
   // solar auto-dim works directly in UTC
   configTime(0, 0, "pool.ntp.org");

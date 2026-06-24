@@ -35,6 +35,14 @@ public:
             auto cfg = _light.config();
             cfg.pin_bl = 3;
             cfg.invert = false;
+            // Drive the backlight PWM well above hearing. The LovyanGFX default
+            // of 1.2 kHz sits in the audible band and makes the backlight rail's
+            // inductor/caps whine whenever the screen is partially dimmed
+            // (auto-dim at night, or a custom brightness). 40 kHz minimizes the
+            // mechanical excursion of those parts; LEDC's 9-bit resolution on
+            // the C3's 80 MHz clock supports up to ~156 kHz, so dimming quality
+            // is unaffected.
+            cfg.freq = 40000;
             _light.config(cfg);
             _panel.setLight(&_light);
         }
@@ -59,4 +67,13 @@ public:
         }
         setPanel(&_panel);
     }
+
+    // Re-run the touch controller's reset + init sequence. The CST816S
+    // periodically wedges -- its low-power standby stops ACKing on I2C, or the
+    // I2C lines lock up -- and because the LovyanGFX driver latches its init
+    // flag and swallows every later I2C error as "no touch", a wedged
+    // controller stays dead until the device reboots. Pulsing the RST line
+    // (GPIO1) and re-initing the bus recovers it live. See AircraftManager's
+    // touch watchdog for when this is called.
+    void ReinitTouch() { _touch.init(); }
 };

@@ -42,6 +42,14 @@ private:
     int touchLastX = 0, touchLastY = 0;
     enum class Swipe { Up, Down, Left, Right };
 
+    // Touch-controller liveness watchdog. The CST816S can drop off the I2C bus
+    // (standby wedge / bus lockup), and the LovyanGFX driver never recovers it
+    // -- it just keeps reporting "no touch" forever. We can't distinguish that
+    // from a genuinely idle panel through getTouch(), so during quiet gaps we
+    // periodically pulse the controller's reset and re-init it. See HandleTouch.
+    unsigned long lastTouchActivityMs = 0; // last frame getTouch() actually read a touch
+    unsigned long lastTouchReinitMs = 0;   // last time we reset + re-inited the controller
+
     // Decoded aircraft photo for the detail view. The sprite is created once and
     // reused; photoIcao/photoReady track which aircraft it currently holds.
     LGFX_Sprite photoSprite;

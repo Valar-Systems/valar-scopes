@@ -2,6 +2,7 @@
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
 #include "AircraftInfoFields.h"
+#include "OtaUpdater.h"
 
 // HTML stored in flash
 // %PLACEHOLDER% tokens are substituted at serve time by the template processor
@@ -203,6 +204,8 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <div id="result" class="mt-4 px-1 sm:px-10"></div>
                 </div>
             </form>
+
+            <div class="text-right text-xs text-green-700 mt-4">Firmware v%FW_VERSION%</div>
         </fieldset>
 
         <script>
@@ -344,6 +347,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "WATCHLIST")      return watchlist;
                 if (var == "NTFY_TOPIC")     return ntfyTopic;
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
                 return "";
             }
         );
