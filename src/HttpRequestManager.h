@@ -1,6 +1,8 @@
 #pragma once
 
 #include <HTTPClient.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <vector>
 
 struct HttpResult {
@@ -14,6 +16,12 @@ class HttpRequestManager
 {
 private:
     HTTPClient http;
+
+    // HTTPClient (and its single TLS context) is not reentrant, and the C3 hasn't
+    // the heap for a second TLS session. The background OpenSky fetch task and the
+    // loop task share this one instance, so every request cycle holds this mutex --
+    // each begin()/GET()/end() runs to completion before another task can start one.
+    SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
 
     String BuildQueryString(const std::vector<std::pair<String, String>>& params) const;
 

@@ -3,6 +3,11 @@
 #include <map>
 #include <vector>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
+
+#include "HttpRequestManager.h"
 #include "models/TrackedAircraft.h"
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
@@ -75,6 +80,21 @@ private:
     unsigned long fetchInterval = 0;
     unsigned long lastFetch = 999999;
 
+    // Background OpenSky states fetch. The HTTPS GET + JSON decode used to run
+    // inline on the loop and stall it for a second or two each cycle; since touch
+    // is only polled once per loop, a tap on a plane during that stall was missed.
+    // A dedicated task now does the GET + parse, and the loop only merges the parsed
+    // result into trackedAircraft (a fast map operation), so it stays responsive
+    // throughout the refresh. The task shares the loop's single HTTP client (the C3
+    // hasn't the heap for a second TLS context); HttpRequestManager's own mutex
+    // serializes the two, and the !fetchInFlight gate keeps the loop from blocking
+    // on it during a fetch. All trackedAircraft mutation still happens on the loop
+    // task; the fetch task only ever produces a parsed vector of its own.
+    TaskHandle_t  fetchTaskHandle = nullptr;   // non-null once the task is running
+    QueueHandle_t fetchRequestQueue = nullptr; // loop -> task: FetchRequest*
+    QueueHandle_t fetchResultQueue = nullptr;  // task -> loop: FetchResult*
+    bool fetchInFlight = false;                // loop-task-only: a request is outstanding
+
     // backlight + clock
     uint8_t configuredBrightness = 255; // day/base level from the slider
     uint8_t currentBrightness = 255;    // currently applied level (avoids redundant writes)
@@ -103,6 +123,12 @@ private:
     std::vector<String> SortedAircraftByDistance();
 
     void UpdateBrightness(); // apply solar day/night dimming (throttled)
+
+    void StartFetchTask();                      // spawn the OpenSky fetch task once
+    static void FetchTaskTrampoline(void* arg); // FreeRTOS entry -> RunFetchTask()
+    void RunFetchTask();                        // blocking GET + JSON decode, off-loop
+    void RequestFetch();                        // loop: snapshot params + token, signal task
+    void ConsumeFetchResult();                  // loop: merge a ready result, non-blocking
 
     void HandleTouch();             // poll the touch panel, classify tap vs swipe
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal

@@ -27,6 +27,7 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
     const String queryParams = BuildQueryString(params);
     const String fullUrl = url + queryParams;
 
+    xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     http.begin(fullUrl);
 
     // add headers to request
@@ -52,6 +53,7 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
     }
 
     http.end();
+    xSemaphoreGive(mutex);
     return result;
 }
 
@@ -59,6 +61,7 @@ HttpResult HttpRequestManager::Post(const String& url, const String& body, const
 {
     HttpResult result{ false, 0, "", "" };
 
+    xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     http.begin(url);
 
     // add headers to request
@@ -84,5 +87,6 @@ HttpResult HttpRequestManager::Post(const String& url, const String& body, const
     }
 
     http.end();
+    xSemaphoreGive(mutex);
     return result;
 }

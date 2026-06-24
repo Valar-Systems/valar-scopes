@@ -18,6 +18,17 @@ constexpr int LIST_ROWS = 9;
 
 #include <ArduinoJson.h>
 
+// Handoff payloads for the background OpenSky fetch task. Both are passed between
+// tasks by pointer through a queue, transferring ownership: the receiver frees it.
+struct FetchRequest {
+    double lat, lon, radLat, radLon; // scan box, snapshotted on the loop task
+    String token;                    // bearer token (empty = anonymous request)
+};
+struct FetchResult {
+    bool ok = false;                 // false on network / parse failure
+    std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
+};
+
 namespace {
 
 // The international emergency squawk codes. These always trigger the alert
@@ -184,6 +195,10 @@ void AircraftManager::Initialise()
     // controller's own boot-time init in setup()
     lastTouchActivityMs = millis();
     lastTouchReinitMs = millis();
+
+    // spawn the background fetch task (once; survives config reloads -- it picks up
+    // new location/credentials from each RequestFetch snapshot)
+    StartFetchTask();
 }
 
 void AircraftManager::Update()
@@ -214,35 +229,76 @@ void AircraftManager::Update()
     if (inDetail)
         return;
 
-    // enrich a tracked aircraft with adsbdb metadata (throttled internally)
-    ProcessMetadataLookups();
+    // Merge a completed background fetch into trackedAircraft. The blocking GET +
+    // JSON decode already ran on the fetch task; this is just a fast map merge.
+    ConsumeFetchResult();
 
-    // alert on watchlisted aircraft (throttled internally)
-    ProcessWatchlistNotifications();
+    // The enrichment lookups and a token refresh still block the loop, so skip them
+    // while a fetch is in flight -- both to keep the loop responsive and to avoid a
+    // second simultaneous TLS session competing with the fetch task's for heap.
+    if (!fetchInFlight) {
+        // enrich a tracked aircraft with adsbdb metadata (throttled internally)
+        ProcessMetadataLookups();
 
-    // fetch cycle
-    if (now - lastFetch >= fetchInterval) {
-        lastFetch = now;
+        // alert on watchlisted aircraft (throttled internally)
+        ProcessWatchlistNotifications();
 
-        // auth
-        const String token = authHandler.GetValidToken(
-            configServer.GetStoredString("opensky-id"),
-            configServer.GetStoredString("opensky-secret")
-        );
+        // kick off the next fetch when due. Non-blocking: the loop keeps polling
+        // touch and drawing while the request runs on the fetch task, so tapping a
+        // plane during a refresh is no longer missed.
+        if (now - lastFetch >= fetchInterval) {
+            lastFetch = now;
+            RequestFetch();
+        }
+    }
+}
+
+void AircraftManager::StartFetchTask()
+{
+    if (fetchTaskHandle != nullptr)
+        return; // already running; survive Initialise() being re-run on a config reload
+
+    // Depth 1: only ever one fetch outstanding (gated by fetchInFlight), so a single
+    // slot for the request and one for the result is enough.
+    fetchRequestQueue = xQueueCreate(1, sizeof(FetchRequest*));
+    fetchResultQueue  = xQueueCreate(1, sizeof(FetchResult*));
+
+    // 12 KB stack: the HTTPS handshake (mbedTLS) is the stack-hungry part, plus the
+    // JSON decode. The Arduino loop task ran the same workload in 8 KB, so this has
+    // headroom. Priority 1 (same as the loop); it spends almost all its life blocked
+    // on the request queue.
+    xTaskCreate(FetchTaskTrampoline, "osky_fetch", 12288, this, 1, &fetchTaskHandle);
+}
+
+void AircraftManager::FetchTaskTrampoline(void* arg)
+{
+    static_cast<AircraftManager*>(arg)->RunFetchTask();
+}
+
+void AircraftManager::RunFetchTask()
+{
+    for (;;) {
+        // block until the loop requests a fetch
+        FetchRequest* req = nullptr;
+        if (xQueueReceive(fetchRequestQueue, &req, portMAX_DELAY) != pdTRUE || req == nullptr)
+            continue;
+
+        FetchResult* res = new FetchResult();
 
         std::vector<std::pair<String, String>> headers = {};
-        if (!token.isEmpty()) headers.push_back({ "Authorization", "Bearer " + token });
+        if (!req->token.isEmpty()) headers.push_back({ "Authorization", "Bearer " + req->token });
 
-        // request
-        HttpResult result = http.Get(
+        // request via the shared HTTP client (HttpRequestManager's mutex serializes
+        // this with any loop-task request; see the fetch members in the header)
+        const HttpResult result = http.Get(
             "https://opensky-network.org/api/states/all",
             {
               // 6 decimals (~0.1 m): String(double) defaults to only 2, which would
               // quantize small km/mi radii into a coarse ~1 km box or collapse it
-              {"lamin", String(lat - radLat, 6)},
-              {"lamax", String(lat + radLat, 6)},
-              {"lomin", String(lon - radLon, 6)},
-              {"lomax", String(lon + radLon, 6)},
+              {"lamin", String(req->lat - req->radLat, 6)},
+              {"lamax", String(req->lat + req->radLat, 6)},
+              {"lomin", String(req->lon - req->radLon, 6)},
+              {"lomax", String(req->lon + req->radLon, 6)},
               // category (state vector index 17) is omitted from the default
               // response; without extended=1 the array stops at index 16 and the
               // Category info line is always blank
@@ -251,20 +307,63 @@ void AircraftManager::Update()
             headers
         );
 
-        // If request failed, skip this update
         if (!result.success) {
             Serial.print("[WARN] OpenSky API request failed: ");
             Serial.println(result.errorMessage);
-            return;
+        } else {
+            JsonDocument doc;
+            const DeserializationError err = deserializeJson(doc, result.response);
+            if (err) {
+                Serial.print("[WARN] OpenSky response JSON parse failed: ");
+                Serial.println(err.f_str());
+            } else {
+                res->aircraft = JsonParser::ParseArray<Aircraft>(doc["states"]);
+                res->ok = true;
+            }
         }
 
-        // track
-        JsonDocument doc;
-        deserializeJson(doc, result.response);
-        auto aircraft = JsonParser::ParseArray<Aircraft>(doc["states"]);
-        now = millis(); // override with post-parse timestamp
+        delete req;
 
-        for (auto& ac : aircraft) {
+        // hand the result back; the loop consumed the previous one before requesting
+        // again, so the depth-1 queue always has room
+        if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
+            delete res; // unreachable in practice; just don't leak if it ever happens
+    }
+}
+
+void AircraftManager::RequestFetch()
+{
+    FetchRequest* req = new FetchRequest();
+    req->lat = lat; req->lon = lon; req->radLat = radLat; req->radLon = radLon;
+
+    // Token lookup is normally instant (cached); it only blocks the loop on the rare
+    // ~29-minute refresh, so it stays here rather than racing the fetch task's client.
+    req->token = authHandler.GetValidToken(
+        configServer.GetStoredString("opensky-id"),
+        configServer.GetStoredString("opensky-secret")
+    );
+
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+        fetchInFlight = true;
+    else
+        delete req; // queue full (shouldn't happen: we only request when !fetchInFlight)
+}
+
+void AircraftManager::ConsumeFetchResult()
+{
+    if (fetchResultQueue == nullptr)
+        return;
+
+    FetchResult* res = nullptr;
+    if (xQueueReceive(fetchResultQueue, &res, 0) != pdTRUE)
+        return; // nothing ready
+
+    fetchInFlight = false;
+
+    if (res->ok) {
+        const unsigned long now = millis();
+
+        for (auto& ac : res->aircraft) {
             auto it = trackedAircraft.find(ac.icao24);
             if (it == trackedAircraft.end())
                 trackedAircraft.emplace(ac.icao24, TrackedAircraft{ ac, now });
@@ -274,13 +373,16 @@ void AircraftManager::Update()
 
         // remove any planes that disappeared from the feed
         for (auto it = trackedAircraft.begin(); it != trackedAircraft.end(); ) {
-            bool aircraftPresent = std::any_of(aircraft.begin(), aircraft.end(), [&](const Aircraft& ac) { return ac.icao24 == it->first; });
-            if (!aircraftPresent)
+            const bool present = std::any_of(res->aircraft.begin(), res->aircraft.end(),
+                [&](const Aircraft& ac) { return ac.icao24 == it->first; });
+            if (!present)
                 it = trackedAircraft.erase(it);
             else
                 ++it;
         }
     }
+
+    delete res;
 }
 
 void AircraftManager::Draw(LGFX_Sprite& backbuffer)
