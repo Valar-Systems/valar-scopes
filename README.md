@@ -79,7 +79,19 @@ The config page is available any time the device is on WiFi, so you can tweak se
 
 ### A note on OpenSky
 
-Blipscope uses [OpenSky Network's](https://opensky-network.org) free API for flight data. It works without an account, but making one (it's free) raises your daily request limit from 400 to 4000, which makes the live view far more accurate. Grab your client ID and secret from your OpenSky account settings and enter them on the config page.
+Blipscope uses [OpenSky Network's](https://opensky-network.org) free API for flight data. It works without an account, but making one (it's free) raises your daily request limit from 400 to 4000 — which lets Blipscope poll roughly every 22 seconds instead of every ~3.5 minutes, so the live view is far more accurate.
+
+OpenSky moved to OAuth2 credentials in 2026, so you need a **client ID** and **client secret** (not your account username/password). To get them:
+
+1. Create a free account or log in at [opensky-network.org](https://opensky-network.org).
+2. Open your **Account** page (top-right username menu → Account).
+3. Create a new **API client**.
+4. Note the two values:
+   - **Client ID** — shown on the account page.
+   - **Client Secret** — *not* shown on the page. A `credentials.json` file is downloaded to your computer containing both the client ID and secret. Open it in any text editor to copy them out.
+5. Enter both into the **OpenSkyAPI Client ID** and **Client Secret** fields on Blipscope's config page.
+
+The secret only ever exists in that downloaded file — if you lose it, use **Reset Credential** on your OpenSky account page to generate a new one (this invalidates the old secret). Keep `credentials.json` private; treat it like a password.
 
 ### Using your own ADS-B receiver
 

@@ -15,11 +15,16 @@ struct TrackedAircraft {
 
     // adsbdb.com enrichment: type/operator/registration aren't in the OpenSky
     // feed, so they're looked up once per aircraft by ICAO address and cached
-    // here. NotFetched -> the manager may attempt a lookup; Fetched -> a
-    // definitive answer arrived (which can still leave the strings empty for
-    // aircraft adsbdb doesn't know), so it's never looked up again.
-    enum class MetadataState : uint8_t { NotFetched, Fetched };
+    // here. NotFetched -> the manager may queue a lookup; Fetching -> a request is
+    // outstanding on the enrichment task (don't re-queue); Fetched -> a definitive
+    // answer arrived (which can still leave the strings empty for aircraft adsbdb
+    // doesn't know), so it's never looked up again.
+    enum class MetadataState : uint8_t { NotFetched, Fetching, Fetched };
     MetadataState metadataState = MetadataState::NotFetched;
+    // A transient lookup failure returns the aircraft to NotFetched; without a
+    // cooldown the manager re-picks the same aircraft every cycle (a tight retry
+    // storm). This holds it off until millis() passes the deadline (0 = ready now).
+    unsigned long metadataRetryAfter = 0;
     bool watchNotified = false;     // a flyover alert has been sent for this tracking session
     bool overheadNotified = false;  // a "look up" overhead alert has been sent this session
     bool freshCatch = false;        // this sighting added a brand-new type/airline to the logbook

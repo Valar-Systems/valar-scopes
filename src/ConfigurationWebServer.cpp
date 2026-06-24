@@ -11,6 +11,10 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope</title>
+        <!-- inline SVG favicon (radar blip) so the tab is easy to spot; no extra flash asset / route needed.
+             Colors use rgb() not #-hex on purpose: a "#" in a data URI must be %-encoded as %23, and any
+             stray "%" collides with this page's %PLACEHOLDER% template engine and shreds the whole form. -->
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
     </head>
     <body class="font-mono bg-gray-900 text-green-500 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
@@ -427,6 +431,11 @@ void ConfigurationWebServer::Initialise() {
     // Handle visit to config web server
     server.on("/", HTTP_GET, [&](AsyncWebServerRequest* request) {
         Serial.println("[GET] Handling request to config web server...");
+        // Diagnostic: the async response needs a ~2.8 KB *contiguous* send buffer
+        // (ASYNC_RESPONCE_BUFF_SIZE = 2 x TCP_MSS). If the largest free block is
+        // below that, ESPAsyncWebServer silently fails to send and the page hangs.
+        Serial.printf("[GET] heap free=%u largest-block=%u\n",
+                      ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);

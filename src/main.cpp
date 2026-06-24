@@ -17,6 +17,11 @@
 constexpr int SCREEN_SIZE = 240;
 constexpr int SCREEN_SIZE_DIV_2 = (SCREEN_SIZE / 2);
 
+// Render the screen in horizontal bands instead of one full-screen sprite. A full
+// 240x240x8-bit backbuffer is ~56 KB; at half height it's ~28 KB, freeing the
+// contiguous heap a TLS handshake needs on the single-core C3. Must divide SCREEN_SIZE.
+constexpr int BAND_H = SCREEN_SIZE / 2; // 2 bands of 240x120
+
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
 
@@ -40,7 +45,7 @@ void setup()
   tft.setBrightness(255);
 
   backbuffer.setColorDepth(8);
-  backbuffer.createSprite(SCREEN_SIZE, SCREEN_SIZE);
+  backbuffer.createSprite(SCREEN_SIZE, BAND_H);
 
   // establish WiFi connection
   tft.fillScreen(lgfx::color888(0, 0, 0));
@@ -142,21 +147,29 @@ void loop()
 
   aircraftManager.Update();
 
-  // draw cycle
-  backbuffer.fillScreen(lgfx::color888(0, 0, 0));
-
+  // draw cycle: render the frame one horizontal band at a time into the half-height
+  // backbuffer, each shifted into place by a BandCanvas, then pushed to its screen
+  // rows. The scene is drawn once per band; AircraftManager advances per-frame state
+  // (animation tick, trail sampling) only on the first pass so the bands stay in sync.
   String renderScanlines = configServer.GetStoredString("scanline");
-  if ((renderScanlines.isEmpty() || renderScanlines == "true") && aircraftManager.IsRadarView()) {
-    DrawScanLines(backbuffer,
-      SCREEN_SIZE_DIV_2 - 1,
-      SCREEN_SIZE_DIV_2 - 1,
-      SCREEN_SIZE_DIV_2 - 1 + (std::cos(millis() / 3000.0f) * SCREEN_SIZE_DIV_2),
-      SCREEN_SIZE_DIV_2 - 1 + (std::sin(millis() / 3000.0f) * SCREEN_SIZE_DIV_2),
-      20, 128, 5
-    );
-  }
+  const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && aircraftManager.IsRadarView();
 
-  aircraftManager.Draw(backbuffer);
-  backbuffer.pushSprite(0, 0);
+  // compute the sweep endpoints once so both bands draw the identical line (no seam)
+  const float sweep = millis() / 3000.0f;
+  const int sweepX = SCREEN_SIZE_DIV_2 - 1 + (std::cos(sweep) * SCREEN_SIZE_DIV_2);
+  const int sweepY = SCREEN_SIZE_DIV_2 - 1 + (std::sin(sweep) * SCREEN_SIZE_DIV_2);
+
+  for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
+    BandCanvas canvas(backbuffer, bandY);
+    const bool firstPass = (bandY == 0);
+
+    canvas.fillScreen(lgfx::color888(0, 0, 0));
+
+    if (drawScan)
+      DrawScanLines(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, sweepX, sweepY, 20, 128, 5);
+
+    aircraftManager.Draw(canvas, firstPass);
+    backbuffer.pushSprite(0, bandY);
+  }
 }
 
