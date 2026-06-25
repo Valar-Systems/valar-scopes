@@ -41,4 +41,13 @@ public:
     // fall back to the buffered path so parsing stays correct. The decoded doc is
     // written into `doc`; HttpResult.response stays empty.
     [[nodiscard]] HttpResult GetJson(const String& url, JsonDocument& doc, const std::vector<std::pair<String, String>>& params = {}, const std::vector<std::pair<String, String>>& headers = {});
+
+    // Non-blocking access to the same request mutex, so an UNRELATED consumer can run
+    // exclusively against a network request without blocking if one is in flight. The
+    // touch poll uses this: a touch I2C transfer that overlaps a TLS handshake on the
+    // single-core C3 wedges the CST816 off the bus, so HandleTouch only polls when it can
+    // take this lock (i.e. no GET/POST is mid-flight on any task) and skips the frame
+    // otherwise. TryAcquireBus() returns true iff it took the lock; pair with ReleaseBus().
+    bool TryAcquireBus() { return xSemaphoreTake(mutex, 0) == pdTRUE; }
+    void ReleaseBus()    { xSemaphoreGive(mutex); }
 };

@@ -67,13 +67,4 @@ public:
         }
         setPanel(&_panel);
     }
-
-    // Re-run the touch controller's reset + init sequence. The CST816S
-    // periodically wedges -- its low-power standby stops ACKing on I2C, or the
-    // I2C lines lock up -- and because the LovyanGFX driver latches its init
-    // flag and swallows every later I2C error as "no touch", a wedged
-    // controller stays dead until the device reboots. Pulsing the RST line
-    // (GPIO1) and re-initing the bus recovers it live. See AircraftManager's
-    // touch watchdog for when this is called.
-    void ReinitTouch() { _touch.init(); }
 };

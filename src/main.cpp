@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
+#include <esp_task_wdt.h>
 
 #include "LGFX.h"
 #include "DeviceIdentity.h"
@@ -36,6 +37,21 @@ void setup()
 {
   Serial.begin(115200);
   while (!Serial && millis() < 3000) { delay(10); } // wait up to 3s for the USB CDC host to open the port
+
+  // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
+  // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
+  // on the single-core C3 that can keep the watchdog-fed async_tcp service task from
+  // running for several seconds. The IDF default TWDT is 5 s -- the same order as a slow
+  // handshake -- so a legitimately slow (but still progressing) fetch tripped it and
+  // rebooted the board (async_tcp / osky_fetch watchdog abort). 10 s clears the worst-case
+  // connect (bounded to 3 s in HttpRequestManager) plus margin, while a genuine hang still
+  // reboots. Reconfigure, not init: IDF startup already armed the TWDT.
+  esp_task_wdt_config_t wdtConfig = {
+    .timeout_ms = 10000,
+    .idle_core_mask = (1 << 0), // CPU0 idle task -- matches the single-core Arduino default
+    .trigger_panic = true,      // still reboot on a real hang
+  };
+  esp_task_wdt_reconfigure(&wdtConfig);
 
   // initialise LGFX + screen
   tft.init();

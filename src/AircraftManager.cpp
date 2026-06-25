@@ -433,10 +433,9 @@ void AircraftManager::Initialise()
     // makes the next "now - lastFetch >= fetchInterval" check true at any uptime.
     lastFetch = millis() - fetchInterval;
 
-    // start the touch watchdog clock from now so it doesn't fire right after the
-    // controller's own boot-time init in setup()
+    // seed the touch clock to now, so enrichment is paused for the first few seconds after
+    // boot/reload -- that gives the touch poll the bus first while the radar populates.
     lastTouchActivityMs = millis();
-    lastTouchReinitMs = millis();
 
     // spawn the background fetch task (once; survives config reloads -- it picks up
     // new location/credentials from each RequestFetch snapshot)
@@ -1243,11 +1242,34 @@ void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAir
 
 void AircraftManager::HandleTouch()
 {
+    // Serialize touch I2C with network TLS via the shared HTTP request lock. On the
+    // single-core C3 a touch I2C transfer that overlaps a TLS handshake wedges the CST816
+    // off the bus -- the v4 regression (touch worked in v2, which had no concurrent network
+    // task). The HTTP client holds this mutex for the full duration of every GET/POST on any
+    // task, so taking it here guarantees no I2C transfer runs concurrently with a request.
+    //
+    // We gate this way ONLY on the radar view. While a detail card is open the radar isn't
+    // shown, the card's own enrichment (metadata/route/photo) holds the bus for several
+    // seconds, and gating would make the close tap wait that whole time (up to ~30 s when a
+    // lookup times out). So on the card view we poll every loop regardless -- closing stays
+    // instant. The brief overlap risk there is acceptable: the card view has no sweep to
+    // protect, the enrichment is bounded and one-shot, and the controller wakes on the next
+    // touch. The earlier fetchInFlight/enrichInFlight flags did NOT work for this -- they
+    // don't actually span the on-task TLS window; the mutex does.
+    const bool gateOnBus = !inDetail;
+    const bool gotBus = http.TryAcquireBus();
+    if (gateOnBus && !gotBus)
+        return; // radar view: a request is mid-flight, skip this poll to avoid the wedge
+
     int32_t tx = 0, ty = 0;
     const bool touched = tft.getTouch(&tx, &ty);
 
+    if (gotBus)
+        http.ReleaseBus();
+
+    const unsigned long now = millis();
     if (touched) {
-        lastTouchActivityMs = millis(); // proof the controller is alive; reset the watchdog
+        lastTouchActivityMs = now; // proof the controller is alive
         if (!wasTouched) { touchStartX = tx; touchStartY = ty; } // press edge
         touchLastX = tx;
         touchLastY = ty;
@@ -1267,24 +1289,6 @@ void AircraftManager::HandleTouch()
     }
 
     wasTouched = touched;
-
-    // Touch-controller watchdog. The LovyanGFX CST816S driver latches its init
-    // flag on the first good read and then silently treats every later I2C
-    // failure as "no touch" -- so once the controller wedges (standby stops
-    // ACKing, or the bus locks up) the panel is dead until a reboot. We can't
-    // tell a wedged read from a genuinely idle one through getTouch(), so when
-    // the panel has been quiet for a few seconds we periodically pulse its reset
-    // line and re-run init. A live, in-use panel keeps refreshing
-    // lastTouchActivityMs, so this only fires while idle (or already wedged),
-    // where the ~20 ms reset is invisible.
-    constexpr unsigned long TOUCH_IDLE_MS = 5000;            // quiet period before we'll consider a reset
-    constexpr unsigned long TOUCH_REINIT_INTERVAL_MS = 20000; // and at most this often while idle
-    const unsigned long now = millis();
-    if (now - lastTouchActivityMs > TOUCH_IDLE_MS &&
-        now - lastTouchReinitMs   > TOUCH_REINIT_INTERVAL_MS) {
-        tft.ReinitTouch();
-        lastTouchReinitMs = now;
-    }
 }
 
 void AircraftManager::ExitDetail()
@@ -1928,9 +1932,21 @@ void AircraftManager::ProcessMetadataLookups()
         return;
 
     const unsigned long now = millis();
-    // Space lookups out so a burst of new aircraft doesn't fire many HTTP calls
-    // back to back, and to stay friendly to the free adsbdb service.
-    constexpr unsigned long METADATA_LOOKUP_INTERVAL = 1500;
+
+    // Pause background enrichment for a few seconds after any touch. The enrichment task's
+    // TLS holds the touch I2C bus (touch is serialized against it on the radar view), so
+    // enriching while the user is interacting gates taps out -- during a burst of new
+    // aircraft that makes touch look dead until enrichment catches up. Pausing keeps the bus
+    // free while the user is active; an idle radar still enriches and catches up normally.
+    constexpr unsigned long ENRICH_TOUCH_PAUSE = 4000;
+    if (now - lastTouchActivityMs < ENRICH_TOUCH_PAUSE)
+        return;
+
+    // Space lookups out so a burst of new aircraft doesn't fire many HTTP calls back to back
+    // (each holds the bus, gating touch) and to stay friendly to the free adsbdb service.
+    // The spacing also guarantees a free-bus window between lookups so a tap can land and
+    // trigger the pause above.
+    constexpr unsigned long METADATA_LOOKUP_INTERVAL = 5000;
     if (now - lastMetadataLookup < METADATA_LOOKUP_INTERVAL)
         return;
 
