@@ -15,15 +15,14 @@ constexpr int SCREEN_SIZE_DIV_2 = (SCREEN_SIZE / 2);
 constexpr int PHOTO_W = 150;
 constexpr int PHOTO_H = 100;
 
-// adsbdb/photo enrichment runs over HTTPS, and an mbedTLS handshake needs a large
-// *contiguous* block (tens of KB) on top of the ~56 KB radar backbuffer, the ~15 KB
-// photo sprite and the WiFi stack. On this 240x240 ESP32-C3 that headroom isn't
-// always there; when it's missing the handshake dies ("BIGNUM alloc failed") and the
-// failed lookup is retried every cycle, churning the heap hard enough to starve the
-// async web server mid-send -- which is what makes the config page hang/time out.
-// So skip enrichment unless the largest free block can plausibly host a handshake
-// (observed to fail around ~35 KB). It resumes automatically once heap frees up.
-constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 50000;
+// Critical-heap floor below which we don't even start an enrichment HTTPS lookup -- a
+// last-ditch guard, not a routine throttle. The post-banding/streaming build runs with
+// only ~24-28 KB largest free block yet the OpenSky fetch (same mbedTLS path) handshakes
+// fine there, so the gate-time largest-block reading is a poor predictor of handshake
+// success; keep this well below normal operation so enrichment behaves like the (ungated)
+// OpenSky fetch -- attempt the handshake and let the 30 s failure backoff handle a miss.
+// Also the threshold for the [fetch] low-heap warning. Raising it starves enrichment off.
+constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 16000;
 
 // aircraft list-view layout, shared by the renderer and the row hit-test
 constexpr int LIST_ROW_TOP = 40;
@@ -612,11 +611,14 @@ void AircraftManager::RunFetchTask()
             res->ok = true;
         }
 
-        // heap snapshot right after the decode -- this is the cycle's low point, the
-        // same pressure the config web server fights for its send buffer.
-        Serial.printf("[fetch] %s ok=%d aircraft=%u heap free=%u largest=%u\n",
-                      sourceName, res->ok ? 1 : 0, (unsigned)res->aircraft.size(),
-                      ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+        // Heap health check right after the decode -- the cycle's low point, the same
+        // pressure TLS handshakes and the config web server fight for. Stay silent when
+        // healthy; warn only when the largest block falls to where enrichment starts
+        // getting throttled (ENRICH_TLS_HEAP_FLOOR) -- the early sign we're sliding back
+        // toward the TLS / config-page failures this all fixed.
+        if (const uint32_t largest = ESP.getMaxAllocHeap(); largest < ENRICH_TLS_HEAP_FLOOR)
+            Serial.printf("[fetch] LOW HEAP after %s: free=%u largest=%u aircraft=%u\n",
+                          sourceName, ESP.getFreeHeap(), largest, (unsigned)res->aircraft.size());
 
         delete req;
 
