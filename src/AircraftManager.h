@@ -16,6 +16,7 @@
 #include "Logbook.h"
 #include "MqttPublisher.h"
 #include "LGFX.h"
+#include "BandCanvas.h"
 
 class AircraftManager
 {
@@ -135,6 +136,20 @@ private:
     QueueHandle_t fetchResultQueue = nullptr;  // task -> loop: FetchResult*
     bool fetchInFlight = false;                // loop-task-only: a request is outstanding
 
+    // Background enrichment task (adsbdb metadata/route + aircraft photo download).
+    // The detail-card and radar-metadata lookups used to run as blocking HTTPS GETs
+    // on the loop; under low heap a slow third-party host stalled the single core
+    // long enough to starve the watchdog-fed async_tcp service task into a reboot.
+    // They now run here, off-loop, exactly like the OpenSky fetch above: the task
+    // does the blocking GET + parse and never holds a pointer into trackedAircraft;
+    // the loop applies the parsed result (and decodes the photo into its sprite, so
+    // the sprite stays single-task). One enrichment is outstanding at a time
+    // (enrichInFlight), shared between the detail path and the radar enrichment.
+    TaskHandle_t  enrichTaskHandle = nullptr;
+    QueueHandle_t enrichRequestQueue = nullptr; // loop -> task: EnrichRequest*
+    QueueHandle_t enrichResultQueue = nullptr;  // task -> loop: EnrichResult*
+    bool enrichInFlight = false;                // loop-task-only: a request is outstanding
+
     // backlight + clock
     uint8_t configuredBrightness = 255; // day/base level from the slider
     uint8_t currentBrightness = 255;    // currently applied level (avoids redundant writes)
@@ -147,19 +162,19 @@ private:
     HttpRequestManager& http;
     LGFX& tft;
 
-    void DrawRadarCircles(LGFX_Sprite& backbuffer) const;
+    void DrawRadarCircles(BandCanvas& backbuffer) const;
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
-    void DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
-    void DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const;
-    void DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const;
-    void DrawEmergencyAlert(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
-    void DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked);
+    void DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
+    void DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const;
+    void DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const;
+    void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
+    void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
 
-    void DrawRadar(LGFX_Sprite& backbuffer);
-    void DrawList(LGFX_Sprite& backbuffer);
-    void DrawStats(LGFX_Sprite& backbuffer);
-    void DrawScreenIndicator(LGFX_Sprite& backbuffer) const;
-    void DrawClock(LGFX_Sprite& backbuffer) const;
+    void DrawRadar(BandCanvas& backbuffer, bool firstPass);
+    void DrawList(BandCanvas& backbuffer);
+    void DrawStats(BandCanvas& backbuffer);
+    void DrawScreenIndicator(BandCanvas& backbuffer) const;
+    void DrawClock(BandCanvas& backbuffer) const;
     std::vector<String> SortedAircraftByDistance();
 
     void UpdateBrightness(); // apply solar day/night dimming (throttled)
@@ -170,29 +185,35 @@ private:
     void RequestFetch();                        // loop: snapshot params + token, signal task
     void ConsumeFetchResult();                  // loop: merge a ready result, non-blocking
 
+    void StartEnrichTask();                      // spawn the enrichment task once
+    static void EnrichTaskTrampoline(void* arg); // FreeRTOS entry -> RunEnrichTask()
+    void RunEnrichTask();                        // blocking adsbdb GET / photo download, off-loop
+    void RequestMetadata(const String& icao24);                      // loop: queue a metadata lookup
+    void RequestRoute(const String& icao24, const String& callsign); // loop: queue a route lookup
+    void RequestPhoto(const String& icao24, const String& url);      // loop: queue a photo download
+    void ConsumeEnrichResults();                 // loop: apply a ready result, non-blocking
+
     void HandleTouch();             // poll the touch panel, classify tap vs swipe
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal
     void HandleSwipe(Swipe swipe);  // route a swipe to navigation / pin
+    void ExitDetail();              // leave the detail card and free its ~15 KB photo sprite
 
-    // Resolve the selected aircraft's metadata, route, then photo -- one blocking
-    // lookup per frame so the detail card fills in progressively. Runs for the
-    // inspected aircraft even when the radar's enrichment fields are disabled.
+    // Resolve the selected aircraft's metadata, route, then photo. Each step is
+    // handed to the enrichment task and applied when it returns, so the card fills
+    // in progressively without ever blocking the loop. Runs for the inspected
+    // aircraft even when the radar's enrichment fields are disabled.
     void ProcessDetailLookups();
-    void LookupRoute(const String& callsign, TrackedAircraft& tracked);
-    void LoadPhoto(const String& url);
 
-    // Resolve type/operator/registration for tracked aircraft via adsbdb.com,
-    // one at a time and throttled, so the blocking HTTP calls don't stall the
-    // render loop more than the existing OpenSky fetch already does.
+    // Queue type/operator/registration lookups for tracked aircraft via adsbdb.com,
+    // one at a time and throttled, so enrichment never blocks the render loop.
     void ProcessMetadataLookups();
-    void LookupAircraftMetadata(const String& icao24, TrackedAircraft& tracked);
 
     bool MatchesWatchlist(const TrackedAircraft& tracked) const;
     bool IsOverhead(const TrackedAircraft& tracked) const; // within overheadKm of the centre
     void ProcessAlerts();                                  // ntfy: flyover + overhead, throttled
     void SendFlyoverNotification(const TrackedAircraft& tracked, bool military = false);
     void SendOverheadNotification(const TrackedAircraft& tracked);
-    void DrawOverheadAlert(LGFX_Sprite& backbuffer, int x, int y) const;
+    void DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) const;
 
     void PublishMqttState();     // retained JSON summary of the current picture
     void PublishMqttDiscovery(); // Home Assistant MQTT discovery configs (retained)
@@ -212,6 +233,6 @@ public:
 
     void Initialise();
     void Update();
-    void Draw(LGFX_Sprite& backbuffer);
+    void Draw(BandCanvas& backbuffer, bool firstPass);
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
 };

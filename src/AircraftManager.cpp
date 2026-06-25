@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <time.h>
+#include <utility>
 
 #include "SpecialAircraft.h"
 #include "DeviceIdentity.h"
@@ -13,6 +14,15 @@ constexpr int SCREEN_SIZE_DIV_2 = (SCREEN_SIZE / 2);
 // adsbdb thumbnails (airport-data.com) are a standard 150x100
 constexpr int PHOTO_W = 150;
 constexpr int PHOTO_H = 100;
+
+// Critical-heap floor below which we don't even start an enrichment HTTPS lookup -- a
+// last-ditch guard, not a routine throttle. The post-banding/streaming build runs with
+// only ~24-28 KB largest free block yet the OpenSky fetch (same mbedTLS path) handshakes
+// fine there, so the gate-time largest-block reading is a poor predictor of handshake
+// success; keep this well below normal operation so enrichment behaves like the (ungated)
+// OpenSky fetch -- attempt the handshake and let the 30 s failure backoff handle a miss.
+// Also the threshold for the [fetch] low-heap warning. Raising it starves enrichment off.
+constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 16000;
 
 // aircraft list-view layout, shared by the renderer and the row hit-test
 constexpr int LIST_ROW_TOP = 40;
@@ -32,6 +42,33 @@ struct FetchRequest {
 struct FetchResult {
     bool ok = false;                 // false on network / parse failure
     std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
+};
+
+// Handoff payloads for the background enrichment task (adsbdb metadata/route +
+// aircraft photo). Like the fetch payloads above, ownership transfers by pointer
+// through a depth-1 queue: the receiver frees it. The task fills a result the loop
+// applies; it never touches trackedAircraft, the photo sprite, or the logbook.
+enum class EnrichKind : uint8_t { Metadata, Route, Photo };
+
+struct EnrichRequest {
+    EnrichKind kind;
+    String icao24;    // aircraft the result applies to (all kinds)
+    String callsign;  // Route only
+    String url;       // Photo only
+};
+
+struct EnrichResult {
+    EnrichKind kind = EnrichKind::Metadata;
+    String icao24;
+    bool definitive = false; // a final HTTP answer arrived; false = transient failure (retry)
+
+    // Metadata
+    String typeCode, typeName, operatorName, registration, photoUrl;
+    // Route
+    String routeCallsign, routeOrigin, routeDest;
+    // Photo: the raw JPEG body, decoded on the loop so the sprite stays single-task
+    bool photoFetched = false;
+    String photoBytes;
 };
 
 namespace {
@@ -100,6 +137,122 @@ String normalizeLocalUrl(String url)
         url += "/data/aircraft.json";
     }
     return url;
+}
+
+// --- Enrichment producers ---------------------------------------------------
+// Each runs on the enrichment task: one blocking GET + parse, returning a
+// heap-allocated result for the loop to apply. They reference nothing the loop
+// owns -- only the shared, mutex-guarded HTTP client -- so an aircraft leaving
+// range (erased on the loop) can never be written under them. Always non-null,
+// so the loop's in-flight gate is always cleared by the matching result.
+
+EnrichResult* fetchAircraftMetadata(HttpRequestManager& http, const String& icao24)
+{
+    EnrichResult* res = new EnrichResult();
+
+    const HttpResult result = http.Get("https://api.adsbdb.com/v0/aircraft/" + icao24);
+
+    // A network-level failure (no HTTP response at all) is transient: leave it
+    // non-definitive so the loop returns the aircraft to NotFetched and retries.
+    if (!result.success) {
+        Serial.printf("[adsbdb] lookup for %s failed: %s\n", icao24.c_str(), result.errorMessage.c_str());
+        return res;
+    }
+
+    // Any definitive HTTP response -- including 404 "unknown aircraft" -- is final.
+    res->definitive = true;
+
+    JsonDocument doc;
+    if (deserializeJson(doc, result.response))
+        return res; // malformed body: treat as no data, but don't retry
+
+    // adsbdb wraps the record in { "response": { "aircraft": {...} } }; when the
+    // address is unknown it returns { "response": "unknown aircraft" }, leaving
+    // this lookup null.
+    JsonObject aircraft = doc["response"]["aircraft"];
+    if (aircraft.isNull()) {
+        Serial.printf("[adsbdb] %s -> unknown aircraft\n", icao24.c_str());
+        return res;
+    }
+
+    res->typeCode     = aircraft["icao_type"].isNull()           ? "" : aircraft["icao_type"].as<String>();
+    res->typeName     = aircraft["type"].isNull()                ? "" : aircraft["type"].as<String>();
+    res->operatorName = aircraft["registered_owner"].isNull()    ? "" : aircraft["registered_owner"].as<String>();
+    res->registration = aircraft["registration"].isNull()        ? "" : aircraft["registration"].as<String>();
+    res->photoUrl     = aircraft["url_photo_thumbnail"].isNull() ? "" : aircraft["url_photo_thumbnail"].as<String>();
+
+    Serial.printf("[adsbdb] %s -> type=%s operator=%s reg=%s\n",
+                  icao24.c_str(), res->typeCode.c_str(),
+                  res->operatorName.c_str(), res->registration.c_str());
+    return res;
+}
+
+EnrichResult* fetchRoute(HttpRequestManager& http, const String& callsign)
+{
+    EnrichResult* res = new EnrichResult();
+
+    const HttpResult result = http.Get("https://api.adsbdb.com/v0/callsign/" + callsign);
+
+    // network-level failure is transient: stay non-definitive so it's retried
+    if (!result.success && result.statusCode <= 0) {
+        Serial.printf("[adsbdb] route %s failed: %s\n", callsign.c_str(), result.errorMessage.c_str());
+        return res;
+    }
+
+    // any definitive HTTP response (incl. 404 unknown callsign) is final
+    res->definitive = true;
+    res->routeCallsign = callsign;
+
+    JsonDocument doc;
+    if (deserializeJson(doc, result.response))
+        return res;
+
+    JsonObject flightroute = doc["response"]["flightroute"];
+    if (flightroute.isNull()) {
+        Serial.printf("[adsbdb] route %s -> unknown\n", callsign.c_str());
+        return res;
+    }
+
+    // prefer the short IATA code, fall back to ICAO
+    auto airportCode = [](JsonObject airport) -> String {
+        if (airport.isNull()) return "";
+        if (!airport["iata_code"].isNull()) return airport["iata_code"].as<String>();
+        if (!airport["icao_code"].isNull()) return airport["icao_code"].as<String>();
+        return "";
+    };
+
+    res->routeOrigin = airportCode(flightroute["origin"]);
+    res->routeDest = airportCode(flightroute["destination"]);
+
+    Serial.printf("[adsbdb] route %s -> %s->%s\n", callsign.c_str(),
+                  res->routeOrigin.c_str(), res->routeDest.c_str());
+    return res;
+}
+
+EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url)
+{
+    EnrichResult* res = new EnrichResult();
+
+    HttpResult result = http.Get(url);
+    if (!result.success) {
+        Serial.printf("[photo] fetch failed: %s\n", result.errorMessage.c_str());
+        return res; // photoFetched stays false
+    }
+
+    res->photoFetched = true;
+    res->photoBytes = std::move(result.response); // decoded on the loop into the shared sprite
+    return res;
+}
+
+// Hand a request to the enrichment task. Frees it (and reports failure) if the
+// depth-1 queue is somehow full -- which can't happen while the loop only ever
+// queues one request at a time behind the enrichInFlight gate.
+bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
+{
+    if (xQueueSend(queue, &req, 0) == pdTRUE)
+        return true;
+    delete req;
+    return false;
 }
 
 } // namespace
@@ -288,6 +441,9 @@ void AircraftManager::Initialise()
     // spawn the background fetch task (once; survives config reloads -- it picks up
     // new location/credentials from each RequestFetch snapshot)
     StartFetchTask();
+
+    // spawn the background enrichment task (once; same lifetime as the fetch task)
+    StartEnrichTask();
 }
 
 void AircraftManager::Update()
@@ -316,6 +472,11 @@ void AircraftManager::Update()
         }
     }
 
+    // apply any completed background enrichment (metadata / route / photo) so the
+    // detail card and radar labels pick it up the same frame it arrives. Done before
+    // the inDetail early-return below so a card's lookups keep flowing while it's open.
+    ConsumeEnrichResults();
+
     // fill in the selected aircraft's details first, so the detail card from the
     // prior frame's tap stays on screen during each brief lookup
     ProcessDetailLookups();
@@ -324,16 +485,17 @@ void AircraftManager::Update()
     HandleTouch();
 
     // While the detail card is open the radar isn't visible and the user is
-    // interacting, so skip all the blocking background network work below (radar
-    // metadata enrichment, watchlist alerts, and the periodic OpenSky fetch).
-    // Each of those stalls the loop for up to a few seconds inside a synchronous
-    // HTTP request, and the touch panel is only polled once per loop -- so a quick
-    // "tap to close" that landed during one of those stalls was simply never
-    // sampled, which is what made it take two or three taps. Bailing out here
-    // keeps the loop fast while a card is up, so a dismiss tap registers the first
-    // time. The card's own fields are still filled by ProcessDetailLookups()
-    // above, and normal fetching resumes the instant the card closes (lastFetch is
-    // already stale, so the next Update() refreshes immediately).
+    // interacting, so skip the radar's background network work below (metadata
+    // enrichment, watchlist/overhead alerts, and the periodic feed fetch). The
+    // enrichment and the fetch are non-blocking now (each runs on its own task),
+    // but the ntfy alert POST still blocks the loop for up to a few seconds, and the
+    // touch panel is only polled once per loop -- so a quick "tap to close" landing
+    // during that POST was never sampled, which is what made it take two or three
+    // taps. Bailing out here keeps the loop fast while a card is up, so a dismiss tap
+    // registers the first time. The card's own lookups still flow via
+    // ProcessDetailLookups()/ConsumeEnrichResults() above, and normal fetching
+    // resumes the instant the card closes (lastFetch is already stale, so the next
+    // Update() refreshes immediately).
     if (inDetail)
         return;
 
@@ -341,11 +503,14 @@ void AircraftManager::Update()
     // JSON decode already ran on the fetch task; this is just a fast map merge.
     ConsumeFetchResult();
 
-    // The enrichment lookups and a token refresh still block the loop, so skip them
-    // while a fetch is in flight -- both to keep the loop responsive and to avoid a
-    // second simultaneous TLS session competing with the fetch task's for heap.
+    // Hold off the radar enrichment + alerts while a feed fetch is in flight. The
+    // metadata enrichment is queued to the enrich task now (non-blocking), but gating
+    // it here keeps a second adsbdb request from queueing right behind the feed fetch
+    // and spacing them keeps peak heap down on this tight board; the ntfy POST in
+    // ProcessAlerts still blocks the loop, and RequestFetch's token refresh can still
+    // block on the rare ~29-minute renewal.
     if (!fetchInFlight) {
-        // enrich a tracked aircraft with adsbdb metadata (throttled internally)
+        // enrich a tracked aircraft with adsbdb metadata (queued, throttled internally)
         ProcessMetadataLookups();
 
         // alert on watchlisted / military / overhead aircraft (throttled internally)
@@ -393,17 +558,21 @@ void AircraftManager::RunFetchTask()
 
         FetchResult* res = new FetchResult();
 
-        // GET the feed: either the user's local receiver (no params/auth) or the
-        // OpenSky API bounded to the scan box. Both share the one HTTP client.
+        // GET + decode the feed straight from the socket (GetJson streams when possible
+        // so the raw body and the parsed document aren't both held at once -- that peak
+        // is what starved the heap). Either the user's local receiver (no params/auth)
+        // or the OpenSky API bounded to the scan box; both share the one HTTP client.
+        JsonDocument doc;
         HttpResult result;
         if (req->local) {
-            result = http.Get(req->url);
+            result = http.GetJson(req->url, doc);
         } else {
             std::vector<std::pair<String, String>> headers = {};
             if (!req->token.isEmpty()) headers.push_back({ "Authorization", "Bearer " + req->token });
 
-            result = http.Get(
+            result = http.GetJson(
                 "https://opensky-network.org/api/states/all",
+                doc,
                 {
                   // 6 decimals (~0.1 m): String(double) defaults to only 2, which would
                   // quantize small km/mi radii into a coarse ~1 km box or collapse it
@@ -423,30 +592,33 @@ void AircraftManager::RunFetchTask()
         const char* sourceName = req->local ? "Local ADS-B" : "OpenSky";
         if (!result.success) {
             Serial.printf("[WARN] %s request failed: %s\n", sourceName, result.errorMessage.c_str());
-        } else {
-            JsonDocument doc;
-            const DeserializationError err = deserializeJson(doc, result.response);
-            if (err) {
-                Serial.printf("[WARN] %s response JSON parse failed: %s\n", sourceName, err.f_str());
-            } else if (req->local) {
-                // dump1090/readsb returns objects under "aircraft"; convert each and
-                // clip to the scan box ourselves (OpenSky does this server-side, but a
-                // local receiver reports everything it hears).
-                for (JsonVariantConst entry : doc["aircraft"].as<JsonArrayConst>()) {
-                    Aircraft ac;
-                    if (!JsonParser::ParseLocalAircraft(entry, ac))
-                        continue;
-                    if (ac.latitude  < req->lat - req->radLat || ac.latitude  > req->lat + req->radLat ||
-                        ac.longitude < req->lon - req->radLon || ac.longitude > req->lon + req->radLon)
-                        continue;
-                    res->aircraft.push_back(ac);
-                }
-                res->ok = true;
-            } else {
-                res->aircraft = JsonParser::ParseArray<Aircraft>(doc["states"]);
-                res->ok = true;
+        } else if (req->local) {
+            // dump1090/readsb returns objects under "aircraft"; convert each and
+            // clip to the scan box ourselves (OpenSky does this server-side, but a
+            // local receiver reports everything it hears).
+            for (JsonVariantConst entry : doc["aircraft"].as<JsonArrayConst>()) {
+                Aircraft ac;
+                if (!JsonParser::ParseLocalAircraft(entry, ac))
+                    continue;
+                if (ac.latitude  < req->lat - req->radLat || ac.latitude  > req->lat + req->radLat ||
+                    ac.longitude < req->lon - req->radLon || ac.longitude > req->lon + req->radLon)
+                    continue;
+                res->aircraft.push_back(ac);
             }
+            res->ok = true;
+        } else {
+            res->aircraft = JsonParser::ParseArray<Aircraft>(doc["states"]);
+            res->ok = true;
         }
+
+        // Heap health check right after the decode -- the cycle's low point, the same
+        // pressure TLS handshakes and the config web server fight for. Stay silent when
+        // healthy; warn only when the largest block falls to where enrichment starts
+        // getting throttled (ENRICH_TLS_HEAP_FLOOR) -- the early sign we're sliding back
+        // toward the TLS / config-page failures this all fixed.
+        if (const uint32_t largest = ESP.getMaxAllocHeap(); largest < ENRICH_TLS_HEAP_FLOOR)
+            Serial.printf("[fetch] LOW HEAP after %s: free=%u largest=%u aircraft=%u\n",
+                          sourceName, ESP.getFreeHeap(), largest, (unsigned)res->aircraft.size());
 
         delete req;
 
@@ -529,7 +701,7 @@ void AircraftManager::ConsumeFetchResult()
     delete res;
 }
 
-void AircraftManager::Draw(LGFX_Sprite& backbuffer)
+void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
 {
     // the detail card overlays whichever screen is active; fall back to it if the
     // selected aircraft has since dropped out of the feed
@@ -539,15 +711,14 @@ void AircraftManager::Draw(LGFX_Sprite& backbuffer)
             DrawDetailCard(backbuffer, it->second);
             return;
         }
-        inDetail = false;
-        detailPage = 0;
+        ExitDetail(); // selected aircraft left the feed (idempotent across band passes)
     }
 
     switch (screen) {
         case Screen::List:  DrawList(backbuffer);  break;
         case Screen::Stats: DrawStats(backbuffer); break;
         case Screen::Radar:
-        default:            DrawRadar(backbuffer);  break;
+        default:            DrawRadar(backbuffer, firstPass);  break;
     }
     DrawScreenIndicator(backbuffer);
     DrawClock(backbuffer);
@@ -576,7 +747,7 @@ uint32_t AircraftManager::SpecialColor(SpecialAircraft::Class c)
     }
 }
 
-void AircraftManager::DrawRadar(LGFX_Sprite& backbuffer)
+void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
     DrawRadarCircles(backbuffer);
 
@@ -598,10 +769,13 @@ void AircraftManager::DrawRadar(LGFX_Sprite& backbuffer)
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.state.onGround) continue;
 
-        tracked.Tick();
-
-        if (displayTrails)
-            tracked.SampleTrail();
+        // The scene is rendered once per band; advance per-frame animation/trail state
+        // only on the first band so both halves use identical positions (no seam tear).
+        if (firstPass) {
+            tracked.Tick();
+            if (displayTrails)
+                tracked.SampleTrail();
+        }
 
         auto [predLat, predLon] = tracked.GetDisplayPosition();
         auto [x, y] = ProjectCoordinateToScreen(predLat, predLon);
@@ -696,7 +870,7 @@ void AircraftManager::DrawRadar(LGFX_Sprite& backbuffer)
     }
 }
 
-void AircraftManager::DrawList(LGFX_Sprite& backbuffer)
+void AircraftManager::DrawList(BandCanvas& backbuffer)
 {
     constexpr int cx = SCREEN_SIZE_DIV_2;
     backbuffer.setTextSize(1);
@@ -745,7 +919,7 @@ void AircraftManager::DrawList(LGFX_Sprite& backbuffer)
     }
 }
 
-void AircraftManager::DrawStats(LGFX_Sprite& backbuffer)
+void AircraftManager::DrawStats(BandCanvas& backbuffer)
 {
     constexpr int cx = SCREEN_SIZE_DIV_2;
     backbuffer.setTextSize(1);
@@ -806,7 +980,7 @@ void AircraftManager::DrawStats(LGFX_Sprite& backbuffer)
     }
 }
 
-void AircraftManager::DrawScreenIndicator(LGFX_Sprite& backbuffer) const
+void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
 {
     constexpr int cx = SCREEN_SIZE_DIV_2;
     const int y = SCREEN_SIZE - 16;
@@ -817,7 +991,7 @@ void AircraftManager::DrawScreenIndicator(LGFX_Sprite& backbuffer) const
     }
 }
 
-void AircraftManager::DrawClock(LGFX_Sprite& backbuffer) const
+void AircraftManager::DrawClock(BandCanvas& backbuffer) const
 {
     const time_t utc = time(nullptr);
     if (utc < 1600000000) return; // NTP not synced yet
@@ -874,7 +1048,7 @@ std::vector<String> AircraftManager::SortedAircraftByDistance()
     return out;
 }
 
-void AircraftManager::DrawRadarCircles(LGFX_Sprite& backbuffer) const
+void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
 {
     constexpr int CENTRE = SCREEN_SIZE_DIV_2 - 1;
     constexpr int OUTER = SCREEN_SIZE_DIV_2 - 1;
@@ -922,7 +1096,7 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
     return { x, y };
 }
 
-void AircraftManager::DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const
 {
     const int lineHeight = tft.fontHeight() + 1;
 
@@ -945,7 +1119,7 @@ void AircraftManager::DrawAircraftInfo(LGFX_Sprite& backbuffer, int x, int y, co
     }
 }
 
-void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
+void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
 {
     // Type-aware marker, keyed off the ADS-B emitter category (normalised to
     // OpenSky's numbering for both the cloud and local feeds). Heading-less types
@@ -1002,7 +1176,7 @@ void AircraftManager::DrawAircraftTriangle(LGFX_Sprite& backbuffer, int x, int y
     dart(6.0f, 3.0f, 1.5f);
 }
 
-void AircraftManager::DrawEmergencyAlert(LGFX_Sprite& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+void AircraftManager::DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const
 {
     // expanding, fading "ping" ring to draw the eye to the emergency
     const float phase = (millis() % 900) / 900.0f;   // 0..1, ~0.9s period
@@ -1023,7 +1197,7 @@ void AircraftManager::DrawEmergencyAlert(LGFX_Sprite& backbuffer, int x, int y, 
     backbuffer.drawString(tracked.state.squawk + " " + descriptor, x + 6, y - 10);
 }
 
-void AircraftManager::DrawOverheadAlert(LGFX_Sprite& backbuffer, int x, int y) const
+void AircraftManager::DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) const
 {
     // expanding, fading cyan "ping" plus a steady "LOOK UP" label, to pull your
     // eye to the sky as the contact passes near-overhead
@@ -1038,7 +1212,7 @@ void AircraftManager::DrawOverheadAlert(LGFX_Sprite& backbuffer, int x, int y) c
     backbuffer.drawString(label, x - (int)backbuffer.textWidth(label) / 2, y - 18);
 }
 
-void AircraftManager::DrawAircraftTrail(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const
+void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const
 {
     const int n = tracked.TrailSize();
     if (n < 1) return;
@@ -1113,6 +1287,20 @@ void AircraftManager::HandleTouch()
     }
 }
 
+void AircraftManager::ExitDetail()
+{
+    inDetail = false;
+    detailPage = 0;
+    // Reclaim the ~15 KB photo sprite. Holding it allocated is what tips the heap
+    // below what an adsbdb/photo TLS handshake needs (see ENRICH_TLS_HEAP_FLOOR);
+    // it's lazily recreated the next time a photo decodes. Clear photoIcao so the
+    // photo is re-fetched if the same aircraft is opened again.
+    if (photoSprite.getBuffer() != nullptr)
+        photoSprite.deleteSprite();
+    photoReady = false;
+    photoIcao = "";
+}
+
 void AircraftManager::HandleTap(int tx, int ty)
 {
     // detail card: flip the photo page to the data page, else close
@@ -1120,7 +1308,7 @@ void AircraftManager::HandleTap(int tx, int ty)
         const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
         if (hasPhoto && detailPage == 0)
             detailPage = 1;
-        else { inDetail = false; detailPage = 0; }
+        else ExitDetail();
         return;
     }
 
@@ -1171,8 +1359,7 @@ void AircraftManager::HandleSwipe(Swipe swipe)
             pinnedIcao = (pinnedIcao == selectedIcao) ? "" : selectedIcao;
             screen = Screen::Radar;
         }
-        inDetail = false;
-        detailPage = 0;
+        ExitDetail();
         return;
     }
 
@@ -1198,19 +1385,33 @@ void AircraftManager::ProcessDetailLookups()
         return;
     TrackedAircraft& tracked = it->second;
 
-    // 1. metadata (type/operator/registration + photo URL). Done here -- not only
+    // One enrichment request is outstanding at a time (shared with the radar
+    // metadata path); wait for it to land before issuing the next step.
+    if (enrichInFlight)
+        return;
+
+    // same TLS-heap guard as the radar path: a handshake with too little contiguous
+    // heap only fails and churns, so defer the detail lookups until heap recovers.
+    if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
+        return;
+
+    // 1. metadata (type/operator/registration + photo URL). Queued here -- not only
     //    in the throttled radar path -- so the card is complete even when the
-    //    enrichment fields are disabled. One blocking call per frame, then return.
+    //    enrichment fields are disabled. The photo step below needs the photoUrl it
+    //    resolves, so wait for it (Fetching) before moving on.
     if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
-        LookupAircraftMetadata(selectedIcao, tracked);
+        tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
+        RequestMetadata(selectedIcao);
         return;
     }
+    if (tracked.metadataState == TrackedAircraft::MetadataState::Fetching)
+        return;
 
     // 2. route, once per callsign
     String callsign = tracked.state.callsign;
     callsign.trim();
     if (!callsign.isEmpty() && tracked.routeCallsign != callsign) {
-        LookupRoute(callsign, tracked);
+        RequestRoute(selectedIcao, callsign);
         return;
     }
 
@@ -1219,35 +1420,159 @@ void AircraftManager::ProcessDetailLookups()
         photoIcao = selectedIcao; // mark attempted regardless of outcome (no retry)
         photoReady = false;
         if (!tracked.photoUrl.isEmpty())
-            LoadPhoto(tracked.photoUrl);
+            RequestPhoto(selectedIcao, tracked.photoUrl);
         else
             Serial.printf("[photo] %s has no photo\n", selectedIcao.c_str());
     }
 }
 
-void AircraftManager::LoadPhoto(const String& url)
+void AircraftManager::StartEnrichTask()
 {
-    const uint32_t heapBefore = ESP.getFreeHeap();
-    const HttpResult result = http.Get(url);
+    if (enrichTaskHandle != nullptr)
+        return; // already running; survive Initialise() being re-run on a config reload
 
-    if (!result.success) {
-        Serial.printf("[photo] fetch failed: %s\n", result.errorMessage.c_str());
-        return; // photoReady stays false; photoIcao already set so we don't retry
+    // Depth 1: only ever one enrichment outstanding (gated by enrichInFlight), so a
+    // single slot for the request and one for the result is enough.
+    enrichRequestQueue = xQueueCreate(1, sizeof(EnrichRequest*));
+    enrichResultQueue  = xQueueCreate(1, sizeof(EnrichResult*));
+
+    // Same workload class as the fetch task (HTTPS GET + small JSON decode, plus a
+    // ~10 KB photo body carried back in the result), so the same 12 KB stack and
+    // priority 1. It spends almost all its life blocked on the request queue.
+    xTaskCreate(EnrichTaskTrampoline, "enrich", 12288, this, 1, &enrichTaskHandle);
+}
+
+void AircraftManager::EnrichTaskTrampoline(void* arg)
+{
+    static_cast<AircraftManager*>(arg)->RunEnrichTask();
+}
+
+void AircraftManager::RunEnrichTask()
+{
+    for (;;) {
+        // block until the loop requests an enrichment
+        EnrichRequest* req = nullptr;
+        if (xQueueReceive(enrichRequestQueue, &req, portMAX_DELAY) != pdTRUE || req == nullptr)
+            continue;
+
+        EnrichResult* res = nullptr;
+        switch (req->kind) {
+            case EnrichKind::Metadata: res = fetchAircraftMetadata(http, req->icao24); break;
+            case EnrichKind::Route:    res = fetchRoute(http, req->callsign);          break;
+            case EnrichKind::Photo:    res = fetchPhoto(http, req->url);               break;
+        }
+
+        if (res != nullptr) {
+            res->kind = req->kind;
+            res->icao24 = req->icao24; // who the result applies to (route req carries it too)
+
+            // hand the result back; the loop consumed the previous one before
+            // requesting again, so the depth-1 queue always has room
+            if (xQueueSend(enrichResultQueue, &res, 0) != pdTRUE)
+                delete res;
+        }
+
+        delete req;
+    }
+}
+
+void AircraftManager::RequestMetadata(const String& icao24)
+{
+    if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Metadata, icao24, "", "" }))
+        enrichInFlight = true;
+}
+
+void AircraftManager::RequestRoute(const String& icao24, const String& callsign)
+{
+    if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Route, icao24, callsign, "" }))
+        enrichInFlight = true;
+}
+
+void AircraftManager::RequestPhoto(const String& icao24, const String& url)
+{
+    if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Photo, icao24, "", url }))
+        enrichInFlight = true;
+}
+
+void AircraftManager::ConsumeEnrichResults()
+{
+    if (enrichResultQueue == nullptr)
+        return;
+
+    EnrichResult* res = nullptr;
+    if (xQueueReceive(enrichResultQueue, &res, 0) != pdTRUE)
+        return; // nothing ready
+
+    enrichInFlight = false;
+
+    // The aircraft may have left range while the lookup was outstanding. Metadata
+    // and route results target a map entry (gone -> nothing to apply); the photo is
+    // keyed to photoIcao instead, since the sprite is shared, not per-entry.
+    auto it = trackedAircraft.find(res->icao24);
+
+    switch (res->kind) {
+        case EnrichKind::Metadata:
+            if (it != trackedAircraft.end()) {
+                if (res->definitive) {
+                    TrackedAircraft& t = it->second;
+                    t.metadataState = TrackedAircraft::MetadataState::Fetched;
+                    t.typeCode = res->typeCode;
+                    t.typeName = res->typeName;
+                    t.operatorName = res->operatorName;
+                    t.registration = res->registration;
+                    t.photoUrl = res->photoUrl;
+
+                    // add the type / airline to the lifelist; a brand-new entry marks
+                    // this a "fresh catch". On the loop -- the logbook is loop-owned.
+                    if (logbookEnabled) {
+                        const bool newType = logbook.NoteType(t.typeCode);
+                        const bool newOperator = logbook.NoteOperator(t.operatorName);
+                        if (newType || newOperator)
+                            t.freshCatch = true;
+                    }
+                } else {
+                    // transient network failure: allow a later retry, but not before
+                    // a cooldown -- otherwise this same aircraft is re-picked every
+                    // cycle and hammers the (often heap-starved) TLS path in a storm.
+                    constexpr unsigned long METADATA_RETRY_COOLDOWN = 30000;
+                    it->second.metadataState = TrackedAircraft::MetadataState::NotFetched;
+                    it->second.metadataRetryAfter = millis() + METADATA_RETRY_COOLDOWN;
+                }
+            }
+            break;
+
+        case EnrichKind::Route:
+            // only a definitive answer is recorded; a transient failure leaves
+            // routeCallsign unchanged so the detail path retries it
+            if (it != trackedAircraft.end() && res->definitive) {
+                TrackedAircraft& t = it->second;
+                t.routeCallsign = res->routeCallsign;
+                t.routeOrigin = res->routeOrigin;
+                t.routeDest = res->routeDest;
+            }
+            break;
+
+        case EnrichKind::Photo:
+            // decode here, on the loop, so the photo sprite is only ever touched by
+            // one task. Only apply it if this photo is still wanted: ExitDetail()
+            // clears photoIcao (and frees the sprite) when the card closes, so a
+            // late-arriving result must not re-allocate the ~15 KB sprite behind it.
+            if (photoIcao == res->icao24 && res->photoFetched && res->photoBytes.length() > 0) {
+                if (photoSprite.getBuffer() == nullptr) {
+                    photoSprite.setColorDepth(8);
+                    photoSprite.createSprite(PHOTO_W, PHOTO_H);
+                }
+                photoSprite.fillScreen(lgfx::color888(0, 0, 0));
+                photoReady = photoSprite.drawJpg((const uint8_t*)res->photoBytes.c_str(),
+                                                 res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
+                Serial.printf("[photo] %s bytes=%u decoded=%d heap %u\n",
+                              res->icao24.c_str(), (unsigned)res->photoBytes.length(),
+                              photoReady ? 1 : 0, ESP.getFreeHeap());
+            }
+            break;
     }
 
-    // create the decode sprite once and reuse it across selections
-    if (photoSprite.getBuffer() == nullptr) {
-        photoSprite.setColorDepth(8);
-        photoSprite.createSprite(PHOTO_W, PHOTO_H);
-    }
-
-    photoSprite.fillScreen(lgfx::color888(0, 0, 0));
-    photoReady = photoSprite.drawJpg((const uint8_t*)result.response.c_str(),
-                                     result.response.length(), 0, 0, PHOTO_W, PHOTO_H);
-
-    Serial.printf("[photo] %s bytes=%u decoded=%d heap %u->%u\n",
-                  photoIcao.c_str(), (unsigned)result.response.length(),
-                  photoReady ? 1 : 0, heapBefore, ESP.getFreeHeap());
+    delete res;
 }
 
 bool AircraftManager::MatchesWatchlist(const TrackedAircraft& tracked) const
@@ -1484,49 +1809,7 @@ void AircraftManager::PublishMqttDiscovery()
     Serial.printf("[mqtt] published HA discovery for %s\n", uid.c_str());
 }
 
-void AircraftManager::LookupRoute(const String& callsign, TrackedAircraft& tracked)
-{
-    const HttpResult result = http.Get("https://api.adsbdb.com/v0/callsign/" + callsign);
-
-    // network-level failure is transient: leave routeCallsign unset to retry
-    if (!result.success && result.statusCode <= 0) {
-        Serial.printf("[adsbdb] route %s failed: %s\n", callsign.c_str(), result.errorMessage.c_str());
-        return;
-    }
-
-    // any definitive HTTP response (incl. 404 unknown callsign) is final
-    tracked.routeCallsign = callsign;
-    tracked.routeOrigin = "";
-    tracked.routeDest = "";
-
-    JsonDocument doc;
-    if (deserializeJson(doc, result.response))
-        return;
-
-    JsonObject flightroute = doc["response"]["flightroute"];
-    if (flightroute.isNull()) {
-        Serial.printf("[adsbdb] route %s -> unknown\n", callsign.c_str());
-        return;
-    }
-
-    // prefer the short IATA code, fall back to ICAO
-    auto airportCode = [](JsonObject airport) -> String {
-        if (airport.isNull()) return "";
-        if (!airport["iata_code"].isNull()) return airport["iata_code"].as<String>();
-        if (!airport["icao_code"].isNull()) return airport["icao_code"].as<String>();
-        return "";
-    };
-
-    JsonObject origin = flightroute["origin"];
-    JsonObject destination = flightroute["destination"];
-    tracked.routeOrigin = airportCode(origin);
-    tracked.routeDest = airportCode(destination);
-
-    Serial.printf("[adsbdb] route %s -> %s->%s\n", callsign.c_str(),
-                  tracked.routeOrigin.c_str(), tracked.routeDest.c_str());
-}
-
-void AircraftManager::DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircraft& tracked)
+void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked)
 {
     const Aircraft& s = tracked.state;
     constexpr int cx = SCREEN_SIZE_DIV_2;
@@ -1557,7 +1840,8 @@ void AircraftManager::DrawDetailCard(LGFX_Sprite& backbuffer, const TrackedAircr
     backbuffer.setTextSize(2);
     backbuffer.setTextColor(lgfx::color888(0, 255, 0));
     if (showPhoto) {
-        photoSprite.pushSprite(&backbuffer, cx - PHOTO_W / 2, 30);
+        // blit onto the band sprite directly, shifting Y by the band top like BandCanvas does
+        photoSprite.pushSprite(&backbuffer.sprite(), cx - PHOTO_W / 2, 30 - backbuffer.offsetY());
         centered(title, 136);
         y = 162;
     } else {
@@ -1634,68 +1918,32 @@ void AircraftManager::ProcessMetadataLookups()
     if (!metadataNeeded)
         return;
 
+    // one enrichment outstanding at a time, shared with the detail-card path
+    if (enrichInFlight)
+        return;
+
+    // not enough contiguous heap for a TLS handshake -> don't even try. Attempting
+    // it only fails ("BIGNUM alloc failed") and the churn starves the web server.
+    if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
+        return;
+
     const unsigned long now = millis();
-    // Space lookups out so a burst of new aircraft doesn't fire many blocking
-    // HTTP calls back to back, and to stay friendly to the free adsbdb service.
+    // Space lookups out so a burst of new aircraft doesn't fire many HTTP calls
+    // back to back, and to stay friendly to the free adsbdb service.
     constexpr unsigned long METADATA_LOOKUP_INTERVAL = 1500;
     if (now - lastMetadataLookup < METADATA_LOOKUP_INTERVAL)
         return;
 
-    // Resolve the first aircraft still awaiting a lookup, then stop for this tick.
+    // Queue the first aircraft still awaiting a lookup, then stop for this tick.
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.metadataState != TrackedAircraft::MetadataState::NotFetched)
             continue;
+        if (now < tracked.metadataRetryAfter)
+            continue; // still in post-failure cooldown; skip so others get a turn
 
         lastMetadataLookup = now;
-        LookupAircraftMetadata(icao, tracked);
+        tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
+        RequestMetadata(icao);
         return;
     }
-}
-
-void AircraftManager::LookupAircraftMetadata(const String& icao24, TrackedAircraft& tracked)
-{
-    const HttpResult result = http.Get("https://api.adsbdb.com/v0/aircraft/" + icao24);
-
-    // A network-level failure (no HTTP response at all) is transient: leave the
-    // state NotFetched so a later tick retries.
-    if (!result.success) {
-        Serial.printf("[adsbdb] lookup for %s failed: %s\n", icao24.c_str(), result.errorMessage.c_str());
-        return;
-    }
-
-    // Any definitive HTTP response -- including 404 "unknown aircraft" -- is a
-    // final answer: mark Fetched so this aircraft is never looked up again.
-    tracked.metadataState = TrackedAircraft::MetadataState::Fetched;
-
-    JsonDocument doc;
-    if (deserializeJson(doc, result.response))
-        return; // malformed body: treat as no data, but don't retry
-
-    // adsbdb wraps the record in { "response": { "aircraft": {...} } }; when the
-    // address is unknown it returns { "response": "unknown aircraft" }, leaving
-    // this lookup null.
-    JsonObject aircraft = doc["response"]["aircraft"];
-    if (aircraft.isNull()) {
-        Serial.printf("[adsbdb] %s -> unknown aircraft\n", icao24.c_str());
-        return;
-    }
-
-    tracked.typeCode     = aircraft["icao_type"].isNull()           ? "" : aircraft["icao_type"].as<String>();
-    tracked.typeName     = aircraft["type"].isNull()                ? "" : aircraft["type"].as<String>();
-    tracked.operatorName = aircraft["registered_owner"].isNull()    ? "" : aircraft["registered_owner"].as<String>();
-    tracked.registration = aircraft["registration"].isNull()        ? "" : aircraft["registration"].as<String>();
-    tracked.photoUrl     = aircraft["url_photo_thumbnail"].isNull() ? "" : aircraft["url_photo_thumbnail"].as<String>();
-
-    // add the type / airline to the lifelist; a brand-new entry marks this a
-    // "fresh catch" for the radar + detail card.
-    if (logbookEnabled) {
-        const bool newType = logbook.NoteType(tracked.typeCode);
-        const bool newOperator = logbook.NoteOperator(tracked.operatorName);
-        if (newType || newOperator)
-            tracked.freshCatch = true;
-    }
-
-    Serial.printf("[adsbdb] %s -> type=%s operator=%s reg=%s\n",
-                  icao24.c_str(), tracked.typeCode.c_str(),
-                  tracked.operatorName.c_str(), tracked.registration.c_str());
 }
