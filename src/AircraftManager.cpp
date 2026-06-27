@@ -89,6 +89,16 @@ uint32_t altitudeColor(float altMeters)
     return lgfx::color888(255, 255, 255);                          // white   - high
 }
 
+// Scale a packed RGB888 colour's brightness by f (0..1). Used to fade a blip as
+// its radar return ages between sweep passes.
+uint32_t scaleColor(uint32_t rgb, float f)
+{
+    if (f >= 1.0f) return rgb;
+    if (f < 0.0f) f = 0.0f;
+    const uint8_t r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+    return lgfx::color888((uint8_t)(r * f), (uint8_t)(g * f), (uint8_t)(b * f));
+}
+
 // True when the sun is below the horizon at (lat, lon) for the given UTC time.
 // Uses the NOAA solar-position equations and evaluates the sun's elevation
 // directly, which sidesteps the UTC day-wrap pitfalls of comparing against
@@ -299,6 +309,14 @@ void AircraftManager::Initialise()
     if (!renderAltColor.isEmpty()) displayAltColor = renderAltColor == "true" ? true : false;
     if (!renderHighlight.isEmpty()) displayHighlight = renderHighlight == "true" ? true : false;
 
+    // sweep beam: unset (or "true") = on, matching the radar's drawScan gate in main.cpp
+    const String renderSweep = configServer.GetStoredString("scanline");
+    displaySweep = renderSweep.isEmpty() || renderSweep == "true";
+
+    // paint-and-fade blips: unset (or "true") = on. Only takes effect with the sweep on.
+    const String renderFade = configServer.GetStoredString("fade");
+    displayFade = renderFade.isEmpty() || renderFade == "true";
+
     // which individual info lines to show. An unset key (device never saved, or
     // an older save predating this field) falls back to the field's default.
     infoFieldEnabled.resize(AIRCRAFT_INFO_FIELD_COUNT);
@@ -446,6 +464,10 @@ void AircraftManager::Initialise()
 void AircraftManager::Update()
 {
     unsigned long now = millis();
+
+    // advance the radar sweep + paint the contacts it crossed this frame, before
+    // any early-return below, so the beam keeps turning even while a card is open
+    AdvanceSweep();
 
     // solar day/night backlight dimming (self-throttled)
     UpdateBrightness();
@@ -744,6 +766,57 @@ uint32_t AircraftManager::SpecialColor(SpecialAircraft::Class c)
     }
 }
 
+void AircraftManager::AdvanceSweep()
+{
+    // Always advance the beam (even off-radar) so it stays continuous when the
+    // user returns to the radar screen.
+    prevSweepAngle = sweepAngle;
+    sweepAngle = std::fmod((float)millis() / SWEEP_PERIOD_MS * TWO_PI, TWO_PI);
+
+    // Skip the per-contact crossing test unless paint-and-fade is active (blips
+    // then glide live at full brightness, with or without the beam drawn).
+    if (!PaintAndFadeActive())
+        return;
+
+    // The beam advanced from prevSweepAngle to sweepAngle this frame -- a small
+    // positive arc (mod 2*PI). Any contact whose bearing from centre lies in that
+    // arc was just swept: latch its position and reset its fade. Bearings use the
+    // same centre and cos/sin convention as the drawn beam, so the paint lands
+    // exactly under the beam.
+    constexpr int CENTRE = SCREEN_SIZE_DIV_2 - 1;
+    float arc = sweepAngle - prevSweepAngle;
+    if (arc < 0.0f) arc += TWO_PI; // beam wrapped past 0 / 2*PI this frame
+
+    for (auto& [icao, t] : trackedAircraft) {
+        if (t.state.onGround) continue;
+
+        auto [la, lo] = t.GetDisplayPosition();
+        auto [x, y] = ProjectCoordinateToScreen(la, lo);
+
+        float rel = std::atan2((float)(y - CENTRE), (float)(x - CENTRE)) - prevSweepAngle;
+        while (rel < 0.0f) rel += TWO_PI;
+        while (rel >= TWO_PI) rel -= TWO_PI;
+
+        if (rel <= arc) {
+            t.Paint();
+            if (displayTrails)
+                t.SampleTrail(); // trail samples a return per pass, not per frame
+        }
+    }
+}
+
+std::pair<float, float> AircraftManager::RadarBlipPosition(const TrackedAircraft& tracked) const
+{
+    if (PaintAndFadeActive() && tracked.everPainted)
+        return { tracked.paintLat, tracked.paintLon };
+    return tracked.GetDisplayPosition();
+}
+
+float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
+{
+    return PaintAndFadeActive() ? tracked.PaintBrightness(SWEEP_PERIOD_MS) : 1.0f;
+}
+
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
     DrawRadarCircles(backbuffer);
@@ -770,26 +843,37 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // only on the first band so both halves use identical positions (no seam tear).
         if (firstPass) {
             tracked.Tick();
-            if (displayTrails)
+            // With paint-and-fade on, the trail is sampled once per beam pass (in
+            // AdvanceSweep); only sample per-frame when blips glide live.
+            if (displayTrails && !PaintAndFadeActive())
                 tracked.SampleTrail();
         }
 
-        auto [predLat, predLon] = tracked.GetDisplayPosition();
+        auto [predLat, predLon] = RadarBlipPosition(tracked);
         auto [x, y] = ProjectCoordinateToScreen(predLat, predLon);
+
+        // The whole contact -- marker, trail, label -- fades together as its
+        // radar return ages, so a dim blip doesn't sit under a bright trail/label.
+        const float blip = RadarBlipBrightness(tracked);
 
         // draw the trail first so the marker and label sit on top of it
         if (displayTrails)
-            DrawAircraftTrail(backbuffer, tracked, x, y);
+            DrawAircraftTrail(backbuffer, tracked, x, y, blip);
 
         if (displayInfoText)
-            DrawAircraftInfo(backbuffer, x, y, tracked);
+            DrawAircraftInfo(backbuffer, x, y, tracked, blip);
 
         if (isEmergencySquawk(tracked.state.squawk)) {
             DrawEmergencyAlert(backbuffer, x, y, tracked);
         } else {
-            const uint32_t markerColor = displayAltColor
-                ? altitudeColor(tracked.state.baroAltitude)
-                : lgfx::color888(0, 255, 0);
+            // base marker fades as its radar return ages between sweep passes
+            // (full bright when the sweep is off). The annotation overlays below
+            // -- highlight/watchlist/pin reticles, NEW flag -- stay full bright so
+            // they remain legible regardless of the fade.
+            const uint32_t markerColor = scaleColor(
+                displayAltColor ? altitudeColor(tracked.state.baroAltitude)
+                                : lgfx::color888(0, 255, 0),
+                blip);
 
             if (displayTriangles)
                 DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
@@ -1093,12 +1177,13 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
     return { x, y };
 }
 
-void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness) const
 {
     const int lineHeight = tft.fontHeight() + 1;
 
     backbuffer.setTextSize(1);
-    backbuffer.setTextColor(lgfx::color888(0, 128, 0));
+    // fades with the rest of the contact; scaleColor's brightness floor keeps it legible
+    backbuffer.setTextColor(scaleColor(lgfx::color888(0, 128, 0), brightness));
 
     // Stack only the enabled fields; a field that formats to "" (e.g. no squawk
     // reported) is skipped so it doesn't leave a blank gap between lines.
@@ -1209,7 +1294,7 @@ void AircraftManager::DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) co
     backbuffer.drawString(label, x - (int)backbuffer.textWidth(label) / 2, y - 18);
 }
 
-void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const
+void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
 {
     const int n = tracked.TrailSize();
     if (n < 1) return;
@@ -1223,9 +1308,10 @@ void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAir
         if (havePrev) {
             // Fade from dim (oldest) to bright (newest). The floor of 40 keeps
             // the tail above the 8-bit display's green quantization step so it
-            // doesn't vanish.
-            const uint8_t brightness = 40 + static_cast<uint8_t>((180 * i) / n);
-            backbuffer.drawLine(prevX, prevY, x, y, lgfx::color888(0, brightness, 0));
+            // doesn't vanish. brightness scales the whole trail with the blip so
+            // the contact fades as a unit when paint-and-fade is on.
+            const uint8_t g = static_cast<uint8_t>((40 + (180 * i) / n) * brightness);
+            backbuffer.drawLine(prevX, prevY, x, y, lgfx::color888(0, g, 0));
         }
 
         prevX = x;
@@ -1235,7 +1321,7 @@ void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAir
 
     // connect the most recent sample to the live aircraft position so the trail
     // stays attached to the marker between samples
-    backbuffer.drawLine(prevX, prevY, headX, headY, lgfx::color888(0, 220, 0));
+    backbuffer.drawLine(prevX, prevY, headX, headY, lgfx::color888(0, (uint8_t)(220 * brightness), 0));
 }
 
 void AircraftManager::HandleTouch()
@@ -1321,7 +1407,10 @@ void AircraftManager::HandleTap(int tx, int ty)
         String bestIcao = "";
         for (auto& [icao, tracked] : trackedAircraft) {
             if (tracked.state.onGround) continue;
-            auto [la, lo] = tracked.GetDisplayPosition();
+            // hit-test the blip where it's drawn (latched under paint-and-fade),
+            // not its live position -- otherwise taps miss a blip that's paused
+            // mid-sweep waiting for the next pass
+            auto [la, lo] = RadarBlipPosition(tracked);
             auto [x, y] = ProjectCoordinateToScreen(la, lo);
             const int dx = x - tx, dy = y - ty;
             const int dist2 = dx * dx + dy * dy;

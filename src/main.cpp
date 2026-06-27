@@ -163,10 +163,10 @@ void loop()
   String renderScanlines = configServer.GetStoredString("scanline");
   const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && aircraftManager.IsRadarView();
 
-  // compute the sweep endpoints once so both bands draw the identical line (no seam)
-  const float sweep = millis() / 3000.0f;
-  const int sweepX = SCREEN_SIZE_DIV_2 - 1 + (std::cos(sweep) * SCREEN_SIZE_DIV_2);
-  const int sweepY = SCREEN_SIZE_DIV_2 - 1 + (std::sin(sweep) * SCREEN_SIZE_DIV_2);
+  // The sweep angle is owned by AircraftManager (advanced in Update()), so the
+  // drawn beam matches the blip paint-and-fade crossing test exactly. Sampled
+  // once here so both render bands derive an identical wedge (no seam).
+  const float sweep = aircraftManager.CurrentSweepAngle();
 
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
     BandCanvas canvas(backbuffer, bandY);
@@ -175,7 +175,7 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 
     if (drawScan)
-      DrawScanLines(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, sweepX, sweepY, 20, 128, 5);
+      DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
 
     aircraftManager.Draw(canvas, firstPass);
     backbuffer.pushSprite(0, bandY);

@@ -34,6 +34,18 @@ private:
     bool displayTrails = true;
     bool displayAltColor = true;  // color aircraft markers by altitude band
     bool displayHighlight = true; // ring the nearest/highest/fastest contacts
+    bool displaySweep = true;     // draw the rotating PPI sweep beam (the "scanline" config)
+    bool displayFade = true;      // paint-and-fade blips: latch position + fade per sweep pass
+
+    // Radar sweep beam angle (radians), advanced once per frame in Update() so the
+    // drawn beam (main.cpp reads CurrentSweepAngle()) and the blip-paint crossing
+    // test stay in lockstep. prevSweepAngle is last frame's value, used to detect
+    // which contacts the beam swept past this frame.
+    float sweepAngle = 0.0f;
+    float prevSweepAngle = 0.0f;
+    // ~5 s per revolution = a terminal ATC radar (ASR, ~12 RPM); also the fade
+    // window for a painted blip. angle = TWO_PI * millis() / SWEEP_PERIOD_MS.
+    static constexpr unsigned long SWEEP_PERIOD_MS = 5000;
 
     // Screen navigation. Three top-level screens cycle via horizontal swipe; the
     // detail card overlays whichever screen you're on.
@@ -161,9 +173,21 @@ private:
 
     void DrawRadarCircles(BandCanvas& backbuffer) const;
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
-    void DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
+
+    // Step the sweep beam one frame and, while paint-and-fade is active, paint
+    // every contact the beam crossed this frame (latch position + reset fade).
+    void AdvanceSweep();
+    // Paint-and-fade needs both the beam (so there's something to paint under) and
+    // the fade toggle. Off -> blips glide live at full brightness.
+    bool PaintAndFadeActive() const { return displaySweep && displayFade; }
+    // Radar blip position/brightness honoring paint-and-fade when it's active,
+    // else the live dead-reckoned position at full brightness. Hit-testing uses the
+    // position form too, so taps land on the blip as drawn, not where it really is.
+    std::pair<float, float> RadarBlipPosition(const TrackedAircraft& tracked) const;
+    float RadarBlipBrightness(const TrackedAircraft& tracked) const;
+    void DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness = 1.0f) const;
     void DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const;
-    void DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY) const;
+    void DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness = 1.0f) const;
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
 
@@ -232,4 +256,7 @@ public:
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
+    // Current sweep beam angle in radians; main.cpp draws the beam from this so it
+    // matches the paint-and-fade crossing test exactly (single source of truth).
+    float CurrentSweepAngle() const { return sweepAngle; }
 };

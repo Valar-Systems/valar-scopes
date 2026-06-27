@@ -53,6 +53,19 @@ struct TrackedAircraft {
     int trailCount = 0;                 // valid points so far (<= TRAIL_CAPACITY)
     unsigned long lastTrailSample = 0;
 
+    // Radar "paint" state for the PPI sweep. With the sweep enabled, a blip's
+    // drawn position is latched here the moment the rotating beam crosses its
+    // bearing, and held until the next pass instead of gliding every frame; its
+    // brightness then decays from that instant until the beam comes round again,
+    // the way a phosphor scope persists a return. everPainted stays false until
+    // the first pass so a fresh contact shows live + full-bright until the beam
+    // first reaches it -- the latch is seamless there because the painted point
+    // equals the live point at the instant of paint.
+    float paintLat = 0.0f;
+    float paintLon = 0.0f;
+    unsigned long lastPaintMs = 0;
+    bool everPainted = false;
+
     // first appearance, no blend needed
     TrackedAircraft(const Aircraft& ac, unsigned long now)
         : state(ac), lastSeen(now),
@@ -103,6 +116,29 @@ struct TrackedAircraft {
     std::pair<float, float> TrailPointAt(int i) const {
         const int idx = (trailWrite - trailCount + i + TRAIL_CAPACITY) % TRAIL_CAPACITY;
         return { trail[idx].lat, trail[idx].lon };
+    }
+
+    // Latch the current display position as the beam's freshly-painted return.
+    void Paint() {
+        auto [la, lo] = GetDisplayPosition();
+        paintLat = la;
+        paintLon = lo;
+        lastPaintMs = millis();
+        everPainted = true;
+    }
+
+    // 1.0 at the instant of paint, fading linearly to a dim floor over one sweep
+    // period (periodMs) so a contact persists -- dimming -- until the next pass.
+    float PaintBrightness(unsigned long periodMs) const {
+        if (!everPainted) return 1.0f;
+        const float age = (millis() - lastPaintMs) / (float)periodMs;
+        float b = 1.0f - age;
+        // The whole contact (marker + trail + label) is scaled by this, so the
+        // floor keeps the dimmest state legible rather than only visible.
+        constexpr float floor = 0.30f;
+        if (b < floor) b = floor;
+        if (b > 1.0f) b = 1.0f;
+        return b;
     }
 
     std::pair<float, float> GetDisplayPosition() const {
