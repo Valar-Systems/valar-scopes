@@ -123,6 +123,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             class="px-3 sm:px-1 accent-green-500">
                     </label>
                     <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Sweep fade:</span>
+                        <input
+                            name="fade"
+                            type="checkbox"
+                            %FADE%
+                            class="px-3 sm:px-1 accent-green-500">
+                    </label>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                         <span>Directional Aircraft:</span>
                         <input
                             name="triangle"
@@ -450,6 +458,7 @@ void ConfigurationWebServer::Initialise() {
         const String dataSource = prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky";
         const String localUrl = prefs.getString("local-url", "");
         const String scanlineEnabled = prefs.getString("scanline", "true");
+        const String fadeEnabled = prefs.getString("fade", "true");
         const String infoTextEnabled = prefs.getString("infotext", "true");
         const String triangleEnabled = prefs.getString("triangle", "true");
         const String trailEnabled = prefs.getString("trail", "true");
@@ -506,7 +515,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml]
+            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -519,6 +528,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "DATASRC_LOCAL")   return dataSource == "local" ? "selected" : "";
                 if (var == "LOCAL_URL")      return localUrl;
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
+                if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
@@ -606,6 +616,7 @@ void ConfigurationWebServer::Initialise() {
         }
 
         prefs.putString("scanline", request->hasParam("scanline", true) ? "true" : "false");
+        prefs.putString("fade", request->hasParam("fade", true) ? "true" : "false");
         prefs.putString("triangle", request->hasParam("triangle", true) ? "true" : "false");
         prefs.putString("trail", request->hasParam("trail", true) ? "true" : "false");
         prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");

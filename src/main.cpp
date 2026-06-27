@@ -4,6 +4,7 @@
 #include <esp_task_wdt.h>
 
 #include "LGFX.h"
+#include "Layout.h"
 #include "DeviceIdentity.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
@@ -14,14 +15,6 @@
 #include "DrawHelpers.h"
 #include "models/Aircraft.h"
 #include "models/TrackedAircraft.h"
-
-constexpr int SCREEN_SIZE = 240;
-constexpr int SCREEN_SIZE_DIV_2 = (SCREEN_SIZE / 2);
-
-// Render the screen in horizontal bands instead of one full-screen sprite. A full
-// 240x240x8-bit backbuffer is ~56 KB; at half height it's ~28 KB, freeing the
-// contiguous heap a TLS handshake needs on the single-core C3. Must divide SCREEN_SIZE.
-constexpr int BAND_H = SCREEN_SIZE / 2; // 2 bands of 240x120
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
@@ -170,10 +163,10 @@ void loop()
   String renderScanlines = configServer.GetStoredString("scanline");
   const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && aircraftManager.IsRadarView();
 
-  // compute the sweep endpoints once so both bands draw the identical line (no seam)
-  const float sweep = millis() / 3000.0f;
-  const int sweepX = SCREEN_SIZE_DIV_2 - 1 + (std::cos(sweep) * SCREEN_SIZE_DIV_2);
-  const int sweepY = SCREEN_SIZE_DIV_2 - 1 + (std::sin(sweep) * SCREEN_SIZE_DIV_2);
+  // The sweep angle is owned by AircraftManager (advanced in Update()), so the
+  // drawn beam matches the blip paint-and-fade crossing test exactly. Sampled
+  // once here so both render bands derive an identical wedge (no seam).
+  const float sweep = aircraftManager.CurrentSweepAngle();
 
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
     BandCanvas canvas(backbuffer, bandY);
@@ -182,7 +175,7 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 
     if (drawScan)
-      DrawScanLines(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, sweepX, sweepY, 20, 128, 5);
+      DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
 
     aircraftManager.Draw(canvas, firstPass);
     backbuffer.pushSprite(0, bandY);

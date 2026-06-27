@@ -3,6 +3,7 @@
 #include <WiFiManager.h>
 
 #include "DeviceIdentity.h"
+#include "Layout.h"
 
 namespace WiFiManagerHelpers
 {
@@ -39,7 +40,7 @@ namespace WiFiManagerHelpers
             tft.setTextColor(lgfx::color888(0, 255, 0));
 
             const int lineHeight = tft.fontHeight() + 10;
-            const int screenSize = 240;
+            const int screenSize = SCREEN_SIZE;
             tft.drawCenterString("- SETUP -", screenSize / 2, screenSize / 2 - lineHeight);
             tft.drawCentreString("Connect to this WiFi hotspot:", screenSize / 2, screenSize / 2);
             tft.drawCenterString(WiFiManagerName(), screenSize / 2, screenSize / 2 + lineHeight);

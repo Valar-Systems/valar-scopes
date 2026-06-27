@@ -1,0 +1,76 @@
+name: firmware
+
+# Builds every Blipscope SKU. On a published GitHub Release it also attaches each SKU's
+# binary as firmware-<slug>.bin plus a shared version.txt, which is what the on-device
+# variant-aware OTA reads (a C3 downloads firmware-c3-128.bin, never an S3 image).
+# See RELEASING.md.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  release:
+    types: [ published ]
+
+permissions:
+  contents: write   # needed to upload release assets
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per SKU. `env` = PlatformIO env; `slug` MUST equal variant::SLUG in
+        # the variant header (it names the OTA asset). Add S3 SKUs here as they come online.
+        include:
+          - { env: blipscope-kit-c3-128, slug: c3-128 }
+          # - { env: blipscope-lite-s3-128,       slug: s3-128 }
+          # - { env: blipscope-s3-146,            slug: s3-146 }
+          # - { env: blipscope-pro-s3-175-amoled, slug: s3-175-amoled }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Build ${{ matrix.env }}
+        run: pio run -e ${{ matrix.env }}
+      - name: Name binary by slug
+        run: cp ".pio/build/${{ matrix.env }}/firmware.bin" "firmware-${{ matrix.slug }}.bin"
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.slug }}
+          path: firmware-${{ matrix.slug }}.bin
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          gh release upload "$tag" "firmware-${{ matrix.slug }}.bin" --clobber
+          # Legacy alias: devices shipped before per-SKU naming fetch plain firmware.bin.
+          # Keep the C3 build available under that name for migration (drop after the fleet moves on).
+          if [ "${{ matrix.slug }}" = "c3-128" ]; then
+            cp "firmware-${{ matrix.slug }}.bin" firmware.bin
+            gh release upload "$tag" firmware.bin --clobber
+          fi
+
+  version:
+    # Publish the shared version gate once per release, after all SKUs build.
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract FW_VERSION -> version.txt
+        run: |
+          v=$(grep -oP 'FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          echo "FW_VERSION=$v"
+          echo "$v" > version.txt
+      - name: Publish version.txt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" version.txt --clobber

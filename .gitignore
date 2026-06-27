@@ -1,1 +1,5 @@
 .pio/
+.vscode/
+
+# Confidential business docs (pricing, margins, strategy) -- never commit to the public repo.
+business/
