@@ -9,8 +9,8 @@ are versioned and released **together** from a single commit, and each device se
 - A device checks `releases/latest/download/version.txt` — a single integer, the latest
   firmware version, shared by all SKUs.
 - If that integer is greater than the device's compiled `FW_VERSION`, the device downloads
-  **`firmware-<slug>.bin`**, where `<slug>` is its own `variant::SLUG` (e.g. `c3-128`). A C3
-  never downloads an S3 image, and vice-versa.
+  **`firmware-<slug>.bin`**, where `<slug>` is its own `variant::SLUG` (e.g. `s3-146`). Each
+  SKU only ever downloads its own image.
 - The flow lives in [src/OtaUpdater.cpp](src/OtaUpdater.cpp); `FW_VERSION` is in
   [src/OtaUpdater.h](src/OtaUpdater.h).
 
@@ -22,9 +22,7 @@ are versioned and released **together** from a single commit, and each device se
    [.github/workflows/firmware.yml](.github/workflows/firmware.yml), which:
    - builds every SKU in the matrix,
    - attaches each as `firmware-<slug>.bin`,
-   - attaches a `version.txt` containing `FW_VERSION`,
-   - and re-publishes a legacy `firmware.bin` (= the C3 build) for devices that shipped
-     before per-SKU naming.
+   - attaches a `version.txt` containing `FW_VERSION`.
 4. Devices pick up the update on their next daily check (or reboot).
 
 > Don't hand-upload assets — the workflow names them so they match what devices request.
@@ -47,16 +45,17 @@ board, the EAM envs set `-DFW_OTA_PREFIX="eam-"`, and their CI slug is prefixed 
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-eam-c3-128` | `eam-c3-128` → `firmware-eam-c3-128.bin` |
 | `blipscope-eam-s3-146` | `eam-s3-146` → `firmware-eam-s3-146.bin` |
 
 These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar and EAM together),
 and a device only ever downloads its own `<prefix><slug>` binary. Releasing is otherwise identical
 — the matrix rows are already in [.github/workflows/firmware.yml](.github/workflows/firmware.yml).
 
-## Legacy migration note
+## Legacy note: the retired C3
 
-Firmware that shipped before per-SKU naming fetches a plain `firmware.bin`. The workflow keeps
-publishing `firmware.bin` as the C3 build so those devices can still update onto the first
-variant-aware build; after that they use `firmware-c3-128.bin`. Once the fleet has moved on,
-the legacy alias can be dropped from the workflow.
+The original ESP32-C3 Kit is retired — Blipscope is S3-only going forward. The workflow no
+longer builds a `c3-128` slug, and the plain `firmware.bin` alias it used to publish for the
+very first (pre-per-SKU-naming) devices is gone, so those C3 units no longer receive OTA
+updates. The variant header (`include/variants/c3_128.h`) and the single-core guards it drove
+stay in the tree, inert behind their capability flags, so the board can be revived by
+re-adding its `[env:*]` and CI matrix row.
