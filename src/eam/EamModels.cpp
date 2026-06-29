@@ -83,6 +83,31 @@ bool ParseTempo(JsonObjectConst root, Tempo& out)
     out.ratio          = root["ratio"].as<float>();
     out.level          = root["level"].is<const char*>() ? root["level"].as<String>() : String("normal");
     out.windowDays     = root["window_days"].is<int>() ? root["window_days"].as<int>() : 0;
+
+    // Extended stats (optional). by_freq: today's count per HFGCS frequency.
+    out.byFreq.clear();
+    if (root["by_freq"].is<JsonArrayConst>()) {
+        for (JsonObjectConst f : root["by_freq"].as<JsonArrayConst>()) {
+            if (out.byFreq.size() >= 12) break;            // bound a hostile/huge list
+            FreqCount fc;
+            fc.khz = f["khz"].is<int>() ? f["khz"].as<int>() : 0;
+            fc.count = f["count"].is<int>() ? f["count"].as<int>() : 0;
+            if (fc.khz) out.byFreq.push_back(fc);
+        }
+    }
+
+    // by_hour: 24 {hour_utc,count} buckets for the current UTC day.
+    for (int i = 0; i < 24; ++i) out.byHour[i] = 0;
+    out.hasByHour = false;
+    if (root["by_hour"].is<JsonArrayConst>()) {
+        for (JsonObjectConst h : root["by_hour"].as<JsonArrayConst>()) {
+            const int hr = h["hour_utc"].is<int>() ? h["hour_utc"].as<int>() : -1;
+            if (hr >= 0 && hr < 24) out.byHour[hr] = h["count"].is<int>() ? h["count"].as<int>() : 0;
+        }
+        out.hasByHour = true;
+    }
+
+    out.longestQuietMin = root["longest_quiet_min"].is<int>() ? root["longest_quiet_min"].as<int>() : -1;
     out.valid = true;
     return true;
 }
@@ -132,6 +157,18 @@ bool ParsePropagation(JsonObjectConst root, Propagation& out)
                 out.freqsKhz.push_back(f.as<int>());
         out.suggestedKhz = hf["suggested_khz"].is<int>() ? hf["suggested_khz"].as<int>() : 0;
         out.suggestedReason = hf["suggested_reason"].as<String>();
+    }
+
+    // Optional space-weather block (also served raw at /spaceweather). .valid gates the banner.
+    JsonObjectConst sw = root["space_weather"];
+    if (!sw.isNull()) {
+        out.space.valid     = true;
+        out.space.kp        = sw["kp"].is<int>() ? sw["kp"].as<int>() : -1;
+        out.space.rScale    = sw["r_scale"].as<String>();
+        out.space.gScale    = sw["g_scale"].as<String>();
+        out.space.xrayClass = sw["xray_class"].as<String>();
+        out.space.hfDegraded = sw["hf_degraded"].is<bool>() ? sw["hf_degraded"].as<bool>() : false;
+        out.space.note      = sw["note"].as<String>();
     }
     out.valid = true;
     return true;
@@ -205,6 +242,34 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
             out.aircraft.push_back(std::move(ac));
         }
     }
+    out.valid = true;
+    return true;
+}
+
+bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap)
+{
+    if (root.isNull()) return false;
+    out.aircraft.clear();
+    out.source = root["source"].as<String>();
+    if (root["aircraft"].is<JsonArrayConst>()) {
+        for (JsonObjectConst a : root["aircraft"].as<JsonArrayConst>()) {
+            if (out.aircraft.size() >= cap) break;
+            MilAircraft ac;
+            ac.type = a["type"].as<String>();
+            ac.callsign = a["callsign"].as<String>();
+            ac.hex = a["hex"].as<String>();
+            ac.heardAt = a["heard_at"].as<String>();
+            ac.category = a["category"].as<String>();
+            if (a["lat"].is<float>() && a["lon"].is<float>()) {
+                ac.hasPos = true;
+                ac.lat = a["lat"].as<double>();
+                ac.lon = a["lon"].as<double>();
+            }
+            out.aircraft.push_back(std::move(ac));
+        }
+    }
+    // Trust an explicit count if given (the list may be truncated by the backend or by `cap`).
+    out.count = root["count"].is<int>() ? root["count"].as<int>() : (int)out.aircraft.size();
     out.valid = true;
     return true;
 }

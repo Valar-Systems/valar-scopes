@@ -16,6 +16,7 @@ constexpr uint32_t TEMPO_MS       = 300000;    // ~5 m
 constexpr uint32_t CODEWORDS_MS   = 300000;    // ~5 m (unspecified; matches tempo)
 constexpr uint32_t PROPAGATION_MS = 1800000;   // ~30 m
 constexpr uint32_t ICBM_MS        = 21600000;  // ~6 h
+constexpr uint32_t MILAIR_MS      = 60000;     // ~60 s (airborne picture changes)
 
 constexpr uint32_t MAX_BACKOFF_MS = 600000;    // cap exponential backoff at 10 m
 
@@ -24,6 +25,7 @@ constexpr size_t LATEST_RETAIN   = 50;
 constexpr size_t SKYKINGS_RETAIN = 20;
 constexpr size_t CODEWORD_RETAIN = 50;
 constexpr size_t LAUNCH_RETAIN   = 10;
+constexpr size_t MILAIR_RETAIN   = 30;
 
 String StripTrailingSlash(String s)
 {
@@ -71,6 +73,7 @@ void EamFeedClient::Configure(const Config& newCfg)
     feeds[F_PROPAGATION].intervalMs = (uint32_t)(PROPAGATION_MS * sc);
     feeds[F_ICBM].intervalMs        = (uint32_t)(ICBM_MS * sc);
     feeds[F_ABNCP].intervalMs       = (uint32_t)(abncpProvider->IntervalMs() * sc);
+    feeds[F_MILAIR].intervalMs      = (uint32_t)(MILAIR_MS * sc);
 
     // Stage the first poll of each endpoint shortly after (re)config, fanned out by ~400 ms so
     // they don't all hit the single TLS client at once.
@@ -164,6 +167,10 @@ bool EamFeedClient::BuildRequest(int feedIdx, EamFetchRequest& req) const
             return true;
         case F_ABNCP:
             return abncpProvider && abncpProvider->BuildRequest(req);
+        case F_MILAIR:
+            req.endpoint = eam::EamEndpoint::MilAir;
+            req.url = base + "/status/milair";
+            return true;
         default:
             return false;
     }
@@ -180,6 +187,7 @@ int EamFeedClient::FeedForEndpoint(eam::EamEndpoint e)
         case eam::EamEndpoint::Icbm:         return F_ICBM;
         case eam::EamEndpoint::Abncp:        return F_ABNCP;
         case eam::EamEndpoint::AbncpOpenSky: return F_ABNCP;
+        case eam::EamEndpoint::MilAir:       return F_MILAIR;
     }
     return F_LATEST;
 }
@@ -230,6 +238,10 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
         case eam::EamEndpoint::Abncp:
         case eam::EamEndpoint::AbncpOpenSky:
             abncp = res.abncp;
+            break;
+        case eam::EamEndpoint::MilAir:
+            milair = res.milair;
+            if (milair.aircraft.size() > MILAIR_RETAIN) milair.aircraft.resize(MILAIR_RETAIN);
             break;
     }
 }
@@ -334,6 +346,9 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
             break;
         case eam::EamEndpoint::AbncpOpenSky:
             eam::ParseOpenSkyStates(root, res.abncp);
+            break;
+        case eam::EamEndpoint::MilAir:
+            eam::ParseMilAir(root, res.milair, MILAIR_RETAIN);
             break;
     }
     res.ok = true;

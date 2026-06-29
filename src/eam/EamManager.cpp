@@ -20,6 +20,14 @@ constexpr unsigned long INTERACT_HOLD_MS = 30000; // pause auto-rotate this long
 
 double Deg2Rad(double d) { return d * M_PI / 180.0; }
 
+// Parse a NOAA scale string ("G2" / "R3" / "S1") to its 1..5 rank; 0 if blank/"none".
+int ScaleRank(const String& s)
+{
+    if (s.length() < 2) return 0;
+    const int n = s[1] - '0';
+    return (n >= 1 && n <= 5) ? n : 0;
+}
+
 // Low-precision solar elevation (degrees) at lat/lon for a UTC epoch -- enough to drive the same
 // night auto-dim the radar uses (sun below -0.833 deg = civil horizon).
 float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
@@ -66,10 +74,13 @@ void EamManager::Initialise()
     auto idToScreen = [](const String& id, Screen& out) -> bool {
         if (id == "ticker")    { out = Screen::Ticker;      return true; }
         if (id == "tempo")     { out = Screen::Tempo;       return true; }
+        if (id == "activity")  { out = Screen::Activity;    return true; }
         if (id == "codewords") { out = Screen::Codewords;   return true; }
         if (id == "abncp")     { out = Screen::Abncp;       return true; }
+        if (id == "milair")    { out = Screen::MilAir;      return true; }
         if (id == "prop")      { out = Screen::Propagation; return true; }
         if (id == "icbm")      { out = Screen::Icbm;        return true; }
+        if (id == "ref")       { out = Screen::Reference;   return true; }
         if (id == "clock")     { out = Screen::Clock;       return true; }
         return false;
     };
@@ -124,10 +135,14 @@ void EamManager::Initialise()
     alertNew = boolCfg("eam-alert-new", true);
     alertTempo = boolCfg("eam-alert-tempo", true);
     alertAbncp = boolCfg("eam-alert-abncp", true);
-    // Reset transition state so a config save never refires a stale tempo/ABNCP transition.
+    alertSpace = boolCfg("eam-alert-space", true);
+    // Reset transition state so a config save never refires a stale tempo/ABNCP/space transition.
     lastTempoRank = -1;
     lastAbncpAirborne = false;
     abncpSeen = false;
+    lastHfDegraded = false;
+    lastGScaleRank = 0;
+    spaceSeen = false;
 
     logbook.Begin();
 
@@ -179,10 +194,13 @@ void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
     switch (current) {
         case Screen::Ticker:      DrawTicker(backbuffer, firstPass); break;
         case Screen::Tempo:       DrawTempo(backbuffer); break;
+        case Screen::Activity:    DrawActivity(backbuffer); break;
         case Screen::Codewords:   DrawCodewords(backbuffer); break;
         case Screen::Abncp:       DrawAbncp(backbuffer); break;
+        case Screen::MilAir:      DrawMilAir(backbuffer); break;
         case Screen::Propagation: DrawPropagation(backbuffer); break;
         case Screen::Icbm:        DrawIcbm(backbuffer); break;
+        case Screen::Reference:   DrawReference(backbuffer); break;
         case Screen::Clock:
         default:                  DrawClock(backbuffer); break;
     }
@@ -195,10 +213,18 @@ bool EamManager::HasData(Screen s) const
     switch (s) {
         case Screen::Ticker:      return !feed.Latest().empty();
         case Screen::Tempo:       return feed.Tempo().valid;
+        case Screen::Activity: {  // only when there's an hourly histogram with something in it
+            const eam::Tempo& t = feed.Tempo();
+            if (!t.valid || !t.hasByHour) return false;
+            for (int i = 0; i < 24; ++i) if (t.byHour[i] > 0) return true;
+            return false;
+        }
         case Screen::Codewords:   return !feed.Codewords().empty();
         case Screen::Abncp:       return true; // always meaningful (airborne / none / needs-creds)
+        case Screen::MilAir:      return feed.MilAir().valid && feed.MilAir().count > 0;
         case Screen::Propagation: return feed.Propagation().valid;
         case Screen::Icbm:        return !feed.Launches().empty(); // hidden when no upcoming launch
+        case Screen::Reference:   return true; // static help card, no feed dependency
         case Screen::Clock:       return true;
         default:                  return false;
     }
@@ -381,9 +407,13 @@ void EamManager::CheckAlerts(bool newEamArrived)
     const eam::Abncp& a = feed.Abncp();
     const int tempoRank = t.valid ? (t.level == "high" ? 2 : t.level == "elevated" ? 1 : 0) : lastTempoRank;
 
+    const eam::SpaceWeather& sw = feed.Propagation().space;
+    const bool spaceValid = feed.Propagation().valid && sw.valid;
+
     if (ntfyTopic.isEmpty()) {
         if (t.valid) lastTempoRank = tempoRank;
         if (a.valid) { lastAbncpAirborne = a.airborne; abncpSeen = true; }
+        if (spaceValid) { lastHfDegraded = sw.hfDegraded; lastGScaleRank = ScaleRank(sw.gScale); spaceSeen = true; }
         return;
     }
 
@@ -421,6 +451,30 @@ void EamManager::CheckAlerts(bool newEamArrived)
         }
         lastAbncpAirborne = a.airborne;
         abncpSeen = true;
+    }
+
+    // (d) space weather: HF radio blackout turning on, or a geomagnetic storm crossing up into G2+.
+    if (spaceValid) {
+        const int gRank = ScaleRank(sw.gScale);
+        const int rRank = ScaleRank(sw.rScale);
+        if (spaceSeen && alertSpace) {
+            const bool blackoutOnset = sw.hfDegraded && !lastHfDegraded;
+            const bool stormOnset = gRank >= 2 && gRank > lastGScaleRank;
+            if (blackoutOnset) {
+                String body = "Radio blackout";
+                if (sw.rScale.length()) body += " " + sw.rScale;
+                body += " - HF degraded";
+                if (sw.xrayClass.length()) body += " (" + sw.xrayClass + ")";
+                SendNtfy("Space weather - HF blackout", body, "radioactive,warning", rRank >= 3 ? 5 : 4);
+            } else if (stormOnset) {
+                String body = "Geomagnetic storm " + sw.gScale;
+                if (sw.kp >= 0) body += "  Kp " + String(sw.kp);
+                SendNtfy("Space weather - geomagnetic storm", body, "zap,warning", gRank >= 3 ? 5 : 4);
+            }
+        }
+        lastHfDegraded = sw.hfDegraded;
+        lastGScaleRank = gRank;
+        spaceSeen = true;
     }
 }
 

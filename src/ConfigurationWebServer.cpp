@@ -7,6 +7,7 @@
 #endif
 
 #ifdef FEATURE_EAM
+#include "eam/EamLogbook.h"        // serves the on-device logbook as a CSV/JSON download
 // The EAM build's backend base URL default. Normally injected per-env (-DEAM_FEED_BASE=...);
 // guarded so the file still compiles without it. The runtime value ("eam-base-url") overrides.
 #ifndef EAM_FEED_BASE
@@ -514,10 +515,11 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <input name="ntfy-topic" value='%NTFY_TOPIC%'
                             class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
                     </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                         <label class="flex items-center gap-2"><input name="eam-alert-new" type="checkbox" %ALERT_NEW% class="accent-green-500"><span>New EAM</span></label>
                         <label class="flex items-center gap-2"><input name="eam-alert-tempo" type="checkbox" %ALERT_TEMPO% class="accent-green-500"><span>Tempo elevated/high</span></label>
                         <label class="flex items-center gap-2"><input name="eam-alert-abncp" type="checkbox" %ALERT_ABNCP% class="accent-green-500"><span>Command post airborne</span></label>
+                        <label class="flex items-center gap-2"><input name="eam-alert-space" type="checkbox" %ALERT_SPACE% class="accent-green-500"><span>Space weather (HF blackout / storm)</span></label>
                     </div>
                     <span class="text-xs text-green-700 mt-1">Leave the topic blank to disable all push alerts.</span>
                 </fieldset>
@@ -558,7 +560,16 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <input name="eam-screens" value='%EAM_SCREENS%'
                             class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
                     </label>
-                    <span class="text-xs text-green-700 mt-1">ids: ticker, tempo, codewords, abncp, prop, icbm, clock. Empty rotates all. The clock always shows when nothing else has data.</span>
+                    <span class="text-xs text-green-700 mt-1">ids: ticker, tempo, activity, codewords, abncp, milair, prop, icbm, ref, clock. Empty rotates all. Activity and milair appear only when their feed has data; the clock always shows when nothing else does.</span>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Logbook</legend>
+                    <span class="text-xs text-green-700">Download the EAMs &amp; Skyking codewords this device has logged (codewords carry timestamps).</span>
+                    <div class="flex gap-5 mt-2">
+                        <a href="/eam-log.csv" class="text-green-500 underline">Download CSV</a>
+                        <a href="/eam-log.json" class="text-green-500 underline">Download JSON</a>
+                    </div>
                 </fieldset>
 
                 <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
@@ -702,6 +713,7 @@ void ConfigurationWebServer::Initialise() {
         const String alertNew = prefs.isKey("eam-alert-new") ? prefs.getString("eam-alert-new", "true") : "true";
         const String alertTempo = prefs.isKey("eam-alert-tempo") ? prefs.getString("eam-alert-tempo", "true") : "true";
         const String alertAbncp = prefs.isKey("eam-alert-abncp") ? prefs.getString("eam-alert-abncp", "true") : "true";
+        const String alertSpace = prefs.isKey("eam-alert-space") ? prefs.getString("eam-alert-space", "true") : "true";
         const String eamPalette = prefs.isKey("eam-palette") ? prefs.getString("eam-palette", "green") : "green";
         const String eamRefresh = prefs.isKey("eam-refresh") ? prefs.getString("eam-refresh", "normal") : "normal";
         const String colonBlink = prefs.isKey("eam-colon-blink") ? prefs.getString("eam-colon-blink", "false") : "false";
@@ -710,7 +722,7 @@ void ConfigurationWebServer::Initialise() {
         // default the field to the full ordered set so the user can see and edit it
         const String eamScreens = prefs.isKey("eam-screens")
             ? prefs.getString("eam-screens", "")
-            : String("ticker,tempo,codewords,abncp,prop,icbm,clock");
+            : String("ticker,tempo,activity,codewords,abncp,milair,prop,icbm,ref,clock");
 #endif
         prefs.end();
 
@@ -776,7 +788,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens]
+            [eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens]
             (const String& var) -> String {
                 if (var == "EAM_BASE_URL")   return eamBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -790,6 +802,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "ALERT_NEW")      return alertNew == "true" ? "checked" : "";
                 if (var == "ALERT_TEMPO")    return alertTempo == "true" ? "checked" : "";
                 if (var == "ALERT_ABNCP")    return alertAbncp == "true" ? "checked" : "";
+                if (var == "ALERT_SPACE")    return alertSpace == "true" ? "checked" : "";
                 if (var == "PAL_GREEN")      return eamPalette == "amber" ? "" : "selected";
                 if (var == "PAL_AMBER")      return eamPalette == "amber" ? "selected" : "";
                 if (var == "RR_NORMAL")      return eamRefresh == "relaxed" || eamRefresh == "battery" ? "" : "selected";
@@ -911,6 +924,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("eam-alert-new", request->hasParam("eam-alert-new", true) ? "true" : "false");
         prefs.putString("eam-alert-tempo", request->hasParam("eam-alert-tempo", true) ? "true" : "false");
         prefs.putString("eam-alert-abncp", request->hasParam("eam-alert-abncp", true) ? "true" : "false");
+        prefs.putString("eam-alert-space", request->hasParam("eam-alert-space", true) ? "true" : "false");
         prefs.putString("eam-colon-blink", request->hasParam("eam-colon-blink", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #endif
@@ -932,6 +946,24 @@ void ConfigurationWebServer::Initialise() {
         wifiResetRequested = true;
         }
     );
+
+#ifdef FEATURE_EAM
+    // Logbook export (firmware-only; no backend). Serves the persisted EAM/codeword log straight
+    // from NVS as a file download. Read-only, so it's safe from the async task alongside the
+    // loop-task logbook writer.
+    server.on("/eam-log.csv", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse* r = request->beginResponse(200, "text/csv", EamLogbook::ExportCsv());
+        r->addHeader("Content-Disposition", "attachment; filename=\"eam-log.csv\"");
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+    server.on("/eam-log.json", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse* r = request->beginResponse(200, "application/json", EamLogbook::ExportJson());
+        r->addHeader("Content-Disposition", "attachment; filename=\"eam-log.json\"");
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+#endif
 
     server.begin();
 }
