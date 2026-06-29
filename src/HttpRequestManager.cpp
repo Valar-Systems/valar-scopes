@@ -17,6 +17,10 @@ public:
     int peek() override      { return Fill() ? buf_[pos_]   : -1; }
     size_t write(uint8_t) override { return 0; } // read-only
 
+    // Diagnostics for truncated-feed debugging.
+    size_t totalRead() const { return totalRead_; }
+    bool   timedOut() const  { return timedOut_; }
+
 private:
     // Guarantee at least one buffered byte; false at end-of-body or on timeout.
     bool Fill() {
@@ -26,7 +30,7 @@ private:
         pos_ = len_ = 0;
         const uint32_t start = millis();
         while (src_.available() == 0) {
-            if (millis() - start >= timeoutMs_) return false;
+            if (millis() - start >= timeoutMs_) { timedOut_ = true; return false; }
             delay(1); // vTaskDelay: lets the higher-priority async_tcp task run + feed its WDT
         }
 
@@ -35,6 +39,14 @@ private:
         if (want > sizeof(buf_))   want = sizeof(buf_);
         len_ = src_.readBytes(buf_, want); // bulk read of already-available bytes; doesn't block
         remaining_ -= len_;
+        totalRead_ += len_;
+
+        // Yield periodically even when data is flowing steadily. The fetch/enrich tasks are pinned to
+        // core 0, which the Task-WDT watches (idle_core_mask in setup()). A large feed (e.g. a wide
+        // OpenSky box) read+parsed without ever blocking would keep core 0's idle task off the CPU and
+        // trip the 10 s watchdog -> spontaneous reboot. A brief vTaskDelay every ~8 KB lets idle run
+        // and feeds the WDT; the cost is negligible (a few ms across a whole response).
+        if ((++fillCount_ & 0x0F) == 0) delay(1);
         return len_ > 0;
     }
 
@@ -43,6 +55,9 @@ private:
     uint32_t timeoutMs_;
     uint8_t buf_[512];
     size_t pos_ = 0, len_ = 0;
+    uint32_t fillCount_ = 0;
+    size_t totalRead_ = 0;
+    bool timedOut_ = false;
 };
 } // namespace
 
@@ -142,13 +157,23 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
             // Content-Length known (not chunked): parse straight off the socket so the
             // body is never copied into a String. Wrap it so reads are bulk + yielding
             // (raw byte-at-a-time reads here starve async_tcp into a watchdog reboot).
-            BufferedSocketStream body(http.getStream(), (size_t)bodyLen, 5000);
+            // 15 s stall tolerance (not 5 s): a wide OpenSky box is a large body, and on the
+            // S3 the 480x480 panel shares the PSRAM bus, slowing the socket drain enough that
+            // OpenSky pauses mid-transfer. The wait loop yields, so a long timeout is WDT-safe.
+            BufferedSocketStream body(http.getStream(), (size_t)bodyLen, 15000);
             err = deserializeJson(doc, body);
+            if (err)
+                Serial.printf("[GET] diag: Content-Length path, CL=%d read=%u timedOut=%d err=%s\n",
+                              bodyLen, (unsigned)body.totalRead(), (int)body.timedOut(), err.c_str());
         } else {
             // chunked / unknown length: getStream() would include chunk markers that
             // ArduinoJson can't parse, so use the de-chunked String (higher heap peak,
             // but correct). Rare for these JSON endpoints.
-            err = deserializeJson(doc, http.getString());
+            const String s = http.getString();
+            err = deserializeJson(doc, s);
+            if (err)
+                Serial.printf("[GET] diag: chunked path, got=%u bytes err=%s\n",
+                              (unsigned)s.length(), err.c_str());
         }
 
         if (err) {

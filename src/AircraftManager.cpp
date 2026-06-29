@@ -5,9 +5,12 @@
 #include <time.h>
 #include <utility>
 
+#include <WiFi.h> // WiFi.localIP() for the device address on the Stats screen
+
 #include "SpecialAircraft.h"
 #include "DeviceIdentity.h"
 #include "Layout.h"
+#include "Board.h"
 
 // adsbdb thumbnails (airport-data.com) are a standard 150x100
 constexpr int PHOTO_W = 150;
@@ -276,7 +279,12 @@ void AircraftManager::Initialise()
     // everywhere, but 1 deg longitude is ~111 km * cos(latitude), so the box
     // must be wider in degrees near the equator and narrower near the poles to
     // stay square on the ground.
-    const double distance = configServer.GetStoredString("radius").toDouble();
+    // Default to 100 when unset/empty, matching the config form's default (it shows "100" only when
+    // the key is absent -- a stored empty string would otherwise read as 0). Without this, a device
+    // with a location but no saved radius scans a ~111 m box (the MIN_DEGREES floor) and shows no
+    // aircraft until the radius is explicitly changed.
+    const String radiusStr = configServer.GetStoredString("radius");
+    const double distance = radiusStr.isEmpty() ? 100.0 : radiusStr.toDouble();
     const bool inMiles = configServer.GetStoredString("radius-unit") == "mi";
     const double distanceKm = inMiles ? distance * 1.609344 : distance;
 
@@ -472,6 +480,27 @@ void AircraftManager::Update()
     // solar day/night backlight dimming (self-throttled)
     UpdateBrightness();
 
+    // Optional on-board peripherals (compiled out on SKUs without them). Both run before the
+    // inDetail early-return below so the buzzer still finishes its beep and the tilt readout
+    // keeps updating while a card is open.
+    if constexpr (variant::HAS_AUDIO)
+        board::BuzzerUpdate();
+    if constexpr (variant::HAS_IMU) {
+        if (now - lastImuReadMs >= 200) { // ~5 Hz is ample for a tilt readout
+            lastImuReadMs = now;
+            board::Imu s;
+            if (board::ImuRead(s)) {
+                constexpr float RAD2DEG = 57.2957795f;
+                // The QMI8658 sits with +Z pointing away from the screen, so it reads az = -1g when
+                // the board lies flat. Referencing roll against -az makes "flat" read ~0 instead of
+                // ~180; pitch's denominator is sign-independent so it already reads 0 at flat.
+                imuPitch = atan2f(-s.ax, sqrtf(s.ay * s.ay + s.az * s.az)) * RAD2DEG;
+                imuRoll  = atan2f(s.ay, -s.az) * RAD2DEG;
+                imuValid = true;
+            }
+        }
+    }
+
     // flush the logbook to flash if it's accumulated changes (debounced internally)
     if (logbookEnabled)
         logbook.MaybePersist();
@@ -559,7 +588,12 @@ void AircraftManager::StartFetchTask()
     // JSON decode. The Arduino loop task ran the same workload in 8 KB, so this has
     // headroom. Priority 1 (same as the loop); it spends almost all its life blocked
     // on the request queue.
-    xTaskCreate(FetchTaskTrampoline, "osky_fetch", 12288, this, 1, &fetchTaskHandle);
+    //
+    // Pin to core 0 -- the WiFi core. On the dual-core S3 that keeps the TLS/JSON work off
+    // core 1, where the Arduino loop drives the RGB panel: an unpinned task would otherwise
+    // float onto the draw core and add to the frame-timing jitter. (Harmless on the single-core
+    // C3, where core 0 is the only core.)
+    xTaskCreatePinnedToCore(FetchTaskTrampoline, "osky_fetch", 12288, this, 1, &fetchTaskHandle, 0);
 }
 
 void AircraftManager::FetchTaskTrampoline(void* arg)
@@ -637,7 +671,7 @@ void AircraftManager::RunFetchTask()
         // toward the TLS / config-page failures this all fixed.
         if (const uint32_t largest = ESP.getMaxAllocHeap(); largest < ENRICH_TLS_HEAP_FLOOR)
             Serial.printf("[fetch] LOW HEAP after %s: free=%u largest=%u aircraft=%u\n",
-                          sourceName, ESP.getFreeHeap(), largest, (unsigned)res->aircraft.size());
+                          sourceName, (unsigned)ESP.getFreeHeap(), (unsigned)largest, (unsigned)res->aircraft.size());
 
         delete req;
 
@@ -701,10 +735,17 @@ void AircraftManager::ConsumeFetchResult()
                     logbook.NoteContact();
                     logbook.NoteCountry(ac.originCountry);
                 }
+                // chirp on genuinely new arrivals (HAS_AUDIO boards), but not during the
+                // initial bulk population -- that would be a burst of beeps on first sync.
+                if constexpr (variant::HAS_AUDIO)
+                    if (initialSyncDone) board::BuzzerChirp(40);
             } else {
                 it->second.Update(ac, now);
             }
         }
+
+        // the first successful fetch is the baseline; arrivals after it are "new"
+        initialSyncDone = true;
 
         // remove any planes that disappeared from the feed
         for (auto it = trackedAircraft.begin(); it != trackedAircraft.end(); ) {
@@ -1058,6 +1099,33 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
         line(String(logbook.TypeCount()) + " types  " + String(logbook.OperatorCount()) + " airlines");
         line(String(logbook.CountryCount()) + " countries  " + String(logbook.Contacts()) + " seen");
+    }
+
+    // live tilt from the on-board IMU (HAS_IMU boards) -- proves the sensor is alive and gives
+    // the Stats screen something board-specific. Signed degrees: P = pitch, R = roll.
+    if constexpr (variant::HAS_IMU) {
+        if (imuValid) {
+            y += 6;
+            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+            char buf[24];
+            snprintf(buf, sizeof(buf), "Tilt P%+d R%+d", (int)lroundf(imuPitch), (int)lroundf(imuRoll));
+            line(String(buf));
+        }
+    }
+
+    // THIS DEVICE -- the config page is at http://<name>.local, so a user who forgot the name
+    // can swipe here to read it (the IP is an mDNS fallback). Drawn last, and only as far as it
+    // fits above the clock row, so it never collides on the small round C3 screen: the host line
+    // is the one you type, so it gets priority; the IP follows only when there's vertical room.
+    y += 6;
+    const int clockTop = SCREEN_SIZE - 30; // matches DrawClock's y
+    if (y + lh <= clockTop) {
+        backbuffer.setTextColor(lgfx::color888(0, 255, 0));
+        line(DeviceIdentity::Name() + ".local");
+    }
+    if (y + lh <= clockTop) {
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        line(WiFi.localIP().toString());
     }
 }
 
@@ -1530,7 +1598,9 @@ void AircraftManager::StartEnrichTask()
     // Same workload class as the fetch task (HTTPS GET + small JSON decode, plus a
     // ~10 KB photo body carried back in the result), so the same 12 KB stack and
     // priority 1. It spends almost all its life blocked on the request queue.
-    xTaskCreate(EnrichTaskTrampoline, "enrich", 12288, this, 1, &enrichTaskHandle);
+    // Pinned to core 0 (the WiFi core) for the same reason as the fetch task: keep network
+    // work off the panel-driving loop on core 1 (S3); no-op on the single-core C3.
+    xTaskCreatePinnedToCore(EnrichTaskTrampoline, "enrich", 12288, this, 1, &enrichTaskHandle, 0);
 }
 
 void AircraftManager::EnrichTaskTrampoline(void* arg)
@@ -1658,7 +1728,7 @@ void AircraftManager::ConsumeEnrichResults()
                                                  res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
                 Serial.printf("[photo] %s bytes=%u decoded=%d heap %u\n",
                               res->icao24.c_str(), (unsigned)res->photoBytes.length(),
-                              photoReady ? 1 : 0, ESP.getFreeHeap());
+                              photoReady ? 1 : 0, (unsigned)ESP.getFreeHeap());
             }
             break;
     }

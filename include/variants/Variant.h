@@ -18,6 +18,8 @@
 
 #if defined(BLIPSCOPE_VARIANT_C3_128)
   #include "variants/c3_128.h"
+#elif defined(BLIPSCOPE_VARIANT_S3_21)
+  #include "variants/s3_21.h"
 #elif defined(BLIPSCOPE_VARIANT_S3_128)
   #include "variants/s3_128.h"
 #elif defined(BLIPSCOPE_VARIANT_S3_146)

@@ -4,6 +4,7 @@
 
 #include "DeviceIdentity.h"
 #include "Layout.h"
+#include "BootScreen.h"
 
 namespace WiFiManagerHelpers
 {
@@ -11,7 +12,7 @@ namespace WiFiManagerHelpers
     // boards in setup mode on the same network can be told apart.
     inline const String& WiFiManagerName() { return DeviceIdentity::Name(); }
 
-    static void ConfigureWiFiManager(WiFiManager& wm, LGFX& tft)
+    static void ConfigureWiFiManager(WiFiManager& wm, LGFX& tft, LGFX_Sprite& backbuffer)
     {
         // DEV level prints the SSID/password the portal actually received, plus the
         // full connect flow -- lets us confirm the portal didn't mangle the credentials.
@@ -35,15 +36,11 @@ namespace WiFiManagerHelpers
             Serial.println("[WiFi] Portal saved credentials, attempting to connect...");
         });
 
-        wm.setAPCallback([&tft](WiFiManager* wifiManager) {
-            tft.fillScreen(lgfx::color888(0, 0, 0));
-            tft.setTextColor(lgfx::color888(0, 255, 0));
-
-            const int lineHeight = tft.fontHeight() + 10;
-            const int screenSize = SCREEN_SIZE;
-            tft.drawCenterString("- SETUP -", screenSize / 2, screenSize / 2 - lineHeight);
-            tft.drawCentreString("Connect to this WiFi hotspot:", screenSize / 2, screenSize / 2);
-            tft.drawCenterString(WiFiManagerName(), screenSize / 2, screenSize / 2 + lineHeight);
+        wm.setAPCallback([&tft, &backbuffer](WiFiManager* wifiManager) {
+            // Composed through the backbuffer so it renders on the SPD2010 (direct per-glyph writes
+            // don't); direct on every other SKU. See BootScreen.h.
+            DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
+                               "- SETUP -", "Connect to this WiFi hotspot:", WiFiManagerName().c_str());
             }
         );
     }

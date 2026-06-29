@@ -5,16 +5,25 @@
 
 #include "LGFX.h"
 #include "Layout.h"
+#include "BootScreen.h"
+#include "Board.h"
 #include "DeviceIdentity.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
 #include "HttpRequestManager.h"
 #include "OpenSkyAuthTokenHandler.h"
-#include "AircraftManager.h"
 #include "OtaUpdater.h"
+// The active app is a compile-time choice: the radar (default) or the FEATURE_EAM monitor.
+// Both expose the same Initialise()/Update()/Draw() surface, so loop() drives `appManager`
+// without knowing which it is. The radar's sweep/models headers are radar-only.
+#ifdef FEATURE_EAM
+#include "eam/EamManager.h"
+#else
+#include "AircraftManager.h"
 #include "DrawHelpers.h"
 #include "models/Aircraft.h"
 #include "models/TrackedAircraft.h"
+#endif
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
@@ -24,7 +33,11 @@ ConfigurationWebServer configServer;
 HttpRequestManager http;
 OpenSkyAuthTokenHandler authHandler(http);
 
-AircraftManager aircraftManager(configServer, authHandler, http, tft);
+#ifdef FEATURE_EAM
+EamManager appManager(configServer, authHandler, http, tft);
+#else
+AircraftManager appManager(configServer, authHandler, http, tft);
+#endif
 
 void setup()
 {
@@ -46,20 +59,64 @@ void setup()
   };
   esp_task_wdt_reconfigure(&wdtConfig);
 
-  // initialise LGFX + screen
-  tft.init();
-  tft.invertDisplay(true);
+  // Board-specific bring-up that has to happen before the display. On SKUs whose panel/touch
+  // reset and chip-select hang off an I2C IO expander (the S3-2.1), this drives that expander
+  // (and the IMU); on the C3 it's a no-op. See variant::BoardPreInit().
+  variant::BoardPreInit();
+
+  // initialise LGFX + screen. init() returns false if the panel/bus didn't come up (on an
+  // RGB panel that means the framebuffer/bus init failed -> nothing scans out).
+  const bool panelOk = tft.init();
+  tft.invertDisplay(BLIPSCOPE_DISP_INVERT); // per-variant: the GC9A01 boots inverted, the ST7701 doesn't
   // drive the backlight via PWM (configured in LGFX.h) so it's dimmable; full
   // brightness for the boot screen until AircraftManager applies the saved level
   tft.setBrightness(255);
 
+  // The full-frame backbuffer only fits on boards with PSRAM (480x480x8bpp ~= 230 KB); banded
+  // SKUs keep it in internal RAM so a TLS handshake still has contiguous heap. setPsram() must
+  // precede createSprite().
+  if constexpr (!variant::BANDED_RENDER)
+    backbuffer.setPsram(true);
   backbuffer.setColorDepth(8);
-  backbuffer.createSprite(SCREEN_SIZE, BAND_H);
+  void* spriteBuf = backbuffer.createSprite(SCREEN_SIZE, BAND_H);
+  Serial.printf("[disp] tft.init=%d %dx%d  backbuffer %s; psram_free=%u heap_free=%u\n",
+                panelOk, (int)tft.width(), (int)tft.height(), spriteBuf ? "ok" : "ALLOC FAILED",
+                (unsigned)ESP.getFreePsram(), (unsigned)ESP.getFreeHeap());
 
-  // establish WiFi connection
-  tft.fillScreen(lgfx::color888(0, 0, 0));
-  tft.setTextColor(lgfx::color888(0, 255, 0));
-  tft.drawCentreString("Connecting to WiFi...", SCREEN_SIZE / 2, SCREEN_SIZE / 2);
+#ifdef BLIPSCOPE_BRINGUP_DIAG
+  // Bring-up only (behind a per-env flag): cycle full-screen colours straight to the panel so we
+  // can SEE whether direct draws reach the scanned framebuffer. If the screen flashes
+  // red/green/blue/white, the RGB path works and the problem is elsewhere; if it stays black,
+  // our pixels aren't reaching the framebuffer the bus scans out. Remove once the panel is up.
+  {
+    const uint32_t colors[] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF, 0x000000 };
+    const char* names[]     = { "RED", "GREEN", "BLUE", "WHITE", "BLACK" };
+    for (int pass = 0; pass < 3; ++pass) {
+      for (int c = 0; c < 5; ++c) {
+        tft.fillScreen(lgfx::color888((colors[c] >> 16) & 0xFF, (colors[c] >> 8) & 0xFF, colors[c] & 0xFF));
+        board::DisplayFlush(tft); // push the fill out of cache so the RGB DMA scans it
+        Serial.printf("[diag] fillScreen %-5s  tft.init=%d %dx%d psram_free=%u\n",
+                      names[c], panelOk, (int)tft.width(), (int)tft.height(), (unsigned)ESP.getFreePsram());
+        Serial.flush();
+        delay(700);
+      }
+    }
+  }
+#endif
+
+  // establish WiFi connection. Composed through the backbuffer so it renders on the SPD2010 (which
+  // can't take direct per-glyph writes); a no-op-different path on every other SKU. See BootScreen.h.
+  DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), "Connecting to WiFi...");
+  board::DisplayFlush(tft); // RGB panels: make the boot screen visible (no-op on SPI SKUs)
+
+#if defined(BLIPSCOPE_PANEL_SPD2010)
+  // Critical ordering for the 1.46B: the Wi-Fi radio must NOT come up in the first seconds after
+  // power-on or its bring-up glitches the QSPI panel and it never recovers (writes stop landing)
+  // until a cold reboot -- a power/clock stabilisation issue, bisected on hardware (WiFi at ~7 s
+  // still fails; ~10 s is reliable). Hold the boot screen here so the rails settle before the radio
+  // inrush; the radar renders normally afterwards.
+  delay(9000);
+#endif
 
   // Log every WiFi radio event so we can see exactly where a join fails.
   // These fire on the WiFi event task even while autoConnect() blocks below.
@@ -102,7 +159,7 @@ void setup()
     }
   });
 
-  WiFiManagerHelpers::ConfigureWiFiManager(wm, tft);
+  WiFiManagerHelpers::ConfigureWiFiManager(wm, tft, backbuffer);
 
   const bool connected = wm.autoConnect(WiFiManagerHelpers::WiFiManagerName().c_str());
   Serial.printf("[WiFi] autoConnect() returned %s\n",
@@ -114,8 +171,21 @@ void setup()
   // sing -- a faint, steady buzz. Keeping the radio always-on flattens the draw
   // and silences it. The device is USB/mains powered, so the extra ~20-30 mA is
   // a non-issue, and latency/throughput actually improve.
-  if (connected)
+  if (connected) {
     WiFi.setSleep(WIFI_PS_NONE);
+
+    // Show how to reach the config page so the user doesn't have to remember the device's
+    // name later: it lives at http://<name>.local (mDNS), with the IP as a fallback for
+    // networks where mDNS doesn't resolve. Held a few seconds before OTA/app startup.
+    // Composed through the backbuffer so it renders on the SPD2010 (see BootScreen.h); the
+    // host line is also available any time on the radar's Stats screen.
+    const String host = DeviceIdentity::Name() + ".local";
+    const String ip   = WiFi.localIP().toString();
+    DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
+                       "- CONNECTED -", host.c_str(), ip.c_str());
+    board::DisplayFlush(tft); // RGB panels: make the screen visible (no-op on SPI SKUs)
+    delay(4000);
+  }
 
   // start NTP in UTC; the on-screen clock applies the configured offset, and the
   // solar auto-dim works directly in UTC
@@ -128,8 +198,8 @@ void setup()
   // begin background server for configuration
   configServer.Initialise();
 
-  // initialise aircraft manager
-  aircraftManager.Initialise();
+  // initialise the active app (radar or EAM monitor)
+  appManager.Initialise();
 }
 
 void loop()
@@ -152,21 +222,23 @@ void loop()
   // loop task, so all AircraftManager state changes stay on a single task
   // rather than racing the async web-server callback.
   if (configServer.ConsumeConfigChanged())
-    aircraftManager.Initialise();
+    appManager.Initialise();
 
-  aircraftManager.Update();
+  appManager.Update();
 
   // draw cycle: render the frame one horizontal band at a time into the half-height
   // backbuffer, each shifted into place by a BandCanvas, then pushed to its screen
-  // rows. The scene is drawn once per band; AircraftManager advances per-frame state
-  // (animation tick, trail sampling) only on the first pass so the bands stay in sync.
+  // rows. The scene is drawn once per band; the app advances per-frame state (animation
+  // tick, trail sampling) only on the first pass so the bands stay in sync.
+#ifndef FEATURE_EAM
   String renderScanlines = configServer.GetStoredString("scanline");
-  const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && aircraftManager.IsRadarView();
+  const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && appManager.IsRadarView();
 
   // The sweep angle is owned by AircraftManager (advanced in Update()), so the
   // drawn beam matches the blip paint-and-fade crossing test exactly. Sampled
   // once here so both render bands derive an identical wedge (no seam).
-  const float sweep = aircraftManager.CurrentSweepAngle();
+  const float sweep = appManager.CurrentSweepAngle();
+#endif
 
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
     BandCanvas canvas(backbuffer, bandY);
@@ -174,11 +246,16 @@ void loop()
 
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 
+#ifndef FEATURE_EAM
     if (drawScan)
       DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+#endif
 
-    aircraftManager.Draw(canvas, firstPass);
+    appManager.Draw(canvas, firstPass);
     backbuffer.pushSprite(0, bandY);
   }
+  // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
+  // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).
+  board::DisplayFlush(tft);
 }
 

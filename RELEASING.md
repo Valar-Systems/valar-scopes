@@ -39,6 +39,21 @@ A SKU's slug must be identical in **three** places (keep them in sync):
 
 Add all three, and the next release automatically builds and publishes that SKU's binary.
 
+## EAM builds — a separate OTA channel
+
+The `blipscope-eam-*` envs build a different **product** (the EAM monitor, `-DFEATURE_EAM`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. So an EAM device never pulls a radar image for its
+board, the EAM envs set `-DFW_OTA_PREFIX="eam-"`, and their CI slug is prefixed to match:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `blipscope-eam-c3-128` | `eam-c3-128` → `firmware-eam-c3-128.bin` |
+| `blipscope-eam-s3-146` | `eam-s3-146` → `firmware-eam-s3-146.bin` |
+
+These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar and EAM together),
+and a device only ever downloads its own `<prefix><slug>` binary. Releasing is otherwise identical
+— the matrix rows are already in [.github/workflows/firmware.yml](.github/workflows/firmware.yml).
+
 ## Legacy migration note
 
 Firmware that shipped before per-SKU naming fetches a plain `firmware.bin`. The workflow keeps

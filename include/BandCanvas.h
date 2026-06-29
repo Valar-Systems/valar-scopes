@@ -39,6 +39,23 @@ public:
     void fillTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, const T& color) {
         s_.fillTriangle(x0, y0 - oy_, x1, y1 - oy_, x2, y2 - oy_, color);
     }
+    template <typename T>
+    void fillRect(int32_t x, int32_t y, int32_t w, int32_t h, const T& color) { s_.fillRect(x, y - oy_, w, h, color); }
+    template <typename T>
+    void drawRect(int32_t x, int32_t y, int32_t w, int32_t h, const T& color) { s_.drawRect(x, y - oy_, w, h, color); }
+    template <typename T>
+    void fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, const T& color) { s_.fillRoundRect(x, y - oy_, w, h, r, color); }
+    template <typename T>
+    void drawRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, const T& color) { s_.drawRoundRect(x, y - oy_, w, h, r, color); }
+    template <typename T>
+    void drawFastHLine(int32_t x, int32_t y, int32_t w, const T& color) { s_.drawFastHLine(x, y - oy_, w, color); }
+    template <typename T>
+    void drawFastVLine(int32_t x, int32_t y, int32_t h, const T& color) { s_.drawFastVLine(x, y - oy_, h, color); }
+    // Gauge/dial arcs. Angles in degrees, 0 = 3 o'clock, growing clockwise (LovyanGFX convention).
+    template <typename T>
+    void fillArc(int32_t x, int32_t y, int32_t r0, int32_t r1, float a0, float a1, const T& color) { s_.fillArc(x, y - oy_, r0, r1, a0, a1, color); }
+    template <typename T>
+    void drawArc(int32_t x, int32_t y, int32_t r0, int32_t r1, float a0, float a1, const T& color) { s_.drawArc(x, y - oy_, r0, r1, a0, a1, color); }
 
     // text/state setters and queries: no coordinates -> forward unchanged
     template <typename T> void setTextColor(const T& color) { s_.setTextColor(color); }
