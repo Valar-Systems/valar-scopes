@@ -36,22 +36,29 @@ struct Msg {
 };
 
 // --------------------------------------------------------------------------------- tempo
-// One HFGCS frequency's count today (for the Tempo screen's activity strip).
-struct FreqCount {
-    int khz = 0;
-    int count = 0;
-};
-
 struct Tempo {
     bool valid = false;
     int countToday = 0;
     float baselineMedian = 0.0f;
     float ratio = 0.0f;
-    String level = "normal";         // "normal" | "elevated" | "high"
+    String level = "normal";         // "quiet" | "normal" | "elevated" | "high"
     int windowDays = 0;
-    // Extended stats (all optional; carried on the same tempo/stats response). The firmware
-    // degrades to the plain dial when they're absent.
-    std::vector<FreqCount> byFreq;   // today's count per HFGCS frequency
+};
+
+// ---------------------------------------------------------------------------------- stats
+// Activity aggregates from /eam/stats -- a SEPARATE endpoint from /eam/tempo (the dial). All
+// fields optional; the screens degrade when a poll hasn't landed yet.
+struct FreqCount {
+    int khz = 0;                     // 4724 | 8992 | 11175 | 15016 | 0 ("other")
+    int count = 0;
+};
+
+struct Stats {
+    bool valid = false;
+    int countToday = 0;
+    int longest = 0;                 // most groups in a single message today
+    int busiestHourUtc = -1;         // -1 = none
+    std::vector<FreqCount> byFreq;   // today's count per HFGCS frequency (+ a khz:0 bucket)
     int byHour[24] = {0};            // today's count per UTC hour-of-day
     bool hasByHour = false;          // a by_hour array was present (even if all zero)
     int longestQuietMin = -1;        // longest gap today with no EAM, minutes (-1 = unknown)
@@ -75,9 +82,9 @@ struct PropBand {
 // restrained banner on the propagation screen and the fourth ntfy trigger.
 struct SpaceWeather {
     bool valid = false;
-    int kp = -1;                     // planetary K index 0..9 (-1 = unknown)
-    String rScale;                   // NOAA radio-blackout scale, e.g. "R2" ("" = none)
-    String gScale;                   // NOAA geomagnetic-storm scale, e.g. "G2" ("" = none)
+    int kp = -1;                     // planetary K index 0..9 (-1 = unknown/null)
+    int rScale = -1;                 // NOAA radio-blackout scale 0..5 (-1 = unknown/null)
+    int gScale = -1;                 // NOAA geomagnetic-storm scale 0..5 (-1 = unknown/null)
     String xrayClass;                // peak X-ray flux class, e.g. "X1.2" / "M5" ("" = unknown)
     bool hfDegraded = false;         // backend's "HF comms degraded right now" flag
     String note;                     // short human note (optional)
@@ -151,7 +158,7 @@ struct MilAir {
 // Which endpoint a worker fetch targets. ABNCP has two sources (backend vs device-side
 // OpenSky) that produce the same Abncp shape via different URLs/parsers.
 enum class EamEndpoint : uint8_t {
-    Latest, Skykings, Tempo, Codewords, Propagation, Icbm, Abncp, AbncpOpenSky, MilAir
+    Latest, Skykings, Tempo, Stats, Codewords, Propagation, Icbm, Abncp, AbncpOpenSky, MilAir
 };
 
 // Loop -> worker: a single GET to perform, fully built on the loop task. For AbncpOpenSky the
@@ -174,6 +181,7 @@ struct EamFetchResult {
     bool ok = false;
     std::vector<Msg> messages;       // Latest / Skykings
     Tempo tempo;
+    Stats stats;
     std::vector<Codeword> codewords;
     int codewordWindowDays = 0;
     Propagation propagation;
@@ -188,6 +196,7 @@ struct EamFetchResult {
 bool ParseMsg(JsonObjectConst o, Msg& out);                                    // false if id/type/text missing
 void ParseMessages(JsonObjectConst root, std::vector<Msg>& out, size_t cap);   // reads root["messages"]
 bool ParseTempo(JsonObjectConst root, Tempo& out);
+bool ParseStats(JsonObjectConst root, Stats& out);                              // /eam/stats shape
 void ParseCodewords(JsonObjectConst root, std::vector<Codeword>& out, int& windowDays, size_t cap);
 bool ParsePropagation(JsonObjectConst root, Propagation& out);
 void ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap);

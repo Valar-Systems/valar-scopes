@@ -13,6 +13,7 @@ namespace {
 constexpr uint32_t LATEST_MS      = 30000;     // ~30 s
 constexpr uint32_t SKYKINGS_MS    = 60000;     // ~60 s (unspecified; conservative)
 constexpr uint32_t TEMPO_MS       = 300000;    // ~5 m
+constexpr uint32_t STATS_MS       = 120000;    // ~2 m (activity ring / freq strip want to feel live)
 constexpr uint32_t CODEWORDS_MS   = 300000;    // ~5 m (unspecified; matches tempo)
 constexpr uint32_t PROPAGATION_MS = 1800000;   // ~30 m
 constexpr uint32_t ICBM_MS        = 21600000;  // ~6 h
@@ -69,6 +70,7 @@ void EamFeedClient::Configure(const Config& newCfg)
     feeds[F_LATEST].intervalMs      = (uint32_t)(LATEST_MS * sc);
     feeds[F_SKYKINGS].intervalMs    = (uint32_t)(SKYKINGS_MS * sc);
     feeds[F_TEMPO].intervalMs       = (uint32_t)(TEMPO_MS * sc);
+    feeds[F_STATS].intervalMs       = (uint32_t)(STATS_MS * sc);
     feeds[F_CODEWORDS].intervalMs   = (uint32_t)(CODEWORDS_MS * sc);
     feeds[F_PROPAGATION].intervalMs = (uint32_t)(PROPAGATION_MS * sc);
     feeds[F_ICBM].intervalMs        = (uint32_t)(ICBM_MS * sc);
@@ -149,6 +151,10 @@ bool EamFeedClient::BuildRequest(int feedIdx, EamFetchRequest& req) const
             req.endpoint = eam::EamEndpoint::Tempo;
             req.url = base + "/eam/tempo";
             return true;
+        case F_STATS:
+            req.endpoint = eam::EamEndpoint::Stats;
+            req.url = base + "/eam/stats";
+            return true;
         case F_CODEWORDS:
             req.endpoint = eam::EamEndpoint::Codewords;
             req.url = base + "/eam/codewords";
@@ -182,6 +188,7 @@ int EamFeedClient::FeedForEndpoint(eam::EamEndpoint e)
         case eam::EamEndpoint::Latest:       return F_LATEST;
         case eam::EamEndpoint::Skykings:     return F_SKYKINGS;
         case eam::EamEndpoint::Tempo:        return F_TEMPO;
+        case eam::EamEndpoint::Stats:        return F_STATS;
         case eam::EamEndpoint::Codewords:    return F_CODEWORDS;
         case eam::EamEndpoint::Propagation:  return F_PROPAGATION;
         case eam::EamEndpoint::Icbm:         return F_ICBM;
@@ -222,6 +229,9 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
             break;
         case eam::EamEndpoint::Tempo:
             tempo = res.tempo;
+            break;
+        case eam::EamEndpoint::Stats:
+            stats = res.stats;
             break;
         case eam::EamEndpoint::Codewords:
             codewords = res.codewords;
@@ -331,6 +341,9 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
             break;
         case eam::EamEndpoint::Tempo:
             eam::ParseTempo(root, res.tempo);
+            break;
+        case eam::EamEndpoint::Stats:
+            eam::ParseStats(root, res.stats);
             break;
         case eam::EamEndpoint::Codewords:
             eam::ParseCodewords(root, res.codewords, res.codewordWindowDays, 50);

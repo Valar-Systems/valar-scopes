@@ -144,25 +144,26 @@ void EamManager::DrawTempo(BandCanvas& c)
         CenterText(c, rb, cy + 18 + c.fontHeight() + 4, palette.dim);
     }
 
-    // Frequency activity strip: today's count per HFGCS channel, busiest highlighted. If the
-    // propagation screen suggested a channel, mark it (accent caret + label) so you can see at a
-    // glance whether the hot freq is the one conditions actually favour. Sits in the dial's open
-    // bottom; absent when the feed didn't carry by_freq.
-    if (!t.byFreq.empty()) {
+    // Frequency activity strip: today's count per HFGCS channel (from /eam/stats), busiest
+    // highlighted. If the propagation screen suggested a channel, mark it (accent caret + label) so
+    // you can see at a glance whether the hot freq is the one conditions actually favour. Sits in
+    // the dial's open bottom; absent until the stats poll lands.
+    const std::vector<eam::FreqCount>& byFreq = feed.Stats().byFreq;
+    if (!byFreq.empty()) {
         const int suggested = feed.Propagation().valid ? feed.Propagation().suggestedKhz : 0;
         int maxCount = 1, busiestKhz = 0, busiestCount = -1;
-        for (const eam::FreqCount& fc : t.byFreq) {
+        for (const eam::FreqCount& fc : byFreq) {
             if (fc.count > maxCount) maxCount = fc.count;
             if (fc.count > busiestCount) { busiestCount = fc.count; busiestKhz = fc.khz; }
         }
 
-        const int n = (int)t.byFreq.size();
+        const int n = (int)byFreq.size();
         const int slot = (int)(SCREEN_SIZE * 0.15f);
         const int barW = (int)(slot * 0.46f);
         const int maxBarH = (int)(SCREEN_SIZE * 0.11f);
         const int baseY = (int)(SCREEN_SIZE * 0.86f);
         int sx = SCREEN_SIZE_DIV_2 - (n * slot) / 2 + (slot - barW) / 2;
-        for (const eam::FreqCount& fc : t.byFreq) {
+        for (const eam::FreqCount& fc : byFreq) {
             const int bh = (fc.count * maxBarH) / maxCount;
             const bool busiest = fc.khz == busiestKhz && busiestCount > 0;
             const bool isSuggested = suggested && fc.khz == suggested;
@@ -185,15 +186,15 @@ void EamManager::DrawActivity(BandCanvas& c)
     // 24 hour-of-day buckets (current UTC day) as a polar histogram native to the round panel:
     // hour 0 at 12 o'clock, growing clockwise; the current UTC hour is marked in accent.
     c.setTextSize(1);
-    const eam::Tempo& t = feed.Tempo();
+    const eam::Stats& st = feed.Stats();
     CenterText(c, "EAM ACTIVITY - 24H UTC", (int)(SCREEN_SIZE * 0.09), palette.dim);
-    if (!t.valid || !t.hasByHour) {
+    if (!st.valid || !st.hasByHour) {
         CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
         return;
     }
 
     int maxCount = 1, total = 0;
-    for (int i = 0; i < 24; ++i) { if (t.byHour[i] > maxCount) maxCount = t.byHour[i]; total += t.byHour[i]; }
+    for (int i = 0; i < 24; ++i) { if (st.byHour[i] > maxCount) maxCount = st.byHour[i]; total += st.byHour[i]; }
 
     const int cx = SCREEN_SIZE_DIV_2;
     const int cy = (int)(SCREEN_SIZE * 0.53f);
@@ -209,10 +210,10 @@ void EamManager::DrawActivity(BandCanvas& c)
         const float centerDeg = 270.0f + h * 15.0f;     // hour 0 at 12 o'clock, clockwise
         const float a0 = centerDeg - 6.5f, a1 = centerDeg + 6.5f;
         const bool isNow = (h == curHour);
-        if (t.byHour[h] <= 0) {
+        if (st.byHour[h] <= 0) {
             c.fillArc(cx, cy, r0, r0 + 2, a0, a1, isNow ? palette.accent : palette.faint);
         } else {
-            int len = (t.byHour[h] * span) / maxCount;
+            int len = (st.byHour[h] * span) / maxCount;
             if (len < 3) len = 3;
             c.fillArc(cx, cy, r0, r0 + len, a0, a1, isNow ? palette.accent : palette.fg);
         }
@@ -360,8 +361,10 @@ void EamManager::DrawMilAir(BandCanvas& c)
     const int xL = (int)(SCREEN_SIZE * 0.12);
     for (int i = start; i < start + per && i < n; ++i) {
         const eam::MilAircraft& a = m.aircraft[i];
-        String line = a.type.length() ? a.type : (a.callsign.length() ? a.callsign : (a.hex.length() ? a.hex : String("unknown")));
-        if (a.type.length() && a.callsign.length()) line = a.type + "  " + a.callsign;
+        // category is the backend's human label (e.g. "AWACS (E-3)"); fall back to raw type.
+        const String label = a.category.length() ? a.category : a.type;
+        String line = label.length() ? label : (a.callsign.length() ? a.callsign : (a.hex.length() ? a.hex : String("unknown")));
+        if (label.length() && a.callsign.length()) line = label + "  " + a.callsign;
         c.setTextColor(palette.fg);
         c.drawString(line, xL, y);
         if (a.hasPos && hasLatLon) {
@@ -396,18 +399,17 @@ void EamManager::DrawPropagation(BandCanvas& c)
     // Space-weather banner: only when there's something to say. Restrained tint (warn, or alert at
     // R3+/G3+), drawn on a dark wash so it reads as a banner without shouting.
     const eam::SpaceWeather& sw = p.space;
-    if (sw.valid && (sw.hfDegraded || sw.gScale.length())) {
-        const bool severe = (sw.rScale.length() >= 2 && sw.rScale[1] >= '3') ||
-                            (sw.gScale.length() >= 2 && sw.gScale[1] >= '3');
+    if (sw.valid && (sw.hfDegraded || sw.gScale >= 1)) {
+        const bool severe = sw.rScale >= 3 || sw.gScale >= 3;
         const uint32_t bcol = severe ? palette.alert : palette.warn;
         String banner;
         if (sw.hfDegraded) {
             banner = "RADIO BLACKOUT";
-            if (sw.rScale.length()) banner += " " + sw.rScale;
+            if (sw.rScale >= 1) banner += " R" + String(sw.rScale);
             banner += " - HF DEGRADED";
             if (sw.xrayClass.length()) banner += " (" + sw.xrayClass + ")";
         } else {
-            banner = "GEO STORM " + sw.gScale;
+            banner = "GEO STORM G" + String(sw.gScale);
             if (sw.kp >= 0) banner += " - Kp " + String(sw.kp);
         }
         const int bw = c.textWidth(banner) + 16;
@@ -485,7 +487,7 @@ void EamManager::DrawReference(BandCanvas& c)
     CenterText(c, "SKYKING - priority, no reply", y, palette.dim); y += lh + 6;
 
     CenterText(c, "Tempo = today vs baseline", y, palette.faint); y += lh;
-    CenterText(c, "normal / elevated / high", y, palette.dim);
+    CenterText(c, "quiet/normal/elevated/high", y, palette.dim);
 }
 
 void EamManager::DrawClock(BandCanvas& c)
@@ -541,10 +543,11 @@ void EamManager::DrawClock(BandCanvas& c)
     // Ambient line below: rotates the day's count, the logbook odometer, and a (sample) heritage note.
     c.setTextSize(1);
     const eam::Tempo& t = feed.Tempo();
+    const eam::Stats& st = feed.Stats();
     std::vector<String> amb;
     if (t.valid) amb.push_back(String(t.countToday) + " EAMs today");
-    if (t.valid && t.longestQuietMin >= 0) {
-        const int q = t.longestQuietMin;
+    if (st.valid && st.longestQuietMin >= 0) {
+        const int q = st.longestQuietMin;
         amb.push_back("quiet gap " + (q >= 60 ? (String(q / 60) + "h " + String(q % 60) + "m") : (String(q) + "m")));
     }
     if (logbook.EamCount() > 0) amb.push_back(String(logbook.EamCount()) + " logged");

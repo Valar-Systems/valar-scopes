@@ -51,6 +51,7 @@ public:
     const std::vector<eam::Msg>& Latest() const { return latest; }
     const std::vector<eam::Msg>& Skykings() const { return skykings; }
     const eam::Tempo& Tempo() const { return tempo; }
+    const eam::Stats& Stats() const { return stats; }
     const std::vector<eam::Codeword>& Codewords() const { return codewords; }
     int CodewordWindowDays() const { return codewordWindowDays; }
     const eam::Propagation& Propagation() const { return propagation; }
@@ -67,7 +68,7 @@ public:
 
 private:
     // One scheduled endpoint. ABNCP's interval/endpoint come from the provider.
-    enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_MILAIR, F_COUNT };
+    enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_STATS, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_MILAIR, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -85,6 +86,7 @@ private:
     std::vector<eam::Msg> latest;
     std::vector<eam::Msg> skykings;
     eam::Tempo tempo;
+    eam::Stats stats;
     std::vector<eam::Codeword> codewords;
     int codewordWindowDays = 0;
     eam::Propagation propagation;

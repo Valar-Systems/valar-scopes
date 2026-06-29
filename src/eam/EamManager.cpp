@@ -20,14 +20,6 @@ constexpr unsigned long INTERACT_HOLD_MS = 30000; // pause auto-rotate this long
 
 double Deg2Rad(double d) { return d * M_PI / 180.0; }
 
-// Parse a NOAA scale string ("G2" / "R3" / "S1") to its 1..5 rank; 0 if blank/"none".
-int ScaleRank(const String& s)
-{
-    if (s.length() < 2) return 0;
-    const int n = s[1] - '0';
-    return (n >= 1 && n <= 5) ? n : 0;
-}
-
 // Low-precision solar elevation (degrees) at lat/lon for a UTC epoch -- enough to drive the same
 // night auto-dim the radar uses (sun below -0.833 deg = civil horizon).
 float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
@@ -214,9 +206,9 @@ bool EamManager::HasData(Screen s) const
         case Screen::Ticker:      return !feed.Latest().empty();
         case Screen::Tempo:       return feed.Tempo().valid;
         case Screen::Activity: {  // only when there's an hourly histogram with something in it
-            const eam::Tempo& t = feed.Tempo();
-            if (!t.valid || !t.hasByHour) return false;
-            for (int i = 0; i < 24; ++i) if (t.byHour[i] > 0) return true;
+            const eam::Stats& st = feed.Stats();
+            if (!st.valid || !st.hasByHour) return false;
+            for (int i = 0; i < 24; ++i) if (st.byHour[i] > 0) return true;
             return false;
         }
         case Screen::Codewords:   return !feed.Codewords().empty();
@@ -413,7 +405,7 @@ void EamManager::CheckAlerts(bool newEamArrived)
     if (ntfyTopic.isEmpty()) {
         if (t.valid) lastTempoRank = tempoRank;
         if (a.valid) { lastAbncpAirborne = a.airborne; abncpSeen = true; }
-        if (spaceValid) { lastHfDegraded = sw.hfDegraded; lastGScaleRank = ScaleRank(sw.gScale); spaceSeen = true; }
+        if (spaceValid) { lastHfDegraded = sw.hfDegraded; lastGScaleRank = sw.gScale > 0 ? sw.gScale : 0; spaceSeen = true; }
         return;
     }
 
@@ -455,19 +447,19 @@ void EamManager::CheckAlerts(bool newEamArrived)
 
     // (d) space weather: HF radio blackout turning on, or a geomagnetic storm crossing up into G2+.
     if (spaceValid) {
-        const int gRank = ScaleRank(sw.gScale);
-        const int rRank = ScaleRank(sw.rScale);
+        const int gRank = sw.gScale > 0 ? sw.gScale : 0;   // 0..5 (-1/unknown treated as 0)
+        const int rRank = sw.rScale > 0 ? sw.rScale : 0;
         if (spaceSeen && alertSpace) {
             const bool blackoutOnset = sw.hfDegraded && !lastHfDegraded;
             const bool stormOnset = gRank >= 2 && gRank > lastGScaleRank;
             if (blackoutOnset) {
                 String body = "Radio blackout";
-                if (sw.rScale.length()) body += " " + sw.rScale;
+                if (rRank >= 1) body += " R" + String(rRank);
                 body += " - HF degraded";
                 if (sw.xrayClass.length()) body += " (" + sw.xrayClass + ")";
                 SendNtfy("Space weather - HF blackout", body, "radioactive,warning", rRank >= 3 ? 5 : 4);
             } else if (stormOnset) {
-                String body = "Geomagnetic storm " + sw.gScale;
+                String body = "Geomagnetic storm G" + String(gRank);
                 if (sw.kp >= 0) body += "  Kp " + String(sw.kp);
                 SendNtfy("Space weather - geomagnetic storm", body, "zap,warning", gRank >= 3 ? 5 : 4);
             }
