@@ -38,9 +38,12 @@ public:
     void Draw(BandCanvas& backbuffer, bool firstPass);
 
 private:
-    // The seven screens. Order here is the default rotation order; the user can enable/disable
-    // and reorder in config (Stage 5). Clock is the idle screen and is always available.
-    enum class Screen : uint8_t { Ticker, Tempo, Codewords, Abncp, Propagation, Icbm, Clock, COUNT };
+    // The screens. Order here is the default rotation order; the user can enable/disable and
+    // reorder in config. Clock is the idle screen and is always available; Reference is a static
+    // help card (also always available). Activity / MilAir appear only when their feed has data.
+    enum class Screen : uint8_t {
+        Ticker, Tempo, Activity, Codewords, Abncp, MilAir, Propagation, Icbm, Reference, Clock, COUNT
+    };
 
     ConfigurationWebServer& configServer;
     OpenSkyAuthTokenHandler& authHandler;
@@ -84,9 +87,13 @@ private:
     bool alertNew = true;             // (a) new EAM
     bool alertTempo = true;           // (b) tempo crossing into elevated/high
     bool alertAbncp = true;           // (c) ABNCP not-airborne -> airborne
+    bool alertSpace = true;           // (d) HF blackout / geomagnetic storm onset
     int lastTempoRank = -1;           // 0 normal / 1 elevated / 2 high; -1 = no reading yet
     bool lastAbncpAirborne = false;
     bool abncpSeen = false;           // a valid ABNCP reading has arrived (so the first isn't a "transition")
+    bool lastHfDegraded = false;      // last space-weather HF-degraded flag (edge detect)
+    int lastGScaleRank = 0;           // last geomagnetic-storm rank 0..5 (G-scale; edge detect)
+    bool spaceSeen = false;           // a valid space-weather reading has arrived
     unsigned long lastNotifyMs = 0;   // throttle ntfy POSTs
 
     // ---- touch / gestures ----
@@ -108,10 +115,13 @@ private:
     // screens
     void DrawTicker(BandCanvas& c, bool firstPass);
     void DrawTempo(BandCanvas& c);
+    void DrawActivity(BandCanvas& c);
     void DrawCodewords(BandCanvas& c);
     void DrawAbncp(BandCanvas& c);
+    void DrawMilAir(BandCanvas& c);
     void DrawPropagation(BandCanvas& c);
     void DrawIcbm(BandCanvas& c);
+    void DrawReference(BandCanvas& c);
     void DrawClock(BandCanvas& c);
 
     // brightness

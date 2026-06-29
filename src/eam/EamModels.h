@@ -36,6 +36,12 @@ struct Msg {
 };
 
 // --------------------------------------------------------------------------------- tempo
+// One HFGCS frequency's count today (for the Tempo screen's activity strip).
+struct FreqCount {
+    int khz = 0;
+    int count = 0;
+};
+
 struct Tempo {
     bool valid = false;
     int countToday = 0;
@@ -43,6 +49,12 @@ struct Tempo {
     float ratio = 0.0f;
     String level = "normal";         // "normal" | "elevated" | "high"
     int windowDays = 0;
+    // Extended stats (all optional; carried on the same tempo/stats response). The firmware
+    // degrades to the plain dial when they're absent.
+    std::vector<FreqCount> byFreq;   // today's count per HFGCS frequency
+    int byHour[24] = {0};            // today's count per UTC hour-of-day
+    bool hasByHour = false;          // a by_hour array was present (even if all zero)
+    int longestQuietMin = -1;        // longest gap today with no EAM, minutes (-1 = unknown)
 };
 
 // ----------------------------------------------------------------------------- codewords
@@ -59,6 +71,18 @@ struct PropBand {
     String night;
 };
 
+// Space-weather summary carried on /propagation (also available raw at /spaceweather). Drives the
+// restrained banner on the propagation screen and the fourth ntfy trigger.
+struct SpaceWeather {
+    bool valid = false;
+    int kp = -1;                     // planetary K index 0..9 (-1 = unknown)
+    String rScale;                   // NOAA radio-blackout scale, e.g. "R2" ("" = none)
+    String gScale;                   // NOAA geomagnetic-storm scale, e.g. "G2" ("" = none)
+    String xrayClass;                // peak X-ray flux class, e.g. "X1.2" / "M5" ("" = unknown)
+    bool hfDegraded = false;         // backend's "HF comms degraded right now" flag
+    String note;                     // short human note (optional)
+};
+
 struct Propagation {
     bool valid = false;
     String updatedAt;
@@ -71,6 +95,7 @@ struct Propagation {
     int suggestedKhz = 0;            // best HFGCS freq now (0 = none)
     String suggestedReason;
     String source;                   // credit line, e.g. "N0NBH"
+    SpaceWeather space;              // optional; .valid only when the feed carries it
 };
 
 // ------------------------------------------------------------------------------- launches
@@ -101,11 +126,32 @@ struct Abncp {
     String checkedAt;                // ISO-8601 (optional)
 };
 
+// ------------------------------------------------------------------------------- mil air
+// Notable military aircraft up now (tankers, command, recon...) from /status/milair. Like the
+// command-post watch, this only sees aircraft transmitting ADS-B.
+struct MilAircraft {
+    String type;                     // e.g. "KC-135" (best-effort)
+    String callsign;
+    String hex;                      // ICAO24
+    bool hasPos = false;
+    double lat = 0.0;
+    double lon = 0.0;
+    String heardAt;                  // ISO-8601 (optional)
+    String category;                 // backend free-form tag, e.g. "tanker" (optional)
+};
+
+struct MilAir {
+    bool valid = false;              // a successful fetch populated this (even if count 0)
+    int count = 0;
+    std::vector<MilAircraft> aircraft;
+    String source;                   // credit line (optional)
+};
+
 // ----------------------------------------------------------------- poller request/result
 // Which endpoint a worker fetch targets. ABNCP has two sources (backend vs device-side
 // OpenSky) that produce the same Abncp shape via different URLs/parsers.
 enum class EamEndpoint : uint8_t {
-    Latest, Skykings, Tempo, Codewords, Propagation, Icbm, Abncp, AbncpOpenSky
+    Latest, Skykings, Tempo, Codewords, Propagation, Icbm, Abncp, AbncpOpenSky, MilAir
 };
 
 // Loop -> worker: a single GET to perform, fully built on the loop task. For AbncpOpenSky the
@@ -133,6 +179,7 @@ struct EamFetchResult {
     Propagation propagation;
     std::vector<Launch> launches;
     Abncp abncp;
+    MilAir milair;
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -146,6 +193,7 @@ bool ParsePropagation(JsonObjectConst root, Propagation& out);
 void ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap);
 bool ParseAbncpBackend(JsonObjectConst root, Abncp& out);                       // {base}/status/abncp shape
 bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out);                      // normalize states/all vectors
+bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap);               // {base}/status/milair shape
 
 // Best-effort classification of an ABNCP aircraft from its hex/callsign (used by the OpenSky
 // path, which has no type field). Returns "E-4B", "E-6B", or "".

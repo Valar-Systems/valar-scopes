@@ -29,6 +29,43 @@ void SplitLines(const String& blob, std::vector<String>& out)
     }
 }
 
+// epoch (UTC) -> "YYYY-MM-DDThh:mm:ssZ"; "" when unknown (0).
+String EpochToIso(long epoch)
+{
+    if (epoch <= 0) return String();
+    time_t tt = (time_t)epoch;
+    struct tm tmv;
+    gmtime_r(&tt, &tmv);
+    char buf[24];
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+             tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+    return String(buf);
+}
+
+String CsvField(const String& v)   // RFC-4180 quoted field
+{
+    String s = v;
+    s.replace("\"", "\"\"");
+    return "\"" + s + "\"";
+}
+
+String JsonStr(const String& v)
+{
+    String s = v;
+    s.replace("\\", "\\\\");
+    s.replace("\"", "\\\"");
+    return "\"" + s + "\"";
+}
+
+// Split one stored "codeword\tepoch" line into its parts (epoch 0 when absent).
+void SplitCw(const String& line, String& word, long& epoch)
+{
+    const int tab = line.indexOf('\t');
+    if (tab < 0) { word = line; epoch = 0; return; }
+    word = line.substring(0, tab);
+    epoch = line.substring(tab + 1).toInt();
+}
+
 } // namespace
 
 void EamLogbook::Begin()
@@ -125,4 +162,52 @@ void EamLogbook::Persist()
 
     dirty = false;
     lastPersistMs = millis();
+}
+
+String EamLogbook::ExportCsv()
+{
+    Preferences p;
+    p.begin("eam-log", true);
+    const uint32_t count = p.getUInt("count", 0);
+    const String ids = p.getString("ids", "");
+    const String cw = p.getString("cw", "");
+    p.end();
+
+    std::vector<String> idList; SplitLines(ids, idList);
+    std::vector<String> cwLines; SplitLines(cw, cwLines);
+
+    String out = "kind,value,first_seen_utc\r\n";
+    out += "eam_total,"; out += count; out += ",\r\n";
+    for (const String& id : idList) { out += "eam,"; out += CsvField(id); out += ",\r\n"; }
+    for (const String& line : cwLines) {
+        String word; long epoch; SplitCw(line, word, epoch);
+        out += "codeword,"; out += CsvField(word); out += ","; out += EpochToIso(epoch); out += "\r\n";
+    }
+    return out;
+}
+
+String EamLogbook::ExportJson()
+{
+    Preferences p;
+    p.begin("eam-log", true);
+    const uint32_t count = p.getUInt("count", 0);
+    const String ids = p.getString("ids", "");
+    const String cw = p.getString("cw", "");
+    p.end();
+
+    std::vector<String> idList; SplitLines(ids, idList);
+    std::vector<String> cwLines; SplitLines(cw, cwLines);
+
+    String out = "{\"eam_count\":"; out += count; out += ",\"eam_ids\":[";
+    for (size_t i = 0; i < idList.size(); ++i) { if (i) out += ","; out += JsonStr(idList[i]); }
+    out += "],\"codewords\":[";
+    for (size_t i = 0; i < cwLines.size(); ++i) {
+        String word; long epoch; SplitCw(cwLines[i], word, epoch);
+        if (i) out += ",";
+        out += "{\"codeword\":"; out += JsonStr(word);
+        out += ",\"first_seen_utc\":"; out += JsonStr(EpochToIso(epoch));
+        out += ",\"epoch\":"; out += epoch; out += "}";
+    }
+    out += "]}";
+    return out;
 }
