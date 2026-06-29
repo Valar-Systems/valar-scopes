@@ -27,6 +27,13 @@ public:
 
     void MaybePersist(); // flush to NVS if dirty and the debounce has elapsed
 
+    // Serialize the persisted log for download from the config page. Static so the web-server task
+    // can serve it without the loop-owned instance: it reads the same "eam-log" NVS namespace
+    // read-only, reflecting the last flushed state (persist lags by <=10 s). EAM ids carry no
+    // timestamp (only codewords do); the export is honest about that.
+    static String ExportCsv();
+    static String ExportJson();
+
 private:
     Preferences prefs;
     bool loaded = false;

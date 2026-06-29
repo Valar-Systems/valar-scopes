@@ -56,6 +56,7 @@ public:
     const eam::Propagation& Propagation() const { return propagation; }
     const std::vector<eam::Launch>& Launches() const { return launches; }
     const eam::Abncp& Abncp() const { return abncp; }
+    const eam::MilAir& MilAir() const { return milair; }
 
     // Non-null while the selected ABNCP source can't poll (e.g. OpenSky creds blank).
     const char* AbncpInertReason() const { return abncpProvider ? abncpProvider->InertReason() : nullptr; }
@@ -66,7 +67,7 @@ public:
 
 private:
     // One scheduled endpoint. ABNCP's interval/endpoint come from the provider.
-    enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_COUNT };
+    enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_MILAIR, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -89,6 +90,7 @@ private:
     eam::Propagation propagation;
     std::vector<eam::Launch> launches;
     eam::Abncp abncp;
+    eam::MilAir milair;
 
     String lastTopId;          // top-of-feed EAM id last seen, for new-arrival detection
     bool newLatestEdge = false;

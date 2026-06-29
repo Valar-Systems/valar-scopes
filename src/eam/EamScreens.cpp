@@ -143,6 +143,96 @@ void EamManager::DrawTempo(BandCanvas& c)
         snprintf(rb, sizeof(rb), "~%.1fx normal", t.ratio);
         CenterText(c, rb, cy + 18 + c.fontHeight() + 4, palette.dim);
     }
+
+    // Frequency activity strip: today's count per HFGCS channel, busiest highlighted. If the
+    // propagation screen suggested a channel, mark it (accent caret + label) so you can see at a
+    // glance whether the hot freq is the one conditions actually favour. Sits in the dial's open
+    // bottom; absent when the feed didn't carry by_freq.
+    if (!t.byFreq.empty()) {
+        const int suggested = feed.Propagation().valid ? feed.Propagation().suggestedKhz : 0;
+        int maxCount = 1, busiestKhz = 0, busiestCount = -1;
+        for (const eam::FreqCount& fc : t.byFreq) {
+            if (fc.count > maxCount) maxCount = fc.count;
+            if (fc.count > busiestCount) { busiestCount = fc.count; busiestKhz = fc.khz; }
+        }
+
+        const int n = (int)t.byFreq.size();
+        const int slot = (int)(SCREEN_SIZE * 0.15f);
+        const int barW = (int)(slot * 0.46f);
+        const int maxBarH = (int)(SCREEN_SIZE * 0.11f);
+        const int baseY = (int)(SCREEN_SIZE * 0.86f);
+        int sx = SCREEN_SIZE_DIV_2 - (n * slot) / 2 + (slot - barW) / 2;
+        for (const eam::FreqCount& fc : t.byFreq) {
+            const int bh = (fc.count * maxBarH) / maxCount;
+            const bool busiest = fc.khz == busiestKhz && busiestCount > 0;
+            const bool isSuggested = suggested && fc.khz == suggested;
+            const int cxBar = sx + barW / 2;
+            c.fillRect(sx, baseY - bh, barW, bh > 0 ? bh : 1, busiest ? col : palette.faint);
+            if (isSuggested) // accent caret above the favoured channel
+                c.fillTriangle(cxBar - 4, baseY - maxBarH - 8, cxBar + 4, baseY - maxBarH - 8,
+                               cxBar, baseY - maxBarH - 2, palette.accent);
+            char fl[8];
+            snprintf(fl, sizeof(fl), "%.1f", fc.khz / 1000.0);
+            c.setTextColor(isSuggested ? palette.accent : palette.dim);
+            c.drawString(fl, cxBar - c.textWidth(fl) / 2, baseY + 3);
+            sx += slot;
+        }
+    }
+}
+
+void EamManager::DrawActivity(BandCanvas& c)
+{
+    // 24 hour-of-day buckets (current UTC day) as a polar histogram native to the round panel:
+    // hour 0 at 12 o'clock, growing clockwise; the current UTC hour is marked in accent.
+    c.setTextSize(1);
+    const eam::Tempo& t = feed.Tempo();
+    CenterText(c, "EAM ACTIVITY - 24H UTC", (int)(SCREEN_SIZE * 0.09), palette.dim);
+    if (!t.valid || !t.hasByHour) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+
+    int maxCount = 1, total = 0;
+    for (int i = 0; i < 24; ++i) { if (t.byHour[i] > maxCount) maxCount = t.byHour[i]; total += t.byHour[i]; }
+
+    const int cx = SCREEN_SIZE_DIV_2;
+    const int cy = (int)(SCREEN_SIZE * 0.53f);
+    const int r0 = (int)(SCREEN_SIZE * 0.17f);
+    const int rMax = (int)(SCREEN_SIZE * 0.40f);
+    const int span = rMax - r0;
+
+    const time_t nowUtc = time(nullptr);
+    int curHour = -1;
+    if (nowUtc > 1600000000) { struct tm tmv; gmtime_r(&nowUtc, &tmv); curHour = tmv.tm_hour; }
+
+    for (int h = 0; h < 24; ++h) {
+        const float centerDeg = 270.0f + h * 15.0f;     // hour 0 at 12 o'clock, clockwise
+        const float a0 = centerDeg - 6.5f, a1 = centerDeg + 6.5f;
+        const bool isNow = (h == curHour);
+        if (t.byHour[h] <= 0) {
+            c.fillArc(cx, cy, r0, r0 + 2, a0, a1, isNow ? palette.accent : palette.faint);
+        } else {
+            int len = (t.byHour[h] * span) / maxCount;
+            if (len < 3) len = 3;
+            c.fillArc(cx, cy, r0, r0 + len, a0, a1, isNow ? palette.accent : palette.fg);
+        }
+    }
+
+    // cardinal hour labels for orientation (00 top, 06 right, 12 bottom, 18 left)
+    auto label = [&](const char* s, float deg) {
+        const float a = deg * (float)M_PI / 180.0f;
+        const int lx = cx + (int)((rMax + 10) * cosf(a));
+        const int ly = cy + (int)((rMax + 10) * sinf(a));
+        c.setTextColor(palette.faint);
+        c.drawString(s, lx - c.textWidth(s) / 2, ly - c.fontHeight() / 2);
+    };
+    label("00", 270); label("06", 0); label("12", 90); label("18", 180);
+
+    // hub readout: today's total
+    c.setTextSize(2);
+    CenterText(c, String(total), cy - 8, palette.fg);
+    c.setTextSize(1);
+    CenterText(c, "today", cy + 10, palette.faint);
 }
 
 void EamManager::DrawCodewords(BandCanvas& c)
@@ -237,6 +327,62 @@ void EamManager::DrawAbncp(BandCanvas& c)
     }
 }
 
+void EamManager::DrawMilAir(BandCanvas& c)
+{
+    // Notable military aircraft up now. Same tile language as the command-post watch, and the same
+    // honest caveat: this only sees aircraft transmitting ADS-B.
+    c.setTextSize(1);
+    CenterText(c, "MIL AIR", (int)(SCREEN_SIZE * 0.12), palette.dim);
+
+    const eam::MilAir& m = feed.MilAir();
+    if (!m.valid || m.count <= 0) {
+        c.setTextSize(2);
+        CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 14, palette.dim);
+        c.setTextSize(1);
+        CenterText(c, "no notable mil air", SCREEN_SIZE_DIV_2 + 14, palette.faint);
+        CenterText(c, "(only sees ADS-B transmitters)", SCREEN_SIZE_DIV_2 + 14 + c.fontHeight() + 2, palette.faint);
+        return;
+    }
+
+    c.setTextSize(3);
+    CenterText(c, String(m.count), (int)(SCREEN_SIZE * 0.30), palette.fg);
+    c.setTextSize(1);
+    CenterText(c, m.count == 1 ? "aircraft up" : "aircraft up", (int)(SCREEN_SIZE * 0.30) + 30, palette.faint);
+
+    // Rotate a window of three through the list so a busy picture isn't truncated silently.
+    const int per = 3;
+    const int n = (int)m.aircraft.size();
+    const int pages = (n + per - 1) / per;
+    const int start = (n > per) ? (int)((millis() / 3000) % pages) * per : 0;
+
+    int y = (int)(SCREEN_SIZE * 0.50);
+    const int lh = c.fontHeight() + 7;
+    const int xL = (int)(SCREEN_SIZE * 0.12);
+    for (int i = start; i < start + per && i < n; ++i) {
+        const eam::MilAircraft& a = m.aircraft[i];
+        String line = a.type.length() ? a.type : (a.callsign.length() ? a.callsign : (a.hex.length() ? a.hex : String("unknown")));
+        if (a.type.length() && a.callsign.length()) line = a.type + "  " + a.callsign;
+        c.setTextColor(palette.fg);
+        c.drawString(line, xL, y);
+        if (a.hasPos && hasLatLon) {
+            double km, brg;
+            RangeBearing(deviceLat, deviceLon, a.lat, a.lon, km, brg);
+            char bd[20];
+            snprintf(bd, sizeof(bd), "%03d  %dkm", (int)(brg + 0.5), (int)(km + 0.5));
+            c.setTextColor(palette.dim);
+            c.drawString(bd, SCREEN_SIZE - xL - c.textWidth(bd), y);
+        }
+        y += lh;
+    }
+    if (n > per) {
+        char more[40];
+        const int last = (start + per < n) ? start + per : n;
+        snprintf(more, sizeof(more), "%d-%d of %d", start + 1, last, n);
+        CenterText(c, more, SCREEN_SIZE - 30, palette.faint);
+    }
+    CenterText(c, "(ADS-B only)", SCREEN_SIZE - 16, palette.faint);
+}
+
 void EamManager::DrawPropagation(BandCanvas& c)
 {
     c.setTextSize(1);
@@ -245,6 +391,32 @@ void EamManager::DrawPropagation(BandCanvas& c)
     if (!p.valid) {
         CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
         return;
+    }
+
+    // Space-weather banner: only when there's something to say. Restrained tint (warn, or alert at
+    // R3+/G3+), drawn on a dark wash so it reads as a banner without shouting.
+    const eam::SpaceWeather& sw = p.space;
+    if (sw.valid && (sw.hfDegraded || sw.gScale.length())) {
+        const bool severe = (sw.rScale.length() >= 2 && sw.rScale[1] >= '3') ||
+                            (sw.gScale.length() >= 2 && sw.gScale[1] >= '3');
+        const uint32_t bcol = severe ? palette.alert : palette.warn;
+        String banner;
+        if (sw.hfDegraded) {
+            banner = "RADIO BLACKOUT";
+            if (sw.rScale.length()) banner += " " + sw.rScale;
+            banner += " - HF DEGRADED";
+            if (sw.xrayClass.length()) banner += " (" + sw.xrayClass + ")";
+        } else {
+            banner = "GEO STORM " + sw.gScale;
+            if (sw.kp >= 0) banner += " - Kp " + String(sw.kp);
+        }
+        const int bw = c.textWidth(banner) + 16;
+        const int bx = SCREEN_SIZE_DIV_2 - bw / 2;
+        const int by = (int)(SCREEN_SIZE * 0.165f);
+        const int bh = c.fontHeight() + 8;
+        c.fillRoundRect(bx, by, bw, bh, 4, eam::ScaleColor(bcol, 0.18f));
+        c.setTextColor(bcol);
+        c.drawString(banner, SCREEN_SIZE_DIV_2 - c.textWidth(banner) / 2, by + 4);
     }
 
     CenterText(c, "Best HFGCS freq now", (int)(SCREEN_SIZE * 0.26), palette.faint);
@@ -294,6 +466,26 @@ void EamManager::DrawIcbm(BandCanvas& c)
         CenterText(c, l.site, (int)(SCREEN_SIZE * 0.72), palette.dim);
     if (l.source.length())
         CenterText(c, l.source, SCREEN_SIZE - 16, palette.faint);
+}
+
+void EamManager::DrawReference(BandCanvas& c)
+{
+    // "What am I looking at" card -- static, no feed dependency, so it's always available.
+    c.setTextSize(1);
+    CenterText(c, "HFGCS REFERENCE", (int)(SCREEN_SIZE * 0.10), palette.accent);
+
+    const int lh = c.fontHeight() + 4;
+    int y = (int)(SCREEN_SIZE * 0.20);
+
+    CenterText(c, "Primary freqs (kHz)", y, palette.faint); y += lh;
+    CenterText(c, "4724   8992", y, palette.fg); y += lh;
+    CenterText(c, "11175   15016", y, palette.fg); y += lh + 6;
+
+    CenterText(c, "EAM - coded action message", y, palette.dim); y += lh;
+    CenterText(c, "SKYKING - priority, no reply", y, palette.dim); y += lh + 6;
+
+    CenterText(c, "Tempo = today vs baseline", y, palette.faint); y += lh;
+    CenterText(c, "normal / elevated / high", y, palette.dim);
 }
 
 void EamManager::DrawClock(BandCanvas& c)
@@ -351,6 +543,10 @@ void EamManager::DrawClock(BandCanvas& c)
     const eam::Tempo& t = feed.Tempo();
     std::vector<String> amb;
     if (t.valid) amb.push_back(String(t.countToday) + " EAMs today");
+    if (t.valid && t.longestQuietMin >= 0) {
+        const int q = t.longestQuietMin;
+        amb.push_back("quiet gap " + (q >= 60 ? (String(q / 60) + "h " + String(q % 60) + "m") : (String(q) + "m")));
+    }
     if (logbook.EamCount() > 0) amb.push_back(String(logbook.EamCount()) + " logged");
     for (int i = 0; i < (int)(sizeof(kHeritageSample) / sizeof(kHeritageSample[0])); ++i)
         amb.push_back(kHeritageSample[i]);
