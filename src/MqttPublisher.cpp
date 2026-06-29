@@ -12,7 +12,9 @@ void MqttPublisher::Begin(const Config& cfg)
 
         // 6 KB stack: PubSubClient + a plain (non-TLS) WiFiClient are light. Priority
         // 1, like the loop and fetch tasks; it spends most of its life delayed.
-        xTaskCreate(Trampoline, "mqtt_pub", 6144, this, 1, &taskHandle);
+        // Pinned to core 0 (the WiFi core), keeping it off the panel-driving loop on core 1
+        // (S3); no-op on the single-core C3.
+        xTaskCreatePinnedToCore(Trampoline, "mqtt_pub", 6144, this, 1, &taskHandle, 0);
     }
 
     // hand the task a fresh config; replace any pending one so it always sees the latest

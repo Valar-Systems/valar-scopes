@@ -50,4 +50,9 @@ namespace variant {
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
     constexpr char SLUG[] = "c3-128";
     constexpr char NAME[] = "Blipscope Kit";
+
+    // No IO-expander / pre-init dance on this board: the panel and touch reset off real GPIOs,
+    // so BoardPreInit() (called unconditionally from setup()) is a no-op here. See s3_21.h for a
+    // board that uses it.
+    inline void BoardPreInit() {}
 }

@@ -123,6 +123,18 @@ private:
     unsigned long fetchInterval = 0;
     unsigned long lastFetch = 999999;
 
+    // True once the first feed fetch has populated trackedAircraft. Lets the new-contact
+    // buzzer chirp (HAS_AUDIO boards) stay silent through the initial bulk population and
+    // only sound for genuinely new arrivals afterwards.
+    bool initialSyncDone = false;
+
+    // Latest IMU-derived tilt (HAS_IMU boards), refreshed in Update() and shown on the Stats
+    // screen. pitch = nose up/down, roll = bank left/right, in degrees; imuValid gates display.
+    float imuPitch = 0.0f;
+    float imuRoll = 0.0f;
+    bool imuValid = false;
+    unsigned long lastImuReadMs = 0;
+
     // Data source. Default is the OpenSky cloud API; the user can instead point
     // Blipscope at their own ADS-B receiver's dump1090-fa/readsb "aircraft.json"
     // HTTP endpoint, which has no rate limit and updates ~1 Hz. The two sources

@@ -171,8 +171,21 @@ void setup()
   // sing -- a faint, steady buzz. Keeping the radio always-on flattens the draw
   // and silences it. The device is USB/mains powered, so the extra ~20-30 mA is
   // a non-issue, and latency/throughput actually improve.
-  if (connected)
+  if (connected) {
     WiFi.setSleep(WIFI_PS_NONE);
+
+    // Show how to reach the config page so the user doesn't have to remember the device's
+    // name later: it lives at http://<name>.local (mDNS), with the IP as a fallback for
+    // networks where mDNS doesn't resolve. Held a few seconds before OTA/app startup.
+    // Composed through the backbuffer so it renders on the SPD2010 (see BootScreen.h); the
+    // host line is also available any time on the radar's Stats screen.
+    const String host = DeviceIdentity::Name() + ".local";
+    const String ip   = WiFi.localIP().toString();
+    DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
+                       "- CONNECTED -", host.c_str(), ip.c_str());
+    board::DisplayFlush(tft); // RGB panels: make the screen visible (no-op on SPI SKUs)
+    delay(4000);
+  }
 
   // start NTP in UTC; the on-screen clock applies the configured offset, and the
   // solar auto-dim works directly in UTC
