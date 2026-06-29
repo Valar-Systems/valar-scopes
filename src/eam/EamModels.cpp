@@ -83,8 +83,18 @@ bool ParseTempo(JsonObjectConst root, Tempo& out)
     out.ratio          = root["ratio"].as<float>();
     out.level          = root["level"].is<const char*>() ? root["level"].as<String>() : String("normal");
     out.windowDays     = root["window_days"].is<int>() ? root["window_days"].as<int>() : 0;
+    out.valid = true;
+    return true;
+}
 
-    // Extended stats (optional). by_freq: today's count per HFGCS frequency.
+bool ParseStats(JsonObjectConst root, Stats& out)
+{
+    if (root.isNull()) return false;
+    out.countToday      = root["count_today"].is<int>() ? root["count_today"].as<int>() : 0;
+    out.longest         = root["longest"].is<int>() ? root["longest"].as<int>() : 0;
+    out.busiestHourUtc  = root["busiest_hour_utc"].is<int>() ? root["busiest_hour_utc"].as<int>() : -1;
+
+    // by_freq: today's count per HFGCS frequency (+ a khz:0 "other" bucket the device drops).
     out.byFreq.clear();
     if (root["by_freq"].is<JsonArrayConst>()) {
         for (JsonObjectConst f : root["by_freq"].as<JsonArrayConst>()) {
@@ -92,7 +102,7 @@ bool ParseTempo(JsonObjectConst root, Tempo& out)
             FreqCount fc;
             fc.khz = f["khz"].is<int>() ? f["khz"].as<int>() : 0;
             fc.count = f["count"].is<int>() ? f["count"].as<int>() : 0;
-            if (fc.khz) out.byFreq.push_back(fc);
+            if (fc.khz) out.byFreq.push_back(fc);          // skip the "other" bucket on the strip
         }
     }
 
@@ -163,9 +173,9 @@ bool ParsePropagation(JsonObjectConst root, Propagation& out)
     JsonObjectConst sw = root["space_weather"];
     if (!sw.isNull()) {
         out.space.valid     = true;
-        out.space.kp        = sw["kp"].is<int>() ? sw["kp"].as<int>() : -1;
-        out.space.rScale    = sw["r_scale"].as<String>();
-        out.space.gScale    = sw["g_scale"].as<String>();
+        out.space.kp        = sw["kp"].is<int>() ? sw["kp"].as<int>() : -1;       // number | null
+        out.space.rScale    = sw["r_scale"].is<int>() ? sw["r_scale"].as<int>() : -1; // 0..5 | null
+        out.space.gScale    = sw["g_scale"].is<int>() ? sw["g_scale"].as<int>() : -1; // 0..5 | null
         out.space.xrayClass = sw["xray_class"].as<String>();
         out.space.hfDegraded = sw["hf_degraded"].is<bool>() ? sw["hf_degraded"].as<bool>() : false;
         out.space.note      = sw["note"].as<String>();
