@@ -1,11 +1,25 @@
 #include "ConfigurationWebServer.h"
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
-#include "AircraftInfoFields.h"
 #include "OtaUpdater.h"
+#ifndef FEATURE_EAM
+#include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM build
+#endif
+
+#ifdef FEATURE_EAM
+// The EAM build's backend base URL default. Normally injected per-env (-DEAM_FEED_BASE=...);
+// guarded so the file still compiles without it. The runtime value ("eam-base-url") overrides.
+#ifndef EAM_FEED_BASE
+#define EAM_FEED_BASE "https://eam.example.com"
+#endif
+#endif
 
 // HTML stored in flash
-// %PLACEHOLDER% tokens are substituted at serve time by the template processor
+// %PLACEHOLDER% tokens are substituted at serve time by the template processor.
+// The page is feature-specific: the radar build serves the radar settings form below;
+// the FEATURE_EAM build serves the EAM monitor form. The ConfigurationWebServer shell
+// (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
+#ifndef FEATURE_EAM
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -421,6 +435,172 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#else
+// FEATURE_EAM config page. Stage 1: the valar-eam-feed backend base URL + Reset WiFi.
+// Per-screen toggles/reorder, the command-post source dropdown, OpenSky credentials, ntfy,
+// poller intervals, and lat/lon arrive in a later stage. Shares the page chrome/JS pattern.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Blipscope EAM</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+    </head>
+    <body class="font-mono bg-gray-900 text-green-500 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
+        <fieldset class="border border-green-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
+            <legend class="px-2">Configure Blipscope EAM</legend>
+
+            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+
+                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <span>EAM feed base URL:</span>
+                    <input name="eam-base-url" value='%EAM_BASE_URL%' placeholder="https://eam.example.com"
+                        class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                </label>
+                <span class="text-xs text-green-700">The valar-eam-feed backend this device polls for EAM / Skyking / tempo / propagation / launch data.</span>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Latitude:</span>
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Longitude:</span>
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                </div>
+                <span class="text-xs text-green-700">Optional. Used for propagation day/night and the command-post bearing/distance.</span>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Command-post watch</legend>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Source:</span>
+                        <select id="abncp-source" name="abncp-source"
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <option value="backend" %ABNCP_BACKEND%>adsb.lol &mdash; via Valar feed (no setup)</option>
+                            <option value="opensky" %ABNCP_OPENSKY%>OpenSky &mdash; your account</option>
+                        </select>
+                    </label>
+                    <div id="opensky-fields" class="flex flex-col gap-3 mt-3">
+                        <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <span>OpenSky client ID:</span>
+                            <input name="opensky-id" value='%OPENSKY_ID%'
+                                class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                        <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <span>OpenSky client secret:</span>
+                            <input name="opensky-secret" value='%OPENSKY_SECRET%'
+                                class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span>ICAO24 watchlist (hex, comma-separated):</span>
+                            <textarea name="abncp-watch" rows="2"
+                                class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">%ABNCP_WATCH%</textarea>
+                        </label>
+                        <span class="text-xs text-green-700">
+                            Queried from this device with YOUR OpenSky account only &mdash; never shared, never routed through the Valar backend.
+                            Seeded with the E-4B &ldquo;Nightwatch&rdquo; hexes (verify them); add E-6B hexes as needed. Blank ID/secret keeps the watch off.
+                        </span>
+                    </div>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Alerts (ntfy)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>ntfy.sh topic:</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                        <label class="flex items-center gap-2"><input name="eam-alert-new" type="checkbox" %ALERT_NEW% class="accent-green-500"><span>New EAM</span></label>
+                        <label class="flex items-center gap-2"><input name="eam-alert-tempo" type="checkbox" %ALERT_TEMPO% class="accent-green-500"><span>Tempo elevated/high</span></label>
+                        <label class="flex items-center gap-2"><input name="eam-alert-abncp" type="checkbox" %ALERT_ABNCP% class="accent-green-500"><span>Command post airborne</span></label>
+                    </div>
+                    <span class="text-xs text-green-700 mt-1">Leave the topic blank to disable all push alerts.</span>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Display</legend>
+                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-5">
+                        <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                            <span>Palette:</span>
+                            <select name="eam-palette" class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <option value="green" %PAL_GREEN%>Green console</option>
+                                <option value="amber" %PAL_AMBER%>Amber console</option>
+                            </select>
+                        </label>
+                        <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                            <span>Refresh:</span>
+                            <select name="eam-refresh" class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <option value="normal" %RR_NORMAL%>Normal</option>
+                                <option value="relaxed" %RR_RELAXED%>Relaxed (2x)</option>
+                                <option value="battery" %RR_BATTERY%>Battery (4x)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-3">
+                        <label class="flex items-center gap-2"><input name="eam-colon-blink" type="checkbox" %COLON_BLINK% class="accent-green-500"><span>Clock colon blink</span></label>
+                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-green-500"><span>Auto-dim at night</span></label>
+                    </div>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-green-500">
+                    </label>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Screens</legend>
+                    <label class="flex flex-col gap-1">
+                        <span>Order &amp; enable (comma-separated; omit one to hide it):</span>
+                        <input name="eam-screens" value='%EAM_SCREENS%'
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-green-700 mt-1">ids: ticker, tempo, codewords, abncp, prop, icbm, clock. Empty rotates all. The clock always shows when nothing else has data.</span>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <input type="submit" value="Save"
+                        class="bg-green-500 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                    <button type="button" id="resetwifi"
+                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                        Reset WiFi</button>
+                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                </div>
+            </form>
+
+            <div class="flex justify-between items-end text-xs text-green-700 mt-4">
+                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
+                <span>Firmware v%FW_VERSION% (EAM)</span>
+            </div>
+        </fieldset>
+
+        <script>
+            document.getElementById('cfg').addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            document.getElementById('resetwifi').addEventListener('click', function() {
+                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
+                fetch('/reset-wifi', { method: 'POST' })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            // show the OpenSky credential fields only when that source is selected
+            const abncpSrc = document.getElementById('abncp-source');
+            const openskyFields = document.getElementById('opensky-fields');
+            function syncAbncp() { openskyFields.style.display = abncpSrc.value === 'opensky' ? '' : 'none'; }
+            abncpSrc.addEventListener('change', syncAbncp);
+            syncAbncp();
+        </script>
+    </body>
+</html>
+)";
+#endif
 
 void ConfigurationWebServer::Initialise() {
     // Create the "config" NVS namespace up front. Opening read-write creates it if
@@ -447,6 +627,7 @@ void ConfigurationWebServer::Initialise() {
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);
+#ifndef FEATURE_EAM
         const String latitude = prefs.getString("latitude", "");
         const String longitude = prefs.getString("longitude", "");
         const String radius = prefs.getString("radius", "100");
@@ -505,13 +686,45 @@ void ConfigurationWebServer::Initialise() {
             infoFieldsHtml += field.label;
             infoFieldsHtml += F("</span></label>");
         }
+#else
+        // FEATURE_EAM: load the EAM config fields. isKey() guards keep a not-yet-saved read from
+        // logging NVS NOT_FOUND; the base-URL default is the EAM_FEED_BASE build flag.
+        const String eamBaseUrl = prefs.isKey("eam-base-url")
+            ? prefs.getString("eam-base-url", EAM_FEED_BASE)
+            : String(EAM_FEED_BASE);
+        const String latitude = prefs.getString("latitude", "");
+        const String longitude = prefs.getString("longitude", "");
+        const String abncpSource = prefs.isKey("abncp-source") ? prefs.getString("abncp-source", "backend") : "backend";
+        const String openskyClientId = prefs.getString("opensky-id", "");
+        String openskySecret = prefs.getString("opensky-secret", "");
+        const String abncpWatch = prefs.getString("abncp-watch", "");
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String alertNew = prefs.isKey("eam-alert-new") ? prefs.getString("eam-alert-new", "true") : "true";
+        const String alertTempo = prefs.isKey("eam-alert-tempo") ? prefs.getString("eam-alert-tempo", "true") : "true";
+        const String alertAbncp = prefs.isKey("eam-alert-abncp") ? prefs.getString("eam-alert-abncp", "true") : "true";
+        const String eamPalette = prefs.isKey("eam-palette") ? prefs.getString("eam-palette", "green") : "green";
+        const String eamRefresh = prefs.isKey("eam-refresh") ? prefs.getString("eam-refresh", "normal") : "normal";
+        const String colonBlink = prefs.isKey("eam-colon-blink") ? prefs.getString("eam-colon-blink", "false") : "false";
+        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
+        const String brightness = prefs.getString("brightness", "255");
+        // default the field to the full ordered set so the user can see and edit it
+        const String eamScreens = prefs.isKey("eam-screens")
+            ? prefs.getString("eam-screens", "")
+            : String("ticker,tempo,codewords,abncp,prop,icbm,clock");
+#endif
         prefs.end();
 
+#ifndef FEATURE_EAM
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
+#else
+        // mask the OpenSky secret before sending to the client (same masked-value guard on save)
+        std::fill(openskySecret.begin(), openskySecret.end(), '*');
+#endif
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
+#ifndef FEATURE_EAM
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -559,6 +772,38 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#else
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens]
+            (const String& var) -> String {
+                if (var == "EAM_BASE_URL")   return eamBaseUrl;
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "ABNCP_BACKEND")  return abncpSource == "opensky" ? "" : "selected";
+                if (var == "ABNCP_OPENSKY")  return abncpSource == "opensky" ? "selected" : "";
+                if (var == "OPENSKY_ID")     return openskyClientId;
+                if (var == "OPENSKY_SECRET") return openskySecret;
+                if (var == "ABNCP_WATCH")    return abncpWatch;
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
+                if (var == "ALERT_NEW")      return alertNew == "true" ? "checked" : "";
+                if (var == "ALERT_TEMPO")    return alertTempo == "true" ? "checked" : "";
+                if (var == "ALERT_ABNCP")    return alertAbncp == "true" ? "checked" : "";
+                if (var == "PAL_GREEN")      return eamPalette == "amber" ? "" : "selected";
+                if (var == "PAL_AMBER")      return eamPalette == "amber" ? "selected" : "";
+                if (var == "RR_NORMAL")      return eamRefresh == "relaxed" || eamRefresh == "battery" ? "" : "selected";
+                if (var == "RR_RELAXED")     return eamRefresh == "relaxed" ? "selected" : "";
+                if (var == "RR_BATTERY")     return eamRefresh == "battery" ? "selected" : "";
+                if (var == "COLON_BLINK")    return colonBlink == "true" ? "checked" : "";
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "EAM_SCREENS")    return eamScreens;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                return "";
+            }
+        );
+#endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
         response->addHeader("Cache-Control", "no-store");
@@ -582,6 +827,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
+#ifndef FEATURE_EAM
         TrySaveParam("latitude");
         TrySaveParam("longitude");
         TrySaveParam("radius");
@@ -639,6 +885,35 @@ void ConfigurationWebServer::Initialise() {
             const char* key = AIRCRAFT_INFO_FIELDS[i].key;
             prefs.putString(key, request->hasParam(key, true) ? "true" : "false");
         }
+#else
+        // FEATURE_EAM: persist the EAM config fields.
+        TrySaveParam("eam-base-url");
+        TrySaveParam("latitude");
+        TrySaveParam("longitude");
+        TrySaveParam("abncp-source");
+        TrySaveParam("opensky-id");
+        TrySaveParam("abncp-watch");
+        TrySaveParam("ntfy-topic");
+        TrySaveParam("eam-palette");
+        TrySaveParam("eam-refresh");
+        TrySaveParam("brightness");
+        TrySaveParam("eam-screens");
+
+        // OpenSky secret: don't overwrite the stored value with the masked placeholder
+        const auto* eamSecret = request->getParam("opensky-secret", true);
+        if (eamSecret != nullptr) {
+            const String& secret = eamSecret->value();
+            if (secret.indexOf('*') == -1)
+                prefs.putString("opensky-secret", secret);
+        }
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        prefs.putString("eam-alert-new", request->hasParam("eam-alert-new", true) ? "true" : "false");
+        prefs.putString("eam-alert-tempo", request->hasParam("eam-alert-tempo", true) ? "true" : "false");
+        prefs.putString("eam-alert-abncp", request->hasParam("eam-alert-abncp", true) ? "true" : "false");
+        prefs.putString("eam-colon-blink", request->hasParam("eam-colon-blink", true) ? "true" : "false");
+        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+#endif
         prefs.end();
 
         // No reboot: flag the change and let loop() re-read settings on the main

@@ -19,10 +19,18 @@ namespace {
 // shipped before per-SKU naming, the release also keeps a legacy firmware.bin alias.
 const char* VERSION_URL = "https://github.com/Valar-Systems/Blipscope/releases/latest/download/version.txt";
 
+// FEATURE_EAM and the radar app can share a board (and thus a variant::SLUG) while shipping
+// as separate products, so they ride separate OTA channels: FW_OTA_PREFIX is empty for the
+// radar build and "eam-" for the EAM build, keeping firmware-c3-128.bin and
+// firmware-eam-c3-128.bin distinct. A device only ever fetches its own channel's binary.
+#ifndef FW_OTA_PREFIX
+#define FW_OTA_PREFIX ""
+#endif
+
 String FirmwareUrl()
 {
     return String("https://github.com/Valar-Systems/Blipscope/releases/latest/download/firmware-")
-           + variant::SLUG + ".bin";
+           + FW_OTA_PREFIX + variant::SLUG + ".bin";
 }
 
 void drawStatus(LGFX& tft, const String& msg)
@@ -61,7 +69,7 @@ void MaybeUpdateFirmware(LGFX& tft)
     const int latest = http.getString().toInt();
     http.end();
 
-    Serial.printf("[ota] variant=%s current=%d latest=%d\n", variant::SLUG, FW_VERSION, latest);
+    Serial.printf("[ota] channel=%s%s current=%d latest=%d\n", FW_OTA_PREFIX, variant::SLUG, FW_VERSION, latest);
     if (latest <= FW_VERSION)
         return; // already up to date
 

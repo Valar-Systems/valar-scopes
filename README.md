@@ -53,6 +53,20 @@ If you want to build from source or hack on it yourself, the firmware is here in
 
 If the board doesn't reboot into the new firmware automatically, hold the **BOOT** button, press **RESET** once, then release **BOOT**. If an upload fails, double-check the board selected in the status bar, try a different USB port, and make sure your cable supports data (some USB-C cables are charge-only). More on PlatformIO [here](https://docs.platformio.org/en/latest/).
 
+### Build variants
+
+Blipscope builds several hardware SKUs — and a second app — from this one repo, one PlatformIO env each (see [platformio.ini](platformio.ini)):
+
+```sh
+pio run -e blipscope-kit-c3-128 -t upload     # the C3 Kit radar (default)
+pio run -e blipscope-pro-s3-21  -t upload     # S3 2.1" radar
+pio run -e blipscope-s3-146     -t upload     # S3 1.46" AMOLED radar
+pio run -e blipscope-eam-c3-128 -t upload     # EAM monitor (C3 hardware)
+pio run -e blipscope-eam-s3-146 -t upload     # EAM monitor (S3 1.46" AMOLED)
+```
+
+The `blipscope-eam-*` envs build the **EAM (Emergency Action Message) monitor** — a separate HFGCS watch app that reuses the same boards, Wi-Fi setup, web config, and OTA, but shows EAM/Skyking/propagation/launch screens instead of the radar. It updates on its own OTA channel (`firmware-eam-<slug>.bin`), so a device only ever flashes the app it was built for. Developer notes are in [CLAUDE.md](CLAUDE.md).
+
 ## Setup & Usage
 
 ### First boot

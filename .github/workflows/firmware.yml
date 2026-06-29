@@ -25,8 +25,13 @@ jobs:
         # the variant header (it names the OTA asset). Add S3 SKUs here as they come online.
         include:
           - { env: blipscope-kit-c3-128, slug: c3-128 }
+          - { env: blipscope-pro-s3-21,  slug: s3-21 }
+          - { env: blipscope-s3-146,     slug: s3-146 }
+          # FEATURE_EAM product: same boards, EAM monitor firmware, own OTA channel
+          # (firmware-eam-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
+          - { env: blipscope-eam-c3-128, slug: eam-c3-128 }
+          - { env: blipscope-eam-s3-146, slug: eam-s3-146 }
           # - { env: blipscope-lite-s3-128,       slug: s3-128 }
-          # - { env: blipscope-s3-146,            slug: s3-146 }
           # - { env: blipscope-pro-s3-175-amoled, slug: s3-175-amoled }
     steps:
       - uses: actions/checkout@v4

@@ -15,6 +15,7 @@ pio run                                       # build the default (C3) env
 pio run -e blipscope-kit-c3-128 -t upload     # flash over USB-C (esptool)
 pio device monitor -b 115200                  # serial at 115200
 pio run -e <env> -t upload -t monitor         # build+flash+monitor a specific SKU
+pio run -e blipscope-eam-c3-128 -t upload     # flash the EAM monitor (same C3 hardware; see FEATURE_EAM)
 ```
 
 In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-reset: hold **BOOT**, tap **RESET**, release **BOOT**.
@@ -25,6 +26,18 @@ In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-
 ## Variants / multi-SKU
 
 Blipscope is several boards from one codebase. A `-DBLIPSCOPE_VARIANT_*` flag (set per env) selects a header in [include/variants/](include/variants/) defining pins, the display/touch driver (`BLIPSCOPE_PANEL_*` / `BLIPSCOPE_TOUCH_*`), capability flags (`BANDED_RENDER`, `ENRICH_ALWAYS`, `HAS_AUDIO`, `HAS_IMU`), and `SLUG`/`NAME`. Shared code never hardcodes hardware: geometry comes from [Layout.h](include/Layout.h) (from `variant::SCREEN_SIZE`), behaviour from `variant::*`, and display config from those macros in [LGFX.h](include/LGFX.h) (add a panel via an `#if` block). **Add a SKU = a variant header + an `[env:*]` + a CI matrix row** ([RELEASING.md](RELEASING.md)). Don't reintroduce hardcoded `240`/pins.
+
+Two SKUs exist today: `blipscope-kit-c3-128` (the C3 baseline) and `blipscope-pro-s3-21` (Waveshare ESP32-S3-Touch-LCD-2.1 — first **S3** SKU and first **RGB-bus** panel, an ST7701 480×480). The S3-2.1 also has two board-specific wrinkles the model doesn't share: its panel/touch reset and the ST7701 init chip-select hang off a **TCA9554 I²C IO expander**, and it carries an IMU + buzzer. Both are handled behind the variant: `variant::BoardPreInit()` (a hook called in [setup()](src/main.cpp) before `tft.init()`; a no-op on the C3) drives the expander, and the IMU/buzzer live in [src/board/board_s3_touch21.cpp](src/board/board_s3_touch21.cpp) behind `board::*` (no-ops elsewhere via [Board.h](include/Board.h)). All board I²C uses LovyanGFX's `lgfx::i2c` (same owner as touch) on the loop task — don't reach for Arduino `Wire`.
+
+## FEATURE_EAM — a second product from this codebase
+
+`-DFEATURE_EAM` (set on the `blipscope-eam-*` envs) swaps the radar app for an **HFGCS EAM (Emergency Action Message) monitor** built from the same boards and the same shared infra (display, Wi-Fi, web config, NVS, HTTP/TLS, OTA, ntfy). It compiles **no** radar/aircraft/ADS-B code: the EAM envs' `build_src_filter` drops the radar-only TUs (`AircraftManager`, `MqttPublisher`, `SpecialAircraft`, `AircraftInfoFields`, `Logbook`, `models/`), `[common]` drops `src/eam/` from the radar builds, and [main.cpp](src/main.cpp) picks `EamManager` vs `AircraftManager` at compile time (same `Initialise/Update/Draw` surface). Everything EAM lives in [src/eam/](src/eam/).
+
+- **Data:** the device talks only to one backend ("valar-eam-feed"; base URL is the runtime config `eam-base-url`, defaulting to the `EAM_FEED_BASE` build flag) over its normalized endpoints. [EamFeedClient](src/eam/EamFeedClient.h) runs **one** worker task (reusing the shared TLS client, like the radar's fetch task) with per-endpoint interval/backoff/dedupe/retention; all state stays on the loop task. Shapes + parsers are in [EamModels.h](src/eam/EamModels.h). The one exception to "feed-agnostic" is the optional **command-post watch** ([AbncpProvider.h](src/eam/AbncpProvider.h)): the "OpenSky — your account" source queries OpenSky **directly from the device** with the user's own OAuth creds (reusing [OpenSkyAuthTokenHandler](src/OpenSkyAuthTokenHandler.h)) — never via the backend, **never a baked-in key**, inert until creds are entered.
+- **UI:** seven screens (ticker / tempo / codewords / ABNCP / propagation / ICBM / Zulu clock) on a dwell-timed rotation that skips empty feeds; [EamManager](src/eam/EamManager.h) + [EamScreens.cpp](src/eam/EamScreens.cpp), with a real 7-segment clock in [SevenSegment.cpp](src/eam/SevenSegment.cpp). Same C3 touch/TLS serialization (`TryAcquireBus`) and solar auto-dim as the radar.
+- **Persistence + alerts:** [EamLogbook](src/eam/EamLogbook.h) (own NVS namespace `eam-log`) tracks seen EAMs/codewords; ntfy alerts reuse the radar's `ntfy-topic` + POST pattern on three toggleable triggers.
+- **OTA channel:** `-DFW_OTA_PREFIX="eam-"` makes [OtaUpdater](src/OtaUpdater.cpp) fetch `firmware-eam-<slug>.bin`, so an EAM device never pulls a radar image for the same board. The shared `version.txt` gate is unchanged.
+- The config web page is feature-gated in [ConfigurationWebServer.cpp](src/ConfigurationWebServer.cpp) (`#ifdef FEATURE_EAM`): the EAM form + its NVS keys instead of the radar form; the shell (mDNS, `/reset-wifi`, save flag, secret masking) is shared. Adding an EAM SKU = a variant header + an `[env:*]` (with `-DFEATURE_EAM`, the `build_src_filter`, and `FW_OTA_PREFIX`) + a CI row whose slug is `eam-<board>`.
 
 ## The C3's three hard constraints — read before changing memory, networking, or touch
 
