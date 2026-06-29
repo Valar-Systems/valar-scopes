@@ -63,6 +63,12 @@ private:
     int touchLastX = 0, touchLastY = 0;
     enum class Swipe { Up, Down, Left, Right };
 
+    // Radar tap disambiguation: repeated taps at ~the same spot cycle through the
+    // contacts stacked under the finger (dense areas pile several blips + overlapping
+    // labels into a couple of mm), so a buried contact is always reachable. See HandleTap.
+    int lastTapX = -1000, lastTapY = -1000;
+    int tapCycleIndex = 0;
+
     // Last frame getTouch() actually read a touch. HandleTouch uses it to briefly pause
     // background enrichment after a touch so the enrichment task's TLS doesn't hold the
     // I2C bus (which touch is serialized against) while the user is interacting.
@@ -73,6 +79,10 @@ private:
     LGFX_Sprite photoSprite;
     String photoIcao = "";
     bool photoReady = false;
+    // Whether the photo lookup for photoIcao has finished (image decoded, OR confirmed that
+    // adsbdb has no photo, OR the fetch/decode failed). Lets the detail card say "No photo
+    // available" only once we actually know, vs "Loading photo..." while it's still resolving.
+    bool photoResolved = false;
 
     // Parallel to AIRCRAFT_INFO_FIELDS: which info lines the user has enabled.
     // Populated once in Initialise() (config changes restart the device).
@@ -198,7 +208,14 @@ private:
     std::pair<float, float> RadarBlipPosition(const TrackedAircraft& tracked) const;
     float RadarBlipBrightness(const TrackedAircraft& tracked) const;
     void DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness = 1.0f) const;
+    // Screen box of the info label as DrawAircraftInfo lays it out (below-right of the marker
+    // at x,y). Returns false when no label is drawn. Used by the tap hit-test so a tap on the
+    // label -- the part the eye reads as "the aircraft" -- selects the contact, not just the dot.
+    bool AircraftLabelBox(const TrackedAircraft& tracked, int x, int y, int& bx, int& by, int& bw, int& bh) const;
     void DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const;
+    // Generic dim aircraft glyph drawn in the detail card's photo slot when adsbdb has no photo,
+    // so a photo-less card reads as designed rather than broken. Varied by emitter category.
+    void DrawAircraftSilhouette(BandCanvas& backbuffer, int cx, int cy, const TrackedAircraft& tracked) const;
     void DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness = 1.0f) const;
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);

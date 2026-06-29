@@ -26,6 +26,14 @@ private:
 
     String BuildQueryString(const std::vector<std::pair<String, String>>& params) const;
 
+    // Drain an HTTP response body into a String with periodic yields + a size/time cap.
+    // HTTPClient::getString() reads in a loop that never lets core 0's priority-0 idle task
+    // run, so a slow or large body on the (core-0-pinned) fetch/enrich tasks starves the
+    // Task-WDT into a reboot. The photo fetch (an airport-data.com thumbnail behind a
+    // redirect) hits exactly that. This replaces getString() in Get(); GetJson() already
+    // streams via the yielding BufferedSocketStream.
+    String ReadBodyYielding();
+
 public:
     HttpRequestManager() = default;
     ~HttpRequestManager() = default;

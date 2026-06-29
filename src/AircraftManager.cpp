@@ -25,10 +25,20 @@ constexpr int PHOTO_H = 100;
 // Also the threshold for the [fetch] low-heap warning. Raising it starves enrichment off.
 constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 16000;
 
-// aircraft list-view layout, shared by the renderer and the row hit-test
+// aircraft list-view layout, shared by the renderer and the row hit-test. Everything is
+// derived from SCREEN_SIZE so the list stays centred on any SKU: the columns are laid out
+// inside a fixed-width block that DrawList centres horizontally, and the row count fills the
+// panel down to the clock. (The old absolute 40/120/162 columns + 9 rows were 240-only and
+// clustered the whole list into the top-left quadrant of the 412 panel.)
 constexpr int LIST_ROW_TOP = 40;
 constexpr int LIST_ROW_H = 18;
-constexpr int LIST_ROWS = 9;
+constexpr int LIST_BOTTOM_RESERVE = 38; // leaves the clock row (SCREEN_SIZE-30) clear; yields 9 rows on the 240 C3
+constexpr int LIST_ROWS = (SCREEN_SIZE - LIST_ROW_TOP - LIST_BOTTOM_RESERVE) / LIST_ROW_H;
+// Row columns, relative to the centred block's left edge (block-relative, not absolute):
+constexpr int LIST_BLOCK_W  = 160; // nominal block width used to centre the columns (== the 240 C3's 40..200 span)
+constexpr int LIST_COL_CS   = 0;   // callsign
+constexpr int LIST_COL_TYPE = 80;  // type
+constexpr int LIST_COL_ALT  = 122; // altitude
 
 #include <ArduinoJson.h>
 
@@ -1008,12 +1018,15 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
         backbuffer.drawString(s, cx - (int)backbuffer.textWidth(s) / 2, y);
     };
 
+    // centre the fixed-width column block so the rows sit mid-screen on any panel size
+    const int lx = (SCREEN_SIZE - LIST_BLOCK_W) / 2;
+
     backbuffer.setTextColor(lgfx::color888(0, 255, 0));
     centered("AIRCRAFT", 8);
     backbuffer.setTextColor(lgfx::color888(0, 130, 0));
     centered(String(order.size()) + " tracked", 23);
 
-    // rows: callsign / type / altitude, in fixed columns kept inside the bezel
+    // rows: callsign / type / altitude, in columns within the centred block (see LIST_COL_*)
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     for (int r = 0; r < LIST_ROWS; ++r) {
         const int idx = listScroll + r;
@@ -1035,9 +1048,9 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
         if (MatchesWatchlist(t))         rowColor = lgfx::color888(255, 140, 0); // amber
         if (order[idx] == pinnedIcao)    rowColor = lgfx::color888(255, 255, 255); // pin wins
         backbuffer.setTextColor(rowColor);
-        backbuffer.drawString(cs, 40, y);
-        backbuffer.drawString(type, 120, y);
-        backbuffer.drawString(alt, 162, y);
+        backbuffer.drawString(cs,   lx + LIST_COL_CS,   y);
+        backbuffer.drawString(type, lx + LIST_COL_TYPE, y);
+        backbuffer.drawString(alt,  lx + LIST_COL_ALT,  y);
     }
 }
 
@@ -1269,6 +1282,32 @@ void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, con
     }
 }
 
+bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, int y,
+                                       int& bx, int& by, int& bw, int& bh) const
+{
+    if (!displayInfoText) return false;
+    tft.setTextSize(1);
+    const int lineHeight = tft.fontHeight() + 1;
+    // Same field walk as DrawAircraftInfo: count the non-empty enabled lines and the widest.
+    int lines = 0, maxW = 0;
+    for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
+        if (i >= infoFieldEnabled.size() || !infoFieldEnabled[i])
+            continue;
+        const String text = AIRCRAFT_INFO_FIELDS[i].format(tracked);
+        if (text.isEmpty())
+            continue;
+        const int w = tft.textWidth(text);
+        if (w > maxW) maxW = w;
+        ++lines;
+    }
+    if (lines == 0) return false;
+    bx = x + 5;                 // first line drawn at x+5, y+5; lines stack by lineHeight
+    by = y + 5;
+    bw = maxW;
+    bh = lineHeight * lines;
+    return true;
+}
+
 void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
 {
     // Type-aware marker, keyed off the ADS-B emitter category (normalised to
@@ -1394,30 +1433,40 @@ void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAir
 
 void AircraftManager::HandleTouch()
 {
-    // Serialize touch I2C with network TLS via the shared HTTP request lock. On the
-    // single-core C3 a touch I2C transfer that overlaps a TLS handshake wedges the CST816
-    // off the bus -- the v4 regression (touch worked in v2, which had no concurrent network
-    // task). The HTTP client holds this mutex for the full duration of every GET/POST on any
-    // task, so taking it here guarantees no I2C transfer runs concurrently with a request.
-    //
-    // We gate this way ONLY on the radar view. While a detail card is open the radar isn't
-    // shown, the card's own enrichment (metadata/route/photo) holds the bus for several
-    // seconds, and gating would make the close tap wait that whole time (up to ~30 s when a
-    // lookup times out). So on the card view we poll every loop regardless -- closing stays
-    // instant. The brief overlap risk there is acceptable: the card view has no sweep to
-    // protect, the enrichment is bounded and one-shot, and the controller wakes on the next
-    // touch. The earlier fetchInFlight/enrichInFlight flags did NOT work for this -- they
-    // don't actually span the on-task TLS window; the mutex does.
-    const bool gateOnBus = !inDetail;
-    const bool gotBus = http.TryAcquireBus();
-    if (gateOnBus && !gotBus)
-        return; // radar view: a request is mid-flight, skip this poll to avoid the wedge
-
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
+    bool touched;
 
-    if (gotBus)
-        http.ReleaseBus();
+    if constexpr (variant::SERIALIZE_TOUCH_BUS) {
+        // Single-core (C3): serialize touch I2C with network TLS via the shared HTTP request
+        // lock. A touch I2C transfer that overlaps a TLS handshake wedges the CST816 off the
+        // bus -- the v4 regression (touch worked in v2, which had no concurrent network task).
+        // The HTTP client holds this mutex for the full duration of every GET/POST on any task,
+        // so taking it here guarantees no I2C transfer runs concurrently with a request.
+        //
+        // We gate this way ONLY on the radar view. While a detail card is open the radar isn't
+        // shown, the card's own enrichment (metadata/route/photo) holds the bus for several
+        // seconds, and gating would make the close tap wait that whole time (up to ~30 s when a
+        // lookup times out). So on the card view we poll every loop regardless -- closing stays
+        // instant. The brief overlap risk there is acceptable: the card view has no sweep to
+        // protect, the enrichment is bounded and one-shot, and the controller wakes on the next
+        // touch. The earlier fetchInFlight/enrichInFlight flags did NOT work for this -- they
+        // don't actually span the on-task TLS window; the mutex does.
+        const bool gateOnBus = !inDetail;
+        const bool gotBus = http.TryAcquireBus();
+        if (gateOnBus && !gotBus)
+            return; // radar view: a request is mid-flight, skip this poll to avoid the wedge
+
+        touched = tft.getTouch(&tx, &ty);
+
+        if (gotBus)
+            http.ReleaseBus();
+    } else {
+        // Dual-core (S3): touch sits on its own I2C bus and the network runs over WiFi on a
+        // separate core, so there is no touch/TLS wedge to prevent. Gating the poll on the HTTP
+        // mutex here would silently drop taps whenever always-on enrichment held the bus -- which
+        // it does constantly -- so a blip tap could take many tries to land. Poll every loop.
+        touched = tft.getTouch(&tx, &ty);
+    }
 
     const unsigned long now = millis();
     if (touched) {
@@ -1454,6 +1503,7 @@ void AircraftManager::ExitDetail()
     if (photoSprite.getBuffer() != nullptr)
         photoSprite.deleteSprite();
     photoReady = false;
+    photoResolved = false;
     photoIcao = "";
 }
 
@@ -1469,27 +1519,43 @@ void AircraftManager::HandleTap(int tx, int ty)
     }
 
     if (screen == Screen::Radar) {
-        // select the nearest airborne aircraft within the tap radius
-        constexpr int TAP_RADIUS = 20;
-        int bestDist2 = TAP_RADIUS * TAP_RADIUS;
-        String bestIcao = "";
+        // Pick the contact under the finger. Markers are tiny (~3 px) and a fingertip lands a
+        // couple of mm off -- worse for the low/edge contacts -- so the hit region is generous:
+        // the marker within TAP_RADIUS, OR the info label (drawn below-right, which the eye reads
+        // as "the aircraft"). Dense areas stack several contacts within a finger-width, so we
+        // gather every candidate and, on repeated taps at ~the same spot, cycle through them
+        // (nearest marker first) -- otherwise a buried contact is unreachable.
+        constexpr int TAP_RADIUS = 28;
+        std::vector<std::pair<int, String>> cands; // (dist2 to marker, icao)
         for (auto& [icao, tracked] : trackedAircraft) {
             if (tracked.state.onGround) continue;
-            // hit-test the blip where it's drawn (latched under paint-and-fade),
-            // not its live position -- otherwise taps miss a blip that's paused
-            // mid-sweep waiting for the next pass
+            // hit-test where the blip is drawn (latched under paint-and-fade), not its live
+            // position -- otherwise taps miss a blip paused mid-sweep waiting for the next pass
             auto [la, lo] = RadarBlipPosition(tracked);
             auto [x, y] = ProjectCoordinateToScreen(la, lo);
             const int dx = x - tx, dy = y - ty;
             const int dist2 = dx * dx + dy * dy;
-            if (dist2 <= bestDist2) { bestDist2 = dist2; bestIcao = icao; }
+            bool hit = dist2 <= TAP_RADIUS * TAP_RADIUS;
+            if (!hit) {
+                int bx, by, bw, bh;
+                if (AircraftLabelBox(tracked, x, y, bx, by, bw, bh))
+                    hit = (tx >= bx && tx <= bx + bw && ty >= by && ty <= by + bh);
+            }
+            if (hit) cands.emplace_back(dist2, icao);
         }
-        if (!bestIcao.isEmpty()) {
-            selectedIcao = bestIcao;
+        if (cands.empty()) {
+            pinnedIcao = ""; // tap on empty radar clears the pin
+            lastTapX = lastTapY = -1000;
+        } else {
+            std::sort(cands.begin(), cands.end()); // nearest marker first
+            const int ddx = tx - lastTapX, ddy = ty - lastTapY;
+            const bool sameSpot = lastTapX > -1000 && (ddx * ddx + ddy * ddy) <= 18 * 18;
+            tapCycleIndex = sameSpot ? (tapCycleIndex + 1) % (int)cands.size() : 0;
+            lastTapX = tx;
+            lastTapY = ty;
+            selectedIcao = cands[tapCycleIndex].second;
             inDetail = true;
             detailPage = 0;
-        } else {
-            pinnedIcao = ""; // tap on empty radar clears the pin
         }
     } else if (screen == Screen::List) {
         // map the tapped row to an aircraft (same layout as DrawList)
@@ -1578,10 +1644,12 @@ void AircraftManager::ProcessDetailLookups()
     if (photoIcao != selectedIcao) {
         photoIcao = selectedIcao; // mark attempted regardless of outcome (no retry)
         photoReady = false;
-        if (!tracked.photoUrl.isEmpty())
+        if (!tracked.photoUrl.isEmpty()) {
+            photoResolved = false; // a fetch is coming; the card shows "Loading..." until it lands
             RequestPhoto(selectedIcao, tracked.photoUrl);
-        else
-            Serial.printf("[photo] %s has no photo\n", selectedIcao.c_str());
+        } else {
+            photoResolved = true;  // adsbdb has none: resolved now, so the card shows the silhouette
+        }
     }
 }
 
@@ -1718,17 +1786,21 @@ void AircraftManager::ConsumeEnrichResults()
             // one task. Only apply it if this photo is still wanted: ExitDetail()
             // clears photoIcao (and frees the sprite) when the card closes, so a
             // late-arriving result must not re-allocate the ~15 KB sprite behind it.
-            if (photoIcao == res->icao24 && res->photoFetched && res->photoBytes.length() > 0) {
-                if (photoSprite.getBuffer() == nullptr) {
-                    photoSprite.setColorDepth(8);
-                    photoSprite.createSprite(PHOTO_W, PHOTO_H);
+            if (photoIcao == res->icao24) {
+                photoResolved = true; // this aircraft's photo attempt is done (decoded below, or not)
+                if (res->photoFetched && res->photoBytes.length() > 0) {
+                    if (photoSprite.getBuffer() == nullptr) {
+                        // PSRAM boards keep the photo off the scarce internal heap (where WiFi/TLS
+                        // and the JPEG decoder also live), so decoding a card doesn't fragment it.
+                        if constexpr (!variant::BANDED_RENDER)
+                            photoSprite.setPsram(true);
+                        photoSprite.setColorDepth(8);
+                        photoSprite.createSprite(PHOTO_W, PHOTO_H);
+                    }
+                    photoSprite.fillScreen(lgfx::color888(0, 0, 0));
+                    photoReady = photoSprite.drawJpg((const uint8_t*)res->photoBytes.c_str(),
+                                                     res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
                 }
-                photoSprite.fillScreen(lgfx::color888(0, 0, 0));
-                photoReady = photoSprite.drawJpg((const uint8_t*)res->photoBytes.c_str(),
-                                                 res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
-                Serial.printf("[photo] %s bytes=%u decoded=%d heap %u\n",
-                              res->icao24.c_str(), (unsigned)res->photoBytes.length(),
-                              photoReady ? 1 : 0, (unsigned)ESP.getFreeHeap());
             }
             break;
     }
@@ -1970,6 +2042,36 @@ void AircraftManager::PublishMqttDiscovery()
     Serial.printf("[mqtt] published HA discovery for %s\n", uid.c_str());
 }
 
+void AircraftManager::DrawAircraftSilhouette(BandCanvas& g, int cx, int cy, const TrackedAircraft& tracked) const
+{
+    // Dim, so it reads as a placeholder rather than data. Same vector language as the radar
+    // markers, varied by emitter category like DrawAircraftTriangle.
+    const uint32_t col = lgfx::color888(0, 115, 0);
+    const int cat = tracked.state.category;
+
+    if (cat == 8) { // rotorcraft: cabin + crossed main rotor + tail boom & rotor
+        g.drawLine(cx - 38, cy - 20, cx + 38, cy + 8, col);
+        g.drawLine(cx - 38, cy + 8, cx + 38, cy - 20, col);
+        g.fillRect(cx - 2, cy - 6, 4, 46, col);   // tail boom
+        g.fillRect(cx - 12, cy + 36, 24, 3, col); // tail rotor
+        g.fillCircle(cx, cy - 8, 9, col);         // cabin
+        return;
+    }
+    if (cat == 10) { // lighter-than-air: envelope + gondola
+        g.fillCircle(cx, cy - 6, 28, col);
+        g.fillTriangle(cx - 9, cy + 14, cx + 9, cy + 14, cx, cy + 30, col);
+        return;
+    }
+
+    // fixed-wing airliner, viewed top-down, nose up
+    g.fillTriangle(cx, cy - 44, cx - 5, cy - 30, cx + 5, cy - 30, col);      // nose
+    g.fillRoundRect(cx - 5, cy - 34, 10, 74, 5, col);                        // fuselage
+    g.fillTriangle(cx - 4, cy - 12, cx - 50, cy + 14, cx - 4, cy + 12, col); // left wing (swept)
+    g.fillTriangle(cx + 4, cy - 12, cx + 50, cy + 14, cx + 4, cy + 12, col); // right wing
+    g.fillTriangle(cx - 4, cy + 26, cx - 22, cy + 38, cx - 4, cy + 36, col); // left tailplane
+    g.fillTriangle(cx + 4, cy + 26, cx + 22, cy + 38, cx + 4, cy + 36, col); // right tailplane
+}
+
 void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked)
 {
     const Aircraft& s = tracked.state;
@@ -1992,20 +2094,38 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         title.toUpperCase();
     }
 
-    // Page 0 leads with the photo (when decoded) and a tighter text set; page 1
-    // (and any aircraft without a photo) uses the full-height text layout.
+    // The photo slot at the top of the card holds the real photo when one decoded, a generic
+    // aircraft silhouette when adsbdb has none, or a "Loading..." note while it's still resolving --
+    // so a photo-less card reads as designed, not broken. Only the explicit data page (tapped over
+    // from a real photo) drops the slot for the full-height text layout. Photo page 0 keeps the
+    // tighter text set; the silhouette/data pages show full telemetry (gated on showPhoto below).
     const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
     const bool showPhoto = hasPhoto && detailPage == 0;
+    const bool photoSettled = photoIcao == selectedIcao && photoResolved; // we now know there's no photo
+    const bool useSlot = showPhoto || !hasPhoto;                          // slot unless flipped to data page
 
     int y;
-    backbuffer.setTextSize(2);
     backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-    if (showPhoto) {
-        // blit onto the band sprite directly, shifting Y by the band top like BandCanvas does
-        photoSprite.pushSprite(&backbuffer.sprite(), cx - PHOTO_W / 2, 30 - backbuffer.offsetY());
+    if (useSlot) {
+        if (showPhoto) {
+            // blit onto the band sprite directly, shifting Y by the band top like BandCanvas does
+            photoSprite.pushSprite(&backbuffer.sprite(), cx - PHOTO_W / 2, 30 - backbuffer.offsetY());
+        } else if (photoSettled) {
+            DrawAircraftSilhouette(backbuffer, cx, 76, tracked);
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(lgfx::color888(0, 120, 0));
+            centered("No photo available", 120);
+        } else {
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(lgfx::color888(0, 120, 0));
+            centered("Loading photo...", 74);
+        }
+        backbuffer.setTextSize(2);
+        backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         centered(title, 136);
         y = 162;
     } else {
+        backbuffer.setTextSize(2);
         centered(title, 36);
         y = 70;
     }
