@@ -46,7 +46,7 @@ private:
     // so BuildRotation() is never empty; Splash is a cold-start welcome shown only until a live
     // feed has data. Later stages add more (DSN, Voyager, flares, ISS passes, ...).
     enum class Screen : uint8_t {
-        Iss, Launch, Kp, Splash, Clock, COUNT
+        Iss, Launch, Kp, Flare, Dsn, DeepSpace, Humans, Moon, Splash, Clock, COUNT
     };
 
     ConfigurationWebServer& configServer;
@@ -68,6 +68,8 @@ private:
     Screen current = Screen::Clock;
     unsigned long lastAdvanceMs = 0;         // last auto-rotate tick
     unsigned long lastInteractionMs = 0;     // last touch; pauses auto-rotate briefly
+    int cardIndex = 0;                       // rotating sub-item index for multi-item screens (DSN/deep-space)
+    unsigned long lastCardMs = 0;            // last sub-item advance
 
     // ---- brightness / night-dim ----
     uint8_t currentBrightness = 255;
@@ -86,6 +88,7 @@ private:
     long lastLaunchSecs = 0;                 // previous T-minus seconds, for up->down crossing detection
     bool firedT10 = false, firedT1 = false;  // launch lead-time edges already consumed
     bool kpAlerted = false;                  // high-Kp episode already alerted (reset when Kp drops)
+    bool flareAlerted = false;               // M+ flare episode already alerted (reset when it drops)
     unsigned long lastNotifyMs = 0;          // throttle ntfy POSTs
 
     // ---- touch / gestures ----
@@ -107,6 +110,11 @@ private:
     void DrawIss(BandCanvas& c);
     void DrawLaunch(BandCanvas& c);
     void DrawKp(BandCanvas& c);
+    void DrawDsn(BandCanvas& c);
+    void DrawDeepSpace(BandCanvas& c);
+    void DrawFlare(BandCanvas& c);
+    void DrawHumans(BandCanvas& c);
+    void DrawMoon(BandCanvas& c);
     void DrawSplash(BandCanvas& c);
     void DrawClock(BandCanvas& c);
 

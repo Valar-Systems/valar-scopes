@@ -45,8 +45,47 @@ struct SpaceWx {
     std::vector<float> history; // recent Kp values, oldest..newest, bounded (for a sparkline)
 };
 
+// --------------------------------------------------------------------- solar X-ray flares
+struct Flare {
+    bool valid = false;
+    float fluxWm2 = 0;      // latest GOES long-band (0.1-0.8nm) X-ray flux, W/m^2
+    float peakFluxWm2 = 0;  // peak over the fetched ~6h window
+    long timeEpoch = 0;
+};
+
+// ----------------------------------------------------------------------- humans in space
+struct Crew {
+    bool valid = false;
+    int number = 0;
+    std::vector<std::pair<String, String>> people; // {craft, name}
+};
+
+// ------------------------------------------------------------- Deep Space Network (DSN Now)
+// One active radio link: a dish currently talking to (down) or commanding (up) a spacecraft.
+struct DsnLink {
+    String dish;            // antenna, e.g. "DSS14"
+    String spacecraft;      // spacecraft code, e.g. "VGR1" / "MRO"
+    String band;            // "X" / "S" / "Ka"
+    double dataRateBps = 0; // bits/sec
+    bool up = false;        // true = uplink (to craft), false = downlink (to Earth)
+};
+
+struct DsnState {
+    bool valid = false;     // a successful fetch+parse populated this (even with zero links)
+    std::vector<DsnLink> links;
+};
+
+// ----------------------------------------------------------------- deep-space distances
+struct DeepSpaceTarget {
+    String name;            // friendly name, e.g. "Voyager 1" (set by the client, not the parser)
+    bool valid = false;
+    double distanceAu = 0;  // range from Earth, AU
+    double speedKms = 0;    // |range-rate|, km/s
+    bool receding = true;   // range-rate sign
+};
+
 // ----------------------------------------------------------------- poller request / result
-enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp };
+enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans };
 
 // Loop -> worker: a single GET to perform, fully built on the loop task.
 struct SpaceFetchRequest {
@@ -54,6 +93,7 @@ struct SpaceFetchRequest {
     String url;
     std::vector<std::pair<String, String>> params;
     std::vector<std::pair<String, String>> headers;
+    int targetIdx = -1;     // DeepSpace round-robin: which target this request is for
 };
 
 // Worker -> loop: the parsed payload (only the field matching `endpoint` is populated). ok is the
@@ -61,9 +101,14 @@ struct SpaceFetchRequest {
 struct SpaceFetchResult {
     SpaceEndpoint endpoint = SpaceEndpoint::Iss;
     bool ok = false;
+    int targetIdx = -1;     // echoed from the request for DeepSpace
     IssState iss;
     std::vector<Launch> launches;
     SpaceWx wx;
+    DsnState dsn;
+    DeepSpaceTarget deepTarget;
+    Flare flare;
+    Crew crew;
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -72,6 +117,14 @@ struct SpaceFetchResult {
 bool ParseIss(JsonObjectConst root, IssState& out);                              // wheretheiss.at flat object
 void ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap);  // reads root["result"]
 bool ParseKp(JsonArrayConst root, SpaceWx& out, size_t historyCap);              // SWPC array of {time_tag,Kp} objects
+void ParseDsn(const String& xml, DsnState& out, size_t cap);                     // eyes.nasa.gov DSN XML
+// Parse the first $$SOE data line of a Horizons OBSERVER+QUANTITIES=20 result (delta AU, deldot km/s).
+bool ParseHorizonsRange(const String& result, double& deltaAu, double& deldotKms);
+bool ParseFlare(JsonArrayConst root, Flare& out);                               // SWPC GOES xrays-6-hour
+bool ParseCrew(JsonObjectConst root, Crew& out, size_t cap);                    // corquaid people-in-space mirror
+
+// GOES long-band flux (W/m^2) -> NOAA class string, e.g. 1.95e-6 -> "C1.9", 2.4e-5 -> "M2.4".
+String XrayClass(float fluxWm2);
 
 // Parse "YYYY-MM-DD(T| )hh:mm[:ss][.fff][Z|+oo:oo]" (treated as UTC) to a Unix epoch; 0 on failure.
 long Iso8601ToEpoch(const String& s);
