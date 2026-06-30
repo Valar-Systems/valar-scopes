@@ -28,9 +28,9 @@ double norm360(double a)
 // Schlyter day number: days (and fraction) since 2000 Jan 0.0 UT = JD 2451543.5.
 double DayNumber(time_t utc) { return (double)utc / 86400.0 + 2440587.5 - 2451543.5; }
 
-// The Sun in Schlyter's terms. Returns true ecliptic longitude (deg) and distance (AU), and hands
-// back the mean anomaly + mean longitude the Moon's perturbations need.
-double SunLongitude(double d, double& Ms_out, double& Ls_out)
+// The Sun in Schlyter's terms. Returns true ecliptic longitude (deg) and hands back the mean
+// anomaly + mean longitude (for the Moon's perturbations) and the Earth-Sun distance (for planets).
+double SunLongitude(double d, double& Ms_out, double& Ls_out, double& rs_out)
 {
     const double w = 282.9404 + 4.70935e-5 * d;   // argument of perihelion
     const double e = 0.016709 - 1.151e-9 * d;     // eccentricity
@@ -43,10 +43,22 @@ double SunLongitude(double d, double& Ms_out, double& Ls_out)
     const double xv = cosd(E) - e;
     const double yv = sqrt(1.0 - e * e) * sind(E);
     const double v = atan2d(yv, xv);               // true anomaly
+    rs_out = sqrt(xv * xv + yv * yv);              // Earth-Sun distance (AU)
     return norm360(v + w);                          // true ecliptic longitude
 }
 
 double Obliquity(double d) { return 23.4393 - 3.563e-7 * d; }
+
+// Schlyter primary orbital elements for the five naked-eye planets (angles deg, a in AU; the *d
+// terms are per-day rates). Order matches space::astro::Planet.
+struct OrbEl { double N0, Nd, i0, id, w0, wd, a, e0, ed, M0, Md; };
+const OrbEl PLANETS[5] = {
+    {  48.3313, 3.24587e-5,  7.0047,  5.00e-8,  29.1241, 1.01444e-5, 0.387098, 0.205635,  5.59e-10, 168.6562, 4.0923344368 }, // Mercury
+    {  76.6799, 2.46590e-5,  3.3946,  2.75e-8,  54.8910, 1.38374e-5, 0.723330, 0.006773, -1.302e-9,  48.0052, 1.6021302244 }, // Venus
+    {  49.5574, 2.11081e-5,  1.8497, -1.78e-8, 286.5016, 2.92961e-5, 1.523688, 0.093405,  2.516e-9,  18.6021, 0.5240207766 }, // Mars
+    { 100.4542, 2.76854e-5,  1.3030, -1.557e-7,273.8777, 1.64505e-5, 5.202560, 0.048498,  4.469e-9,  19.8950, 0.0830853001 }, // Jupiter
+    { 113.6634, 2.38980e-5,  2.4886, -1.081e-7,339.3939, 2.97661e-5, 9.554750, 0.055546, -9.499e-9, 316.9670, 0.0334442282 }, // Saturn
+};
 
 } // namespace
 
@@ -66,8 +78,8 @@ double GmstDeg(time_t utc)
 void SunRaDec(time_t utc, double& raDeg, double& decDeg)
 {
     const double d = DayNumber(utc);
-    double Ms, Ls;
-    const double lon = SunLongitude(d, Ms, Ls);
+    double Ms, Ls, rs;
+    const double lon = SunLongitude(d, Ms, Ls, rs);
     const double ecl = Obliquity(d);
     // Ecliptic (lat 0 for the Sun) -> equatorial.
     const double xs = cosd(lon), ys = sind(lon);
@@ -109,8 +121,8 @@ void MoonRaDec(time_t utc, double& raDeg, double& decDeg, double& illumFrac)
     double lat = atan2d(zh, sqrt(xh * xh + yh * yh));
 
     // Perturbations need the Sun's + Moon's mean longitudes and the mean elongation/arg-of-latitude.
-    double Ms, Ls;
-    const double sunLon = SunLongitude(d, Ms, Ls);
+    double Ms, Ls, rs;
+    const double sunLon = SunLongitude(d, Ms, Ls, rs);
     const double Lm = norm360(N + w + M);   // Moon's mean longitude
     const double Dm = Lm - Ls;              // mean elongation
     const double F = Lm - N;                // argument of latitude
@@ -151,6 +163,101 @@ void MoonRaDec(time_t utc, double& raDeg, double& decDeg, double& illumFrac)
     const double ze = yg * sind(ecl) + zg * cosd(ecl);
     raDeg = norm360(atan2d(ye, xe));
     decDeg = atan2d(ze, sqrt(xe * xe + ye * ye));
+}
+
+const char* PlanetName(Planet p)
+{
+    switch (p) {
+        case Planet::Mercury: return "Mercury";
+        case Planet::Venus:   return "Venus";
+        case Planet::Mars:    return "Mars";
+        case Planet::Jupiter: return "Jupiter";
+        default:              return "Saturn";
+    }
+}
+
+void PlanetRaDec(Planet p, time_t utc, double& raDeg, double& decDeg, double& magOut)
+{
+    const double d = DayNumber(utc);
+    const OrbEl& el = PLANETS[(int)p];
+    const double N = el.N0 + el.Nd * d;
+    const double i = el.i0 + el.id * d;
+    const double w = el.w0 + el.wd * d;
+    const double a = el.a;
+    const double e = el.e0 + el.ed * d;
+    const double M = norm360(el.M0 + el.Md * d);
+
+    // Eccentric anomaly (iterate; Mercury's e=0.21 needs a few passes).
+    double E = M + R2D * e * sind(M) * (1.0 + e * cosd(M));
+    for (int it = 0; it < 6; ++it) E = E - (E - R2D * e * sind(E) - M) / (1.0 - e * cosd(E));
+
+    const double xv = a * (cosd(E) - e);
+    const double yv = a * (sqrt(1.0 - e * e) * sind(E));
+    const double v = atan2d(yv, xv);          // true anomaly
+    const double r = sqrt(xv * xv + yv * yv); // heliocentric distance (AU)
+
+    // Heliocentric ecliptic longitude/latitude.
+    const double xh = r * (cosd(N) * cosd(v + w) - sind(N) * sind(v + w) * cosd(i));
+    const double yh = r * (sind(N) * cosd(v + w) + cosd(N) * sind(v + w) * cosd(i));
+    const double zh = r * (sind(v + w) * sind(i));
+    double lonecl = norm360(atan2d(yh, xh));
+    double latecl = atan2d(zh, sqrt(xh * xh + yh * yh));
+
+    // Main Jupiter/Saturn perturbations (the only ones large enough to matter at this precision).
+    if (p == Planet::Jupiter || p == Planet::Saturn) {
+        const double Mj = norm360(PLANETS[3].M0 + PLANETS[3].Md * d);
+        const double Msa = norm360(PLANETS[4].M0 + PLANETS[4].Md * d);
+        if (p == Planet::Jupiter) {
+            lonecl += -0.332 * sind(2 * Mj - 5 * Msa - 67.6);
+            lonecl += -0.056 * sind(2 * Mj - 2 * Msa + 21);
+            lonecl += +0.042 * sind(3 * Mj - 5 * Msa + 21);
+            lonecl += -0.036 * sind(Mj - 2 * Msa);
+            lonecl += +0.022 * cosd(Mj - Msa);
+            lonecl += +0.023 * sind(2 * Mj - 3 * Msa + 52);
+            lonecl += -0.016 * sind(Mj - 5 * Msa - 69);
+        } else {
+            lonecl += +0.812 * sind(2 * Mj - 5 * Msa - 67.6);
+            lonecl += -0.229 * cosd(2 * Mj - 4 * Msa - 2);
+            lonecl += +0.119 * sind(Mj - 2 * Msa - 3);
+            lonecl += +0.046 * sind(2 * Mj - 6 * Msa - 69);
+            lonecl += +0.014 * sind(Mj - 3 * Msa + 32);
+            latecl  += -0.020 * cosd(2 * Mj - 4 * Msa - 2);
+            latecl  += +0.018 * sind(2 * Mj - 6 * Msa - 49);
+        }
+        lonecl = norm360(lonecl);
+    }
+
+    // Heliocentric -> geocentric: add the Sun's geocentric rectangular position (z_sun = 0).
+    const double xhc = r * cosd(lonecl) * cosd(latecl);
+    const double yhc = r * sind(lonecl) * cosd(latecl);
+    const double zhc = r * sind(latecl);
+    double Ms_s, Ls_s, rs;
+    const double sunLon = SunLongitude(d, Ms_s, Ls_s, rs);
+    const double xs = rs * cosd(sunLon), ys = rs * sind(sunLon);
+    const double xg = xhc + xs, yg = yhc + ys, zg = zhc;
+
+    // Ecliptic -> equatorial.
+    const double ecl = Obliquity(d);
+    const double xe = xg;
+    const double ye = yg * cosd(ecl) - zg * sind(ecl);
+    const double ze = yg * sind(ecl) + zg * cosd(ecl);
+    raDeg = norm360(atan2d(ye, xe));
+    decDeg = atan2d(ze, sqrt(xe * xe + ye * ye));
+
+    // Apparent magnitude (Schlyter). FV = phase angle (Sun-planet-Earth) from the distance triangle.
+    const double R = sqrt(xg * xg + yg * yg + zg * zg); // geocentric distance (AU)
+    double cosFV = (r * r + R * R - rs * rs) / (2.0 * r * R);
+    if (cosFV > 1) cosFV = 1;
+    if (cosFV < -1) cosFV = -1;
+    const double FV = acos(cosFV) * R2D;
+    const double logrR = 5.0 * log10(r * R);
+    switch (p) {
+        case Planet::Mercury: magOut = -0.36 + logrR + 0.027 * FV + 2.2e-13 * pow(FV, 6); break;
+        case Planet::Venus:   magOut = -4.34 + logrR + 0.013 * FV + 4.2e-7 * pow(FV, 3); break;
+        case Planet::Mars:    magOut = -1.51 + logrR + 0.016 * FV; break;
+        case Planet::Jupiter: magOut = -9.25 + logrR + 0.014 * FV; break;
+        default:              magOut = -9.00 + logrR + 0.044 * FV; break; // Saturn (ring term omitted)
+    }
 }
 
 void AltAz(double raDeg, double decDeg, double latDeg, double lonDeg, time_t utc,

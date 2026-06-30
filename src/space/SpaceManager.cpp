@@ -86,6 +86,9 @@ void SpaceManager::Initialise()
         if (id == "moon")      { out = Screen::Moon;      return true; }
         if (id == "starmap")   { out = Screen::StarMap;   return true; }
         if (id == "observing") { out = Screen::Observing; return true; }
+        if (id == "planets")   { out = Screen::Planets;   return true; }
+        if (id == "algol")     { out = Screen::Algol;     return true; }
+        if (id == "dso")       { out = Screen::Dso;       return true; }
         if (id == "eclipse")   { out = Screen::Eclipse;   return true; }
         if (id == "meteor")    { out = Screen::Meteor;    return true; }
         if (id == "cosmic")    { out = Screen::CosmicClock; return true; }
@@ -197,6 +200,9 @@ void SpaceManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
         case Screen::Moon:      DrawMoon(backbuffer); break;
         case Screen::StarMap:   DrawStarMap(backbuffer); break;
         case Screen::Observing: DrawObserving(backbuffer); break;
+        case Screen::Planets:   DrawPlanets(backbuffer); break;
+        case Screen::Algol:     DrawAlgol(backbuffer); break;
+        case Screen::Dso:       DrawDso(backbuffer); break;
         case Screen::Eclipse:   DrawEclipse(backbuffer); break;
         case Screen::Meteor:    DrawMeteor(backbuffer); break;
         case Screen::CosmicClock: DrawCosmicClock(backbuffer); break;
@@ -230,6 +236,9 @@ bool SpaceManager::HasData(Screen s) const
         case Screen::Moon:   return true; // computed on-device, always available
         case Screen::StarMap: return hasLatLon; // on-device sky map; needs observer location
         case Screen::Observing: return hasLatLon && obsValid; // on-device dark-hours window; needs location + clock
+        case Screen::Planets: return hasLatLon; // on-device planet positions; needs observer location
+        case Screen::Algol:   return hasLatLon; // on-device variable-star minima; needs location
+        case Screen::Dso:     return hasLatLon; // on-device deep-sky picker; needs location
         case Screen::Eclipse:     return true; // baked table, on-device
         case Screen::Meteor:      return true; // baked table, on-device
         case Screen::CosmicClock: return true; // on-device clock faces
@@ -522,6 +531,14 @@ void SpaceManager::RecomputeObserving()
         Serial.printf("[space] observing: darkNow=%d dusk=+%lds dawn=+%lds moon=%d%% up=%ldmin\n",
                       (int)obsDarkNow, obsDusk ? obsDusk - (long)now : -1,
                       obsDawn ? obsDawn - (long)now : -1, (int)(obsMoonIllum * 100 + 0.5), obsMoonUpMin);
+        // One-shot planet cross-check on real hardware (double math is soft-float on the S3).
+        for (int i = 0; i < 5; ++i) {
+            double ra, dec, mag, alt, az;
+            space::astro::PlanetRaDec((space::astro::Planet)i, now, ra, dec, mag);
+            space::astro::AltAz(ra, dec, deviceLat, deviceLon, now, alt, az);
+            Serial.printf("[space] planet %-7s alt=%+.0f az=%.0f mag=%+.1f\n",
+                          space::astro::PlanetName((space::astro::Planet)i), alt, az, mag);
+        }
     }
 }
 

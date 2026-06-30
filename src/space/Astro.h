@@ -22,6 +22,13 @@ void SunRaDec(time_t utc, double& raDeg, double& decDeg);
 // Moon equatorial coordinates + illuminated fraction (0=new .. 1=full). Low-precision (Schlyter).
 void MoonRaDec(time_t utc, double& raDeg, double& decDeg, double& illumFrac);
 
+// The five naked-eye planets.
+enum class Planet : uint8_t { Mercury, Venus, Mars, Jupiter, Saturn };
+// Geocentric equatorial coordinates (deg) + apparent visual magnitude for a planet (Schlyter's
+// low-precision theory, with the main Jupiter/Saturn perturbations). Good to a few arcminutes.
+void PlanetRaDec(Planet p, time_t utc, double& raDeg, double& decDeg, double& magOut);
+const char* PlanetName(Planet p);
+
 // Equatorial -> horizontal for an observer. altDeg is elevation above the horizon (refraction
 // ignored); azDeg is measured from North through East (0=N, 90=E, 180=S, 270=W). lon east-positive.
 void AltAz(double raDeg, double decDeg, double latDeg, double lonDeg, time_t utc,

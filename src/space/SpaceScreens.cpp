@@ -5,6 +5,7 @@
 
 #include "Layout.h"
 #include "SpaceStars.h"
+#include "Astro.h"
 
 // The Spacescope screens. Each draws one full frame into the band canvas in absolute screen
 // coordinates (the S3 renders a single full-height band). Colours come from the palette scaled by
@@ -159,6 +160,54 @@ const char* Compass8(float az)
     static const char* C[] = {"N","NE","E","SE","S","SW","W","NW"};
     int i = (int)((az + 22.5f) / 45.0f) & 7;
     return C[i];
+}
+
+// --- deep-sky showpiece catalog (J2000 RA/Dec deg, visual mag) for the "tonight's target" picker.
+struct DsoObj { const char* name; const char* type; float raDeg; float dec; float mag; };
+const DsoObj DSO[] = {
+    {"Orion Nebula",   "Nebula",    83.82f,  -5.39f, 4.0f},  // M42
+    {"Pleiades",       "Cluster",   56.75f,  24.12f, 1.6f},  // M45
+    {"Beehive",        "Cluster",  130.10f,  19.67f, 3.7f},  // M44
+    {"Andromeda Gal.", "Galaxy",    10.68f,  41.27f, 3.4f},  // M31
+    {"Triangulum Gal.","Galaxy",    23.46f,  30.66f, 5.7f},  // M33
+    {"Double Cluster", "Cluster",   34.74f,  57.13f, 4.3f},  // NGC869/884
+    {"Hercules Cl.",   "Globular", 250.42f,  36.46f, 5.8f},  // M13
+    {"Great Cl. M5",   "Globular", 229.64f,   2.08f, 5.6f},  // M5
+    {"M3 Cluster",     "Globular", 205.55f,  28.38f, 6.2f},  // M3
+    {"M22 Cluster",    "Globular", 279.10f, -23.90f, 5.1f},  // M22
+    {"Ptolemy Cl.",    "Cluster",  268.45f, -34.79f, 3.3f},  // M7
+    {"Butterfly Cl.",  "Cluster",  265.07f, -32.22f, 4.2f},  // M6
+    {"Wild Duck Cl.",  "Cluster",  282.77f,  -6.27f, 6.3f},  // M11
+    {"Lagoon Nebula",  "Nebula",   270.92f, -24.38f, 6.0f},  // M8
+    {"Trifid Nebula",  "Nebula",   270.60f, -23.03f, 6.3f},  // M20
+    {"Swan Nebula",    "Nebula",   275.20f, -16.18f, 6.0f},  // M17
+    {"Eagle Nebula",   "Nebula",   274.70f, -13.78f, 6.0f},  // M16
+    {"Dumbbell Neb.",  "Plan.Neb", 299.90f,  22.72f, 7.4f},  // M27
+    {"Ring Nebula",    "Plan.Neb", 283.40f,  33.03f, 8.8f},  // M57
+    {"Whirlpool Gal.", "Galaxy",   202.47f,  47.20f, 8.4f},  // M51
+    {"Bode's Galaxy",  "Galaxy",   148.89f,  69.07f, 6.9f},  // M81
+    {"Sombrero Gal.",  "Galaxy",   189.998f,-11.62f, 8.0f},  // M104
+    {"Pinwheel Gal.",  "Galaxy",   210.80f,  54.35f, 7.9f},  // M101
+    {"Black Eye Gal.", "Galaxy",   194.18f,  21.68f, 8.5f},  // M64
+    {"M15 Cluster",    "Globular", 322.49f,  12.17f, 6.2f},  // M15
+    {"M2 Cluster",     "Globular", 323.36f,  -0.82f, 6.3f},  // M2
+    {"Omega Centauri", "Globular", 201.70f, -47.48f, 3.9f},  // NGC5139
+    {"47 Tucanae",     "Globular",   6.02f, -72.08f, 4.0f},  // NGC104
+    {"Carina Nebula",  "Nebula",   161.27f, -59.87f, 1.0f},  // NGC3372
+    {"S. Pinwheel",    "Galaxy",   204.25f, -29.87f, 7.5f},  // M83
+};
+constexpr int DSO_N = (int)(sizeof(DSO) / sizeof(DSO[0]));
+
+// Planet display colours (approximate true tints), indexed by space::astro::Planet order.
+uint32_t PlanetTint(int p)
+{
+    switch (p) {
+        case 0:  return lgfx::color888(180, 180, 175); // Mercury
+        case 1:  return lgfx::color888(245, 240, 200); // Venus
+        case 2:  return lgfx::color888(230, 110,  70); // Mars
+        case 3:  return lgfx::color888(220, 190, 150); // Jupiter
+        default: return lgfx::color888(225, 205, 150); // Saturn
+    }
 }
 
 } // namespace
@@ -933,6 +982,146 @@ void SpaceManager::DrawObserving(BandCanvas& c)
         moon = m;
     } else moon = "Moon " + String(pct) + "%";
     c.setTextSize(1); CenterText(c, moon, cy + 36, pct >= 55 && obsMoonUpMin > 0 ? dim : faint);
+}
+
+// ------------------------------------------------------------------------- planets up now (dome)
+void SpaceManager::DrawPlanets(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t dim   = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint = space::ScaleColor(palette.faint, gf);
+
+    const int cx = SCREEN_SIZE_DIV_2, cy = SCREEN_SIZE_DIV_2, R = SCREEN_SIZE_DIV_2 - 8;
+    c.drawCircle(cx, cy, R, faint);
+    c.drawCircle(cx, cy, R / 2, space::ScaleColor(palette.faint, 0.5f * gf)); // 45-deg altitude ring
+    c.setTextSize(1); c.setTextColor(dim);
+    c.drawString("N", cx - 3, cy - R + 3); c.drawString("S", cx - 3, cy + R - 11);
+    c.drawString("E", cx + R - 10, cy - 4); c.drawString("W", cx - R + 3, cy - 4);
+    CenterText(c, "PLANETS NOW", 16, dim);
+
+    const time_t now = time(nullptr);
+    if (!hasLatLon || now <= 1600000000) {
+        c.setTextSize(2); CenterText(c, hasLatLon ? "awaiting clock" : "set location", cy - 8, dim); return;
+    }
+
+    auto plot = [&](double alt, double az, int rad, uint32_t col, const char* label) {
+        const double rr = (1.0 - alt / 90.0) * R;     // zenith centre, horizon rim
+        const int x = cx + (int)(rr * sin(az * M_PI / 180.0));
+        const int y = cy - (int)(rr * cos(az * M_PI / 180.0));
+        c.fillCircle(x, y, rad, col);
+        if (label) { c.setTextColor(col); c.setTextSize(1); c.drawString(label, x + rad + 2, y - 3); }
+    };
+
+    int up = 0; const char* bright = nullptr; double brightMag = 99;
+    for (int i = 0; i < 5; ++i) {
+        double ra, dec, mag, alt, az;
+        space::astro::PlanetRaDec((space::astro::Planet)i, now, ra, dec, mag);
+        space::astro::AltAz(ra, dec, deviceLat, deviceLon, now, alt, az);
+        if (alt <= 0) continue;
+        ++up;
+        const char* nm = space::astro::PlanetName((space::astro::Planet)i);
+        char ab[4] = { nm[0], nm[1], nm[2], 0 };
+        plot(alt, az, mag < -2 ? 4 : mag < 0 ? 3 : 2, space::ScaleColor(PlanetTint(i), gf), ab);
+        if (mag < brightMag) { brightMag = mag; bright = nm; }
+    }
+    // The Moon too, when up.
+    double mra, mdec, mil, malt, maz;
+    space::astro::MoonRaDec(now, mra, mdec, mil);
+    space::astro::AltAz(mra, mdec, deviceLat, deviceLon, now, malt, maz);
+    if (malt > 0) plot(malt, maz, 4, space::ScaleColor(lgfx::color888(210, 210, 215), gf), "Moon");
+
+    char foot[44];
+    if (up == 0) snprintf(foot, sizeof(foot), "no planets above the horizon");
+    else snprintf(foot, sizeof(foot), "%d up   brightest: %s", up, bright ? bright : "-");
+    c.setTextSize(1); CenterText(c, foot, SCREEN_SIZE - 24, faint);
+}
+
+// ------------------------------------------------------------------- Algol eclipse-minimum watch
+void SpaceManager::DrawAlgol(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t accent = space::ScaleColor(palette.accent, gf);
+
+    c.setTextSize(1); CenterText(c, "ALGOL MINIMUM", 18, dim);
+    c.setTextSize(1); CenterText(c, "Beta Persei - eclipsing binary", 38, faint);
+
+    const time_t now = time(nullptr);
+    if (now <= 1600000000) { c.setTextSize(2); CenterText(c, "awaiting clock", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    // Next primary minimum from the classic ephemeris (geocentric approx): JD0 + P*E.
+    constexpr double P = 2.8673043, JD0 = 2445641.554;
+    const double jdNow = space::astro::JulianDate(now);
+    const double E = ceil((jdNow - JD0) / P);
+    const long minEp = (long)((JD0 + P * E - 2440587.5) * 86400.0);
+
+    c.setTextSize(4); CenterText(c, FormatTMinus(minEp - (long)now), SCREEN_SIZE_DIV_2 - 30, fg);
+    c.setTextSize(1); CenterText(c, "to minimum   mag 2.1 -> 3.4", SCREEN_SIZE_DIV_2 + 4, dim);
+
+    // Is Algol above the horizon at minimum, and where to look? (RA/Dec of Algol, J2000.)
+    double alt, az;
+    space::astro::AltAz(47.0421, 40.9556, deviceLat, deviceLon, (time_t)minEp, alt, az);
+    c.setTextSize(2); CenterText(c, alt > 0 ? "VISIBLE AT MIN" : "below horizon at min",
+                                 SCREEN_SIZE_DIV_2 + 30, alt > 0 ? accent : dim);
+    if (alt > 0) {
+        char l[48]; snprintf(l, sizeof(l), "%d deg up in the %s", (int)alt, Compass8((float)az));
+        c.setTextSize(1); CenterText(c, l, SCREEN_SIZE - 32, faint);
+    } else {
+        c.setTextSize(1); CenterText(c, "catch a later minimum", SCREEN_SIZE - 32, faint);
+    }
+}
+
+// ------------------------------------------------------------------- deep-sky target of the night
+void SpaceManager::DrawDso(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t accent = space::ScaleColor(palette.accent, gf);
+
+    c.setTextSize(1); CenterText(c, "DEEP-SKY TONIGHT", 16, dim);
+
+    const time_t now = time(nullptr);
+    if (!hasLatLon || now <= 1600000000) {
+        c.setTextSize(2); CenterText(c, hasLatLon ? "awaiting clock" : "set location", SCREEN_SIZE_DIV_2 - 8, dim); return;
+    }
+
+    // Pick the showpiece with the highest culmination that is currently well above the horizon.
+    int best = -1; double bestScore = -1, bAlt = 0, bAz = 0, bTransit = 0; int upCount = 0;
+    for (int i = 0; i < DSO_N; ++i) {
+        double alt, az;
+        space::astro::AltAz(DSO[i].raDeg, DSO[i].dec, deviceLat, deviceLon, now, alt, az);
+        if (alt <= 12.0) continue;                                  // not usefully up right now
+        ++upCount;
+        const double transitAlt = 90.0 - fabs(deviceLat - (double)DSO[i].dec);
+        if (transitAlt > bestScore) { bestScore = transitAlt; best = i; bAlt = alt; bAz = az; bTransit = transitAlt; }
+    }
+    if (best < 0) { c.setTextSize(2); CenterText(c, "nothing well placed", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+    const DsoObj& o = DSO[best];
+
+    c.setTextSize(3); CenterText(c, FitWidth(c, o.name, SCREEN_SIZE - 36), 40, accent);
+    char tm[40]; snprintf(tm, sizeof(tm), "%s   mag %.1f", o.type, o.mag);
+    c.setTextSize(1); CenterText(c, tm, 72, dim);
+
+    // A small alt/az finder dome with the target marked.
+    const int fx = SCREEN_SIZE_DIV_2, fy = SCREEN_SIZE_DIV_2 + 8, fr = 64;
+    c.drawCircle(fx, fy, fr, faint);
+    c.setTextColor(faint); c.setTextSize(1);
+    c.drawString("N", fx - 3, fy - fr + 2); c.drawString("S", fx - 3, fy + fr - 10);
+    c.drawString("E", fx + fr - 9, fy - 4); c.drawString("W", fx - fr + 3, fy - 4);
+    c.fillCircle(fx, fy, 2, dim);
+    const double rr = (1.0 - bAlt / 90.0) * fr;
+    const int ox = fx + (int)(rr * sin(bAz * M_PI / 180.0));
+    const int oy = fy - (int)(rr * cos(bAz * M_PI / 180.0));
+    c.fillCircle(ox, oy, 4, accent);
+
+    char l1[48]; snprintf(l1, sizeof(l1), "now %d deg %s   peaks %d deg", (int)bAlt, Compass8((float)bAz), (int)bTransit);
+    c.setTextSize(1); CenterText(c, l1, SCREEN_SIZE - 42, fg);
+    char l2[40]; snprintf(l2, sizeof(l2), "best of %d showpieces up now", upCount);
+    c.setTextSize(1); CenterText(c, l2, SCREEN_SIZE - 24, faint);
 }
 
 // --------------------------------------------------------------------------- ISS visible pass
