@@ -75,6 +75,18 @@ and a CI slug prefixed to match so a Seismic device never pulls a radar, EAM, or
 
 Same `version.txt` gate (one `FW_VERSION` bump releases radar, EAM, Spacescope, and Seismic together).
 
+## Birding builds — another separate OTA channel
+
+The `blipscope-birding-*` envs build a fifth **product** (the Birding edition, `-DFEATURE_BIRDING`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as EAM/Space/Seismic: `-DFW_OTA_PREFIX="birding-"`,
+and a CI slug prefixed to match so a Birding device never pulls another edition's image:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `blipscope-birding-s3-146` | `birding-s3-146` → `firmware-birding-s3-146.bin` |
+
+Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
+
 ## Legacy note: the retired C3
 
 The original ESP32-C3 Kit is retired — Blipscope is S3-only going forward. The workflow no
