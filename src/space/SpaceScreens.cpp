@@ -403,6 +403,71 @@ void SpaceManager::DrawDeepSpace(BandCanvas& c)
     c.setTextSize(1); CenterText(c, FmtLightTime(t.distanceAu * 499.004784) + " light delay", SCREEN_SIZE_DIV_2 + 44, faint);
 }
 
+// ------------------------------------------------------------------- asteroid close approach
+void SpaceManager::DrawAsteroid(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t accent = space::ScaleColor(palette.accent, gf);
+    const uint32_t warn   = space::ScaleColor(palette.warn, gf);
+    const uint32_t alert  = space::ScaleColor(palette.alert, gf);
+    const uint32_t earthC = space::ScaleColor(lgfx::color888(60, 140, 235), gf);
+    const uint32_t moonC  = space::ScaleColor(lgfx::color888(200, 200, 210), gf);
+
+    c.setTextSize(1); CenterText(c, "ASTEROID FLYBY", 18, dim);
+
+    const std::vector<space::Asteroid>& as = feed.Asteroids();
+    if (as.empty()) { c.setTextSize(2); CenterText(c, "acquiring...", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+    const space::Asteroid& a = as[cardIndex % (int)as.size()];
+
+    c.setTextSize(3); CenterText(c, FitWidth(c, a.designation, SCREEN_SIZE - 60), 42, accent);
+
+    // Headline miss distance in lunar distances -- inside 1 LD is the eye-catching case.
+    const uint32_t ldCol = a.distLd < 1.0 ? alert : a.distLd < 5.0 ? warn : fg;
+    c.setTextSize(5); CenterText(c, String(a.distLd, 2) + " LD", 92, ldCol);
+    c.setTextSize(1);
+    CenterText(c, a.distLd < 1.0 ? "inside the Moon's orbit" : "lunar distances from Earth", 136, dim);
+
+    // Earth -- Moon -- asteroid strip (log scale, 0.1..20 LD) showing where the rock sits vs the Moon.
+    const int x0 = 56, x1 = SCREEN_SIZE - 56, baseY = SCREEN_SIZE_DIV_2 - 26;
+    auto xfor = [&](double ld) -> int {
+        if (ld < 0.1) ld = 0.1;
+        if (ld > 20.0) ld = 20.0;
+        const double t = (log10(ld) - log10(0.1)) / (log10(20.0) - log10(0.1));
+        return x0 + (int)(t * (x1 - x0));
+    };
+    c.drawFastHLine(x0, baseY, x1 - x0, faint);
+    c.fillCircle(x0, baseY, 6, earthC);
+    c.setTextSize(1); c.setTextColor(faint); c.drawString("Earth", x0 - 6, baseY + 10);
+    const int mx = xfor(1.0);
+    c.fillCircle(mx, baseY, 3, moonC);
+    c.setTextColor(faint); c.drawString("Moon", mx - 12, baseY + 10);
+    const int ax = xfor(a.distLd);
+    c.drawFastVLine(ax, baseY - 12, 8, ldCol);
+    c.fillCircle(ax, baseY, 4, ldCol);
+
+    // Size estimate (from absolute magnitude) + approach speed.
+    const double dm = space::AsteroidDiameterMeters(a.h);
+    String sz = dm <= 0 ? String("size n/a")
+              : dm < 1000 ? "~" + String((int)(dm + 0.5)) + " m"
+                          : "~" + String(dm / 1000.0, 1) + " km";
+    char det[48]; snprintf(det, sizeof(det), "%s   %.1f km/s", sz.c_str(), a.velKms);
+    c.setTextSize(2); CenterText(c, det, baseY + 34, fg);
+
+    // Live countdown to closest approach (needs NTP).
+    const time_t now = time(nullptr);
+    if (now > 1600000000 && a.caEpoch > 0) {
+        const long dt = a.caEpoch - (long)now;
+        c.setTextSize(2); CenterText(c, FormatTMinus(dt), baseY + 60, dt < 0 ? dim : accent);
+    }
+
+    const int n = (int)as.size();
+    char foot[40]; snprintf(foot, sizeof(foot), "%d tracked   %d/%d", n, (cardIndex % n) + 1, n);
+    c.setTextSize(1); CenterText(c, foot, SCREEN_SIZE - 22, faint);
+}
+
 // ----------------------------------------------------------------------------- solar flare
 void SpaceManager::DrawFlare(BandCanvas& c)
 {

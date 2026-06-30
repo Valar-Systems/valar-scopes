@@ -80,6 +80,7 @@ void SpaceManager::Initialise()
         if (id == "aurora")    { out = Screen::Aurora;    return true; }
         if (id == "dsn")       { out = Screen::Dsn;       return true; }
         if (id == "deepspace") { out = Screen::DeepSpace; return true; }
+        if (id == "asteroid")  { out = Screen::Asteroid;  return true; }
         if (id == "humans")    { out = Screen::Humans;    return true; }
         if (id == "moon")      { out = Screen::Moon;      return true; }
         if (id == "starmap")   { out = Screen::StarMap;   return true; }
@@ -129,6 +130,7 @@ void SpaceManager::Initialise()
     alertFlare = boolCfg("sp-alert-flare", true);   // M+ solar flare (GOES X-ray feed)
     alertIss = boolCfg("sp-alert-iss", true);       // ISS visible pass overhead (SGP4)
     alertDsn = boolCfg("sp-alert-dsn", false);      // reserved (no DSN feed yet)
+    alertAsteroid = boolCfg("sp-alert-asteroid", true); // asteroid inside ~1 lunar distance
 
     currentBrightness = configuredBrightness;
     tft.setBrightness(currentBrightness);
@@ -181,6 +183,7 @@ void SpaceManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
         case Screen::Aurora:    DrawAurora(backbuffer); break;
         case Screen::Dsn:       DrawDsn(backbuffer); break;
         case Screen::DeepSpace: DrawDeepSpace(backbuffer); break;
+        case Screen::Asteroid:  DrawAsteroid(backbuffer); break;
         case Screen::Humans:    DrawHumans(backbuffer); break;
         case Screen::Moon:      DrawMoon(backbuffer); break;
         case Screen::StarMap:   DrawStarMap(backbuffer); break;
@@ -212,6 +215,7 @@ bool SpaceManager::HasData(Screen s) const
             for (const space::DeepSpaceTarget& t : feed.DeepTargets()) if (t.valid) return true;
             return false;
         }
+        case Screen::Asteroid: return !feed.Asteroids().empty();
         case Screen::Humans: return feed.Crew().valid && feed.Crew().number > 0;
         case Screen::Moon:   return true; // computed on-device, always available
         case Screen::StarMap: return hasLatLon; // on-device sky map; needs observer location
@@ -223,6 +227,7 @@ bool SpaceManager::HasData(Screen s) const
             bool any = feed.Iss().valid || !feed.Launches().empty() || feed.Wx().valid ||
                        feed.Flare().valid || (feed.Crew().valid && feed.Crew().number > 0) ||
                        feed.SolarWind().valid || feed.Scales().valid ||
+                       !feed.Asteroids().empty() ||
                        (feed.Dsn().valid && !feed.Dsn().links.empty());
             for (const space::DeepSpaceTarget& t : feed.DeepTargets()) if (t.valid) any = true;
             return !any;
@@ -388,6 +393,23 @@ void SpaceManager::CheckAlerts()
             char b[64];
             snprintf(b, sizeof(b), "in %ld min, max %.0f deg, rises in the sky", toRise > 0 ? toRise / 60 : 0L, passMaxEl);
             if (alertIss) SendNtfy("ISS passing overhead", b, "satellite,rotating_light", 4);
+        }
+    }
+
+    // --- Asteroid: fire once when an upcoming approach passes inside ~1 lunar distance. The feed
+    // is distance-sorted and date-min=now, so every entry is a future approach; alert the closest
+    // qualifying one, edge-detected by designation so it fires once per object.
+    const std::vector<space::Asteroid>& as = feed.Asteroids();
+    if (!as.empty()) {
+        const space::Asteroid* near = nullptr;
+        for (const space::Asteroid& a : as)
+            if (a.distLd > 0 && a.distLd <= 1.0 && (!near || a.distLd < near->distLd)) near = &a;
+        if (near && near->designation != asteroidAlertedDes) {
+            asteroidAlertedDes = near->designation;
+            char body[96];
+            snprintf(body, sizeof(body), "%s passes %.2f lunar distances at %.0f km/s",
+                     near->designation.c_str(), near->distLd, near->velKms);
+            if (alertAsteroid) SendNtfy("Asteroid close approach", body, "comet,warning", 4);
         }
     }
 }

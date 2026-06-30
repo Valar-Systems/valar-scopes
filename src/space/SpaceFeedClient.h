@@ -50,10 +50,11 @@ public:
     const space::SolarWind& SolarWind() const { return solarWind; }
     const space::NoaaScales& Scales() const { return scales; }
     const space::Tle& Tle() const { return tle; }
+    const std::vector<space::Asteroid>& Asteroids() const { return asteroids; }
 
 private:
     enum FeedIdx : uint8_t { F_ISS, F_LAUNCH, F_KP, F_DSN, F_DEEPSPACE, F_FLARE, F_HUMANS,
-                             F_SOLARWIND, F_SCALES, F_TLE, F_COUNT };
+                             F_SOLARWIND, F_SCALES, F_TLE, F_ASTEROID, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -76,6 +77,7 @@ private:
     space::SolarWind solarWind;
     space::NoaaScales scales;
     space::Tle tle;
+    std::vector<space::Asteroid> asteroids; // upcoming close approaches, nearest-first
 
     bool firstLogged[F_COUNT] = {}; // log a one-line summary the first time each feed lands
 

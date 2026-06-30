@@ -108,8 +108,21 @@ struct Tle {
     String line2;
 };
 
+// ------------------------------------------------------------- near-Earth asteroid close approach
+// One upcoming close approach from the JPL CAD (Close-Approach Data) API. Keyless, compact, and
+// server-side sorted by miss distance -- no NeoWs key, no heavy payload.
+struct Asteroid {
+    String designation;     // provisional/permanent designation, e.g. "2026 MJ1"
+    long caEpoch = 0;       // close-approach instant, UTC unix (from the CAD Julian date)
+    double distAu = 0;      // nominal miss distance, AU
+    double distLd = 0;      // miss distance in lunar distances (1 LD = Earth-Moon mean distance)
+    float velKms = 0;       // relative velocity at approach, km/s
+    float h = 0;            // absolute magnitude H (brightness; a proxy for size)
+};
+
 // ----------------------------------------------------------------- poller request / result
-enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans, SolarWind, Scales, Tle };
+enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans, SolarWind,
+                                     Scales, Tle, Asteroid };
 
 // Loop -> worker: a single GET to perform, fully built on the loop task.
 struct SpaceFetchRequest {
@@ -136,6 +149,7 @@ struct SpaceFetchResult {
     SolarWind solarWind;
     NoaaScales scales;
     Tle tle;
+    std::vector<Asteroid> asteroids;
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -153,6 +167,11 @@ bool ParseCrew(JsonObjectConst root, Crew& out, size_t cap);                    
 bool ParseSolarWind(JsonArrayConst root, SolarWind& out);                       // SWPC propagated-solar-wind
 bool ParseNoaaScales(JsonObjectConst root, NoaaScales& out);                    // SWPC noaa-scales.json
 bool ParseTle(JsonObjectConst root, Tle& out);                                 // wheretheiss .../tles
+void ParseAsteroids(JsonObjectConst root, std::vector<Asteroid>& out, size_t cap); // JPL CAD (reads root["data"])
+
+// Representative diameter (metres) for an asteroid of absolute magnitude H, assuming a typical
+// 0.14 albedo. Order-of-magnitude only -- the true size depends on (unknown) reflectivity.
+double AsteroidDiameterMeters(float h);
 
 // GOES long-band flux (W/m^2) -> NOAA class string, e.g. 1.95e-6 -> "C1.9", 2.4e-5 -> "M2.4".
 String XrayClass(float fluxWm2);

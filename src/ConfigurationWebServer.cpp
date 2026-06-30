@@ -665,6 +665,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <label class="flex items-center gap-2"><input name="sp-alert-flare" type="checkbox" %AL_FLARE% class="accent-sky-400"><span>Solar flare (M+ class)</span></label>
                         <label class="flex items-center gap-2"><input name="sp-alert-iss" type="checkbox" %AL_ISS% class="accent-sky-400"><span>ISS passing overhead</span></label>
                         <label class="flex items-center gap-2"><input name="sp-alert-dsn" type="checkbox" %AL_DSN% class="accent-sky-400"><span>Deep-space probe contact (DSN)</span></label>
+                        <label class="flex items-center gap-2"><input name="sp-alert-asteroid" type="checkbox" %AL_ASTEROID% class="accent-sky-400"><span>Asteroid inside 1 lunar distance</span></label>
                     </div>
                     <span class="text-xs text-sky-600 mt-1">Leave the topic blank to disable all push alerts. ISS / aurora alerts need a location above.</span>
                 </fieldset>
@@ -687,7 +688,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <input name="space-screens" value='%SPACE_SCREENS%'
                             class="border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
                     </label>
-                    <span class="text-xs text-sky-600 mt-1">ids: iss, isspass, launch, kp, solarwind, scales, flare, aurora, dsn, deepspace, humans, moon, starmap, eclipse, meteor, cosmic, splash, clock. Empty rotates all. Each screen appears only when its feed has data; clock/moon/eclipse/meteor/cosmic always show. aurora needs a location.</span>
+                    <span class="text-xs text-sky-600 mt-1">ids: iss, isspass, launch, kp, solarwind, scales, flare, aurora, dsn, deepspace, asteroid, humans, moon, starmap, eclipse, meteor, cosmic, splash, clock. Empty rotates all. Each screen appears only when its feed has data; clock/moon/eclipse/meteor/cosmic always show. aurora needs a location.</span>
                 </fieldset>
 
                 <fieldset class="border border-sky-400 p-3">
@@ -860,11 +861,12 @@ void ConfigurationWebServer::Initialise() {
         const String alertFlare = prefs.isKey("sp-alert-flare") ? prefs.getString("sp-alert-flare", "true") : "true";
         const String alertIss = prefs.isKey("sp-alert-iss") ? prefs.getString("sp-alert-iss", "true") : "true";
         const String alertDsn = prefs.isKey("sp-alert-dsn") ? prefs.getString("sp-alert-dsn", "false") : "false";
+        const String alertAsteroid = prefs.isKey("sp-alert-asteroid") ? prefs.getString("sp-alert-asteroid", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
         const String spaceScreens = prefs.isKey("space-screens")
             ? prefs.getString("space-screens", "")
-            : String("iss,isspass,launch,kp,solarwind,scales,flare,aurora,dsn,deepspace,humans,moon,starmap,eclipse,meteor,cosmic,clock");
+            : String("iss,isspass,launch,kp,solarwind,scales,flare,aurora,dsn,deepspace,asteroid,humans,moon,starmap,eclipse,meteor,cosmic,clock");
 #endif
         prefs.end();
 
@@ -963,7 +965,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [spaceBaseUrl, latitude, longitude, ntfyTopic, alertLaunch, alertAurora, alertFlare, alertIss, alertDsn, autoDimEnabled, brightness, spaceScreens]
+            [spaceBaseUrl, latitude, longitude, ntfyTopic, alertLaunch, alertAurora, alertFlare, alertIss, alertDsn, alertAsteroid, autoDimEnabled, brightness, spaceScreens]
             (const String& var) -> String {
                 if (var == "SPACE_BASE_URL") return spaceBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -974,6 +976,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AL_FLARE")       return alertFlare == "true" ? "checked" : "";
                 if (var == "AL_ISS")         return alertIss == "true" ? "checked" : "";
                 if (var == "AL_DSN")         return alertDsn == "true" ? "checked" : "";
+                if (var == "AL_ASTEROID")    return alertAsteroid == "true" ? "checked" : "";
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "SPACE_SCREENS")  return spaceScreens;
@@ -1107,6 +1110,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("sp-alert-flare", request->hasParam("sp-alert-flare", true) ? "true" : "false");
         prefs.putString("sp-alert-iss", request->hasParam("sp-alert-iss", true) ? "true" : "false");
         prefs.putString("sp-alert-dsn", request->hasParam("sp-alert-dsn", true) ? "true" : "false");
+        prefs.putString("sp-alert-asteroid", request->hasParam("sp-alert-asteroid", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #endif
         prefs.end();

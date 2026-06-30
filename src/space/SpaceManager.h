@@ -48,8 +48,8 @@ private:
     // so BuildRotation() is never empty; Splash is a cold-start welcome shown only until a live
     // feed has data. Later stages add more (DSN, Voyager, flares, ISS passes, ...).
     enum class Screen : uint8_t {
-        Iss, IssPass, Launch, Kp, SolarWind, Scales, Flare, Aurora, Dsn, DeepSpace, Humans, Moon,
-        StarMap, Eclipse, Meteor, CosmicClock, Splash, Clock, COUNT
+        Iss, IssPass, Launch, Kp, SolarWind, Scales, Flare, Aurora, Dsn, DeepSpace, Asteroid,
+        Humans, Moon, StarMap, Eclipse, Meteor, CosmicClock, Splash, Clock, COUNT
     };
 
     ConfigurationWebServer& configServer;
@@ -86,6 +86,7 @@ private:
     bool alertFlare = false;                 // reserved: needs the GOES X-ray feed (later stage)
     bool alertIss = false;                   // ISS visible pass overhead (SGP4)
     bool alertDsn = false;                   // reserved: needs the DSN feed (later stage)
+    bool alertAsteroid = true;               // an asteroid passing inside ~1 lunar distance
     // edge state so an alert fires once per event, not every frame (persists across config reloads)
     long alertLaunchT0 = 0;                  // t0 the fired-flags below refer to (reset when it changes)
     long lastLaunchSecs = 0;                 // previous T-minus seconds, for up->down crossing detection
@@ -93,6 +94,7 @@ private:
     bool kpAlerted = false;                  // high-Kp episode already alerted (reset when Kp drops)
     bool flareAlerted = false;               // M+ flare episode already alerted (reset when it drops)
     long issAlertedRise = 0;                  // rise epoch the ISS-overhead alert already fired for
+    String asteroidAlertedDes;               // designation of the close-approach already alerted
     unsigned long lastNotifyMs = 0;          // throttle ntfy POSTs
 
     // ---- ISS visible-pass prediction (SGP4 from the live TLE; computed on the loop task) ----
@@ -131,6 +133,7 @@ private:
     void DrawAurora(BandCanvas& c);
     void DrawDsn(BandCanvas& c);
     void DrawDeepSpace(BandCanvas& c);
+    void DrawAsteroid(BandCanvas& c);
     void DrawFlare(BandCanvas& c);
     void DrawHumans(BandCanvas& c);
     void DrawMoon(BandCanvas& c);
