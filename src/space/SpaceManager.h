@@ -49,7 +49,8 @@ private:
     // feed has data. Later stages add more (DSN, Voyager, flares, ISS passes, ...).
     enum class Screen : uint8_t {
         Iss, IssPass, Launch, Kp, SolarWind, Scales, Flare, Aurora, Dsn, DeepSpace, Asteroid,
-        Humans, Moon, StarMap, Observing, Eclipse, Meteor, CosmicClock, Splash, Clock, COUNT
+        Humans, Moon, StarMap, Observing, Planets, Algol, Dso, Eclipse, Meteor, CosmicClock,
+        Splash, Clock, COUNT
     };
 
     ConfigurationWebServer& configServer;
@@ -139,6 +140,9 @@ private:
     void DrawMoon(BandCanvas& c);
     void DrawStarMap(BandCanvas& c);
     void DrawObserving(BandCanvas& c);
+    void DrawPlanets(BandCanvas& c);
+    void DrawAlgol(BandCanvas& c);
+    void DrawDso(BandCanvas& c);
     void DrawEclipse(BandCanvas& c);
     void DrawMeteor(BandCanvas& c);
     void DrawCosmicClock(BandCanvas& c);
