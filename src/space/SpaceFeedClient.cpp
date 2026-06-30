@@ -17,12 +17,15 @@ constexpr uint32_t FLARE_MS      = 90000;     // ~90 s: GOES X-ray updates ~1 mi
 constexpr uint32_t HUMANS_MS     = 3600000;   // ~1 h: the crew roster changes rarely
 constexpr uint32_t SOLARWIND_MS  = 90000;     // ~90 s: DSCOVR solar wind, ~1 min cadence upstream
 constexpr uint32_t SCALES_MS     = 300000;    // ~5 m: NOAA R/S/G scales update slowly
+constexpr uint32_t TLE_MS        = 21600000;  // ~6 h: an ISS TLE stays accurate for a day+
+constexpr uint32_t ASTEROID_MS   = 21600000;  // ~6 h: CAD close-approach predictions change slowly
 
 constexpr uint32_t MAX_BACKOFF_MS = 600000; // cap exponential backoff at 10 m
 
 constexpr size_t LAUNCH_RETAIN = 5;       // a few upcoming launches (the screen shows the next)
 constexpr size_t KP_HISTORY     = 24;     // recent Kp samples kept for the gauge sparkline
 constexpr size_t DSN_LINK_CAP   = 12;     // bound the parsed active-link list
+constexpr size_t ASTEROID_RETAIN = 10;    // nearest-N upcoming close approaches (bounds the JSON too)
 
 // Deep-space probes fetched round-robin from JPL Horizons (one per DeepSpace poll). cmd is the
 // Horizons body code; CENTER=500@399 yields range from Earth. Verified -31 (Voyager 1) live.
@@ -72,6 +75,8 @@ void SpaceFeedClient::Configure(const Config& newCfg)
     feeds[F_HUMANS].intervalMs    = (uint32_t)(HUMANS_MS * sc);
     feeds[F_SOLARWIND].intervalMs = (uint32_t)(SOLARWIND_MS * sc);
     feeds[F_SCALES].intervalMs    = (uint32_t)(SCALES_MS * sc);
+    feeds[F_TLE].intervalMs       = (uint32_t)(TLE_MS * sc);
+    feeds[F_ASTEROID].intervalMs  = (uint32_t)(ASTEROID_MS * sc);
 
     // Stage the first poll of each endpoint shortly after (re)config, fanned out by ~400 ms so
     // they don't all hit the single TLS client at once.
@@ -166,6 +171,18 @@ bool SpaceFeedClient::BuildRequest(int feedIdx, SpaceFetchRequest& req)
             req.endpoint = space::SpaceEndpoint::Scales;
             req.url = "https://services.swpc.noaa.gov/products/noaa-scales.json";
             return true;
+        case F_TLE:
+            req.endpoint = space::SpaceEndpoint::Tle;
+            req.url = "https://api.wheretheiss.at/v1/satellites/25544/tles";
+            return true;
+        case F_ASTEROID:
+            req.endpoint = space::SpaceEndpoint::Asteroid;
+            // JPL CAD: the nearest few approaches in the next 60 days, within ~0.05 AU (~19 LD),
+            // sorted by miss distance, limited so the JSON stays small. "now"/"+60" are literal CAD
+            // keywords (%2B = '+'); no NTP needed for the request. No key, no user data.
+            req.url = "https://ssd-api.jpl.nasa.gov/cad.api?date-min=now&date-max=%2B60"
+                      "&dist-max=0.05&sort=dist&limit=10";
+            return true;
         case F_DEEPSPACE: {
             // Needs NTP for the START/STOP date window; skip (re-arm) until the clock is set.
             const time_t now = time(nullptr);
@@ -211,6 +228,8 @@ int SpaceFeedClient::FeedForEndpoint(space::SpaceEndpoint e)
         case space::SpaceEndpoint::Humans:    return F_HUMANS;
         case space::SpaceEndpoint::SolarWind: return F_SOLARWIND;
         case space::SpaceEndpoint::Scales:    return F_SCALES;
+        case space::SpaceEndpoint::Tle:       return F_TLE;
+        case space::SpaceEndpoint::Asteroid:  return F_ASTEROID;
     }
     return F_ISS;
 }
@@ -266,6 +285,13 @@ void SpaceFeedClient::ApplyResult(const SpaceFetchResult& res)
         case space::SpaceEndpoint::Scales:
             scales = res.scales;
             break;
+        case space::SpaceEndpoint::Tle:
+            tle = res.tle;
+            break;
+        case space::SpaceEndpoint::Asteroid:
+            asteroids = res.asteroids;
+            if (asteroids.size() > ASTEROID_RETAIN) asteroids.resize(ASTEROID_RETAIN);
+            break;
     }
 
     // One-line confirmation the first time each feed lands (handy for field/serial diagnostics).
@@ -306,6 +332,15 @@ void SpaceFeedClient::ApplyResult(const SpaceFetchResult& res)
                 break;
             case space::SpaceEndpoint::Scales:
                 Serial.printf("[space] scales ok: R%d S%d G%d\n", scales.r, scales.s, scales.g);
+                break;
+            case space::SpaceEndpoint::Tle:
+                Serial.printf("[space] tle ok: %s\n", tle.line1.substring(0, 30).c_str());
+                break;
+            case space::SpaceEndpoint::Asteroid:
+                Serial.printf("[space] asteroid ok: %u upcoming; nearest=%s %.2f LD\n",
+                              (unsigned)asteroids.size(),
+                              asteroids.empty() ? "-" : asteroids.front().designation.c_str(),
+                              asteroids.empty() ? 0.0 : asteroids.front().distLd);
                 break;
         }
     }
@@ -392,6 +427,15 @@ void SpaceFeedClient::Fetch(HttpRequestManager& http,
             break;
         case space::SpaceEndpoint::Scales:
             res.ok = space::ParseNoaaScales(doc.as<JsonObjectConst>(), res.scales);
+            break;
+        case space::SpaceEndpoint::Tle:
+            res.ok = space::ParseTle(doc.as<JsonObjectConst>(), res.tle);
+            break;
+        case space::SpaceEndpoint::Asteroid:
+            // JPL CAD root is an object {count, fields, data}. An empty window (count 0, no "data")
+            // is a valid "no approaches" result, so this poll always succeeds if the fetch did.
+            space::ParseAsteroids(doc.as<JsonObjectConst>(), res.asteroids, ASTEROID_RETAIN);
+            res.ok = true;
             break;
         case space::SpaceEndpoint::Dsn:
             break; // handled above

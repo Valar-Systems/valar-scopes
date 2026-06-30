@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <time.h>
+#include <Sgp4.h>
 
 #include "Layout.h"
 
@@ -70,6 +71,7 @@ void SpaceManager::Initialise()
     const String screensCfg = configServer.GetStoredString("space-screens");
     auto idToScreen = [](const String& id, Screen& out) -> bool {
         if (id == "iss")       { out = Screen::Iss;       return true; }
+        if (id == "isspass")   { out = Screen::IssPass;   return true; }
         if (id == "launch")    { out = Screen::Launch;    return true; }
         if (id == "kp")        { out = Screen::Kp;        return true; }
         if (id == "solarwind") { out = Screen::SolarWind; return true; }
@@ -78,8 +80,13 @@ void SpaceManager::Initialise()
         if (id == "aurora")    { out = Screen::Aurora;    return true; }
         if (id == "dsn")       { out = Screen::Dsn;       return true; }
         if (id == "deepspace") { out = Screen::DeepSpace; return true; }
+        if (id == "asteroid")  { out = Screen::Asteroid;  return true; }
         if (id == "humans")    { out = Screen::Humans;    return true; }
         if (id == "moon")      { out = Screen::Moon;      return true; }
+        if (id == "starmap")   { out = Screen::StarMap;   return true; }
+        if (id == "eclipse")   { out = Screen::Eclipse;   return true; }
+        if (id == "meteor")    { out = Screen::Meteor;    return true; }
+        if (id == "cosmic")    { out = Screen::CosmicClock; return true; }
         if (id == "splash")    { out = Screen::Splash;    return true; }
         if (id == "clock")     { out = Screen::Clock;     return true; }
         return false;
@@ -121,8 +128,9 @@ void SpaceManager::Initialise()
     alertLaunch = boolCfg("sp-alert-launch", true);
     alertAurora = boolCfg("sp-alert-aurora", true);
     alertFlare = boolCfg("sp-alert-flare", true);   // M+ solar flare (GOES X-ray feed)
-    alertIss = boolCfg("sp-alert-iss", false);      // reserved (no ISS-pass feed yet)
+    alertIss = boolCfg("sp-alert-iss", true);       // ISS visible pass overhead (SGP4)
     alertDsn = boolCfg("sp-alert-dsn", false);      // reserved (no DSN feed yet)
+    alertAsteroid = boolCfg("sp-alert-asteroid", true); // asteroid inside ~1 lunar distance
 
     currentBrightness = configuredBrightness;
     tft.setBrightness(currentBrightness);
@@ -136,6 +144,17 @@ void SpaceManager::Initialise()
 void SpaceManager::Update()
 {
     feed.Poll();
+
+    // Recompute the next ISS pass when the TLE/location changed, the last pass ended, or every 10 min.
+    if (feed.Tle().valid && hasLatLon) {
+        const time_t now = time(nullptr);
+        if (now > 1600000000) {
+            const bool stale = !passValid || passTleKey != feed.Tle().line1 ||
+                               now > passSetEpoch || (millis() - lastPassCalcMs > 600000UL);
+            if (stale) RecomputePass();
+        }
+    }
+
     CheckAlerts();
     UpdateBrightness();
     HandleTouch();
@@ -155,6 +174,7 @@ void SpaceManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
 
     switch (current) {
         case Screen::Iss:       DrawIss(backbuffer); break;
+        case Screen::IssPass:   DrawIssPass(backbuffer); break;
         case Screen::Launch:    DrawLaunch(backbuffer); break;
         case Screen::Kp:        DrawKp(backbuffer); break;
         case Screen::SolarWind: DrawSolarWind(backbuffer); break;
@@ -163,8 +183,13 @@ void SpaceManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
         case Screen::Aurora:    DrawAurora(backbuffer); break;
         case Screen::Dsn:       DrawDsn(backbuffer); break;
         case Screen::DeepSpace: DrawDeepSpace(backbuffer); break;
+        case Screen::Asteroid:  DrawAsteroid(backbuffer); break;
         case Screen::Humans:    DrawHumans(backbuffer); break;
         case Screen::Moon:      DrawMoon(backbuffer); break;
+        case Screen::StarMap:   DrawStarMap(backbuffer); break;
+        case Screen::Eclipse:   DrawEclipse(backbuffer); break;
+        case Screen::Meteor:    DrawMeteor(backbuffer); break;
+        case Screen::CosmicClock: DrawCosmicClock(backbuffer); break;
         case Screen::Splash:    DrawSplash(backbuffer); break;
         case Screen::Clock:
         default:                DrawClock(backbuffer); break;
@@ -177,6 +202,7 @@ bool SpaceManager::HasData(Screen s) const
 {
     switch (s) {
         case Screen::Iss:    return feed.Iss().valid;
+        case Screen::IssPass: return hasLatLon && passValid; // SGP4 found an upcoming overpass
         case Screen::Launch: return !feed.Launches().empty();
         case Screen::Kp:     return feed.Wx().valid;
         case Screen::SolarWind: return feed.SolarWind().valid;
@@ -189,13 +215,19 @@ bool SpaceManager::HasData(Screen s) const
             for (const space::DeepSpaceTarget& t : feed.DeepTargets()) if (t.valid) return true;
             return false;
         }
+        case Screen::Asteroid: return !feed.Asteroids().empty();
         case Screen::Humans: return feed.Crew().valid && feed.Crew().number > 0;
         case Screen::Moon:   return true; // computed on-device, always available
+        case Screen::StarMap: return hasLatLon; // on-device sky map; needs observer location
+        case Screen::Eclipse:     return true; // baked table, on-device
+        case Screen::Meteor:      return true; // baked table, on-device
+        case Screen::CosmicClock: return true; // on-device clock faces
         // Cold-start welcome: only while no live network feed has data yet (so it drops out once they do).
         case Screen::Splash: {
             bool any = feed.Iss().valid || !feed.Launches().empty() || feed.Wx().valid ||
                        feed.Flare().valid || (feed.Crew().valid && feed.Crew().number > 0) ||
                        feed.SolarWind().valid || feed.Scales().valid ||
+                       !feed.Asteroids().empty() ||
                        (feed.Dsn().valid && !feed.Dsn().links.empty());
             for (const space::DeepSpaceTarget& t : feed.DeepTargets()) if (t.valid) any = true;
             return !any;
@@ -350,6 +382,74 @@ void SpaceManager::CheckAlerts()
         } else if (!m) {
             flareAlerted = false;
         }
+    }
+
+    // --- ISS overhead: fire once per visible pass as it approaches the horizon (~T-5 min).
+    if (passValid && passVisible) {
+        const time_t now = time(nullptr);
+        const long toRise = passRiseEpoch - (long)now;
+        if (issAlertedRise != passRiseEpoch && toRise <= 300 && toRise > -60) {
+            issAlertedRise = passRiseEpoch;
+            char b[64];
+            snprintf(b, sizeof(b), "in %ld min, max %.0f deg, rises in the sky", toRise > 0 ? toRise / 60 : 0L, passMaxEl);
+            if (alertIss) SendNtfy("ISS passing overhead", b, "satellite,rotating_light", 4);
+        }
+    }
+
+    // --- Asteroid: fire once when an upcoming approach passes inside ~1 lunar distance. The feed
+    // is distance-sorted and date-min=now, so every entry is a future approach; alert the closest
+    // qualifying one, edge-detected by designation so it fires once per object.
+    const std::vector<space::Asteroid>& as = feed.Asteroids();
+    if (!as.empty()) {
+        const space::Asteroid* near = nullptr;
+        for (const space::Asteroid& a : as)
+            if (a.distLd > 0 && a.distLd <= 1.0 && (!near || a.distLd < near->distLd)) near = &a;
+        if (near && near->designation != asteroidAlertedDes) {
+            asteroidAlertedDes = near->designation;
+            char body[96];
+            snprintf(body, sizeof(body), "%s passes %.2f lunar distances at %.0f km/s",
+                     near->designation.c_str(), near->distLd, near->velKms);
+            if (alertAsteroid) SendNtfy("Asteroid close approach", body, "comet,warning", 4);
+        }
+    }
+}
+
+void SpaceManager::RecomputePass()
+{
+    if (!sat) sat = new Sgp4();
+    const space::Tle& t = feed.Tle();
+    const time_t now = time(nullptr);
+    if (!t.valid || !hasLatLon || now <= 1600000000) { passValid = false; return; }
+
+    char l1[130], l2[130], name[] = "ISS";
+    strncpy(l1, t.line1.c_str(), sizeof(l1) - 1); l1[sizeof(l1) - 1] = 0;
+    strncpy(l2, t.line2.c_str(), sizeof(l2) - 1); l2[sizeof(l2) - 1] = 0;
+    sat->init(name, l1, l2);
+    sat->site(deviceLat, deviceLon, 0.0);
+    passTleKey = t.line1;
+    lastPassCalcMs = millis();
+
+    // One-shot sanity cross-check: SGP4 sub-point vs the live ISS feed (should match within ~1-2 deg).
+    if (!sgp4Checked && feed.Iss().valid) {
+        sgp4Checked = true;
+        sat->findsat((unsigned long)now);
+        Serial.printf("[space] sgp4 check: sgp4 %.1f,%.1f  feed %.1f,%.1f\n",
+                      sat->satLat, sat->satLon, feed.Iss().lat, feed.Iss().lon);
+    }
+
+    passinfo pass;
+    sat->initpredpoint((unsigned long)now, 0.0);
+    if (sat->nextpass(&pass, 20, false, 10.0)) { // forward search, min 10 deg peak
+        passRiseEpoch = (long)((pass.jdstart - 2440587.5) * 86400.0);
+        passSetEpoch  = (long)((pass.jdstop - 2440587.5) * 86400.0);
+        passMaxEl = (float)pass.maxelevation;
+        passAzRise = (float)pass.azstart;
+        passVisible = (pass.vismax == lighted);
+        passValid = true;
+        Serial.printf("[space] iss pass: rise in %lds maxEl %.0f vis %d\n",
+                      passRiseEpoch - (long)now, passMaxEl, (int)passVisible);
+    } else {
+        passValid = false;
     }
 }
 

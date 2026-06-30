@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "Layout.h"
+#include "SpaceStars.h"
 
 // The Spacescope screens. Each draws one full frame into the band canvas in absolute screen
 // coordinates (the S3 renders a single full-height band). Colours come from the palette scaled by
@@ -79,6 +80,85 @@ const char* PhaseName(double p)
     if (p < 0.717) return "Waning Gibbous";
     if (p < 0.783) return "Last Quarter";
     return "Waning Crescent";
+}
+
+// Moon illuminated fraction (0..1) at a UTC epoch (synodic approximation, same epoch as DrawMoon).
+double MoonIllum(time_t t)
+{
+    double age = fmod(((double)t - 947182440.0) / 86400.0, 29.530588853);
+    if (age < 0) age += 29.530588853;
+    return (1.0 - cos(2.0 * M_PI * age / 29.530588853)) / 2.0;
+}
+
+double JulianDate(time_t t) { return (double)t / 86400.0 + 2440587.5; }
+
+// Greenwich Mean Sidereal Time, hours 0..24.
+double GMSTHours(time_t t)
+{
+    const double d = JulianDate(t) - 2451545.0;
+    double g = fmod(18.697374558 + 24.06570982441908 * d, 24.0);
+    if (g < 0) g += 24.0;
+    return g;
+}
+
+// Local Mean Sidereal Time, hours; lon east-positive degrees.
+double LMSTHours(time_t t, double lonDeg)
+{
+    double h = fmod(GMSTHours(t) + lonDeg / 15.0, 24.0);
+    if (h < 0) h += 24.0;
+    return h;
+}
+
+// Mars Coordinated Time (hours 0..24) + Mars Sol Date.
+void MarsTime(time_t t, double& mtcHours, double& msd)
+{
+    const double jdtt = JulianDate(t) + 69.184 / 86400.0; // ~TT-UTC in 2026
+    msd = (jdtt - 2451549.5) / 1.0274912517 + 44796.0 - 0.0009626;
+    mtcHours = fmod(msd * 24.0, 24.0);
+    if (mtcHours < 0) mtcHours += 24.0;
+}
+
+// hours (0..24) -> "HH:MM:SS"
+String Hms(double hours)
+{
+    if (hours < 0) hours += 24.0;
+    long s = (long)(hours * 3600.0 + 0.5);
+    char b[12];
+    snprintf(b, sizeof(b), "%02ld:%02ld:%02ld", (s / 3600) % 24, (s / 60) % 60, s % 60);
+    return String(b);
+}
+
+// --- baked event tables (greatest-eclipse / shower-peak in UTC; approximate, for countdowns) ---
+struct EclipseEv { const char* label; int y, mo, d, h, mi; };
+const EclipseEv ECLIPSES[] = {
+    {"Total Solar Eclipse",   2026, 8, 12, 17, 46},
+    {"Partial Lunar Eclipse", 2026, 8, 28,  4, 14},
+    {"Annular Solar Eclipse", 2027, 2,  6, 16,  0},
+    {"Total Solar Eclipse",   2027, 8,  2, 10,  7},
+    {"Annular Solar Eclipse", 2028, 1, 12,  4, 13},
+    {"Total Solar Eclipse",   2028, 7, 22,  2, 56},
+    {"Total Lunar Eclipse",   2028,12, 31, 16, 52},
+};
+constexpr int ECLIPSE_N = (int)(sizeof(ECLIPSES) / sizeof(ECLIPSES[0]));
+
+struct ShowerEv { const char* name; int y, mo, d, h; int zhr; };
+const ShowerEv SHOWERS[] = {
+    {"Perseids",      2026, 8, 13,  4, 100},
+    {"Orionids",      2026,10, 21, 12,  20},
+    {"Leonids",       2026,11, 17,  9,  15},
+    {"Geminids",      2026,12, 14, 18, 150},
+    {"Quadrantids",   2027, 1,  3, 20, 110},
+    {"Lyrids",        2027, 4, 22, 12,  18},
+    {"Eta Aquariids", 2027, 5,  6,  4,  50},
+};
+constexpr int SHOWER_N = (int)(sizeof(SHOWERS) / sizeof(SHOWERS[0]));
+
+// Azimuth degrees -> 8-point compass label.
+const char* Compass8(float az)
+{
+    static const char* C[] = {"N","NE","E","SE","S","SW","W","NW"};
+    int i = (int)((az + 22.5f) / 45.0f) & 7;
+    return C[i];
 }
 
 } // namespace
@@ -323,6 +403,71 @@ void SpaceManager::DrawDeepSpace(BandCanvas& c)
     c.setTextSize(1); CenterText(c, FmtLightTime(t.distanceAu * 499.004784) + " light delay", SCREEN_SIZE_DIV_2 + 44, faint);
 }
 
+// ------------------------------------------------------------------- asteroid close approach
+void SpaceManager::DrawAsteroid(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t accent = space::ScaleColor(palette.accent, gf);
+    const uint32_t warn   = space::ScaleColor(palette.warn, gf);
+    const uint32_t alert  = space::ScaleColor(palette.alert, gf);
+    const uint32_t earthC = space::ScaleColor(lgfx::color888(60, 140, 235), gf);
+    const uint32_t moonC  = space::ScaleColor(lgfx::color888(200, 200, 210), gf);
+
+    c.setTextSize(1); CenterText(c, "ASTEROID FLYBY", 18, dim);
+
+    const std::vector<space::Asteroid>& as = feed.Asteroids();
+    if (as.empty()) { c.setTextSize(2); CenterText(c, "acquiring...", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+    const space::Asteroid& a = as[cardIndex % (int)as.size()];
+
+    c.setTextSize(3); CenterText(c, FitWidth(c, a.designation, SCREEN_SIZE - 60), 42, accent);
+
+    // Headline miss distance in lunar distances -- inside 1 LD is the eye-catching case.
+    const uint32_t ldCol = a.distLd < 1.0 ? alert : a.distLd < 5.0 ? warn : fg;
+    c.setTextSize(5); CenterText(c, String(a.distLd, 2) + " LD", 92, ldCol);
+    c.setTextSize(1);
+    CenterText(c, a.distLd < 1.0 ? "inside the Moon's orbit" : "lunar distances from Earth", 136, dim);
+
+    // Earth -- Moon -- asteroid strip (log scale, 0.1..20 LD) showing where the rock sits vs the Moon.
+    const int x0 = 56, x1 = SCREEN_SIZE - 56, baseY = SCREEN_SIZE_DIV_2 - 26;
+    auto xfor = [&](double ld) -> int {
+        if (ld < 0.1) ld = 0.1;
+        if (ld > 20.0) ld = 20.0;
+        const double t = (log10(ld) - log10(0.1)) / (log10(20.0) - log10(0.1));
+        return x0 + (int)(t * (x1 - x0));
+    };
+    c.drawFastHLine(x0, baseY, x1 - x0, faint);
+    c.fillCircle(x0, baseY, 6, earthC);
+    c.setTextSize(1); c.setTextColor(faint); c.drawString("Earth", x0 - 6, baseY + 10);
+    const int mx = xfor(1.0);
+    c.fillCircle(mx, baseY, 3, moonC);
+    c.setTextColor(faint); c.drawString("Moon", mx - 12, baseY + 10);
+    const int ax = xfor(a.distLd);
+    c.drawFastVLine(ax, baseY - 12, 8, ldCol);
+    c.fillCircle(ax, baseY, 4, ldCol);
+
+    // Size estimate (from absolute magnitude) + approach speed.
+    const double dm = space::AsteroidDiameterMeters(a.h);
+    String sz = dm <= 0 ? String("size n/a")
+              : dm < 1000 ? "~" + String((int)(dm + 0.5)) + " m"
+                          : "~" + String(dm / 1000.0, 1) + " km";
+    char det[48]; snprintf(det, sizeof(det), "%s   %.1f km/s", sz.c_str(), a.velKms);
+    c.setTextSize(2); CenterText(c, det, baseY + 34, fg);
+
+    // Live countdown to closest approach (needs NTP).
+    const time_t now = time(nullptr);
+    if (now > 1600000000 && a.caEpoch > 0) {
+        const long dt = a.caEpoch - (long)now;
+        c.setTextSize(2); CenterText(c, FormatTMinus(dt), baseY + 60, dt < 0 ? dim : accent);
+    }
+
+    const int n = (int)as.size();
+    char foot[40]; snprintf(foot, sizeof(foot), "%d tracked   %d/%d", n, (cardIndex % n) + 1, n);
+    c.setTextSize(1); CenterText(c, foot, SCREEN_SIZE - 22, faint);
+}
+
 // ----------------------------------------------------------------------------- solar flare
 void SpaceManager::DrawFlare(BandCanvas& c)
 {
@@ -545,4 +690,187 @@ void SpaceManager::DrawAurora(BandCanvas& c)
     c.drawFastHLine(bx, by, bw, faint);
     c.fillRect(xfor(oval), by - 6, 2, 12, warn);                  // oval edge
     c.fillCircle(xfor((float)gm), by, 4, gm >= oval ? green : fg); // you
+}
+
+// ------------------------------------------------------------------------------- eclipse
+void SpaceManager::DrawEclipse(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t accent = space::ScaleColor(palette.accent, gf);
+    static const char* MON[] = {"", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+
+    c.setTextSize(1); CenterText(c, "NEXT ECLIPSE", 20, dim);
+
+    const time_t now = time(nullptr);
+    if (now <= 1600000000) { c.setTextSize(2); CenterText(c, "awaiting clock", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    long bestEp = 0; const EclipseEv* ev = nullptr;
+    for (int i = 0; i < ECLIPSE_N; ++i) {
+        const long ep = space::EpochUTC(ECLIPSES[i].y, ECLIPSES[i].mo, ECLIPSES[i].d, ECLIPSES[i].h, ECLIPSES[i].mi);
+        if (ep > now && (ev == nullptr || ep < bestEp)) { bestEp = ep; ev = &ECLIPSES[i]; }
+    }
+    if (!ev) { c.setTextSize(2); CenterText(c, "no upcoming", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+    const bool solar = String(ev->label).indexOf("Solar") >= 0;
+
+    // small disc icon: sun = bright ring, lunar = shaded disc
+    const int dcx = SCREEN_SIZE_DIV_2, dcy = 66, dr = 20;
+    if (solar) { c.fillCircle(dcx, dcy, dr, accent); c.fillCircle(dcx + 7, dcy - 4, dr, space::ScaleColor(palette.bg, 1.0f)); }
+    else       { c.fillCircle(dcx, dcy, dr, space::ScaleColor(lgfx::color888(180, 80, 60), gf)); }
+
+    c.setTextSize(2); CenterText(c, ev->label, SCREEN_SIZE_DIV_2 - 36, solar ? accent : fg);
+    c.setTextSize(3); CenterText(c, FormatTMinus(bestEp - (long)now), SCREEN_SIZE_DIV_2 + 2, fg);
+    char d[40]; snprintf(d, sizeof(d), "%s %d, %d   %02d:%02d UT", MON[ev->mo], ev->d, ev->y, ev->h, ev->mi);
+    c.setTextSize(1); CenterText(c, d, SCREEN_SIZE_DIV_2 + 40, dim);
+}
+
+// ------------------------------------------------------------------------- meteor shower
+void SpaceManager::DrawMeteor(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t accent = space::ScaleColor(palette.accent, gf);
+    const uint32_t warn   = space::ScaleColor(palette.warn, gf);
+
+    c.setTextSize(1); CenterText(c, "NEXT METEOR SHOWER", 20, dim);
+
+    const time_t now = time(nullptr);
+    if (now <= 1600000000) { c.setTextSize(2); CenterText(c, "awaiting clock", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    long bestEp = 0; const ShowerEv* sh = nullptr;
+    for (int i = 0; i < SHOWER_N; ++i) {
+        const long ep = space::EpochUTC(SHOWERS[i].y, SHOWERS[i].mo, SHOWERS[i].d, SHOWERS[i].h, 0);
+        if (ep > now && (sh == nullptr || ep < bestEp)) { bestEp = ep; sh = &SHOWERS[i]; }
+    }
+    if (!sh) { c.setTextSize(2); CenterText(c, "no upcoming", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    c.setTextSize(3); CenterText(c, sh->name, SCREEN_SIZE_DIV_2 - 52, accent);
+    c.setTextSize(3); CenterText(c, FormatTMinus(bestEp - (long)now), SCREEN_SIZE_DIV_2 - 10, fg);
+    c.setTextSize(2); CenterText(c, "ZHR ~" + String(sh->zhr) + "/hr", SCREEN_SIZE_DIV_2 + 26, dim);
+
+    const int moon = (int)(MoonIllum((time_t)bestEp) * 100 + 0.5);
+    char m[40]; snprintf(m, sizeof(m), "%d%% moon at peak%s", moon, moon >= 55 ? " (washout)" : "");
+    c.setTextSize(1); CenterText(c, m, SCREEN_SIZE - 32, moon >= 55 ? warn : faint);
+}
+
+// --------------------------------------------------------------------- cosmic clock faces
+void SpaceManager::DrawCosmicClock(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg    = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim   = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint = space::ScaleColor(palette.faint, gf);
+
+    const time_t now = time(nullptr);
+    const int face = cardIndex % 3; // LST / Mars / Julian, cycled by the 4s card tick
+
+    const char* title = face == 0 ? "SIDEREAL TIME" : face == 1 ? "MARS TIME (MTC)" : "JULIAN DATE";
+    c.setTextSize(1); CenterText(c, title, SCREEN_SIZE_DIV_2 - 50, faint);
+
+    if (now <= 1600000000) { c.setTextSize(3); CenterText(c, "--:--:--", SCREEN_SIZE_DIV_2 - 16, dim); return; }
+
+    if (face == 0) {
+        const bool loc = hasLatLon;
+        const double h = loc ? LMSTHours(now, deviceLon) : GMSTHours(now);
+        c.setTextSize(4); CenterText(c, Hms(h), SCREEN_SIZE_DIV_2 - 18, fg);
+        c.setTextSize(1); CenterText(c, loc ? "local apparent" : "Greenwich (set location)", SCREEN_SIZE_DIV_2 + 24, dim);
+    } else if (face == 1) {
+        double mtc, msd; MarsTime(now, mtc, msd);
+        c.setTextSize(4); CenterText(c, Hms(mtc), SCREEN_SIZE_DIV_2 - 18, fg);
+        c.setTextSize(1); CenterText(c, "Mars Sol Date " + String((long)msd), SCREEN_SIZE_DIV_2 + 24, dim);
+    } else {
+        c.setTextSize(3); CenterText(c, String(JulianDate(now), 4), SCREEN_SIZE_DIV_2 - 14, fg);
+        c.setTextSize(1); CenterText(c, "days since 4713 BC", SCREEN_SIZE_DIV_2 + 22, dim);
+    }
+}
+
+// ------------------------------------------------------------------------------- star map
+void SpaceManager::DrawStarMap(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t dim   = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint = space::ScaleColor(palette.faint, gf);
+
+    const int cx = SCREEN_SIZE_DIV_2, cy = SCREEN_SIZE_DIV_2, R = SCREEN_SIZE_DIV_2 - 8;
+    c.drawCircle(cx, cy, R, faint);
+    c.setTextSize(1); c.setTextColor(dim);
+    c.drawString("N", cx - 3, cy - R + 3);
+    c.drawString("S", cx - 3, cy + R - 11);
+    c.drawString("E", cx + R - 10, cy - 4);
+    c.drawString("W", cx - R + 3, cy - 4);
+
+    const time_t now = time(nullptr);
+    if (!hasLatLon || now <= 1600000000) {
+        c.setTextSize(2); CenterText(c, hasLatLon ? "awaiting clock" : "set location", cy - 8, dim);
+        return;
+    }
+
+    // Local apparent sidereal time (deg) + observer latitude drive each star's alt/az.
+    const double lst = LMSTHours(now, deviceLon) * 15.0;
+    const double latR = deviceLat * M_PI / 180.0;
+    const double halfPi = M_PI / 2.0;
+    int up = 0; const char* topName = nullptr; float topMag = 99;
+
+    for (int i = 0; i < space::STAR_N; ++i) {
+        const space::Star& st = space::STARS[i];
+        const double H = (lst - st.raDeg) * M_PI / 180.0;
+        const double decR = st.dec * M_PI / 180.0;
+        const double sinAlt = sin(decR) * sin(latR) + cos(decR) * cos(latR) * cos(H);
+        if (sinAlt <= 0.02) continue; // below (or right at) the horizon
+        ++up;
+        const double alt = asin(sinAlt);
+        double cosAz = (sin(decR) - sinAlt * sin(latR)) / (cos(alt) * cos(latR));
+        if (cosAz > 1) cosAz = 1;
+        if (cosAz < -1) cosAz = -1;
+        double az = acos(cosAz);
+        if (sin(H) > 0) az = 2.0 * M_PI - az; // measured from North, clockwise through East
+        const double rr = (1.0 - alt / halfPi) * R; // zenith at centre, horizon at rim
+        const int x = cx + (int)(rr * sin(az));
+        const int y = cy - (int)(rr * cos(az));
+
+        float b = (3.2f - st.mag) / 3.2f; if (b < 0.18f) b = 0.18f; if (b > 1) b = 1;
+        c.fillCircle(x, y, st.mag <= 1.0f ? 2 : 1, space::ScaleColor(palette.accent, b * gf));
+        if (st.mag < topMag && st.name && st.name[0]) { topMag = st.mag; topName = st.name; }
+    }
+
+    c.setTextSize(1); CenterText(c, "NIGHT SKY", 16, dim);
+    char info[40]; snprintf(info, sizeof(info), "%d stars up", up);
+    c.setTextSize(1); CenterText(c, info, SCREEN_SIZE - 38, faint);
+    if (topName) { c.setTextSize(1); CenterText(c, String("brightest: ") + topName, SCREEN_SIZE - 22, dim); }
+}
+
+// --------------------------------------------------------------------------- ISS visible pass
+void SpaceManager::DrawIssPass(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg    = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim   = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint = space::ScaleColor(palette.faint, gf);
+    const uint32_t green = space::ScaleColor(lgfx::color888(120, 210, 90), gf);
+
+    c.setTextSize(1); CenterText(c, "NEXT ISS PASS", 20, dim);
+    if (!hasLatLon) { c.setTextSize(2); CenterText(c, "set location", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+    if (!passValid) { c.setTextSize(2); CenterText(c, "computing...", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    const time_t now = time(nullptr);
+    const char* dir = Compass8(passAzRise);
+
+    if (now >= passRiseEpoch && now <= passSetEpoch) {
+        c.setTextSize(3); CenterText(c, "OVERHEAD NOW", SCREEN_SIZE_DIV_2 - 18, passVisible ? green : fg);
+        char l[44]; snprintf(l, sizeof(l), "max %d deg   rises %s", (int)passMaxEl, dir);
+        c.setTextSize(1); CenterText(c, l, SCREEN_SIZE_DIV_2 + 16, dim);
+        return;
+    }
+
+    c.setTextSize(2); CenterText(c, passVisible ? "VISIBLE PASS" : "daylight pass", SCREEN_SIZE_DIV_2 - 56,
+                                 passVisible ? green : dim);
+    c.setTextSize(3); CenterText(c, FormatTMinus(passRiseEpoch - (long)now), SCREEN_SIZE_DIV_2 - 22, fg);
+    char l[48]; snprintf(l, sizeof(l), "rises %s   max %d deg", dir, (int)passMaxEl);
+    c.setTextSize(1); CenterText(c, l, SCREEN_SIZE_DIV_2 + 18, dim);
+    long dur = passSetEpoch - passRiseEpoch; if (dur < 0) dur = 0;
+    c.setTextSize(1); CenterText(c, String("above horizon ~") + String(dur / 60) + " min", SCREEN_SIZE - 34, faint);
 }

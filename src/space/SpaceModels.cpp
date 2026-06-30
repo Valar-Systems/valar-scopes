@@ -260,6 +260,48 @@ bool ParseNoaaScales(JsonObjectConst root, NoaaScales& out)
     return true;
 }
 
+bool ParseTle(JsonObjectConst root, Tle& out)
+{
+    if (root.isNull()) return false;
+    out.line1 = (const char*)(root["line1"] | "");
+    out.line2 = (const char*)(root["line2"] | "");
+    out.valid = out.line1.startsWith("1 ") && out.line2.startsWith("2 ");
+    return out.valid;
+}
+
+void ParseAsteroids(JsonObjectConst root, std::vector<Asteroid>& out, size_t cap)
+{
+    out.clear();
+    if (root.isNull()) return;
+    // JPL CAD: {count, fields:[...], data:[[des,orbit_id,jd,cd,dist,dist_min,dist_max,v_rel,...,h]]}.
+    // Every value in a data row is a JSON *string*, so coerce via the text (ArduinoJson's `|` would
+    // return the default on a string-typed number). count==0 omits "data" entirely -> empty (valid).
+    // Field order verified against the live API 2026-06-30; sorted by miss distance server-side.
+    JsonArrayConst arr = root["data"].as<JsonArrayConst>();
+    if (arr.isNull()) return;
+
+    for (JsonArrayConst row : arr) {
+        if (out.size() >= cap) break;
+        if (row.isNull() || row.size() < 11) continue;
+        Asteroid a;
+        a.designation = (const char*)(row[0] | "");
+        const double jd = atof((const char*)(row[2] | "0"));
+        a.caEpoch = jd > 0 ? (long)((jd - 2440587.5) * 86400.0) : 0;
+        a.distAu = atof((const char*)(row[4] | "0"));
+        a.distLd = a.distAu * 389.17;       // 1 AU = 389.17 lunar distances
+        a.velKms = (float)atof((const char*)(row[7] | "0"));
+        a.h = (float)atof((const char*)(row[10] | "0"));
+        if (a.distAu > 0) out.push_back(a);
+    }
+}
+
+double AsteroidDiameterMeters(float h)
+{
+    // D(km) = 1329 / sqrt(albedo) * 10^(-H/5); albedo 0.14 (typical NEA) -> 1329/sqrt(0.14)=3551.
+    if (h <= 0) return 0;
+    return 3551.0 * pow(10.0, -0.2 * (double)h) * 1000.0; // km -> m
+}
+
 double GeomagLatitude(double latDeg, double lonDeg)
 {
     // Centered-dipole geomagnetic north pole ~ 80.65N, 72.68W (epoch ~2020).
@@ -302,6 +344,11 @@ long Iso8601ToEpoch(const String& s)
     if (sscanf(t, "%d:%d:%d", &h, &m, &sec) < 2) return 0; // seconds optional
 
     return DaysFromCivil(Y, (unsigned)Mo, (unsigned)D) * 86400L + h * 3600L + m * 60L + sec;
+}
+
+long EpochUTC(int y, int mo, int d, int h, int min)
+{
+    return DaysFromCivil(y, (unsigned)mo, (unsigned)d) * 86400L + h * 3600L + min * 60L;
 }
 
 } // namespace space
