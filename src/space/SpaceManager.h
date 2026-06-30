@@ -11,6 +11,8 @@
 #include "SpaceTheme.h"
 #include "SpaceFeedClient.h"
 
+class Sgp4; // forward decl; the SGP4 propagator (Hopperpop lib) is held by pointer, defined in the .cpp
+
 // FEATURE_SPACE top-level controller -- the Spacescope app: a desk window onto live space data
 // (ISS, rocket launches, space weather, deep-space probes) built from the same boards + shared
 // infra as the radar and the EAM monitor.
@@ -46,7 +48,7 @@ private:
     // so BuildRotation() is never empty; Splash is a cold-start welcome shown only until a live
     // feed has data. Later stages add more (DSN, Voyager, flares, ISS passes, ...).
     enum class Screen : uint8_t {
-        Iss, Launch, Kp, SolarWind, Scales, Flare, Aurora, Dsn, DeepSpace, Humans, Moon,
+        Iss, IssPass, Launch, Kp, SolarWind, Scales, Flare, Aurora, Dsn, DeepSpace, Humans, Moon,
         StarMap, Eclipse, Meteor, CosmicClock, Splash, Clock, COUNT
     };
 
@@ -82,7 +84,7 @@ private:
     bool alertLaunch = true;                 // launch crossing T-10 / T-1
     bool alertAurora = true;                 // high Kp (aurora likely)
     bool alertFlare = false;                 // reserved: needs the GOES X-ray feed (later stage)
-    bool alertIss = false;                   // reserved: needs ISS pass prediction (later stage)
+    bool alertIss = false;                   // ISS visible pass overhead (SGP4)
     bool alertDsn = false;                   // reserved: needs the DSN feed (later stage)
     // edge state so an alert fires once per event, not every frame (persists across config reloads)
     long alertLaunchT0 = 0;                  // t0 the fired-flags below refer to (reset when it changes)
@@ -90,7 +92,19 @@ private:
     bool firedT10 = false, firedT1 = false;  // launch lead-time edges already consumed
     bool kpAlerted = false;                  // high-Kp episode already alerted (reset when Kp drops)
     bool flareAlerted = false;               // M+ flare episode already alerted (reset when it drops)
+    long issAlertedRise = 0;                  // rise epoch the ISS-overhead alert already fired for
     unsigned long lastNotifyMs = 0;          // throttle ntfy POSTs
+
+    // ---- ISS visible-pass prediction (SGP4 from the live TLE; computed on the loop task) ----
+    Sgp4* sat = nullptr;                      // propagator (allocated in Initialise)
+    bool passValid = false;
+    long passRiseEpoch = 0, passSetEpoch = 0; // UTC unix AOS / LOS
+    float passMaxEl = 0;                       // peak elevation, deg
+    float passAzRise = 0;                      // azimuth at rise, deg
+    bool passVisible = false;                  // sunlit satellite in a dark sky
+    String passTleKey;                         // TLE line1 the current pass was computed from
+    unsigned long lastPassCalcMs = 0;
+    bool sgp4Checked = false;                  // one-shot sub-point cross-check vs the live feed
 
     // ---- touch / gestures ----
     bool wasTouched = false;
@@ -109,6 +123,7 @@ private:
 
     // screens (defined in SpaceScreens.cpp)
     void DrawIss(BandCanvas& c);
+    void DrawIssPass(BandCanvas& c);
     void DrawLaunch(BandCanvas& c);
     void DrawKp(BandCanvas& c);
     void DrawSolarWind(BandCanvas& c);
@@ -129,6 +144,9 @@ private:
     // brightness
     void UpdateBrightness();
     float GlowFactor() const { return nightDim ? 0.5f : 1.0f; }
+
+    // ISS pass prediction (loop task)
+    void RecomputePass();                    // SGP4: find the next visible ISS overpass for the site
 
     // ntfy alerts (loop task)
     void CheckAlerts();                      // evaluate the toggleable triggers (launch / aurora)

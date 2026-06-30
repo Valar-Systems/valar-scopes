@@ -153,6 +153,14 @@ const ShowerEv SHOWERS[] = {
 };
 constexpr int SHOWER_N = (int)(sizeof(SHOWERS) / sizeof(SHOWERS[0]));
 
+// Azimuth degrees -> 8-point compass label.
+const char* Compass8(float az)
+{
+    static const char* C[] = {"N","NE","E","SE","S","SW","W","NW"};
+    int i = (int)((az + 22.5f) / 45.0f) & 7;
+    return C[i];
+}
+
 } // namespace
 
 // --------------------------------------------------------------------------------- ISS tracker
@@ -768,4 +776,36 @@ void SpaceManager::DrawStarMap(BandCanvas& c)
     char info[40]; snprintf(info, sizeof(info), "%d stars up", up);
     c.setTextSize(1); CenterText(c, info, SCREEN_SIZE - 38, faint);
     if (topName) { c.setTextSize(1); CenterText(c, String("brightest: ") + topName, SCREEN_SIZE - 22, dim); }
+}
+
+// --------------------------------------------------------------------------- ISS visible pass
+void SpaceManager::DrawIssPass(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg    = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim   = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint = space::ScaleColor(palette.faint, gf);
+    const uint32_t green = space::ScaleColor(lgfx::color888(120, 210, 90), gf);
+
+    c.setTextSize(1); CenterText(c, "NEXT ISS PASS", 20, dim);
+    if (!hasLatLon) { c.setTextSize(2); CenterText(c, "set location", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+    if (!passValid) { c.setTextSize(2); CenterText(c, "computing...", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    const time_t now = time(nullptr);
+    const char* dir = Compass8(passAzRise);
+
+    if (now >= passRiseEpoch && now <= passSetEpoch) {
+        c.setTextSize(3); CenterText(c, "OVERHEAD NOW", SCREEN_SIZE_DIV_2 - 18, passVisible ? green : fg);
+        char l[44]; snprintf(l, sizeof(l), "max %d deg   rises %s", (int)passMaxEl, dir);
+        c.setTextSize(1); CenterText(c, l, SCREEN_SIZE_DIV_2 + 16, dim);
+        return;
+    }
+
+    c.setTextSize(2); CenterText(c, passVisible ? "VISIBLE PASS" : "daylight pass", SCREEN_SIZE_DIV_2 - 56,
+                                 passVisible ? green : dim);
+    c.setTextSize(3); CenterText(c, FormatTMinus(passRiseEpoch - (long)now), SCREEN_SIZE_DIV_2 - 22, fg);
+    char l[48]; snprintf(l, sizeof(l), "rises %s   max %d deg", dir, (int)passMaxEl);
+    c.setTextSize(1); CenterText(c, l, SCREEN_SIZE_DIV_2 + 18, dim);
+    long dur = passSetEpoch - passRiseEpoch; if (dur < 0) dur = 0;
+    c.setTextSize(1); CenterText(c, String("above horizon ~") + String(dur / 60) + " min", SCREEN_SIZE - 34, faint);
 }

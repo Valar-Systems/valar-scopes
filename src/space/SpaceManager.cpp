@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <time.h>
+#include <Sgp4.h>
 
 #include "Layout.h"
 
@@ -70,6 +71,7 @@ void SpaceManager::Initialise()
     const String screensCfg = configServer.GetStoredString("space-screens");
     auto idToScreen = [](const String& id, Screen& out) -> bool {
         if (id == "iss")       { out = Screen::Iss;       return true; }
+        if (id == "isspass")   { out = Screen::IssPass;   return true; }
         if (id == "launch")    { out = Screen::Launch;    return true; }
         if (id == "kp")        { out = Screen::Kp;        return true; }
         if (id == "solarwind") { out = Screen::SolarWind; return true; }
@@ -125,7 +127,7 @@ void SpaceManager::Initialise()
     alertLaunch = boolCfg("sp-alert-launch", true);
     alertAurora = boolCfg("sp-alert-aurora", true);
     alertFlare = boolCfg("sp-alert-flare", true);   // M+ solar flare (GOES X-ray feed)
-    alertIss = boolCfg("sp-alert-iss", false);      // reserved (no ISS-pass feed yet)
+    alertIss = boolCfg("sp-alert-iss", true);       // ISS visible pass overhead (SGP4)
     alertDsn = boolCfg("sp-alert-dsn", false);      // reserved (no DSN feed yet)
 
     currentBrightness = configuredBrightness;
@@ -140,6 +142,17 @@ void SpaceManager::Initialise()
 void SpaceManager::Update()
 {
     feed.Poll();
+
+    // Recompute the next ISS pass when the TLE/location changed, the last pass ended, or every 10 min.
+    if (feed.Tle().valid && hasLatLon) {
+        const time_t now = time(nullptr);
+        if (now > 1600000000) {
+            const bool stale = !passValid || passTleKey != feed.Tle().line1 ||
+                               now > passSetEpoch || (millis() - lastPassCalcMs > 600000UL);
+            if (stale) RecomputePass();
+        }
+    }
+
     CheckAlerts();
     UpdateBrightness();
     HandleTouch();
@@ -159,6 +172,7 @@ void SpaceManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
 
     switch (current) {
         case Screen::Iss:       DrawIss(backbuffer); break;
+        case Screen::IssPass:   DrawIssPass(backbuffer); break;
         case Screen::Launch:    DrawLaunch(backbuffer); break;
         case Screen::Kp:        DrawKp(backbuffer); break;
         case Screen::SolarWind: DrawSolarWind(backbuffer); break;
@@ -185,6 +199,7 @@ bool SpaceManager::HasData(Screen s) const
 {
     switch (s) {
         case Screen::Iss:    return feed.Iss().valid;
+        case Screen::IssPass: return hasLatLon && passValid; // SGP4 found an upcoming overpass
         case Screen::Launch: return !feed.Launches().empty();
         case Screen::Kp:     return feed.Wx().valid;
         case Screen::SolarWind: return feed.SolarWind().valid;
@@ -362,6 +377,57 @@ void SpaceManager::CheckAlerts()
         } else if (!m) {
             flareAlerted = false;
         }
+    }
+
+    // --- ISS overhead: fire once per visible pass as it approaches the horizon (~T-5 min).
+    if (passValid && passVisible) {
+        const time_t now = time(nullptr);
+        const long toRise = passRiseEpoch - (long)now;
+        if (issAlertedRise != passRiseEpoch && toRise <= 300 && toRise > -60) {
+            issAlertedRise = passRiseEpoch;
+            char b[64];
+            snprintf(b, sizeof(b), "in %ld min, max %.0f deg, rises in the sky", toRise > 0 ? toRise / 60 : 0L, passMaxEl);
+            if (alertIss) SendNtfy("ISS passing overhead", b, "satellite,rotating_light", 4);
+        }
+    }
+}
+
+void SpaceManager::RecomputePass()
+{
+    if (!sat) sat = new Sgp4();
+    const space::Tle& t = feed.Tle();
+    const time_t now = time(nullptr);
+    if (!t.valid || !hasLatLon || now <= 1600000000) { passValid = false; return; }
+
+    char l1[130], l2[130], name[] = "ISS";
+    strncpy(l1, t.line1.c_str(), sizeof(l1) - 1); l1[sizeof(l1) - 1] = 0;
+    strncpy(l2, t.line2.c_str(), sizeof(l2) - 1); l2[sizeof(l2) - 1] = 0;
+    sat->init(name, l1, l2);
+    sat->site(deviceLat, deviceLon, 0.0);
+    passTleKey = t.line1;
+    lastPassCalcMs = millis();
+
+    // One-shot sanity cross-check: SGP4 sub-point vs the live ISS feed (should match within ~1-2 deg).
+    if (!sgp4Checked && feed.Iss().valid) {
+        sgp4Checked = true;
+        sat->findsat((unsigned long)now);
+        Serial.printf("[space] sgp4 check: sgp4 %.1f,%.1f  feed %.1f,%.1f\n",
+                      sat->satLat, sat->satLon, feed.Iss().lat, feed.Iss().lon);
+    }
+
+    passinfo pass;
+    sat->initpredpoint((unsigned long)now, 0.0);
+    if (sat->nextpass(&pass, 20, false, 10.0)) { // forward search, min 10 deg peak
+        passRiseEpoch = (long)((pass.jdstart - 2440587.5) * 86400.0);
+        passSetEpoch  = (long)((pass.jdstop - 2440587.5) * 86400.0);
+        passMaxEl = (float)pass.maxelevation;
+        passAzRise = (float)pass.azstart;
+        passVisible = (pass.vismax == lighted);
+        passValid = true;
+        Serial.printf("[space] iss pass: rise in %lds maxEl %.0f vis %d\n",
+                      passRiseEpoch - (long)now, passMaxEl, (int)passVisible);
+    } else {
+        passValid = false;
     }
 }
 

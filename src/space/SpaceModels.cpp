@@ -260,6 +260,15 @@ bool ParseNoaaScales(JsonObjectConst root, NoaaScales& out)
     return true;
 }
 
+bool ParseTle(JsonObjectConst root, Tle& out)
+{
+    if (root.isNull()) return false;
+    out.line1 = (const char*)(root["line1"] | "");
+    out.line2 = (const char*)(root["line2"] | "");
+    out.valid = out.line1.startsWith("1 ") && out.line2.startsWith("2 ");
+    return out.valid;
+}
+
 double GeomagLatitude(double latDeg, double lonDeg)
 {
     // Centered-dipole geomagnetic north pole ~ 80.65N, 72.68W (epoch ~2020).

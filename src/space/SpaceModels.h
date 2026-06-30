@@ -101,8 +101,15 @@ struct DeepSpaceTarget {
     bool receding = true;   // range-rate sign
 };
 
+// --------------------------------------------------------------------------- ISS TLE (for SGP4)
+struct Tle {
+    bool valid = false;
+    String line1;
+    String line2;
+};
+
 // ----------------------------------------------------------------- poller request / result
-enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans, SolarWind, Scales };
+enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans, SolarWind, Scales, Tle };
 
 // Loop -> worker: a single GET to perform, fully built on the loop task.
 struct SpaceFetchRequest {
@@ -128,6 +135,7 @@ struct SpaceFetchResult {
     Crew crew;
     SolarWind solarWind;
     NoaaScales scales;
+    Tle tle;
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -144,6 +152,7 @@ bool ParseCrew(JsonObjectConst root, Crew& out, size_t cap);                    
 
 bool ParseSolarWind(JsonArrayConst root, SolarWind& out);                       // SWPC propagated-solar-wind
 bool ParseNoaaScales(JsonObjectConst root, NoaaScales& out);                    // SWPC noaa-scales.json
+bool ParseTle(JsonObjectConst root, Tle& out);                                 // wheretheiss .../tles
 
 // GOES long-band flux (W/m^2) -> NOAA class string, e.g. 1.95e-6 -> "C1.9", 2.4e-5 -> "M2.4".
 String XrayClass(float fluxWm2);
