@@ -2,15 +2,29 @@
   📡 Blipscope
 </h1>
 <h6 align=center>
-  a tiny desktop flight radar that shows you what's flying overhead
+  a tiny desk display that turns a stream of live data into something you can glance at
 </h6>
 <p align=center>
-  <a href="#what-it-does">WHAT IT DOES</a> - <a href="#get-a-kit">GET A KIT</a> - <a href="#assembly">ASSEMBLY</a> - <a href="#firmware">FIRMWARE</a> - <a href="#setup--usage">SETUP</a> - <a href="#thanks">THANKS</a>
+  <a href="#the-editions">EDITIONS</a> - <a href="#more-editions-on-the-way">ROADMAP</a> - <a href="#get-a-kit">GET A KIT</a> - <a href="#assembly">ASSEMBLY</a> - <a href="#firmware">FIRMWARE</a> - <a href="#setup--usage">SETUP</a> - <a href="#thanks">THANKS</a>
 </p>
 
-Blipscope is a small open-source flight radar for your desk. It sits on a 1.28" round display and shows live aircraft around your location in real time — pulled from public ADS-B data — so you can glance over and see what's in the sky above you, where it came from, and where it's headed.
+Blipscope is a small open-source gadget for your desk: an ESP32-S3 driving a round touchscreen. It comes in several **Editions** — and the trick is that they're all the *same hardware*. Each Edition is a separate firmware that turns the screen into a window onto a different stream of live data, and pings your phone when something notable happens. They all share the same Wi-Fi setup, web config page, persistent storage, over-the-air updates, and [ntfy](https://ntfy.sh) alerts — so once you know one, you know them all. You just flash the Edition you want.
 
-## What it does
+## The Editions
+
+| | Edition | What it is |
+|---|---|---|
+| 📡 | **[Aviation Edition](#-aviation-edition)** *(the original)* | A live **flight radar**. Aircraft plotted around your location from public ADS-B data, with tap-to-inspect detail cards, a spotting logbook, and a "look up!" overhead alert. |
+| 📟 | **[STRATCOM Edition](#-stratcom-edition)** | An **HFGCS Emergency Action Message monitor**. A command-console ticker of nuclear-command radio traffic, an activity gauge, Skyking codewords, an airborne-command-post watch, HF propagation, and ICBM-test windows. |
+| 🛰️ | **[Space Edition](#-space-edition)** | **Spacescope** — live space data. The **ISS** ground track, a **T-minus countdown** to the next rocket launch, and a **geomagnetic aurora gauge**, straight from free public APIs. |
+
+All three run on the same Blipscope board; the Edition is chosen by the firmware you flash (and a kit can be re-flashed to a different Edition any time). [More editions are on the way](#more-editions-on-the-way).
+
+---
+
+## 📡 Aviation Edition
+
+The original Blipscope: a small flight radar that sits on your desk and shows live aircraft around your location in real time — pulled from public ADS-B data — so you can glance over and see what's in the sky above you, where it came from, and where it's headed.
 
 - **Live radar view** — aircraft plotted around your location, with fading trails, type-aware heading markers (helicopters, gliders, and heavies each draw differently), and altitude-based colour coding.
 - **Tap to inspect** — touch an aircraft to open a detail card with callsign, type, operator, registration, route, altitude, speed, and a photo. Pin one to keep tracking it.
@@ -25,9 +39,64 @@ Blipscope is a small open-source flight radar for your desk. It sits on a 1.28" 
 - **Over-the-air updates** — pulls new firmware automatically from GitHub Releases, so it stays current without plugging in.
 - **Configurable range & display** — set your centre point and scan radius in km or miles, and toggle the on-screen elements you want.
 
+The [Setup & Usage](#setup--usage) section below — including the OpenSky and "run your own receiver" guides — covers the Aviation Edition in full.
+
+## 📟 STRATCOM Edition
+
+Flash the STRATCOM firmware and the same device becomes a desk readout for the U.S. Air Force [High Frequency Global Communications System (HFGCS)](https://en.wikipedia.org/wiki/High_Frequency_Global_Communications_System) and the [Emergency Action Messages](https://en.wikipedia.org/wiki/Emergency_Action_Message) and **Skyking** broadcasts that move across it. (STRATCOM — [U.S. Strategic Command](https://en.wikipedia.org/wiki/United_States_Strategic_Command) — is the authority these messages are issued under.) Instead of plotting aircraft, the round screen becomes a command-console:
+
+- a scrolling **ticker** of the latest EAM, broken into its phonetic groups;
+- an activity **tempo** gauge — how busy the net is today versus normal;
+- recent **Skyking codewords**, with the ones new to your device flagged;
+- an **airborne-command-post watch** (is an E-4B "Nightwatch" / E-6B Mercury up right now?);
+- **HF propagation** — the best frequency to listen on, with solar flux and K-index;
+- the next **ICBM-test ("Glory Trip") window**, with a live countdown;
+- and an idle **Zulu (UTC) clock** drawn as real seven-segment digits.
+
+It reuses the same Wi-Fi setup, web config, ntfy alerts, and over-the-air updates as the radar, and runs on its own firmware update channel so the two never cross.
+
+### 📖 [Full guide → STRATCOM Edition (EAM Monitor) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/EAM-Monitor)
+
+## 🛰️ Space Edition
+
+Flash the Spacescope firmware and the device becomes a small mission console for the sky above you — talking **directly to free, public space APIs** with no backend and no API key baked in:
+
+- an **ISS tracker** — a north-polar globe with the station plotted live, showing whether it's sunlit or in Earth's shadow, plus its altitude and speed;
+- a **launch T-minus** screen — the next rocket launch with a big live countdown, provider, vehicle, mission, and pad;
+- a **geomagnetic Kp gauge** — a 270° aurora dial (QUIET → G1–G5) with a recent-trend sparkline, so a glance tells you if tonight is worth looking up.
+
+It pings your phone when a launch is imminent (T-10 / T-1) or the aurora is stirring (high Kp). On the roadmap: a Deep Space Network board, Voyager distance, solar flares, and ISS visible-pass predictions. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions.
+
+### 📖 [Full guide → Space Edition (Spacescope) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Space-Edition)
+
+## More editions on the way
+
+Every Edition is the same recipe: pick a **free public data feed**, draw a few glanceable screens, and wire up phone alerts — the Wi-Fi setup, web config, OTA, and ntfy come for free from the shared platform. That makes new Editions cheap to add, and there's a long list of streams that would look great on a round desk display. Some we're considering:
+
+**Things you plot around you** *(reusing the Aviation radar's polar view):*
+
+- 🌐 **Seismic Edition** — live earthquakes by bearing and distance from the keyless USGS feed, with magnitude rings and a phone alert for big or nearby quakes (and tsunami advisories).
+- 🔥 **Wildfire Edition** — active fire detections radiating around you from NASA's FIRMS satellites, with an "it's getting closer" proximity alert — for fire-season desks.
+- 🌠 **Skywatch Edition** — every satellite overhead right now, not just the ISS: bright passes and Starlink trains plotted on a live sky-dome, computed on-device from public orbital data.
+- 🚢 **Maritime Edition** — ship traffic (AIS) around a harbour or coastline, the radar's natural sibling for the coast.
+
+**Things you read as a dial or ticker** *(reusing the Space/STRATCOM rotating screens):*
+
+- 🎣 **Angler Edition** — your river's gauge height and water temperature plus a solunar "bite window," pinging you when conditions turn on, from keyless USGS water data.
+- 🐦 **Birding Edition** — notable bird sightings near you from eBird, with a phone alert the moment a rarity shows up in your area.
+- ⛅ **Weather Edition** — local conditions, a "next rain" countdown dial, and a 36-hour forecast ribbon around the bezel, from the keyless Open-Meteo feed.
+- 🌫️ **Air Quality Edition** — a glanceable AQI / UV / pollen dial, pinging you when the air outside turns unhealthy.
+- ₿ **Mempool Edition** — live Bitcoin fees, block height, and network hashrate on a dial, from the keyless mempool.space API.
+- 🚆 **Transit Edition** — a "leave now" countdown to the next bus or train from your stop.
+- 📻 **Ham Radio Edition** — HF band conditions, solar flux, and live DX spots for radio amateurs, reusing the STRATCOM edition's propagation feed.
+
+Have an Edition you'd love to see — or a free data feed that belongs on a round screen? [Open an issue](https://github.com/Valar-Systems/Blipscope/issues) and tell us.
+
+---
+
 ## Get a kit
 
-The easiest way to build a Blipscope is to grab a kit. It includes the display module, the redesigned enclosure parts, and everything else you need in one box — no hunting around marketplaces for the right components, and the hardware is guaranteed to match the firmware and the enclosure.
+The easiest way to build a Blipscope is to grab a kit. It includes the display module, the redesigned enclosure parts, and everything else you need in one box — no hunting around marketplaces for the right components, and the hardware is guaranteed to match the firmware and the enclosure. The hardware is the same across editions; you choose which one to run by the firmware you flash, and you can re-flash to a different edition any time.
 
 ### 👉 [Order a Blipscope kit from Valar Systems](https://valarsystems.com/products/blipscope)
 
@@ -43,7 +112,7 @@ The wiki walks through the full build with photos. We recommend skimming the [Se
 
 ## Firmware
 
-Kits ship with firmware already flashed, and the device keeps itself up to date [over the air](#what-it-does). For most people there's nothing to install.
+Kits ship with firmware already flashed, and the device keeps itself up to date [over the air](#-aviation-edition). For most people there's nothing to install.
 
 If you want to build from source or hack on it yourself, the firmware is here in this repo:
 
@@ -55,17 +124,20 @@ If the board doesn't reboot into the new firmware automatically, hold the **BOOT
 
 ### Build variants
 
-Blipscope builds several hardware SKUs — and a second app — from this one repo, one PlatformIO env each (see [platformio.ini](platformio.ini)):
+Each Edition is a separate compile-time build from this one repo, one PlatformIO env each (see [platformio.ini](platformio.ini)). Pick the env for the edition and board you want:
 
 ```sh
-pio run -e blipscope-s3-146     -t upload     # S3 1.46" AMOLED radar (default)
-pio run -e blipscope-pro-s3-21  -t upload     # S3 2.1" radar
-pio run -e blipscope-eam-s3-146 -t upload     # EAM monitor (S3 1.46" AMOLED)
+pio run -e blipscope-s3-146       -t upload   # 📡 Aviation  — S3 1.46" AMOLED (default)
+pio run -e blipscope-pro-s3-21    -t upload   # 📡 Aviation  — S3 2.1" RGB panel
+pio run -e blipscope-eam-s3-146   -t upload   # 📟 STRATCOM — EAM monitor, S3 1.46" AMOLED
+pio run -e blipscope-space-s3-146 -t upload   # 🛰️ Space     — Spacescope, S3 1.46" AMOLED
 ```
 
-The `blipscope-eam-*` envs build the **EAM (Emergency Action Message) monitor** — a separate HFGCS watch app that reuses the same boards, Wi-Fi setup, web config, and OTA, but shows EAM/Skyking/propagation/launch screens instead of the radar. It updates on its own OTA channel (`firmware-eam-<slug>.bin`), so a device only ever flashes the app it was built for. Developer notes are in [CLAUDE.md](CLAUDE.md).
+The `eam-` and `space-` envs build the **STRATCOM** and **Space** editions respectively. They reuse the same boards, Wi-Fi setup, web config, and OTA, but compile a different app and ship on their own OTA channel (`firmware-eam-<slug>.bin` / `firmware-space-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
 
 ## Setup & Usage
+
+The first-boot Wi-Fi setup and the web config page work the same on every edition. The OpenSky and "run your own receiver" sections are specific to the **Aviation Edition**; the STRATCOM and Space editions have their own settings, documented on their wiki pages above.
 
 ### First boot
 
@@ -77,7 +149,7 @@ If the hotspot doesn't appear straight away, give it a moment. If it still hasn'
 
 Once it's on your network, the config page is reachable from any device on the same network at the address shown on screen — `http://<device-name>.local` (for example `http://blipscope-a1b2c3.local`).
 
-There you can set:
+On the **Aviation Edition** you can set:
 
 - **Location** (latitude and longitude) — the centre point of your radar.
 - **Radar radius** — how far the scan extends, in km or miles (capped at ~222 km / 138 mi to stay within data rate limits).
@@ -91,7 +163,7 @@ The config page is available any time the device is on WiFi, so you can tweak se
 
 ### A note on OpenSky
 
-Blipscope uses [OpenSky Network's](https://opensky-network.org) free API for flight data. It works without an account, but making one (it's free) raises your daily request limit from 400 to 4000 — which lets Blipscope poll roughly every 22 seconds instead of every ~3.5 minutes, so the live view is far more accurate.
+The Aviation Edition uses [OpenSky Network's](https://opensky-network.org) free API for flight data. It works without an account, but making one (it's free) raises your daily request limit from 400 to 4000 — which lets Blipscope poll roughly every 22 seconds instead of every ~3.5 minutes, so the live view is far more accurate.
 
 OpenSky moved to OAuth2 credentials in 2026, so you need a **client ID** and **client secret** (not your account username/password). To get them:
 
@@ -107,7 +179,7 @@ The secret only ever exists in that downloaded file — if you lose it, use **Re
 
 ### Using your own ADS-B receiver
 
-If you run your own ADS-B receiver — a Raspberry Pi with [dump1090-fa](https://github.com/flightaware/dump1090), [readsb](https://github.com/wiedehopf/readsb), [PiAware](https://www.flightaware.com/adsb/piaware/), [tar1090](https://github.com/wiedehopf/tar1090), or an ADS-B Exchange feeder image — Blipscope can read directly from it instead of OpenSky. Local data has **no rate limits** and refreshes about once a second, so the radar is smoother and more accurate, and works even if OpenSky is down.
+If you run your own ADS-B receiver — a Raspberry Pi with [dump1090-fa](https://github.com/flightaware/dump1090), [readsb](https://github.com/wiedehopf/readsb), [PiAware](https://www.flightaware.com/adsb/piaware/), [tar1090](https://github.com/wiedehopf/tar1090), or an ADS-B Exchange feeder image — the Aviation Edition can read directly from it instead of OpenSky. Local data has **no rate limits** and refreshes about once a second, so the radar is smoother and more accurate, and works even if OpenSky is down.
 
 #### Don't have a receiver yet?
 
