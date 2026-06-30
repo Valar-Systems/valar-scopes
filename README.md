@@ -67,7 +67,7 @@ Flash the Spacescope firmware and the device becomes a small mission console for
 - a **launch T-minus** screen — the next rocket launch with a big live countdown, provider, vehicle, mission, and pad;
 - a **geomagnetic Kp gauge** — a 270° aurora dial (QUIET → G1–G5) with a recent-trend sparkline, so a glance tells you if tonight is worth looking up.
 
-It pings your phone when a launch is imminent (T-10 / T-1) or the aurora is stirring (high Kp). On the roadmap: a Deep Space Network board, Voyager distance, solar flares, and ISS visible-pass predictions. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions.
+It pings your phone when a launch is imminent (T-10 / T-1) or the aurora is stirring (high Kp). Beyond the three above it has grown a whole console of screens — a Deep Space Network board, deep-space-probe distances, solar-flare activity, ISS visible-pass predictions, a star map, asteroid flybys, Moon phase, and eclipse countdowns. Next on the roadmap: a **Skywatch** sky-dome plotting *every* satellite passing overhead — bright passes and Starlink trains, not just the ISS — computed on-device from public orbital data. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions.
 
 ### 📖 [Full guide → Space Edition (Spacescope) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Space-Edition)
 
@@ -101,7 +101,6 @@ Every Edition is the same recipe: pick a **free public data feed**, draw a few g
 **Things you plot around you** *(reusing the Aviation radar's polar view):*
 
 - 🔥 **Wildfire Edition** — active fire detections radiating around you from NASA's FIRMS satellites, with an "it's getting closer" proximity alert — for fire-season desks.
-- 🌠 **Skywatch Edition** — every satellite overhead right now, not just the ISS: bright passes and Starlink trains plotted on a live sky-dome, computed on-device from public orbital data.
 - 🚢 **Maritime Edition** — ship traffic (AIS) around a harbour or coastline, the radar's natural sibling for the coast.
 
 **Things you read as a dial or ticker** *(reusing the Space/STRATCOM rotating screens):*
