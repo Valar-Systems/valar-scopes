@@ -59,6 +59,101 @@ private:
     size_t totalRead_ = 0;
     bool timedOut_ = false;
 };
+
+// Same idea as BufferedSocketStream, but for a Transfer-Encoding: chunked body (no
+// Content-Length). It de-chunks straight off the socket, yields while waiting for bytes,
+// and -- the part that matters -- STOPS at the 0-length terminator chunk. Raw
+// HTTPClient::getString() on a chunked *keep-alive* response (the valar-eam-feed EAM
+// backend sends exactly that) reads the body in a loop that never yields to core 0's idle
+// task and then blocks in mbedtls_ssl_read past the body on the still-open keep-alive
+// socket -- starving the 10 s Task-WDT into a permanent boot loop (the eam_fetch reboot).
+// Chunk-size lines are read byte-wise (a few bytes per chunk); chunk DATA is bulk-read so
+// lwIP isn't flooded with tiny reads. Heap stays low (no full-body String), like the
+// Content-Length path.
+class ChunkedSocketStream : public Stream {
+public:
+    ChunkedSocketStream(Stream& src, uint32_t timeoutMs)
+        : src_(src), timeoutMs_(timeoutMs) {}
+
+    int available() override { return (int)(len_ - pos_) + (done_ ? 0 : src_.available()); }
+    int read() override      { return Fill() ? buf_[pos_++] : -1; }
+    int peek() override      { return Fill() ? buf_[pos_]   : -1; }
+    size_t write(uint8_t) override { return 0; } // read-only
+
+    size_t totalRead() const { return totalRead_; }
+    bool   timedOut() const  { return timedOut_; }
+
+private:
+    // Block (yielding) for one raw byte; -1 on stall timeout. The delay(1) yields keep
+    // core 0's idle task fed, so even a slow transfer stays WDT-safe.
+    int RawByte() {
+        const uint32_t start = millis();
+        while (src_.available() == 0) {
+            if (millis() - start >= timeoutMs_) { timedOut_ = true; return -1; }
+            delay(1);
+        }
+        return src_.read();
+    }
+
+    // Read a chunk-size line ("<hex>[;ext]\r\n") and return the size, or -1 on stall.
+    long ReadChunkHeader() {
+        char line[16];
+        size_t n = 0;
+        int c;
+        while ((c = RawByte()) >= 0 && c != '\n') {
+            if (c != '\r' && n < sizeof(line) - 1) line[n++] = (char)c;
+        }
+        if (c < 0) return -1;
+        line[n] = '\0';
+        return strtol(line, nullptr, 16); // stops at any ';' extension; 0 == terminator
+    }
+
+    // Guarantee at least one de-chunked byte in buf_; false at end-of-body or on timeout.
+    bool Fill() {
+        if (pos_ < len_) return true;
+        if (done_) return false;
+        pos_ = len_ = 0;
+
+        // Advance to a chunk that still has data, consuming the CRLF that trails the
+        // previous chunk's data before reading the next size line.
+        while (chunkRemaining_ == 0) {
+            if (sawData_) { RawByte(); RawByte(); } // the \r\n after the prior chunk's data
+            const long sz = ReadChunkHeader();
+            if (sz < 0)  { timedOut_ = true; done_ = true; return false; }
+            if (sz == 0) { done_ = true; return false; } // terminator: never read into the idle keep-alive socket
+            chunkRemaining_ = (size_t)sz;
+            sawData_ = true;
+        }
+
+        // Bulk-read this chunk's data, capped at chunkRemaining_ so we never cross into
+        // the next chunk's size line.
+        const uint32_t start = millis();
+        while (src_.available() == 0) {
+            if (millis() - start >= timeoutMs_) { timedOut_ = true; done_ = true; return false; }
+            delay(1);
+        }
+        size_t want = src_.available();
+        if (want > chunkRemaining_) want = chunkRemaining_;
+        if (want > sizeof(buf_))    want = sizeof(buf_);
+        len_ = src_.readBytes(buf_, want);
+        chunkRemaining_ -= len_;
+        totalRead_ += len_;
+
+        if ((++fillCount_ & 0x0F) == 0) delay(1); // yield even on a steady stream (see BufferedSocketStream)
+        return len_ > 0;
+    }
+
+    Stream& src_;
+    uint32_t timeoutMs_;
+    uint8_t buf_[512];
+    size_t pos_ = 0, len_ = 0;
+    size_t chunkRemaining_ = 0;
+    bool sawData_ = false;   // have we read a data chunk yet (so a CRLF precedes the next header)?
+    bool done_ = false;
+    bool timedOut_ = false;
+    uint32_t fillCount_ = 0;
+    size_t totalRead_ = 0;
+};
 } // namespace
 
 String HttpRequestManager::BuildQueryString(const std::vector<std::pair<String, String>>& params) const
@@ -191,6 +286,11 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
     http.setConnectTimeout(5000);
     http.setTimeout(5000);
 
+    // Keep the Transfer-Encoding so the body-read below can tell a chunked reply (no
+    // Content-Length) from a close-delimited one and pick the right yielding reader.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding" };
+    http.collectHeaders(kCollectHeaders, 1);
+
     for (const auto& header : headers)
         http.addHeader(header.first, header.second);
 
@@ -212,14 +312,25 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
             if (err)
                 Serial.printf("[GET] diag: Content-Length path, CL=%d read=%u timedOut=%d err=%s\n",
                               bodyLen, (unsigned)body.totalRead(), (int)body.timedOut(), err.c_str());
+        } else if (http.header("Transfer-Encoding").indexOf("chunked") >= 0) {
+            // Chunked, no Content-Length (the valar-eam-feed EAM endpoints). De-chunk off
+            // the socket with the same yielding/stall-bounded discipline as the path above,
+            // stopping at the terminator chunk. The raw http.getString() that used to be here
+            // never yielded and then blocked past the body on the keep-alive socket, starving
+            // the 10 s Task-WDT into a boot loop (eam_fetch). See ChunkedSocketStream.
+            ChunkedSocketStream body(http.getStream(), 15000);
+            err = deserializeJson(doc, body);
+            if (err)
+                Serial.printf("[GET] diag: chunked path, read=%u timedOut=%d err=%s\n",
+                              (unsigned)body.totalRead(), (int)body.timedOut(), err.c_str());
         } else {
-            // chunked / unknown length: getStream() would include chunk markers that
-            // ArduinoJson can't parse, so use the de-chunked String (higher heap peak,
-            // but correct). Rare for these JSON endpoints.
+            // Unknown length and not chunked (close-delimited): the server signals end-of-body
+            // by closing the connection, so getString() reads to a clean EOF (no keep-alive
+            // over-read to block on). Rare for these JSON endpoints.
             const String s = http.getString();
             err = deserializeJson(doc, s);
             if (err)
-                Serial.printf("[GET] diag: chunked path, got=%u bytes err=%s\n",
+                Serial.printf("[GET] diag: close-delimited path, got=%u bytes err=%s\n",
                               (unsigned)s.length(), err.c_str());
         }
 
