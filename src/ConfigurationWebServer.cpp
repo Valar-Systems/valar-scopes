@@ -2,8 +2,8 @@
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
-#ifndef FEATURE_EAM
-#include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM build
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE)
+#include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #endif
 
 #ifdef FEATURE_EAM
@@ -15,12 +15,21 @@
 #endif
 #endif
 
+#ifdef FEATURE_SPACE
+// The Spacescope build's optional backend base URL default. Empty by default: the device talks
+// directly to free public space APIs and bakes in no backend. The runtime value ("space-base-url")
+// overrides it (Phase-3 valar-space-feed). Guarded so the file compiles without the flag.
+#ifndef SPACE_FEED_BASE
+#define SPACE_FEED_BASE ""
+#endif
+#endif
+
 // HTML stored in flash
 // %PLACEHOLDER% tokens are substituted at serve time by the template processor.
-// The page is feature-specific: the radar build serves the radar settings form below;
-// the FEATURE_EAM build serves the EAM monitor form. The ConfigurationWebServer shell
-// (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-#ifndef FEATURE_EAM
+// The page is feature-specific: the radar build serves the radar settings form below; the
+// FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
+// form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -436,7 +445,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
-#else
+#elif defined(FEATURE_EAM)
 // FEATURE_EAM config page. Stage 1: the valar-eam-feed backend base URL + Reset WiFi.
 // Per-screen toggles/reorder, the command-post source dropdown, OpenSky credentials, ntfy,
 // poller intervals, and lat/lon arrive in a later stage. Shares the page chrome/JS pattern.
@@ -611,6 +620,119 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_SPACE)
+// FEATURE_SPACE (Spacescope) config page. Stage 1: location, optional backend, screen order,
+// ntfy alerts, display. Per-source API keys (Launch Library / NASA) and finer per-screen options
+// arrive with the screens that use them. Shares the page chrome / JS pattern.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Spacescope</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,12,28)'/><circle cx='8' cy='8' r='2' fill='rgb(120,200,255)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(120,200,255)' stroke-width='0.8'/><circle cx='13' cy='4' r='1' fill='rgb(255,255,255)'/></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+    </head>
+    <body class="font-mono bg-gray-900 text-sky-300 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
+        <fieldset class="border border-sky-400 p-5 w-full max-w-2xl mx-auto sm:m-10">
+            <legend class="px-2">Configure Spacescope</legend>
+
+            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Latitude:</span>
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
+                            class="border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Longitude:</span>
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
+                            class="border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                </div>
+                <span class="text-xs text-sky-600">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim.</span>
+
+                <fieldset class="border border-sky-400 p-3">
+                    <legend class="px-2">Alerts (ntfy)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>ntfy.sh topic:</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
+                            class="flex-1 border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                        <label class="flex items-center gap-2"><input name="sp-alert-launch" type="checkbox" %AL_LAUNCH% class="accent-sky-400"><span>Launch imminent (T-10 / T-1)</span></label>
+                        <label class="flex items-center gap-2"><input name="sp-alert-aurora" type="checkbox" %AL_AURORA% class="accent-sky-400"><span>Aurora likely (high Kp)</span></label>
+                        <label class="flex items-center gap-2"><input name="sp-alert-flare" type="checkbox" %AL_FLARE% class="accent-sky-400"><span>Solar flare (M+ class)</span></label>
+                        <label class="flex items-center gap-2"><input name="sp-alert-iss" type="checkbox" %AL_ISS% class="accent-sky-400"><span>ISS passing overhead</span></label>
+                        <label class="flex items-center gap-2"><input name="sp-alert-dsn" type="checkbox" %AL_DSN% class="accent-sky-400"><span>Deep-space probe contact (DSN)</span></label>
+                    </div>
+                    <span class="text-xs text-sky-600 mt-1">Leave the topic blank to disable all push alerts. ISS / aurora alerts need a location above.</span>
+                </fieldset>
+
+                <fieldset class="border border-sky-400 p-3">
+                    <legend class="px-2">Display</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-sky-400"><span>Auto-dim at night</span></label>
+                    </div>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-sky-400">
+                    </label>
+                </fieldset>
+
+                <fieldset class="border border-sky-400 p-3">
+                    <legend class="px-2">Screens</legend>
+                    <label class="flex flex-col gap-1">
+                        <span>Order &amp; enable (comma-separated; omit one to hide it):</span>
+                        <input name="space-screens" value='%SPACE_SCREENS%'
+                            class="border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-sky-600 mt-1">ids: splash, clock. Empty rotates all. Each screen appears only when its feed has data; the clock always shows when nothing else does. (More screens arrive in upcoming firmware.)</span>
+                </fieldset>
+
+                <fieldset class="border border-sky-400 p-3">
+                    <legend class="px-2">Advanced</legend>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Backend base URL:</span>
+                        <input name="space-base-url" value='%SPACE_BASE_URL%' placeholder="blank = direct public APIs"
+                            class="flex-1 border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-sky-600">Optional. Leave blank and Spacescope pulls straight from free public space APIs. Point it at a valar-space-feed backend to offload the heavy / key-gated sources.</span>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <input type="submit" value="Save"
+                        class="bg-sky-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                    <button type="button" id="resetwifi"
+                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                        Reset WiFi</button>
+                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                </div>
+            </form>
+
+            <div class="flex justify-between items-end text-xs text-sky-600 mt-4">
+                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-sky-300 underline">Help &amp; documentation</a>
+                <span>Firmware v%FW_VERSION% (Space)</span>
+            </div>
+        </fieldset>
+
+        <script>
+            document.getElementById('cfg').addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            document.getElementById('resetwifi').addEventListener('click', function() {
+                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
+                fetch('/reset-wifi', { method: 'POST' })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+        </script>
+    </body>
+</html>
+)";
 #endif
 
 void ConfigurationWebServer::Initialise() {
@@ -638,7 +760,7 @@ void ConfigurationWebServer::Initialise() {
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);
-#ifndef FEATURE_EAM
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE)
         const String latitude = prefs.getString("latitude", "");
         const String longitude = prefs.getString("longitude", "");
         const String radius = prefs.getString("radius", "100");
@@ -697,7 +819,7 @@ void ConfigurationWebServer::Initialise() {
             infoFieldsHtml += field.label;
             infoFieldsHtml += F("</span></label>");
         }
-#else
+#elif defined(FEATURE_EAM)
         // FEATURE_EAM: load the EAM config fields. isKey() guards keep a not-yet-saved read from
         // logging NVS NOT_FOUND; the base-URL default is the EAM_FEED_BASE build flag.
         const String eamBaseUrl = prefs.isKey("eam-base-url")
@@ -723,20 +845,41 @@ void ConfigurationWebServer::Initialise() {
         const String eamScreens = prefs.isKey("eam-screens")
             ? prefs.getString("eam-screens", "")
             : String("ticker,tempo,activity,codewords,abncp,milair,prop,icbm,ref,clock");
+#elif defined(FEATURE_SPACE)
+        // FEATURE_SPACE: load the Spacescope config fields. isKey() guards keep not-yet-saved
+        // reads from logging NVS NOT_FOUND; the backend base-URL default is the SPACE_FEED_BASE
+        // build flag (empty = direct public APIs).
+        const String spaceBaseUrl = prefs.isKey("space-base-url")
+            ? prefs.getString("space-base-url", SPACE_FEED_BASE)
+            : String(SPACE_FEED_BASE);
+        const String latitude = prefs.getString("latitude", "");
+        const String longitude = prefs.getString("longitude", "");
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String alertLaunch = prefs.isKey("sp-alert-launch") ? prefs.getString("sp-alert-launch", "true") : "true";
+        const String alertAurora = prefs.isKey("sp-alert-aurora") ? prefs.getString("sp-alert-aurora", "true") : "true";
+        const String alertFlare = prefs.isKey("sp-alert-flare") ? prefs.getString("sp-alert-flare", "true") : "true";
+        const String alertIss = prefs.isKey("sp-alert-iss") ? prefs.getString("sp-alert-iss", "true") : "true";
+        const String alertDsn = prefs.isKey("sp-alert-dsn") ? prefs.getString("sp-alert-dsn", "false") : "false";
+        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
+        const String brightness = prefs.getString("brightness", "255");
+        const String spaceScreens = prefs.isKey("space-screens")
+            ? prefs.getString("space-screens", "")
+            : String("splash,clock");
 #endif
         prefs.end();
 
-#ifndef FEATURE_EAM
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
-#else
+#elif defined(FEATURE_EAM)
         // mask the OpenSky secret before sending to the client (same masked-value guard on save)
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
 #endif
+        // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#ifndef FEATURE_EAM
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -784,7 +927,7 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
-#else
+#elif defined(FEATURE_EAM)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -816,6 +959,28 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_SPACE)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [spaceBaseUrl, latitude, longitude, ntfyTopic, alertLaunch, alertAurora, alertFlare, alertIss, alertDsn, autoDimEnabled, brightness, spaceScreens]
+            (const String& var) -> String {
+                if (var == "SPACE_BASE_URL") return spaceBaseUrl;
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
+                if (var == "AL_LAUNCH")      return alertLaunch == "true" ? "checked" : "";
+                if (var == "AL_AURORA")      return alertAurora == "true" ? "checked" : "";
+                if (var == "AL_FLARE")       return alertFlare == "true" ? "checked" : "";
+                if (var == "AL_ISS")         return alertIss == "true" ? "checked" : "";
+                if (var == "AL_DSN")         return alertDsn == "true" ? "checked" : "";
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "SPACE_SCREENS")  return spaceScreens;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -840,7 +1005,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#ifndef FEATURE_EAM
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE)
         TrySaveParam("latitude");
         TrySaveParam("longitude");
         TrySaveParam("radius");
@@ -898,7 +1063,7 @@ void ConfigurationWebServer::Initialise() {
             const char* key = AIRCRAFT_INFO_FIELDS[i].key;
             prefs.putString(key, request->hasParam(key, true) ? "true" : "false");
         }
-#else
+#elif defined(FEATURE_EAM)
         // FEATURE_EAM: persist the EAM config fields.
         TrySaveParam("eam-base-url");
         TrySaveParam("latitude");
@@ -926,6 +1091,22 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("eam-alert-abncp", request->hasParam("eam-alert-abncp", true) ? "true" : "false");
         prefs.putString("eam-alert-space", request->hasParam("eam-alert-space", true) ? "true" : "false");
         prefs.putString("eam-colon-blink", request->hasParam("eam-colon-blink", true) ? "true" : "false");
+        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+#elif defined(FEATURE_SPACE)
+        // FEATURE_SPACE: persist the Spacescope config fields.
+        TrySaveParam("space-base-url");
+        TrySaveParam("latitude");
+        TrySaveParam("longitude");
+        TrySaveParam("ntfy-topic");
+        TrySaveParam("brightness");
+        TrySaveParam("space-screens");
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        prefs.putString("sp-alert-launch", request->hasParam("sp-alert-launch", true) ? "true" : "false");
+        prefs.putString("sp-alert-aurora", request->hasParam("sp-alert-aurora", true) ? "true" : "false");
+        prefs.putString("sp-alert-flare", request->hasParam("sp-alert-flare", true) ? "true" : "false");
+        prefs.putString("sp-alert-iss", request->hasParam("sp-alert-iss", true) ? "true" : "false");
+        prefs.putString("sp-alert-dsn", request->hasParam("sp-alert-dsn", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #endif
         prefs.end();

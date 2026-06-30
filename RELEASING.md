@@ -51,6 +51,18 @@ These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar
 and a device only ever downloads its own `<prefix><slug>` binary. Releasing is otherwise identical
 — the matrix rows are already in [.github/workflows/firmware.yml](.github/workflows/firmware.yml).
 
+## Spacescope builds — another separate OTA channel
+
+The `blipscope-space-*` envs build a third **product** (Spacescope, `-DFEATURE_SPACE`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as EAM: `-DFW_OTA_PREFIX="space-"`,
+and a CI slug prefixed to match so a Spacescope device never pulls a radar or EAM image:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `blipscope-space-s3-146` | `space-s3-146` → `firmware-space-s3-146.bin` |
+
+Same `version.txt` gate (one `FW_VERSION` bump releases radar, EAM, and Spacescope together).
+
 ## Legacy note: the retired C3
 
 The original ESP32-C3 Kit is retired — Blipscope is S3-only going forward. The workflow no
