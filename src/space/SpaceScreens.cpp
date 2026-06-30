@@ -445,3 +445,104 @@ void SpaceManager::DrawMoon(BandCanvas& c)
     snprintf(info, sizeof(info), "%d%% lit   full in %.0fd", (int)(illum * 100 + 0.5), daysToFull);
     c.setTextSize(1); CenterText(c, info, cyTop + R + 40, dim);
 }
+
+// --------------------------------------------------------------------------------- solar wind
+void SpaceManager::DrawSolarWind(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t warn   = space::ScaleColor(palette.warn, gf);
+    const uint32_t alert  = space::ScaleColor(palette.alert, gf);
+    const uint32_t green  = space::ScaleColor(lgfx::color888(120, 210, 90), gf);
+
+    c.setTextSize(1); CenterText(c, "SOLAR WIND", 20, dim);
+
+    const space::SolarWind& sw = feed.SolarWind();
+    if (!sw.valid) { c.setTextSize(2); CenterText(c, "acquiring...", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    c.setTextSize(4); CenterText(c, String((int)lround(sw.speedKms)) + " km/s", SCREEN_SIZE_DIV_2 - 52, fg);
+    c.setTextSize(1); CenterText(c, String(sw.densityPcc, 1) + " p/cm3 density", SCREEN_SIZE_DIV_2 - 14, dim);
+
+    // Bz: negative (southward) drives aurora -> red; positive (northward) -> green.
+    const uint32_t bzCol = sw.bzNt <= -10 ? alert : sw.bzNt < 0 ? warn : green;
+    c.setTextSize(3); CenterText(c, "Bz " + String(sw.bzNt, 1) + " nT", SCREEN_SIZE_DIV_2 + 18, bzCol);
+    c.setTextSize(1);
+    CenterText(c, sw.bzNt <= -10 ? "strongly southward - aurora drive"
+                  : sw.bzNt < 0 ? "southward" : "northward (quiet)",
+               SCREEN_SIZE - 32, faint);
+}
+
+// ----------------------------------------------------------------------- NOAA R/S/G scales
+void SpaceManager::DrawScales(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t warn   = space::ScaleColor(palette.warn, gf);
+    const uint32_t alert  = space::ScaleColor(palette.alert, gf);
+
+    const int cx = SCREEN_SIZE_DIV_2, cy = SCREEN_SIZE_DIV_2;
+    const float startA = 135.0f, sweep = 270.0f;
+    c.setTextSize(1); CenterText(c, "NOAA SPACE-WX SCALES", 18, dim);
+
+    const space::NoaaScales& sc = feed.Scales();
+    if (!sc.valid) { c.setTextSize(2); CenterText(c, "acquiring...", cy - 8, dim); return; }
+
+    auto lvlColor = [&](int v) -> uint32_t { return v >= 4 ? alert : v >= 3 ? warn : v >= 1 ? fg : faint; };
+    const int R = SCREEN_SIZE_DIV_2 - 22;
+    // Three concentric gauges: G (outer), S (middle), R (inner).
+    const int rings[3][2] = { {R - 20, R}, {R - 46, R - 26}, {R - 72, R - 52} };
+    const int vals[3] = { sc.g, sc.s, sc.r };
+    for (int i = 0; i < 3; ++i) {
+        c.fillArc(cx, cy, rings[i][0], rings[i][1], startA, startA + sweep, faint);
+        if (vals[i] > 0)
+            c.fillArc(cx, cy, rings[i][0], rings[i][1], startA, startA + sweep * (vals[i] / 5.0f), lvlColor(vals[i]));
+    }
+
+    // Center readout.
+    c.setTextSize(2);
+    CenterText(c, "G" + String(sc.g), cy - 26, lvlColor(sc.g));
+    CenterText(c, "S" + String(sc.s), cy - 2, lvlColor(sc.s));
+    CenterText(c, "R" + String(sc.r), cy + 22, lvlColor(sc.r));
+    c.setTextSize(1); CenterText(c, "geomag / radiation / radio", SCREEN_SIZE - 30, faint);
+}
+
+// ------------------------------------------------------------------------------- aurora (local)
+void SpaceManager::DrawAurora(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = space::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = space::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = space::ScaleColor(palette.faint, gf);
+    const uint32_t warn   = space::ScaleColor(palette.warn, gf);
+    const uint32_t green  = space::ScaleColor(lgfx::color888(120, 210, 90), gf);
+
+    c.setTextSize(1); CenterText(c, "AURORA FORECAST", 22, dim);
+
+    const space::SpaceWx& wx = feed.Wx();
+    if (!wx.valid || !hasLatLon) { c.setTextSize(2); CenterText(c, "set location", SCREEN_SIZE_DIV_2 - 8, dim); return; }
+
+    const double gm = fabs(space::GeomagLatitude(deviceLat, deviceLon));
+    const float oval = space::AuroraOvalLat(wx.kp);
+
+    const char* verdict; uint32_t vcol;
+    if (gm >= oval)          { verdict = "OVERHEAD POSSIBLE"; vcol = green; }
+    else if (gm >= oval - 5) { verdict = "LOW ON N HORIZON";  vcol = warn; }
+    else                     { verdict = "UNLIKELY TONIGHT";  vcol = dim; }
+
+    c.setTextSize(3); CenterText(c, verdict, SCREEN_SIZE_DIV_2 - 40, vcol);
+    char l1[40]; snprintf(l1, sizeof(l1), "Kp %.1f   oval edge %.0f deg", wx.kp, oval);
+    char l2[40]; snprintf(l2, sizeof(l2), "your geomag lat %.0f deg", gm);
+    c.setTextSize(1); CenterText(c, l1, SCREEN_SIZE_DIV_2 + 2, dim);
+    c.setTextSize(1); CenterText(c, l2, SCREEN_SIZE_DIV_2 + 24, faint);
+
+    // Latitude bar 40..80 deg: oval edge tick vs your latitude marker.
+    const int bx = SCREEN_SIZE_DIV_2 - 120, bw = 240, by = SCREEN_SIZE - 48;
+    auto xfor = [&](float lat) { float f = (lat - 40.0f) / 40.0f; if (f < 0) f = 0; if (f > 1) f = 1; return bx + (int)(f * bw); };
+    c.drawFastHLine(bx, by, bw, faint);
+    c.fillRect(xfor(oval), by - 6, 2, 12, warn);                  // oval edge
+    c.fillCircle(xfor((float)gm), by, 4, gm >= oval ? green : fg); // you
+}

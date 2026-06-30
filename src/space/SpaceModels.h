@@ -45,6 +45,23 @@ struct SpaceWx {
     std::vector<float> history; // recent Kp values, oldest..newest, bounded (for a sparkline)
 };
 
+// --------------------------------------------------------------------------- solar wind
+struct SolarWind {
+    bool valid = false;
+    float speedKms = 0;     // bulk speed, km/s
+    float densityPcc = 0;   // proton density, p/cm^3
+    float bzNt = 0;         // IMF Bz, nT (negative = southward = aurora-driving)
+    long timeEpoch = 0;
+};
+
+// ------------------------------------------------------------------------- NOAA scales (R/S/G)
+struct NoaaScales {
+    bool valid = false;
+    int r = 0;  // radio blackout 0..5
+    int s = 0;  // solar radiation 0..5
+    int g = 0;  // geomagnetic storm 0..5
+};
+
 // --------------------------------------------------------------------- solar X-ray flares
 struct Flare {
     bool valid = false;
@@ -85,7 +102,7 @@ struct DeepSpaceTarget {
 };
 
 // ----------------------------------------------------------------- poller request / result
-enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans };
+enum class SpaceEndpoint : uint8_t { Iss, Launch, Kp, Dsn, DeepSpace, Flare, Humans, SolarWind, Scales };
 
 // Loop -> worker: a single GET to perform, fully built on the loop task.
 struct SpaceFetchRequest {
@@ -109,6 +126,8 @@ struct SpaceFetchResult {
     DeepSpaceTarget deepTarget;
     Flare flare;
     Crew crew;
+    SolarWind solarWind;
+    NoaaScales scales;
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -123,8 +142,15 @@ bool ParseHorizonsRange(const String& result, double& deltaAu, double& deldotKms
 bool ParseFlare(JsonArrayConst root, Flare& out);                               // SWPC GOES xrays-6-hour
 bool ParseCrew(JsonObjectConst root, Crew& out, size_t cap);                    // corquaid people-in-space mirror
 
+bool ParseSolarWind(JsonArrayConst root, SolarWind& out);                       // SWPC propagated-solar-wind
+bool ParseNoaaScales(JsonObjectConst root, NoaaScales& out);                    // SWPC noaa-scales.json
+
 // GOES long-band flux (W/m^2) -> NOAA class string, e.g. 1.95e-6 -> "C1.9", 2.4e-5 -> "M2.4".
 String XrayClass(float fluxWm2);
+// Centered-dipole geomagnetic latitude (deg) for a geographic lat/lon -- drives the aurora oval.
+double GeomagLatitude(double latDeg, double lonDeg);
+// Geomagnetic latitude of the visible auroral-oval equatorward edge for a given Kp (rough).
+float AuroraOvalLat(float kp);
 
 // Parse "YYYY-MM-DD(T| )hh:mm[:ss][.fff][Z|+oo:oo]" (treated as UTC) to a Unix epoch; 0 on failure.
 long Iso8601ToEpoch(const String& s);

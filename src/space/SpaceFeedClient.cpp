@@ -15,6 +15,8 @@ constexpr uint32_t DSN_MS        = 30000;     // ~30 s: which dish talks to whom
 constexpr uint32_t DEEPSPACE_MS  = 120000;    // ~2 m per target (round-robin); probes move slowly
 constexpr uint32_t FLARE_MS      = 90000;     // ~90 s: GOES X-ray updates ~1 min; flares evolve fast
 constexpr uint32_t HUMANS_MS     = 3600000;   // ~1 h: the crew roster changes rarely
+constexpr uint32_t SOLARWIND_MS  = 90000;     // ~90 s: DSCOVR solar wind, ~1 min cadence upstream
+constexpr uint32_t SCALES_MS     = 300000;    // ~5 m: NOAA R/S/G scales update slowly
 
 constexpr uint32_t MAX_BACKOFF_MS = 600000; // cap exponential backoff at 10 m
 
@@ -68,6 +70,8 @@ void SpaceFeedClient::Configure(const Config& newCfg)
     feeds[F_DEEPSPACE].intervalMs = (uint32_t)(DEEPSPACE_MS * sc);
     feeds[F_FLARE].intervalMs     = (uint32_t)(FLARE_MS * sc);
     feeds[F_HUMANS].intervalMs    = (uint32_t)(HUMANS_MS * sc);
+    feeds[F_SOLARWIND].intervalMs = (uint32_t)(SOLARWIND_MS * sc);
+    feeds[F_SCALES].intervalMs    = (uint32_t)(SCALES_MS * sc);
 
     // Stage the first poll of each endpoint shortly after (re)config, fanned out by ~400 ms so
     // they don't all hit the single TLS client at once.
@@ -154,6 +158,14 @@ bool SpaceFeedClient::BuildRequest(int feedIdx, SpaceFetchRequest& req)
             // corquaid GitHub-Pages mirror: fresh + reliable HTTPS (open-notify is stale/flaky).
             req.url = "https://corquaid.github.io/international-space-station-APIs/JSON/people-in-space.json";
             return true;
+        case F_SOLARWIND:
+            req.endpoint = space::SpaceEndpoint::SolarWind;
+            req.url = "https://services.swpc.noaa.gov/products/geospace/propagated-solar-wind-1-hour.json";
+            return true;
+        case F_SCALES:
+            req.endpoint = space::SpaceEndpoint::Scales;
+            req.url = "https://services.swpc.noaa.gov/products/noaa-scales.json";
+            return true;
         case F_DEEPSPACE: {
             // Needs NTP for the START/STOP date window; skip (re-arm) until the clock is set.
             const time_t now = time(nullptr);
@@ -197,6 +209,8 @@ int SpaceFeedClient::FeedForEndpoint(space::SpaceEndpoint e)
         case space::SpaceEndpoint::DeepSpace: return F_DEEPSPACE;
         case space::SpaceEndpoint::Flare:     return F_FLARE;
         case space::SpaceEndpoint::Humans:    return F_HUMANS;
+        case space::SpaceEndpoint::SolarWind: return F_SOLARWIND;
+        case space::SpaceEndpoint::Scales:    return F_SCALES;
     }
     return F_ISS;
 }
@@ -246,6 +260,12 @@ void SpaceFeedClient::ApplyResult(const SpaceFetchResult& res)
         case space::SpaceEndpoint::Humans:
             crew = res.crew;
             break;
+        case space::SpaceEndpoint::SolarWind:
+            solarWind = res.solarWind;
+            break;
+        case space::SpaceEndpoint::Scales:
+            scales = res.scales;
+            break;
     }
 
     // One-line confirmation the first time each feed lands (handy for field/serial diagnostics).
@@ -280,6 +300,12 @@ void SpaceFeedClient::ApplyResult(const SpaceFetchResult& res)
                 break;
             case space::SpaceEndpoint::Humans:
                 Serial.printf("[space] humans ok: %d in space\n", crew.number);
+                break;
+            case space::SpaceEndpoint::SolarWind:
+                Serial.printf("[space] solarwind ok: %.0f km/s  Bz %.1f nT\n", solarWind.speedKms, solarWind.bzNt);
+                break;
+            case space::SpaceEndpoint::Scales:
+                Serial.printf("[space] scales ok: R%d S%d G%d\n", scales.r, scales.s, scales.g);
                 break;
         }
     }
@@ -360,6 +386,12 @@ void SpaceFeedClient::Fetch(HttpRequestManager& http,
             break;
         case space::SpaceEndpoint::Humans:
             res.ok = space::ParseCrew(doc.as<JsonObjectConst>(), res.crew, 16);
+            break;
+        case space::SpaceEndpoint::SolarWind:
+            res.ok = space::ParseSolarWind(doc.as<JsonArrayConst>(), res.solarWind);
+            break;
+        case space::SpaceEndpoint::Scales:
+            res.ok = space::ParseNoaaScales(doc.as<JsonObjectConst>(), res.scales);
             break;
         case space::SpaceEndpoint::Dsn:
             break; // handled above

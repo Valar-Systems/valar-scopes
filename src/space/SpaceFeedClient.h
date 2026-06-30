@@ -47,9 +47,12 @@ public:
     const std::vector<space::DeepSpaceTarget>& DeepTargets() const { return deepTargets; }
     const space::Flare& Flare() const { return flare; }
     const space::Crew& Crew() const { return crew; }
+    const space::SolarWind& SolarWind() const { return solarWind; }
+    const space::NoaaScales& Scales() const { return scales; }
 
 private:
-    enum FeedIdx : uint8_t { F_ISS, F_LAUNCH, F_KP, F_DSN, F_DEEPSPACE, F_FLARE, F_HUMANS, F_COUNT };
+    enum FeedIdx : uint8_t { F_ISS, F_LAUNCH, F_KP, F_DSN, F_DEEPSPACE, F_FLARE, F_HUMANS,
+                             F_SOLARWIND, F_SCALES, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -69,6 +72,8 @@ private:
     int deepIdx = 0;                                 // DeepSpace round-robin cursor (one target per poll)
     space::Flare flare;
     space::Crew crew;
+    space::SolarWind solarWind;
+    space::NoaaScales scales;
 
     bool firstLogged[F_COUNT] = {}; // log a one-line summary the first time each feed lands
 

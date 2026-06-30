@@ -46,7 +46,8 @@ private:
     // so BuildRotation() is never empty; Splash is a cold-start welcome shown only until a live
     // feed has data. Later stages add more (DSN, Voyager, flares, ISS passes, ...).
     enum class Screen : uint8_t {
-        Iss, Launch, Kp, Flare, Dsn, DeepSpace, Humans, Moon, Splash, Clock, COUNT
+        Iss, Launch, Kp, SolarWind, Scales, Flare, Aurora, Dsn, DeepSpace, Humans, Moon,
+        Splash, Clock, COUNT
     };
 
     ConfigurationWebServer& configServer;
@@ -110,6 +111,9 @@ private:
     void DrawIss(BandCanvas& c);
     void DrawLaunch(BandCanvas& c);
     void DrawKp(BandCanvas& c);
+    void DrawSolarWind(BandCanvas& c);
+    void DrawScales(BandCanvas& c);
+    void DrawAurora(BandCanvas& c);
     void DrawDsn(BandCanvas& c);
     void DrawDeepSpace(BandCanvas& c);
     void DrawFlare(BandCanvas& c);

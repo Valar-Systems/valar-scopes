@@ -72,7 +72,10 @@ void SpaceManager::Initialise()
         if (id == "iss")       { out = Screen::Iss;       return true; }
         if (id == "launch")    { out = Screen::Launch;    return true; }
         if (id == "kp")        { out = Screen::Kp;        return true; }
+        if (id == "solarwind") { out = Screen::SolarWind; return true; }
+        if (id == "scales")    { out = Screen::Scales;    return true; }
         if (id == "flare")     { out = Screen::Flare;     return true; }
+        if (id == "aurora")    { out = Screen::Aurora;    return true; }
         if (id == "dsn")       { out = Screen::Dsn;       return true; }
         if (id == "deepspace") { out = Screen::DeepSpace; return true; }
         if (id == "humans")    { out = Screen::Humans;    return true; }
@@ -154,7 +157,10 @@ void SpaceManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
         case Screen::Iss:       DrawIss(backbuffer); break;
         case Screen::Launch:    DrawLaunch(backbuffer); break;
         case Screen::Kp:        DrawKp(backbuffer); break;
+        case Screen::SolarWind: DrawSolarWind(backbuffer); break;
+        case Screen::Scales:    DrawScales(backbuffer); break;
         case Screen::Flare:     DrawFlare(backbuffer); break;
+        case Screen::Aurora:    DrawAurora(backbuffer); break;
         case Screen::Dsn:       DrawDsn(backbuffer); break;
         case Screen::DeepSpace: DrawDeepSpace(backbuffer); break;
         case Screen::Humans:    DrawHumans(backbuffer); break;
@@ -173,7 +179,11 @@ bool SpaceManager::HasData(Screen s) const
         case Screen::Iss:    return feed.Iss().valid;
         case Screen::Launch: return !feed.Launches().empty();
         case Screen::Kp:     return feed.Wx().valid;
+        case Screen::SolarWind: return feed.SolarWind().valid;
+        case Screen::Scales: return feed.Scales().valid;
         case Screen::Flare:  return feed.Flare().valid;
+        case Screen::Aurora: return hasLatLon && feed.Wx().valid; // needs location + Kp
+
         case Screen::Dsn:    return feed.Dsn().valid && !feed.Dsn().links.empty();
         case Screen::DeepSpace: {
             for (const space::DeepSpaceTarget& t : feed.DeepTargets()) if (t.valid) return true;
@@ -185,6 +195,7 @@ bool SpaceManager::HasData(Screen s) const
         case Screen::Splash: {
             bool any = feed.Iss().valid || !feed.Launches().empty() || feed.Wx().valid ||
                        feed.Flare().valid || (feed.Crew().valid && feed.Crew().number > 0) ||
+                       feed.SolarWind().valid || feed.Scales().valid ||
                        (feed.Dsn().valid && !feed.Dsn().links.empty());
             for (const space::DeepSpaceTarget& t : feed.DeepTargets()) if (t.valid) any = true;
             return !any;
@@ -303,18 +314,25 @@ void SpaceManager::CheckAlerts()
         lastLaunchSecs = secs;
     }
 
-    // --- Aurora: fire once when Kp crosses up to the threshold; re-arm when it drops back below.
+    // --- Aurora: fire once when Kp crosses up to the threshold AND (if a location is set) the oval
+    // actually reaches the user's geomagnetic latitude; re-arm when either condition drops.
     const space::SpaceWx& wx = feed.Wx();
     if (wx.valid) {
         const bool high = wx.kp >= KP_AURORA_THRESH;
-        if (high && !kpAlerted) {
+        bool reachable = true;
+        if (hasLatLon) {
+            const double gm = fabs(space::GeomagLatitude(deviceLat, deviceLon));
+            reachable = gm >= (double)space::AuroraOvalLat(wx.kp) - 3.0; // within ~3 deg of the visible edge
+        }
+        if (high && reachable && !kpAlerted) {
             kpAlerted = true;
             int g = (int)floorf(wx.kp) - 4;      // Kp 5..9 -> G1..G5
             if (g < 1) g = 1; else if (g > 5) g = 5;
-            char body[48];
-            snprintf(body, sizeof(body), "Kp %.1f (G%d) - aurora likely", wx.kp, g);
+            char body[64];
+            snprintf(body, sizeof(body), "Kp %.1f (G%d) - aurora %s", wx.kp, g,
+                     hasLatLon ? "may be visible at your location" : "likely");
             if (alertAurora) SendNtfy("Aurora watch", body, "zap", 4);
-        } else if (!high) {
+        } else if (!(high && reachable)) {
             kpAlerted = false;
         }
     }

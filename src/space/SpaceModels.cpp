@@ -1,5 +1,6 @@
 #include "SpaceModels.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -225,6 +226,55 @@ bool ParseCrew(JsonObjectConst root, Crew& out, size_t cap)
     if (out.number <= 0) out.number = (int)out.people.size();
     out.valid = true;
     return true;
+}
+
+bool ParseSolarWind(JsonArrayConst root, SolarWind& out)
+{
+    if (root.isNull()) return false;
+    // propagated-solar-wind-1-hour.json: array-of-arrays, row 0 header, then data newest-last.
+    // Cols: [time_tag, speed, density, temperature, bx, by, bz, bt, ...] -- values are numbers.
+    JsonArrayConst last;
+    for (JsonArrayConst row : root) {
+        if (row.isNull() || row.size() < 7) continue;
+        if (row[1].is<const char*>()) continue; // skip the header row (string fields)
+        last = row;
+    }
+    if (last.isNull()) return false;
+    out.speedKms = last[1] | 0.0f;
+    out.densityPcc = last[2] | 0.0f;
+    out.bzNt = last[6] | 0.0f;
+    out.timeEpoch = Iso8601ToEpoch((const char*)(last[0] | ""));
+    out.valid = true;
+    return true;
+}
+
+bool ParseNoaaScales(JsonObjectConst root, NoaaScales& out)
+{
+    if (root.isNull()) return false;
+    JsonObjectConst cur = root["0"].as<JsonObjectConst>(); // key "0" = current observed scales
+    if (cur.isNull()) return false;
+    out.r = String((const char*)(cur["R"]["Scale"] | "0")).toInt();
+    out.s = String((const char*)(cur["S"]["Scale"] | "0")).toInt();
+    out.g = String((const char*)(cur["G"]["Scale"] | "0")).toInt();
+    out.valid = true;
+    return true;
+}
+
+double GeomagLatitude(double latDeg, double lonDeg)
+{
+    // Centered-dipole geomagnetic north pole ~ 80.65N, 72.68W (epoch ~2020).
+    constexpr double D2R = M_PI / 180.0;
+    const double poleLat = 80.65 * D2R, poleLon = -72.68 * D2R;
+    const double lat = latDeg * D2R, lon = lonDeg * D2R;
+    double s = sin(lat) * sin(poleLat) + cos(lat) * cos(poleLat) * cos(lon - poleLon);
+    if (s > 1) s = 1; if (s < -1) s = -1;
+    return asin(s) * 180.0 / M_PI;
+}
+
+float AuroraOvalLat(float kp)
+{
+    if (kp < 0) kp = 0; if (kp > 9) kp = 9;
+    return 66.5f - 2.0f * kp; // ~66.5 deg geomag at Kp0, dropping ~2 deg per Kp step
 }
 
 String XrayClass(float f)
