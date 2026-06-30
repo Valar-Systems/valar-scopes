@@ -2,7 +2,7 @@
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #endif
 
@@ -29,7 +29,7 @@
 // The page is feature-specific: the radar build serves the radar settings form below; the
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -852,6 +852,131 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_BIRDING)
+// FEATURE_BIRDING (Birding edition) config page: eBird API key (BYO, masked), location, search
+// radius/look-back, target species, ntfy alerts, display. Shares the page chrome / JS pattern.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Blipscope Birding</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,20,8)'/><circle cx='6.5' cy='7' r='3' fill='rgb(150,220,130)'/><circle cx='7.5' cy='6.2' r='0.7' fill='rgb(8,20,8)'/><path d='M9 7 L13 6 L10 8 Z' fill='rgb(255,215,90)'/></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+    </head>
+    <body class="font-mono bg-gray-900 text-green-300 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
+        <fieldset class="border border-green-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
+            <legend class="px-2">Configure Blipscope &mdash; Birding</legend>
+
+            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">eBird</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>API key:</span>
+                        <input name="ebird-key" value='%EBIRD_KEY%'
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-green-600 mt-1">Free with an eBird account &mdash; generate one at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener" class="underline">ebird.org/api/keygen</a>. It's stored on the device and sent only to eBird. Nothing is fetched until a key and location are set.</span>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Latitude:</span>
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Longitude:</span>
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                </div>
+                <span class="text-xs text-green-600">Your location centres the sightings radar, the nearby feeds, and alerts.</span>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Search</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                            <span>Radius (km, max 50):</span>
+                            <input name="bd-radius-km" type="number" min="1" max="50" value='%BD_RADIUS%'
+                                class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                            <span>Look-back (days, max 30):</span>
+                            <input name="bd-back-days" type="number" min="1" max="30" value='%BD_BACK%'
+                                class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Targets</legend>
+                    <label class="flex flex-col gap-1">
+                        <span>Target species (comma-separated names or codes):</span>
+                        <input name="bd-targets" value='%BD_TARGETS%' placeholder="e.g. Painted Bunting, Snowy Owl"
+                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-green-600 mt-1">A "Targets" screen lists matches nearby, and (with a topic below) you get a phone alert when one appears.</span>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Alerts (ntfy)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>ntfy.sh topic:</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                        <label class="flex items-center gap-2"><input name="bd-alert-notable" type="checkbox" %AL_NOTABLE% class="accent-green-400"><span>Notable / rare sighting nearby</span></label>
+                        <label class="flex items-center gap-2"><input name="bd-alert-target" type="checkbox" %AL_TARGET% class="accent-green-400"><span>Target species appears</span></label>
+                    </div>
+                    <span class="text-xs text-green-600 mt-1">Leave the topic blank to disable all push alerts.</span>
+                </fieldset>
+
+                <fieldset class="border border-green-500 p-3">
+                    <legend class="px-2">Display</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-green-400"><span>Auto-dim at night</span></label>
+                    </div>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-green-400">
+                    </label>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <input type="submit" value="Save"
+                        class="bg-green-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                    <button type="button" id="resetwifi"
+                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                        Reset WiFi</button>
+                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                </div>
+            </form>
+
+            <div class="flex justify-between items-end text-xs text-green-600 mt-4">
+                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-green-300 underline">Help &amp; documentation</a>
+                <span>Firmware v%FW_VERSION% (Birding)</span>
+            </div>
+        </fieldset>
+
+        <script>
+            document.getElementById('cfg').addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            document.getElementById('resetwifi').addEventListener('click', function() {
+                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
+                fetch('/reset-wifi', { method: 'POST' })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+        </script>
+    </body>
+</html>
+)";
 #endif
 
 void ConfigurationWebServer::Initialise() {
@@ -879,7 +1004,7 @@ void ConfigurationWebServer::Initialise() {
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING)
         const String latitude = prefs.getString("latitude", "");
         const String longitude = prefs.getString("longitude", "");
         const String radius = prefs.getString("radius", "100");
@@ -1001,21 +1126,38 @@ void ConfigurationWebServer::Initialise() {
         const String alertTsunami = prefs.isKey("se-alert-tsunami") ? prefs.getString("se-alert-tsunami", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
+#elif defined(FEATURE_BIRDING)
+        // FEATURE_BIRDING: load the Birding edition config fields. ebirdKey is non-const so it can be
+        // masked before sending to the client (same masked-value guard on save).
+        String ebirdKey = prefs.getString("ebird-key", "");
+        const String latitude = prefs.getString("latitude", "");
+        const String longitude = prefs.getString("longitude", "");
+        const String bdRadius = prefs.isKey("bd-radius-km") ? prefs.getString("bd-radius-km", "25") : "25";
+        const String bdBack = prefs.isKey("bd-back-days") ? prefs.getString("bd-back-days", "7") : "7";
+        const String bdTargets = prefs.getString("bd-targets", "");
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String alertNotable = prefs.isKey("bd-alert-notable") ? prefs.getString("bd-alert-notable", "true") : "true";
+        const String alertTarget = prefs.isKey("bd-alert-target") ? prefs.getString("bd-alert-target", "true") : "true";
+        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
+        const String brightness = prefs.getString("brightness", "255");
 #endif
         prefs.end();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
 #elif defined(FEATURE_EAM)
         // mask the OpenSky secret before sending to the client (same masked-value guard on save)
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
+#elif defined(FEATURE_BIRDING)
+        // mask the eBird key before sending to the client (same masked-value guard on save)
+        std::fill(ebirdKey.begin(), ebirdKey.end(), '*');
 #endif
         // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -1141,6 +1283,27 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_BIRDING)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [ebirdKey, latitude, longitude, bdRadius, bdBack, bdTargets, ntfyTopic, alertNotable, alertTarget, autoDimEnabled, brightness]
+            (const String& var) -> String {
+                if (var == "EBIRD_KEY")      return ebirdKey;
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "BD_RADIUS")      return bdRadius;
+                if (var == "BD_BACK")        return bdBack;
+                if (var == "BD_TARGETS")     return bdTargets;
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
+                if (var == "AL_NOTABLE")     return alertNotable == "true" ? "checked" : "";
+                if (var == "AL_TARGET")      return alertTarget == "true" ? "checked" : "";
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -1165,7 +1328,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING)
         TrySaveParam("latitude");
         TrySaveParam("longitude");
         TrySaveParam("radius");
@@ -1286,6 +1449,26 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("se-alert-near", request->hasParam("se-alert-near", true) ? "true" : "false");
         prefs.putString("se-alert-tsunami", request->hasParam("se-alert-tsunami", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+#elif defined(FEATURE_BIRDING)
+        // FEATURE_BIRDING: persist the Birding edition config fields.
+        TrySaveParam("latitude");
+        TrySaveParam("longitude");
+        TrySaveParam("bd-radius-km");
+        TrySaveParam("bd-back-days");
+        TrySaveParam("bd-targets");
+        TrySaveParam("ntfy-topic");
+        TrySaveParam("brightness");
+        prefs.putString("bd-alert-notable", request->hasParam("bd-alert-notable", true) ? "true" : "false");
+        prefs.putString("bd-alert-target", request->hasParam("bd-alert-target", true) ? "true" : "false");
+        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+
+        // eBird key: don't overwrite the stored value with the masked placeholder
+        const auto* ebirdParam = request->getParam("ebird-key", true);
+        if (ebirdParam != nullptr) {
+            const String& k = ebirdParam->value();
+            if (k.indexOf('*') == -1)
+                prefs.putString("ebird-key", k);
+        }
 #endif
         prefs.end();
 
