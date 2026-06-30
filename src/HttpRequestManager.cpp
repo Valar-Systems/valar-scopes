@@ -82,6 +82,51 @@ String HttpRequestManager::BuildQueryString(const std::vector<std::pair<String, 
     return queryStream;
 }
 
+String HttpRequestManager::ReadBodyYielding()
+{
+    // A thumbnail is ~10-30 KB; the cap guards heap and bounds the read time. STALL_MS is the
+    // no-progress timeout and stays well under the 10 s Task-WDT (the loop yields, so even a
+    // stalled host is WDT-safe). A truncated/short read just makes drawJpg fail -> no photo,
+    // never a crash.
+    constexpr size_t   MAX_BODY = 64 * 1024;
+    constexpr uint32_t STALL_MS = 8000;
+
+    String out;
+    auto* stream = http.getStreamPtr(); // WiFiClient* (alias varies across core versions)
+    if (stream == nullptr) return out;
+
+    const int contentLen = http.getSize(); // Content-Length, or -1 when chunked/unknown
+    if (contentLen > 0) out.reserve((size_t)(contentLen < (int)MAX_BODY ? contentLen : MAX_BODY));
+
+    uint8_t buf[512];
+    size_t total = 0;
+    uint32_t lastProgress = millis();
+    uint32_t reads = 0;
+
+    while (http.connected() || stream->available() > 0) {
+        const size_t avail = (size_t)stream->available();
+        if (avail == 0) {
+            if (millis() - lastProgress > STALL_MS) break; // stalled host: bail (WDT-safe)
+            delay(2);                                       // yield to idle + async_tcp
+            continue;
+        }
+        size_t want = avail < sizeof(buf) ? avail : sizeof(buf);
+        if (total + want > MAX_BODY) want = MAX_BODY - total;
+        const int got = stream->readBytes(buf, want);
+        if (got > 0) {
+            out.concat(reinterpret_cast<const char*>(buf), (unsigned int)got);
+            total += got;
+            lastProgress = millis();
+        }
+        // Let core 0's priority-0 idle task run every few reads so a steady stream can't
+        // monopolise the core and trip the Task-WDT (this is what getString() fails to do).
+        if ((++reads & 0x07) == 0) delay(1);
+        if (total >= MAX_BODY) break;
+        if (contentLen > 0 && total >= (size_t)contentLen) break;
+    }
+    return out;
+}
+
 HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pair<String, String>>& params, const std::vector<std::pair<String, String>>& headers) {
     HttpResult result{ false, 0, "", "" };
 
@@ -116,7 +161,9 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
 
     if (responseCode > 0) {
         result.success = true;
-        result.response = http.getString();
+        // Yielding, size-capped body read -- getString() here starved core 0's idle task on a
+        // slow photo download and tripped the Task-WDT into a reboot (see ReadBodyYielding).
+        result.response = ReadBodyYielding();
     }
     else {
         result.success = false;

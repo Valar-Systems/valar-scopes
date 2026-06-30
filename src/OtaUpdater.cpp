@@ -14,15 +14,14 @@ namespace {
 //
 // All SKUs are built and released together from one commit, so a single shared
 // version.txt (an integer) gates everyone. Each SKU then downloads ITS OWN binary,
-// named by its variant slug -- a C3 must never flash an S3 image and vice-versa. CI
-// publishes firmware-<slug>.bin per SKU (see RELEASING.md). For migrating devices that
-// shipped before per-SKU naming, the release also keeps a legacy firmware.bin alias.
+// named by its variant slug -- one SKU must never flash another's image. CI
+// publishes firmware-<slug>.bin per SKU (see RELEASING.md).
 const char* VERSION_URL = "https://github.com/Valar-Systems/Blipscope/releases/latest/download/version.txt";
 
 // FEATURE_EAM and the radar app can share a board (and thus a variant::SLUG) while shipping
 // as separate products, so they ride separate OTA channels: FW_OTA_PREFIX is empty for the
-// radar build and "eam-" for the EAM build, keeping firmware-c3-128.bin and
-// firmware-eam-c3-128.bin distinct. A device only ever fetches its own channel's binary.
+// radar build and "eam-" for the EAM build, keeping firmware-s3-146.bin and
+// firmware-eam-s3-146.bin distinct. A device only ever fetches its own channel's binary.
 #ifndef FW_OTA_PREFIX
 #define FW_OTA_PREFIX ""
 #endif

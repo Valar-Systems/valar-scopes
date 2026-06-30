@@ -46,6 +46,9 @@ namespace variant {
     constexpr bool ENRICH_ALWAYS = false; // heap-gated; enrich only when free heap allows a TLS handshake
     constexpr bool HAS_AUDIO     = false; // no speaker
     constexpr bool HAS_IMU       = false; // no accelerometer/gyro
+    constexpr bool SERIALIZE_TOUCH_BUS = true; // single-core: a touch I2C transfer overlapping a TLS
+                                               // handshake wedges the CST816, so HandleTouch gates the
+                                               // poll on the HTTP request mutex (see AircraftManager)
 
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
     constexpr char SLUG[] = "c3-128";

@@ -4,18 +4,18 @@ Guidance for working in this repo. Keep it short; the code is well-commented —
 
 ## What this is
 
-Blipscope: ESP32-C3 firmware for a 1.28" round GC9A01 display + CST816T capacitive touch — a desk flight radar fed by OpenSky (cloud) or a local dump1090/readsb `aircraft.json`. PlatformIO + Arduino (pioarduino platform). See [README.md](README.md) for the product/user side.
+Blipscope: ESP32-S3 firmware for round touch LCDs — a desk flight radar fed by OpenSky (cloud) or a local dump1090/readsb `aircraft.json`. PlatformIO + Arduino (pioarduino platform). The original ESP32-C3 Kit (1.28" GC9A01 + CST816T) is retired; the codebase is **S3-only** now (its single-core guards stay in the tree, inert — see below). See [README.md](README.md) for the product/user side.
 
 ## Build / flash / monitor
 
-Multi-SKU: one PlatformIO env per hardware variant (see [platformio.ini](platformio.ini)). The C3 Kit (`blipscope-kit-c3-128`) is the default; S3 SKUs are added at bring-up.
+Multi-SKU: one PlatformIO env per hardware variant (see [platformio.ini](platformio.ini)). The S3 1.46" (`blipscope-s3-146`) is the default; the original C3 Kit is retired (S3-only).
 
 ```sh
-pio run                                       # build the default (C3) env
-pio run -e blipscope-kit-c3-128 -t upload     # flash over USB-C (esptool)
+pio run                                       # build the default (S3 1.46") env
+pio run -e blipscope-s3-146 -t upload         # flash over USB-C (esptool)
 pio device monitor -b 115200                  # serial at 115200
 pio run -e <env> -t upload -t monitor         # build+flash+monitor a specific SKU
-pio run -e blipscope-eam-c3-128 -t upload     # flash the EAM monitor (same C3 hardware; see FEATURE_EAM)
+pio run -e blipscope-eam-s3-146 -t upload     # flash the EAM monitor (same S3 board; see FEATURE_EAM)
 ```
 
 In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-reset: hold **BOOT**, tap **RESET**, release **BOOT**.
@@ -27,7 +27,7 @@ In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-
 
 Blipscope is several boards from one codebase. A `-DBLIPSCOPE_VARIANT_*` flag (set per env) selects a header in [include/variants/](include/variants/) defining pins, the display/touch driver (`BLIPSCOPE_PANEL_*` / `BLIPSCOPE_TOUCH_*`), capability flags (`BANDED_RENDER`, `ENRICH_ALWAYS`, `HAS_AUDIO`, `HAS_IMU`), and `SLUG`/`NAME`. Shared code never hardcodes hardware: geometry comes from [Layout.h](include/Layout.h) (from `variant::SCREEN_SIZE`), behaviour from `variant::*`, and display config from those macros in [LGFX.h](include/LGFX.h) (add a panel via an `#if` block). **Add a SKU = a variant header + an `[env:*]` + a CI matrix row** ([RELEASING.md](RELEASING.md)). Don't reintroduce hardcoded `240`/pins.
 
-Two SKUs exist today: `blipscope-kit-c3-128` (the C3 baseline) and `blipscope-pro-s3-21` (Waveshare ESP32-S3-Touch-LCD-2.1 — first **S3** SKU and first **RGB-bus** panel, an ST7701 480×480). The S3-2.1 also has two board-specific wrinkles the model doesn't share: its panel/touch reset and the ST7701 init chip-select hang off a **TCA9554 I²C IO expander**, and it carries an IMU + buzzer. Both are handled behind the variant: `variant::BoardPreInit()` (a hook called in [setup()](src/main.cpp) before `tft.init()`; a no-op on the C3) drives the expander, and the IMU/buzzer live in [src/board/board_s3_touch21.cpp](src/board/board_s3_touch21.cpp) behind `board::*` (no-ops elsewhere via [Board.h](include/Board.h)). All board I²C uses LovyanGFX's `lgfx::i2c` (same owner as touch) on the loop task — don't reach for Arduino `Wire`.
+The radar SKUs are all S3: `blipscope-s3-146` (Waveshare ESP32-S3-Touch-LCD-1.46B — SPD2010 412×412 QSPI; the default) and `blipscope-pro-s3-21` (Waveshare ESP32-S3-Touch-LCD-2.1 — first **RGB-bus** panel, an ST7701 480×480). The original `blipscope-kit-c3-128` is retired; its variant header stays in the tree, inert. The S3-2.1 also has two board-specific wrinkles the model doesn't share: its panel/touch reset and the ST7701 init chip-select hang off a **TCA9554 I²C IO expander**, and it carries an IMU + buzzer. Both are handled behind the variant: `variant::BoardPreInit()` (a hook called in [setup()](src/main.cpp) before `tft.init()`; a no-op on the C3) drives the expander, and the IMU/buzzer live in [src/board/board_s3_touch21.cpp](src/board/board_s3_touch21.cpp) behind `board::*` (no-ops elsewhere via [Board.h](include/Board.h)). All board I²C uses LovyanGFX's `lgfx::i2c` (same owner as touch) on the loop task — don't reach for Arduino `Wire`.
 
 ## FEATURE_EAM — a second product from this codebase
 
@@ -41,7 +41,7 @@ Two SKUs exist today: `blipscope-kit-c3-128` (the C3 baseline) and `blipscope-pr
 
 ## The C3's three hard constraints — read before changing memory, networking, or touch
 
-These apply to the **C3 Kit** SKU: a **single-core RISC-V** chip with a tight, fragmenting heap — most non-obvious code exists to live within that, so don't "simplify" it away. The S3 SKUs (dual-core + PSRAM) relax all three (full framebuffer, enrichment always-on, touch and network on separate cores) via the variant's capability flags rather than by deleting the guards:
+These applied to the now-**retired C3 Kit** SKU: a **single-core RISC-V** chip with a tight, fragmenting heap — most non-obvious shared code exists to live within that. The board is gone, but its guards stay in the tree (inert on S3, gated by capability flags), so this section stays as reference and a C3 could be revived: **don't "simplify" the guards away.** The S3 SKUs (dual-core + PSRAM) relax all three (full framebuffer, enrichment always-on, touch and network on separate cores) via the variant's capability flags rather than by deleting the guards:
 
 1. **Contiguous heap is scarce (~24–28 KB largest block).** A TLS handshake needs a big contiguous block. That's why the radar renders in two 240×120 bands instead of one 240×240 sprite ([BandCanvas](include/BandCanvas.h), [main.cpp](src/main.cpp)), why feeds are parsed straight off the socket (`GetJson`), and why adsbdb enrichment is **heap-gated** (skipped, not forced, when the largest block is small — `ENRICH_TLS_HEAP_FLOOR`). Do not shrink the shared TLS buffers.
 2. **Touch I2C must never overlap a TLS handshake.** On the single core, an overlapping CST816 transfer wedges the controller off the bus until reboot. Touch is serialized against network via the HTTP client's request mutex — `HttpRequestManager::TryAcquireBus/ReleaseBus`, used in `AircraftManager::HandleTouch` (gated on the radar view, ungated on the detail card so close-taps are instant). Background enrichment also pauses briefly after a touch. See PR #8 / commit `56a3df2` for the full diagnosis. There is intentionally **no** RST/bit-bang touch watchdog — it thrashed on auto-sleep and never recovered a real wedge.
