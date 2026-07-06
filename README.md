@@ -167,7 +167,7 @@ pio run -e blipscope-eam-s3-146     -t upload   # 📟 Missileer  — EAM/HFGCS 
 pio run -e blipscope-space-s3-146   -t upload   # 🛰️ Orbitscope — Space, S3 1.46" AMOLED
 pio run -e blipscope-seismic-s3-146 -t upload   # 🌐 Quakescope — USGS quake radar, S3 1.46" AMOLED
 pio run -e blipscope-birding-s3-146 -t upload   # 🐦 Quillscope — eBird sightings, S3 1.46" AMOLED
-pio run -e blipscope-angler-s3-146  -t upload   # 🎣 Reelscope  — Fishing (solunar/tides), S3 1.46" AMOLED
+pio run -e blipscope-fishing-s3-146 -t upload   # 🎣 Reelscope  — Fishing (fresh + salt conditions), S3 1.46" AMOLED
 ```
 
 The product name, its build flag, and its env line up one-to-one (the env/flag names are unchanged from the pre-naming line-up):
@@ -177,7 +177,7 @@ The product name, its build flag, and its env line up one-to-one (the env/flag n
 - **Orbitscope** = `FEATURE_SPACE` = `blipscope-space-s3-146`
 - **Quakescope** = `FEATURE_SEISMIC` = `blipscope-seismic-s3-146`
 - **Quillscope** = `FEATURE_BIRDING` = `blipscope-birding-s3-146`
-- **Reelscope** = `FEATURE_ANGLER` = `blipscope-angler-s3-146`
+- **Reelscope** = `FEATURE_FISHING` = `blipscope-fishing-s3-146`
 
 Each non-default edition reuses the same boards, Wi-Fi setup, web config, and OTA, but compiles a different app and ships on its own OTA channel (`firmware-<edition>-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
 
