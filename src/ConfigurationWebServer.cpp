@@ -2,7 +2,7 @@
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #endif
 
@@ -80,7 +80,7 @@ static const size_t ANGLER_SCREEN_DEF_COUNT = sizeof(ANGLER_SCREEN_DEFS) / sizeo
 // The page is feature-specific: the radar build serves the radar settings form below; the
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -1132,6 +1132,164 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_FISHING)
+// FEATURE_FISHING (Reelscope) config page: water type, freshwater (USGS) + saltwater (NOAA/NDBC)
+// stations, per-view toggles, ntfy alerts + thresholds, display, and an optional aggregator. All
+// feeds are keyless -- no masked secret. Shares the page chrome / JS pattern with the other editions.
+// (Competing implementation of the merged Angler edition.)
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Reelscope</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(4,16,22)'/><path d='M2 8 Q5 4 9 8 Q5 12 2 8 Z' fill='rgb(120,220,255)'/><circle cx='4' cy='7.4' r='0.6' fill='rgb(4,16,22)'/><path d='M9 8 L13 5 L12 8 L13 11 Z' fill='rgb(120,230,140)'/></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+    </head>
+    <body class="font-mono bg-gray-900 text-cyan-200 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
+        <fieldset class="border border-cyan-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
+            <legend class="px-2">Configure Reelscope &mdash; Fishing</legend>
+
+            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+
+                <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span>Water type:</span>
+                    <select name="fi-water" class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <option value="both" %FI_WATER_BOTH%>Both</option>
+                        <option value="fresh" %FI_WATER_FRESH%>Freshwater only</option>
+                        <option value="salt" %FI_WATER_SALT%>Saltwater only</option>
+                    </select>
+                </label>
+                <span class="text-xs text-cyan-500">Fresh-only and salt-only skip the other family's feeds entirely.</span>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Latitude:</span>
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
+                            class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Longitude:</span>
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
+                            class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                </div>
+                <span class="text-xs text-cyan-500">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim.</span>
+
+                <fieldset class="border border-cyan-500 p-3">
+                    <legend class="px-2">Freshwater (USGS)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>USGS site number:</span>
+                        <input name="fi-usgs" value='%FI_USGS%' placeholder="e.g. 08167000"
+                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-cyan-500 mt-1">Find your gauge at <a href="https://waterdata.usgs.gov" target="_blank" rel="noopener" class="underline">waterdata.usgs.gov</a>. Keyless.</span>
+                </fieldset>
+
+                <fieldset class="border border-cyan-500 p-3">
+                    <legend class="px-2">Saltwater (NOAA)</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                            <span>CO-OPS tide station:</span>
+                            <input name="fi-noaa" value='%FI_NOAA%' placeholder="e.g. 8443970"
+                                class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                            <span>NDBC buoy:</span>
+                            <input name="fi-buoy" value='%FI_BUOY%' placeholder="e.g. 44013"
+                                class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                    </div>
+                    <span class="text-xs text-cyan-500 mt-1">Stations at <a href="https://tidesandcurrents.noaa.gov" target="_blank" rel="noopener" class="underline">tidesandcurrents.noaa.gov</a> / buoys at <a href="https://www.ndbc.noaa.gov" target="_blank" rel="noopener" class="underline">ndbc.noaa.gov</a>. Keyless.</span>
+                </fieldset>
+
+                <fieldset class="border border-cyan-500 p-3">
+                    <legend class="px-2">Views</legend>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <label class="flex items-center gap-2"><input name="fi-v-tide" type="checkbox" %FI_V_TIDE% class="accent-cyan-400"><span>Tide</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-flow" type="checkbox" %FI_V_FLOW% class="accent-cyan-400"><span>Flow</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-temp" type="checkbox" %FI_V_TEMP% class="accent-cyan-400"><span>Water temp</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-solunar" type="checkbox" %FI_V_SOLUNAR% class="accent-cyan-400"><span>Solunar</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-weather" type="checkbox" %FI_V_WEATHER% class="accent-cyan-400"><span>Weather</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-moon" type="checkbox" %FI_V_MOON% class="accent-cyan-400"><span>Moon</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-clock" type="checkbox" %FI_V_CLOCK% class="accent-cyan-400"><span>Clock</span></label>
+                    </div>
+                    <span class="text-xs text-cyan-500 mt-1">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a dial to inspect it.</span>
+                </fieldset>
+
+                <fieldset class="border border-cyan-500 p-3">
+                    <legend class="px-2">Alerts (ntfy)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>ntfy.sh topic:</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
+                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <div class="grid grid-cols-1 gap-2 mt-3">
+                        <label class="flex items-center gap-2"><input name="fi-a-solunar" type="checkbox" %FI_A_SOLUNAR% class="accent-cyan-400"><span>Bite window opening (solunar major)</span></label>
+                        <label class="flex items-center gap-2 flex-wrap"><input name="fi-a-flow" type="checkbox" %FI_A_FLOW% class="accent-cyan-400"><span>River crosses</span>
+                            <input name="fi-flow-cfs" type="number" min="0" step="1" value='%FI_FLOW_CFS%' class="border border-cyan-500 bg-gray-900 w-24 px-2 sm:py-0"><span>CFS</span></label>
+                        <label class="flex items-center gap-2 flex-wrap"><input name="fi-a-temp" type="checkbox" %FI_A_TEMP% class="accent-cyan-400"><span>Water temp enters</span>
+                            <input name="fi-temp-lo" type="number" step="1" value='%FI_TEMP_LO%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&ndash;</span>
+                            <input name="fi-temp-hi" type="number" step="1" value='%FI_TEMP_HI%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&deg;F</span></label>
+                    </div>
+                    <span class="text-xs text-cyan-500 mt-1">Leave the topic blank to disable all push alerts. Thresholds are edge-triggered and seeded at boot, so the backlog never fires.</span>
+                </fieldset>
+
+                <fieldset class="border border-cyan-500 p-3">
+                    <legend class="px-2">Display</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-cyan-400"><span>Auto-dim at night</span></label>
+                        <label class="flex items-center gap-2"><span>UTC offset (h):</span>
+                            <input name="fi-tz-offset" type="number" min="-14" max="14" step="0.5" value='%FI_TZ%' class="border border-cyan-500 bg-gray-900 w-20 px-2 sm:py-0"></label>
+                    </div>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-cyan-400">
+                    </label>
+                </fieldset>
+
+                <fieldset class="border border-cyan-500 p-3">
+                    <legend class="px-2">Advanced</legend>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Aggregator base URL:</span>
+                        <input name="fi-base-url" value='%FI_BASE_URL%' placeholder="blank = public APIs directly"
+                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-cyan-500">Optional. Leave blank and the device pulls straight from the public USGS / NOAA / Open-Meteo APIs.</span>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <input type="submit" value="Save"
+                        class="bg-cyan-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                    <button type="button" id="resetwifi"
+                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                        Reset WiFi</button>
+                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                </div>
+            </form>
+
+            <div class="flex justify-between items-end text-xs text-cyan-500 mt-4">
+                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-cyan-200 underline">Help &amp; documentation</a>
+                <span>Firmware v%FW_VERSION% (Reelscope)</span>
+            </div>
+        </fieldset>
+
+        <script>
+            document.getElementById('cfg').addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            document.getElementById('resetwifi').addEventListener('click', function() {
+                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
+                fetch('/reset-wifi', { method: 'POST' })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+        </script>
+    </body>
+</html>
+)";
 #endif
 
 void ConfigurationWebServer::Initialise() {
@@ -1159,7 +1317,7 @@ void ConfigurationWebServer::Initialise() {
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
         const String latitude = prefs.getString("latitude", "");
         const String longitude = prefs.getString("longitude", "");
         const String radius = prefs.getString("radius", "100");
@@ -1352,10 +1510,36 @@ void ConfigurationWebServer::Initialise() {
             anglerScreensHtml += s.label;
             anglerScreensHtml += F("</span></label>");
         }
+#elif defined(FEATURE_FISHING)
+        // FEATURE_FISHING: load the Reelscope config fields. All feeds are keyless (no masked secret).
+        const String fiWater = prefs.isKey("fi-water") ? prefs.getString("fi-water", "both") : "both";
+        const String latitude = prefs.getString("latitude", "");
+        const String longitude = prefs.getString("longitude", "");
+        const String fiUsgs = prefs.getString("fi-usgs", "");
+        const String fiNoaa = prefs.getString("fi-noaa", "");
+        const String fiBuoy = prefs.getString("fi-buoy", "");
+        const String fiBaseUrl = prefs.getString("fi-base-url", "");
+        const String fiTz = prefs.isKey("fi-tz-offset") ? prefs.getString("fi-tz-offset", "0") : "0";
+        const String fiFlowCfs = prefs.getString("fi-flow-cfs", "");
+        const String fiTempLo = prefs.getString("fi-temp-lo", "");
+        const String fiTempHi = prefs.getString("fi-temp-hi", "");
+        const String vTide = prefs.isKey("fi-v-tide") ? prefs.getString("fi-v-tide", "true") : "true";
+        const String vFlow = prefs.isKey("fi-v-flow") ? prefs.getString("fi-v-flow", "true") : "true";
+        const String vTemp = prefs.isKey("fi-v-temp") ? prefs.getString("fi-v-temp", "true") : "true";
+        const String vSolunar = prefs.isKey("fi-v-solunar") ? prefs.getString("fi-v-solunar", "true") : "true";
+        const String vWeather = prefs.isKey("fi-v-weather") ? prefs.getString("fi-v-weather", "true") : "true";
+        const String vMoon = prefs.isKey("fi-v-moon") ? prefs.getString("fi-v-moon", "true") : "true";
+        const String vClock = prefs.isKey("fi-v-clock") ? prefs.getString("fi-v-clock", "true") : "true";
+        const String aFlow = prefs.isKey("fi-a-flow") ? prefs.getString("fi-a-flow", "false") : "false";
+        const String aTemp = prefs.isKey("fi-a-temp") ? prefs.getString("fi-a-temp", "false") : "false";
+        const String aSolunar = prefs.isKey("fi-a-solunar") ? prefs.getString("fi-a-solunar", "false") : "false";
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
+        const String brightness = prefs.getString("brightness", "255");
 #endif
         prefs.end();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
@@ -1369,7 +1553,7 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -1536,6 +1720,42 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_FISHING)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [fiWater, latitude, longitude, fiUsgs, fiNoaa, fiBuoy, fiBaseUrl, fiTz, fiFlowCfs, fiTempLo, fiTempHi, vTide, vFlow, vTemp, vSolunar, vWeather, vMoon, vClock, aFlow, aTemp, aSolunar, ntfyTopic, autoDimEnabled, brightness]
+            (const String& var) -> String {
+                if (var == "FI_WATER_BOTH")  return (fiWater == "fresh" || fiWater == "salt") ? "" : "selected";
+                if (var == "FI_WATER_FRESH") return fiWater == "fresh" ? "selected" : "";
+                if (var == "FI_WATER_SALT")  return fiWater == "salt" ? "selected" : "";
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "FI_USGS")        return fiUsgs;
+                if (var == "FI_NOAA")        return fiNoaa;
+                if (var == "FI_BUOY")        return fiBuoy;
+                if (var == "FI_BASE_URL")    return fiBaseUrl;
+                if (var == "FI_TZ")          return fiTz;
+                if (var == "FI_FLOW_CFS")    return fiFlowCfs;
+                if (var == "FI_TEMP_LO")     return fiTempLo;
+                if (var == "FI_TEMP_HI")     return fiTempHi;
+                if (var == "FI_V_TIDE")      return vTide == "true" ? "checked" : "";
+                if (var == "FI_V_FLOW")      return vFlow == "true" ? "checked" : "";
+                if (var == "FI_V_TEMP")      return vTemp == "true" ? "checked" : "";
+                if (var == "FI_V_SOLUNAR")   return vSolunar == "true" ? "checked" : "";
+                if (var == "FI_V_WEATHER")   return vWeather == "true" ? "checked" : "";
+                if (var == "FI_V_MOON")      return vMoon == "true" ? "checked" : "";
+                if (var == "FI_V_CLOCK")     return vClock == "true" ? "checked" : "";
+                if (var == "FI_A_FLOW")      return aFlow == "true" ? "checked" : "";
+                if (var == "FI_A_TEMP")      return aTemp == "true" ? "checked" : "";
+                if (var == "FI_A_SOLUNAR")   return aSolunar == "true" ? "checked" : "";
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -1560,7 +1780,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
         TrySaveParam("latitude");
         TrySaveParam("longitude");
         TrySaveParam("radius");
@@ -1741,6 +1961,34 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("ang-alert-bite", request->hasParam("ang-alert-bite", true) ? "true" : "false");
         prefs.putString("ang-chime", request->hasParam("ang-chime", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+#elif defined(FEATURE_FISHING)
+        // FEATURE_FISHING: persist the Reelscope config fields. All feeds are keyless (no secret).
+        TrySaveParam("fi-water");
+        TrySaveParam("latitude");
+        TrySaveParam("longitude");
+        TrySaveParam("fi-usgs");
+        TrySaveParam("fi-noaa");
+        TrySaveParam("fi-buoy");
+        TrySaveParam("fi-base-url");
+        TrySaveParam("fi-tz-offset");
+        TrySaveParam("fi-flow-cfs");
+        TrySaveParam("fi-temp-lo");
+        TrySaveParam("fi-temp-hi");
+        TrySaveParam("ntfy-topic");
+        TrySaveParam("brightness");
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        prefs.putString("fi-v-tide",    request->hasParam("fi-v-tide", true) ? "true" : "false");
+        prefs.putString("fi-v-flow",    request->hasParam("fi-v-flow", true) ? "true" : "false");
+        prefs.putString("fi-v-temp",    request->hasParam("fi-v-temp", true) ? "true" : "false");
+        prefs.putString("fi-v-solunar", request->hasParam("fi-v-solunar", true) ? "true" : "false");
+        prefs.putString("fi-v-weather", request->hasParam("fi-v-weather", true) ? "true" : "false");
+        prefs.putString("fi-v-moon",    request->hasParam("fi-v-moon", true) ? "true" : "false");
+        prefs.putString("fi-v-clock",   request->hasParam("fi-v-clock", true) ? "true" : "false");
+        prefs.putString("fi-a-flow",    request->hasParam("fi-a-flow", true) ? "true" : "false");
+        prefs.putString("fi-a-temp",    request->hasParam("fi-a-temp", true) ? "true" : "false");
+        prefs.putString("fi-a-solunar", request->hasParam("fi-a-solunar", true) ? "true" : "false");
+        prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
 #endif
         prefs.end();
 
