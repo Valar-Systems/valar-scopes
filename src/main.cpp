@@ -30,6 +30,8 @@
 #include "angler/AnglerManager.h"
 #elif defined(FEATURE_FISHING)
 #include "fishing/FishingManager.h"
+#elif defined(FEATURE_CLAUDESCOPE)
+#include "claudescope/ClaudescopeManager.h"
 #else
 #include "AircraftManager.h"
 #include "DrawHelpers.h"
@@ -57,6 +59,8 @@ BirdingManager appManager(configServer, authHandler, http, tft);
 AnglerManager appManager(configServer, authHandler, http, tft);
 #elif defined(FEATURE_FISHING)
 FishingManager appManager(configServer, authHandler, http, tft);
+#elif defined(FEATURE_CLAUDESCOPE)
+ClaudescopeManager appManager(configServer, authHandler, http, tft);
 #else
 AircraftManager appManager(configServer, authHandler, http, tft);
 #endif
@@ -252,7 +256,7 @@ void loop()
   // backbuffer, each shifted into place by a BandCanvas, then pushed to its screen
   // rows. The scene is drawn once per band; the app advances per-frame state (animation
   // tick, trail sampling) only on the first pass so the bands stay in sync.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
   String renderScanlines = configServer.GetStoredString("scanline");
   const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && appManager.IsRadarView();
 
@@ -268,7 +272,7 @@ void loop()
 
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
     if (drawScan)
       DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
 #endif
