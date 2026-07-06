@@ -98,17 +98,29 @@ void ComputeSolunar(double lat, double lon, time_t nowUtc, long tzOffsetSec, Sol
 // ----------------------------------------------------------------- shared (Open-Meteo)
 struct WeatherObs {
     bool  valid = false;
-    float airTempF    = NAN;
-    float windMph     = NAN;
+    float airTempF    = NAN;   // display units (F when imperial, C when metric -- requested per units)
+    float windMph     = NAN;   // display units (mph / km/h -- requested per units)
     int   windDirDeg  = -1;
-    float precipIn    = NAN;
-    float pressureHpa = NAN;
+    float precipIn    = NAN;   // display units (in / mm)
+    float pressureHpa = NAN;   // always hPa (converted to inHg for display)
     int   pressureTrend = 0;   // -1 falling / 0 steady / +1 rising, from the hourly pressure series
     long  timeEpoch   = 0;
+    // Recent sea-level pressure history (UTC epoch, hPa), oldest..newest -- drives the 24h sparkline
+    // and the ~6h-ago rate. Bounded by the feed client's PRESS_HISTORY.
+    std::vector<std::pair<long, float>> pressHist;
+};
+
+// ------------------------------------------------- shared (Open-Meteo Marine, worldwide fallback)
+// Modeled sea state at the device location (no station needed). Always SI on the wire; converted on
+// the screen. Each field is independently present (inland cells report neither).
+struct MarineObs {
+    bool  valid = false;
+    bool  haveWave = false;  float waveHeightM = NAN;  // significant wave height, metres
+    bool  haveSst  = false;  float seaTempC    = NAN;  // sea-surface temperature, degrees C
 };
 
 // ------------------------------------------------------------------ poller request / result
-enum class FishingEndpoint : uint8_t { Flow, Tides, WaterTemp, Buoy, Weather };
+enum class FishingEndpoint : uint8_t { Flow, Tides, TideCurve, WaterTemp, Buoy, Weather, Marine };
 
 // Loop -> worker: a single request to perform, fully built on the loop task. `isText` selects the
 // plain-GET (NDBC fixed-width text) path over the streaming GetJson path.
@@ -127,9 +139,11 @@ struct FishingFetchResult {
     bool ok = false;
     RiverGauge gauge;
     TideState  tide;
+    std::vector<std::pair<long, float>> tideCurve; // 6-min predicted-height curve (UTC epoch, ft/m)
     WaterTemp  wtemp;
     BuoyObs    buoy;
     WeatherObs weather;
+    MarineObs  marine;
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -138,9 +152,16 @@ struct FishingFetchResult {
 // the NDBC parser takes the raw fixed-width text body.
 void ParseUsgsFlow(JsonObjectConst root, RiverGauge& out);
 void ParseCoopsTides(JsonObjectConst root, TideState& out);
+// CO-OPS 6-minute prediction curve (predictions WITHOUT interval=hilo), decimated to at most `cap`
+// (epoch, heightFt) points so the JSON/RAM stay small. Harmonic (reference) stations only; a
+// subordinate station errors and the Tide screen falls back to interpolating the hi/lo events.
+void ParseCoopsTideCurve(JsonObjectConst root, std::vector<std::pair<long, float>>& out, size_t cap);
 void ParseCoopsWaterTemp(JsonObjectConst root, WaterTemp& out);
 void ParseNdbcBuoy(const String& body, BuoyObs& out);
-void ParseOpenMeteo(JsonObjectConst root, WeatherObs& out);
+// Open-Meteo forecast: current{...} + hourly{time,pressure_msl}. `histCap` bounds pressHist.
+void ParseOpenMeteo(JsonObjectConst root, WeatherObs& out, size_t histCap);
+// Open-Meteo Marine: current{wave_height, sea_surface_temperature} (falls back to hourly[0]).
+void ParseOpenMeteoMarine(JsonObjectConst root, MarineObs& out);
 
 // ----------------------------------------------------------------------------- geo helpers
 // Great-circle distance (km) and initial bearing (deg, 0 = N, clockwise) from point 1 to 2.

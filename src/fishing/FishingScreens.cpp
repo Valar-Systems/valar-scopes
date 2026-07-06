@@ -118,8 +118,9 @@ void FishingManager::DrawTide(BandCanvas& c)
         CenterText(c, "stn " + feed.Tide().stationId, 52, faint);
 
     const time_t now = time(nullptr);
+    const fishing::TideState& td = feed.Tide();
     const fishing::TideEvent* next = nullptr;
-    for (const fishing::TideEvent& e : feed.Tide().events)
+    for (const fishing::TideEvent& e : td.events)
         if ((long)now < e.timeEpoch) { next = &e; break; }
 
     if (!next) {
@@ -128,24 +129,82 @@ void FishingManager::DrawTide(BandCanvas& c)
         return;
     }
 
-    // If the next event is a HIGH we're rising toward it; a LOW means falling.
+    // Headline: RISING/FALLING toward the next extreme + a countdown.
     const bool rising = (next->type == 'H');
-    c.setTextSize(3);
-    CenterText(c, rising ? "RISING" : "FALLING", SCREEN_SIZE_DIV_2 - 46, rising ? accent : palette.warn);
-
+    c.setTextSize(2);
+    CenterText(c, rising ? "RISING" : "FALLING", 72, rising ? accent : palette.warn);
     char line[48];
     snprintf(line, sizeof(line), "next %s in %s", next->type == 'H' ? "high" : "low",
              FormatCountdown((long)next->timeEpoch - (long)now).c_str());
     c.setTextSize(2);
-    CenterText(c, line, SCREEN_SIZE_DIV_2 + 4, fg);
-
+    CenterText(c, line, 96, fg);
     char meta[48];
-    snprintf(meta, sizeof(meta), "%.1f ft  @ %s", next->heightFt, FormatClock(next->timeEpoch, tzOffsetSec).c_str());
+    snprintf(meta, sizeof(meta), "%.1f %s  @ %s", next->heightFt, WaveUnit(), FormatClock(next->timeEpoch, tzOffsetSec).c_str());
     c.setTextSize(1);
-    CenterText(c, meta, SCREEN_SIZE_DIV_2 + 40, dim);
+    CenterText(c, meta, 120, dim);
+
+    // Tide curve: prefer the real 6-minute prediction curve; else cosine-interpolate the hi/lo events.
+    const std::vector<std::pair<long, float>>& curve = feed.TideCurve();
+    const bool haveCurve = !curve.empty();
+    const int L = 34, R = SCREEN_SIZE - 34, yTop = 150, yBot = SCREEN_SIZE - 48;
+
+    long t0, t1; float minH, maxH;
+    if (haveCurve) {
+        t0 = curve.front().first; t1 = curve.back().first;
+        minH = maxH = curve.front().second;
+        for (const auto& p : curve) { minH = min(minH, p.second); maxH = max(maxH, p.second); }
+    } else {
+        t0 = td.events.front().timeEpoch; t1 = td.events.back().timeEpoch;
+        minH = maxH = td.events.front().heightFt;
+        for (const fishing::TideEvent& e : td.events) { minH = min(minH, e.heightFt); maxH = max(maxH, e.heightFt); }
+    }
+    if (maxH - minH < 0.1f) maxH = minH + 0.1f;
+
+    if (t1 > t0) {
+        auto yOf = [&](float hh) { return yBot - (int)lround((hh - minH) / (maxH - minH) * (yBot - yTop)); };
+        if (haveCurve) {
+            int px = L, py = yOf(curve.front().second);
+            for (size_t i = 1; i < curve.size(); ++i) {
+                const int x = L + (int)((long)(R - L) * (curve[i].first - t0) / (t1 - t0));
+                const int y = yOf(curve[i].second);
+                c.drawLine(px, py, x, y, fg);
+                px = x; py = y;
+            }
+        } else {
+            auto hAt = [&](long t) -> float {
+                if (t <= td.events.front().timeEpoch) return td.events.front().heightFt;
+                for (size_t i = 0; i + 1 < td.events.size(); ++i) {
+                    const fishing::TideEvent& a = td.events[i];
+                    const fishing::TideEvent& b = td.events[i + 1];
+                    if (t >= a.timeEpoch && t <= b.timeEpoch) {
+                        const float ph = (float)(t - a.timeEpoch) / (float)(b.timeEpoch - a.timeEpoch);
+                        return a.heightFt + (b.heightFt - a.heightFt) * (1.0f - cosf(ph * (float)M_PI)) * 0.5f;
+                    }
+                }
+                return td.events.back().heightFt;
+            };
+            int px = L, py = yOf(hAt(t0));
+            for (int x = L + 3; x <= R; x += 3) {
+                const long t = t0 + (long)((long long)(t1 - t0) * (x - L) / (R - L));
+                const int y = yOf(hAt(t));
+                c.drawLine(px, py, x, y, fg);
+                px = x; py = y;
+            }
+        }
+        // hi/lo markers (from the extremes feed) + "now" line.
+        for (const fishing::TideEvent& e : td.events) {
+            if (e.timeEpoch < t0 || e.timeEpoch > t1) continue;
+            const int x = L + (int)((long)(R - L) * (e.timeEpoch - t0) / (t1 - t0));
+            c.fillCircle(x, yOf(e.heightFt), 3, e.type == 'H' ? accent : dim);
+        }
+        if ((long)now >= t0 && (long)now <= t1) {
+            const int x = L + (int)((long)(R - L) * ((long)now - t0) / (t1 - t0));
+            c.drawFastVLine(x, yTop - 6, (yBot - yTop) + 12, faint);
+        }
+    }
 
     c.setTextSize(1);
-    CenterText(c, "tap for schedule", SCREEN_SIZE - 30, faint);
+    CenterText(c, "tap for schedule", SCREEN_SIZE - 22, faint);
 }
 
 // --------------------------------------------------------------------------------- flow
@@ -206,29 +265,48 @@ void FishingManager::DrawTemp(BandCanvas& c)
     CenterText(c, "WATER TEMP", 26, fg);
 
     float tF; const char* src = "";
-    if (!BestWaterTempF(tF, src)) {
+    const bool haveT = BestWaterTemp(tF, src);
+
+    // Waves (buoy real, else Open-Meteo Marine model) share this screen.
+    float waveDisp = 0, periodS = 0; const char* wSrc = "";
+    const bool haveW = BestWaves(waveDisp, periodS, wSrc);
+
+    if (!haveT && !haveW) {
         c.setTextSize(2);
         CenterText(c, "no reading", SCREEN_SIZE_DIV_2, dim);
         return;
     }
 
-    char big[12];
-    snprintf(big, sizeof(big), "%.0f", tF);
-    c.setTextSize(8);
-    CenterText(c, big, SCREEN_SIZE_DIV_2 - 40, fg);
-    c.setTextSize(2);
-    CenterText(c, "\xF7""F", SCREEN_SIZE_DIV_2 + 44, dim); // degree-ish glyph + F
+    if (haveT) {
+        char big[12];
+        snprintf(big, sizeof(big), "%.0f", tF);
+        c.setTextSize(8);
+        CenterText(c, big, SCREEN_SIZE_DIV_2 - 40, fg);
+        c.setTextSize(2);
+        CenterText(c, String("\xF7") + TempUnit(), SCREEN_SIZE_DIV_2 + 44, dim); // degree-ish glyph + unit
+    } else {
+        c.setTextSize(2);
+        CenterText(c, "water temp n/a", SCREEN_SIZE_DIV_2 - 10, dim);
+    }
 
-    // Active-feeding band indicator.
-    if (!isnan(tempLoF) || !isnan(tempHiF)) {
+    // Active-feeding band indicator (thresholds in the configured display units).
+    if (haveT && (!isnan(tempLoF) || !isnan(tempHiF))) {
         const bool inBand = (isnan(tempLoF) || tF >= tempLoF) && (isnan(tempHiF) || tF <= tempHiF);
         const char* label = inBand ? "IN THE STRIKE ZONE" : (!isnan(tempLoF) && tF < tempLoF ? "below band" : "above band");
         c.setTextSize(2);
         CenterText(c, label, SCREEN_SIZE_DIV_2 + 78, inBand ? fishing::ScaleColor(palette.good, gf) : palette.warn);
+    } else if (haveW) {
+        char wv[36];
+        if (periodS > 0) snprintf(wv, sizeof(wv), "waves %.1f %s @ %.0fs", waveDisp, WaveUnit(), periodS);
+        else             snprintf(wv, sizeof(wv), "waves %.1f %s", waveDisp, WaveUnit());
+        c.setTextSize(2);
+        CenterText(c, wv, SCREEN_SIZE_DIV_2 + 78, fg);
     }
 
     c.setTextSize(1);
-    CenterText(c, String("source: ") + src, SCREEN_SIZE - 28, faint);
+    String footer = haveT ? String("source: ") + src : String();
+    if (haveW) footer += (footer.length() ? "   waves: " : "waves: ") + String(wSrc);
+    CenterText(c, footer, SCREEN_SIZE - 28, faint);
 }
 
 // --------------------------------------------------------------------------------- solunar
@@ -296,42 +374,76 @@ void FishingManager::DrawWeather(BandCanvas& c)
     const uint32_t dim   = fishing::ScaleColor(palette.dim, gf);
     const uint32_t faint = fishing::ScaleColor(palette.faint, gf);
 
+    const uint32_t accent = fishing::ScaleColor(palette.accent, gf);
     const fishing::WeatherObs& w = feed.Weather();
 
     c.setTextSize(2);
     CenterText(c, "WEATHER", 26, fg);
 
-    // Barometric pressure + trend is the fishing-relevant headline.
+    // Barometric pressure is the fishing-relevant headline (unit-aware: inHg vs hPa).
     if (!isnan(w.pressureHpa)) {
-        char p[16]; snprintf(p, sizeof(p), "%.0f", w.pressureHpa);
-        c.setTextSize(6);
-        CenterText(c, p, SCREEN_SIZE_DIV_2 - 46, fg);
+        char p[16];
+        if (imperial) snprintf(p, sizeof(p), "%.2f", PressDisp(w.pressureHpa));
+        else          snprintf(p, sizeof(p), "%.0f", PressDisp(w.pressureHpa));
+        c.setTextSize(imperial ? 5 : 6);
+        CenterText(c, p, 58, fg);
         c.setTextSize(1);
-        CenterText(c, "hPa", SCREEN_SIZE_DIV_2 + 12, dim);
+        CenterText(c, PressUnit(), 108, dim);
         c.setTextSize(3);
         c.setTextColor(fishing::TrendColor(palette, w.pressureTrend));
-        c.drawString(fishing::TrendGlyph(w.pressureTrend), SCREEN_SIZE_DIV_2 + 70, SCREEN_SIZE_DIV_2 - 36);
+        c.drawString(fishing::TrendGlyph(w.pressureTrend), SCREEN_SIZE_DIV_2 + 78, 62);
     }
 
-    int y = SCREEN_SIZE_DIV_2 + 30;
+    // 24h barometer: rate (hPa/h) from ~6h ago + a "front coming" hint on a fall.
+    const BaroTrend bt = ComputeBaro();
+    int y = 132;
+    if (bt.valid) {
+        const bool fall = bt.rateHpaPerH <= -0.2f, rise = bt.rateHpaPerH >= 0.2f;
+        const uint32_t tc = fall ? accent : (rise ? fg : dim); // falling glass = the good bite
+        char r[44];
+        const char* word = fall ? "FALLING" : (rise ? "RISING" : "STEADY");
+        if (imperial) snprintf(r, sizeof(r), "%s  %+.2f inHg/h", word, bt.rateHpaPerH * 0.02953f);
+        else          snprintf(r, sizeof(r), "%s  %+.1f hPa/h", word, bt.rateHpaPerH);
+        c.setTextSize(1); CenterText(c, r, y, tc); y += 16;
+        CenterText(c, fall ? "front coming - fish feeding" : (rise ? "bite may slow" : "stable"), y, dim); y += 18;
+
+        // 24h sparkline of sea-level pressure.
+        if (w.pressHist.size() >= 2) {
+            float mn = w.pressHist[0].second, mx = mn;
+            for (const auto& s : w.pressHist) { mn = min(mn, s.second); mx = max(mx, s.second); }
+            if (mx - mn < 0.5f) mx = mn + 0.5f;
+            const int L = 44, Rr = SCREEN_SIZE - 44, yb = y + 28, yt = y;
+            const int n = (int)w.pressHist.size();
+            int px = L, py = yb - (int)lround((w.pressHist[0].second - mn) / (mx - mn) * (yb - yt));
+            for (int i = 1; i < n; ++i) {
+                const int x = L + (Rr - L) * i / (n - 1);
+                const int yy = yb - (int)lround((w.pressHist[i].second - mn) / (mx - mn) * (yb - yt));
+                c.drawLine(px, py, x, yy, faint);
+                px = x; py = yy;
+            }
+            y = yb + 6;
+        }
+    }
+
+    // Wind (unit-aware) + air temp on one line each.
     char line[48];
     if (!isnan(w.windMph)) {
-        snprintf(line, sizeof(line), "wind %.0f mph %s", w.windMph,
+        snprintf(line, sizeof(line), "wind %.0f %s %s", w.windMph, WindUnit(),
                  w.windDirDeg >= 0 ? CompassPoint(w.windDirDeg) : "");
-        c.setTextSize(2); CenterText(c, line, y, fg); y += 26;
+        c.setTextSize(1); CenterText(c, line, y, fg); y += 16;
     }
     String sub;
-    if (!isnan(w.airTempF)) { char t[16]; snprintf(t, sizeof(t), "air %.0fF", w.airTempF); sub += t; }
-    if (!isnan(w.precipIn) && w.precipIn > 0) { char t[20]; snprintf(t, sizeof(t), "  rain %.2f in", w.precipIn); sub += t; }
-    if (sub.length()) { c.setTextSize(1); CenterText(c, sub, y, dim); y += 20; }
+    if (!isnan(w.airTempF)) { char t[16]; snprintf(t, sizeof(t), "air %.0f%s", w.airTempF, TempUnit()); sub += t; }
+    if (!isnan(w.precipIn) && w.precipIn > 0) { char t[24]; snprintf(t, sizeof(t), "  rain %.2f %s", w.precipIn, imperial ? "in" : "mm"); sub += t; }
+    if (sub.length()) { c.setTextSize(1); CenterText(c, sub, y, dim); }
 
-    // Offshore swell, when a buoy is configured.
-    const fishing::BuoyObs& b = feed.Buoy();
-    if (b.valid && !isnan(b.waveHeightFt)) {
-        char sw[40];
-        if (!isnan(b.dominantPeriodS)) snprintf(sw, sizeof(sw), "swell %.1f ft @ %.0fs", b.waveHeightFt, b.dominantPeriodS);
-        else                           snprintf(sw, sizeof(sw), "swell %.1f ft", b.waveHeightFt);
-        c.setTextSize(1); CenterText(c, sw, SCREEN_SIZE - 28, faint);
+    // Swell footer: real buoy > modeled marine.
+    float waveDisp = 0, periodS = 0; const char* wSrc = "";
+    if (BestWaves(waveDisp, periodS, wSrc)) {
+        char sw[44];
+        if (periodS > 0) snprintf(sw, sizeof(sw), "swell %.1f %s @ %.0fs (%s)", waveDisp, WaveUnit(), periodS, wSrc);
+        else             snprintf(sw, sizeof(sw), "swell %.1f %s (%s)", waveDisp, WaveUnit(), wSrc);
+        c.setTextSize(1); CenterText(c, sw, SCREEN_SIZE - 22, faint);
     }
 }
 
@@ -370,6 +482,43 @@ void FishingManager::DrawMoon(BandCanvas& c)
     }
 }
 
+// --------------------------------------------------------------------------------- catch log
+void FishingManager::DrawCatchLog(BandCanvas& c)
+{
+    const float gf = GlowFactor();
+    const uint32_t fg     = fishing::ScaleColor(palette.fg, gf);
+    const uint32_t dim    = fishing::ScaleColor(palette.dim, gf);
+    const uint32_t faint  = fishing::ScaleColor(palette.faint, gf);
+    const uint32_t accent = fishing::ScaleColor(palette.accent, gf);
+    const uint32_t good   = fishing::ScaleColor(palette.good, gf);
+
+    const time_t now = time(nullptr);
+    c.setTextSize(2);
+    CenterText(c, "CATCH LOG", 26, fg);
+
+    if (!logbook.Any()) {
+        c.setTextSize(2); CenterText(c, "no catches yet", SCREEN_SIZE_DIV_2 - 20, dim);
+        c.setTextSize(1); CenterText(c, "tap to log your first catch", SCREEN_SIZE_DIV_2 + 14, accent);
+        return;
+    }
+
+    c.setTextSize(1); CenterText(c, "TOTAL", 58, dim);
+    char big[8]; snprintf(big, sizeof(big), "%u", (unsigned)logbook.Total());
+    c.setTextSize(7); CenterText(c, big, 76, fg);
+
+    char line[48];
+    snprintf(line, sizeof(line), "today %u   best day %u", (unsigned)logbook.TodayCount(now), (unsigned)logbook.Best());
+    c.setTextSize(1); CenterText(c, line, SCREEN_SIZE_DIV_2 + 34, dim);
+    snprintf(line, sizeof(line), "%d%% during bite windows", logbook.BitePercent());
+    CenterText(c, line, SCREEN_SIZE_DIV_2 + 52, good);
+    snprintf(line, sizeof(line), "streak %u d   last %s", (unsigned)logbook.CurrentStreak(now),
+             logbook.LastCatch() > 0 ? FormatClock(logbook.LastCatch(), tzOffsetSec).c_str() : "--:--");
+    CenterText(c, line, SCREEN_SIZE_DIV_2 + 70, faint);
+
+    c.setTextSize(1);
+    CenterText(c, "tap to log a catch", SCREEN_SIZE - 28, dim);
+}
+
 // --------------------------------------------------------------------------------- detail card
 void FishingManager::DrawDetailCard(BandCanvas& c)
 {
@@ -395,8 +544,8 @@ void FishingManager::DrawDetailCard(BandCanvas& c)
             int shown = 0;
             for (const fishing::TideEvent& e : feed.Tide().events) {
                 if ((long)e.timeEpoch < (long)now) continue;
-                snprintf(buf, sizeof(buf), "%s  %s  %.1f ft", e.type == 'H' ? "HIGH" : "LOW ",
-                         FormatClock(e.timeEpoch, tzOffsetSec).c_str(), e.heightFt);
+                snprintf(buf, sizeof(buf), "%s  %s  %.1f %s", e.type == 'H' ? "HIGH" : "LOW ",
+                         FormatClock(e.timeEpoch, tzOffsetSec).c_str(), e.heightFt, WaveUnit());
                 row(buf, e.type == 'H' ? accent : dim);
                 if (++shown >= 5) break;
             }
@@ -408,24 +557,34 @@ void FishingManager::DrawDetailCard(BandCanvas& c)
             c.setTextSize(1); CenterText(c, FitWidth(c, g.siteName.length() ? g.siteName : ("site " + g.siteId), SCREEN_SIZE - 60), y, dim); y += 30;
             if (!isnan(g.dischargeCfs)) { snprintf(buf, sizeof(buf), "%.0f CFS  %s", g.dischargeCfs, fishing::TrendGlyph(g.flowTrend)); row(buf, fg); }
             if (!isnan(g.gaugeHeightFt)) { snprintf(buf, sizeof(buf), "gauge %.2f ft", g.gaugeHeightFt); row(buf, fg); }
-            if (!isnan(g.waterTempF))   { snprintf(buf, sizeof(buf), "water %.0f F", g.waterTempF); row(buf, fg); }
+            if (!isnan(g.waterTempF))   { snprintf(buf, sizeof(buf), "water %.0f%s", imperial ? g.waterTempF : (g.waterTempF - 32.0f) / 1.8f, TempUnit()); row(buf, fg); }
             if (!isnan(g.turbidityFnu)) { snprintf(buf, sizeof(buf), "turbidity %.0f FNU", g.turbidityFnu); row(buf, fg); }
             snprintf(buf, sizeof(buf), "updated %s ago", FormatAgo(g.timeEpoch).c_str()); row(buf, faint);
             break;
         }
         case Screen::Weather: {
             const fishing::WeatherObs& w = feed.Weather();
-            if (!isnan(w.pressureHpa)) { snprintf(buf, sizeof(buf), "pressure %.0f hPa %s", w.pressureHpa, fishing::TrendGlyph(w.pressureTrend)); row(buf, fg); }
-            if (!isnan(w.windMph))     { snprintf(buf, sizeof(buf), "wind %.0f mph %s", w.windMph, w.windDirDeg >= 0 ? CompassPoint(w.windDirDeg) : ""); row(buf, fg); }
-            if (!isnan(w.airTempF))    { snprintf(buf, sizeof(buf), "air %.0f F", w.airTempF); row(buf, fg); }
-            if (!isnan(w.precipIn))    { snprintf(buf, sizeof(buf), "precip %.2f in", w.precipIn); row(buf, fg); }
+            if (!isnan(w.pressureHpa)) {
+                if (imperial) snprintf(buf, sizeof(buf), "pressure %.2f inHg %s", PressDisp(w.pressureHpa), fishing::TrendGlyph(w.pressureTrend));
+                else          snprintf(buf, sizeof(buf), "pressure %.0f hPa %s", w.pressureHpa, fishing::TrendGlyph(w.pressureTrend));
+                row(buf, fg);
+            }
+            const BaroTrend bt = ComputeBaro();
+            if (bt.valid) {
+                if (imperial) snprintf(buf, sizeof(buf), "24h %+.2f inHg/h", bt.rateHpaPerH * 0.02953f);
+                else          snprintf(buf, sizeof(buf), "24h %+.1f hPa/h", bt.rateHpaPerH);
+                row(buf, dim);
+            }
+            if (!isnan(w.windMph))  { snprintf(buf, sizeof(buf), "wind %.0f %s %s", w.windMph, WindUnit(), w.windDirDeg >= 0 ? CompassPoint(w.windDirDeg) : ""); row(buf, fg); }
+            if (!isnan(w.airTempF)) { snprintf(buf, sizeof(buf), "air %.0f%s", w.airTempF, TempUnit()); row(buf, fg); }
+            if (!isnan(w.precipIn)) { snprintf(buf, sizeof(buf), "precip %.2f %s", w.precipIn, imperial ? "in" : "mm"); row(buf, fg); }
             break;
         }
         default: {
             // Temp / Solunar / Moon: a compact readout.
             float tF; const char* src;
-            if (detailFor == Screen::Temp && BestWaterTempF(tF, src)) {
-                snprintf(buf, sizeof(buf), "%.0f F", tF); row(buf, fg);
+            if (detailFor == Screen::Temp && BestWaterTemp(tF, src)) {
+                snprintf(buf, sizeof(buf), "%.0f%s", tF, TempUnit()); row(buf, fg);
                 row(String("source: ") + src, dim);
             } else if (detailFor == Screen::Solunar && today.valid) {
                 snprintf(buf, sizeof(buf), "day rating %d/4", today.dayRating); row(buf, fg);

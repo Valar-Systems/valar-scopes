@@ -10,13 +10,18 @@ namespace {
 
 // Poll intervals (ms). Water data moves slowly; these keep the dials fresh without hammering free
 // public services. Tide *predictions* barely change, so they poll least often.
-constexpr uint32_t FLOW_MS    = 600000;   // 10 m: USGS river gauge/discharge/temp
-constexpr uint32_t TIDES_MS   = 1800000;  // 30 m: CO-OPS hi/lo predictions
-constexpr uint32_t WTEMP_MS   = 900000;   // 15 m: CO-OPS water temperature
-constexpr uint32_t BUOY_MS    = 900000;   // 15 m: NDBC buoy observation
-constexpr uint32_t WEATHER_MS = 900000;   // 15 m: Open-Meteo weather + barometric trend
+constexpr uint32_t FLOW_MS      = 600000;   // 10 m: USGS river gauge/discharge/temp
+constexpr uint32_t TIDES_MS     = 1800000;  // 30 m: CO-OPS hi/lo predictions
+constexpr uint32_t TIDECURVE_MS = 3600000;  // 60 m: CO-OPS 6-min curve (predicted, changes slowly)
+constexpr uint32_t WTEMP_MS     = 900000;   // 15 m: CO-OPS water temperature
+constexpr uint32_t BUOY_MS      = 900000;   // 15 m: NDBC buoy observation
+constexpr uint32_t WEATHER_MS   = 900000;   // 15 m: Open-Meteo weather + 24h barometer history
+constexpr uint32_t MARINE_MS    = 1800000;  // 30 m: Open-Meteo Marine wave/SST (worldwide fallback)
 
 constexpr uint32_t MAX_BACKOFF_MS = 1800000; // cap exponential backoff at 30 m
+
+constexpr size_t TIDECURVE_RETAIN = 180;    // decimated 6-min curve points (bounds JSON + RAM)
+constexpr size_t PRESS_HISTORY    = 24;     // 24 hourly pressure samples for the baro rate/sparkline
 
 const char* USER_AGENT = "Blipscope-Fishing/1 (+https://github.com/Valar-Systems/valar-scopes)";
 
@@ -73,17 +78,19 @@ void FishingFeedClient::Configure(const Config& newCfg)
     const bool keepFresh = (cfg.waterType == FRESH || cfg.waterType == BOTH);
     const bool keepSalt  = (cfg.waterType == SALT  || cfg.waterType == BOTH);
     if (!keepFresh) gauge = fishing::RiverGauge();
-    if (!keepSalt) { tide = fishing::TideState(); wtemp = fishing::WaterTemp(); buoy = fishing::BuoyObs(); }
+    if (!keepSalt) { tide = fishing::TideState(); tideCurve.clear(); wtemp = fishing::WaterTemp(); buoy = fishing::BuoyObs(); }
 
     float sc = cfg.intervalScale;
     if (sc < 1.0f) sc = 1.0f;
     if (sc > 8.0f) sc = 8.0f;
 
-    feeds[F_FLOW].intervalMs    = (uint32_t)(FLOW_MS * sc);
-    feeds[F_TIDES].intervalMs   = (uint32_t)(TIDES_MS * sc);
-    feeds[F_WTEMP].intervalMs   = (uint32_t)(WTEMP_MS * sc);
-    feeds[F_BUOY].intervalMs    = (uint32_t)(BUOY_MS * sc);
-    feeds[F_WEATHER].intervalMs = (uint32_t)(WEATHER_MS * sc);
+    feeds[F_FLOW].intervalMs      = (uint32_t)(FLOW_MS * sc);
+    feeds[F_TIDES].intervalMs     = (uint32_t)(TIDES_MS * sc);
+    feeds[F_TIDECURVE].intervalMs = (uint32_t)(TIDECURVE_MS * sc);
+    feeds[F_WTEMP].intervalMs     = (uint32_t)(WTEMP_MS * sc);
+    feeds[F_BUOY].intervalMs      = (uint32_t)(BUOY_MS * sc);
+    feeds[F_WEATHER].intervalMs   = (uint32_t)(WEATHER_MS * sc);
+    feeds[F_MARINE].intervalMs    = (uint32_t)(MARINE_MS * sc);
 
     // Stage the first poll of each endpoint shortly after (re)config, fanned out by ~500 ms so they
     // don't all hit the single TLS client at once.
@@ -145,6 +152,7 @@ bool FishingFeedClient::BuildRequest(int feedIdx, FishingFetchRequest& req) cons
 {
     const bool wantFresh = (cfg.waterType == FRESH || cfg.waterType == BOTH);
     const bool wantSalt  = (cfg.waterType == SALT  || cfg.waterType == BOTH);
+    const char* units = cfg.imperial ? "english" : "metric"; // NOAA CO-OPS unit system
 
     req.headers.push_back({"User-Agent", USER_AGENT});
 
@@ -175,9 +183,22 @@ bool FishingFeedClient::BuildRequest(int feedIdx, FishingFetchRequest& req) cons
             } else {
                 dateArg = "&date=today";
             }
-            const String u = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?"
+            const String u = String("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?"
                              "product=predictions&application=Blipscope&datum=MLLW&interval=hilo&"
-                             "units=english&time_zone=gmt&format=json&station=" + st + dateArg;
+                             "units=") + units + "&time_zone=gmt&format=json&station=" + st + dateArg;
+            req.url = ApplyBase(cfg.baseUrl, u);
+            return true;
+        }
+        case F_TIDECURVE: {
+            if (!wantSalt) return false;
+            const String st = FirstToken(cfg.noaaStation);
+            if (st.isEmpty()) return false;
+            req.endpoint = FishingEndpoint::TideCurve;
+            // Same predictions endpoint WITHOUT interval=hilo -> the 6-minute curve; range=30 h keeps
+            // it small. Harmonic stations only; subordinate stations error and the screen interpolates.
+            const String u = String("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?"
+                             "product=predictions&application=Blipscope&datum=MLLW&"
+                             "units=") + units + "&time_zone=gmt&format=json&range=30&station=" + st;
             req.url = ApplyBase(cfg.baseUrl, u);
             return true;
         }
@@ -186,9 +207,9 @@ bool FishingFeedClient::BuildRequest(int feedIdx, FishingFetchRequest& req) cons
             const String st = FirstToken(cfg.noaaStation);
             if (st.isEmpty()) return false;
             req.endpoint = FishingEndpoint::WaterTemp;
-            const String u = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?"
+            const String u = String("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?"
                              "product=water_temperature&application=Blipscope&date=latest&"
-                             "units=english&time_zone=gmt&format=json&station=" + st;
+                             "units=") + units + "&time_zone=gmt&format=json&station=" + st;
             req.url = ApplyBase(cfg.baseUrl, u);
             return true;
         }
@@ -205,11 +226,22 @@ bool FishingFeedClient::BuildRequest(int feedIdx, FishingFetchRequest& req) cons
         case F_WEATHER: {
             if (!cfg.hasLatLon) return false;
             req.endpoint = FishingEndpoint::Weather;
-            const String u = "https://api.open-meteo.com/v1/forecast?latitude=" + String(cfg.lat, 4) +
+            String u = "https://api.open-meteo.com/v1/forecast?latitude=" + String(cfg.lat, 4) +
+                       "&longitude=" + String(cfg.lon, 4) +
+                       "&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,surface_pressure"
+                       "&hourly=pressure_msl&past_days=1&forecast_days=1&timezone=GMT";
+            // Match display units so the current reading is already display-ready (pressure stays hPa).
+            if (cfg.imperial) u += "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch";
+            req.url = ApplyBase(cfg.baseUrl, u);
+            return true;
+        }
+        case F_MARINE: {
+            if (!cfg.hasLatLon) return false;
+            req.endpoint = FishingEndpoint::Marine;
+            // Open-Meteo Marine is always SI (m / degC); converted for display. Worldwide, location-only.
+            const String u = "https://marine-api.open-meteo.com/v1/marine?latitude=" + String(cfg.lat, 4) +
                              "&longitude=" + String(cfg.lon, 4) +
-                             "&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation,surface_pressure"
-                             "&hourly=surface_pressure&past_hours=3&forecast_hours=1"
-                             "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=GMT";
+                             "&current=wave_height,sea_surface_temperature";
             req.url = ApplyBase(cfg.baseUrl, u);
             return true;
         }
@@ -223,9 +255,11 @@ int FishingFeedClient::FeedForEndpoint(FishingEndpoint e)
     switch (e) {
         case FishingEndpoint::Flow:      return F_FLOW;
         case FishingEndpoint::Tides:     return F_TIDES;
+        case FishingEndpoint::TideCurve: return F_TIDECURVE;
         case FishingEndpoint::WaterTemp: return F_WTEMP;
         case FishingEndpoint::Buoy:      return F_BUOY;
         case FishingEndpoint::Weather:   return F_WEATHER;
+        case FishingEndpoint::Marine:    return F_MARINE;
     }
     return F_FLOW;
 }
@@ -260,6 +294,11 @@ void FishingFeedClient::ApplyResult(const FishingFetchResult& res)
                 if (tide.stationId.isEmpty()) tide.stationId = FirstToken(cfg.noaaStation);
             }
             break;
+        case FishingEndpoint::TideCurve:
+            // Empty is a valid "no harmonic curve here" (subordinate station) -> keep whatever the
+            // parse produced so the screen falls back to hi/lo interpolation.
+            tideCurve = res.tideCurve;
+            break;
         case FishingEndpoint::WaterTemp:
             if (res.wtemp.valid) {
                 wtemp = res.wtemp;
@@ -273,11 +312,12 @@ void FishingFeedClient::ApplyResult(const FishingFetchResult& res)
             }
             break;
         case FishingEndpoint::Weather:   if (res.weather.valid) weather = res.weather; break;
+        case FishingEndpoint::Marine:    if (res.marine.valid) marine = res.marine; break;
     }
 
     if (!firstLogged[f]) {
         firstLogged[f] = true;
-        static const char* names[F_COUNT] = {"flow", "tides", "wtemp", "buoy", "weather"};
+        static const char* names[F_COUNT] = {"flow", "tides", "tidecurve", "wtemp", "buoy", "weather", "marine"};
         Serial.printf("[fishing] %s ok\n", names[f]);
     }
 }
@@ -325,8 +365,10 @@ void FishingFeedClient::Fetch(HttpRequestManager& http,
     switch (req.endpoint) {
         case FishingEndpoint::Flow:      fishing::ParseUsgsFlow(root, res.gauge); break;
         case FishingEndpoint::Tides:     fishing::ParseCoopsTides(root, res.tide); break;
+        case FishingEndpoint::TideCurve: fishing::ParseCoopsTideCurve(root, res.tideCurve, TIDECURVE_RETAIN); break;
         case FishingEndpoint::WaterTemp: fishing::ParseCoopsWaterTemp(root, res.wtemp); break;
-        case FishingEndpoint::Weather:   fishing::ParseOpenMeteo(root, res.weather); break;
+        case FishingEndpoint::Weather:   fishing::ParseOpenMeteo(root, res.weather, PRESS_HISTORY); break;
+        case FishingEndpoint::Marine:    fishing::ParseOpenMeteoMarine(root, res.marine); break;
         default: break;
     }
     res.ok = true; // a successful fetch that parsed to "no data" is still valid
