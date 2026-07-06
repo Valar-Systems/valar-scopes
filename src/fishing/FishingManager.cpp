@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "Layout.h"
+#include "Board.h"   // board::BuzzerChirp (no-op unless the variant HAS_AUDIO)
 
 namespace {
 
@@ -52,6 +53,9 @@ void FishingManager::Initialise()
     noaaStation = configServer.GetStoredString("fi-noaa");
     buoyId      = configServer.GetStoredString("fi-buoy");
 
+    const String units = configServer.GetStoredString("fi-units");
+    imperial = (units != "metric");   // default imperial
+
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
     hasLatLon = latStr.length() && lonStr.length();
@@ -78,13 +82,14 @@ void FishingManager::Initialise()
     // HasData once any data lands). Default every dial on.
     struct ToggleDef { Screen s; const char* key; };
     static const ToggleDef toggles[] = {
-        {Screen::Tide,    "fi-v-tide"},
-        {Screen::Flow,    "fi-v-flow"},
-        {Screen::Temp,    "fi-v-temp"},
-        {Screen::Solunar, "fi-v-solunar"},
-        {Screen::Weather, "fi-v-weather"},
-        {Screen::Moon,    "fi-v-moon"},
-        {Screen::Clock,   "fi-v-clock"},
+        {Screen::Tide,     "fi-v-tide"},
+        {Screen::Flow,     "fi-v-flow"},
+        {Screen::Temp,     "fi-v-temp"},
+        {Screen::Solunar,  "fi-v-solunar"},
+        {Screen::Weather,  "fi-v-weather"},
+        {Screen::Moon,     "fi-v-moon"},
+        {Screen::CatchLog, "fi-v-catch"},
+        {Screen::Clock,    "fi-v-clock"},
     };
     enabledOrder.clear();
     for (const ToggleDef& t : toggles)
@@ -100,6 +105,11 @@ void FishingManager::Initialise()
     alertFlow = boolCfg("fi-a-flow", false);
     alertTemp = boolCfg("fi-a-temp", false);
     alertSolunar = boolCfg("fi-a-solunar", false);
+    alertBaro = boolCfg("fi-a-baro", false);
+    alertTide = boolCfg("fi-a-tide", false);
+    chimeOnAlert = boolCfg("fi-chime", false);
+
+    logbook.Begin();
 
     FishingFeedClient::Config fcfg;
     fcfg.baseUrl = backendBaseUrl;
@@ -110,6 +120,7 @@ void FishingManager::Initialise()
     fcfg.usgsSite = usgsSite;
     fcfg.noaaStation = noaaStation;
     fcfg.buoyId = buoyId;
+    fcfg.imperial = imperial;
     fcfg.intervalScale = 1.0f;
     feed.Begin();
     feed.Configure(fcfg);
@@ -123,6 +134,8 @@ void FishingManager::Initialise()
     lastFlowSide = 0;
     lastTempSide = 0;
     lastSolunarAlertEpoch = 0;
+    baroAlerted = false;
+    lastAlertedTideEpoch = 0;
 
     lastSolunarCalc = 0;
     RecomputeSolunar(true);
@@ -162,11 +175,12 @@ void FishingManager::DrawScreen(BandCanvas& c, Screen s)
         case Screen::Flow:    DrawFlow(c); break;
         case Screen::Temp:    DrawTemp(c); break;
         case Screen::Solunar: DrawSolunar(c); break;
-        case Screen::Weather: DrawWeather(c); break;
-        case Screen::Moon:    DrawMoon(c); break;
-        case Screen::Splash:  DrawSplash(c); break;
+        case Screen::Weather:  DrawWeather(c); break;
+        case Screen::Moon:     DrawMoon(c); break;
+        case Screen::CatchLog: DrawCatchLog(c); break;
+        case Screen::Splash:   DrawSplash(c); break;
         case Screen::Clock:
-        default:              DrawClock(c); break;
+        default:               DrawClock(c); break;
     }
 }
 
@@ -178,15 +192,16 @@ bool FishingManager::HasData(Screen s) const
     const bool wantFresh = (waterType == FishingFeedClient::FRESH || waterType == FishingFeedClient::BOTH);
     float tF; const char* src;
     switch (s) {
-        case Screen::Tide:    return wantSalt && feed.Tide().valid && !feed.Tide().events.empty();
-        case Screen::Flow:    return wantFresh && feed.Flow().valid;
-        case Screen::Temp:    return BestWaterTempF(tF, src);
-        case Screen::Solunar: return today.valid && !today.windows.empty();
-        case Screen::Weather: return feed.Weather().valid;
-        case Screen::Moon:    return today.valid;
-        case Screen::Clock:   return true;
-        case Screen::Splash:  return !feed.HasAny() && !today.valid; // cold-start welcome, self-drops
-        default:              return false;
+        case Screen::Tide:     return wantSalt && feed.Tide().valid && !feed.Tide().events.empty();
+        case Screen::Flow:     return wantFresh && feed.Flow().valid;
+        case Screen::Temp:     return BestWaterTemp(tF, src);
+        case Screen::Solunar:  return today.valid && !today.windows.empty();
+        case Screen::Weather:  return feed.Weather().valid;
+        case Screen::Moon:     return today.valid;
+        case Screen::CatchLog: return true; // always available: tap it to log a catch
+        case Screen::Clock:    return true;
+        case Screen::Splash:   return !feed.HasAny() && !today.valid; // cold-start welcome, self-drops
+        default:               return false;
     }
 }
 
@@ -255,6 +270,16 @@ void FishingManager::HandleTouch()
 void FishingManager::HandleTap(int /*tx*/, int /*ty*/)
 {
     if (inDetail) { ExitDetail(); return; }
+
+    // The Catch Log screen is a tally, not a dial: a tap RECORDS a catch, tagged with whether a
+    // solunar feeding window is active right now. It never opens a detail card.
+    if (current == Screen::CatchLog) {
+        const time_t now = time(nullptr);
+        logbook.RecordCatch((long)now, ActiveNow((long)now));
+        if (chimeOnAlert && variant::HAS_AUDIO) board::BuzzerChirp(90); // tactile confirmation
+        return;
+    }
+
     // Tap a data dial to open its detail card (chrome screens have nothing to expand).
     if (current != Screen::Splash && current != Screen::Clock && HasData(current)) {
         detailFor = current;
@@ -285,33 +310,52 @@ void FishingManager::CheckAlerts()
     if (!isnan(flowAlertCfs) && feed.Flow().valid && !isnan(feed.Flow().dischargeCfs))
         flowSide = feed.Flow().dischargeCfs < flowAlertCfs ? -1 : +1;
 
-    // Current water-temp side vs the active-feeding band.
+    // Current water-temp side vs the active-feeding band. The band thresholds are read in the user's
+    // display units (the config labels them degF), matching BestWaterTemp's display-unit return.
     int tempSide = 0;
     float tF = NAN; const char* tSrc = nullptr;
-    if ((!isnan(tempLoF) || !isnan(tempHiF)) && BestWaterTempF(tF, tSrc)) {
+    if ((!isnan(tempLoF) || !isnan(tempHiF)) && BestWaterTemp(tF, tSrc)) {
         const bool inBand = (isnan(tempLoF) || tF >= tempLoF) && (isnan(tempHiF) || tF <= tempHiF);
         tempSide = inBand ? +1 : -1;
     }
 
+    const time_t now = time(nullptr);
+
     // Is a major solunar window open right now?
     long activeMajorStart = 0;
     if (today.valid) {
-        const time_t now = time(nullptr);
         for (const fishing::SolunarWindow& w : today.windows)
             if (w.major && (long)now >= w.startEpoch && (long)now < w.endEpoch) { activeMajorStart = w.startEpoch; break; }
     }
+
+    // Barometer falling fast (fish feed ahead of a front); re-arm once the drop eases past -0.4 hPa/h.
+    const BaroTrend bt = ComputeBaro();
+    const bool baroFalling = bt.valid && bt.rateHpaPerH <= -1.0f;
+    const bool baroEased   = bt.valid && bt.rateHpaPerH >  -0.4f;
+
+    // Next hi/lo tide within ~30 min.
+    long nextTide = 0; bool nextTideHigh = false;
+    if (feed.Tide().valid)
+        for (const fishing::TideEvent& e : feed.Tide().events)
+            if (e.timeEpoch > (long)now && (nextTide == 0 || e.timeEpoch < nextTide)) { nextTide = e.timeEpoch; nextTideHigh = (e.type == 'H'); }
+    const bool tideSoon = nextTide != 0 && (nextTide - (long)now) <= 1800;
 
     if (!alertSeeded) {
         alertSeeded = true;
         lastFlowSide = flowSide;
         lastTempSide = tempSide;
         lastSolunarAlertEpoch = activeMajorStart; // don't fire for a window already open at boot
+        baroAlerted = baroFalling;                // don't fire for a fall already underway at boot
+        lastAlertedTideEpoch = tideSoon ? nextTide : 0;
         return; // never alert for the state present at boot / re-config
     }
+
+    auto chime = [&](uint16_t ms) { if (chimeOnAlert && variant::HAS_AUDIO) board::BuzzerChirp(ms); };
 
     // Flow crossed the threshold.
     if (alertFlow && flowSide != 0 && lastFlowSide != 0 && flowSide != lastFlowSide) {
         char body[80];
+        chime(120);
         if (flowSide < 0) {
             snprintf(body, sizeof(body), "%.0f CFS - below %.0f", feed.Flow().dischargeCfs, flowAlertCfs);
             SendNtfy("River dropped below threshold", body, "fish,arrow_down", 4);
@@ -325,7 +369,8 @@ void FishingManager::CheckAlerts()
     // Water temp entered the active-feeding band.
     if (alertTemp && tempSide == +1 && lastTempSide == -1) {
         char body[80];
-        snprintf(body, sizeof(body), "%.0fF - in the active-feeding band", tF);
+        chime(120);
+        snprintf(body, sizeof(body), "%.0f%s - in the active-feeding band", tF, TempUnit());
         SendNtfy("Water temp in the strike zone", body, "fish,thermometer", 4);
     }
     if (tempSide != 0) lastTempSide = tempSide;
@@ -333,7 +378,32 @@ void FishingManager::CheckAlerts()
     // A major solunar window opened.
     if (alertSolunar && activeMajorStart != 0 && activeMajorStart != lastSolunarAlertEpoch) {
         lastSolunarAlertEpoch = activeMajorStart;
+        chime(140);
         SendNtfy("Bite window opening", "A major solunar feeding period is starting", "fish,sparkles", 4);
+    }
+
+    // Barometer started falling fast.
+    if (baroFalling && !baroAlerted) {
+        baroAlerted = true;
+        if (alertBaro) {
+            chime(140);
+            char b[80];
+            snprintf(b, sizeof(b), "Falling %.1f hPa/h - fish feed ahead of a front", bt.rateHpaPerH);
+            SendNtfy("Barometer dropping", b, "chart_with_downwards_trend,fish", 4);
+        }
+    } else if (baroEased) {
+        baroAlerted = false; // re-arm once the drop eases
+    }
+
+    // A tide turn is ~30 min out.
+    if (tideSoon && nextTide != lastAlertedTideEpoch) {
+        lastAlertedTideEpoch = nextTide;
+        if (alertTide) {
+            chime(120);
+            SendNtfy(nextTideHigh ? "High tide soon" : "Low tide soon",
+                     String(nextTideHigh ? "High" : "Low") + " tide near " + FormatClock(nextTide, tzOffsetSec),
+                     "ocean,fish", 3);
+        }
     }
 }
 
@@ -377,16 +447,77 @@ void FishingManager::UpdateBrightness()
 
 // ----------------------------------------------------------------------------- helpers
 
-bool FishingManager::BestWaterTempF(float& outF, const char*& outSource) const
+bool FishingManager::BestWaterTemp(float& outVal, const char*& outSource) const
 {
     // Gate by water type so a fresh-only / salt-only device never reports the other family's
     // temperature (the feed store is also cleared on a narrowing, but keep the read side honest too).
+    // Returns a value in the CONFIGURED display units. NOAA station gauge + NDBC buoy WTMP are already
+    // in display units (fetched english/metric); the USGS river field is Fahrenheit-normalised at parse
+    // and the Open-Meteo Marine SST is always degC -- both converted to the display units here.
     const bool wantSalt  = (waterType == FishingFeedClient::SALT  || waterType == FishingFeedClient::BOTH);
     const bool wantFresh = (waterType == FishingFeedClient::FRESH || waterType == FishingFeedClient::BOTH);
-    if (wantSalt && feed.SeaTemp().valid && !isnan(feed.SeaTemp().tempF)) { outF = feed.SeaTemp().tempF; outSource = "tide stn"; return true; }
-    if (wantSalt && feed.Buoy().valid && !isnan(feed.Buoy().waterTempF)) { outF = feed.Buoy().waterTempF; outSource = "buoy"; return true; }
-    if (wantFresh && feed.Flow().valid && !isnan(feed.Flow().waterTempF)) { outF = feed.Flow().waterTempF; outSource = "river"; return true; }
+    // Convert a Fahrenheit-normalised value (river field) to the display units.
+    auto fromF = [&](float f) { return imperial ? f : (f - 32.0f) / 1.8f; };
+    if (wantSalt && feed.SeaTemp().valid && !isnan(feed.SeaTemp().tempF)) { outVal = feed.SeaTemp().tempF; outSource = "tide stn"; return true; }
+    if (wantSalt && feed.Buoy().valid && !isnan(feed.Buoy().waterTempF)) { outVal = fromF(feed.Buoy().waterTempF); outSource = "buoy"; return true; }
+    if (wantSalt && feed.Marine().valid && feed.Marine().haveSst) { outVal = SeaTempDisp(feed.Marine().seaTempC); outSource = "model"; return true; }
+    if (wantFresh && feed.Flow().valid && !isnan(feed.Flow().waterTempF)) { outVal = fromF(feed.Flow().waterTempF); outSource = "river"; return true; }
     return false;
+}
+
+bool FishingManager::BestWaves(float& waveDisp, float& periodS, const char*& source) const
+{
+    // Waves priority: real NDBC buoy (with dominant period) > Open-Meteo Marine model. The buoy field
+    // is Fahrenheit/feet-normalised at parse (waveHeightFt); marine is always metres.
+    // Waves are a saltwater concept: a fresh-only device never reports them. The buoy feed is already
+    // water-type gated at fetch, but Marine is fetched on lat/lon alone, so gate the read side too.
+    if (waterType == FishingFeedClient::FRESH) return false;
+    const fishing::BuoyObs& b = feed.Buoy();
+    if (b.valid && !isnan(b.waveHeightFt)) {
+        waveDisp = imperial ? b.waveHeightFt : b.waveHeightFt / 3.28084f;
+        periodS = isnan(b.dominantPeriodS) ? 0.0f : b.dominantPeriodS;
+        source = "buoy";
+        return true;
+    }
+    if (feed.Marine().valid && feed.Marine().haveWave) {
+        waveDisp = WaveDisp(feed.Marine().waveHeightM);
+        periodS = 0.0f;
+        source = "model";
+        return true;
+    }
+    return false;
+}
+
+bool FishingManager::ActiveNow(long nowUtc) const
+{
+    if (!today.valid) return false;
+    for (const fishing::SolunarWindow& w : today.windows)
+        if (nowUtc >= w.startEpoch && nowUtc < w.endEpoch) return true;
+    return false;
+}
+
+FishingManager::BaroTrend FishingManager::ComputeBaro() const
+{
+    BaroTrend b;
+    const fishing::WeatherObs& w = feed.Weather();
+    if (!w.valid || w.pressHist.size() < 2) return b;
+
+    b.nowHpa = !isnan(w.pressureHpa) ? w.pressureHpa : w.pressHist.back().second;
+    const long nowE  = w.timeEpoch > 0 ? w.timeEpoch : w.pressHist.back().first;
+    const long target = nowE - 6 * 3600;  // compare against the sample nearest ~6 h ago
+
+    long  chosenT = w.pressHist.front().first;
+    float chosenP = w.pressHist.front().second;
+    long best = 0x7fffffffL;
+    for (const auto& s : w.pressHist) {
+        long dt = s.first - target; if (dt < 0) dt = -dt;
+        if (dt < best) { best = dt; chosenT = s.first; chosenP = s.second; }
+    }
+    const float hours = (float)(nowE - chosenT) / 3600.0f;
+    if (hours < 1.0f) return b;           // not enough span yet to state a rate
+    b.rateHpaPerH = (b.nowHpa - chosenP) / hours;
+    b.valid = true;
+    return b;
 }
 
 String FishingManager::FormatClock(long epoch, long tzOffsetSec)

@@ -1066,19 +1066,28 @@ static const char CONFIG_HTML[] PROGMEM = R"(
 
                 <fieldset class="border border-cyan-500 p-3">
                     <legend class="px-2">Saltwater (NOAA)</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
-                            <span>CO-OPS tide station:</span>
-                            <input name="fi-noaa" value='%FI_NOAA%' placeholder="e.g. 8443970"
-                                class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                        </label>
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
-                            <span>NDBC buoy:</span>
-                            <input name="fi-buoy" value='%FI_BUOY%' placeholder="e.g. 44013"
-                                class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                        </label>
-                    </div>
-                    <span class="text-xs text-cyan-500 mt-1">Stations at <a href="https://tidesandcurrents.noaa.gov" target="_blank" rel="noopener" class="underline">tidesandcurrents.noaa.gov</a> / buoys at <a href="https://www.ndbc.noaa.gov" target="_blank" rel="noopener" class="underline">ndbc.noaa.gov</a>. Keyless.</span>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>CO-OPS tide station:</span>
+                        <input id="fi-noaa" name="fi-noaa" value='%FI_NOAA%' placeholder="e.g. 8443970"
+                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <button type="button" id="findstation"
+                            class="border border-cyan-500 px-3 py-2 sm:py-0 cursor-pointer whitespace-nowrap">Find nearest</button>
+                    </label>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                        <span>NDBC buoy:</span>
+                        <input id="fi-buoy" name="fi-buoy" value='%FI_BUOY%' placeholder="e.g. 44013"
+                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <button type="button" id="findbuoy"
+                            class="border border-cyan-500 px-3 py-2 sm:py-0 cursor-pointer whitespace-nowrap">Find nearest</button>
+                    </label>
+                    <span class="text-xs text-cyan-500 mt-1">Stations at <a href="https://tidesandcurrents.noaa.gov" target="_blank" rel="noopener" class="underline">tidesandcurrents.noaa.gov</a> / buoys at <a href="https://www.ndbc.noaa.gov" target="_blank" rel="noopener" class="underline">ndbc.noaa.gov</a>. Keyless. "Find nearest" uses the location above.</span>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                        <span>Units:</span>
+                        <select name="fi-units" class="border border-cyan-500 bg-gray-900 px-3 py-2 sm:py-0">
+                            <option value="imperial" %FI_UNITS_IMP%>Imperial (ft, &deg;F, mph, inHg)</option>
+                            <option value="metric" %FI_UNITS_MET%>Metric (m, &deg;C, km/h, hPa)</option>
+                        </select>
+                    </label>
                 </fieldset>
 
                 <fieldset class="border border-cyan-500 p-3">
@@ -1090,6 +1099,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <label class="flex items-center gap-2"><input name="fi-v-solunar" type="checkbox" %FI_V_SOLUNAR% class="accent-cyan-400"><span>Solunar</span></label>
                         <label class="flex items-center gap-2"><input name="fi-v-weather" type="checkbox" %FI_V_WEATHER% class="accent-cyan-400"><span>Weather</span></label>
                         <label class="flex items-center gap-2"><input name="fi-v-moon" type="checkbox" %FI_V_MOON% class="accent-cyan-400"><span>Moon</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-v-catch" type="checkbox" %FI_V_CATCH% class="accent-cyan-400"><span>Catch log</span></label>
                         <label class="flex items-center gap-2"><input name="fi-v-clock" type="checkbox" %FI_V_CLOCK% class="accent-cyan-400"><span>Clock</span></label>
                     </div>
                     <span class="text-xs text-cyan-500 mt-1">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a dial to inspect it.</span>
@@ -1104,13 +1114,16 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     </label>
                     <div class="grid grid-cols-1 gap-2 mt-3">
                         <label class="flex items-center gap-2"><input name="fi-a-solunar" type="checkbox" %FI_A_SOLUNAR% class="accent-cyan-400"><span>Bite window opening (solunar major)</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-a-baro" type="checkbox" %FI_A_BARO% class="accent-cyan-400"><span>Barometer falling fast (front moving in)</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-a-tide" type="checkbox" %FI_A_TIDE% class="accent-cyan-400"><span>A high/low tide is ~30 min away</span></label>
                         <label class="flex items-center gap-2 flex-wrap"><input name="fi-a-flow" type="checkbox" %FI_A_FLOW% class="accent-cyan-400"><span>River crosses</span>
                             <input name="fi-flow-cfs" type="number" min="0" step="1" value='%FI_FLOW_CFS%' class="border border-cyan-500 bg-gray-900 w-24 px-2 sm:py-0"><span>CFS</span></label>
                         <label class="flex items-center gap-2 flex-wrap"><input name="fi-a-temp" type="checkbox" %FI_A_TEMP% class="accent-cyan-400"><span>Water temp enters</span>
                             <input name="fi-temp-lo" type="number" step="1" value='%FI_TEMP_LO%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&ndash;</span>
-                            <input name="fi-temp-hi" type="number" step="1" value='%FI_TEMP_HI%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&deg;F</span></label>
+                            <input name="fi-temp-hi" type="number" step="1" value='%FI_TEMP_HI%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&deg;</span></label>
+                        <label class="flex items-center gap-2"><input name="fi-chime" type="checkbox" %FI_CHIME% class="accent-cyan-400"><span>Also chime the speaker on alerts</span></label>
                     </div>
-                    <span class="text-xs text-cyan-500 mt-1">Leave the topic blank to disable all push alerts. Thresholds are edge-triggered and seeded at boot, so the backlog never fires.</span>
+                    <span class="text-xs text-cyan-500 mt-1">Leave the topic blank to disable push alerts (the speaker chime still works). Thresholds are edge-triggered and seeded at boot, so the backlog never fires. The CFS and water-temp band are in your selected units &mdash; re-enter them if you change units.</span>
                 </fieldset>
 
                 <fieldset class="border border-cyan-500 p-3">
@@ -1164,6 +1177,47 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 fetch('/reset-wifi', { method: 'POST' })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
+            });
+            // Resolve the nearest NOAA tide-prediction station in the browser (it has the heap for the
+            // full ~3450-station list); the device then only ever stores + polls the one station id.
+            document.getElementById('findstation').addEventListener('click', async function() {
+                const la = parseFloat(document.querySelector('[name=latitude]').value);
+                const lo = parseFloat(document.querySelector('[name=longitude]').value);
+                if (isNaN(la) || isNaN(lo)) { alert('Enter latitude and longitude first.'); return; }
+                const btn = this; btn.textContent = 'searching...';
+                try {
+                    const r = await fetch('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions');
+                    const j = await r.json();
+                    let best = null, bd = 1e18;
+                    for (const s of j.stations) {
+                        const dx = (s.lng - lo) * Math.cos(la * Math.PI / 180), dy = s.lat - la;
+                        const d = dx * dx + dy * dy;
+                        if (d < bd) { bd = d; best = s; }
+                    }
+                    if (best) { document.getElementById('fi-noaa').value = best.id; btn.textContent = '✓ ' + best.name.substring(0, 16); }
+                    else btn.textContent = 'none found';
+                } catch (e) { btn.textContent = 'error - enter manually'; }
+            });
+            // Nearest NDBC buoy that reports meteorology (met='y'), resolved in the browser from the
+            // active-stations XML; the device only stores + polls the one buoy id.
+            document.getElementById('findbuoy').addEventListener('click', async function() {
+                const la = parseFloat(document.querySelector('[name=latitude]').value);
+                const lo = parseFloat(document.querySelector('[name=longitude]').value);
+                if (isNaN(la) || isNaN(lo)) { alert('Enter latitude and longitude first.'); return; }
+                const btn = this; btn.textContent = 'searching...';
+                try {
+                    const r = await fetch('https://www.ndbc.noaa.gov/activestations.xml');
+                    const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+                    let best = null, bd = 1e18;
+                    for (const s of xml.getElementsByTagName('station')) {
+                        if (s.getAttribute('met') !== 'y') continue;
+                        const sy = parseFloat(s.getAttribute('lat')), sx = parseFloat(s.getAttribute('lon'));
+                        const dx = (sx - lo) * Math.cos(la * Math.PI / 180), dy = sy - la, d = dx * dx + dy * dy;
+                        if (d < bd) { bd = d; best = s; }
+                    }
+                    if (best) { document.getElementById('fi-buoy').value = best.getAttribute('id'); btn.textContent = '✓ ' + best.getAttribute('id'); }
+                    else btn.textContent = 'none found';
+                } catch (e) { btn.textContent = 'error - enter manually'; }
             });
         </script>
     </body>
@@ -1462,6 +1516,7 @@ void ConfigurationWebServer::Initialise() {
         const String fiUsgs = prefs.getString("fi-usgs", "");
         const String fiNoaa = prefs.getString("fi-noaa", "");
         const String fiBuoy = prefs.getString("fi-buoy", "");
+        const String fiUnits = prefs.isKey("fi-units") ? prefs.getString("fi-units", "imperial") : "imperial";
         const String fiBaseUrl = prefs.getString("fi-base-url", "");
         const String fiTz = prefs.isKey("fi-tz-offset") ? prefs.getString("fi-tz-offset", "0") : "0";
         const String fiFlowCfs = prefs.getString("fi-flow-cfs", "");
@@ -1473,10 +1528,14 @@ void ConfigurationWebServer::Initialise() {
         const String vSolunar = prefs.isKey("fi-v-solunar") ? prefs.getString("fi-v-solunar", "true") : "true";
         const String vWeather = prefs.isKey("fi-v-weather") ? prefs.getString("fi-v-weather", "true") : "true";
         const String vMoon = prefs.isKey("fi-v-moon") ? prefs.getString("fi-v-moon", "true") : "true";
+        const String vCatch = prefs.isKey("fi-v-catch") ? prefs.getString("fi-v-catch", "true") : "true";
         const String vClock = prefs.isKey("fi-v-clock") ? prefs.getString("fi-v-clock", "true") : "true";
         const String aFlow = prefs.isKey("fi-a-flow") ? prefs.getString("fi-a-flow", "false") : "false";
         const String aTemp = prefs.isKey("fi-a-temp") ? prefs.getString("fi-a-temp", "false") : "false";
         const String aSolunar = prefs.isKey("fi-a-solunar") ? prefs.getString("fi-a-solunar", "false") : "false";
+        const String aBaro = prefs.isKey("fi-a-baro") ? prefs.getString("fi-a-baro", "false") : "false";
+        const String aTide = prefs.isKey("fi-a-tide") ? prefs.getString("fi-a-tide", "false") : "false";
+        const String fiChime = prefs.isKey("fi-chime") ? prefs.getString("fi-chime", "false") : "false";
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
@@ -1666,7 +1725,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [fiWater, latitude, longitude, fiUsgs, fiNoaa, fiBuoy, fiBaseUrl, fiTz, fiFlowCfs, fiTempLo, fiTempHi, vTide, vFlow, vTemp, vSolunar, vWeather, vMoon, vClock, aFlow, aTemp, aSolunar, ntfyTopic, autoDimEnabled, brightness]
+            [fiWater, latitude, longitude, fiUsgs, fiNoaa, fiBuoy, fiUnits, fiBaseUrl, fiTz, fiFlowCfs, fiTempLo, fiTempHi, vTide, vFlow, vTemp, vSolunar, vWeather, vMoon, vCatch, vClock, aFlow, aTemp, aSolunar, aBaro, aTide, fiChime, ntfyTopic, autoDimEnabled, brightness]
             (const String& var) -> String {
                 if (var == "FI_WATER_BOTH")  return (fiWater == "fresh" || fiWater == "salt") ? "" : "selected";
                 if (var == "FI_WATER_FRESH") return fiWater == "fresh" ? "selected" : "";
@@ -1676,6 +1735,8 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "FI_USGS")        return fiUsgs;
                 if (var == "FI_NOAA")        return fiNoaa;
                 if (var == "FI_BUOY")        return fiBuoy;
+                if (var == "FI_UNITS_IMP")   return fiUnits == "metric" ? "" : "selected";
+                if (var == "FI_UNITS_MET")   return fiUnits == "metric" ? "selected" : "";
                 if (var == "FI_BASE_URL")    return fiBaseUrl;
                 if (var == "FI_TZ")          return fiTz;
                 if (var == "FI_FLOW_CFS")    return fiFlowCfs;
@@ -1687,10 +1748,14 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "FI_V_SOLUNAR")   return vSolunar == "true" ? "checked" : "";
                 if (var == "FI_V_WEATHER")   return vWeather == "true" ? "checked" : "";
                 if (var == "FI_V_MOON")      return vMoon == "true" ? "checked" : "";
+                if (var == "FI_V_CATCH")     return vCatch == "true" ? "checked" : "";
                 if (var == "FI_V_CLOCK")     return vClock == "true" ? "checked" : "";
                 if (var == "FI_A_FLOW")      return aFlow == "true" ? "checked" : "";
                 if (var == "FI_A_TEMP")      return aTemp == "true" ? "checked" : "";
                 if (var == "FI_A_SOLUNAR")   return aSolunar == "true" ? "checked" : "";
+                if (var == "FI_A_BARO")      return aBaro == "true" ? "checked" : "";
+                if (var == "FI_A_TIDE")      return aTide == "true" ? "checked" : "";
+                if (var == "FI_CHIME")       return fiChime == "true" ? "checked" : "";
                 if (var == "NTFY_TOPIC")     return ntfyTopic;
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
@@ -1906,6 +1971,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("fi-usgs");
         TrySaveParam("fi-noaa");
         TrySaveParam("fi-buoy");
+        TrySaveParam("fi-units");
         TrySaveParam("fi-base-url");
         TrySaveParam("fi-tz-offset");
         TrySaveParam("fi-flow-cfs");
@@ -1921,10 +1987,14 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("fi-v-solunar", request->hasParam("fi-v-solunar", true) ? "true" : "false");
         prefs.putString("fi-v-weather", request->hasParam("fi-v-weather", true) ? "true" : "false");
         prefs.putString("fi-v-moon",    request->hasParam("fi-v-moon", true) ? "true" : "false");
+        prefs.putString("fi-v-catch",   request->hasParam("fi-v-catch", true) ? "true" : "false");
         prefs.putString("fi-v-clock",   request->hasParam("fi-v-clock", true) ? "true" : "false");
         prefs.putString("fi-a-flow",    request->hasParam("fi-a-flow", true) ? "true" : "false");
         prefs.putString("fi-a-temp",    request->hasParam("fi-a-temp", true) ? "true" : "false");
         prefs.putString("fi-a-solunar", request->hasParam("fi-a-solunar", true) ? "true" : "false");
+        prefs.putString("fi-a-baro",    request->hasParam("fi-a-baro", true) ? "true" : "false");
+        prefs.putString("fi-a-tide",    request->hasParam("fi-a-tide", true) ? "true" : "false");
+        prefs.putString("fi-chime",     request->hasParam("fi-chime", true) ? "true" : "false");
         prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
 #elif defined(FEATURE_CLAUDESCOPE)
         // FEATURE_CLAUDESCOPE: persist the Claudescope config fields. All feeds are keyless -- no

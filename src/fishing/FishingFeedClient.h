@@ -44,6 +44,7 @@ public:
         String usgsSite;                // primary USGS site number (freshwater)
         String noaaStation;             // primary CO-OPS station id (saltwater)
         String buoyId;                  // primary NDBC buoy id (saltwater)
+        bool   imperial = true;         // NOAA units=english + Open-Meteo F/mph vs metric C/kmh
         float  intervalScale = 1.0f;    // global poll-interval multiplier (>=1 relaxes all pollers)
     };
 
@@ -54,15 +55,17 @@ public:
     // ---- result store (loop-task read) ----
     const fishing::RiverGauge& Flow()    const { return gauge; }
     const fishing::TideState&  Tide()    const { return tide; }
+    const std::vector<std::pair<long, float>>& TideCurve() const { return tideCurve; }
     const fishing::WaterTemp&  SeaTemp() const { return wtemp; }
     const fishing::BuoyObs&    Buoy()    const { return buoy; }
     const fishing::WeatherObs& Weather() const { return weather; }
+    const fishing::MarineObs&  Marine()  const { return marine; }
     bool HasAny() const {
-        return gauge.valid || tide.valid || wtemp.valid || buoy.valid || weather.valid;
+        return gauge.valid || tide.valid || wtemp.valid || buoy.valid || weather.valid || marine.valid;
     }
 
 private:
-    enum FeedIdx : uint8_t { F_FLOW, F_TIDES, F_WTEMP, F_BUOY, F_WEATHER, F_COUNT };
+    enum FeedIdx : uint8_t { F_FLOW, F_TIDES, F_TIDECURVE, F_WTEMP, F_BUOY, F_WEATHER, F_MARINE, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -76,9 +79,11 @@ private:
     // result store
     fishing::RiverGauge gauge;
     fishing::TideState  tide;
+    std::vector<std::pair<long, float>> tideCurve;
     fishing::WaterTemp  wtemp;
     fishing::BuoyObs    buoy;
     fishing::WeatherObs weather;
+    fishing::MarineObs  marine;
 
     bool firstLogged[F_COUNT] = {};
 

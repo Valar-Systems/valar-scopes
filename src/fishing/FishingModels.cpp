@@ -130,6 +130,25 @@ void ParseCoopsTides(JsonObjectConst root, TideState& out)
     out.valid = !out.events.empty();
 }
 
+void ParseCoopsTideCurve(JsonObjectConst root, std::vector<std::pair<long, float>>& out, size_t cap)
+{
+    out.clear();
+    if (root.isNull() || !root["error"].isNull()) return; // subordinate station / no harmonic curve
+
+    JsonArrayConst preds = root["predictions"].as<JsonArrayConst>();
+    if (preds.isNull()) return;
+
+    // Decimate to at most `cap` samples so the retained curve stays small.
+    const size_t total = preds.size();
+    const size_t stride = (cap > 0 && total > cap) ? (total + cap - 1) / cap : 1;
+    size_t i = 0;
+    for (JsonObjectConst p : preds) {
+        if (stride > 1 && (i++ % stride)) continue;
+        const long t = ParseIso8601(p["t"] | "");            // requested in GMT -> UTC
+        if (t > 0) out.push_back({t, String((const char*)(p["v"] | "0")).toFloat()});
+    }
+}
+
 void ParseCoopsWaterTemp(JsonObjectConst root, WaterTemp& out)
 {
     out = WaterTemp();
@@ -194,32 +213,68 @@ void ParseNdbcBuoy(const String& body, BuoyObs& out)
 }
 
 // ----------------------------------------------------------------- shared (Open-Meteo)
-void ParseOpenMeteo(JsonObjectConst root, WeatherObs& out)
+void ParseOpenMeteo(JsonObjectConst root, WeatherObs& out, size_t histCap)
 {
     out = WeatherObs();
     if (root.isNull()) return;
 
     JsonObjectConst cur = root["current"].as<JsonObjectConst>();
     if (!cur.isNull()) {
-        out.airTempF    = cur["temperature_2m"]     | NAN;   // requested in Fahrenheit
-        out.windMph     = cur["wind_speed_10m"]      | NAN;   // requested in mph
+        out.airTempF    = cur["temperature_2m"]     | NAN;   // display units (F/C per request)
+        out.windMph     = cur["wind_speed_10m"]      | NAN;   // display units (mph/kmh per request)
         out.windDirDeg  = cur["wind_direction_10m"]  | -1;
-        out.precipIn    = cur["precipitation"]       | NAN;   // requested in inches
-        out.pressureHpa = cur["surface_pressure"]    | NAN;
+        out.precipIn    = cur["precipitation"]       | NAN;   // display units (in/mm per request)
+        // Prefer sea-level pressure (pressure_msl) for the barometer; fall back to surface_pressure.
+        out.pressureHpa = cur["pressure_msl"] | (cur["surface_pressure"] | NAN);
         out.timeEpoch   = ParseIso8601(cur["time"]   | "");
     }
 
-    // Barometric trend from the short hourly pressure series (past_hours=3, forecast_hours=1).
-    JsonArrayConst hp = root["hourly"]["surface_pressure"].as<JsonArrayConst>();
-    if (!hp.isNull() && hp.size() >= 2) {
-        const float first = hp[0] | NAN;
-        const float last  = hp[hp.size() - 1] | NAN;
-        if (!isnan(first) && !isnan(last)) {
-            const float d = last - first;
-            out.pressureTrend = d > 0.6f ? +1 : (d < -0.6f ? -1 : 0); // ~0.6 hPa deadband
+    // 24h sea-level pressure history (oldest..newest), bounded by histCap, for the sparkline + rate.
+    JsonObjectConst h = root["hourly"].as<JsonObjectConst>();
+    if (!h.isNull()) {
+        JsonArrayConst ts = h["time"].as<JsonArrayConst>();
+        JsonArrayConst pp = h["pressure_msl"].isNull() ? h["surface_pressure"].as<JsonArrayConst>()
+                                                       : h["pressure_msl"].as<JsonArrayConst>();
+        if (!ts.isNull() && !pp.isNull()) {
+            const size_t n = ts.size() < pp.size() ? ts.size() : pp.size();
+            const size_t start = (histCap > 0 && n > histCap) ? n - histCap : 0;
+            for (size_t i = start; i < n; ++i) {
+                const long e = ParseIso8601(ts[i] | "");
+                const float pv = pp[i] | NAN;
+                if (e > 0 && !isnan(pv) && pv > 0) out.pressHist.push_back({e, pv});
+            }
         }
     }
+
+    // Short barometric trend arrow from first vs last of the retained series (the manager computes the
+    // richer ~6h rate for the alert; this drives the on-screen glyph).
+    if (out.pressHist.size() >= 2) {
+        const float d = out.pressHist.back().second - out.pressHist.front().second;
+        out.pressureTrend = d > 0.6f ? +1 : (d < -0.6f ? -1 : 0); // ~0.6 hPa deadband
+    }
     out.valid = !isnan(out.airTempF) || !isnan(out.pressureHpa);
+}
+
+void ParseOpenMeteoMarine(JsonObjectConst root, MarineObs& out)
+{
+    out = MarineObs();
+    if (root.isNull()) return;
+
+    JsonObjectConst cur = root["current"].as<JsonObjectConst>();
+    if (!cur.isNull()) {
+        if (!cur["wave_height"].isNull())             { out.waveHeightM = cur["wave_height"] | NAN;             out.haveWave = !isnan(out.waveHeightM); }
+        if (!cur["sea_surface_temperature"].isNull()) { out.seaTempC    = cur["sea_surface_temperature"] | NAN; out.haveSst  = !isnan(out.seaTempC); }
+    }
+    if (!out.haveWave && !out.haveSst) { // fall back to the first hourly sample
+        JsonObjectConst h = root["hourly"].as<JsonObjectConst>();
+        if (!h.isNull()) {
+            JsonArrayConst w = h["wave_height"].as<JsonArrayConst>();
+            JsonArrayConst s = h["sea_surface_temperature"].as<JsonArrayConst>();
+            if (!w.isNull() && w.size() > 0 && !w[0].isNull()) { out.waveHeightM = w[0] | NAN; out.haveWave = !isnan(out.waveHeightM); }
+            if (!s.isNull() && s.size() > 0 && !s[0].isNull()) { out.seaTempC    = s[0] | NAN; out.haveSst  = !isnan(out.seaTempC); }
+        }
+    }
+    out.valid = true; // valid even if both absent (inland) -> the screen just skips the marine line
 }
 
 // ----------------------------------------------------------------------------- geo helpers
