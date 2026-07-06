@@ -18,7 +18,7 @@ constexpr uint32_t WEATHER_MS = 900000;   // 15 m: Open-Meteo weather + barometr
 
 constexpr uint32_t MAX_BACKOFF_MS = 1800000; // cap exponential backoff at 30 m
 
-const char* USER_AGENT = "Blipscope-Fishing/1 (+https://github.com/Valar-Systems/Blipscope)";
+const char* USER_AGENT = "Blipscope-Fishing/1 (+https://github.com/Valar-Systems/valar-scopes)";
 
 // Route through the optional aggregator: if a base URL is configured, swap the direct origin for it
 // but keep the path+query, so a valar-fishing-feed can proxy/normalize. Empty base = hit the public

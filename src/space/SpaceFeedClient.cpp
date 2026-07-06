@@ -37,7 +37,7 @@ const DeepTarget DEEP_TARGETS[] = {
 constexpr int DEEP_N = (int)(sizeof(DEEP_TARGETS) / sizeof(DEEP_TARGETS[0]));
 
 // A polite UA: some public APIs reject default/empty agents. No key, nothing identifying the user.
-const char* USER_AGENT = "Blipscope-Spacescope/1 (+https://github.com/Valar-Systems/Blipscope)";
+const char* USER_AGENT = "Blipscope-Spacescope/1 (+https://github.com/Valar-Systems/valar-scopes)";
 
 } // namespace
 

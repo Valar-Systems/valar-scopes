@@ -428,7 +428,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-green-700 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION%</span>
             </div>
         </fieldset>
@@ -643,7 +643,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-green-700 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION% (EAM)</span>
             </div>
         </fieldset>
@@ -762,7 +762,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-sky-600 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-sky-300 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-sky-300 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION% (Space)</span>
             </div>
         </fieldset>
@@ -880,7 +880,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-amber-600 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-amber-300 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-amber-300 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION% (Seismic)</span>
             </div>
         </fieldset>
@@ -1005,7 +1005,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-green-600 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-green-300 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-green-300 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION% (Birding)</span>
             </div>
         </fieldset>
@@ -1110,7 +1110,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-teal-600 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-teal-300 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-teal-300 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION% (Angler)</span>
             </div>
         </fieldset>
@@ -1268,7 +1268,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </form>
 
             <div class="flex justify-between items-end text-xs text-cyan-500 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-cyan-200 underline">Help &amp; documentation</a>
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-cyan-200 underline">Help &amp; documentation</a>
                 <span>Firmware v%FW_VERSION% (Reelscope)</span>
             </div>
         </fieldset>

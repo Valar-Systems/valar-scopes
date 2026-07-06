@@ -16,7 +16,7 @@ namespace {
 // version.txt (an integer) gates everyone. Each SKU then downloads ITS OWN binary,
 // named by its variant slug -- one SKU must never flash another's image. CI
 // publishes firmware-<slug>.bin per SKU (see RELEASING.md).
-const char* VERSION_URL = "https://github.com/Valar-Systems/Blipscope/releases/latest/download/version.txt";
+const char* VERSION_URL = "https://github.com/Valar-Systems/valar-scopes/releases/latest/download/version.txt";
 
 // FEATURE_EAM and the radar app can share a board (and thus a variant::SLUG) while shipping
 // as separate products, so they ride separate OTA channels: FW_OTA_PREFIX is empty for the
@@ -28,7 +28,7 @@ const char* VERSION_URL = "https://github.com/Valar-Systems/Blipscope/releases/l
 
 String FirmwareUrl()
 {
-    return String("https://github.com/Valar-Systems/Blipscope/releases/latest/download/firmware-")
+    return String("https://github.com/Valar-Systems/valar-scopes/releases/latest/download/firmware-")
            + FW_OTA_PREFIX + variant::SLUG + ".bin";
 }
 
