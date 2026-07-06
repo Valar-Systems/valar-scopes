@@ -22,7 +22,7 @@ constexpr size_t NEARBY_RETAIN = 60;     // nearby quakes kept (also the query `
 constexpr float NEARBY_MIN_MAG = 1.0f;
 
 // A polite UA: some public APIs reject default/empty agents. No key, nothing identifying the user.
-const char* USER_AGENT = "Blipscope-Seismic/1 (+https://github.com/Valar-Systems/Blipscope)";
+const char* USER_AGENT = "Blipscope-Seismic/1 (+https://github.com/Valar-Systems/valar-scopes)";
 
 const char* USGS_QUERY = "https://earthquake.usgs.gov/fdsnws/event/1/query";
 

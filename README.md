@@ -58,7 +58,7 @@ Flash the Missileer firmware and the same device becomes a desk readout for the 
 
 It reuses the same Wi-Fi setup, web config, ntfy alerts, and over-the-air updates as the radar, and runs on its own firmware update channel so the two never cross.
 
-### 📖 [Full guide → Missileer (EAM Monitor) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Missileer)
+### 📖 [Full guide → Missileer (EAM Monitor) on the Wiki](https://github.com/Valar-Systems/valar-scopes/wiki/Missileer)
 
 ## 🛰️ Orbitscope (Space)
 
@@ -70,7 +70,7 @@ Flash the Orbitscope firmware and the device becomes a small mission console for
 
 It pings your phone when a launch is imminent (T-10 / T-1) or the aurora is stirring (high Kp). Beyond the three above it has grown a whole console of screens — a Deep Space Network board, deep-space-probe distances, solar-flare activity, ISS visible-pass predictions, a star map, asteroid flybys, Moon phase, and eclipse countdowns. Next on the roadmap: a **Skywatch** sky-dome plotting *every* satellite passing overhead — bright passes and Starlink trains, not just the ISS — computed on-device from public orbital data. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions.
 
-### 📖 [Full guide → Orbitscope (Space) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Orbitscope)
+### 📖 [Full guide → Orbitscope (Space) on the Wiki](https://github.com/Valar-Systems/valar-scopes/wiki/Orbitscope)
 
 ## 🌐 Quakescope (Seismic)
 
@@ -124,7 +124,7 @@ Every Edition is the same recipe: pick a **free public data feed**, draw a few g
 - 🚆 **Transit Edition** — a "leave now" countdown to the next bus or train from your stop.
 - 📻 **Ham Radio Edition** — HF band conditions, solar flux, and live DX spots for radio amateurs, reusing Missileer's propagation feed.
 
-Have an Edition you'd love to see — or a free data feed that belongs on a round screen? [Open an issue](https://github.com/Valar-Systems/Blipscope/issues) and tell us.
+Have an Edition you'd love to see — or a free data feed that belongs on a round screen? [Open an issue](https://github.com/Valar-Systems/valar-scopes/issues) and tell us.
 
 ---
 
@@ -140,7 +140,7 @@ Buying a kit is also the best way to support continued development of the projec
 
 The Valar Scopes enclosure has been completely redesigned, so the build steps live in the project wiki rather than here in the README:
 
-### 📖 [Assembly guide → Valar Scopes Wiki](https://github.com/Valar-Systems/Blipscope/wiki)
+### 📖 [Assembly guide → Valar Scopes Wiki](https://github.com/Valar-Systems/valar-scopes/wiki)
 
 The wiki walks through the full build with photos. We recommend skimming the [Setup & Usage](#setup--usage) section below before you start, so you can test the hardware before everything is closed up.
 

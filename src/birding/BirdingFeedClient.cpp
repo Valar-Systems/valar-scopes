@@ -17,7 +17,7 @@ constexpr size_t NOTABLE_RETAIN  = 40;
 constexpr size_t RECENT_RETAIN   = 80;
 constexpr size_t HOTSPOTS_RETAIN = 20;
 
-const char* USER_AGENT = "Blipscope-Birding/1 (+https://github.com/Valar-Systems/Blipscope)";
+const char* USER_AGENT = "Blipscope-Birding/1 (+https://github.com/Valar-Systems/valar-scopes)";
 const char* EBIRD = "https://api.ebird.org/v2";
 
 int ClampInt(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
