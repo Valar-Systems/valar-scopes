@@ -1082,6 +1082,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     </label>
                     <span class="text-xs text-teal-600 mt-1">US tide predictions + water temp from NOAA (keyless). Blank hides the Tides screen. "Find nearest" uses the location above, or browse <a href="https://tidesandcurrents.noaa.gov/" target="_blank" rel="noopener" class="underline">tidesandcurrents.noaa.gov</a>. Weather, barometer and waves work worldwide with no station.</span>
                     <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                        <span>NDBC buoy (optional):</span>
+                        <input id="buoy" name="ang-buoy" value='%BUOY%' placeholder="e.g. 46050"
+                            class="flex-1 border border-teal-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <button type="button" id="findbuoy"
+                            class="border border-teal-400 px-3 py-2 sm:py-0 cursor-pointer whitespace-nowrap">Find nearest</button>
+                    </label>
+                    <span class="text-xs text-teal-600 mt-1">Real in-water temperature + wave height + period from the nearest NOAA buoy (keyless). Optional &mdash; the Water screen falls back to the modeled sea data without it.</span>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
                         <span>Units:</span>
                         <select name="ang-units" class="border border-teal-400 bg-gray-900 px-3 py-2 sm:py-0">
                             <option value="imperial" %UNITS_IMP%>Imperial (ft, &deg;F, mph, inHg)</option>
@@ -1171,6 +1179,27 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         if (d < bd) { bd = d; best = s; }
                     }
                     if (best) { document.getElementById('tidestation').value = best.id; btn.textContent = '✓ ' + best.name.substring(0, 16); }
+                    else btn.textContent = 'none found';
+                } catch (e) { btn.textContent = 'error - enter manually'; }
+            });
+            // Nearest NDBC buoy that reports meteorology (met='y'), resolved in the browser from the
+            // active-stations XML; the device only stores + polls the one buoy id.
+            document.getElementById('findbuoy').addEventListener('click', async function() {
+                const la = parseFloat(document.querySelector('[name=latitude]').value);
+                const lo = parseFloat(document.querySelector('[name=longitude]').value);
+                if (isNaN(la) || isNaN(lo)) { alert('Enter latitude and longitude first.'); return; }
+                const btn = this; btn.textContent = 'searching...';
+                try {
+                    const r = await fetch('https://www.ndbc.noaa.gov/activestations.xml');
+                    const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+                    let best = null, bd = 1e18;
+                    for (const s of xml.getElementsByTagName('station')) {
+                        if (s.getAttribute('met') !== 'y') continue;
+                        const sy = parseFloat(s.getAttribute('lat')), sx = parseFloat(s.getAttribute('lon'));
+                        const dx = (sx - lo) * Math.cos(la * Math.PI / 180), dy = sy - la, d = dx * dx + dy * dy;
+                        if (d < bd) { bd = d; best = s; }
+                    }
+                    if (best) { document.getElementById('buoy').value = best.getAttribute('id'); btn.textContent = '✓ ' + best.getAttribute('id'); }
                     else btn.textContent = 'none found';
                 } catch (e) { btn.textContent = 'error - enter manually'; }
             });
@@ -1373,6 +1402,7 @@ void ConfigurationWebServer::Initialise() {
             : String((int)round(longitude.toFloat() / 15.0));
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
         const String tideStation = prefs.getString("ang-tide-station", "");
+        const String buoy = prefs.getString("ang-buoy", "");
         const String angUnits = prefs.isKey("ang-units") ? prefs.getString("ang-units", "imperial") : "imperial";
         const String alertBite = prefs.isKey("ang-alert-bite") ? prefs.getString("ang-alert-bite", "true") : "true";
         const String alertBaro = prefs.isKey("ang-alert-baro") ? prefs.getString("ang-alert-baro", "false") : "false";
@@ -1571,12 +1601,13 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, tzOffset, tideStation, angUnits, ntfyTopic, alertBite, alertBaro, alertTide, chimeOnAlert, autoDimEnabled, brightness, anglerScreensHtml]
+            [latitude, longitude, tzOffset, tideStation, buoy, angUnits, ntfyTopic, alertBite, alertBaro, alertTide, chimeOnAlert, autoDimEnabled, brightness, anglerScreensHtml]
             (const String& var) -> String {
                 if (var == "LATITUDE")            return latitude;
                 if (var == "LONGITUDE")           return longitude;
                 if (var == "TZ_OFFSET")           return tzOffset;
                 if (var == "TIDE_STATION")        return tideStation;
+                if (var == "BUOY")                return buoy;
                 if (var == "UNITS_IMP")           return angUnits == "metric" ? "" : "selected";
                 if (var == "UNITS_MET")           return angUnits == "metric" ? "selected" : "";
                 if (var == "NTFY_TOPIC")          return ntfyTopic;
@@ -1776,6 +1807,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("longitude");
         TrySaveParam("tz-offset");
         TrySaveParam("ang-tide-station");
+        TrySaveParam("ang-buoy");
         TrySaveParam("ang-units");
         TrySaveParam("ntfy-topic");
         TrySaveParam("brightness");

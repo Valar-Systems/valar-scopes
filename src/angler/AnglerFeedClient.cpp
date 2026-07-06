@@ -9,14 +9,17 @@ namespace {
 // Default poll intervals (ms). Tides change on the astronomical clock (predictions are static once
 // fetched); weather + marine update every ~15 min upstream.
 constexpr uint32_t TIDES_MS     = 10800000;   // ~3 h: hi/lo predictions are astronomical, slow
+constexpr uint32_t TIDECURVE_MS = 10800000;   // ~3 h: the 6-min curve is predicted, changes slowly
 constexpr uint32_t WATERTEMP_MS = 1800000;    // ~30 m: NOAA water temp updates ~6-minutely upstream
 constexpr uint32_t WEATHER_MS   = 900000;     // ~15 m: Open-Meteo current + pressure history
 constexpr uint32_t MARINE_MS    = 1800000;    // ~30 m: waves / sea-surface temp move slowly
+constexpr uint32_t BUOY_MS      = 600000;     // ~10 m: NDBC buoys report ~hourly; poll a bit faster
 
 constexpr uint32_t MAX_BACKOFF_MS = 1200000;  // cap exponential backoff at 20 m
 
-constexpr size_t TIDE_RETAIN  = 8;    // a couple of days of hi/lo (screen shows the next few)
-constexpr size_t PRESS_HISTORY = 24;  // last 24 hourly pressure samples for the baro trend/sparkline
+constexpr size_t TIDE_RETAIN     = 8;    // a couple of days of hi/lo (screen shows the next few)
+constexpr size_t TIDECURVE_RETAIN = 180; // decimated 6-min curve points (bounds JSON + RAM)
+constexpr size_t PRESS_HISTORY   = 24;   // last 24 hourly pressure samples for the baro trend/sparkline
 
 const char* USER_AGENT = "Blipscope-Angler/1 (+https://github.com/Valar-Systems/Blipscope)";
 
@@ -40,9 +43,11 @@ void AnglerFeedClient::Configure(const Config& newCfg)
     if (sc > 8.0f) sc = 8.0f;
 
     feeds[F_TIDES].intervalMs     = (uint32_t)(TIDES_MS * sc);
+    feeds[F_TIDECURVE].intervalMs = (uint32_t)(TIDECURVE_MS * sc);
     feeds[F_WATERTEMP].intervalMs = (uint32_t)(WATERTEMP_MS * sc);
     feeds[F_WEATHER].intervalMs   = (uint32_t)(WEATHER_MS * sc);
     feeds[F_MARINE].intervalMs    = (uint32_t)(MARINE_MS * sc);
+    feeds[F_BUOY].intervalMs      = (uint32_t)(BUOY_MS * sc);
 
     // Stage the first poll shortly after (re)config, fanned out so they don't hit the TLS client
     // at once.
@@ -108,6 +113,21 @@ bool AnglerFeedClient::BuildRequest(int feedIdx, AnglerFetchRequest& req)
                              "&datum=MLLW&interval=hilo&time_zone=gmt&format=json&range=48&units=") + units +
                       "&station=" + cfg.tideStation;
             return true;
+        case F_TIDECURVE:
+            if (cfg.tideStation.isEmpty()) return false;
+            req.endpoint = AnglerEndpoint::TideCurve;
+            // Same predictions endpoint WITHOUT interval=hilo -> the 6-minute curve; range=30 h keeps
+            // it small. Harmonic (reference) stations only; subordinate stations error and we fall
+            // back to interpolating the hi/lo events.
+            req.url = String("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions"
+                             "&datum=MLLW&time_zone=gmt&format=json&range=30&units=") + units +
+                      "&station=" + cfg.tideStation;
+            return true;
+        case F_BUOY:
+            if (cfg.buoy.isEmpty()) return false;
+            req.endpoint = AnglerEndpoint::Buoy;
+            req.url = String("https://www.ndbc.noaa.gov/data/realtime2/") + cfg.buoy + ".txt";
+            return true;
         case F_WATERTEMP:
             if (cfg.tideStation.isEmpty()) return false;
             req.endpoint = AnglerEndpoint::WaterTemp;
@@ -138,9 +158,11 @@ int AnglerFeedClient::FeedForEndpoint(AnglerEndpoint e)
 {
     switch (e) {
         case AnglerEndpoint::Tides:     return F_TIDES;
+        case AnglerEndpoint::TideCurve: return F_TIDECURVE;
         case AnglerEndpoint::WaterTemp: return F_WATERTEMP;
         case AnglerEndpoint::Weather:   return F_WEATHER;
         case AnglerEndpoint::Marine:    return F_MARINE;
+        case AnglerEndpoint::Buoy:      return F_BUOY;
     }
     return F_WEATHER;
 }
@@ -167,6 +189,9 @@ void AnglerFeedClient::ApplyResult(const AnglerFetchResult& res)
             tide = res.tide;
             if (tide.events.size() > TIDE_RETAIN) tide.events.resize(TIDE_RETAIN);
             break;
+        case AnglerEndpoint::TideCurve:
+            tideCurve = res.tideCurve;
+            break;
         case AnglerEndpoint::WaterTemp:
             haveWaterTemp = res.haveWaterTemp;
             waterTemp = res.waterTemp;
@@ -177,6 +202,9 @@ void AnglerFeedClient::ApplyResult(const AnglerFetchResult& res)
         case AnglerEndpoint::Marine:
             marine = res.marine;
             break;
+        case AnglerEndpoint::Buoy:
+            buoy = res.buoy;
+            break;
     }
 
     if (!firstLogged[f]) {
@@ -184,6 +212,14 @@ void AnglerFeedClient::ApplyResult(const AnglerFetchResult& res)
         switch (res.endpoint) {
             case AnglerEndpoint::Tides:
                 Serial.printf("[angler] tides ok: %u upcoming hi/lo\n", (unsigned)tide.events.size());
+                break;
+            case AnglerEndpoint::TideCurve:
+                Serial.printf("[angler] tide curve ok: %u points\n", (unsigned)tideCurve.size());
+                break;
+            case AnglerEndpoint::Buoy:
+                Serial.printf("[angler] buoy ok: wtmp=%s%.1fC  wave=%s%.2fm\n",
+                              buoy.haveWaterTemp ? "" : "(none) ", buoy.waterTempC,
+                              buoy.haveWave ? "" : "(none) ", buoy.waveHeightM);
                 break;
             case AnglerEndpoint::WaterTemp:
                 if (haveWaterTemp) Serial.printf("[angler] water temp ok: %.1f\n", waterTemp);
@@ -226,6 +262,14 @@ void AnglerFeedClient::RunWorker()
 void AnglerFeedClient::Fetch(HttpRequestManager& http,
                              const AnglerFetchRequest& req, AnglerFetchResult& res)
 {
+    // NDBC is plain text over a Content-Length response: fetch as (yielding) text and column-parse it.
+    if (req.endpoint == AnglerEndpoint::Buoy) {
+        const HttpResult r = http.Get(req.url, req.params, req.headers);
+        if (!r.success || r.statusCode < 200 || r.statusCode >= 300) { res.ok = false; return; }
+        res.ok = angler::ParseBuoyText(r.response, res.buoy);
+        return;
+    }
+
     JsonDocument doc;
     const HttpResult r = http.GetJson(req.url, doc, req.params, req.headers);
     if (!r.success || r.statusCode < 200 || r.statusCode >= 300) { res.ok = false; return; }
@@ -233,6 +277,9 @@ void AnglerFeedClient::Fetch(HttpRequestManager& http,
     switch (req.endpoint) {
         case AnglerEndpoint::Tides:
             res.ok = angler::ParseTides(doc.as<JsonObjectConst>(), res.tide, TIDE_RETAIN);
+            break;
+        case AnglerEndpoint::TideCurve:
+            res.ok = angler::ParseTideCurve(doc.as<JsonObjectConst>(), res.tideCurve, TIDECURVE_RETAIN);
             break;
         case AnglerEndpoint::WaterTemp:
             res.ok = angler::ParseWaterTemp(doc.as<JsonObjectConst>(), res.waterTemp, res.haveWaterTemp);
@@ -243,5 +290,7 @@ void AnglerFeedClient::Fetch(HttpRequestManager& http,
         case AnglerEndpoint::Marine:
             res.ok = angler::ParseMarine(doc.as<JsonObjectConst>(), res.marine);
             break;
+        case AnglerEndpoint::Buoy:
+            break;   // handled above
     }
 }

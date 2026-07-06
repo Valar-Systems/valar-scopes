@@ -31,7 +31,8 @@ public:
         bool hasLatLon = false;
         double lat = 0.0;
         double lon = 0.0;
-        String tideStation;         // NOAA CO-OPS station id; empty = no tide/water-temp polling
+        String tideStation;         // NOAA CO-OPS station id; empty = no tide/water-temp/curve polling
+        String buoy;                // NDBC buoy id; empty = no buoy polling
         bool imperial = true;       // ft/degF/mph vs m/degC/(km/h)
         float intervalScale = 1.0f; // global poll-interval multiplier (>=1 relaxes all pollers)
     };
@@ -42,14 +43,16 @@ public:
 
     // ---- result store (loop-task read) ----
     const angler::TideData& Tide() const { return tide; }
+    const std::vector<std::pair<time_t, float>>& TideCurve() const { return tideCurve; }
     const angler::WeatherData& Weather() const { return weather; }
     const angler::MarineData& Marine() const { return marine; }
+    const angler::BuoyData& Buoy() const { return buoy; }
     bool HaveWaterTemp() const { return haveWaterTemp; }
     float WaterTemp() const { return waterTemp; }
-    bool HasAny() const { return tide.valid || weather.valid || marine.valid; }
+    bool HasAny() const { return tide.valid || weather.valid || marine.valid || buoy.valid; }
 
 private:
-    enum FeedIdx : uint8_t { F_TIDES, F_WATERTEMP, F_WEATHER, F_MARINE, F_COUNT };
+    enum FeedIdx : uint8_t { F_TIDES, F_TIDECURVE, F_WATERTEMP, F_WEATHER, F_MARINE, F_BUOY, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -62,8 +65,10 @@ private:
 
     // result store
     angler::TideData tide;
+    std::vector<std::pair<time_t, float>> tideCurve;
     angler::WeatherData weather;
     angler::MarineData marine;
+    angler::BuoyData buoy;
     bool haveWaterTemp = false;
     float waterTemp = 0;
 

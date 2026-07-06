@@ -298,40 +298,61 @@ void AnglerManager::DrawTides(BandCanvas& c)
         CenterText(c, h, 98, dim);
     }
 
-    // Tide curve: cosine-interpolated between the hi/lo events, over the upcoming window.
+    // Tide curve: prefer the real 6-minute prediction curve; else cosine-interpolate the hi/lo events.
+    const std::vector<std::pair<time_t, float>>& curve = feed.TideCurve();
+    const bool haveCurve = !curve.empty();
     const int L = 34, R = SCREEN_SIZE - 34, yTop = 130, yBot = 250;
-    const time_t t0 = td.events.front().t, t1 = td.events.back().t;
-    if (t1 > t0) {
-        float minH = td.events.front().height, maxH = minH;
+
+    time_t t0, t1;
+    float minH, maxH;
+    if (haveCurve) {
+        t0 = curve.front().first; t1 = curve.back().first;
+        minH = curve.front().second; maxH = minH;
+        for (const auto& p : curve) { minH = min(minH, p.second); maxH = max(maxH, p.second); }
+    } else {
+        t0 = td.events.front().t; t1 = td.events.back().t;
+        minH = td.events.front().height; maxH = minH;
         for (const angler::TideEvent& e : td.events) { minH = min(minH, e.height); maxH = max(maxH, e.height); }
-        if (maxH - minH < 0.1f) maxH = minH + 0.1f;
-        auto hAt = [&](time_t t) -> float {
-            if (t <= td.events.front().t) return td.events.front().height;
-            for (size_t i = 0; i + 1 < td.events.size(); ++i) {
-                const angler::TideEvent& a = td.events[i];
-                const angler::TideEvent& b = td.events[i + 1];
-                if (t >= a.t && t <= b.t) {
-                    const float ph = (float)(t - a.t) / (float)(b.t - a.t);
-                    return a.height + (b.height - a.height) * (1.0f - cosf(ph * (float)M_PI)) * 0.5f;
-                }
-            }
-            return td.events.back().height;
-        };
+    }
+    if (maxH - minH < 0.1f) maxH = minH + 0.1f;
+
+    if (t1 > t0) {
         auto yOf = [&](float hh) { return yBot - (int)lround((hh - minH) / (maxH - minH) * (yBot - yTop)); };
-        int px = L, py = yOf(hAt(t0));
-        for (int x = L + 3; x <= R; x += 3) {
-            const time_t t = t0 + (time_t)((long)(t1 - t0) * (x - L) / (R - L));
-            const int y = yOf(hAt(t));
-            c.drawLine(px, py, x, y, fg);
-            px = x; py = y;
+        if (haveCurve) {
+            int px = L, py = yOf(curve.front().second);
+            for (size_t i = 1; i < curve.size(); ++i) {
+                const int x = L + (int)((long)(R - L) * (curve[i].first - t0) / (t1 - t0));
+                const int y = yOf(curve[i].second);
+                c.drawLine(px, py, x, y, fg);
+                px = x; py = y;
+            }
+        } else {
+            auto hAt = [&](time_t t) -> float {
+                if (t <= td.events.front().t) return td.events.front().height;
+                for (size_t i = 0; i + 1 < td.events.size(); ++i) {
+                    const angler::TideEvent& a = td.events[i];
+                    const angler::TideEvent& b = td.events[i + 1];
+                    if (t >= a.t && t <= b.t) {
+                        const float ph = (float)(t - a.t) / (float)(b.t - a.t);
+                        return a.height + (b.height - a.height) * (1.0f - cosf(ph * (float)M_PI)) * 0.5f;
+                    }
+                }
+                return td.events.back().height;
+            };
+            int px = L, py = yOf(hAt(t0));
+            for (int x = L + 3; x <= R; x += 3) {
+                const time_t t = t0 + (time_t)((long)(t1 - t0) * (x - L) / (R - L));
+                const int y = yOf(hAt(t));
+                c.drawLine(px, py, x, y, fg);
+                px = x; py = y;
+            }
         }
-        // event dots + H/L labels
+        // hi/lo markers (from the extremes feed) + "now"
         for (const angler::TideEvent& e : td.events) {
+            if (e.t < t0 || e.t > t1) continue;
             const int x = L + (int)((long)(R - L) * (e.t - t0) / (t1 - t0));
-            const int y = yOf(e.height);
-            c.fillCircle(x, y, 3, e.high ? accent : dim);
+            c.fillCircle(x, yOf(e.height), 3, e.high ? accent : dim);
         }
-        // "now" marker
         if (now >= t0 && now <= t1) {
             const int x = L + (int)((long)(R - L) * (now - t0) / (t1 - t0));
             c.drawFastVLine(x, yTop - 6, (yBot - yTop) + 12, faint);
@@ -377,8 +398,10 @@ void AnglerManager::DrawBarometer(BandCanvas& c)
         else if (rise) c.fillTriangle(ax - 9, ay + 9, ax + 9, ay + 9, ax, ay - 9, tc);
         else           c.fillRect(ax - 9, ay - 2, 18, 4, tc);
 
-        char r[36];
-        snprintf(r, sizeof(r), "%s  %+.1f hPa/h", fall ? "FALLING" : rise ? "RISING" : "STEADY", bt.rateHpaPerH);
+        char r[40];
+        const char* word = fall ? "FALLING" : rise ? "RISING" : "STEADY";
+        if (imperial) snprintf(r, sizeof(r), "%s  %+.2f inHg/h", word, bt.rateHpaPerH * 0.02953f);
+        else          snprintf(r, sizeof(r), "%s  %+.1f hPa/h", word, bt.rateHpaPerH);
         c.setTextSize(1); CenterText(c, r, cy + 42, tc);
         CenterText(c, fall ? "fish feeding ahead of a front" : rise ? "bite may slow" : "stable",
                    cy + 60, dim);
@@ -461,30 +484,41 @@ void AnglerManager::DrawWater(BandCanvas& c)
     const uint32_t accent = angler::ScaleColor(palette.accent, gf);
 
     const angler::MarineData& m = feed.Marine();
+    const angler::BuoyData& bu = feed.Buoy();
     c.setTextSize(1);
     CenterText(c, "WATER", 18, dim);
 
-    // Water temperature: prefer the NOAA station gauge, else the modeled sea-surface temp.
-    bool haveT = false; float temp = 0; bool fromStation = false;
-    if (feed.HaveWaterTemp())      { temp = feed.WaterTemp(); haveT = true; fromStation = true; }
-    else if (m.valid && m.haveSst) { temp = SeaTempDisp(m.seaTempC); haveT = true; }
+    // Water temp priority: NOAA station gauge > real NDBC buoy > modeled sea-surface temp.
+    bool haveT = false; float temp = 0; const char* tSrc = "";
+    if (feed.HaveWaterTemp())              { temp = feed.WaterTemp();           haveT = true; tSrc = "NOAA station"; }
+    else if (bu.valid && bu.haveWaterTemp) { temp = SeaTempDisp(bu.waterTempC); haveT = true; tSrc = "NDBC buoy"; }
+    else if (m.valid && m.haveSst)         { temp = SeaTempDisp(m.seaTempC);    haveT = true; tSrc = "model"; }
 
-    if (!haveT && !(m.valid && m.haveWave)) { c.setTextSize(2); CenterText(c, "no water data", SCREEN_SIZE_DIV_2, dim); return; }
+    // Waves priority: real buoy observation (with dominant period) > modeled.
+    bool haveW = false; float wave = 0, period = 0; const char* wSrc = "";
+    if (bu.valid && bu.haveWave)    { wave = WaveDisp(bu.waveHeightM); period = bu.wavePeriodS; haveW = true; wSrc = "buoy"; }
+    else if (m.valid && m.haveWave) { wave = WaveDisp(m.waveHeightM);  haveW = true; wSrc = "model"; }
+
+    if (!haveT && !haveW) { c.setTextSize(2); CenterText(c, "no water data", SCREEN_SIZE_DIV_2, dim); return; }
 
     if (haveT) {
         char b[12]; snprintf(b, sizeof(b), "%.0f", temp);
-        c.setTextSize(7); CenterText(c, b, 96, accent);
-        c.setTextSize(2); CenterText(c, String("water ") + TempUnit(), 170, dim);
+        c.setTextSize(7); CenterText(c, b, 92, accent);
+        c.setTextSize(2); CenterText(c, String("water ") + TempUnit(), 166, dim);
     } else {
         c.setTextSize(2); CenterText(c, "water temp n/a", 120, dim);
     }
 
-    if (m.valid && m.haveWave) {
-        char wv[28]; snprintf(wv, sizeof(wv), "waves %.1f %s", WaveDisp(m.waveHeightM), WaveUnit());
-        c.setTextSize(2); CenterText(c, wv, 226, fg);
+    if (haveW) {
+        char wv[32];
+        if (period > 0) snprintf(wv, sizeof(wv), "waves %.1f %s  @ %.0fs", wave, WaveUnit(), period);
+        else            snprintf(wv, sizeof(wv), "waves %.1f %s", wave, WaveUnit());
+        c.setTextSize(2); CenterText(c, wv, 222, fg);
     }
     c.setTextSize(1);
-    CenterText(c, fromStation ? "NOAA station gauge" : "Open-Meteo model", SCREEN_SIZE - 34, faint);
+    String src = haveT ? String("temp: ") + tSrc : String();
+    if (haveW) src += (src.length() ? "   waves: " : "waves: ") + String(wSrc);
+    CenterText(c, src, SCREEN_SIZE - 34, faint);
 }
 
 // --------------------------------------------------------------------------------- catch log
@@ -688,9 +722,13 @@ void AnglerManager::DrawDetailCard(BandCanvas& c)
         else          snprintf(b, sizeof(b), "%.0f %s", PressDisp(w.pressureHpa), PressUnit());
         row(b, fg);
         if (bt.valid) {
-            snprintf(b, sizeof(b), "%+.1f hPa/h", bt.rateHpaPerH); row(b, dim);
+            if (imperial) snprintf(b, sizeof(b), "%+.2f inHg/h", bt.rateHpaPerH * 0.02953f);
+            else          snprintf(b, sizeof(b), "%+.1f hPa/h", bt.rateHpaPerH);
+            row(b, dim);
             row(bt.rateHpaPerH <= -0.2f ? "falling - fish feeding" : bt.rateHpaPerH >= 0.2f ? "rising - bite may slow" : "steady", dim);
-            snprintf(b, sizeof(b), "6h ago %.0f hPa", bt.pastHpa); row(b, faint);
+            if (imperial) snprintf(b, sizeof(b), "6h ago %.2f %s", PressDisp(bt.pastHpa), PressUnit());
+            else          snprintf(b, sizeof(b), "6h ago %.0f %s", PressDisp(bt.pastHpa), PressUnit());
+            row(b, faint);
         }
 
     } else if (current == Screen::Wind) {
@@ -706,12 +744,20 @@ void AnglerManager::DrawDetailCard(BandCanvas& c)
 
     } else if (current == Screen::Water) {
         const angler::MarineData& mr = feed.Marine();
+        const angler::BuoyData& bu = feed.Buoy();
         c.drawRoundRect(m, m, SCREEN_SIZE - 2 * m, SCREEN_SIZE - 2 * m, 16, accent);
         c.setTextSize(2); row("WATER", accent); y += 6;
-        char b[32];
-        if (feed.HaveWaterTemp())        { snprintf(b, sizeof(b), "Temp %.0f%s (station)", feed.WaterTemp(), TempUnit()); row(b, fg); }
-        else if (mr.valid && mr.haveSst) { snprintf(b, sizeof(b), "Temp %.0f%s (model)", SeaTempDisp(mr.seaTempC), TempUnit()); row(b, fg); }
-        if (mr.valid && mr.haveWave)     { snprintf(b, sizeof(b), "Waves %.1f %s", WaveDisp(mr.waveHeightM), WaveUnit()); row(b, dim); }
+        char b[40];
+        if (feed.HaveWaterTemp())              { snprintf(b, sizeof(b), "Temp %.0f%s (station)", feed.WaterTemp(), TempUnit()); row(b, fg); }
+        else if (bu.valid && bu.haveWaterTemp) { snprintf(b, sizeof(b), "Temp %.0f%s (buoy)", SeaTempDisp(bu.waterTempC), TempUnit()); row(b, fg); }
+        else if (mr.valid && mr.haveSst)       { snprintf(b, sizeof(b), "Temp %.0f%s (model)", SeaTempDisp(mr.seaTempC), TempUnit()); row(b, fg); }
+        if (bu.valid && bu.haveWave) {
+            if (bu.wavePeriodS > 0) snprintf(b, sizeof(b), "Waves %.1f %s @ %.0fs (buoy)", WaveDisp(bu.waveHeightM), WaveUnit(), bu.wavePeriodS);
+            else                    snprintf(b, sizeof(b), "Waves %.1f %s (buoy)", WaveDisp(bu.waveHeightM), WaveUnit());
+            row(b, dim);
+        } else if (mr.valid && mr.haveWave) {
+            snprintf(b, sizeof(b), "Waves %.1f %s (model)", WaveDisp(mr.waveHeightM), WaveUnit()); row(b, dim);
+        }
     }
 
     c.setTextSize(1);

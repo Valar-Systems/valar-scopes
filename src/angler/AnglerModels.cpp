@@ -58,6 +58,55 @@ bool ParseTides(JsonObjectConst root, TideData& out, size_t cap)
     return true;
 }
 
+bool ParseTideCurve(JsonObjectConst root, std::vector<std::pair<time_t, float>>& out, size_t cap)
+{
+    out.clear();
+    JsonArrayConst arr = root["predictions"].as<JsonArrayConst>();
+    if (arr.isNull()) return false;
+    const size_t total = arr.size();
+    const size_t stride = (cap > 0 && total > cap) ? (total + cap - 1) / cap : 1;   // decimate to <= cap
+    size_t i = 0;
+    for (JsonObjectConst e : arr) {
+        if (stride > 1 && (i++ % stride)) continue;
+        const long t = IsoToEpoch(e["t"] | "");
+        if (t > 0) out.push_back({ (time_t)t, (float)atof(e["v"] | "0") });
+    }
+    return !out.empty();
+}
+
+bool ParseBuoyText(const String& txt, BuoyData& out)
+{
+    out = BuoyData();
+    const int n = txt.length();
+    int i = 0;
+    while (i < n) {
+        int eol = txt.indexOf('\n', i);
+        if (eol < 0) eol = n;
+        int s = i;
+        while (s < eol && (txt[s] == ' ' || txt[s] == '\t' || txt[s] == '\r')) ++s;
+        if (s < eol && txt[s] != '#') {
+            // Tokenise the first (newest) data row on whitespace: cols 8=WVHT, 9=DPD, 14=WTMP.
+            String tok[20]; int nt = 0;
+            int p = s;
+            while (p < eol && nt < 20) {
+                while (p < eol && (txt[p] == ' ' || txt[p] == '\t' || txt[p] == '\r')) ++p;
+                int q = p;
+                while (q < eol && txt[q] != ' ' && txt[q] != '\t' && txt[q] != '\r') ++q;
+                if (q > p) tok[nt++] = txt.substring(p, q);
+                p = q;
+            }
+            auto fld = [&](int idx) -> const String* { return (idx < nt && tok[idx] != "MM") ? &tok[idx] : nullptr; };
+            if (const String* w = fld(8))  { out.waveHeightM = w->toFloat(); out.haveWave = true;
+                                             if (const String* d = fld(9)) out.wavePeriodS = d->toFloat(); }
+            if (const String* t = fld(14)) { out.waterTempC = t->toFloat(); out.haveWaterTemp = true; }
+            out.valid = true;
+            return true;
+        }
+        i = eol + 1;
+    }
+    return false;   // no data row found
+}
+
 bool ParseWaterTemp(JsonObjectConst root, float& tempOut, bool& have)
 {
     // Most tide stations have no temperature sensor and answer with {"error":{"message":"No data

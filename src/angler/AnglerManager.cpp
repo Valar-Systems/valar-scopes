@@ -36,6 +36,8 @@ void AnglerManager::Initialise()
 
     tideStation = configServer.GetStoredString("ang-tide-station");
     tideStation.trim();
+    String buoyId = configServer.GetStoredString("ang-buoy");
+    buoyId.trim();
     const String units = configServer.GetStoredString("ang-units");
     imperial = units.isEmpty() || units == "imperial";   // default to imperial (US-first)
 
@@ -85,6 +87,7 @@ void AnglerManager::Initialise()
     fc.lat = deviceLat;
     fc.lon = deviceLon;
     fc.tideStation = tideStation;
+    fc.buoy = buoyId;
     fc.imperial = imperial;
     fc.intervalScale = 1.0f;
     feed.Begin();
@@ -103,10 +106,11 @@ void AnglerManager::Initialise()
     baroAlerted = false;
     lastAlertedTide = 0;
 
-    Serial.printf("[angler] init; latlon=%d lat=%.4f lon=%.4f tz=%+.1fh units=%s station=%s screens=%u\n",
+    Serial.printf("[angler] init; latlon=%d lat=%.4f lon=%.4f tz=%+.1fh units=%s station=%s buoy=%s screens=%u\n",
                   (int)hasLatLon, deviceLat, deviceLon, tzOffsetSec / 3600.0,
                   imperial ? "imperial" : "metric",
-                  tideStation.isEmpty() ? "(none)" : tideStation.c_str(), (unsigned)enabledOrder.size());
+                  tideStation.isEmpty() ? "(none)" : tideStation.c_str(),
+                  buoyId.isEmpty() ? "(none)" : buoyId.c_str(), (unsigned)enabledOrder.size());
 
     static bool selfChecked = false;   // once per boot, not on every config-save re-init
     if (!selfChecked) { selfChecked = true; SelfCheck(); }
@@ -159,8 +163,9 @@ bool AnglerManager::HasData(Screen s) const
         case Screen::Tides:     return !feed.Tide().events.empty();
         case Screen::Barometer:
         case Screen::Wind:      return feed.Weather().valid;
-        case Screen::Water:     return (feed.Marine().valid && (feed.Marine().haveWave || feed.Marine().haveSst))
-                                       || feed.HaveWaterTemp();
+        case Screen::Water:     return feed.HaveWaterTemp()
+                                       || (feed.Buoy().valid && (feed.Buoy().haveWaterTemp || feed.Buoy().haveWave))
+                                       || (feed.Marine().valid && (feed.Marine().haveWave || feed.Marine().haveSst));
         case Screen::CatchLog:  return TimeReady();                 // needs a real clock to timestamp
         case Screen::Splash:    return !(hasLatLon && solunarValid); // cold-start prompt, drops out once ready
         case Screen::Clock:     return true;

@@ -28,6 +28,17 @@ struct TideData {
     std::vector<TideEvent> events;   // upcoming hi/lo, chronological
 };
 
+// ----------------------------------------------------------------------- NDBC buoy (real obs)
+// Real in-water observations from the nearest NOAA NDBC buoy (plain-text realtime2 feed). Always
+// SI (metres / seconds / degC); converted to display units on the screen. Many buoys report only a
+// subset (wind-only vs wave buoys), so each field is independently present-or-missing (the "MM"
+// sentinel in the feed).
+struct BuoyData {
+    bool valid = false;
+    bool haveWaterTemp = false; float waterTempC = 0;
+    bool haveWave = false;      float waveHeightM = 0; float wavePeriodS = 0;  // WVHT + dominant period
+};
+
 // ---------------------------------------------------------------------------------- weather
 struct WeatherData {
     bool valid = false;
@@ -51,7 +62,7 @@ struct MarineData {
 };
 
 // -------------------------------------------------------------------------------- envelopes
-enum class AnglerEndpoint : uint8_t { Tides, WaterTemp, Weather, Marine };
+enum class AnglerEndpoint : uint8_t { Tides, TideCurve, WaterTemp, Weather, Marine, Buoy };
 
 struct AnglerFetchRequest {
     AnglerEndpoint endpoint = AnglerEndpoint::Weather;
@@ -64,8 +75,10 @@ struct AnglerFetchResult {
     AnglerEndpoint endpoint = AnglerEndpoint::Weather;
     bool ok = false;
     TideData tide;
+    std::vector<std::pair<time_t, float>> tideCurve;   // 6-min predicted-height curve (UTC epoch, ft/m)
     WeatherData weather;
     MarineData marine;
+    BuoyData buoy;
     bool haveWaterTemp = false;
     float waterTemp = 0;      // display units (degF / degC)
 };
@@ -74,6 +87,11 @@ struct AnglerFetchResult {
 // NOAA CO-OPS predictions (time_zone=gmt so `t` is UTC "YYYY-MM-DD HH:MM"). Reads root["predictions"];
 // a NOAA {"error":..} or missing array yields valid=false. Cap bounds the retained event list.
 bool ParseTides(JsonObjectConst root, TideData& out, size_t cap);
+// NOAA CO-OPS 6-minute prediction curve (no interval=hilo): reads root["predictions"] {t,v},
+// decimated to at most `cap` (t,v) samples so the JSON/RAM stay small. Harmonic stations only.
+bool ParseTideCurve(JsonObjectConst root, std::vector<std::pair<time_t, float>>& out, size_t cap);
+// NDBC realtime2 plain-text: the first data row (newest) parsed by column, "MM" = missing.
+bool ParseBuoyText(const String& txt, BuoyData& out);
 // NOAA water_temperature (date=latest). Reads root["data"][0]["v"]. Returns fetch-ok even when the
 // station has no sensor (have=false); false only on an error payload.
 bool ParseWaterTemp(JsonObjectConst root, float& tempOut, bool& have);
