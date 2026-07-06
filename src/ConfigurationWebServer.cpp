@@ -2,7 +2,7 @@
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #endif
 
@@ -80,7 +80,7 @@ static const size_t ANGLER_SCREEN_DEF_COUNT = sizeof(ANGLER_SCREEN_DEFS) / sizeo
 // The page is feature-specific: the radar build serves the radar settings form below; the
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -1290,6 +1290,108 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_CLAUDESCOPE)
+// FEATURE_CLAUDESCOPE (Claudescope) config page: the on-LAN sidecar URL (required), location (for the
+// night auto-dim + clock), alert thresholds, ntfy, and display. All feeds are keyless -- no masked
+// secret; the Claude OAuth token stays on the sidecar host, never on the device. Shares the page
+// chrome / JS pattern with the other editions.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Claudescope</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(28,18,12)'/><g stroke='rgb(217,119,87)' stroke-width='1.4' stroke-linecap='round'><path d='M8 3 L8 13'/><path d='M3.7 5.5 L12.3 10.5'/><path d='M3.7 10.5 L12.3 5.5'/></g></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+    </head>
+    <body class="font-mono bg-gray-900 text-orange-200 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
+        <fieldset class="border border-orange-400 p-5 w-full max-w-2xl mx-auto sm:m-10">
+            <legend class="px-2">Configure Claudescope</legend>
+
+            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+
+                <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span>Sidecar URL:</span>
+                    <input name="cl-base-url" value='%CL_BASE_URL%' placeholder="http://192.168.1.50:8080"
+                        class="flex-1 border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                </label>
+                <span class="text-xs text-orange-600">Run <code>claudescope-sidecar</code> on a machine on your LAN (see tools/claudescope-sidecar), then point this at it. The sidecar holds your Claude token; the device only ever sees usage numbers. Until this is set, the device shows the setup splash.</span>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Latitude:</span>
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
+                            class="border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <span>Longitude:</span>
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
+                            class="border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                </div>
+                <span class="text-xs text-orange-600">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it.</span>
+
+                <fieldset class="border border-orange-400 p-3">
+                    <legend class="px-2">Alerts (ntfy)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>ntfy.sh topic:</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
+                            class="flex-1 border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <div class="grid grid-cols-1 gap-2 mt-3">
+                        <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-session" type="checkbox" %AL_SESSION% class="accent-orange-400"><span>Session usage reaches</span>
+                            <input name="cl-session-pct" type="number" min="1" max="100" step="1" value='%CL_SESSION_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>%</span></label>
+                        <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-week" type="checkbox" %AL_WEEK% class="accent-orange-400"><span>Weekly usage reaches</span>
+                            <input name="cl-week-pct" type="number" min="1" max="100" step="1" value='%CL_WEEK_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>%</span></label>
+                    </div>
+                    <span class="text-xs text-orange-600 mt-1">Leave the topic blank to disable all push alerts. Thresholds are edge-triggered and seeded at boot, so the state already high when you power on never fires.</span>
+                </fieldset>
+
+                <fieldset class="border border-orange-400 p-3">
+                    <legend class="px-2">Display</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-orange-400"><span>Auto-dim at night</span></label>
+                        <label class="flex items-center gap-2"><span>UTC offset (h):</span>
+                            <input name="cl-tz-offset" type="number" min="-14" max="14" step="0.5" value='%CL_TZ%' class="border border-orange-400 bg-gray-900 w-20 px-2 sm:py-0"></label>
+                    </div>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-orange-400">
+                    </label>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <input type="submit" value="Save"
+                        class="bg-orange-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                    <button type="button" id="resetwifi"
+                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                        Reset WiFi</button>
+                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                </div>
+            </form>
+
+            <div class="flex justify-between items-end text-xs text-orange-600 mt-4">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-orange-300 underline">Help &amp; documentation</a>
+                <span>Firmware v%FW_VERSION% (Claudescope)</span>
+            </div>
+        </fieldset>
+
+        <script>
+            document.getElementById('cfg').addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            document.getElementById('resetwifi').addEventListener('click', function() {
+                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
+                fetch('/reset-wifi', { method: 'POST' })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+        </script>
+    </body>
+</html>
+)";
 #endif
 
 void ConfigurationWebServer::Initialise() {
@@ -1317,7 +1419,7 @@ void ConfigurationWebServer::Initialise() {
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
         const String latitude = prefs.getString("latitude", "");
         const String longitude = prefs.getString("longitude", "");
         const String radius = prefs.getString("radius", "100");
@@ -1536,10 +1638,27 @@ void ConfigurationWebServer::Initialise() {
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
+#elif defined(FEATURE_CLAUDESCOPE)
+        // FEATURE_CLAUDESCOPE: load the Claudescope config fields. The sidecar URL is required and
+        // empty by default (no baked-in backend); all feeds are keyless (no masked secret).
+        const String clBaseUrl = prefs.getString("cl-base-url", "");
+        const String latitude = prefs.getString("latitude", "");
+        const String longitude = prefs.getString("longitude", "");
+        // default the local-clock offset to the nominal zone from longitude (15 deg/hour)
+        const String clTz = prefs.isKey("cl-tz-offset")
+            ? prefs.getString("cl-tz-offset", "0")
+            : String((int)round(longitude.toFloat() / 15.0));
+        const String clSessionPct = prefs.isKey("cl-session-pct") ? prefs.getString("cl-session-pct", "80") : "80";
+        const String clWeekPct = prefs.isKey("cl-week-pct") ? prefs.getString("cl-week-pct", "80") : "80";
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String alertSession = prefs.isKey("cl-alert-session") ? prefs.getString("cl-alert-session", "true") : "true";
+        const String alertWeek = prefs.isKey("cl-alert-week") ? prefs.getString("cl-alert-week", "true") : "true";
+        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
+        const String brightness = prefs.getString("brightness", "255");
 #endif
         prefs.end();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
@@ -1553,7 +1672,7 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -1756,6 +1875,27 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_CLAUDESCOPE)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [clBaseUrl, latitude, longitude, clTz, clSessionPct, clWeekPct, ntfyTopic, alertSession, alertWeek, autoDimEnabled, brightness]
+            (const String& var) -> String {
+                if (var == "CL_BASE_URL")    return clBaseUrl;
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "CL_TZ")          return clTz;
+                if (var == "CL_SESSION_PCT") return clSessionPct;
+                if (var == "CL_WEEK_PCT")    return clWeekPct;
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
+                if (var == "AL_SESSION")     return alertSession == "true" ? "checked" : "";
+                if (var == "AL_WEEK")        return alertWeek == "true" ? "checked" : "";
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -1780,7 +1920,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_ANGLER) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
         TrySaveParam("latitude");
         TrySaveParam("longitude");
         TrySaveParam("radius");
@@ -1989,6 +2129,22 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("fi-a-temp",    request->hasParam("fi-a-temp", true) ? "true" : "false");
         prefs.putString("fi-a-solunar", request->hasParam("fi-a-solunar", true) ? "true" : "false");
         prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
+#elif defined(FEATURE_CLAUDESCOPE)
+        // FEATURE_CLAUDESCOPE: persist the Claudescope config fields. All feeds are keyless -- no
+        // masked secret to guard (the OAuth token lives on the sidecar host, never here).
+        TrySaveParam("cl-base-url");
+        TrySaveParam("latitude");
+        TrySaveParam("longitude");
+        TrySaveParam("cl-tz-offset");
+        TrySaveParam("cl-session-pct");
+        TrySaveParam("cl-week-pct");
+        TrySaveParam("ntfy-topic");
+        TrySaveParam("brightness");
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        prefs.putString("cl-alert-session", request->hasParam("cl-alert-session", true) ? "true" : "false");
+        prefs.putString("cl-alert-week", request->hasParam("cl-alert-week", true) ? "true" : "false");
+        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #endif
         prefs.end();
 

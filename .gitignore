@@ -1,5 +1,7 @@
 .pio/
 .vscode/
+__pycache__/
+*.pyc
 
 # Confidential business docs (pricing, margins, strategy) -- never commit to the public repo.
 business/
