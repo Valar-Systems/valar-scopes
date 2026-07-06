@@ -1,5 +1,5 @@
 <h1 align=center>
-  📡 Blipscope
+  🔭 Valar Scopes
 </h1>
 <h6 align=center>
   a tiny desk display that turns a stream of live data into something you can glance at
@@ -8,25 +8,26 @@
   <a href="#the-editions">EDITIONS</a> - <a href="#more-editions-on-the-way">ROADMAP</a> - <a href="#get-a-kit">GET A KIT</a> - <a href="#assembly">ASSEMBLY</a> - <a href="#firmware">FIRMWARE</a> - <a href="#setup--usage">SETUP</a> - <a href="#thanks">THANKS</a>
 </p>
 
-Blipscope is a small open-source gadget for your desk: an ESP32-S3 driving a round touchscreen. It comes in several **Editions** — and the trick is that they're all the *same hardware*. Each Edition is a separate firmware that turns the screen into a window onto a different stream of live data, and pings your phone when something notable happens. They all share the same Wi-Fi setup, web config page, persistent storage, over-the-air updates, and [ntfy](https://ntfy.sh) alerts — so once you know one, you know them all. You just flash the Edition you want.
+**Valar Scopes** is a line of small open-source gadgets for your desk: an ESP32-S3 driving a round touchscreen. The line comes in several **Editions** — and the trick is that they're all the *same hardware*. Each Edition is a separate firmware that turns the screen into a window onto a different stream of live data, and pings your phone when something notable happens. They all share the same Wi-Fi setup, web config page, persistent storage, over-the-air updates, and [ntfy](https://ntfy.sh) alerts — so once you know one, you know them all. You just flash the Edition you want.
 
 ## The Editions
 
 | | Edition | What it is |
 |---|---|---|
-| 📡 | **[Aviation Edition](#-aviation-edition)** *(the original)* | A live **flight radar**. Aircraft plotted around your location from public ADS-B data, with tap-to-inspect detail cards, a spotting logbook, and a "look up!" overhead alert. |
-| 📟 | **[STRATCOM Edition](#-stratcom-edition)** | An **HFGCS Emergency Action Message monitor**. A command-console ticker of nuclear-command radio traffic, an activity gauge, Skyking codewords, an airborne-command-post watch, HF propagation, and ICBM-test windows. |
-| 🛰️ | **[Space Edition](#-space-edition)** | **Spacescope** — live space data. The **ISS** ground track, a **T-minus countdown** to the next rocket launch, and a **geomagnetic aurora gauge**, straight from free public APIs. |
-| 🌐 | **[Seismic Edition](#-seismic-edition)** | A live **earthquake radar**. Quakes plotted by bearing and distance from the keyless USGS feed, with magnitude rings, tap-to-inspect cards, and alerts for big, nearby, or tsunami-flagged events. |
-| 🐦 | **[Birding Edition](#-birding-edition)** | A **notable-sightings radar**. Birds reported near you from eBird, on a tap-to-inspect radar plus rotating screens (notable ticker, day-list count, nearest hotspot, target species) — and a ping when a rarity shows up. |
+| 📡 | **[Blipscope](#-blipscope-aviation)** *(the original — Aviation)* | A live **flight radar**. Aircraft plotted around your location from public ADS-B data, with tap-to-inspect detail cards, a spotting logbook, and a "look up!" overhead alert. |
+| 📟 | **[Missileer](#-missileer-eam-monitor)** *(HFGCS / EAM)* | An **HFGCS Emergency Action Message monitor**. A command-console ticker of nuclear-command radio traffic, an activity gauge, Skyking codewords, an airborne-command-post watch, HF propagation, and ICBM-test windows. |
+| 🛰️ | **[Orbitscope](#-orbitscope-space)** *(Space)* | Live **space data**. The **ISS** ground track, a **T-minus countdown** to the next rocket launch, and a **geomagnetic aurora gauge**, straight from free public APIs. |
+| 🌐 | **[Quakescope](#-quakescope-seismic)** *(Seismic)* | A live **earthquake radar**. Quakes plotted by bearing and distance from the keyless USGS feed, with magnitude rings, tap-to-inspect cards, and alerts for big, nearby, or tsunami-flagged events. |
+| 🐦 | **[Quillscope](#-quillscope-birding)** *(Birding)* | A **notable-sightings radar**. Birds reported near you from eBird, on a tap-to-inspect radar plus rotating screens (notable ticker, day-list count, nearest hotspot, target species) — and a ping when a rarity shows up. |
+| 🎣 | **[Reelscope](#-reelscope-fishing)** *(Fishing — the newest edition)* | A **fishing console** for fresh water and salt. An on-device **solunar "best bite times"** band, plus live river gauges (USGS), tides and waves (NOAA), water temperature, and barometric trend — all keyless. |
 
-All five run on the same Blipscope board; the Edition is chosen by the firmware you flash (and a kit can be re-flashed to a different Edition any time). [More editions are on the way](#more-editions-on-the-way).
+All six run on the same Valar Scopes board; the Edition is chosen by the firmware you flash (and a kit can be re-flashed to a different Edition any time). [More editions are on the way](#more-editions-on-the-way).
 
 ---
 
-## 📡 Aviation Edition
+## 📡 Blipscope (Aviation)
 
-The original Blipscope: a small flight radar that sits on your desk and shows live aircraft around your location in real time — pulled from public ADS-B data — so you can glance over and see what's in the sky above you, where it came from, and where it's headed.
+The original Valar Scope: a small flight radar that sits on your desk and shows live aircraft around your location in real time — pulled from public ADS-B data — so you can glance over and see what's in the sky above you, where it came from, and where it's headed.
 
 - **Live radar view** — aircraft plotted around your location, with fading trails, type-aware heading markers (helicopters, gliders, and heavies each draw differently), and altitude-based colour coding.
 - **Tap to inspect** — touch an aircraft to open a detail card with callsign, type, operator, registration, route, altitude, speed, and a photo. Pin one to keep tracking it.
@@ -41,11 +42,11 @@ The original Blipscope: a small flight radar that sits on your desk and shows li
 - **Over-the-air updates** — pulls new firmware automatically from GitHub Releases, so it stays current without plugging in.
 - **Configurable range & display** — set your centre point and scan radius in km or miles, and toggle the on-screen elements you want.
 
-The [Setup & Usage](#setup--usage) section below — including the OpenSky and "run your own receiver" guides — covers the Aviation Edition in full.
+The [Setup & Usage](#setup--usage) section below — including the OpenSky and "run your own receiver" guides — covers Blipscope in full.
 
-## 📟 STRATCOM Edition
+## 📟 Missileer (EAM Monitor)
 
-Flash the STRATCOM firmware and the same device becomes a desk readout for the U.S. Air Force [High Frequency Global Communications System (HFGCS)](https://en.wikipedia.org/wiki/High_Frequency_Global_Communications_System) and the [Emergency Action Messages](https://en.wikipedia.org/wiki/Emergency_Action_Message) and **Skyking** broadcasts that move across it. (STRATCOM — [U.S. Strategic Command](https://en.wikipedia.org/wiki/United_States_Strategic_Command) — is the authority these messages are issued under.) Instead of plotting aircraft, the round screen becomes a command-console:
+Flash the Missileer firmware and the same device becomes a desk readout for the U.S. Air Force [High Frequency Global Communications System (HFGCS)](https://en.wikipedia.org/wiki/High_Frequency_Global_Communications_System) and the [Emergency Action Messages](https://en.wikipedia.org/wiki/Emergency_Action_Message) and **Skyking** broadcasts that move across it. (STRATCOM — [U.S. Strategic Command](https://en.wikipedia.org/wiki/United_States_Strategic_Command) — is the authority these messages are issued under.) Instead of plotting aircraft, the round screen becomes a command-console:
 
 - a scrolling **ticker** of the latest EAM, broken into its phonetic groups;
 - an activity **tempo** gauge — how busy the net is today versus normal;
@@ -57,11 +58,11 @@ Flash the STRATCOM firmware and the same device becomes a desk readout for the U
 
 It reuses the same Wi-Fi setup, web config, ntfy alerts, and over-the-air updates as the radar, and runs on its own firmware update channel so the two never cross.
 
-### 📖 [Full guide → STRATCOM Edition (EAM Monitor) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/EAM-Monitor)
+### 📖 [Full guide → Missileer (EAM Monitor) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Missileer)
 
-## 🛰️ Space Edition
+## 🛰️ Orbitscope (Space)
 
-Flash the Spacescope firmware and the device becomes a small mission console for the sky above you — talking **directly to free, public space APIs** with no backend and no API key baked in:
+Flash the Orbitscope firmware and the device becomes a small mission console for the sky above you — talking **directly to free, public space APIs** with no backend and no API key baked in:
 
 - an **ISS tracker** — a north-polar globe with the station plotted live, showing whether it's sunlit or in Earth's shadow, plus its altitude and speed;
 - a **launch T-minus** screen — the next rocket launch with a big live countdown, provider, vehicle, mission, and pad;
@@ -69,11 +70,11 @@ Flash the Spacescope firmware and the device becomes a small mission console for
 
 It pings your phone when a launch is imminent (T-10 / T-1) or the aurora is stirring (high Kp). Beyond the three above it has grown a whole console of screens — a Deep Space Network board, deep-space-probe distances, solar-flare activity, ISS visible-pass predictions, a star map, asteroid flybys, Moon phase, and eclipse countdowns. Next on the roadmap: a **Skywatch** sky-dome plotting *every* satellite passing overhead — bright passes and Starlink trains, not just the ISS — computed on-device from public orbital data. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions.
 
-### 📖 [Full guide → Space Edition (Spacescope) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Space-Edition)
+### 📖 [Full guide → Orbitscope (Space) on the Wiki](https://github.com/Valar-Systems/Blipscope/wiki/Orbitscope)
 
-## 🌐 Seismic Edition
+## 🌐 Quakescope (Seismic)
 
-Flash the Seismic firmware and the same device becomes a live **earthquake radar** — built on the same polar view as the Aviation Edition, but plotting quakes instead of aircraft, straight from the **keyless [USGS](https://earthquake.usgs.gov) feed** (no account, no API key):
+Flash the Quakescope firmware and the same device becomes a live **earthquake radar** — built on the same polar view as Blipscope (the Aviation edition), but plotting quakes instead of aircraft, straight from the **keyless [USGS](https://earthquake.usgs.gov) feed** (no account, no API key):
 
 - **Live quake radar** — recent earthquakes plotted by bearing and distance around your location, sized and coloured by magnitude, with static range rings instead of a sweep.
 - **Tap to inspect** — touch a quake to open a detail card with magnitude, depth, place name, and how long ago it struck.
@@ -83,9 +84,9 @@ Flash the Seismic firmware and the same device becomes a live **earthquake radar
 
 It reuses the same Wi-Fi setup, web config, alerts, and over-the-air updates as the radar, on its own firmware update channel.
 
-## 🐦 Birding Edition
+## 🐦 Quillscope (Birding)
 
-Flash the Birding firmware and the device becomes a desk window onto the birds being reported near you — live from the **[Cornell Lab eBird API](https://ebird.org)**. It's a **hybrid** of the two interface styles: a tap-to-inspect radar *and* a set of rotating data screens.
+Flash the Quillscope firmware and the device becomes a desk window onto the birds being reported near you — live from the **[Cornell Lab eBird API](https://ebird.org)**. It's a **hybrid** of the two interface styles: a tap-to-inspect radar *and* a set of rotating data screens.
 
 - **Sightings radar** — recent reports plotted around your location, with **notable** birds ringed in gold; tap any blip for a detail card (species, count, location, how long ago).
 - **Rotating screens** — a **notable ticker** of recent rarities, a **day-list** species count for your area, your **nearest hotspot**, and a **target species** watchlist — auto-rotating, skipping any feed with no data, and swipeable by hand.
@@ -94,23 +95,34 @@ Flash the Birding firmware and the device becomes a desk window onto the birds b
 
 Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions, on its own update channel.
 
+## 🎣 Reelscope (Fishing)
+
+Flash the Reelscope firmware and the device becomes a fishing-conditions console for your water — covering **both freshwater and saltwater**, all from **free, keyless** public feeds. Pick your water type and stations in the web config; every dial can be toggled on or off.
+
+- **Freshwater (USGS)** — river gauge height, streamflow (CFS) with a rising/steady/falling trend, water temperature, and turbidity where the site reports it — from the keyless [USGS Water Services](https://waterservices.usgs.gov) feed, keyed by your gauge's site number.
+- **Saltwater (NOAA)** — tide state with a countdown to the next high/low, water temperature, and offshore wave height / swell period — from [NOAA CO-OPS](https://tidesandcurrents.noaa.gov) tide stations and [NDBC](https://www.ndbc.noaa.gov) buoys.
+- **Solunar bite windows** — the day's **major/minor feeding periods** on a 24-hour band, computed **on-device** from the sun and moon for your location (no network) — plus barometric pressure + trend, moon phase, and basic weather.
+- **Hybrid interface** — the enabled dials auto-rotate (skipping any with no data) and are swipeable; **tap any dial to inspect it** in a detail card.
+- **Phone alerts** — an [ntfy](https://ntfy.sh) ping when a **bite window opens**, when your **river crosses a flow threshold**, or when the **water temperature enters your active-feeding band**. Edge-seeded at boot so the backlog never pings you.
+
+No API keys, no account, no baked-in backend. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions, on its own update channel.
+
 ## More editions on the way
 
 Every Edition is the same recipe: pick a **free public data feed**, draw a few glanceable screens, and wire up phone alerts — the Wi-Fi setup, web config, OTA, and ntfy come for free from the shared platform. That makes new Editions cheap to add, and there's a long list of streams that would look great on a round desk display. Some we're considering:
 
-**Things you plot around you** *(reusing the Aviation radar's polar view):*
+**Things you plot around you** *(reusing Blipscope's polar radar view):*
 
 - 🔥 **Wildfire Edition** — active fire detections radiating around you from NASA's FIRMS satellites, with an "it's getting closer" proximity alert — for fire-season desks.
 - 🚢 **Maritime Edition** — ship traffic (AIS) around a harbour or coastline, the radar's natural sibling for the coast.
 
-**Things you read as a dial or ticker** *(reusing the Space/STRATCOM rotating screens):*
+**Things you read as a dial or ticker** *(reusing the Orbitscope/Missileer rotating screens):*
 
-- 🎣 **Angler Edition** — your river's gauge height and water temperature plus a solunar "bite window," pinging you when conditions turn on, from keyless USGS water data.
 - ⛅ **Weather Edition** — local conditions, a "next rain" countdown dial, and a 36-hour forecast ribbon around the bezel, from the keyless Open-Meteo feed.
 - 🌫️ **Air Quality Edition** — a glanceable AQI / UV / pollen dial, pinging you when the air outside turns unhealthy.
 - ₿ **Mempool Edition** — live Bitcoin fees, block height, and network hashrate on a dial, from the keyless mempool.space API.
 - 🚆 **Transit Edition** — a "leave now" countdown to the next bus or train from your stop.
-- 📻 **Ham Radio Edition** — HF band conditions, solar flux, and live DX spots for radio amateurs, reusing the STRATCOM edition's propagation feed.
+- 📻 **Ham Radio Edition** — HF band conditions, solar flux, and live DX spots for radio amateurs, reusing Missileer's propagation feed.
 
 Have an Edition you'd love to see — or a free data feed that belongs on a round screen? [Open an issue](https://github.com/Valar-Systems/Blipscope/issues) and tell us.
 
@@ -118,23 +130,23 @@ Have an Edition you'd love to see — or a free data feed that belongs on a roun
 
 ## Get a kit
 
-The easiest way to build a Blipscope is to grab a kit. It includes the display module, the redesigned enclosure parts, and everything else you need in one box — no hunting around marketplaces for the right components, and the hardware is guaranteed to match the firmware and the enclosure. The hardware is the same across editions; you choose which one to run by the firmware you flash, and you can re-flash to a different edition any time.
+The easiest way to build a Valar Scope is to grab a kit. It includes the display module, the redesigned enclosure parts, and everything else you need in one box — no hunting around marketplaces for the right components, and the hardware is guaranteed to match the firmware and the enclosure. The hardware is the same across editions; you choose which one to run by the firmware you flash, and you can re-flash to a different edition any time.
 
-### 👉 [Order a Blipscope kit from Valar Systems](https://valarsystems.com/products/blipscope)
+### 👉 [Order a Valar Scopes kit from Valar Systems](https://valarsystems.com/products/blipscope)
 
 Buying a kit is also the best way to support continued development of the project. Thank you 🙏
 
 ## Assembly
 
-Blipscope's enclosure has been completely redesigned, so the build steps live in the project wiki rather than here in the README:
+The Valar Scopes enclosure has been completely redesigned, so the build steps live in the project wiki rather than here in the README:
 
-### 📖 [Assembly guide → Blipscope Wiki](https://github.com/Valar-Systems/Blipscope/wiki)
+### 📖 [Assembly guide → Valar Scopes Wiki](https://github.com/Valar-Systems/Blipscope/wiki)
 
 The wiki walks through the full build with photos. We recommend skimming the [Setup & Usage](#setup--usage) section below before you start, so you can test the hardware before everything is closed up.
 
 ## Firmware
 
-Kits ship with firmware already flashed, and the device keeps itself up to date [over the air](#-aviation-edition). For most people there's nothing to install.
+Kits ship with firmware already flashed, and the device keeps itself up to date [over the air](#-blipscope-aviation). For most people there's nothing to install.
 
 If you want to build from source or hack on it yourself, the firmware is here in this repo:
 
@@ -149,23 +161,33 @@ If the board doesn't reboot into the new firmware automatically, hold the **BOOT
 Each Edition is a separate compile-time build from this one repo, one PlatformIO env each (see [platformio.ini](platformio.ini)). Pick the env for the edition and board you want:
 
 ```sh
-pio run -e blipscope-s3-146         -t upload   # 📡 Aviation  — S3 1.46" AMOLED (default)
-pio run -e blipscope-pro-s3-21      -t upload   # 📡 Aviation  — S3 2.1" RGB panel
-pio run -e blipscope-eam-s3-146     -t upload   # 📟 STRATCOM — EAM monitor, S3 1.46" AMOLED
-pio run -e blipscope-space-s3-146   -t upload   # 🛰️ Space     — Spacescope, S3 1.46" AMOLED
-pio run -e blipscope-seismic-s3-146 -t upload   # 🌐 Seismic   — USGS quake radar, S3 1.46" AMOLED
-pio run -e blipscope-birding-s3-146 -t upload   # 🐦 Birding   — eBird sightings, S3 1.46" AMOLED
+pio run -e blipscope-s3-146         -t upload   # 📡 Blipscope  — Aviation, S3 1.46" AMOLED (default)
+pio run -e blipscope-pro-s3-21      -t upload   # 📡 Blipscope  — Aviation, S3 2.1" RGB panel
+pio run -e blipscope-eam-s3-146     -t upload   # 📟 Missileer  — EAM/HFGCS monitor, S3 1.46" AMOLED
+pio run -e blipscope-space-s3-146   -t upload   # 🛰️ Orbitscope — Space, S3 1.46" AMOLED
+pio run -e blipscope-seismic-s3-146 -t upload   # 🌐 Quakescope — USGS quake radar, S3 1.46" AMOLED
+pio run -e blipscope-birding-s3-146 -t upload   # 🐦 Quillscope — eBird sightings, S3 1.46" AMOLED
+pio run -e blipscope-angler-s3-146  -t upload   # 🎣 Reelscope  — Fishing (solunar/tides), S3 1.46" AMOLED
 ```
 
-The `eam-`, `space-`, `seismic-`, and `birding-` envs build the **STRATCOM**, **Space**, **Seismic**, and **Birding** editions respectively. They reuse the same boards, Wi-Fi setup, web config, and OTA, but compile a different app and ship on their own OTA channel (`firmware-<edition>-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
+The product name, its build flag, and its env line up one-to-one (the env/flag names are unchanged from the pre-naming line-up):
+
+- **Blipscope** = *(default, no feature flag)* = `blipscope-s3-146` / `blipscope-pro-s3-21`
+- **Missileer** = `FEATURE_EAM` = `blipscope-eam-s3-146`
+- **Orbitscope** = `FEATURE_SPACE` = `blipscope-space-s3-146`
+- **Quakescope** = `FEATURE_SEISMIC` = `blipscope-seismic-s3-146`
+- **Quillscope** = `FEATURE_BIRDING` = `blipscope-birding-s3-146`
+- **Reelscope** = `FEATURE_ANGLER` = `blipscope-angler-s3-146`
+
+Each non-default edition reuses the same boards, Wi-Fi setup, web config, and OTA, but compiles a different app and ships on its own OTA channel (`firmware-<edition>-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
 
 ## Setup & Usage
 
-The first-boot Wi-Fi setup and the web config page work the same on every edition. The OpenSky and "run your own receiver" sections are specific to the **Aviation Edition**; the other editions have their own settings (the Seismic and Birding editions, like the radar, take a **Location** for their range, and Birding takes your free eBird API token).
+The first-boot Wi-Fi setup and the web config page work the same on every edition. The OpenSky and "run your own receiver" sections are specific to **Blipscope** (the Aviation edition); the other editions have their own settings (Quakescope and Quillscope, like the radar, take a **Location** for their range, Quillscope takes your free eBird API token, and Reelscope takes your water type plus its USGS gauge / NOAA station).
 
 ### First boot
 
-On first boot, Blipscope broadcasts its own WiFi hotspot. Each device has a unique name like `Blipscope-A1B2C3` — the exact name is shown on the screen during setup. Connect to that hotspot from your phone or laptop and a configuration page appears automatically (open a browser if it doesn't). Enter your WiFi credentials and hit save; the device restarts and joins your network.
+On first boot, your Valar Scope broadcasts its own WiFi hotspot. Each device has a unique name like `Blipscope-A1B2C3` — the exact name is shown on the screen during setup. Connect to that hotspot from your phone or laptop and a configuration page appears automatically (open a browser if it doesn't). Enter your WiFi credentials and hit save; the device restarts and joins your network.
 
 If the hotspot doesn't appear straight away, give it a moment. If it still hasn't shown up after 30 seconds, leave the WiFi settings on your device and go back in to force a refresh.
 
@@ -173,7 +195,7 @@ If the hotspot doesn't appear straight away, give it a moment. If it still hasn'
 
 Once it's on your network, the config page is reachable from any device on the same network at the address shown on screen — `http://<device-name>.local` (for example `http://blipscope-a1b2c3.local`).
 
-On the **Aviation Edition** you can set:
+On **Blipscope** (the Aviation edition) you can set:
 
 - **Location** (latitude and longitude) — the centre point of your radar.
 - **Radar radius** — how far the scan extends, in km or miles (capped at ~222 km / 138 mi to stay within data rate limits).
@@ -187,7 +209,7 @@ The config page is available any time the device is on WiFi, so you can tweak se
 
 ### A note on OpenSky
 
-The Aviation Edition uses [OpenSky Network's](https://opensky-network.org) free API for flight data. It works without an account, but making one (it's free) raises your daily request limit from 400 to 4000 — which lets Blipscope poll roughly every 22 seconds instead of every ~3.5 minutes, so the live view is far more accurate.
+Blipscope uses [OpenSky Network's](https://opensky-network.org) free API for flight data. It works without an account, but making one (it's free) raises your daily request limit from 400 to 4000 — which lets Blipscope poll roughly every 22 seconds instead of every ~3.5 minutes, so the live view is far more accurate.
 
 OpenSky moved to OAuth2 credentials in 2026, so you need a **client ID** and **client secret** (not your account username/password). To get them:
 
@@ -203,7 +225,7 @@ The secret only ever exists in that downloaded file — if you lose it, use **Re
 
 ### Using your own ADS-B receiver
 
-If you run your own ADS-B receiver — a Raspberry Pi with [dump1090-fa](https://github.com/flightaware/dump1090), [readsb](https://github.com/wiedehopf/readsb), [PiAware](https://www.flightaware.com/adsb/piaware/), [tar1090](https://github.com/wiedehopf/tar1090), or an ADS-B Exchange feeder image — the Aviation Edition can read directly from it instead of OpenSky. Local data has **no rate limits** and refreshes about once a second, so the radar is smoother and more accurate, and works even if OpenSky is down.
+If you run your own ADS-B receiver — a Raspberry Pi with [dump1090-fa](https://github.com/flightaware/dump1090), [readsb](https://github.com/wiedehopf/readsb), [PiAware](https://www.flightaware.com/adsb/piaware/), [tar1090](https://github.com/wiedehopf/tar1090), or an ADS-B Exchange feeder image — Blipscope can read directly from it instead of OpenSky. Local data has **no rate limits** and refreshes about once a second, so the radar is smoother and more accurate, and works even if OpenSky is down.
 
 #### Don't have a receiver yet?
 
@@ -230,12 +252,12 @@ That's it — once configured, you'll have a live view of everything flying over
 
 ## Thanks
 
-Blipscope is built on the wonderful **[Micro Radar](https://github.com/AnthonySturdy/micro-radar)** project by **[Anthony Sturdy](https://github.com/AnthonySturdy)**. Anthony designed and open-sourced the original device — the concept, the enclosure, and the firmware this project grew from. None of this would exist without his work, and we're hugely grateful he shared it with the world. Go give the [original repo](https://github.com/AnthonySturdy/micro-radar) a star. 🌟
+Valar Scopes is built on the wonderful **[Micro Radar](https://github.com/AnthonySturdy/micro-radar)** project by **[Anthony Sturdy](https://github.com/AnthonySturdy)**. Anthony designed and open-sourced the original device — the concept, the enclosure, and the firmware this project grew from. None of this would exist without his work, and we're hugely grateful he shared it with the world. Go give the [original repo](https://github.com/AnthonySturdy/micro-radar) a star. 🌟
 
 The original Micro Radar was itself inspired by [therealhacksaw](https://www.instagram.com/therealhacksaw/)'s desk radar.
 
-Blipscope is maintained by [Valar Systems](https://valarsystems.com).
+Valar Scopes is maintained by [Valar Systems](https://valarsystems.com).
 
 ## License
 
-Blipscope is released under the **Open Community License (OCL v1)** — see [LICENSE](LICENSE) for the full text. In short: as a non-commercial user you're free to use, copy, modify, and hack it however you like, and to share derivatives under the same share-alike terms. Commercial replication requires a separate business or repair license. The aim is to keep the project open and repairable while preventing straight commercial cloning. Learn more about the OCL [here](https://github.com/OpenCommunityLicence/OpenCommunityLicence).
+Valar Scopes is released under the **Open Community License (OCL v1)** — see [LICENSE](LICENSE) for the full text. In short: as a non-commercial user you're free to use, copy, modify, and hack it however you like, and to share derivatives under the same share-alike terms. Commercial replication requires a separate business or repair license. The aim is to keep the project open and repairable while preventing straight commercial cloning. Learn more about the OCL [here](https://github.com/OpenCommunityLicence/OpenCommunityLicence).
