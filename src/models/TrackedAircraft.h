@@ -41,6 +41,9 @@ struct TrackedAircraft {
     String routeOrigin = "";
     String routeDest = "";
     String routeCallsign = "";
+    // Like metadataRetryAfter: a transient route failure sets this so the detail
+    // path doesn't re-request the route every frame while adsbdb is unreachable.
+    unsigned long routeRetryAfter = 0;
 
     // Recent display positions for the fading trail, stored as geographic
     // coordinates (so they reproject correctly) in a ring buffer sampled once a
