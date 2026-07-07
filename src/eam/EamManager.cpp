@@ -1,4 +1,5 @@
 #include "EamManager.h"
+#include "TouchPoll.h"
 
 #include <math.h>
 #include <time.h>
@@ -250,13 +251,13 @@ void EamManager::AutoRotate()
 
 void EamManager::HandleTouch()
 {
-    // Serialize the touch I2C read against the feed worker's TLS use of the shared bus: on the
-    // single-core C3 an overlapping CST816 transfer during a handshake wedges the controller.
-    // If a fetch holds the bus, skip touch this frame (fetches are short and infrequent).
-    if (!http.TryAcquireBus()) return;
+    // Variant-aware touch poll (TouchPoll.h): serialized against TLS only on the
+    // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
+    // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
-    http.ReleaseBus();
+    const TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
+    const bool touched = (poll == TouchPoll::Touched);
 
     const unsigned long now = millis();
     if (touched) {
