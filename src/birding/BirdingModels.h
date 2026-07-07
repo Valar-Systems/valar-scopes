@@ -61,9 +61,9 @@ struct BirdFetchResult {
 
 // -------------------------------------------------------------------------------- parsers
 // eBird obs endpoints return a bare JSON array of observation objects; `notable` tags each result.
-void ParseObs(JsonArrayConst root, std::vector<Sighting>& out, size_t cap, bool notable);
+bool ParseObs(JsonArrayConst root, std::vector<Sighting>& out, size_t cap, bool notable); // false = body was not an array
 // eBird ref/hotspot/geo (fmt=json) returns a bare JSON array of hotspot objects.
-void ParseHotspots(JsonArrayConst root, std::vector<Hotspot>& out, size_t cap);
+bool ParseHotspots(JsonArrayConst root, std::vector<Hotspot>& out, size_t cap);
 
 // ----------------------------------------------------------------------------- geo helpers
 double DistanceKm(double lat1, double lon1, double lat2, double lon2);

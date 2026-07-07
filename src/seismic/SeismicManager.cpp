@@ -1,4 +1,6 @@
 #include "SeismicManager.h"
+#include "TouchPoll.h"
+#include "SolarDim.h"
 
 #include <algorithm>
 #include <math.h>
@@ -10,32 +12,6 @@ namespace {
 
 constexpr unsigned long INTERACT_HOLD_MS = 0; // (no auto-rotate here; kept for parity/readability)
 
-double Deg2Rad(double d) { return d * M_PI / 180.0; }
-
-// Low-precision solar elevation (degrees) at lat/lon for a UTC epoch -- drives the same night
-// auto-dim the radar / Space use (sun below -0.833 deg = civil horizon). Copied from SpaceManager so
-// the seismic app dims identically without depending on another translation unit.
-float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
-{
-    const double n = (double)utc / 86400.0 - 10957.5; // days since J2000.0
-    double L = fmod(280.460 + 0.9856474 * n, 360.0);
-    double g = fmod(357.528 + 0.9856003 * n, 360.0);
-    const double lambda = L + 1.915 * sin(Deg2Rad(g)) + 0.020 * sin(Deg2Rad(2 * g));
-    const double eps = 23.439 - 0.0000004 * n;
-    const double lam = Deg2Rad(lambda), e = Deg2Rad(eps);
-    const double dec = asin(sin(e) * sin(lam));
-    const double ra = atan2(cos(e) * sin(lam), cos(lam));
-    double gmst = fmod(18.697374558 + 24.06570982441908 * n, 24.0);
-    if (gmst < 0) gmst += 24.0;
-    const double lstDeg = gmst * 15.0 + lonDeg;
-    const double Hdeg = lstDeg - ra * 180.0 / M_PI;
-    const double H = Deg2Rad(Hdeg);
-    const double lat = Deg2Rad(latDeg);
-    double sinEl = sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H);
-    if (sinEl > 1) sinEl = 1;
-    if (sinEl < -1) sinEl = -1;
-    return (float)(asin(sinEl) * 180.0 / M_PI);
-}
 
 } // namespace
 
@@ -67,13 +43,14 @@ void SeismicManager::Initialise()
     autoDim = ad.isEmpty() || ad == "true";
 
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* key, bool def) {
         const String v = configServer.GetStoredString(key);
         return v.isEmpty() ? def : (v == "true");
     };
     alertBig = boolCfg("se-alert-big", true);
     alertNear = boolCfg("se-alert-near", true);
-    alertTsunami = boolCfg("se-alert-tsunami", true);
+    alertTsunami = boolCfg("se-alert-tsnmi", true);
 
     // Background feed poller (idempotent spawn, then apply config).
     SeismicFeedClient::Config fcfg;
@@ -92,7 +69,8 @@ void SeismicManager::Initialise()
     lastBrightnessCheck = 0;
 
     // A re-init (config save) shouldn't re-fire alerts for events already on screen.
-    alertSeeded = false;
+    recentSeeded = false;
+    nearbySeeded = false;
 
     Serial.printf("[seismic] init; latlon=%d radius=%.0fkm minMag=%.1f big=%.1f near=%.1f\n",
                   (int)hasLatLon, radiusKm, minMag, bigMag, nearMag);
@@ -102,6 +80,7 @@ void SeismicManager::Update()
 {
     feed.Poll();
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
 }
@@ -121,12 +100,13 @@ void SeismicManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
 
 void SeismicManager::HandleTouch()
 {
-    // Serialize the touch I2C read against any network use of the shared bus -- the same pattern the
-    // radar / Space use (inert on dual-core S3, where TryAcquireBus is uncontended).
-    if (!http.TryAcquireBus()) return;
+    // Variant-aware touch poll (TouchPoll.h): serialized against TLS only on the
+    // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
+    // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
-    http.ReleaseBus();
+    const TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
+    const bool touched = (poll == TouchPoll::Touched);
 
     if (touched) {
         if (!wasTouched) { wasTouched = true; touchStartX = tx; touchStartY = ty; }
@@ -188,16 +168,22 @@ void SeismicManager::HandleTap(int tx, int ty)
 
 void SeismicManager::CheckAlerts()
 {
-    if (!feed.HasAny()) return;
-
-    long newest = 0;
-    for (const seismic::Quake& q : feed.Recent()) if (q.timeEpoch > newest) newest = q.timeEpoch;
-    for (const seismic::Quake& q : feed.Nearby()) if (q.timeEpoch > newest) newest = q.timeEpoch;
-
-    if (!alertSeeded) {
-        alertSeeded = true;
-        lastBigEpoch = lastNearEpoch = lastTsunamiEpoch = newest;
-        return; // never alert for the backlog present at boot / re-config
+    // Seed each feed's epoch baseline silently on ITS first successful fetch (never
+    // alert for the backlog present at boot / re-config). The fetches land staggered,
+    // so one global seed taken from whichever feed arrived first either baselined
+    // "near you" off the worldwide feed's newest event, or -- when Nearby landed
+    // first -- left a days-stale epoch that replayed the worldwide backlog.
+    if (!recentSeeded && feed.RecentFetched()) {
+        long newest = 0;
+        for (const seismic::Quake& q : feed.Recent()) if (q.timeEpoch > newest) newest = q.timeEpoch;
+        lastBigEpoch = lastTsunamiEpoch = newest;
+        recentSeeded = true;
+    }
+    if (!nearbySeeded && feed.NearbyFetched()) {
+        long newest = 0;
+        for (const seismic::Quake& q : feed.Nearby()) if (q.timeEpoch > newest) newest = q.timeEpoch;
+        lastNearEpoch = newest;
+        nearbySeeded = true;
     }
 
     // Big quake anywhere (from the worldwide feed).
@@ -247,14 +233,10 @@ void SeismicManager::CheckAlerts()
 
 void SeismicManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return; // throttle bursts
-    lastNotifyMs = millis();
-
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 // ----------------------------------------------------------------------------- brightness

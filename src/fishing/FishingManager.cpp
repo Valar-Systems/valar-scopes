@@ -1,4 +1,6 @@
 #include "FishingManager.h"
+#include "TouchPoll.h"
+#include "SolarDim.h"
 
 #include <math.h>
 #include <time.h>
@@ -12,30 +14,6 @@ constexpr unsigned long AUTO_DWELL_MS    = 8000;   // ms per dial when auto-rota
 constexpr unsigned long INTERACT_HOLD_MS = 30000;  // pause auto-rotate this long after a touch
 constexpr unsigned long SOLUNAR_RECALC_MS = 300000; // recompute sun/moon/windows every 5 min
 
-double Deg2Rad(double d) { return d * M_PI / 180.0; }
-
-// Low-precision solar elevation (deg) -- drives the same night auto-dim the other editions use.
-// Copied from SeismicManager/SpaceManager so this app dims identically without a cross-TU dependency.
-float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
-{
-    const double n = (double)utc / 86400.0 - 10957.5;
-    double L = fmod(280.460 + 0.9856474 * n, 360.0);
-    double g = fmod(357.528 + 0.9856003 * n, 360.0);
-    const double lambda = L + 1.915 * sin(Deg2Rad(g)) + 0.020 * sin(Deg2Rad(2 * g));
-    const double eps = 23.439 - 0.0000004 * n;
-    const double lam = Deg2Rad(lambda), e = Deg2Rad(eps);
-    const double dec = asin(sin(e) * sin(lam));
-    const double ra = atan2(cos(e) * sin(lam), cos(lam));
-    double gmst = fmod(18.697374558 + 24.06570982441908 * n, 24.0);
-    if (gmst < 0) gmst += 24.0;
-    const double lstDeg = gmst * 15.0 + lonDeg;
-    const double H = Deg2Rad(lstDeg - ra * 180.0 / M_PI);
-    const double lat = Deg2Rad(latDeg);
-    double sinEl = sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H);
-    if (sinEl > 1) sinEl = 1;
-    if (sinEl < -1) sinEl = -1;
-    return (float)(asin(sinEl) * 180.0 / M_PI);
-}
 
 } // namespace
 
@@ -102,6 +80,7 @@ void FishingManager::Initialise()
     autoDim = ad.isEmpty() || ad == "true";
 
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     alertFlow = boolCfg("fi-a-flow", false);
     alertTemp = boolCfg("fi-a-temp", false);
     alertSolunar = boolCfg("fi-a-solunar", false);
@@ -109,7 +88,7 @@ void FishingManager::Initialise()
     alertTide = boolCfg("fi-a-tide", false);
     chimeOnAlert = boolCfg("fi-chime", false);
 
-    logbook.Begin();
+    logbook.Begin(tzOffsetSec); // local-day boundary for today/streak/best-day
 
     FishingFeedClient::Config fcfg;
     fcfg.baseUrl = backendBaseUrl;
@@ -150,6 +129,7 @@ void FishingManager::Update()
     feed.Poll();
     RecomputeSolunar(false);
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
     AutoRotate();
@@ -236,12 +216,13 @@ void FishingManager::AutoRotate()
 
 void FishingManager::HandleTouch()
 {
-    // Serialize the touch I2C read against network use of the shared bus (legacy C3 constraint; inert
-    // on the dual-core S3 but kept per CLAUDE.md).
-    if (!http.TryAcquireBus()) return;
+    // Variant-aware touch poll (TouchPoll.h): serialized against TLS only on the
+    // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
+    // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
-    http.ReleaseBus();
+    const TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
+    const bool touched = (poll == TouchPoll::Touched);
 
     const unsigned long now = millis();
     if (touched) {
@@ -409,14 +390,10 @@ void FishingManager::CheckAlerts()
 
 void FishingManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return; // throttle bursts
-    lastNotifyMs = millis();
-
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 // ----------------------------------------------------------------------------- brightness

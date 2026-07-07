@@ -1,12 +1,14 @@
 #pragma once
 
 #include <ESPAsyncWebServer.h>
-#include <Preferences.h>
 
 class ConfigurationWebServer {
 private:
     AsyncWebServer server;
-    Preferences prefs;
+    // NVS access uses a function-local Preferences per call site, never a shared
+    // member: the wrapper is not thread-safe, and the handlers here run on the
+    // async_tcp task while GetStoredString runs on the loop task. A shared object
+    // lets one task's end() close the other's live handle mid-read/mid-save.
 
     // Set on the web-server task when settings are saved, consumed on the main
     // loop task. The save handler can't safely touch AircraftManager directly
@@ -18,8 +20,8 @@ private:
     volatile bool wifiResetRequested = false;
 
 public:
-    ConfigurationWebServer() : server(80), prefs() {}
-    ConfigurationWebServer(int port) : server(port), prefs() {}
+    ConfigurationWebServer() : server(80) {}
+    ConfigurationWebServer(int port) : server(port) {}
 
     void Initialise();
     [[nodiscard]] const String GetStoredString(const char* key);

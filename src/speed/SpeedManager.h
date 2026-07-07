@@ -6,6 +6,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "SpeedTheme.h"
@@ -65,6 +66,7 @@ private:
     String resolvedIpOrigin;               // cached "http://<ip>" from the last good mDNS query
     String resolvedName;                    // the mDNS label resolvedIpOrigin belongs to
     unsigned long lastResolveMs = 0;
+    uint8_t resolveFailCount = 0;           // consecutive mDNS misses; backs off the retry cadence
 
     // ---- navigation / selection ----
     Screen current = Screen::Splash;       // cold-start: greet with the splash / setup prompt
@@ -86,12 +88,13 @@ private:
     // edge state, seeded at first data so the backlog never fires.
     bool alertSeeded = false;
     bool epochSeeded = false;              // speeder baseline seeded once NTP + events are both up
+    bool recordSeeded = false;             // day-record baseline seeded once NTP + events are both up
     long newestSeenEpoch = 0;              // newest event epoch already considered
     int  recordTop = 0;                    // fastest speed seen "today" so far
     long recordDayIndex = 0;               // local day index recordTop belongs to
     bool wasOnline = false;
     bool everOnline = false;               // latched once the camera has ever answered (gates "back online")
-    unsigned long lastNotifyMs = 0;
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

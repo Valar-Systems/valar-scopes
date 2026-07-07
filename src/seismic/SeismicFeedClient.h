@@ -46,6 +46,11 @@ public:
     const std::vector<seismic::Quake>& Recent() const { return recent; }
     const std::vector<seismic::Quake>& Nearby() const { return nearby; }
     bool HasAny() const { return !recent.empty() || !nearby.empty(); }
+    // True once that feed has completed a successful fetch, even a zero-result one.
+    // Alert seeding keys off these rather than emptiness: Nearby is often genuinely
+    // empty for days, and a real first nearby quake must alert, not seed silently.
+    bool RecentFetched() const { return fetched[F_RECENT]; }
+    bool NearbyFetched() const { return fetched[F_NEARBY]; }
 
 private:
     enum FeedIdx : uint8_t { F_RECENT, F_NEARBY, F_COUNT };
@@ -64,6 +69,7 @@ private:
     std::vector<seismic::Quake> nearby;
 
     bool firstLogged[F_COUNT] = {}; // log a one-line summary the first time each feed lands
+    bool fetched[F_COUNT] = {};
 
     // worker task
     TaskHandle_t taskHandle = nullptr;

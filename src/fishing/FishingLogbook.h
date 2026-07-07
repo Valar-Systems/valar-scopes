@@ -11,11 +11,13 @@
 // The "bite-window hit rate" (share of catches recorded while a major/minor period was active) is the
 // payoff stat: it tells the angler whether the on-device solunar forecast is actually working for them.
 //
-// A "day" is a UTC calendar day on which at least one catch was logged; the streak is the run of
-// consecutive such days, alive through today/yesterday and 0 once a day is missed.
+// A "day" is a LOCAL calendar day on which at least one catch was logged (local so an
+// evening session in the Americas -- where UTC midnight falls at 4-7 pm -- counts as one
+// day, not two); the streak is the run of consecutive such days, alive through
+// today/yesterday and 0 once a day is missed. The local offset is supplied via Begin().
 class FishingLogbook {
 public:
-    void Begin();   // load counters from NVS (idempotent)
+    void Begin(long tzOffsetSec = 0);   // load counters from NVS (idempotent); set the local-day offset
 
     // Record one logged catch. duringWindow = a solunar feeding period was active at the time.
     // nowUtc must be a real (NTP-synced) epoch; unsynced calls are ignored so the streak stays honest.
@@ -36,9 +38,11 @@ private:
     struct Data {
         uint32_t total = 0, biteWindow = 0, best = 0, days = 0;
         uint32_t streak = 0, bestStreak = 0, today = 0;
-        uint32_t lastDay = 0;    // UTC days-since-epoch of the most recent logged catch
+        uint32_t lastDay = 0;    // LOCAL days-since-epoch of the most recent logged catch
         long     lastCatch = 0;  // UTC epoch of the most recent catch
     } d;
+    long tzOffsetSec = 0;        // local-day offset (set in Begin), applied before the /DAY boundary
+    uint32_t LocalDay(long nowUtc) const;  // local calendar-day index for a UTC epoch
     Preferences prefs;
     void save();
 };

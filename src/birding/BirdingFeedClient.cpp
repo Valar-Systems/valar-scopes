@@ -149,17 +149,32 @@ void BirdingFeedClient::ApplyResult(const BirdFetchResult& res)
         const uint16_t shift = feeds[f].failCount > 5 ? 5 : feeds[f].failCount;
         uint32_t backoff = feeds[f].intervalMs << shift;
         if (backoff > MAX_BACKOFF_MS || backoff < feeds[f].intervalMs) backoff = MAX_BACKOFF_MS;
+        if (backoff < feeds[f].intervalMs) backoff = feeds[f].intervalMs; // never poll a FAILING feed faster than a healthy one
         feeds[f].nextDueMs = now + backoff;
         return;
     }
 
     feeds[f].failCount = 0;
     feeds[f].nextDueMs = now + feeds[f].intervalMs;
+    fetched[f] = true;
 
     switch (res.endpoint) {
         case birding::BirdEndpoint::Notable:  notable = res.sightings; break;
         case birding::BirdEndpoint::Recent:   recent = res.sightings; break;
         case birding::BirdEndpoint::Hotspots: hotspots = res.hotspots; break;
+    }
+
+    // The Recent feed carries no "notable" field (eBird's recent-obs payload lacks
+    // it), so its sightings parse as notable=false -- which left the radar's gold
+    // notable accent and the detail card's NOTABLE tag as dead code. Cross-mark
+    // Recent entries whose species appears in the Notable feed, whenever either
+    // feed changes, so a rare bird stands out on the radar it's actually drawn on.
+    if (res.endpoint == birding::BirdEndpoint::Notable || res.endpoint == birding::BirdEndpoint::Recent) {
+        for (birding::Sighting& r : recent) {
+            r.notable = false;
+            for (const birding::Sighting& n : notable)
+                if (n.speciesCode == r.speciesCode) { r.notable = true; break; }
+        }
     }
 
     if (!firstLogged[f]) {
@@ -210,16 +225,19 @@ void BirdingFeedClient::Fetch(HttpRequestManager& http,
         return;
     }
     JsonArrayConst arr = doc.as<JsonArrayConst>();
+    // Zero results is valid "no data", but a non-array body (an eBird error
+    // object on a 2xx) is not -- ok would overwrite retained data with empty.
+    bool parsed = false;
     switch (req.endpoint) {
         case birding::BirdEndpoint::Notable:
-            birding::ParseObs(arr, res.sightings, NOTABLE_RETAIN, true);
+            parsed = birding::ParseObs(arr, res.sightings, NOTABLE_RETAIN, true);
             break;
         case birding::BirdEndpoint::Recent:
-            birding::ParseObs(arr, res.sightings, RECENT_RETAIN, false);
+            parsed = birding::ParseObs(arr, res.sightings, RECENT_RETAIN, false);
             break;
         case birding::BirdEndpoint::Hotspots:
-            birding::ParseHotspots(arr, res.hotspots, HOTSPOTS_RETAIN);
+            parsed = birding::ParseHotspots(arr, res.hotspots, HOTSPOTS_RETAIN);
             break;
     }
-    res.ok = true; // a successful fetch with zero results is valid "no data"
+    res.ok = parsed;
 }

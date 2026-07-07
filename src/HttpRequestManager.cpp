@@ -1,6 +1,13 @@
 #include "HttpRequestManager.h"
 
 namespace {
+// Hard ceiling on any JSON body parsed off the socket. Every legitimate feed here is
+// well under this (a wide OpenSky box is ~100-200 KB); without a cap, an oversized or
+// hostile body (a plain-HTTP LAN endpoint is spoofable via mDNS) grows the elastic
+// JsonDocument until internal heap hits zero MID-PARSE -- and with async_tcp, MQTT and
+// loop-task Strings allocating from the same heap, that is a crash-reboot, not a clean
+// NoMemory. Applied to Content-Length up front and to both socket streams cumulatively.
+constexpr size_t MAX_JSON_BODY = 256 * 1024;
 // ArduinoJson reads a stream a byte at a time. Doing that straight off the WiFi
 // socket floods lwIP with tiny reads and, on the single-core C3, starves the
 // async_tcp service task until its watchdog reboots the board (seen mid-parse of the
@@ -26,6 +33,7 @@ private:
     bool Fill() {
         if (pos_ < len_) return true;
         if (remaining_ == 0) return false; // never read past Content-Length (no keep-alive stall)
+        if (totalRead_ >= MAX_JSON_BODY) { truncated_ = true; return false; } // body over the ceiling: stop feeding the parser
 
         pos_ = len_ = 0;
         const uint32_t start = millis();
@@ -58,6 +66,7 @@ private:
     uint32_t fillCount_ = 0;
     size_t totalRead_ = 0;
     bool timedOut_ = false;
+    bool truncated_ = false;
 };
 
 // Same idea as BufferedSocketStream, but for a Transfer-Encoding: chunked body (no
@@ -112,6 +121,7 @@ private:
     bool Fill() {
         if (pos_ < len_) return true;
         if (done_) return false;
+        if (totalRead_ >= MAX_JSON_BODY) { done_ = true; return false; } // body over the ceiling: stop feeding the parser
         pos_ = len_ = 0;
 
         // Advance to a chunk that still has data, consuming the CRLF that trails the
@@ -304,6 +314,14 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     if (responseCode > 0) {
         DeserializationError err;
         const int bodyLen = http.getSize();
+        if (bodyLen >= 0 && (size_t)bodyLen > MAX_JSON_BODY) {
+            // Refuse up front: parsing it would exhaust the heap mid-stream.
+            Serial.printf("[GET] body too large (%d > %u); refusing\n", bodyLen, (unsigned)MAX_JSON_BODY);
+            result.errorMessage = "body too large";
+            http.end();
+            xSemaphoreGive(mutex);
+            return result;
+        }
         if (bodyLen >= 0) {
             // Content-Length known (not chunked): parse straight off the socket so the
             // body is never copied into a String. Wrap it so reads are bulk + yielding
@@ -334,6 +352,13 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
             // by closing the connection, so getString() reads to a clean EOF (no keep-alive
             // over-read to block on). Rare for these JSON endpoints.
             const String s = http.getString();
+            if (s.length() > MAX_JSON_BODY) {
+                Serial.printf("[GET] close-delimited body too large (%u); refusing\n", (unsigned)s.length());
+                result.errorMessage = "body too large";
+                http.end();
+                xSemaphoreGive(mutex);
+                return result;
+            }
             err = filter ? deserializeJson(doc, s, DeserializationOption::Filter(*filter))
                          : deserializeJson(doc, s);
             if (err)

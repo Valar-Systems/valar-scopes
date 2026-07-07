@@ -45,6 +45,11 @@ public:
     const std::vector<birding::Sighting>& Recent() const { return recent; }
     const std::vector<birding::Hotspot>& Hotspots() const { return hotspots; }
     bool HasAny() const { return !notable.empty() || !recent.empty() || !hotspots.empty(); }
+    // True once that feed has completed a successful fetch, even a zero-result one.
+    // Alert seeding keys off these rather than emptiness: the fetches land staggered,
+    // so each feed's baseline must land with ITS first result, not the first of any.
+    bool NotableFetched() const { return fetched[F_NOTABLE]; }
+    bool RecentFetched()  const { return fetched[F_RECENT]; }
 
 private:
     enum FeedIdx : uint8_t { F_NOTABLE, F_RECENT, F_HOTSPOTS, F_COUNT };
@@ -63,6 +68,7 @@ private:
     std::vector<birding::Hotspot> hotspots;
 
     bool firstLogged[F_COUNT] = {};
+    bool fetched[F_COUNT] = {};
 
     TaskHandle_t taskHandle = nullptr;
     QueueHandle_t reqQueue = nullptr;

@@ -1,11 +1,15 @@
 #include "OtaUpdater.h"
 #include "LGFX.h"
 #include "Layout.h"
+#include "OtaCerts.h"
+#include "BootScreen.h"
+#include "Board.h"
 #include "variants/Variant.h"
 
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <time.h>
 
 namespace {
 
@@ -32,21 +36,68 @@ String FirmwareUrl()
            + FW_OTA_PREFIX + variant::SLUG + ".bin";
 }
 
-void drawStatus(LGFX& tft, const String& msg)
+// X.509 validation needs a roughly-correct clock (cert validity periods), but the
+// boot-time update check runs right after configTime() starts NTP in the background.
+// Wait briefly for the first sync; give up if it never lands (no internet -- the
+// version fetch would fail anyway) and let the daily re-check try again.
+bool WaitForClock()
 {
-    tft.fillScreen(lgfx::color888(0, 0, 0));
-    tft.setTextColor(lgfx::color888(0, 255, 0));
-    tft.drawCentreString(msg, SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - 12);
+    constexpr time_t BUILD_ERA = 1750000000; // mid-2025; NTP-synced time is always past this
+    for (int i = 0; i < 40; ++i) {           // up to ~10 s, usually syncs in 1-2 s
+        if (time(nullptr) > BUILD_ERA)
+            return true;
+        delay(250);
+    }
+    return false;
+}
+
+void drawStatus(LGFX& tft, LGFX_Sprite& fb, const String& msg)
+{
+    // Compose full-frame through the backbuffer (SPD2010 drops direct partial
+    // writes) and flush for the RGB panel -- the same path every boot screen uses.
+    DrawCenteredScreen(tft, fb, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), msg.c_str());
+    board::DisplayFlush(tft);
+}
+
+// Draw the "Updating firmware..." title plus a progress bar at `pct` (0-100),
+// composed full-frame so it shows on every panel (see drawStatus / BootScreen.h).
+void drawProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
+{
+#if defined(BLIPSCOPE_PANEL_SPD2010)
+    auto& g = fb;   // compose into the sprite, push even-aligned below
+#else
+    auto& g = tft;  // direct to the panel (flushed after)
+#endif
+    g.fillScreen(lgfx::color888(0, 0, 0));
+    g.setTextColor(lgfx::color888(0, 255, 0));
+    g.drawCenterString("Updating firmware...", SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - 24);
+
+    const int barW = SCREEN_SIZE - 100;         // 140 on a 240 screen
+    const int barX = (SCREEN_SIZE - barW) / 2;   // centred on any panel
+    const int barY = SCREEN_SIZE_DIV_2 + 20;
+    g.drawRect(barX, barY, barW, 14, lgfx::color888(0, 120, 0));
+    g.fillRect(barX + 2, barY + 2, ((barW - 4) * pct) / 100, 10, lgfx::color888(0, 255, 0));
+
+#if defined(BLIPSCOPE_PANEL_SPD2010)
+    fb.pushSprite(0, 0);
+#endif
+    board::DisplayFlush(tft); // RGB panels: make the paint visible (no-op on SPI SKUs)
 }
 
 } // namespace
 
-void MaybeUpdateFirmware(LGFX& tft)
+void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
 {
-    // 1. read the latest published version. setInsecure() skips certificate
-    // validation -- acceptable here, matching the rest of the device's HTTPS.
+    // 1. read the latest published version. Unlike the feeds, OTA validates the
+    // TLS chain against pinned roots (see OtaCerts.h): a spoofed binary is
+    // persistent code execution, not just bad data on a screen.
+    if (!WaitForClock()) {
+        Serial.println("[ota] clock not synced; skipping update check");
+        return;
+    }
+
     WiFiClientSecure verClient;
-    verClient.setInsecure();
+    verClient.setCACert(OTA_ROOT_CAS);
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // GitHub redirects to its CDN
@@ -74,20 +125,23 @@ void MaybeUpdateFirmware(LGFX& tft)
 
     // 2. download + flash the new image, showing a progress bar on the screen
     Serial.println("[ota] newer firmware available -- updating");
-    drawStatus(tft, "Updating firmware...");
+    drawProgress(tft, fb, 0);
 
     WiFiClientSecure updClient;
-    updClient.setInsecure();
+    updClient.setCACert(OTA_ROOT_CAS);
 
     httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     httpUpdate.rebootOnUpdate(true);
-    httpUpdate.onProgress([&tft](int current, int total) {
+    // Repaint only on a whole-percent change: each paint is a full-frame push +
+    // panel flush, and the callback fires per network chunk.
+    static int lastPct = -1;
+    lastPct = -1;
+    httpUpdate.onProgress([&tft, &fb](int current, int total) {
         const int pct = total > 0 ? (int)((current * 100L) / total) : 0;
-        const int barW = SCREEN_SIZE - 100;        // 140 on a 240 screen
-        const int barX = (SCREEN_SIZE - barW) / 2;  // centred on any panel
-        const int barY = SCREEN_SIZE_DIV_2 + 20;
-        tft.fillRect(barX, barY, barW, 14, lgfx::color888(0, 40, 0));
-        tft.fillRect(barX + 2, barY + 2, ((barW - 4) * pct) / 100, 10, lgfx::color888(0, 255, 0));
+        if (pct != lastPct) {
+            lastPct = pct;
+            drawProgress(tft, fb, pct);
+        }
     });
 
     const String firmwareUrl = FirmwareUrl();
@@ -96,7 +150,7 @@ void MaybeUpdateFirmware(LGFX& tft)
     if (ret == HTTP_UPDATE_FAILED) {
         Serial.printf("[ota] update failed (%d): %s\n",
                       httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-        drawStatus(tft, "Update failed");
+        drawStatus(tft, fb, "Update failed");
         delay(2000);
     }
     // HTTP_UPDATE_OK reboots automatically (rebootOnUpdate(true))

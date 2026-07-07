@@ -288,4 +288,7 @@ public:
     // Current sweep beam angle in radians; main.cpp draws the beam from this so it
     // matches the paint-and-fade crossing test exactly (single source of truth).
     float CurrentSweepAngle() const { return sweepAngle; }
+    // Cached "scanline" config (reloaded on ConsumeConfigChanged); main.cpp reads
+    // this instead of hitting NVS every frame from the loop task.
+    bool SweepEnabled() const { return displaySweep; }
 };

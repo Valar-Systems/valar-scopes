@@ -220,7 +220,7 @@ void setup()
 
   // self-update from the latest GitHub release before normal startup; reboots
   // into the new firmware if one is newer than this build
-  MaybeUpdateFirmware(tft);
+  MaybeUpdateFirmware(tft, backbuffer);
 
   // begin background server for configuration
   configServer.Initialise();
@@ -242,7 +242,7 @@ void loop()
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
-    MaybeUpdateFirmware(tft);
+    MaybeUpdateFirmware(tft, backbuffer);
   }
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
@@ -258,8 +258,7 @@ void loop()
   // rows. The scene is drawn once per band; the app advances per-frame state (animation
   // tick, trail sampling) only on the first pass so the bands stay in sync.
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
-  String renderScanlines = configServer.GetStoredString("scanline");
-  const bool drawScan = (renderScanlines.isEmpty() || renderScanlines == "true") && appManager.IsRadarView();
+  const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView();
 
   // The sweep angle is owned by AircraftManager (advanced in Update()), so the
   // drawn beam matches the blip paint-and-fade crossing test exactly. Sampled

@@ -1,4 +1,6 @@
 #include "SpaceManager.h"
+#include "TouchPoll.h"
+#include "SolarDim.h"
 
 #include <math.h>
 #include <time.h>
@@ -30,32 +32,6 @@ constexpr float KP_AURORA_THRESH  = 6.0f; // Kp >= this (G2+) -> "aurora likely"
 constexpr float        SHAKE_G          = 2.3f;   // peak |accel| (g) to trigger -- high, so a desk bump won't
 constexpr unsigned long SHAKE_DEBOUNCE  = 9000;   // ignore further shakes during/after a launch
 
-double Deg2Rad(double d) { return d * M_PI / 180.0; }
-
-// Low-precision solar elevation (degrees) at lat/lon for a UTC epoch -- drives the same night
-// auto-dim the radar / EAM use (sun below -0.833 deg = civil horizon). Copied from EamManager so
-// the space app dims identically without depending on the EAM translation unit.
-float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
-{
-    const double n = (double)utc / 86400.0 - 10957.5; // days since J2000.0 (2000-01-01 12:00 UTC)
-    double L = fmod(280.460 + 0.9856474 * n, 360.0);
-    double g = fmod(357.528 + 0.9856003 * n, 360.0);
-    const double lambda = L + 1.915 * sin(Deg2Rad(g)) + 0.020 * sin(Deg2Rad(2 * g));
-    const double eps = 23.439 - 0.0000004 * n;
-    const double lam = Deg2Rad(lambda), e = Deg2Rad(eps);
-    const double dec = asin(sin(e) * sin(lam));
-    const double ra = atan2(cos(e) * sin(lam), cos(lam)); // radians
-    double gmst = fmod(18.697374558 + 24.06570982441908 * n, 24.0);
-    if (gmst < 0) gmst += 24.0;
-    const double lstDeg = gmst * 15.0 + lonDeg;
-    const double Hdeg = lstDeg - ra * 180.0 / M_PI;
-    const double H = Deg2Rad(Hdeg);
-    const double lat = Deg2Rad(latDeg);
-    double sinEl = sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H);
-    if (sinEl > 1) sinEl = 1;
-    if (sinEl < -1) sinEl = -1;
-    return (float)(asin(sinEl) * 180.0 / M_PI);
-}
 
 } // namespace
 
@@ -136,6 +112,7 @@ void SpaceManager::Initialise()
     // ntfy alerts (shared ntfy-topic key + per-trigger toggles). An empty topic disables all.
     // The edge-state flags are NOT reset here, so saving config mid-event doesn't re-fire.
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* key, bool def) {
         const String v = configServer.GetStoredString(key);
         return v.isEmpty() ? def : (v == "true");
@@ -145,7 +122,7 @@ void SpaceManager::Initialise()
     alertFlare = boolCfg("sp-alert-flare", true);   // M+ solar flare (GOES X-ray feed)
     alertIss = boolCfg("sp-alert-iss", true);       // ISS visible pass overhead (SGP4)
     alertDsn = boolCfg("sp-alert-dsn", false);      // reserved (no DSN feed yet)
-    alertAsteroid = boolCfg("sp-alert-asteroid", true); // asteroid inside ~1 lunar distance
+    alertAsteroid = boolCfg("sp-alert-neo", true); // asteroid inside ~1 lunar distance
     chimeOnAlert = boolCfg("sp-chime", true);           // speaker chirp alongside alerts (HAS_AUDIO)
 
     logbook.Begin(); // persistent tally of caught events + observing streak
@@ -194,8 +171,16 @@ void SpaceManager::Update()
     if (feed.Tle().valid && hasLatLon) {
         const time_t now = time(nullptr);
         if (now > 1600000000) {
-            const bool stale = !passValid || passTleKey != feed.Tle().line1 ||
-                               now > passSetEpoch || (millis() - lastPassCalcMs > 600000UL);
+            // Recompute on new TLE, when a valid pass ended, on the 10-min timer, or
+            // once at startup. NOT on !passValid alone: nextpass() legitimately finds
+            // nothing (e.g. above ~70 deg latitude the ISS never clears the 10 deg
+            // min peak), and `!passValid` OR'd ahead of the throttle re-ran the full
+            // 20-orbit SGP4 search every frame on the render task -- a permanent
+            // slideshow. A failed search now retries on the 10-min timer, not per tick.
+            const bool stale = (passTleKey != feed.Tle().line1) ||
+                               (passValid && now > passSetEpoch) ||
+                               (millis() - lastPassCalcMs > 600000UL) ||
+                               (!passValid && lastPassCalcMs == 0);
             if (stale) RecomputePass();
         }
     }
@@ -208,6 +193,7 @@ void SpaceManager::Update()
     }
 
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
     AutoRotate();
@@ -336,12 +322,13 @@ void SpaceManager::AutoRotate()
 
 void SpaceManager::HandleTouch()
 {
-    // Serialize the touch I2C read against any network use of the shared bus -- the same pattern
-    // the radar / EAM use (inert on dual-core S3, where TryAcquireBus is uncontended).
-    if (!http.TryAcquireBus()) return;
+    // Variant-aware touch poll (TouchPoll.h): serialized against TLS only on the
+    // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
+    // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
-    http.ReleaseBus();
+    const TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
+    const bool touched = (poll == TouchPoll::Touched);
 
     const unsigned long now = millis();
     if (touched) {
@@ -488,7 +475,13 @@ void SpaceManager::CheckAlerts()
         const space::Asteroid* near = nullptr;
         for (const space::Asteroid& a : as)
             if (a.distLd > 0 && a.distLd <= 1.0 && (!near || a.distLd < near->distLd)) near = &a;
-        if (near && near->designation != asteroidAlertedDes) {
+        if (!asteroidSeeded) {
+            // First landing after boot: an approach inside 1 LD stays in the feed
+            // for days, so baseline it silently -- otherwise every reboot re-fires
+            // the same alert (and re-inflates the logbook).
+            asteroidSeeded = true;
+            if (near) asteroidAlertedDes = near->designation;
+        } else if (near && near->designation != asteroidAlertedDes) {
             asteroidAlertedDes = near->designation;
             logbook.RecordAsteroid(nowUtc);
             chime(70);
@@ -610,16 +603,10 @@ void SpaceManager::RecomputeObserving()
 
 void SpaceManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return; // throttle bursts
-    lastNotifyMs = millis();
-
-    // Blocking POST on the loop task, serialized with the feed worker via HttpRequestManager's
-    // mutex -- the same pattern the radar/EAM use. Triggers are rare, so the brief stall is fine.
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 void SpaceManager::DrawScreenDots(BandCanvas& c, const std::vector<Screen>& rot) const

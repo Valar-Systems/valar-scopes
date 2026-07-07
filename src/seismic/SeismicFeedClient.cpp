@@ -174,12 +174,14 @@ void SeismicFeedClient::ApplyResult(const SeismicFetchResult& res)
         const uint16_t shift = feeds[f].failCount > 5 ? 5 : feeds[f].failCount;
         uint32_t backoff = feeds[f].intervalMs << shift;
         if (backoff > MAX_BACKOFF_MS || backoff < feeds[f].intervalMs) backoff = MAX_BACKOFF_MS;
+        if (backoff < feeds[f].intervalMs) backoff = feeds[f].intervalMs; // never poll a FAILING feed faster than a healthy one
         feeds[f].nextDueMs = now + backoff;
         return;
     }
 
     feeds[f].failCount = 0;
     feeds[f].nextDueMs = now + feeds[f].intervalMs;
+    fetched[f] = true;
 
     switch (res.endpoint) {
         case seismic::SeismicEndpoint::Recent: recent = res.quakes; break;
@@ -227,6 +229,6 @@ void SeismicFeedClient::Fetch(HttpRequestManager& http,
         return;
     }
     const size_t cap = (req.endpoint == seismic::SeismicEndpoint::Recent) ? 60 : 60;
-    seismic::ParseQuakes(doc.as<JsonObjectConst>(), res.quakes, cap);
-    res.ok = true; // a successful fetch with zero quakes in range is valid "no data"
+    // Zero quakes in range is valid "no data", but a wrong-shaped body is not.
+    res.ok = seismic::ParseQuakes(doc.as<JsonObjectConst>(), res.quakes, cap);
 }

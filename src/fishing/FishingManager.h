@@ -7,6 +7,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "FishingTheme.h"
@@ -95,7 +96,7 @@ private:
     long lastSolunarAlertEpoch = 0;       // start epoch of the last-alerted major window
     bool baroAlerted = false;             // a fast-fall episode already alerted (reset when it eases)
     long lastAlertedTideEpoch = 0;        // tide event already alerted for
-    unsigned long lastNotifyMs = 0;
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

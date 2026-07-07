@@ -112,11 +112,15 @@ bool EamLogbook::NoteEam(const String& id, long heardEpoch)
 bool EamLogbook::NoteCodeword(const String& codeword, long seenEpoch)
 {
     if (codeword.isEmpty()) return false;
-    for (const auto& c : codewords)
-        if (c.first == codeword) return false;
 
+    // Truncate BEFORE deduping: stored entries hold the truncated form, so a
+    // longer codeword compared untruncated never matches its own stored copy and
+    // re-inserts a duplicate every Update() tick (rewriting NVS every 10 s).
     String cw = codeword;
     if (cw.length() > MAX_CODEWORD_LEN) cw = cw.substring(0, MAX_CODEWORD_LEN);
+    for (const auto& c : codewords)
+        if (c.first == cw) return false;
+
     codewords.push_back({cw, seenEpoch});
     if (codewords.size() > MAX_CODEWORDS) codewords.erase(codewords.begin());
     dirty = true;

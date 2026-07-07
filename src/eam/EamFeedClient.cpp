@@ -210,6 +210,7 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
         const uint16_t shift = feeds[f].failCount > 5 ? 5 : feeds[f].failCount;
         uint32_t backoff = feeds[f].intervalMs << shift;
         if (backoff > MAX_BACKOFF_MS || backoff < feeds[f].intervalMs) backoff = MAX_BACKOFF_MS;
+        if (backoff < feeds[f].intervalMs) backoff = feeds[f].intervalMs; // never poll a FAILING feed faster than a healthy one
         feeds[f].nextDueMs = now + backoff;
         return;
     }
@@ -331,38 +332,42 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
         return;
     }
 
+    // A 2xx whose JSON parses but lacks the expected shape (backend error object,
+    // maintenance page) must NOT count as ok: ApplyResult overwrites the store on
+    // ok, so shape failures would blank last-good data. Propagate parser validity.
     JsonObjectConst root = doc.as<JsonObjectConst>();
+    bool parsed = false;
     switch (req.endpoint) {
         case eam::EamEndpoint::Latest:
-            eam::ParseMessages(root, res.messages, 50);
+            parsed = eam::ParseMessages(root, res.messages, 50);
             break;
         case eam::EamEndpoint::Skykings:
-            eam::ParseMessages(root, res.messages, 20);
+            parsed = eam::ParseMessages(root, res.messages, 20);
             break;
         case eam::EamEndpoint::Tempo:
-            eam::ParseTempo(root, res.tempo);
+            parsed = eam::ParseTempo(root, res.tempo);
             break;
         case eam::EamEndpoint::Stats:
-            eam::ParseStats(root, res.stats);
+            parsed = eam::ParseStats(root, res.stats);
             break;
         case eam::EamEndpoint::Codewords:
-            eam::ParseCodewords(root, res.codewords, res.codewordWindowDays, 50);
+            parsed = eam::ParseCodewords(root, res.codewords, res.codewordWindowDays, 50);
             break;
         case eam::EamEndpoint::Propagation:
-            eam::ParsePropagation(root, res.propagation);
+            parsed = eam::ParsePropagation(root, res.propagation);
             break;
         case eam::EamEndpoint::Icbm:
-            eam::ParseLaunches(root, res.launches, 10);
+            parsed = eam::ParseLaunches(root, res.launches, 10);
             break;
         case eam::EamEndpoint::Abncp:
-            eam::ParseAbncpBackend(root, res.abncp);
+            parsed = eam::ParseAbncpBackend(root, res.abncp);
             break;
         case eam::EamEndpoint::AbncpOpenSky:
-            eam::ParseOpenSkyStates(root, res.abncp);
+            parsed = eam::ParseOpenSkyStates(root, res.abncp);
             break;
         case eam::EamEndpoint::MilAir:
-            eam::ParseMilAir(root, res.milair, MILAIR_RETAIN);
+            parsed = eam::ParseMilAir(root, res.milair, MILAIR_RETAIN);
             break;
     }
-    res.ok = true;
+    res.ok = parsed;
 }

@@ -1,4 +1,6 @@
 #include "BirdingManager.h"
+#include "TouchPoll.h"
+#include "SolarDim.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -11,29 +13,6 @@ namespace {
 constexpr unsigned long AUTO_DWELL_MS    = 8000;   // ms per screen when auto-rotating
 constexpr unsigned long INTERACT_HOLD_MS = 30000;  // pause auto-rotate this long after a touch
 
-double Deg2Rad(double d) { return d * M_PI / 180.0; }
-
-// Low-precision solar elevation (deg) -- drives the same night auto-dim the other apps use.
-float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
-{
-    const double n = (double)utc / 86400.0 - 10957.5;
-    double L = fmod(280.460 + 0.9856474 * n, 360.0);
-    double g = fmod(357.528 + 0.9856003 * n, 360.0);
-    const double lambda = L + 1.915 * sin(Deg2Rad(g)) + 0.020 * sin(Deg2Rad(2 * g));
-    const double eps = 23.439 - 0.0000004 * n;
-    const double lam = Deg2Rad(lambda), e = Deg2Rad(eps);
-    const double dec = asin(sin(e) * sin(lam));
-    const double ra = atan2(cos(e) * sin(lam), cos(lam));
-    double gmst = fmod(18.697374558 + 24.06570982441908 * n, 24.0);
-    if (gmst < 0) gmst += 24.0;
-    const double lstDeg = gmst * 15.0 + lonDeg;
-    const double H = Deg2Rad(lstDeg - ra * 180.0 / M_PI);
-    const double lat = Deg2Rad(latDeg);
-    double sinEl = sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H);
-    if (sinEl > 1) sinEl = 1;
-    if (sinEl < -1) sinEl = -1;
-    return (float)(asin(sinEl) * 180.0 / M_PI);
-}
 
 } // namespace
 
@@ -87,11 +66,12 @@ void BirdingManager::Initialise()
     autoDim = ad.isEmpty() || ad == "true";
 
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* k, bool def) {
         const String v = configServer.GetStoredString(k);
         return v.isEmpty() ? def : (v == "true");
     };
-    alertNotable = boolCfg("bd-alert-notable", true);
+    alertNotable = boolCfg("bd-alert-rare", true);
     alertTarget = boolCfg("bd-alert-target", true);
 
     BirdingFeedClient::Config fcfg;
@@ -111,7 +91,8 @@ void BirdingManager::Initialise()
     lastBrightnessCheck = 0;
 
     // A re-init (config save) shouldn't re-fire alerts for sightings already on screen.
-    alertSeeded = false;
+    notableSeeded = false;
+    recentSeeded = false;
     seenNotable.clear();
     seenTarget.clear();
 
@@ -123,6 +104,7 @@ void BirdingManager::Update()
 {
     feed.Poll();
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
     AutoRotate();
@@ -198,10 +180,13 @@ void BirdingManager::AutoRotate()
 
 void BirdingManager::HandleTouch()
 {
-    if (!http.TryAcquireBus()) return;
+    // Variant-aware touch poll (TouchPoll.h): serialized against TLS only on the
+    // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
+    // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
-    http.ReleaseBus();
+    const TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
+    const bool touched = (poll == TouchPoll::Touched);
 
     const unsigned long now = millis();
     if (touched) {
@@ -274,18 +259,28 @@ bool BirdingManager::MatchesTarget(const birding::Sighting& s) const
 
 void BirdingManager::CheckAlerts()
 {
-    if (!feed.HasAny()) return;
+    // Bound the seen-sets so a long uptime can't grow them without limit. Dropping
+    // a set drops its baseline too, so mark it for silent re-seeding below rather
+    // than letting the whole current feed re-insert as "new" and fire.
+    if (seenNotable.size() > 400) { seenNotable.clear(); notableSeeded = false; }
+    if (seenTarget.size() > 400)  { seenTarget.clear(); notableSeeded = recentSeeded = false; }
 
-    // Bound the seen-sets so a long uptime can't grow them without limit.
-    if (seenNotable.size() > 400) seenNotable.clear();
-    if (seenTarget.size() > 400) seenTarget.clear();
-
-    if (!alertSeeded) {
-        for (const birding::Sighting& s : feed.Notable()) seenNotable.insert(s.speciesCode);
-        for (const birding::Sighting& s : feed.Notable()) if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
-        for (const birding::Sighting& s : feed.Recent())  if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
-        alertSeeded = true;
-        return; // never alert for the backlog present at boot / re-config
+    // Seed each feed's baseline silently on ITS first successful fetch (never alert
+    // for the backlog present at boot / re-config). The fetches land staggered --
+    // one in flight at a time -- so a single seeded-at-first-data flag would
+    // baseline off whichever feed arrived first and let the other's week-old
+    // backlog fire a push per species on every boot.
+    if (!notableSeeded && feed.NotableFetched()) {
+        for (const birding::Sighting& s : feed.Notable()) {
+            seenNotable.insert(s.speciesCode);
+            if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
+        }
+        notableSeeded = true;
+    }
+    if (!recentSeeded && feed.RecentFetched()) {
+        for (const birding::Sighting& s : feed.Recent())
+            if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
+        recentSeeded = true;
     }
 
     // New notable species since we last looked.
@@ -323,14 +318,10 @@ void BirdingManager::CheckAlerts()
 
 void BirdingManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return;
-    lastNotifyMs = millis();
-
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 // ----------------------------------------------------------------------------- brightness

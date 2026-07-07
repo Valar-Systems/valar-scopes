@@ -7,6 +7,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "EamFeedClient.h"
@@ -94,7 +95,7 @@ private:
     bool lastHfDegraded = false;      // last space-weather HF-degraded flag (edge detect)
     int lastGScaleRank = 0;           // last geomagnetic-storm rank 0..5 (G-scale; edge detect)
     bool spaceSeen = false;           // a valid space-weather reading has arrived
-    unsigned long lastNotifyMs = 0;   // throttle ntfy POSTs
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

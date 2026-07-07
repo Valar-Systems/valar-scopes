@@ -7,6 +7,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "SeismicTheme.h"
@@ -75,10 +76,12 @@ private:
     bool alertBig = true;             // a big quake anywhere
     bool alertNear = true;            // a quake near the device
     bool alertTsunami = true;         // a quake flagged tsunami-relevant
-    // edge state: seeded at first data so the backlog never fires; then only newer events alert.
-    bool alertSeeded = false;
+    // edge state: each feed's epoch baseline is seeded on ITS first successful fetch
+    // so the backlog never fires; then only newer events alert (see CheckAlerts).
+    bool recentSeeded = false;        // worldwide feed -> lastBig/lastTsunami
+    bool nearbySeeded = false;        // radius feed    -> lastNear
     long lastBigEpoch = 0, lastNearEpoch = 0, lastTsunamiEpoch = 0;
-    unsigned long lastNotifyMs = 0;   // throttle ntfy POSTs
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

@@ -63,6 +63,7 @@ struct FetchRequest {
 };
 struct FetchResult {
     bool ok = false;                 // false on network / parse failure
+    bool authFailed = false;         // OpenSky said 401/403: the token needs a refetch
     std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
 };
 
@@ -191,8 +192,15 @@ EnrichResult* fetchAircraftMetadata(HttpRequestManager& http, const String& icao
         return res;
     }
 
-    // Any definitive HTTP response -- including 404 "unknown aircraft" -- is final.
-    res->definitive = true;
+    // Only a conclusive answer -- 2xx, or 404 "unknown aircraft" -- is final. A
+    // 429/5xx must stay non-definitive: recording it as Fetched-with-empty-fields
+    // would permanently blank enrichment after one adsbdb throttle window (a
+    // Fetched aircraft is never looked up again).
+    res->definitive = (result.statusCode >= 200 && result.statusCode < 300) || result.statusCode == 404;
+    if (!res->definitive) {
+        Serial.printf("[adsbdb] lookup for %s: HTTP %d, will retry\n", icao24.c_str(), result.statusCode);
+        return res;
+    }
 
     JsonDocument doc;
     if (deserializeJson(doc, result.response))
@@ -231,8 +239,13 @@ EnrichResult* fetchRoute(HttpRequestManager& http, const String& callsign)
         return res;
     }
 
-    // any definitive HTTP response (incl. 404 unknown callsign) is final
-    res->definitive = true;
+    // only a conclusive answer (2xx, or 404 unknown callsign) is final; a
+    // 429/5xx stays non-definitive so the detail path retries it later
+    res->definitive = (result.statusCode >= 200 && result.statusCode < 300) || result.statusCode == 404;
+    if (!res->definitive) {
+        Serial.printf("[adsbdb] route %s: HTTP %d, will retry\n", callsign.c_str(), result.statusCode);
+        return res;
+    }
     res->routeCallsign = callsign;
 
     JsonDocument doc;
@@ -675,6 +688,15 @@ void AircraftManager::RunFetchTask()
         const char* sourceName = req->local ? "Local ADS-B" : "OpenSky";
         if (!result.success) {
             Serial.printf("[WARN] %s request failed: %s\n", sourceName, result.errorMessage.c_str());
+        } else if (result.statusCode < 200 || result.statusCode >= 300) {
+            // A JSON-bodied error page (OpenSky 401/429/5xx, a proxy, a captive
+            // portal) parses fine but is NOT "zero aircraft in the box": treating
+            // it as data would wipe every tracked contact, then re-fire alerts and
+            // inflate the logbook when the feed recovers. Keep the last picture.
+            Serial.printf("[WARN] %s returned HTTP %d; keeping current picture\n", sourceName, result.statusCode);
+            // 401/403 means the cached bearer token is bad (expired server-side);
+            // flag it so the loop drops the cache and the next cycle re-auths.
+            res->authFailed = !req->local && (result.statusCode == 401 || result.statusCode == 403);
         } else if (req->local) {
             // dump1090/readsb returns objects under "aircraft"; convert each and
             // clip to the scan box ourselves (OpenSky does this server-side, but a
@@ -767,6 +789,12 @@ void AircraftManager::ConsumeFetchResult()
 
     fetchInFlight = false;
 
+    // OpenSky rejected the bearer token: drop the cache (on the loop task, which
+    // owns the handler for the radar) so the next fetch cycle re-authenticates
+    // instead of 401-ing until the local 29-min timer happens to lapse.
+    if (res->authFailed)
+        authHandler.Invalidate();
+
     if (res->ok) {
         const unsigned long now = millis();
 
@@ -792,11 +820,19 @@ void AircraftManager::ConsumeFetchResult()
         // the first successful fetch is the baseline; arrivals after it are "new"
         initialSyncDone = true;
 
-        // remove any planes that disappeared from the feed
+        // Evict planes that have been ABSENT past a grace window, not on the first
+        // fetch they're missing from. OpenSky routinely drops a state vector for a
+        // poll (spotty community coverage), and the local feed's box-edge clip makes
+        // fringe contacts flap at 1 Hz. Erasing on the first miss reconstructs a fresh
+        // TrackedAircraft on re-appearance -- re-firing flyover/overhead ntfy alerts,
+        // re-bumping the logbook odometer, re-chirping, and discarding the trail +
+        // adsbdb enrichment. lastSeen (updated in TrackedAircraft::Update) survives a
+        // miss, so keep the entry for ~2 fetch intervals (bounded 5-30 s).
+        const unsigned long graceMs = constrain(2UL * fetchInterval, 5000UL, 30000UL);
         for (auto it = trackedAircraft.begin(); it != trackedAircraft.end(); ) {
             const bool present = std::any_of(res->aircraft.begin(), res->aircraft.end(),
                 [&](const Aircraft& ac) { return ac.icao24 == it->first; });
-            if (!present)
+            if (!present && (now - it->second.lastSeen) > graceMs)
                 it = trackedAircraft.erase(it);
             else
                 ++it;
@@ -910,11 +946,15 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     // identify the "of interest" contacts to ring: nearest, highest, fastest
     String nearestIcao, highestIcao, fastestIcao;
     if (displayHighlight) {
+        // 1 deg of longitude is 111 km * cos(lat), so the longitude delta must be
+        // scaled by cos(lat) before ranking -- otherwise a plane due east ranks
+        // farther than a nearer one due north (matches IsOverhead/DrawDetailCard).
+        const float clat = cosf(radians((float)lat));
         float minDist2 = 1e30f, maxAlt = -1e30f, maxVel = -1e30f;
         for (auto& [icao, t] : trackedAircraft) {
             if (t.state.onGround) continue;
             auto [la, lo] = t.GetDisplayPosition();
-            const float dLat = la - (float)lat, dLon = lo - (float)lon;
+            const float dLat = la - (float)lat, dLon = (lo - (float)lon) * clat;
             const float d2 = dLat * dLat + dLon * dLon;
             if (d2 < minDist2)                 { minDist2 = d2; nearestIcao = icao; }
             if (t.state.baroAltitude > maxAlt) { maxAlt = t.state.baroAltitude; highestIcao = icao; }
@@ -1102,13 +1142,14 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     int count = 0;
     String highIcao, fastIcao, nearIcao;
     float maxAlt = -1e30f, maxVel = -1e30f, minD2 = 1e30f;
+    const float clat = cosf(radians((float)lat)); // scale longitude delta (see IsOverhead)
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
         ++count;
         if (t.state.baroAltitude > maxAlt) { maxAlt = t.state.baroAltitude; highIcao = icao; }
         if (t.state.velocity > maxVel)     { maxVel = t.state.velocity; fastIcao = icao; }
         auto [la, lo] = t.GetDisplayPosition();
-        const float dLa = la - (float)lat, dLo = lo - (float)lon;
+        const float dLa = la - (float)lat, dLo = (lo - (float)lon) * clat;
         const float d2 = dLa * dLa + dLo * dLo;
         if (d2 < minD2) { minD2 = d2; nearIcao = icao; }
     }
@@ -1231,10 +1272,11 @@ void AircraftManager::UpdateBrightness()
 std::vector<String> AircraftManager::SortedAircraftByDistance()
 {
     std::vector<std::pair<float, String>> v;
+    const float clat = cosf(radians((float)lat)); // scale longitude delta (see IsOverhead)
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
         auto [la, lo] = t.GetDisplayPosition();
-        const float dLa = la - (float)lat, dLo = lo - (float)lon;
+        const float dLa = la - (float)lat, dLo = (lo - (float)lon) * clat;
         v.push_back({ dLa * dLa + dLo * dLo, icao });
     }
     std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
@@ -1660,6 +1702,11 @@ void AircraftManager::ProcessDetailLookups()
     //    enrichment fields are disabled. The photo step below needs the photoUrl it
     //    resolves, so wait for it (Fetching) before moving on.
     if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
+        // Honor the 30 s cooldown a transient failure set (ConsumeEnrichResults):
+        // without this, a card open during an adsbdb outage re-queues metadata every
+        // frame, hammering the shared TLS path and holding the bus off the feed task.
+        if (millis() < tracked.metadataRetryAfter)
+            return;
         tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
         RequestMetadata(selectedIcao);
         return;
@@ -1667,10 +1714,14 @@ void AircraftManager::ProcessDetailLookups()
     if (tracked.metadataState == TrackedAircraft::MetadataState::Fetching)
         return;
 
-    // 2. route, once per callsign
+    // 2. route, once per callsign. A transient failure leaves routeCallsign unchanged
+    //    (so it retries), but behind the same 30 s cooldown as metadata -- otherwise
+    //    the route retries back-to-back every frame while adsbdb is unreachable.
     String callsign = tracked.state.callsign;
     callsign.trim();
     if (!callsign.isEmpty() && tracked.routeCallsign != callsign) {
+        if (millis() < tracked.routeRetryAfter)
+            return;
         RequestRoute(selectedIcao, callsign);
         return;
     }
@@ -1806,13 +1857,19 @@ void AircraftManager::ConsumeEnrichResults()
             break;
 
         case EnrichKind::Route:
-            // only a definitive answer is recorded; a transient failure leaves
-            // routeCallsign unchanged so the detail path retries it
-            if (it != trackedAircraft.end() && res->definitive) {
-                TrackedAircraft& t = it->second;
-                t.routeCallsign = res->routeCallsign;
-                t.routeOrigin = res->routeOrigin;
-                t.routeDest = res->routeDest;
+            if (it != trackedAircraft.end()) {
+                if (res->definitive) {
+                    TrackedAircraft& t = it->second;
+                    t.routeCallsign = res->routeCallsign;
+                    t.routeOrigin = res->routeOrigin;
+                    t.routeDest = res->routeDest;
+                } else {
+                    // transient failure: leave routeCallsign unchanged so the detail
+                    // path retries, but behind a cooldown (mirrors metadata) so it
+                    // doesn't hammer adsbdb every frame during an outage.
+                    constexpr unsigned long ROUTE_RETRY_COOLDOWN = 30000;
+                    it->second.routeRetryAfter = millis() + ROUTE_RETRY_COOLDOWN;
+                }
             }
             break;
 
@@ -1955,6 +2012,7 @@ void AircraftManager::PublishMqttState()
     float maxAlt = -1e30f, maxVel = -1e30f, minD2 = 1e30f;
     bool anyMil = false, anyOvh = false;
     const bool overheadActive = showOverhead || alertOverhead;
+    const float clat = cosf(radians((float)lat)); // scale longitude delta (see IsOverhead)
 
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
@@ -1962,7 +2020,7 @@ void AircraftManager::PublishMqttState()
         if (t.state.baroAltitude > maxAlt) { maxAlt = t.state.baroAltitude; highIcao = icao; }
         if (t.state.velocity > maxVel)     { maxVel = t.state.velocity; fastIcao = icao; }
         auto [la, lo] = t.GetDisplayPosition();
-        const float dLa = la - (float)lat, dLo = lo - (float)lon;
+        const float dLa = la - (float)lat, dLo = (lo - (float)lon) * clat;
         const float d2 = dLa * dLa + dLo * dLo;
         if (d2 < minD2) { minD2 = d2; nearIcao = icao; }
         if (SpecialAircraft::IsMilitary(t.state.icao24)) { anyMil = true; if (milIcao.isEmpty()) milIcao = icao; }

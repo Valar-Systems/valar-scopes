@@ -1,4 +1,6 @@
 #include "SpeedManager.h"
+#include "TouchPoll.h"
+#include "SolarDim.h"
 
 #include <math.h>
 #include <time.h>
@@ -13,7 +15,6 @@ constexpr unsigned long INTERACT_HOLD_MS = 30000;  // pause auto-rotate this lon
 constexpr unsigned long ONLINE_GRACE_MS  = 12000;  // no fresh /api/state within this = camera offline
 constexpr unsigned long RESOLVE_RETRY_MS = 8000;   // re-query mDNS this often while unresolved/offline
 
-double Deg2Rad(double d) { return d * M_PI / 180.0; }
 
 // A bare IPv4 literal is all digits and dots -- skip mDNS for it.
 bool LooksLikeIp(const String& h)
@@ -24,29 +25,6 @@ bool LooksLikeIp(const String& h)
         if ((c < '0' || c > '9') && c != '.') return false;
     }
     return true;
-}
-
-// Low-precision solar elevation (deg) -- drives the same night auto-dim the other editions use.
-// Copied from FishingManager/SeismicManager so this app dims identically without a cross-TU dependency.
-float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
-{
-    const double n = (double)utc / 86400.0 - 10957.5;
-    double L = fmod(280.460 + 0.9856474 * n, 360.0);
-    double g = fmod(357.528 + 0.9856003 * n, 360.0);
-    const double lambda = L + 1.915 * sin(Deg2Rad(g)) + 0.020 * sin(Deg2Rad(2 * g));
-    const double eps = 23.439 - 0.0000004 * n;
-    const double lam = Deg2Rad(lambda), e = Deg2Rad(eps);
-    const double dec = asin(sin(e) * sin(lam));
-    const double ra = atan2(cos(e) * sin(lam), cos(lam));
-    double gmst = fmod(18.697374558 + 24.06570982441908 * n, 24.0);
-    if (gmst < 0) gmst += 24.0;
-    const double lstDeg = gmst * 15.0 + lonDeg;
-    const double H = Deg2Rad(lstDeg - ra * 180.0 / M_PI);
-    const double lat = Deg2Rad(latDeg);
-    double sinEl = sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H);
-    if (sinEl > 1) sinEl = 1;
-    if (sinEl < -1) sinEl = -1;
-    return (float)(asin(sinEl) * 180.0 / M_PI);
 }
 
 } // namespace
@@ -100,6 +78,7 @@ void SpeedManager::Initialise()
     autoDim = boolCfg("autodim", true);
 
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     alertSpeeder = boolCfg("sc-a-speeder", false);
     alertRecord  = boolCfg("sc-a-record", false);
     alertOffline = boolCfg("sc-a-offline", false);
@@ -110,6 +89,7 @@ void SpeedManager::Initialise()
     resolvedIpOrigin = "";
     resolvedName = "";
     lastResolveMs = 0;
+    resolveFailCount = 0;      // re-try mDNS at the fast cadence after a (re)configure
     MaybeResolveOrigin(true);
 
     currentBrightness = configuredBrightness;
@@ -119,6 +99,7 @@ void SpeedManager::Initialise()
     // A re-init (config save) shouldn't re-fire alerts for conditions already present.
     alertSeeded = false;
     epochSeeded = false;
+    recordSeeded = false;
     newestSeenEpoch = 0;
     recordTop = 0;
     recordDayIndex = 0;
@@ -134,6 +115,7 @@ void SpeedManager::Update()
     MaybeResolveOrigin(false);
     feed.Poll();
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
     AutoRotate();
@@ -189,17 +171,25 @@ void SpeedManager::MaybeResolveOrigin(bool force)
 
             const unsigned long now = millis();
             const bool resolved = resolvedIpOrigin.length() && resolvedName == name;
+            // MDNS.queryHost blocks the loop task for the full timeout when there is no
+            // answer -- exactly when the camera is off. Back the retry off exponentially
+            // (8 s -> up to ~2 min) after consecutive misses so an absent camera doesn't
+            // freeze rendering/touch for ~1 s out of every 8, and cap the per-query block.
+            const unsigned long retryMs = RESOLVE_RETRY_MS << (resolveFailCount > 4 ? 4 : resolveFailCount);
             bool doQuery = force;
             if (!doQuery) {
-                if (!resolved) doQuery = (now - lastResolveMs > RESOLVE_RETRY_MS);
-                else if (!DeviceOnline()) doQuery = (now - lastResolveMs > RESOLVE_RETRY_MS);
+                if (!resolved) doQuery = (now - lastResolveMs > retryMs);
+                else if (!DeviceOnline()) doQuery = (now - lastResolveMs > retryMs);
             }
             if (doQuery) {
                 lastResolveMs = now;
-                IPAddress ip = MDNS.queryHost(name.c_str(), 1200);
+                IPAddress ip = MDNS.queryHost(name.c_str(), 800); // shorter block than the old 1200 ms
                 if ((uint32_t)ip != 0) {
                     resolvedIpOrigin = String("http://") + ip.toString();
                     resolvedName = name;
+                    resolveFailCount = 0;              // resolved: back to the fast cadence
+                } else if (resolveFailCount < 4) {
+                    resolveFailCount++;                // widen the retry gap (capped)
                 }
             }
             origin = (resolvedName == name) ? resolvedIpOrigin : String();
@@ -266,12 +256,13 @@ void SpeedManager::AutoRotate()
 
 void SpeedManager::HandleTouch()
 {
-    // Serialize the touch I2C read against network use of the shared bus (legacy C3 constraint; inert
-    // on the dual-core S3 but kept per CLAUDE.md).
-    if (!http.TryAcquireBus()) return;
+    // Variant-aware touch poll (TouchPoll.h): serialized against TLS only on the
+    // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
+    // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
-    const bool touched = tft.getTouch(&tx, &ty);
-    http.ReleaseBus();
+    const TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
+    const bool touched = (poll == TouchPoll::Touched);
 
     const unsigned long now = millis();
     if (touched) {
@@ -363,13 +354,21 @@ void SpeedManager::CheckAlerts()
 
     if (!alertSeeded) {
         alertSeeded = true;
-        recordTop = tTop;             // today's existing top isn't a new record
-        recordDayIndex = dayIdx;
         wasOnline = online;
         everOnline = online;
-        // newestSeenEpoch is seeded separately (below) once NTP is up: pre-NTP every event epoch is
-        // 0, so seeding it here would let the whole backlog fire the moment the clock syncs.
+        // newestSeenEpoch and the day-record baseline are seeded separately (below):
+        // pre-NTP every event epoch is 0, and /api/state usually lands before
+        // /api/events, so baselining recordTop here reads the still-empty event
+        // ring as 0 and today's existing fastest pass fires a spurious "new top"
+        // the moment events arrive -- on every boot.
         return;
+    }
+
+    // Seed the day-record baseline the FIRST time events and the clock are both up.
+    if (!recordSeeded && haveClock && haveEvents) {
+        recordSeeded = true;
+        recordTop = tTop;             // today's existing top isn't a new record
+        recordDayIndex = dayIdx;
     }
 
     // Seed the speeder baseline the FIRST time we have both a synced clock and events, so the passes
@@ -398,16 +397,18 @@ void SpeedManager::CheckAlerts()
     if (epochSeeded && maxEpoch > newestSeenEpoch) newestSeenEpoch = maxEpoch;
 
     // --- new fastest-of-the-day ---
-    if (dayIdx != recordDayIndex) {
-        recordDayIndex = dayIdx;
-        recordTop = tTop;             // a fresh day: reseed silently (first car isn't a "record")
-    } else if (tTop > recordTop) {
-        if (alertRecord) {
-            char title[48];
-            snprintf(title, sizeof(title), "New top today: %d %s", tTop, UnitLabel());
-            SendNtfy(title, "Fastest pass of the day so far", "checkered_flag,car", 3);
+    if (recordSeeded) {
+        if (dayIdx != recordDayIndex) {
+            recordDayIndex = dayIdx;
+            recordTop = tTop;         // a fresh day: reseed silently (first car isn't a "record")
+        } else if (tTop > recordTop) {
+            if (alertRecord) {
+                char title[48];
+                snprintf(title, sizeof(title), "New top today: %d %s", tTop, UnitLabel());
+                SendNtfy(title, "Fastest pass of the day so far", "checkered_flag,car", 3);
+            }
+            recordTop = tTop;         // bump even when the alert is off, so enabling it later is clean
         }
-        recordTop = tTop;             // bump even when the alert is off, so enabling it later is clean
     }
 
     // --- camera offline / back online ---
@@ -423,14 +424,10 @@ void SpeedManager::CheckAlerts()
 
 void SpeedManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return; // throttle bursts
-    lastNotifyMs = millis();
-
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 // ----------------------------------------------------------------------------- brightness

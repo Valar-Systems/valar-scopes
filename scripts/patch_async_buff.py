@@ -40,4 +40,10 @@ else:
             fh.write(text.replace(ORIGINAL, REPLACEMENT, 1))
         print("[patch_async_buff] guarded ASYNC_RESPONCE_BUFF_SIZE in WebResponseImpl.h")
     else:
-        print("[patch_async_buff] WARNING: expected define not found; library may have changed")
+        # FATAL: neither the guard nor the original define is present, so the
+        # -DASYNC_RESPONCE_BUFF_SIZE=1024 override in platformio.ini would be silently
+        # defeated (the config web page then fails to send on a fragmented heap). Fail
+        # the build rather than ship it -- the library changed; update this anchor.
+        print("[patch_async_buff] FATAL: expected define not found; ESPAsyncWebServer "
+              "changed shape and the buffer override would be ignored. Update this patch.")
+        env.Exit(1)  # noqa: F821

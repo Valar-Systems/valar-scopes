@@ -68,13 +68,21 @@ public:
 
     const char* InertReason() const override
     {
-        return (id.isEmpty() || secret.isEmpty()) ? "needs your OpenSky credentials" : nullptr;
+        if (id.isEmpty() || secret.isEmpty()) return "needs your OpenSky credentials";
+        if (!HasWatchEntries()) return "watchlist is empty";
+        return nullptr;
     }
 
     bool BuildRequest(EamFetchRequest& req) const override
     {
         if (id.isEmpty() || secret.isEmpty())
             return false; // inert: never call OpenSky without the user's own credentials
+
+        // Inert on an empty watchlist too: with zero icao24 filters the request
+        // below becomes an UNFILTERED global /states/all -- several MB of JSON
+        // that exhausts the heap every cycle and burns the user's OpenSky credits.
+        if (!HasWatchEntries())
+            return false;
 
         req.endpoint = EamEndpoint::AbncpOpenSky;
         req.url = "https://opensky-network.org/api/states/all";
@@ -90,6 +98,13 @@ public:
     }
 
 private:
+    bool HasWatchEntries() const
+    {
+        for (const String& h : watch)
+            if (h.length()) return true;
+        return false;
+    }
+
     String id;
     String secret;
     std::vector<String> watch;
