@@ -39,8 +39,11 @@ long ParseIso8601(const char* s)
     long epoch = MakeEpochUtc(Y, Mo, D, h, mi, sec);
 
     // Timezone suffix, scanned past the date's own '-' separators (position 11+).
+    // Guard the start: sscanf accepts stamps shorter than 11 chars ("1-2-3T4:5"),
+    // and s + 11 would then start past the terminator (out-of-bounds read).
     int tzsign = 0, tzh = 0, tzm = 0;
-    for (const char* c = s + 11; *c; ++c) {
+    const size_t len = strlen(s);
+    for (const char* c = s + (len > 11 ? 11 : len); *c; ++c) {
         if (*c == 'Z') { tzsign = 0; break; }
         if (*c == '+' || *c == '-') {
             tzsign = (*c == '+') ? 1 : -1;
@@ -120,6 +123,7 @@ void ParseCoopsTides(JsonObjectConst root, TideState& out)
     if (preds.isNull()) return;
 
     for (JsonObjectConst p : preds) {
+        if (out.events.size() >= 16) break; // hilo predictions run ~4/day; bound a hostile reply
         TideEvent e;
         e.timeEpoch = ParseIso8601(p["t"] | "");           // requested in GMT -> UTC
         e.heightFt  = String((const char*)(p["v"] | "0")).toFloat();

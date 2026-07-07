@@ -194,12 +194,12 @@ struct EamFetchResult {
 // All take an already-decoded ArduinoJson value and fill the typed struct, tolerating missing
 // optional fields. Caps bound the retained vectors so a hostile/huge response can't exhaust RAM.
 bool ParseMsg(JsonObjectConst o, Msg& out);                                    // false if id/type/text missing
-void ParseMessages(JsonObjectConst root, std::vector<Msg>& out, size_t cap);   // reads root["messages"]
+bool ParseMessages(JsonObjectConst root, std::vector<Msg>& out, size_t cap);   // reads root["messages"]; false = wrong shape
 bool ParseTempo(JsonObjectConst root, Tempo& out);
 bool ParseStats(JsonObjectConst root, Stats& out);                              // /eam/stats shape
-void ParseCodewords(JsonObjectConst root, std::vector<Codeword>& out, int& windowDays, size_t cap);
+bool ParseCodewords(JsonObjectConst root, std::vector<Codeword>& out, int& windowDays, size_t cap);
 bool ParsePropagation(JsonObjectConst root, Propagation& out);
-void ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap);
+bool ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap);
 bool ParseAbncpBackend(JsonObjectConst root, Abncp& out);                       // {base}/status/abncp shape
 bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out);                      // normalize states/all vectors
 bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap);               // {base}/status/milair shape

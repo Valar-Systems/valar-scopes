@@ -4,13 +4,15 @@
 
 namespace seismic {
 
-void ParseQuakes(JsonObjectConst root, std::vector<Quake>& out, size_t cap)
+bool ParseQuakes(JsonObjectConst root, std::vector<Quake>& out, size_t cap)
 {
     out.clear();
-    if (root.isNull()) return;
+    if (root.isNull()) return false;
 
+    // Wrong shape (a JSON error page rather than GeoJSON) must not count as
+    // "zero quakes": the caller overwrites retained data on ok.
     JsonArrayConst features = root["features"].as<JsonArrayConst>();
-    if (features.isNull()) return;
+    if (features.isNull()) return false;
 
     for (JsonObjectConst f : features) {
         if (out.size() >= cap) break;
@@ -37,6 +39,7 @@ void ParseQuakes(JsonObjectConst root, std::vector<Quake>& out, size_t cap)
 
         out.push_back(q);
     }
+    return true;
 }
 
 double DistanceKm(double lat1, double lon1, double lat2, double lon2)

@@ -32,9 +32,10 @@ void ClaudescopeFeedClient::Begin()
     resQueue = xQueueCreate(1, sizeof(ClaudeFetchResult*));
 
     // Pinned to core 0 (the Wi-Fi core) at priority 1, like the radar/space fetch tasks, so the
-    // blocking network work never competes with the loop/render task. 10 KB stack covers a
-    // (usually plain-HTTP, LAN) GET + a small JSON decode.
-    xTaskCreatePinnedToCore(Trampoline, "claude_fetch", 10240, this, 1, &taskHandle, 0);
+    // blocking network work never competes with the loop/render task. 12 KB stack like every
+    // other feed worker: cl-base-url may be an https reverse proxy, and the mbedTLS handshake
+    // runs on this task's stack (10 KB was 2 KB under the established TLS minimum).
+    xTaskCreatePinnedToCore(Trampoline, "claude_fetch", 12288, this, 1, &taskHandle, 0);
 }
 
 void ClaudescopeFeedClient::Configure(const Config& newCfg)
@@ -101,6 +102,7 @@ void ClaudescopeFeedClient::ApplyResult(const ClaudeFetchResult& res)
         const uint16_t shift = failCount > 5 ? 5 : failCount;
         uint32_t backoff = intervalMs << shift;
         if (backoff > MAX_BACKOFF_MS || backoff < intervalMs) backoff = MAX_BACKOFF_MS;
+        if (backoff < intervalMs) backoff = intervalMs; // never poll a FAILING feed faster than a healthy one
         nextDueMs = now + backoff;
         return;
     }

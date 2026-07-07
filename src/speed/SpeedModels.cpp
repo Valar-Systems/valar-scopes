@@ -47,6 +47,7 @@ void ParseEvents(JsonObjectConst root, EventList& out, long nowUtc)
     JsonArrayConst arr = root["events"].as<JsonArrayConst>();
     if (!arr.isNull()) {
         for (JsonObjectConst e : arr) {
+            if (out.events.size() >= 32) break; // comfortably above the camera's ring; bounds a hostile proxy reply
             SpeedRecord r;
             r.speed  = e["speed"]  | 0;
             r.ageSec = e["ageSec"] | 0;

@@ -63,6 +63,7 @@ struct FetchRequest {
 };
 struct FetchResult {
     bool ok = false;                 // false on network / parse failure
+    bool authFailed = false;         // OpenSky said 401/403: the token needs a refetch
     std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
 };
 
@@ -693,6 +694,9 @@ void AircraftManager::RunFetchTask()
             // it as data would wipe every tracked contact, then re-fire alerts and
             // inflate the logbook when the feed recovers. Keep the last picture.
             Serial.printf("[WARN] %s returned HTTP %d; keeping current picture\n", sourceName, result.statusCode);
+            // 401/403 means the cached bearer token is bad (expired server-side);
+            // flag it so the loop drops the cache and the next cycle re-auths.
+            res->authFailed = !req->local && (result.statusCode == 401 || result.statusCode == 403);
         } else if (req->local) {
             // dump1090/readsb returns objects under "aircraft"; convert each and
             // clip to the scan box ourselves (OpenSky does this server-side, but a
@@ -784,6 +788,12 @@ void AircraftManager::ConsumeFetchResult()
         return; // nothing ready
 
     fetchInFlight = false;
+
+    // OpenSky rejected the bearer token: drop the cache (on the loop task, which
+    // owns the handler for the radar) so the next fetch cycle re-authenticates
+    // instead of 401-ing until the local 29-min timer happens to lapse.
+    if (res->authFailed)
+        authHandler.Invalidate();
 
     if (res->ok) {
         const unsigned long now = millis();

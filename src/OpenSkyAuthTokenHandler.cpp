@@ -51,9 +51,16 @@ const String OpenSkyAuthTokenHandler::GetValidToken(const String& clientId, cons
     // credentials take effect immediately instead of after the token expires.
     const bool credentialsChanged = clientId != tokenClientId || clientSecret != tokenClientSecret;
 
-    if (bearerToken.isEmpty() || millis() > tokenExpiry || credentialsChanged) {
+    // Age test uses wrap-safe unsigned subtraction: a direct `millis() > expiry`
+    // comparison breaks across the 49.7-day millis() wrap on these always-on
+    // devices (a token issued just before the wrap would read as valid for
+    // another ~49 days while the real one expired after 30 minutes).
+    constexpr unsigned long TOKEN_LIFETIME_MS = 29UL * 60UL * 1000UL; // 29 min: 1 min under OpenSky's 30
+    const bool expired = millis() - tokenIssuedMs >= TOKEN_LIFETIME_MS;
+
+    if (bearerToken.isEmpty() || expired || credentialsChanged) {
         bearerToken = FetchBearerToken(url, clientId, clientSecret);
-        tokenExpiry = millis() + (29 * 60 * 1000);  // 29 mins, 1 min buffer
+        tokenIssuedMs = millis();
         tokenClientId = clientId;
         tokenClientSecret = clientSecret;
     }

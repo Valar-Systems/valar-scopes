@@ -4,10 +4,10 @@
 
 namespace birding {
 
-void ParseObs(JsonArrayConst root, std::vector<Sighting>& out, size_t cap, bool notable)
+bool ParseObs(JsonArrayConst root, std::vector<Sighting>& out, size_t cap, bool notable)
 {
     out.clear();
-    if (root.isNull()) return;
+    if (root.isNull()) return false; // an eBird error object, not the expected array
 
     for (JsonObjectConst o : root) {
         if (out.size() >= cap) break;
@@ -25,12 +25,13 @@ void ParseObs(JsonArrayConst root, std::vector<Sighting>& out, size_t cap, bool 
         s.notable = notable;
         out.push_back(s);
     }
+    return true;
 }
 
-void ParseHotspots(JsonArrayConst root, std::vector<Hotspot>& out, size_t cap)
+bool ParseHotspots(JsonArrayConst root, std::vector<Hotspot>& out, size_t cap)
 {
     out.clear();
-    if (root.isNull()) return;
+    if (root.isNull()) return false; // an eBird error object, not the expected array
 
     for (JsonObjectConst o : root) {
         if (out.size() >= cap) break;
@@ -43,6 +44,7 @@ void ParseHotspots(JsonArrayConst root, std::vector<Hotspot>& out, size_t cap)
         h.numSpecies = o["numSpeciesAllTime"] | 0;
         out.push_back(h);
     }
+    return true;
 }
 
 double DistanceKm(double lat1, double lon1, double lat2, double lon2)

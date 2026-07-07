@@ -1461,6 +1461,19 @@ static const char CONFIG_HTML[] PROGMEM = R"(
 )";
 #endif
 
+// The config page renders stored secrets as ALL asterisks (std::fill in the GET
+// handler), so only a value that is entirely '*' is the untouched mask sentinel.
+// Testing "contains an asterisk" instead would silently drop the save of any real
+// secret/password that merely contains one. [[maybe_unused]]: only the builds with
+// secret fields (radar/EAM/Birding) reference it.
+[[maybe_unused]] static bool IsMaskedValue(const String& v)
+{
+    if (v.isEmpty()) return false;
+    for (size_t i = 0; i < v.length(); ++i)
+        if (v[i] != '*') return false;
+    return true;
+}
+
 void ConfigurationWebServer::Initialise() {
     // Create the "config" NVS namespace up front. Opening read-write creates it if
     // missing, so the read-only reads here, in AircraftManager, and every frame in
@@ -2023,7 +2036,7 @@ void ConfigurationWebServer::Initialise() {
         const auto* param = request->getParam("opensky-secret", true);
         if (param != nullptr) {
             const String& secret = param->value();
-            if (secret.indexOf('*') == -1) { // Special handling for secret: don't overwrite with masked value
+            if (!IsMaskedValue(secret)) { // Special handling for secret: don't overwrite with masked value
                 prefs.putString("opensky-secret", secret);
             }
         }
@@ -2032,7 +2045,7 @@ void ConfigurationWebServer::Initialise() {
         const auto* mqttPassParam = request->getParam("mqtt-pass", true);
         if (mqttPassParam != nullptr) {
             const String& pass = mqttPassParam->value();
-            if (pass.indexOf('*') == -1)
+            if (!IsMaskedValue(pass))
                 prefs.putString("mqtt-pass", pass);
         }
 
@@ -2078,7 +2091,7 @@ void ConfigurationWebServer::Initialise() {
         const auto* eamSecret = request->getParam("opensky-secret", true);
         if (eamSecret != nullptr) {
             const String& secret = eamSecret->value();
-            if (secret.indexOf('*') == -1)
+            if (!IsMaskedValue(secret))
                 prefs.putString("opensky-secret", secret);
         }
 
@@ -2154,7 +2167,7 @@ void ConfigurationWebServer::Initialise() {
         const auto* ebirdParam = request->getParam("ebird-key", true);
         if (ebirdParam != nullptr) {
             const String& k = ebirdParam->value();
-            if (k.indexOf('*') == -1)
+            if (!IsMaskedValue(k))
                 prefs.putString("ebird-key", k);
         }
 #elif defined(FEATURE_FISHING)

@@ -57,7 +57,7 @@ struct SeismicFetchResult {
 // Reads a USGS GeoJSON FeatureCollection (root["features"]) into `out`, newest first as served,
 // tolerating missing optional fields. `cap` bounds the retained vector so a huge response can't
 // exhaust RAM.
-void ParseQuakes(JsonObjectConst root, std::vector<Quake>& out, size_t cap);
+bool ParseQuakes(JsonObjectConst root, std::vector<Quake>& out, size_t cap); // false = wrong shape (no "features")
 
 // ----------------------------------------------------------------------------- geo helpers
 // Great-circle distance (km) and initial bearing (degrees, 0 = N, clockwise) from point 1 to 2.

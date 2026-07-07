@@ -275,6 +275,7 @@ void FishingFeedClient::ApplyResult(const FishingFetchResult& res)
         const uint16_t shift = feeds[f].failCount > 5 ? 5 : feeds[f].failCount;
         uint32_t backoff = feeds[f].intervalMs << shift;
         if (backoff > MAX_BACKOFF_MS || backoff < feeds[f].intervalMs) backoff = MAX_BACKOFF_MS;
+        if (backoff < feeds[f].intervalMs) backoff = feeds[f].intervalMs; // never poll a FAILING feed faster than a healthy one
         feeds[f].nextDueMs = now + backoff;
         return;
     }

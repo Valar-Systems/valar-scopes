@@ -64,15 +64,16 @@ bool ParseMsg(JsonObjectConst o, Msg& out)
     return true;
 }
 
-void ParseMessages(JsonObjectConst root, std::vector<Msg>& out, size_t cap)
+bool ParseMessages(JsonObjectConst root, std::vector<Msg>& out, size_t cap)
 {
     out.clear();
-    if (!root["messages"].is<JsonArrayConst>()) return;
+    if (!root["messages"].is<JsonArrayConst>()) return false; // wrong shape: do not clear retained data
     for (JsonObjectConst m : root["messages"].as<JsonArrayConst>()) {
         if (out.size() >= cap) break;
         Msg msg;
         if (ParseMsg(m, msg)) out.push_back(std::move(msg));
     }
+    return true;
 }
 
 bool ParseTempo(JsonObjectConst root, Tempo& out)
@@ -122,11 +123,11 @@ bool ParseStats(JsonObjectConst root, Stats& out)
     return true;
 }
 
-void ParseCodewords(JsonObjectConst root, std::vector<Codeword>& out, int& windowDays, size_t cap)
+bool ParseCodewords(JsonObjectConst root, std::vector<Codeword>& out, int& windowDays, size_t cap)
 {
     out.clear();
     windowDays = root["window_days"].is<int>() ? root["window_days"].as<int>() : 0;
-    if (!root["recent"].is<JsonArrayConst>()) return;
+    if (!root["recent"].is<JsonArrayConst>()) return false; // wrong shape: do not clear retained data
     for (JsonObjectConst c : root["recent"].as<JsonArrayConst>()) {
         if (out.size() >= cap) break;
         Codeword cw;
@@ -136,6 +137,7 @@ void ParseCodewords(JsonObjectConst root, std::vector<Codeword>& out, int& windo
         cw.count = c["count"].is<int>() ? c["count"].as<int>() : 0;
         out.push_back(std::move(cw));
     }
+    return true;
 }
 
 bool ParsePropagation(JsonObjectConst root, Propagation& out)
@@ -151,6 +153,7 @@ bool ParsePropagation(JsonObjectConst root, Propagation& out)
     out.bands.clear();
     if (root["bands"].is<JsonArrayConst>()) {
         for (JsonObjectConst b : root["bands"].as<JsonArrayConst>()) {
+            if (out.bands.size() >= 12) break; // HF has a fixed handful of bands; bound a hostile reply
             PropBand pb;
             pb.band = b["band"].as<String>();
             pb.day = b["day"].as<String>();
@@ -163,8 +166,10 @@ bool ParsePropagation(JsonObjectConst root, Propagation& out)
     if (!hf.isNull()) {
         out.freqsKhz.clear();
         if (hf["freqs_khz"].is<JsonArrayConst>())
-            for (JsonVariantConst f : hf["freqs_khz"].as<JsonArrayConst>())
+            for (JsonVariantConst f : hf["freqs_khz"].as<JsonArrayConst>()) {
+                if (out.freqsKhz.size() >= 12) break; // bound a hostile reply
                 out.freqsKhz.push_back(f.as<int>());
+            }
         out.suggestedKhz = hf["suggested_khz"].is<int>() ? hf["suggested_khz"].as<int>() : 0;
         out.suggestedReason = hf["suggested_reason"].as<String>();
     }
@@ -184,10 +189,10 @@ bool ParsePropagation(JsonObjectConst root, Propagation& out)
     return true;
 }
 
-void ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap)
+bool ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap)
 {
     out.clear();
-    if (!root["next"].is<JsonArrayConst>()) return;
+    if (!root["next"].is<JsonArrayConst>()) return false; // wrong shape: do not clear retained data
     for (JsonObjectConst l : root["next"].as<JsonArrayConst>()) {
         if (out.size() >= cap) break;
         Launch lp;
@@ -199,6 +204,7 @@ void ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap)
         lp.source = l["source"].as<String>();
         out.push_back(std::move(lp));
     }
+    return true;
 }
 
 bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
@@ -209,6 +215,7 @@ bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
     out.aircraft.clear();
     if (root["aircraft"].is<JsonArrayConst>()) {
         for (JsonObjectConst a : root["aircraft"].as<JsonArrayConst>()) {
+            if (out.aircraft.size() >= 8) break; // a handful of command posts at most; bound a hostile reply
             AbncpAircraft ac;
             ac.type = a["type"].as<String>();
             ac.callsign = a["callsign"].as<String>();
@@ -236,6 +243,7 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
     out.airborne = false;
     if (root["states"].is<JsonArrayConst>()) {
         for (JsonArrayConst s : root["states"].as<JsonArrayConst>()) {
+            if (out.aircraft.size() >= 8) break; // the watchlist is a handful of hexes; bound a hostile/huge reply
             if (s.size() < 9) continue;
             AbncpAircraft ac;
             ac.hex = s[0].as<String>();
