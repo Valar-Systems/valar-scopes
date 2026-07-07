@@ -490,7 +490,13 @@ void SpaceManager::CheckAlerts()
         const space::Asteroid* near = nullptr;
         for (const space::Asteroid& a : as)
             if (a.distLd > 0 && a.distLd <= 1.0 && (!near || a.distLd < near->distLd)) near = &a;
-        if (near && near->designation != asteroidAlertedDes) {
+        if (!asteroidSeeded) {
+            // First landing after boot: an approach inside 1 LD stays in the feed
+            // for days, so baseline it silently -- otherwise every reboot re-fires
+            // the same alert (and re-inflates the logbook).
+            asteroidSeeded = true;
+            if (near) asteroidAlertedDes = near->designation;
+        } else if (near && near->designation != asteroidAlertedDes) {
             asteroidAlertedDes = near->designation;
             logbook.RecordAsteroid(nowUtc);
             chime(70);

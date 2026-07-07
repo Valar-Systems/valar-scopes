@@ -86,6 +86,7 @@ private:
     // edge state, seeded at first data so the backlog never fires.
     bool alertSeeded = false;
     bool epochSeeded = false;              // speeder baseline seeded once NTP + events are both up
+    bool recordSeeded = false;             // day-record baseline seeded once NTP + events are both up
     long newestSeenEpoch = 0;              // newest event epoch already considered
     int  recordTop = 0;                    // fastest speed seen "today" so far
     long recordDayIndex = 0;               // local day index recordTop belongs to

@@ -93,7 +93,8 @@ void SeismicManager::Initialise()
     lastBrightnessCheck = 0;
 
     // A re-init (config save) shouldn't re-fire alerts for events already on screen.
-    alertSeeded = false;
+    recentSeeded = false;
+    nearbySeeded = false;
 
     Serial.printf("[seismic] init; latlon=%d radius=%.0fkm minMag=%.1f big=%.1f near=%.1f\n",
                   (int)hasLatLon, radiusKm, minMag, bigMag, nearMag);
@@ -190,16 +191,22 @@ void SeismicManager::HandleTap(int tx, int ty)
 
 void SeismicManager::CheckAlerts()
 {
-    if (!feed.HasAny()) return;
-
-    long newest = 0;
-    for (const seismic::Quake& q : feed.Recent()) if (q.timeEpoch > newest) newest = q.timeEpoch;
-    for (const seismic::Quake& q : feed.Nearby()) if (q.timeEpoch > newest) newest = q.timeEpoch;
-
-    if (!alertSeeded) {
-        alertSeeded = true;
-        lastBigEpoch = lastNearEpoch = lastTsunamiEpoch = newest;
-        return; // never alert for the backlog present at boot / re-config
+    // Seed each feed's epoch baseline silently on ITS first successful fetch (never
+    // alert for the backlog present at boot / re-config). The fetches land staggered,
+    // so one global seed taken from whichever feed arrived first either baselined
+    // "near you" off the worldwide feed's newest event, or -- when Nearby landed
+    // first -- left a days-stale epoch that replayed the worldwide backlog.
+    if (!recentSeeded && feed.RecentFetched()) {
+        long newest = 0;
+        for (const seismic::Quake& q : feed.Recent()) if (q.timeEpoch > newest) newest = q.timeEpoch;
+        lastBigEpoch = lastTsunamiEpoch = newest;
+        recentSeeded = true;
+    }
+    if (!nearbySeeded && feed.NearbyFetched()) {
+        long newest = 0;
+        for (const seismic::Quake& q : feed.Nearby()) if (q.timeEpoch > newest) newest = q.timeEpoch;
+        lastNearEpoch = newest;
+        nearbySeeded = true;
     }
 
     // Big quake anywhere (from the worldwide feed).

@@ -99,6 +99,7 @@ private:
     bool flareAlerted = false;               // M+ flare episode already alerted (reset when it drops)
     long issAlertedRise = 0;                  // rise epoch the ISS-overhead alert already fired for
     String asteroidAlertedDes;               // designation of the close-approach already alerted
+    bool asteroidSeeded = false;             // baseline taken from the first feed landing after boot
     unsigned long lastNotifyMs = 0;          // throttle ntfy POSTs
 
     // ---- ISS visible-pass prediction (SGP4 from the live TLE; computed on the loop task) ----

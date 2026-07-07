@@ -120,6 +120,7 @@ void SpeedManager::Initialise()
     // A re-init (config save) shouldn't re-fire alerts for conditions already present.
     alertSeeded = false;
     epochSeeded = false;
+    recordSeeded = false;
     newestSeenEpoch = 0;
     recordTop = 0;
     recordDayIndex = 0;
@@ -365,13 +366,21 @@ void SpeedManager::CheckAlerts()
 
     if (!alertSeeded) {
         alertSeeded = true;
-        recordTop = tTop;             // today's existing top isn't a new record
-        recordDayIndex = dayIdx;
         wasOnline = online;
         everOnline = online;
-        // newestSeenEpoch is seeded separately (below) once NTP is up: pre-NTP every event epoch is
-        // 0, so seeding it here would let the whole backlog fire the moment the clock syncs.
+        // newestSeenEpoch and the day-record baseline are seeded separately (below):
+        // pre-NTP every event epoch is 0, and /api/state usually lands before
+        // /api/events, so baselining recordTop here reads the still-empty event
+        // ring as 0 and today's existing fastest pass fires a spurious "new top"
+        // the moment events arrive -- on every boot.
         return;
+    }
+
+    // Seed the day-record baseline the FIRST time events and the clock are both up.
+    if (!recordSeeded && haveClock && haveEvents) {
+        recordSeeded = true;
+        recordTop = tTop;             // today's existing top isn't a new record
+        recordDayIndex = dayIdx;
     }
 
     // Seed the speeder baseline the FIRST time we have both a synced clock and events, so the passes
@@ -400,16 +409,18 @@ void SpeedManager::CheckAlerts()
     if (epochSeeded && maxEpoch > newestSeenEpoch) newestSeenEpoch = maxEpoch;
 
     // --- new fastest-of-the-day ---
-    if (dayIdx != recordDayIndex) {
-        recordDayIndex = dayIdx;
-        recordTop = tTop;             // a fresh day: reseed silently (first car isn't a "record")
-    } else if (tTop > recordTop) {
-        if (alertRecord) {
-            char title[48];
-            snprintf(title, sizeof(title), "New top today: %d %s", tTop, UnitLabel());
-            SendNtfy(title, "Fastest pass of the day so far", "checkered_flag,car", 3);
+    if (recordSeeded) {
+        if (dayIdx != recordDayIndex) {
+            recordDayIndex = dayIdx;
+            recordTop = tTop;         // a fresh day: reseed silently (first car isn't a "record")
+        } else if (tTop > recordTop) {
+            if (alertRecord) {
+                char title[48];
+                snprintf(title, sizeof(title), "New top today: %d %s", tTop, UnitLabel());
+                SendNtfy(title, "Fastest pass of the day so far", "checkered_flag,car", 3);
+            }
+            recordTop = tTop;         // bump even when the alert is off, so enabling it later is clean
         }
-        recordTop = tTop;             // bump even when the alert is off, so enabling it later is clean
     }
 
     // --- camera offline / back online ---

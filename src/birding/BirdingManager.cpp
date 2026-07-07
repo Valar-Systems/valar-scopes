@@ -112,7 +112,8 @@ void BirdingManager::Initialise()
     lastBrightnessCheck = 0;
 
     // A re-init (config save) shouldn't re-fire alerts for sightings already on screen.
-    alertSeeded = false;
+    notableSeeded = false;
+    recentSeeded = false;
     seenNotable.clear();
     seenTarget.clear();
 
@@ -278,18 +279,28 @@ bool BirdingManager::MatchesTarget(const birding::Sighting& s) const
 
 void BirdingManager::CheckAlerts()
 {
-    if (!feed.HasAny()) return;
+    // Bound the seen-sets so a long uptime can't grow them without limit. Dropping
+    // a set drops its baseline too, so mark it for silent re-seeding below rather
+    // than letting the whole current feed re-insert as "new" and fire.
+    if (seenNotable.size() > 400) { seenNotable.clear(); notableSeeded = false; }
+    if (seenTarget.size() > 400)  { seenTarget.clear(); notableSeeded = recentSeeded = false; }
 
-    // Bound the seen-sets so a long uptime can't grow them without limit.
-    if (seenNotable.size() > 400) seenNotable.clear();
-    if (seenTarget.size() > 400) seenTarget.clear();
-
-    if (!alertSeeded) {
-        for (const birding::Sighting& s : feed.Notable()) seenNotable.insert(s.speciesCode);
-        for (const birding::Sighting& s : feed.Notable()) if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
-        for (const birding::Sighting& s : feed.Recent())  if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
-        alertSeeded = true;
-        return; // never alert for the backlog present at boot / re-config
+    // Seed each feed's baseline silently on ITS first successful fetch (never alert
+    // for the backlog present at boot / re-config). The fetches land staggered --
+    // one in flight at a time -- so a single seeded-at-first-data flag would
+    // baseline off whichever feed arrived first and let the other's week-old
+    // backlog fire a push per species on every boot.
+    if (!notableSeeded && feed.NotableFetched()) {
+        for (const birding::Sighting& s : feed.Notable()) {
+            seenNotable.insert(s.speciesCode);
+            if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
+        }
+        notableSeeded = true;
+    }
+    if (!recentSeeded && feed.RecentFetched()) {
+        for (const birding::Sighting& s : feed.Recent())
+            if (MatchesTarget(s)) seenTarget.insert(s.speciesCode);
+        recentSeeded = true;
     }
 
     // New notable species since we last looked.

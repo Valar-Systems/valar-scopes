@@ -75,8 +75,10 @@ private:
     bool alertBig = true;             // a big quake anywhere
     bool alertNear = true;            // a quake near the device
     bool alertTsunami = true;         // a quake flagged tsunami-relevant
-    // edge state: seeded at first data so the backlog never fires; then only newer events alert.
-    bool alertSeeded = false;
+    // edge state: each feed's epoch baseline is seeded on ITS first successful fetch
+    // so the backlog never fires; then only newer events alert (see CheckAlerts).
+    bool recentSeeded = false;        // worldwide feed -> lastBig/lastTsunami
+    bool nearbySeeded = false;        // radius feed    -> lastNear
     long lastBigEpoch = 0, lastNearEpoch = 0, lastTsunamiEpoch = 0;
     unsigned long lastNotifyMs = 0;   // throttle ntfy POSTs
 

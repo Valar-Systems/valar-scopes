@@ -77,10 +77,13 @@ private:
     String ntfyTopic;
     bool alertNotable = true;
     bool alertTarget = true;
-    // seen-keys (speciesCode) seeded at first data so the backlog never fires; then new arrivals alert.
+    // seen-keys (speciesCode) seeded per feed on its first successful fetch so the
+    // backlog never fires; then new arrivals alert. Per-feed flags because the
+    // staggered fetches land at different times (see CheckAlerts).
     std::set<String> seenNotable;
     std::set<String> seenTarget;
-    bool alertSeeded = false;
+    bool notableSeeded = false;
+    bool recentSeeded = false;
     unsigned long lastNotifyMs = 0;
 
     // ---- touch / gestures ----

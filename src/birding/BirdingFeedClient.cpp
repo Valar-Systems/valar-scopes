@@ -155,6 +155,7 @@ void BirdingFeedClient::ApplyResult(const BirdFetchResult& res)
 
     feeds[f].failCount = 0;
     feeds[f].nextDueMs = now + feeds[f].intervalMs;
+    fetched[f] = true;
 
     switch (res.endpoint) {
         case birding::BirdEndpoint::Notable:  notable = res.sightings; break;

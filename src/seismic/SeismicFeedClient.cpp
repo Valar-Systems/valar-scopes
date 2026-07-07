@@ -180,6 +180,7 @@ void SeismicFeedClient::ApplyResult(const SeismicFetchResult& res)
 
     feeds[f].failCount = 0;
     feeds[f].nextDueMs = now + feeds[f].intervalMs;
+    fetched[f] = true;
 
     switch (res.endpoint) {
         case seismic::SeismicEndpoint::Recent: recent = res.quakes; break;
