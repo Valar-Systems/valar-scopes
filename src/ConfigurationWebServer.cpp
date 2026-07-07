@@ -1,5 +1,6 @@
 #include "ConfigurationWebServer.h"
 #include <ESPmDNS.h>
+#include <Preferences.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
@@ -1464,8 +1465,11 @@ void ConfigurationWebServer::Initialise() {
     // missing, so the read-only reads here, in AircraftManager, and every frame in
     // loop() stop logging "nvs_open failed: NOT_FOUND" before the user has ever saved
     // settings. Reads still fall back to their defaults until the config page is used.
-    prefs.begin("config", false);
-    prefs.end();
+    {
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.end();
+    }
 
     // start mDNS with a per-device hostname (e.g. Blipscope-A1B2C3.local)
     // so multiple boards on the same network don't collide
@@ -1483,6 +1487,7 @@ void ConfigurationWebServer::Initialise() {
                       ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
         // read all values up front so the processor lambda can capture by value
+        Preferences prefs;
         prefs.begin("config", true);
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         const String latitude = prefs.getString("latitude", "");
@@ -1978,8 +1983,10 @@ void ConfigurationWebServer::Initialise() {
     server.on("/save", HTTP_POST, [&](AsyncWebServerRequest* request) {
         Serial.println("[POST] Handling form submission to config web server...");
 
+        Preferences prefs;
+
         // safe parameter retrieval helper lambda
-        auto TrySaveParam = [request, this](const char* paramName) {
+        auto TrySaveParam = [request, &prefs](const char* paramName) {
             const auto* param = request->getParam(paramName, true);
             if (param == nullptr)
                 return false;
@@ -2276,6 +2283,7 @@ bool ConfigurationWebServer::ConsumeWifiReset()
 
 const String ConfigurationWebServer::GetStoredString(const char* key)
 {
+    Preferences prefs;
     prefs.begin("config", true);
     // isKey() probes without logging; calling getString() on a missing key would spam
     // "nvs_get_str ... NOT_FOUND" on every call (e.g. every frame for "scanline") until
