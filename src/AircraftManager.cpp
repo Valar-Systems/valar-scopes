@@ -191,8 +191,15 @@ EnrichResult* fetchAircraftMetadata(HttpRequestManager& http, const String& icao
         return res;
     }
 
-    // Any definitive HTTP response -- including 404 "unknown aircraft" -- is final.
-    res->definitive = true;
+    // Only a conclusive answer -- 2xx, or 404 "unknown aircraft" -- is final. A
+    // 429/5xx must stay non-definitive: recording it as Fetched-with-empty-fields
+    // would permanently blank enrichment after one adsbdb throttle window (a
+    // Fetched aircraft is never looked up again).
+    res->definitive = (result.statusCode >= 200 && result.statusCode < 300) || result.statusCode == 404;
+    if (!res->definitive) {
+        Serial.printf("[adsbdb] lookup for %s: HTTP %d, will retry\n", icao24.c_str(), result.statusCode);
+        return res;
+    }
 
     JsonDocument doc;
     if (deserializeJson(doc, result.response))
@@ -231,8 +238,13 @@ EnrichResult* fetchRoute(HttpRequestManager& http, const String& callsign)
         return res;
     }
 
-    // any definitive HTTP response (incl. 404 unknown callsign) is final
-    res->definitive = true;
+    // only a conclusive answer (2xx, or 404 unknown callsign) is final; a
+    // 429/5xx stays non-definitive so the detail path retries it later
+    res->definitive = (result.statusCode >= 200 && result.statusCode < 300) || result.statusCode == 404;
+    if (!res->definitive) {
+        Serial.printf("[adsbdb] route %s: HTTP %d, will retry\n", callsign.c_str(), result.statusCode);
+        return res;
+    }
     res->routeCallsign = callsign;
 
     JsonDocument doc;
@@ -675,6 +687,12 @@ void AircraftManager::RunFetchTask()
         const char* sourceName = req->local ? "Local ADS-B" : "OpenSky";
         if (!result.success) {
             Serial.printf("[WARN] %s request failed: %s\n", sourceName, result.errorMessage.c_str());
+        } else if (result.statusCode < 200 || result.statusCode >= 300) {
+            // A JSON-bodied error page (OpenSky 401/429/5xx, a proxy, a captive
+            // portal) parses fine but is NOT "zero aircraft in the box": treating
+            // it as data would wipe every tracked contact, then re-fire alerts and
+            // inflate the logbook when the feed recovers. Keep the last picture.
+            Serial.printf("[WARN] %s returned HTTP %d; keeping current picture\n", sourceName, result.statusCode);
         } else if (req->local) {
             // dump1090/readsb returns objects under "aircraft"; convert each and
             // clip to the scan box ourselves (OpenSky does this server-side, but a
