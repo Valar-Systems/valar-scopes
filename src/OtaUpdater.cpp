@@ -2,6 +2,8 @@
 #include "LGFX.h"
 #include "Layout.h"
 #include "OtaCerts.h"
+#include "BootScreen.h"
+#include "Board.h"
 #include "variants/Variant.h"
 
 #include <WiFiClientSecure.h>
@@ -49,16 +51,42 @@ bool WaitForClock()
     return false;
 }
 
-void drawStatus(LGFX& tft, const String& msg)
+void drawStatus(LGFX& tft, LGFX_Sprite& fb, const String& msg)
 {
-    tft.fillScreen(lgfx::color888(0, 0, 0));
-    tft.setTextColor(lgfx::color888(0, 255, 0));
-    tft.drawCentreString(msg, SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - 12);
+    // Compose full-frame through the backbuffer (SPD2010 drops direct partial
+    // writes) and flush for the RGB panel -- the same path every boot screen uses.
+    DrawCenteredScreen(tft, fb, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), msg.c_str());
+    board::DisplayFlush(tft);
+}
+
+// Draw the "Updating firmware..." title plus a progress bar at `pct` (0-100),
+// composed full-frame so it shows on every panel (see drawStatus / BootScreen.h).
+void drawProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
+{
+#if defined(BLIPSCOPE_PANEL_SPD2010)
+    auto& g = fb;   // compose into the sprite, push even-aligned below
+#else
+    auto& g = tft;  // direct to the panel (flushed after)
+#endif
+    g.fillScreen(lgfx::color888(0, 0, 0));
+    g.setTextColor(lgfx::color888(0, 255, 0));
+    g.drawCenterString("Updating firmware...", SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - 24);
+
+    const int barW = SCREEN_SIZE - 100;         // 140 on a 240 screen
+    const int barX = (SCREEN_SIZE - barW) / 2;   // centred on any panel
+    const int barY = SCREEN_SIZE_DIV_2 + 20;
+    g.drawRect(barX, barY, barW, 14, lgfx::color888(0, 120, 0));
+    g.fillRect(barX + 2, barY + 2, ((barW - 4) * pct) / 100, 10, lgfx::color888(0, 255, 0));
+
+#if defined(BLIPSCOPE_PANEL_SPD2010)
+    fb.pushSprite(0, 0);
+#endif
+    board::DisplayFlush(tft); // RGB panels: make the paint visible (no-op on SPI SKUs)
 }
 
 } // namespace
 
-void MaybeUpdateFirmware(LGFX& tft)
+void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
 {
     // 1. read the latest published version. Unlike the feeds, OTA validates the
     // TLS chain against pinned roots (see OtaCerts.h): a spoofed binary is
@@ -97,20 +125,23 @@ void MaybeUpdateFirmware(LGFX& tft)
 
     // 2. download + flash the new image, showing a progress bar on the screen
     Serial.println("[ota] newer firmware available -- updating");
-    drawStatus(tft, "Updating firmware...");
+    drawProgress(tft, fb, 0);
 
     WiFiClientSecure updClient;
     updClient.setCACert(OTA_ROOT_CAS);
 
     httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     httpUpdate.rebootOnUpdate(true);
-    httpUpdate.onProgress([&tft](int current, int total) {
+    // Repaint only on a whole-percent change: each paint is a full-frame push +
+    // panel flush, and the callback fires per network chunk.
+    static int lastPct = -1;
+    lastPct = -1;
+    httpUpdate.onProgress([&tft, &fb](int current, int total) {
         const int pct = total > 0 ? (int)((current * 100L) / total) : 0;
-        const int barW = SCREEN_SIZE - 100;        // 140 on a 240 screen
-        const int barX = (SCREEN_SIZE - barW) / 2;  // centred on any panel
-        const int barY = SCREEN_SIZE_DIV_2 + 20;
-        tft.fillRect(barX, barY, barW, 14, lgfx::color888(0, 40, 0));
-        tft.fillRect(barX + 2, barY + 2, ((barW - 4) * pct) / 100, 10, lgfx::color888(0, 255, 0));
+        if (pct != lastPct) {
+            lastPct = pct;
+            drawProgress(tft, fb, pct);
+        }
     });
 
     const String firmwareUrl = FirmwareUrl();
@@ -119,7 +150,7 @@ void MaybeUpdateFirmware(LGFX& tft)
     if (ret == HTTP_UPDATE_FAILED) {
         Serial.printf("[ota] update failed (%d): %s\n",
                       httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-        drawStatus(tft, "Update failed");
+        drawStatus(tft, fb, "Update failed");
         delay(2000);
     }
     // HTTP_UPDATE_OK reboots automatically (rebootOnUpdate(true))

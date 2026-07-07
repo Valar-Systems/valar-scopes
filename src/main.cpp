@@ -220,7 +220,7 @@ void setup()
 
   // self-update from the latest GitHub release before normal startup; reboots
   // into the new firmware if one is newer than this build
-  MaybeUpdateFirmware(tft);
+  MaybeUpdateFirmware(tft, backbuffer);
 
   // begin background server for configuration
   configServer.Initialise();
@@ -242,7 +242,7 @@ void loop()
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
-    MaybeUpdateFirmware(tft);
+    MaybeUpdateFirmware(tft, backbuffer);
   }
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
