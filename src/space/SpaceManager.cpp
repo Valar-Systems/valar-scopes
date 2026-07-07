@@ -1,5 +1,6 @@
 #include "SpaceManager.h"
 #include "TouchPoll.h"
+#include "SolarDim.h"
 
 #include <math.h>
 #include <time.h>
@@ -31,32 +32,6 @@ constexpr float KP_AURORA_THRESH  = 6.0f; // Kp >= this (G2+) -> "aurora likely"
 constexpr float        SHAKE_G          = 2.3f;   // peak |accel| (g) to trigger -- high, so a desk bump won't
 constexpr unsigned long SHAKE_DEBOUNCE  = 9000;   // ignore further shakes during/after a launch
 
-double Deg2Rad(double d) { return d * M_PI / 180.0; }
-
-// Low-precision solar elevation (degrees) at lat/lon for a UTC epoch -- drives the same night
-// auto-dim the radar / EAM use (sun below -0.833 deg = civil horizon). Copied from EamManager so
-// the space app dims identically without depending on the EAM translation unit.
-float SunElevationDeg(double latDeg, double lonDeg, time_t utc)
-{
-    const double n = (double)utc / 86400.0 - 10957.5; // days since J2000.0 (2000-01-01 12:00 UTC)
-    double L = fmod(280.460 + 0.9856474 * n, 360.0);
-    double g = fmod(357.528 + 0.9856003 * n, 360.0);
-    const double lambda = L + 1.915 * sin(Deg2Rad(g)) + 0.020 * sin(Deg2Rad(2 * g));
-    const double eps = 23.439 - 0.0000004 * n;
-    const double lam = Deg2Rad(lambda), e = Deg2Rad(eps);
-    const double dec = asin(sin(e) * sin(lam));
-    const double ra = atan2(cos(e) * sin(lam), cos(lam)); // radians
-    double gmst = fmod(18.697374558 + 24.06570982441908 * n, 24.0);
-    if (gmst < 0) gmst += 24.0;
-    const double lstDeg = gmst * 15.0 + lonDeg;
-    const double Hdeg = lstDeg - ra * 180.0 / M_PI;
-    const double H = Deg2Rad(Hdeg);
-    const double lat = Deg2Rad(latDeg);
-    double sinEl = sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H);
-    if (sinEl > 1) sinEl = 1;
-    if (sinEl < -1) sinEl = -1;
-    return (float)(asin(sinEl) * 180.0 / M_PI);
-}
 
 } // namespace
 
