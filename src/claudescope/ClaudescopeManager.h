@@ -6,6 +6,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "ClaudescopeTheme.h"
@@ -79,7 +80,7 @@ private:
     bool alertSeeded = false;
     int  lastSessionSide = 0;           // -1 below threshold / +1 at-or-above / 0 unknown
     int  lastWeekSide = 0;
-    unsigned long lastNotifyMs = 0;
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

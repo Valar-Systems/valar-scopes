@@ -66,6 +66,7 @@ void BirdingManager::Initialise()
     autoDim = ad.isEmpty() || ad == "true";
 
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* k, bool def) {
         const String v = configServer.GetStoredString(k);
         return v.isEmpty() ? def : (v == "true");
@@ -103,6 +104,7 @@ void BirdingManager::Update()
 {
     feed.Poll();
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
     AutoRotate();
@@ -316,14 +318,10 @@ void BirdingManager::CheckAlerts()
 
 void BirdingManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return;
-    lastNotifyMs = millis();
-
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 // ----------------------------------------------------------------------------- brightness

@@ -6,6 +6,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "SpeedTheme.h"
@@ -92,7 +93,7 @@ private:
     long recordDayIndex = 0;               // local day index recordTop belongs to
     bool wasOnline = false;
     bool everOnline = false;               // latched once the camera has ever answered (gates "back online")
-    unsigned long lastNotifyMs = 0;
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

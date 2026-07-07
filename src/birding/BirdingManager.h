@@ -8,6 +8,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "BirdingTheme.h"
@@ -84,7 +85,7 @@ private:
     std::set<String> seenTarget;
     bool notableSeeded = false;
     bool recentSeeded = false;
-    unsigned long lastNotifyMs = 0;
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- touch / gestures ----
     bool wasTouched = false;

@@ -112,6 +112,7 @@ void SpaceManager::Initialise()
     // ntfy alerts (shared ntfy-topic key + per-trigger toggles). An empty topic disables all.
     // The edge-state flags are NOT reset here, so saving config mid-event doesn't re-fire.
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* key, bool def) {
         const String v = configServer.GetStoredString(key);
         return v.isEmpty() ? def : (v == "true");
@@ -184,6 +185,7 @@ void SpaceManager::Update()
     }
 
     CheckAlerts();
+    ntfy.Pump(http);
     UpdateBrightness();
     HandleTouch();
     AutoRotate();
@@ -593,16 +595,10 @@ void SpaceManager::RecomputeObserving()
 
 void SpaceManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return; // throttle bursts
-    lastNotifyMs = millis();
-
-    // Blocking POST on the loop task, serialized with the feed worker via HttpRequestManager's
-    // mutex -- the same pattern the radar/EAM use. Triggers are rare, so the brief stall is fine.
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }
 
 void SpaceManager::DrawScreenDots(BandCanvas& c, const std::vector<Screen>& rot) const

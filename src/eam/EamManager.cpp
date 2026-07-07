@@ -102,6 +102,7 @@ void EamManager::Initialise()
     // ntfy alerts (reuses the radar's ntfy-topic key + POST pattern). Each trigger is toggleable;
     // all fire by default once a topic is set (an empty topic disables everything).
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+    ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* key, bool def) {
         const String v = configServer.GetStoredString(key);
         return v.isEmpty() ? def : (v == "true");
@@ -145,6 +146,7 @@ void EamManager::Update()
 
     UpdateLogbook();
     CheckAlerts(newEam);
+    ntfy.Pump(http);
 
     UpdateBrightness();
     HandleTouch();
@@ -454,15 +456,8 @@ void EamManager::CheckAlerts(bool newEamArrived)
 
 void EamManager::SendNtfy(const String& title, const String& body, const String& tags, int priority)
 {
-    if (ntfyTopic.isEmpty()) return;
-    if (lastNotifyMs != 0 && millis() - lastNotifyMs < 5000) return; // throttle bursts
-    lastNotifyMs = millis();
-
-    const std::vector<std::pair<String, String>> headers = {
-        {"Title", title}, {"Tags", tags}, {"Priority", String(priority)}
-    };
-    // Blocking POST on the loop task, serialized with the feed worker via HttpRequestManager's
-    // mutex -- the same pattern the radar uses for its ntfy alerts. Triggers are rare, so the
-    // brief stall (and the wait for any in-flight fetch to release the bus) is acceptable.
-    (void)http.Post(String("https://ntfy.sh/") + ntfyTopic, body, headers);
+    // Queue it; NtfyAlerter defers (not drops) co-triggered alerts and Update() pumps the
+    // queue, keeping the 5 s spacing between POSTs. The edge-state advance in the callers
+    // is therefore safe -- a throttled alert is delivered later, not lost.
+    ntfy.Send(title, body, tags, priority);
 }

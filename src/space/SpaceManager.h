@@ -6,6 +6,7 @@
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "HttpRequestManager.h"
+#include "NtfyAlerter.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "SpaceTheme.h"
@@ -100,7 +101,7 @@ private:
     long issAlertedRise = 0;                  // rise epoch the ISS-overhead alert already fired for
     String asteroidAlertedDes;               // designation of the close-approach already alerted
     bool asteroidSeeded = false;             // baseline taken from the first feed landing after boot
-    unsigned long lastNotifyMs = 0;          // throttle ntfy POSTs
+    NtfyAlerter ntfy;                 // deferring ntfy sender (see NtfyAlerter.h)
 
     // ---- ISS visible-pass prediction (SGP4 from the live TLE; computed on the loop task) ----
     Sgp4* sat = nullptr;                      // propagator (allocated in Initialise)
