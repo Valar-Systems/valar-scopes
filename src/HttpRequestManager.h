@@ -16,11 +16,23 @@ struct HttpResult {
 class HttpRequestManager
 {
 private:
-    HTTPClient http;
+    // One HTTPClient per URL scheme. The scheme-only begin(String) API never lets go of its
+    // internal client object: after an https request, end()/disconnect() keeps the
+    // NetworkClientSecure around (for keep-alive reuse, and the not-connected branch keeps it
+    // too), and connect() only builds a new transport when that client is null. So a single
+    // instance that alternates https (OpenSky / adsbdb / ntfy) with plain http (a local
+    // dump1090/readsb receiver, a MiniSpeedCam) re-uses the stale TLS client for the http URL
+    // and tries an SSL handshake against port 80 -- "invalid SSL record" on every local fetch
+    // until reboot. Pinning each scheme to its own instance keeps every transport consistent
+    // for life. Only httpTls ever owns a TLS context and the mutex below still serializes ALL
+    // requests across both, so the C3-era "one TLS session at a time" budget is unchanged.
+    HTTPClient httpTls;   // https:// consumers
+    HTTPClient httpPlain; // http:// consumers (LAN devices; no TLS context ever)
+    HTTPClient& ClientFor(const String& url) { return url.startsWith("http://") ? httpPlain : httpTls; }
 
     // HTTPClient (and its single TLS context) is not reentrant, and the C3 hasn't
     // the heap for a second TLS session. The background OpenSky fetch task and the
-    // loop task share this one instance, so every request cycle holds this mutex --
+    // loop task share these instances, so every request cycle holds this mutex --
     // each begin()/GET()/end() runs to completion before another task can start one.
     SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
 
@@ -32,7 +44,7 @@ private:
     // Task-WDT into a reboot. The photo fetch (an airport-data.com thumbnail behind a
     // redirect) hits exactly that. This replaces getString() in Get(); GetJson() already
     // streams via the yielding BufferedSocketStream.
-    String ReadBodyYielding();
+    String ReadBodyYielding(HTTPClient& http);
 
     // Shared body for the two GetJson overloads below. When `filter` is non-null it is applied
     // as a DeserializationOption::Filter, so only whitelisted fields are pulled off the stream.

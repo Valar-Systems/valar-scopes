@@ -177,7 +177,7 @@ String HttpRequestManager::BuildQueryString(const std::vector<std::pair<String, 
     return queryStream;
 }
 
-String HttpRequestManager::ReadBodyYielding()
+String HttpRequestManager::ReadBodyYielding(HTTPClient& http)
 {
     // A thumbnail is ~10-30 KB; the cap guards heap and bounds the read time. STALL_MS is the
     // no-progress timeout and stays well under the 10 s Task-WDT (the loop yields, so even a
@@ -229,6 +229,7 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
     const String fullUrl = url + queryParams;
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
+    HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
     http.begin(fullUrl);
 
     // Follow 3xx redirects. adsbdb's photo thumbnails are served from airport-data.com
@@ -258,7 +259,7 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
         result.success = true;
         // Yielding, size-capped body read -- getString() here starved core 0's idle task on a
         // slow photo download and tripped the Task-WDT into a reboot (see ReadBodyYielding).
-        result.response = ReadBodyYielding();
+        result.response = ReadBodyYielding(http);
     }
     else {
         result.success = false;
@@ -283,6 +284,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     const String fullUrl = url + BuildQueryString(params);
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
+    HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
     http.begin(fullUrl);
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     http.setConnectTimeout(5000);
@@ -370,6 +372,7 @@ HttpResult HttpRequestManager::Post(const String& url, const String& body, const
     HttpResult result{ false, 0, "", "" };
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
+    HTTPClient& http = ClientFor(url); // scheme-pinned instance (see header)
     http.begin(url);
 
     // Bound the request the same way Get() does: a POST that runs on the loop task (the
