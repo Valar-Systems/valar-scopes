@@ -40,6 +40,16 @@ else:
         with open(SOURCE, "w", encoding="utf-8") as fh:
             fh.write(text.replace(ORIGINAL, REPLACEMENT, 1))
         print("[patch_lgfx_rgb_intr] made the LCD_CAM interrupt shared in Bus_RGB.cpp")
+    elif "ESP_INTR_FLAG_SHARED" in text:
+        # Benign: already patched on a prior build, OR the IDF<5.4.4 branch that
+        # already includes ESP_INTR_FLAG_SHARED in the source. Post-condition holds.
+        print("[patch_lgfx_rgb_intr] LCD_CAM interrupt already shared; nothing to do")
     else:
-        # Already patched on a prior build, or the library changed shape.
-        print("[patch_lgfx_rgb_intr] anchor not found (already patched or library changed); skipping")
+        # FATAL: the anchor is gone (e.g. a LovyanGFX bump reshaped Bus_RGB.cpp) and
+        # ESP_INTR_FLAG_SHARED is nowhere in the file. Shipping this silently would
+        # OTA a firmware-s3-21.bin whose RGB panel never scans out. Fail the build so
+        # CI goes red instead of publishing a dead-display image. (Update the anchor,
+        # then rebuild.)
+        print("[patch_lgfx_rgb_intr] FATAL: anchor not found and interrupt not shared; "
+              "LovyanGFX likely changed shape. Update this patch before releasing the S3-21.")
+        env.Exit(1)  # noqa: F821  -- red CI build instead of a dead-display OTA image
