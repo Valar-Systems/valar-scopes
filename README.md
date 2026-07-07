@@ -19,9 +19,11 @@
 | 🛰️ | **[Orbitscope](#-orbitscope-space)** *(Space)* | Live **space data**. The **ISS** ground track, a **T-minus countdown** to the next rocket launch, and a **geomagnetic aurora gauge**, straight from free public APIs. |
 | 🌐 | **[Quakescope](#-quakescope-seismic)** *(Seismic)* | A live **earthquake radar**. Quakes plotted by bearing and distance from the keyless USGS feed, with magnitude rings, tap-to-inspect cards, and alerts for big, nearby, or tsunami-flagged events. |
 | 🐦 | **[Quillscope](#-quillscope-birding)** *(Birding)* | A **notable-sightings radar**. Birds reported near you from eBird, on a tap-to-inspect radar plus rotating screens (notable ticker, day-list count, nearest hotspot, target species) — and a ping when a rarity shows up. |
-| 🎣 | **[Reelscope](#-reelscope-fishing)** *(Fishing — the newest edition)* | A **fishing console** for fresh water and salt. An on-device **solunar "best bite times"** band, plus live river gauges (USGS), tides and waves (NOAA), water temperature, and barometric trend — all keyless. |
+| 🎣 | **[Reelscope](#-reelscope-fishing)** *(Fishing)* | A **fishing console** for fresh water and salt. An on-device **solunar "best bite times"** band, plus live river gauges (USGS), tides and waves (NOAA), water temperature, and barometric trend — all keyless. |
+| 🤖 | **[Claudescope](#-claudescope-claude-usage)** *(Claude usage)* | A live gauge for your **Claude usage limits**. Your **session** and **weekly** caps as ring gauges with reset countdowns, and a phone ping when a limit runs low — read from your own Claude login through a small helper on your network. |
+| 🚗 | **[Speedscope](#-speedscope-speed-radar)** *(Speed radar — the newest edition)* | A **desk speed-radar** for your street. Pairs over Wi-Fi with a **[MiniSpeedCam](https://github.com/Valar-Systems/MiniSpeedCam)** on your network to show the last vehicle's speed, a live proximity gauge, recent passes, and today's count/top/average — with a ping when someone speeds. Keyless. |
 
-All six run on the same Valar Scopes board; the Edition is chosen by the firmware you flash (and a kit can be re-flashed to a different Edition any time). [More editions are on the way](#more-editions-on-the-way).
+All eight run on the same Valar Scopes board; the Edition is chosen by the firmware you flash (and a kit can be re-flashed to a different Edition any time). [More editions are on the way](#more-editions-on-the-way).
 
 ---
 
@@ -107,6 +109,34 @@ Flash the Reelscope firmware and the device becomes a fishing-conditions console
 
 No API keys, no account, no baked-in backend. Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions, on its own update channel.
 
+## 🤖 Claudescope (Claude usage)
+
+Flash the Claudescope firmware and the device becomes a desk gauge for your live **Claude usage limits** — so you can glance over and see how much of your **session** and **weekly** allowance is left before you hit a wall.
+
+- **Two ring gauges** — your current **session** and **weekly** usage as circular meters, each with a **countdown to when it resets** (and the reset time in your local zone).
+- **At-a-glance rotation** — the session and weekly screens auto-rotate and are swipeable; **tap either** to open a detail card, with an idle clock for when you're not looking.
+- **Phone alerts** — an [ntfy](https://ntfy.sh) ping when your **session** or **weekly** usage crosses a threshold you set (default 80%), so you get a heads-up before you run out. Edge-seeded at boot, so it only warns on fresh crossings.
+- **Your login stays yours** — the device never talks to Claude directly and holds no credentials. A small **helper ("sidecar")** on your own network keeps your Claude login and hands the device only a pre-digested usage summary; nothing is baked in, and nothing is polled until you point it at your sidecar.
+
+Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions, on its own update channel.
+
+### 📖 [Full guide → Claudescope (incl. sidecar setup) on the Wiki](https://github.com/Valar-Systems/valar-scopes/wiki/Claudescope)
+
+## 🚗 Speedscope (Speed radar)
+
+Flash the Speedscope firmware and the device becomes a **desk speed-radar** for your street. It pairs over your Wi-Fi with a **[MiniSpeedCam](https://github.com/Valar-Systems/MiniSpeedCam)** — a small radar speed camera — on the same network and turns its readings into glanceable dials.
+
+- **Last pass** — the most recent vehicle's speed as a big number, flagged over or under the posted limit you set.
+- **Live proximity** — a real-time arc gauge of the camera's radar signal, so you can watch a vehicle approach.
+- **Recent passes & today's stats** — a list of the latest passes, plus today's count, top speed, average, and share over the limit — all tallied on-device.
+- **Camera health** — the MiniSpeedCam's signal, IP, uptime, memory, last upload, and firmware, so you know it's alive and feeding.
+- **Phone alerts** — an [ntfy](https://ntfy.sh) ping when someone speeds past a threshold you set, when a new fastest-of-the-day is recorded, or when the camera drops offline. Edge-seeded at boot so the backlog never pings you.
+- **Keyless & local** — it talks only to your MiniSpeedCam over the LAN (found by its name, or a fixed IP); no account, no API key, no cloud. Nothing is polled until the camera is reachable.
+
+Speedscope needs a **[MiniSpeedCam](https://github.com/Valar-Systems/MiniSpeedCam)** running the companion firmware (its `/api/events` endpoint). Same shared Wi-Fi setup, web config, alerts, and OTA as the other editions, on its own update channel.
+
+### 📖 [Full guide → Speedscope on the Wiki](https://github.com/Valar-Systems/valar-scopes/wiki/Speedscope)
+
 ## More editions on the way
 
 Every Edition is the same recipe: pick a **free public data feed**, draw a few glanceable screens, and wire up phone alerts — the Wi-Fi setup, web config, OTA, and ntfy come for free from the shared platform. That makes new Editions cheap to add, and there's a long list of streams that would look great on a round desk display. Some we're considering:
@@ -161,13 +191,15 @@ If the board doesn't reboot into the new firmware automatically, hold the **BOOT
 Each Edition is a separate compile-time build from this one repo, one PlatformIO env each (see [platformio.ini](platformio.ini)). Pick the env for the edition and board you want:
 
 ```sh
-pio run -e blipscope-s3-146         -t upload   # 📡 Blipscope  — Aviation, S3 1.46" AMOLED (default)
-pio run -e blipscope-pro-s3-21      -t upload   # 📡 Blipscope  — Aviation, S3 2.1" RGB panel
-pio run -e blipscope-eam-s3-146     -t upload   # 📟 Missileer  — EAM/HFGCS monitor, S3 1.46" AMOLED
-pio run -e blipscope-space-s3-146   -t upload   # 🛰️ Orbitscope — Space, S3 1.46" AMOLED
-pio run -e blipscope-seismic-s3-146 -t upload   # 🌐 Quakescope — USGS quake radar, S3 1.46" AMOLED
-pio run -e blipscope-birding-s3-146 -t upload   # 🐦 Quillscope — eBird sightings, S3 1.46" AMOLED
-pio run -e blipscope-fishing-s3-146 -t upload   # 🎣 Reelscope  — Fishing (fresh + salt conditions), S3 1.46" AMOLED
+pio run -e blipscope-s3-146           -t upload   # 📡 Blipscope   — Aviation, S3 1.46" AMOLED (default)
+pio run -e blipscope-pro-s3-21        -t upload   # 📡 Blipscope   — Aviation, S3 2.1" RGB panel
+pio run -e blipscope-eam-s3-146       -t upload   # 📟 Missileer   — EAM/HFGCS monitor, S3 1.46" AMOLED
+pio run -e blipscope-space-s3-146     -t upload   # 🛰️ Orbitscope  — Space, S3 1.46" AMOLED
+pio run -e blipscope-seismic-s3-146   -t upload   # 🌐 Quakescope  — USGS quake radar, S3 1.46" AMOLED
+pio run -e blipscope-birding-s3-146   -t upload   # 🐦 Quillscope  — eBird sightings, S3 1.46" AMOLED
+pio run -e blipscope-fishing-s3-146   -t upload   # 🎣 Reelscope   — Fishing (fresh + salt conditions), S3 1.46" AMOLED
+pio run -e blipscope-claudescope-s3-146 -t upload # 🤖 Claudescope — Claude usage gauge, S3 1.46" AMOLED
+pio run -e blipscope-speed-s3-146     -t upload   # 🚗 Speedscope  — MiniSpeedCam speed radar, S3 1.46" AMOLED
 ```
 
 The product name, its build flag, and its env line up one-to-one (the env/flag names are unchanged from the pre-naming line-up):
@@ -178,6 +210,8 @@ The product name, its build flag, and its env line up one-to-one (the env/flag n
 - **Quakescope** = `FEATURE_SEISMIC` = `blipscope-seismic-s3-146`
 - **Quillscope** = `FEATURE_BIRDING` = `blipscope-birding-s3-146`
 - **Reelscope** = `FEATURE_FISHING` = `blipscope-fishing-s3-146`
+- **Claudescope** = `FEATURE_CLAUDESCOPE` = `blipscope-claudescope-s3-146`
+- **Speedscope** = `FEATURE_SPEED` = `blipscope-speed-s3-146`
 
 Each non-default edition reuses the same boards, Wi-Fi setup, web config, and OTA, but compiles a different app and ships on its own OTA channel (`firmware-<edition>-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
 
