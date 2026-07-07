@@ -87,6 +87,43 @@ and a CI slug prefixed to match so a Birding device never pulls another edition'
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
+## Reelscope builds — another separate OTA channel
+
+The `blipscope-fishing-*` envs build a sixth **product** (the Reelscope / Fishing edition, `-DFEATURE_FISHING`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as the others: `-DFW_OTA_PREFIX="fishing-"`,
+and a CI slug prefixed to match so a Reelscope device never pulls another edition's image:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `blipscope-fishing-s3-146` | `fishing-s3-146` → `firmware-fishing-s3-146.bin` |
+
+Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
+
+## Claudescope builds — another separate OTA channel
+
+The `blipscope-claudescope-*` envs build a seventh **product** (the Claudescope edition, `-DFEATURE_CLAUDESCOPE`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards — a live Claude usage-limit gauge. Same arrangement: `-DFW_OTA_PREFIX="claudescope-"`,
+and a CI slug prefixed to match so a Claudescope device never pulls another edition's image:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `blipscope-claudescope-s3-146` | `claudescope-s3-146` → `firmware-claudescope-s3-146.bin` |
+
+Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
+
+## Speedscope builds — another separate OTA channel
+
+The `blipscope-speed-*` envs build an eighth **product** (the Speedscope edition, `-DFEATURE_SPEED`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards — a desk speed-radar that ties into a MiniSpeedCam
+(minispeedcam.com) over the LAN. Same arrangement as the others: `-DFW_OTA_PREFIX="speed-"`, and a CI
+slug prefixed to match so a Speedscope device never pulls another edition's image:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `blipscope-speed-s3-146` | `speed-s3-146` → `firmware-speed-s3-146.bin` |
+
+Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
+
 ## Legacy note: the retired C3
 
 The original ESP32-C3 Kit is retired — Blipscope is S3-only going forward. The workflow no

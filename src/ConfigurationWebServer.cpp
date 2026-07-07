@@ -2,7 +2,7 @@
 #include <ESPmDNS.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #endif
 
@@ -65,7 +65,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // The page is feature-specific: the radar build serves the radar settings form below; the
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -1325,6 +1325,138 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_SPEED)
+// FEATURE_SPEED (Speedscope) config page: the MiniSpeedCam host, posted limit, per-view toggles,
+// ntfy alerts + speeder threshold, display, and an optional proxy. All camera endpoints are keyless
+// on the LAN -- no masked secret. Shares the page chrome / JS pattern with the other editions.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Speedscope</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(20,14,2)'/><path d='M2 12 A6 6 0 0 1 14 12' fill='none' stroke='rgb(255,176,40)' stroke-width='1.4'/><line x1='8' y1='12' x2='12' y2='6' stroke='rgb(255,60,40)' stroke-width='1.4'/><circle cx='8' cy='12' r='1' fill='rgb(255,176,40)'/></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+    </head>
+    <body class="font-mono bg-gray-900 text-amber-200 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
+        <fieldset class="border border-amber-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
+            <legend class="px-2">Configure Speedscope &mdash; Speed radar</legend>
+
+            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+
+                <fieldset class="border border-amber-500 p-3">
+                    <legend class="px-2">MiniSpeedCam</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>Camera host:</span>
+                        <input name="sc-host" value='%SC_HOST%' placeholder="MiniSpeedCam, or an IP e.g. 192.168.1.50"
+                            class="flex-1 border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-amber-500 mt-1">The MiniSpeedCam on your network. A bare name is resolved over mDNS (&lt;name&gt;.local); an IP is most reliable. Blank = MiniSpeedCam.</span>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                        <span>Posted speed limit:</span>
+                        <input name="sc-limit" type="number" min="0" step="1" value='%SC_LIMIT%' placeholder="optional"
+                            class="border border-amber-500 bg-gray-900 w-32 px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-amber-500 mt-1">In the camera's own unit (mph/kph, as set on the camera). Over-limit passes read red. Leave blank to disable.</span>
+                </fieldset>
+
+                <fieldset class="border border-amber-500 p-3">
+                    <legend class="px-2">Views</legend>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <label class="flex items-center gap-2"><input name="sc-v-last" type="checkbox" %SC_V_LAST% class="accent-amber-400"><span>Last pass</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-v-live" type="checkbox" %SC_V_LIVE% class="accent-amber-400"><span>Live</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-v-list" type="checkbox" %SC_V_LIST% class="accent-amber-400"><span>Recent</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-v-stats" type="checkbox" %SC_V_STATS% class="accent-amber-400"><span>Today</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-v-device" type="checkbox" %SC_V_DEVICE% class="accent-amber-400"><span>Camera</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-v-clock" type="checkbox" %SC_V_CLOCK% class="accent-amber-400"><span>Clock</span></label>
+                    </div>
+                    <span class="text-xs text-amber-500 mt-1">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a view to inspect it.</span>
+                </fieldset>
+
+                <fieldset class="border border-amber-500 p-3">
+                    <legend class="px-2">Alerts (ntfy)</legend>
+                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span>ntfy.sh topic:</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
+                            class="flex-1 border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <div class="grid grid-cols-1 gap-2 mt-3">
+                        <label class="flex items-center gap-2 flex-wrap"><input name="sc-a-speeder" type="checkbox" %SC_A_SPEEDER% class="accent-amber-400"><span>Speeder: a pass at/over</span>
+                            <input name="sc-alert-speed" type="number" min="0" step="1" value='%SC_ALERT%' class="border border-amber-500 bg-gray-900 w-24 px-2 sm:py-0"><span>mph/kph</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-a-record" type="checkbox" %SC_A_RECORD% class="accent-amber-400"><span>New fastest pass of the day</span></label>
+                        <label class="flex items-center gap-2"><input name="sc-a-offline" type="checkbox" %SC_A_OFFLINE% class="accent-amber-400"><span>Camera goes offline</span></label>
+                    </div>
+                    <span class="text-xs text-amber-500 mt-1">Leave the topic blank to disable all push alerts. Triggers are edge-detected and seeded at boot, so the backlog never fires.</span>
+                </fieldset>
+
+                <fieldset class="border border-amber-500 p-3">
+                    <legend class="px-2">Display</legend>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-amber-400"><span>Auto-dim at night</span></label>
+                        <label class="flex items-center gap-2"><span>UTC offset (h):</span>
+                            <input name="sc-tz-offset" type="number" min="-14" max="14" step="0.5" value='%SC_TZ%' class="border border-amber-500 bg-gray-900 w-20 px-2 sm:py-0"></label>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5 mt-3">
+                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                            <span>Latitude:</span>
+                            <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
+                                class="border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                            <span>Longitude:</span>
+                            <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
+                                class="border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        </label>
+                    </div>
+                    <span class="text-xs text-amber-500 mt-1">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot).</span>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-amber-400">
+                    </label>
+                </fieldset>
+
+                <fieldset class="border border-amber-500 p-3">
+                    <legend class="px-2">Advanced</legend>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Proxy base URL:</span>
+                        <input name="sc-base-url" value='%SC_BASE_URL%' placeholder="blank = the camera on your LAN directly"
+                            class="flex-1 border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-amber-500">Optional. Point at an aggregator that mirrors the camera's /api/state and /api/events (e.g. to reach it off your LAN). Blank = the local camera directly.</span>
+                </fieldset>
+
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    <input type="submit" value="Save"
+                        class="bg-amber-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                    <button type="button" id="resetwifi"
+                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
+                        Reset WiFi</button>
+                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                </div>
+            </form>
+
+            <div class="flex justify-between items-end text-xs text-amber-500 mt-4">
+                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-amber-200 underline">Help &amp; documentation</a>
+                <span>Firmware v%FW_VERSION% (Speedscope)</span>
+            </div>
+        </fieldset>
+
+        <script>
+            document.getElementById('cfg').addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+            document.getElementById('resetwifi').addEventListener('click', function() {
+                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
+                fetch('/reset-wifi', { method: 'POST' })
+                    .then(r => r.text())
+                    .then(html => document.getElementById('result').innerHTML = html);
+            });
+        </script>
+    </body>
+</html>
+)";
 #endif
 
 void ConfigurationWebServer::Initialise() {
@@ -1352,7 +1484,7 @@ void ConfigurationWebServer::Initialise() {
 
         // read all values up front so the processor lambda can capture by value
         prefs.begin("config", true);
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         const String latitude = prefs.getString("latitude", "");
         const String longitude = prefs.getString("longitude", "");
         const String radius = prefs.getString("radius", "100");
@@ -1556,10 +1688,31 @@ void ConfigurationWebServer::Initialise() {
         const String alertWeek = prefs.isKey("cl-alert-week") ? prefs.getString("cl-alert-week", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
+#elif defined(FEATURE_SPEED)
+        // FEATURE_SPEED: load the Speedscope config fields. The camera endpoints are keyless (no masked secret).
+        const String scHost = prefs.getString("sc-host", "");
+        const String scBaseUrl = prefs.getString("sc-base-url", "");
+        const String scLimit = prefs.getString("sc-limit", "");
+        const String scAlert = prefs.getString("sc-alert-speed", "");
+        const String scTz = prefs.isKey("sc-tz-offset") ? prefs.getString("sc-tz-offset", "0") : "0";
+        const String latitude = prefs.getString("latitude", "");
+        const String longitude = prefs.getString("longitude", "");
+        const String vLast = prefs.isKey("sc-v-last") ? prefs.getString("sc-v-last", "true") : "true";
+        const String vLive = prefs.isKey("sc-v-live") ? prefs.getString("sc-v-live", "true") : "true";
+        const String vList = prefs.isKey("sc-v-list") ? prefs.getString("sc-v-list", "true") : "true";
+        const String vStats = prefs.isKey("sc-v-stats") ? prefs.getString("sc-v-stats", "true") : "true";
+        const String vDevice = prefs.isKey("sc-v-device") ? prefs.getString("sc-v-device", "true") : "true";
+        const String vClock = prefs.isKey("sc-v-clock") ? prefs.getString("sc-v-clock", "true") : "true";
+        const String aSpeeder = prefs.isKey("sc-a-speeder") ? prefs.getString("sc-a-speeder", "false") : "false";
+        const String aRecord = prefs.isKey("sc-a-record") ? prefs.getString("sc-a-record", "false") : "false";
+        const String aOffline = prefs.isKey("sc-a-offline") ? prefs.getString("sc-a-offline", "false") : "false";
+        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
+        const String brightness = prefs.getString("brightness", "255");
 #endif
         prefs.end();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
@@ -1573,7 +1726,7 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -1784,6 +1937,35 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_SPEED)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [scHost, scBaseUrl, scLimit, scAlert, scTz, latitude, longitude, vLast, vLive, vList, vStats, vDevice, vClock, aSpeeder, aRecord, aOffline, ntfyTopic, autoDimEnabled, brightness]
+            (const String& var) -> String {
+                if (var == "SC_HOST")        return scHost;
+                if (var == "SC_BASE_URL")    return scBaseUrl;
+                if (var == "SC_LIMIT")       return scLimit;
+                if (var == "SC_ALERT")       return scAlert;
+                if (var == "SC_TZ")          return scTz;
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "SC_V_LAST")      return vLast == "true" ? "checked" : "";
+                if (var == "SC_V_LIVE")      return vLive == "true" ? "checked" : "";
+                if (var == "SC_V_LIST")      return vList == "true" ? "checked" : "";
+                if (var == "SC_V_STATS")     return vStats == "true" ? "checked" : "";
+                if (var == "SC_V_DEVICE")    return vDevice == "true" ? "checked" : "";
+                if (var == "SC_V_CLOCK")     return vClock == "true" ? "checked" : "";
+                if (var == "SC_A_SPEEDER")   return aSpeeder == "true" ? "checked" : "";
+                if (var == "SC_A_RECORD")    return aRecord == "true" ? "checked" : "";
+                if (var == "SC_A_OFFLINE")   return aOffline == "true" ? "checked" : "";
+                if (var == "NTFY_TOPIC")     return ntfyTopic;
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -1808,7 +1990,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         TrySaveParam("latitude");
         TrySaveParam("longitude");
         TrySaveParam("radius");
@@ -2012,6 +2194,29 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("cl-alert-session", request->hasParam("cl-alert-session", true) ? "true" : "false");
         prefs.putString("cl-alert-week", request->hasParam("cl-alert-week", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+#elif defined(FEATURE_SPEED)
+        // FEATURE_SPEED: persist the Speedscope config fields. The camera endpoints are keyless (no secret).
+        TrySaveParam("sc-host");
+        TrySaveParam("sc-base-url");
+        TrySaveParam("sc-limit");
+        TrySaveParam("sc-alert-speed");
+        TrySaveParam("sc-tz-offset");
+        TrySaveParam("latitude");
+        TrySaveParam("longitude");
+        TrySaveParam("ntfy-topic");
+        TrySaveParam("brightness");
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        prefs.putString("sc-v-last",    request->hasParam("sc-v-last", true) ? "true" : "false");
+        prefs.putString("sc-v-live",    request->hasParam("sc-v-live", true) ? "true" : "false");
+        prefs.putString("sc-v-list",    request->hasParam("sc-v-list", true) ? "true" : "false");
+        prefs.putString("sc-v-stats",   request->hasParam("sc-v-stats", true) ? "true" : "false");
+        prefs.putString("sc-v-device",  request->hasParam("sc-v-device", true) ? "true" : "false");
+        prefs.putString("sc-v-clock",   request->hasParam("sc-v-clock", true) ? "true" : "false");
+        prefs.putString("sc-a-speeder", request->hasParam("sc-a-speeder", true) ? "true" : "false");
+        prefs.putString("sc-a-record",  request->hasParam("sc-a-record", true) ? "true" : "false");
+        prefs.putString("sc-a-offline", request->hasParam("sc-a-offline", true) ? "true" : "false");
+        prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
 #endif
         prefs.end();
 
