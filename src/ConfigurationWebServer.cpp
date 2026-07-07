@@ -423,7 +423,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -431,7 +431,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             // Reset WiFi: erase saved credentials and reboot into the setup portal
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -638,13 +638,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -757,13 +757,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -875,13 +875,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -1000,13 +1000,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -1170,13 +1170,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -1313,13 +1313,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -1445,13 +1445,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <script>
             document.getElementById('cfg').addEventListener('submit', function(e) {
                 e.preventDefault();
-                fetch(this.action, { method: 'POST', body: new FormData(this) })
+                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
             document.getElementById('resetwifi').addEventListener('click', function() {
                 if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST' })
+                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
                     .then(r => r.text())
                     .then(html => document.getElementById('result').innerHTML = html);
             });
@@ -1460,6 +1460,71 @@ static const char CONFIG_HTML[] PROGMEM = R"(
 </html>
 )";
 #endif
+
+// Escape a user-sourced value before it is echoed into the config page. Without
+// this a stored value containing ' " < > & either shreds the form on the next
+// load (a legit apostrophe in a watchlist/URL/username terminates the attribute)
+// or plants stored XSS that runs in the owner's browser on the device origin.
+// Applied to every free-text value returned by the template callbacks. Escaping
+// the toggle/enum/number defaults ("true"/"km"/"255") is a harmless no-op.
+static String HtmlEscape(const String& in)
+{
+    String out;
+    out.reserve(in.length());
+    for (size_t i = 0; i < in.length(); ++i) {
+        const char c = in[i];
+        switch (c) {
+            case '&': out += "&amp;";  break;
+            case '<': out += "&lt;";   break;
+            case '>': out += "&gt;";   break;
+            case '"': out += "&quot;"; break;
+            case '\'': out += "&#39;"; break;
+            default:  out += c;
+        }
+    }
+    return out;
+}
+
+// Reject a state-changing request that didn't originate from the config page itself.
+// The page's own fetch() adds "X-Blipscope: 1"; a cross-origin page (CSRF) cannot set
+// a custom header on a POST without a CORS preflight the server never answers, so a
+// missing/blank header means the request came from somewhere else. This blocks a
+// malicious LAN/internet page from silently wiping Wi-Fi creds or rewriting config.
+// Returns true if the request was rejected (and a 403 sent).
+static bool RejectCrossOrigin(AsyncWebServerRequest* request)
+{
+    if (request->hasHeader("X-Blipscope"))
+        return false;
+    Serial.println("[POST] rejected: missing X-Blipscope header (cross-origin/CSRF)");
+    request->send(403, "text/plain", "forbidden: cross-origin request");
+    return true;
+}
+
+// Accept only a Host header that names THIS device: the mDNS name (bare or .local)
+// or a bare IP literal. A DNS-rebinding attack reaches the device via an attacker
+// DOMAIN that re-resolves to the LAN IP, so the Host is that domain -- rejecting
+// unknown hostnames blocks it, while IP-literal and <name>.local (how a user
+// actually reaches the page) stay allowed. Empty Host (some minimal clients) is
+// allowed so we don't break legitimate odd clients.
+static bool HostAllowed(AsyncWebServerRequest* request)
+{
+    String host = request->host();
+    const int colon = host.indexOf(':');   // strip any :port
+    if (colon >= 0) host = host.substring(0, colon);
+    host.toLowerCase();
+    if (host.isEmpty()) return true;
+
+    bool ipLiteral = true;                  // all digits/dots (v4) or contains ':' (v6, already stripped above)
+    for (size_t i = 0; i < host.length(); ++i) {
+        const char c = host[i];
+        if ((c < '0' || c > '9') && c != '.') { ipLiteral = false; break; }
+    }
+    if (ipLiteral) return true;
+
+    String name = DeviceIdentity::Name();
+    name.toLowerCase();
+    return host == name || host == name + ".local";
+}
 
 // The config page renders stored secrets as ALL asterisks (std::fill in the GET
 // handler), so only a value that is entirely '*' is the untouched mask sentinel.
@@ -1493,6 +1558,13 @@ void ConfigurationWebServer::Initialise() {
 
     // Handle visit to config web server
     server.on("/", HTTP_GET, [&](AsyncWebServerRequest* request) {
+        // Anti-DNS-rebinding: only serve the config page (home location, opensky-id,
+        // mqtt-user, ntfy topic...) to a request that actually addressed this device.
+        if (!HostAllowed(request)) {
+            Serial.printf("[GET] rejected Host '%s' (DNS-rebinding guard)\n", request->host().c_str());
+            request->send(403, "text/plain", "forbidden: bad Host");
+            return;
+        }
         Serial.println("[GET] Handling request to config web server...");
         // Diagnostic: the async response needs a ~2.8 KB *contiguous* send buffer
         // (ASYNC_RESPONCE_BUFF_SIZE = 2 x TCP_MSS). If the largest free block is
@@ -1504,47 +1576,47 @@ void ConfigurationWebServer::Initialise() {
         Preferences prefs;
         prefs.begin("config", true);
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
-        const String radius = prefs.getString("radius", "100");
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String radius = HtmlEscape(prefs.getString("radius", "100"));
         // isKey() probes without logging; a plain getString() on this not-yet-saved
         // key spams "nvs_get_str ... NOT_FOUND" on every page load until first save
-        const String radiusUnit = prefs.isKey("radius-unit") ? prefs.getString("radius-unit", "km") : "km";
-        const String openskyClientId = prefs.getString("opensky-id", "");
-        String openskySecret = prefs.getString("opensky-secret", "");
-        const String dataSource = prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky";
-        const String localUrl = prefs.getString("local-url", "");
-        const String scanlineEnabled = prefs.getString("scanline", "true");
-        const String fadeEnabled = prefs.getString("fade", "true");
-        const String infoTextEnabled = prefs.getString("infotext", "true");
-        const String triangleEnabled = prefs.getString("triangle", "true");
-        const String trailEnabled = prefs.getString("trail", "true");
-        const String altColorEnabled = prefs.getString("altcolor", "true");
-        const String highlightEnabled = prefs.getString("highlight", "true");
-        const String autoDimEnabled = prefs.getString("autodim", "true");
-        const String brightness = prefs.getString("brightness", "255");
+        const String radiusUnit = HtmlEscape(prefs.isKey("radius-unit") ? prefs.getString("radius-unit", "km") : "km");
+        const String openskyClientId = HtmlEscape(prefs.getString("opensky-id", ""));
+        String openskySecret = HtmlEscape(prefs.getString("opensky-secret", ""));
+        const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky");
+        const String localUrl = HtmlEscape(prefs.getString("local-url", ""));
+        const String scanlineEnabled = HtmlEscape(prefs.getString("scanline", "true"));
+        const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
+        const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
+        const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
+        const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
+        const String altColorEnabled = HtmlEscape(prefs.getString("altcolor", "true"));
+        const String highlightEnabled = HtmlEscape(prefs.getString("highlight", "true"));
+        const String autoDimEnabled = HtmlEscape(prefs.getString("autodim", "true"));
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
         // default the clock offset to the nominal zone from longitude (15 deg/hour)
         const String tzOffset = prefs.isKey("tz-offset")
             ? prefs.getString("tz-offset", "0")
             : String((int)round(longitude.toFloat() / 15.0));
-        const String watchlist = prefs.getString("watchlist", "");
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
+        const String watchlist = HtmlEscape(prefs.getString("watchlist", ""));
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
         // isKey() guards keep the not-yet-saved reads from logging NVS NOT_FOUND
-        const String milShow = prefs.isKey("mil-show") ? prefs.getString("mil-show", "true") : "true";
-        const String milAlert = prefs.isKey("mil-alert") ? prefs.getString("mil-alert", "false") : "false";
-        const String heliShow = prefs.isKey("heli-show") ? prefs.getString("heli-show", "false") : "false";
-        const String spcShow = prefs.isKey("spc-show") ? prefs.getString("spc-show", "false") : "false";
-        const String logbookOn = prefs.isKey("logbook") ? prefs.getString("logbook", "false") : "false";
-        const String lookupOn = prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false";
-        const String lookupAlert = prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false";
-        const String lookupDist = prefs.isKey("lookup-dist") ? prefs.getString("lookup-dist", "3") : "3";
-        const String mqttOn = prefs.isKey("mqtt") ? prefs.getString("mqtt", "false") : "false";
-        const String mqttHost = prefs.getString("mqtt-host", "");
-        const String mqttPort = prefs.isKey("mqtt-port") ? prefs.getString("mqtt-port", "1883") : "1883";
-        const String mqttUser = prefs.getString("mqtt-user", "");
-        String mqttPass = prefs.getString("mqtt-pass", "");
-        const String mqttBase = prefs.isKey("mqtt-base") ? prefs.getString("mqtt-base", "blipscope") : "blipscope";
-        const String mqttDisco = prefs.isKey("mqtt-disco") ? prefs.getString("mqtt-disco", "true") : "true";
+        const String milShow = HtmlEscape(prefs.isKey("mil-show") ? prefs.getString("mil-show", "true") : "true");
+        const String milAlert = HtmlEscape(prefs.isKey("mil-alert") ? prefs.getString("mil-alert", "false") : "false");
+        const String heliShow = HtmlEscape(prefs.isKey("heli-show") ? prefs.getString("heli-show", "false") : "false");
+        const String spcShow = HtmlEscape(prefs.isKey("spc-show") ? prefs.getString("spc-show", "false") : "false");
+        const String logbookOn = HtmlEscape(prefs.isKey("logbook") ? prefs.getString("logbook", "false") : "false");
+        const String lookupOn = HtmlEscape(prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false");
+        const String lookupAlert = HtmlEscape(prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false");
+        const String lookupDist = HtmlEscape(prefs.isKey("lookup-dist") ? prefs.getString("lookup-dist", "3") : "3");
+        const String mqttOn = HtmlEscape(prefs.isKey("mqtt") ? prefs.getString("mqtt", "false") : "false");
+        const String mqttHost = HtmlEscape(prefs.getString("mqtt-host", ""));
+        const String mqttPort = HtmlEscape(prefs.isKey("mqtt-port") ? prefs.getString("mqtt-port", "1883") : "1883");
+        const String mqttUser = HtmlEscape(prefs.getString("mqtt-user", ""));
+        String mqttPass = HtmlEscape(prefs.getString("mqtt-pass", ""));
+        const String mqttBase = HtmlEscape(prefs.isKey("mqtt-base") ? prefs.getString("mqtt-base", "blipscope") : "blipscope");
+        const String mqttDisco = HtmlEscape(prefs.isKey("mqtt-disco") ? prefs.getString("mqtt-disco", "true") : "true");
 
         // Build the per-field info checkboxes from the shared table so the form
         // always reflects exactly the fields the renderer knows how to draw.
@@ -1565,25 +1637,25 @@ void ConfigurationWebServer::Initialise() {
 #elif defined(FEATURE_EAM)
         // FEATURE_EAM: load the EAM config fields. isKey() guards keep a not-yet-saved read from
         // logging NVS NOT_FOUND; the base-URL default is the EAM_FEED_BASE build flag.
-        const String eamBaseUrl = prefs.isKey("eam-base-url")
+        const String eamBaseUrl = HtmlEscape(prefs.isKey("eam-base-url")
             ? prefs.getString("eam-base-url", EAM_FEED_BASE)
-            : String(EAM_FEED_BASE);
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
-        const String abncpSource = prefs.isKey("abncp-source") ? prefs.getString("abncp-source", "backend") : "backend";
-        const String openskyClientId = prefs.getString("opensky-id", "");
-        String openskySecret = prefs.getString("opensky-secret", "");
-        const String abncpWatch = prefs.getString("abncp-watch", "");
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertNew = prefs.isKey("eam-alert-new") ? prefs.getString("eam-alert-new", "true") : "true";
-        const String alertTempo = prefs.isKey("eam-alert-tempo") ? prefs.getString("eam-alert-tempo", "true") : "true";
-        const String alertAbncp = prefs.isKey("eam-alert-abncp") ? prefs.getString("eam-alert-abncp", "true") : "true";
-        const String alertSpace = prefs.isKey("eam-alert-space") ? prefs.getString("eam-alert-space", "true") : "true";
-        const String eamPalette = prefs.isKey("eam-palette") ? prefs.getString("eam-palette", "green") : "green";
-        const String eamRefresh = prefs.isKey("eam-refresh") ? prefs.getString("eam-refresh", "normal") : "normal";
-        const String colonBlink = prefs.isKey("eam-colon-blink") ? prefs.getString("eam-colon-blink", "false") : "false";
-        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
-        const String brightness = prefs.getString("brightness", "255");
+            : String(EAM_FEED_BASE));
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String abncpSource = HtmlEscape(prefs.isKey("abncp-source") ? prefs.getString("abncp-source", "backend") : "backend");
+        const String openskyClientId = HtmlEscape(prefs.getString("opensky-id", ""));
+        String openskySecret = HtmlEscape(prefs.getString("opensky-secret", ""));
+        const String abncpWatch = HtmlEscape(prefs.getString("abncp-watch", ""));
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
+        const String alertNew = HtmlEscape(prefs.isKey("eam-alert-new") ? prefs.getString("eam-alert-new", "true") : "true");
+        const String alertTempo = HtmlEscape(prefs.isKey("eam-alert-tempo") ? prefs.getString("eam-alert-tempo", "true") : "true");
+        const String alertAbncp = HtmlEscape(prefs.isKey("eam-alert-abncp") ? prefs.getString("eam-alert-abncp", "true") : "true");
+        const String alertSpace = HtmlEscape(prefs.isKey("eam-alert-space") ? prefs.getString("eam-alert-space", "true") : "true");
+        const String eamPalette = HtmlEscape(prefs.isKey("eam-palette") ? prefs.getString("eam-palette", "green") : "green");
+        const String eamRefresh = HtmlEscape(prefs.isKey("eam-refresh") ? prefs.getString("eam-refresh", "normal") : "normal");
+        const String colonBlink = HtmlEscape(prefs.isKey("eam-colon-blink") ? prefs.getString("eam-colon-blink", "false") : "false");
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
         // default the field to the full ordered set so the user can see and edit it
         const String eamScreens = prefs.isKey("eam-screens")
             ? prefs.getString("eam-screens", "")
@@ -1592,21 +1664,21 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_SPACE: load the Spacescope config fields. isKey() guards keep not-yet-saved
         // reads from logging NVS NOT_FOUND; the backend base-URL default is the SPACE_FEED_BASE
         // build flag (empty = direct public APIs).
-        const String spaceBaseUrl = prefs.isKey("space-base-url")
+        const String spaceBaseUrl = HtmlEscape(prefs.isKey("space-base-url")
             ? prefs.getString("space-base-url", SPACE_FEED_BASE)
-            : String(SPACE_FEED_BASE);
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertLaunch = prefs.isKey("sp-alert-launch") ? prefs.getString("sp-alert-launch", "true") : "true";
-        const String alertAurora = prefs.isKey("sp-alert-aurora") ? prefs.getString("sp-alert-aurora", "true") : "true";
-        const String alertFlare = prefs.isKey("sp-alert-flare") ? prefs.getString("sp-alert-flare", "true") : "true";
-        const String alertIss = prefs.isKey("sp-alert-iss") ? prefs.getString("sp-alert-iss", "true") : "true";
-        const String alertDsn = prefs.isKey("sp-alert-dsn") ? prefs.getString("sp-alert-dsn", "false") : "false";
-        const String alertAsteroid = prefs.isKey("sp-alert-neo") ? prefs.getString("sp-alert-neo", "true") : "true";
-        const String chimeOnAlert = prefs.isKey("sp-chime") ? prefs.getString("sp-chime", "true") : "true";
-        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
-        const String brightness = prefs.getString("brightness", "255");
+            : String(SPACE_FEED_BASE));
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
+        const String alertLaunch = HtmlEscape(prefs.isKey("sp-alert-launch") ? prefs.getString("sp-alert-launch", "true") : "true");
+        const String alertAurora = HtmlEscape(prefs.isKey("sp-alert-aurora") ? prefs.getString("sp-alert-aurora", "true") : "true");
+        const String alertFlare = HtmlEscape(prefs.isKey("sp-alert-flare") ? prefs.getString("sp-alert-flare", "true") : "true");
+        const String alertIss = HtmlEscape(prefs.isKey("sp-alert-iss") ? prefs.getString("sp-alert-iss", "true") : "true");
+        const String alertDsn = HtmlEscape(prefs.isKey("sp-alert-dsn") ? prefs.getString("sp-alert-dsn", "false") : "false");
+        const String alertAsteroid = HtmlEscape(prefs.isKey("sp-alert-neo") ? prefs.getString("sp-alert-neo", "true") : "true");
+        const String chimeOnAlert = HtmlEscape(prefs.isKey("sp-chime") ? prefs.getString("sp-chime", "true") : "true");
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
         const String spaceScreens = prefs.isKey("space-screens")
             ? prefs.getString("space-screens", "")
             : String("iss,isspass,launch,kp,solarwind,scales,flare,aurora,dsn,deepspace,asteroid,humans,moon,starmap,observing,planets,algol,dso,orrery,jupiter,lunar,eclipse,meteor,cosmic,logbook,clock");
@@ -1632,84 +1704,84 @@ void ConfigurationWebServer::Initialise() {
 #elif defined(FEATURE_SEISMIC)
         // FEATURE_SEISMIC: load the Seismic edition config fields. isKey() guards keep not-yet-saved
         // reads from logging NVS NOT_FOUND; the device talks to USGS directly (se-base-url empty).
-        const String seBaseUrl = prefs.getString("se-base-url", "");
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
-        const String seMinMag = prefs.isKey("se-min-mag") ? prefs.getString("se-min-mag", "2.5") : "2.5";
-        const String seRadius = prefs.isKey("se-radius-km") ? prefs.getString("se-radius-km", "500") : "500";
-        const String seBigMag = prefs.isKey("se-big-mag") ? prefs.getString("se-big-mag", "6.0") : "6.0";
-        const String seNearMag = prefs.isKey("se-near-mag") ? prefs.getString("se-near-mag", "4.0") : "4.0";
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertBig = prefs.isKey("se-alert-big") ? prefs.getString("se-alert-big", "true") : "true";
-        const String alertNear = prefs.isKey("se-alert-near") ? prefs.getString("se-alert-near", "true") : "true";
-        const String alertTsunami = prefs.isKey("se-alert-tsnmi") ? prefs.getString("se-alert-tsnmi", "true") : "true";
-        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
-        const String brightness = prefs.getString("brightness", "255");
+        const String seBaseUrl = HtmlEscape(prefs.getString("se-base-url", ""));
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String seMinMag = HtmlEscape(prefs.isKey("se-min-mag") ? prefs.getString("se-min-mag", "2.5") : "2.5");
+        const String seRadius = HtmlEscape(prefs.isKey("se-radius-km") ? prefs.getString("se-radius-km", "500") : "500");
+        const String seBigMag = HtmlEscape(prefs.isKey("se-big-mag") ? prefs.getString("se-big-mag", "6.0") : "6.0");
+        const String seNearMag = HtmlEscape(prefs.isKey("se-near-mag") ? prefs.getString("se-near-mag", "4.0") : "4.0");
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
+        const String alertBig = HtmlEscape(prefs.isKey("se-alert-big") ? prefs.getString("se-alert-big", "true") : "true");
+        const String alertNear = HtmlEscape(prefs.isKey("se-alert-near") ? prefs.getString("se-alert-near", "true") : "true");
+        const String alertTsunami = HtmlEscape(prefs.isKey("se-alert-tsnmi") ? prefs.getString("se-alert-tsnmi", "true") : "true");
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
 #elif defined(FEATURE_BIRDING)
         // FEATURE_BIRDING: load the Birding edition config fields. ebirdKey is non-const so it can be
         // masked before sending to the client (same masked-value guard on save).
-        String ebirdKey = prefs.getString("ebird-key", "");
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
-        const String bdRadius = prefs.isKey("bd-radius-km") ? prefs.getString("bd-radius-km", "25") : "25";
-        const String bdBack = prefs.isKey("bd-back-days") ? prefs.getString("bd-back-days", "7") : "7";
-        const String bdTargets = prefs.getString("bd-targets", "");
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertNotable = prefs.isKey("bd-alert-rare") ? prefs.getString("bd-alert-rare", "true") : "true";
-        const String alertTarget = prefs.isKey("bd-alert-target") ? prefs.getString("bd-alert-target", "true") : "true";
-        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
-        const String brightness = prefs.getString("brightness", "255");
+        String ebirdKey = HtmlEscape(prefs.getString("ebird-key", ""));
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String bdRadius = HtmlEscape(prefs.isKey("bd-radius-km") ? prefs.getString("bd-radius-km", "25") : "25");
+        const String bdBack = HtmlEscape(prefs.isKey("bd-back-days") ? prefs.getString("bd-back-days", "7") : "7");
+        const String bdTargets = HtmlEscape(prefs.getString("bd-targets", ""));
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
+        const String alertNotable = HtmlEscape(prefs.isKey("bd-alert-rare") ? prefs.getString("bd-alert-rare", "true") : "true");
+        const String alertTarget = HtmlEscape(prefs.isKey("bd-alert-target") ? prefs.getString("bd-alert-target", "true") : "true");
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
 #elif defined(FEATURE_FISHING)
         // FEATURE_FISHING: load the Reelscope config fields. All feeds are keyless (no masked secret).
-        const String fiWater = prefs.isKey("fi-water") ? prefs.getString("fi-water", "both") : "both";
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
-        const String fiUsgs = prefs.getString("fi-usgs", "");
-        const String fiNoaa = prefs.getString("fi-noaa", "");
-        const String fiBuoy = prefs.getString("fi-buoy", "");
-        const String fiUnits = prefs.isKey("fi-units") ? prefs.getString("fi-units", "imperial") : "imperial";
-        const String fiBaseUrl = prefs.getString("fi-base-url", "");
-        const String fiTz = prefs.isKey("fi-tz-offset") ? prefs.getString("fi-tz-offset", "0") : "0";
-        const String fiFlowCfs = prefs.getString("fi-flow-cfs", "");
-        const String fiTempLo = prefs.getString("fi-temp-lo", "");
-        const String fiTempHi = prefs.getString("fi-temp-hi", "");
-        const String vTide = prefs.isKey("fi-v-tide") ? prefs.getString("fi-v-tide", "true") : "true";
-        const String vFlow = prefs.isKey("fi-v-flow") ? prefs.getString("fi-v-flow", "true") : "true";
-        const String vTemp = prefs.isKey("fi-v-temp") ? prefs.getString("fi-v-temp", "true") : "true";
-        const String vSolunar = prefs.isKey("fi-v-solunar") ? prefs.getString("fi-v-solunar", "true") : "true";
-        const String vWeather = prefs.isKey("fi-v-weather") ? prefs.getString("fi-v-weather", "true") : "true";
-        const String vMoon = prefs.isKey("fi-v-moon") ? prefs.getString("fi-v-moon", "true") : "true";
-        const String vCatch = prefs.isKey("fi-v-catch") ? prefs.getString("fi-v-catch", "true") : "true";
-        const String vClock = prefs.isKey("fi-v-clock") ? prefs.getString("fi-v-clock", "true") : "true";
-        const String aFlow = prefs.isKey("fi-a-flow") ? prefs.getString("fi-a-flow", "false") : "false";
-        const String aTemp = prefs.isKey("fi-a-temp") ? prefs.getString("fi-a-temp", "false") : "false";
-        const String aSolunar = prefs.isKey("fi-a-solunar") ? prefs.getString("fi-a-solunar", "false") : "false";
-        const String aBaro = prefs.isKey("fi-a-baro") ? prefs.getString("fi-a-baro", "false") : "false";
-        const String aTide = prefs.isKey("fi-a-tide") ? prefs.getString("fi-a-tide", "false") : "false";
-        const String fiChime = prefs.isKey("fi-chime") ? prefs.getString("fi-chime", "false") : "false";
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
-        const String brightness = prefs.getString("brightness", "255");
+        const String fiWater = HtmlEscape(prefs.isKey("fi-water") ? prefs.getString("fi-water", "both") : "both");
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String fiUsgs = HtmlEscape(prefs.getString("fi-usgs", ""));
+        const String fiNoaa = HtmlEscape(prefs.getString("fi-noaa", ""));
+        const String fiBuoy = HtmlEscape(prefs.getString("fi-buoy", ""));
+        const String fiUnits = HtmlEscape(prefs.isKey("fi-units") ? prefs.getString("fi-units", "imperial") : "imperial");
+        const String fiBaseUrl = HtmlEscape(prefs.getString("fi-base-url", ""));
+        const String fiTz = HtmlEscape(prefs.isKey("fi-tz-offset") ? prefs.getString("fi-tz-offset", "0") : "0");
+        const String fiFlowCfs = HtmlEscape(prefs.getString("fi-flow-cfs", ""));
+        const String fiTempLo = HtmlEscape(prefs.getString("fi-temp-lo", ""));
+        const String fiTempHi = HtmlEscape(prefs.getString("fi-temp-hi", ""));
+        const String vTide = HtmlEscape(prefs.isKey("fi-v-tide") ? prefs.getString("fi-v-tide", "true") : "true");
+        const String vFlow = HtmlEscape(prefs.isKey("fi-v-flow") ? prefs.getString("fi-v-flow", "true") : "true");
+        const String vTemp = HtmlEscape(prefs.isKey("fi-v-temp") ? prefs.getString("fi-v-temp", "true") : "true");
+        const String vSolunar = HtmlEscape(prefs.isKey("fi-v-solunar") ? prefs.getString("fi-v-solunar", "true") : "true");
+        const String vWeather = HtmlEscape(prefs.isKey("fi-v-weather") ? prefs.getString("fi-v-weather", "true") : "true");
+        const String vMoon = HtmlEscape(prefs.isKey("fi-v-moon") ? prefs.getString("fi-v-moon", "true") : "true");
+        const String vCatch = HtmlEscape(prefs.isKey("fi-v-catch") ? prefs.getString("fi-v-catch", "true") : "true");
+        const String vClock = HtmlEscape(prefs.isKey("fi-v-clock") ? prefs.getString("fi-v-clock", "true") : "true");
+        const String aFlow = HtmlEscape(prefs.isKey("fi-a-flow") ? prefs.getString("fi-a-flow", "false") : "false");
+        const String aTemp = HtmlEscape(prefs.isKey("fi-a-temp") ? prefs.getString("fi-a-temp", "false") : "false");
+        const String aSolunar = HtmlEscape(prefs.isKey("fi-a-solunar") ? prefs.getString("fi-a-solunar", "false") : "false");
+        const String aBaro = HtmlEscape(prefs.isKey("fi-a-baro") ? prefs.getString("fi-a-baro", "false") : "false");
+        const String aTide = HtmlEscape(prefs.isKey("fi-a-tide") ? prefs.getString("fi-a-tide", "false") : "false");
+        const String fiChime = HtmlEscape(prefs.isKey("fi-chime") ? prefs.getString("fi-chime", "false") : "false");
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
 #elif defined(FEATURE_CLAUDESCOPE)
         // FEATURE_CLAUDESCOPE: load the Claudescope config fields. The sidecar URL is required and
         // empty by default (no baked-in backend); all feeds are keyless (no masked secret).
-        const String clBaseUrl = prefs.getString("cl-base-url", "");
-        const String latitude = prefs.getString("latitude", "");
-        const String longitude = prefs.getString("longitude", "");
+        const String clBaseUrl = HtmlEscape(prefs.getString("cl-base-url", ""));
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
         // default the local-clock offset to the nominal zone from longitude (15 deg/hour)
         const String clTz = prefs.isKey("cl-tz-offset")
             ? prefs.getString("cl-tz-offset", "0")
             : String((int)round(longitude.toFloat() / 15.0));
-        const String clSessionPct = prefs.isKey("cl-session-pct") ? prefs.getString("cl-session-pct", "80") : "80";
-        const String clWeekPct = prefs.isKey("cl-week-pct") ? prefs.getString("cl-week-pct", "80") : "80";
-        const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertSession = prefs.isKey("cl-alert-sess") ? prefs.getString("cl-alert-sess", "true") : "true";
-        const String alertWeek = prefs.isKey("cl-alert-week") ? prefs.getString("cl-alert-week", "true") : "true";
-        const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
-        const String brightness = prefs.getString("brightness", "255");
+        const String clSessionPct = HtmlEscape(prefs.isKey("cl-session-pct") ? prefs.getString("cl-session-pct", "80") : "80");
+        const String clWeekPct = HtmlEscape(prefs.isKey("cl-week-pct") ? prefs.getString("cl-week-pct", "80") : "80");
+        const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
+        const String alertSession = HtmlEscape(prefs.isKey("cl-alert-sess") ? prefs.getString("cl-alert-sess", "true") : "true");
+        const String alertWeek = HtmlEscape(prefs.isKey("cl-alert-week") ? prefs.getString("cl-alert-week", "true") : "true");
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
 #elif defined(FEATURE_SPEED)
         // FEATURE_SPEED: load the Speedscope config fields. The camera endpoints are keyless (no masked secret).
-        const String scHost = prefs.getString("sc-host", "");
+        const String scHost = HtmlEscape(prefs.getString("sc-host", ""));
         const String scBaseUrl = prefs.getString("sc-base-url", "");
         const String scLimit = prefs.getString("sc-limit", "");
         const String scAlert = prefs.getString("sc-alert-speed", "");
@@ -1995,6 +2067,7 @@ void ConfigurationWebServer::Initialise() {
 
     // Handle save submission to web server
     server.on("/save", HTTP_POST, [&](AsyncWebServerRequest* request) {
+        if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
         Serial.println("[POST] Handling form submission to config web server...");
 
         Preferences prefs;
@@ -2256,6 +2329,7 @@ void ConfigurationWebServer::Initialise() {
     // Forget WiFi credentials and reboot into the WiFiManager setup portal. The
     // response is sent first; the restart is deferred a moment so it can flush.
     server.on("/reset-wifi", HTTP_POST, [&](AsyncWebServerRequest* request) {
+        if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
         Serial.println("[POST] Clearing WiFi credentials and restarting...");
         request->send(200, "text/html", "WiFi cleared - restarting into setup mode. Reconnect to the device's setup network.");
         wifiResetRequested = true;
