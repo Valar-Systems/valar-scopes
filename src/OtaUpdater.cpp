@@ -1,11 +1,13 @@
 #include "OtaUpdater.h"
 #include "LGFX.h"
 #include "Layout.h"
+#include "OtaCerts.h"
 #include "variants/Variant.h"
 
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <time.h>
 
 namespace {
 
@@ -32,6 +34,21 @@ String FirmwareUrl()
            + FW_OTA_PREFIX + variant::SLUG + ".bin";
 }
 
+// X.509 validation needs a roughly-correct clock (cert validity periods), but the
+// boot-time update check runs right after configTime() starts NTP in the background.
+// Wait briefly for the first sync; give up if it never lands (no internet -- the
+// version fetch would fail anyway) and let the daily re-check try again.
+bool WaitForClock()
+{
+    constexpr time_t BUILD_ERA = 1750000000; // mid-2025; NTP-synced time is always past this
+    for (int i = 0; i < 40; ++i) {           // up to ~10 s, usually syncs in 1-2 s
+        if (time(nullptr) > BUILD_ERA)
+            return true;
+        delay(250);
+    }
+    return false;
+}
+
 void drawStatus(LGFX& tft, const String& msg)
 {
     tft.fillScreen(lgfx::color888(0, 0, 0));
@@ -43,10 +60,16 @@ void drawStatus(LGFX& tft, const String& msg)
 
 void MaybeUpdateFirmware(LGFX& tft)
 {
-    // 1. read the latest published version. setInsecure() skips certificate
-    // validation -- acceptable here, matching the rest of the device's HTTPS.
+    // 1. read the latest published version. Unlike the feeds, OTA validates the
+    // TLS chain against pinned roots (see OtaCerts.h): a spoofed binary is
+    // persistent code execution, not just bad data on a screen.
+    if (!WaitForClock()) {
+        Serial.println("[ota] clock not synced; skipping update check");
+        return;
+    }
+
     WiFiClientSecure verClient;
-    verClient.setInsecure();
+    verClient.setCACert(OTA_ROOT_CAS);
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // GitHub redirects to its CDN
@@ -77,7 +100,7 @@ void MaybeUpdateFirmware(LGFX& tft)
     drawStatus(tft, "Updating firmware...");
 
     WiFiClientSecure updClient;
-    updClient.setInsecure();
+    updClient.setCACert(OTA_ROOT_CAS);
 
     httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     httpUpdate.rebootOnUpdate(true);
