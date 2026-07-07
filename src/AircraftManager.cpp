@@ -48,6 +48,11 @@ constexpr int LIST_COL_ALT  = 122; // altitude
 
 #include <ArduinoJson.h>
 
+// Cap on aircraft retained per fetch, applied to BOTH sources: keep only the nearest this-many to
+// the configured location so a busy feed (a local dump1090/readsb receiver, or a wide OpenSky box)
+// can't flood RAM, the tracked map, or the per-frame render.
+static constexpr size_t MAX_AIRCRAFT = 60;
+
 // Handoff payloads for the background OpenSky fetch task. Both are passed between
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
 struct FetchRequest {
@@ -634,7 +639,16 @@ void AircraftManager::RunFetchTask()
         JsonDocument doc;
         HttpResult result;
         if (req->local) {
-            result = http.GetJson(req->url, doc);
+            // Pull only the fields ParseLocalAircraft reads, so a large aircraft.json (many
+            // aircraft, ~20 fields each) never fully materializes in the parsed document. The
+            // [0] template applies to every element of the "aircraft" array; the top-level
+            // "now" and everything else is dropped.
+            JsonDocument filter;
+            for (const char* k : { "hex", "flight", "lat", "lon", "alt_baro", "alt_geom",
+                                   "gs", "track", "true_heading", "mag_heading", "baro_rate",
+                                   "geom_rate", "category", "squawk", "type", "seen_pos" })
+                filter["aircraft"][0][k] = true;
+            result = http.GetJson(req->url, doc, filter);
         } else {
             std::vector<std::pair<String, String>> headers = {};
             if (!req->token.isEmpty()) headers.push_back({ "Authorization", "Bearer " + req->token });
@@ -678,6 +692,21 @@ void AircraftManager::RunFetchTask()
         } else {
             res->aircraft = JsonParser::ParseArray<Aircraft>(doc["states"]);
             res->ok = true;
+        }
+
+        // Cap to the nearest N to the device (BOTH sources) so a busy feed can't flood RAM or the
+        // render loop. nth_element partitions in O(n) -- cheaper than a full sort, and we only need
+        // "the closest N", not them ordered. Distance is a cheap planar metric (longitude scaled by
+        // cos(lat)); exact great-circle isn't needed to rank neighbours.
+        if (res->ok && res->aircraft.size() > MAX_AIRCRAFT) {
+            const double clat = cos(req->lat * DEG_TO_RAD);
+            std::nth_element(res->aircraft.begin(), res->aircraft.begin() + MAX_AIRCRAFT,
+                             res->aircraft.end(), [&](const Aircraft& a, const Aircraft& b) {
+                const double ax = (a.longitude - req->lon) * clat, ay = a.latitude - req->lat;
+                const double bx = (b.longitude - req->lon) * clat, by = b.latitude - req->lat;
+                return (ax * ax + ay * ay) < (bx * bx + by * by);
+            });
+            res->aircraft.resize(MAX_AIRCRAFT);
         }
 
         // Heap health check right after the decode -- the cycle's low point, the same

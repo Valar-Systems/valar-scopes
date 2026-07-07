@@ -274,7 +274,9 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
     return result;
 }
 
-HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, const std::vector<std::pair<String, String>>& params, const std::vector<std::pair<String, String>>& headers)
+HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc, const JsonDocument* filter,
+                                           const std::vector<std::pair<String, String>>& params,
+                                           const std::vector<std::pair<String, String>>& headers)
 {
     HttpResult result{ false, 0, "", "" };
 
@@ -308,7 +310,8 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
             // S3 the 480x480 panel shares the PSRAM bus, slowing the socket drain enough that
             // OpenSky pauses mid-transfer. The wait loop yields, so a long timeout is WDT-safe.
             BufferedSocketStream body(http.getStream(), (size_t)bodyLen, 15000);
-            err = deserializeJson(doc, body);
+            err = filter ? deserializeJson(doc, body, DeserializationOption::Filter(*filter))
+                         : deserializeJson(doc, body);
             if (err)
                 Serial.printf("[GET] diag: Content-Length path, CL=%d read=%u timedOut=%d err=%s\n",
                               bodyLen, (unsigned)body.totalRead(), (int)body.timedOut(), err.c_str());
@@ -319,7 +322,8 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
             // never yielded and then blocked past the body on the keep-alive socket, starving
             // the 10 s Task-WDT into a boot loop (eam_fetch). See ChunkedSocketStream.
             ChunkedSocketStream body(http.getStream(), 15000);
-            err = deserializeJson(doc, body);
+            err = filter ? deserializeJson(doc, body, DeserializationOption::Filter(*filter))
+                         : deserializeJson(doc, body);
             if (err)
                 Serial.printf("[GET] diag: chunked path, read=%u timedOut=%d err=%s\n",
                               (unsigned)body.totalRead(), (int)body.timedOut(), err.c_str());
@@ -328,7 +332,8 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
             // by closing the connection, so getString() reads to a clean EOF (no keep-alive
             // over-read to block on). Rare for these JSON endpoints.
             const String s = http.getString();
-            err = deserializeJson(doc, s);
+            err = filter ? deserializeJson(doc, s, DeserializationOption::Filter(*filter))
+                         : deserializeJson(doc, s);
             if (err)
                 Serial.printf("[GET] diag: close-delimited path, got=%u bytes err=%s\n",
                               (unsigned)s.length(), err.c_str());
@@ -348,6 +353,16 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
     http.end();
     xSemaphoreGive(mutex);
     return result;
+}
+
+HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, const std::vector<std::pair<String, String>>& params, const std::vector<std::pair<String, String>>& headers)
+{
+    return GetJsonImpl(url, doc, nullptr, params, headers);
+}
+
+HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, const JsonDocument& filter, const std::vector<std::pair<String, String>>& params, const std::vector<std::pair<String, String>>& headers)
+{
+    return GetJsonImpl(url, doc, &filter, params, headers);
 }
 
 HttpResult HttpRequestManager::Post(const String& url, const String& body, const std::vector<std::pair<String, String>>& headers)

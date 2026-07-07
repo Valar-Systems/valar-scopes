@@ -34,6 +34,12 @@ private:
     // streams via the yielding BufferedSocketStream.
     String ReadBodyYielding();
 
+    // Shared body for the two GetJson overloads below. When `filter` is non-null it is applied
+    // as a DeserializationOption::Filter, so only whitelisted fields are pulled off the stream.
+    HttpResult GetJsonImpl(const String& url, JsonDocument& doc, const JsonDocument* filter,
+                           const std::vector<std::pair<String, String>>& params,
+                           const std::vector<std::pair<String, String>>& headers);
+
 public:
     HttpRequestManager() = default;
     ~HttpRequestManager() = default;
@@ -49,6 +55,11 @@ public:
     // fall back to the buffered path so parsing stays correct. The decoded doc is
     // written into `doc`; HttpResult.response stays empty.
     [[nodiscard]] HttpResult GetJson(const String& url, JsonDocument& doc, const std::vector<std::pair<String, String>>& params = {}, const std::vector<std::pair<String, String>>& headers = {});
+
+    // As above, but deserialize through an ArduinoJson filter so only the whitelisted fields are
+    // pulled from a large response (e.g. a busy local dump1090/readsb aircraft.json that lists many
+    // aircraft with many fields each) -- keeps the parsed document small on a tight heap.
+    [[nodiscard]] HttpResult GetJson(const String& url, JsonDocument& doc, const JsonDocument& filter, const std::vector<std::pair<String, String>>& params = {}, const std::vector<std::pair<String, String>>& headers = {});
 
     // Non-blocking access to the same request mutex, so an UNRELATED consumer can run
     // exclusively against a network request without blocking if one is in flight. The

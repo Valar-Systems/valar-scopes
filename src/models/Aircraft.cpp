@@ -9,6 +9,12 @@ constexpr float FEET_TO_METRES   = 0.3048f;
 constexpr float KNOTS_TO_MS      = 0.514444f;
 constexpr float FTMIN_TO_MS      = 0.00508f; // feet/minute -> metres/second
 
+// A local receiver keeps echoing an aircraft's last-known position for a while after it stops
+// hearing fresh ADS-B ("seen_pos" = seconds since that last fix). Drop stale ones so the radar
+// doesn't plot a ghost frozen where a plane was a minute ago. OpenSky has no equivalent (it
+// dead-reckons server-side), so this only gates the local path.
+constexpr float MAX_SEEN_POS_S   = 60.0f;
+
 // dump1090 reports the ADS-B emitter category as a two-character set+number code
 // ("A1".."C7"); map it onto OpenSky's numeric category so the existing display
 // table (AircraftInfoFields) needs no special-casing. 0 = unknown/no info.
@@ -75,6 +81,11 @@ namespace JsonParser {
         if (e["lat"].isNull() || e["lon"].isNull())
             return false;
 
+        // Drop a stale last-known position the receiver is still reporting. Absent seen_pos:
+        // keep it (minimal feeds omit the field; don't assume stale).
+        if (!e["seen_pos"].isNull() && e["seen_pos"].as<float>() > MAX_SEEN_POS_S)
+            return false;
+
         a.latitude = e["lat"].as<float>();
         a.longitude = e["lon"].as<float>();
 
@@ -88,16 +99,21 @@ namespace JsonParser {
 
         a.callsign = e["flight"].isNull() ? "" : e["flight"].as<String>(); // trailing pad trimmed downstream
 
-        // alt_baro is feet, or the literal string "ground" on the surface
+        // Altitude: alt_baro is feet, or the literal string "ground" on the surface. Compute the
+        // geometric altitude first so it can stand in when alt_baro is absent -- an airborne
+        // aircraft that only reports alt_geom then still shows a height instead of 0.
+        a.geoAltitude = e["alt_geom"].isNull() ? 0.0f : e["alt_geom"].as<float>() * FEET_TO_METRES;
         JsonVariantConst altBaro = e["alt_baro"];
         if (altBaro.is<const char*>()) { // "ground"
             a.onGround = true;
             a.baroAltitude = 0.0f;
+        } else if (!altBaro.isNull()) {
+            a.onGround = false;
+            a.baroAltitude = altBaro.as<float>() * FEET_TO_METRES;
         } else {
             a.onGround = false;
-            a.baroAltitude = altBaro.isNull() ? 0.0f : altBaro.as<float>() * FEET_TO_METRES;
+            a.baroAltitude = a.geoAltitude; // no barometric altitude reported -> use geometric
         }
-        a.geoAltitude = e["alt_geom"].isNull() ? 0.0f : e["alt_geom"].as<float>() * FEET_TO_METRES;
 
         a.velocity = e["gs"].isNull() ? 0.0f : e["gs"].as<float>() * KNOTS_TO_MS;
 
