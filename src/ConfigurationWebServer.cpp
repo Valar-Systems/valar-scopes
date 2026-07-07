@@ -73,8 +73,9 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope</title>
         <!-- inline SVG favicon (radar blip) so the tab is easy to spot; no extra flash asset / route needed.
-             Colors use rgb() not #-hex on purpose: a "#" in a data URI must be %-encoded as %23, and any
-             stray "%" collides with this page's %PLACEHOLDER% template engine and shreds the whole form. -->
+             Colors use rgb() not #-hex on purpose: a "#" in a data URI must be percent-encoded, and any
+             stray percent sign collides with this page's PLACEHOLDER template engine and shreds the whole
+             form (write it as &#37; in visible text - and keep it out of comments too, like this one). -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
     </head>
@@ -1273,9 +1274,9 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     </label>
                     <div class="grid grid-cols-1 gap-2 mt-3">
                         <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-sess" type="checkbox" %AL_SESSION% class="accent-orange-400"><span>Session usage reaches</span>
-                            <input name="cl-session-pct" type="number" min="1" max="100" step="1" value='%CL_SESSION_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>%</span></label>
+                            <input name="cl-session-pct" type="number" min="1" max="100" step="1" value='%CL_SESSION_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>&#37;</span></label>
                         <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-week" type="checkbox" %AL_WEEK% class="accent-orange-400"><span>Weekly usage reaches</span>
-                            <input name="cl-week-pct" type="number" min="1" max="100" step="1" value='%CL_WEEK_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>%</span></label>
+                            <input name="cl-week-pct" type="number" min="1" max="100" step="1" value='%CL_WEEK_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>&#37;</span></label>
                     </div>
                     <span class="text-xs text-orange-600 mt-1">Leave the topic blank to disable all push alerts. Thresholds are edge-triggered and seeded at boot, so the state already high when you power on never fires.</span>
                 </fieldset>
