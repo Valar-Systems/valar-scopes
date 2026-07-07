@@ -171,8 +171,16 @@ void SpaceManager::Update()
     if (feed.Tle().valid && hasLatLon) {
         const time_t now = time(nullptr);
         if (now > 1600000000) {
-            const bool stale = !passValid || passTleKey != feed.Tle().line1 ||
-                               now > passSetEpoch || (millis() - lastPassCalcMs > 600000UL);
+            // Recompute on new TLE, when a valid pass ended, on the 10-min timer, or
+            // once at startup. NOT on !passValid alone: nextpass() legitimately finds
+            // nothing (e.g. above ~70 deg latitude the ISS never clears the 10 deg
+            // min peak), and `!passValid` OR'd ahead of the throttle re-ran the full
+            // 20-orbit SGP4 search every frame on the render task -- a permanent
+            // slideshow. A failed search now retries on the 10-min timer, not per tick.
+            const bool stale = (passTleKey != feed.Tle().line1) ||
+                               (passValid && now > passSetEpoch) ||
+                               (millis() - lastPassCalcMs > 600000UL) ||
+                               (!passValid && lastPassCalcMs == 0);
             if (stale) RecomputePass();
         }
     }

@@ -2,8 +2,16 @@
 
 namespace { constexpr long DAY = 86400; }
 
-void FishingLogbook::Begin()
+// Local calendar day index for a UTC epoch (shift by the configured offset before
+// the /DAY boundary). Keeps day rollover on the angler's local midnight, not UTC's.
+uint32_t FishingLogbook::LocalDay(long nowUtc) const
 {
+    return (uint32_t)((nowUtc + tzOffsetSec) / DAY);
+}
+
+void FishingLogbook::Begin(long tzOffsetSec_)
+{
+    tzOffsetSec = tzOffsetSec_;
     prefs.begin("fi-log", false);
     d.total      = prefs.getUInt("total", 0);
     d.biteWindow = prefs.getUInt("bite", 0);
@@ -32,7 +40,7 @@ void FishingLogbook::save()
 void FishingLogbook::RecordCatch(long nowUtc, bool duringWindow)
 {
     if (nowUtc < 1600000000) return;   // ignore an unsynced clock so the streak stays honest
-    const uint32_t day = (uint32_t)(nowUtc / DAY);
+    const uint32_t day = LocalDay(nowUtc);
     if (day != d.lastDay) {
         d.streak = (day == d.lastDay + 1) ? d.streak + 1 : 1;   // consecutive vs reset
         if (d.streak > d.bestStreak) d.bestStreak = d.streak;
@@ -50,12 +58,12 @@ void FishingLogbook::RecordCatch(long nowUtc, bool duringWindow)
 
 uint32_t FishingLogbook::CurrentStreak(long nowUtc) const
 {
-    const uint32_t day = (uint32_t)(nowUtc / DAY);
+    const uint32_t day = LocalDay(nowUtc);
     return (day >= d.lastDay && day - d.lastDay <= 1) ? d.streak : 0;
 }
 
 uint32_t FishingLogbook::TodayCount(long nowUtc) const
 {
-    const uint32_t day = (uint32_t)(nowUtc / DAY);
+    const uint32_t day = LocalDay(nowUtc);
     return (day == d.lastDay) ? d.today : 0;
 }

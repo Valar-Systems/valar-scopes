@@ -164,6 +164,19 @@ void BirdingFeedClient::ApplyResult(const BirdFetchResult& res)
         case birding::BirdEndpoint::Hotspots: hotspots = res.hotspots; break;
     }
 
+    // The Recent feed carries no "notable" field (eBird's recent-obs payload lacks
+    // it), so its sightings parse as notable=false -- which left the radar's gold
+    // notable accent and the detail card's NOTABLE tag as dead code. Cross-mark
+    // Recent entries whose species appears in the Notable feed, whenever either
+    // feed changes, so a rare bird stands out on the radar it's actually drawn on.
+    if (res.endpoint == birding::BirdEndpoint::Notable || res.endpoint == birding::BirdEndpoint::Recent) {
+        for (birding::Sighting& r : recent) {
+            r.notable = false;
+            for (const birding::Sighting& n : notable)
+                if (n.speciesCode == r.speciesCode) { r.notable = true; break; }
+        }
+    }
+
     if (!firstLogged[f]) {
         firstLogged[f] = true;
         switch (res.endpoint) {

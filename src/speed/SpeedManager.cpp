@@ -89,6 +89,7 @@ void SpeedManager::Initialise()
     resolvedIpOrigin = "";
     resolvedName = "";
     lastResolveMs = 0;
+    resolveFailCount = 0;      // re-try mDNS at the fast cadence after a (re)configure
     MaybeResolveOrigin(true);
 
     currentBrightness = configuredBrightness;
@@ -170,17 +171,25 @@ void SpeedManager::MaybeResolveOrigin(bool force)
 
             const unsigned long now = millis();
             const bool resolved = resolvedIpOrigin.length() && resolvedName == name;
+            // MDNS.queryHost blocks the loop task for the full timeout when there is no
+            // answer -- exactly when the camera is off. Back the retry off exponentially
+            // (8 s -> up to ~2 min) after consecutive misses so an absent camera doesn't
+            // freeze rendering/touch for ~1 s out of every 8, and cap the per-query block.
+            const unsigned long retryMs = RESOLVE_RETRY_MS << (resolveFailCount > 4 ? 4 : resolveFailCount);
             bool doQuery = force;
             if (!doQuery) {
-                if (!resolved) doQuery = (now - lastResolveMs > RESOLVE_RETRY_MS);
-                else if (!DeviceOnline()) doQuery = (now - lastResolveMs > RESOLVE_RETRY_MS);
+                if (!resolved) doQuery = (now - lastResolveMs > retryMs);
+                else if (!DeviceOnline()) doQuery = (now - lastResolveMs > retryMs);
             }
             if (doQuery) {
                 lastResolveMs = now;
-                IPAddress ip = MDNS.queryHost(name.c_str(), 1200);
+                IPAddress ip = MDNS.queryHost(name.c_str(), 800); // shorter block than the old 1200 ms
                 if ((uint32_t)ip != 0) {
                     resolvedIpOrigin = String("http://") + ip.toString();
                     resolvedName = name;
+                    resolveFailCount = 0;              // resolved: back to the fast cadence
+                } else if (resolveFailCount < 4) {
+                    resolveFailCount++;                // widen the retry gap (capped)
                 }
             }
             origin = (resolvedName == name) ? resolvedIpOrigin : String();

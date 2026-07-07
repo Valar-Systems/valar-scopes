@@ -88,7 +88,7 @@ void FishingManager::Initialise()
     alertTide = boolCfg("fi-a-tide", false);
     chimeOnAlert = boolCfg("fi-chime", false);
 
-    logbook.Begin();
+    logbook.Begin(tzOffsetSec); // local-day boundary for today/streak/best-day
 
     FishingFeedClient::Config fcfg;
     fcfg.baseUrl = backendBaseUrl;

@@ -233,7 +233,14 @@ void ParseOpenMeteo(JsonObjectConst root, WeatherObs& out, size_t histCap)
         out.timeEpoch   = ParseIso8601(cur["time"]   | "");
     }
 
-    // 24h sea-level pressure history (oldest..newest), bounded by histCap, for the sparkline + rate.
+    // Trailing sea-level pressure history (oldest..newest) for the sparkline + trend.
+    // The Open-Meteo hourly window spans yesterday..today, so it contains FUTURE
+    // (forecast) hours; keep only samples at/before the current-obs time (out.timeEpoch)
+    // so the trend reflects the recent PAST, not a forecast, then retain the last
+    // histCap of those. Without this the "falling glass = bite" glyph and the ~6h-ago
+    // rate were computed from forecast values -- wrong, and worst in the first hours of
+    // each GMT day (prime evening fishing for US users) when the retained slice was
+    // almost entirely forecast.
     JsonObjectConst h = root["hourly"].as<JsonObjectConst>();
     if (!h.isNull()) {
         JsonArrayConst ts = h["time"].as<JsonArrayConst>();
@@ -241,12 +248,16 @@ void ParseOpenMeteo(JsonObjectConst root, WeatherObs& out, size_t histCap)
                                                        : h["pressure_msl"].as<JsonArrayConst>();
         if (!ts.isNull() && !pp.isNull()) {
             const size_t n = ts.size() < pp.size() ? ts.size() : pp.size();
-            const size_t start = (histCap > 0 && n > histCap) ? n - histCap : 0;
-            for (size_t i = start; i < n; ++i) {
+            const long nowE = out.timeEpoch; // current-obs time from the "current" block above
+            for (size_t i = 0; i < n; ++i) {
                 const long e = ParseIso8601(ts[i] | "");
                 const float pv = pp[i] | NAN;
-                if (e > 0 && !isnan(pv) && pv > 0) out.pressHist.push_back({e, pv});
+                if (e > 0 && (nowE <= 0 || e <= nowE) && !isnan(pv) && pv > 0)
+                    out.pressHist.push_back({e, pv});
             }
+            // keep only the last histCap past-samples (drop the oldest overflow)
+            if (histCap > 0 && out.pressHist.size() > histCap)
+                out.pressHist.erase(out.pressHist.begin(), out.pressHist.end() - histCap);
         }
     }
 

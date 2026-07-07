@@ -66,6 +66,7 @@ private:
     String resolvedIpOrigin;               // cached "http://<ip>" from the last good mDNS query
     String resolvedName;                    // the mDNS label resolvedIpOrigin belongs to
     unsigned long lastResolveMs = 0;
+    uint8_t resolveFailCount = 0;           // consecutive mDNS misses; backs off the retry cadence
 
     // ---- navigation / selection ----
     Screen current = Screen::Splash;       // cold-start: greet with the splash / setup prompt
