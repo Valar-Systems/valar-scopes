@@ -91,7 +91,7 @@ void BirdingManager::Initialise()
         const String v = configServer.GetStoredString(k);
         return v.isEmpty() ? def : (v == "true");
     };
-    alertNotable = boolCfg("bd-alert-notable", true);
+    alertNotable = boolCfg("bd-alert-rare", true);
     alertTarget = boolCfg("bd-alert-target", true);
 
     BirdingFeedClient::Config fcfg;

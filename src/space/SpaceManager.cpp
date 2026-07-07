@@ -145,7 +145,7 @@ void SpaceManager::Initialise()
     alertFlare = boolCfg("sp-alert-flare", true);   // M+ solar flare (GOES X-ray feed)
     alertIss = boolCfg("sp-alert-iss", true);       // ISS visible pass overhead (SGP4)
     alertDsn = boolCfg("sp-alert-dsn", false);      // reserved (no DSN feed yet)
-    alertAsteroid = boolCfg("sp-alert-asteroid", true); // asteroid inside ~1 lunar distance
+    alertAsteroid = boolCfg("sp-alert-neo", true); // asteroid inside ~1 lunar distance
     chimeOnAlert = boolCfg("sp-chime", true);           // speaker chirp alongside alerts (HAS_AUDIO)
 
     logbook.Begin(); // persistent tally of caught events + observing streak

@@ -73,7 +73,7 @@ void SeismicManager::Initialise()
     };
     alertBig = boolCfg("se-alert-big", true);
     alertNear = boolCfg("se-alert-near", true);
-    alertTsunami = boolCfg("se-alert-tsunami", true);
+    alertTsunami = boolCfg("se-alert-tsnmi", true);
 
     // Background feed poller (idempotent spawn, then apply config).
     SeismicFeedClient::Config fcfg;

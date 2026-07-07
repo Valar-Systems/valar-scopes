@@ -83,7 +83,7 @@ void ClaudescopeManager::Initialise()
         return v.isEmpty() ? def : v.toFloat();
     };
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
-    alertSession = boolCfg("cl-alert-session", true);
+    alertSession = boolCfg("cl-alert-sess", true);
     alertWeek    = boolCfg("cl-alert-week", true);
     sessionPctThresh = constrain(numCfg("cl-session-pct", 80.0f), 1.0f, 100.0f);
     weekPctThresh    = constrain(numCfg("cl-week-pct", 80.0f), 1.0f, 100.0f);

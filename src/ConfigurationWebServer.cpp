@@ -702,7 +702,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <label class="flex items-center gap-2"><input name="sp-alert-flare" type="checkbox" %AL_FLARE% class="accent-sky-400"><span>Solar flare (M+ class)</span></label>
                         <label class="flex items-center gap-2"><input name="sp-alert-iss" type="checkbox" %AL_ISS% class="accent-sky-400"><span>ISS passing overhead</span></label>
                         <label class="flex items-center gap-2"><input name="sp-alert-dsn" type="checkbox" %AL_DSN% class="accent-sky-400"><span>Deep-space probe contact (DSN)</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-alert-asteroid" type="checkbox" %AL_ASTEROID% class="accent-sky-400"><span>Asteroid inside 1 lunar distance</span></label>
+                        <label class="flex items-center gap-2"><input name="sp-alert-neo" type="checkbox" %AL_ASTEROID% class="accent-sky-400"><span>Asteroid inside 1 lunar distance</span></label>
                         <label class="flex items-center gap-2"><input name="sp-chime" type="checkbox" %AL_CHIME% class="accent-sky-400"><span>Chime on the speaker too</span></label>
                     </div>
                     <span class="text-xs text-sky-600 mt-1">Leave the topic blank to disable push alerts (the speaker chime is independent). ISS / aurora alerts need a location above.</span>
@@ -829,7 +829,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             <input name="se-big-mag" type="number" min="0" max="9" step="0.1" value='%SE_BIG_MAG%' class="border border-amber-400 bg-gray-900 w-16 px-2 sm:py-0"></label>
                         <label class="flex items-center gap-2"><input name="se-alert-near" type="checkbox" %AL_NEAR% class="accent-amber-400"><span>Quake near me, M &ge;</span>
                             <input name="se-near-mag" type="number" min="0" max="9" step="0.1" value='%SE_NEAR_MAG%' class="border border-amber-400 bg-gray-900 w-16 px-2 sm:py-0"></label>
-                        <label class="flex items-center gap-2"><input name="se-alert-tsunami" type="checkbox" %AL_TSUNAMI% class="accent-amber-400"><span>Tsunami-flagged quake</span></label>
+                        <label class="flex items-center gap-2"><input name="se-alert-tsnmi" type="checkbox" %AL_TSUNAMI% class="accent-amber-400"><span>Tsunami-flagged quake</span></label>
                     </div>
                     <span class="text-xs text-amber-600 mt-1">Leave the topic blank to disable all push alerts. The "near me" alert needs a location above.</span>
                 </fieldset>
@@ -963,7 +963,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
                     </label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                        <label class="flex items-center gap-2"><input name="bd-alert-notable" type="checkbox" %AL_NOTABLE% class="accent-green-400"><span>Notable / rare sighting nearby</span></label>
+                        <label class="flex items-center gap-2"><input name="bd-alert-rare" type="checkbox" %AL_NOTABLE% class="accent-green-400"><span>Notable / rare sighting nearby</span></label>
                         <label class="flex items-center gap-2"><input name="bd-alert-target" type="checkbox" %AL_TARGET% class="accent-green-400"><span>Target species appears</span></label>
                     </div>
                     <span class="text-xs text-green-600 mt-1">Leave the topic blank to disable all push alerts.</span>
@@ -1272,7 +1272,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             class="flex-1 border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
                     </label>
                     <div class="grid grid-cols-1 gap-2 mt-3">
-                        <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-session" type="checkbox" %AL_SESSION% class="accent-orange-400"><span>Session usage reaches</span>
+                        <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-sess" type="checkbox" %AL_SESSION% class="accent-orange-400"><span>Session usage reaches</span>
                             <input name="cl-session-pct" type="number" min="1" max="100" step="1" value='%CL_SESSION_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>%</span></label>
                         <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-week" type="checkbox" %AL_WEEK% class="accent-orange-400"><span>Weekly usage reaches</span>
                             <input name="cl-week-pct" type="number" min="1" max="100" step="1" value='%CL_WEEK_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>%</span></label>
@@ -1589,7 +1589,7 @@ void ConfigurationWebServer::Initialise() {
         const String alertFlare = prefs.isKey("sp-alert-flare") ? prefs.getString("sp-alert-flare", "true") : "true";
         const String alertIss = prefs.isKey("sp-alert-iss") ? prefs.getString("sp-alert-iss", "true") : "true";
         const String alertDsn = prefs.isKey("sp-alert-dsn") ? prefs.getString("sp-alert-dsn", "false") : "false";
-        const String alertAsteroid = prefs.isKey("sp-alert-asteroid") ? prefs.getString("sp-alert-asteroid", "true") : "true";
+        const String alertAsteroid = prefs.isKey("sp-alert-neo") ? prefs.getString("sp-alert-neo", "true") : "true";
         const String chimeOnAlert = prefs.isKey("sp-chime") ? prefs.getString("sp-chime", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
@@ -1628,7 +1628,7 @@ void ConfigurationWebServer::Initialise() {
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
         const String alertBig = prefs.isKey("se-alert-big") ? prefs.getString("se-alert-big", "true") : "true";
         const String alertNear = prefs.isKey("se-alert-near") ? prefs.getString("se-alert-near", "true") : "true";
-        const String alertTsunami = prefs.isKey("se-alert-tsunami") ? prefs.getString("se-alert-tsunami", "true") : "true";
+        const String alertTsunami = prefs.isKey("se-alert-tsnmi") ? prefs.getString("se-alert-tsnmi", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
 #elif defined(FEATURE_BIRDING)
@@ -1641,7 +1641,7 @@ void ConfigurationWebServer::Initialise() {
         const String bdBack = prefs.isKey("bd-back-days") ? prefs.getString("bd-back-days", "7") : "7";
         const String bdTargets = prefs.getString("bd-targets", "");
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertNotable = prefs.isKey("bd-alert-notable") ? prefs.getString("bd-alert-notable", "true") : "true";
+        const String alertNotable = prefs.isKey("bd-alert-rare") ? prefs.getString("bd-alert-rare", "true") : "true";
         const String alertTarget = prefs.isKey("bd-alert-target") ? prefs.getString("bd-alert-target", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
@@ -1689,7 +1689,7 @@ void ConfigurationWebServer::Initialise() {
         const String clSessionPct = prefs.isKey("cl-session-pct") ? prefs.getString("cl-session-pct", "80") : "80";
         const String clWeekPct = prefs.isKey("cl-week-pct") ? prefs.getString("cl-week-pct", "80") : "80";
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
-        const String alertSession = prefs.isKey("cl-alert-session") ? prefs.getString("cl-alert-session", "true") : "true";
+        const String alertSession = prefs.isKey("cl-alert-sess") ? prefs.getString("cl-alert-sess", "true") : "true";
         const String alertWeek = prefs.isKey("cl-alert-week") ? prefs.getString("cl-alert-week", "true") : "true";
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
@@ -1985,6 +1985,10 @@ void ConfigurationWebServer::Initialise() {
 
         Preferences prefs;
 
+        // Form field names double as NVS keys, and NVS caps key names at 15 chars
+        // (NVS_KEY_NAME_MAX_SIZE - 1). Longer keys make putString/isKey fail
+        // SILENTLY (the toggle just never sticks), so keep every name <= 15.
+
         // safe parameter retrieval helper lambda
         auto TrySaveParam = [request, &prefs](const char* paramName) {
             const auto* param = request->getParam(paramName, true);
@@ -2112,7 +2116,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("sp-alert-flare", request->hasParam("sp-alert-flare", true) ? "true" : "false");
         prefs.putString("sp-alert-iss", request->hasParam("sp-alert-iss", true) ? "true" : "false");
         prefs.putString("sp-alert-dsn", request->hasParam("sp-alert-dsn", true) ? "true" : "false");
-        prefs.putString("sp-alert-asteroid", request->hasParam("sp-alert-asteroid", true) ? "true" : "false");
+        prefs.putString("sp-alert-neo", request->hasParam("sp-alert-neo", true) ? "true" : "false");
         prefs.putString("sp-chime", request->hasParam("sp-chime", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #elif defined(FEATURE_SEISMIC)
@@ -2130,7 +2134,7 @@ void ConfigurationWebServer::Initialise() {
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
         prefs.putString("se-alert-big", request->hasParam("se-alert-big", true) ? "true" : "false");
         prefs.putString("se-alert-near", request->hasParam("se-alert-near", true) ? "true" : "false");
-        prefs.putString("se-alert-tsunami", request->hasParam("se-alert-tsunami", true) ? "true" : "false");
+        prefs.putString("se-alert-tsnmi", request->hasParam("se-alert-tsnmi", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #elif defined(FEATURE_BIRDING)
         // FEATURE_BIRDING: persist the Birding edition config fields.
@@ -2141,7 +2145,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("bd-targets");
         TrySaveParam("ntfy-topic");
         TrySaveParam("brightness");
-        prefs.putString("bd-alert-notable", request->hasParam("bd-alert-notable", true) ? "true" : "false");
+        prefs.putString("bd-alert-rare", request->hasParam("bd-alert-rare", true) ? "true" : "false");
         prefs.putString("bd-alert-target", request->hasParam("bd-alert-target", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 
@@ -2198,7 +2202,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("brightness");
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("cl-alert-session", request->hasParam("cl-alert-session", true) ? "true" : "false");
+        prefs.putString("cl-alert-sess", request->hasParam("cl-alert-sess", true) ? "true" : "false");
         prefs.putString("cl-alert-week", request->hasParam("cl-alert-week", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #elif defined(FEATURE_SPEED)
