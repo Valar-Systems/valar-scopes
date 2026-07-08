@@ -1,0 +1,5 @@
+# Copy to .dev.vars for `wrangler dev` (never commit .dev.vars).
+# Comma-separated accepted device keys; rotation = list old+new during a rollout.
+BLIP_KEYS=dev-key
+# Optional: adsb.lol API key (feeder program), once issued.
+# ADSB_LOL_API_KEY=
