@@ -29,98 +29,99 @@ are versioned and released **together** from a single commit, and each device se
 
 ## Adding a new SKU to releases
 
-A SKU's slug must be identical in **three** places (keep them in sync):
+A new SKU needs three entries that stay in sync:
 
 1. `variant::SLUG` in its `include/variants/<sku>.h`
-2. its `[env:*]` in `platformio.ini`
-3. its `{ env, slug }` row in the `matrix.include` of `.github/workflows/firmware.yml`
+2. an `[env:*]` in `platformio.ini`, named `<product>-<board>` (e.g. `blipscope-s3-146`, `quakescope-s3-146`)
+3. its `{ env, slug }` row in the `matrix.include` of `.github/workflows/firmware.yml` — `slug`
+   MUST equal `FW_OTA_PREFIX` + `variant::SLUG` (it names the OTA asset devices download)
 
 Add all three, and the next release automatically builds and publishes that SKU's binary.
 
-## EAM builds — a separate OTA channel
+## Missileer builds — a separate OTA channel
 
-The `blipscope-eam-*` envs build a different **product** (the EAM monitor, `-DFEATURE_EAM`; see
-[CLAUDE.md](CLAUDE.md)) from the same boards. So an EAM device never pulls a radar image for its
-board, the EAM envs set `-DFW_OTA_PREFIX="eam-"`, and their CI slug is prefixed to match:
+The `missileer-*` envs build a different **product** (Missileer, the EAM monitor, `-DFEATURE_EAM`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. So a Missileer device never pulls a radar image for its
+board, the Missileer envs set `-DFW_OTA_PREFIX="eam-"`, and their CI slug is prefixed to match:
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-eam-s3-146` | `eam-s3-146` → `firmware-eam-s3-146.bin` |
+| `missileer-s3-146` | `eam-s3-146` → `firmware-eam-s3-146.bin` |
 
-These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar and EAM together),
+These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar and Missileer together),
 and a device only ever downloads its own `<prefix><slug>` binary. Releasing is otherwise identical
 — the matrix rows are already in [.github/workflows/firmware.yml](.github/workflows/firmware.yml).
 
-## Spacescope builds — another separate OTA channel
+## Orbitscope builds — another separate OTA channel
 
-The `blipscope-space-*` envs build a third **product** (Spacescope, `-DFEATURE_SPACE`; see
-[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as EAM: `-DFW_OTA_PREFIX="space-"`,
-and a CI slug prefixed to match so a Spacescope device never pulls a radar or EAM image:
-
-| env | slug (CI + OTA asset) |
-| --- | --- |
-| `blipscope-space-s3-146` | `space-s3-146` → `firmware-space-s3-146.bin` |
-
-Same `version.txt` gate (one `FW_VERSION` bump releases radar, EAM, and Spacescope together).
-
-## Seismic builds — another separate OTA channel
-
-The `blipscope-seismic-*` envs build a fourth **product** (the Seismic edition, `-DFEATURE_SEISMIC`; see
-[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as EAM/Space: `-DFW_OTA_PREFIX="seismic-"`,
-and a CI slug prefixed to match so a Seismic device never pulls a radar, EAM, or Space image:
+The `orbitscope-*` envs build a third **product** (Orbitscope, the Space edition, `-DFEATURE_SPACE`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as Missileer: `-DFW_OTA_PREFIX="space-"`,
+and a CI slug prefixed to match so an Orbitscope device never pulls a radar or Missileer image:
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-seismic-s3-146` | `seismic-s3-146` → `firmware-seismic-s3-146.bin` |
+| `orbitscope-s3-146` | `space-s3-146` → `firmware-space-s3-146.bin` |
 
-Same `version.txt` gate (one `FW_VERSION` bump releases radar, EAM, Spacescope, and Seismic together).
+Same `version.txt` gate (one `FW_VERSION` bump releases radar, Missileer, and Orbitscope together).
 
-## Birding builds — another separate OTA channel
+## Quakescope builds — another separate OTA channel
 
-The `blipscope-birding-*` envs build a fifth **product** (the Birding edition, `-DFEATURE_BIRDING`; see
-[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as EAM/Space/Seismic: `-DFW_OTA_PREFIX="birding-"`,
-and a CI slug prefixed to match so a Birding device never pulls another edition's image:
+The `quakescope-*` envs build a fourth **product** (Quakescope, the Seismic edition, `-DFEATURE_SEISMIC`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as Missileer/Orbitscope: `-DFW_OTA_PREFIX="seismic-"`,
+and a CI slug prefixed to match so a Quakescope device never pulls a radar, Missileer, or Orbitscope image:
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-birding-s3-146` | `birding-s3-146` → `firmware-birding-s3-146.bin` |
+| `quakescope-s3-146` | `seismic-s3-146` → `firmware-seismic-s3-146.bin` |
+
+Same `version.txt` gate (one `FW_VERSION` bump releases radar, Missileer, Orbitscope, and Quakescope together).
+
+## Quillscope builds — another separate OTA channel
+
+The `quillscope-*` envs build a fifth **product** (Quillscope, the Birding edition, `-DFEATURE_BIRDING`; see
+[CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as the others: `-DFW_OTA_PREFIX="birding-"`,
+and a CI slug prefixed to match so a Quillscope device never pulls another edition's image:
+
+| env | slug (CI + OTA asset) |
+| --- | --- |
+| `quillscope-s3-146` | `birding-s3-146` → `firmware-birding-s3-146.bin` |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
 ## Reelscope builds — another separate OTA channel
 
-The `blipscope-fishing-*` envs build a sixth **product** (the Reelscope / Fishing edition, `-DFEATURE_FISHING`; see
+The `reelscope-*` envs build a sixth **product** (Reelscope, the Fishing edition, `-DFEATURE_FISHING`; see
 [CLAUDE.md](CLAUDE.md)) from the same boards. Same arrangement as the others: `-DFW_OTA_PREFIX="fishing-"`,
 and a CI slug prefixed to match so a Reelscope device never pulls another edition's image:
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-fishing-s3-146` | `fishing-s3-146` → `firmware-fishing-s3-146.bin` |
+| `reelscope-s3-146` | `fishing-s3-146` → `firmware-fishing-s3-146.bin` |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
 ## Claudescope builds — another separate OTA channel
 
-The `blipscope-claudescope-*` envs build a seventh **product** (the Claudescope edition, `-DFEATURE_CLAUDESCOPE`; see
+The `claudescope-*` envs build a seventh **product** (the Claudescope edition, `-DFEATURE_CLAUDESCOPE`; see
 [CLAUDE.md](CLAUDE.md)) from the same boards — a live Claude usage-limit gauge. Same arrangement: `-DFW_OTA_PREFIX="claudescope-"`,
 and a CI slug prefixed to match so a Claudescope device never pulls another edition's image:
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-claudescope-s3-146` | `claudescope-s3-146` → `firmware-claudescope-s3-146.bin` |
+| `claudescope-s3-146` | `claudescope-s3-146` → `firmware-claudescope-s3-146.bin` |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
 ## Speedscope builds — another separate OTA channel
 
-The `blipscope-speed-*` envs build an eighth **product** (the Speedscope edition, `-DFEATURE_SPEED`; see
+The `speedscope-*` envs build an eighth **product** (the Speedscope edition, `-DFEATURE_SPEED`; see
 [CLAUDE.md](CLAUDE.md)) from the same boards — a desk speed-radar that ties into a MiniSpeedCam
 (minispeedcam.com) over the LAN. Same arrangement as the others: `-DFW_OTA_PREFIX="speed-"`, and a CI
 slug prefixed to match so a Speedscope device never pulls another edition's image:
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `blipscope-speed-s3-146` | `speed-s3-146` → `firmware-speed-s3-146.bin` |
+| `speedscope-s3-146` | `speed-s3-146` → `firmware-speed-s3-146.bin` |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
