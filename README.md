@@ -191,27 +191,27 @@ If the board doesn't reboot into the new firmware automatically, hold the **BOOT
 Each Edition is a separate compile-time build from this one repo, one PlatformIO env each (see [platformio.ini](platformio.ini)). Pick the env for the edition and board you want:
 
 ```sh
-pio run -e blipscope-s3-146           -t upload   # 📡 Blipscope   — Aviation, S3 1.46" AMOLED (default)
-pio run -e blipscope-pro-s3-21        -t upload   # 📡 Blipscope   — Aviation, S3 2.1" RGB panel
-pio run -e blipscope-eam-s3-146       -t upload   # 📟 Missileer   — EAM/HFGCS monitor, S3 1.46" AMOLED
-pio run -e blipscope-space-s3-146     -t upload   # 🛰️ Orbitscope  — Space, S3 1.46" AMOLED
-pio run -e blipscope-seismic-s3-146   -t upload   # 🌐 Quakescope  — USGS quake radar, S3 1.46" AMOLED
-pio run -e blipscope-birding-s3-146   -t upload   # 🐦 Quillscope  — eBird sightings, S3 1.46" AMOLED
-pio run -e blipscope-fishing-s3-146   -t upload   # 🎣 Reelscope   — Fishing (fresh + salt conditions), S3 1.46" AMOLED
-pio run -e blipscope-claudescope-s3-146 -t upload # 🤖 Claudescope — Claude usage gauge, S3 1.46" AMOLED
-pio run -e blipscope-speed-s3-146     -t upload   # 🚗 Speedscope  — MiniSpeedCam speed radar, S3 1.46" AMOLED
+pio run -e blipscope-s3-146    -t upload   # 📡 Blipscope   — Aviation, S3 1.46" AMOLED (default)
+pio run -e blipscope-pro-s3-21 -t upload   # 📡 Blipscope   — Aviation, S3 2.1" RGB panel
+pio run -e missileer-s3-146    -t upload   # 📟 Missileer   — EAM/HFGCS monitor, S3 1.46" AMOLED
+pio run -e orbitscope-s3-146   -t upload   # 🛰️ Orbitscope  — Space, S3 1.46" AMOLED
+pio run -e quakescope-s3-146   -t upload   # 🌐 Quakescope  — USGS quake radar, S3 1.46" AMOLED
+pio run -e quillscope-s3-146   -t upload   # 🐦 Quillscope  — eBird sightings, S3 1.46" AMOLED
+pio run -e reelscope-s3-146    -t upload   # 🎣 Reelscope   — Fishing (fresh + salt conditions), S3 1.46" AMOLED
+pio run -e claudescope-s3-146  -t upload   # 🤖 Claudescope — Claude usage gauge, S3 1.46" AMOLED
+pio run -e speedscope-s3-146   -t upload   # 🚗 Speedscope  — MiniSpeedCam speed radar, S3 1.46" AMOLED
 ```
 
-The product name, its build flag, and its env line up one-to-one (the env/flag names are unchanged from the pre-naming line-up):
+Each env is named for its product; the `FEATURE_*` build flags (and the OTA channels they drive) keep their original names:
 
 - **Blipscope** = *(default, no feature flag)* = `blipscope-s3-146` / `blipscope-pro-s3-21`
-- **Missileer** = `FEATURE_EAM` = `blipscope-eam-s3-146`
-- **Orbitscope** = `FEATURE_SPACE` = `blipscope-space-s3-146`
-- **Quakescope** = `FEATURE_SEISMIC` = `blipscope-seismic-s3-146`
-- **Quillscope** = `FEATURE_BIRDING` = `blipscope-birding-s3-146`
-- **Reelscope** = `FEATURE_FISHING` = `blipscope-fishing-s3-146`
-- **Claudescope** = `FEATURE_CLAUDESCOPE` = `blipscope-claudescope-s3-146`
-- **Speedscope** = `FEATURE_SPEED` = `blipscope-speed-s3-146`
+- **Missileer** = `FEATURE_EAM` = `missileer-s3-146`
+- **Orbitscope** = `FEATURE_SPACE` = `orbitscope-s3-146`
+- **Quakescope** = `FEATURE_SEISMIC` = `quakescope-s3-146`
+- **Quillscope** = `FEATURE_BIRDING` = `quillscope-s3-146`
+- **Reelscope** = `FEATURE_FISHING` = `reelscope-s3-146`
+- **Claudescope** = `FEATURE_CLAUDESCOPE` = `claudescope-s3-146`
+- **Speedscope** = `FEATURE_SPEED` = `speedscope-s3-146`
 
 Each non-default edition reuses the same boards, Wi-Fi setup, web config, and OTA, but compiles a different app and ships on its own OTA channel (`firmware-<edition>-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
 
