@@ -16,6 +16,9 @@
 #ifdef BISECT_TEST
 #include "BisectHarness.h" // synthetic gesture-storm source (bisection builds only)
 #endif
+#ifdef SOAK_TEST
+#include "SoakHarness.h" // sparse human-scale gesture script (soak builds only)
+#endif
 
 // adsbdb thumbnails (airport-data.com) are a standard 150x100
 constexpr int PHOTO_W = 150;
@@ -645,6 +648,20 @@ void AircraftManager::Update()
     // solar day/night backlight dimming (self-throttled)
     UpdateBrightness();
 
+    // Touch-wedge last rung: the supervisor's re-init ladder has been failing for
+    // over 90 s. Reboot -- historically the one recovery a stuck chip always
+    // responded to -- but silently: only once the user has been away a while, so
+    // the ~10 s boot never interrupts someone actually watching the scope.
+    if constexpr (variant::TOUCH_WATCHDOG) {
+        constexpr unsigned long REBOOT_IDLE_MS = 10UL * 60UL * 1000UL;
+        if (TouchWatchdog::RebootRecommended() && now - lastTouchActivityMs >= REBOOT_IDLE_MS) {
+            Serial.println("[touch-wd] wedged past the outage bound and idle: rebooting to recover the controller");
+            Serial.flush();
+            delay(100);
+            ESP.restart();
+        }
+    }
+
     // Optional on-board peripherals (compiled out on SKUs without them). Both run before the
     // inDetail early-return below so the buzzer still finishes its beep and the tilt readout
     // keeps updating while a card is open.
@@ -834,19 +851,25 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // >= 20 KB largest free block steady-state. Loud when broken, per plan.
     constexpr float FRAME_P95_BUDGET_MS = 50.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
-    if (p95Ms > FRAME_P95_BUDGET_MS)
+    if (p95Ms > FRAME_P95_BUDGET_MS) {
+        budgetBreaches++;
         Serial.printf("[health] BUDGET BROKEN: frame p95 %.1fms > %.0fms\n", p95Ms, FRAME_P95_BUDGET_MS);
-    if (largest < LARGEST_BLOCK_BUDGET)
+    }
+    if (largest < LARGEST_BLOCK_BUDGET) {
+        budgetBreaches++;
         Serial.printf("[health] BUDGET BROKEN: largest block %u < %u\n",
                       (unsigned)largest, (unsigned)LARGEST_BLOCK_BUDGET);
+    }
 
     // Touch supervisor counters (the C3): "wedges=0" is the soak's headline number.
     if constexpr (variant::TOUCH_WATCHDOG) {
         const auto& wd = TouchWatchdog::GetStats();
-        Serial.printf("[health] touch-wd wedges=%lu recovered=%lu/%lu wakes=%lu probes=%lu ok/%lu fail\n",
+        Serial.printf("[health] touch-wd wedges=%lu recovered=%lu/%lu (soft=%lu hard=%lu) wakes=%lu probes=%lu/%lu maxOutage=%lums rebootRec=%lu\n",
                       (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
-                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.benchWakes,
-                      (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed);
+                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.softRecoveries,
+                      (unsigned long)wd.hardRecoveries, (unsigned long)wd.wakes,
+                      (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed,
+                      (unsigned long)wd.maxOutageMs, (unsigned long)wd.rebootsRecommended);
     }
 }
 
@@ -1939,6 +1962,15 @@ void AircraftManager::HandleTouch()
     bool sTouched; int sx, sy;
     BisectHarness::NextTouchSample(sTouched, sx, sy);
     ProcessTouchSample(sTouched, sx, sy);
+#elif defined(SOAK_TEST)
+    // Realistic-duty soak: the sparse gesture script drives classification only
+    // while one of its gestures is in flight; between bursts real touches pass
+    // through unchanged (so a human poke at the bench still behaves normally).
+    bool sTouched; int sx, sy;
+    if (SoakHarness::NextTouchSample(sTouched, sx, sy))
+        ProcessTouchSample(sTouched, sx, sy);
+    else
+        ProcessTouchSample(touched, tx, ty);
 #else
     ProcessTouchSample(touched, tx, ty);
 #endif

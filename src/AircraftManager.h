@@ -228,6 +228,7 @@ private:
     uint16_t frameSampleBuf[FRAME_SAMPLES] = {0}; // 0.1 ms units
     size_t frameSampleCount = 0;                  // ring write index (wraps)
     unsigned long lastHealthReportMs = 0;
+    uint32_t budgetBreaches = 0;                  // BUDGET BROKEN lines emitted (soak gate: must stay 0)
 
     // backlight + clock
     uint8_t configuredBrightness = 255; // day/base level from the slider
@@ -377,6 +378,7 @@ public:
     // logs avg/p95 frame time + free heap/largest block and warns loudly when
     // the budgets (p95 <= 50 ms with sweep, largest block >= 20 KB) are broken.
     void RecordFrameUs(uint32_t frameUs);
+    uint32_t BudgetBreachCount() const { return budgetBreaches; } // soak-gate criterion
 
 #ifdef FEATURE_CLOUD_FEED
     // True once after /v1/config reported minFw newer than this build; main.cpp

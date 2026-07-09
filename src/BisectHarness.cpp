@@ -19,7 +19,7 @@
 #define BISECT_INJECT_MS 2000 // merge cadence; harsher than the C3 cloud active poll (5 s)
 #endif
 #ifndef BISECT_PROBE_INTERVAL_MS
-#define BISECT_PROBE_INTERVAL_MS 30000 // unattended CST816 health check (wake reset + chip-id probe)
+#define BISECT_PROBE_INTERVAL_MS 10000 // unattended CST816 health check (run1 tuned 30 s -> 10 s)
 #endif
 #ifndef BISECT_WINDOW_MS
 #define BISECT_WINDOW_MS (2UL * 60UL * 60UL * 1000UL) // the >= 2 h verdict window
@@ -237,7 +237,7 @@ void BisectHarness::Setup(AircraftManager& mgr)
     phaseEndMs = startMs + 2000; // let the first picture land before the storm starts
 
     mgr.BisectApplyTestConfig();
-    TouchWatchdog::EnableBenchProbe(BISECT_PROBE_INTERVAL_MS);
+    TouchWatchdog::SetProbeIntervalMs(BISECT_PROBE_INTERVAL_MS);
     SeedFleet();
 
     Serial.println("[bisect] ==================================================");
@@ -276,7 +276,7 @@ void BisectHarness::Tick(AircraftManager& mgr)
                       up / 3600, (up / 60) % 60, up % 60,
                       gestures, taps, swipes, cardOpens, injects, injectDrops,
                       (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
-                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.benchWakes,
+                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.wakes,
                       (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed);
     }
 
@@ -290,7 +290,7 @@ void BisectHarness::Tick(AircraftManager& mgr)
                       pass ? "PASS -- no wedge with networking off" : "FAIL -- wedge(s) with networking off");
         Serial.printf("[bisect] wedges=%lu recoveries=%lu/%lu wakes=%lu probes=%lu/%lu gestures=%lu cards=%lu\n",
                       (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
-                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.benchWakes,
+                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.wakes,
                       (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed,
                       gestures, cardOpens);
         Serial.println(pass

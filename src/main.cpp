@@ -43,6 +43,9 @@
 #ifdef BISECT_TEST
 #include "BisectHarness.h" // networking-off wedge-bisection harness (C3 revival program)
 #endif
+#ifdef SOAK_TEST
+#include "SoakHarness.h" // realistic-duty 24 h launch-gate soak (C3 revival program)
+#endif
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
@@ -247,6 +250,11 @@ void setup()
   // Deterministic test config + synthetic fleet + the watchdog's bench probe.
   BisectHarness::Setup(appManager);
 #endif
+#ifdef SOAK_TEST
+  // Arm the human-scale gesture script; the normal bring-up above (WiFi, NTP,
+  // config server, real cloud fetching) is exactly what the soak exercises.
+  SoakHarness::Setup(appManager);
+#endif
 }
 
 void loop()
@@ -283,6 +291,10 @@ void loop()
 #ifdef BISECT_TEST
   // fleet re-injection + storm scheduling + the 30 s stats / 2 h verdict cadence
   BisectHarness::Tick(appManager);
+#endif
+#ifdef SOAK_TEST
+  // burst scheduling + the 60 s stats line + the 24 h gate verdict
+  SoakHarness::Tick(appManager);
 #endif
 
   appManager.Update();
