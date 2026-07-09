@@ -84,6 +84,19 @@ namespace {
     }
 #endif // CST816_DISABLE_AUTOSLEEP
 
+#ifdef TOUCHWD_PROPHYLACTIC
+    // Wedge-program step 2 (2026-07-10): preventive controller re-init every 10 min
+    // at idle. If the wedge hazard is state accumulation inside the CST816, a standing
+    // reset collapses incidence; if it's memoryless (run1's cv=0.83 says so), it won't
+    // move. Either result is diagnostic. Step 1 (disable auto-sleep) was DOA: this
+    // CST816T revision NACKs register 0xFE on read AND write, awake or 450 ms
+    // post-reset, so auto-sleep cannot be turned off in software.
+    constexpr unsigned long PROPHYLACTIC_EVERY_MS = 10UL * 60UL * 1000UL;
+    constexpr unsigned long PROPHYLACTIC_IDLE_MS  = 60000; // defer around live fingers
+    unsigned long lastProphylacticMs = 0;
+    unsigned long prophylacticResets = 0;
+#endif // TOUCHWD_PROPHYLACTIC
+
     // One-byte chip-id read (0xA7; the C3 kit's CST816T answers 0xB6). ACK/NACK is
     // the whole signal. Same lgfx::i2c owner as the touch driver, per convention.
     bool Probe()
@@ -265,6 +278,19 @@ void TouchWatchdog::OnPoll(LGFX& tft, bool sawTouch, bool mayProbe)
                 nextActionMs = now + BOOT_WAIT_MS;
             }
         }
+#ifdef TOUCHWD_PROPHYLACTIC
+        else if (mayProbe && now - lastProphylacticMs >= PROPHYLACTIC_EVERY_MS
+                 && (lastSawMs == 0 || now - lastSawMs >= PROPHYLACTIC_IDLE_MS)) {
+            // Preventive reset, judged exactly like a wake: an ACK 450 ms later is a
+            // clean cycle (counted under wakes), a no-show is a real wedge caught early.
+            lastProphylacticMs = now;
+            prophylacticResets++;
+            Serial.printf("[touch-wd] prophylactic re-init #%lu (idle)\n", prophylacticResets);
+            DriverInit(tft);
+            state = State::WakeBoot;
+            nextActionMs = now + BOOT_WAIT_MS;
+        }
+#endif
         break;
 
     case State::Suspect:
