@@ -22,19 +22,24 @@
 #define BLIPSCOPE_PANEL_GC9A01 1
 #define BLIPSCOPE_TOUCH_CST816 1
 
-// ---- display SPI bus (GC9A01) -- UNVERIFIED, Waveshare-family guess ----
-#define BLIPSCOPE_DISP_SPI_HOST   SPI2_HOST
-#define BLIPSCOPE_DISP_FREQ_WRITE 40000000   // S3 drives this panel at 40 MHz on the known boards
-#define BLIPSCOPE_DISP_PIN_MOSI   11
-#define BLIPSCOPE_DISP_PIN_SCLK   10
-#define BLIPSCOPE_DISP_PIN_DC     8
-#define BLIPSCOPE_DISP_PIN_CS     9
-#define BLIPSCOPE_DISP_PIN_RST    14
+// ---- display SPI bus (GC9A01) -- pins read from the LIVE stock demo via JTAG ----
+// SCLK/MOSI from the GPIO matrix (SPI3_CLK/SPI3_D routed there), RST by targeted
+// low-pulse kill test, BL by matrix re-route blink test (LEDC-driven in the demo).
+// DC/CS: the demo's plain-GPIO output set left {2,18} for these two roles (GPIO0 is
+// the strap pin -> touch reset, GPIO40 clusters with the TF pins -> TF_CS); DC=18/CS=2
+// CONFIRMED 2026-07-09 by firmware trial (splash + setup portal render correctly).
+#define BLIPSCOPE_DISP_SPI_HOST   SPI3_HOST   // the demo used SPI3 for the panel (FSPI is the TF card)
+#define BLIPSCOPE_DISP_FREQ_WRITE 40000000
+#define BLIPSCOPE_DISP_PIN_MOSI   10
+#define BLIPSCOPE_DISP_PIN_SCLK   3
+#define BLIPSCOPE_DISP_PIN_DC     18
+#define BLIPSCOPE_DISP_PIN_CS     2
+#define BLIPSCOPE_DISP_PIN_RST    21
 #define BLIPSCOPE_DISP_PIN_BUSY   (-1)
 #define BLIPSCOPE_DISP_INVERT     true
 
-// ---- backlight (PWM) -- UNVERIFIED ----
-#define BLIPSCOPE_BL_PIN    2
+// ---- backlight (PWM, verified by the GPIO42 matrix-blink test) ----
+#define BLIPSCOPE_BL_PIN    42
 #define BLIPSCOPE_BL_INVERT false
 #define BLIPSCOPE_BL_FREQ   40000
 
@@ -43,7 +48,9 @@
 #define BLIPSCOPE_TOUCH_PIN_SDA  8
 #define BLIPSCOPE_TOUCH_PIN_SCL  9
 #define BLIPSCOPE_TOUCH_PIN_INT  (-1)  // not yet identified (probe phase 2); driver polls
-#define BLIPSCOPE_TOUCH_PIN_RST  (-1)  // not yet identified; watchdog hard rung inert until found
+#define BLIPSCOPE_TOUCH_PIN_RST  0     // TENTATIVE (elimination: the strap pin fits the reset
+                                       // role; confirm via probe phase 2 low-pulse before
+                                       // trusting the watchdog's hard rung on this board)
 #define BLIPSCOPE_TOUCH_I2C_ADDR 0x15
 #define BLIPSCOPE_TOUCH_FREQ     400000
 
