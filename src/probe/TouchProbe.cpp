@@ -123,6 +123,61 @@ namespace {
 
 } // namespace
 
+#ifdef PROBE_SWEEP
+// ---- pin-pair sweep mode (-DPROBE_SWEEP): find the touch bus empirically ----
+// The fixed-map census came back empty on this board, so sweep every plausible
+// SDA/SCL ordered pair for an ACK at the CST816 address. All candidate pins are
+// weak-pulled high first (releases a passively-held TP_RST without ever driving
+// push-pull against an unknown net). The CST816 auto-sleeps within seconds, so
+// THE PANEL MUST BE TOUCHED CONTINUOUSLY while the sweep runs -- a finger keeps
+// the chip awake. Excluded pins: 19/20 (USB D-/D+ -- we are talking over them),
+// 26-37 (flash + octal PSRAM on the N16R8), 43/44 (UART0), 0/3/45/46 (straps).
+namespace {
+    constexpr int SWEEP_PINS[] = { 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                   16, 17, 18, 21, 38, 39, 40, 41, 42, 47, 48 };
+    constexpr size_t SWEEP_N = sizeof(SWEEP_PINS) / sizeof(SWEEP_PINS[0]);
+
+    // Candidate CTP addresses across families the "note the version" drift could
+    // reach: CST816/CST826 0x15, FT3168/FT6x36 0x38, GT911 0x5D/0x14, CST328 0x1A.
+    constexpr uint8_t CTP_ADDRS[] = { 0x15, 0x38, 0x5D, 0x14, 0x1A };
+
+    int PairHasCtp(int sda, int scl) // returns the ACKing address, or -1
+    {
+        if (!lgfx::i2c::init(PORT, sda, scl).has_value())
+            return -1;
+        int hit = -1;
+        for (uint8_t addr : CTP_ADDRS) {
+            uint8_t dummy = 0;
+            if (lgfx::i2c::transactionWrite(PORT, addr, &dummy, 0, SCAN_FREQ).has_value()) {
+                hit = addr;
+                break;
+            }
+        }
+        lgfx::i2c::release(PORT);
+        return hit;
+    }
+
+    void SweepRound(unsigned round)
+    {
+        for (size_t i = 0; i < SWEEP_N; ++i) {
+            for (size_t j = 0; j < SWEEP_N; ++j) {
+                if (i == j) continue;
+                const int sda = SWEEP_PINS[i], scl = SWEEP_PINS[j];
+                const int addr = PairHasCtp(sda, scl);
+                if (addr < 0)
+                    continue;
+                Serial.printf("[probe] *** HIT: 0x%02X ACKs on SDA=%d SCL=%d ***\n", addr, sda, scl);
+                lgfx::i2c::init(PORT, sda, scl);
+                Serial.println("[probe] full census + identity + 0xFE on the discovered bus:");
+                Census("sweep-hit");
+                lgfx::i2c::release(PORT);
+            }
+        }
+        Serial.printf("[probe] sweep round %u done (%u ordered pairs)\n", round, (unsigned)(SWEEP_N * (SWEEP_N - 1)));
+    }
+}
+#endif // PROBE_SWEEP
+
 void setup()
 {
     Serial.begin(115200);
@@ -135,6 +190,16 @@ void setup()
                   PROBE_TP_SDA, PROBE_TP_SCL, PROBE_TP_RST, PROBE_TP_INT, PROBE_TP_ADDR);
     Serial.println("[probe] touch the panel at any time: INT triggers the during-touch 0xFE window");
     Serial.println("[probe] ==================================================");
+
+#ifdef PROBE_SWEEP
+    // Weak-high every candidate first: releases a passively pulled-down TP_RST
+    // (weak pulls can't fight any real driver, so this is safe on unknown nets).
+    for (size_t i = 0; i < SWEEP_N; ++i)
+        pinMode(SWEEP_PINS[i], INPUT_PULLUP);
+    Serial.println("[probe] SWEEP MODE: keep a finger dragging on the panel continuously!");
+    delay(1500); // let the chip boot out of any released reset
+    return;
+#endif
 
     if (!lgfx::i2c::init(PORT, PROBE_TP_SDA, PROBE_TP_SCL).has_value()) {
         Serial.println("[probe] i2c init FAILED -- wrong pins? override and reflash");
@@ -151,6 +216,13 @@ void setup()
 
 void loop()
 {
+#ifdef PROBE_SWEEP
+    static unsigned round = 0;
+    SweepRound(++round);
+    delay(500);
+    return;
+#endif
+
     const unsigned long now = millis();
 
     // Scheduled post-reset windows (450 ms boot wait ... past auto-sleep onset).

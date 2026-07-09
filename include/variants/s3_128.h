@@ -7,11 +7,16 @@
 // none of which this scaffold integrates yet; the board exists first to A/B the CST816
 // wedge against the C3 under the same watchdog ledger).
 //
-// !!! PIN MAP UNVERIFIED (2026-07-11) !!!
-// Values below are the Waveshare ESP32-S3-Touch-LCD-1.28 family map as a starting guess;
-// the jxl clone may differ. Verify against the vendor doc / the probe-s3-128 sketch
-// (src/probe/TouchProbe.cpp) BEFORE flashing the firmware envs. The probe verifies the
-// touch I2C half; the display half needs the vendor schematic.
+// PIN MAP STATUS (2026-07-09 incoming inspection, probe-s3-128 sweep on the actual unit):
+//   TOUCH BUS VERIFIED: SDA=8 SCL=9, sole device 0x15 (RTC/IMU pads unpopulated on this
+//   unit -- base SKU per the listing). Chip-id 0xA7=0xB6 (same family id as the C3 kit),
+//   fw-ver 0xA9=0x02, proj-id 0xA8=0x02. CRITICALLY: 0xFE (DisAutoSleep) reads 1 FROM THE
+//   FACTORY and is read/writable -- auto-sleep is already off (the C3's 0xFE-unreachable
+//   DOA was revision-specific). TP_INT / TP_RST not yet identified (probe phase 2: watch
+//   candidate pins for edges during touch / targeted low-pulse tests); -1 until then, so
+//   the watchdog's hard rung is inert on this board for now.
+//   DISPLAY STILL UNVERIFIED: GC9A01 SPI pins below remain Waveshare-family guesses;
+//   sources: supplier schematic (requested) or a GPIO-matrix dump of the stock demo.
 
 // ---- driver selection (consumed by LGFX.h) ----
 #define BLIPSCOPE_PANEL_GC9A01 1
@@ -33,12 +38,12 @@
 #define BLIPSCOPE_BL_INVERT false
 #define BLIPSCOPE_BL_FREQ   40000
 
-// ---- capacitive touch (CST816 family; RTC/IMU likely share this bus) -- UNVERIFIED ----
+// ---- capacitive touch (CST816T, VERIFIED by the pin sweep on this unit) ----
 #define BLIPSCOPE_TOUCH_I2C_PORT 0
-#define BLIPSCOPE_TOUCH_PIN_SDA  6
-#define BLIPSCOPE_TOUCH_PIN_SCL  7
-#define BLIPSCOPE_TOUCH_PIN_INT  5
-#define BLIPSCOPE_TOUCH_PIN_RST  13
+#define BLIPSCOPE_TOUCH_PIN_SDA  8
+#define BLIPSCOPE_TOUCH_PIN_SCL  9
+#define BLIPSCOPE_TOUCH_PIN_INT  (-1)  // not yet identified (probe phase 2); driver polls
+#define BLIPSCOPE_TOUCH_PIN_RST  (-1)  // not yet identified; watchdog hard rung inert until found
 #define BLIPSCOPE_TOUCH_I2C_ADDR 0x15
 #define BLIPSCOPE_TOUCH_FREQ     400000
 
