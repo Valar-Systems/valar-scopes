@@ -39,6 +39,22 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 // Also the threshold for the [fetch] low-heap warning. Raising it starves enrichment off.
 constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 16000;
 
+#include <esp_heap_caps.h>
+
+namespace {
+    // Outcome-based soak criteria (2026-07-10): count what actually fails instead of
+    // policing a fixed heap floor (7.7 KB largest is the measured operating level at
+    // 25 aircraft, and feed TLS re-handshakes demonstrably succeed there).
+    uint32_t allocFailures = 0;
+    uint32_t fetchHardFailures = 0; // statusCode <= 0: TLS/DNS/connect/timeout class
+    void OnAllocFailed(size_t size, uint32_t caps, const char* fn)
+    {
+        allocFailures++;
+        Serial.printf("[health] ALLOC FAILED: %u B (caps 0x%x) in %s (#%lu)\n",
+                      (unsigned)size, (unsigned)caps, fn ? fn : "?", (unsigned long)allocFailures);
+    }
+}
+
 // aircraft list-view layout, shared by the renderer and the row hit-test. Everything is
 // derived from SCREEN_SIZE so the list stays centred on any SKU: the columns are laid out
 // inside a fixed-width block that DrawList centres horizontally, and the row count fills the
@@ -662,6 +678,26 @@ void AircraftManager::Update()
         }
     }
 
+    // Preventive weekly reboot (2026-07-10 decision): fragmentation insurance beyond
+    // the soak horizon. Same "nobody is watching" bar as the wedge reboot above --
+    // >= 10 min touch idle, no card open -- plus solar night and a valid clock so the
+    // ~10 s boot blank never happens in front of anyone. millis() wraps at ~49.7 d,
+    // so the 7-day default always fires well before wrap.
+#ifndef PREVENTIVE_REBOOT_DAYS
+#define PREVENTIVE_REBOOT_DAYS 7
+#endif
+    {
+        constexpr unsigned long PREVENTIVE_REBOOT_MS = PREVENTIVE_REBOOT_DAYS * 24UL * 3600UL * 1000UL;
+        const time_t utcNow = time(nullptr);
+        if (now >= PREVENTIVE_REBOOT_MS && !inDetail && utcNow > 1600000000 &&
+            now - lastTouchActivityMs >= 10UL * 60UL * 1000UL && isNightNow(lat, lon, utcNow)) {
+            Serial.printf("[health] preventive reboot: uptime %lu d, solar night + idle\n", now / 86400000UL);
+            Serial.flush();
+            delay(100);
+            ESP.restart();
+        }
+    }
+
     // Optional on-board peripherals (compiled out on SKUs without them). Both run before the
     // inDetail early-return below so the buzzer still finishes its beep and the tilt readout
     // keeps updating while a card is open.
@@ -864,14 +900,15 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // adjudicate loop-side (inFlight/inDetail gate) vs task-side (taskState with
     // a non-empty reqQ = blocked despite queued work) on the next occurrence.
     // taskState: 0=Running 1=Ready 2=Blocked 3=Suspended 4=Deleted.
-    Serial.printf("[soak-state] inFlight=%d inDetail=%d screen=%d reqQ=%u resQ=%u fetchAge=%lus touchIdle=%lus enrich=%d task=%d\n",
+    Serial.printf("[soak-state] inFlight=%d inDetail=%d screen=%d reqQ=%u resQ=%u fetchAge=%lus touchIdle=%lus enrich=%d task=%d allocFail=%lu hardFail=%lu\n",
                   (int)fetchInFlight, (int)inDetail, (int)screen,
                   fetchRequestQueue ? (unsigned)uxQueueMessagesWaiting(fetchRequestQueue) : 0,
                   fetchResultQueue ? (unsigned)uxQueueMessagesWaiting(fetchResultQueue) : 0,
                   (now - lastFetch) / 1000UL,
                   (now - lastTouchActivityMs) / 1000UL,
                   (int)enrichInFlight,
-                  fetchTaskHandle ? (int)eTaskGetState(fetchTaskHandle) : -1);
+                  fetchTaskHandle ? (int)eTaskGetState(fetchTaskHandle) : -1,
+                  (unsigned long)allocFailures, (unsigned long)fetchHardFailures);
 #endif
 
     // Phase-0 budgets (bench acceptance): p95 <= 50 ms with the sweep on, and
@@ -900,6 +937,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     }
 }
 
+uint32_t AircraftManager::AllocFailureCount() const { return allocFailures; }
+uint32_t AircraftManager::FetchHardFailCount() const { return fetchHardFailures; }
+
 void AircraftManager::StartFetchTask()
 {
     if (fetchTaskHandle != nullptr)
@@ -910,6 +950,9 @@ void AircraftManager::StartFetchTask()
     if (fetchRequestQueue == nullptr) {
         fetchRequestQueue = xQueueCreate(1, sizeof(FetchRequest*));
         fetchResultQueue  = xQueueCreate(1, sizeof(FetchResult*));
+        // Outcome-criteria hook: count heap allocation failures device-wide. Fires in
+        // the failing task's context; registered once alongside the queues.
+        heap_caps_register_failed_alloc_callback(OnAllocFailed);
     }
 
     if constexpr (kNoNet)
@@ -966,6 +1009,8 @@ void AircraftManager::RunFetchTask()
                 Serial.printf("[cloud] config fetch failed: HTTP %d %s\n",
                               r.statusCode, r.errorMessage.c_str());
             }
+            if (!r.success && r.statusCode <= 0)
+                fetchHardFailures++;
             delete req;
             if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
                 delete res;
@@ -1103,9 +1148,13 @@ void AircraftManager::RunFetchTask()
 
         delete req;
 
+        if (!result.success && result.statusCode <= 0)
+            fetchHardFailures++; // hard network class; an upstream 503 is not counted
+
 #ifdef SOAK_TEST
-        Serial.printf("[fetch] task: done ok=%d http=%d in %lums\n",
-                      (int)res->ok, result.statusCode, millis() - soakReqStartMs);
+        Serial.printf("[fetch] task: done ok=%d http=%d reuse=%d in %lums\n",
+                      (int)res->ok, result.statusCode, (int)result.reusedConnection,
+                      millis() - soakReqStartMs);
 #endif
 
         // hand the result back; the loop consumed the previous one before requesting

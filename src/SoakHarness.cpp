@@ -35,6 +35,7 @@ namespace {
     bool gatePrinted = false;
     bool warmedUp = false;
     uint32_t breachBase = 0; // BudgetBreachCount() at warmup end; gate counts the delta
+    uint32_t warmupFreeHeap = 0; // free heap at warmup end; the outcome criterion is trend, not floor
 
     unsigned long bursts = 0, presses = 0;
     uint32_t minLargest = UINT32_MAX;
@@ -124,6 +125,7 @@ void SoakHarness::Tick(AircraftManager& mgr)
     if (!warmedUp && now - startMs >= WARMUP_MS) {
         warmedUp = true;
         breachBase = mgr.BudgetBreachCount();
+        warmupFreeHeap = ESP.getFreeHeap(); // trend baseline for the outcome criterion
         minLargest = UINT32_MAX; // steady-state floor only; boot transients excluded
         Serial.println("[soak] warmup complete; gate counters armed (boot transients excluded)");
     }
@@ -139,7 +141,7 @@ void SoakHarness::Tick(AircraftManager& mgr)
         const auto& wd = TouchWatchdog::GetStats();
         const unsigned long up = (now - startMs) / 1000UL;
         const uint32_t gateBreaches = warmedUp ? mgr.BudgetBreachCount() - breachBase : 0;
-        Serial.printf("[soak] up=%02lu:%02lu:%02lu presses=%lu bursts=%lu | wd wedges=%lu recov=%lu/%lu (s%lu/h%lu) wakes=%lu maxOutage=%lums rebootRec=%lu | breaches=%lu heap=%u minLargest=%u%s\n",
+        Serial.printf("[soak] up=%02lu:%02lu:%02lu presses=%lu bursts=%lu | wd wedges=%lu recov=%lu/%lu (s%lu/h%lu) wakes=%lu maxOutage=%lums rebootRec=%lu | breaches=%lu heap=%u minLargest=%u trend=%+ld allocFail=%lu hardFail=%lu%s\n",
                       up / 3600, (up / 60) % 60, up % 60, presses, bursts,
                       (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
                       (unsigned long)wd.recoverAttempts, (unsigned long)wd.softRecoveries,
@@ -148,6 +150,9 @@ void SoakHarness::Tick(AircraftManager& mgr)
                       (unsigned long)gateBreaches,
                       (unsigned)ESP.getFreeHeap(),
                       minLargest == UINT32_MAX ? 0u : (unsigned)minLargest,
+                      warmedUp ? (long)ESP.getFreeHeap() - (long)warmupFreeHeap : 0L,
+                      (unsigned long)mgr.AllocFailureCount(),
+                      (unsigned long)mgr.FetchHardFailCount(),
                       warmedUp ? "" : " (warming up)");
     }
 
@@ -174,6 +179,10 @@ void SoakHarness::Tick(AircraftManager& mgr)
                       (unsigned long)gateBreaches, okBudget ? "ok" : "FAIL");
         Serial.printf("[soak]   heap floor        minLargest=%u post-warmup (>=20000)  %s\n",
                       (unsigned)minLargest, okHeap ? "ok" : "FAIL");
+        Serial.printf("[soak]   outcome (report-only, criteria rewrite pending): heapTrend=%+ld B allocFails=%lu hardFetchFails=%lu\n",
+                      (long)ESP.getFreeHeap() - (long)warmupFreeHeap,
+                      (unsigned long)mgr.AllocFailureCount(),
+                      (unsigned long)mgr.FetchHardFailCount());
         Serial.println("[soak]   display           uninterrupted (this line printing at 24 h proves no reboot)");
         Serial.println("[soak] ==================================================");
         Serial.println("[soak] harness keeps running; longer is better data");

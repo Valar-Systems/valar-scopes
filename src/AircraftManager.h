@@ -379,6 +379,8 @@ public:
     // the budgets (p95 <= 50 ms with sweep, largest block >= 20 KB) are broken.
     void RecordFrameUs(uint32_t frameUs);
     uint32_t BudgetBreachCount() const { return budgetBreaches; } // soak-gate criterion
+    uint32_t AllocFailureCount() const;  // heap alloc-failure hook count (outcome-based soak criterion)
+    uint32_t FetchHardFailCount() const; // fetches failing with statusCode <= 0 (TLS/DNS/connect/timeout class)
 
 #ifdef FEATURE_CLOUD_FEED
     // True once after /v1/config reported minFw newer than this build; main.cpp
