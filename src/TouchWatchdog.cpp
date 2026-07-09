@@ -50,6 +50,40 @@ namespace {
     constexpr unsigned long HARD_RST_BOOT_MS = 650; // post-release settle before driver init()
     constexpr unsigned long REBOOT_AFTER_MS = 90000; // the soak gate's outage bound
 
+#ifdef CST816_DISABLE_AUTOSLEEP
+    // Wedge-program step 1 (2026-07-10): hold the CST816 out of its auto-sleep engine.
+    // Both wedge classes implicate the sleep engine, and the device is USB-powered so
+    // controller sleep saves nothing worth having. June's ONE-SHOT 0xFE write "didn't
+    // stick", so this maintains it instead: on every successful probe (the chip is
+    // provably awake and post-boot-wait) read DisAutoSleep (0xFE) and re-write 0x01
+    // whenever the chip has dropped it (a silent chip-internal reset clears it). The
+    // re-application count doubles as the stickiness meter for the overnight A/B.
+    unsigned long noSleepApplied = 0;
+    void MaintainNoSleep()
+    {
+        const auto cur = lgfx::i2c::readRegister8(BLIPSCOPE_TOUCH_I2C_PORT,
+                                                  BLIPSCOPE_TOUCH_I2C_ADDR,
+                                                  0xFE, BLIPSCOPE_TOUCH_FREQ);
+        if (cur.has_value() && cur.value() != 0)
+            return; // still holding
+        const bool wrote = lgfx::i2c::writeRegister8(BLIPSCOPE_TOUCH_I2C_PORT,
+                                                     BLIPSCOPE_TOUCH_I2C_ADDR,
+                                                     0xFE, 0x01, 0,
+                                                     BLIPSCOPE_TOUCH_FREQ).has_value();
+        const auto back = lgfx::i2c::readRegister8(BLIPSCOPE_TOUCH_I2C_PORT,
+                                                   BLIPSCOPE_TOUCH_I2C_ADDR,
+                                                   0xFE, BLIPSCOPE_TOUCH_FREQ);
+        noSleepApplied++;
+        // Log the first few and then every 50th: if 0xFE reads back 0 despite a clean
+        // write (write-only register or a chip that ignores it), this fires every
+        // probe and the throttle keeps it to ~1 line / 8 min at the 10 s cadence.
+        if (noSleepApplied <= 5 || noSleepApplied % 50 == 0)
+            Serial.printf("[touch-wd] no-autosleep applied #%lu (write %s, readback=%d)\n",
+                          noSleepApplied, wrote ? "ok" : "NACK",
+                          back.has_value() ? (int)back.value() : -1);
+    }
+#endif // CST816_DISABLE_AUTOSLEEP
+
     // One-byte chip-id read (0xA7; the C3 kit's CST816T answers 0xB6). ACK/NACK is
     // the whole signal. Same lgfx::i2c owner as the touch driver, per convention.
     bool Probe()
@@ -59,6 +93,9 @@ namespace {
                                                 0xA7, BLIPSCOPE_TOUCH_FREQ);
         if (r.has_value()) {
             stats.probesOk++;
+#ifdef CST816_DISABLE_AUTOSLEEP
+            MaintainNoSleep(); // chip provably awake right now: safe write window
+#endif
             return true;
         }
         stats.probesFailed++;
