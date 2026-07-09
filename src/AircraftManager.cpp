@@ -714,6 +714,17 @@ void AircraftManager::Update()
     // handle taps every loop so the UI stays responsive between fetches
     HandleTouch();
 
+    // A card that nobody closes must not pause the pipeline forever: the inDetail
+    // early-return below stops fetch consumption AND scheduling, which is fine for
+    // the seconds-to-minutes a human actually reads a card, but a tap-and-walk-away
+    // (or a ghost/synthetic tap) would otherwise freeze the picture indefinitely
+    // while the card shows silently aging data. Auto-close after 3 idle minutes.
+    constexpr unsigned long CARD_IDLE_CLOSE_MS = 3UL * 60UL * 1000UL;
+    if (inDetail && now - lastTouchActivityMs >= CARD_IDLE_CLOSE_MS) {
+        Serial.println("[card] idle 3 min; auto-closing detail card");
+        ExitDetail();
+    }
+
     // While the detail card is open the radar isn't visible and the user is
     // interacting, so skip the radar's background network work below (metadata
     // enrichment, watchlist/overhead alerts, and the periodic feed fetch). The
@@ -846,6 +857,22 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     Serial.printf("[health] frame avg=%.1fms p95=%.1fms  heap free=%u largest=%u  interval=%lums%s\n",
                   avgMs, p95Ms, (unsigned)heapFree, (unsigned)largest,
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
+
+#ifdef SOAK_TEST
+    // Fetch-pipeline state for the soak record. Added for the 2026-07-09 stall
+    // (fetches silent 22 min, loop healthy, task never dequeued): these fields
+    // adjudicate loop-side (inFlight/inDetail gate) vs task-side (taskState with
+    // a non-empty reqQ = blocked despite queued work) on the next occurrence.
+    // taskState: 0=Running 1=Ready 2=Blocked 3=Suspended 4=Deleted.
+    Serial.printf("[soak-state] inFlight=%d inDetail=%d screen=%d reqQ=%u resQ=%u fetchAge=%lus touchIdle=%lus enrich=%d task=%d\n",
+                  (int)fetchInFlight, (int)inDetail, (int)screen,
+                  fetchRequestQueue ? (unsigned)uxQueueMessagesWaiting(fetchRequestQueue) : 0,
+                  fetchResultQueue ? (unsigned)uxQueueMessagesWaiting(fetchResultQueue) : 0,
+                  (now - lastFetch) / 1000UL,
+                  (now - lastTouchActivityMs) / 1000UL,
+                  (int)enrichInFlight,
+                  fetchTaskHandle ? (int)eTaskGetState(fetchTaskHandle) : -1);
+#endif
 
     // Phase-0 budgets (bench acceptance): p95 <= 50 ms with the sweep on, and
     // >= 20 KB largest free block steady-state. Loud when broken, per plan.
