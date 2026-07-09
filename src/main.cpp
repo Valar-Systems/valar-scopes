@@ -40,6 +40,10 @@
 #include "models/TrackedAircraft.h"
 #endif
 
+#ifdef BISECT_TEST
+#include "BisectHarness.h" // networking-off wedge-bisection harness (C3 revival program)
+#endif
+
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
 
@@ -131,6 +135,16 @@ void setup()
   }
 #endif
 
+#ifdef BISECT_TEST
+  // Wedge-bisection harness build: NO networking of any kind -- no WiFi join, no NTP,
+  // no OTA, no config web server. The hypothesis under test is "sweep-render load
+  // alone wedges the CST816"; the network half stays out of the experiment entirely.
+  // See src/BisectHarness.h for the harness and the verdict semantics.
+  DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(255, 176, 40),
+                     "BISECTION HARNESS", "networking OFF");
+  board::DisplayFlush(tft);
+  delay(1500);
+#else
   // establish WiFi connection. Composed through the backbuffer so it renders on the SPD2010 (which
   // can't take direct per-glyph writes); a no-op-different path on every other SKU. See BootScreen.h.
   DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), "Connecting to WiFi...");
@@ -224,9 +238,15 @@ void setup()
 
   // begin background server for configuration
   configServer.Initialise();
+#endif // BISECT_TEST
 
   // initialise the active app (radar or EAM monitor)
   appManager.Initialise();
+
+#ifdef BISECT_TEST
+  // Deterministic test config + synthetic fleet + the watchdog's bench probe.
+  BisectHarness::Setup(appManager);
+#endif
 }
 
 void loop()
@@ -245,18 +265,25 @@ void loop()
     ESP.restart();
   }
 
+#ifndef BISECT_TEST
   // re-check for firmware updates once a day for always-on devices
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
     MaybeUpdateFirmware(tft, backbuffer);
   }
+#endif
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
   // loop task, so all AircraftManager state changes stay on a single task
   // rather than racing the async web-server callback.
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
+
+#ifdef BISECT_TEST
+  // fleet re-injection + storm scheduling + the 30 s stats / 2 h verdict cadence
+  BisectHarness::Tick(appManager);
+#endif
 
   appManager.Update();
 

@@ -12,6 +12,10 @@
 #include "Layout.h"
 #include "Board.h"
 #include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
+#include "TouchWatchdog.h" // CST816 supervisor; inert unless variant::TOUCH_WATCHDOG
+#ifdef BISECT_TEST
+#include "BisectHarness.h" // synthetic gesture-storm source (bisection builds only)
+#endif
 
 // adsbdb thumbnails (airport-data.com) are a standard 150x100
 constexpr int PHOTO_W = 150;
@@ -534,7 +538,8 @@ void AircraftManager::Initialise()
     mc.user = configServer.GetStoredString("mqtt-user");
     mc.pass = configServer.GetStoredString("mqtt-pass");
     mc.statusTopic = mqttBase + "/status";
-    mqtt.Begin(mc); // spawns the publisher task once; reconfigures it thereafter
+    if constexpr (!kNoNet)
+        mqtt.Begin(mc); // spawns the publisher task once; reconfigures it thereafter
     lastMqttState = millis() - 5000; // publish a first snapshot promptly once connected
 
     // data source: Blipscope Cloud (the proxy; default on cloud builds), the
@@ -583,9 +588,11 @@ void AircraftManager::Initialise()
         constexpr int TOKEN_BUFFER = 3;
         int dailyRequestBudget = ANONYMOUS_TOKENS_PER_DAY - TOKEN_BUFFER; // non-authed tokens minus buffer
 
-        const String token = authHandler.GetValidToken(configServer.GetStoredString("opensky-id"), configServer.GetStoredString("opensky-secret"));
-        if (!token.isEmpty())
-            dailyRequestBudget = AUTHED_TOKENS_PER_DAY - TOKEN_BUFFER; // authed tokens minus buffer
+        if constexpr (!kNoNet) {
+            const String token = authHandler.GetValidToken(configServer.GetStoredString("opensky-id"), configServer.GetStoredString("opensky-secret"));
+            if (!token.isEmpty())
+                dailyRequestBudget = AUTHED_TOKENS_PER_DAY - TOKEN_BUFFER; // authed tokens minus buffer
+        }
 
         fetchInterval = MS_PER_DAY / dailyRequestBudget;
     }
@@ -832,6 +839,15 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     if (largest < LARGEST_BLOCK_BUDGET)
         Serial.printf("[health] BUDGET BROKEN: largest block %u < %u\n",
                       (unsigned)largest, (unsigned)LARGEST_BLOCK_BUDGET);
+
+    // Touch supervisor counters (the C3): "wedges=0" is the soak's headline number.
+    if constexpr (variant::TOUCH_WATCHDOG) {
+        const auto& wd = TouchWatchdog::GetStats();
+        Serial.printf("[health] touch-wd wedges=%lu recovered=%lu/%lu wakes=%lu probes=%lu ok/%lu fail\n",
+                      (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
+                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.benchWakes,
+                      (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed);
+    }
 }
 
 void AircraftManager::StartFetchTask()
@@ -841,8 +857,14 @@ void AircraftManager::StartFetchTask()
 
     // Depth 1: only ever one fetch outstanding (gated by fetchInFlight), so a single
     // slot for the request and one for the result is enough.
-    fetchRequestQueue = xQueueCreate(1, sizeof(FetchRequest*));
-    fetchResultQueue  = xQueueCreate(1, sizeof(FetchResult*));
+    if (fetchRequestQueue == nullptr) {
+        fetchRequestQueue = xQueueCreate(1, sizeof(FetchRequest*));
+        fetchResultQueue  = xQueueCreate(1, sizeof(FetchResult*));
+    }
+
+    if constexpr (kNoNet)
+        return; // bisection: the loop-side queues exist (BisectInjectFleet feeds the
+                // result queue through the real merge) but the task never runs
 
     // 12 KB stack: the HTTPS handshake (mbedTLS) is the stack-hungry part, plus the
     // JSON decode. The Arduino loop task ran the same workload in 8 KB, so this has
@@ -1033,6 +1055,9 @@ void AircraftManager::RunFetchTask()
 
 void AircraftManager::RequestFetch()
 {
+    if constexpr (kNoNet)
+        return; // bisection: the harness injects the picture; nothing is ever fetched
+
     FetchRequest* req = new FetchRequest();
     req->lat = lat; req->lon = lon; req->radLat = radLat; req->radLon = radLon;
     req->local = useLocalSource;
@@ -1887,6 +1912,13 @@ void AircraftManager::HandleTouch()
 
         touched = tft.getTouch(&tx, &ty);
 
+        // Touch supervisor: any I2C it issues (probe / recovery re-init) must stay
+        // serialized against TLS exactly like the poll above, so it may only act
+        // while we hold the bus. On the card view (polling bus-less) it just notes
+        // state and defers its probe to the next held window.
+        if constexpr (variant::TOUCH_WATCHDOG)
+            TouchWatchdog::OnPoll(tft, touched, gotBus);
+
         if (gotBus)
             http.ReleaseBus();
     } else {
@@ -1895,8 +1927,25 @@ void AircraftManager::HandleTouch()
         // mutex here would silently drop taps whenever always-on enrichment held the bus -- which
         // it does constantly -- so a blip tap could take many tries to land. Poll every loop.
         touched = tft.getTouch(&tx, &ty);
+        if constexpr (variant::TOUCH_WATCHDOG)
+            TouchWatchdog::OnPoll(tft, touched, true); // no bus serialization on these boards
     }
 
+#ifdef BISECT_TEST
+    // Bisection storm: the hardware poll above ran for real (bus traffic + watchdog
+    // feed -- nobody physically touches the bench unit), and gesture classification
+    // consumes the synthetic stream instead, driving the same pipeline below.
+    (void)tx; (void)ty;
+    bool sTouched; int sx, sy;
+    BisectHarness::NextTouchSample(sTouched, sx, sy);
+    ProcessTouchSample(sTouched, sx, sy);
+#else
+    ProcessTouchSample(touched, tx, ty);
+#endif
+}
+
+void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
+{
     const unsigned long now = millis();
     if (touched) {
         lastTouchActivityMs = now; // proof the controller is alive
@@ -2031,6 +2080,18 @@ void AircraftManager::HandleSwipe(Swipe swipe)
 
 void AircraftManager::ProcessDetailLookups()
 {
+    if constexpr (kNoNet) {
+        // Bisection: no enrichment exists. Resolve the card's photo state right away
+        // (silhouette, exactly like cloud mode) so it renders its final layout under
+        // the storm instead of a perpetual "Loading photo...".
+        if (inDetail && photoIcao != selectedIcao) {
+            photoIcao = selectedIcao;
+            photoReady = false;
+            photoResolved = true;
+        }
+        return;
+    }
+
     if (!inDetail)
         return;
 
@@ -2130,8 +2191,13 @@ void AircraftManager::StartEnrichTask()
 
     // Depth 1: only ever one enrichment outstanding (gated by enrichInFlight), so a
     // single slot for the request and one for the result is enough.
-    enrichRequestQueue = xQueueCreate(1, sizeof(EnrichRequest*));
-    enrichResultQueue  = xQueueCreate(1, sizeof(EnrichResult*));
+    if (enrichRequestQueue == nullptr) {
+        enrichRequestQueue = xQueueCreate(1, sizeof(EnrichRequest*));
+        enrichResultQueue  = xQueueCreate(1, sizeof(EnrichResult*));
+    }
+
+    if constexpr (kNoNet)
+        return; // bisection: no enrichment task; every request path is gated off too
 
     // Same workload class as the fetch task (HTTPS GET + small JSON decode, plus a
     // ~10 KB photo body carried back in the result), so the same 12 KB stack and
@@ -2424,6 +2490,9 @@ bool AircraftManager::IsOverhead(const TrackedAircraft& tracked) const
 
 void AircraftManager::ProcessAlerts()
 {
+    if constexpr (kNoNet)
+        return; // bisection: no sockets, no alerts
+
     if (ntfyTopic.isEmpty())
         return;
     const bool flyoverEnabled = !watchlist.empty() || alertMilitary;
@@ -2794,6 +2863,9 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
 
 void AircraftManager::ProcessMetadataLookups()
 {
+    if constexpr (kNoNet)
+        return; // bisection: no enrichment task, no lookups
+
 #ifdef FEATURE_CLOUD_FEED
     if (useCloudSource) {
         // The /v1/config enrich level is the master switch in cloud mode. Off:
@@ -2870,3 +2942,59 @@ void AircraftManager::ProcessMetadataLookups()
         return;
     }
 }
+#ifdef BISECT_TEST
+// ---- bisection-harness hooks (the harness itself is src/BisectHarness.cpp) ----
+
+void AircraftManager::BisectApplyTestConfig()
+{
+    // Deterministic bench config, overriding whatever this device's NVS holds, so
+    // every harness run tests the same thing. Maximum render load: every radar
+    // adornment on, sweep + paint-and-fade on, full brightness, no auto-dim (there
+    // is no NTP to drive the solar clock anyway).
+    lat = 47.6;
+    lon = -122.3; // fixed test home; the value is arbitrary, the determinism isn't
+    constexpr double KM_PER_DEGREE = 111.0;
+    constexpr double RANGE_KM = 100.0;
+    radLat = RANGE_KM / KM_PER_DEGREE;
+    radLon = RANGE_KM / (KM_PER_DEGREE * std::cos(radians(lat)));
+    rangeRadiusDisplay = RANGE_KM;
+    rangeUnit = "km";
+
+    displayInfoText = displayTriangles = displayTrails = true;
+    displayAltColor = displayHighlight = true;
+    displaySweep = displayFade = true; // the sweep-render load under test
+    showMilitary = showHelicopters = showSpecial = true;
+    showOverhead = true;               // pulsing LOOK-UP rings on the near contacts = extra draw
+    overheadKm = 8.0;
+    alertMilitary = alertOverhead = false;
+    watchlist.clear();
+    ntfyTopic = "";
+    logbookEnabled = false;
+    mqttEnabled = false;
+    metadataNeeded = false;
+    useLocalSource = false;
+
+    autoDim = false;
+    configuredBrightness = 255;
+    currentBrightness = 255;
+    tft.setBrightness(255);
+
+    fetchInterval = 0x7FFFFFFF; // belt + braces: RequestFetch is kNoNet-gated anyway
+    lastFetch = millis();
+}
+
+bool AircraftManager::BisectInjectFleet(std::vector<Aircraft>&& fleet)
+{
+    if (fetchResultQueue == nullptr)
+        return false;
+
+    FetchResult* res = new FetchResult();
+    res->ok = true;
+    res->aircraft = std::move(fleet);
+    if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE) {
+        delete res; // a result is already pending (an open card pauses merging); drop this frame
+        return false;
+    }
+    return true;
+}
+#endif // BISECT_TEST

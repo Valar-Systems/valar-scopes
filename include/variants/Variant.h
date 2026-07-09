@@ -11,7 +11,7 @@
 //     via BLIPSCOPE_PANEL_* / BLIPSCOPE_TOUCH_*, SPI/I2C params)
 //   - typed values in `namespace variant` consumed by the app logic:
 //       SCREEN_SIZE, BANDED_RENDER, ENRICH_ALWAYS, HAS_AUDIO, HAS_IMU,
-//       SERIALIZE_TOUCH_BUS, SLUG, NAME
+//       SERIALIZE_TOUCH_BUS, TOUCH_WATCHDOG, SLUG, NAME
 //
 // Shared firmware NEVER hardcodes hardware: geometry comes from Layout.h (built from
 // variant::SCREEN_SIZE) and behaviour from variant::* capability flags. Adding a SKU =
