@@ -5,3 +5,6 @@ __pycache__/
 
 # Confidential business docs (pricing, margins, strategy) -- never commit to the public repo.
 business/
+
+# Stock-firmware dumps and other large bench binaries stay local (insurance copies, never shipped)
+bench-logs/*.bin
