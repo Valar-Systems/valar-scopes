@@ -105,6 +105,11 @@ void SoakHarness::Setup(AircraftManager& mgr)
     ScheduleNextBurst(startMs);
     phaseEndMs = startMs + 120000; // first burst ~2 min in, after the first fetches settle
 
+    // Arm the standing probe explicitly (as the bisect harness does). Without this the
+    // watchdog's default fires its first probe on the first loop iteration, before the
+    // system settles; SetProbeIntervalMs defers it a few seconds past Initialise.
+    TouchWatchdog::SetProbeIntervalMs(10000);
+
     Serial.println("[soak] ==================================================");
     Serial.println("[soak] realistic-duty soak: cloud mode, real traffic, human-scale gestures");
     Serial.println("[soak] bursts every 6-16 min (~155 presses/day); real touches pass through");
