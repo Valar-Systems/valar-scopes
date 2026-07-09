@@ -17,6 +17,7 @@
 #include "MqttPublisher.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
+#include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 
 class AircraftManager
 {
@@ -152,6 +153,35 @@ private:
     bool useLocalSource = false;
     String localUrl = ""; // normalised aircraft.json URL, empty unless local
 
+#ifdef FEATURE_CLOUD_FEED
+    // Blipscope Cloud (the proxy/ Worker): the DEFAULT source on cloud builds.
+    // One host, keep-alive TLS, tiny payloads; the proxy handles the upstream
+    // relationship (adsb.lol, ODbL 1.0 -- credited on the config page).
+    bool useCloudSource = false;
+    String cloudUrl = "";  // normalised base URL: NVS "cloud-url" else CLOUD_FEED_BASE
+    String cloudKey = "";  // X-Blip-Key: NVS "cloud-key" else CLOUD_FEED_KEY (never logged)
+    double rangeKmCfg = 100.0; // configured radar radius in km, the /v1/blips r param
+
+    // Fleet tunables from /v1/config (server-resolved for this X-Blip-Model),
+    // fetched on boot + daily and applied live -- no reboot. cloudCfg's defaults
+    // serve until the first fetch lands.
+    CloudFeed::Config cloudCfg;
+    unsigned long lastCloudCfgFetch = 0; // millis() of the last request (0 = never)
+    bool cloudCfgEverApplied = false;
+    bool otaCheckRequested = false; // set when config minFw > FW_VERSION; main.cpp consumes
+
+    // Recent enrichments by hex, surviving aircraft eviction so re-taps are
+    // instant even when a contact flapped out of range and back.
+    CloudFeed::EnrichCache enrichCache;
+#endif
+
+    // Staleness bookkeeping (all sources): when the last good feed merge landed
+    // (device clock), and how old the server said that snapshot already was --
+    // cloud mode's SWR-served stale tiles keep their original t, so the lag is
+    // part of the honest total data age. Non-cloud sources leave the lag at 0.
+    unsigned long lastGoodDataMs = 0;   // millis() at merge; 0 = no data yet
+    unsigned long dataLagAtMergeMs = 0; // (device epoch - snapshot t) * 1000 at merge
+
     // Background OpenSky states fetch. The HTTPS GET + JSON decode used to run
     // inline on the loop and stall it for a second or two each cycle; since touch
     // is only polled once per loop, a tap on a plane during that stall was missed.
@@ -180,6 +210,14 @@ private:
     QueueHandle_t enrichRequestQueue = nullptr; // loop -> task: EnrichRequest*
     QueueHandle_t enrichResultQueue = nullptr;  // task -> loop: EnrichResult*
     bool enrichInFlight = false;                // loop-task-only: a request is outstanding
+
+    // Frame-time + heap instrumentation (serial health line every 30 s; loud
+    // warning when a budget is broken). Samples are whole loop() passes in
+    // tenths of a millisecond, recorded by main.cpp on radar builds.
+    static constexpr size_t FRAME_SAMPLES = 128;
+    uint16_t frameSampleBuf[FRAME_SAMPLES] = {0}; // 0.1 ms units
+    size_t frameSampleCount = 0;                  // ring write index (wraps)
+    unsigned long lastHealthReportMs = 0;
 
     // backlight + clock
     uint8_t configuredBrightness = 255; // day/base level from the slider
@@ -235,6 +273,30 @@ private:
     void RequestFetch();                        // loop: snapshot params + token, signal task
     void ConsumeFetchResult();                  // loop: merge a ready result, non-blocking
 
+    // The feed cadence currently in force. Cloud mode runs the config-driven
+    // active/idle/night state machine; other sources return fetchInterval.
+    unsigned long CurrentPollIntervalMs() const;
+
+    // Data-staleness indicator: true once the last good picture is older than
+    // staleFactor x the current poll interval (cloud counts server-side cache
+    // age too). Drawn as a small tag on the radar so a quietly-failing feed is
+    // visible instead of a frozen-looking sky.
+    bool IsDataStale() const;
+    void DrawStaleIndicator(BandCanvas& backbuffer) const;
+
+#ifdef FEATURE_CLOUD_FEED
+    void RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
+    void RequestCloudEnrich(const String& icao24, const String& callsign,
+                            float acLat, float acLon); // loop: queue a /v1/enrich lookup
+    // Apply one enrichment payload to a tracked aircraft (shared by the network
+    // result and the LRU-cache hit paths); notes the logbook like adsbdb did.
+    void ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e);
+    // Background-enrichment gate for the current cloud enrich level: Full = any
+    // aircraft, Watchlist = only watchlist-prefix matches on hex/callsign (the
+    // fields available pre-enrichment), Off = none.
+    bool CloudShouldBackgroundEnrich(const TrackedAircraft& tracked) const;
+#endif
+
     void StartEnrichTask();                      // spawn the enrichment task once
     static void EnrichTaskTrampoline(void* arg); // FreeRTOS entry -> RunEnrichTask()
     void RunEnrichTask();                        // blocking adsbdb GET / photo download, off-loop
@@ -261,8 +323,13 @@ private:
     bool MatchesWatchlist(const TrackedAircraft& tracked) const;
     bool IsOverhead(const TrackedAircraft& tracked) const; // within overheadKm of the centre
     void ProcessAlerts();                                  // ntfy: flyover + overhead, throttled
-    void SendFlyoverNotification(const TrackedAircraft& tracked, bool military = false);
-    void SendOverheadNotification(const TrackedAircraft& tracked);
+    // The Send* builders queue the POST onto the enrichment task (the loop must
+    // never block on ntfy.sh -- it used to cost taps). They return false when the
+    // depth-1 queue is busy, so the caller leaves the aircraft un-marked and the
+    // alert retries on a later tick instead of being lost.
+    bool QueueNtfyPost(const String& title, const String& tags, const String& body);
+    bool SendFlyoverNotification(const TrackedAircraft& tracked, bool military = false);
+    bool SendOverheadNotification(const TrackedAircraft& tracked);
     void DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) const;
 
     void PublishMqttState();     // retained JSON summary of the current picture
@@ -291,4 +358,20 @@ public:
     // Cached "scanline" config (reloaded on ConsumeConfigChanged); main.cpp reads
     // this instead of hitting NVS every frame from the loop task.
     bool SweepEnabled() const { return displaySweep; }
+
+    // Frame instrumentation: main.cpp reports each loop() pass; every 30 s this
+    // logs avg/p95 frame time + free heap/largest block and warns loudly when
+    // the budgets (p95 <= 50 ms with sweep, largest block >= 20 KB) are broken.
+    void RecordFrameUs(uint32_t frameUs);
+
+#ifdef FEATURE_CLOUD_FEED
+    // True once after /v1/config reported minFw newer than this build; main.cpp
+    // consumes it to run the normal OTA check immediately instead of waiting for
+    // the daily timer.
+    bool ConsumeOtaCheckRequest() {
+        const bool req = otaCheckRequested;
+        otaCheckRequested = false;
+        return req;
+    }
+#endif
 };

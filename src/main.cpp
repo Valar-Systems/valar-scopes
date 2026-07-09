@@ -231,6 +231,13 @@ void setup()
 
 void loop()
 {
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+  // Frame-time instrumentation (radar builds): the whole pass -- update, draw,
+  // flush -- is one sample; AircraftManager logs avg/p95 + heap every 30 s and
+  // shouts when a budget breaks. u32 micros() wrap-around subtracts correctly.
+  const uint32_t frameStartUs = micros();
+#endif
+
   // Forget WiFi credentials and reboot into the setup portal when requested.
   if (configServer.ConsumeWifiReset()) {
     wm.resetSettings();
@@ -283,5 +290,17 @@ void loop()
   // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
   // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).
   board::DisplayFlush(tft);
+
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+  appManager.RecordFrameUs(micros() - frameStartUs);
+
+#ifdef FEATURE_CLOUD_FEED
+  // The fleet config raised the firmware floor past this build: run the normal
+  // OTA check now rather than waiting out the daily timer. Same code path as
+  // the daily check; a same-or-older published release is simply a no-op.
+  if (appManager.ConsumeOtaCheckRequest())
+    MaybeUpdateFirmware(tft, backbuffer);
+#endif
+#endif
 }
 

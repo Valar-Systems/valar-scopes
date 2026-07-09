@@ -11,6 +11,7 @@
 #include "DeviceIdentity.h"
 #include "Layout.h"
 #include "Board.h"
+#include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
 
 // adsbdb thumbnails (airport-data.com) are a standard 150x100
 constexpr int PHOTO_W = 150;
@@ -55,39 +56,68 @@ static constexpr size_t MAX_AIRCRAFT = 60;
 
 // Handoff payloads for the background OpenSky fetch task. Both are passed between
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
+// The same task also serves the cloud feed and its /v1/config fetch (kind), so all
+// blocking cloud I/O shares the one TLS client + keep-alive connection.
+enum class FetchKind : uint8_t { Feed, CloudConfig };
+
 struct FetchRequest {
+    FetchKind kind = FetchKind::Feed;
     double lat, lon, radLat, radLon; // scan box, snapshotted on the loop task
     String token;                    // bearer token (empty = anonymous request)
     bool   local = false;            // true: poll the local receiver instead of OpenSky
     String url;                      // local aircraft.json URL (only when local)
+#ifdef FEATURE_CLOUD_FEED
+    bool   cloud = false;            // true: poll the Blipscope Cloud proxy
+    String cloudBase;                // normalised proxy base URL (cloud + CloudConfig)
+    String cloudKey;                 // X-Blip-Key value (cloud + CloudConfig)
+    double rangeKm = 100.0;          // /v1/blips r param
+#endif
 };
 struct FetchResult {
+    FetchKind kind = FetchKind::Feed;
     bool ok = false;                 // false on network / parse failure
     bool authFailed = false;         // OpenSky said 401/403: the token needs a refetch
     std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
+#ifdef FEATURE_CLOUD_FEED
+    long dataEpoch = 0;              // cloud blips snapshot time t (0 = not cloud)
+    CloudFeed::Config config;        // CloudConfig kind only
+#endif
 };
 
 // Handoff payloads for the background enrichment task (adsbdb metadata/route +
-// aircraft photo). Like the fetch payloads above, ownership transfers by pointer
-// through a depth-1 queue: the receiver frees it. The task fills a result the loop
-// applies; it never touches trackedAircraft, the photo sprite, or the logbook.
-enum class EnrichKind : uint8_t { Metadata, Route, Photo };
+// aircraft photo, the cloud /v1/enrich join, and the ntfy alert POSTs -- anything
+// blocking that must never run on the loop). Like the fetch payloads above,
+// ownership transfers by pointer through a depth-1 queue: the receiver frees it.
+// The task fills a result the loop applies; it never touches trackedAircraft,
+// the photo sprite, or the logbook.
+enum class EnrichKind : uint8_t { Metadata, Route, Photo, CloudEnrich, Ntfy };
 
 struct EnrichRequest {
     EnrichKind kind;
-    String icao24;    // aircraft the result applies to (all kinds)
-    String callsign;  // Route only
-    String url;       // Photo only
+    String icao24;    // aircraft the result applies to (Metadata/Route/Photo/CloudEnrich)
+    String callsign;  // Route + CloudEnrich (the route half of the join)
+    String url;       // Photo: image URL; Ntfy: the topic URL
+    // CloudEnrich: proxy endpoint + auth, and the aircraft's live position for
+    // the route plausibility check (callsigns get reused across legs).
+    String cloudBase, cloudKey;
+    float  acLat = 0.0f, acLon = 0.0f;
+    bool   hasPos = false;
+    // Ntfy: the alert content, POSTed off-loop with the usual ntfy headers.
+    String ntfyTitle, ntfyTags, ntfyBody;
 };
 
 struct EnrichResult {
     EnrichKind kind = EnrichKind::Metadata;
     String icao24;
     bool definitive = false; // a final HTTP answer arrived; false = transient failure (retry)
+    // How long the loop should hold off a retry after a non-definitive result.
+    // adsbdb outages back off 30 s; a cloud proxy still warming its caches
+    // answers in seconds, so its retries come quicker.
+    unsigned long retryCooldownMs = 30000;
 
-    // Metadata
+    // Metadata / CloudEnrich
     String typeCode, typeName, operatorName, registration, photoUrl;
-    // Route
+    // Route (CloudEnrich carries the route in the same fields)
     String routeCallsign, routeOrigin, routeDest;
     // Photo: the raw JPEG body, decoded on the loop so the sprite stays single-task
     bool photoFetched = false;
@@ -289,6 +319,75 @@ EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url)
     return res;
 }
 
+#ifdef FEATURE_CLOUD_FEED
+// One GET to the proxy replaces the old two adsbdb lookups: /v1/enrich pre-joins
+// registration/type/operator AND the route. Streams the ~200 B body straight
+// into the document like the feed fetch does.
+EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& req)
+{
+    EnrichResult* res = new EnrichResult();
+
+    std::vector<std::pair<String, String>> params;
+    if (!req.callsign.isEmpty()) params.push_back({ "cs", req.callsign });
+    if (req.hasPos) {
+        params.push_back({ "lat", String(req.acLat, 4) });
+        params.push_back({ "lon", String(req.acLon, 4) });
+    }
+
+    JsonDocument doc;
+    const HttpResult result = http.GetJson(
+        CloudFeed::EnrichUrl(req.cloudBase, req.icao24), doc, params,
+        CloudFeed::Headers(req.cloudKey));
+
+    if (!result.success || result.statusCode < 200 || result.statusCode >= 300) {
+        // Network failure, 429, or the proxy's fast 503s: transient, retry soon
+        // (the proxy warms its caches in the background after a cold miss).
+        Serial.printf("[cloud] enrich %s: HTTP %d %s\n", req.icao24.c_str(),
+                      result.statusCode, result.errorMessage.c_str());
+        res->retryCooldownMs = 5000;
+        return res;
+    }
+
+    CloudFeed::Enrichment e;
+    if (!CloudFeed::ParseEnrich(doc, e)) {
+        Serial.printf("[cloud] enrich %s: schema mismatch\n", req.icao24.c_str());
+        res->retryCooldownMs = 60000; // wrong schema won't fix itself quickly
+        return res;
+    }
+
+    // An all-empty 200 is ambiguous: unknown aircraft, or the proxy still
+    // warming. Non-definitive with a short cooldown lets the loop retry a
+    // bounded number of times (TrackedAircraft::enrichAttempts) before
+    // accepting "unknown".
+    res->definitive = e.AnyField();
+    res->retryCooldownMs = 4000;
+    res->registration = e.registration;
+    res->typeCode     = e.typeCode;
+    res->typeName     = e.typeName;
+    res->operatorName = e.operatorName;
+    res->routeOrigin  = e.routeOrigin;
+    res->routeDest    = e.routeDest;
+    res->routeCallsign = req.callsign;
+    return res;
+}
+#endif // FEATURE_CLOUD_FEED
+
+// ntfy alert POST, moved off the loop task: a slow ntfy.sh (or a TLS handshake
+// after an idle period) used to stall the loop for seconds, eating taps. The
+// result carries nothing to apply -- success/failure is logged here and the
+// caller's un-marked notified flag retries a failed alert on a later tick.
+EnrichResult* postNtfy(HttpRequestManager& http, const EnrichRequest& req)
+{
+    EnrichResult* res = new EnrichResult();
+    const HttpResult result = http.Post(
+        req.url, req.ntfyBody,
+        { { "Title", req.ntfyTitle }, { "Tags", req.ntfyTags } });
+    res->definitive = result.success;
+    Serial.printf("[ntfy] %s -> %s\n", req.ntfyTitle.c_str(),
+                  result.success ? "sent" : result.errorMessage.c_str());
+    return res;
+}
+
 // Hand a request to the enrichment task. Frees it (and reports failure) if the
 // depth-1 queue is somehow full -- which can't happen while the loop only ever
 // queues one request at a time behind the enrichInFlight gate.
@@ -438,11 +537,36 @@ void AircraftManager::Initialise()
     mqtt.Begin(mc); // spawns the publisher task once; reconfigures it thereafter
     lastMqttState = millis() - 5000; // publish a first snapshot promptly once connected
 
-    // data source: OpenSky cloud (default) or the user's own ADS-B receiver. The
-    // URL is normalised once here so the fetch task gets a ready-to-GET endpoint.
-    useLocalSource = configServer.GetStoredString("data-source") == "local";
+    // data source: Blipscope Cloud (the proxy; default on cloud builds), the
+    // OpenSky cloud API (BYO credentials -- the user's own ToS relationship), or
+    // the user's own ADS-B receiver. URLs are normalised once here so the fetch
+    // task gets ready-to-GET endpoints.
+    const String dataSource = configServer.GetStoredString("data-source");
+    useLocalSource = dataSource == "local";
     localUrl = useLocalSource ? normalizeLocalUrl(configServer.GetStoredString("local-url")) : "";
 
+#ifdef FEATURE_CLOUD_FEED
+    // An unset key defaults to cloud on cloud builds: new devices land on the
+    // proxy out of the box; an explicit "opensky"/"local" choice is respected.
+    useCloudSource = !useLocalSource && dataSource != "opensky";
+    rangeKmCfg = distanceKm;
+    cloudUrl = CloudFeed::NormalizeBaseUrl(configServer.GetStoredString("cloud-url"));
+    if (cloudUrl.isEmpty())
+        cloudUrl = CloudFeed::NormalizeBaseUrl(CLOUD_FEED_BASE);
+    cloudKey = configServer.GetStoredString("cloud-key");
+    cloudKey.trim();
+    if (cloudKey.isEmpty())
+        cloudKey = CLOUD_FEED_KEY;
+
+    if (useCloudSource) {
+        // Cadence is the /v1/config-driven active/idle/night state machine (see
+        // CurrentPollIntervalMs); fetchInterval only seeds the pre-config default.
+        fetchInterval = cloudCfg.pollActiveMs;
+        lastCloudCfgFetch = 0; // re-fetch the fleet config promptly after any (re)initialise
+        Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
+                      cloudUrl.c_str(), cloudCfg.pollActiveMs);
+    } else
+#endif
     if (useLocalSource) {
         // A local receiver has no API rate limit and refreshes about once a second;
         // poll at that rate. The GET + parse runs on the background fetch task, so
@@ -592,20 +716,122 @@ void AircraftManager::Update()
     // ProcessAlerts still blocks the loop, and RequestFetch's token refresh can still
     // block on the rare ~29-minute renewal.
     if (!fetchInFlight) {
-        // enrich a tracked aircraft with adsbdb metadata (queued, throttled internally)
+        // enrich a tracked aircraft with metadata (queued, throttled internally)
         ProcessMetadataLookups();
 
         // alert on watchlisted / military / overhead aircraft (throttled internally)
         ProcessAlerts();
 
+#ifdef FEATURE_CLOUD_FEED
+        // Fleet config (/v1/config): on boot, then daily; a failed fetch retries
+        // in 15 min (ConsumeFetchResult shifts the timer). Runs on the shared
+        // fetch task ahead of the next feed poll so cadence/enrich-level tunables
+        // land before the picture builds up.
+        if (useCloudSource && !cloudUrl.isEmpty()) {
+            constexpr unsigned long CFG_REFRESH_MS = 24UL * 60UL * 60UL * 1000UL;
+            if (lastCloudCfgFetch == 0 || now - lastCloudCfgFetch >= CFG_REFRESH_MS) {
+                lastCloudCfgFetch = now;
+                RequestCloudConfig();
+                return; // the fetch task is busy now; the feed poll goes next cycle
+            }
+        }
+#endif
+
         // kick off the next fetch when due. Non-blocking: the loop keeps polling
         // touch and drawing while the request runs on the fetch task, so tapping a
-        // plane during a refresh is no longer missed.
-        if (now - lastFetch >= fetchInterval) {
+        // plane during a refresh is no longer missed. The interval is the cadence
+        // machine's current state (config-driven active/idle/night in cloud mode).
+        if (now - lastFetch >= CurrentPollIntervalMs()) {
             lastFetch = now;
             RequestFetch();
         }
     }
+}
+
+unsigned long AircraftManager::CurrentPollIntervalMs() const
+{
+#ifdef FEATURE_CLOUD_FEED
+    if (useCloudSource) {
+        // Active: the user touched the screen within the idle window -- they're
+        // present, poll fast (this outranks night: someone watching at 2 AM gets
+        // the good cadence). Otherwise night (solar clock) outranks idle: night
+        // is 8-12 h of every fleet-day and cadence is the main cost lever.
+        if (millis() - lastTouchActivityMs <= cloudCfg.idleAfterMs)
+            return cloudCfg.pollActiveMs;
+        const time_t utc = time(nullptr);
+        if (utc > 1600000000 && isNightNow(lat, lon, utc))
+            return cloudCfg.pollNightMs;
+        return cloudCfg.pollIdleMs;
+    }
+#endif
+    return fetchInterval;
+}
+
+bool AircraftManager::IsDataStale() const
+{
+    if (lastGoodDataMs == 0)
+        return false; // nothing merged yet: that's "starting up", not "stale"
+#ifdef FEATURE_CLOUD_FEED
+    const int staleFactor = useCloudSource ? cloudCfg.staleFactor : 3;
+#else
+    const int staleFactor = 3;
+#endif
+    const unsigned long ageMs = (millis() - lastGoodDataMs) + dataLagAtMergeMs;
+    return ageMs > (unsigned long)staleFactor * CurrentPollIntervalMs();
+}
+
+void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
+{
+    if (!IsDataStale())
+        return;
+    // Small amber tag at the top of the scope: the picture is dead-reckoning on
+    // old data (feed trouble upstream or local). Deliberately quiet -- an
+    // indicator, not an alarm.
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(255, 176, 40));
+    const char* tag = "STALE DATA";
+    backbuffer.drawString(tag, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(tag) / 2, 14);
+}
+
+void AircraftManager::RecordFrameUs(uint32_t frameUs)
+{
+    // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
+    const uint32_t tenths = frameUs / 100;
+    frameSampleBuf[frameSampleCount % FRAME_SAMPLES] = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
+    frameSampleCount++;
+
+    const unsigned long now = millis();
+    if (now - lastHealthReportMs < 30000)
+        return;
+    lastHealthReportMs = now;
+
+    const size_t n = std::min(frameSampleCount, FRAME_SAMPLES);
+    if (n == 0)
+        return;
+    // p95 via a sorted copy -- 128 u16s every 30 s is nothing, even on the C3.
+    uint16_t sorted[FRAME_SAMPLES];
+    memcpy(sorted, frameSampleBuf, n * sizeof(uint16_t));
+    std::sort(sorted, sorted + n);
+    uint32_t sum = 0;
+    for (size_t i = 0; i < n; ++i) sum += sorted[i];
+    const float avgMs = sum / (float)n / 10.0f;
+    const float p95Ms = sorted[(size_t)((n - 1) * 0.95f)] / 10.0f;
+
+    const uint32_t heapFree = ESP.getFreeHeap();
+    const uint32_t largest = ESP.getMaxAllocHeap();
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms  heap free=%u largest=%u  interval=%lums%s\n",
+                  avgMs, p95Ms, (unsigned)heapFree, (unsigned)largest,
+                  CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
+
+    // Phase-0 budgets (bench acceptance): p95 <= 50 ms with the sweep on, and
+    // >= 20 KB largest free block steady-state. Loud when broken, per plan.
+    constexpr float FRAME_P95_BUDGET_MS = 50.0f;
+    constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
+    if (p95Ms > FRAME_P95_BUDGET_MS)
+        Serial.printf("[health] BUDGET BROKEN: frame p95 %.1fms > %.0fms\n", p95Ms, FRAME_P95_BUDGET_MS);
+    if (largest < LARGEST_BLOCK_BUDGET)
+        Serial.printf("[health] BUDGET BROKEN: largest block %u < %u\n",
+                      (unsigned)largest, (unsigned)LARGEST_BLOCK_BUDGET);
 }
 
 void AircraftManager::StartFetchTask()
@@ -644,11 +870,35 @@ void AircraftManager::RunFetchTask()
             continue;
 
         FetchResult* res = new FetchResult();
+        res->kind = req->kind;
+
+#ifdef FEATURE_CLOUD_FEED
+        // Fleet-config fetch: a one-off GET on this same task (same TLS client,
+        // same keep-alive connection as the feed), handed back like a feed result.
+        if (req->kind == FetchKind::CloudConfig) {
+            JsonDocument cfgDoc;
+            const HttpResult r = http.GetJson(CloudFeed::ConfigUrl(req->cloudBase), cfgDoc,
+                                              std::vector<std::pair<String, String>>{},
+                                              CloudFeed::Headers(req->cloudKey));
+            if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
+                CloudFeed::ParseConfig(cfgDoc, res->config)) {
+                res->ok = true;
+            } else {
+                Serial.printf("[cloud] config fetch failed: HTTP %d %s\n",
+                              r.statusCode, r.errorMessage.c_str());
+            }
+            delete req;
+            if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
+                delete res;
+            continue;
+        }
+#endif
 
         // GET + decode the feed straight from the socket (GetJson streams when possible
         // so the raw body and the parsed document aren't both held at once -- that peak
-        // is what starved the heap). Either the user's local receiver (no params/auth)
-        // or the OpenSky API bounded to the scan box; both share the one HTTP client.
+        // is what starved the heap). The user's local receiver (no params/auth), the
+        // Blipscope Cloud proxy (tiny pre-clipped payload), or the OpenSky API bounded
+        // to the scan box; all share the one HTTP client.
         JsonDocument doc;
         HttpResult result;
         if (req->local) {
@@ -662,7 +912,22 @@ void AircraftManager::RunFetchTask()
                                    "geom_rate", "category", "squawk", "type", "seen_pos" })
                 filter["aircraft"][0][k] = true;
             result = http.GetJson(req->url, doc, filter);
-        } else {
+        }
+#ifdef FEATURE_CLOUD_FEED
+        else if (req->cloud) {
+            // /v1/blips: the proxy quantizes to its cache tile/bucket, clips,
+            // sorts by distance, and caps server-side -- the reply is <= ~2 KB
+            // with a fixed Content-Length, so the streaming decode is trivial.
+            result = http.GetJson(
+                CloudFeed::BlipsUrl(req->cloudBase), doc,
+                { { "lat", String(req->lat, 4) },
+                  { "lon", String(req->lon, 4) },
+                  { "r", String((int)lround(req->rangeKm)) },
+                  { "limit", "25" } },
+                CloudFeed::Headers(req->cloudKey));
+        }
+#endif
+        else {
             std::vector<std::pair<String, String>> headers = {};
             if (!req->token.isEmpty()) headers.push_back({ "Authorization", "Bearer " + req->token });
 
@@ -686,6 +951,10 @@ void AircraftManager::RunFetchTask()
         }
 
         const char* sourceName = req->local ? "Local ADS-B" : "OpenSky";
+        bool isOpenSky = !req->local;
+#ifdef FEATURE_CLOUD_FEED
+        if (req->cloud) { sourceName = "Blipscope Cloud"; isOpenSky = false; }
+#endif
         if (!result.success) {
             Serial.printf("[WARN] %s request failed: %s\n", sourceName, result.errorMessage.c_str());
         } else if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -693,11 +962,24 @@ void AircraftManager::RunFetchTask()
             // portal) parses fine but is NOT "zero aircraft in the box": treating
             // it as data would wipe every tracked contact, then re-fire alerts and
             // inflate the logbook when the feed recovers. Keep the last picture.
+            // The cloud proxy's fast 503s ("warming": it is filling its cache in
+            // the background) land here too -- the next poll hits the warm tile.
             Serial.printf("[WARN] %s returned HTTP %d; keeping current picture\n", sourceName, result.statusCode);
             // 401/403 means the cached bearer token is bad (expired server-side);
             // flag it so the loop drops the cache and the next cycle re-auths.
-            res->authFailed = !req->local && (result.statusCode == 401 || result.statusCode == 403);
-        } else if (req->local) {
+            // (OpenSky only: a cloud 401 is a key mismatch -- retrying can't fix it,
+            // and it must not invalidate the unrelated OpenSky token cache.)
+            res->authFailed = isOpenSky && (result.statusCode == 401 || result.statusCode == 403);
+        }
+#ifdef FEATURE_CLOUD_FEED
+        else if (req->cloud) {
+            if (CloudFeed::ParseBlips(doc, res->aircraft, res->dataEpoch))
+                res->ok = true;
+            else // schema-version mismatch or malformed body: never wipe the picture over it
+                Serial.println("[WARN] Blipscope Cloud: blips schema mismatch; keeping current picture");
+        }
+#endif
+        else if (req->local) {
             // dump1090/readsb returns objects under "aircraft"; convert each and
             // clip to the scan box ourselves (OpenSky does this server-side, but a
             // local receiver reports everything it hears).
@@ -755,6 +1037,21 @@ void AircraftManager::RequestFetch()
     req->lat = lat; req->lon = lon; req->radLat = radLat; req->radLon = radLon;
     req->local = useLocalSource;
 
+#ifdef FEATURE_CLOUD_FEED
+    if (useCloudSource) {
+        // Proxy fetch: no token dance, just the snapshot of base/key/radius. Skip
+        // if no base URL resolved (no build flag and no config value) -- an
+        // unconfigured device must never open a socket.
+        if (cloudUrl.isEmpty()) {
+            delete req;
+            return;
+        }
+        req->cloud = true;
+        req->cloudBase = cloudUrl;
+        req->cloudKey = cloudKey;
+        req->rangeKm = rangeKmCfg;
+    } else
+#endif
     if (useLocalSource) {
         // local receiver: no auth, no token lookup. Skip entirely if no URL is set
         // yet (local selected but the field left blank) rather than GET an empty URL.
@@ -778,6 +1075,22 @@ void AircraftManager::RequestFetch()
         delete req; // queue full (shouldn't happen: we only request when !fetchInFlight)
 }
 
+#ifdef FEATURE_CLOUD_FEED
+void AircraftManager::RequestCloudConfig()
+{
+    if (cloudUrl.isEmpty())
+        return;
+    FetchRequest* req = new FetchRequest();
+    req->kind = FetchKind::CloudConfig;
+    req->cloudBase = cloudUrl;
+    req->cloudKey = cloudKey;
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+        fetchInFlight = true;
+    else
+        delete req;
+}
+#endif
+
 void AircraftManager::ConsumeFetchResult()
 {
     if (fetchResultQueue == nullptr)
@@ -789,6 +1102,28 @@ void AircraftManager::ConsumeFetchResult()
 
     fetchInFlight = false;
 
+#ifdef FEATURE_CLOUD_FEED
+    if (res->kind == FetchKind::CloudConfig) {
+        if (res->ok) {
+            cloudCfg = res->config;
+            cloudCfgEverApplied = true;
+            Serial.printf("[cloud] config rev=%d: poll %lu/%lu/%lu ms idleAfter=%lus stale=x%d enrich=%d minFw=%d\n",
+                          cloudCfg.rev, cloudCfg.pollActiveMs, cloudCfg.pollIdleMs, cloudCfg.pollNightMs,
+                          cloudCfg.idleAfterMs / 1000, cloudCfg.staleFactor, (int)cloudCfg.enrich, cloudCfg.minFw);
+            // The fleet raised the firmware floor past this build: run the normal
+            // OTA check now (main.cpp consumes the flag) instead of waiting for
+            // the daily timer.
+            if (cloudCfg.minFw > FW_VERSION)
+                otaCheckRequested = true;
+        } else {
+            // Retry in 15 min rather than tomorrow; the defaults keep serving.
+            lastCloudCfgFetch = millis() - (24UL * 60UL * 60UL * 1000UL) + (15UL * 60UL * 1000UL);
+        }
+        delete res;
+        return;
+    }
+#endif
+
     // OpenSky rejected the bearer token: drop the cache (on the loop task, which
     // owns the handler for the radar) so the next fetch cycle re-authenticates
     // instead of 401-ing until the local 29-min timer happens to lapse.
@@ -797,6 +1132,20 @@ void AircraftManager::ConsumeFetchResult()
 
     if (res->ok) {
         const unsigned long now = millis();
+
+        // Staleness anchor for the indicator: when this merge happened, plus how
+        // old the server said the snapshot already was (cloud tiles served
+        // stale-while-revalidate keep their original t; other sources have no
+        // server-side lag to account for).
+        lastGoodDataMs = now;
+        dataLagAtMergeMs = 0;
+#ifdef FEATURE_CLOUD_FEED
+        if (res->dataEpoch > 0) {
+            const time_t nowEpoch = time(nullptr);
+            if (nowEpoch > 1600000000 && (long)nowEpoch > res->dataEpoch)
+                dataLagAtMergeMs = (unsigned long)((long)nowEpoch - res->dataEpoch) * 1000UL;
+        }
+#endif
 
         for (auto& ac : res->aircraft) {
             auto it = trackedAircraft.find(ac.icao24);
@@ -827,8 +1176,10 @@ void AircraftManager::ConsumeFetchResult()
         // TrackedAircraft on re-appearance -- re-firing flyover/overhead ntfy alerts,
         // re-bumping the logbook odometer, re-chirping, and discarding the trail +
         // adsbdb enrichment. lastSeen (updated in TrackedAircraft::Update) survives a
-        // miss, so keep the entry for ~2 fetch intervals (bounded 5-30 s).
-        const unsigned long graceMs = constrain(2UL * fetchInterval, 5000UL, 30000UL);
+        // miss, so keep the entry for ~2 poll intervals (bounded 5-30 s; the cadence
+        // machine's current interval in cloud mode, so idle/night cadences don't
+        // evict everything between polls -- the 30 s ceiling still applies).
+        const unsigned long graceMs = constrain(2UL * CurrentPollIntervalMs(), 5000UL, 30000UL);
         for (auto it = trackedAircraft.begin(); it != trackedAircraft.end(); ) {
             const bool present = std::any_of(res->aircraft.begin(), res->aircraft.end(),
                 [&](const Aircraft& ac) { return ac.icao24 == it->first; });
@@ -942,6 +1293,7 @@ float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
     DrawRadarCircles(backbuffer);
+    DrawStaleIndicator(backbuffer); // quiet amber tag when the picture is dead-reckoning on old data
 
     // identify the "of interest" contacts to ring: nearest, highest, fastest
     String nearestIcao, highestIcao, fastestIcao;
@@ -1697,6 +2049,38 @@ void AircraftManager::ProcessDetailLookups()
     if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
         return;
 
+#ifdef FEATURE_CLOUD_FEED
+    if (useCloudSource) {
+        // Cloud detail path: ONE pre-joined /v1/enrich GET covers what used to be
+        // two adsbdb lookups (metadata + route). Photos are deliberately absent in
+        // cloud mode (no licensed source; see proxy/README.md), so the card shows
+        // the silhouette immediately instead of "Loading photo...".
+        if (photoIcao != selectedIcao) {
+            photoIcao = selectedIcao;
+            photoReady = false;
+            photoResolved = true;
+        }
+
+        if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
+            if (millis() < tracked.metadataRetryAfter)
+                return;
+            // The LRU keeps the last few enrichments across aircraft eviction, so
+            // re-inspecting a contact that flapped out of range is instant and
+            // network-free.
+            if (const CloudFeed::Enrichment* cached = enrichCache.Find(selectedIcao)) {
+                ApplyEnrichment(tracked, *cached);
+                return;
+            }
+            String callsign = tracked.state.callsign;
+            callsign.trim();
+            auto [acLat, acLon] = tracked.GetDisplayPosition();
+            tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
+            RequestCloudEnrich(selectedIcao, callsign, acLat, acLon);
+        }
+        return; // Fetching (await the result) or Fetched (card complete)
+    }
+#endif
+
     // 1. metadata (type/operator/registration + photo URL). Queued here -- not only
     //    in the throttled radar path -- so the card is complete even when the
     //    enrichment fields are disabled. The photo step below needs the photoUrl it
@@ -1775,6 +2159,11 @@ void AircraftManager::RunEnrichTask()
             case EnrichKind::Metadata: res = fetchAircraftMetadata(http, req->icao24); break;
             case EnrichKind::Route:    res = fetchRoute(http, req->callsign);          break;
             case EnrichKind::Photo:    res = fetchPhoto(http, req->url);               break;
+#ifdef FEATURE_CLOUD_FEED
+            case EnrichKind::CloudEnrich: res = fetchCloudEnrich(http, *req);          break;
+#endif
+            case EnrichKind::Ntfy:     res = postNtfy(http, *req);                     break;
+            default: res = new EnrichResult(); break; // unknown kind: clear the in-flight gate
         }
 
         if (res != nullptr) {
@@ -1808,6 +2197,77 @@ void AircraftManager::RequestPhoto(const String& icao24, const String& url)
     if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Photo, icao24, "", url }))
         enrichInFlight = true;
 }
+
+#ifdef FEATURE_CLOUD_FEED
+void AircraftManager::RequestCloudEnrich(const String& icao24, const String& callsign,
+                                         float acLat, float acLon)
+{
+    EnrichRequest* req = new EnrichRequest{};
+    req->kind = EnrichKind::CloudEnrich;
+    req->icao24 = icao24;
+    req->callsign = callsign;
+    req->cloudBase = cloudUrl;
+    req->cloudKey = cloudKey;
+    req->acLat = acLat;
+    req->acLon = acLon;
+    req->hasPos = true;
+    if (enqueueEnrich(enrichRequestQueue, req))
+        enrichInFlight = true;
+}
+
+void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e)
+{
+    tracked.metadataState = TrackedAircraft::MetadataState::Fetched;
+    tracked.typeCode = e.typeCode;
+    tracked.typeName = e.typeName;
+    tracked.operatorName = e.operatorName;
+    tracked.registration = e.registration;
+    tracked.photoUrl = ""; // photo-less in cloud mode (no licensed source)
+    tracked.routeOrigin = e.routeOrigin;
+    tracked.routeDest = e.routeDest;
+    // Mark the route resolved for the CURRENT callsign (even when empty), so the
+    // detail path doesn't keep asking; a callsign change re-queries as usual.
+    String callsign = tracked.state.callsign;
+    callsign.trim();
+    tracked.routeCallsign = callsign;
+
+    if (logbookEnabled) {
+        const bool newType = logbook.NoteType(tracked.typeCode);
+        const bool newOperator = logbook.NoteOperator(tracked.operatorName);
+        if (newType || newOperator)
+            tracked.freshCatch = true;
+    }
+}
+
+bool AircraftManager::CloudShouldBackgroundEnrich(const TrackedAircraft& tracked) const
+{
+    switch (cloudCfg.enrich) {
+        case CloudFeed::Config::Enrich::Off:
+            return false;
+        case CloudFeed::Config::Enrich::Watchlist: {
+            // Only the fields available WITHOUT enrichment can gate here (hex +
+            // callsign); registration/type watchlist entries still match once an
+            // aircraft is enriched some other way (a tap, the LRU). Documented
+            // limitation of the C3-default level -- the point is not to enrich
+            // the whole sky on the tight board.
+            if (watchlist.empty())
+                return false;
+            String callsign = tracked.state.callsign; callsign.trim(); callsign.toLowerCase();
+            String icao = tracked.state.icao24; icao.toLowerCase();
+            for (const String& w : watchlist) {
+                if (!icao.isEmpty() && icao.startsWith(w))         return true;
+                if (!callsign.isEmpty() && callsign.startsWith(w)) return true;
+            }
+            return false;
+        }
+        case CloudFeed::Config::Enrich::Full:
+        default:
+            // Full still respects metadataNeeded: no enrichment-consuming feature
+            // on (no lookup fields, no watchlist, no logbook) means no traffic.
+            return metadataNeeded;
+    }
+}
+#endif // FEATURE_CLOUD_FEED
 
 void AircraftManager::ConsumeEnrichResults()
 {
@@ -1849,11 +2309,44 @@ void AircraftManager::ConsumeEnrichResults()
                     // transient network failure: allow a later retry, but not before
                     // a cooldown -- otherwise this same aircraft is re-picked every
                     // cycle and hammers the (often heap-starved) TLS path in a storm.
-                    constexpr unsigned long METADATA_RETRY_COOLDOWN = 30000;
                     it->second.metadataState = TrackedAircraft::MetadataState::NotFetched;
-                    it->second.metadataRetryAfter = millis() + METADATA_RETRY_COOLDOWN;
+                    it->second.metadataRetryAfter = millis() + res->retryCooldownMs;
                 }
             }
+            break;
+
+#ifdef FEATURE_CLOUD_FEED
+        case EnrichKind::CloudEnrich:
+            if (it != trackedAircraft.end()) {
+                TrackedAircraft& t = it->second;
+                if (res->definitive) {
+                    CloudFeed::Enrichment e;
+                    e.registration = res->registration;
+                    e.typeCode     = res->typeCode;
+                    e.typeName     = res->typeName;
+                    e.operatorName = res->operatorName;
+                    e.routeOrigin  = res->routeOrigin;
+                    e.routeDest    = res->routeDest;
+                    ApplyEnrichment(t, e);
+                    enrichCache.Insert(res->icao24, e); // re-taps after eviction stay instant
+                } else if (t.enrichAttempts + 1 >= 3) {
+                    // Three all-empty/failed answers: accept "unknown aircraft"
+                    // rather than polling the proxy forever. (Empty responses are
+                    // ambiguous between a warming cache and a truly unknown hex;
+                    // by the third answer the proxy has long finished warming.)
+                    ApplyEnrichment(t, CloudFeed::Enrichment{});
+                } else {
+                    t.enrichAttempts++;
+                    t.metadataState = TrackedAircraft::MetadataState::NotFetched;
+                    t.metadataRetryAfter = millis() + res->retryCooldownMs;
+                }
+            }
+            break;
+#endif
+
+        case EnrichKind::Ntfy:
+            // Nothing to apply: the POST already happened (and logged) on the
+            // enrichment task; this result only clears the in-flight gate.
             break;
 
         case EnrichKind::Route:
@@ -1945,10 +2438,13 @@ void AircraftManager::ProcessAlerts()
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.state.onGround) continue;
 
-        // overhead "look up" alert -- one-shot per tracking session
+        // overhead "look up" alert -- one-shot per tracking session. The notified
+        // flag is only set when the POST actually queued (the enrichment task's
+        // depth-1 queue may be busy), so a deferred alert retries next tick
+        // instead of being lost.
         if (alertOverhead && !tracked.overheadNotified && IsOverhead(tracked)) {
-            SendOverheadNotification(tracked);
-            tracked.overheadNotified = true;
+            if (SendOverheadNotification(tracked))
+                tracked.overheadNotified = true;
             return; // at most one notification per tick
         }
 
@@ -1956,15 +2452,34 @@ void AircraftManager::ProcessAlerts()
         if (flyoverEnabled && !tracked.watchNotified) {
             const bool military = alertMilitary && SpecialAircraft::IsMilitary(tracked.state.icao24);
             if (military || MatchesWatchlist(tracked)) {
-                SendFlyoverNotification(tracked, military);
-                tracked.watchNotified = true;
+                if (SendFlyoverNotification(tracked, military))
+                    tracked.watchNotified = true;
                 return;
             }
         }
     }
 }
 
-void AircraftManager::SendFlyoverNotification(const TrackedAircraft& tracked, bool military)
+// Queue an ntfy POST onto the enrichment task. The POST used to run right here on
+// the loop -- a slow ntfy.sh or a cold TLS handshake stalled rendering for seconds
+// and ate taps (the loop polls touch once per pass). False = queue busy, try later.
+bool AircraftManager::QueueNtfyPost(const String& title, const String& tags, const String& body)
+{
+    if (enrichInFlight)
+        return false; // one outstanding request at a time, shared with enrichment
+    EnrichRequest* req = new EnrichRequest{};
+    req->kind = EnrichKind::Ntfy;
+    req->url = "https://ntfy.sh/" + ntfyTopic;
+    req->ntfyTitle = title;
+    req->ntfyTags = tags;
+    req->ntfyBody = body;
+    if (!enqueueEnrich(enrichRequestQueue, req))
+        return false;
+    enrichInFlight = true;
+    return true;
+}
+
+bool AircraftManager::SendFlyoverNotification(const TrackedAircraft& tracked, bool military)
 {
     String callsign = tracked.state.callsign;
     callsign.trim();
@@ -1975,16 +2490,11 @@ void AircraftManager::SendFlyoverNotification(const TrackedAircraft& tracked, bo
     if (!tracked.operatorName.isEmpty()) body += " " + tracked.operatorName;
     body += " at " + String(lroundf(tracked.state.baroAltitude * METRES_TO_FEET)) + " ft";
 
-    const HttpResult result = http.Post(
-        "https://ntfy.sh/" + ntfyTopic, body,
-        { { "Title", military ? "Blipscope military flyover" : "Blipscope flyover" },
-          { "Tags", military ? "rotating_light" : "airplane" } });
-
-    Serial.printf("[ntfy] %s%s -> %s\n", military ? "[MIL] " : "", callsign.c_str(),
-                  result.success ? "sent" : result.errorMessage.c_str());
+    return QueueNtfyPost(military ? "Blipscope military flyover" : "Blipscope flyover",
+                         military ? "rotating_light" : "airplane", body);
 }
 
-void AircraftManager::SendOverheadNotification(const TrackedAircraft& tracked)
+bool AircraftManager::SendOverheadNotification(const TrackedAircraft& tracked)
 {
     String callsign = tracked.state.callsign;
     callsign.trim();
@@ -1994,12 +2504,7 @@ void AircraftManager::SendOverheadNotification(const TrackedAircraft& tracked)
     if (!tracked.typeCode.isEmpty()) body += " (" + tracked.typeCode + ")";
     body += " at " + String(lroundf(tracked.state.baroAltitude * METRES_TO_FEET)) + " ft";
 
-    const HttpResult result = http.Post(
-        "https://ntfy.sh/" + ntfyTopic, body,
-        { { "Title", "Blipscope overhead - look up!" }, { "Tags", "eyes" } });
-
-    Serial.printf("[ntfy] [OVH] %s -> %s\n", callsign.c_str(),
-                  result.success ? "sent" : result.errorMessage.c_str());
+    return QueueNtfyPost("Blipscope overhead - look up!", "eyes", body);
 }
 
 void AircraftManager::PublishMqttState()
@@ -2289,6 +2794,18 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
 
 void AircraftManager::ProcessMetadataLookups()
 {
+#ifdef FEATURE_CLOUD_FEED
+    if (useCloudSource) {
+        // The /v1/config enrich level is the master switch in cloud mode. Off:
+        // nothing (taps still enrich). Watchlist: the per-aircraft filter below
+        // decides -- the watchlist itself is the need, so metadataNeeded doesn't
+        // gate it. Full: same metadataNeeded economy as the adsbdb path.
+        if (cloudCfg.enrich == CloudFeed::Config::Enrich::Off)
+            return;
+        if (cloudCfg.enrich == CloudFeed::Config::Enrich::Full && !metadataNeeded)
+            return;
+    } else
+#endif
     if (!metadataNeeded)
         return;
 
@@ -2326,6 +2843,26 @@ void AircraftManager::ProcessMetadataLookups()
             continue;
         if (now < tracked.metadataRetryAfter)
             continue; // still in post-failure cooldown; skip so others get a turn
+
+#ifdef FEATURE_CLOUD_FEED
+        if (useCloudSource) {
+            if (!CloudShouldBackgroundEnrich(tracked))
+                continue;
+            // A cache hit costs nothing -- apply it and keep scanning for one
+            // that actually needs the network.
+            if (const CloudFeed::Enrichment* cached = enrichCache.Find(icao)) {
+                ApplyEnrichment(tracked, *cached);
+                continue;
+            }
+            String callsign = tracked.state.callsign;
+            callsign.trim();
+            auto [acLat, acLon] = tracked.GetDisplayPosition();
+            lastMetadataLookup = now;
+            tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
+            RequestCloudEnrich(icao, callsign, acLat, acLon);
+            return;
+        }
+#endif
 
         lastMetadataLookup = now;
         tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
