@@ -25,10 +25,16 @@ namespace {
 
     constexpr unsigned long GATE_AT_MS = 24UL * 60UL * 60UL * 1000UL;
     constexpr unsigned long STATS_EVERY_MS = 60000;
+    // Gate counters arm only after the boot settles: WiFi + first TLS bring-up
+    // legitimately spikes frame times and craters the largest block for a couple
+    // of minutes, and the gate is a steady-state criterion, not a boot one.
+    constexpr unsigned long WARMUP_MS = 3UL * 60UL * 1000UL;
 
     unsigned long startMs = 0;
     unsigned long lastStatsMs = 0;
     bool gatePrinted = false;
+    bool warmedUp = false;
+    uint32_t breachBase = 0; // BudgetBreachCount() at warmup end; gate counts the delta
 
     unsigned long bursts = 0, presses = 0;
     uint32_t minLargest = UINT32_MAX;
@@ -110,30 +116,43 @@ void SoakHarness::Tick(AircraftManager& mgr)
 {
     const unsigned long now = millis();
 
-    const uint32_t largest = ESP.getMaxAllocHeap();
-    if (largest < minLargest)
-        minLargest = largest;
+    if (!warmedUp && now - startMs >= WARMUP_MS) {
+        warmedUp = true;
+        breachBase = mgr.BudgetBreachCount();
+        minLargest = UINT32_MAX; // steady-state floor only; boot transients excluded
+        Serial.println("[soak] warmup complete; gate counters armed (boot transients excluded)");
+    }
+
+    if (warmedUp) {
+        const uint32_t largest = ESP.getMaxAllocHeap();
+        if (largest < minLargest)
+            minLargest = largest;
+    }
 
     if (now - lastStatsMs >= STATS_EVERY_MS) {
         lastStatsMs = now;
         const auto& wd = TouchWatchdog::GetStats();
         const unsigned long up = (now - startMs) / 1000UL;
-        Serial.printf("[soak] up=%02lu:%02lu:%02lu presses=%lu bursts=%lu | wd wedges=%lu recov=%lu/%lu (s%lu/h%lu) wakes=%lu maxOutage=%lums rebootRec=%lu | breaches=%lu heap=%u minLargest=%u\n",
+        const uint32_t gateBreaches = warmedUp ? mgr.BudgetBreachCount() - breachBase : 0;
+        Serial.printf("[soak] up=%02lu:%02lu:%02lu presses=%lu bursts=%lu | wd wedges=%lu recov=%lu/%lu (s%lu/h%lu) wakes=%lu maxOutage=%lums rebootRec=%lu | breaches=%lu heap=%u minLargest=%u%s\n",
                       up / 3600, (up / 60) % 60, up % 60, presses, bursts,
                       (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
                       (unsigned long)wd.recoverAttempts, (unsigned long)wd.softRecoveries,
                       (unsigned long)wd.hardRecoveries, (unsigned long)wd.wakes,
                       (unsigned long)wd.maxOutageMs, (unsigned long)wd.rebootsRecommended,
-                      (unsigned long)mgr.BudgetBreachCount(),
-                      (unsigned)ESP.getFreeHeap(), (unsigned)minLargest);
+                      (unsigned long)gateBreaches,
+                      (unsigned)ESP.getFreeHeap(),
+                      minLargest == UINT32_MAX ? 0u : (unsigned)minLargest,
+                      warmedUp ? "" : " (warming up)");
     }
 
     if (!gatePrinted && now - startMs >= GATE_AT_MS) {
         gatePrinted = true;
         const auto& wd = TouchWatchdog::GetStats();
+        const uint32_t gateBreaches = mgr.BudgetBreachCount() - breachBase;
         const bool okWedges  = wd.wedges <= 1;
         const bool okOutage  = wd.maxOutageMs <= 90000 && wd.rebootsRecommended == 0;
-        const bool okBudget  = mgr.BudgetBreachCount() == 0;
+        const bool okBudget  = gateBreaches == 0;
         const bool okHeap    = minLargest >= 20000;
         const bool pass = okWedges && okOutage && okBudget && okHeap;
         Serial.println("[soak] ==================================================");
@@ -146,9 +165,9 @@ void SoakHarness::Tick(AircraftManager& mgr)
         Serial.printf("[soak]   outage buckets    <=30s:%lu 30-90s:%lu >90s:%lu (from declaration; +<=10s detection)\n",
                       (unsigned long)wd.outageLe30s, (unsigned long)wd.outageLe90s,
                       (unsigned long)wd.outageGt90s);
-        Serial.printf("[soak]   budget breaches   %lu (==0)          %s\n",
-                      (unsigned long)mgr.BudgetBreachCount(), okBudget ? "ok" : "FAIL");
-        Serial.printf("[soak]   heap floor        minLargest=%u (>=20000)  %s\n",
+        Serial.printf("[soak]   budget breaches   %lu post-warmup (==0)   %s\n",
+                      (unsigned long)gateBreaches, okBudget ? "ok" : "FAIL");
+        Serial.printf("[soak]   heap floor        minLargest=%u post-warmup (>=20000)  %s\n",
                       (unsigned)minLargest, okHeap ? "ok" : "FAIL");
         Serial.println("[soak]   display           uninterrupted (this line printing at 24 h proves no reboot)");
         Serial.println("[soak] ==================================================");

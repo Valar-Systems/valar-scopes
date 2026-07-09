@@ -72,10 +72,19 @@ namespace {
             touch->init(); // pulses pin_rst + rewrites the chip setup
     }
 
+#ifdef TOUCHWD_BUS_UNSTICK
     // Classic I2C bus recovery: if the chip crashed mid-transfer holding SDA low,
     // no reset of OUR peripheral helps until the slave releases the line -- clock
     // it out. Tear down the I2C driver, pulse SCL 9 times, generate a STOP, and
-    // re-init the driver. Sub-millisecond; called from the hard rung only.
+    // re-init the driver.
+    //
+    // DEFAULT OFF (2026-07-09 finding): on the C3, this lgfx::i2c::release/init
+    // cycle killed the concurrent fetch task's TLS client -- the cloud soak's
+    // fetches went permanently silent at the exact first hard rung, and ran
+    // perfectly all night with the watchdog disabled (A/B on hardware). Mechanism
+    // not yet isolated (suspect: driver/interrupt re-allocation colliding with the
+    // network stack on the single core). Re-enable only for a bench session with
+    // a live chip and no networking, until the interaction is understood.
     void BusUnstick()
     {
         lgfx::i2c::release(BLIPSCOPE_TOUCH_I2C_PORT);
@@ -96,13 +105,16 @@ namespace {
         lgfx::i2c::setPins(BLIPSCOPE_TOUCH_I2C_PORT, BLIPSCOPE_TOUCH_PIN_SDA, BLIPSCOPE_TOUCH_PIN_SCL);
         lgfx::i2c::init(BLIPSCOPE_TOUCH_I2C_PORT);
     }
+#endif // TOUCHWD_BUS_UNSTICK
 
     // Launch the CURRENT rung's reset (assumes its cool-off already elapsed).
     void StartRung(LGFX& tft, unsigned long now)
     {
         stats.recoverAttempts++;
         if (rung >= FIRST_HARD_RUNG) {
-            BusUnstick();
+#ifdef TOUCHWD_BUS_UNSTICK
+            BusUnstick(); // see the finding above: off by default, it kills the fetch TLS client
+#endif
             pinMode(BLIPSCOPE_TOUCH_PIN_RST, OUTPUT);
             digitalWrite(BLIPSCOPE_TOUCH_PIN_RST, LOW);
             state = State::HardRstLow;
@@ -160,6 +172,13 @@ namespace {
 
 void TouchWatchdog::OnPoll(LGFX& tft, bool sawTouch, bool mayProbe)
 {
+#ifdef TOUCHWD_DISABLED
+    // Bench escape hatch (-DTOUCHWD_DISABLED): run a board whose touch hardware is
+    // known-dead without the supervisor declaring wedges and the reboot escalation
+    // cycling the device -- e.g. a cloud/heap soak while an FPC repair is pending.
+    (void)tft; (void)sawTouch; (void)mayProbe;
+    return;
+#endif
     if constexpr (!variant::TOUCH_WATCHDOG)
         return; // capability-gated: today only the C3's CST816T is marginal
 

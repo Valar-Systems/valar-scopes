@@ -914,6 +914,13 @@ void AircraftManager::RunFetchTask()
         if (xQueueReceive(fetchRequestQueue, &req, portMAX_DELAY) != pdTRUE || req == nullptr)
             continue;
 
+#ifdef SOAK_TEST
+        // Soak diagnostics: bracket every request so a silently-stuck task is
+        // localizable from the log (took-the-request vs finished-the-request).
+        const unsigned long soakReqStartMs = millis();
+        Serial.printf("[fetch] task: req kind=%d @%lu\n", (int)req->kind, soakReqStartMs);
+#endif
+
         FetchResult* res = new FetchResult();
         res->kind = req->kind;
 
@@ -1068,6 +1075,11 @@ void AircraftManager::RunFetchTask()
                           sourceName, (unsigned)ESP.getFreeHeap(), (unsigned)largest, (unsigned)res->aircraft.size());
 
         delete req;
+
+#ifdef SOAK_TEST
+        Serial.printf("[fetch] task: done ok=%d http=%d in %lums\n",
+                      (int)res->ok, result.statusCode, millis() - soakReqStartMs);
+#endif
 
         // hand the result back; the loop consumed the previous one before requesting
         // again, so the depth-1 queue always has room
