@@ -7,7 +7,19 @@
 // none of which this scaffold integrates yet; the board exists first to A/B the CST816
 // wedge against the C3 under the same watchdog ledger).
 //
-// PIN MAP STATUS (2026-07-09 incoming inspection, probe-s3-128 sweep on the actual unit):
+// PIN MAP STATUS: 100% VERIFIED -- hardware-derived (JTAG dump of the stock demo, probe
+// sweep + phase-2 hunt/pulse tests) AND cross-confirmed against the vendor doc pack
+// ("ESP32S3-NxxRxx-128SPIT_开发板 V1.0": SimpleSchematic.pdf + FullFunctionTest demo
+// source), which matches on every pin. Vendor facts not yet consumed by this variant
+// (recorded for future integration): side buttons SW_UP=14 / SW_PW=15 / SW_Down=16
+// (power latch also senses on 15), USB VBUS detect P_ST=17, battery ADC on GPIO1
+// (divider x2, 4095 @ 3.3 V), PCF85063 RTC INT=45 (RTC unpopulated on base SKU),
+// TF card MISO=48 SCK=41 MOSI=47 CS=40, speaker MAX98357 / mic ICS-43434 are I2S.
+// RF: chip antenna vs u.FL is a SOLDER_TERMINATION/FEED_TERMINATION link by the
+// matching network (schematic ANT1/RF1) -- factory-selectable; we require the u.FL
+// configuration for production units (chip antenna failed association at -64 dBm).
+//
+// (2026-07-09 incoming inspection, probe-s3-128 sweep on the actual unit):
 //   TOUCH BUS VERIFIED: SDA=8 SCL=9, sole device 0x15 (RTC/IMU pads unpopulated on this
 //   unit -- base SKU per the listing). Chip-id 0xA7=0xB6 (same family id as the C3 kit),
 //   fw-ver 0xA9=0x02, proj-id 0xA8=0x02. CRITICALLY: 0xFE (DisAutoSleep) reads 1 FROM THE
@@ -47,10 +59,17 @@
 #define BLIPSCOPE_TOUCH_I2C_PORT 0
 #define BLIPSCOPE_TOUCH_PIN_SDA  8
 #define BLIPSCOPE_TOUCH_PIN_SCL  9
-#define BLIPSCOPE_TOUCH_PIN_INT  (-1)  // not yet identified (probe phase 2); driver polls
-#define BLIPSCOPE_TOUCH_PIN_RST  0     // TENTATIVE (elimination: the strap pin fits the reset
-                                       // role; confirm via probe phase 2 low-pulse before
-                                       // trusting the watchdog's hard rung on this board)
+#define BLIPSCOPE_TOUCH_PIN_INT  11   // VERIFIED 2026-07-09 (phase-2 hunt: 1700+ falling edges
+                                      // under a finger drag, all 14 other candidates flat).
+                                      // INT gating is REQUIRED on this chip revision, not a
+                                      // nicety: polled between report pulses, the touch regs
+                                      // intermittently read 0 mid-touch -- the phantom-release
+                                      // double-tap bug seen on the blind-polling build.
+#define BLIPSCOPE_TOUCH_PIN_RST  0     // VERIFIED 2026-07-09 (probe phase 2: three low-pulse
+                                       // runs, chip NACKed while low + clean 450 ms recovery
+                                       // every time) -- the watchdog's hard rung is armed.
+                                       // Strap pin: safe at runtime; never hold low across an
+                                       // ESP reset (that's download mode).
 #define BLIPSCOPE_TOUCH_I2C_ADDR 0x15
 #define BLIPSCOPE_TOUCH_FREQ     400000
 
