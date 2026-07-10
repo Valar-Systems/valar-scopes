@@ -352,3 +352,110 @@ Operational tunables (env vars, all optional): `UPSTREAM_TIMEOUT_MS` (8000),
 `BLIPS_SERVE_DEADLINE_MS` (3500), `ENRICH_SERVE_DEADLINE_MS` (2500),
 `ROUTE_ADSBDB_ENABLED` ("true"), `UPSTREAM_ADSB_FI_ENABLED` /
 `UPSTREAM_AIRPLANES_LIVE_ENABLED` ("false" pending permission).
+
+## Work queue
+
+Accepted items, spec'd enough to pick up cold.
+
+### Military enrichment deepening (accepted 2026-07-09)
+
+Driver: military contacts (e.g. a US DoD `AE…`-block hex) routinely render a
+near-empty detail card — MILITARY tag, hex-as-title, no type/reg/operator.
+The enrich path already resolves metadata from the adsb.lol `/v2/hex` live
+return (`r`/`t`/`desc`/`ownOp` in `enrich.ts buildMeta`); the gap is that
+adsb.lol's airframe DB has no record for many military hexes, so the live
+return carries a position and nothing else. No device firmware change in any
+phase — the card already renders `r`/`t`/`tn`/`op` whenever they arrive.
+
+1. **Cache-policy fix (P0):** `buildMeta` marks any non-null upstream return
+   `found:true` — including all-empty ones — which then positive-caches for
+   30 d (`AC_TTL_S`). An airframe whose DB record appears later stays blank
+   for a month. Cache found-but-all-EMPTY metas at the negative TTL (1 d).
+2. **Military floor (P1):** carry a compact ICAO military-allocation range
+   table (`AE0000`–`AFFFFF` = US DoD, plus the other national mil blocks);
+   when the hex is in a mil block and `op` resolved empty, fill `op` with
+   e.g. "US military". Read `dbFlags` bit 0 too when the DB supplies it.
+   Never guess types.
+3. **Static airframe dataset (P2):** the tar1090/Mictronics community
+   aircraft DB carries many military airframes (type/reg/operator). Load a
+   mil-block slice into KV (`ac:` pre-seed, or a `mil:<hex>` side table
+   consulted when live fields come back empty). **License review required
+   before shipping** (attribution per the adsb.lol ODbL credit pattern
+   already on the device config page).
+4. **Callsign color (P3, optional):** static prefix table (RCH → Air
+   Mobility Command, …) filling `op` when a callsign is broadcast and
+   nothing else resolved. Military photos (by-hex photo APIs) are a separate
+   licensing/attribution decision — explicitly not part of this item.
+
+Tests per phase in the existing vitest suite: empty-meta TTL, mil-block
+floor, KV side-table hit, prefix fill.
+
+### Stock photo library for cloud mode (accepted 2026-07-09)
+
+Driver: cloud mode is deliberately photo-less (`AircraftManager.cpp` blanks
+`photoUrl` — "no licensed source"; the BYO builds' adsbdb/planespotters
+thumbnails can't be re-hosted). A self-hosted, owner-curated stock library is
+the licensing-clean photo path for cloud devices — and for military types the
+obvious sources (official DoD imagery) are public domain.
+
+- **Sourcing:** per the playbook in
+  [blipscope-military-photo-sourcing.md](../blipscope-military-photo-sourcing.md)
+  — two layers, one machinery. **Military tiers (hand-curated):** Wikimedia
+  Commons FIRST (its API's `extmetadata` carries machine-readable
+  license/author/credit, so the harvest script auto-fills manifest rows),
+  DVIDS/.mil manually for gaps; every .mil-hosted photo passes the
+  **credit-line test** ("U.S. Air Force photo by …" = PD; "Photo courtesy
+  of Lockheed Martin/Boeing/…" = contractor copyright even on a .mil page —
+  skip). **Layer 2 (civil long tail, auto-harvested):** every type code
+  seen in proxy logs ranked by frequency → Wikidata entity via the ICAO
+  type-designator property → **P18** canonical image (Commons search ranked
+  by Quality/Featured assessments when P18 is absent/bad); human eyes on
+  the top ~100 by traffic, sampling below; **re-harvest quarterly** (the
+  immutable-key + pointer-flip storage absorbs this natively). Tier lists,
+  sprite-fit selection criteria, and the pick-sheet workflow live in the
+  playbook. PD covers copyright only: card display is factual use, but
+  keep this imagery out of marketing art (implied-endorsement risk).
+- **Manifest + license gate (hard requirement, per-layer):** the upload
+  script maintains `proxy/photos/manifest.json` — key → source URL, author,
+  credit line, license, **layer** (`mil-tier` / `auto`), **autoPicked**
+  flag — and **refuses any upload missing required fields**. License rules:
+  military tiers accept `PD-USGov` / `CC-BY` / `OGL` / `own` (**no SA** —
+  the flagship library stays maximally clean); Layer 2 additionally accepts
+  `CC-BY-SA`, whose entries the credits page must render with attribution
+  + license link + a changes-noted line ("resized for device display").
+  `NC`, `ND`, and anything ambiguous are rejected in both layers.
+  `autoPicked` is manifest-only curation state (drives re-harvest and
+  spot-check policy); the wire keeps the `pk` semantics — the card's
+  "representative photo" label keys off `pk:"type"`, which honestly covers
+  hand-picked and auto-picked type shots alike, **and is suppressed on
+  `pk:"hex"`**: a per-airframe override IS that aircraft, and the uncaptioned
+  photo is the override system's payoff. Attribution: the
+  `photo-credits` page is generated from the manifest (Worker-served or on
+  valarsystems.com), linked from the device config page — satisfies CC-BY,
+  CC-BY-SA, and OGL in one place, courtesy-credits the PD shots. Never
+  planespotters / JetPhotos / airliners.net rips, regardless of quality.
+- **Ingest:** resize/re-encode to exactly the device sprite dims
+  (`PHOTO_W` = 150; read `PHOTO_H` from the firmware when implementing),
+  baseline JPEG only (progressive will not decode on-device), **EXIF
+  stripped on ingest** — ~8–15 KB each.
+- **Storage, immutable:** content-addressed KV keys
+  (`photo:<TYPE|hex>-<hash8>`); a small pointer entry per type/hex records
+  the current key. Re-upload = new blob + pointer flip; blobs are never
+  mutated in place.
+- **Serving:** `GET /v1/photo/<key>`, same `X-Blip-Key` auth as the rest,
+  `Cache-Control: public, max-age=31536000, immutable` — safe because keys
+  are content-addressed.
+- **Enrich join:** resolve the pointer (per-hex first, then type) and add
+  `p: "/v1/photo/<key>"` **plus a kind flag distinguishing per-hex from
+  generic type stock** (e.g. `pk: "hex" | "type"`), so the card can label a
+  type-generic image "representative photo" honestly.
+- **Firmware delta (small):** cloud enrich path reads `p` into
+  `tracked.photoUrl` (absolute = cloud base + `p`) instead of blanking it —
+  the existing RequestPhoto/JPEG-decode path does the rest — and the card
+  captions the photo "representative photo" when `pk` says type.
+- Tests: photo route auth + content-type + immutable cache headers, enrich
+  `p`+`pk` join (hex beats type), pointer flip on re-upload, absent-key →
+  no `p` field, upload script rejects manifest-incomplete entries AND
+  enforces the per-layer license gate (SA rejected in `mil-tier`, accepted
+  in `auto` with credits-page obligations; NC/ND/unrecognized rejected in
+  both layers).
