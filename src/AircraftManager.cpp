@@ -2924,8 +2924,18 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     const int lineHeight = backbuffer.fontHeight() + 5;
+    // 240 px screens: the flowed stat block can reach the fixed footer hints
+    // (drawn at SCREEN_SIZE-46/-34), interleaving text -- seen on the s3-128's
+    // photo-less military card, whose flow starts at y=162 and needs 5 lines.
+    // Telemetry outranks the static gesture hints, so the flow owns the space:
+    // the hints render only if the flow never entered their zone (sparse cards
+    // keep them), and the flow itself stops at the bezel margin so no line can
+    // ever draw off the round panel.
+    const int hintZoneY   = SCREEN_SIZE - 58; // hints need everything below this
+    const int hardBottomY = SCREEN_SIZE - 12; // bezel margin: last drawable line
     auto line = [&](const String& str) {
         if (str.isEmpty()) return;
+        if (y + backbuffer.fontHeight() > hardBottomY) return; // no room: drop
         centered(str, y);
         y += lineHeight;
     };
@@ -2980,9 +2990,11 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         if (!s.squawk.isEmpty()) line("Sqk: " + s.squawk);
     }
 
-    backbuffer.setTextColor(lgfx::color888(0, 110, 0));
-    centered(pinnedIcao == selectedIcao ? "swipe up: unpin" : "swipe up: pin", SCREEN_SIZE - 46);
-    centered(showPhoto ? "tap: details" : "tap: back", SCREEN_SIZE - 34);
+    if (y <= hintZoneY) {
+        backbuffer.setTextColor(lgfx::color888(0, 110, 0));
+        centered(pinnedIcao == selectedIcao ? "swipe up: unpin" : "swipe up: pin", SCREEN_SIZE - 46);
+        centered(showPhoto ? "tap: details" : "tap: back", SCREEN_SIZE - 34);
+    }
 }
 
 void AircraftManager::ProcessMetadataLookups()

@@ -20,7 +20,15 @@ namespace {
 // version.txt (an integer) gates everyone. Each SKU then downloads ITS OWN binary,
 // named by its variant slug -- one SKU must never flash another's image. CI
 // publishes firmware-<slug>.bin per SKU (see RELEASING.md).
-const char* VERSION_URL = "https://github.com/Valar-Systems/valar-scopes/releases/latest/download/version.txt";
+//
+// Bench builds may pin OTA to a specific (pre-)release via -DOTA_RELEASE_BASE
+// (e.g. .../releases/download/<tag>): pre-releases never resolve through
+// /latest, so a pre-gate test release is invisible to the fleet while a bench
+// unit pointed at its tag exercises the full production OTA path.
+#ifndef OTA_RELEASE_BASE
+#define OTA_RELEASE_BASE "https://github.com/Valar-Systems/valar-scopes/releases/latest/download"
+#endif
+const char* VERSION_URL = OTA_RELEASE_BASE "/version.txt";
 
 // FEATURE_EAM and the radar app can share a board (and thus a variant::SLUG) while shipping
 // as separate products, so they ride separate OTA channels: FW_OTA_PREFIX is empty for the
@@ -32,8 +40,7 @@ const char* VERSION_URL = "https://github.com/Valar-Systems/valar-scopes/release
 
 String FirmwareUrl()
 {
-    return String("https://github.com/Valar-Systems/valar-scopes/releases/latest/download/firmware-")
-           + FW_OTA_PREFIX + variant::SLUG + ".bin";
+    return String(OTA_RELEASE_BASE "/firmware-") + FW_OTA_PREFIX + variant::SLUG + ".bin";
 }
 
 // X.509 validation needs a roughly-correct clock (cert validity periods), but the
@@ -125,6 +132,11 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
 
     // 2. download + flash the new image, showing a progress bar on the screen
     Serial.println("[ota] newer firmware available -- updating");
+    // Memory evidence through the whole download+flash window (gate item: a
+    // production-shaped OTA must complete at the steady-state heap operating
+    // point, and the ledger wants numbers, not just pass/fail).
+    Serial.printf("[ota-mem] pre-update free=%u largest=%u\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
     drawProgress(tft, fb, 0);
 
     WiFiClientSecure updClient;
@@ -141,6 +153,11 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
         if (pct != lastPct) {
             lastPct = pct;
             drawProgress(tft, fb, pct);
+            // Heap sampled every 5% across download + OTA-partition writes:
+            // the memory evidence the gate's OTA-at-steady-state leg exists for.
+            if (pct % 5 == 0)
+                Serial.printf("[ota-mem] pct=%d free=%u largest=%u\n",
+                              pct, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
         }
     });
 
