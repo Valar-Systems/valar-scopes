@@ -80,6 +80,14 @@ private:
     int lastTapX = -1000, lastTapY = -1000;
     int tapCycleIndex = 0;
 
+    // Card-close refractory: taps that would OPEN a card (radar/list hit-test) are
+    // swallowed briefly after a card closes. A slow tap on the card can be delivered
+    // twice (a mid-hold read glitch splits one physical tap into release+press+release),
+    // which closed the card and instantly reopened whatever sat under the finger --
+    // the same contact, a stacked neighbour, or a list row. Guarding the reopen side
+    // kills the class no matter what the touch controller does. Bench report 2026-07-10.
+    unsigned long tapSuppressUntilMs = 0;
+
     // Last frame getTouch() actually read a touch. HandleTouch uses it to briefly pause
     // background enrichment after a touch so the enrichment task's TLS doesn't hold the
     // I2C bus (which touch is serialized against) while the user is interacting.

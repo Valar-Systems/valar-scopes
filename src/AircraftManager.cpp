@@ -2107,6 +2107,11 @@ void AircraftManager::ExitDetail()
     photoReady = false;
     photoResolved = false;
     photoIcao = "";
+    // Arm the reopen refractory (see the member comment): if this close was one
+    // half of a glitch-split tap (or swipe), the trailing half arrives within a
+    // frame or two and must not open a new card. Also armed by the idle
+    // auto-close, where it's harmless -- nobody is touching.
+    tapSuppressUntilMs = millis() + 400;
 }
 
 void AircraftManager::HandleTap(int tx, int ty)
@@ -2119,6 +2124,13 @@ void AircraftManager::HandleTap(int tx, int ty)
         else ExitDetail();
         return;
     }
+
+    // Inside the card-close refractory this "tap" is almost certainly the trailing
+    // half of the tap that just closed the card: swallow it rather than open a card
+    // for whatever sits under the finger (bench-observed: close-tap over a contact
+    // instantly reopened that contact's card). Wrap-safe signed comparison.
+    if ((long)(millis() - tapSuppressUntilMs) < 0)
+        return;
 
     if (screen == Screen::Radar) {
         // Pick the contact under the finger. Markers are tiny (~3 px) and a fingertip lands a
