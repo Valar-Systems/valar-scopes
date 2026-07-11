@@ -41,9 +41,13 @@ routes = [
   { pattern = "scopes-staging.valarsystems.com", custom_domain = true }
 ]
 
+# Failover feeds enabled 2026-07-10 (user ruling) during a multi-hour adsb.lol
+# hard outage (502 from Worker AND residential -- their backend, not throttling).
+# Permission emails to both operators remain the licensing to-do; staging traffic
+# is bench-scale (single-digit devices).
 [env.staging.vars]
-UPSTREAM_ADSB_FI_ENABLED = "false"
-UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
+UPSTREAM_ADSB_FI_ENABLED = "true"
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "true"
 ROUTE_ADSBDB_ENABLED = "true"
 
 # Full request logs on staging (low traffic). Production should sample --
