@@ -276,6 +276,53 @@ FROM blipscope_proxy WHERE timestamp > NOW() - INTERVAL '24' HOUR AND blob1 = '/
 GROUP BY cache
 ```
 
+### OTA memory telemetry (`X-Blip-OTA-Mem`)
+
+A device attaches this header to the **first check-in after a firmware-update
+attempt**, once, then forgets it (firmware: `OtaUpdater.h` `TakeOtaMemReport`,
+persisted in NVS because a successful update reboots before anything else could
+report it). Value:
+
+```
+X-Blip-OTA-Mem: <fwFrom>,<fwTo>,<preLargest>,<postLargest>,<result>
+X-Blip-OTA-Mem: 4,5,46068,71668,ok
+```
+
+`result` is `ok`, `fail-<httpUpdateErr>`, or `incomplete` — the last meaning the
+device rebooted mid-update (watchdog/power loss) and left only the pre-armed
+record behind, which is the sole trace that case produces.
+
+**Why it exists:** an OTA is easy to prove at a freshly-booted heap; devices
+update from a *fragmented* one, and no bench can honestly reproduce weeks of
+fragmentation. `preLargest` is the number the bench gate could never obtain — the
+contiguous block actually available when a real update ran. Compare it against
+the ~24–28 KB a TLS handshake needs.
+
+**Handling** (`metrics.ts` `recordOtaMem`): validated to a fixed shape (device
+input — malformed values are dropped silently), recorded past auth + rate
+limiting only, and written as an Analytics Engine point with its **own index**
+(`ota`) so it queries separately from per-request points. It is deliberately
+**not** written to the request logs: log volume is real money at fleet scale
+(see the cost model), and this adds zero requests, zero endpoints, zero log
+bytes. Blobs `[("ota"), result, model]`, doubles `[fwFrom, fwTo, preLargest,
+postLargest]`.
+
+```sql
+-- Did updates complete, and at what contiguous heap?
+SELECT blob2 AS result, COUNT(*) AS n,
+       MIN(double3) AS min_pre_largest, AVG(double3) AS avg_pre_largest
+FROM blipscope_proxy WHERE index1 = 'ota' AND timestamp > NOW() - INTERVAL '30' DAY
+GROUP BY result
+```
+
+Privacy stance (the user-facing wording lives in the root [README](../README.md#privacy--telemetry)):
+operational telemetry only — heap numbers, firmware versions, a result code. No
+identifiers beyond the headers a device must already send to be served
+(`X-Blip-Key`, `X-Blip-Model`), and it rides a request cloud mode requires
+anyway. Local-receiver and self-hosted users never reach this Worker, so they
+transmit nothing — **that existing mode is the opt-out, by architecture rather
+than by toggle.**
+
 ## Cost model
 
 **Assumptions** (change them and the arithmetic below is linear): a device's day

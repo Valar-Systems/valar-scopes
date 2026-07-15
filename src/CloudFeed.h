@@ -73,7 +73,9 @@ String NormalizeBaseUrl(String url);
 
 // The device headers every proxy request carries: X-Blip-Key (auth), X-Blip-Model
 // (variant::SLUG -- the server resolves per-model tunables from it), X-Blip-FW.
-std::vector<std::pair<String, String>> Headers(const String& key);
+// otaMem: the one-shot X-Blip-OTA-Mem value (OtaUpdater.h's TakeOtaMemReport),
+// added only when non-empty -- the first check-in after an update attempt.
+std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem = "");
 
 String BlipsUrl(const String& base);
 String EnrichUrl(const String& base, const String& icao24);

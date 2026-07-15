@@ -9,9 +9,47 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <Preferences.h>
 #include <time.h>
 
 namespace {
+
+// NVS namespace for the one-shot OTA memory report (see TakeOtaMemReport).
+// It has to outlive the update itself: the attempt is recorded by the OLD
+// firmware moments before the download, and reported by the NEW firmware --
+// a successful OTA reboots straight into the new image, so nothing after
+// httpUpdate.update() ever runs to record the happy path in RAM.
+constexpr const char* OTA_MEM_NS = "ota-mem";
+
+// Pre-arm the record BEFORE the download begins, as "incomplete". Whatever
+// happens next leaves a truthful record: success reboots (the new firmware
+// finalises it), failure rewrites it in this same boot, and a WDT/power-loss
+// reboot mid-flash leaves "incomplete" standing -- which is precisely the
+// verdict that case deserves and the only trace it would otherwise leave.
+void NoteOtaAttempt(int fwTo, uint32_t preLargest)
+{
+    Preferences p;
+    if (!p.begin(OTA_MEM_NS, false))
+        return; // telemetry must never be a reason an update doesn't happen
+    p.putInt("from", FW_VERSION);
+    p.putInt("to", fwTo);
+    p.putUInt("pre", preLargest);
+    p.putUInt("post", 0); // 0 = not measured yet; filled at report time
+    p.putString("res", "incomplete");
+    p.end();
+}
+
+// Failure is recorded in the same boot, so post is the heap right after the
+// attempt -- the interesting number when asking why an update didn't fit.
+void NoteOtaFailed(int err)
+{
+    Preferences p;
+    if (!p.begin(OTA_MEM_NS, false))
+        return;
+    p.putUInt("post", ESP.getMaxAllocHeap());
+    p.putString("res", String("fail-") + err);
+    p.end();
+}
 
 // "releases/latest/download/<asset>" always resolves to the newest published
 // (non-draft, non-prerelease) release's asset, redirecting to the CDN.
@@ -134,9 +172,14 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
     Serial.println("[ota] newer firmware available -- updating");
     // Memory evidence through the whole download+flash window (gate item: a
     // production-shaped OTA must complete at the steady-state heap operating
-    // point, and the ledger wants numbers, not just pass/fail).
+    // point, and the ledger wants numbers, not just pass/fail). Serial carries
+    // the fine-grained ladder for a bench unit; NVS carries the summary home
+    // from the field (see TakeOtaMemReport) -- the same number in both, so the
+    // fleet's report can be read against a bench capture directly.
+    const uint32_t preLargest = ESP.getMaxAllocHeap();
     Serial.printf("[ota-mem] pre-update free=%u largest=%u\n",
-                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+                  ESP.getFreeHeap(), preLargest);
+    NoteOtaAttempt(latest, preLargest);
     drawProgress(tft, fb, 0);
 
     WiFiClientSecure updClient;
@@ -167,8 +210,41 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
     if (ret == HTTP_UPDATE_FAILED) {
         Serial.printf("[ota] update failed (%d): %s\n",
                       httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        NoteOtaFailed(httpUpdate.getLastError());
         drawStatus(tft, fb, "Update failed");
         delay(2000);
     }
     // HTTP_UPDATE_OK reboots automatically (rebootOnUpdate(true))
+}
+
+String TakeOtaMemReport()
+{
+    Preferences p;
+    if (!p.begin(OTA_MEM_NS, false))
+        return "";
+    if (!p.isKey("res")) {
+        p.end();
+        return ""; // no OTA attempted since the last report: send nothing
+    }
+
+    const int      from = p.getInt("from", 0);
+    const int      to   = p.getInt("to", 0);
+    const uint32_t pre  = p.getUInt("pre", 0);
+    uint32_t       post = p.getUInt("post", 0);
+    String         res  = p.getString("res", "");
+
+    // Finalise the happy path. The old firmware could not: a successful update
+    // reboots inside httpUpdate.update(), so the pre-armed "incomplete" record
+    // is the last thing it wrote. If that record names the version now running,
+    // the update plainly worked -- and anything else that rebooted us (watchdog,
+    // power loss) leaves "incomplete" standing, correctly.
+    if (res == "incomplete" && to == FW_VERSION)
+        res = "ok";
+    if (post == 0)
+        post = ESP.getMaxAllocHeap(); // ok/incomplete: this check-in is the "after"
+
+    p.clear(); // fire-once: cleared whether or not the request that carries it lands
+    p.end();
+
+    return String(from) + "," + String(to) + "," + String(pre) + "," + String(post) + "," + res;
 }

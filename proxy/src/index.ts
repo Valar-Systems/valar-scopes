@@ -2,7 +2,7 @@ import type { Env } from "./types";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
-import { record, type RequestMetric } from "./metrics";
+import { record, recordOtaMem, type RequestMetric } from "./metrics";
 import { limitByIp, limitByKey } from "./ratelimit";
 import { feedHealth } from "./upstreams/chain";
 import { errorResponse, jsonResponse } from "./util";
@@ -43,6 +43,12 @@ async function route(
   if (keyIndex === null) return errorResponse(401, "unauthorized");
   const keyLimited = await limitByKey(env, keyIndex);
   if (keyLimited) return keyLimited;
+
+  // A device's one-shot OTA memory report, if this check-in carries one. Recorded
+  // only past auth + rate limiting, so an anonymous caller can never spend our
+  // Analytics Engine budget, and it cannot affect the response the device came
+  // for: whatever this does, the request below is served identically.
+  recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model);
 
   if (url.pathname === "/v1/blips") return handleBlips(request, env, ctx, meta);
   if (url.pathname === "/v1/config") return handleConfig(request, env);

@@ -41,13 +41,19 @@ String NormalizeBaseUrl(String url)
     return url;
 }
 
-std::vector<std::pair<String, String>> Headers(const String& key)
+std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem)
 {
-    return {
+    std::vector<std::pair<String, String>> h = {
         { "X-Blip-Key", key },
         { "X-Blip-Model", variant::SLUG },
         { "X-Blip-FW", String(FW_VERSION) },
     };
+    // One-shot OTA memory report, present only on the first check-in after an
+    // update attempt (see OtaUpdater.h / README "Telemetry"). It rides a request
+    // the device was making anyway: no extra traffic, no endpoint of its own.
+    if (!otaMem.isEmpty())
+        h.push_back({ "X-Blip-OTA-Mem", otaMem });
+    return h;
 }
 
 String BlipsUrl(const String& base)  { return base + "/v1/blips"; }

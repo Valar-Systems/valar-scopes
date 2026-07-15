@@ -94,6 +94,10 @@ struct FetchRequest {
     String cloudBase;                // normalised proxy base URL (cloud + CloudConfig)
     String cloudKey;                 // X-Blip-Key value (cloud + CloudConfig)
     double rangeKm = 100.0;          // /v1/blips r param
+    String otaMem;                   // X-Blip-OTA-Mem value, "" when nothing to report.
+                                     // Read (and cleared) on the LOOP task at request
+                                     // build time -- TakeOtaMemReport touches NVS, and
+                                     // this task owns that, like every other snapshot here.
 #endif
 };
 struct FetchResult {
@@ -1005,7 +1009,7 @@ void AircraftManager::RunFetchTask()
             JsonDocument cfgDoc;
             const HttpResult r = http.GetJson(CloudFeed::ConfigUrl(req->cloudBase), cfgDoc,
                                               std::vector<std::pair<String, String>>{},
-                                              CloudFeed::Headers(req->cloudKey));
+                                              CloudFeed::Headers(req->cloudKey, req->otaMem));
             if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
                 CloudFeed::ParseConfig(cfgDoc, res->config)) {
                 res->ok = true;
@@ -1052,7 +1056,7 @@ void AircraftManager::RunFetchTask()
                   { "lon", String(req->lon, 4) },
                   { "r", String((int)lround(req->rangeKm)) },
                   { "limit", "25" } },
-                CloudFeed::Headers(req->cloudKey));
+                CloudFeed::Headers(req->cloudKey, req->otaMem));
         }
 #endif
         else {
@@ -1190,6 +1194,7 @@ void AircraftManager::RequestFetch()
         req->cloudBase = cloudUrl;
         req->cloudKey = cloudKey;
         req->rangeKm = rangeKmCfg;
+        req->otaMem = TakeOtaMemReport(); // "" unless an OTA happened; clears on read
     } else
 #endif
     if (useLocalSource) {
@@ -1224,6 +1229,9 @@ void AircraftManager::RequestCloudConfig()
     req->kind = FetchKind::CloudConfig;
     req->cloudBase = cloudUrl;
     req->cloudKey = cloudKey;
+    // Whichever check-in is built first after an OTA carries the report; the
+    // config fetch is normally it (boot runs it ahead of the first feed poll).
+    req->otaMem = TakeOtaMemReport();
     if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
         fetchInFlight = true;
     else
