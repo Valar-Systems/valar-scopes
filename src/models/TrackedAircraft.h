@@ -32,6 +32,8 @@ struct TrackedAircraft {
     uint8_t enrichAttempts = 0;
     bool watchNotified = false;     // a flyover alert has been sent for this tracking session
     bool overheadNotified = false;  // a "look up" overhead alert has been sent this session
+    bool milFlashFired = false;     // visual-alert flash burst fired for this military contact
+    bool emgFlashFired = false;     // visual-alert flash burst fired for this emergency squawk
     bool freshCatch = false;        // this sighting added a brand-new type/airline to the logbook
     String typeCode = "";    // adsbdb icao_type, e.g. "B738"
     String typeName = "";    // adsbdb full model, e.g. "Boeing 737-800"

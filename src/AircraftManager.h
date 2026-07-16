@@ -72,6 +72,7 @@ private:
     bool wasTouched = false;
     int touchStartX = 0, touchStartY = 0;
     int touchLastX = 0, touchLastY = 0;
+    unsigned long touchPressMs = 0; // press-edge time, for the [touch] trace's hold duration
     enum class Swipe { Up, Down, Left, Right };
 
     // Radar tap disambiguation: repeated taps at ~the same spot cycle through the
@@ -126,6 +127,24 @@ private:
     bool alertMilitary = false;   // also raise an ntfy flyover alert for them
     bool showHelicopters = false; // ring + "HELI" tag rotorcraft
     bool showSpecial = false;     // ring + "SPC" tag distinctive callsigns
+
+    // Visual alert layer for military / emergency-squawk contacts: a colour-coded
+    // pulsing ring at the screen edge while one is in range, optionally led by a
+    // brief full-screen flash burst when the contact first appears. The primary
+    // attention channel on SKUs without a speaker. Flash implies the ring after
+    // the burst; the burst is edge-triggered per contact (never a sustained
+    // strobe) and duty-limited below the 3 flashes/sec photosensitivity guideline.
+    enum class VisualAlertMode : uint8_t { Off, Ring, Flash };
+    VisualAlertMode milVisual = VisualAlertMode::Off;  // config "mil-visual"
+    VisualAlertMode emgVisual = VisualAlertMode::Ring; // config "emg-visual"
+    bool visualNightOverride = false;                  // config "visual-night": alerts punch through night dim
+    // Refreshed once per frame in UpdateVisualAlerts() (loop task): the active
+    // ring colour (0 = none; emergency red beats military orange) and the flash
+    // burst window. visualAlertActive feeds the UpdateBrightness night override.
+    uint32_t visualRingColor = 0;
+    bool visualAlertActive = false;
+    unsigned long flashBurstUntilMs = 0;
+    uint32_t flashBurstColor = 0;
 
     // "Look up!" overhead alert: flag a contact passing within overheadKm of the
     // centre so you can physically glance up and spot it.
@@ -354,6 +373,12 @@ private:
     bool SendFlyoverNotification(const TrackedAircraft& tracked, bool military = false);
     bool SendOverheadNotification(const TrackedAircraft& tracked);
     void DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) const;
+
+    // Visual alert layer: scan the picture for alerting classes + fire flash
+    // burst edges (loop task, once per frame), and draw the resulting overlay
+    // (edge ring pulse / full-screen flash) on top of whatever screen is active.
+    void UpdateVisualAlerts();
+    void DrawVisualAlert(BandCanvas& backbuffer) const;
 
     void PublishMqttState();     // retained JSON summary of the current picture
     void PublishMqttDiscovery(); // Home Assistant MQTT discovery configs (retained)
