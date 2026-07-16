@@ -536,6 +536,7 @@ void AircraftManager::Initialise()
     showMilitary = milShow.isEmpty() ? true : (milShow == "true");
     const String milAlert = configServer.GetStoredString("mil-alert");
     alertMilitary = milAlert.isEmpty() ? false : (milAlert == "true");
+    alertEmergency = configServer.GetStoredString("emg-alert") == "true";
     const String heliShow = configServer.GetStoredString("heli-show");
     showHelicopters = heliShow.isEmpty() ? false : (heliShow == "true");
     const String spcShow = configServer.GetStoredString("spc-show");
@@ -2841,7 +2842,7 @@ void AircraftManager::ProcessAlerts()
     if (ntfyTopic.isEmpty())
         return;
     const bool flyoverEnabled = !watchlist.empty() || alertMilitary;
-    if (!flyoverEnabled && !alertOverhead)
+    if (!flyoverEnabled && !alertOverhead && !alertEmergency)
         return;
 
     const unsigned long now = millis();
@@ -2851,6 +2852,15 @@ void AircraftManager::ProcessAlerts()
 
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.state.onGround) continue;
+
+        // emergency squawk -- highest priority, one-shot per tracking session.
+        // Fires even for a contact already squawking when it entered range: an
+        // active emergency is worth knowing about, unlike a stale backlog.
+        if (alertEmergency && !tracked.emgNotified && isEmergencySquawk(tracked.state.squawk)) {
+            if (SendEmergencyNotification(tracked))
+                tracked.emgNotified = true;
+            return; // at most one notification per tick
+        }
 
         // overhead "look up" alert -- one-shot per tracking session. The notified
         // flag is only set when the POST actually queued (the enrichment task's
@@ -2919,6 +2929,24 @@ bool AircraftManager::SendOverheadNotification(const TrackedAircraft& tracked)
     body += " at " + String(lroundf(tracked.state.baroAltitude * METRES_TO_FEET)) + " ft";
 
     return QueueNtfyPost("Blipscope overhead - look up!", "eyes", body);
+}
+
+bool AircraftManager::SendEmergencyNotification(const TrackedAircraft& tracked)
+{
+    String callsign = tracked.state.callsign;
+    callsign.trim();
+    if (callsign.isEmpty()) { callsign = tracked.state.icao24; callsign.toUpperCase(); }
+
+    const char* descriptor = "general emergency";
+    if (tracked.state.squawk == "7500")      descriptor = "unlawful interference (hijack)";
+    else if (tracked.state.squawk == "7600") descriptor = "radio failure (NORDO)";
+
+    String body = callsign + " squawking " + tracked.state.squawk + " - " + descriptor;
+    if (!tracked.typeCode.isEmpty())     body += " (" + tracked.typeCode + ")";
+    if (!tracked.operatorName.isEmpty()) body += " " + tracked.operatorName;
+    body += " at " + String(lroundf(tracked.state.baroAltitude * METRES_TO_FEET)) + " ft";
+
+    return QueueNtfyPost("Blipscope EMERGENCY squawk", "sos", body);
 }
 
 void AircraftManager::PublishMqttState()

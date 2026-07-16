@@ -301,6 +301,7 @@ R"(
                         <label class="check"><input name="mil-alert" type="checkbox" %MIL_ALERT%><span>Alert on military (ntfy)</span></label>
                         <label class="check"><input name="heli-show" type="checkbox" %HELI_SHOW%><span>Highlight helicopters</span></label>
                         <label class="check"><input name="spc-show" type="checkbox" %SPC_SHOW%><span>Highlight special flights</span></label>
+                        <label class="check"><input name="emg-alert" type="checkbox" %EMG_ALERT%><span>Alert on emergency squawk (ntfy)</span></label>
                     </div>
                     <span class="hint mt">
                         Detected offline from the live feed &mdash; no account or lookup needed. On the radar:
@@ -1478,6 +1479,7 @@ void ConfigurationWebServer::Initialise() {
         const String milAlert = HtmlEscape(prefs.isKey("mil-alert") ? prefs.getString("mil-alert", "false") : "false");
         const String heliShow = HtmlEscape(prefs.isKey("heli-show") ? prefs.getString("heli-show", "false") : "false");
         const String spcShow = HtmlEscape(prefs.isKey("spc-show") ? prefs.getString("spc-show", "false") : "false");
+        const String emgAlert = HtmlEscape(prefs.isKey("emg-alert") ? prefs.getString("emg-alert", "false") : "false");
         // visual alerts: defaults mirror AircraftManager::Initialise (emergency = ring, military = off)
         const String milVisual = HtmlEscape(prefs.isKey("mil-visual") ? prefs.getString("mil-visual", "off") : "off");
         const String emgVisual = HtmlEscape(prefs.isKey("emg-visual") ? prefs.getString("emg-visual", "ring") : "ring");
@@ -1700,7 +1702,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1742,6 +1744,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "MIL_ALERT")      return milAlert == "true" ? "checked" : "";
                 if (var == "HELI_SHOW")      return heliShow == "true" ? "checked" : "";
                 if (var == "SPC_SHOW")       return spcShow == "true" ? "checked" : "";
+                if (var == "EMG_ALERT")      return emgAlert == "true" ? "checked" : "";
                 // visual-alert selects: the OFF/RING branches also catch legacy/unknown
                 // values, so each select always renders exactly one option selected
                 if (var == "MILVIS_OFF")     return (milVisual == "ring" || milVisual == "flash") ? "" : "selected";
@@ -2073,6 +2076,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("mil-show", request->hasParam("mil-show", true) ? "true" : "false");
         prefs.putString("mil-alert", request->hasParam("mil-alert", true) ? "true" : "false");
         prefs.putString("visual-night", request->hasParam("visual-night", true) ? "true" : "false");
+        prefs.putString("emg-alert", request->hasParam("emg-alert", true) ? "true" : "false");
         prefs.putString("heli-show", request->hasParam("heli-show", true) ? "true" : "false");
         prefs.putString("spc-show", request->hasParam("spc-show", true) ? "true" : "false");
         prefs.putString("logbook", request->hasParam("logbook", true) ? "true" : "false");

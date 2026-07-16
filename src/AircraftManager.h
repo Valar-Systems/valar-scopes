@@ -137,6 +137,7 @@ private:
     // source and even with all adsbdb enrichment disabled.
     bool showMilitary = true;     // ring + "MIL" tag military contacts on radar/list
     bool alertMilitary = false;   // also raise an ntfy flyover alert for them
+    bool alertEmergency = false;  // ntfy alert when a contact squawks 7500/7600/7700 (config "emg-alert")
     bool showHelicopters = false; // ring + "HELI" tag rotorcraft
     bool showSpecial = false;     // ring + "SPC" tag distinctive callsigns
 
@@ -384,6 +385,7 @@ private:
     bool QueueNtfyPost(const String& title, const String& tags, const String& body);
     bool SendFlyoverNotification(const TrackedAircraft& tracked, bool military = false);
     bool SendOverheadNotification(const TrackedAircraft& tracked);
+    bool SendEmergencyNotification(const TrackedAircraft& tracked);
     void DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) const;
 
     // Visual alert layer: scan the picture for alerting classes + fire flash
