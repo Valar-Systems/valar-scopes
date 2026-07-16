@@ -147,6 +147,9 @@ bool ParseEnrich(JsonDocument& doc, Enrichment& out)
     out.operatorName = doc["op"].as<String>();
     out.routeOrigin  = doc["o"].as<String>();
     out.routeDest    = doc["d"].as<String>();
+    // Photo join (append-only fields; absent on older proxies -> empty/false).
+    out.photoPath          = doc["p"].as<String>();
+    out.photoRepresentative = (doc["pk"].as<String>() == "type");
     return true;
 }
 

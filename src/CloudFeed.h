@@ -58,9 +58,19 @@ struct Enrichment {
     String routeOrigin;
     String routeDest;
 
+    // Stock-photo join (proxy `p`/`pk`). photoPath is the relative proxy path
+    // ("/v1/photo/<key>") of a licensed image the server has for this hex or
+    // type, "" when the library has none. photoRepresentative is true for a
+    // generic type shot (pk:"type") -- the card captions it "representative
+    // photo"; a per-airframe override (pk:"hex") IS that aircraft, uncaptioned.
+    String photoPath;
+    bool photoRepresentative = false;
+
     // False when every field is empty -- which is either a genuinely unknown
     // aircraft or the proxy still warming its caches; the caller retries a
-    // bounded number of times to tell them apart.
+    // bounded number of times to tell them apart. The photo join is auxiliary
+    // and deliberately excluded: a type shot alone doesn't make an unknown hex
+    // "known" for the retry logic.
     bool AnyField() const {
         return !(registration.isEmpty() && typeCode.isEmpty() && typeName.isEmpty() &&
                  operatorName.isEmpty() && routeOrigin.isEmpty() && routeDest.isEmpty());
