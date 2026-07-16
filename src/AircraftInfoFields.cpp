@@ -77,6 +77,14 @@ String fmtType(const TrackedAircraft& t)     { return t.typeCode; }
 String fmtOperator(const TrackedAircraft& t) { return t.operatorName; }
 String fmtReg(const TrackedAircraft& t)      { return t.registration; }
 
+// Flight route (origin>destination airport codes). Cloud mode fills this from
+// background enrichment; the BYO adsbdb path only resolves routes on inspect,
+// so there the label appears after the aircraft has been tapped once.
+String fmtRoute(const TrackedAircraft& t) {
+    if (t.routeOrigin.isEmpty() || t.routeDest.isEmpty()) return "";
+    return t.routeOrigin + ">" + t.routeDest;
+}
+
 } // namespace
 
 // Display order matches this table's order. The three OpenSky fields defaulting
@@ -87,6 +95,7 @@ const AircraftInfoFieldDef AIRCRAFT_INFO_FIELDS[] = {
     { "info-type",     "Aircraft type",   false, true,  fmtType },
     { "info-operator", "Operator",        false, true,  fmtOperator },
     { "info-reg",      "Registration",    false, true,  fmtReg },
+    { "info-route",    "Route",           false, true,  fmtRoute },
     { "info-icao",     "ICAO address",    false, false, fmtIcao },
     { "info-country",  "Origin country",  false, false, fmtCountry },
     { "info-speed",    "Ground speed",    true,  false, fmtSpeed },

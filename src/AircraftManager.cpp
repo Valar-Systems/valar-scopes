@@ -66,9 +66,10 @@ constexpr int LIST_BOTTOM_RESERVE = 38; // leaves the clock row (SCREEN_SIZE-30)
 constexpr int LIST_ROWS = (SCREEN_SIZE - LIST_ROW_TOP - LIST_BOTTOM_RESERVE) / LIST_ROW_H;
 // Row columns, relative to the centred block's left edge (block-relative, not absolute):
 constexpr int LIST_BLOCK_W  = 160; // nominal block width used to centre the columns (== the 240 C3's 40..200 span)
-constexpr int LIST_COL_CS   = 0;   // callsign
-constexpr int LIST_COL_TYPE = 80;  // type
-constexpr int LIST_COL_ALT  = 122; // altitude
+constexpr int LIST_COL_CS   = 0;   // callsign (<= 8 chars = 48 px at size 1)
+constexpr int LIST_COL_TYPE = 52;  // type (4 chars)
+constexpr int LIST_COL_DIST = 80;  // distance from centre (<= 5 chars, e.g. "123km")
+constexpr int LIST_COL_ALT  = 118; // altitude
 
 #include <ArduinoJson.h>
 
@@ -1648,8 +1649,11 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
     backbuffer.setTextColor(lgfx::color888(0, 130, 0));
     centered(String(order.size()) + " tracked", 23);
 
-    // rows: callsign / type / altitude, in columns within the centred block (see LIST_COL_*)
+    // rows: callsign / type / distance / altitude, in columns within the centred
+    // block (see LIST_COL_*). The list is already sorted by distance, so the
+    // distance column is the number the sort order begs the eye to ask for.
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    const float clat = cosf(radians((float)lat)); // scale longitude delta (see IsOverhead)
     for (int r = 0; r < LIST_ROWS; ++r) {
         const int idx = listScroll + r;
         if (idx >= (int)order.size()) break;
@@ -1663,6 +1667,12 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
         const String type = t.typeCode.isEmpty() ? "--" : t.typeCode;
         const String alt = String(lroundf(t.state.baroAltitude * METRES_TO_FEET)) + "ft";
 
+        auto [la, lo] = t.GetDisplayPosition();
+        const float dLa = la - (float)lat, dLo = (lo - (float)lon) * clat;
+        float dist = sqrtf(dLa * dLa + dLo * dLo) * 111.0f; // degrees -> km
+        if (rangeUnit == "mi") dist /= 1.609344f;
+        const String distStr = String(dist, dist < 10.0f ? 1 : 0) + rangeUnit;
+
         const int y = LIST_ROW_TOP + r * LIST_ROW_H;
         uint32_t rowColor = lgfx::color888(0, 200, 0);
         if (const SpecialAircraft::Class sc = SpecialClassOf(t); sc != SpecialAircraft::Class::None)
@@ -1670,9 +1680,10 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
         if (MatchesWatchlist(t))         rowColor = lgfx::color888(255, 140, 0); // amber
         if (order[idx] == pinnedIcao)    rowColor = lgfx::color888(255, 255, 255); // pin wins
         backbuffer.setTextColor(rowColor);
-        backbuffer.drawString(cs,   lx + LIST_COL_CS,   y);
-        backbuffer.drawString(type, lx + LIST_COL_TYPE, y);
-        backbuffer.drawString(alt,  lx + LIST_COL_ALT,  y);
+        backbuffer.drawString(cs,      lx + LIST_COL_CS,   y);
+        backbuffer.drawString(type,    lx + LIST_COL_TYPE, y);
+        backbuffer.drawString(distStr, lx + LIST_COL_DIST, y);
+        backbuffer.drawString(alt,     lx + LIST_COL_ALT,  y);
     }
 }
 
