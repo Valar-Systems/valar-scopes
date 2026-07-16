@@ -40,6 +40,18 @@ private:
     String rangeUnit = "km";
     std::map<String, TrackedAircraft> trackedAircraft;
 
+    // Window-up rotation: the compass bearing drawn at the TOP of the screen
+    // (config "radar-up"; 0 = classic north-up). Set to the bearing the user
+    // faces so the radar picture matches the view out their window -- a blip on
+    // the upper-left of the screen is upper-left out the window, no mental
+    // rotation at the "look up!" moment. rotCos/rotSin cache the rotation
+    // applied in ProjectCoordinateToScreen (identity at 0), so every consumer
+    // of the projection -- blips, trails, tap hit-testing, the sweep's
+    // paint-crossing test -- rotates together for free.
+    int radarUpDeg = 0;
+    float rotCos = 1.0f;
+    float rotSin = 0.0f;
+
     bool displayInfoText = true;
     bool displayTriangles = true;
     bool displayTrails = true;

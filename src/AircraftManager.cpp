@@ -660,6 +660,13 @@ void AircraftManager::Initialise()
     const String autoDimStr = configServer.GetStoredString("autodim");
     autoDim = autoDimStr.isEmpty() ? true : (autoDimStr == "true");
 
+    // window-up rotation: the compass bearing at the top of the screen
+    // (0 / unset = classic north-up). Normalised into [0, 360).
+    radarUpDeg = ((configServer.GetStoredString("radar-up").toInt() % 360) + 360) % 360;
+    const float rotRad = radians((float)radarUpDeg);
+    rotCos = cosf(rotRad);
+    rotSin = sinf(rotRad);
+
     // clock offset: default to the nominal zone from longitude (15 deg/hour)
     const String tzStr = configServer.GetStoredString("tz-offset");
     utcOffsetSec = tzStr.isEmpty() ? (long)lround(lon / 15.0) * 3600
@@ -1856,15 +1863,18 @@ void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
         backbuffer.drawString(label, CENTRE + 4, CENTRE - ringPx[i] + inset[i]);
     }
 
-    // compass rose at the bezel
+    // compass rose at the bezel, rotated for window-up: each cardinal sits at
+    // its bearing relative to the screen-top bearing (radarUpDeg; 0 = north-up)
     backbuffer.setTextColor(lgfx::color888(0, 150, 0));
-    auto compass = [&](const char* c, int x, int y) {
-        backbuffer.drawString(c, x - (int)backbuffer.textWidth(c) / 2, y);
-    };
-    compass("N", CENTRE, 2);
-    compass("S", CENTRE, SCREEN_SIZE - 10);
-    compass("E", SCREEN_SIZE - 8, CENTRE - 3);
-    compass("W", 7, CENTRE - 3);
+    const struct { const char* c; int bearing; } cardinals[4] =
+        { {"N", 0}, {"E", 90}, {"S", 180}, {"W", 270} };
+    const int labelR = CENTRE - 7;
+    for (const auto& p : cardinals) {
+        const float a = radians((float)(p.bearing - radarUpDeg) - 90.0f);
+        const int px = CENTRE + (int)lroundf(labelR * cosf(a));
+        const int py = CENTRE + (int)lroundf(labelR * sinf(a));
+        backbuffer.drawString(p.c, px - (int)backbuffer.textWidth(p.c) / 2, py - 4);
+    }
 }
 
 std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, float predLon) const
@@ -1875,10 +1885,22 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
     const float normLon = (dLon + radLon) / (2.0f * radLon);
     const float normLat = (dLat + radLat) / (2.0f * radLat);
 
-    const int x = static_cast<int>(normLon * SCREEN_SIZE);
-    const int y = static_cast<int>(SCREEN_SIZE - (normLat * SCREEN_SIZE));
+    float x = normLon * SCREEN_SIZE;
+    float y = SCREEN_SIZE - (normLat * SCREEN_SIZE);
 
-    return { x, y };
+    // Window-up: rotate the picture about the centre so bearing radarUpDeg reads
+    // "up". Screen space is isotropic here (radLon is pre-scaled by cos(lat) so
+    // the scan box is square on the ground), which makes a plain screen-space
+    // rotation geometrically correct. Everything downstream of this projection
+    // (blips, trails, taps, the sweep's paint-crossing test) rotates with it.
+    if (rotSin != 0.0f || rotCos != 1.0f) {
+        constexpr float C = SCREEN_SIZE / 2.0f;
+        const float px = x - C, py = y - C;
+        x = C + px * rotCos + py * rotSin;
+        y = C - px * rotSin + py * rotCos;
+    }
+
+    return { static_cast<int>(x), static_cast<int>(y) };
 }
 
 void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness) const
@@ -1955,9 +1977,12 @@ void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y,
         return;
     }
 
-    // heading unit vector (forward) and its perpendicular (right "wing")
-    const float dx = std::sin(radians(tracked.state.trueTrack));
-    const float dy = -std::cos(radians(tracked.state.trueTrack));
+    // heading unit vector (forward) and its perpendicular (right "wing").
+    // Window-up subtracts the screen-top bearing so darts stay aligned with the
+    // rotated picture (positions rotate inside ProjectCoordinateToScreen).
+    const float headingScreen = radians(tracked.state.trueTrack - (float)radarUpDeg);
+    const float dx = std::sin(headingScreen);
+    const float dy = -std::cos(headingScreen);
     const float px = -dy;
     const float py = dx;
 

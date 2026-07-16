@@ -93,7 +93,9 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 - **Public spotting leaderboard** — see the full concept below.
 - Watchlist match alert sound distinct per entry class.
 - HA/MQTT: publish watchlist/emergency hits as Home Assistant *events*, not just state.
-- Compass rose / north-up vs. track-up toggle on the radar.
+- ~~Compass rose / north-up vs. track-up toggle~~ — **shipped 2026-07-16 as "window-up"**:
+  config `radar-up` sets the compass bearing at the top of the screen (0 = north-up), so
+  the radar matches the view out the user's window.
 - "Aircraft of the day" / notable-catch summary card (gamification, pairs with Logbook v2).
 - Multi-location profiles (home/work) — probably niche; revisit on demand.
 - 1.75" AMOLED premium SKU (466×466 + mic) — hardware roadmap; env stub already in
