@@ -42,11 +42,9 @@ Small diffs, immediate perceived value. Ship together as one minor release.
 4. **Surface route data outside the detail card** — **IMPLEMENTED 2026-07-16** as a new
    "Route" aircraft-info field (`info-route`, default off) drawn as `ORG>DST` on radar
    labels; cloud mode fills it from background enrichment, BYO/adsbdb after first inspect.
-5. **Distinct alert tones** *(deprioritized 2026-07-16 — launch SKU has no speaker;
-   applies to s3-146 / s3-21 only).* The only sound today is one new-contact chirp
-   (`AircraftManager.cpp` ~`:1320`). Give military / watchlist / overhead /
-   emergency-squawk events their own tone patterns via the existing `board::Buzzer*`
-   abstraction, with per-class toggles.
+5. **Distinct alert tones** — **IMPLEMENTED 2026-07-16** (s3-146 / s3-21 only; inert on
+   speaker-less SKUs). Chirp-pattern sequencer: new contact 1×40 ms, watchlist 2×40,
+   military 2×70, overhead 3×40, emergency 4×80; master `tones` toggle (default on).
 
 ## Tier 2 — Logbook v2 (the headline feature of the next major version)
 

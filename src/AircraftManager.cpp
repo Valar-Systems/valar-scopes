@@ -559,6 +559,11 @@ void AircraftManager::Initialise()
     visualNightOverride = configServer.GetStoredString("visual-night") == "true";
     flashBurstUntilMs = 0; // a config reload cancels any in-progress burst
 
+    // alert tones (HAS_AUDIO boards; inert elsewhere). Default on -- it subsumes
+    // the original unconditional new-contact chirp.
+    const String tonesStr = configServer.GetStoredString("tones");
+    tonesEnabled = tonesStr.isEmpty() ? true : (tonesStr == "true");
+
     // spotting logbook: when on, learn each contact's type/airline (so it needs
     // the adsbdb enrichment) and start the persistent store once.
     const String logbookStr = configServer.GetStoredString("logbook");
@@ -746,8 +751,10 @@ void AircraftManager::Update()
     // Optional on-board peripherals (compiled out on SKUs without them). Both run before the
     // inDetail early-return below so the buzzer still finishes its beep and the tilt readout
     // keeps updating while a card is open.
-    if constexpr (variant::HAS_AUDIO)
+    if constexpr (variant::HAS_AUDIO) {
         board::BuzzerUpdate();
+        UpdateTones(); // step any in-progress alert-tone pattern
+    }
     if constexpr (variant::HAS_IMU) {
         if (now - lastImuReadMs >= 200) { // ~5 Hz is ample for a tilt readout
             lastImuReadMs = now;
@@ -1344,17 +1351,28 @@ void AircraftManager::ConsumeFetchResult()
         for (auto& ac : res->aircraft) {
             auto it = trackedAircraft.find(ac.icao24);
             if (it == trackedAircraft.end()) {
-                trackedAircraft.emplace(ac.icao24, TrackedAircraft{ ac, now });
+                auto emplaced = trackedAircraft.emplace(ac.icao24, TrackedAircraft{ ac, now });
                 // a fresh contact entered range: bump the odometer and log its
                 // origin country (the one logbook field the feed gives us directly).
                 if (logbookEnabled) {
                     logbook.NoteContact();
                     logbook.NoteCountry(ac.originCountry);
                 }
-                // chirp on genuinely new arrivals (HAS_AUDIO boards), but not during the
+                // tone on genuinely new arrivals (HAS_AUDIO boards), but not during the
                 // initial bulk population -- that would be a burst of beeps on first sync.
-                if constexpr (variant::HAS_AUDIO)
-                    if (initialSyncDone) board::BuzzerChirp(40);
+                // Class-distinct patterns: military > watchlist > the generic chirp.
+                // Emergency squawkers are skipped here -- UpdateVisualAlerts' per-contact
+                // edge fires the (stronger) emergency pattern for them next frame.
+                if constexpr (variant::HAS_AUDIO) {
+                    if (initialSyncDone && !isEmergencySquawk(ac.squawk)) {
+                        if (showMilitary && SpecialAircraft::IsMilitary(ac.icao24))
+                            PlayTone(2, 70, 120);
+                        else if (MatchesWatchlist(emplaced.first->second))
+                            PlayTone(2, 40, 80);
+                        else
+                            PlayTone(1, 40, 0);
+                    }
+                }
             } else {
                 it->second.Update(ac, now);
             }
@@ -2094,6 +2112,19 @@ void AircraftManager::UpdateVisualAlerts()
                     flashBurstUntilMs = now + FLASH_BURST_MS;
                     flashBurstColor = EMG_RED;
                 }
+                // the emergency tone fires even for a contact already squawking at
+                // boot -- an active emergency is worth hearing about (unlike a flash)
+                PlayTone(4, 80, 100);
+            }
+        }
+
+        // overhead alert tone: one-shot per contact, same "look up" condition as
+        // the ring/ntfy. IsOverhead is only evaluated when the feature is on.
+        if constexpr (variant::HAS_AUDIO) {
+            if ((showOverhead || alertOverhead) && !t.overheadToneFired && IsOverhead(t)) {
+                t.overheadToneFired = true;
+                if (initialSyncDone)
+                    PlayTone(3, 40, 70);
             }
         }
 
@@ -2118,6 +2149,34 @@ void AircraftManager::UpdateVisualAlerts()
         visualAlertActive = active;
         lastBrightnessCheck = 0; // let UpdateBrightness apply/release the night override now
     }
+}
+
+void AircraftManager::PlayTone(uint8_t count, uint16_t onMs, uint16_t gapMs)
+{
+    if constexpr (!variant::HAS_AUDIO)
+        return;
+    if (!tonesEnabled || count == 0)
+        return;
+    if (toneRemaining > 0)
+        return; // never interrupt a pattern in progress -- the first signal wins
+    toneRemaining = count;
+    toneOnMs = onMs;
+    toneGapMs = gapMs;
+    nextToneAtMs = millis(); // first chirp on the next UpdateTones() pass
+}
+
+void AircraftManager::UpdateTones()
+{
+    if constexpr (!variant::HAS_AUDIO)
+        return;
+    if (toneRemaining == 0)
+        return;
+    const unsigned long now = millis();
+    if ((long)(now - nextToneAtMs) < 0)
+        return;
+    board::BuzzerChirp(toneOnMs);
+    --toneRemaining;
+    nextToneAtMs = now + toneOnMs + toneGapMs;
 }
 
 void AircraftManager::DrawVisualAlert(BandCanvas& backbuffer) const

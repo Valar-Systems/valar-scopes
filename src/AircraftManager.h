@@ -189,6 +189,20 @@ private:
     // only sound for genuinely new arrivals afterwards.
     bool initialSyncDone = false;
 
+    // Alert-tone sequencer (HAS_AUDIO boards; config "tones", default on). The board
+    // chirp primitive is a single <=80 ms burst, so distinct per-class tones are built
+    // as chirp PATTERNS (count x on/gap) stepped non-blockingly from Update(). A
+    // pattern in progress is never interrupted -- the first signal is the loudest.
+    // Patterns: new contact 1x40, watchlist 2x40, military 2x70, overhead 3x40,
+    // emergency 4x80.
+    bool tonesEnabled = true;
+    uint8_t toneRemaining = 0;
+    uint16_t toneOnMs = 0;
+    uint16_t toneGapMs = 0;
+    unsigned long nextToneAtMs = 0;
+    void PlayTone(uint8_t count, uint16_t onMs, uint16_t gapMs);
+    void UpdateTones(); // step the pattern; pumped every Update()
+
     // Latest IMU-derived tilt (HAS_IMU boards), refreshed in Update() and shown on the Stats
     // screen. pitch = nose up/down, roll = bank left/right, in degrees; imuValid gates display.
     float imuPitch = 0.0f;
