@@ -72,7 +72,7 @@ export const TYPE_NAMES: Record<string, string> = {
   DA40: "Diamond DA40", DA42: "Diamond DA42", DA62: "Diamond DA62",
   M20P: "Mooney M20", RV7: "Van's RV-7", RV10: "Van's RV-10",
   // Helicopters
-  R44: "Robinson R44", R66: "Robinson R66", EC30: "Airbus H130",
+  R22: "Robinson R22", R44: "Robinson R44", R66: "Robinson R66", EC30: "Airbus H130",
   EC35: "Airbus H135", EC45: "Airbus H145", AS50: "Airbus AS350 Ecureuil",
   B06: "Bell 206 JetRanger", B407: "Bell 407", B412: "Bell 412",
   B429: "Bell 429", S76: "Sikorsky S-76", S92: "Sikorsky S-92",

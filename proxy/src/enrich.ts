@@ -3,6 +3,7 @@ import type { RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
 import { fetchHexChain, fetchRoute } from "./upstreams/chain";
 import { TYPE_NAMES } from "./typenames";
+import { resolvePhoto } from "./photos";
 import { errorResponse, intEnv, jsonResponse } from "./util";
 
 // Cold-lookup serve deadline, same philosophy as the blips one: under a 429
@@ -143,7 +144,13 @@ export async function handleEnrich(
     ctx.waitUntil(Promise.allSettled([metaPromise, routePromise]).then(() => {}));
   }
 
-  return jsonResponse({
+  // Stock-photo join: per-hex override first, then generic type stock (needs the
+  // resolved type). Two fast KV reads worst case; a cold meta miss (no type yet)
+  // still resolves a per-hex override, and the card's warm re-request picks up
+  // the type shot. Absent library -> no `p`/`pk` fields (append-only schema).
+  const photo = await resolvePhoto(env, hex, acMeta?.t ?? "");
+
+  const body: Record<string, string | number> = {
     v: SCHEMA_V,
     r: acMeta?.r ?? "",
     t: acMeta?.t ?? "",
@@ -151,5 +158,10 @@ export async function handleEnrich(
     op: acMeta?.op ?? "",
     o: route.o,
     d: route.d,
-  });
+  };
+  if (photo) {
+    body.p = `/v1/photo/${photo.key}`;
+    body.pk = photo.kind; // "hex" (per-airframe) | "type" (generic -> "representative photo")
+  }
+  return jsonResponse(body);
 }

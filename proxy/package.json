@@ -9,15 +9,22 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "ingest": "tsx scripts/ingest-photos.ts",
+    "ingest:check": "tsx scripts/ingest-photos.ts --check",
+    "dashboard": "tsx scripts/photo-dashboard.ts",
     "deploy:staging": "wrangler deploy --env staging",
     "tail:staging": "wrangler tail --env staging"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
     "@cloudflare/workers-types": "^4.20250906.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.5.0",
     "vitest": "~3.2.0",
     "wrangler": "4.35.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.33.0"
   },
   "allowScripts": {
     "esbuild@0.28.1": true,

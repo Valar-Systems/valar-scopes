@@ -1,0 +1,57 @@
+[
+  {
+    "target": "C182",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna.182j.g-atpt.arp.jpg",
+    "author": "Adrian Pingstone (Arpingstone)",
+    "credit": "Cessna 182J G-ATPT",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c182.jpg"
+  },
+  {
+    "target": "R22",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Fly_away_in_a_Robinson_r22_beta_(6775425708).jpg",
+    "author": "Archangel12",
+    "credit": "Robinson R22 Beta",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/r22.jpg"
+  },
+  {
+    "target": "C172",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:CAP_cadets_in_Japan_study_a_Cessna_172.JPG",
+    "author": "Senior Airman Andrea Salazar, U.S. Air Force",
+    "credit": "Cessna 172 (Civil Air Patrol)",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c172.jpg"
+  },
+  {
+    "target": "P28R",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Piper_PA-28R-200_Cherokee_Arrow_II_D-ENLB_(25988118168).jpg",
+    "author": "Jeroen Stroes Aviation Photography",
+    "credit": "Piper PA-28R-200 Cherokee Arrow II D-ENLB",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/p28r.jpg"
+  },
+  {
+    "target": "P28A",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Piper_PA-28-140_Cherokee_Cruiser_(D-ELAU)_01.jpg",
+    "author": "Huhu Uet",
+    "credit": "Piper PA-28-140 Cherokee Cruiser D-ELAU",
+    "license": "CC BY 3.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/p28a.jpg"
+  }
+]
