@@ -25,6 +25,11 @@ struct TrackedAircraft {
     // cooldown the manager re-picks the same aircraft every cycle (a tight retry
     // storm). This holds it off until millis() passes the deadline (0 = ready now).
     unsigned long metadataRetryAfter = 0;
+    // Cloud mode: an all-empty /v1/enrich response is either the proxy still
+    // warming its caches (retry shortly) or a genuinely unknown aircraft (stop
+    // asking). Bounded retries tell them apart; at the cap the empty answer is
+    // accepted as Fetched.
+    uint8_t enrichAttempts = 0;
     bool watchNotified = false;     // a flyover alert has been sent for this tracking session
     bool overheadNotified = false;  // a "look up" overhead alert has been sent this session
     bool freshCatch = false;        // this sighting added a brand-new type/airline to the logbook

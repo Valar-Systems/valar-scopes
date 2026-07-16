@@ -11,6 +11,7 @@ struct HttpResult {
     int statusCode;         // HTTP status code (0 if network error)
     String response;        // Response body (empty on error)
     String errorMessage;    // Error description if success == false
+    bool reusedConnection = false; // socket was already open at request start (keep-alive, no TLS handshake)
 };
 
 class HttpRequestManager

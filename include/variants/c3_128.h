@@ -49,6 +49,9 @@ namespace variant {
     constexpr bool SERIALIZE_TOUCH_BUS = true; // single-core: a touch I2C transfer overlapping a TLS
                                                // handshake wedges the CST816, so HandleTouch gates the
                                                // poll on the HTTP request mutex (see AircraftManager)
+    constexpr bool TOUCH_WATCHDOG = true;      // that wedge is this board's known failure mode: run the
+                                               // CST816 supervisor (src/TouchWatchdog.h) to detect it,
+                                               // attempt a measured re-init, and count recoveries
 
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
     constexpr char SLUG[] = "c3-128";

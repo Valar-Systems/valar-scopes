@@ -59,6 +59,8 @@ namespace variant {
     constexpr bool SERIALIZE_TOUCH_BUS = false; // dual-core: touch (its own I2C) and network (WiFi) run
                                                 // on separate cores -- no wedge, so don't gate touch on
                                                 // the HTTP mutex (gating drops taps under always-on enrich)
+    constexpr bool TOUCH_WATCHDOG = false;      // SPD2010 touch has shown no bus wedge; the CST816
+                                                // supervisor (src/TouchWatchdog.h) stays off
 
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
     constexpr char SLUG[] = "s3-146";

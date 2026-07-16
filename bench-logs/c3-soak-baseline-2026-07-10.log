@@ -1,0 +1,3055 @@
+[soak] realistic-duty soak: cloud mode, real traffic, human-scale gestures
+[soak] bursts every 6-16 min (~155 presses/day); real touches pass through
+[soak] 24 h GATE: wedges<=1, recoveries<=90s, no reboot, no BUDGET BROKEN, heap flat
+[soak] ==================================================
+[fetch] task: req kind=1 @20551
+[cloud] config rev=1: poll 5000/15000/60000 ms idleAfter=600s stale=x3 enrich=1 minFw=0
+[fetch] task: req kind=0 @21506
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @26524
+[fetch] LOW HEAP after Blipscope Cloud: free=21624 largest=8692 aircraft=25
+[fetch] task: done ok=1 http=200 in 88ms
+[health] frame avg=59.7ms p95=61.9ms  heap free=29844 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=9s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 61.9ms > 50ms
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=1/0 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @31526
+[fetch] LOW HEAP after Blipscope Cloud: free=21620 largest=8692 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @36527
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=8692 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @41575
+[fetch] LOW HEAP after Blipscope Cloud: free=21620 largest=8692 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @46576
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 95ms
+[fetch] task: req kind=0 @51576
+[fetch] LOW HEAP after Blipscope Cloud: free=21156 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 87ms
+[fetch] task: req kind=0 @56584
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[health] frame avg=64.4ms p95=66.5ms  heap free=29556 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=39s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 66.5ms > 50ms
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=1 probes=4/1 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @61633
+[fetch] LOW HEAP after Blipscope Cloud: free=21624 largest=8692 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @66649
+[fetch] LOW HEAP after Blipscope Cloud: free=21192 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @71678
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 87ms
+[fetch] task: req kind=0 @76724
+[fetch] LOW HEAP after Blipscope Cloud: free=21624 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=00:01:00 presses=0 bursts=0 | wd wedges=0 recov=0/0 (s0/h0) wakes=1 maxOutage=0ms rebootRec=0 | breaches=0 heap=29564 minLargest=0 (warming up)
+[fetch] task: req kind=0 @81761
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 105ms
+[fetch] task: req kind=0 @86789
+[fetch] LOW HEAP after Blipscope Cloud: free=21624 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[health] frame avg=70.0ms p95=71.8ms  heap free=29564 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=69s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 71.8ms > 50ms
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=1 probes=7/1 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @91831
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 105ms
+[fetch] task: req kind=0 @96849
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 105ms
+[fetch] task: req kind=0 @101883
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @106888
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @111888
+[fetch] LOW HEAP after Blipscope Cloud: free=21624 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @116961
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=75.7ms p95=77.1ms  heap free=29564 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=99s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 77.1ms > 50ms
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=1 probes=10/1 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @122022
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @127055
+[fetch] LOW HEAP after Blipscope Cloud: free=21368 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @132095
+[fetch] LOW HEAP after Blipscope Cloud: free=21664 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @137127
+[fetch] LOW HEAP after Blipscope Cloud: free=21408 largest=7924 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:02:00 presses=0 bursts=0 | wd wedges=0 recov=0/0 (s0/h0) wakes=2 maxOutage=0ms rebootRec=0 | breaches=0 heap=29604 minLargest=0 (warming up)
+[health] frame avg=43.9ms p95=44.8ms  heap free=29604 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=9s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=2 probes=13/2 maxOutage=0ms rebootRec=0
+[health] frame avg=44.0ms p95=44.9ms  heap free=29588 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=43s touchIdle=39s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=16/3 maxOutage=0ms rebootRec=0
+[soak] warmup complete; gate counters armed (boot transients excluded)
+[soak] up=00:03:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=3 maxOutage=0ms rebootRec=0 | breaches=0 heap=29580 minLargest=14324
+[health] frame avg=44.0ms p95=44.8ms  heap free=29580 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=73s touchIdle=69s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=19/3 maxOutage=0ms rebootRec=0
+[health] frame avg=44.1ms p95=44.9ms  heap free=29580 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=103s touchIdle=99s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=22/3 maxOutage=0ms rebootRec=0
+[soak] up=00:04:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=3 maxOutage=0ms rebootRec=0 | breaches=2 heap=29580 minLargest=14324
+[health] frame avg=44.0ms p95=44.9ms  heap free=29580 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=133s touchIdle=129s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=25/3 maxOutage=0ms rebootRec=0
+[health] frame avg=44.1ms p95=45.2ms  heap free=29580 largest=14324  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=163s touchIdle=159s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 14324 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=28/3 maxOutage=0ms rebootRec=0
+[soak] up=00:05:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=3 maxOutage=0ms rebootRec=0 | breaches=4 heap=29580 minLargest=14324
+[card] idle 3 min; auto-closing detail card
+[fetch] task: req kind=0 @320676
+[fetch] LOW HEAP after Blipscope Cloud: free=21632 largest=8692 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @325695
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=87.6ms p95=104.8ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=189s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 104.8ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=31/3 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @330781
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @335877
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @340980
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @345988
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @351015
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @356050
+[fetch] LOW HEAP after Blipscope Cloud: free=21260 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=104.5ms p95=106.0ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=219s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.0ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=3 probes=34/3 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @361103
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @366149
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @371211
+[fetch] LOW HEAP after Blipscope Cloud: free=21248 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @376278
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:06:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=3 maxOutage=0ms rebootRec=0 | breaches=8 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @381363
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @386368
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=105.8ms p95=107.4ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=249s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=37/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @391368
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @396368
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @401381
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @406398
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @411416
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @416454
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=106.7ms p95=108.4ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=279s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=40/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @421514
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 88ms
+[fetch] task: req kind=0 @426566
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @431624
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @436697
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:07:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=4 maxOutage=0ms rebootRec=0 | breaches=12 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @441769
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @446864
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=108.0ms p95=110.1ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=309s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.1ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=43/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @451964
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @457070
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @462175
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @467198
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @472215
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @477252
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=109.2ms p95=110.9ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=339s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.9ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=46/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @482307
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 93ms
+[fetch] task: req kind=0 @487356
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @492417
+[fetch] LOW HEAP after Blipscope Cloud: free=20888 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @497494
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[soak] up=00:08:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=4 maxOutage=0ms rebootRec=0 | breaches=16 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @502595
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @507679
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=110.5ms p95=112.7ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=370s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.7ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=49/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @512785
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @517882
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @522996
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @528000
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @533022
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @538062
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=111.6ms p95=113.4ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=400s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 113.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=52/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @543108
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @548154
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @553203
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 83ms
+[fetch] task: req kind=0 @558267
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:09:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=4 maxOutage=0ms rebootRec=0 | breaches=20 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @563343
+[fetch] LOW HEAP after Blipscope Cloud: free=21312 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 94ms
+[fetch] task: req kind=0 @568425
+[fetch] LOW HEAP after Blipscope Cloud: free=21152 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=112.6ms p95=114.3ms  heap free=29580 largest=12788  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=430s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.3ms > 50ms
+[health] BUDGET BROKEN: largest block 12788 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=55/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @573510
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @578612
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @583710
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @588718
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 105ms
+[fetch] task: req kind=0 @593743
+[fetch] LOW HEAP after Blipscope Cloud: free=21376 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @598805
+[fetch] LOW HEAP after Blipscope Cloud: free=13924 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[health] frame avg=112.8ms p95=121.3ms  heap free=29580 largest=12276  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=460s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 121.3ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=4 probes=58/4 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @603811
+[fetch] LOW HEAP after Blipscope Cloud: free=21632 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @608836
+[fetch] LOW HEAP after Blipscope Cloud: free=21448 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @613884
+[fetch] LOW HEAP after Blipscope Cloud: free=21440 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @618957
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[soak] up=00:10:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=5 maxOutage=0ms rebootRec=0 | breaches=24 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @624046
+[fetch] LOW HEAP after Blipscope Cloud: free=21440 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @629074
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[health] frame avg=96.2ms p95=98.3ms  heap free=29580 largest=12276  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=490s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 98.3ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=5 probes=61/5 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @634107
+[fetch] LOW HEAP after Blipscope Cloud: free=21440 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @639163
+[fetch] LOW HEAP after Blipscope Cloud: free=21448 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @644235
+[fetch] LOW HEAP after Blipscope Cloud: free=21632 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @649323
+[fetch] LOW HEAP after Blipscope Cloud: free=21448 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @654343
+[fetch] LOW HEAP after Blipscope Cloud: free=21440 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @659390
+[fetch] LOW HEAP after Blipscope Cloud: free=21448 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=98.5ms p95=100.3ms  heap free=29580 largest=12276  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=520s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 100.3ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=5 probes=64/5 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @664449
+[fetch] LOW HEAP after Blipscope Cloud: free=21632 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @669509
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @674592
+[fetch] LOW HEAP after Blipscope Cloud: free=21440 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @679603
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[soak] up=00:11:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=6 maxOutage=0ms rebootRec=0 | breaches=28 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @684626
+[fetch] LOW HEAP after Blipscope Cloud: free=21568 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @689629
+[fetch] LOW HEAP after Blipscope Cloud: free=19968 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=100.4ms p95=102.8ms  heap free=29580 largest=12276  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=550s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 102.8ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=6 probes=67/6 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @694665
+[fetch] LOW HEAP after Blipscope Cloud: free=21376 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @699705
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @704766
+[fetch] LOW HEAP after Blipscope Cloud: free=21376 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @709843
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @714845
+[fetch] LOW HEAP after Blipscope Cloud: free=21204 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @719893
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[health] frame avg=98.3ms p95=99.9ms  heap free=29580 largest=12276  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=580s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 99.9ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=6 probes=70/6 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @724950
+[fetch] LOW HEAP after Blipscope Cloud: free=21632 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 67ms
+[fetch] task: req kind=0 @730033
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @735124
+[fetch] LOW HEAP after Blipscope Cloud: free=21632 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @740139
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:12:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=6 maxOutage=0ms rebootRec=0 | breaches=32 heap=29580 minLargest=7668
+[health] frame avg=101.8ms p95=104.1ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=610s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 104.1ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=7 probes=73/7 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @755212
+[fetch] LOW HEAP after Blipscope Cloud: free=21376 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @770222
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=104.4ms p95=106.4ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=640s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=7 probes=76/7 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @785241
+[fetch] LOW HEAP after Blipscope Cloud: free=21376 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @800317
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:13:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=7 maxOutage=0ms rebootRec=0 | breaches=36 heap=29580 minLargest=7668
+[health] frame avg=106.8ms p95=108.4ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=670s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=7 probes=79/7 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @815336
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @830411
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=109.2ms p95=110.7ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=700s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.7ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=7 probes=82/7 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @845460
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @860557
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:14:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=7 maxOutage=0ms rebootRec=0 | breaches=40 heap=29580 minLargest=7668
+[health] frame avg=111.6ms p95=113.4ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=730s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 113.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=7 probes=85/7 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @875605
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @890701
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 204ms
+[health] frame avg=114.2ms p95=116.6ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=760s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.6ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=7 probes=88/7 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @905706
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @920745
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[soak] up=00:15:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=8 maxOutage=0ms rebootRec=0 | breaches=44 heap=29580 minLargest=7668
+[health] frame avg=114.5ms p95=116.0ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=790s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.0ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=8 probes=91/8 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @935788
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @950867
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=115.1ms p95=117.0ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=820s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 117.0ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=8 probes=94/8 maxOutage=0ms rebootRec=0
+[fetch] task: req kind=0 @965882
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @980912
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:16:00 presses=1 bursts=1 | wd wedges=0 recov=0/0 (s0/h0) wakes=8 maxOutage=0ms rebootRec=0 | breaches=48 heap=29580 minLargest=7668
+[touch-wd] WEDGE #1: controller dead on the bus; ladder engaged
+[health] frame avg=116.0ms p95=118.4ms  heap free=29580 largest=12276  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=850s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 118.4ms > 50ms
+[health] BUDGET BROKEN: largest block 12276 < 20000
+[health] touch-wd wedges=1 recovered=0/0 (soft=0 hard=0) wakes=8 probes=96/10 maxOutage=0ms rebootRec=0
+[touch-wd] RECOVERED on soft rung after 5511ms (1/1 re-inits have worked; soft=1 hard=0)
+[fetch] task: req kind=0 @995958
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1010985
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=118.8ms p95=121.8ms  heap free=22892 largest=10228  interval=15000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=880s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 121.8ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=100/11 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1026086
+[fetch] LOW HEAP after Blipscope Cloud: free=16408 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1040831
+[fetch] LOW HEAP after Blipscope Cloud: free=21416 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[soak] up=00:17:00 presses=2 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=9 maxOutage=5511ms rebootRec=0 | breaches=52 heap=25668 minLargest=7668
+[card] idle 3 min; auto-closing detail card
+[health] frame avg=43.8ms p95=44.7ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=10s touchIdle=9s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=103/11 maxOutage=5511ms rebootRec=0
+[health] frame avg=43.8ms p95=44.8ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=40s touchIdle=40s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=106/11 maxOutage=5511ms rebootRec=0
+[soak] up=00:18:00 presses=3 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=9 maxOutage=5511ms rebootRec=0 | breaches=54 heap=29580 minLargest=7668
+[health] frame avg=43.8ms p95=44.6ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=70s touchIdle=70s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=109/11 maxOutage=5511ms rebootRec=0
+[health] frame avg=43.9ms p95=44.9ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=100s touchIdle=100s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=112/11 maxOutage=5511ms rebootRec=0
+[soak] up=00:19:00 presses=3 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=9 maxOutage=5511ms rebootRec=0 | breaches=56 heap=29580 minLargest=7668
+[health] frame avg=43.8ms p95=44.6ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=130s touchIdle=130s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=115/11 maxOutage=5511ms rebootRec=0
+[health] frame avg=43.9ms p95=44.8ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=160s touchIdle=160s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=9 probes=118/11 maxOutage=5511ms rebootRec=0
+[soak] up=00:20:00 presses=3 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=10 maxOutage=5511ms rebootRec=0 | breaches=58 heap=29580 minLargest=7668
+[card] idle 3 min; auto-closing detail card
+[fetch] task: req kind=0 @1221439
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1226475
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=91.0ms p95=111.2ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=5s touchIdle=190s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.2ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=10 probes=121/12 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1231542
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1236607
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1241686
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1246777
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1251879
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @1256890
+[fetch] LOW HEAP after Blipscope Cloud: free=21672 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=110.9ms p95=112.8ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=220s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.8ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=10 probes=124/12 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1261933
+[fetch] LOW HEAP after Blipscope Cloud: free=21416 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1266972
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1272084
+[fetch] LOW HEAP after Blipscope Cloud: free=16624 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1277158
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:21:00 presses=3 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=10 maxOutage=5511ms rebootRec=0 | breaches=62 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1282243
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1287280
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=100.4ms p95=102.5ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=250s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 102.5ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=10 probes=127/12 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1292355
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @1297433
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1302533
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1307553
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1312602
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @1317665
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=102.9ms p95=103.7ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=280s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 103.7ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=10 probes=130/12 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1322735
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1327835
+[fetch] LOW HEAP after Blipscope Cloud: free=20804 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1332906
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1337906
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=00:22:00 presses=3 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=10 maxOutage=5511ms rebootRec=0 | breaches=66 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1342916
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1347933
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[health] frame avg=102.0ms p95=103.8ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=310s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 103.8ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=10 probes=133/12 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1352969
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1358032
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @1363114
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1368187
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @1373277
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1378304
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[health] frame avg=104.1ms p95=105.9ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=340s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.9ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=12 probes=136/14 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1383344
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[fetch] task: req kind=0 @1388399
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1393427
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1398480
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[soak] up=00:23:00 presses=3 bursts=2 | wd wedges=1 recov=1/1 (s1/h0) wakes=12 maxOutage=5511ms rebootRec=0 | breaches=70 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1403542
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @1408622
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=105.5ms p95=107.6ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=370s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=1 recovered=1/1 (soft=1 hard=0) wakes=12 probes=139/14 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1413712
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1418806
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1423808
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1428825
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1433850
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1438916
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[touch-wd] WEDGE #2: controller dead on the bus; ladder engaged
+[health] frame avg=107.5ms p95=109.7ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=400s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 109.7ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=2 recovered=1/1 (soft=1 hard=0) wakes=12 probes=141/16 maxOutage=5511ms rebootRec=0
+[fetch] task: req kind=0 @1443946
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[touch-wd] RECOVERED on soft rung after 5572ms (2/2 re-inits have worked; soft=2 hard=0)
+[fetch] task: req kind=0 @1449045
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1454145
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1459237
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:24:00 presses=3 bursts=2 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=74 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1464344
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1469358
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[health] frame avg=108.6ms p95=110.6ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=10s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=145/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1474388
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1479420
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 67ms
+[fetch] task: req kind=0 @1484484
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 94ms
+[fetch] task: req kind=0 @1489543
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1494624
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1499723
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=110.4ms p95=112.1ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=40s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.1ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=148/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1504826
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1509931
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1514936
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @1519967
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:25:00 presses=4 bursts=3 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=78 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1525007
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1530058
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=111.8ms p95=114.1ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=70s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.1ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=151/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1535116
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1540190
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1545273
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1550362
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1555461
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @1560486
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=113.3ms p95=115.0ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=100s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 115.0ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=154/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1565496
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 94ms
+[fetch] task: req kind=0 @1570522
+[fetch] LOW HEAP after Blipscope Cloud: free=21216 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1575554
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1580582
+[fetch] LOW HEAP after Blipscope Cloud: free=21640 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:26:01 presses=4 bursts=3 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=82 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1585630
+[fetch] LOW HEAP after Blipscope Cloud: free=21384 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @1590665
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=114.6ms p95=119.5ms  heap free=23728 largest=10228  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=130s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 119.5ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=157/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1595685
+[fetch] LOW HEAP after Blipscope Cloud: free=15784 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1600725
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 105ms
+[fetch] task: req kind=0 @1605778
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1610854
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1615946
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @1620961
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=99.9ms p95=101.7ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=160s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 101.7ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=160/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1626005
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[fetch] task: req kind=0 @1631030
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1636067
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @1641119
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:27:01 presses=4 bursts=3 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=86 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1646207
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @1651303
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[health] frame avg=101.5ms p95=103.5ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=190s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 103.5ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=163/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1656408
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1661420
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1666446
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1671475
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1676514
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1681554
+[fetch] LOW HEAP after Blipscope Cloud: free=19964 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=103.3ms p95=106.1ms  heap free=29580 largest=11252  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=220s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.1ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=166/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1686603
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @1691657
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1696708
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 94ms
+[soak] up=00:28:01 presses=4 bursts=3 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=90 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1701784
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @1706801
+[fetch] LOW HEAP after Blipscope Cloud: free=20328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @1711808
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=101.0ms p95=102.7ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=250s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 102.7ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=169/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1716828
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1721864
+[fetch] LOW HEAP after Blipscope Cloud: free=20952 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 97ms
+[fetch] task: req kind=0 @1726927
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 78ms
+[fetch] task: req kind=0 @1732012
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1737014
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @1742035
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[health] frame avg=102.0ms p95=104.1ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=280s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 104.1ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=172/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1747055
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1752104
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @1757148
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:29:01 presses=4 bursts=3 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=94 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1762218
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1767304
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=103.5ms p95=105.3ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=5s touchIdle=310s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.3ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=175/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1772316
+[fetch] LOW HEAP after Blipscope Cloud: free=21208 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1777335
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1782385
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @1787447
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1792520
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @1797611
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=105.8ms p95=107.6ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=340s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.6ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=2 recovered=2/2 (soft=2 hard=0) wakes=13 probes=178/17 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1802626
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @1807637
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1812676
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1817714
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:30:01 presses=4 bursts=3 | wd wedges=2 recov=2/2 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=98 heap=29580 minLargest=7668
+[touch-wd] WEDGE #3: controller dead on the bus; ladder engaged
+[fetch] task: req kind=0 @1822811
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[touch-wd] still dead; next re-init (soft) in 15s
+[fetch] task: req kind=0 @1827901
+[fetch] LOW HEAP after Blipscope Cloud: free=19964 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 67ms
+[health] frame avg=107.7ms p95=110.8ms  heap free=29580 largest=11252  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=370s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.8ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=3 recovered=2/3 (soft=2 hard=0) wakes=13 probes=179/20 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1832947
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1838005
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[touch-wd] still dead; next re-init (hard) in 40s
+[fetch] task: req kind=0 @1843008
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1848110
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1853131
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1858181
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=106.9ms p95=108.7ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=400s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.7ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=3 recovered=2/4 (soft=2 hard=0) wakes=13 probes=179/21 maxOutage=5572ms rebootRec=0
+[fetch] task: req kind=0 @1863248
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1868325
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1873429
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1878434
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[soak] up=00:31:01 presses=4 bursts=3 | wd wedges=3 recov=2/4 (s2/h0) wakes=13 maxOutage=5572ms rebootRec=0 | breaches=102 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1883475
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[touch-wd] RECOVERED on HARD rung after 62559ms (3/5 re-inits have worked; soft=2 hard=1)
+[fetch] task: req kind=0 @1888494
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=108.9ms p95=111.1ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=430s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.1ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=13 probes=181/21 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @1893526
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1898554
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 67ms
+[fetch] task: req kind=0 @1903585
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @1908631
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1913712
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @1918812
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 81ms
+[health] frame avg=110.4ms p95=112.7ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=460s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.7ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=13 probes=184/21 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @1923901
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @1928999
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @1934098
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @1939202
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[soak] up=00:32:01 presses=4 bursts=3 | wd wedges=3 recov=3/5 (s2/h1) wakes=14 maxOutage=62559ms rebootRec=0 | breaches=106 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @1944203
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[fetch] task: req kind=0 @1949217
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=111.2ms p95=113.5ms  heap free=29580 largest=11252  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=490s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 113.5ms > 50ms
+[health] BUDGET BROKEN: largest block 11252 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=14 probes=187/22 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @1954255
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @1959281
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1964322
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @1969363
+[fetch] LOW HEAP after Blipscope Cloud: free=21636 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1974431
+[fetch] LOW HEAP after Blipscope Cloud: free=21380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 134ms
+[fetch] task: req kind=0 @1979517
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=113.4ms p95=118.6ms  heap free=25400 largest=10228  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=520s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 118.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=14 probes=190/22 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @1984537
+[fetch] LOW HEAP after Blipscope Cloud: free=17488 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1989590
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @1994655
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @1999742
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[soak] up=00:33:01 presses=4 bursts=3 | wd wedges=3 recov=3/5 (s2/h1) wakes=14 maxOutage=62559ms rebootRec=0 | breaches=110 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @2004832
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2009838
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=103.8ms p95=105.4ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=551s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.4ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=14 probes=193/22 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2014841
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2019864
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2024893
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2029933
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2034998
+[fetch] LOW HEAP after Blipscope Cloud: free=20988 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2040096
+[fetch] LOW HEAP after Blipscope Cloud: free=21200 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=105.6ms p95=106.9ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=581s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.9ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=15 probes=196/23 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2045182
+[fetch] LOW HEAP after Blipscope Cloud: free=20924 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2050273
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2055274
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2060288
+[fetch] LOW HEAP after Blipscope Cloud: free=21668 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:34:01 presses=4 bursts=3 | wd wedges=3 recov=3/5 (s2/h1) wakes=15 maxOutage=62559ms rebootRec=0 | breaches=114 heap=29580 minLargest=7668
+[fetch] task: req kind=0 @2065314
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2070344
+[fetch] LOW HEAP after Blipscope Cloud: free=21412 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=106.8ms p95=108.2ms  heap free=29580 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=11s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.2ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=15 probes=199/23 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2075386
+[fetch] LOW HEAP after Blipscope Cloud: free=21260 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2080436
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2085501
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 94ms
+[fetch] task: req kind=0 @2090567
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2095652
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2100758
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=108.1ms p95=110.0ms  heap free=29492 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=41s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.0ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=15 probes=202/23 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2105758
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @2110761
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2115770
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2120789
+[fetch] LOW HEAP after Blipscope Cloud: free=21156 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[soak] up=00:35:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=15 maxOutage=62559ms rebootRec=0 | breaches=118 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2125836
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2130893
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=109.4ms p95=111.2ms  heap free=29492 largest=10228  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=71s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.2ms > 50ms
+[health] BUDGET BROKEN: largest block 10228 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=15 probes=205/23 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2135938
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2141031
+[fetch] LOW HEAP after Blipscope Cloud: free=14864 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2146064
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2151075
+[fetch] LOW HEAP after Blipscope Cloud: free=21232 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2156116
+[fetch] LOW HEAP after Blipscope Cloud: free=21232 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2161204
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=95.5ms p95=97.4ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=101s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 97.4ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=208/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2166218
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2171239
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2176287
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2181369
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=00:36:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=16 maxOutage=62559ms rebootRec=0 | breaches=122 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2186456
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2191472
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 93ms
+[health] frame avg=97.9ms p95=99.9ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=131s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 99.9ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=211/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2196516
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2201563
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2206625
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2211722
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @2216746
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2221818
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=100.6ms p95=102.8ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=161s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 102.8ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=214/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2226876
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2231876
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @2236972
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2242001
+[fetch] LOW HEAP after Blipscope Cloud: free=21232 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:37:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=16 maxOutage=62559ms rebootRec=0 | breaches=126 heap=25580 minLargest=7668
+[fetch] task: req kind=0 @2247029
+[fetch] LOW HEAP after Blipscope Cloud: free=21232 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2252108
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[health] frame avg=102.9ms p95=105.1ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=191s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.1ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=217/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2257187
+[fetch] LOW HEAP after Blipscope Cloud: free=21232 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2262190
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2267203
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @2272237
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2277298
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @2282299
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=105.4ms p95=108.0ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=221s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.0ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=220/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2287396
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2292494
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2297506
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 67ms
+[soak] up=00:38:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=16 maxOutage=62559ms rebootRec=0 | breaches=130 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2302531
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2307578
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2312636
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=107.1ms p95=108.5ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=251s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.5ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=223/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2317711
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2322795
+[fetch] LOW HEAP after Blipscope Cloud: free=21084 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2327901
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2332911
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2337938
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2342979
+[fetch] LOW HEAP after Blipscope Cloud: free=22708 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=109.0ms p95=110.4ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=281s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.4ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=226/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2348028
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2353090
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2358167
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:39:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=16 maxOutage=62559ms rebootRec=0 | breaches=134 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2363257
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2368356
+[fetch] LOW HEAP after Blipscope Cloud: free=21084 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 96ms
+[health] frame avg=110.5ms p95=112.3ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=311s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.3ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=16 probes=229/24 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2373375
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2378420
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2383459
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2388514
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2393580
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @2398666
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=112.5ms p95=114.3ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=341s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.3ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=17 probes=232/25 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2403765
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2408863
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2413872
+[fetch] LOW HEAP after Blipscope Cloud: free=21232 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2418889
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:40:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=17 maxOutage=62559ms rebootRec=0 | breaches=138 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2423911
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 115ms
+[fetch] task: req kind=0 @2428960
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=114.2ms p95=116.3ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=371s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.3ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=17 probes=235/25 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2434010
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2439076
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2444141
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2449206
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @2454275
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @2459366
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=115.1ms p95=116.9ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=401s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.9ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=17 probes=238/25 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2464438
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2469498
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2474589
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2479653
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=00:41:01 presses=5 bursts=4 | wd wedges=3 recov=3/5 (s2/h1) wakes=17 maxOutage=62559ms rebootRec=0 | breaches=142 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2484717
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2489787
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=114.9ms p95=116.6ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=431s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.6ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=17 probes=241/25 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2494864
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2499926
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2505007
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @2510071
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @2515131
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2520212
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=114.9ms p95=116.5ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=461s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.5ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=17 probes=244/25 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2525282
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2530343
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2535399
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2540470
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=00:42:01 presses=6 bursts=5 | wd wedges=3 recov=3/5 (s2/h1) wakes=17 maxOutage=62559ms rebootRec=0 | breaches=146 heap=29492 minLargest=7668
+[health] frame avg=44.1ms p95=45.0ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=11s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=17 probes=247/25 maxOutage=62559ms rebootRec=0
+[health] frame avg=44.2ms p95=45.1ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=43s touchIdle=41s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=19 probes=250/27 maxOutage=62559ms rebootRec=0
+[soak] up=00:43:01 presses=6 bursts=5 | wd wedges=3 recov=3/5 (s2/h1) wakes=19 maxOutage=62559ms rebootRec=0 | breaches=148 heap=29492 minLargest=7668
+[health] frame avg=44.1ms p95=44.9ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=73s touchIdle=71s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=19 probes=253/27 maxOutage=62559ms rebootRec=0
+[health] frame avg=44.1ms p95=45.1ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=103s touchIdle=101s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=19 probes=256/27 maxOutage=62559ms rebootRec=0
+[soak] up=00:44:01 presses=6 bursts=5 | wd wedges=3 recov=3/5 (s2/h1) wakes=19 maxOutage=62559ms rebootRec=0 | breaches=150 heap=29492 minLargest=7668
+[health] frame avg=44.2ms p95=45.0ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=133s touchIdle=131s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=19 probes=259/27 maxOutage=62559ms rebootRec=0
+[health] frame avg=44.1ms p95=45.1ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=1 screen=0 reqQ=0 resQ=0 fetchAge=163s touchIdle=161s enrich=0 task=2
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=20 probes=262/28 maxOutage=62559ms rebootRec=0
+[card] idle 3 min; auto-closing detail card
+[fetch] task: req kind=0 @2722120
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[soak] up=00:45:01 presses=6 bursts=5 | wd wedges=3 recov=3/5 (s2/h1) wakes=20 maxOutage=62559ms rebootRec=0 | breaches=152 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2727177
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 96ms
+[fetch] task: req kind=0 @2732260
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 95ms
+[health] frame avg=100.1ms p95=116.6ms  heap free=29492 largest=8692  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=191s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.6ms > 50ms
+[health] BUDGET BROKEN: largest block 8692 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=20 probes=265/28 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2737315
+[fetch] LOW HEAP after Blipscope Cloud: free=21552 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2742373
+[WARN] Blipscope Cloud returned HTTP 503; keeping current picture
+[fetch] LOW HEAP after Blipscope Cloud: free=29276 largest=8692 aircraft=0
+[fetch] task: done ok=0 http=503 in 64ms
+[fetch] task: req kind=0 @2747413
+[WARN] Blipscope Cloud returned HTTP 503; keeping current picture
+[fetch] LOW HEAP after Blipscope Cloud: free=29020 largest=8692 aircraft=0
+[fetch] task: done ok=0 http=503 in 75ms
+[fetch] task: req kind=0 @2752460
+[WARN] Blipscope Cloud returned HTTP 503; keeping current picture
+[fetch] LOW HEAP after Blipscope Cloud: free=29064 largest=8692 aircraft=0
+[fetch] task: done ok=0 http=503 in 65ms
+[fetch] task: req kind=0 @2757507
+[fetch] LOW HEAP after Blipscope Cloud: free=21296 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 1934ms
+[fetch] task: req kind=0 @2762538
+[fetch] LOW HEAP after Blipscope Cloud: free=21424 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=103.8ms p95=117.0ms  heap free=29492 largest=7668  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=221s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 117.0ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=21 probes=268/29 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2767617
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2772693
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2777734
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[soak] up=00:46:02 presses=6 bursts=5 | wd wedges=3 recov=3/5 (s2/h1) wakes=22 maxOutage=62559ms rebootRec=0 | breaches=156 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2782741
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @2787790
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2792850
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=87.1ms p95=89.8ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=251s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 89.8ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=22 probes=271/30 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2797851
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2802863
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2807910
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2812981
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2818016
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2823069
+[fetch] LOW HEAP after Blipscope Cloud: free=21424 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 94ms
+[health] frame avg=89.9ms p95=91.6ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=281s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 91.6ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=22 probes=274/30 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2828146
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @2833177
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2838215
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:47:02 presses=6 bursts=5 | wd wedges=3 recov=3/5 (s2/h1) wakes=23 maxOutage=62559ms rebootRec=0 | breaches=160 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2843307
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2848334
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 96ms
+[fetch] task: req kind=0 @2853400
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=93.3ms p95=95.6ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=311s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 95.6ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=3 recovered=3/5 (soft=2 hard=1) wakes=23 probes=277/31 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2858464
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2863487
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 83ms
+[fetch] task: req kind=0 @2868524
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2873585
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2878592
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[touch-wd] WEDGE #4: controller dead on the bus; ladder engaged
+[fetch] task: req kind=0 @2883682
+[fetch] LOW HEAP after Blipscope Cloud: free=21168 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=96.7ms p95=99.1ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=341s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 99.1ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=4 recovered=3/5 (soft=2 hard=1) wakes=23 probes=279/33 maxOutage=62559ms rebootRec=0
+[touch-wd] still dead; next re-init (soft) in 15s
+[fetch] task: req kind=0 @2888703
+[fetch] LOW HEAP after Blipscope Cloud: free=21456 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2893796
+[fetch] LOW HEAP after Blipscope Cloud: free=17984 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2898884
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[touch-wd] still dead; next re-init (hard) in 40s
+[soak] up=00:48:02 presses=6 bursts=5 | wd wedges=4 recov=3/7 (s2/h1) wakes=23 maxOutage=62559ms rebootRec=0 | breaches=164 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2903930
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2909002
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 83ms
+[health] frame avg=92.4ms p95=94.5ms  heap free=28656 largest=7668  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=5s touchIdle=371s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 94.5ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=4 recovered=3/7 (soft=2 hard=1) wakes=23 probes=279/35 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2914059
+[fetch] LOW HEAP after Blipscope Cloud: free=20492 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2919119
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @2924141
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2929148
+[fetch] LOW HEAP after Blipscope Cloud: free=20492 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @2934212
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @2939251
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[touch-wd] RECOVERED on HARD rung after 62543ms (4/8 re-inits have worked; soft=2 hard=2)
+[health] frame avg=93.0ms p95=94.6ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=402s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 94.6ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=4 recovered=4/8 (soft=2 hard=2) wakes=23 probes=281/35 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2944320
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @2949367
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @2954373
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @2959405
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[soak] up=00:49:02 presses=6 bursts=5 | wd wedges=4 recov=4/8 (s2/h2) wakes=24 maxOutage=62559ms rebootRec=0 | breaches=168 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @2964491
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @2969508
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[touch-wd] WEDGE #5: controller dead on the bus; ladder engaged
+[health] frame avg=96.6ms p95=98.8ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=432s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 98.8ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=4/8 (soft=2 hard=2) wakes=24 probes=283/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @2974605
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[touch-wd] RECOVERED on soft rung after 5612ms (5/9 re-inits have worked; soft=3 hard=2)
+[fetch] task: req kind=0 @2979623
+[fetch] LOW HEAP after Blipscope Cloud: free=19108 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @2984668
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @2989681
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @2994724
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @2999734
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[health] frame avg=97.7ms p95=99.9ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=462s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 99.9ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=24 probes=287/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3004761
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3009820
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3014827
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @3019863
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[soak] up=00:50:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=24 maxOutage=62559ms rebootRec=0 | breaches=172 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @3024930
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3029933
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=101.7ms p95=103.3ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=492s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 103.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=24 probes=290/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3034962
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3040027
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3045131
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @3050162
+[fetch] LOW HEAP after Blipscope Cloud: free=21360 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3055236
+[fetch] LOW HEAP after Blipscope Cloud: free=21616 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3060249
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=106.3ms p95=108.0ms  heap free=27820 largest=7668  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=522s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.0ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=24 probes=293/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3065320
+[fetch] LOW HEAP after Blipscope Cloud: free=19912 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3070327
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 67ms
+[fetch] task: req kind=0 @3075356
+[fetch] LOW HEAP after Blipscope Cloud: free=21204 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3080389
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:51:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=24 maxOutage=62559ms rebootRec=0 | breaches=176 heap=29492 minLargest=7668
+[fetch] task: req kind=0 @3085433
+[fetch] LOW HEAP after Blipscope Cloud: free=21264 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3090507
+[fetch] LOW HEAP after Blipscope Cloud: free=21268 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=105.2ms p95=107.1ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=552s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.1ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=24 probes=296/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3095585
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @3100675
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3105688
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3110699
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3115728
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3120790
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=107.3ms p95=109.2ms  heap free=29492 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=582s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 109.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=24 probes=299/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3125857
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3130929
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @3136016
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @3141121
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=00:52:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=24 maxOutage=62559ms rebootRec=0 | breaches=180 heap=29492 minLargest=7668
+[health] frame avg=109.9ms p95=111.8ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=612s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.8ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=24 probes=302/38 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3156134
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3171200
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=112.3ms p95=114.6ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=642s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.6ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=25 probes=304/39 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3186295
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3201367
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:53:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=26 maxOutage=62559ms rebootRec=0 | breaches=184 heap=29492 minLargest=7668
+[health] frame avg=113.4ms p95=115.2ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=672s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 115.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=26 probes=307/40 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3216380
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3231460
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=114.5ms p95=116.2ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=702s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=26 probes=310/40 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3246510
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3261590
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[soak] up=00:54:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=26 maxOutage=62559ms rebootRec=0 | breaches=188 heap=29492 minLargest=7668
+[health] frame avg=115.4ms p95=117.2ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=732s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 117.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=26 probes=313/40 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3276638
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3291694
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=115.8ms p95=117.2ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=762s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 117.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=26 probes=316/40 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3306794
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @3321818
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[soak] up=00:55:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=27 maxOutage=62559ms rebootRec=0 | breaches=192 heap=29492 minLargest=7668
+[health] frame avg=116.4ms p95=118.2ms  heap free=29492 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=13s touchIdle=792s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 118.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=27 probes=319/41 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3336892
+[fetch] LOW HEAP after Blipscope Cloud: free=21584 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3352007
+[fetch] LOW HEAP after Blipscope Cloud: free=14896 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=99.7ms p95=101.2ms  heap free=29492 largest=7668  interval=15000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=12s touchIdle=822s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 101.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=29 probes=322/43 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3367044
+[fetch] LOW HEAP after Blipscope Cloud: free=21328 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3382121
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[soak] up=00:56:02 presses=6 bursts=5 | wd wedges=5 recov=5/9 (s3/h2) wakes=29 maxOutage=62559ms rebootRec=0 | breaches=196 heap=29512 minLargest=7668
+[health] frame avg=101.5ms p95=102.7ms  heap free=29512 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=12s touchIdle=852s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 102.7ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=29 probes=325/43 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3397189
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @3412196
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=103.3ms p95=104.6ms  heap free=29512 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=12s touchIdle=883s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 104.6ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=29 probes=328/43 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3427244
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3442266
+[fetch] LOW HEAP after Blipscope Cloud: free=21284 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=00:57:02 presses=8 bursts=6 | wd wedges=5 recov=5/9 (s3/h2) wakes=30 maxOutage=62559ms rebootRec=0 | breaches=200 heap=29512 minLargest=7668
+[fetch] task: req kind=0 @3447323
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3452329
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=103.6ms p95=105.7ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=12s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.7ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=30 probes=331/44 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3457424
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3462425
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3467452
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3472499
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3477572
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @3482649
+[fetch] LOW HEAP after Blipscope Cloud: free=22760 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=105.5ms p95=107.3ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=42s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=30 probes=334/44 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3487731
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3492828
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3497833
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3502854
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[soak] up=00:58:02 presses=8 bursts=6 | wd wedges=5 recov=5/9 (s3/h2) wakes=30 maxOutage=62559ms rebootRec=0 | breaches=204 heap=29512 minLargest=7668
+[fetch] task: req kind=0 @3507909
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3512960
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=107.3ms p95=109.3ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=72s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 109.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=30 probes=337/44 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3518019
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @3523091
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3528188
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3533294
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3538317
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3543360
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=109.2ms p95=111.2ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=102s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.2ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=31 probes=340/45 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3548403
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @3553457
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3558524
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=00:59:02 presses=8 bursts=6 | wd wedges=5 recov=5/9 (s3/h2) wakes=31 maxOutage=62559ms rebootRec=0 | breaches=208 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3563609
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3568711
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @3573737
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=111.0ms p95=113.3ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=132s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 113.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=31 probes=343/45 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3578747
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3583770
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3588809
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3593865
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3598951
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3604036
+[fetch] LOW HEAP after Blipscope Cloud: free=21284 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[health] frame avg=112.6ms p95=114.9ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=162s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.9ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=31 probes=346/45 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3609151
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3614256
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3619263
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=01:00:02 presses=8 bursts=6 | wd wedges=5 recov=5/9 (s3/h2) wakes=31 maxOutage=62559ms rebootRec=0 | breaches=212 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3624289
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3629327
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3634373
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=114.2ms p95=116.1ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=192s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.1ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=5 recovered=5/9 (soft=3 hard=2) wakes=31 probes=349/45 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3639428
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3644483
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[touch-wd] WEDGE #6: controller dead on the bus; ladder engaged
+[fetch] task: req kind=0 @3649490
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 185ms
+[touch-wd] RECOVERED on soft rung after 5480ms (6/10 re-inits have worked; soft=4 hard=2)
+[fetch] task: req kind=0 @3654493
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3659569
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @3664637
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=115.2ms p95=116.9ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=222s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.9ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=31 probes=352/47 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3669718
+[fetch] LOW HEAP after Blipscope Cloud: free=21288 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @3674783
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 164ms
+[fetch] task: req kind=0 @3679836
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[soak] up=01:01:02 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=31 maxOutage=62559ms rebootRec=0 | breaches=216 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3684891
+[fetch] LOW HEAP after Blipscope Cloud: free=21604 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 126ms
+[fetch] task: req kind=0 @3689977
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 114ms
+[fetch] task: req kind=0 @3695050
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[health] frame avg=115.0ms p95=116.5ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=252s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 116.5ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=32 probes=355/48 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3700130
+[fetch] LOW HEAP after Blipscope Cloud: free=21608 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3705184
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3710213
+[fetch] LOW HEAP after Blipscope Cloud: free=12380 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @3715223
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3720256
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3725295
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=91.3ms p95=92.6ms  heap free=29512 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=282s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 92.6ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=358/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3730359
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3735443
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @3740463
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[soak] up=01:02:02 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=220 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3745497
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3750564
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 134ms
+[health] frame avg=93.6ms p95=95.4ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=5s touchIdle=312s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 95.4ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=361/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3755656
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3760668
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3765709
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3770788
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3775791
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3780818
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=96.3ms p95=98.1ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=342s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 98.1ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=364/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3785851
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3790903
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3795981
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3801078
+[fetch] LOW HEAP after Blipscope Cloud: free=21512 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=01:03:02 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=224 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3806098
+[fetch] LOW HEAP after Blipscope Cloud: free=20828 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3811148
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=98.7ms p95=100.8ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=372s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 100.8ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=367/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3816226
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3821314
+[fetch] LOW HEAP after Blipscope Cloud: free=21512 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @3826323
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3831356
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3836412
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @3841508
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[health] frame avg=101.3ms p95=102.9ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=402s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 102.9ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=370/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3846604
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @3851623
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3856646
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @3861718
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=01:04:02 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=228 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3866809
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3871815
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=103.7ms p95=105.8ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=432s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.8ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=373/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3876821
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3881850
+[fetch] LOW HEAP after Blipscope Cloud: free=21512 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @3886896
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3891966
+[fetch] LOW HEAP after Blipscope Cloud: free=21512 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3897065
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3902079
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=106.1ms p95=107.8ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=462s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.8ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=376/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3907101
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3912143
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @3917210
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3922290
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=01:05:02 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=232 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3927394
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3932415
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=110.0ms p95=114.9ms  heap free=23664 largest=7668  interval=5000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=492s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.9ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=379/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3937469
+[fetch] LOW HEAP after Blipscope Cloud: free=15464 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @3942552
+[fetch] LOW HEAP after Blipscope Cloud: free=21044 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3947561
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @3952585
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3957586
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3962622
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[health] frame avg=98.1ms p95=99.7ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=522s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 99.7ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=382/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3967684
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3972694
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @3977703
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3982744
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[soak] up=01:06:03 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=236 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @3987815
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @3992823
+[fetch] LOW HEAP after Blipscope Cloud: free=21512 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=101.5ms p95=103.3ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=552s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 103.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=385/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @3997852
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @4002892
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @4007970
+[fetch] LOW HEAP after Blipscope Cloud: free=21508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4012980
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @4017993
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4023036
+[fetch] LOW HEAP after Blipscope Cloud: free=21192 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=104.5ms p95=106.3ms  heap free=29516 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=3s touchIdle=583s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=388/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4028067
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4033103
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4038157
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=01:07:03 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=240 heap=29512 minLargest=7668
+[fetch] task: req kind=0 @4053226
+[fetch] LOW HEAP after Blipscope Cloud: free=21512 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=107.2ms p95=109.4ms  heap free=29516 largest=7668  interval=15000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=613s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 109.4ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=391/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4068283
+[fetch] LOW HEAP after Blipscope Cloud: free=21252 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @4083360
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[health] frame avg=109.3ms p95=111.5ms  heap free=27008 largest=7668  interval=15000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=643s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.5ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=394/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4098432
+[fetch] LOW HEAP after Blipscope Cloud: free=19064 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[soak] up=01:08:03 presses=8 bursts=6 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=244 heap=28676 minLargest=7668
+[fetch] task: req kind=0 @4113438
+[fetch] LOW HEAP after Blipscope Cloud: free=20484 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=103.7ms p95=105.8ms  heap free=29516 largest=10740  interval=15000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=673s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 105.8ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=397/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4128437
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4143504
+[fetch] LOW HEAP after Blipscope Cloud: free=20484 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=104.4ms p95=106.2ms  heap free=29516 largest=10740  interval=15000ms
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=703s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.2ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=400/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4158601
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4163602
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[soak] up=01:09:03 presses=9 bursts=7 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=248 heap=29516 minLargest=7668
+[fetch] task: req kind=0 @4168679
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @4173764
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=105.7ms p95=107.4ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=12s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.4ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=403/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4178867
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @4183877
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 63ms
+[fetch] task: req kind=0 @4188919
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4193974
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @4199069
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @4204167
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=108.0ms p95=109.6ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=42s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 109.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=406/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4209172
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4214207
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @4219255
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=01:10:03 presses=10 bursts=7 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=252 heap=29512 minLargest=7668
+[fetch] task: req kind=0 @4224309
+[fetch] LOW HEAP after Blipscope Cloud: free=21256 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @4229402
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @4234501
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=110.4ms p95=112.6ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=2s touchIdle=72s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=409/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4239609
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4244615
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4249624
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 85ms
+[fetch] task: req kind=0 @4254641
+[fetch] LOW HEAP after Blipscope Cloud: free=21148 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 125ms
+[fetch] task: req kind=0 @4259686
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @4264753
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=111.8ms p95=114.6ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=102s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=412/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4269790
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4274848
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @4279894
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[soak] up=01:11:03 presses=10 bursts=7 | wd wedges=6 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=256 heap=29512 minLargest=7668
+[fetch] task: req kind=0 @4284957
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 134ms
+[fetch] task: req kind=0 @4290028
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4295115
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=112.5ms p95=114.6ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=132s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 114.6ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=415/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4300201
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @4305286
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @4310369
+[fetch] LOW HEAP after Blipscope Cloud: free=18228 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4315395
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @4320427
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4325477
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[health] frame avg=104.7ms p95=106.1ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=1s touchIdle=162s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.1ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=6 recovered=6/10 (soft=4 hard=2) wakes=33 probes=418/49 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4330540
+[fetch] LOW HEAP after Blipscope Cloud: free=21572 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4335612
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 104ms
+[fetch] task: req kind=0 @4340707
+[fetch] LOW HEAP after Blipscope Cloud: free=21316 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[touch-wd] WEDGE #7: controller dead on the bus; ladder engaged
+[soak] up=01:12:03 presses=10 bursts=7 | wd wedges=7 recov=6/10 (s4/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=260 heap=29512 minLargest=7668
+[fetch] task: req kind=0 @4345762
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[touch-wd] RECOVERED on soft rung after 5598ms (7/11 re-inits have worked; soft=5 hard=2)
+[fetch] task: req kind=0 @4350802
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4355822
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=106.8ms p95=108.3ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=192s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 108.3ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=33 probes=421/51 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4360858
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4365908
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4370974
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4376050
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4381148
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 77ms
+[fetch] task: req kind=0 @4386237
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=108.1ms p95=110.1ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=222s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.1ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=33 probes=424/51 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4391258
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4396279
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4401300
+[fetch] LOW HEAP after Blipscope Cloud: free=21580 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[soak] up=01:13:03 presses=10 bursts=7 | wd wedges=7 recov=7/11 (s5/h2) wakes=33 maxOutage=62559ms rebootRec=0 | breaches=264 heap=29520 minLargest=7668
+[fetch] task: req kind=0 @4406322
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4411345
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4416375
+[fetch] LOW HEAP after Blipscope Cloud: free=21320 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=108.9ms p95=110.5ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=252s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.5ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=33 probes=427/51 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4421410
+[fetch] LOW HEAP after Blipscope Cloud: free=21324 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 86ms
+[fetch] task: req kind=0 @4426464
+[fetch] LOW HEAP after Blipscope Cloud: free=21576 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4431526
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 167ms
+[fetch] task: req kind=0 @4436558
+[fetch] LOW HEAP after Blipscope Cloud: free=18844 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 134ms
+[fetch] task: req kind=0 @4441631
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4446697
+[fetch] LOW HEAP after Blipscope Cloud: free=21288 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[health] frame avg=105.1ms p95=112.3ms  heap free=29516 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=0s touchIdle=283s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.3ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=33 probes=430/51 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4451706
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 105ms
+[fetch] task: req kind=0 @4456705
+[fetch] LOW HEAP after Blipscope Cloud: free=21352 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 93ms
+[fetch] task: req kind=0 @4461740
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[soak] up=01:14:03 presses=10 bursts=7 | wd wedges=7 recov=7/11 (s5/h2) wakes=34 maxOutage=62559ms rebootRec=0 | breaches=268 heap=29524 minLargest=7668
+[fetch] task: req kind=0 @4466769
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4471804
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4476844
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=104.7ms p95=106.3ms  heap free=25600 largest=7668  interval=5000ms  DATA STALE
+[soak-state] inFlight=1 inDetail=0 screen=0 reqQ=0 resQ=1 fetchAge=0s touchIdle=313s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.3ms > 50ms
+[health] BUDGET BROKEN: largest block 7668 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=34 probes=433/52 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4481895
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4486989
+[fetch] LOW HEAP after Blipscope Cloud: free=20508 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4492067
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[fetch] task: req kind=0 @4497084
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 84ms
+[fetch] task: req kind=0 @4502116
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 66ms
+[health] frame avg=104.3ms p95=106.0ms  heap free=29524 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=343s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 106.0ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=34 probes=436/52 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4507147
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4512197
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4517259
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4522332
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=01:15:03 presses=10 bursts=7 | wd wedges=7 recov=7/11 (s5/h2) wakes=34 maxOutage=62559ms rebootRec=0 | breaches=272 heap=29524 minLargest=7668
+[fetch] task: req kind=0 @4527437
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4532441
+[fetch] LOW HEAP after Blipscope Cloud: free=21292 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[health] frame avg=106.1ms p95=107.7ms  heap free=29524 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=373s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 107.7ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=34 probes=439/52 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4537455
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[fetch] task: req kind=0 @4542482
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4547526
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4552584
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @4557661
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4562672
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=108.2ms p95=110.3ms  heap free=29524 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=403s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 110.3ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=34 probes=442/52 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4567685
+[fetch] LOW HEAP after Blipscope Cloud: free=21344 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4572696
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4577713
+[fetch] LOW HEAP after Blipscope Cloud: free=21348 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4582752
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[soak] up=01:16:03 presses=10 bursts=7 | wd wedges=7 recov=7/11 (s5/h2) wakes=34 maxOutage=62559ms rebootRec=0 | breaches=276 heap=29524 minLargest=7668
+[fetch] task: req kind=0 @4587792
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4592863
+[fetch] LOW HEAP after Blipscope Cloud: free=21356 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[health] frame avg=109.6ms p95=111.4ms  heap free=29524 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=433s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 111.4ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=34 probes=445/52 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4597941
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[fetch] task: req kind=0 @4603021
+[fetch] LOW HEAP after Blipscope Cloud: free=22768 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4608122
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 73ms
+[fetch] task: req kind=0 @4613125
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4618142
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4623166
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 65ms
+[health] frame avg=111.3ms p95=112.9ms  heap free=29524 largest=10740  interval=5000ms  DATA STALE
+[soak-state] inFlight=0 inDetail=0 screen=0 reqQ=0 resQ=0 fetchAge=4s touchIdle=463s enrich=0 task=2
+[health] BUDGET BROKEN: frame p95 112.9ms > 50ms
+[health] BUDGET BROKEN: largest block 10740 < 20000
+[health] touch-wd wedges=7 recovered=7/11 (soft=5 hard=2) wakes=34 probes=448/52 maxOutage=62559ms rebootRec=0
+[fetch] task: req kind=0 @4628187
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 74ms
+[fetch] task: req kind=0 @4633210
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4638240
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 64ms
+[fetch] task: req kind=0 @4643273
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[soak] up=01:17:03 presses=10 bursts=7 | wd wedges=7 recov=7/11 (s5/h2) wakes=34 maxOutage=62559ms rebootRec=0 | breaches=280 heap=29524 minLargest=7668
+[fetch] task: req kind=0 @4648321
+[fetch] LOW HEAP after Blipscope Cloud: free=21600 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 76ms
+[fetch] task: req kind=0 @4653376
+[fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
+[fetch] task: done ok=1 http=200 in 75ms
+[WiFi] STA started; hostname=Blipscope-51C12C, TX 19.5dBm
+*wm:[3] ESP32 event handler enabled 
+*wm:[3] Connecting as wifi client... 
+*wm:[4] STA static IP:
+*wm:[3] setSTAConfig static ip not set, skipping 
+*wm:[2] Connect Wifi, ATTEMPT # 1 of 5
+*wm:[2] Connecting to SAVED AP: Tony
+*wm:[4] Using Password:[REDACTED]
+*wm:[4] WiFi_enableSTA enable
+*wm:[4] Mode after delay:  STA
+*wm:[4] 15000 ms connectTimeout set
+*wm:[3] 15000 ms timeout, waiting for connect...
+*wm:[3] . 
+[WiFi] Associated with "Tony", waiting for IP...
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+*wm:[3] . 
+[WiFi] CONNECTED  IP=192.168.86.51  RSSI=-61 dBm
+*wm:[3] Connection result: WL_CONNECTED
+*wm:[4] lastconxresult: WL_CONNECTED
+*wm:[2] AutoConnect: SUCCESS 
+*wm:[3] Connected in 2251 ms
+*wm:[2] STA IP Address: 192.168.86.51
+*wm:[4] hostname: STA:  Blipscope-51C12C
+[WiFi] autoConnect() returned true (connected)
+[ota] channel=c3-128 current=4 latest=4
+[source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
+[soak] ==================================================

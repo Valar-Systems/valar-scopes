@@ -241,6 +241,7 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
     http.begin(fullUrl);
+    result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
 
     // Follow 3xx redirects. adsbdb's photo thumbnails are served from airport-data.com
     // behind a redirect; without this the GET stops at the redirect and hands back the
@@ -296,6 +297,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
     http.begin(fullUrl);
+    result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     http.setConnectTimeout(5000);
     http.setTimeout(5000);

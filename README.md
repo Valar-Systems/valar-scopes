@@ -284,6 +284,18 @@ PiAware / dump1090-fa serve the data on **port 8080**, so enter `http://<pi-ip>:
 
 That's it — once configured, you'll have a live view of everything flying over your location. Enjoy ✈️
 
+## Privacy & telemetry
+
+Blipscope Cloud collects **operational telemetry only**, and only what it needs to keep the fleet's firmware updates honest.
+
+**What's sent.** After the device attempts a firmware update, its next check-in — a request it was already making — carries one extra header summarising that attempt: the firmware version it came from and went to, the largest free memory block before and after, and whether the update succeeded. That's it: **heap numbers, firmware versions, and a result code.** It's sent once per update attempt and never retried; if it doesn't arrive, it's simply lost.
+
+**What isn't.** No identifiers beyond the headers the device already has to send to be served at all (its API key and hardware model). No location, no aircraft you've watched, no configuration, no serial number. The report rides the connection that cloud mode fundamentally requires to function — it adds no new connection, no new endpoint, and no extra traffic.
+
+**Why it exists.** We can prove on the bench that an update works on a freshly-booted device. We can't reproduce, on a bench, the fragmented memory a device actually reaches after weeks of running — and that's exactly the state real updates happen in. Those few numbers are the only honest way to know that firmware updates keep working on devices in the field rather than only in the lab.
+
+**The opt-out is architectural, not a toggle.** If you run Blipscope against **your own ADS-B receiver** (above) or your own self-hosted proxy, the device never talks to our servers — so it transmits nothing, by construction. That isn't a setting we promise to honour; it's a mode where the reporting path doesn't exist. The firmware is open source: that claim is auditable rather than something you have to take on trust.
+
 ## Thanks
 
 Valar Scopes is built on the wonderful **[Micro Radar](https://github.com/AnthonySturdy/micro-radar)** project by **[Anthony Sturdy](https://github.com/AnthonySturdy)**. Anthony designed and open-sourced the original device — the concept, the enclosure, and the firmware this project grew from. None of this would exist without his work, and we're hugely grateful he shared it with the world. Go give the [original repo](https://github.com/AnthonySturdy/micro-radar) a star. 🌟

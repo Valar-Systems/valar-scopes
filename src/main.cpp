@@ -40,6 +40,13 @@
 #include "models/TrackedAircraft.h"
 #endif
 
+#ifdef BISECT_TEST
+#include "BisectHarness.h" // networking-off wedge-bisection harness (C3 revival program)
+#endif
+#ifdef SOAK_TEST
+#include "SoakHarness.h" // realistic-duty 24 h launch-gate soak (C3 revival program)
+#endif
+
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
 
@@ -131,6 +138,16 @@ void setup()
   }
 #endif
 
+#ifdef BISECT_TEST
+  // Wedge-bisection harness build: NO networking of any kind -- no WiFi join, no NTP,
+  // no OTA, no config web server. The hypothesis under test is "sweep-render load
+  // alone wedges the CST816"; the network half stays out of the experiment entirely.
+  // See src/BisectHarness.h for the harness and the verdict semantics.
+  DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(255, 176, 40),
+                     "BISECTION HARNESS", "networking OFF");
+  board::DisplayFlush(tft);
+  delay(1500);
+#else
   // establish WiFi connection. Composed through the backbuffer so it renders on the SPD2010 (which
   // can't take direct per-glyph writes); a no-op-different path on every other SKU. See BootScreen.h.
   DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), "Connecting to WiFi...");
@@ -224,13 +241,31 @@ void setup()
 
   // begin background server for configuration
   configServer.Initialise();
+#endif // BISECT_TEST
 
   // initialise the active app (radar or EAM monitor)
   appManager.Initialise();
+
+#ifdef BISECT_TEST
+  // Deterministic test config + synthetic fleet + the watchdog's bench probe.
+  BisectHarness::Setup(appManager);
+#endif
+#ifdef SOAK_TEST
+  // Arm the human-scale gesture script; the normal bring-up above (WiFi, NTP,
+  // config server, real cloud fetching) is exactly what the soak exercises.
+  SoakHarness::Setup(appManager);
+#endif
 }
 
 void loop()
 {
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+  // Frame-time instrumentation (radar builds): the whole pass -- update, draw,
+  // flush -- is one sample; AircraftManager logs avg/p95 + heap every 30 s and
+  // shouts when a budget breaks. u32 micros() wrap-around subtracts correctly.
+  const uint32_t frameStartUs = micros();
+#endif
+
   // Forget WiFi credentials and reboot into the setup portal when requested.
   if (configServer.ConsumeWifiReset()) {
     wm.resetSettings();
@@ -238,18 +273,29 @@ void loop()
     ESP.restart();
   }
 
+#ifndef BISECT_TEST
   // re-check for firmware updates once a day for always-on devices
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
     MaybeUpdateFirmware(tft, backbuffer);
   }
+#endif
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
   // loop task, so all AircraftManager state changes stay on a single task
   // rather than racing the async web-server callback.
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
+
+#ifdef BISECT_TEST
+  // fleet re-injection + storm scheduling + the 30 s stats / 2 h verdict cadence
+  BisectHarness::Tick(appManager);
+#endif
+#ifdef SOAK_TEST
+  // burst scheduling + the 60 s stats line + the 24 h gate verdict
+  SoakHarness::Tick(appManager);
+#endif
 
   appManager.Update();
 
@@ -283,5 +329,17 @@ void loop()
   // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
   // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).
   board::DisplayFlush(tft);
+
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+  appManager.RecordFrameUs(micros() - frameStartUs);
+
+#ifdef FEATURE_CLOUD_FEED
+  // The fleet config raised the firmware floor past this build: run the normal
+  // OTA check now rather than waiting out the daily timer. Same code path as
+  // the daily check; a same-or-older published release is simply a no-op.
+  if (appManager.ConsumeOtaCheckRequest())
+    MaybeUpdateFirmware(tft, backbuffer);
+#endif
+#endif
 }
 

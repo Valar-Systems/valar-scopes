@@ -137,11 +137,51 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         id="data-source"
                         name="data-source"
                         class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                        <option value="opensky" %DATASRC_OPENSKY%>OpenSky Network (cloud)</option>
-                        <option value="local" %DATASRC_LOCAL%>My own ADS-B receiver</option>
+)"
+#ifdef FEATURE_CLOUD_FEED
+// The cloud option leads and is the default; OpenSky is relabelled as the
+// power-user BYO-credentials path it now is.
+R"(                        <option value="cloud" %DATASRC_CLOUD%>Blipscope Cloud (recommended)</option>
+                        <option value="opensky" %DATASRC_OPENSKY%>OpenSky Network (your own account)</option>
+)"
+#else
+R"(                        <option value="opensky" %DATASRC_OPENSKY%>OpenSky Network (cloud)</option>
+)"
+#endif
+R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B receiver</option>
                     </select>
                 </label>
-
+)"
+#ifdef FEATURE_CLOUD_FEED
+// Cloud fields double as the data credit: the ODbL attribution shows whenever
+// the adsb.lol-backed source is selected.
+R"(
+                <div id="cloud-fields" class="flex flex-col gap-1">
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Cloud server:</span>
+                        <input
+                            name="cloud-url"
+                            value='%CLOUD_URL%'
+                            placeholder="built-in default"
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span>Access key:</span>
+                        <input
+                            name="cloud-key"
+                            value='%CLOUD_KEY%'
+                            placeholder="built-in default"
+                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    </label>
+                    <span class="text-xs text-green-700">
+                        Managed Blipscope feed &mdash; no account needed; leave both fields blank for the
+                        built-in defaults. Aircraft data &copy; <a href="https://adsb.lol" target="_blank" rel="noopener" class="underline">adsb.lol</a>
+                        contributors, licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener" class="underline">ODbL 1.0</a>.
+                    </span>
+                </div>
+)"
+#endif
+R"(
                 <div id="opensky-fields" class="flex flex-col gap-4 sm:gap-2">
                     <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                         <span>OpenSkyAPI Client ID:</span>
@@ -457,15 +497,18 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             updateRadiusMax();
 
             // show only the fields relevant to the selected data source. The hidden
-            // block's inputs still submit, but the firmware ignores whichever source
-            // isn't selected, so a leftover value does no harm.
+            // blocks' inputs still submit, but the firmware ignores whichever source
+            // isn't selected, so a leftover value does no harm. cloud-fields only
+            // exists on cloud-capable builds, hence the null guard.
             const dataSource = document.getElementById('data-source');
             const openskyFields = document.getElementById('opensky-fields');
             const localFields = document.getElementById('local-fields');
+            const cloudFields = document.getElementById('cloud-fields');
             function syncDataSource() {
-                const local = dataSource.value === 'local';
-                openskyFields.style.display = local ? 'none' : '';
-                localFields.style.display = local ? '' : 'none';
+                const v = dataSource.value;
+                openskyFields.style.display = v === 'opensky' ? '' : 'none';
+                localFields.style.display = v === 'local' ? '' : 'none';
+                if (cloudFields) cloudFields.style.display = v === 'cloud' ? '' : 'none';
             }
             dataSource.addEventListener('change', syncDataSource);
             syncDataSource();
@@ -1584,7 +1627,15 @@ void ConfigurationWebServer::Initialise() {
         const String radiusUnit = HtmlEscape(prefs.isKey("radius-unit") ? prefs.getString("radius-unit", "km") : "km");
         const String openskyClientId = HtmlEscape(prefs.getString("opensky-id", ""));
         String openskySecret = HtmlEscape(prefs.getString("opensky-secret", ""));
+#ifdef FEATURE_CLOUD_FEED
+        // Cloud builds default the unset key to the proxy: new devices land on
+        // Blipscope Cloud out of the box (AircraftManager::Initialise mirrors this).
+        const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "cloud") : "cloud");
+        const String cloudUrlCfg = HtmlEscape(prefs.isKey("cloud-url") ? prefs.getString("cloud-url", "") : "");
+        String cloudKeyCfg = HtmlEscape(prefs.getString("cloud-key", ""));
+#else
         const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky");
+#endif
         const String localUrl = HtmlEscape(prefs.getString("local-url", ""));
         const String scanlineEnabled = HtmlEscape(prefs.getString("scanline", "true"));
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
@@ -1807,6 +1858,9 @@ void ConfigurationWebServer::Initialise() {
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
+#ifdef FEATURE_CLOUD_FEED
+        std::fill(cloudKeyCfg.begin(), cloudKeyCfg.end(), '*');
+#endif
 #elif defined(FEATURE_EAM)
         // mask the OpenSky secret before sending to the client (same masked-value guard on save)
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
@@ -1821,7 +1875,11 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml]
+            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+#ifdef FEATURE_CLOUD_FEED
+             , cloudUrlCfg, cloudKeyCfg
+#endif
+            ]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -1830,7 +1888,16 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "RADIUS_UNIT_MI") return radiusUnit == "mi" ? "selected" : "";
                 if (var == "OPENSKY_ID")     return openskyClientId;
                 if (var == "OPENSKY_SECRET") return openskySecret;
+#ifdef FEATURE_CLOUD_FEED
+                // cloud is the default: anything that isn't an explicit opensky/local
+                // choice (including the never-saved empty) selects it.
+                if (var == "DATASRC_CLOUD")   return (dataSource == "opensky" || dataSource == "local") ? "" : "selected";
+                if (var == "DATASRC_OPENSKY") return dataSource == "opensky" ? "selected" : "";
+                if (var == "CLOUD_URL")       return cloudUrlCfg;
+                if (var == "CLOUD_KEY")       return cloudKeyCfg;
+#else
                 if (var == "DATASRC_OPENSKY") return dataSource == "local" ? "" : "selected";
+#endif
                 if (var == "DATASRC_LOCAL")   return dataSource == "local" ? "selected" : "";
                 if (var == "LOCAL_URL")      return localUrl;
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
@@ -2100,6 +2167,17 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("opensky-id");
         TrySaveParam("data-source");
         TrySaveParam("local-url");
+#ifdef FEATURE_CLOUD_FEED
+        TrySaveParam("cloud-url");
+        // cloud key: same masked-value handling as the OpenSky secret (the GET
+        // serves it as asterisks; only a genuinely new value overwrites)
+        const auto* cloudKeyParam = request->getParam("cloud-key", true);
+        if (cloudKeyParam != nullptr) {
+            const String& key = cloudKeyParam->value();
+            if (!IsMaskedValue(key))
+                prefs.putString("cloud-key", key);
+        }
+#endif
         TrySaveParam("lookup-dist");
         TrySaveParam("mqtt-host");
         TrySaveParam("mqtt-port");
