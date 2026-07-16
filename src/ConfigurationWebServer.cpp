@@ -268,6 +268,15 @@ R"(
                         <span>Clock UTC offset (hrs):</span>
                         <input name="tz-offset" type="number" min="-12" max="14" step="0.5" value='%TZ_OFFSET%' class="w6">
                     </label>
+                    <label class="field mt">
+                        <span>Screen-top bearing (window-up, &deg;):</span>
+                        <input name="radar-up" type="number" min="0" max="359" step="1" value='%RADAR_UP%' class="w6">
+                    </label>
+                    <span class="hint">
+                        0 = classic north-up. Set it to the compass bearing you face (e.g. 225 for a
+                        southwest window) and the radar rotates to match your view &mdash; a blip on the
+                        upper-left of the screen is upper-left out the window.
+                    </span>
                 </fieldset>
 
                 <details class="auto">
@@ -1461,6 +1470,7 @@ void ConfigurationWebServer::Initialise() {
         const String tzOffset = prefs.isKey("tz-offset")
             ? prefs.getString("tz-offset", "0")
             : String((int)round(longitude.toFloat() / 15.0));
+        const String radarUp = HtmlEscape(prefs.isKey("radar-up") ? prefs.getString("radar-up", "0") : "0");
         const String watchlist = HtmlEscape(prefs.getString("watchlist", ""));
         const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
         // isKey() guards keep the not-yet-saved reads from logging NVS NOT_FOUND
@@ -1690,7 +1700,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1725,6 +1735,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "TZ_OFFSET")      return tzOffset;
+                if (var == "RADAR_UP")       return radarUp;
                 if (var == "WATCHLIST")      return watchlist;
                 if (var == "NTFY_TOPIC")     return ntfyTopic;
                 if (var == "MIL_SHOW")       return milShow == "true" ? "checked" : "";
@@ -2027,6 +2038,7 @@ void ConfigurationWebServer::Initialise() {
         }
 #endif
         TrySaveParam("lookup-dist");
+        TrySaveParam("radar-up");
         TrySaveParam("mil-visual");
         TrySaveParam("emg-visual");
         TrySaveParam("mqtt-host");
