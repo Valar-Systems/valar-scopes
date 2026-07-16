@@ -37,10 +37,11 @@ Small diffs, immediate perceived value. Ship together as one minor release.
    intensity above it.
 2. **ntfy alert for emergency squawks** — **IMPLEMENTED 2026-07-16** (config `emg-alert`,
    default off; one-shot per tracking session via the existing `QueueNtfyPost` path).
-3. **Distance column in the List screen.** Per-contact distance is already computed for
-   sorting; render it. Spotters think in "how far", not altitude alone.
-4. **Surface route data outside the detail card.** Origin→dest is fetched on tap and
-   discarded. Show it in the List row / radar label for enriched aircraft.
+3. **Distance column in the List screen** — **IMPLEMENTED 2026-07-16** (callsign / type /
+   distance / altitude columns, distance in the radar's unit).
+4. **Surface route data outside the detail card** — **IMPLEMENTED 2026-07-16** as a new
+   "Route" aircraft-info field (`info-route`, default off) drawn as `ORG>DST` on radar
+   labels; cloud mode fills it from background enrichment, BYO/adsbdb after first inspect.
 5. **Distinct alert tones** *(deprioritized 2026-07-16 — launch SKU has no speaker;
    applies to s3-146 / s3-21 only).* The only sound today is one new-contact chirp
    (`AircraftManager.cpp` ~`:1320`). Give military / watchlist / overhead /
