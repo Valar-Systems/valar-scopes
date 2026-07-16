@@ -90,6 +90,36 @@ interface Candidate {
   artist: string;
   acceptedIn: { "mil-tier": boolean; auto: boolean };
   rejectReason?: string;
+  wikiLead?: boolean; // the Wikipedia article's lead (infobox) image for the query
+}
+
+// Gate verdict for a license string, per layer -- a dry-run of the REAL
+// validateEntry so the picker's verdict can never drift from the ingest.
+function gateVerdict(license: string): Pick<Candidate, "acceptedIn" | "rejectReason"> {
+  const probe = (layer: "mil-tier" | "auto") =>
+    validateEntry({
+      target: "XXXX",
+      kind: "type",
+      source: "probe",
+      author: "probe",
+      credit: "probe",
+      license,
+      layer,
+      autoPicked: true,
+      changesNoted: "resized for device display",
+    }).ok;
+  const acceptedIn = { "mil-tier": probe("mil-tier"), auto: probe("auto") };
+  const cls = classifyLicense(license);
+  let rejectReason: string | undefined;
+  if (!acceptedIn.auto) {
+    rejectReason =
+      cls === "reject-nc" ? "NonCommercial (NC)" :
+      cls === "reject-nd" ? "NoDerivatives (ND)" :
+      `unrecognized license "${license}"`;
+  } else if (!acceptedIn["mil-tier"]) {
+    rejectReason = "CC-BY-SA: auto layer only";
+  }
+  return { acceptedIn, rejectReason };
 }
 
 // One Commons file-namespace search -> candidates annotated with the gate verdict.
@@ -116,43 +146,45 @@ async function searchCommons(query: string): Promise<Candidate[]> {
     if (!ii || ii.mime !== "image/jpeg") continue;
     const em = ii.extmetadata ?? {};
     const license = em.LicenseShortName?.value ?? "";
-    const cls = classifyLicense(license);
-    // Dry-run the real gate per layer so the verdict can never drift from ingest.
-    const probe = (layer: "mil-tier" | "auto") =>
-      validateEntry({
-        target: "XXXX",
-        kind: "type",
-        source: "probe",
-        author: "probe",
-        credit: "probe",
-        license,
-        layer,
-        autoPicked: true,
-        changesNoted: "resized for device display",
-      }).ok;
-    const acceptedIn = { "mil-tier": probe("mil-tier"), auto: probe("auto") };
-    let rejectReason: string | undefined;
-    if (!acceptedIn.auto) {
-      rejectReason =
-        cls === "reject-nc" ? "NonCommercial (NC)" :
-        cls === "reject-nd" ? "NoDerivatives (ND)" :
-        `unrecognized license "${license}"`;
-    } else if (!acceptedIn["mil-tier"]) {
-      rejectReason = "CC-BY-SA: auto layer only";
-    }
     out.push({
       title: p.title,
       thumb: ii.thumburl ?? ii.url,
       full: ii.url, // original; the replace step re-encodes anyway
       descUrl: ii.descriptionurl,
       license,
-      licenseClass: cls,
+      licenseClass: classifyLicense(license),
       artist: stripHtml(em.Artist?.value ?? "") || "Unknown",
-      acceptedIn,
-      rejectReason,
+      ...gateVerdict(license),
     });
   }
   return out;
+}
+
+// The Wikipedia article's lead (infobox) image for a query -- the
+// community-curated canonical shot (the playbook's P18 pick), always the first
+// candidate to consider. Still license-checked like everything else: e.g. the
+// Cessna 172 article's lead is GFDL-1.2-only, which the gate rightly rejects
+// (GFDL requires shipping the full license text with the image).
+async function wikipediaLead(query: string): Promise<Candidate | null> {
+  const params = new URLSearchParams({
+    action: "query",
+    format: "json",
+    generator: "search",
+    gsrsearch: query,
+    gsrlimit: "1",
+    prop: "pageimages",
+    piprop: "name",
+    pilicense: "free",
+  });
+  const data = (await fetchJson(`https://en.wikipedia.org/w/api.php?${params}`)) as {
+    query?: { pages?: Record<string, any> };
+  };
+  const page = Object.values(data.query?.pages ?? {})[0];
+  if (!page?.pageimage) return null;
+
+  const info = await commonsFileInfo(`File:${page.pageimage}`);
+  if (!info) return null;
+  return { ...info, ...gateVerdict(info.license), wikiLead: true };
 }
 
 // Exact-title imageinfo lookup used by /api/replace (the search result the user
@@ -225,11 +257,19 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     return jpeg(await deviceCrop(join(PHOTOS_DIR, entry.file)));
   }
 
-  // GET /api/search?q=... -- Commons candidates with live gate verdicts
+  // GET /api/search?q=... -- the Wikipedia lead image first (curated pick),
+  // then Commons search candidates; all with live gate verdicts.
   if (url.pathname === "/api/search") {
     const q = url.searchParams.get("q")?.trim();
     if (!q) return json(400, { error: "missing q" });
-    return json(200, { candidates: await searchCommons(q) });
+    const [lead, found] = await Promise.all([
+      wikipediaLead(q).catch(() => null),
+      searchCommons(q),
+    ]);
+    const candidates = lead
+      ? [lead, ...found.filter((c) => c.title !== lead.title)]
+      : found;
+    return json(200, { candidates });
   }
 
   // POST /api/preview {url} -- device crop of a candidate before committing
@@ -423,8 +463,9 @@ async function doSearch() {
     const div = document.createElement("div");
     div.className = "cand" + (ok ? "" : " rejected");
     div.title = ok ? c.license + " — " + c.artist : "REJECTED: " + c.rejectReason;
-    div.innerHTML = '<img loading="lazy" src="' + c.thumb + '"><div class="t">' + c.title.replace("File:","") +
-      '<br><span class="' + (ok ? "" : "dim") + '">' + c.license + '</span></div>';
+    const lead = c.wikiLead ? '<span class="badge ok">★ Wikipedia lead</span> ' : "";
+    div.innerHTML = '<img loading="lazy" src="' + c.thumb + '"><div class="t">' + lead + c.title.replace("File:","") +
+      '<br><span class="' + (ok ? "" : "dim") + '">' + c.license + (ok ? "" : " — " + c.rejectReason) + '</span></div>';
     if (ok) div.onclick = () => preview(c);
     box.appendChild(div);
   }
