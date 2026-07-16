@@ -35,8 +35,8 @@ Small diffs, immediate perceived value. Ship together as one minor release.
      office device).
    Emergency squawks keep the always-on ping ring as the baseline; the selector adds
    intensity above it.
-2. **ntfy alert for emergency squawks.** 7500/7600/7700 currently only draws on-screen.
-   Add an opt-in "emergency in range" phone ping via the existing `QueueNtfyPost` path.
+2. **ntfy alert for emergency squawks** — **IMPLEMENTED 2026-07-16** (config `emg-alert`,
+   default off; one-shot per tracking session via the existing `QueueNtfyPost` path).
 3. **Distance column in the List screen.** Per-contact distance is already computed for
    sorting; render it. Spotters think in "how far", not altitude alone.
 4. **Surface route data outside the detail card.** Origin→dest is fetched on tap and
