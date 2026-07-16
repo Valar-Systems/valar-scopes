@@ -541,6 +541,22 @@ void AircraftManager::Initialise()
     const String spcShow = configServer.GetStoredString("spc-show");
     showSpecial = spcShow.isEmpty() ? false : (spcShow == "true");
 
+    // visual alerts (screen-level attention; the primary alert channel on SKUs
+    // without a speaker): "off" | "ring" (edge pulse while in range) | "flash"
+    // (full-screen burst on first appearance, then the ring). Emergency squawks
+    // default to the ring -- they're rare and always worth a glance; military
+    // defaults off (near a base, MIL contacts are routine).
+    const auto visualMode = [](const String& s, VisualAlertMode fallback) {
+        if (s == "off")   return VisualAlertMode::Off;
+        if (s == "ring")  return VisualAlertMode::Ring;
+        if (s == "flash") return VisualAlertMode::Flash;
+        return fallback;
+    };
+    milVisual = visualMode(configServer.GetStoredString("mil-visual"), VisualAlertMode::Off);
+    emgVisual = visualMode(configServer.GetStoredString("emg-visual"), VisualAlertMode::Ring);
+    visualNightOverride = configServer.GetStoredString("visual-night") == "true";
+    flashBurstUntilMs = 0; // a config reload cancels any in-progress burst
+
     // spotting logbook: when on, learn each contact's type/airline (so it needs
     // the adsbdb enrichment) and start the persistent store once.
     const String logbookStr = configServer.GetStoredString("logbook");
@@ -677,6 +693,10 @@ void AircraftManager::Update()
     // any early-return below, so the beam keeps turning even while a card is open
     AdvanceSweep();
 
+    // refresh the military/emergency visual-alert layer (ring colour + flash burst
+    // edges) before the brightness pass so its night override applies the same frame
+    UpdateVisualAlerts();
+
     // solar day/night backlight dimming (self-throttled)
     UpdateBrightness();
 
@@ -771,8 +791,13 @@ void AircraftManager::Update()
     // the seconds-to-minutes a human actually reads a card, but a tap-and-walk-away
     // (or a ghost/synthetic tap) would otherwise freeze the picture indefinitely
     // while the card shows silently aging data. Auto-close after 3 idle minutes.
+    // Signed comparison, NOT unsigned subtraction: HandleTouch() above just stamped
+    // lastTouchActivityMs with a millis() that can be a tick NEWER than this frame's
+    // `now`, and (unsigned)(now - newer) underflows to ~2^32 -- which fired this
+    // auto-close on the first frame of every press while a card was open (closing
+    // cards at press via the idle path, killing the photo-page flip and swipe-to-pin).
     constexpr unsigned long CARD_IDLE_CLOSE_MS = 3UL * 60UL * 1000UL;
-    if (inDetail && now - lastTouchActivityMs >= CARD_IDLE_CLOSE_MS) {
+    if (inDetail && (long)(now - lastTouchActivityMs) >= (long)CARD_IDLE_CLOSE_MS) {
         Serial.println("[card] idle 3 min; auto-closing detail card");
         ExitDetail();
     }
@@ -1361,6 +1386,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         auto it = trackedAircraft.find(selectedIcao);
         if (it != trackedAircraft.end()) {
             DrawDetailCard(backbuffer, it->second);
+            DrawVisualAlert(backbuffer); // the edge ring stays visible around the card
             return;
         }
         ExitDetail(); // selected aircraft left the feed (idempotent across band passes)
@@ -1374,6 +1400,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     }
     DrawScreenIndicator(backbuffer);
     DrawClock(backbuffer);
+    DrawVisualAlert(backbuffer); // military/emergency ring pulse / flash, over any screen
 }
 
 SpecialAircraft::Class AircraftManager::SpecialClassOf(const TrackedAircraft& tracked) const
@@ -1773,6 +1800,13 @@ void AircraftManager::UpdateBrightness()
         if (target < 10) target = 10;
     }
 
+    // An active visual alert may punch through the night dim (config
+    // "visual-night") so the ring/flash is actually visible across a dark room.
+    // UpdateVisualAlerts resets the 20 s throttle on state changes, so the
+    // override engages -- and releases -- the frame the alert starts/ends.
+    if (visualAlertActive && visualNightOverride)
+        target = configuredBrightness;
+
     if (target != currentBrightness) {
         tft.setBrightness(target);
         currentBrightness = target;
@@ -1990,6 +2024,90 @@ void AircraftManager::DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) co
     backbuffer.drawString(label, x - (int)backbuffer.textWidth(label) / 2, y - 18);
 }
 
+// Visual-alert flash burst timing: three ~160 ms pulses on a 500 ms period
+// (2 flashes/sec -- deliberately under the WCAG 2.3.1 "three flashes per
+// second" photosensitivity threshold), then the layer settles to the edge ring.
+namespace {
+constexpr unsigned long FLASH_BURST_MS  = 1500; // total burst length (3 pulses)
+constexpr unsigned long FLASH_PERIOD_MS = 500;  // one pulse cycle
+constexpr unsigned long FLASH_ON_MS     = 160;  // lit portion of each cycle
+}
+
+void AircraftManager::UpdateVisualAlerts()
+{
+    const uint32_t EMG_RED = lgfx::color888(255, 0, 0);
+    const uint32_t MIL_ORANGE = SpecialColor(SpecialAircraft::Class::Military);
+    const unsigned long now = millis();
+
+    // Scan the live picture for alerting classes. Class membership is noted (the
+    // *FlashFired flags) even while a mode is Off, so enabling Flash in the config
+    // later never fires a burst for every contact already on screen -- the same
+    // reason the buzzer stays silent through the initial bulk sync.
+    bool milActive = false, emgActive = false;
+    for (auto& [icao, t] : trackedAircraft) {
+        if (t.state.onGround) continue;
+
+        // squawks can turn emergency mid-track, so the edge is per-contact and
+        // fires at most once (a cleared-then-reset squawk doesn't re-burst)
+        if (isEmergencySquawk(t.state.squawk)) {
+            if (emgVisual != VisualAlertMode::Off) emgActive = true;
+            if (!t.emgFlashFired) {
+                t.emgFlashFired = true;
+                if (emgVisual == VisualAlertMode::Flash && initialSyncDone) {
+                    flashBurstUntilMs = now + FLASH_BURST_MS;
+                    flashBurstColor = EMG_RED;
+                }
+            }
+        }
+
+        if (SpecialAircraft::IsMilitary(t.state.icao24)) {
+            if (milVisual != VisualAlertMode::Off) milActive = true;
+            if (!t.milFlashFired) {
+                t.milFlashFired = true;
+                // an in-progress emergency burst outranks a new military one
+                const bool emgBurstActive = now < flashBurstUntilMs && flashBurstColor == EMG_RED;
+                if (milVisual == VisualAlertMode::Flash && initialSyncDone && !emgBurstActive) {
+                    flashBurstUntilMs = now + FLASH_BURST_MS;
+                    flashBurstColor = MIL_ORANGE;
+                }
+            }
+        }
+    }
+
+    visualRingColor = emgActive ? EMG_RED : (milActive ? MIL_ORANGE : 0);
+
+    const bool active = visualRingColor != 0 || now < flashBurstUntilMs;
+    if (active != visualAlertActive) {
+        visualAlertActive = active;
+        lastBrightnessCheck = 0; // let UpdateBrightness apply/release the night override now
+    }
+}
+
+void AircraftManager::DrawVisualAlert(BandCanvas& backbuffer) const
+{
+    const unsigned long now = millis();
+
+    // Full-screen flash burst: overwrite the frame with the class colour during
+    // each pulse's lit window. The screen is fully redrawn every frame, so the
+    // dark part of the cycle is just the normal picture -- no state to restore.
+    if (now < flashBurstUntilMs && (now % FLASH_PERIOD_MS) < FLASH_ON_MS) {
+        backbuffer.fillScreen(flashBurstColor);
+        return; // nothing else would be legible this frame anyway
+    }
+
+    if (visualRingColor == 0) return;
+
+    // Edge ring pulse: a ~1 Hz breathing band at the outermost edge, where it
+    // reads across a room without covering the radar picture (or the detail
+    // card, which it stays visible around).
+    constexpr int CENTRE = SCREEN_SIZE_DIV_2 - 1;
+    constexpr int OUTER = SCREEN_SIZE_DIV_2 - 1;
+    const float breathe = 0.5f + 0.5f * sinf((float)(now % 1000) / 1000.0f * TWO_PI);
+    const float level = 0.35f + 0.65f * breathe; // floor keeps the ring visible at the dim end
+    backbuffer.fillArc(CENTRE, CENTRE, OUTER - 5, OUTER, 0.0f, 360.0f,
+                       scaleColor(visualRingColor, level));
+}
+
 void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
 {
     const int n = tracked.TrailSize();
@@ -2093,7 +2211,11 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
     const unsigned long now = millis();
     if (touched) {
         lastTouchActivityMs = now; // proof the controller is alive
-        if (!wasTouched) { touchStartX = tx; touchStartY = ty; } // press edge
+        if (!wasTouched) {
+            touchStartX = tx; touchStartY = ty; // press edge
+            touchPressMs = now;
+            Serial.printf("[touch] %lu press (%d,%d) inDetail=%d\n", now, (int)tx, (int)ty, (int)inDetail);
+        }
         touchLastX = tx;
         touchLastY = ty;
     } else if (wasTouched) {
@@ -2102,6 +2224,11 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         const int dy = touchLastY - touchStartY;
         const int adx = abs(dx), ady = abs(dy);
         constexpr int SWIPE_MIN = 40;
+
+        Serial.printf("[touch] %lu release start=(%d,%d) end=(%d,%d) d=(%d,%d) held=%lums -> %s\n",
+                      now, touchStartX, touchStartY, touchLastX, touchLastY, dx, dy,
+                      now - touchPressMs,
+                      (adx < SWIPE_MIN && ady < SWIPE_MIN) ? "TAP" : "SWIPE");
 
         if (adx < SWIPE_MIN && ady < SWIPE_MIN)
             HandleTap(touchStartX, touchStartY);
@@ -2139,6 +2266,8 @@ void AircraftManager::HandleTap(int tx, int ty)
     // detail card: flip the photo page to the data page, else close
     if (inDetail) {
         const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
+        Serial.printf("[touch] tap-in-detail hasPhoto=%d page=%d -> %s\n",
+                      (int)hasPhoto, detailPage, (hasPhoto && detailPage == 0) ? "flip-to-data" : "CLOSE");
         if (hasPhoto && detailPage == 0)
             detailPage = 1;
         else ExitDetail();

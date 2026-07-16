@@ -1,4 +1,5 @@
 #include "ConfigurationWebServer.h"
+#include <WiFi.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
 #include "DeviceIdentity.h"
@@ -61,6 +62,77 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 #endif
 
 
+// ---- Shared config-page chrome (all editions) -------------------------------
+// CONFIG_SHELL_CSS / CONFIG_SHELL_JS are spliced into every edition's CONFIG_HTML
+// by C string-literal concatenation (only one edition's page compiles per build,
+// so nothing is duplicated in flash). The CSS replaces the old Tailwind-CDN
+// <script>, which compiled styles in the browser at every load: slow on phones,
+// a flash of unstyled content, and a completely unstyled page with no internet --
+// exactly the situation (first setup) where the config page matters most.
+// HARD RULES for these blocks:
+//  - No '%' characters anywhere: the whole page runs through the ESPAsyncWebServer
+//    template engine, which owns '%' (see the favicon comment below). Widths come
+//    from flex/grid stretch and rem units, never CSS percentages.
+//  - Each page sets its palette BEFORE the CSS block via
+//    <style>:root{--ink:..;--line:..;--dim:..;--btn:..}</style>
+//    (--ink body text, --line borders/frames, --dim hint text, --btn save button).
+#define CONFIG_SHELL_CSS \
+    R"(<style>)" \
+    R"(*{box-sizing:border-box})" \
+    R"(body{margin:0;padding:1rem;background:#111827;color:var(--ink);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;min-height:100vh})" \
+    R"(a{color:var(--ink)})" \
+    R"(.wrap{max-width:42rem;margin:0 auto;border:1px solid var(--line);padding:1rem})" \
+    R"(legend{padding:0 .5rem})" \
+    R"(form{display:flex;flex-direction:column;gap:1rem})" \
+    R"(fieldset,details{border:1px solid var(--line);padding:.75rem;margin:0;min-width:0})" \
+    R"(summary{cursor:pointer;-webkit-user-select:none;user-select:none})" \
+    R"(details[open]>summary{margin-bottom:.75rem})" \
+    R"(summary input[type=checkbox]{margin-left:.4rem;vertical-align:-.15rem})" \
+    R"(.field{display:flex;flex-direction:column;gap:.4rem})" \
+    R"(.field>span:first-child{flex:none})" \
+    R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
+    R"(.check{display:flex;align-items:center;gap:.5rem})" \
+    R"(.row{display:flex;flex-direction:column;gap:1rem})" \
+    R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
+    R"(.grid3,.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .9rem})" \
+    R"(input,select,textarea,button{font:inherit;color:var(--ink);background:#111827;border:1px solid var(--line);padding:.5rem .6rem;min-width:0})" \
+    R"(input[type=checkbox]{width:1.05rem;height:1.05rem;padding:0;margin:0;accent-color:var(--btn);flex:none})" \
+    R"(input[type=range]{border:none;padding:0;accent-color:var(--btn);flex:1})" \
+    R"(:focus-visible{outline:2px solid var(--ink);outline-offset:1px})" \
+    R"(.grow{flex:1})" \
+    R"(.w4{width:4.5rem}.w6{width:6rem}.w8{width:8rem})" \
+    R"(.mt{margin-top:.75rem})" \
+    R"(.hint{display:block;font-size:.78rem;color:var(--dim);line-height:1.45})" \
+    R"(.hint a{color:inherit})" \
+    R"(.btn{background:var(--btn);color:#000;border:none;padding:.6rem 1.6rem;cursor:pointer})" \
+    R"(.btn-line{background:transparent;border:1px solid var(--line);color:var(--ink);padding:.4rem .8rem;cursor:pointer;white-space:nowrap})" \
+    R"(.btn-danger{background:transparent;color:#ef4444;border:1px solid #ef4444;padding:.4rem .9rem;font-size:.8rem;cursor:pointer})" \
+    R"(.savebar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:1rem;background:#111827;border-top:1px solid var(--line);padding:.7rem 0 .1rem})" \
+    R"(#result{font-size:.8rem})" \
+    R"(.status{display:flex;flex-wrap:wrap;gap:.3rem 1.2rem;font-size:.78rem;color:var(--dim);margin-bottom:1rem})" \
+    R"(.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;font-size:.78rem;color:var(--dim);margin-top:1.1rem})" \
+    R"(@media(min-width:640px){body{font-size:.875rem;padding:2.5rem 1rem}.wrap{padding:1.25rem}.field{flex-direction:row;align-items:center;gap:.5rem}.row{flex-direction:row}.row>*{flex:1}.grid2{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:repeat(3,1fr)}.grid4{grid-template-columns:repeat(4,1fr)}input,select,textarea{padding:.25rem .45rem}input[type=checkbox]{width:.95rem;height:.95rem}.btn{padding:.45rem 1.4rem}})" \
+    R"(</style>)"
+
+// Shared page behaviour: async save into the sticky bar, the Reset WiFi confirm,
+// a live brightness readout, paste-a-"lat, lon"-pair splitting into both fields,
+// and the collapsible <details> sections (clicking a summary's master checkbox
+// toggles the feature without toggling the section; details.auto sections open
+// themselves on load when they already hold configuration). Uses /* */ comments
+// only -- the literals concatenate without newlines, so a // comment would eat
+// the rest of the script.
+#define CONFIG_SHELL_JS \
+    R"(<script>)" \
+    R"(document.getElementById('cfg').addEventListener('submit',function(e){e.preventDefault();var st=document.getElementById('result');st.textContent='saving...';fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){st.textContent=t}).catch(function(){st.textContent='save failed - device unreachable'})});)" \
+    R"(document.getElementById('resetwifi').addEventListener('click',function(){if(!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.'))return;fetch('/reset-wifi',{method:'POST',headers:{'X-Blipscope':'1'}}).then(function(r){return r.text()}).then(function(t){document.getElementById('result').textContent=t})});)" \
+    R"(var shBr=document.querySelector('input[name=brightness]'),shBv=document.getElementById('brival');)" \
+    R"(if(shBr&&shBv){var shSync=function(){shBv.textContent=shBr.value};shBr.addEventListener('input',shSync);shSync()})" \
+    R"(var shLa=document.querySelector('input[name=latitude]'),shLo=document.querySelector('input[name=longitude]');)" \
+    R"(if(shLa&&shLo){shLa.addEventListener('paste',function(e){var t=(e.clipboardData||window.clipboardData).getData('text'),m=t.match(/(-?\d+(?:\.\d+)?)[,;\s]+(-?\d+(?:\.\d+)?)/);if(m){e.preventDefault();shLa.value=m[1];shLo.value=m[2]}})})" \
+    R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
+    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
+    R"(</script>)"
+
 // HTML stored in flash
 // %PLACEHOLDER% tokens are substituted at serve time by the template processor.
 // The page is feature-specific: the radar build serves the radar settings form below; the
@@ -77,66 +149,46 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              stray percent sign collides with this page's PLACEHOLDER template engine and shreds the whole
              form (write it as &#37; in visible text - and keep it out of comments too, like this one). -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#15803d;--btn:#22c55e}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-green-500 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-green-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Blipscope</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Blipscope</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION%</span>
+            </div>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+            <form id="cfg" action="/save" method="POST">
+
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input
-                            name="latitude"
-                            type="number"
-                            min="-90"
-                            step="0.000001"
-                            max="90"
-                            value='%LATITUDE%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input
-                            name="longitude"
-                            type="number"
-                            min="-180"
-                            step="0.000001"
-                            max="180"
-                            value='%LONGITUDE%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
+                <span class="hint">Tip: paste a &ldquo;lat, lon&rdquo; pair (right-click a spot in Google Maps and copy it) into the latitude box and both fields fill in.</span>
 
-                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <label class="field">
                     <span>Radius:</span>
-                    <input
-                        id="radius"
-                        name="radius"
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        max="222"
-                        value='%RADIUS%'
-                        class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                    <select
-                        id="radius-unit"
-                        name="radius-unit"
-                        class="border border-green-500 bg-gray-900 px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    <input id="radius" name="radius" type="number" min="0.1" step="0.1" max="222" value='%RADIUS%' class="grow">
+                    <select id="radius-unit" name="radius-unit">
                         <option value="km" %RADIUS_UNIT_KM%>km</option>
                         <option value="mi" %RADIUS_UNIT_MI%>mi</option>
                     </select>
                 </label>
 
-                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <label class="field">
                     <span>Data source:</span>
-                    <select
-                        id="data-source"
-                        name="data-source"
-                        class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    <select id="data-source" name="data-source" class="grow">
 )"
 #ifdef FEATURE_CLOUD_FEED
 // The cloud option leads and is the default; OpenSky is relabelled as the
@@ -156,326 +208,189 @@ R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B re
 // Cloud fields double as the data credit: the ODbL attribution shows whenever
 // the adsb.lol-backed source is selected.
 R"(
-                <div id="cloud-fields" class="flex flex-col gap-1">
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <div id="cloud-fields" class="stack">
+                    <label class="field">
                         <span>Cloud server:</span>
-                        <input
-                            name="cloud-url"
-                            value='%CLOUD_URL%'
-                            placeholder="built-in default"
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <label class="field">
                         <span>Access key:</span>
-                        <input
-                            name="cloud-key"
-                            value='%CLOUD_KEY%'
-                            placeholder="built-in default"
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="cloud-key" type="password" autocomplete="off" value='%CLOUD_KEY%' placeholder="built-in default" class="grow">
                     </label>
-                    <span class="text-xs text-green-700">
+                    <span class="hint">
                         Managed Blipscope feed &mdash; no account needed; leave both fields blank for the
-                        built-in defaults. Aircraft data &copy; <a href="https://adsb.lol" target="_blank" rel="noopener" class="underline">adsb.lol</a>
-                        contributors, licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener" class="underline">ODbL 1.0</a>.
+                        built-in defaults. Aircraft data &copy; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>
+                        contributors, licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
                     </span>
                 </div>
 )"
 #endif
 R"(
-                <div id="opensky-fields" class="flex flex-col gap-4 sm:gap-2">
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>OpenSkyAPI Client ID:</span>
-                        <input
-                            name="opensky-id"
-                            value='%OPENSKY_ID%'
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                <div id="opensky-fields" class="stack">
+                    <label class="field">
+                        <span>OpenSky API client ID:</span>
+                        <input name="opensky-id" value='%OPENSKY_ID%' class="grow">
                     </label>
-
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>OpenSkyAPI Client Secret:</span>
-                        <input
-                            name="opensky-secret"
-                            value='%OPENSKY_SECRET%'
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    <label class="field">
+                        <span>OpenSky API client secret:</span>
+                        <input name="opensky-secret" type="password" autocomplete="off" value='%OPENSKY_SECRET%' class="grow">
                     </label>
                 </div>
 
-                <div id="local-fields" class="flex flex-col gap-1">
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <div id="local-fields" class="stack">
+                    <label class="field">
                         <span>Receiver URL:</span>
-                        <input
-                            name="local-url"
-                            value='%LOCAL_URL%'
-                            placeholder="http://192.168.1.50/data/aircraft.json"
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="local-url" value='%LOCAL_URL%' placeholder="http://192.168.1.50/data/aircraft.json" class="grow">
                     </label>
-                    <span class="text-xs text-green-700">
+                    <span class="hint">
                         dump1090-fa / readsb / PiAware / tar1090. Enter the device's IP (e.g. 192.168.1.50)
                         or the full aircraft.json URL. No API limits &mdash; the radar updates once a second.
                     </span>
                 </div>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:justify-between">
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Radar sweep:</span>
-                        <input
-                            name="scanline"
-                            type="checkbox"
-                            %SCANLINE%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Sweep fade:</span>
-                        <input
-                            name="fade"
-                            type="checkbox"
-                            %FADE%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Directional Aircraft:</span>
-                        <input
-                            name="triangle"
-                            type="checkbox"
-                            %TRIANGLE%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Flight trails:</span>
-                        <input
-                            name="trail"
-                            type="checkbox"
-                            %TRAIL%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Altitude colors:</span>
-                        <input
-                            name="altcolor"
-                            type="checkbox"
-                            %ALTCOLOR%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Highlights:</span>
-                        <input
-                            name="highlight"
-                            type="checkbox"
-                            %HIGHLIGHT%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <span>Auto-dim at night:</span>
-                        <input
-                            name="autodim"
-                            type="checkbox"
-                            %AUTODIM%
-                            class="px-3 sm:px-1 accent-green-500">
-                    </label>
-                </div>
-
-                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                    <span>Brightness:</span>
-                    <input
-                        name="brightness"
-                        type="range"
-                        min="10"
-                        max="255"
-                        value='%BRIGHTNESS%'
-                        class="flex-1 w-full accent-green-500">
-                </label>
-
-                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                    <span>Clock UTC offset (hrs):</span>
-                    <input
-                        name="tz-offset"
-                        type="number"
-                        min="-12"
-                        max="14"
-                        step="0.5"
-                        value='%TZ_OFFSET%'
-                        class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                </label>
-
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">
-                        <label class="flex items-center gap-2">
-                            <span>Aircraft Info</span>
-                            <input
-                                name="infotext"
-                                type="checkbox"
-                                %INFOTEXT%
-                                class="accent-green-500">
-                        </label>
-                    </legend>
-                    <div id="info-fields" class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
-                        %INFO_FIELDS%
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="grid3">
+                        <label class="check"><input name="scanline" type="checkbox" %SCANLINE%><span>Radar sweep</span></label>
+                        <label class="check"><input name="fade" type="checkbox" %FADE%><span>Sweep fade</span></label>
+                        <label class="check"><input name="triangle" type="checkbox" %TRIANGLE%><span>Directional aircraft</span></label>
+                        <label class="check"><input name="trail" type="checkbox" %TRAIL%><span>Flight trails</span></label>
+                        <label class="check"><input name="altcolor" type="checkbox" %ALTCOLOR%><span>Altitude colors</span></label>
+                        <label class="check"><input name="highlight" type="checkbox" %HIGHLIGHT%><span>Highlights</span></label>
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
                     </div>
+                    <label class="field mt">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
+                    </label>
+                    <label class="field mt">
+                        <span>Clock UTC offset (hrs):</span>
+                        <input name="tz-offset" type="number" min="-12" max="14" step="0.5" value='%TZ_OFFSET%' class="w6">
+                    </label>
                 </fieldset>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Watchlist &amp; alerts</legend>
-                    <label class="flex flex-col gap-1">
-                        <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
-                        <textarea
-                            name="watchlist"
-                            rows="2"
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">%WATCHLIST%</textarea>
-                    </label>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
-                        <span>ntfy.sh topic (phone alerts):</span>
-                        <input
-                            name="ntfy-topic"
-                            value='%NTFY_TOPIC%'
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                    </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                        <label class="flex items-center gap-2">
-                            <input name="mil-show" type="checkbox" %MIL_SHOW% class="accent-green-500">
-                            <span>Highlight military</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input name="mil-alert" type="checkbox" %MIL_ALERT% class="accent-green-500">
-                            <span>Alert on military (ntfy)</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input name="heli-show" type="checkbox" %HELI_SHOW% class="accent-green-500">
-                            <span>Highlight helicopters</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input name="spc-show" type="checkbox" %SPC_SHOW% class="accent-green-500">
-                            <span>Highlight special flights</span>
-                        </label>
+                <details class="auto">
+                    <summary>Aircraft info text <input name="infotext" type="checkbox" %INFOTEXT%></summary>
+                    <div id="info-fields" class="grid3">
+                        %INFO_FIELDS%
                     </div>
-                    <span class="text-xs text-green-700 mt-1">
+                </details>
+
+                <details class="auto">
+                    <summary>Watchlist &amp; alerts</summary>
+                    <label class="stack">
+                        <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
+                        <textarea name="watchlist" rows="2">%WATCHLIST%</textarea>
+                    </label>
+                    <label class="field mt">
+                        <span>ntfy.sh topic (phone alerts):</span>
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
+                    </label>
+                    <div class="grid2 mt">
+                        <label class="check"><input name="mil-show" type="checkbox" %MIL_SHOW%><span>Highlight military</span></label>
+                        <label class="check"><input name="mil-alert" type="checkbox" %MIL_ALERT%><span>Alert on military (ntfy)</span></label>
+                        <label class="check"><input name="heli-show" type="checkbox" %HELI_SHOW%><span>Highlight helicopters</span></label>
+                        <label class="check"><input name="spc-show" type="checkbox" %SPC_SHOW%><span>Highlight special flights</span></label>
+                    </div>
+                    <span class="hint mt">
                         Detected offline from the live feed &mdash; no account or lookup needed. On the radar:
                         military = orange &ldquo;MIL&rdquo;, special flights (rescue / police / NASA / Boeing / Airbus test &hellip;) = blue &ldquo;SPC&rdquo;,
                         helicopters = violet &ldquo;HELI&rdquo;.
                     </span>
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
-                        <label class="flex items-center gap-2">
-                            <input name="lookup" type="checkbox" %LOOKUP% class="accent-green-500">
-                            <span>&ldquo;Look up!&rdquo; overhead alert within</span>
+                    <div class="row mt">
+                        <label class="field">
+                            <span>Military visual alert:</span>
+                            <select name="mil-visual">
+                                <option value="off" %MILVIS_OFF%>Off</option>
+                                <option value="ring" %MILVIS_RING%>Edge ring pulse</option>
+                                <option value="flash" %MILVIS_FLASH%>Screen flash + ring</option>
+                            </select>
                         </label>
-                        <input
-                            name="lookup-dist"
-                            type="number"
-                            min="0.5"
-                            step="0.5"
-                            value='%LOOKUP_DIST%'
-                            class="border border-green-500 bg-gray-900 w-24 px-2 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                        <label class="flex items-center gap-2">
-                            <input name="lookup-alert" type="checkbox" %LOOKUP_ALERT% class="accent-green-500">
-                            <span>also ntfy</span>
+                        <label class="field">
+                            <span>Emergency-squawk visual alert:</span>
+                            <select name="emg-visual">
+                                <option value="off" %EMGVIS_OFF%>Off</option>
+                                <option value="ring" %EMGVIS_RING%>Edge ring pulse</option>
+                                <option value="flash" %EMGVIS_FLASH%>Screen flash + ring</option>
+                            </select>
                         </label>
                     </div>
-                    <span class="text-xs text-green-700 mt-1">
+                    <label class="check mt"><input name="visual-night" type="checkbox" %VISUAL_NIGHT%><span>Visual alerts override night dimming</span></label>
+                    <span class="hint mt">
+                        On-screen attention when a military or emergency-squawk (7500/7600/7700) contact is in range:
+                        a colour-pulsing ring at the screen edge (orange = military, red = emergency), or a brief
+                        full-screen flash when it first appears &mdash; a few gentle pulses, then the ring.
+                    </span>
+                    <div class="field mt">
+                        <label class="check"><input name="lookup" type="checkbox" %LOOKUP%><span>&ldquo;Look up!&rdquo; overhead alert within</span></label>
+                        <input name="lookup-dist" type="number" min="0.5" step="0.5" value='%LOOKUP_DIST%' class="w6">
+                        <label class="check"><input name="lookup-alert" type="checkbox" %LOOKUP_ALERT%><span>also ntfy</span></label>
+                    </div>
+                    <span class="hint mt">
                         Flashes a cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance (in your radar's units) of your location &mdash; glance up and spot it.
                     </span>
-                </fieldset>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">
-                        <label class="flex items-center gap-2">
-                            <span>Spotting logbook</span>
-                            <input name="logbook" type="checkbox" %LOGBOOK% class="accent-green-500">
-                        </label>
-                    </legend>
-                    <span class="text-xs text-green-700">
+                <details class="auto">
+                    <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
+                    <span class="hint">
                         Keeps a running &ldquo;lifelist&rdquo; of every unique aircraft type, airline, and country
                         you've seen overhead (shown on the Stats screen), and flags a gold &ldquo;NEW&rdquo; on first
                         sightings. It looks up each contact's type/airline, so it adds a little network traffic.
                     </span>
-                </fieldset>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">
-                        <label class="flex items-center gap-2">
-                            <span>Home Assistant / MQTT</span>
-                            <input name="mqtt" type="checkbox" %MQTT% class="accent-green-500">
-                        </label>
-                    </legend>
-                    <div class="flex flex-col gap-3 sm:gap-2">
-                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-5">
-                            <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                <details class="auto">
+                    <summary>Home Assistant / MQTT <input name="mqtt" type="checkbox" %MQTT%></summary>
+                    <div class="stack">
+                        <div class="row">
+                            <label class="field">
                                 <span>Broker:</span>
-                                <input name="mqtt-host" value='%MQTT_HOST%' placeholder="192.168.1.10"
-                                    class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <input name="mqtt-host" value='%MQTT_HOST%' placeholder="192.168.1.10" class="grow">
                             </label>
-                            <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <label class="field">
                                 <span>Port:</span>
-                                <input name="mqtt-port" type="number" min="1" max="65535" value='%MQTT_PORT%'
-                                    class="border border-green-500 bg-gray-900 w-24 px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <input name="mqtt-port" type="number" min="1" max="65535" value='%MQTT_PORT%' class="w6">
                             </label>
                         </div>
-                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-5">
-                            <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                        <div class="row">
+                            <label class="field">
                                 <span>Username:</span>
-                                <input name="mqtt-user" value='%MQTT_USER%'
-                                    class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <input name="mqtt-user" value='%MQTT_USER%' class="grow">
                             </label>
-                            <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                            <label class="field">
                                 <span>Password:</span>
-                                <input name="mqtt-pass" value='%MQTT_PASS%'
-                                    class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <input name="mqtt-pass" type="password" autocomplete="off" value='%MQTT_PASS%' class="grow">
                             </label>
                         </div>
-                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-5 sm:items-center">
-                            <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                        <div class="row">
+                            <label class="field">
                                 <span>Base topic:</span>
-                                <input name="mqtt-base" value='%MQTT_BASE%' placeholder="blipscope"
-                                    class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                                <input name="mqtt-base" value='%MQTT_BASE%' placeholder="blipscope" class="grow">
                             </label>
-                            <label class="flex items-center gap-2">
-                                <input name="mqtt-disco" type="checkbox" %MQTT_DISCO% class="accent-green-500">
-                                <span>HA auto-discovery</span>
-                            </label>
+                            <label class="check"><input name="mqtt-disco" type="checkbox" %MQTT_DISCO%><span>HA auto-discovery</span></label>
                         </div>
                     </div>
-                    <span class="text-xs text-green-700 mt-2 block">
+                    <span class="hint mt">
                         Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; (count, nearest aircraft, overhead &amp; military flags)
                         to your broker every few seconds. With auto-discovery on, Home Assistant creates the sensors automatically.
                     </span>
-                </fieldset>
+                </details>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input
-                        type="submit"
-                        value="Save"
-                        class="bg-green-500 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-
-                    <button
-                        type="button"
-                        id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-
-                        <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-green-700 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION%</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
+)" CONFIG_SHELL_JS R"(
         <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-
-            // Reset WiFi: erase saved credentials and reboot into the setup portal
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-
             // cap the radius at ~2 degrees of scan box (222 km / 138 mi) to stay
             // within OpenSky's rate-limit area, swapping the limit with the unit
             const radiusInput = document.getElementById('radius');
@@ -536,161 +451,145 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope EAM</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#15803d;--btn:#22c55e}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-green-500 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-green-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Blipscope EAM</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Blipscope EAM</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (EAM)</span>
+            </div>
 
-                <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <form id="cfg" action="/save" method="POST">
+
+                <label class="field">
                     <span>EAM feed base URL:</span>
-                    <input name="eam-base-url" value='%EAM_BASE_URL%' placeholder="https://eam.example.com"
-                        class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    <input name="eam-base-url" value='%EAM_BASE_URL%' placeholder="https://eam.example.com" class="grow">
                 </label>
-                <span class="text-xs text-green-700">The valar-eam-feed backend this device polls for EAM / Skyking / tempo / propagation / launch data.</span>
+                <span class="hint">The valar-eam-feed backend this device polls for EAM / Skyking / tempo / propagation / launch data.</span>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="text-xs text-green-700">Optional. Used for propagation day/night and the command-post bearing/distance.</span>
+                <span class="hint">Optional. Used for propagation day/night and the command-post bearing/distance. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Command-post watch</legend>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Command-post watch</summary>
+                    <label class="field">
                         <span>Source:</span>
-                        <select id="abncp-source" name="abncp-source"
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <select id="abncp-source" name="abncp-source" class="grow">
                             <option value="backend" %ABNCP_BACKEND%>adsb.lol &mdash; via Valar feed (no setup)</option>
                             <option value="opensky" %ABNCP_OPENSKY%>OpenSky &mdash; your account</option>
                         </select>
                     </label>
-                    <div id="opensky-fields" class="flex flex-col gap-3 mt-3">
-                        <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <div id="opensky-fields" class="stack mt">
+                        <label class="field">
                             <span>OpenSky client ID:</span>
-                            <input name="opensky-id" value='%OPENSKY_ID%'
-                                class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="opensky-id" value='%OPENSKY_ID%' class="grow">
                         </label>
-                        <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <label class="field">
                             <span>OpenSky client secret:</span>
-                            <input name="opensky-secret" value='%OPENSKY_SECRET%'
-                                class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="opensky-secret" type="password" autocomplete="off" value='%OPENSKY_SECRET%' class="grow">
                         </label>
-                        <label class="flex flex-col gap-1">
+                        <label class="stack">
                             <span>ICAO24 watchlist (hex, comma-separated):</span>
-                            <textarea name="abncp-watch" rows="2"
-                                class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">%ABNCP_WATCH%</textarea>
+                            <textarea name="abncp-watch" rows="2">%ABNCP_WATCH%</textarea>
                         </label>
-                        <span class="text-xs text-green-700">
+                        <span class="hint">
                             Queried from this device with YOUR OpenSky account only &mdash; never shared, never routed through the Valar backend.
                             Seeded with the E-4B &ldquo;Nightwatch&rdquo; hexes (verify them); add E-6B hexes as needed. Blank ID/secret keeps the watch off.
                         </span>
                     </div>
-                </fieldset>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                        <label class="flex items-center gap-2"><input name="eam-alert-new" type="checkbox" %ALERT_NEW% class="accent-green-500"><span>New EAM</span></label>
-                        <label class="flex items-center gap-2"><input name="eam-alert-tempo" type="checkbox" %ALERT_TEMPO% class="accent-green-500"><span>Tempo elevated/high</span></label>
-                        <label class="flex items-center gap-2"><input name="eam-alert-abncp" type="checkbox" %ALERT_ABNCP% class="accent-green-500"><span>Command post airborne</span></label>
-                        <label class="flex items-center gap-2"><input name="eam-alert-space" type="checkbox" %ALERT_SPACE% class="accent-green-500"><span>Space weather (HF blackout / storm)</span></label>
+                    <div class="grid2 mt">
+                        <label class="check"><input name="eam-alert-new" type="checkbox" %ALERT_NEW%><span>New EAM</span></label>
+                        <label class="check"><input name="eam-alert-tempo" type="checkbox" %ALERT_TEMPO%><span>Tempo elevated/high</span></label>
+                        <label class="check"><input name="eam-alert-abncp" type="checkbox" %ALERT_ABNCP%><span>Command post airborne</span></label>
+                        <label class="check"><input name="eam-alert-space" type="checkbox" %ALERT_SPACE%><span>Space weather (HF blackout / storm)</span></label>
                     </div>
-                    <span class="text-xs text-green-700 mt-1">Leave the topic blank to disable all push alerts.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable all push alerts.</span>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-5">
-                        <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="row">
+                        <label class="field">
                             <span>Palette:</span>
-                            <select name="eam-palette" class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <select name="eam-palette" class="grow">
                                 <option value="green" %PAL_GREEN%>Green console</option>
                                 <option value="amber" %PAL_AMBER%>Amber console</option>
                             </select>
                         </label>
-                        <label class="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                        <label class="field">
                             <span>Refresh:</span>
-                            <select name="eam-refresh" class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <select name="eam-refresh" class="grow">
                                 <option value="normal" %RR_NORMAL%>Normal</option>
                                 <option value="relaxed" %RR_RELAXED%>Relaxed (2x)</option>
                                 <option value="battery" %RR_BATTERY%>Battery (4x)</option>
                             </select>
                         </label>
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-3">
-                        <label class="flex items-center gap-2"><input name="eam-colon-blink" type="checkbox" %COLON_BLINK% class="accent-green-500"><span>Clock colon blink</span></label>
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-green-500"><span>Auto-dim at night</span></label>
+                    <div class="grid2 mt">
+                        <label class="check"><input name="eam-colon-blink" type="checkbox" %COLON_BLINK%><span>Clock colon blink</span></label>
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
                     </div>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-green-500">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Screens</legend>
-                    <label class="flex flex-col gap-1">
+                <details>
+                    <summary>Screens</summary>
+                    <label class="stack">
                         <span>Order &amp; enable (comma-separated; omit one to hide it):</span>
-                        <input name="eam-screens" value='%EAM_SCREENS%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="eam-screens" value='%EAM_SCREENS%'>
                     </label>
-                    <span class="text-xs text-green-700 mt-1">ids: ticker, tempo, activity, codewords, abncp, milair, prop, icbm, ref, clock. Empty rotates all. Activity and milair appear only when their feed has data; the clock always shows when nothing else does.</span>
-                </fieldset>
+                    <span class="hint mt">ids: ticker, tempo, activity, codewords, abncp, milair, prop, icbm, ref, clock. Empty rotates all. Activity and milair appear only when their feed has data; the clock always shows when nothing else does.</span>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Logbook</legend>
-                    <span class="text-xs text-green-700">Download the EAMs &amp; Skyking codewords this device has logged (codewords carry timestamps).</span>
-                    <div class="flex gap-5 mt-2">
-                        <a href="/eam-log.csv" class="text-green-500 underline">Download CSV</a>
-                        <a href="/eam-log.json" class="text-green-500 underline">Download JSON</a>
+                <details>
+                    <summary>Logbook</summary>
+                    <span class="hint">Download the EAMs &amp; Skyking codewords this device has logged (codewords carry timestamps).</span>
+                    <div class="check mt" style="gap:1.5rem">
+                        <a href="/eam-log.csv">Download CSV</a>
+                        <a href="/eam-log.json">Download JSON</a>
                     </div>
-                </fieldset>
+                </details>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-green-500 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-green-700 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-green-500 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (EAM)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
+)" CONFIG_SHELL_JS R"(
         <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
             // show the OpenSky credential fields only when that source is selected
             const abncpSrc = document.getElementById('abncp-source');
             const openskyFields = document.getElementById('opensky-fields');
@@ -711,106 +610,91 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Spacescope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,12,28)'/><circle cx='8' cy='8' r='2' fill='rgb(120,200,255)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(120,200,255)' stroke-width='0.8'/><circle cx='13' cy='4' r='1' fill='rgb(255,255,255)'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#7dd3fc;--line:#38bdf8;--dim:#0284c7;--btn:#38bdf8}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-sky-300 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-sky-400 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Spacescope</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Spacescope</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Space)</span>
+            </div>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+            <form id="cfg" action="/save" method="POST">
+
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                            class="border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                            class="border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="text-xs text-sky-600">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim.</span>
+                <span class="hint">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
 
-                <fieldset class="border border-sky-400 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                        <label class="flex items-center gap-2"><input name="sp-alert-launch" type="checkbox" %AL_LAUNCH% class="accent-sky-400"><span>Launch imminent (T-10 / T-1)</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-alert-aurora" type="checkbox" %AL_AURORA% class="accent-sky-400"><span>Aurora likely (high Kp)</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-alert-flare" type="checkbox" %AL_FLARE% class="accent-sky-400"><span>Solar flare (M+ class)</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-alert-iss" type="checkbox" %AL_ISS% class="accent-sky-400"><span>ISS passing overhead</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-alert-dsn" type="checkbox" %AL_DSN% class="accent-sky-400"><span>Deep-space probe contact (DSN)</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-alert-neo" type="checkbox" %AL_ASTEROID% class="accent-sky-400"><span>Asteroid inside 1 lunar distance</span></label>
-                        <label class="flex items-center gap-2"><input name="sp-chime" type="checkbox" %AL_CHIME% class="accent-sky-400"><span>Chime on the speaker too</span></label>
+                    <div class="grid2 mt">
+                        <label class="check"><input name="sp-alert-launch" type="checkbox" %AL_LAUNCH%><span>Launch imminent (T-10 / T-1)</span></label>
+                        <label class="check"><input name="sp-alert-aurora" type="checkbox" %AL_AURORA%><span>Aurora likely (high Kp)</span></label>
+                        <label class="check"><input name="sp-alert-flare" type="checkbox" %AL_FLARE%><span>Solar flare (M+ class)</span></label>
+                        <label class="check"><input name="sp-alert-iss" type="checkbox" %AL_ISS%><span>ISS passing overhead</span></label>
+                        <label class="check"><input name="sp-alert-dsn" type="checkbox" %AL_DSN%><span>Deep-space probe contact (DSN)</span></label>
+                        <label class="check"><input name="sp-alert-neo" type="checkbox" %AL_ASTEROID%><span>Asteroid inside 1 lunar distance</span></label>
+                        <label class="check"><input name="sp-chime" type="checkbox" %AL_CHIME%><span>Chime on the speaker too</span></label>
                     </div>
-                    <span class="text-xs text-sky-600 mt-1">Leave the topic blank to disable push alerts (the speaker chime is independent). ISS / aurora alerts need a location above.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable push alerts (the speaker chime is independent). ISS / aurora alerts need a location above.</span>
+                </details>
 
-                <fieldset class="border border-sky-400 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-sky-400"><span>Auto-dim at night</span></label>
-                    </div>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                <fieldset>
+                    <legend>Display</legend>
+                    <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-sky-400">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <fieldset class="border border-sky-400 p-3">
-                    <legend class="px-2">Screens</legend>
-                    <span class="text-xs text-sky-600">Tick the screens to include in the rotation. Each still appears only when it has data; clock / moon / eclipse / meteor / cosmic are always available. ISS pass, aurora and the star map need a location above.</span>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                <details open>
+                    <summary>Screens</summary>
+                    <span class="hint">Tick the screens to include in the rotation. Each still appears only when it has data; clock / moon / eclipse / meteor / cosmic are always available. ISS pass, aurora and the star map need a location above.</span>
+                    <div class="grid2 mt">
                         %SPACE_SCREENS_HTML%
                     </div>
-                </fieldset>
+                </details>
 
-                <fieldset class="border border-sky-400 p-3">
-                    <legend class="px-2">Advanced</legend>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Advanced</summary>
+                    <label class="field">
                         <span>Backend base URL:</span>
-                        <input name="space-base-url" value='%SPACE_BASE_URL%' placeholder="blank = direct public APIs"
-                            class="flex-1 border border-sky-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="space-base-url" value='%SPACE_BASE_URL%' placeholder="blank = direct public APIs" class="grow">
                     </label>
-                    <span class="text-xs text-sky-600">Optional. Leave blank and Spacescope pulls straight from free public space APIs. Point it at a valar-space-feed backend to offload the heavy / key-gated sources.</span>
-                </fieldset>
+                    <span class="hint mt">Optional. Leave blank and Spacescope pulls straight from free public space APIs. Point it at a valar-space-feed backend to offload the heavy / key-gated sources.</span>
+                </details>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-sky-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-sky-600 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-sky-300 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (Space)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
-        <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-        </script>
+)" CONFIG_SHELL_JS R"(
     </body>
 </html>
 )";
@@ -823,112 +707,95 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Seismic</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(24,14,4)'/><path d='M1 8 L4 8 L5 3 L7 13 L9 6 L10.5 8 L15 8' fill='none' stroke='rgb(255,170,0)' stroke-width='1.2'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#fcd34d;--line:#fbbf24;--dim:#d97706;--btn:#fbbf24}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-amber-300 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-amber-400 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Blipscope &mdash; Seismic</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Blipscope &mdash; Seismic</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Seismic)</span>
+            </div>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+            <form id="cfg" action="/save" method="POST">
+
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                            class="border border-amber-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                            class="border border-amber-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="text-xs text-amber-600">Your location centres the quake radar, the "near me" feed and alerts, and the solar night auto-dim. Without it you still get the worldwide list and stats.</span>
+                <span class="hint">Your location centres the quake radar, the "near me" feed and alerts, and the solar night auto-dim. Without it you still get the worldwide list and stats. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
 
-                <fieldset class="border border-amber-400 p-3">
-                    <legend class="px-2">Radar</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                <fieldset>
+                    <legend>Radar</legend>
+                    <div class="row">
+                        <label class="field">
                             <span>Min magnitude (worldwide):</span>
-                            <input name="se-min-mag" type="number" min="0" max="9" step="0.1" value='%SE_MIN_MAG%'
-                                class="border border-amber-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="se-min-mag" type="number" min="0" max="9" step="0.1" value='%SE_MIN_MAG%' class="grow">
                         </label>
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <label class="field">
                             <span>Radar radius (km):</span>
-                            <input name="se-radius-km" type="number" min="50" max="20000" step="10" value='%SE_RADIUS%'
-                                class="border border-amber-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="se-radius-km" type="number" min="50" max="20000" step="10" value='%SE_RADIUS%' class="grow">
                         </label>
                     </div>
                 </fieldset>
 
-                <fieldset class="border border-amber-400 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-amber-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 gap-2 mt-3">
-                        <label class="flex items-center gap-2"><input name="se-alert-big" type="checkbox" %AL_BIG% class="accent-amber-400"><span>Big quake worldwide, M &ge;</span>
-                            <input name="se-big-mag" type="number" min="0" max="9" step="0.1" value='%SE_BIG_MAG%' class="border border-amber-400 bg-gray-900 w-16 px-2 sm:py-0"></label>
-                        <label class="flex items-center gap-2"><input name="se-alert-near" type="checkbox" %AL_NEAR% class="accent-amber-400"><span>Quake near me, M &ge;</span>
-                            <input name="se-near-mag" type="number" min="0" max="9" step="0.1" value='%SE_NEAR_MAG%' class="border border-amber-400 bg-gray-900 w-16 px-2 sm:py-0"></label>
-                        <label class="flex items-center gap-2"><input name="se-alert-tsnmi" type="checkbox" %AL_TSUNAMI% class="accent-amber-400"><span>Tsunami-flagged quake</span></label>
+                    <div class="stack mt">
+                        <label class="check"><input name="se-alert-big" type="checkbox" %AL_BIG%><span>Big quake worldwide, M &ge;</span>
+                            <input name="se-big-mag" type="number" min="0" max="9" step="0.1" value='%SE_BIG_MAG%' class="w4"></label>
+                        <label class="check"><input name="se-alert-near" type="checkbox" %AL_NEAR%><span>Quake near me, M &ge;</span>
+                            <input name="se-near-mag" type="number" min="0" max="9" step="0.1" value='%SE_NEAR_MAG%' class="w4"></label>
+                        <label class="check"><input name="se-alert-tsnmi" type="checkbox" %AL_TSUNAMI%><span>Tsunami-flagged quake</span></label>
                     </div>
-                    <span class="text-xs text-amber-600 mt-1">Leave the topic blank to disable all push alerts. The "near me" alert needs a location above.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable all push alerts. The "near me" alert needs a location above.</span>
+                </details>
 
-                <fieldset class="border border-amber-400 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-amber-400"><span>Auto-dim at night</span></label>
-                    </div>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                <fieldset>
+                    <legend>Display</legend>
+                    <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-amber-400">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <fieldset class="border border-amber-400 p-3">
-                    <legend class="px-2">Advanced</legend>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Advanced</summary>
+                    <label class="field">
                         <span>Backend base URL:</span>
-                        <input name="se-base-url" value='%SE_BASE_URL%' placeholder="blank = USGS directly"
-                            class="flex-1 border border-amber-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="se-base-url" value='%SE_BASE_URL%' placeholder="blank = USGS directly" class="grow">
                     </label>
-                    <span class="text-xs text-amber-600">Optional. Leave blank and the device pulls straight from the public USGS earthquake API.</span>
-                </fieldset>
+                    <span class="hint mt">Optional. Leave blank and the device pulls straight from the public USGS earthquake API.</span>
+                </details>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-amber-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-amber-600 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-amber-300 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (Seismic)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
-        <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-        </script>
+)" CONFIG_SHELL_JS R"(
     </body>
 </html>
 )";
@@ -941,119 +808,101 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Birding</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,20,8)'/><circle cx='6.5' cy='7' r='3' fill='rgb(150,220,130)'/><circle cx='7.5' cy='6.2' r='0.7' fill='rgb(8,20,8)'/><path d='M9 7 L13 6 L10 8 Z' fill='rgb(255,215,90)'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#16a34a;--btn:#4ade80}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-green-300 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-green-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Blipscope &mdash; Birding</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Blipscope &mdash; Birding</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Birding)</span>
+            </div>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">eBird</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <form id="cfg" action="/save" method="POST">
+
+                <fieldset>
+                    <legend>eBird</legend>
+                    <label class="field">
                         <span>API key:</span>
-                        <input name="ebird-key" value='%EBIRD_KEY%'
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ebird-key" type="password" autocomplete="off" value='%EBIRD_KEY%' class="grow">
                     </label>
-                    <span class="text-xs text-green-600 mt-1">Free with an eBird account &mdash; generate one at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener" class="underline">ebird.org/api/keygen</a>. It's stored on the device and sent only to eBird. Nothing is fetched until a key and location are set.</span>
+                    <span class="hint mt">Free with an eBird account &mdash; generate one at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener">ebird.org/api/keygen</a>. It's stored on the device and sent only to eBird. Nothing is fetched until a key and location are set.</span>
                 </fieldset>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="text-xs text-green-600">Your location centres the sightings radar, the nearby feeds, and alerts.</span>
+                <span class="hint">Your location centres the sightings radar, the nearby feeds, and alerts. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Search</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                <fieldset>
+                    <legend>Search</legend>
+                    <div class="row">
+                        <label class="field">
                             <span>Radius (km, max 50):</span>
-                            <input name="bd-radius-km" type="number" min="1" max="50" value='%BD_RADIUS%'
-                                class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="bd-radius-km" type="number" min="1" max="50" value='%BD_RADIUS%' class="grow">
                         </label>
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <label class="field">
                             <span>Look-back (days, max 30):</span>
-                            <input name="bd-back-days" type="number" min="1" max="30" value='%BD_BACK%'
-                                class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="bd-back-days" type="number" min="1" max="30" value='%BD_BACK%' class="grow">
                         </label>
                     </div>
                 </fieldset>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Targets</legend>
-                    <label class="flex flex-col gap-1">
+                <details class="auto">
+                    <summary>Targets</summary>
+                    <label class="stack">
                         <span>Target species (comma-separated names or codes):</span>
-                        <input name="bd-targets" value='%BD_TARGETS%' placeholder="e.g. Painted Bunting, Snowy Owl"
-                            class="border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="bd-targets" value='%BD_TARGETS%' placeholder="e.g. Painted Bunting, Snowy Owl">
                     </label>
-                    <span class="text-xs text-green-600 mt-1">A "Targets" screen lists matches nearby, and (with a topic below) you get a phone alert when one appears.</span>
-                </fieldset>
+                    <span class="hint mt">A "Targets" screen lists matches nearby, and (with a topic below) you get a phone alert when one appears.</span>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-green-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                        <label class="flex items-center gap-2"><input name="bd-alert-rare" type="checkbox" %AL_NOTABLE% class="accent-green-400"><span>Notable / rare sighting nearby</span></label>
-                        <label class="flex items-center gap-2"><input name="bd-alert-target" type="checkbox" %AL_TARGET% class="accent-green-400"><span>Target species appears</span></label>
+                    <div class="grid2 mt">
+                        <label class="check"><input name="bd-alert-rare" type="checkbox" %AL_NOTABLE%><span>Notable / rare sighting nearby</span></label>
+                        <label class="check"><input name="bd-alert-target" type="checkbox" %AL_TARGET%><span>Target species appears</span></label>
                     </div>
-                    <span class="text-xs text-green-600 mt-1">Leave the topic blank to disable all push alerts.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable all push alerts.</span>
+                </details>
 
-                <fieldset class="border border-green-500 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-green-400"><span>Auto-dim at night</span></label>
-                    </div>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                <fieldset>
+                    <legend>Display</legend>
+                    <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-green-400">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-green-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-green-600 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-green-300 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (Birding)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
-        <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-        </script>
+)" CONFIG_SHELL_JS R"(
     </body>
 </html>
 )";
@@ -1067,162 +916,146 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Reelscope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(4,16,22)'/><path d='M2 8 Q5 4 9 8 Q5 12 2 8 Z' fill='rgb(120,220,255)'/><circle cx='4' cy='7.4' r='0.6' fill='rgb(4,16,22)'/><path d='M9 8 L13 5 L12 8 L13 11 Z' fill='rgb(120,230,140)'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#a5f3fc;--line:#06b6d4;--dim:#0891b2;--btn:#22d3ee}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-cyan-200 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-cyan-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Reelscope &mdash; Fishing</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Reelscope &mdash; Fishing</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Reelscope)</span>
+            </div>
 
-                <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <form id="cfg" action="/save" method="POST">
+
+                <label class="field">
                     <span>Water type:</span>
-                    <select name="fi-water" class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    <select name="fi-water" class="grow">
                         <option value="both" %FI_WATER_BOTH%>Both</option>
                         <option value="fresh" %FI_WATER_FRESH%>Freshwater only</option>
                         <option value="salt" %FI_WATER_SALT%>Saltwater only</option>
                     </select>
                 </label>
-                <span class="text-xs text-cyan-500">Fresh-only and salt-only skip the other family's feeds entirely.</span>
+                <span class="hint">Fresh-only and salt-only skip the other family's feeds entirely.</span>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                            class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                            class="border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="text-xs text-cyan-500">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim.</span>
+                <span class="hint">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
 
-                <fieldset class="border border-cyan-500 p-3">
-                    <legend class="px-2">Freshwater (USGS)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <fieldset>
+                    <legend>Freshwater (USGS)</legend>
+                    <label class="field">
                         <span>USGS site number:</span>
-                        <input name="fi-usgs" value='%FI_USGS%' placeholder="e.g. 08167000"
-                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="fi-usgs" value='%FI_USGS%' placeholder="e.g. 08167000" class="grow">
                     </label>
-                    <span class="text-xs text-cyan-500 mt-1">Find your gauge at <a href="https://waterdata.usgs.gov" target="_blank" rel="noopener" class="underline">waterdata.usgs.gov</a>. Keyless.</span>
+                    <span class="hint mt">Find your gauge at <a href="https://waterdata.usgs.gov" target="_blank" rel="noopener">waterdata.usgs.gov</a>. Keyless.</span>
                 </fieldset>
 
-                <fieldset class="border border-cyan-500 p-3">
-                    <legend class="px-2">Saltwater (NOAA)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <fieldset>
+                    <legend>Saltwater (NOAA)</legend>
+                    <label class="field">
                         <span>CO-OPS tide station:</span>
-                        <input id="fi-noaa" name="fi-noaa" value='%FI_NOAA%' placeholder="e.g. 8443970"
-                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                        <button type="button" id="findstation"
-                            class="border border-cyan-500 px-3 py-2 sm:py-0 cursor-pointer whitespace-nowrap">Find nearest</button>
+                        <input id="fi-noaa" name="fi-noaa" value='%FI_NOAA%' placeholder="e.g. 8443970" class="grow">
+                        <button type="button" id="findstation" class="btn-line">Find nearest</button>
                     </label>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                    <label class="field mt">
                         <span>NDBC buoy:</span>
-                        <input id="fi-buoy" name="fi-buoy" value='%FI_BUOY%' placeholder="e.g. 44013"
-                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
-                        <button type="button" id="findbuoy"
-                            class="border border-cyan-500 px-3 py-2 sm:py-0 cursor-pointer whitespace-nowrap">Find nearest</button>
+                        <input id="fi-buoy" name="fi-buoy" value='%FI_BUOY%' placeholder="e.g. 44013" class="grow">
+                        <button type="button" id="findbuoy" class="btn-line">Find nearest</button>
                     </label>
-                    <span class="text-xs text-cyan-500 mt-1">Stations at <a href="https://tidesandcurrents.noaa.gov" target="_blank" rel="noopener" class="underline">tidesandcurrents.noaa.gov</a> / buoys at <a href="https://www.ndbc.noaa.gov" target="_blank" rel="noopener" class="underline">ndbc.noaa.gov</a>. Keyless. "Find nearest" uses the location above.</span>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                    <span class="hint mt">Stations at <a href="https://tidesandcurrents.noaa.gov" target="_blank" rel="noopener">tidesandcurrents.noaa.gov</a> / buoys at <a href="https://www.ndbc.noaa.gov" target="_blank" rel="noopener">ndbc.noaa.gov</a>. Keyless. "Find nearest" uses the location above.</span>
+                    <label class="field mt">
                         <span>Units:</span>
-                        <select name="fi-units" class="border border-cyan-500 bg-gray-900 px-3 py-2 sm:py-0">
+                        <select name="fi-units">
                             <option value="imperial" %FI_UNITS_IMP%>Imperial (ft, &deg;F, mph, inHg)</option>
                             <option value="metric" %FI_UNITS_MET%>Metric (m, &deg;C, km/h, hPa)</option>
                         </select>
                     </label>
                 </fieldset>
 
-                <fieldset class="border border-cyan-500 p-3">
-                    <legend class="px-2">Views</legend>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <label class="flex items-center gap-2"><input name="fi-v-tide" type="checkbox" %FI_V_TIDE% class="accent-cyan-400"><span>Tide</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-flow" type="checkbox" %FI_V_FLOW% class="accent-cyan-400"><span>Flow</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-temp" type="checkbox" %FI_V_TEMP% class="accent-cyan-400"><span>Water temp</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-solunar" type="checkbox" %FI_V_SOLUNAR% class="accent-cyan-400"><span>Solunar</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-weather" type="checkbox" %FI_V_WEATHER% class="accent-cyan-400"><span>Weather</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-moon" type="checkbox" %FI_V_MOON% class="accent-cyan-400"><span>Moon</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-catch" type="checkbox" %FI_V_CATCH% class="accent-cyan-400"><span>Catch log</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-v-clock" type="checkbox" %FI_V_CLOCK% class="accent-cyan-400"><span>Clock</span></label>
+                <fieldset>
+                    <legend>Views</legend>
+                    <div class="grid4">
+                        <label class="check"><input name="fi-v-tide" type="checkbox" %FI_V_TIDE%><span>Tide</span></label>
+                        <label class="check"><input name="fi-v-flow" type="checkbox" %FI_V_FLOW%><span>Flow</span></label>
+                        <label class="check"><input name="fi-v-temp" type="checkbox" %FI_V_TEMP%><span>Water temp</span></label>
+                        <label class="check"><input name="fi-v-solunar" type="checkbox" %FI_V_SOLUNAR%><span>Solunar</span></label>
+                        <label class="check"><input name="fi-v-weather" type="checkbox" %FI_V_WEATHER%><span>Weather</span></label>
+                        <label class="check"><input name="fi-v-moon" type="checkbox" %FI_V_MOON%><span>Moon</span></label>
+                        <label class="check"><input name="fi-v-catch" type="checkbox" %FI_V_CATCH%><span>Catch log</span></label>
+                        <label class="check"><input name="fi-v-clock" type="checkbox" %FI_V_CLOCK%><span>Clock</span></label>
                     </div>
-                    <span class="text-xs text-cyan-500 mt-1">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a dial to inspect it.</span>
+                    <span class="hint mt">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a dial to inspect it.</span>
                 </fieldset>
 
-                <fieldset class="border border-cyan-500 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 gap-2 mt-3">
-                        <label class="flex items-center gap-2"><input name="fi-a-solunar" type="checkbox" %FI_A_SOLUNAR% class="accent-cyan-400"><span>Bite window opening (solunar major)</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-a-baro" type="checkbox" %FI_A_BARO% class="accent-cyan-400"><span>Barometer falling fast (front moving in)</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-a-tide" type="checkbox" %FI_A_TIDE% class="accent-cyan-400"><span>A high/low tide is ~30 min away</span></label>
-                        <label class="flex items-center gap-2 flex-wrap"><input name="fi-a-flow" type="checkbox" %FI_A_FLOW% class="accent-cyan-400"><span>River crosses</span>
-                            <input name="fi-flow-cfs" type="number" min="0" step="1" value='%FI_FLOW_CFS%' class="border border-cyan-500 bg-gray-900 w-24 px-2 sm:py-0"><span>CFS</span></label>
-                        <label class="flex items-center gap-2 flex-wrap"><input name="fi-a-temp" type="checkbox" %FI_A_TEMP% class="accent-cyan-400"><span>Water temp enters</span>
-                            <input name="fi-temp-lo" type="number" step="1" value='%FI_TEMP_LO%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&ndash;</span>
-                            <input name="fi-temp-hi" type="number" step="1" value='%FI_TEMP_HI%' class="border border-cyan-500 bg-gray-900 w-16 px-2 sm:py-0"><span>&deg;</span></label>
-                        <label class="flex items-center gap-2"><input name="fi-chime" type="checkbox" %FI_CHIME% class="accent-cyan-400"><span>Also chime the speaker on alerts</span></label>
+                    <div class="stack mt">
+                        <label class="check"><input name="fi-a-solunar" type="checkbox" %FI_A_SOLUNAR%><span>Bite window opening (solunar major)</span></label>
+                        <label class="check"><input name="fi-a-baro" type="checkbox" %FI_A_BARO%><span>Barometer falling fast (front moving in)</span></label>
+                        <label class="check"><input name="fi-a-tide" type="checkbox" %FI_A_TIDE%><span>A high/low tide is ~30 min away</span></label>
+                        <label class="check" style="flex-wrap:wrap"><input name="fi-a-flow" type="checkbox" %FI_A_FLOW%><span>River crosses</span>
+                            <input name="fi-flow-cfs" type="number" min="0" step="1" value='%FI_FLOW_CFS%' class="w6"><span>CFS</span></label>
+                        <label class="check" style="flex-wrap:wrap"><input name="fi-a-temp" type="checkbox" %FI_A_TEMP%><span>Water temp enters</span>
+                            <input name="fi-temp-lo" type="number" step="1" value='%FI_TEMP_LO%' class="w4"><span>&ndash;</span>
+                            <input name="fi-temp-hi" type="number" step="1" value='%FI_TEMP_HI%' class="w4"><span>&deg;</span></label>
+                        <label class="check"><input name="fi-chime" type="checkbox" %FI_CHIME%><span>Also chime the speaker on alerts</span></label>
                     </div>
-                    <span class="text-xs text-cyan-500 mt-1">Leave the topic blank to disable push alerts (the speaker chime still works). Thresholds are edge-triggered and seeded at boot, so the backlog never fires. The CFS and water-temp band are in your selected units &mdash; re-enter them if you change units.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable push alerts (the speaker chime still works). Thresholds are edge-triggered and seeded at boot, so the backlog never fires. The CFS and water-temp band are in your selected units &mdash; re-enter them if you change units.</span>
+                </details>
 
-                <fieldset class="border border-cyan-500 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-cyan-400"><span>Auto-dim at night</span></label>
-                        <label class="flex items-center gap-2"><span>UTC offset (h):</span>
-                            <input name="fi-tz-offset" type="number" min="-14" max="14" step="0.5" value='%FI_TZ%' class="border border-cyan-500 bg-gray-900 w-20 px-2 sm:py-0"></label>
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="field">
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                        <label class="check"><span>UTC offset (h):</span>
+                            <input name="fi-tz-offset" type="number" min="-14" max="14" step="0.5" value='%FI_TZ%' class="w6"></label>
                     </div>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-cyan-400">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <fieldset class="border border-cyan-500 p-3">
-                    <legend class="px-2">Advanced</legend>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Advanced</summary>
+                    <label class="field">
                         <span>Aggregator base URL:</span>
-                        <input name="fi-base-url" value='%FI_BASE_URL%' placeholder="blank = public APIs directly"
-                            class="flex-1 border border-cyan-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="fi-base-url" value='%FI_BASE_URL%' placeholder="blank = public APIs directly" class="grow">
                     </label>
-                    <span class="text-xs text-cyan-500">Optional. Leave blank and the device pulls straight from the public USGS / NOAA / Open-Meteo APIs.</span>
-                </fieldset>
+                    <span class="hint mt">Optional. Leave blank and the device pulls straight from the public USGS / NOAA / Open-Meteo APIs.</span>
+                </details>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-cyan-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-cyan-500 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-cyan-200 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (Reelscope)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
+)" CONFIG_SHELL_JS R"(
         <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
             // Resolve the nearest NOAA tide-prediction station in the browser (it has the heap for the
             // full ~3450-station list); the device then only ever stores + polls the one station id.
             document.getElementById('findstation').addEventListener('click', async function() {
@@ -1279,94 +1112,81 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Claudescope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(28,18,12)'/><g stroke='rgb(217,119,87)' stroke-width='1.4' stroke-linecap='round'><path d='M8 3 L8 13'/><path d='M3.7 5.5 L12.3 10.5'/><path d='M3.7 10.5 L12.3 5.5'/></g></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#fed7aa;--line:#fb923c;--dim:#ea580c;--btn:#fb923c}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-orange-200 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-orange-400 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Claudescope</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Claudescope</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Claudescope)</span>
+            </div>
 
-                <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <form id="cfg" action="/save" method="POST">
+
+                <label class="field">
                     <span>Sidecar URL:</span>
-                    <input name="cl-base-url" value='%CL_BASE_URL%' placeholder="http://192.168.1.50:8080"
-                        class="flex-1 border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                    <input name="cl-base-url" value='%CL_BASE_URL%' placeholder="http://192.168.1.50:8080" class="grow">
                 </label>
-                <span class="text-xs text-orange-600">Run <code>claudescope-sidecar</code> on a machine on your LAN (see tools/claudescope-sidecar), then point this at it. The sidecar holds your Claude token; the device only ever sees usage numbers. Until this is set, the device shows the setup splash.</span>
+                <span class="hint">Run <code>claudescope-sidecar</code> on a machine on your LAN (see tools/claudescope-sidecar), then point this at it. The sidecar holds your Claude token; the device only ever sees usage numbers. Until this is set, the device shows the setup splash.</span>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                <div class="row">
+                    <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                            class="border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                     </label>
-                    <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                            class="border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="text-xs text-orange-600">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it.</span>
+                <span class="hint">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
 
-                <fieldset class="border border-orange-400 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-orange-400 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 gap-2 mt-3">
-                        <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-sess" type="checkbox" %AL_SESSION% class="accent-orange-400"><span>Session usage reaches</span>
-                            <input name="cl-session-pct" type="number" min="1" max="100" step="1" value='%CL_SESSION_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>&#37;</span></label>
-                        <label class="flex items-center gap-2 flex-wrap"><input name="cl-alert-week" type="checkbox" %AL_WEEK% class="accent-orange-400"><span>Weekly usage reaches</span>
-                            <input name="cl-week-pct" type="number" min="1" max="100" step="1" value='%CL_WEEK_PCT%' class="border border-orange-400 bg-gray-900 w-16 px-2 sm:py-0"><span>&#37;</span></label>
+                    <div class="stack mt">
+                        <label class="check" style="flex-wrap:wrap"><input name="cl-alert-sess" type="checkbox" %AL_SESSION%><span>Session usage reaches</span>
+                            <input name="cl-session-pct" type="number" min="1" max="100" step="1" value='%CL_SESSION_PCT%' class="w4"><span>&#37;</span></label>
+                        <label class="check" style="flex-wrap:wrap"><input name="cl-alert-week" type="checkbox" %AL_WEEK%><span>Weekly usage reaches</span>
+                            <input name="cl-week-pct" type="number" min="1" max="100" step="1" value='%CL_WEEK_PCT%' class="w4"><span>&#37;</span></label>
                     </div>
-                    <span class="text-xs text-orange-600 mt-1">Leave the topic blank to disable all push alerts. Thresholds are edge-triggered and seeded at boot, so the state already high when you power on never fires.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable all push alerts. Thresholds are edge-triggered and seeded at boot, so the state already high when you power on never fires.</span>
+                </details>
 
-                <fieldset class="border border-orange-400 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-orange-400"><span>Auto-dim at night</span></label>
-                        <label class="flex items-center gap-2"><span>UTC offset (h):</span>
-                            <input name="cl-tz-offset" type="number" min="-14" max="14" step="0.5" value='%CL_TZ%' class="border border-orange-400 bg-gray-900 w-20 px-2 sm:py-0"></label>
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="field">
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                        <label class="check"><span>UTC offset (h):</span>
+                            <input name="cl-tz-offset" type="number" min="-14" max="14" step="0.5" value='%CL_TZ%' class="w6"></label>
                     </div>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-orange-400">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-orange-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-orange-600 mt-4">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener" class="text-orange-300 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (Claudescope)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
-        <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-        </script>
+)" CONFIG_SHELL_JS R"(
     </body>
 </html>
 )";
@@ -1380,125 +1200,110 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Speedscope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(20,14,2)'/><path d='M2 12 A6 6 0 0 1 14 12' fill='none' stroke='rgb(255,176,40)' stroke-width='1.4'/><line x1='8' y1='12' x2='12' y2='6' stroke='rgb(255,60,40)' stroke-width='1.4'/><circle cx='8' cy='12' r='1' fill='rgb(255,176,40)'/></svg>">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0"></script>
+        <style>:root{--ink:#fde68a;--line:#f59e0b;--dim:#d97706;--btn:#fbbf24}</style>
+)" CONFIG_SHELL_CSS R"(
     </head>
-    <body class="font-mono bg-gray-900 text-amber-200 min-h-screen p-4 sm:p-0 text-md sm:text-sm">
-        <fieldset class="border border-amber-500 p-5 w-full max-w-2xl mx-auto sm:m-10">
-            <legend class="px-2">Configure Speedscope &mdash; Speed radar</legend>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Speedscope &mdash; Speed radar</legend>
 
-            <form id="cfg" action="/save" method="POST" class="flex flex-col gap-4 sm:gap-2">
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Speedscope)</span>
+            </div>
 
-                <fieldset class="border border-amber-500 p-3">
-                    <legend class="px-2">MiniSpeedCam</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <form id="cfg" action="/save" method="POST">
+
+                <fieldset>
+                    <legend>MiniSpeedCam</legend>
+                    <label class="field">
                         <span>Camera host:</span>
-                        <input name="sc-host" value='%SC_HOST%' placeholder="MiniSpeedCam, or an IP e.g. 192.168.1.50"
-                            class="flex-1 border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="sc-host" value='%SC_HOST%' placeholder="MiniSpeedCam, or an IP e.g. 192.168.1.50" class="grow">
                     </label>
-                    <span class="text-xs text-amber-500 mt-1">The MiniSpeedCam on your network. A bare name is resolved over mDNS (&lt;name&gt;.local); an IP is most reliable. Blank = MiniSpeedCam.</span>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2 mt-3">
+                    <span class="hint mt">The MiniSpeedCam on your network. A bare name is resolved over mDNS (&lt;name&gt;.local); an IP is most reliable. Blank = MiniSpeedCam.</span>
+                    <label class="field mt">
                         <span>Posted speed limit:</span>
-                        <input name="sc-limit" type="number" min="0" step="1" value='%SC_LIMIT%' placeholder="optional"
-                            class="border border-amber-500 bg-gray-900 w-32 px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="sc-limit" type="number" min="0" step="1" value='%SC_LIMIT%' placeholder="optional" class="w8">
                     </label>
-                    <span class="text-xs text-amber-500 mt-1">In the camera's own unit (mph/kph, as set on the camera). Over-limit passes read red. Leave blank to disable.</span>
+                    <span class="hint mt">In the camera's own unit (mph/kph, as set on the camera). Over-limit passes read red. Leave blank to disable.</span>
                 </fieldset>
 
-                <fieldset class="border border-amber-500 p-3">
-                    <legend class="px-2">Views</legend>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        <label class="flex items-center gap-2"><input name="sc-v-last" type="checkbox" %SC_V_LAST% class="accent-amber-400"><span>Last pass</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-v-live" type="checkbox" %SC_V_LIVE% class="accent-amber-400"><span>Live</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-v-list" type="checkbox" %SC_V_LIST% class="accent-amber-400"><span>Recent</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-v-stats" type="checkbox" %SC_V_STATS% class="accent-amber-400"><span>Today</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-v-device" type="checkbox" %SC_V_DEVICE% class="accent-amber-400"><span>Camera</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-v-clock" type="checkbox" %SC_V_CLOCK% class="accent-amber-400"><span>Clock</span></label>
+                <fieldset>
+                    <legend>Views</legend>
+                    <div class="grid3">
+                        <label class="check"><input name="sc-v-last" type="checkbox" %SC_V_LAST%><span>Last pass</span></label>
+                        <label class="check"><input name="sc-v-live" type="checkbox" %SC_V_LIVE%><span>Live</span></label>
+                        <label class="check"><input name="sc-v-list" type="checkbox" %SC_V_LIST%><span>Recent</span></label>
+                        <label class="check"><input name="sc-v-stats" type="checkbox" %SC_V_STATS%><span>Today</span></label>
+                        <label class="check"><input name="sc-v-device" type="checkbox" %SC_V_DEVICE%><span>Camera</span></label>
+                        <label class="check"><input name="sc-v-clock" type="checkbox" %SC_V_CLOCK%><span>Clock</span></label>
                     </div>
-                    <span class="text-xs text-amber-500 mt-1">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a view to inspect it.</span>
+                    <span class="hint mt">Enabled views auto-rotate (skipping any with no data) and are swipeable; tap a view to inspect it.</span>
                 </fieldset>
 
-                <fieldset class="border border-amber-500 p-3">
-                    <legend class="px-2">Alerts (ntfy)</legend>
-                    <label class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Alerts (ntfy)</summary>
+                    <label class="field">
                         <span>ntfy.sh topic:</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%'
-                            class="flex-1 border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
-                    <div class="grid grid-cols-1 gap-2 mt-3">
-                        <label class="flex items-center gap-2 flex-wrap"><input name="sc-a-speeder" type="checkbox" %SC_A_SPEEDER% class="accent-amber-400"><span>Speeder: a pass at/over</span>
-                            <input name="sc-alert-speed" type="number" min="0" step="1" value='%SC_ALERT%' class="border border-amber-500 bg-gray-900 w-24 px-2 sm:py-0"><span>mph/kph</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-a-record" type="checkbox" %SC_A_RECORD% class="accent-amber-400"><span>New fastest pass of the day</span></label>
-                        <label class="flex items-center gap-2"><input name="sc-a-offline" type="checkbox" %SC_A_OFFLINE% class="accent-amber-400"><span>Camera goes offline</span></label>
+                    <div class="stack mt">
+                        <label class="check" style="flex-wrap:wrap"><input name="sc-a-speeder" type="checkbox" %SC_A_SPEEDER%><span>Speeder: a pass at/over</span>
+                            <input name="sc-alert-speed" type="number" min="0" step="1" value='%SC_ALERT%' class="w6"><span>mph/kph</span></label>
+                        <label class="check"><input name="sc-a-record" type="checkbox" %SC_A_RECORD%><span>New fastest pass of the day</span></label>
+                        <label class="check"><input name="sc-a-offline" type="checkbox" %SC_A_OFFLINE%><span>Camera goes offline</span></label>
                     </div>
-                    <span class="text-xs text-amber-500 mt-1">Leave the topic blank to disable all push alerts. Triggers are edge-detected and seeded at boot, so the backlog never fires.</span>
-                </fieldset>
+                    <span class="hint mt">Leave the topic blank to disable all push alerts. Triggers are edge-detected and seeded at boot, so the backlog never fires.</span>
+                </details>
 
-                <fieldset class="border border-amber-500 p-3">
-                    <legend class="px-2">Display</legend>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                        <label class="flex items-center gap-2"><input name="autodim" type="checkbox" %AUTODIM% class="accent-amber-400"><span>Auto-dim at night</span></label>
-                        <label class="flex items-center gap-2"><span>UTC offset (h):</span>
-                            <input name="sc-tz-offset" type="number" min="-14" max="14" step="0.5" value='%SC_TZ%' class="border border-amber-500 bg-gray-900 w-20 px-2 sm:py-0"></label>
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="field">
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                        <label class="check"><span>UTC offset (h):</span>
+                            <input name="sc-tz-offset" type="number" min="-14" max="14" step="0.5" value='%SC_TZ%' class="w6"></label>
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-4 sm:gap-5 mt-3">
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                    <div class="row mt">
+                        <label class="field">
                             <span>Latitude:</span>
-                            <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%'
-                                class="border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
                         </label>
-                        <label class="flex flex-col sm:flex-row gap-2 flex-1">
+                        <label class="field">
                             <span>Longitude:</span>
-                            <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%'
-                                class="border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                            <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
                         </label>
                     </div>
-                    <span class="text-xs text-amber-500 mt-1">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot).</span>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-3">
+                    <span class="hint mt">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot). Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                    <label class="field mt">
                         <span>Brightness:</span>
-                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%' class="flex-1 w-full accent-amber-400">
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
                     </label>
                 </fieldset>
 
-                <fieldset class="border border-amber-500 p-3">
-                    <legend class="px-2">Advanced</legend>
-                    <label class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <details class="auto">
+                    <summary>Advanced</summary>
+                    <label class="field">
                         <span>Proxy base URL:</span>
-                        <input name="sc-base-url" value='%SC_BASE_URL%' placeholder="blank = the camera on your LAN directly"
-                            class="flex-1 border border-amber-500 bg-gray-900 w-full px-3 py-2 text-lg sm:text-base sm:px-1 sm:py-0">
+                        <input name="sc-base-url" value='%SC_BASE_URL%' placeholder="blank = the camera on your LAN directly" class="grow">
                     </label>
-                    <span class="text-xs text-amber-500">Optional. Point at an aggregator that mirrors the camera's /api/state and /api/events (e.g. to reach it off your LAN). Blank = the local camera directly.</span>
-                </fieldset>
+                    <span class="hint mt">Optional. Point at an aggregator that mirrors the camera's /api/state and /api/events (e.g. to reach it off your LAN). Blank = the local camera directly.</span>
+                </details>
 
-                <div class="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                    <input type="submit" value="Save"
-                        class="bg-amber-400 text-black mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                    <button type="button" id="resetwifi"
-                        class="border border-red-500 text-red-500 mt-4 px-4 py-3 text-lg sm:text-base sm:px-2 sm:py-0 self-start cursor-pointer">
-                        Reset WiFi</button>
-                    <div id="result" class="mt-4 px-1 sm:px-10"></div>
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
                 </div>
             </form>
 
-            <div class="flex justify-between items-end text-xs text-amber-500 mt-4">
-                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener" class="text-amber-200 underline">Help &amp; documentation</a>
-                <span>Firmware v%FW_VERSION% (Speedscope)</span>
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/Blipscope/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
             </div>
         </fieldset>
-
-        <script>
-            document.getElementById('cfg').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch(this.action, { method: 'POST', headers: { 'X-Blipscope': '1' }, body: new FormData(this) })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-            document.getElementById('resetwifi').addEventListener('click', function() {
-                if (!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.')) return;
-                fetch('/reset-wifi', { method: 'POST', headers: { 'X-Blipscope': '1' } })
-                    .then(r => r.text())
-                    .then(html => document.getElementById('result').innerHTML = html);
-            });
-        </script>
+)" CONFIG_SHELL_JS R"(
     </body>
 </html>
 )";
@@ -1615,6 +1420,12 @@ void ConfigurationWebServer::Initialise() {
         Serial.printf("[GET] heap free=%u largest-block=%u\n",
                       ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
+        // status-strip values shared by every edition's page (device name / IP /
+        // RSSI at the top of the form, so users can confirm health at a glance)
+        const String deviceName = DeviceIdentity::Name();
+        const String deviceIp = WiFi.localIP().toString();
+        const String wifiRssi = String(WiFi.RSSI());
+
         // read all values up front so the processor lambda can capture by value
         Preferences prefs;
         prefs.begin("config", true);
@@ -1657,6 +1468,10 @@ void ConfigurationWebServer::Initialise() {
         const String milAlert = HtmlEscape(prefs.isKey("mil-alert") ? prefs.getString("mil-alert", "false") : "false");
         const String heliShow = HtmlEscape(prefs.isKey("heli-show") ? prefs.getString("heli-show", "false") : "false");
         const String spcShow = HtmlEscape(prefs.isKey("spc-show") ? prefs.getString("spc-show", "false") : "false");
+        // visual alerts: defaults mirror AircraftManager::Initialise (emergency = ring, military = off)
+        const String milVisual = HtmlEscape(prefs.isKey("mil-visual") ? prefs.getString("mil-visual", "off") : "off");
+        const String emgVisual = HtmlEscape(prefs.isKey("emg-visual") ? prefs.getString("emg-visual", "ring") : "ring");
+        const String visualNight = HtmlEscape(prefs.isKey("visual-night") ? prefs.getString("visual-night", "false") : "false");
         const String logbookOn = HtmlEscape(prefs.isKey("logbook") ? prefs.getString("logbook", "false") : "false");
         const String lookupOn = HtmlEscape(prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false");
         const String lookupAlert = HtmlEscape(prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false");
@@ -1677,7 +1492,7 @@ void ConfigurationWebServer::Initialise() {
             const bool checked = prefs.isKey(field.key)
                 ? (prefs.getString(field.key, "") == "true")
                 : field.defaultOn;
-            infoFieldsHtml += F("<label class=\"flex items-center gap-2\"><input type=\"checkbox\" class=\"accent-green-500\" name=\"");
+            infoFieldsHtml += F("<label class=\"check\"><input type=\"checkbox\" name=\"");
             infoFieldsHtml += field.key;
             infoFieldsHtml += '"';
             if (checked) infoFieldsHtml += F(" checked");
@@ -1744,7 +1559,7 @@ void ConfigurationWebServer::Initialise() {
         for (size_t i = 0; i < SPACE_SCREEN_DEF_COUNT; ++i) {
             const SpaceScreenDef& s = SPACE_SCREEN_DEFS[i];
             const bool on = spaceScreensAll || spaceScreensCsv.indexOf("," + String(s.id) + ",") >= 0;
-            spaceScreensHtml += F("<label class=\"flex items-center gap-2\"><input type=\"checkbox\" class=\"accent-sky-400\" name=\"scr-");
+            spaceScreensHtml += F("<label class=\"check\"><input type=\"checkbox\" name=\"scr-");
             spaceScreensHtml += s.id;
             spaceScreensHtml += '"';
             if (on) spaceScreensHtml += F(" checked");
@@ -1875,7 +1690,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1916,6 +1731,15 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "MIL_ALERT")      return milAlert == "true" ? "checked" : "";
                 if (var == "HELI_SHOW")      return heliShow == "true" ? "checked" : "";
                 if (var == "SPC_SHOW")       return spcShow == "true" ? "checked" : "";
+                // visual-alert selects: the OFF/RING branches also catch legacy/unknown
+                // values, so each select always renders exactly one option selected
+                if (var == "MILVIS_OFF")     return (milVisual == "ring" || milVisual == "flash") ? "" : "selected";
+                if (var == "MILVIS_RING")    return milVisual == "ring" ? "selected" : "";
+                if (var == "MILVIS_FLASH")   return milVisual == "flash" ? "selected" : "";
+                if (var == "EMGVIS_OFF")     return emgVisual == "off" ? "selected" : "";
+                if (var == "EMGVIS_RING")    return (emgVisual == "off" || emgVisual == "flash") ? "" : "selected";
+                if (var == "EMGVIS_FLASH")   return emgVisual == "flash" ? "selected" : "";
+                if (var == "VISUAL_NIGHT")   return visualNight == "true" ? "checked" : "";
                 if (var == "LOGBOOK")        return logbookOn == "true" ? "checked" : "";
                 if (var == "LOOKUP")         return lookupOn == "true" ? "checked" : "";
                 if (var == "LOOKUP_ALERT")   return lookupAlert == "true" ? "checked" : "";
@@ -1929,6 +1753,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "MQTT_DISCO")     return mqttDisco == "true" ? "checked" : "";
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -1936,7 +1763,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens]
+            [deviceName, deviceIp, wifiRssi, eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens]
             (const String& var) -> String {
                 if (var == "EAM_BASE_URL")   return eamBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -1961,6 +1788,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "EAM_SCREENS")    return eamScreens;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -1968,7 +1798,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [spaceBaseUrl, latitude, longitude, ntfyTopic, alertLaunch, alertAurora, alertFlare, alertIss, alertDsn, alertAsteroid, chimeOnAlert, autoDimEnabled, brightness, spaceScreensHtml]
+            [deviceName, deviceIp, wifiRssi, spaceBaseUrl, latitude, longitude, ntfyTopic, alertLaunch, alertAurora, alertFlare, alertIss, alertDsn, alertAsteroid, chimeOnAlert, autoDimEnabled, brightness, spaceScreensHtml]
             (const String& var) -> String {
                 if (var == "SPACE_BASE_URL") return spaceBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -1985,6 +1815,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "SPACE_SCREENS_HTML") return spaceScreensHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -1992,7 +1825,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [seBaseUrl, latitude, longitude, seMinMag, seRadius, seBigMag, seNearMag, ntfyTopic, alertBig, alertNear, alertTsunami, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, seBaseUrl, latitude, longitude, seMinMag, seRadius, seBigMag, seNearMag, ntfyTopic, alertBig, alertNear, alertTsunami, autoDimEnabled, brightness]
             (const String& var) -> String {
                 if (var == "SE_BASE_URL")    return seBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -2008,6 +1841,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -2015,7 +1851,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [ebirdKey, latitude, longitude, bdRadius, bdBack, bdTargets, ntfyTopic, alertNotable, alertTarget, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, ebirdKey, latitude, longitude, bdRadius, bdBack, bdTargets, ntfyTopic, alertNotable, alertTarget, autoDimEnabled, brightness]
             (const String& var) -> String {
                 if (var == "EBIRD_KEY")      return ebirdKey;
                 if (var == "LATITUDE")       return latitude;
@@ -2029,6 +1865,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -2036,7 +1875,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [fiWater, latitude, longitude, fiUsgs, fiNoaa, fiBuoy, fiUnits, fiBaseUrl, fiTz, fiFlowCfs, fiTempLo, fiTempHi, vTide, vFlow, vTemp, vSolunar, vWeather, vMoon, vCatch, vClock, aFlow, aTemp, aSolunar, aBaro, aTide, fiChime, ntfyTopic, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, fiWater, latitude, longitude, fiUsgs, fiNoaa, fiBuoy, fiUnits, fiBaseUrl, fiTz, fiFlowCfs, fiTempLo, fiTempHi, vTide, vFlow, vTemp, vSolunar, vWeather, vMoon, vCatch, vClock, aFlow, aTemp, aSolunar, aBaro, aTide, fiChime, ntfyTopic, autoDimEnabled, brightness]
             (const String& var) -> String {
                 if (var == "FI_WATER_BOTH")  return (fiWater == "fresh" || fiWater == "salt") ? "" : "selected";
                 if (var == "FI_WATER_FRESH") return fiWater == "fresh" ? "selected" : "";
@@ -2071,6 +1910,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -2078,7 +1920,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [clBaseUrl, latitude, longitude, clTz, clSessionPct, clWeekPct, ntfyTopic, alertSession, alertWeek, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, clBaseUrl, latitude, longitude, clTz, clSessionPct, clWeekPct, ntfyTopic, alertSession, alertWeek, autoDimEnabled, brightness]
             (const String& var) -> String {
                 if (var == "CL_BASE_URL")    return clBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -2092,6 +1934,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -2099,7 +1944,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [scHost, scBaseUrl, scLimit, scAlert, scTz, latitude, longitude, vLast, vLive, vList, vStats, vDevice, vClock, aSpeeder, aRecord, aOffline, ntfyTopic, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, scHost, scBaseUrl, scLimit, scAlert, scTz, latitude, longitude, vLast, vLive, vList, vStats, vDevice, vClock, aSpeeder, aRecord, aOffline, ntfyTopic, autoDimEnabled, brightness]
             (const String& var) -> String {
                 if (var == "SC_HOST")        return scHost;
                 if (var == "SC_BASE_URL")    return scBaseUrl;
@@ -2121,6 +1966,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
                 return "";
             }
         );
@@ -2179,6 +2027,8 @@ void ConfigurationWebServer::Initialise() {
         }
 #endif
         TrySaveParam("lookup-dist");
+        TrySaveParam("mil-visual");
+        TrySaveParam("emg-visual");
         TrySaveParam("mqtt-host");
         TrySaveParam("mqtt-port");
         TrySaveParam("mqtt-user");
@@ -2210,6 +2060,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("infotext", request->hasParam("infotext", true) ? "true" : "false");
         prefs.putString("mil-show", request->hasParam("mil-show", true) ? "true" : "false");
         prefs.putString("mil-alert", request->hasParam("mil-alert", true) ? "true" : "false");
+        prefs.putString("visual-night", request->hasParam("visual-night", true) ? "true" : "false");
         prefs.putString("heli-show", request->hasParam("heli-show", true) ? "true" : "false");
         prefs.putString("spc-show", request->hasParam("spc-show", true) ? "true" : "false");
         prefs.putString("logbook", request->hasParam("logbook", true) ? "true" : "false");
