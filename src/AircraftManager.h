@@ -321,7 +321,7 @@ private:
     void RunEnrichTask();                        // blocking adsbdb GET / photo download, off-loop
     void RequestMetadata(const String& icao24);                      // loop: queue a metadata lookup
     void RequestRoute(const String& icao24, const String& callsign); // loop: queue a route lookup
-    void RequestPhoto(const String& icao24, const String& url);      // loop: queue a photo download
+    void RequestPhoto(const String& icao24, const String& url, const String& authKey = ""); // loop: queue a photo download (authKey set in cloud mode)
     void ConsumeEnrichResults();                 // loop: apply a ready result, non-blocking
 
     void HandleTouch();             // poll the touch panel, classify tap vs swipe

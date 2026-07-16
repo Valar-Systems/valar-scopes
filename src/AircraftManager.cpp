@@ -146,6 +146,10 @@ struct EnrichResult {
     String typeCode, typeName, operatorName, registration, photoUrl;
     // Route (CloudEnrich carries the route in the same fields)
     String routeCallsign, routeOrigin, routeDest;
+    // CloudEnrich stock-photo join: the proxy's relative /v1/photo path (made
+    // absolute in ApplyEnrichment) and whether it's a generic type shot.
+    String photoPath;
+    bool photoRepresentative = false;
     // Photo: the raw JPEG body, decoded on the loop so the sprite stays single-task
     bool photoFetched = false;
     String photoBytes;
@@ -331,11 +335,17 @@ EnrichResult* fetchRoute(HttpRequestManager& http, const String& callsign)
     return res;
 }
 
-EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url)
+EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url, const String& authKey)
 {
     EnrichResult* res = new EnrichResult();
 
-    HttpResult result = http.Get(url);
+    // The BYO adsbdb thumbnail host is public; the cloud /v1/photo route needs
+    // the device key. authKey is "" for BYO, the proxy key in cloud mode.
+    std::vector<std::pair<String, String>> headers;
+    if (!authKey.isEmpty())
+        headers.push_back({ "X-Blip-Key", authKey });
+
+    HttpResult result = http.Get(url, {}, headers);
     if (!result.success) {
         Serial.printf("[photo] fetch failed: %s\n", result.errorMessage.c_str());
         return res; // photoFetched stays false
@@ -394,6 +404,8 @@ EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& re
     res->operatorName = e.operatorName;
     res->routeOrigin  = e.routeOrigin;
     res->routeDest    = e.routeDest;
+    res->photoPath          = e.photoPath;
+    res->photoRepresentative = e.photoRepresentative;
     res->routeCallsign = req.callsign;
     return res;
 }
@@ -2257,32 +2269,44 @@ void AircraftManager::ProcessDetailLookups()
 #ifdef FEATURE_CLOUD_FEED
     if (useCloudSource) {
         // Cloud detail path: ONE pre-joined /v1/enrich GET covers what used to be
-        // two adsbdb lookups (metadata + route). Photos are deliberately absent in
-        // cloud mode (no licensed source; see proxy/README.md), so the card shows
-        // the silhouette immediately instead of "Loading photo...".
-        if (photoIcao != selectedIcao) {
-            photoIcao = selectedIcao;
-            photoReady = false;
-            photoResolved = true;
-        }
-
+        // two adsbdb lookups (metadata + route), and (when the proxy's stock
+        // library has an image for this hex/type) a licensed photo path in `p`.
+        // Step 1 -- metadata/route/photo-path via the single enrich GET.
         if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
             if (millis() < tracked.metadataRetryAfter)
                 return;
             // The LRU keeps the last few enrichments across aircraft eviction, so
             // re-inspecting a contact that flapped out of range is instant and
-            // network-free.
+            // network-free. On a hit, fall through to the photo step below.
             if (const CloudFeed::Enrichment* cached = enrichCache.Find(selectedIcao)) {
                 ApplyEnrichment(tracked, *cached);
+            } else {
+                String callsign = tracked.state.callsign;
+                callsign.trim();
+                auto [acLat, acLon] = tracked.GetDisplayPosition();
+                tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
+                RequestCloudEnrich(selectedIcao, callsign, acLat, acLon);
                 return;
             }
-            String callsign = tracked.state.callsign;
-            callsign.trim();
-            auto [acLat, acLon] = tracked.GetDisplayPosition();
-            tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
-            RequestCloudEnrich(selectedIcao, callsign, acLat, acLon);
         }
-        return; // Fetching (await the result) or Fetched (card complete)
+        if (tracked.metadataState == TrackedAircraft::MetadataState::Fetching)
+            return; // await the enrich result before deciding on a photo
+
+        // Step 2 -- photo, once per aircraft. Mirrors the BYO photo step but
+        // authenticated with the cloud key (the /v1/photo route requires it).
+        // photoUrl is the absolute proxy URL ApplyEnrichment built from `p`, or
+        // "" when the library has no image (-> silhouette, as before).
+        if (photoIcao != selectedIcao) {
+            photoIcao = selectedIcao; // mark attempted regardless of outcome (no retry)
+            photoReady = false;
+            if (!tracked.photoUrl.isEmpty()) {
+                photoResolved = false; // a fetch is coming; card shows "Loading..." until it lands
+                RequestPhoto(selectedIcao, tracked.photoUrl, cloudKey);
+            } else {
+                photoResolved = true;  // no licensed image: resolved now, card shows the silhouette
+            }
+        }
+        return;
     }
 #endif
 
@@ -2368,7 +2392,7 @@ void AircraftManager::RunEnrichTask()
         switch (req->kind) {
             case EnrichKind::Metadata: res = fetchAircraftMetadata(http, req->icao24); break;
             case EnrichKind::Route:    res = fetchRoute(http, req->callsign);          break;
-            case EnrichKind::Photo:    res = fetchPhoto(http, req->url);               break;
+            case EnrichKind::Photo:    res = fetchPhoto(http, req->url, req->cloudKey);   break;
 #ifdef FEATURE_CLOUD_FEED
             case EnrichKind::CloudEnrich: res = fetchCloudEnrich(http, *req);          break;
 #endif
@@ -2402,9 +2426,11 @@ void AircraftManager::RequestRoute(const String& icao24, const String& callsign)
         enrichInFlight = true;
 }
 
-void AircraftManager::RequestPhoto(const String& icao24, const String& url)
+void AircraftManager::RequestPhoto(const String& icao24, const String& url, const String& authKey)
 {
-    if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Photo, icao24, "", url }))
+    EnrichRequest* req = new EnrichRequest{ EnrichKind::Photo, icao24, "", url };
+    req->cloudKey = authKey; // "" for the BYO adsbdb thumbnail; the proxy key in cloud mode
+    if (enqueueEnrich(enrichRequestQueue, req))
         enrichInFlight = true;
 }
 
@@ -2432,7 +2458,17 @@ void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed:
     tracked.typeName = e.typeName;
     tracked.operatorName = e.operatorName;
     tracked.registration = e.registration;
-    tracked.photoUrl = ""; // photo-less in cloud mode (no licensed source)
+    // Stock-photo join: when the proxy has a licensed image for this hex/type it
+    // sends a relative path (`p`); make it absolute against the same cloud host
+    // so the photo fetch rides the existing keep-alive connection (no new TLS
+    // host). Empty `p` -> photo-less, as before (the card shows the silhouette).
+    if (!e.photoPath.isEmpty()) {
+        tracked.photoUrl = cloudUrl + e.photoPath;
+        tracked.photoRepresentative = e.photoRepresentative;
+    } else {
+        tracked.photoUrl = "";
+        tracked.photoRepresentative = false;
+    }
     tracked.routeOrigin = e.routeOrigin;
     tracked.routeDest = e.routeDest;
     // Mark the route resolved for the CURRENT callsign (even when empty), so the
@@ -2537,6 +2573,8 @@ void AircraftManager::ConsumeEnrichResults()
                     e.operatorName = res->operatorName;
                     e.routeOrigin  = res->routeOrigin;
                     e.routeDest    = res->routeDest;
+                    e.photoPath          = res->photoPath;
+                    e.photoRepresentative = res->photoRepresentative;
                     ApplyEnrichment(t, e);
                     enrichCache.Insert(res->icao24, e); // re-taps after eviction stay instant
                 } else if (t.enrichAttempts + 1 >= 3) {
@@ -2595,6 +2633,15 @@ void AircraftManager::ConsumeEnrichResults()
                     photoSprite.fillScreen(lgfx::color888(0, 0, 0));
                     photoReady = photoSprite.drawJpg((const uint8_t*)res->photoBytes.c_str(),
                                                      res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
+                    // A failed decode after a successful fetch must be LOUD: a progressive
+                    // JPEG (undecodable by TJpgDec), a truncated body, or an HTML error page
+                    // all land here, and silently showing the silhouette hides the bug
+                    // (cost a bench hour on the cloud stock-photo bring-up).
+                    if (!photoReady)
+                        Serial.printf("[photo] %s: decode FAILED (bytes=%u head=%02x%02x)\n",
+                                      res->icao24.c_str(), (unsigned)res->photoBytes.length(),
+                                      res->photoBytes.length() > 0 ? (uint8_t)res->photoBytes[0] : 0,
+                                      res->photoBytes.length() > 1 ? (uint8_t)res->photoBytes[1] : 0);
                 }
             }
             break;
@@ -2921,6 +2968,14 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         if (showPhoto) {
             // blit onto the band sprite directly, shifting Y by the band top like BandCanvas does
             photoSprite.pushSprite(&backbuffer.sprite(), cx - PHOTO_W / 2, 30 - backbuffer.offsetY());
+            if (tracked.photoRepresentative) {
+                // Cloud stock photo is a generic type shot, not this exact
+                // airframe -- label it honestly (a per-hex override stays
+                // uncaptioned). Overlaid on the lower edge of the image.
+                backbuffer.setTextSize(1);
+                backbuffer.setTextColor(lgfx::color888(0, 230, 0));
+                centered("representative photo", 30 + PHOTO_H - 12);
+            }
         } else if (photoSettled) {
             DrawAircraftSilhouette(backbuffer, cx, 76, tracked);
             backbuffer.setTextSize(1);

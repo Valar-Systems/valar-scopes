@@ -117,7 +117,8 @@ One aircraft's details, pre-joined from the aircraft DB and the route DB —
 one request replaces the firmware's old two adsbdb calls. Target < 512 B.
 
 ```json
-{"v":1,"r":"HB-JMB","t":"A343","tn":"Airbus A340-313","op":"Swiss","o":"ZRH","d":"JFK"}
+{"v":1,"r":"HB-JMB","t":"A343","tn":"Airbus A340-313","op":"Swiss","o":"ZRH","d":"JFK",
+ "p":"/v1/photo/photo:A343-1a2b3c4d","pk":"type"}
 ```
 
 | Key | Meaning | Unknown |
@@ -127,6 +128,12 @@ one request replaces the firmware's old two adsbdb calls. Target < 512 B.
 | tn | friendly type name (`desc` upstream, else KV `tn:<CODE>`, else baked table) | `""` |
 | op | operator / registered owner | `""` |
 | o / d | route origin / destination (IATA preferred, else ICAO; first/last leg of multi-leg) | `""` |
+| p | relative path of a licensed stock photo for this aircraft, when the library has one | *(key absent)* |
+| pk | `hex` (per-airframe override) \| `type` (generic stock — card labels it "representative photo") | *(key absent)* |
+
+`p`/`pk` are **appended, append-only** (no schema bump): the per-hex override is
+resolved first, then the generic type shot; when the library has neither, both
+keys are omitted. See the stock-photo section below and `GET /v1/photo/<key>`.
 
 `cs` enables the route lookup. `lat`/`lon` (the aircraft's live position, which
 the device already has) enable the plausibility check: an implausible route —
@@ -164,6 +171,23 @@ Devices fetch on boot + daily and apply without reboot.
 Baked tiers: default/`c3-128` poll 5/15/60 s (C3 enriches `watchlist`-only);
 `s3-146`/`s3-21` poll 2/10/45 s — the S3's near-realtime motion is a pure
 server-side knob.
+
+### `GET /v1/photo/<key>`
+
+Serves one immutable, content-addressed stock photo (`key` =
+`photo:<TYPE|hex>-<hash8>`, exactly the value returned in the enrich `p` field).
+Baseline JPEG, pre-sized to the device sprite at ingest (EXIF stripped),
+`Cache-Control: public, max-age=31536000, immutable` — safe because the key is
+content-addressed (a re-upload lands on a new key + pointer flip). Same
+`X-Blip-Key` auth + rate limiting as the other `/v1/*` routes; a malformed key
+is `400`, an absent one `404` (so the firmware falls back to the silhouette).
+
+### `GET /credits`
+
+**Public, unauthenticated** photo-attribution page (HTML), rendered from the
+manifest the ingest script publishes to KV — satisfies CC-BY / CC-BY-SA / OGL
+attribution in one place and courtesy-credits the PD shots. Linked from the
+device config page; a browser follows the link, so no device key.
 
 ### `GET /healthz`
 
@@ -437,9 +461,34 @@ phase — the card already renders `r`/`t`/`tn`/`op` whenever they arrive.
 Tests per phase in the existing vitest suite: empty-meta TTL, mil-block
 floor, KV side-table hit, prefix fill.
 
-### Stock photo library for cloud mode (accepted 2026-07-09)
+### Stock photo library for cloud mode (accepted 2026-07-09; pipeline shipped 2026-07-16)
 
-Driver: cloud mode is deliberately photo-less (`AircraftManager.cpp` blanks
+> **Status: wire + serving + firmware shipped; content population is the
+> remaining (post-launch) step.** The pipeline below is live and tested:
+> `GET /v1/photo/<key>` serving ([src/photos.ts](src/photos.ts)), the enrich
+> `p`/`pk` join ([src/enrich.ts](src/enrich.ts)), the per-layer license gate +
+> content-addressed keys + credits render ([src/photolicense.ts](src/photolicense.ts)),
+> the `GET /credits` page, the `npm run ingest` tool
+> ([scripts/ingest-photos.ts](scripts/ingest-photos.ts)), and the firmware delta
+> (cloud enrich reads `p` into `photoUrl`, authenticated photo fetch, the
+> "representative photo" caption on `pk:"type"`). What remains is **running the
+> harvest to populate `photos/manifest.json` + KV** (Tier-1 military + top ~100
+> civil by traffic first) — not on the pilot's launch critical path; photos
+> land as the first fleet OTA (v6) after launch.
+
+**Harvest-phase checklist (when content population begins):**
+
+1. **First-article discipline (like hardware).** Seed **3–5 hand-picked photos
+   first** — a C-17, a 737, one GA type — and verify the *whole* chain on a
+   bench unit before any bulk ingest: enrich carries `p`/`pk`, the photo rides
+   the keep-alive connection, the "representative photo" caption renders on
+   `pk:"type"`, and the `/credits` page lists the entries. Only then bulk-ingest.
+2. **Photo-fetch outcome telemetry (noted, not built).** If photo-fetch failures
+   show up at fleet scale, add fetch outcomes to the existing `[ota-mem]`-style
+   one-shot header telemetry family (see `X-Blip-OTA-Mem` / `recordOtaMem`).
+   Deferred until there's evidence it's needed.
+
+Driver: cloud mode was deliberately photo-less (`AircraftManager.cpp` blanked
 `photoUrl` — "no licensed source"; the BYO builds' adsbdb/planespotters
 thumbnails can't be re-hosted). A self-hosted, owner-curated stock library is
 the licensing-clean photo path for cloud devices — and for military types the

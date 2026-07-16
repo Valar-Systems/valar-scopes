@@ -37,7 +37,8 @@ struct TrackedAircraft {
     String typeName = "";    // adsbdb full model, e.g. "Boeing 737-800"
     String operatorName = "";
     String registration = "";
-    String photoUrl = "";    // adsbdb url_photo_thumbnail; fetched/decoded on inspect
+    String photoUrl = "";    // adsbdb url_photo_thumbnail (BYO) or the proxy stock photo (cloud); fetched/decoded on inspect
+    bool photoRepresentative = false; // cloud stock photo is a generic type shot -> card captions "representative photo"
 
     // Flight route, looked up by callsign from adsbdb only when the aircraft is
     // inspected (detail view). routeCallsign records the callsign the route was

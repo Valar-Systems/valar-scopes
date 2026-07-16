@@ -3,6 +3,7 @@ import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
 import { record, recordOtaMem, type RequestMetric } from "./metrics";
+import { handleCredits, handlePhoto } from "./photos";
 import { limitByIp, limitByKey } from "./ratelimit";
 import { feedHealth } from "./upstreams/chain";
 import { errorResponse, jsonResponse } from "./util";
@@ -34,6 +35,9 @@ async function route(
 ): Promise<Response> {
   if (request.method !== "GET") return errorResponse(405, "method_not_allowed");
   if (url.pathname === "/healthz") return handleHealth(env);
+  // Public photo-attribution page (a browser follows the config page's link; no
+  // device key). Rendered from the manifest the ingest script publishes to KV.
+  if (url.pathname === "/credits") return handleCredits(env);
   if (!url.pathname.startsWith("/v1/")) return errorResponse(404, "not_found");
 
   // Per-IP limit first (throttles key-guessing too), then auth, then per-key.
@@ -54,6 +58,8 @@ async function route(
   if (url.pathname === "/v1/config") return handleConfig(request, env);
   const enrichMatch = url.pathname.match(/^\/v1\/enrich\/([^/]+)$/);
   if (enrichMatch) return handleEnrich(request, env, ctx, enrichMatch[1] as string, meta);
+  const photoMatch = url.pathname.match(/^\/v1\/photo\/([^/]+)$/);
+  if (photoMatch) return handlePhoto(env, photoMatch[1] as string);
   return errorResponse(404, "not_found");
 }
 
