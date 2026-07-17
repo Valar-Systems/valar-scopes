@@ -178,6 +178,45 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 </div>
                 <span class="hint">Tip: paste a &ldquo;lat, lon&rdquo; pair (right-click a spot in Google Maps and copy it) into the latitude box and both fields fill in.</span>
 
+                <details class="auto">
+                    <summary>Saved locations (home / work)</summary>
+                    <span class="hint">Store your regular spots, then &ldquo;Use&rdquo; to load one into the fields above &mdash; save the form to switch. &ldquo;Save here&rdquo; captures the current lat/lon into a slot.</span>
+                    <div id="locslots">
+                        <div class="row loc-slot" data-slot="0">
+                            <input name="loc0-name" value='%LOC0_NAME%' maxlength="16" placeholder="Home" class="grow">
+                            <input name="loc0-lat" value='%LOC0_LAT%' placeholder="lat" class="w8">
+                            <input name="loc0-lon" value='%LOC0_LON%' placeholder="lon" class="w8">
+                            <button type="button" class="btn-line loc-use">Use</button>
+                            <button type="button" class="btn-line loc-save">Save here</button>
+                        </div>
+                        <div class="row loc-slot" data-slot="1">
+                            <input name="loc1-name" value='%LOC1_NAME%' maxlength="16" placeholder="Work" class="grow">
+                            <input name="loc1-lat" value='%LOC1_LAT%' placeholder="lat" class="w8">
+                            <input name="loc1-lon" value='%LOC1_LON%' placeholder="lon" class="w8">
+                            <button type="button" class="btn-line loc-use">Use</button>
+                            <button type="button" class="btn-line loc-save">Save here</button>
+                        </div>
+                        <div class="row loc-slot" data-slot="2">
+                            <input name="loc2-name" value='%LOC2_NAME%' maxlength="16" placeholder="Trip" class="grow">
+                            <input name="loc2-lat" value='%LOC2_LAT%' placeholder="lat" class="w8">
+                            <input name="loc2-lon" value='%LOC2_LON%' placeholder="lon" class="w8">
+                            <button type="button" class="btn-line loc-use">Use</button>
+                            <button type="button" class="btn-line loc-save">Save here</button>
+                        </div>
+                    </div>
+                    <script>
+                    (function(){
+                      var lat=document.querySelector('[name=latitude]'), lon=document.querySelector('[name=longitude]');
+                      document.querySelectorAll('.loc-slot').forEach(function(s){
+                        var n=s.dataset.slot;
+                        var sl=s.querySelector('[name=loc'+n+'-lat]'), so=s.querySelector('[name=loc'+n+'-lon]');
+                        s.querySelector('.loc-use').addEventListener('click',function(){ if(sl.value&&so.value){lat.value=sl.value;lon.value=so.value;} });
+                        s.querySelector('.loc-save').addEventListener('click',function(){ sl.value=lat.value;so.value=lon.value; });
+                      });
+                    })();
+                    </script>
+                </details>
+
                 <label class="field">
                     <span>Radius:</span>
                     <input id="radius" name="radius" type="number" min="0.1" step="0.1" max="222" value='%RADIUS%' class="grow">
@@ -1477,6 +1516,17 @@ void ConfigurationWebServer::Initialise() {
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         const String latitude = HtmlEscape(prefs.getString("latitude", ""));
         const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        // Saved location profiles (home / work / trip); the config-page JS loads
+        // a slot into the lat/lon fields on "Use", persisted here as plain slots.
+        const String loc0Name = HtmlEscape(prefs.getString("loc0-name", ""));
+        const String loc0Lat  = HtmlEscape(prefs.getString("loc0-lat", ""));
+        const String loc0Lon  = HtmlEscape(prefs.getString("loc0-lon", ""));
+        const String loc1Name = HtmlEscape(prefs.getString("loc1-name", ""));
+        const String loc1Lat  = HtmlEscape(prefs.getString("loc1-lat", ""));
+        const String loc1Lon  = HtmlEscape(prefs.getString("loc1-lon", ""));
+        const String loc2Name = HtmlEscape(prefs.getString("loc2-name", ""));
+        const String loc2Lat  = HtmlEscape(prefs.getString("loc2-lat", ""));
+        const String loc2Lon  = HtmlEscape(prefs.getString("loc2-lon", ""));
         const String radius = HtmlEscape(prefs.getString("radius", "100"));
         // isKey() probes without logging; a plain getString() on this not-yet-saved
         // key spams "nvs_get_str ... NOT_FOUND" on every page load until first save
@@ -1743,7 +1793,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1804,6 +1854,15 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AIRPORTS_MIN_ALL")   return airportsMin == "all" ? "selected" : "";
                 if (var == "AIRPORTS_MIN_MED")   return airportsMin == "med" ? "selected" : "";
                 if (var == "AIRPORTS_MIN_LARGE") return airportsMin == "large" ? "selected" : "";
+                if (var == "LOC0_NAME") return loc0Name;
+                if (var == "LOC0_LAT")  return loc0Lat;
+                if (var == "LOC0_LON")  return loc0Lon;
+                if (var == "LOC1_NAME") return loc1Name;
+                if (var == "LOC1_LAT")  return loc1Lat;
+                if (var == "LOC1_LON")  return loc1Lon;
+                if (var == "LOC2_NAME") return loc2Name;
+                if (var == "LOC2_LAT")  return loc2Lat;
+                if (var == "LOC2_LON")  return loc2Lon;
                 if (var == "LOOKUP")         return lookupOn == "true" ? "checked" : "";
                 if (var == "LOOKUP_ALERT")   return lookupAlert == "true" ? "checked" : "";
                 if (var == "LOOKUP_DIST")    return lookupDist;
@@ -2069,6 +2128,10 @@ void ConfigurationWebServer::Initialise() {
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         TrySaveParam("latitude");
         TrySaveParam("longitude");
+        // Saved location profiles (home / work / trip).
+        TrySaveParam("loc0-name"); TrySaveParam("loc0-lat"); TrySaveParam("loc0-lon");
+        TrySaveParam("loc1-name"); TrySaveParam("loc1-lat"); TrySaveParam("loc1-lon");
+        TrySaveParam("loc2-name"); TrySaveParam("loc2-lat"); TrySaveParam("loc2-lon");
         TrySaveParam("radius");
         TrySaveParam("radius-unit");
         TrySaveParam("brightness");
