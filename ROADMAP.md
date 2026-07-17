@@ -68,9 +68,9 @@ For a product whose emotional hook is plane-spotting, **history is the retention
     major-airport table in `include/Airports.h`, dim markers + IATA codes under the
     aircraft layer, `airports` display toggle default on). Follow-up: a
     `/v1/airports?lat&lon&r` cloud endpoint for the long tail of small fields.
-11. **Config apply without restart.** Settings currently take effect only after reboot
-    (`infoFieldEnabled` is populated once in `Initialise`). Save = live apply removes the
-    clunkiest moment in setup.
+11. **Config apply without restart** — **ALREADY SHIPPED** (verified 2026-07-16): every
+    web save raises `ConsumeConfigChanged` and `main.cpp` re-runs `Initialise()` live on
+    the loop task, no reboot. The roadmap entry came from a stale header comment, now fixed.
 12. **Receiver-health screen for local-feed users.** Feed message rate,
     aircraft-with-position count, last-fetch age — all already known to the fetch path.
     Turns Blipscope into a monitor for the customer's own ADS-B receiver.
