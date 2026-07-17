@@ -64,10 +64,10 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 
 ## Tier 3 — Bigger differentiators
 
-10. **Airport overlay on the radar.** Plot nearby airports as fixed labeled points —
-    grounds the whole display ("that blip is landing at *our* airport"). A baked
-    major-airports table works offline; a `/v1/airports?lat&lon&r` cloud endpoint
-    (KV-cached, append-only schema per the proxy rules) does it better.
+10. **Airport overlay on the radar** — **IMPLEMENTED 2026-07-16** (baked ~250-entry
+    major-airport table in `include/Airports.h`, dim markers + IATA codes under the
+    aircraft layer, `airports` display toggle default on). Follow-up: a
+    `/v1/airports?lat&lon&r` cloud endpoint for the long tail of small fields.
 11. **Config apply without restart.** Settings currently take effect only after reboot
     (`infoFieldEnabled` is populated once in `Initialise`). Save = live apply removes the
     clunkiest moment in setup.
