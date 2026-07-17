@@ -164,6 +164,11 @@ private:
     bool visualAlertActive = false;
     unsigned long flashBurstUntilMs = 0;
     uint32_t flashBurstColor = 0;
+    // Manual dismiss: tapping the ring (or anywhere during a flash burst) latches
+    // this, suppressing the alert until every alerting contact has left the screen,
+    // then it re-arms for the next genuinely new one. Fallback for the case where a
+    // contact lingers -- the on-screen gate in UpdateVisualAlerts is the main cure.
+    bool visualAlertDismissed = false;
 
     // "Look up!" overhead alert: flag a contact passing within overheadKm of the
     // centre so you can physically glance up and spot it.
@@ -475,6 +480,8 @@ private:
     // (edge ring pulse / full-screen flash) on top of whatever screen is active.
     void UpdateVisualAlerts();
     void DrawVisualAlert(BandCanvas& backbuffer) const;
+    bool TapDismissesAlert(int tx, int ty) const; // tap landed on an active ring / flash burst
+    void DismissVisualAlert();                     // latch the dismiss + clear the current overlay
 
     void PublishMqttState();     // retained JSON summary of the current picture
     void PublishMqttDiscovery(); // Home Assistant MQTT discovery configs (retained)
