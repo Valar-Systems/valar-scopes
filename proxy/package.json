@@ -17,7 +17,9 @@
     "derive-device-key": "tsx scripts/derive-device-key.ts",
     "dashboard": "tsx scripts/photo-dashboard.ts",
     "deploy:staging": "wrangler deploy --env staging",
-    "tail:staging": "wrangler tail --env staging"
+    "tail:staging": "wrangler tail --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "tail:production": "wrangler tail --env production"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
