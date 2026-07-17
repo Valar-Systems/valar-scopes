@@ -254,6 +254,7 @@ R"(
                         <label class="check"><input name="scanline" type="checkbox" %SCANLINE%><span>Radar sweep</span></label>
                         <label class="check"><input name="fade" type="checkbox" %FADE%><span>Sweep fade</span></label>
                         <label class="check"><input name="triangle" type="checkbox" %TRIANGLE%><span>Directional aircraft</span></label>
+                        <label class="check"><input name="airports" type="checkbox" %AIRPORTS%><span>Airports</span></label>
                         <label class="check"><input name="trail" type="checkbox" %TRAIL%><span>Flight trails</span></label>
                         <label class="check"><input name="altcolor" type="checkbox" %ALTCOLOR%><span>Altitude colors</span></label>
                         <label class="check"><input name="highlight" type="checkbox" %HIGHLIGHT%><span>Highlights</span></label>
@@ -1463,6 +1464,7 @@ void ConfigurationWebServer::Initialise() {
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
         const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
+        const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
         const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
         const String altColorEnabled = HtmlEscape(prefs.getString("altcolor", "true"));
         const String highlightEnabled = HtmlEscape(prefs.getString("highlight", "true"));
@@ -1704,7 +1706,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1733,6 +1735,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
+                if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
                 if (var == "ALTCOLOR")       return altColorEnabled == "true" ? "checked" : "";
                 if (var == "HIGHLIGHT")      return highlightEnabled == "true" ? "checked" : "";
@@ -2071,6 +2074,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("scanline", request->hasParam("scanline", true) ? "true" : "false");
         prefs.putString("fade", request->hasParam("fade", true) ? "true" : "false");
         prefs.putString("triangle", request->hasParam("triangle", true) ? "true" : "false");
+        prefs.putString("airports", request->hasParam("airports", true) ? "true" : "false");
         prefs.putString("trail", request->hasParam("trail", true) ? "true" : "false");
         prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");
         prefs.putString("highlight", request->hasParam("highlight", true) ? "true" : "false");

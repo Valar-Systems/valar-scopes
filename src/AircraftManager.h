@@ -54,6 +54,7 @@ private:
 
     bool displayInfoText = true;
     bool displayTriangles = true;
+    bool displayAirports = true;  // fixed airport markers from the baked table (Airports.h)
     bool displayTrails = true;
     bool displayAltColor = true;  // color aircraft markers by altitude band
     bool displayHighlight = true; // ring the nearest/highest/fastest contacts
@@ -297,6 +298,9 @@ private:
     LGFX& tft;
 
     void DrawRadarCircles(BandCanvas& backbuffer) const;
+    // Fixed airport markers (baked Airports.h table culled to the scan box),
+    // drawn under the aircraft layer so blips always win the ink.
+    void DrawAirports(BandCanvas& backbuffer) const;
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
 
     // Step the sweep beam one frame and, while paint-and-fade is active, paint

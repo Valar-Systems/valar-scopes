@@ -73,6 +73,8 @@ constexpr int LIST_COL_ALT  = 118; // altitude
 
 #include <ArduinoJson.h>
 
+#include "Airports.h" // baked major-airport table for the radar overlay
+
 // Cap on aircraft retained per fetch, applied to BOTH sources: keep only the nearest this-many to
 // the configured location so a busy feed (a local dump1090/readsb receiver, or a wide OpenSky box)
 // can't flood RAM, the tracked map, or the per-frame render.
@@ -481,6 +483,8 @@ void AircraftManager::Initialise()
     // configuration
     const String renderText = configServer.GetStoredString("infotext");
     const String renderTris = configServer.GetStoredString("triangle");
+    const String renderAirports = configServer.GetStoredString("airports");
+    if (!renderAirports.isEmpty()) displayAirports = renderAirports == "true";
     const String renderTrail = configServer.GetStoredString("trail");
     const String renderAltColor = configServer.GetStoredString("altcolor");
     const String renderHighlight = configServer.GetStoredString("highlight");
@@ -1509,6 +1513,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     DrawRadarCircles(backbuffer);
     DrawStaleIndicator(backbuffer); // quiet amber tag when the picture is dead-reckoning on old data
 
+    // fixed geography under the moving traffic: airports ground the picture
+    // ("that blip is landing at OUR airport")
+    if (displayAirports)
+        DrawAirports(backbuffer);
+
     // identify the "of interest" contacts to ring: nearest, highest, fastest
     String nearestIcao, highestIcao, fastestIcao;
     if (displayHighlight) {
@@ -1904,6 +1913,26 @@ void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
         const int px = CENTRE + (int)lroundf(labelR * cosf(a));
         const int py = CENTRE + (int)lroundf(labelR * sinf(a));
         backbuffer.drawString(p.c, px - (int)backbuffer.textWidth(p.c) / 2, py - 4);
+    }
+}
+
+void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
+{
+    // Dim, neutral ink: geography is context, not signal, so it must never
+    // compete with a blip. Cull on the scan box first -- the whole table is a
+    // few hundred float compares, cheap even per band on the C3.
+    const uint32_t MARK  = lgfx::color888(130, 130, 130);
+    const uint32_t LABEL = lgfx::color888(100, 100, 100);
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(LABEL);
+    for (size_t i = 0; i < AIRPORT_COUNT; ++i) {
+        const Airport& ap = AIRPORTS[i];
+        if (fabsf(ap.lat - (float)lat) > (float)radLat ||
+            fabsf(ap.lon - (float)lon) > (float)radLon)
+            continue;
+        auto [x, y] = ProjectCoordinateToScreen(ap.lat, ap.lon);
+        backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
+        backbuffer.drawString(ap.code, x + 5, y - 3);
     }
 }
 
