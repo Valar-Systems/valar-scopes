@@ -83,8 +83,11 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 
 ## Proxy-side (no firmware change; already accepted in proxy/README.md)
 
-- **Populate the stock-photo library.** Pipeline shipped 2026-07-16; cloud mode is
-  photo-less until the harvest runs (known regression vs adsbdb mode).
+- **Populate the stock-photo library** — **FIRST REAL BATCH SHIPPED 2026-07-16**: new
+  `npm run harvest` tool (Commons extmetadata → license-gated manifest rows) and 16 new
+  types ingested to staging (Tier-1 military, all PD service photos, + top civil
+  airliners; 21 types live on `/credits`). Remaining: civil long tail by traffic,
+  production ingest at launch.
 - **Military enrichment deepening** — **P0 + P1 SHIPPED 2026-07-16** (empty-meta
   negative TTL; mil-block + dbFlags operator floor at serve time, `proxy/src/military.ts`).
   Remaining: P2 static airframe dataset (license review required) and P3 callsign-prefix

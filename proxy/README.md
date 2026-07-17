@@ -473,10 +473,15 @@ floor, KV side-table hit, prefix fill.
 > the `GET /credits` page, the `npm run ingest` tool
 > ([scripts/ingest-photos.ts](scripts/ingest-photos.ts)), and the firmware delta
 > (cloud enrich reads `p` into `photoUrl`, authenticated photo fetch, the
-> "representative photo" caption on `pk:"type"`). What remains is **running the
-> harvest to populate `photos/manifest.json` + KV** (Tier-1 military + top ~100
-> civil by traffic first) — not on the pilot's launch critical path; photos
-> land as the first fleet OTA (v6) after launch.
+> "representative photo" caption on `pk:"type"`). **Harvest under way:** the
+> Commons harvest tool ([scripts/harvest-commons.ts](scripts/harvest-commons.ts),
+> `npm run harvest`) turns a pick sheet of Commons file titles into
+> license-gated manifest rows + downloaded sources, and the first real batch —
+> **Tier-1 military (C17 F16 F15 F35 A10 B52 C30J K35R E6 H60, all PD service
+> photos) + the first civil airliners (B738 A320 A321 B77W B789 A20N)** — was
+> ingested to staging 2026-07-16 (21 types live on `/credits`). Remaining: the
+> civil long tail ranked by proxy-log traffic (extend `photos/picksheet.json`,
+> re-run harvest + ingest), and production ingest at launch.
 
 **Harvest-phase checklist (when content population begins):**
 

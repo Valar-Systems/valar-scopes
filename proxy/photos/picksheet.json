@@ -1,0 +1,18 @@
+[
+  { "target": "C17",  "kind": "type", "layer": "mil-tier", "title": "File:C-17 test sortie.jpg" },
+  { "target": "F16",  "kind": "type", "layer": "mil-tier", "title": "File:USAF F-16C Profile.jpg" },
+  { "target": "F15",  "kind": "type", "layer": "mil-tier", "title": "File:F-15EX Eagle II.jpg" },
+  { "target": "F35",  "kind": "type", "layer": "mil-tier", "title": "File:USAF F-35A Lightning II during exercise Cope North 22 at the Tinian International Airport.jpg" },
+  { "target": "A10",  "kind": "type", "layer": "mil-tier", "title": "File:US Air Force A-10 Thunderbolt II formation flight over Wake Island - June 2025.jpg" },
+  { "target": "B52",  "kind": "type", "layer": "mil-tier", "title": "File:B-52 Stratofortress takes off for conditioning flight (9680889).jpg" },
+  { "target": "C30J", "kind": "type", "layer": "mil-tier", "title": "File:C-130J Super Hercules conducts cargo operations (9778593).jpg" },
+  { "target": "K35R", "kind": "type", "layer": "mil-tier", "title": "File:KC-135 Stratotanker takes off from Spangdahlem Air Base (9080047).jpg" },
+  { "target": "E6",   "kind": "type", "layer": "mil-tier", "title": "File:United States Navy Boeing E-6B Mercury of Strategic Communications Wing ONE, Task Group 114.jpg" },
+  { "target": "H60",  "kind": "type", "layer": "mil-tier", "title": "File:UH-60 Black Hawk Flight (8298582).jpg" },
+  { "target": "B738", "kind": "type", "layer": "auto", "title": "File:Ryanair - Boeing 737-800 - EI-DCW - Orio al Serio International Airport-7869.jpg" },
+  { "target": "A320", "kind": "type", "layer": "auto", "title": "File:Lufthansa A320-211 (D-AIPC) landing at Munich Airport.jpg" },
+  { "target": "A321", "kind": "type", "layer": "auto", "title": "File:N135NN - Airbus A321-231 - American Airlines (30862544077).jpg" },
+  { "target": "B77W", "kind": "type", "layer": "auto", "title": "File:Emirates Boeing 777-31HER A6-EBZ Landing (8042290513).jpg" },
+  { "target": "B789", "kind": "type", "layer": "auto", "title": "File:Qantas Boeing 787-9 Dreamliner VH-ZNJ (100th Anniversary livery) landing at JFK Airport.jpg" },
+  { "target": "A20N", "kind": "type", "layer": "auto", "title": "File:Airbus A320neo landing 04.jpg" }
+]
