@@ -880,6 +880,12 @@ void AircraftManager::Update()
             lastMqttState = now;
             PublishMqttState();
         }
+        // Fire one-shot events (watchlist / emergency / military / overhead) so
+        // HA automations can trigger on the moment of appearance, not just poll
+        // the retained binary sensors. Deduped per aircraft, independent of the
+        // ntfy toggles above.
+        if (mqtt.Connected())
+            PublishMqttEvents();
     }
 
     // apply any completed background enrichment (metadata / route / photo) so the
@@ -3636,7 +3642,71 @@ void AircraftManager::PublishMqttDiscovery()
         send("binary_sensor", "military", d);
     }
 
+    // Device triggers: HA-native automation triggers that fire on the moment a
+    // contact of each class first appears (see PublishMqttEvents). Unlike the
+    // binary sensors above, an automation on these fires per-appearance, with
+    // the aircraft's details attached -- the "events, not state" ask. All match
+    // one shared event topic, discriminated by value_json.event.
+    const String eventTopic = mqttBase + "/event";
+    auto trigger = [&](const char* subtype, const char* eventName) {
+        JsonDocument d;
+        d["automation_type"] = "trigger";
+        d["type"] = "aircraft_alert";
+        d["subtype"] = subtype;
+        d["topic"] = eventTopic;
+        d["value_template"] = "{{ value_json.event }}";
+        d["payload"] = eventName;
+        JsonObject dev = d["device"].to<JsonObject>();
+        dev["identifiers"].to<JsonArray>().add(uid);
+        dev["name"] = id;
+        dev["manufacturer"] = "Valar Systems";
+        dev["model"] = "Blipscope";
+        String payload;
+        serializeJson(d, payload);
+        mqtt.Publish(String("homeassistant/device_automation/") + uid + "_ev_" + eventName + "/config", payload, true);
+    };
+    trigger("Watchlist aircraft appeared", "watchlist");
+    trigger("Emergency squawk appeared", "emergency");
+    trigger("Military aircraft appeared", "military");
+    trigger("Aircraft overhead", "overhead");
+
     Serial.printf("[mqtt] published HA discovery for %s\n", uid.c_str());
+}
+
+void AircraftManager::PublishMqttEvents()
+{
+    // One-shot per contact per class: HA automations fire on appearance, not on
+    // every poll. Independent of the ntfy alert toggles -- an MQTT-only user
+    // still gets events. Non-retained (an event is a moment, not a state).
+    const String eventTopic = mqttBase + "/event";
+    auto fire = [&](TrackedAircraft& t, uint8_t bit, const char* eventName) {
+        if (t.mqttEventFlags & (1 << bit)) return;
+        t.mqttEventFlags |= (1 << bit);
+        JsonDocument d;
+        d["event"] = eventName;
+        String cs = t.state.callsign; cs.trim();
+        if (cs.isEmpty()) { cs = t.state.icao24; cs.toUpperCase(); }
+        d["callsign"] = cs;
+        d["hex"] = t.state.icao24;
+        if (!t.typeCode.isEmpty())     d["type"] = t.typeCode;
+        if (!t.operatorName.isEmpty()) d["operator"] = t.operatorName;
+        d["alt_ft"] = (int)lroundf(t.state.baroAltitude * METRES_TO_FEET);
+        String payload;
+        serializeJson(d, payload);
+        mqtt.Publish(eventTopic, payload, false);
+    };
+
+    for (auto& [icao, tracked] : trackedAircraft) {
+        if (tracked.state.onGround) continue;
+        if (isEmergencySquawk(tracked.state.squawk))
+            fire(tracked, 1, "emergency");
+        if (alertMilitary && SpecialAircraft::IsMilitary(tracked.state.icao24))
+            fire(tracked, 2, "military");
+        if (MatchesWatchlist(tracked))
+            fire(tracked, 0, "watchlist");
+        if (IsOverhead(tracked))
+            fire(tracked, 3, "overhead");
+    }
 }
 
 void AircraftManager::DrawAircraftSilhouette(BandCanvas& g, int cx, int cy, const TrackedAircraft& tracked) const
