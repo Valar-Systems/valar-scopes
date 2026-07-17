@@ -221,7 +221,9 @@ R"(
                     <span class="hint">
                         Managed Blipscope feed &mdash; no account needed; leave both fields blank for the
                         built-in defaults. Aircraft data &copy; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>
-                        contributors, licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
+                        contributors, licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>;
+                        military airframe data from the <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics aircraft database</a>,
+                        licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>.
                     </span>
                 </div>
 )"

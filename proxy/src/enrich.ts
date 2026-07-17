@@ -37,6 +37,16 @@ interface RouteEntry {
   d: string;
 }
 
+// One row of the static military airframe side table (P2), ingested from the
+// Mictronics aircraft-database export (ODC-By 1.0) by scripts/ingest-mildb.ts.
+// Consulted at serve time only when the live DB record resolved empty, so it
+// can never fight fresher upstream data; no TTL (each ingest run overwrites).
+interface MilEntry {
+  r?: string; // registration / serial
+  t?: string; // ICAO type designator
+  tn?: string; // friendly type name (the export's description)
+}
+
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
@@ -154,11 +164,31 @@ export async function handleEnrich(
     ctx.waitUntil(Promise.allSettled([metaPromise, routePromise]).then(() => {}));
   }
 
+  // Military airframe side table (P2), consulted only when the live record
+  // came back with neither a registration nor a type (the military-card
+  // failure mode: live position, empty DB row). Serve-time like the operator
+  // floor below, so negatively-cached entries benefit without waiting out
+  // their TTL -- and one extra KV read only on the empty path. Fills reg /
+  // type / type name; the operator stays the floor's job (the dataset
+  // carries none). Runs before the photo join so the type unlocks the
+  // generic type shot.
+  let acR = acMeta?.r ?? "";
+  let acT = acMeta?.t ?? "";
+  let acTn = acMeta?.tn ?? "";
+  if (!acR && !acT) {
+    const mil = await env.ENRICH_KV.get<MilEntry>(`mil:${hex}`, "json");
+    if (mil) {
+      acR = str(mil.r);
+      acT = str(mil.t).toUpperCase();
+      acTn = str(mil.tn) || (acT ? (TYPE_NAMES[acT] ?? "") : "");
+    }
+  }
+
   // Stock-photo join: per-hex override first, then generic type stock (needs the
   // resolved type). Two fast KV reads worst case; a cold meta miss (no type yet)
   // still resolves a per-hex override, and the card's warm re-request picks up
   // the type shot. Absent library -> no `p`/`pk` fields (append-only schema).
-  const photo = await resolvePhoto(env, hex, acMeta?.t ?? "");
+  const photo = await resolvePhoto(env, hex, acT);
 
   // Military floor, applied at serve time so cached pre-floor entries get it
   // too: a hex in a military allocation (or dbFlags-marked military) whose
@@ -172,9 +202,9 @@ export async function handleEnrich(
 
   const body: Record<string, string | number> = {
     v: SCHEMA_V,
-    r: acMeta?.r ?? "",
-    t: acMeta?.t ?? "",
-    tn: acMeta?.tn ?? "",
+    r: acR,
+    t: acT,
+    tn: acTn,
     op,
     o: route.o,
     d: route.d,

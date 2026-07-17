@@ -256,4 +256,58 @@ describe("military enrichment deepening", () => {
     const res = await call(apiRequest("/v1/enrich/ae5004"));
     expect(((await res.json()) as { op: string }).op).toBe("US military");
   });
+
+  it("fills reg/type/name from the mil side table when the live record is empty (P2)", async () => {
+    await env.ENRICH_KV.put(
+      "mil:ae5005",
+      JSON.stringify({ r: "06-6162", t: "C17", tn: "Boeing C17A Globemaster III" }),
+    );
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5005" }).reply(200, hexBody([{ hex: "ae5005" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae5005"));
+    const body = (await res.json()) as { r: string; t: string; tn: string; op: string };
+    expect(body.r).toBe("06-6162");
+    expect(body.t).toBe("C17");
+    expect(body.tn).toBe("Boeing C17A Globemaster III");
+    expect(body.op).toBe("US military"); // the floor still owns the operator
+  });
+
+  it("mil side-table type unlocks the generic stock photo join", async () => {
+    await env.ENRICH_KV.put("mil:ae5006", JSON.stringify({ t: "C17" }));
+    await env.ENRICH_KV.put("pptr:t:C17", "photo:C17-0123abcd");
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5006" }).reply(200, hexBody([{ hex: "ae5006" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae5006"));
+    const body = (await res.json()) as { t: string; tn: string; p?: string; pk?: string };
+    expect(body.t).toBe("C17");
+    expect(body.tn).toBe("Boeing C-17 Globemaster III"); // baked TYPE_NAMES fallback (row had no tn)
+    expect(body.p).toBe("/v1/photo/photo:C17-0123abcd");
+    expect(body.pk).toBe("type");
+  });
+
+  it("never lets the mil side table override a resolved live record", async () => {
+    await env.ENRICH_KV.put("mil:ae5007", JSON.stringify({ r: "STALE-1", t: "K35R" }));
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/ae5007" })
+      .reply(200, hexBody([{ hex: "ae5007", r: "10-0220", t: "C17", ownOp: "United States Air Force" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae5007"));
+    const body = (await res.json()) as { r: string; t: string };
+    expect(body.r).toBe("10-0220");
+    expect(body.t).toBe("C17");
+  });
+
+  it("fills from the mil side table on cached-empty entries too (serve-time)", async () => {
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5008" }).reply(200, hexBody([{ hex: "ae5008" }]));
+    await call(apiRequest("/v1/enrich/ae5008")); // caches the empty meta
+    // The side table is ingested AFTER the empty meta was cached -- the next
+    // serve still picks it up, no TTL wait.
+    await env.ENRICH_KV.put("mil:ae5008", JSON.stringify({ r: "60-0057", t: "B52" }));
+
+    const res = await call(apiRequest("/v1/enrich/ae5008"));
+    const body = (await res.json()) as { r: string; t: string };
+    expect(body.r).toBe("60-0057");
+    expect(body.t).toBe("B52");
+  });
 });

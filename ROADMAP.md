@@ -96,9 +96,10 @@ For a product whose emotional hook is plane-spotting, **history is the retention
   production ingest at launch.
 - **Military enrichment deepening** — **P0 + P1 SHIPPED 2026-07-16** (empty-meta
   negative TTL; mil-block + dbFlags operator floor at serve time, `proxy/src/military.ts`);
-  **deployed to staging + smoke-tested 2026-07-16**. Remaining: P2 static airframe
-  dataset — **license review passed 2026-07-16** (Mictronics/aircraft-database, ODC-By
-  1.0, ~17k typed military airframes; details in proxy/README.md work queue) — and P3
+  **deployed to staging + smoke-tested 2026-07-16**. **P2 static airframe dataset
+  SHIPPED 2026-07-16** (license review passed: Mictronics/aircraft-database, ODC-By 1.0;
+  `mil:<hex>` KV side table + `npm run ingest:mildb`, ~17.3k typed military airframes —
+  type resolution also unlocks the existing military stock photos). Remaining: P3
   callsign-prefix fill.
 
 ## Idea backlog (unscheduled)
