@@ -1775,6 +1775,39 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         line(String(logbook.CountryCount()) + " countries  " + String(logbook.Contacts()) + " seen");
     }
 
+    // FEED health -- source, honest data age (device wait + server-side lag),
+    // poll cadence, and hard-fail count. Most valuable to local-receiver users
+    // (Blipscope doubles as a monitor for their dump1090/readsb), and it makes a
+    // quietly failing feed diagnosable from the device itself. Space-guarded per
+    // line like THIS DEVICE below so the small C3 panel never collides.
+    {
+        const int clockTop = SCREEN_SIZE - 30; // matches DrawClock's y
+        const char* src =
+#ifdef FEATURE_CLOUD_FEED
+            useCloudSource ? "cloud" :
+#endif
+            (useLocalSource ? "local" : "OpenSky");
+
+        String ageStr = "--";
+        if (lastGoodDataMs != 0) {
+            const unsigned long ageS = (millis() - lastGoodDataMs + dataLagAtMergeMs) / 1000UL;
+            ageStr = String(ageS) + "s";
+        }
+        const bool stale = IsDataStale();
+
+        if (y + lh <= clockTop) {
+            y += 6;
+            backbuffer.setTextColor(stale ? lgfx::color888(255, 176, 0)   // amber: worth a look
+                                          : lgfx::color888(0, 255, 0));
+            line(String("FEED ") + src + " " + ageStr + (stale ? " STALE" : ""));
+        }
+        if (y + lh <= clockTop) {
+            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+            line("poll " + String(CurrentPollIntervalMs() / 1000UL) + "s  fails " +
+                 String(FetchHardFailCount()));
+        }
+    }
+
     // live tilt from the on-board IMU (HAS_IMU boards) -- proves the sensor is alive and gives
     // the Stats screen something board-specific. Signed degrees: P = pitch, R = roll.
     if constexpr (variant::HAS_IMU) {
