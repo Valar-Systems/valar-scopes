@@ -35,6 +35,9 @@ class LGFX : public lgfx::LGFX_Device
 #elif defined(BLIPSCOPE_PANEL_SPD2010)
     Panel_SPD2010 _panel;
     lgfx::Bus_SPI _bus; // QSPI mode (selected by setting all four pin_io* below)
+#elif defined(BLIPSCOPE_PANEL_CO5300)
+    lgfx::Panel_CO5300 _panel; // built-in AMOLED QSPI driver (1.75" 466x466)
+    lgfx::Bus_SPI _bus;        // QSPI mode (selected by setting all four pin_io* below)
 #else
   #error "No BLIPSCOPE_PANEL_* selected for this variant -- add a panel block to LGFX.h."
 #endif
@@ -44,6 +47,8 @@ class LGFX : public lgfx::LGFX_Device
     lgfx::Touch_CST816S _touch;
 #elif defined(BLIPSCOPE_TOUCH_SPD2010)
     lgfx::Touch_SPD2010 _touch;
+#elif defined(BLIPSCOPE_TOUCH_FT5X06)
+    lgfx::Touch_FT5x06 _touch; // FT3168 is FT5x06-compatible
 #endif
 
 public:
@@ -158,6 +163,38 @@ public:
             // cfg.rgb_order = true; // flip if red/blue come out swapped on first bring-up
             _panel.config(cfg);
         }
+#elif defined(BLIPSCOPE_PANEL_CO5300)
+        {
+            // QSPI bus: all four pin_io* put Bus_SPI into quad mode. The CO5300 carries the command
+            // in-band (Panel_AMOLED framing), so there is no DC line -- same as the SPD2010 block.
+            auto cfg = _bus.config();
+            cfg.spi_host   = BLIPSCOPE_DISP_SPI_HOST;
+            cfg.freq_write = BLIPSCOPE_DISP_FREQ_WRITE;
+            cfg.pin_sclk = BLIPSCOPE_DISP_PIN_SCLK;
+            cfg.pin_dc   = -1;
+            cfg.pin_mosi = -1;
+            cfg.pin_miso = -1;
+            cfg.pin_io0  = BLIPSCOPE_DISP_PIN_IO0;
+            cfg.pin_io1  = BLIPSCOPE_DISP_PIN_IO1;
+            cfg.pin_io2  = BLIPSCOPE_DISP_PIN_IO2;
+            cfg.pin_io3  = BLIPSCOPE_DISP_PIN_IO3;
+            _bus.config(cfg);
+            _panel.setBus(&_bus);
+        }
+        {
+            // CO5300 466x466 round AMOLED. Geometry from the variant (square bounding box).
+            auto cfg = _panel.config();
+            cfg.pin_cs   = BLIPSCOPE_DISP_PIN_CS;
+            cfg.pin_rst  = BLIPSCOPE_DISP_PIN_RST;
+            cfg.pin_busy = -1;
+            cfg.memory_width  = variant::SCREEN_SIZE;
+            cfg.memory_height = variant::SCREEN_SIZE;
+            cfg.panel_width   = variant::SCREEN_SIZE;
+            cfg.panel_height  = variant::SCREEN_SIZE;
+            cfg.offset_x = 0;
+            cfg.offset_y = 0;
+            _panel.config(cfg);
+        }
 #endif // panel selection
 
         {
@@ -216,6 +253,28 @@ public:
             _panel.setTouch(&_touch);
         }
 #endif // BLIPSCOPE_TOUCH_SPD2010
+
+#if defined(BLIPSCOPE_TOUCH_FT5X06)
+        {
+            // FT3168 capacitive touch (FT5x06-compatible), sharing the I2C bus with the IMU.
+            auto cfg = _touch.config();
+            cfg.x_min = 0;
+            cfg.x_max = variant::SCREEN_SIZE - 1;
+            cfg.y_min = 0;
+            cfg.y_max = variant::SCREEN_SIZE - 1;
+            cfg.pin_int = BLIPSCOPE_TOUCH_PIN_INT;
+            cfg.pin_rst = BLIPSCOPE_TOUCH_PIN_RST;
+            cfg.bus_shared = true; // shared I2C (touch + IMU)
+            cfg.offset_rotation = 0;
+            cfg.i2c_port = BLIPSCOPE_TOUCH_I2C_PORT;
+            cfg.pin_sda = BLIPSCOPE_TOUCH_PIN_SDA;
+            cfg.pin_scl = BLIPSCOPE_TOUCH_PIN_SCL;
+            cfg.i2c_addr = BLIPSCOPE_TOUCH_I2C_ADDR;
+            cfg.freq = BLIPSCOPE_TOUCH_FREQ;
+            _touch.config(cfg);
+            _panel.setTouch(&_touch);
+        }
+#endif // BLIPSCOPE_TOUCH_FT5X06
 
         setPanel(&_panel);
     }
