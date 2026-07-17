@@ -58,6 +58,8 @@ static constexpr Airport AIRPORTS[] = {
     { 44.25f, -121.15f, "RDM" }, { 44.12f, -123.21f, "EUG" }, { 42.37f, -122.87f, "MFR" },
     { 39.50f, -119.77f, "RNO" }, { 36.78f, -119.72f, "FAT" }, { 46.26f, -119.12f, "PSC" },
     { 45.78f, -111.15f, "BZN" }, { 46.92f, -114.09f, "MSO" },
+    // Bend Municipal (KBDN; FAA "BDN", no IATA) -- busy GA field, user request:
+    { 44.09f, -121.20f, "BDN" },
     // --- Canada ---
     { 43.68f,  -79.63f, "YYZ" }, { 49.19f, -123.18f, "YVR" }, { 45.47f,  -73.74f, "YUL" },
     { 51.13f, -114.01f, "YYC" }, { 53.31f, -113.58f, "YEG" }, { 45.32f,  -75.67f, "YOW" },
