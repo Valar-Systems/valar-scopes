@@ -307,9 +307,12 @@ Everything above except the scoring-radius normalization landed as one feature:
   POST off the loop (built from the Logbook tallies + type list); a gold LEADERBOARD
   block on the Stats screen showing rank/points/season, clock-guarded like the others.
 - **README** privacy section documents exactly what an opted-in device sends.
-- **DEFERRED — scoring-radius normalization (30 mi background poll):** the submission
-  already carries `radiusKm` for context, but widening the *tracked* set to a fixed
-  scoring radius touches the exact render/heap path currently under investigation for
-  the [[s3-128-overnight-slowdown]]. Held as its own follow-up until that's root-caused,
-  so v1 doesn't perturb the bug hunt. Rarity weighting already does most of the radius
-  equalizing in the meantime.
+- **PARTIAL — scoring-radius fairness:** the board is now transparent about each
+  device's play radius (shown on the profile, flagged when under the 30 mi standard),
+  and `STANDARD_RADIUS_KM` is defined server-side. The **automatic background
+  normalization** (a 30 mi scoring poll) remains **DEFERRED**: it widens the *tracked*
+  aircraft set, which is the render/heap path under investigation for the
+  [[s3-128-overnight-slowdown]] — it must not land mid-bug-hunt. When the slowdown is
+  root-caused, the safe implementation is likely a server-side count from
+  already-served traffic (verified devices) rather than a wider device-side ring.
+  Rarity weighting already does most of the radius equalizing meanwhile.
