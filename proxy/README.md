@@ -452,9 +452,17 @@ phase — the card already renders `r`/`t`/`tn`/`op` whenever they arrive.
 3. **Static airframe dataset (P2):** the tar1090/Mictronics community
    aircraft DB carries many military airframes (type/reg/operator). Load a
    mil-block slice into KV (`ac:` pre-seed, or a `mil:<hex>` side table
-   consulted when live fields come back empty). **License review required
-   before shipping** (attribution per the adsb.lol ODbL credit pattern
-   already on the device config page).
+   consulted when live fields come back empty). **License review passed
+   2026-07-16:** source from
+   [Mictronics/aircraft-database](https://github.com/Mictronics/aircraft-database)
+   directly — its exports are **ODC-By 1.0** (attribution-only, no
+   share-alike; same credit pattern as the adsb.lol ODbL line already on the
+   device config page). Do **not** source the tar1090-db aggregate: it mixes
+   in the ADSBx basic-ac-db, whose terms are nowhere stated. Coverage
+   verified on the 2026-07-12 export (`indexedDB_old.zip` → `aircrafts.json`,
+   uppercase-hex keys, `{r, t, f, d}`, `f[0]==='1'` = military): 9,659 of
+   9,661 US-mil-block entries carry a type; 16,741 of 16,908 mil-flagged
+   entries worldwide do. Weekly upstream refresh. Ready to implement.
 4. **Callsign color (P3, optional):** static prefix table (RCH → Air
    Mobility Command, …) filling `op` when a callsign is broadcast and
    nothing else resolved. Military photos (by-hex photo APIs) are a separate

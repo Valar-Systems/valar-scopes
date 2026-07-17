@@ -95,9 +95,11 @@ For a product whose emotional hook is plane-spotting, **history is the retention
   airliners; 21 types live on `/credits`). Remaining: civil long tail by traffic,
   production ingest at launch.
 - **Military enrichment deepening** — **P0 + P1 SHIPPED 2026-07-16** (empty-meta
-  negative TTL; mil-block + dbFlags operator floor at serve time, `proxy/src/military.ts`).
-  Remaining: P2 static airframe dataset (license review required) and P3 callsign-prefix
-  fill — see proxy/README.md work queue.
+  negative TTL; mil-block + dbFlags operator floor at serve time, `proxy/src/military.ts`);
+  **deployed to staging + smoke-tested 2026-07-16**. Remaining: P2 static airframe
+  dataset — **license review passed 2026-07-16** (Mictronics/aircraft-database, ODC-By
+  1.0, ~17k typed military airframes; details in proxy/README.md work queue) — and P3
+  callsign-prefix fill.
 
 ## Idea backlog (unscheduled)
 
