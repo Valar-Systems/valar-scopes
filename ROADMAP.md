@@ -51,9 +51,11 @@ Small diffs, immediate perceived value. Ship together as one minor release.
 The Stats screen is entirely instantaneous and the logbook stores only set membership.
 For a product whose emotional hook is plane-spotting, **history is the retention feature**.
 
-6. **Logbook depth** — first-seen date per type/airline, per-type sighting counts,
-   lifetime record holders (highest / fastest / closest ever, with callsign + date),
-   "rarest catch". Fits the existing debounced-NVS-write pattern with compact counters.
+6. **Logbook depth** — **IMPLEMENTED 2026-07-16** (Logbook v2): per-type first-seen date
+   + sighting count, per-airline first-seen date, lifetime records (highest / fastest /
+   closest ever with callsign + date, plausibility-bounded), all in the same debounced
+   NVS pattern with legacy-blob migration; a compact "Best" line joins the Stats
+   LIFELIST block. ("Rarest catch" needs global rarity data — deferred to the cloud.)
 7. **Daily/session stats** — today's total contacts, peak simultaneous count, busiest
    hour, a small 24-h sparkline on Stats. All computable from data already flowing
    through `AircraftManager::Update`; needs a ring of hourly counters (RAM + NVS).

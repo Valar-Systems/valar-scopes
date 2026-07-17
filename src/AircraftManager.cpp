@@ -1386,6 +1386,29 @@ void AircraftManager::ConsumeFetchResult()
             }
         }
 
+        // offer every airborne contact's measurements to the lifetime records
+        // (highest / fastest / closest ever). Feed cadence, not frame cadence,
+        // so it's a handful of compares per poll. Plausibility bounds keep a
+        // feed glitch from becoming a permanent record (0 = "don't offer").
+        if (logbookEnabled) {
+            const float clat = cosf(radians((float)lat));
+            for (auto& ac : res->aircraft) {
+                if (ac.onGround) continue;
+                const float altFt = ac.baroAltitude * METRES_TO_FEET;
+                const float spdKt = ac.velocity * MS_TO_KNOTS;
+                const float dLa = ac.latitude - (float)lat;
+                const float dLo = (ac.longitude - (float)lon) * clat;
+                const float distKm = sqrtf(dLa * dLa + dLo * dLo) * 111.0f;
+                String cs = ac.callsign;
+                cs.trim();
+                if (cs.isEmpty()) { cs = ac.icao24; cs.toUpperCase(); }
+                logbook.NoteBest(cs,
+                                 (altFt > 0.0f && altFt <= 60000.0f) ? altFt : 0.0f,
+                                 (spdKt > 0.0f && spdKt <= 1200.0f) ? spdKt : 0.0f,
+                                 (distKm >= 0.05f) ? distKm : 0.0f);
+            }
+        }
+
         // the first successful fetch is the baseline; arrivals after it are "new"
         initialSyncDone = true;
 
@@ -1782,6 +1805,22 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
         line(String(logbook.TypeCount()) + " types  " + String(logbook.OperatorCount()) + " airlines");
         line(String(logbook.CountryCount()) + " countries  " + String(logbook.Contacts()) + " seen");
+
+        // lifetime record holders, one compact line: highest / fastest / closest ever
+        const Logbook::Record& rh = logbook.HighRecord();
+        const Logbook::Record& rf = logbook.FastRecord();
+        const Logbook::Record& rn = logbook.NearRecord();
+        if (rh.set || rf.set || rn.set) {
+            String best = "Best";
+            if (rh.set) best += " " + String(lroundf(rh.value / 1000.0f)) + "kft";
+            if (rf.set) best += " " + String(lroundf(rf.value)) + "kt";
+            if (rn.set) {
+                float d = rn.value;
+                if (rangeUnit == "mi") d /= 1.609344f;
+                best += " " + String(d, d < 10.0f ? 1 : 0) + rangeUnit;
+            }
+            line(best);
+        }
     }
 
     // FEED health -- source, honest data age (device wait + server-side lag),

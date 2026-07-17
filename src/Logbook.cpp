@@ -1,7 +1,47 @@
 #include "Logbook.h"
 
+#include <ctime>
+
 namespace {
-constexpr char SEP = '\n'; // record separator: newline, so operator names may contain commas/spaces
+
+constexpr char SEP = '\n';   // record separator: newline, so airline names may contain commas/spaces
+constexpr char FIELD = '|';  // field separator inside one record (never appears in codes/names we store)
+
+// Split one blob record "A|B|C" into up to n fields. Returns how many were found.
+int splitFields(const String& rec, String* out, int n)
+{
+    int field = 0, start = 0;
+    for (int i = 0; i <= (int)rec.length() && field < n; ++i) {
+        if (i == (int)rec.length() || rec[i] == FIELD) {
+            out[field++] = rec.substring(start, i);
+            start = i + 1;
+        }
+    }
+    return field;
+}
+
+// Walk a newline-separated blob, invoking fn(record) per non-empty record.
+template <typename Fn>
+void forEachRecord(const String& blob, Fn fn)
+{
+    int start = 0;
+    for (int i = 0; i <= (int)blob.length(); ++i) {
+        if (i == (int)blob.length() || blob[i] == SEP) {
+            if (i > start)
+                fn(blob.substring(start, i));
+            start = i + 1;
+        }
+    }
+}
+
+} // namespace
+
+uint16_t Logbook::TodayEpochDay()
+{
+    const time_t utc = time(nullptr);
+    if (utc < 1600000000)
+        return 0; // NTP hasn't set the clock; "unknown"
+    return (uint16_t)(utc / 86400);
 }
 
 void Logbook::Begin()
@@ -13,10 +53,37 @@ void Logbook::Begin()
     // Opening read-write creates the namespace if it's missing (first ever run),
     // so the later reads don't log NOT_FOUND.
     prefs.begin("logbook", false);
-    load(prefs, "types", types);
-    load(prefs, "operators", operators);
-    load(prefs, "countries", countries);
+
+    // types: v2 records are "CODE|firstDay|count"; a legacy v1 record is the
+    // bare code and parses as day 0 (unknown) / count 1.
+    if (prefs.isKey("types")) {
+        forEachRecord(prefs.getString("types", ""), [this](const String& rec) {
+            String f[3];
+            const int n = splitFields(rec, f, 3);
+            TypeStat st;
+            st.firstDay = n >= 2 ? (uint16_t)f[1].toInt() : 0;
+            st.count = n >= 3 ? (uint16_t)f[2].toInt() : 1;
+            if (st.count == 0) st.count = 1;
+            if (!f[0].isEmpty()) types[f[0]] = st;
+        });
+    }
+    // operators: v2 "NAME|firstDay"; legacy is the bare name.
+    if (prefs.isKey("operators")) {
+        forEachRecord(prefs.getString("operators", ""), [this](const String& rec) {
+            String f[2];
+            const int n = splitFields(rec, f, 2);
+            if (!f[0].isEmpty()) operators[f[0]] = n >= 2 ? (uint16_t)f[1].toInt() : 0;
+        });
+    }
+    if (prefs.isKey("countries")) {
+        forEachRecord(prefs.getString("countries", ""), [this](const String& rec) {
+            countries.insert(rec);
+        });
+    }
     contacts = prefs.getUInt("contacts", 0);
+    loadRecord(prefs, "rec-high", recHigh);
+    loadRecord(prefs, "rec-fast", recFast);
+    loadRecord(prefs, "rec-near", recNear);
     prefs.end();
 
     lastPersist = millis();
@@ -25,41 +92,44 @@ void Logbook::Begin()
                   (unsigned)countries.size(), (unsigned)contacts);
 }
 
-void Logbook::load(Preferences& p, const char* key, std::set<String>& out)
+void Logbook::loadRecord(Preferences& p, const char* key, Record& out)
 {
     if (!p.isKey(key))
         return;
-    const String blob = p.getString(key, "");
-
-    int start = 0;
-    for (int i = 0; i <= (int)blob.length(); ++i) {
-        if (i == (int)blob.length() || blob[i] == SEP) {
-            if (i > start)
-                out.insert(blob.substring(start, i));
-            start = i + 1;
-        }
+    String f[3];
+    if (splitFields(p.getString(key, ""), f, 3) == 3 && !f[0].isEmpty()) {
+        out.callsign = f[0];
+        out.value = f[1].toFloat();
+        out.day = (uint16_t)f[2].toInt();
+        out.set = true;
     }
 }
 
-bool Logbook::noteInto(std::set<String>& s, const String& value, size_t cap)
+void Logbook::saveRecord(const char* key, const Record& r)
 {
-    if (value.isEmpty())
-        return false;
-    if (s.count(value))
-        return false;          // already collected
-    if (s.size() >= cap)
-        return false;          // at capacity: don't claim a new catch we can't store
-
-    s.insert(value);
-    dirty = true;
-    return true;
+    if (!r.set)
+        return;
+    prefs.putString(key, r.callsign + FIELD + String(r.value, 1) + FIELD + String(r.day));
 }
 
 bool Logbook::NoteType(const String& typeCode)
 {
     String t = typeCode;
     t.trim();
-    return noteInto(types, t, MAX_TYPES);
+    if (t.isEmpty())
+        return false;
+
+    auto it = types.find(t);
+    if (it != types.end()) {
+        if (it->second.count < 0xFFFF) ++it->second.count; // saturating
+        dirty = true;
+        return false; // known type: counted, not a fresh catch
+    }
+    if (types.size() >= MAX_TYPES)
+        return false; // at capacity: don't claim a new catch we can't store
+    types[t] = TypeStat{ TodayEpochDay(), 1 };
+    dirty = true;
+    return true;
 }
 
 bool Logbook::NoteOperator(const String& operatorName)
@@ -68,14 +138,30 @@ bool Logbook::NoteOperator(const String& operatorName)
     op.trim();
     if (op.length() > MAX_OP_LEN)
         op = op.substring(0, MAX_OP_LEN);
-    return noteInto(operators, op, MAX_OPERATORS);
+    if (op.isEmpty())
+        return false;
+    if (operators.count(op))
+        return false;
+    if (operators.size() >= MAX_OPERATORS)
+        return false;
+    operators[op] = TodayEpochDay();
+    dirty = true;
+    return true;
 }
 
 bool Logbook::NoteCountry(const String& country)
 {
     String c = country;
     c.trim();
-    return noteInto(countries, c, MAX_COUNTRIES);
+    if (c.isEmpty())
+        return false;
+    if (countries.count(c))
+        return false;
+    if (countries.size() >= MAX_COUNTRIES)
+        return false;
+    countries.insert(c);
+    dirty = true;
+    return true;
 }
 
 void Logbook::NoteContact()
@@ -84,17 +170,26 @@ void Logbook::NoteContact()
     dirty = true;
 }
 
-void Logbook::save(const char* key, const std::set<String>& s)
+bool Logbook::offerRecord(Record& r, const String& cs, float value, bool smallerWins)
 {
-    String blob;
-    for (const String& v : s) {
-        if (blob.length() + v.length() + 1 > MAX_BLOB)
-            break; // safety ceiling; the per-set caps keep us well short of this
-        if (!blob.isEmpty())
-            blob += SEP;
-        blob += v;
-    }
-    prefs.putString(key, blob);
+    const bool beats = !r.set || (smallerWins ? value < r.value : value > r.value);
+    if (!beats)
+        return false;
+    r.callsign = cs;
+    r.value = value;
+    r.day = TodayEpochDay();
+    r.set = true;
+    dirty = true;
+    return true;
+}
+
+void Logbook::NoteBest(const String& callsign, float altFt, float speedKt, float distKm)
+{
+    if (callsign.isEmpty())
+        return;
+    if (altFt > 0.0f) offerRecord(recHigh, callsign, altFt, false);
+    if (speedKt > 0.0f) offerRecord(recFast, callsign, speedKt, false);
+    if (distKm > 0.0f) offerRecord(recNear, callsign, distKm, true);
 }
 
 void Logbook::MaybePersist()
@@ -105,11 +200,37 @@ void Logbook::MaybePersist()
     if (now - lastPersist < PERSIST_INTERVAL_MS)
         return;
 
+    // Serialize each store, honoring the MAX_BLOB safety ceiling (the per-store
+    // caps keep us short of it; legacy over-cap lists truncate at the tail).
+    String typesBlob;
+    for (const auto& [code, st] : types) {
+        const String rec = code + FIELD + String(st.firstDay) + FIELD + String(st.count);
+        if (typesBlob.length() + rec.length() + 1 > MAX_BLOB) break;
+        if (!typesBlob.isEmpty()) typesBlob += SEP;
+        typesBlob += rec;
+    }
+    String opsBlob;
+    for (const auto& [name, day] : operators) {
+        const String rec = name + FIELD + String(day);
+        if (opsBlob.length() + rec.length() + 1 > MAX_BLOB) break;
+        if (!opsBlob.isEmpty()) opsBlob += SEP;
+        opsBlob += rec;
+    }
+    String countriesBlob;
+    for (const String& c : countries) {
+        if (countriesBlob.length() + c.length() + 1 > MAX_BLOB) break;
+        if (!countriesBlob.isEmpty()) countriesBlob += SEP;
+        countriesBlob += c;
+    }
+
     prefs.begin("logbook", false);
-    save("types", types);
-    save("operators", operators);
-    save("countries", countries);
+    prefs.putString("types", typesBlob);
+    prefs.putString("operators", opsBlob);
+    prefs.putString("countries", countriesBlob);
     prefs.putUInt("contacts", contacts);
+    saveRecord("rec-high", recHigh);
+    saveRecord("rec-fast", recFast);
+    saveRecord("rec-near", recNear);
     prefs.end();
 
     lastPersist = now;
