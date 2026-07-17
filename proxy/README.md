@@ -525,6 +525,8 @@ phase — the card already renders `r`/`t`/`tn`/`op` whenever they arrive.
    overrides live data; heals negatively-cached entries like the floor). It
    fills `r`/`t`/`tn` — the operator stays the floor's job — and runs before
    the photo join, so a resolved type unlocks the generic type shot.
+   Refreshed weekly by CI ([.github/workflows/refresh-data.yml](../.github/workflows/refresh-data.yml),
+   Mondays 06:17 UTC — gated on a `CLOUDFLARE_API_TOKEN` secret, skipped until set).
    Loader: `npm run ingest:mildb -- --env staging`
    ([scripts/ingest-mildb.ts](scripts/ingest-mildb.ts)) — downloads the
    [Mictronics/aircraft-database](https://github.com/Mictronics/aircraft-database)
