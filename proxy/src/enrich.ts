@@ -2,6 +2,7 @@ import type { Env } from "./types";
 import type { RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
 import { fetchHexChain, fetchRoute } from "./upstreams/chain";
+import { militaryOperator } from "./military";
 import { TYPE_NAMES } from "./typenames";
 import { resolvePhoto } from "./photos";
 import { errorResponse, intEnv, jsonResponse } from "./util";
@@ -28,6 +29,7 @@ interface AcMeta {
   t: string; // ICAO type designator
   tn: string; // friendly type name
   op: string; // operator / registered owner
+  mil?: boolean; // upstream dbFlags bit 0 (military); absent on entries cached before it existed
 }
 
 interface RouteEntry {
@@ -45,6 +47,9 @@ async function buildMeta(env: Env, raw: unknown): Promise<AcMeta> {
   const reg = str(r.r);
   const type = str(r.t).toUpperCase();
   const op = str(r.ownOp);
+  // dbFlags bit 0 = military, when the upstream DB supplies it. Recorded so the
+  // serve-time military floor can label hexes outside the static block table.
+  const mil = typeof r.dbFlags === "number" && (r.dbFlags & 1) === 1;
   // Friendly name: the upstream's own description when its DB carries one, else
   // the KV override table (`tn:<CODE>`, updatable without a deploy), else the
   // baked common-types table, else empty.
@@ -52,7 +57,7 @@ async function buildMeta(env: Env, raw: unknown): Promise<AcMeta> {
   if (!tn && type) {
     tn = (await env.ENRICH_KV.get(`tn:${type}`)) ?? TYPE_NAMES[type] ?? "";
   }
-  return { found: true, r: reg, t: type, tn, op };
+  return { found: true, r: reg, t: type, tn, op, mil };
 }
 
 // Aircraft metadata: KV, else one upstream hex lookup, then KV for next time.
@@ -69,8 +74,13 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   if (!res) return null; // chain down: serve empties now, cache nothing, next tap retries
   meta.upstream = res.upstream;
   const built = await buildMeta(env, res.raw);
+  // TTL by CONTENT, not mere upstream presence: many military hexes return a
+  // live position with an all-empty DB record, and 30 d of cached emptiness
+  // kept a later-appearing record blank for a month. An empty meta is a
+  // negative answer whatever `found` says -- give it the 1 d TTL.
+  const hasContent = !!(built.r || built.t || built.tn || built.op);
   await env.ENRICH_KV.put(`ac:${hex}`, JSON.stringify(built), {
-    expirationTtl: built.found ? AC_TTL_S : AC_NEG_TTL_S,
+    expirationTtl: built.found && hasContent ? AC_TTL_S : AC_NEG_TTL_S,
   });
   return built;
 }
@@ -150,12 +160,22 @@ export async function handleEnrich(
   // the type shot. Absent library -> no `p`/`pk` fields (append-only schema).
   const photo = await resolvePhoto(env, hex, acMeta?.t ?? "");
 
+  // Military floor, applied at serve time so cached pre-floor entries get it
+  // too: a hex in a military allocation (or dbFlags-marked military) whose
+  // operator resolved empty is labelled with the truthful generic instead of
+  // rendering a blank card. Block table first (nationally attributed), dbFlags
+  // as the catch-all. Never guesses types or registrations.
+  let op = acMeta?.op ?? "";
+  if (!op) {
+    op = militaryOperator(hex) || (acMeta?.mil ? "Military" : "");
+  }
+
   const body: Record<string, string | number> = {
     v: SCHEMA_V,
     r: acMeta?.r ?? "",
     t: acMeta?.t ?? "",
     tn: acMeta?.tn ?? "",
-    op: acMeta?.op ?? "",
+    op,
     o: route.o,
     d: route.d,
   };

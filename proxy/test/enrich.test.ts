@@ -1,4 +1,4 @@
-import { fetchMock } from "cloudflare:test";
+import { env, fetchMock } from "cloudflare:test";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { __resetBreakersForTests } from "../src/upstreams/types";
 import { apiRequest, call, hexBody, makeAc } from "./helpers";
@@ -193,5 +193,67 @@ describe("/v1/enrich/{hex}", () => {
   it("rejects malformed hexes", async () => {
     expect((await call(apiRequest("/v1/enrich/zzz"))).status).toBe(400);
     expect((await call(apiRequest("/v1/enrich/12345"))).status).toBe(400);
+  });
+});
+
+describe("military enrichment deepening", () => {
+  it("caches an all-empty (found) meta at the negative TTL, full metas at 30 d", async () => {
+    // The military-card failure mode: the upstream returns a live position and
+    // an empty DB record. Pre-fix this positive-cached for 30 d, keeping a
+    // later-appearing record blank for a month.
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5001" }).reply(200, hexBody([{ hex: "ae5001" }]));
+    await call(apiRequest("/v1/enrich/ae5001"));
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/bbbb01" })
+      .reply(200, hexBody([{ hex: "bbbb01", r: "N100XX", t: "B738" }]));
+    await call(apiRequest("/v1/enrich/bbbb01"));
+
+    const list = await env.ENRICH_KV.list({ prefix: "ac:" });
+    const empty = list.keys.find((k) => k.name === "ac:ae5001");
+    const full = list.keys.find((k) => k.name === "ac:bbbb01");
+    const nowS = Date.now() / 1000;
+    expect(empty?.expiration).toBeDefined();
+    expect(empty!.expiration!).toBeLessThanOrEqual(nowS + 86400 + 300); // ~1 d
+    expect(full?.expiration).toBeDefined();
+    expect(full!.expiration!).toBeGreaterThan(nowS + 29 * 86400); // ~30 d
+  });
+
+  it("floors op for a mil-block hex whose DB record resolved empty", async () => {
+    // 0xae5002 sits in the US allocation (0xadf7c8-0xafffff).
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5002" }).reply(200, hexBody([{ hex: "ae5002" }]));
+    const res = await call(apiRequest("/v1/enrich/ae5002"));
+    const body = (await res.json()) as { r: string; t: string; op: string };
+    expect(body.op).toBe("US military");
+    expect(body.r).toBe(""); // the floor never invents registrations or types
+    expect(body.t).toBe("");
+  });
+
+  it("keeps a resolved operator over the floor", async () => {
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/ae5003" })
+      .reply(200, hexBody([{ hex: "ae5003", t: "C17", ownOp: "United States Air Force" }]));
+    const res = await call(apiRequest("/v1/enrich/ae5003"));
+    expect(((await res.json()) as { op: string }).op).toBe("United States Air Force");
+  });
+
+  it("labels dbFlags-military hexes outside the block table", async () => {
+    // 0x3c6444 is a German civil-range hex; dbFlags bit 0 marks it military.
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/3c6444" })
+      .reply(200, hexBody([{ hex: "3c6444", dbFlags: 1 }]));
+    const res = await call(apiRequest("/v1/enrich/3c6444"));
+    expect(((await res.json()) as { op: string }).op).toBe("Military");
+  });
+
+  it("applies the floor to cache hits too (pre-floor cached entries heal)", async () => {
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5004" }).reply(200, hexBody([{ hex: "ae5004" }]));
+    await call(apiRequest("/v1/enrich/ae5004"));
+    // Second request is a pure KV hit (no interceptors left) -- the floor is
+    // serve-time, so it labels the cached empty meta as well.
+    const res = await call(apiRequest("/v1/enrich/ae5004"));
+    expect(((await res.json()) as { op: string }).op).toBe("US military");
   });
 });
