@@ -304,7 +304,8 @@ void loop()
   // rows. The scene is drawn once per band; the app advances per-frame state (animation
   // tick, trail sampling) only on the first pass so the bands stay in sync.
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
-  const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView();
+  const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView()
+                        && !appManager.NightClockActive(); // no beam under the night clock face
 
   // The sweep angle is owned by AircraftManager (advanced in Update()), so the
   // drawn beam matches the blip paint-and-fade crossing test exactly. Sampled
