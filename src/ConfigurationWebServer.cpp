@@ -282,6 +282,19 @@ R"(
                         southwest window) and the radar rotates to match your view &mdash; a blip on the
                         upper-left of the screen is upper-left out the window.
                     </span>
+                    <label class="field mt">
+                        <span>Show airports:</span>
+                        <select name="airports-min" class="grow">
+                            <option value="all" %AIRPORTS_MIN_ALL%>All (incl. small strips)</option>
+                            <option value="med" %AIRPORTS_MIN_MED%>Medium &amp; large only</option>
+                            <option value="large" %AIRPORTS_MIN_LARGE%>Large only</option>
+                        </select>
+                    </label>
+                    <span class="hint">
+                        With the Blipscope Cloud feed the overlay draws every real airport near you. In a
+                        busy general-aviation area that can be a lot of small strips &mdash; narrow it to the
+                        fields with scheduled service.
+                    </span>
                 </fieldset>
 
                 <details class="auto">
@@ -1485,6 +1498,7 @@ void ConfigurationWebServer::Initialise() {
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
         const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
         const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
+        const String airportsMin = HtmlEscape(prefs.isKey("airports-min") ? prefs.getString("airports-min", "all") : "all");
         const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
         const String altColorEnabled = HtmlEscape(prefs.getString("altcolor", "true"));
         const String highlightEnabled = HtmlEscape(prefs.getString("highlight", "true"));
@@ -1729,7 +1743,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1787,6 +1801,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "LOGBOOK")        return logbookOn == "true" ? "checked" : "";
                 if (var == "LB_ENABLED")     return lbEnabled == "true" ? "checked" : "";
                 if (var == "LB_NAME")        return lbName;
+                if (var == "AIRPORTS_MIN_ALL")   return airportsMin == "all" ? "selected" : "";
+                if (var == "AIRPORTS_MIN_MED")   return airportsMin == "med" ? "selected" : "";
+                if (var == "AIRPORTS_MIN_LARGE") return airportsMin == "large" ? "selected" : "";
                 if (var == "LOOKUP")         return lookupOn == "true" ? "checked" : "";
                 if (var == "LOOKUP_ALERT")   return lookupAlert == "true" ? "checked" : "";
                 if (var == "LOOKUP_DIST")    return lookupDist;
@@ -2101,6 +2118,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("fade", request->hasParam("fade", true) ? "true" : "false");
         prefs.putString("triangle", request->hasParam("triangle", true) ? "true" : "false");
         prefs.putString("airports", request->hasParam("airports", true) ? "true" : "false");
+        TrySaveParam("airports-min");
         prefs.putString("trail", request->hasParam("trail", true) ? "true" : "false");
         prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");
         prefs.putString("highlight", request->hasParam("highlight", true) ? "true" : "false");

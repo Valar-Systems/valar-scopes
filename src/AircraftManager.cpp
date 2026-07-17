@@ -528,6 +528,12 @@ void AircraftManager::Initialise()
     const String renderTris = configServer.GetStoredString("triangle");
     const String renderAirports = configServer.GetStoredString("airports");
     if (!renderAirports.isEmpty()) displayAirports = renderAirports == "true";
+    // Minimum airport size to draw (cloud /v1/airports overlay only; the baked
+    // majors are all major-class so the filter is a no-op there). Default: all.
+    const String airportsMinStr = configServer.GetStoredString("airports-min");
+    airportsMin = airportsMinStr == "large" ? AirportsMin::LargeOnly
+                : airportsMinStr == "med"   ? AirportsMin::MedLarge
+                                            : AirportsMin::All;
     const String renderTrail = configServer.GetStoredString("trail");
     const String renderAltColor = configServer.GetStoredString("altcolor");
     const String renderHighlight = configServer.GetStoredString("highlight");
@@ -2303,11 +2309,18 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
     // The /v1/airports long tail supersedes the baked majors once loaded. At
     // wide zooms only large/medium fields draw -- ~60 grass strips would
     // confetti a 240 px face; zoom in past ~60 km half-width and they appear.
+    // The airportsMin config filter is a hard floor on top of that: a user in a
+    // busy-GA area can hide the strips entirely and keep just the fields with
+    // scheduled service.
     if (!cloudAirports.empty()) {
         const bool wide = radLat > 0.55f; // ~60 km of half-box in degrees
         for (const CloudFeed::CloudAirport& ap : cloudAirports) {
-            if (wide && ap.kind == 'S')
+            if (airportsMin == AirportsMin::LargeOnly && ap.kind != 'L')
                 continue;
+            if (airportsMin == AirportsMin::MedLarge && ap.kind == 'S')
+                continue;
+            if (airportsMin == AirportsMin::All && wide && ap.kind == 'S')
+                continue; // default: only the zoom rule hides strips
             draw(ap.lat, ap.lon, ap.code);
         }
         return;
