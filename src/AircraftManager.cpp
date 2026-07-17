@@ -1356,6 +1356,24 @@ void AircraftManager::ConsumeFetchResult()
         }
 #endif
 
+        // TODAY counters: roll over at local midnight, then attribute fresh
+        // contacts to their local hour. NTP-gated (no clock = no attribution).
+        int localHour = -1;
+        {
+            const time_t utcNow = time(nullptr);
+            if (utcNow > 1600000000) {
+                const time_t localT = utcNow + utcOffsetSec;
+                const uint32_t localDay = (uint32_t)(localT / 86400);
+                localHour = (int)((localT / 3600) % 24);
+                if (localDay != statsDayLocal) {
+                    statsDayLocal = localDay;
+                    todayContacts = 0;
+                    todayPeak = 0;
+                    memset(todayHourCounts, 0, sizeof(todayHourCounts));
+                }
+            }
+        }
+
         for (auto& ac : res->aircraft) {
             auto it = trackedAircraft.find(ac.icao24);
             if (it == trackedAircraft.end()) {
@@ -1365,6 +1383,10 @@ void AircraftManager::ConsumeFetchResult()
                 if (logbookEnabled) {
                     logbook.NoteContact();
                     logbook.NoteCountry(ac.originCountry);
+                }
+                if (localHour >= 0) {
+                    ++todayContacts;
+                    if (todayHourCounts[localHour] < 0xFFFF) ++todayHourCounts[localHour];
                 }
                 // tone on genuinely new arrivals (HAS_AUDIO boards), but not during the
                 // initial bulk population -- that would be a burst of beeps on first sync.
@@ -1430,6 +1452,14 @@ void AircraftManager::ConsumeFetchResult()
                 it = trackedAircraft.erase(it);
             else
                 ++it;
+        }
+
+        // TODAY peak: the most simultaneous airborne contacts seen since midnight
+        if (localHour >= 0) {
+            uint16_t airborne = 0;
+            for (const auto& [icao, t] : trackedAircraft)
+                if (!t.state.onGround) ++airborne;
+            if (airborne > todayPeak) todayPeak = airborne;
         }
     }
 
@@ -1785,8 +1815,15 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
 
     int y = 48;
     const int lh = backbuffer.fontHeight() + 10;
+    const int clockTop = SCREEN_SIZE - 30; // matches DrawClock's y
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-    auto line = [&](const String& s) { centered(s, y); y += lh; };
+    // Space-guarded: a line that would reach the clock row is dropped, so the
+    // block order below is also the priority order on the small 240 px panels.
+    auto line = [&](const String& s) {
+        if (y + lh > clockTop) return;
+        centered(s, y);
+        y += lh;
+    };
 
     line(String(count) + " aircraft");
     if (count > 0) {
@@ -1795,6 +1832,39 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         float distance = sqrtf(minD2) * 111.0f;
         if (rangeUnit == "mi") distance /= 1.609344f;
         line("Near " + label(nearIcao) + " " + String(distance, distance < 10.0f ? 1 : 0) + rangeUnit);
+    }
+
+    // TODAY -- contacts since local midnight, peak simultaneous count, busiest
+    // hour + an hourly sparkline. RAM-only session stats (see the members).
+    if (todayContacts > 0) {
+        y += 6;
+        backbuffer.setTextColor(lgfx::color888(0, 255, 0));
+        line("TODAY");
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        line(String(todayContacts) + " contacts  peak " + String(todayPeak));
+
+        int busiest = -1;
+        uint16_t maxC = 0;
+        for (int h = 0; h < 24; ++h)
+            if (todayHourCounts[h] > maxC) { maxC = todayHourCounts[h]; busiest = h; }
+        if (busiest >= 0)
+            line("busiest " + String(busiest) + ":00 (" + String(maxC) + ")");
+
+        // 24-hour sparkline: one thin bar per hour, busiest hour full-bright
+        if (maxC > 0 && y + 12 <= clockTop) {
+            constexpr int BW = 3, GAP = 1;
+            const int W = 24 * (BW + GAP) - GAP;
+            const int x0 = cx - W / 2;
+            const int base = y + 10;
+            for (int h = 0; h < 24; ++h) {
+                const int bh = todayHourCounts[h] == 0
+                    ? 1 : 1 + (todayHourCounts[h] * 9) / maxC;
+                backbuffer.fillRect(x0 + h * (BW + GAP), base - bh, BW, bh,
+                                    h == busiest ? lgfx::color888(0, 255, 0)
+                                                 : lgfx::color888(0, 120, 0));
+            }
+            y += 16;
+        }
     }
 
     // spotting logbook totals (the persistent "lifelist")
@@ -1829,7 +1899,6 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // quietly failing feed diagnosable from the device itself. Space-guarded per
     // line like THIS DEVICE below so the small C3 panel never collides.
     {
-        const int clockTop = SCREEN_SIZE - 30; // matches DrawClock's y
         const char* src =
 #ifdef FEATURE_CLOUD_FEED
             useCloudSource ? "cloud" :
@@ -1873,7 +1942,6 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // fits above the clock row, so it never collides on the small round C3 screen: the host line
     // is the one you type, so it gets priority; the IP follows only when there's vertical room.
     y += 6;
-    const int clockTop = SCREEN_SIZE - 30; // matches DrawClock's y
     if (y + lh <= clockTop) {
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         line(DeviceIdentity::Name() + ".local");

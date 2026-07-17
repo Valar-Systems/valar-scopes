@@ -56,9 +56,10 @@ For a product whose emotional hook is plane-spotting, **history is the retention
    closest ever with callsign + date, plausibility-bounded), all in the same debounced
    NVS pattern with legacy-blob migration; a compact "Best" line joins the Stats
    LIFELIST block. ("Rarest catch" needs global rarity data — deferred to the cloud.)
-7. **Daily/session stats** — today's total contacts, peak simultaneous count, busiest
-   hour, a small 24-h sparkline on Stats. All computable from data already flowing
-   through `AircraftManager::Update`; needs a ring of hourly counters (RAM + NVS).
+7. **Daily/session stats** — **IMPLEMENTED 2026-07-16**: a TODAY block on Stats with
+   contacts-since-midnight, peak simultaneous count, busiest hour, and a 24-bar hourly
+   sparkline. RAM-only (no flash wear; resets at local midnight/reboot, NTP-gated), and
+   the whole Stats screen is now clock-guarded so blocks drop by priority on 240 px panels.
 8. **"Airports seen"** as a fourth lifelist category, fed from the route enrichment we
    already perform.
 9. **Logbook export / web view** — a read-only `/logbook` page (or JSON/CSV download) on

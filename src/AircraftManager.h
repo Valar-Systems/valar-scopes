@@ -191,6 +191,17 @@ private:
     // only sound for genuinely new arrivals afterwards.
     bool initialSyncDone = false;
 
+    // TODAY stats: contacts since local midnight, peak simultaneous airborne
+    // count, and an hourly histogram (drives the Stats sparkline + "busiest
+    // hour"). RAM-only by design -- no flash wear; resets at local midnight and
+    // on reboot (devices run continuously; the weekly preventive reboot lands
+    // at night when the counters are near-empty anyway). NTP-gated: without a
+    // clock nothing is attributed.
+    uint32_t todayContacts = 0;
+    uint16_t todayPeak = 0;
+    uint16_t todayHourCounts[24] = {0};
+    uint32_t statsDayLocal = 0; // local epoch-day the counters describe
+
     // Alert-tone sequencer (HAS_AUDIO boards; config "tones", default on). The board
     // chirp primitive is a single <=80 ms burst, so distinct per-class tones are built
     // as chirp PATTERNS (count x on/gap) stepped non-blockingly from Update(). A
