@@ -79,6 +79,7 @@ export const TYPE_NAMES: Record<string, string> = {
   A109: "AgustaWestland AW109", A139: "AgustaWestland AW139",
   // Military (common ADS-B emitters)
   C130: "Lockheed C-130 Hercules", C30J: "Lockheed C-130J Super Hercules",
+  C5: "Lockheed C-5 Galaxy", C5M: "Lockheed C-5M Super Galaxy",
   C17: "Boeing C-17 Globemaster III", K35R: "Boeing KC-135 Stratotanker",
   MC12: "Beechcraft MC-12 Liberty", P8: "Boeing P-8 Poseidon",
   E3TF: "Boeing E-3 Sentry", H60: "Sikorsky UH-60 Black Hawk",
