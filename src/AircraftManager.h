@@ -281,6 +281,13 @@ private:
     String lbRarestType;                     // this device's rarest logged type (fleet-wide)
     int lbRarestPct = 0;                     // % of opted-in devices that also have it
 
+    // Rank-up toast: a transient celebratory banner drawn over any screen for a few
+    // seconds after a submit whose overall rank climbed. Armed only once a standing
+    // already exists (the first-ever rank never toasts).
+    unsigned long rankToastUntilMs = 0;      // millis() the toast expires (0 = none)
+    int rankToastRank = 0;                    // new (improved) overall rank to show
+    int rankToastDelta = 0;                   // positions gained (positive)
+
     // Recent enrichments by hex, surviving aircraft eviction so re-taps are
     // instant even when a contact flapped out of range and back.
     CloudFeed::EnrichCache enrichCache;
@@ -482,6 +489,7 @@ private:
     void DrawVisualAlert(BandCanvas& backbuffer) const;
     bool TapDismissesAlert(int tx, int ty) const; // tap landed on an active ring / flash burst
     void DismissVisualAlert();                     // latch the dismiss + clear the current overlay
+    void DrawRankToast(BandCanvas& backbuffer) const; // transient "RANK UP" banner (cloud feed only)
 
     void PublishMqttState();     // retained JSON summary of the current picture
     void PublishMqttDiscovery(); // Home Assistant MQTT discovery configs (retained)

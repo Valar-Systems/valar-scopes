@@ -69,6 +69,13 @@ function stripHtml(s: string): string {
     .trim();
 }
 
+// The Commons API throttles a long sheet's imageinfo queries the same way
+// upload.wikimedia.org throttles downloads: near the end of a 100+ row run the
+// query starts returning 429/5xx, which used to surface as spurious
+// "no imageinfo" FAILs for perfectly valid titles. Retry with backoff (mirrors
+// download() below) so a transient throttle doesn't reject a good pick.
+const INFO_RETRY_DELAYS_MS = [2000, 8000, 20_000];
+
 async function fetchInfo(title: string): Promise<ImageInfo | null> {
   const u = new URL(API);
   u.searchParams.set("action", "query");
@@ -77,14 +84,21 @@ async function fetchInfo(title: string): Promise<ImageInfo | null> {
   u.searchParams.set("iiprop", "extmetadata|url");
   u.searchParams.set("iiurlwidth", String(THUMB_W));
   u.searchParams.set("format", "json");
-  const res = await fetch(u, { headers: { "User-Agent": UA } });
-  if (!res.ok) return null;
-  const body = (await res.json()) as {
-    query?: { pages?: Record<string, { imageinfo?: ImageInfo[] }> };
-  };
-  const pages = body.query?.pages ?? {};
-  for (const p of Object.values(pages)) {
-    if (p.imageinfo?.[0]) return p.imageinfo[0];
+  for (const delay of [...INFO_RETRY_DELAYS_MS, 0]) {
+    const res = await fetch(u, { headers: { "User-Agent": UA } });
+    if (res.ok) {
+      const body = (await res.json()) as {
+        query?: { pages?: Record<string, { imageinfo?: ImageInfo[] }> };
+      };
+      const pages = body.query?.pages ?? {};
+      for (const p of Object.values(pages)) {
+        if (p.imageinfo?.[0]) return p.imageinfo[0];
+      }
+      return null; // a real "no such file" -- the query succeeded, the page has no image
+    }
+    if (delay === 0) return null; // out of retries
+    console.error(`   ${res.status} on imageinfo for ${JSON.stringify(title)}; backing off ${delay / 1000}s ...`);
+    await sleep(delay);
   }
   return null;
 }

@@ -1669,6 +1669,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         if (it != trackedAircraft.end()) {
             DrawDetailCard(backbuffer, it->second);
             DrawVisualAlert(backbuffer); // the edge ring stays visible around the card
+            DrawRankToast(backbuffer);   // a rank-up toast shows over the card too
             return;
         }
         ExitDetail(); // selected aircraft left the feed (idempotent across band passes)
@@ -1688,6 +1689,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     DrawScreenIndicator(backbuffer);
     DrawClock(backbuffer);
     DrawVisualAlert(backbuffer); // military/emergency ring pulse / flash, over any screen
+    DrawRankToast(backbuffer);   // transient "RANK UP" banner after a leaderboard climb
 }
 
 SpecialAircraft::Class AircraftManager::SpecialClassOf(const TrackedAircraft& tracked) const
@@ -2741,6 +2743,39 @@ void AircraftManager::DismissVisualAlert()
     Serial.printf("[alert] %lu visual alert dismissed by tap\n", millis());
 }
 
+constexpr unsigned long RANK_TOAST_MS = 6000; // how long the rank-up banner stays up
+
+void AircraftManager::DrawRankToast(BandCanvas& backbuffer) const
+{
+#ifdef FEATURE_CLOUD_FEED
+    if ((long)(millis() - rankToastUntilMs) >= 0)
+        return; // expired (or never armed)
+
+    // A gold pill centred on the face, above the middle so it doesn't bury the
+    // clock/rank block. Transient (~6 s) and celebratory; the picture underneath
+    // is redrawn every frame, so nothing needs restoring when it clears.
+    char buf[32];
+    snprintf(buf, sizeof(buf), "RANK UP  #%d  +%d", rankToastRank, rankToastDelta);
+
+    backbuffer.setTextSize(1);
+    const int tw = (int)backbuffer.textWidth(buf);
+    const int th = backbuffer.fontHeight();
+    const int padX = 10, padY = 6;
+    const int w = tw + 2 * padX;
+    const int h = th + 2 * padY;
+    const int cx = SCREEN_SIZE_DIV_2;
+    const int cy = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 6; // a touch above centre
+    const int x = cx - w / 2, y = cy - h / 2;
+
+    backbuffer.fillRoundRect(x, y, w, h, 5, lgfx::color888(40, 30, 0)); // dim gold ground
+    backbuffer.drawRoundRect(x, y, w, h, 5, lgfx::color888(255, 210, 0));
+    backbuffer.setTextColor(lgfx::color888(255, 210, 0));               // gold: a score
+    backbuffer.drawString(buf, cx - tw / 2, cy - th / 2);
+#else
+    (void)backbuffer;
+#endif
+}
+
 void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
 {
     const int n = tracked.TrailSize();
@@ -3408,6 +3443,8 @@ void AircraftManager::ConsumeEnrichResults()
             // Adopt this device's standing for the Stats rank block. A failed
             // submit (lbOk false) keeps the previous standing until next hour.
             if (res->lbOk) {
+                const int prevRank = lbRank;
+                const bool hadStanding = lbHaveStanding;
                 lbRank = res->lbRank;
                 lbPoints = res->lbPoints;
                 lbSeasonRank = res->lbSeasonRank;
@@ -3416,6 +3453,16 @@ void AircraftManager::ConsumeEnrichResults()
                 lbRarestType = res->lbRarestType;
                 lbRarestPct = res->lbRarestPct;
                 lbHaveStanding = true;
+                // Rank-up toast: only after a standing already exists (so the first
+                // rank never celebrates) and only on a genuine climb (rank is a
+                // position, so lower is better).
+                if (hadStanding && res->lbRank > 0 && prevRank > 0 && res->lbRank < prevRank) {
+                    rankToastRank = res->lbRank;
+                    rankToastDelta = prevRank - res->lbRank;
+                    rankToastUntilMs = millis() + RANK_TOAST_MS;
+                    Serial.printf("[leaderboard] rank up #%d -> #%d (+%d)\n",
+                                  prevRank, res->lbRank, rankToastDelta);
+                }
             }
             break;
 #endif
