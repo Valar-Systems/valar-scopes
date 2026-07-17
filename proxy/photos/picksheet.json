@@ -51,5 +51,15 @@
   { "target": "C208", "kind": "type", "layer": "auto", "title": "File:4R-EXO Cessna 208 Caravan EX.jpg" },
   { "target": "R44",  "kind": "type", "layer": "auto", "title": "File:Robinson R44 RA-04306 in flight. (8405228493).jpg" },
   { "target": "B407", "kind": "type", "layer": "auto", "title": "File:Bell 407 in flight. (4635147125).jpg" },
-  { "target": "BE35", "kind": "type", "layer": "auto", "title": "File:Beechcraft Bonanza C35. Flight (7355219310).jpg" }
+  { "target": "BE35", "kind": "type", "layer": "auto", "title": "File:Beechcraft Bonanza C35. Flight (7355219310).jpg" },
+  { "target": "A332", "kind": "type", "layer": "auto", "title": "File:China Eastern Airbus A330-200 B-5952 landing at Shanghai Hongqiao May 2026.jpg" },
+  { "target": "A388", "kind": "type", "layer": "auto", "title": "File:Emirates Airbus A380-861 A6-EER MUC 2015 04.jpg" },
+  { "target": "AT72", "kind": "type", "layer": "auto", "title": "File:ATR 72 G-FBXA MG 9799.jpg" },
+  { "target": "E145", "kind": "type", "layer": "auto", "title": "File:Embraer ERJ 145 (US Airways Express) DCA (2478068087).jpg" },
+  { "target": "CRJ2", "kind": "type", "layer": "auto", "title": "File:Contour Airlines Bombardier CRJ-200 N875AS BWI MD1.jpg" },
+  { "target": "DH8C", "kind": "type", "layer": "auto", "title": "File:De Havilland Canada DHC-8-300 (Regent AW) (8093815795).jpg" },
+  { "target": "C25B", "kind": "type", "layer": "auto", "title": "File:G-PAOL Cessna 525B CitationJet CJ3 C25B c n 525B-232 (47217348131).jpg" },
+  { "target": "CL35", "kind": "type", "layer": "auto", "title": "File:SE-RNR Bombardier Challenger 350 BMA.jpg" },
+  { "target": "F2TH", "kind": "type", "layer": "auto", "title": "File:Arcturus Group, operated by Flight Options (Australia), (VH-EWB) Dassault Falcon 2000EX at Wagga Wagga Airport.jpg" },
+  { "target": "GLEX", "kind": "type", "layer": "auto", "title": "File:M-ALSH Bombardier Global Express-BD-700-1A10 s-n 9097 (34607424872).jpg" }
 ]
