@@ -89,10 +89,13 @@ describe("leaderboard scoring & rarity", () => {
     }
     await call(submit({ id: ID_A, name: "A", counts: {}, typeCodes: ["B738", "C17"] }));
     const res = await call(submit({ id: ID_A, name: "A", counts: {}, typeCodes: ["B738", "C17"] }));
-    const body = (await res.json()) as { rank: number; points: number };
+    const body = (await res.json()) as { rank: number; points: number; rarestType: string; rarestPct: number };
     // B738 x1 (21/21) *10 + C17 x5 (1/21) *10 = 10 + 50 = 60
     expect(body.points).toBe(60);
     expect(body.rank).toBe(1); // the rare type puts A ahead of all the B738-only fillers (10 each)
+    // C17 is the device's rarest catch (1 of 21 devices ~ 5%).
+    expect(body.rarestType).toBe("C17");
+    expect(body.rarestPct).toBe(5);
   });
 });
 

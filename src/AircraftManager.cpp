@@ -167,6 +167,8 @@ struct EnrichResult {
     int lbRank = 0, lbSeasonRank = 0, lbTotal = 0;
     long lbPoints = 0, lbSeasonPoints = 0;
     String lbResolvedName;
+    String lbRarestType;
+    int lbRarestPct = 0;
 };
 
 namespace {
@@ -466,6 +468,8 @@ EnrichResult* postLeaderboard(HttpRequestManager& http, const EnrichRequest& req
         res->lbSeasonPoints = doc["seasonPoints"].as<long>();
         res->lbTotal = doc["total"].as<int>();
         res->lbResolvedName = doc["name"].as<String>();
+        res->lbRarestType = doc["rarestType"].as<String>();
+        res->lbRarestPct = doc["rarestPct"].as<int>();
         Serial.printf("[leaderboard] rank #%d/%d, %ld pts\n", res->lbRank, res->lbTotal, res->lbPoints);
     }
     res->definitive = true;
@@ -2088,6 +2092,8 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         line(rankLine);
         if (lbSeasonRank > 0)
             line("season #" + String(lbSeasonRank) + "  " + String(lbSeasonPoints) + " pts");
+        if (!lbRarestType.isEmpty())
+            line("rarest " + lbRarestType + " (" + String(lbRarestPct) + "%)");
     }
 #endif
 
@@ -3316,6 +3322,8 @@ void AircraftManager::ConsumeEnrichResults()
                 lbSeasonRank = res->lbSeasonRank;
                 lbSeasonPoints = res->lbSeasonPoints;
                 lbTotal = res->lbTotal;
+                lbRarestType = res->lbRarestType;
+                lbRarestPct = res->lbRarestPct;
                 lbHaveStanding = true;
             }
             break;
