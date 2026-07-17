@@ -49,6 +49,18 @@ struct Config {
     Enrich enrich = Enrich::Full;        // background-enrichment level
 };
 
+// One airport from /v1/airports -- the overlay's long tail (the full
+// OurAirports dataset, tiled server-side), superseding the baked
+// include/Airports.h majors table whenever a fetch has landed. kind is the
+// dataset's size class: 'L' large / 'M' medium / 'S' small, which the radar
+// uses to keep small strips off the widest zooms.
+struct CloudAirport {
+    float lat = 0.0f;
+    float lon = 0.0f;
+    char code[5] = { 0 }; // IATA, else FAA local code, else ident; NUL-terminated
+    char kind = 'S';
+};
+
 // One aircraft's enrichment as served by /v1/enrich. Empty string = unknown.
 struct Enrichment {
     String registration;
@@ -90,12 +102,14 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
 String BlipsUrl(const String& base);
 String EnrichUrl(const String& base, const String& icao24);
 String ConfigUrl(const String& base);
+String AirportsUrl(const String& base);
 
-// Parsers for the three payloads. Each returns false on a schema-version
+// Parsers for the payloads. Each returns false on a schema-version
 // mismatch or a shape that isn't the endpoint's (e.g. an error body).
 bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch);
 bool ParseEnrich(JsonDocument& doc, Enrichment& out);
 bool ParseConfig(JsonDocument& doc, Config& out);
+bool ParseAirports(JsonDocument& doc, std::vector<CloudAirport>& out);
 
 // Tiny LRU of recent enrichments keyed by hex. TrackedAircraft carries its own
 // enrichment while tracked, but is evicted (with it) when the aircraft leaves

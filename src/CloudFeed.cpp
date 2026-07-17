@@ -59,6 +59,7 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
 String BlipsUrl(const String& base)  { return base + "/v1/blips"; }
 String EnrichUrl(const String& base, const String& icao24) { return base + "/v1/enrich/" + icao24; }
 String ConfigUrl(const String& base) { return base + "/v1/config"; }
+String AirportsUrl(const String& base) { return base + "/v1/airports"; }
 
 bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch)
 {
@@ -187,6 +188,33 @@ bool ParseConfig(JsonDocument& doc, Config& out)
     if (c.staleFactor < 1) c.staleFactor = 1;
 
     out = c;
+    return true;
+}
+
+bool ParseAirports(JsonDocument& doc, std::vector<CloudAirport>& out)
+{
+    if (doc["v"].as<int>() != SCHEMA_V)
+        return false;
+    JsonArrayConst rows = doc["a"].as<JsonArrayConst>();
+    if (rows.isNull())
+        return false;
+
+    for (JsonVariantConst row : rows) {
+        // Frozen field order: [lat, lon, code, kind]; extra trailing fields
+        // are ignored, short rows skipped (same evolution rule as blips).
+        if (row.size() < 4)
+            continue;
+        CloudAirport ap;
+        ap.lat = row[0].as<float>();
+        ap.lon = row[1].as<float>();
+        const char* code = row[2].as<const char*>();
+        if (code == nullptr || *code == '\0')
+            continue;
+        strncpy(ap.code, code, sizeof(ap.code) - 1);
+        const char* kind = row[3].as<const char*>();
+        ap.kind = (kind != nullptr && *kind != '\0') ? *kind : 'S';
+        out.push_back(ap);
+    }
     return true;
 }
 

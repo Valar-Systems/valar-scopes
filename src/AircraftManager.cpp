@@ -85,7 +85,7 @@ static constexpr size_t MAX_AIRCRAFT = 60;
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
 // The same task also serves the cloud feed and its /v1/config fetch (kind), so all
 // blocking cloud I/O shares the one TLS client + keep-alive connection.
-enum class FetchKind : uint8_t { Feed, CloudConfig };
+enum class FetchKind : uint8_t { Feed, CloudConfig, Airports };
 
 struct FetchRequest {
     FetchKind kind = FetchKind::Feed;
@@ -112,6 +112,7 @@ struct FetchResult {
 #ifdef FEATURE_CLOUD_FEED
     long dataEpoch = 0;              // cloud blips snapshot time t (0 = not cloud)
     CloudFeed::Config config;        // CloudConfig kind only
+    std::vector<CloudFeed::CloudAirport> airports; // Airports kind only
 #endif
 };
 
@@ -631,6 +632,10 @@ void AircraftManager::Initialise()
         // CurrentPollIntervalMs); fetchInterval only seeds the pre-config default.
         fetchInterval = cloudCfg.pollActiveMs;
         lastCloudCfgFetch = 0; // re-fetch the fleet config promptly after any (re)initialise
+        // Location / radius / toggle may just have changed: drop the airport
+        // long tail and re-fetch (the baked majors serve in the gap).
+        lastCloudAirportsFetch = 0;
+        cloudAirports.clear();
         Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
                       cloudUrl.c_str(), cloudCfg.pollActiveMs);
     } else
@@ -871,6 +876,21 @@ void AircraftManager::Update()
                 return; // the fetch task is busy now; the feed poll goes next cycle
             }
         }
+
+        // Airport overlay long tail (/v1/airports): geography is static, so
+        // once after boot and then daily is plenty. Gated on the display toggle
+        // (no toggle, no traffic); Initialise() zeroes the timer on every
+        // config save, so a location / range / toggle change re-fetches. A
+        // failed fetch retries in 15 min (ConsumeFetchResult shifts the timer)
+        // while DrawAirports serves the baked majors table.
+        if (useCloudSource && displayAirports && !cloudUrl.isEmpty()) {
+            constexpr unsigned long APT_REFRESH_MS = 24UL * 60UL * 60UL * 1000UL;
+            if (lastCloudAirportsFetch == 0 || now - lastCloudAirportsFetch >= APT_REFRESH_MS) {
+                lastCloudAirportsFetch = now;
+                RequestCloudAirports();
+                return; // same single-fetch-task etiquette as the config fetch
+            }
+        }
 #endif
 
         // kick off the next fetch when due. Non-blocking: the loop keeps polling
@@ -1076,6 +1096,32 @@ void AircraftManager::RunFetchTask()
                 res->ok = true;
             } else {
                 Serial.printf("[cloud] config fetch failed: HTTP %d %s\n",
+                              r.statusCode, r.errorMessage.c_str());
+            }
+            if (!r.success && r.statusCode <= 0)
+                fetchHardFailures++;
+            delete req;
+            if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
+                delete res;
+            continue;
+        }
+
+        // Airport-overlay fetch (/v1/airports): same one-off GET pattern as the
+        // config fetch above. The reply is server-capped (<= 60 rows, ~2 KB),
+        // so the streaming decode stays trivial on the C3-class heap.
+        if (req->kind == FetchKind::Airports) {
+            JsonDocument aptDoc;
+            const HttpResult r = http.GetJson(
+                CloudFeed::AirportsUrl(req->cloudBase), aptDoc,
+                { { "lat", String(req->lat, 4) },
+                  { "lon", String(req->lon, 4) },
+                  { "r", String((int)lround(req->rangeKm)) } },
+                CloudFeed::Headers(req->cloudKey));
+            if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
+                CloudFeed::ParseAirports(aptDoc, res->airports)) {
+                res->ok = true;
+            } else {
+                Serial.printf("[cloud] airports fetch failed: HTTP %d %s\n",
                               r.statusCode, r.errorMessage.c_str());
             }
             if (!r.success && r.statusCode <= 0)
@@ -1298,6 +1344,25 @@ void AircraftManager::RequestCloudConfig()
     else
         delete req;
 }
+
+void AircraftManager::RequestCloudAirports()
+{
+    if (cloudUrl.isEmpty())
+        return;
+    FetchRequest* req = new FetchRequest();
+    req->kind = FetchKind::Airports;
+    req->cloudBase = cloudUrl;
+    req->cloudKey = cloudKey;
+    // The configured radar radius, not the current zoom: one fetch covers
+    // every zoom level, and DrawAirports culls to the visible scan box.
+    req->lat = lat;
+    req->lon = lon;
+    req->rangeKm = rangeKmCfg;
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+        fetchInFlight = true;
+    else
+        delete req;
+}
 #endif
 
 void AircraftManager::ConsumeFetchResult()
@@ -1327,6 +1392,19 @@ void AircraftManager::ConsumeFetchResult()
         } else {
             // Retry in 15 min rather than tomorrow; the defaults keep serving.
             lastCloudCfgFetch = millis() - (24UL * 60UL * 60UL * 1000UL) + (15UL * 60UL * 1000UL);
+        }
+        delete res;
+        return;
+    }
+
+    if (res->kind == FetchKind::Airports) {
+        if (res->ok) {
+            cloudAirports = std::move(res->airports);
+            Serial.printf("[cloud] airports: %u within %d km\n",
+                          (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));
+        } else {
+            // Retry in 15 min; the baked majors table keeps serving meanwhile.
+            lastCloudAirportsFetch = millis() - (24UL * 60UL * 60UL * 1000UL) + (15UL * 60UL * 1000UL);
         }
         delete res;
         return;
@@ -2120,14 +2198,35 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
     const uint32_t LABEL = lgfx::color888(100, 100, 100);
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(LABEL);
+
+    // Cull + draw one entry; shared between the two sources below.
+    const auto draw = [&](float apLat, float apLon, const char* code) {
+        if (fabsf(apLat - (float)lat) > (float)radLat ||
+            fabsf(apLon - (float)lon) > (float)radLon)
+            return;
+        auto [x, y] = ProjectCoordinateToScreen(apLat, apLon);
+        backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
+        backbuffer.drawString(code, x + 5, y - 3);
+    };
+
+#ifdef FEATURE_CLOUD_FEED
+    // The /v1/airports long tail supersedes the baked majors once loaded. At
+    // wide zooms only large/medium fields draw -- ~60 grass strips would
+    // confetti a 240 px face; zoom in past ~60 km half-width and they appear.
+    if (!cloudAirports.empty()) {
+        const bool wide = radLat > 0.55f; // ~60 km of half-box in degrees
+        for (const CloudFeed::CloudAirport& ap : cloudAirports) {
+            if (wide && ap.kind == 'S')
+                continue;
+            draw(ap.lat, ap.lon, ap.code);
+        }
+        return;
+    }
+#endif
+
     for (size_t i = 0; i < AIRPORT_COUNT; ++i) {
         const Airport& ap = AIRPORTS[i];
-        if (fabsf(ap.lat - (float)lat) > (float)radLat ||
-            fabsf(ap.lon - (float)lon) > (float)radLon)
-            continue;
-        auto [x, y] = ProjectCoordinateToScreen(ap.lat, ap.lon);
-        backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
-        backbuffer.drawString(ap.code, x + 5, y - 3);
+        draw(ap.lat, ap.lon, ap.code);
     }
 }
 
