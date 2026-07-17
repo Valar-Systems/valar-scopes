@@ -273,6 +273,8 @@ private:
     bool lbHaveStanding = false;             // a submit has returned a rank at least once
     int lbRank = 0, lbSeasonRank = 0, lbTotal = 0;
     long lbPoints = 0, lbSeasonPoints = 0;
+    String lbRarestType;                     // this device's rarest logged type (fleet-wide)
+    int lbRarestPct = 0;                     // % of opted-in devices that also have it
 
     // Recent enrichments by hex, surviving aircraft eviction so re-taps are
     // instant even when a contact flapped out of range and back.
