@@ -259,6 +259,7 @@ R"(
                         <label class="check"><input name="altcolor" type="checkbox" %ALTCOLOR%><span>Altitude colors</span></label>
                         <label class="check"><input name="highlight" type="checkbox" %HIGHLIGHT%><span>Highlights</span></label>
                         <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                        <label class="check"><input name="night-clock" type="checkbox" %NIGHT_CLOCK%><span>Night clock (empty sky)</span></label>
                     </div>
                     <label class="field mt">
                         <span>Brightness:</span>
@@ -1469,6 +1470,7 @@ void ConfigurationWebServer::Initialise() {
         const String altColorEnabled = HtmlEscape(prefs.getString("altcolor", "true"));
         const String highlightEnabled = HtmlEscape(prefs.getString("highlight", "true"));
         const String autoDimEnabled = HtmlEscape(prefs.getString("autodim", "true"));
+        const String nightClockOn = HtmlEscape(prefs.isKey("night-clock") ? prefs.getString("night-clock", "false") : "false");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
         // default the clock offset to the nominal zone from longitude (15 deg/hour)
         const String tzOffset = prefs.isKey("tz-offset")
@@ -1706,7 +1708,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1743,6 +1745,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "TZ_OFFSET")      return tzOffset;
                 if (var == "RADAR_UP")       return radarUp;
+                if (var == "NIGHT_CLOCK")    return nightClockOn == "true" ? "checked" : "";
                 if (var == "WATCHLIST")      return watchlist;
                 if (var == "NTFY_TOPIC")     return ntfyTopic;
                 if (var == "MIL_SHOW")       return milShow == "true" ? "checked" : "";
@@ -2079,6 +2082,7 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");
         prefs.putString("highlight", request->hasParam("highlight", true) ? "true" : "false");
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+        prefs.putString("night-clock", request->hasParam("night-clock", true) ? "true" : "false");
         prefs.putString("infotext", request->hasParam("infotext", true) ? "true" : "false");
         prefs.putString("mil-show", request->hasParam("mil-show", true) ? "true" : "false");
         prefs.putString("mil-alert", request->hasParam("mil-alert", true) ? "true" : "false");

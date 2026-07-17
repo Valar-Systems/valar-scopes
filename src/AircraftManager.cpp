@@ -73,7 +73,8 @@ constexpr int LIST_COL_ALT  = 118; // altitude
 
 #include <ArduinoJson.h>
 
-#include "Airports.h" // baked major-airport table for the radar overlay
+#include "Airports.h"     // baked major-airport table for the radar overlay
+#include "SevenSegment.h" // shared 7-seg renderer, for the night clock face
 
 // Cap on aircraft retained per fetch, applied to BOTH sources: keep only the nearest this-many to
 // the configured location so a busy feed (a local dump1090/readsb receiver, or a wide OpenSky box)
@@ -670,6 +671,9 @@ void AircraftManager::Initialise()
 
     const String autoDimStr = configServer.GetStoredString("autodim");
     autoDim = autoDimStr.isEmpty() ? true : (autoDimStr == "true");
+
+    // night clock: opt-in clock face for an empty night sky
+    nightClockEnabled = configServer.GetStoredString("night-clock") == "true";
 
     // window-up rotation: the compass bearing at the top of the screen
     // (0 / unset = classic north-up). Normalised into [0, 360).
@@ -1427,7 +1431,12 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         case Screen::List:  DrawList(backbuffer);  break;
         case Screen::Stats: DrawStats(backbuffer); break;
         case Screen::Radar:
-        default:            DrawRadar(backbuffer, firstPass);  break;
+        default:
+            // at solar night with an empty sky, the radar face becomes a clock
+            // (opt-in) -- the device stays useful instead of showing a dead scope
+            if (NightClockActive()) DrawNightClock(backbuffer);
+            else                    DrawRadar(backbuffer, firstPass);
+            break;
     }
     DrawScreenIndicator(backbuffer);
     DrawClock(backbuffer);
@@ -1863,6 +1872,50 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
     backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, SCREEN_SIZE - 30);
 }
 
+bool AircraftManager::NightClockActive() const
+{
+    if (!nightClockEnabled || !nightNow || inDetail || screen != Screen::Radar)
+        return false;
+    if (time(nullptr) < 1600000000)
+        return false; // no NTP yet -- nothing honest to show
+    for (const auto& [icao, t] : trackedAircraft)
+        if (!t.state.onGround)
+            return false; // traffic in range: the radar always wins
+    return true;
+}
+
+void AircraftManager::DrawNightClock(BandCanvas& backbuffer) const
+{
+    const time_t local = time(nullptr) + utcOffsetSec;
+    struct tm t;
+    gmtime_r(&local, &t);
+
+    // HH : MM in four seven-segment cells + a blinking colon, centred. All
+    // geometry scales from SCREEN_SIZE so every panel gets the same face.
+    const int cellW  = SCREEN_SIZE * 3 / 20;
+    const int cellH  = SCREEN_SIZE / 4;
+    const int gap    = SCREEN_SIZE / 40;
+    const int colonW = cellW / 2;
+    const int total  = 4 * cellW + colonW + 4 * gap;
+    int x = (SCREEN_SIZE - total) / 2;
+    const int y = (SCREEN_SIZE - cellH) / 2;
+
+    // dim green LED look, matching the radar palette at night
+    const uint32_t LIT   = lgfx::color888(0, 190, 0);
+    const uint32_t GHOST = lgfx::color888(0, 22, 0);
+    const uint32_t BLOOM = lgfx::color888(0, 64, 0);
+
+    sevenseg::DrawSevenSeg(backbuffer, x, y, cellW, cellH, t.tm_hour / 10, LIT, GHOST, BLOOM);
+    x += cellW + gap;
+    sevenseg::DrawSevenSeg(backbuffer, x, y, cellW, cellH, t.tm_hour % 10, LIT, GHOST, BLOOM);
+    x += cellW + gap;
+    sevenseg::DrawColon(backbuffer, x, y, colonW, cellH, (t.tm_sec & 1) == 0, LIT, GHOST);
+    x += colonW + gap;
+    sevenseg::DrawSevenSeg(backbuffer, x, y, cellW, cellH, t.tm_min / 10, LIT, GHOST, BLOOM);
+    x += cellW + gap;
+    sevenseg::DrawSevenSeg(backbuffer, x, y, cellW, cellH, t.tm_min % 10, LIT, GHOST, BLOOM);
+}
+
 void AircraftManager::UpdateBrightness()
 {
     const unsigned long now = millis();
@@ -1874,6 +1927,7 @@ void AircraftManager::UpdateBrightness()
     const time_t utc = time(nullptr);
     const bool synced = utc > 1600000000; // NTP has set the clock (>~2020)
     const bool night = synced && isNightNow(lat, lon, utc);
+    nightNow = night; // cached for NightClockActive (same 20 s cadence)
     if (autoDim && night) {
         target = configuredBrightness / 5; // ~20% of day level at night
         if (target < 10) target = 10;

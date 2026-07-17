@@ -290,6 +290,8 @@ private:
     uint8_t configuredBrightness = 255; // day/base level from the slider
     uint8_t currentBrightness = 255;    // currently applied level (avoids redundant writes)
     bool autoDim = true;                // dim at night based on solar elevation
+    bool nightClockEnabled = false;     // config "night-clock": show a big 7-seg clock when it's night and the sky is empty
+    bool nightNow = false;              // solar night, cached by UpdateBrightness (20 s cadence)
     long utcOffsetSec = 0;              // local time = UTC + this, for the clock
     unsigned long lastBrightnessCheck = 0;
 
@@ -333,6 +335,7 @@ private:
     void DrawStats(BandCanvas& backbuffer);
     void DrawScreenIndicator(BandCanvas& backbuffer) const;
     void DrawClock(BandCanvas& backbuffer) const;
+    void DrawNightClock(BandCanvas& backbuffer) const; // big 7-seg face replacing an empty night radar
     std::vector<String> SortedAircraftByDistance();
 
     void UpdateBrightness(); // apply solar day/night dimming (throttled)
@@ -433,6 +436,10 @@ public:
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
+    // Night clock mode: at solar night with an empty sky (and NTP synced), the radar
+    // screen shows a big seven-segment clock instead of a dead scope. main.cpp also
+    // consults this to suppress the sweep beam under the clock face.
+    bool NightClockActive() const;
     // Current sweep beam angle in radians; main.cpp draws the beam from this so it
     // matches the paint-and-fade crossing test exactly (single source of truth).
     float CurrentSweepAngle() const { return sweepAngle; }

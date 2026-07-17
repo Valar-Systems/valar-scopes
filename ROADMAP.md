@@ -75,10 +75,11 @@ For a product whose emotional hook is plane-spotting, **history is the retention
     (source, honest data age incl. server lag, STALE flag, poll cadence, hard-fail
     count), space-guarded so the small panel never collides. Makes a quietly failing
     feed diagnosable from the device.
-13. **Night clock mode.** When auto-dim says night and the sky is empty, show a clock
-    face instead of a dead radar. The EAM edition's seven-segment renderer
-    (`src/eam/SevenSegment.cpp`) can be promoted to shared code. Makes the device useful
-    24 h/day.
+13. **Night clock mode** — **IMPLEMENTED 2026-07-16** (config `night-clock`, default off):
+    at solar night with an empty sky, the radar face becomes a big seven-segment clock;
+    any traffic instantly restores the radar. The EAM seven-segment renderer was promoted
+    to shared code (`include/SevenSegment.h` + `src/SevenSegment.cpp`, namespace
+    `sevenseg`, EAM-compat shim).
 
 ## Proxy-side (no firmware change; already accepted in proxy/README.md)
 

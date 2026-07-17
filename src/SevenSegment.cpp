@@ -1,6 +1,6 @@
 #include "SevenSegment.h"
 
-namespace eam {
+namespace sevenseg {
 
 namespace {
 
@@ -101,4 +101,4 @@ void DrawColon(BandCanvas& c, int x, int y, int w, int h, bool lit,
     c.fillCircle(cx, y2, r, col);
 }
 
-} // namespace eam
+} // namespace sevenseg
