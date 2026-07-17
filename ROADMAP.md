@@ -281,7 +281,12 @@ type codes validated against the known-designator set; **verified tier** for
 cloud-feed devices (the Worker can sanity-check claimed type growth against traffic it
 actually served that device); outliers shadow-flagged for review, not auto-banned.
 Per-device keys remain the real fix and the leaderboard is what eventually justifies
-them.
+them. **Foundation shipped 2026-07-17** (additive, server-side): `src/deviceauth.ts`
+accepts HMAC-derived per-device keys (`X-Blip-Key` + `X-Blip-Device`) alongside the
+shared `BLIP_KEYS`, gated on `DEVICE_KEY_SECRET` so the live fleet is untouched;
+`npm run derive-device-key` mints them at manufacture; device-authed requests get their
+own rate-limit bucket. Staged follow-ups: the firmware storing/sending its per-device
+key, and keying the leaderboard "verified" tier off `deviceAuthed`.
 
 ### Sequencing
 

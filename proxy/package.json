@@ -14,6 +14,7 @@
     "harvest": "tsx scripts/harvest-commons.ts",
     "ingest:mildb": "tsx scripts/ingest-mildb.ts",
     "ingest:airports": "tsx scripts/ingest-airports.ts",
+    "derive-device-key": "tsx scripts/derive-device-key.ts",
     "dashboard": "tsx scripts/photo-dashboard.ts",
     "deploy:staging": "wrangler deploy --env staging",
     "tail:staging": "wrangler tail --env staging"
