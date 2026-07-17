@@ -3,6 +3,12 @@ import { handleAirports } from "./airports";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
+import {
+  handleLeaderboardJson,
+  handleLeaderboardPage,
+  handleLeaderboardSubmit,
+  handleProfile,
+} from "./leaderboard";
 import { record, recordOtaMem, type RequestMetric } from "./metrics";
 import { handleCredits, handlePhoto } from "./photos";
 import { limitByIp, limitByKey } from "./ratelimit";
@@ -34,11 +40,20 @@ async function route(
   url: URL,
   meta: RequestMetric,
 ): Promise<Response> {
-  if (request.method !== "GET") return errorResponse(405, "method_not_allowed");
+  // POST is accepted ONLY for the leaderboard submit (authed below); every
+  // other route is GET.
+  const isLeaderboardSubmit = url.pathname === "/v1/leaderboard" && request.method === "POST";
+  if (request.method !== "GET" && !isLeaderboardSubmit) return errorResponse(405, "method_not_allowed");
   if (url.pathname === "/healthz") return handleHealth(env);
   // Public photo-attribution page (a browser follows the config page's link; no
   // device key). Rendered from the manifest the ingest script publishes to KV.
   if (url.pathname === "/credits") return handleCredits(env);
+  // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
+  // same as /credits (a browser follows the config page's link).
+  if (url.pathname === "/leaderboard") return handleLeaderboardPage(env);
+  if (url.pathname === "/leaderboard.json") return handleLeaderboardJson(request, env);
+  const profileMatch = url.pathname.match(/^\/leaderboard\/([0-9a-f]{8,32})$/);
+  if (profileMatch) return handleProfile(env, profileMatch[1] as string);
   if (!url.pathname.startsWith("/v1/")) return errorResponse(404, "not_found");
 
   // Per-IP limit first (throttles key-guessing too), then auth, then per-key.
@@ -58,6 +73,7 @@ async function route(
   if (url.pathname === "/v1/blips") return handleBlips(request, env, ctx, meta);
   if (url.pathname === "/v1/config") return handleConfig(request, env);
   if (url.pathname === "/v1/airports") return handleAirports(request, env);
+  if (isLeaderboardSubmit) return handleLeaderboardSubmit(request, env);
   const enrichMatch = url.pathname.match(/^\/v1\/enrich\/([^/]+)$/);
   if (enrichMatch) return handleEnrich(request, env, ctx, enrichMatch[1] as string, meta);
   const photoMatch = url.pathname.match(/^\/v1\/photo\/([^/]+)$/);

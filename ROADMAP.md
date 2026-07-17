@@ -287,3 +287,24 @@ Logbook v2 ✅ (shipped 2026-07-16) unblocked this. Build order:
 3. **Season mechanics + rarity weights** — server-side only, no firmware change.
 4. **Badges + profiles** — server-side only.
 5. Later: per-device keys, real accounts for multi-device merge.
+
+### v1 SHIPPED 2026-07-17
+
+Everything above except the scoring-radius normalization landed as one feature:
+- **Worker** ([proxy/src/leaderboard.ts](proxy/src/leaderboard.ts)): `POST /v1/leaderboard`
+  (authed, monotonic-merge + growth caps + name-claim + first-type + streak), rarity/
+  season/badge scoring, and public `GET /leaderboard` (HTML), `/leaderboard.json`,
+  `/leaderboard/<id>` (profile) — all unauthed like `/credits`. Board is aggregated
+  lazily on read with a 5-min KV cache (the cron-built board is the scale path, noted
+  in-file; D1 when the fleet outgrows a per-row scan). 11 tests.
+- **Firmware:** `DeviceIdentity::LeaderboardId()` (salted SHA-256 of the full MAC, 16
+  hex); config-page opt-in (`lb-enabled`) + `lb-name`; hourly `EnrichKind::Leaderboard`
+  POST off the loop (built from the Logbook tallies + type list); a gold LEADERBOARD
+  block on the Stats screen showing rank/points/season, clock-guarded like the others.
+- **README** privacy section documents exactly what an opted-in device sends.
+- **DEFERRED — scoring-radius normalization (30 mi background poll):** the submission
+  already carries `radiusKm` for context, but widening the *tracked* set to a fixed
+  scoring radius touches the exact render/heap path currently under investigation for
+  the [[s3-128-overnight-slowdown]]. Held as its own follow-up until that's root-caused,
+  so v1 doesn't perturb the bug hunt. Rarity weighting already does most of the radius
+  equalizing in the meantime.

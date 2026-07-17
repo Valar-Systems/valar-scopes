@@ -122,7 +122,7 @@ struct FetchResult {
 // ownership transfers by pointer through a depth-1 queue: the receiver frees it.
 // The task fills a result the loop applies; it never touches trackedAircraft,
 // the photo sprite, or the logbook.
-enum class EnrichKind : uint8_t { Metadata, Route, Photo, CloudEnrich, Ntfy };
+enum class EnrichKind : uint8_t { Metadata, Route, Photo, CloudEnrich, Ntfy, Leaderboard };
 
 struct EnrichRequest {
     EnrichKind kind;
@@ -136,6 +136,8 @@ struct EnrichRequest {
     bool   hasPos = false;
     // Ntfy: the alert content, POSTed off-loop with the usual ntfy headers.
     String ntfyTitle, ntfyTags, ntfyBody;
+    // Leaderboard: the JSON submission body, POSTed to cloudBase + /v1/leaderboard.
+    String lbBody;
 };
 
 struct EnrichResult {
@@ -158,6 +160,13 @@ struct EnrichResult {
     // Photo: the raw JPEG body, decoded on the loop so the sprite stays single-task
     bool photoFetched = false;
     String photoBytes;
+
+    // Leaderboard: this device's standing, parsed from the submit response, for
+    // the Stats-screen rank block. lbOk gates whether the loop adopts them.
+    bool lbOk = false;
+    int lbRank = 0, lbSeasonRank = 0, lbTotal = 0;
+    long lbPoints = 0, lbSeasonPoints = 0;
+    String lbResolvedName;
 };
 
 namespace {
@@ -432,6 +441,38 @@ EnrichResult* postNtfy(HttpRequestManager& http, const EnrichRequest& req)
     return res;
 }
 
+#ifdef FEATURE_CLOUD_FEED
+// Leaderboard submission POST, off the loop like ntfy: send the logbook tallies
+// as JSON, parse back this device's rank/points for the Stats block. Failure is
+// non-fatal (the block just keeps the last standing until the next hour).
+EnrichResult* postLeaderboard(HttpRequestManager& http, const EnrichRequest& req)
+{
+    EnrichResult* res = new EnrichResult();
+    res->kind = EnrichKind::Leaderboard;
+    auto headers = CloudFeed::Headers(req.cloudKey);
+    headers.push_back({ "Content-Type", "application/json" });
+    const HttpResult result = http.Post(req.url, req.lbBody, headers);
+    if (!result.success || result.statusCode < 200 || result.statusCode >= 300) {
+        Serial.printf("[leaderboard] submit failed: HTTP %d %s\n",
+                      result.statusCode, result.errorMessage.c_str());
+        return res;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, result.response) == DeserializationError::Ok && doc["ok"].as<bool>()) {
+        res->lbOk = true;
+        res->lbRank = doc["rank"].as<int>();
+        res->lbPoints = doc["points"].as<long>();
+        res->lbSeasonRank = doc["seasonRank"].as<int>();
+        res->lbSeasonPoints = doc["seasonPoints"].as<long>();
+        res->lbTotal = doc["total"].as<int>();
+        res->lbResolvedName = doc["name"].as<String>();
+        Serial.printf("[leaderboard] rank #%d/%d, %ld pts\n", res->lbRank, res->lbTotal, res->lbPoints);
+    }
+    res->definitive = true;
+    return res;
+}
+#endif
+
 // Hand a request to the enrichment task. Frees it (and reports failure) if the
 // depth-1 queue is somehow full -- which can't happen while the loop only ever
 // queues one request at a time behind the enrichInFlight gate.
@@ -578,6 +619,21 @@ void AircraftManager::Initialise()
         metadataNeeded = true;
         logbook.Begin(); // idempotent: only the first call loads from NVS
     }
+
+#ifdef FEATURE_CLOUD_FEED
+    // Public spotting leaderboard (opt-in, off by default). Submits the logbook
+    // tallies hourly through the proxy; needs both the logbook (the numbers) and
+    // the cloud feed (the transport), so it's inert without them.
+    lbEnabled = configServer.GetStoredString("lb-enabled") == "true";
+    lbName = configServer.GetStoredString("lb-name");
+    lbName.trim();
+    if (lbEnabled) {
+        logbookEnabled = true; // the leaderboard's numbers ARE the logbook
+        metadataNeeded = true;
+        logbook.Begin();
+        lastLeaderboardSubmit = 0; // submit promptly after (re)initialise
+    }
+#endif
 
     // "look up!" overhead alert. The distance is entered in the same unit as the
     // radar radius; store it in km for the centre-distance comparison.
@@ -787,6 +843,23 @@ void AircraftManager::Update()
     // flush the logbook to flash if it's accumulated changes (debounced internally)
     if (logbookEnabled)
         logbook.MaybePersist();
+
+#ifdef FEATURE_CLOUD_FEED
+    // Public leaderboard: submit the logbook tallies hourly (first submit ~30 s
+    // after boot so the lifelist has loaded and the clock/feed have settled).
+    // QueueLeaderboardSubmit self-gates on the shared enrich queue; a busy tick
+    // just retries next loop, and lastLeaderboardSubmit only advances on a
+    // successful enqueue so a missed hour isn't skipped.
+    if (lbEnabled && useCloudSource && !cloudUrl.isEmpty()) {
+        constexpr unsigned long LB_INTERVAL_MS = 60UL * 60UL * 1000UL; // hourly
+        constexpr unsigned long LB_FIRST_DELAY_MS = 30UL * 1000UL;
+        const bool due = lastLeaderboardSubmit == 0
+            ? now >= LB_FIRST_DELAY_MS
+            : now - lastLeaderboardSubmit >= LB_INTERVAL_MS;
+        if (due && QueueLeaderboardSubmit())
+            lastLeaderboardSubmit = now;
+    }
+#endif
 
     // Home Assistant / MQTT: (re)publish the discovery configs + a fresh snapshot
     // on each connect, then a retained summary every few seconds. Runs regardless
@@ -1972,6 +2045,23 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         }
     }
 
+#ifdef FEATURE_CLOUD_FEED
+    // LEADERBOARD -- this device's public standing, once a submit has returned
+    // one. Opt-in; shown only when enabled and a rank has arrived.
+    if (lbEnabled && lbHaveStanding && y + lh <= clockTop) {
+        y += 6;
+        backbuffer.setTextColor(lgfx::color888(255, 210, 0)); // gold: a score
+        line("LEADERBOARD");
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        String rankLine = "#" + String(lbRank);
+        if (lbTotal > 0) rankLine += "/" + String(lbTotal);
+        rankLine += "  " + String(lbPoints) + " pts";
+        line(rankLine);
+        if (lbSeasonRank > 0)
+            line("season #" + String(lbSeasonRank) + "  " + String(lbSeasonPoints) + " pts");
+    }
+#endif
+
     // FEED health -- source, honest data age (device wait + server-side lag),
     // poll cadence, and hard-fail count. Most valuable to local-receiver users
     // (Blipscope doubles as a monitor for their dump1090/readsb), and it makes a
@@ -2943,6 +3033,7 @@ void AircraftManager::RunEnrichTask()
             case EnrichKind::Photo:    res = fetchPhoto(http, req->url, req->cloudKey);   break;
 #ifdef FEATURE_CLOUD_FEED
             case EnrichKind::CloudEnrich: res = fetchCloudEnrich(http, *req);          break;
+            case EnrichKind::Leaderboard: res = postLeaderboard(http, *req);           break;
 #endif
             case EnrichKind::Ntfy:     res = postNtfy(http, *req);                     break;
             default: res = new EnrichResult(); break; // unknown kind: clear the in-flight gate
@@ -3149,6 +3240,21 @@ void AircraftManager::ConsumeEnrichResults()
             // enrichment task; this result only clears the in-flight gate.
             break;
 
+#ifdef FEATURE_CLOUD_FEED
+        case EnrichKind::Leaderboard:
+            // Adopt this device's standing for the Stats rank block. A failed
+            // submit (lbOk false) keeps the previous standing until next hour.
+            if (res->lbOk) {
+                lbRank = res->lbRank;
+                lbPoints = res->lbPoints;
+                lbSeasonRank = res->lbSeasonRank;
+                lbSeasonPoints = res->lbSeasonPoints;
+                lbTotal = res->lbTotal;
+                lbHaveStanding = true;
+            }
+            break;
+#endif
+
         case EnrichKind::Route:
             if (it != trackedAircraft.end()) {
                 if (res->definitive) {
@@ -3303,6 +3409,43 @@ bool AircraftManager::QueueNtfyPost(const String& title, const String& tags, con
     enrichInFlight = true;
     return true;
 }
+
+#ifdef FEATURE_CLOUD_FEED
+// Queue the hourly leaderboard submission onto the enrichment task (off-loop,
+// like ntfy). Builds the JSON body from the logbook tallies + the salted device
+// id + the opted-in spotter name. The full type-code list is the ONE list sent
+// (rarity scoring needs it); airlines/countries/airports stay counts-only so
+// those lists -- which would fingerprint the user's location -- never leave.
+bool AircraftManager::QueueLeaderboardSubmit()
+{
+    if (enrichInFlight || cloudUrl.isEmpty())
+        return false;
+
+    JsonDocument doc;
+    doc["id"] = DeviceIdentity::LeaderboardId();
+    doc["name"] = lbName;
+    doc["radiusKm"] = (int)lround(rangeKmCfg);
+    JsonObject counts = doc["counts"].to<JsonObject>();
+    counts["types"]     = (uint32_t)logbook.TypeCount();
+    counts["airlines"]  = (uint32_t)logbook.OperatorCount();
+    counts["countries"] = (uint32_t)logbook.CountryCount();
+    counts["airports"]  = (uint32_t)logbook.AirportCount();
+    JsonArray types = doc["typeCodes"].to<JsonArray>();
+    for (const auto& kv : logbook.Types())
+        types.add(kv.first);
+
+    EnrichRequest* req = new EnrichRequest{};
+    req->kind = EnrichKind::Leaderboard;
+    req->url = cloudUrl + "/v1/leaderboard";
+    req->cloudKey = cloudKey;
+    serializeJson(doc, req->lbBody);
+
+    if (!enqueueEnrich(enrichRequestQueue, req))
+        return false;
+    enrichInFlight = true;
+    return true;
+}
+#endif
 
 bool AircraftManager::SendFlyoverNotification(const TrackedAircraft& tracked, bool military)
 {

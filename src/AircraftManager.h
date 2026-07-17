@@ -254,6 +254,15 @@ private:
     std::vector<CloudFeed::CloudAirport> cloudAirports;
     unsigned long lastCloudAirportsFetch = 0; // millis() of the last request (0 = never)
 
+    // Public spotting leaderboard (opt-in, off by default). Submits the logbook
+    // tallies hourly through the proxy; the parsed standing feeds a Stats block.
+    bool lbEnabled = false;
+    String lbName;
+    unsigned long lastLeaderboardSubmit = 0; // millis() of the last submit (0 = never)
+    bool lbHaveStanding = false;             // a submit has returned a rank at least once
+    int lbRank = 0, lbSeasonRank = 0, lbTotal = 0;
+    long lbPoints = 0, lbSeasonPoints = 0;
+
     // Recent enrichments by hex, surviving aircraft eviction so re-taps are
     // instant even when a contact flapped out of range and back.
     CloudFeed::EnrichCache enrichCache;
@@ -378,6 +387,7 @@ private:
 #ifdef FEATURE_CLOUD_FEED
     void RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
     void RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task
+    bool QueueLeaderboardSubmit();              // loop: queue an hourly /v1/leaderboard POST
     void RequestCloudEnrich(const String& icao24, const String& callsign,
                             float acLat, float acLon); // loop: queue a /v1/enrich lookup
     // Apply one enrichment payload to a tracked aircraft (shared by the network
