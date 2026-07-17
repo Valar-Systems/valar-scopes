@@ -659,5 +659,123 @@
     "autoPicked": false,
     "file": "src/be35.jpg",
     "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "A332",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:China_Eastern_Airbus_A330-200_B-5952_landing_at_Shanghai_Hongqiao_May_2026.jpg",
+    "author": "4300streetcar",
+    "credit": "China Eastern Airbus A330-200 B-5952 landing at Shanghai Hongqiao May 2026",
+    "license": "CC BY 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/a332.jpg"
+  },
+  {
+    "target": "A388",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Emirates_Airbus_A380-861_A6-EER_MUC_2015_04.jpg",
+    "author": "Julian Herzog (Website)",
+    "credit": "Emirates Airbus A380-861 A6-EER MUC 2015 04",
+    "license": "CC BY 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/a388.jpg"
+  },
+  {
+    "target": "AT72",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:ATR_72_G-FBXA_MG_9799.jpg",
+    "author": "Ronnie Robertson",
+    "credit": "ATR 72 G-FBXA MG 9799",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/at72.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "E145",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Embraer_ERJ_145_(US_Airways_Express)_DCA_(2478068087).jpg",
+    "author": "Shawn from Airdrie, Canada",
+    "credit": "Embraer ERJ 145 (US Airways Express) DCA (2478068087)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/e145.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "CRJ2",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Contour_Airlines_Bombardier_CRJ-200_N875AS_BWI_MD1.jpg",
+    "author": "Acroterion",
+    "credit": "Contour Airlines Bombardier CRJ-200 N875AS BWI MD1",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/crj2.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "DH8C",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:De_Havilland_Canada_DHC-8-300_(Regent_AW)_(8093815795).jpg",
+    "author": "Faisal Akram from Dhaka, Bangladesh",
+    "credit": "De Havilland Canada DHC-8-300 (Regent AW) (8093815795)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/dh8c.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C25B",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:G-PAOL_Cessna_525B_CitationJet_CJ3_C25B_c_n_525B-232_(47217348131).jpg",
+    "author": "Markus Eigenheer from Genève, Schweiz",
+    "credit": "G-PAOL Cessna 525B CitationJet CJ3 C25B c n 525B-232 (47217348131)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c25b.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "CL35",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:SE-RNR_Bombardier_Challenger_350_BMA.jpg",
+    "author": "Bene Riobó",
+    "credit": "SE-RNR Bombardier Challenger 350 BMA",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/cl35.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "F2TH",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Arcturus_Group,_operated_by_Flight_Options_(Australia),_(VH-EWB)_Dassault_Falcon_2000EX_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Arcturus Group, operated by Flight Options (Australia), (VH-EWB) Dassault Falcon 2000EX at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/f2th.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "GLEX",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:M-ALSH_Bombardier_Global_Express-BD-700-1A10_s-n_9097_(34607424872).jpg",
+    "author": "Tomás Del Coro from Las Vegas, Nevada, USA",
+    "credit": "M-ALSH Bombardier Global Express-BD-700-1A10 s-n 9097 (34607424872)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/glex.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
   }
 ]
