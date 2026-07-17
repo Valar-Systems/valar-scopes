@@ -1,1 +1,13 @@
 * text=auto
+
+# Binary assets: mark explicitly so `text=auto`'s heuristic detection can never
+# misfire and normalize line endings inside them (autocrlf is on for Windows
+# checkouts). Covers the stock-photo library and any firmware/data blobs.
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.gif   binary
+*.ico   binary
+*.bin   binary
+*.gz    binary
+*.zip   binary
