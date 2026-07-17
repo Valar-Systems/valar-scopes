@@ -2575,6 +2575,20 @@ void AircraftManager::UpdateVisualAlerts()
     // *FlashFired flags) even while a mode is Off, so enabling Flash in the config
     // later never fires a burst for every contact already on screen -- the same
     // reason the buzzer stays silent through the initial bulk sync.
+    // Is the contact inside the visible radar circle? The scan box is square but the
+    // display is round, so a contact can be tracked (and still fetched) while sitting
+    // in an off-screen corner or just past the outer ring. The ring/flash only make
+    // sense for something you can actually see, so gate them on this -- otherwise the
+    // ring keeps pulsing at an aircraft that has already left the picture.
+    constexpr int SCR_C = SCREEN_SIZE_DIV_2 - 1;
+    constexpr int SCR_OUTER = SCREEN_SIZE_DIV_2 - 1;
+    auto onScreen = [&](const TrackedAircraft& t) {
+        auto [la, lo] = RadarBlipPosition(t);
+        auto [x, y] = ProjectCoordinateToScreen(la, lo);
+        const int dx = x - SCR_C, dy = y - SCR_C;
+        return dx * dx + dy * dy <= SCR_OUTER * SCR_OUTER;
+    };
+
     bool milActive = false, emgActive = false;
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
@@ -2582,15 +2596,17 @@ void AircraftManager::UpdateVisualAlerts()
         // squawks can turn emergency mid-track, so the edge is per-contact and
         // fires at most once (a cleared-then-reset squawk doesn't re-burst)
         if (isEmergencySquawk(t.state.squawk)) {
-            if (emgVisual != VisualAlertMode::Off) emgActive = true;
+            const bool vis = onScreen(t);
+            if (vis && emgVisual != VisualAlertMode::Off) emgActive = true;
             if (!t.emgFlashFired) {
                 t.emgFlashFired = true;
-                if (emgVisual == VisualAlertMode::Flash && initialSyncDone) {
+                if (vis && emgVisual == VisualAlertMode::Flash && initialSyncDone) {
                     flashBurstUntilMs = now + FLASH_BURST_MS;
                     flashBurstColor = EMG_RED;
                 }
                 // the emergency tone fires even for a contact already squawking at
-                // boot -- an active emergency is worth hearing about (unlike a flash)
+                // boot, and even off-screen -- an active emergency is worth hearing
+                // about (unlike a flash, which is tied to something you can see)
                 PlayTone(4, 80, 100);
             }
         }
@@ -2606,17 +2622,31 @@ void AircraftManager::UpdateVisualAlerts()
         }
 
         if (SpecialAircraft::IsMilitary(t.state.icao24)) {
-            if (milVisual != VisualAlertMode::Off) milActive = true;
-            if (!t.milFlashFired) {
-                t.milFlashFired = true;
-                // an in-progress emergency burst outranks a new military one
-                const bool emgBurstActive = now < flashBurstUntilMs && flashBurstColor == EMG_RED;
-                if (milVisual == VisualAlertMode::Flash && initialSyncDone && !emgBurstActive) {
-                    flashBurstUntilMs = now + FLASH_BURST_MS;
-                    flashBurstColor = MIL_ORANGE;
+            // Gate on visibility, and mark the edge only once visible, so a jet that
+            // first shows up in an off-screen corner still flashes when it crosses in.
+            if (onScreen(t)) {
+                if (milVisual != VisualAlertMode::Off) milActive = true;
+                if (!t.milFlashFired) {
+                    t.milFlashFired = true;
+                    // an in-progress emergency burst outranks a new military one
+                    const bool emgBurstActive = now < flashBurstUntilMs && flashBurstColor == EMG_RED;
+                    if (milVisual == VisualAlertMode::Flash && initialSyncDone && !emgBurstActive) {
+                        flashBurstUntilMs = now + FLASH_BURST_MS;
+                        flashBurstColor = MIL_ORANGE;
+                    }
                 }
             }
         }
+    }
+
+    // Manual dismiss (tap): suppress the current episode until the screen is clear of
+    // alerting contacts, then re-arm. With the on-screen gate above, a contact leaving
+    // the picture clears milActive/emgActive on its own, so this re-arms naturally.
+    if (!milActive && !emgActive)
+        visualAlertDismissed = false;
+    else if (visualAlertDismissed) {
+        milActive = emgActive = false;
+        flashBurstUntilMs = 0; // kill any burst still in flight
     }
 
     visualRingColor = emgActive ? EMG_RED : (milActive ? MIL_ORANGE : 0);
@@ -2679,6 +2709,36 @@ void AircraftManager::DrawVisualAlert(BandCanvas& backbuffer) const
     const float level = 0.35f + 0.65f * breathe; // floor keeps the ring visible at the dim end
     backbuffer.fillArc(CENTRE, CENTRE, OUTER - 5, OUTER, 0.0f, 360.0f,
                        scaleColor(visualRingColor, level));
+}
+
+bool AircraftManager::TapDismissesAlert(int tx, int ty) const
+{
+    // During a full-screen flash burst the whole display is the alert, so any tap
+    // (lit window or dark) is a dismiss.
+    if ((long)(millis() - flashBurstUntilMs) < 0)
+        return true;
+    if (visualRingColor == 0)
+        return false; // no ring showing -> nothing to dismiss
+    // Ring mode: only a tap that lands in the outer edge band counts, so taps aimed
+    // at blips near the centre still open cards. The band is finger-generous.
+    constexpr int CENTRE = SCREEN_SIZE_DIV_2 - 1;
+    constexpr int OUTER = SCREEN_SIZE_DIV_2 - 1;
+    constexpr int BAND = 26;
+    const int dx = tx - CENTRE, dy = ty - CENTRE;
+    const int inner = OUTER - BAND;
+    return dx * dx + dy * dy >= inner * inner;
+}
+
+void AircraftManager::DismissVisualAlert()
+{
+    visualAlertDismissed = true;
+    visualRingColor = 0;
+    flashBurstUntilMs = 0;
+    if (visualAlertActive) {
+        visualAlertActive = false;
+        lastBrightnessCheck = 0; // release any night-brightness override now
+    }
+    Serial.printf("[alert] %lu visual alert dismissed by tap\n", millis());
 }
 
 void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
@@ -2836,6 +2896,15 @@ void AircraftManager::ExitDetail()
 
 void AircraftManager::HandleTap(int tx, int ty)
 {
+    // Tap the alert ring (or anywhere during a full-screen flash burst) to dismiss
+    // the current military/emergency episode. It re-arms once every alerting contact
+    // has left the screen, so this quiets a lingering ring without disabling the
+    // feature. Checked before card/blip handling so an edge tap always reaches it.
+    if (TapDismissesAlert(tx, ty)) {
+        DismissVisualAlert();
+        return;
+    }
+
     // detail card: flip the photo page to the data page, else close
     if (inDetail) {
         const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
