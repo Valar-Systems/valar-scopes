@@ -492,9 +492,15 @@ floor, KV side-table hit, prefix fill.
 > license-gated manifest rows + downloaded sources, and the first real batch —
 > **Tier-1 military (C17 F16 F15 F35 A10 B52 C30J K35R E6 H60, all PD service
 > photos) + the first civil airliners (B738 A320 A321 B77W B789 A20N)** — was
-> ingested to staging 2026-07-16 (21 types live on `/credits`). Remaining: the
-> civil long tail ranked by proxy-log traffic (extend `photos/picksheet.json`,
-> re-run harvest + ingest), and production ingest at launch.
+> ingested to staging 2026-07-16 (21 types live on `/credits`). Same-day
+> follow-ups driven by live bench reports: **military batch 2** (H64 TEX2 H47
+> C130 T38 V22 P8 F18S — ~65% of the mil side-table fleet now photo-covered)
+> and the **civil long tail** (the 737/A320neo families, E-Jets, CRJs, DH8D,
+> widebodies, and common GA/bizjet/helo types) — **58 types live on
+> `/credits`**. The tool now skips already-held files, paces downloads, and
+> backs off on Wikimedia 429s. Remaining: further long tail ranked by
+> proxy-log traffic (extend `photos/picksheet.json`, re-run harvest +
+> ingest), and production ingest at launch.
 
 **Harvest-phase checklist (when content population begins):**
 

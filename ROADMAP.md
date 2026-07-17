@@ -89,11 +89,12 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 
 ## Proxy-side (no firmware change; already accepted in proxy/README.md)
 
-- **Populate the stock-photo library** — **FIRST REAL BATCH SHIPPED 2026-07-16**: new
-  `npm run harvest` tool (Commons extmetadata → license-gated manifest rows) and 16 new
-  types ingested to staging (Tier-1 military, all PD service photos, + top civil
-  airliners; 21 types live on `/credits`). Remaining: civil long tail by traffic,
-  production ingest at launch.
+- **Populate the stock-photo library** — **58 TYPES LIVE ON STAGING 2026-07-16**: the
+  `npm run harvest` tool (Commons extmetadata → license-gated manifest rows) shipped
+  three batches same-day — Tier-1 military, military batch 2 (Apache/Texan II/Chinook/
+  C-130H/T-38/Osprey/P-8/Super Hornet; ~65% of the mil fleet photo-covered), and the
+  civil long tail (737 + A320neo families, E-Jets, CRJs, Q400, widebodies, GA/bizjet/
+  helos). Remaining: further long tail by proxy-log traffic, production ingest at launch.
 - **Military enrichment deepening** — **P0 + P1 SHIPPED 2026-07-16** (empty-meta
   negative TTL; mil-block + dbFlags operator floor at serve time, `proxy/src/military.ts`);
   **deployed to staging + smoke-tested 2026-07-16**. **P2 static airframe dataset
