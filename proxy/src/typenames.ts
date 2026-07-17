@@ -86,4 +86,17 @@ export const TYPE_NAMES: Record<string, string> = {
   F16: "F-16 Fighting Falcon", F15: "F-15 Eagle", F35: "F-35 Lightning II",
   A10: "A-10 Thunderbolt II", B52: "Boeing B-52 Stratofortress",
   EUFI: "Eurofighter Typhoon",
+  // Second pass 2026-07-16: the most-common military types the Mictronics
+  // side-table slice surfaces whose rows often lack a description (tn falls
+  // back here). Ordered roughly by fleet count in that dataset.
+  H64: "Boeing AH-64 Apache", TEX2: "Beechcraft T-6 Texan II",
+  T38: "Northrop T-38 Talon", NH90: "NHIndustries NH90",
+  PC21: "Pilatus PC-21", C295: "Airbus C295",
+  BE40: "Beechjet 400 / T-1 Jayhawk", HAWK: "BAE Systems Hawk",
+  AS65: "Airbus AS365 Dauphin", F18S: "Boeing F/A-18 Super Hornet",
+  F18H: "Boeing F/A-18 Hornet", H53S: "Sikorsky CH-53 Sea Stallion",
+  EH10: "AgustaWestland AW101 Merlin", K46: "Boeing KC-46 Pegasus",
+  E8: "Boeing E-8 JSTARS", U2: "Lockheed U-2 Dragon Lady",
+  B1: "Rockwell B-1 Lancer", B2: "Northrop B-2 Spirit",
+  F22: "Lockheed Martin F-22 Raptor",
 };

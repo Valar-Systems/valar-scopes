@@ -233,5 +233,105 @@
     "autoPicked": false,
     "file": "src/a20n.jpg",
     "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "H64",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:AH-64_Apache_Flight_Formation_(6331400).jpg",
+    "author": "U.S. Army photo by Charles Rosemond",
+    "credit": "AH-64 Apache Flight Formation (6331400)",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/h64.jpg"
+  },
+  {
+    "target": "TEX2",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:96th_Flying_Training_Squadron_T-6A_Texan_II_in_flight_at_Laughlin_Air_Force_Base,_Texas,_June_5,_2025.jpg",
+    "author": "Senior Airman Keira Rossman",
+    "credit": "96th Flying Training Squadron T-6A Texan II in flight at Laughlin Air Force Base, Texas, June 5, 2025",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/tex2.jpg"
+  },
+  {
+    "target": "H47",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:CH-47F_Chinook_PEO_AVN_DVIDS591778.jpg",
+    "author": "Mark Marcus",
+    "credit": "CH-47F Chinook PEO AVN DVIDS591778",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/h47.jpg"
+  },
+  {
+    "target": "C130",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:C-130H_Missouri_ANG_in_flight_1990.JPEG",
+    "author": "MSgt. Ken Hammond, USAF",
+    "credit": "C-130H Missouri ANG in flight 1990",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/c130.jpg"
+  },
+  {
+    "target": "T38",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:T-38_Talon_over_Edwards_AFB.jpg",
+    "author": "U.S. Department of Defense",
+    "credit": "T-38 Talon over Edwards AFB",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/t38.jpg"
+  },
+  {
+    "target": "V22",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:CV-22_Osprey_in_flight.jpg",
+    "author": "U.S. Air Force photo/Staff Sgt. Markus Maier",
+    "credit": "CV-22 Osprey in flight",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/v22.jpg"
+  },
+  {
+    "target": "P8",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:P-8A_Poseidon_Executes_Training_Flight_(9341127).jpg",
+    "author": "U.S. Navy photo by Lt. Sara Wedemeyer",
+    "credit": "P-8A Poseidon Executes Training Flight (9341127)",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/p8.jpg"
+  },
+  {
+    "target": "F18S",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:FA-18F_Super_Hornet_of_VFA-103_makes_a_touch_and_go_landing_aboard_USS_George_Washington_(CVN-73)_in_the_Atlantic_Ocean,_6_December_2023_(231206-N-VX022-1050).JPG",
+    "author": "U.S. Navy photo by Mass Communication Specialist 3rd Class August Clawson",
+    "credit": "FA-18F Super Hornet of VFA-103 makes a touch and go landing aboard USS George Washington (CVN-73) in the Atlantic Ocean, 6 December 2023 (231206-N-VX022-1050)",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/f18s.jpg"
+  },
+  {
+    "target": "EC45",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Airbus_Helicopter_H145_over_Haringey_London_England.jpg",
+    "author": "Acabashi",
+    "credit": "Airbus Helicopter H145 over Haringey London England",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/ec45.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
   }
 ]
