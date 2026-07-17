@@ -1,4 +1,5 @@
 import type { Env } from "./types";
+import { handleAirports } from "./airports";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
@@ -56,6 +57,7 @@ async function route(
 
   if (url.pathname === "/v1/blips") return handleBlips(request, env, ctx, meta);
   if (url.pathname === "/v1/config") return handleConfig(request, env);
+  if (url.pathname === "/v1/airports") return handleAirports(request, env);
   const enrichMatch = url.pathname.match(/^\/v1\/enrich\/([^/]+)$/);
   if (enrichMatch) return handleEnrich(request, env, ctx, enrichMatch[1] as string, meta);
   const photoMatch = url.pathname.match(/^\/v1\/photo\/([^/]+)$/);

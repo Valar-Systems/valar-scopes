@@ -247,6 +247,13 @@ private:
     bool cloudCfgEverApplied = false;
     bool otaCheckRequested = false; // set when config minFw > FW_VERSION; main.cpp consumes
 
+    // Airport overlay long tail from /v1/airports (server-capped, priority-
+    // sorted). While non-empty it supersedes the baked include/Airports.h
+    // table in DrawAirports; empty (boot, fetch failed, non-cloud) falls back
+    // to the baked majors. Fetched once the location is known, then daily.
+    std::vector<CloudFeed::CloudAirport> cloudAirports;
+    unsigned long lastCloudAirportsFetch = 0; // millis() of the last request (0 = never)
+
     // Recent enrichments by hex, surviving aircraft eviction so re-taps are
     // instant even when a contact flapped out of range and back.
     CloudFeed::EnrichCache enrichCache;
@@ -370,6 +377,7 @@ private:
 
 #ifdef FEATURE_CLOUD_FEED
     void RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
+    void RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task
     void RequestCloudEnrich(const String& icao24, const String& callsign,
                             float acLat, float acLon); // loop: queue a /v1/enrich lookup
     // Apply one enrichment payload to a tracked aircraft (shared by the network

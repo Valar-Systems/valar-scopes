@@ -172,6 +172,27 @@ Baked tiers: default/`c3-128` poll 5/15/60 s (C3 enriches `watchlist`-only);
 `s3-146`/`s3-21` poll 2/10/45 s — the S3's near-realtime motion is a pure
 server-side knob.
 
+### `GET /v1/airports?lat&lon&r`
+
+The airport overlay's long tail beyond the firmware's baked ~260 majors
+(include/Airports.h stays as the BYO/offline fallback). Backed by the
+**OurAirports** dataset (public domain), pre-tiled into KV as 1° `apt:<lat>:<lon>`
+tiles by `npm run ingest:airports` (~48k open large/medium/small airports —
+heliports, seaplane bases and closed fields dropped). The handler walks the
+tiles the radius circle touches (bounded), distance-filters, sorts
+large > medium > small then nearest, and caps at **60 rows** so the reply
+parses off the socket on a C3-class heap. Devices fetch once the location is
+known, then daily; geography is static so responses edge-cache for 24 h on a
+~0.1°-rounded key.
+
+```json
+{"v":1,"a":[[44.25,-121.15,"RDM","M"],[44.09,-121.2,"BDN","S"]]}
+```
+
+Row order is frozen `[lat, lon, code, kind]` (code = IATA, else FAA local,
+else ident, ≤4 chars; kind `L`/`M`/`S`); extra trailing fields are the
+evolution path, same rule as blips.
+
 ### `GET /v1/photo/<key>`
 
 Serves one immutable, content-addressed stock photo (`key` =

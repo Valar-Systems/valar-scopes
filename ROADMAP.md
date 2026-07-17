@@ -70,10 +70,15 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 
 ## Tier 3 — Bigger differentiators
 
-10. **Airport overlay on the radar** — **IMPLEMENTED 2026-07-16** (baked ~250-entry
+10. **Airport overlay on the radar** — **IMPLEMENTED 2026-07-16** (baked ~260-entry
     major-airport table in `include/Airports.h`, dim markers + IATA codes under the
-    aircraft layer, `airports` display toggle default on). Follow-up: a
-    `/v1/airports?lat&lon&r` cloud endpoint for the long tail of small fields.
+    aircraft layer, `airports` display toggle default on). **Long-tail follow-up also
+    SHIPPED 2026-07-16**: `GET /v1/airports?lat&lon&r` serves the full OurAirports
+    dataset (public domain; 48k airports pre-tiled into KV by `npm run
+    ingest:airports`, priority-sorted L>M>S, capped at 60) and cloud devices fetch it
+    once the location is known (daily refresh, `FetchKind::Airports` on the shared
+    fetch task). While loaded it supersedes the baked table; small fields hide at wide
+    zooms so the face never clutters. The baked majors stay as the BYO/offline fallback.
 11. **Config apply without restart** — **ALREADY SHIPPED** (verified 2026-07-16): every
     web save raises `ConsumeConfigChanged` and `main.cpp` re-runs `Initialise()` live on
     the loop task, no reboot. The roadmap entry came from a stale header comment, now fixed.
