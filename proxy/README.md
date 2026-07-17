@@ -336,10 +336,44 @@ npm run deploy:staging
 ```
 
 Staging serves at `https://scopes-staging.valarsystems.com` (custom domain; the
-zone must be on the same Cloudflare account). Production later: copy the
-`[env.staging]` block to `[env.production]` with its own KV namespace, secrets,
-the `scopes.valarsystems.com` domain, and a lower `head_sampling_rate` (logs
-cost money at fleet scale — see below).
+zone must be on the same Cloudflare account).
+
+### Going to production
+
+The `[env.production]` block already exists in `wrangler.toml` (mirrors staging,
+with failover feeds off pending licensing + `head_sampling_rate = 0.05`). Three
+account-specific steps remain, then deploy + seed the data:
+
+```sh
+cd proxy
+
+# 1. Create the production KV namespace, then paste the printed id into
+#    wrangler.toml under [[env.production.kv_namespaces]] (replace REPLACE_ME).
+npx wrangler kv namespace create ENRICH_KV --env production
+
+# 2. Secrets.
+npx wrangler secret put BLIP_KEYS --env production          # device build key(s)
+npx wrangler secret put DEVICE_KEY_SECRET --env production   # if using per-device keys
+npx wrangler secret put ADSB_LOL_API_KEY --env production    # once issued (launch to-do)
+
+# 3. Add scopes.valarsystems.com as a custom domain (the route is already in
+#    wrangler.toml; the zone must be on this account). Then deploy:
+npm run deploy:production
+
+# 4. Seed the KV-backed datasets into the fresh production namespace:
+npm run ingest -- --env production            # 68 stock photos + manifest/credits
+npm run ingest:mildb -- --env production      # ~17k military airframes
+npm run ingest:airports -- --env production   # ~9.4k airport tiles
+
+# 5. Flip the weekly refresh workflow to production (.github/workflows/refresh-data.yml
+#    default env), and set the repo secret CLOUDFLARE_API_TOKEN so it can write KV.
+```
+
+Then point the shipping firmware env at `https://scopes.valarsystems.com`
+(`CLOUD_FEED_BASE`) and bake its key (`CLOUD_FEED_KEY`, ideally per-device via
+`npm run derive-device-key`) so a customer device works with nothing to paste.
+**Gate:** don't cut the firmware release until the overnight slowdown is fixed
+(ROADMAP "Release readiness").
 
 Smoke test:
 

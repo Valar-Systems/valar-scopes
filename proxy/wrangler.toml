@@ -80,3 +80,68 @@ name = "RL_KEY"
 type = "ratelimit"
 namespace_id = "1102"
 simple = { limit = 6000, period = 60 }
+
+# ===================== production =====================
+# scopes.valarsystems.com. Mirrors staging, with the launch-correct posture:
+# failover feeds OFF until their commercial-use permission clears (README/ROADMAP
+# licensing to-do), and sampled request logging (full logging is real money at
+# fleet scale -- see the cost model).
+#
+# BEFORE FIRST DEPLOY, three account-specific steps (see proxy/README.md
+# "Going to production"):
+#   1. Create the prod KV namespace and paste its id below (replace the
+#      REPLACE_ME placeholder): npx wrangler kv namespace create ENRICH_KV --env production
+#   2. Set the secrets: npx wrangler secret put BLIP_KEYS --env production
+#      (and DEVICE_KEY_SECRET if using per-device keys).
+#   3. Add scopes.valarsystems.com as a custom domain (route below; the zone must
+#      be on this Cloudflare account).
+# The RL binding namespace_ids (2101/2102) are distinct from staging's so the
+# token buckets don't collide.
+[env.production]
+name = "blipscope-proxy"
+workers_dev = false
+
+routes = [
+  { pattern = "scopes.valarsystems.com", custom_domain = true }
+]
+
+# Failover feeds OFF at launch: adsb.lol is the licensed primary; adsb.fi and
+# airplanes.live stay disabled until their operators grant commercial use (the
+# open licensing to-do). Flip to "true" per feed only once permission clears.
+[env.production.vars]
+UPSTREAM_ADSB_FI_ENABLED = "false"
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
+ROUTE_ADSBDB_ENABLED = "true"
+
+# Sampled logging: keep 1-in-20 requests (~200 B each is real money at fleet
+# scale). Raise temporarily when debugging a production incident.
+[env.production.observability]
+enabled = true
+head_sampling_rate = 0.05
+
+# REPLACE_ME: paste the id printed by `wrangler kv namespace create ENRICH_KV
+# --env production`. A deploy against the placeholder will fail fast (intended --
+# it forces the namespace to be created first).
+[[env.production.kv_namespaces]]
+binding = "ENRICH_KV"
+id = "REPLACE_ME_WITH_PROD_KV_NAMESPACE_ID"
+
+[[env.production.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "blipscope_proxy"
+
+# Same per-colo reasoning as staging (RL_IP: ~3 fast devices per household IP;
+# RL_KEY: per-colo fleet ceiling). Distinct namespace_ids so prod and staging
+# buckets are independent. Revisit RL_KEY once per-device keys spread the fleet
+# across many buckets instead of one shared key.
+[[env.production.unsafe.bindings]]
+name = "RL_IP"
+type = "ratelimit"
+namespace_id = "2101"
+simple = { limit = 120, period = 60 }
+
+[[env.production.unsafe.bindings]]
+name = "RL_KEY"
+type = "ratelimit"
+namespace_id = "2102"
+simple = { limit = 6000, period = 60 }
