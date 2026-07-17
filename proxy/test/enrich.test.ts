@@ -257,6 +257,16 @@ describe("military enrichment deepening", () => {
     expect(((await res.json()) as { op: string }).op).toBe("US military");
   });
 
+  it("fills op from a military callsign designator, beating the block floor (P3)", async () => {
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae5009" }).reply(200, hexBody([{ hex: "ae5009" }]));
+    fetchMock.get(LOL).intercept({ path: "/api/0/routeset", method: "POST" }).reply(201, "");
+
+    const res = await call(apiRequest("/v1/enrich/ae5009?cs=RCH4571"), { ROUTE_ADSBDB_ENABLED: "false" });
+    const body = (await res.json()) as { op: string };
+    // The designator is more specific than the allocation's "US military".
+    expect(body.op).toBe("Air Mobility Command");
+  });
+
   it("fills reg/type/name from the mil side table when the live record is empty (P2)", async () => {
     await env.ENRICH_KV.put(
       "mil:ae5005",

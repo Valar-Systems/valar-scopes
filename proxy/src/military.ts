@@ -54,6 +54,54 @@ const MIL_RANGES: MilRange[] = [
   { lo: 0xe40000, hi: 0xe41fff, op: "Brazilian military" },
 ];
 
+// P3: military callsign designators, filling `op` from the broadcast callsign
+// when neither the DB record nor anything else produced one. A designator is
+// MORE specific than the allocation floor (RCH proves Air Mobility Command;
+// the hex block only proves "US military"), so the enrich path consults this
+// before militaryOperator(). Only unambiguous, ICAO-assigned or
+// long-established military designators belong here -- never squadron
+// tactical names a civil operator could plausibly reuse.
+const MIL_CALLSIGN_OPS: Record<string, string> = {
+  // United States
+  RCH: "Air Mobility Command", // REACH
+  CNV: "US Navy", // CONVOY -- Navy logistics
+  PAT: "US Army Priority Air Transport",
+  SAM: "US Air Force Special Air Mission", // 89th AW VIP
+  SPAR: "US Air Force Special Air Mission",
+  KING: "US Air Force rescue", // HC-130
+  JOLLY: "US Air Force rescue", // HH-60
+  // Europe / NATO
+  RRR: "Royal Air Force", // spoken "ASCOT"
+  RFR: "Royal Air Force", // spoken "RAFAIR"
+  GAF: "German Air Force",
+  GAM: "German Army",
+  CTM: "French Air Force", // COTAM
+  FAF: "French Air Force",
+  FNY: "French Navy",
+  IAM: "Italian Air Force",
+  BAF: "Belgian Air Force",
+  NAF: "Royal Netherlands Air Force",
+  PLF: "Polish Air Force",
+  SVF: "Swedish Air Force",
+  NOW: "Royal Norwegian Air Force",
+  DAF: "Danish Air Force",
+  AME: "Spanish Air Force",
+  AFP: "Portuguese Air Force",
+  NATO: "NATO",
+  // Rest of world
+  CFC: "Royal Canadian Air Force", // CANFORCE
+  ASY: "Royal Australian Air Force", // AUSSIE
+};
+
+// Operator from a broadcast callsign's designator prefix; "" when it isn't a
+// known military one. Expects the router's normalized callsign (uppercase
+// alphanumeric) and requires the letters-then-digit shape ("RCH4571"), so a
+// registration flown as callsign ("N123AB") or a bare word can never match.
+export function militaryCallsignOperator(cs: string): string {
+  const m = /^([A-Z]{3,5})[0-9]/.exec(cs);
+  return m ? (MIL_CALLSIGN_OPS[m[1]] ?? "") : "";
+}
+
 // Operator floor for a hex in a military allocation; "" when it isn't in one.
 // Accepts readsb's "~" TIS-B prefix (stripped, like the firmware's parser).
 export function militaryOperator(hexRaw: string): string {

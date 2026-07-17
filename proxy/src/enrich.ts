@@ -2,7 +2,7 @@ import type { Env } from "./types";
 import type { RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
 import { fetchHexChain, fetchRoute } from "./upstreams/chain";
-import { militaryOperator } from "./military";
+import { militaryCallsignOperator, militaryOperator } from "./military";
 import { TYPE_NAMES } from "./typenames";
 import { resolvePhoto } from "./photos";
 import { errorResponse, intEnv, jsonResponse } from "./util";
@@ -191,13 +191,13 @@ export async function handleEnrich(
   const photo = await resolvePhoto(env, hex, acT);
 
   // Military floor, applied at serve time so cached pre-floor entries get it
-  // too: a hex in a military allocation (or dbFlags-marked military) whose
-  // operator resolved empty is labelled with the truthful generic instead of
-  // rendering a blank card. Block table first (nationally attributed), dbFlags
-  // as the catch-all. Never guesses types or registrations.
+  // too: when the operator resolved empty, fill from (most-specific first)
+  // the broadcast callsign's military designator (P3: RCH proves Air Mobility
+  // Command), then the hex allocation table (nationally attributed), then
+  // dbFlags as the catch-all generic. Never guesses types or registrations.
   let op = acMeta?.op ?? "";
   if (!op) {
-    op = militaryOperator(hex) || (acMeta?.mil ? "Military" : "");
+    op = militaryCallsignOperator(cs) || militaryOperator(hex) || (acMeta?.mil ? "Military" : "");
   }
 
   const body: Record<string, string | number> = {
