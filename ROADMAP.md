@@ -227,12 +227,12 @@ month while lifetime boards stay the long game.
 
 **Radius fairness (settled 2026-07-17):** the configured radar radius would otherwise
 be a score multiplier (bigger circle, more contacts). Fix: **a standardized scoring
-radius (~50 km), applied in the background** — never touching the user's display
-radius, which is a viewing preference (a small circle is exactly right for "what can
-I walk outside and see"). In cloud mode an opted-in device polls `/v1/blips` at
-`max(userRadius, SCORING_R)`; contacts beyond the user's radius are **scoring-only**
+radius of 30 miles (≈48 km), applied in the background** — never touching the user's
+display radius, which is a viewing preference (a small circle is exactly right for
+"what can I walk outside and see"). In cloud mode an opted-in device polls `/v1/blips`
+at `max(userRadius, SCORING_R)`; contacts beyond the user's radius are **scoring-only**
 — the logbook counts them but they never appear on the radar or list screens. Devices
-with a radius already ≥ 50 km score only from the inner 50 km. Side benefit: every
+with a radius already ≥ 30 mi score only from the inner 30 mi. Side benefit: every
 verified competitor observes the same-sized sky, which makes the server's
 plausibility check sharper. BYO/local devices can't be normalized (their receiver is
 their radius) — one more reason they compete as "unverified".
