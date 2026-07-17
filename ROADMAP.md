@@ -24,6 +24,15 @@ and unroot-caused — shipping potentially-unstable firmware to the fleet mid-in
 is the wrong trade. `FW_VERSION` is deliberately left at 4 (bumping it ships nothing
 until a Release is published, so there's nothing to gain by bumping early).
 
+**Production backend stood up 2026-07-17.** `scopes.valarsystems.com` is live: Worker
+deployed, `[env.production]` KV namespace created + wired, `BLIP_KEYS` secret set, all
+three datasets ingested (68 photos, ~17k mil airframes, ~9.4k airport tiles), and the
+full authed path verified (`/v1/config` → 200, correct per-model tier, `upstreamState:ok`;
+`/credits` serves the photos; failover feeds off pending licensing). **Still pending on
+the production path:** (1) the weekly `refresh-data` workflow flipped to production + its
+`CLOUDFLARE_API_TOKEN` repo secret, (2) firmware repointed at production
+(`CLOUD_FEED_BASE` + a baked/ per-device key) — gated on the slowdown fix.
+
 **Go criteria (all three):** (1) the slowdown is root-caused and fixed (the new
 `LOOP STALL` telemetry should catch the next recurrence), (2) a clean 24 h bench soak on
 the s3-128 with the full feature set, (3) the shipping features get a bench pass (below).
