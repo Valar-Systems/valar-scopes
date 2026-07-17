@@ -118,7 +118,8 @@ private:
     bool photoResolved = false;
 
     // Parallel to AIRCRAFT_INFO_FIELDS: which info lines the user has enabled.
-    // Populated once in Initialise() (config changes restart the device).
+    // Populated in Initialise(), which main.cpp re-runs on every web-config save
+    // (ConsumeConfigChanged) -- settings apply live, no reboot.
     std::vector<bool> infoFieldEnabled;
 
     // True when at least one enabled field needs the adsbdb lookup; lets us skip
