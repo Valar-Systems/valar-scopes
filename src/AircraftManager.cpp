@@ -1533,6 +1533,8 @@ void AircraftManager::ConsumeFetchResult()
                     todayContacts = 0;
                     todayPeak = 0;
                     memset(todayHourCounts, 0, sizeof(todayHourCounts));
+                    aotdScore = 0;
+                    aotdCallsign = ""; aotdLabel = ""; aotdReason = "";
                 }
             }
         }
@@ -2028,6 +2030,18 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
             }
             y += 16;
         }
+    }
+
+    // AIRCRAFT OF THE DAY -- the day's single most notable catch (see
+    // ConsiderAircraftOfDay). Only shows once something's been logged today.
+    if (!aotdCallsign.isEmpty() && y + lh <= clockTop) {
+        y += 6;
+        backbuffer.setTextColor(lgfx::color888(255, 210, 0)); // gold: a highlight
+        line("AIRCRAFT OF THE DAY");
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        line(aotdCallsign + "  " + aotdReason);
+        if (!aotdLabel.isEmpty())
+            line(aotdLabel);
     }
 
     // spotting logbook totals (the persistent "lifelist")
@@ -3144,7 +3158,37 @@ void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed:
         // catch mechanic stays about the aircraft, not its schedule)
         logbook.NoteAirport(tracked.routeOrigin);
         logbook.NoteAirport(tracked.routeDest);
+        ConsiderAircraftOfDay(tracked, newType, newOperator);
     }
+}
+
+void AircraftManager::ConsiderAircraftOfDay(const TrackedAircraft& tracked, bool newType, bool newOperator)
+{
+    // Priority bands, widely separated so class always outranks the altitude
+    // tiebreak within a band. Emergency > new type > military > new airline >
+    // just-the-highest-flying, so on a quiet day something still shows.
+    int score;
+    String reason;
+    if (isEmergencySquawk(tracked.state.squawk)) { score = 5000; reason = "EMERGENCY"; }
+    else if (newType)                            { score = 4000; reason = "New type"; }
+    else if (alertMilitary && SpecialAircraft::IsMilitary(tracked.state.icao24))
+                                                 { score = 3000; reason = "Military"; }
+    else if (newOperator)                        { score = 2000; reason = "New airline"; }
+    else                                         { score = 1000; reason = "Highest today"; }
+    // Altitude tiebreak (0..~600 for 0..60 kft): decides within a band, and lets
+    // the "Highest today" fallback actually track the highest contact.
+    const int altFt = (int)lroundf(tracked.state.baroAltitude * METRES_TO_FEET);
+    score += altFt / 100;
+
+    if (score <= aotdScore) return;
+    aotdScore = score;
+    String cs = tracked.state.callsign; cs.trim();
+    if (cs.isEmpty()) { cs = tracked.state.icao24; cs.toUpperCase(); }
+    aotdCallsign = cs;
+    aotdLabel = !tracked.typeName.isEmpty() ? tracked.typeName
+              : !tracked.typeCode.isEmpty() ? tracked.typeCode
+              : tracked.operatorName;
+    aotdReason = reason;
 }
 
 bool AircraftManager::CloudShouldBackgroundEnrich(const TrackedAircraft& tracked) const

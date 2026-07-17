@@ -206,6 +206,13 @@ private:
     uint16_t todayHourCounts[24] = {0};
     uint32_t statsDayLocal = 0; // local epoch-day the counters describe
 
+    // "Aircraft of the day": the single most notable catch since local midnight,
+    // shown as a Stats block. RAM-only, resets with the TODAY counters. Priority
+    // (highest score wins): emergency > new lifelist type > military > new
+    // airline > highest-flying, with altitude as the within-class tiebreak.
+    int aotdScore = 0;
+    String aotdCallsign, aotdLabel, aotdReason;
+
     // Alert-tone sequencer (HAS_AUDIO boards; config "tones", default on). The board
     // chirp primitive is a single <=80 ms burst, so distinct per-class tones are built
     // as chirp PATTERNS (count x on/gap) stepped non-blockingly from Update(). A
@@ -432,6 +439,9 @@ private:
 
     bool MatchesWatchlist(const TrackedAircraft& tracked) const;
     bool IsOverhead(const TrackedAircraft& tracked) const; // within overheadKm of the centre
+    // Score a freshly-enriched contact for "aircraft of the day" and adopt it if
+    // it beats the day's current holder.
+    void ConsiderAircraftOfDay(const TrackedAircraft& tracked, bool newType, bool newOperator);
     void ProcessAlerts();                                  // ntfy: flyover + overhead, throttled
     // The Send* builders queue the POST onto the enrichment task (the loop must
     // never block on ntfy.sh -- it used to cost taps). They return false when the
