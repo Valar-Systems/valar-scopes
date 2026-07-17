@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { militaryOperator } from "../src/military";
+import { militaryCallsignOperator, militaryOperator } from "../src/military";
 
 describe("militaryOperator", () => {
   it("labels the US DoD block, boundaries inclusive", () => {
@@ -27,5 +27,29 @@ describe("militaryOperator", () => {
     expect(militaryOperator("zzz")).toBe("");
     expect(militaryOperator("")).toBe("");
     expect(militaryOperator("ae12")).toBe("");
+  });
+});
+
+describe("militaryCallsignOperator (P3)", () => {
+  it("resolves well-known military designators", () => {
+    expect(militaryCallsignOperator("RCH4571")).toBe("Air Mobility Command");
+    expect(militaryCallsignOperator("PAT025")).toBe("US Army Priority Air Transport");
+    expect(militaryCallsignOperator("CNV6501")).toBe("US Navy");
+    expect(militaryCallsignOperator("RRR2205")).toBe("Royal Air Force");
+    expect(militaryCallsignOperator("GAF892")).toBe("German Air Force");
+    expect(militaryCallsignOperator("JOLLY51")).toBe("US Air Force rescue");
+  });
+
+  it("requires the letters-then-digit shape", () => {
+    expect(militaryCallsignOperator("RCH")).toBe(""); // bare designator, no flight number
+    expect(militaryCallsignOperator("N123AB")).toBe(""); // registration as callsign
+    expect(militaryCallsignOperator("RCHXY1")).toBe(""); // prefix is the full alpha run
+    expect(militaryCallsignOperator("")).toBe("");
+  });
+
+  it("returns empty for civil airline designators", () => {
+    expect(militaryCallsignOperator("SWR123")).toBe("");
+    expect(militaryCallsignOperator("UAL1")).toBe("");
+    expect(militaryCallsignOperator("DAL2205")).toBe("");
   });
 });
