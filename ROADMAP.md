@@ -63,8 +63,10 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 8. **"Airports seen"** — **IMPLEMENTED 2026-07-16**: fourth lifelist set (300-code cap),
    fed from route endpoints at both enrichment apply points (cloud + adsbdb), shown on
    the Stats LIFELIST block.
-9. **Logbook export / web view** — a read-only `/logbook` page (or JSON/CSV download) on
-   the already-running async config server. Makes the lifelist portable and shareable.
+9. **Logbook export / web view** — **IMPLEMENTED 2026-07-16**: `GET /logbook.json` on the
+   config server (full lifelist: types with first-seen dates + counts, airlines,
+   countries, airports, records; ISO dates), read straight from NVS so it's async-task
+   safe (≤1 debounce interval stale), linked from the config page's logbook section.
 
 ## Tier 3 — Bigger differentiators
 

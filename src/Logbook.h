@@ -68,6 +68,12 @@ public:
     // Days-since-epoch for "now" (0 when NTP hasn't synced), shared with display code.
     static uint16_t TodayEpochDay();
 
+    // Full lifelist as JSON, read straight from NVS (the last debounced persist,
+    // so at most ~10 min stale). Static + read-only on purpose: it's served by
+    // the async web task (/logbook.json) and must never touch the live maps the
+    // loop task mutates -- the same pattern as the EAM edition's log export.
+    static String ExportJson();
+
     void MaybePersist(); // flush to NVS when dirty and the debounce has elapsed
 
 private:

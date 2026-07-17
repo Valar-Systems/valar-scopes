@@ -36,6 +36,35 @@ void forEachRecord(const String& blob, Fn fn)
 
 } // namespace
 
+namespace {
+
+// yyyy-mm-dd from days-since-epoch; "" for the 0 "unknown" sentinel.
+String dayToIso(uint16_t day)
+{
+    if (day == 0)
+        return "";
+    const time_t t = (time_t)day * 86400;
+    struct tm tmv;
+    gmtime_r(&t, &tmv);
+    char buf[11];
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday);
+    return String(buf);
+}
+
+String jsonEscape(const String& s)
+{
+    String out;
+    out.reserve(s.length() + 4);
+    for (size_t i = 0; i < s.length(); ++i) {
+        const char c = s[i];
+        if (c == '"' || c == '\\') { out += '\\'; out += c; }
+        else if ((uint8_t)c >= 0x20) out += c; // drop control chars
+    }
+    return out;
+}
+
+} // namespace
+
 uint16_t Logbook::TodayEpochDay()
 {
     const time_t utc = time(nullptr);
@@ -211,6 +240,77 @@ void Logbook::NoteBest(const String& callsign, float altFt, float speedKt, float
     if (altFt > 0.0f) offerRecord(recHigh, callsign, altFt, false);
     if (speedKt > 0.0f) offerRecord(recFast, callsign, speedKt, false);
     if (distKm > 0.0f) offerRecord(recNear, callsign, distKm, true);
+}
+
+String Logbook::ExportJson()
+{
+    Preferences p;
+    if (!p.begin("logbook", true)) // read-only; absent namespace = empty logbook
+        return "{\"contacts\":0,\"types\":[],\"airlines\":[],\"countries\":[],\"airports\":[],\"records\":{}}";
+
+    String json;
+    json.reserve(8192); // typical logbooks are a few KB; worst case grows beyond, S3 heap absorbs it
+
+    json += "{\"contacts\":" + String(p.getUInt("contacts", 0));
+
+    json += ",\"types\":[";
+    bool first = true;
+    forEachRecord(p.isKey("types") ? p.getString("types", "") : "", [&](const String& rec) {
+        String f[3];
+        const int n = splitFields(rec, f, 3);
+        if (f[0].isEmpty()) return;
+        if (!first) json += ',';
+        first = false;
+        json += "{\"code\":\"" + jsonEscape(f[0]) + "\"";
+        json += ",\"first\":\"" + dayToIso(n >= 2 ? (uint16_t)f[1].toInt() : 0) + "\"";
+        json += ",\"count\":" + String(n >= 3 ? f[2].toInt() : 1) + "}";
+    });
+
+    json += "],\"airlines\":[";
+    first = true;
+    forEachRecord(p.isKey("operators") ? p.getString("operators", "") : "", [&](const String& rec) {
+        String f[2];
+        const int n = splitFields(rec, f, 2);
+        if (f[0].isEmpty()) return;
+        if (!first) json += ',';
+        first = false;
+        json += "{\"name\":\"" + jsonEscape(f[0]) + "\"";
+        json += ",\"first\":\"" + dayToIso(n >= 2 ? (uint16_t)f[1].toInt() : 0) + "\"}";
+    });
+
+    const auto stringArray = [&](const char* key) {
+        bool firstEl = true;
+        forEachRecord(p.isKey(key) ? p.getString(key, "") : "", [&](const String& rec) {
+            if (!firstEl) json += ',';
+            firstEl = false;
+            json += "\"" + jsonEscape(rec) + "\"";
+        });
+    };
+    json += "],\"countries\":[";
+    stringArray("countries");
+    json += "],\"airports\":[";
+    stringArray("airports");
+
+    json += "],\"records\":{";
+    const struct { const char* key; const char* name; const char* unit; } recs[3] = {
+        { "rec-high", "high", "ft" }, { "rec-fast", "fast", "kt" }, { "rec-near", "near", "km" },
+    };
+    first = true;
+    for (const auto& r : recs) {
+        if (!p.isKey(r.key)) continue;
+        String f[3];
+        if (splitFields(p.getString(r.key, ""), f, 3) != 3 || f[0].isEmpty()) continue;
+        if (!first) json += ',';
+        first = false;
+        json += "\"" + String(r.name) + "\":{\"callsign\":\"" + jsonEscape(f[0]) + "\"";
+        json += ",\"value\":" + String(f[1].toFloat(), 1);
+        json += ",\"unit\":\"" + String(r.unit) + "\"";
+        json += ",\"date\":\"" + dayToIso((uint16_t)f[2].toInt()) + "\"}";
+    }
+    json += "}}";
+
+    p.end();
+    return json;
 }
 
 void Logbook::MaybePersist()
