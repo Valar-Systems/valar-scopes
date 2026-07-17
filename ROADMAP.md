@@ -85,9 +85,10 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 
 - **Populate the stock-photo library.** Pipeline shipped 2026-07-16; cloud mode is
   photo-less until the harvest runs (known regression vs adsbdb mode).
-- **Military enrichment deepening.** Military contacts — the most exciting catches —
-  currently render near-empty detail cards. P0 cache fix → mil-block operator floor →
-  static airframe dataset.
+- **Military enrichment deepening** — **P0 + P1 SHIPPED 2026-07-16** (empty-meta
+  negative TTL; mil-block + dbFlags operator floor at serve time, `proxy/src/military.ts`).
+  Remaining: P2 static airframe dataset (license review required) and P3 callsign-prefix
+  fill — see proxy/README.md work queue.
 
 ## Idea backlog (unscheduled)
 

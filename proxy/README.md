@@ -438,15 +438,17 @@ adsb.lol's airframe DB has no record for many military hexes, so the live
 return carries a position and nothing else. No device firmware change in any
 phase — the card already renders `r`/`t`/`tn`/`op` whenever they arrive.
 
-1. **Cache-policy fix (P0):** `buildMeta` marks any non-null upstream return
-   `found:true` — including all-empty ones — which then positive-caches for
-   30 d (`AC_TTL_S`). An airframe whose DB record appears later stays blank
-   for a month. Cache found-but-all-EMPTY metas at the negative TTL (1 d).
-2. **Military floor (P1):** carry a compact ICAO military-allocation range
-   table (`AE0000`–`AFFFFF` = US DoD, plus the other national mil blocks);
-   when the hex is in a mil block and `op` resolved empty, fill `op` with
-   e.g. "US military". Read `dbFlags` bit 0 too when the DB supplies it.
-   Never guess types.
+1. **Cache-policy fix (P0)** — ✅ **shipped 2026-07-16:** all-empty metas now
+   cache at the negative TTL (1 d) regardless of `found`, so an airframe whose
+   DB record appears later is blank for a day, not a month (`resolveMeta`).
+2. **Military floor (P1)** — ✅ **shipped 2026-07-16:** [src/military.ts](src/military.ts)
+   carries the VRS military-allocation table (kept identical to the firmware's
+   `SpecialAircraft.cpp` so the proxy and the on-screen MIL tag can't disagree);
+   when the hex is in a mil block and `op` resolved empty, `op` is filled with
+   the national label ("US military", …). `dbFlags` bit 0 is recorded at build
+   time and labels non-block hexes "Military". Applied at serve time so
+   pre-floor cached entries heal without waiting out their TTL. Never guesses
+   types or registrations.
 3. **Static airframe dataset (P2):** the tar1090/Mictronics community
    aircraft DB carries many military airframes (type/reg/operator). Load a
    mil-block slice into KV (`ac:` pre-seed, or a `mil:<hex>` side table
