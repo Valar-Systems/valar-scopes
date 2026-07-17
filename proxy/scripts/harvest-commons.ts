@@ -18,7 +18,7 @@
  * row whose artist/credit mentions "courtesy" is rejected -- contractor-donated
  * imagery is copyrighted even on a .mil page.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateEntry, classifyLicense, type ManifestEntry } from "../src/photolicense";
 
@@ -39,6 +39,27 @@ interface ImageInfo {
   thumburl?: string;
   descriptionurl: string;
   extmetadata?: Record<string, { value: string }>;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// upload.wikimedia.org rate-limits aggressively per IP; a batch re-run that
+// re-fetched everything used to escalate the throttle until nothing came
+// through. Pace requests and back off (30 s / 90 s) on 429 instead of failing
+// the pick outright.
+const DOWNLOAD_PACE_MS = 3000;
+const RETRY_DELAYS_MS = [30_000, 90_000];
+
+async function download(url: string): Promise<Response> {
+  for (const delay of [...RETRY_DELAYS_MS, 0]) {
+    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    if (res.status !== 429 || delay === 0) return res;
+    console.error(`   429 throttled; backing off ${delay / 1000}s ...`);
+    await sleep(delay);
+  }
+  throw new Error("unreachable");
 }
 
 function stripHtml(s: string): string {
@@ -123,14 +144,24 @@ async function main(): Promise<void> {
     console.log(`OK ${pick.target} [${licenseRaw}] by ${artist} -- ${pick.title}`);
     if (dryRun) continue;
 
-    const dl = info.thumburl ?? info.url;
-    const imgRes = await fetch(dl, { headers: { "User-Agent": UA } });
-    if (!imgRes.ok) {
-      failed++;
-      console.error(`FAIL ${pick.target}: image download ${imgRes.status} from ${dl}`);
-      continue;
+    // Skip the image download when we already hold this exact pick: same
+    // source page in the manifest row and the file on disk. Re-runs after a
+    // partial failure then only fetch what's missing instead of hammering
+    // the throttle with the whole sheet again. A changed `title` changes
+    // `source`, which forces the re-download it should.
+    const existing = manifest.find((m) => m.kind === entry.kind && m.target === entry.target);
+    const alreadyHave = existing?.source === entry.source && existsSync(join(photosDir, entry.file!));
+    if (!alreadyHave) {
+      const dl = info.thumburl ?? info.url;
+      const imgRes = await download(dl);
+      if (!imgRes.ok) {
+        failed++;
+        console.error(`FAIL ${pick.target}: image download ${imgRes.status} from ${dl}`);
+        continue;
+      }
+      writeFileSync(join(photosDir, entry.file!), Buffer.from(await imgRes.arrayBuffer()));
+      await sleep(DOWNLOAD_PACE_MS);
     }
-    writeFileSync(join(photosDir, entry.file!), Buffer.from(await imgRes.arrayBuffer()));
 
     // Merge: replace an existing row for the same kind+target, else append.
     const idx = manifest.findIndex((m) => m.kind === entry.kind && m.target === entry.target);
@@ -140,7 +171,7 @@ async function main(): Promise<void> {
 
   if (!dryRun) {
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(`merged ${picks.length - failed} rows into ${manifestPath}`);
+    console.log(`${picks.length - failed}/${picks.length} picks OK; manifest now ${manifest.length} rows (${manifestPath})`);
   }
   if (failed > 0) {
     console.error(`\n${failed}/${picks.length} picks failed; fix the sheet and re-run.`);
