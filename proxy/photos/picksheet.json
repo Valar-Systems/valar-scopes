@@ -9,6 +9,8 @@
   { "target": "K35R", "kind": "type", "layer": "mil-tier", "title": "File:KC-135 Stratotanker takes off from Spangdahlem Air Base (9080047).jpg" },
   { "target": "E6",   "kind": "type", "layer": "mil-tier", "title": "File:United States Navy Boeing E-6B Mercury of Strategic Communications Wing ONE, Task Group 114.jpg" },
   { "target": "H60",  "kind": "type", "layer": "mil-tier", "title": "File:UH-60 Black Hawk Flight (8298582).jpg" },
+  { "target": "C5",   "kind": "type", "layer": "mil-tier", "title": "File:C-5M Super Galaxy takes off at Dover AFB 150817-F-BO262-607.jpg" },
+  { "target": "C5M",  "kind": "type", "layer": "mil-tier", "title": "File:C-5M Super Galaxy takes off at Dover AFB 150817-F-BO262-607.jpg" },
   { "target": "H64",  "kind": "type", "layer": "mil-tier", "title": "File:AH-64 Apache Flight Formation (6331400).jpg" },
   { "target": "TEX2", "kind": "type", "layer": "mil-tier", "title": "File:96th Flying Training Squadron T-6A Texan II in flight at Laughlin Air Force Base, Texas, June 5, 2025.jpg" },
   { "target": "H47",  "kind": "type", "layer": "mil-tier", "title": "File:CH-47F Chinook PEO AVN DVIDS591778.jpg" },

@@ -777,5 +777,27 @@
     "autoPicked": false,
     "file": "src/glex.jpg",
     "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C5",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:C-5M_Super_Galaxy_takes_off_at_Dover_AFB_150817-F-BO262-607.jpg",
+    "author": "Roland Balik",
+    "credit": "C-5M Super Galaxy takes off at Dover AFB 150817-F-BO262-607",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/c5.jpg"
+  },
+  {
+    "target": "C5M",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:C-5M_Super_Galaxy_takes_off_at_Dover_AFB_150817-F-BO262-607.jpg",
+    "author": "Roland Balik",
+    "credit": "C-5M Super Galaxy takes off at Dover AFB 150817-F-BO262-607",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/c5m.jpg"
   }
 ]
