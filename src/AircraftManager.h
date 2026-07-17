@@ -55,6 +55,10 @@ private:
     bool displayInfoText = true;
     bool displayTriangles = true;
     bool displayAirports = true;  // fixed airport markers from the baked table (Airports.h)
+    // Minimum airport size class to draw from the cloud /v1/airports overlay:
+    // All (zoom rule only), MedLarge (hide small strips), LargeOnly.
+    enum class AirportsMin : uint8_t { All, MedLarge, LargeOnly };
+    AirportsMin airportsMin = AirportsMin::All;
     bool displayTrails = true;
     bool displayAltColor = true;  // color aircraft markers by altitude band
     bool displayHighlight = true; // ring the nearest/highest/fastest contacts
