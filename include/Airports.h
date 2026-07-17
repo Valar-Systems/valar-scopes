@@ -53,6 +53,11 @@ static constexpr Airport AIRPORTS[] = {
     { 34.90f,  -82.22f, "GSP" }, { 35.81f,  -83.99f, "TYS" }, { 38.17f,  -85.74f, "SDF" },
     { 39.90f,  -84.22f, "DAY" }, { 42.88f,  -85.52f, "GRR" }, { 41.53f,  -93.66f, "DSM" },
     { 34.73f,  -92.22f, "LIT" }, { 37.65f,  -97.43f, "ICT" }, { 38.81f, -104.70f, "COS" },
+    // Western-US scheduled-service regionals (the table's first user-reported
+    // gap was RDM, 2026-07-16):
+    { 44.25f, -121.15f, "RDM" }, { 44.12f, -123.21f, "EUG" }, { 42.37f, -122.87f, "MFR" },
+    { 39.50f, -119.77f, "RNO" }, { 36.78f, -119.72f, "FAT" }, { 46.26f, -119.12f, "PSC" },
+    { 45.78f, -111.15f, "BZN" }, { 46.92f, -114.09f, "MSO" },
     // --- Canada ---
     { 43.68f,  -79.63f, "YYZ" }, { 49.19f, -123.18f, "YVR" }, { 45.47f,  -73.74f, "YUL" },
     { 51.13f, -114.01f, "YYC" }, { 53.31f, -113.58f, "YEG" }, { 45.32f,  -75.67f, "YOW" },
