@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest-photos.ts",
     "ingest:check": "tsx scripts/ingest-photos.ts --check",
+    "harvest": "tsx scripts/harvest-commons.ts",
     "dashboard": "tsx scripts/photo-dashboard.ts",
     "deploy:staging": "wrangler deploy --env staging",
     "tail:staging": "wrangler tail --env staging"
