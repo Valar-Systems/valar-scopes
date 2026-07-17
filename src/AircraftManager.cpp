@@ -1070,8 +1070,14 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 
     const uint32_t heapFree = ESP.getFreeHeap();
     const uint32_t largest = ESP.getMaxAllocHeap();
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  heap free=%u largest=%u  interval=%lums%s\n",
+    // allocFail + hardFail every report (not just soak builds): their trend
+    // leading into a LOOP STALL disambiguates the two slowdown hypotheses --
+    // climbing allocFail points at heap fragmentation (a big contiguous alloc
+    // can't be satisfied), climbing hardFail at TLS/DNS starvation. Cheap: two
+    // counter reads.
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)heapFree, (unsigned)largest,
+                  (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
 
 #ifdef SOAK_TEST
