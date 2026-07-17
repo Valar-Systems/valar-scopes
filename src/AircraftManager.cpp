@@ -1042,13 +1042,19 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
     const uint32_t tenths = frameUs / 100;
-    frameSampleBuf[frameSampleCount % FRAME_SAMPLES] = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
+    const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
+    frameSampleBuf[frameSampleCount % FRAME_SAMPLES] = capped;
     frameSampleCount++;
+    // Interval-spanning worst frame (see the member comment): catches a stall
+    // anywhere in the 30 s window, not just the last FRAME_SAMPLES frames.
+    if (capped > frameMaxTenths) frameMaxTenths = capped;
 
     const unsigned long now = millis();
     if (now - lastHealthReportMs < 30000)
         return;
     lastHealthReportMs = now;
+    const float maxMs = frameMaxTenths / 10.0f;
+    frameMaxTenths = 0; // reset for the next interval
 
     const size_t n = std::min(frameSampleCount, FRAME_SAMPLES);
     if (n == 0)
@@ -1064,8 +1070,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 
     const uint32_t heapFree = ESP.getFreeHeap();
     const uint32_t largest = ESP.getMaxAllocHeap();
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms  heap free=%u largest=%u  interval=%lums%s\n",
-                  avgMs, p95Ms, (unsigned)heapFree, (unsigned)largest,
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  heap free=%u largest=%u  interval=%lums%s\n",
+                  avgMs, p95Ms, maxMs, (unsigned)heapFree, (unsigned)largest,
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
 
 #ifdef SOAK_TEST
@@ -1101,6 +1107,16 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         budgetBreaches++;
         Serial.printf("[health] BUDGET BROKEN: largest block %u < %u\n",
                       (unsigned)largest, (unsigned)LARGEST_BLOCK_BUDGET);
+    }
+    // A single loop pass over half a second means the loop was blocked -- the
+    // overnight-slowdown symptom (touch polled once per pass, so a stalled loop
+    // is exactly why taps and card-close went sluggish). Shout it, greppable,
+    // with the concurrent heap state so a fragmentation/starvation cause is
+    // visible at the moment it bit.
+    constexpr float STALL_MS = 500.0f;
+    if (maxMs > STALL_MS) {
+        Serial.printf("[health] LOOP STALL: worst pass %.1fms (heap free=%u largest=%u)\n",
+                      maxMs, (unsigned)heapFree, (unsigned)largest);
     }
 
     // Touch supervisor counters (the C3): "wedges=0" is the soak's headline number.
