@@ -79,6 +79,11 @@ For a product whose emotional hook is plane-spotting, **history is the retention
     once the location is known (daily refresh, `FetchKind::Airports` on the shared
     fetch task). While loaded it supersedes the baked table; small fields hide at wide
     zooms so the face never clutters. The baked majors stay as the BYO/offline fallback.
+    **Follow-up (user request 2026-07-17):** an `airports-min` config select — **All /
+    Medium+large / Large only** — filtering device-side on the `kind` field already on
+    the wire (no proxy change). Driver: a busy-GA area shows ~20 small strips when the
+    user only cares about the 2 with scheduled service; the zoom rule alone doesn't
+    express that preference.
 11. **Config apply without restart** — **ALREADY SHIPPED** (verified 2026-07-16): every
     web save raises `ConsumeConfigChanged` and `main.cpp` re-runs `Initialise()` live on
     the loop task, no reboot. The roadmap entry came from a stale header comment, now fixed.
@@ -219,6 +224,18 @@ server-side only, tunable without firmware changes.
 **Season score** (monthly): same formula over entries **new to your lifelist this
 month**. Everyone restarts at 0 monthly — newcomers can win a season in their first
 month while lifetime boards stay the long game.
+
+**Radius fairness (settled 2026-07-17):** the configured radar radius would otherwise
+be a score multiplier (bigger circle, more contacts). Fix: **a standardized scoring
+radius (~50 km), applied in the background** — never touching the user's display
+radius, which is a viewing preference (a small circle is exactly right for "what can
+I walk outside and see"). In cloud mode an opted-in device polls `/v1/blips` at
+`max(userRadius, SCORING_R)`; contacts beyond the user's radius are **scoring-only**
+— the logbook counts them but they never appear on the radar or list screens. Devices
+with a radius already ≥ 50 km score only from the inner 50 km. Side benefit: every
+verified competitor observes the same-sized sky, which makes the server's
+plausibility check sharper. BYO/local devices can't be normalized (their receiver is
+their radius) — one more reason they compete as "unverified".
 
 **Badges** (the "interesting for everyone" layer — non-competitive, derived
 server-side from the same submission): Century Club (100 types), Widebody Collector,
