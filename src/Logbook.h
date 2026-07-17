@@ -42,6 +42,7 @@ public:
     bool NoteType(const String& typeCode);
     bool NoteOperator(const String& operatorName);
     bool NoteCountry(const String& country);
+    bool NoteAirport(const String& airportCode); // route origin/dest codes from enrichment
 
     void NoteContact(); // a new contact entered range; bumps the odometer
 
@@ -53,11 +54,13 @@ public:
     size_t TypeCount() const     { return types.size(); }
     size_t OperatorCount() const { return operators.size(); }
     size_t CountryCount() const  { return countries.size(); }
+    size_t AirportCount() const  { return airports.size(); }
     uint32_t Contacts() const    { return contacts; }
 
     const std::map<String, TypeStat>& Types() const      { return types; }
     const std::map<String, uint16_t>& Operators() const  { return operators; }
     const std::set<String>& Countries() const            { return countries; }
+    const std::set<String>& Airports() const             { return airports; }
     const Record& HighRecord() const { return recHigh; }
     const Record& FastRecord() const { return recFast; }
     const Record& NearRecord() const { return recNear; }
@@ -71,6 +74,7 @@ private:
     std::map<String, TypeStat> types;      // type code -> first seen + count
     std::map<String, uint16_t> operators;  // airline -> first-seen day
     std::set<String> countries;
+    std::set<String> airports; // IATA/ICAO codes seen as route endpoints
     uint32_t contacts = 0;
     Record recHigh, recFast, recNear;
     bool dirty = false;
@@ -87,6 +91,7 @@ private:
     static constexpr size_t MAX_TYPES     = 220;
     static constexpr size_t MAX_OPERATORS = 120;
     static constexpr size_t MAX_COUNTRIES = 64;
+    static constexpr size_t MAX_AIRPORTS  = 300; // codes are <=4 chars: 300 x 5 = 1500 B
     static constexpr size_t MAX_OP_LEN    = 24;   // truncate long airline names
     static constexpr size_t MAX_BLOB      = 3800; // hard ceiling per serialized store
     static constexpr unsigned long PERSIST_INTERVAL_MS = 10UL * 60UL * 1000UL; // 10 min
