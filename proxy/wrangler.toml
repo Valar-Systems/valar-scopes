@@ -119,12 +119,9 @@ ROUTE_ADSBDB_ENABLED = "true"
 enabled = true
 head_sampling_rate = 0.05
 
-# REPLACE_ME: paste the id printed by `wrangler kv namespace create ENRICH_KV
-# --env production`. A deploy against the placeholder will fail fast (intended --
-# it forces the namespace to be created first).
 [[env.production.kv_namespaces]]
 binding = "ENRICH_KV"
-id = "REPLACE_ME_WITH_PROD_KV_NAMESPACE_ID"
+id = "733bf90056104f56be9492e62450a0bf"
 
 [[env.production.analytics_engine_datasets]]
 binding = "METRICS"
