@@ -69,12 +69,32 @@ function q(s: string): string {
   return `"${s.replace(/"/g, '\\"')}"`;
 }
 
+// A single KV write occasionally fails transiently (a rate-limit 429, a network
+// blip) partway through the ~136 writes a full ingest makes -- and without a
+// retry that aborts the whole idempotent run. Retry a few times with backoff;
+// re-running a write is a no-op flip on a content-addressed blob.
+function execWithRetry(cmd: string, label: string, attempts = 4): void {
+  const backoffMs = [1500, 4000, 9000];
+  for (let i = 0; i < attempts; i++) {
+    try {
+      execSync(cmd, { stdio: "inherit" });
+      return;
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      const wait = backoffMs[Math.min(i, backoffMs.length - 1)];
+      console.error(`  ${label}: write failed (attempt ${i + 1}/${attempts}); retrying in ${wait / 1000}s ...`);
+      // Synchronous sleep so the retry stays inline with the sequential upload.
+      execSync(process.platform === "win32" ? `powershell -Command "Start-Sleep -Milliseconds ${wait}"` : `sleep ${wait / 1000}`);
+    }
+  }
+}
+
 function wranglerPut(env: string, key: string, opts: { value?: string; path?: string }): void {
   const parts = ["npx", "wrangler", "kv", "key", "put", q(key)];
   if (opts.value !== undefined) parts.push(q(opts.value));
   if (opts.path !== undefined) parts.push("--path", q(opts.path));
   parts.push("--binding=ENRICH_KV", `--env=${env}`, "--remote");
-  execSync(parts.join(" "), { stdio: "inherit" });
+  execWithRetry(parts.join(" "), `put ${key}`);
 }
 
 async function main(): Promise<void> {
