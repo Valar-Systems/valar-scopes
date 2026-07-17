@@ -323,6 +323,12 @@ private:
     static constexpr size_t FRAME_SAMPLES = 128;
     uint16_t frameSampleBuf[FRAME_SAMPLES] = {0}; // 0.1 ms units
     size_t frameSampleCount = 0;                  // ring write index (wraps)
+    // Worst single loop pass since the last health report (0.1 ms units). The
+    // avg/p95 above are computed only over the last FRAME_SAMPLES frames (~a few
+    // seconds), so a transient multi-second stall EARLIER in the 30 s window is
+    // overwritten before the report -- exactly the overnight-slowdown signature.
+    // This max spans the whole interval, so any stall is caught and logged.
+    uint16_t frameMaxTenths = 0;
     unsigned long lastHealthReportMs = 0;
     uint32_t budgetBreaches = 0;                  // BUDGET BROKEN lines emitted (soak gate: must stay 0)
 
