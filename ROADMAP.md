@@ -123,8 +123,13 @@ For a product whose emotional hook is plane-spotting, **history is the retention
   the radar matches the view out the user's window.
 - "Aircraft of the day" / notable-catch summary card (gamification, pairs with Logbook v2).
 - Multi-location profiles (home/work) — probably niche; revisit on demand.
-- 1.75" AMOLED premium SKU (466×466 + mic) — hardware roadmap; env stub already in
-  `platformio.ini`, variant header missing.
+- 1.75" AMOLED premium SKU (466×466 + mic) — **SCAFFOLD SHIPPED 2026-07-17, BENCH-ONLY:**
+  variant header (`include/variants/s3_175_amoled.h`), LGFX.h CO5300/FT5x06 blocks (both
+  controllers are built into LovyanGFX — no custom driver), and the
+  `blipscope-pro-s3-175-amoled` env all build. **Pins are UNVERIFIED** (seeded from the
+  AMOLED family) — no CI row, do not flash a real board until the pin map is confirmed
+  against the Waveshare wiki and bring-up is done. Remaining: pin verification + bench
+  bring-up, then a `-cloud` sibling + CI row.
 
 ### Deliberately not pursuing (reviewed and parked)
 
