@@ -18,7 +18,9 @@ export function limitByIp(env: Env, request: Request): Promise<Response | null> 
   return check(env.RL_IP, `ip:${clientIp(request)}`);
 }
 
-// Per-key limit runs after auth; keyIndex (never the key itself) is the bucket.
-export function limitByKey(env: Env, keyIndex: number): Promise<Response | null> {
-  return check(env.RL_KEY, `key:${keyIndex}`);
+// Per-key limit runs after auth; the bucket id (never the key itself) is a
+// shared-key index (`key:N`) or a per-device id (`dev:<id>`), so per-device
+// keys get their own rate-limit bucket instead of sharing the fleet's.
+export function limitByKey(env: Env, bucket: string): Promise<Response | null> {
+  return check(env.RL_KEY, bucket);
 }

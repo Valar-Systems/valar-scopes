@@ -13,7 +13,8 @@ export interface Env {
   RL_KEY?: RateLimit;
 
   // Secrets.
-  BLIP_KEYS?: string;        // comma-separated accepted device keys (rotation = old+new)
+  BLIP_KEYS?: string;        // comma-separated accepted (shared) device keys (rotation = old+new)
+  DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys (additive; shared keys still work)
   ADSB_LOL_API_KEY?: string; // optional feeder key, once adsb.lol issues them
 
   // Vars.

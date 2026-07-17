@@ -11,22 +11,37 @@ import {
 } from "./leaderboard";
 import { record, recordOtaMem, type RequestMetric } from "./metrics";
 import { handleCredits, handlePhoto } from "./photos";
+import { verifyDeviceKey } from "./deviceauth";
 import { limitByIp, limitByKey } from "./ratelimit";
 import { feedHealth } from "./upstreams/chain";
 import { errorResponse, jsonResponse } from "./util";
 
-// Returns the index of the presented key in BLIP_KEYS (comma-separated so a
-// rotation can accept old+new simultaneously), or null when rejected. The
-// index -- never the key -- feeds the per-key rate-limit bucket and logs.
-function authenticate(env: Env, request: Request): number | null {
+// Authenticate a request. Tries the per-device key path first (only active when
+// DEVICE_KEY_SECRET is set and the request carries X-Blip-Device), then falls
+// back to the shared BLIP_KEYS list -- so the live fleet, which sends only a
+// shared key, is entirely unaffected. Returns a rate-limit bucket id and whether
+// the caller is device-authed (trustworthy enough for the leaderboard's verified
+// tier), or null when rejected. The bucket is never the key itself.
+async function authenticate(
+  env: Env,
+  request: Request,
+): Promise<{ bucket: string; deviceAuthed: boolean } | null> {
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
+
+  // Per-device path: HMAC-derived key keyed to the X-Blip-Device id.
+  const deviceId = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
+  if (deviceId && (await verifyDeviceKey(env, deviceId, provided))) {
+    return { bucket: `dev:${deviceId}`, deviceAuthed: true };
+  }
+
+  // Shared-key path (unchanged): the index -- never the key -- is the bucket.
   const keys = (env.BLIP_KEYS ?? "")
     .split(",")
     .map((k) => k.trim())
     .filter((k) => k.length > 0);
   const idx = keys.indexOf(provided);
-  return idx >= 0 ? idx : null;
+  return idx >= 0 ? { bucket: `key:${idx}`, deviceAuthed: false } : null;
 }
 
 function handleHealth(env: Env): Response {
@@ -59,9 +74,9 @@ async function route(
   // Per-IP limit first (throttles key-guessing too), then auth, then per-key.
   const ipLimited = await limitByIp(env, request);
   if (ipLimited) return ipLimited;
-  const keyIndex = authenticate(env, request);
-  if (keyIndex === null) return errorResponse(401, "unauthorized");
-  const keyLimited = await limitByKey(env, keyIndex);
+  const auth = await authenticate(env, request);
+  if (auth === null) return errorResponse(401, "unauthorized");
+  const keyLimited = await limitByKey(env, auth.bucket);
   if (keyLimited) return keyLimited;
 
   // A device's one-shot OTA memory report, if this check-in carries one. Recorded

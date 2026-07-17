@@ -237,6 +237,28 @@ dense-airspace device can't just out-volume everyone. Seasons are monthly (score
 over entries new this month). Board is aggregated lazily on read with a 5-min KV
 cache; a cron-built board + D1 is the scale path.
 
+### Per-device keys (additive; [src/deviceauth.ts](src/deviceauth.ts))
+
+The `/v1/*` auth accepts, in addition to the shared `BLIP_KEYS`, **per-device
+keys** — HMAC-SHA256(`DEVICE_KEY_SECRET`, deviceId) presented as `X-Blip-Key`
+alongside an `X-Blip-Device` id. This is **fully additive**: the device-key path
+only activates when `DEVICE_KEY_SECRET` is set AND a request carries
+`X-Blip-Device`, so the live fleet (shared key only) is unaffected, and rollout
+is gradual. The server holds one secret and recomputes the expected key per
+request — no key database. Keys are minted at manufacture:
+
+```sh
+DEVICE_KEY_SECRET=… npm run derive-device-key <deviceId>   # prints the device's key
+npx wrangler secret put DEVICE_KEY_SECRET --env staging     # set the Worker's secret
+```
+
+Because minting needs the secret (unextractable from open-source firmware,
+unlike the shared build key), a device-authed request is trustworthy enough to
+back the leaderboard's **verified** tier. Device-authed requests also get their
+own rate-limit bucket (`dev:<id>`) instead of sharing the fleet's. **Staged:**
+the server foundation + minting tool ship now; the firmware storing/sending a
+per-device key and the leaderboard keying "verified" off it are the follow-ups.
+
 ### `GET /healthz`
 
 Public, unauthenticated: `{"ok":true,"upstreams":[{id,enabled,state}]}`.
