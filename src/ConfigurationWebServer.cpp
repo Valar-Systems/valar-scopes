@@ -6,6 +6,7 @@
 #include "OtaUpdater.h"
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
+#include "Logbook.h"              // radar-only; serves the spotting lifelist as /logbook.json
 #endif
 
 #ifdef FEATURE_EAM
@@ -348,9 +349,11 @@ R"(
                 <details class="auto">
                     <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
                     <span class="hint">
-                        Keeps a running &ldquo;lifelist&rdquo; of every unique aircraft type, airline, and country
-                        you've seen overhead (shown on the Stats screen), and flags a gold &ldquo;NEW&rdquo; on first
+                        Keeps a running &ldquo;lifelist&rdquo; of every unique aircraft type, airline, country,
+                        and route airport you've seen overhead (shown on the Stats screen), with first-seen dates,
+                        per-type counts, and lifetime records &mdash; and flags a gold &ldquo;NEW&rdquo; on first
                         sightings. It looks up each contact's type/airline, so it adds a little network traffic.
+                        Export it any time: <a href="/logbook.json">logbook.json</a>.
                     </span>
                 </details>
 
@@ -2292,6 +2295,18 @@ void ConfigurationWebServer::Initialise() {
         wifiResetRequested = true;
         }
     );
+
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+    // Spotting-logbook export (radar edition). Serves the persisted lifelist straight
+    // from NVS as JSON -- read-only, so it's safe from the async task alongside the
+    // loop-task logbook writer (at most one debounce interval stale).
+    server.on("/logbook.json", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse* r = request->beginResponse(200, "application/json", Logbook::ExportJson());
+        r->addHeader("Content-Disposition", "attachment; filename=\"logbook.json\"");
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+#endif
 
 #ifdef FEATURE_EAM
     // Logbook export (firmware-only; no backend). Serves the persisted EAM/codeword log straight
