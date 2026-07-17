@@ -210,6 +210,33 @@ manifest the ingest script publishes to KV — satisfies CC-BY / CC-BY-SA / OGL
 attribution in one place and courtesy-credits the PD shots. Linked from the
 device config page; a browser follows the link, so no device key.
 
+### `POST /v1/leaderboard` + public `GET /leaderboard[.json]` / `/leaderboard/<id>`
+
+The public spotting leaderboard ([src/leaderboard.ts](src/leaderboard.ts)).
+**Opt-in, off by default** on the device. The submit is authed (same
+`X-Blip-Key` as the rest); the read pages are public like `/credits`.
+
+- `POST /v1/leaderboard` — hourly submission: `{id, name, radiusKm, counts:{types,
+  airlines, countries, airports}, typeCodes:[...]}`. `id` is a salted MAC hash
+  (the raw MAC never leaves the device); `typeCodes` is the ONE list sent (rarity
+  scoring needs it) — airline/country/airport *lists* stay counts-only because
+  they'd hint at location. Server merges monotonically (counts only grow),
+  clamps implausible per-day jumps, claims the display name (collisions get a
+  numeric suffix), stamps each new type's first-seen month, tracks streaks, and
+  claims "First!" ownership of never-before-seen types. Responds with this
+  device's `{rank, points, seasonRank, seasonPoints, total}` for the Stats block.
+- `GET /leaderboard` — public HTML board (lifetime + `?view=season`), per-category
+  leaders, badges, verified check, percentile framing.
+- `GET /leaderboard.json` — the same data as JSON (`?view=season` too).
+- `GET /leaderboard/<id>` — a device's public profile + badge case.
+
+**Scoring** (server-side, tunable without a firmware change): unique type ×10×
+rarity, airline ×5, country ×25, airport ×2, raw contacts ×0. Rarity multiplier
+by fleet-wide type frequency (<5% ×5, <25% ×2, else ×1) — the equalizer so a
+dense-airspace device can't just out-volume everyone. Seasons are monthly (score
+over entries new this month). Board is aggregated lazily on read with a 5-min KV
+cache; a cron-built board + D1 is the scale path.
+
 ### `GET /healthz`
 
 Public, unauthenticated: `{"ok":true,"upstreams":[{id,enabled,state}]}`.

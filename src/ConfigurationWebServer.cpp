@@ -360,6 +360,20 @@ R"(
                 </details>
 
                 <details class="auto">
+                    <summary>Spotting leaderboard <input name="lb-enabled" type="checkbox" %LB_ENABLED%></summary>
+                    <label class="field">
+                        <span>Spotter name:</span>
+                        <input name="lb-name" value='%LB_NAME%' maxlength="24" placeholder="e.g. Redmond Radar" class="grow">
+                    </label>
+                    <span class="hint mt">
+                        Opt in to the public <a href="/leaderboard" target="_blank" rel="noopener">spotting leaderboard</a> &mdash;
+                        compete on unique types, airlines, and countries seen overhead. <b>Counts only leave your device</b>
+                        (plus your type list, for rarity scoring): never your location, never which flights you saw. Off by default;
+                        requires the Blipscope Cloud feed. First device to claim a name owns it.
+                    </span>
+                </details>
+
+                <details class="auto">
                     <summary>Home Assistant / MQTT <input name="mqtt" type="checkbox" %MQTT%></summary>
                     <div class="stack">
                         <div class="row">
@@ -1496,6 +1510,8 @@ void ConfigurationWebServer::Initialise() {
         const String emgVisual = HtmlEscape(prefs.isKey("emg-visual") ? prefs.getString("emg-visual", "ring") : "ring");
         const String visualNight = HtmlEscape(prefs.isKey("visual-night") ? prefs.getString("visual-night", "false") : "false");
         const String logbookOn = HtmlEscape(prefs.isKey("logbook") ? prefs.getString("logbook", "false") : "false");
+        const String lbEnabled = HtmlEscape(prefs.isKey("lb-enabled") ? prefs.getString("lb-enabled", "false") : "false");
+        const String lbName = HtmlEscape(prefs.getString("lb-name", ""));
         const String lookupOn = HtmlEscape(prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false");
         const String lookupAlert = HtmlEscape(prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false");
         const String lookupDist = HtmlEscape(prefs.isKey("lookup-dist") ? prefs.getString("lookup-dist", "3") : "3");
@@ -1713,7 +1729,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1769,6 +1785,8 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "EMGVIS_FLASH")   return emgVisual == "flash" ? "selected" : "";
                 if (var == "VISUAL_NIGHT")   return visualNight == "true" ? "checked" : "";
                 if (var == "LOGBOOK")        return logbookOn == "true" ? "checked" : "";
+                if (var == "LB_ENABLED")     return lbEnabled == "true" ? "checked" : "";
+                if (var == "LB_NAME")        return lbName;
                 if (var == "LOOKUP")         return lookupOn == "true" ? "checked" : "";
                 if (var == "LOOKUP_ALERT")   return lookupAlert == "true" ? "checked" : "";
                 if (var == "LOOKUP_DIST")    return lookupDist;
@@ -2097,6 +2115,8 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("heli-show", request->hasParam("heli-show", true) ? "true" : "false");
         prefs.putString("spc-show", request->hasParam("spc-show", true) ? "true" : "false");
         prefs.putString("logbook", request->hasParam("logbook", true) ? "true" : "false");
+        prefs.putString("lb-enabled", request->hasParam("lb-enabled", true) ? "true" : "false");
+        TrySaveParam("lb-name");
         prefs.putString("lookup", request->hasParam("lookup", true) ? "true" : "false");
         prefs.putString("lookup-alert", request->hasParam("lookup-alert", true) ? "true" : "false");
         prefs.putString("mqtt", request->hasParam("mqtt", true) ? "true" : "false");
