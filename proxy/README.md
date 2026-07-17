@@ -449,20 +449,25 @@ phase — the card already renders `r`/`t`/`tn`/`op` whenever they arrive.
    time and labels non-block hexes "Military". Applied at serve time so
    pre-floor cached entries heal without waiting out their TTL. Never guesses
    types or registrations.
-3. **Static airframe dataset (P2):** the tar1090/Mictronics community
-   aircraft DB carries many military airframes (type/reg/operator). Load a
-   mil-block slice into KV (`ac:` pre-seed, or a `mil:<hex>` side table
-   consulted when live fields come back empty). **License review passed
-   2026-07-16:** source from
+3. **Static airframe dataset (P2)** — ✅ **shipped 2026-07-16:** a `mil:<hex>`
+   KV side table consulted at serve time only when the live record resolved
+   with neither reg nor type (one extra KV read on that path alone; never
+   overrides live data; heals negatively-cached entries like the floor). It
+   fills `r`/`t`/`tn` — the operator stays the floor's job — and runs before
+   the photo join, so a resolved type unlocks the generic type shot.
+   Loader: `npm run ingest:mildb -- --env staging`
+   ([scripts/ingest-mildb.ts](scripts/ingest-mildb.ts)) — downloads the
    [Mictronics/aircraft-database](https://github.com/Mictronics/aircraft-database)
-   directly — its exports are **ODC-By 1.0** (attribution-only, no
-   share-alike; same credit pattern as the adsb.lol ODbL line already on the
-   device config page). Do **not** source the tar1090-db aggregate: it mixes
-   in the ADSBx basic-ac-db, whose terms are nowhere stated. Coverage
-   verified on the 2026-07-12 export (`indexedDB_old.zip` → `aircrafts.json`,
-   uppercase-hex keys, `{r, t, f, d}`, `f[0]==='1'` = military): 9,659 of
-   9,661 US-mil-block entries carry a type; 16,741 of 16,908 mil-flagged
-   entries worldwide do. Weekly upstream refresh. Ready to implement.
+   export, selects mil-flagged (`f[0]==='1'`) or VRS-mil-block hexes (via the
+   same `militaryOperator` table as the floor) that carry a reg or type
+   (~17.3k rows on the 2026-07-12 export), and bulk-loads KV in ≤10k chunks.
+   Idempotent; re-run weekly-ish to track upstream. **License review passed
+   2026-07-16:** the exports are **ODC-By 1.0** (attribution-only) — credited
+   on the device config page next to the adsb.lol ODbL line. Do **not**
+   switch the source to the tar1090-db aggregate: it mixes in the ADSBx
+   basic-ac-db, whose terms are nowhere stated. Note the KV write budget:
+   ~17k writes per run needs the Workers Paid plan (free tier caps at
+   1k/day).
 4. **Callsign color (P3, optional):** static prefix table (RCH → Air
    Mobility Command, …) filling `op` when a callsign is broadcast and
    nothing else resolved. Military photos (by-hex photo APIs) are a separate
