@@ -10,6 +10,28 @@ The review's core finding: the firmware architecture is sound, and the cheap val
 
 ---
 
+## Release readiness (assessed 2026-07-17) — HELD
+
+A large batch has merged to `main` since the last release (`FW_VERSION = 4`): visual
+alerts, window-up, night clock, tones, Logbook v2, TODAY stats, airports overlay +
+`/v1/airports`, the full military enrichment program (P0–P3), the photo library,
+Aircraft-of-the-Day, MQTT events, distinct watchlist tones, location profiles, the
+spotting leaderboard, rarest catch, and the AMOLED scaffold. All shipping SKUs build.
+
+**Decision: do NOT cut the OTA release yet.** Publishing a GitHub Release pushes
+firmware to every customer device, and the [[s3-128-overnight-slowdown]] is still open
+and unroot-caused — shipping potentially-unstable firmware to the fleet mid-investigation
+is the wrong trade. `FW_VERSION` is deliberately left at 4 (bumping it ships nothing
+until a Release is published, so there's nothing to gain by bumping early).
+
+**Go criteria (all three):** (1) the slowdown is root-caused and fixed (the new
+`LOOP STALL` telemetry should catch the next recurrence), (2) a clean 24 h bench soak on
+the s3-128 with the full feature set, (3) the shipping features get a bench pass (below).
+When those clear: bump `FW_VERSION` to 5, merge, and publish the `v5` Release per
+[RELEASING.md](RELEASING.md) — the CI matrix already covers every SKU.
+
+---
+
 ## Tier 1 — Quick wins ("alerts & polish" release)
 
 Small diffs, immediate perceived value. Ship together as one minor release.
