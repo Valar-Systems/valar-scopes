@@ -80,6 +80,11 @@ void Logbook::Begin()
             countries.insert(rec);
         });
     }
+    if (prefs.isKey("airports")) {
+        forEachRecord(prefs.getString("airports", ""), [this](const String& rec) {
+            airports.insert(rec);
+        });
+    }
     contacts = prefs.getUInt("contacts", 0);
     loadRecord(prefs, "rec-high", recHigh);
     loadRecord(prefs, "rec-fast", recFast);
@@ -164,6 +169,22 @@ bool Logbook::NoteCountry(const String& country)
     return true;
 }
 
+bool Logbook::NoteAirport(const String& airportCode)
+{
+    String a = airportCode;
+    a.trim();
+    a.toUpperCase();
+    if (a.isEmpty() || a.length() > 4)
+        return false;
+    if (airports.count(a))
+        return false;
+    if (airports.size() >= MAX_AIRPORTS)
+        return false;
+    airports.insert(a);
+    dirty = true;
+    return true;
+}
+
 void Logbook::NoteContact()
 {
     ++contacts;
@@ -222,11 +243,18 @@ void Logbook::MaybePersist()
         if (!countriesBlob.isEmpty()) countriesBlob += SEP;
         countriesBlob += c;
     }
+    String airportsBlob;
+    for (const String& a : airports) {
+        if (airportsBlob.length() + a.length() + 1 > MAX_BLOB) break;
+        if (!airportsBlob.isEmpty()) airportsBlob += SEP;
+        airportsBlob += a;
+    }
 
     prefs.begin("logbook", false);
     prefs.putString("types", typesBlob);
     prefs.putString("operators", opsBlob);
     prefs.putString("countries", countriesBlob);
+    prefs.putString("airports", airportsBlob);
     prefs.putUInt("contacts", contacts);
     saveRecord("rec-high", recHigh);
     saveRecord("rec-fast", recFast);

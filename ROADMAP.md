@@ -60,8 +60,9 @@ For a product whose emotional hook is plane-spotting, **history is the retention
    contacts-since-midnight, peak simultaneous count, busiest hour, and a 24-bar hourly
    sparkline. RAM-only (no flash wear; resets at local midnight/reboot, NTP-gated), and
    the whole Stats screen is now clock-guarded so blocks drop by priority on 240 px panels.
-8. **"Airports seen"** as a fourth lifelist category, fed from the route enrichment we
-   already perform.
+8. **"Airports seen"** — **IMPLEMENTED 2026-07-16**: fourth lifelist set (300-code cap),
+   fed from route endpoints at both enrichment apply points (cloud + adsbdb), shown on
+   the Stats LIFELIST block.
 9. **Logbook export / web view** — a read-only `/logbook` page (or JSON/CSV download) on
    the already-running async config server. Makes the lifelist portable and shareable.
 

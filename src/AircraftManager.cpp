@@ -1874,7 +1874,8 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         line("LIFELIST");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
         line(String(logbook.TypeCount()) + " types  " + String(logbook.OperatorCount()) + " airlines");
-        line(String(logbook.CountryCount()) + " countries  " + String(logbook.Contacts()) + " seen");
+        line(String(logbook.CountryCount()) + " countries  " + String(logbook.AirportCount()) + " airports");
+        line(String(logbook.Contacts()) + " seen");
 
         // lifetime record holders, one compact line: highest / fastest / closest ever
         const Logbook::Record& rh = logbook.HighRecord();
@@ -2930,6 +2931,10 @@ void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed:
         const bool newOperator = logbook.NoteOperator(tracked.operatorName);
         if (newType || newOperator)
             tracked.freshCatch = true;
+        // route endpoints feed the airports-seen lifelist (no NEW flag: the
+        // catch mechanic stays about the aircraft, not its schedule)
+        logbook.NoteAirport(tracked.routeOrigin);
+        logbook.NoteAirport(tracked.routeDest);
     }
 }
 
@@ -3052,6 +3057,10 @@ void AircraftManager::ConsumeEnrichResults()
                     t.routeCallsign = res->routeCallsign;
                     t.routeOrigin = res->routeOrigin;
                     t.routeDest = res->routeDest;
+                    if (logbookEnabled) {
+                        logbook.NoteAirport(t.routeOrigin);
+                        logbook.NoteAirport(t.routeDest);
+                    }
                 } else {
                     // transient failure: leave routeCallsign unchanged so the detail
                     // path retries, but behind a cooldown (mirrors metadata) so it
