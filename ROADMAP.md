@@ -71,9 +71,10 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 11. **Config apply without restart** — **ALREADY SHIPPED** (verified 2026-07-16): every
     web save raises `ConsumeConfigChanged` and `main.cpp` re-runs `Initialise()` live on
     the loop task, no reboot. The roadmap entry came from a stale header comment, now fixed.
-12. **Receiver-health screen for local-feed users.** Feed message rate,
-    aircraft-with-position count, last-fetch age — all already known to the fetch path.
-    Turns Blipscope into a monitor for the customer's own ADS-B receiver.
+12. **Receiver-health on the Stats screen** — **IMPLEMENTED 2026-07-16**: a FEED block
+    (source, honest data age incl. server lag, STALE flag, poll cadence, hard-fail
+    count), space-guarded so the small panel never collides. Makes a quietly failing
+    feed diagnosable from the device.
 13. **Night clock mode.** When auto-dim says night and the sky is empty, show a clock
     face instead of a dead radar. The EAM edition's seven-segment renderer
     (`src/eam/SevenSegment.cpp`) can be promoted to shared code. Makes the device useful
