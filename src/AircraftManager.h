@@ -451,6 +451,7 @@ private:
 
     void PublishMqttState();     // retained JSON summary of the current picture
     void PublishMqttDiscovery(); // Home Assistant MQTT discovery configs (retained)
+    void PublishMqttEvents();    // fire one-shot HA events on watchlist/emergency/mil/overhead hits
 
     // Toggle-aware special classification + its display colour, shared by the
     // radar, list, and detail views. Honors the per-class show toggles and the

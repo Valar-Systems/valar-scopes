@@ -237,7 +237,7 @@ On **Blipscope** (the Aviation edition) you can set:
 - **Display options** — toggle the on-screen elements and aircraft info fields.
 - **Watchlist & alerts** — tail numbers to watch and the ntfy topic to notify, plus toggles to highlight military aircraft, helicopters, and special flights, and to alert when a military aircraft flies over.
 - **OpenSky credentials** — your client ID and secret (optional, but recommended).
-- **Home Assistant / MQTT** — broker address and port, optional username/password, base topic, and an auto-discovery toggle. When enabled, Blipscope publishes a retained `<base>/summary` (and, with discovery on, the Home Assistant config so an "Aircraft in range" count, a "Nearest aircraft" sensor, and "Aircraft overhead" / "Military aircraft in range" binary sensors appear automatically).
+- **Home Assistant / MQTT** — broker address and port, optional username/password, base topic, and an auto-discovery toggle. When enabled, Blipscope publishes a retained `<base>/summary` (and, with discovery on, the Home Assistant config so an "Aircraft in range" count, a "Nearest aircraft" sensor, and "Aircraft overhead" / "Military aircraft in range" binary sensors appear automatically). It also fires **device-trigger events** on `<base>/event` the moment a watchlist, emergency-squawk, military, or overhead contact first appears — so you can build automations that trigger on the *event* (with the aircraft's callsign, type, operator, and altitude attached), not just poll the retained sensors. These show up in Home Assistant's automation UI under the Blipscope device.
 
 The config page is available any time the device is on WiFi, so you can tweak settings whenever you like.
 

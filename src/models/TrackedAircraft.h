@@ -36,6 +36,11 @@ struct TrackedAircraft {
     bool emgFlashFired = false;     // visual-alert flash burst fired for this emergency squawk
     bool emgNotified = false;       // an emergency-squawk ntfy alert has been sent this session
     bool overheadToneFired = false; // the overhead alert tone has sounded this session (HAS_AUDIO)
+    // MQTT event dedupe (Home Assistant "events, not state"): one bit per event
+    // class already fired for this contact this session, so an automation fires
+    // once per aircraft, not every poll. Bit0 watchlist, 1 emergency, 2 military,
+    // 3 overhead. Independent of the ntfy notified flags above.
+    uint8_t mqttEventFlags = 0;
     bool freshCatch = false;        // this sighting added a brand-new type/airline to the logbook
     String typeCode = "";    // adsbdb icao_type, e.g. "B738"
     String typeName = "";    // adsbdb full model, e.g. "Boeing 737-800"
