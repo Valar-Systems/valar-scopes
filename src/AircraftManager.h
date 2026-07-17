@@ -437,7 +437,16 @@ private:
     // one at a time and throttled, so enrichment never blocks the render loop.
     void ProcessMetadataLookups();
 
-    bool MatchesWatchlist(const TrackedAircraft& tracked) const;
+    // Watchlist match, classified so the alert tone can distinguish WHICH kind
+    // of entry fired: Specific = this exact aircraft (callsign/hex/registration
+    // prefix), Category = a whole aircraft type (type-designator prefix). A
+    // specific-identity match outranks a category one.
+    enum class WatchClass : uint8_t { None, Specific, Category };
+    WatchClass ClassifyWatchlist(const TrackedAircraft& tracked) const;
+    bool MatchesWatchlist(const TrackedAircraft& tracked) const
+    {
+        return ClassifyWatchlist(tracked) != WatchClass::None;
+    }
     bool IsOverhead(const TrackedAircraft& tracked) const; // within overheadKm of the centre
     // Score a freshly-enriched contact for "aircraft of the day" and adopt it if
     // it beats the day's current holder.

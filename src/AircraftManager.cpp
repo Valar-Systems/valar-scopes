@@ -1560,12 +1560,15 @@ void AircraftManager::ConsumeFetchResult()
                 // edge fires the (stronger) emergency pattern for them next frame.
                 if constexpr (variant::HAS_AUDIO) {
                     if (initialSyncDone && !isEmergencySquawk(ac.squawk)) {
+                        const WatchClass wc = ClassifyWatchlist(emplaced.first->second);
                         if (showMilitary && SpecialAircraft::IsMilitary(ac.icao24))
                             PlayTone(2, 70, 120);
-                        else if (MatchesWatchlist(emplaced.first->second))
-                            PlayTone(2, 40, 80);
+                        else if (wc == WatchClass::Specific)
+                            PlayTone(3, 55, 70);  // your specific aircraft: an urgent triple
+                        else if (wc == WatchClass::Category)
+                            PlayTone(2, 40, 80);  // a watched type: the double
                         else
-                            PlayTone(1, 40, 0);
+                            PlayTone(1, 40, 0);   // any new contact: a single chirp
                     }
                 }
             } else {
@@ -3375,23 +3378,26 @@ void AircraftManager::ConsumeEnrichResults()
     delete res;
 }
 
-bool AircraftManager::MatchesWatchlist(const TrackedAircraft& tracked) const
+AircraftManager::WatchClass AircraftManager::ClassifyWatchlist(const TrackedAircraft& tracked) const
 {
     if (watchlist.empty())
-        return false;
+        return WatchClass::None;
 
     String callsign = tracked.state.callsign; callsign.trim(); callsign.toLowerCase();
     String icao = tracked.state.icao24; icao.toLowerCase();
     String reg = tracked.registration; reg.toLowerCase();
     String type = tracked.typeCode; type.toLowerCase();
 
+    // A specific-identity match (this exact aircraft) outranks a category (type)
+    // match, so scan for identity across all entries first, then types.
+    bool category = false;
     for (const String& w : watchlist) {
-        if (callsign.startsWith(w) && !callsign.isEmpty()) return true;
-        if (icao.startsWith(w) && !icao.isEmpty())         return true;
-        if (reg.startsWith(w) && !reg.isEmpty())           return true;
-        if (type.startsWith(w) && !type.isEmpty())         return true;
+        if (callsign.startsWith(w) && !callsign.isEmpty()) return WatchClass::Specific;
+        if (icao.startsWith(w) && !icao.isEmpty())         return WatchClass::Specific;
+        if (reg.startsWith(w) && !reg.isEmpty())           return WatchClass::Specific;
+        if (type.startsWith(w) && !type.isEmpty())         category = true;
     }
-    return false;
+    return category ? WatchClass::Category : WatchClass::None;
 }
 
 bool AircraftManager::IsOverhead(const TrackedAircraft& tracked) const
