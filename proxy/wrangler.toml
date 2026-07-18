@@ -109,8 +109,13 @@ routes = [
 # airplanes.live stay disabled until their operators grant commercial use (the
 # open licensing to-do). Flip to "true" per feed only once permission clears.
 [env.production.vars]
-UPSTREAM_ADSB_FI_ENABLED = "false"
-UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
+# 2026-07-18: failover ENABLED for the private bench soak (owner-approved) so the
+# feed survives adsb.lol's shared-egress 429s -- production had no fallback and
+# went empty whenever adsb.lol rate-limited us. REVISIT before customer launch:
+# revert to "false" (or keep) once the adsb.lol feeder key lifts the rate limit
+# and/or commercial permission from adsb.fi / airplanes.live clears.
+UPSTREAM_ADSB_FI_ENABLED = "true"
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "true"
 ROUTE_ADSBDB_ENABLED = "true"
 
 # Sampled logging: keep 1-in-20 requests (~200 B each is real money at fleet
