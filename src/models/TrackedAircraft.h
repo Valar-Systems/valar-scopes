@@ -182,6 +182,17 @@ struct TrackedAircraft {
         float localElapsed = (millis() - lastSeen) / 1000.0f;
         float dt = localElapsed + dataAgeOnArrival;
 
+        // Cap the dead-reckoning horizon. Between polls dt is a few seconds (up to
+        // a few minutes for OpenSky's credit-metered cadence), which DR is meant to
+        // bridge. But if the feed dies entirely, nothing evicts the stale contact
+        // (eviction only runs on a successful merge), so dt grows without bound and
+        // extrapolates the position to absurd lat/lon that (a) vanish off-screen and
+        // (b) overflow the int hit-test math downstream -- making an invisible ghost
+        // tappable across the whole screen. 10 min is well past any legitimate poll
+        // gap; beyond it the contact is gone, not still flying.
+        constexpr float MAX_DR_SECONDS = 600.0f;
+        if (dt > MAX_DR_SECONDS) dt = MAX_DR_SECONDS;
+
         float headingRad = radians(state.trueTrack);
         const float latMetersPerDeg = 111320.0f;
         float deltaLat = (state.velocity * dt * cos(headingRad)) / latMetersPerDeg;
