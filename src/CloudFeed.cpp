@@ -149,7 +149,11 @@ bool ParseEnrich(JsonDocument& doc, Enrichment& out)
     out.routeOrigin  = doc["o"].as<String>();
     out.routeDest    = doc["d"].as<String>();
     // Photo join (append-only fields; absent on older proxies -> empty/false).
-    out.photoPath          = doc["p"].as<String>();
+    // Guard the null: the proxy sends "p":null for an aircraft with no stock
+    // photo, and ArduinoJson's as<String>() renders that as the literal "null" --
+    // which downstream concatenates into `cloudUrl + photoPath`, producing a bogus
+    // host ("scopes.valarsystems.comnull") that fails DNS on every photo-less plane.
+    out.photoPath          = doc["p"].isNull() ? String("") : doc["p"].as<String>();
     out.photoRepresentative = (doc["pk"].as<String>() == "type");
     return true;
 }
