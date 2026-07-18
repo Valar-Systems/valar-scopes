@@ -52,6 +52,7 @@ const PRIORITY: Record<string, string> = {
   C750: "Cessna Citation X",
   GLF6: "Gulfstream G650",
   LJ45: "Learjet 45",
+  LJ35: "C-21A United States Air Force Learjet",
   R22: "Robinson R22 helicopter",
   R66: "Robinson R66 helicopter",
   B06: "Bell 206 JetRanger",

@@ -1219,5 +1219,16 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/s76.jpg"
+  },
+  {
+    "target": "LJ35",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:C-21A_Learjet_before_its_last_flight_out_of_Al_Udeid_Air_Base,_Qatar.jpg",
+    "author": "Senior Airman Leon Redfern",
+    "credit": "C-21A Learjet before its last flight out of Al Udeid Air Base, Qatar",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/lj35.jpg"
   }
 ]

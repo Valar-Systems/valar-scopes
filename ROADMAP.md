@@ -33,6 +33,25 @@ the production path:** (1) the weekly `refresh-data` workflow flipped to product
 `CLOUDFLARE_API_TOKEN` repo secret, (2) firmware repointed at production
 (`CLOUD_FEED_BASE` + a baked/ per-device key) — gated on the slowdown fix.
 
+**Production feed findings (2026-07-18 bench session) — LAUNCH BLOCKERS:**
+- **adsb.lol feeder key (the real fix).** adsb.lol shared-egress **429**s the Worker's
+  Cloudflare outbound IPs, and production had **no failover**, so `/v1/blips` + `/v1/enrich`
+  went empty (no planes, no enrichment) whenever it 429'd. Get an adsb.lol feeder key and
+  set the `ADSB_LOL_API_KEY` secret (`--env production`) to lift the limit. **This is the
+  actual "failover off at launch" enabler.**
+- **Production failover is temporarily ENABLED** (`adsb.fi` + `airplanes.live` = `"true"`,
+  owner-approved for the private bench soak; see the `REVISIT` comment in
+  [wrangler.toml](proxy/wrangler.toml)). **Must revert to `"false"` before customer
+  launch** unless commercial permission clears — it diverges from the documented posture.
+- **adsb.fi failover returns HTTP 403** to the Worker egress (airplanes.live is carrying
+  failover alone). Investigate: header/User-Agent/key requirement, or CF-egress block.
+- **BLIP_KEYS drift.** The staging *and* production `BLIP_KEYS` secrets got out of sync with
+  `Cloudflare keys.txt`, causing confusing 401s (a valid-looking key rejected). Reconcile:
+  document the actual deployed key per env and tidy the keys file. Cloudflare secrets are
+  write-only, so the file must be the source of truth.
+- **Flash the photo-null fix** (PR #94, [[ghost-tap-stale-deadreckon]] sibling) to the bench
+  and fold into the `v5` OTA — the bench still runs the ghost-tap build.
+
 **Go criteria (all three):** (1) the slowdown is root-caused and fixed (the new
 `LOOP STALL` telemetry should catch the next recurrence), (2) a clean 24 h bench soak on
 the s3-128 with the full feature set, (3) the shipping features get a bench pass (below).
@@ -147,6 +166,16 @@ For a product whose emotional hook is plane-spotting, **history is the retention
 ## Idea backlog (unscheduled)
 
 - **Public spotting leaderboard** — see the full concept below.
+- **Stale-feed eviction gap** (found 2026-07-18): eviction only runs on a *successful*
+  feed merge, so when the feed is fully down, contacts are never removed and dead-reckon
+  in place. The 600 s DR cap (PR #93) now bounds their position so they can't overflow the
+  tap hit-test, but they still linger on screen. Consider evicting after a hard stale
+  threshold even without a merge.
+- **Config-page env/key UX** (found 2026-07-18): switching `cloud-url` between environments
+  silently keeps the old `cloud-key` (it's masked and skip-on-save), producing a confusing
+  401 with no on-screen hint. Consider forcing key re-entry when the URL changes, and/or
+  surfacing the active source URL + last auth status (`config rev` vs `401`) on the config
+  page and the device FEED block.
 - Watchlist match alert sound distinct per entry class.
 - HA/MQTT: publish watchlist/emergency hits as Home Assistant *events*, not just state.
 - ~~Compass rose / north-up vs. track-up toggle~~ — **shipped 2026-07-16 as "window-up"**:
