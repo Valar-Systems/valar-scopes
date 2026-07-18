@@ -2973,6 +2973,14 @@ void AircraftManager::HandleTap(int tx, int ty)
             // position -- otherwise taps miss a blip paused mid-sweep waiting for the next pass
             auto [la, lo] = RadarBlipPosition(tracked);
             auto [x, y] = ProjectCoordinateToScreen(la, lo);
+            // A contact projected well off the face isn't drawn, so it can't be
+            // tapped. This also keeps the dist2 math below from overflowing on a
+            // far-extrapolated ghost during a long stale period (a huge dx makes
+            // dx*dx wrap negative, which would satisfy the radius test everywhere).
+            constexpr int OFF_MARGIN = 40; // a little past the edge for label boxes
+            if (x < -OFF_MARGIN || x > SCREEN_SIZE + OFF_MARGIN ||
+                y < -OFF_MARGIN || y > SCREEN_SIZE + OFF_MARGIN)
+                continue;
             const int dx = x - tx, dy = y - ty;
             const int dist2 = dx * dx + dy * dy;
             bool hit = dist2 <= TAP_RADIUS * TAP_RADIUS;
