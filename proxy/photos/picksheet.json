@@ -665,5 +665,12 @@
     "layer": "auto",
     "title": "File:Sikorsky S-76 helicopter N 760GP by Don Ramey Logan.jpg",
     "autoPicked": true
+  },
+  {
+    "target": "LJ35",
+    "kind": "type",
+    "layer": "mil-tier",
+    "title": "File:C-21A Learjet before its last flight out of Al Udeid Air Base, Qatar.jpg",
+    "autoPicked": false
   }
 ]
