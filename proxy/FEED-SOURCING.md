@@ -43,6 +43,42 @@ likely doesn't exist. Options, in order of effort:
 
 ---
 
+## Paid-API pricing (priced 2026-07-18) — and why per-request doesn't fit
+
+**ADSBexchange** ([RapidAPI "Community"](https://rapidapi.com/adsbx/api/adsbexchange-com1/pricing)):
+**$10/mo for 10,000 requests** (~$0.001/req), 500 ms updates, query by lat/lon radius /
+hex / callsign. Higher volume + commercial = enterprise quote ([enterprise](https://www.adsbexchange.com/products/enterprise-api/)).
+
+**FlightAware AeroAPI v3** ([pricing](https://www.flightaware.com/commercial/aeroapi/v3/pricing.rvt)):
+**Personal** = up to $5 free/mo ($20/mo credit if you're an ADS-B feeder); **Standard** =
+**$200/mo minimum**, 5 result-sets/sec; **Premium** = 100/sec, volume discount past
+$5,000/mo. ~$0.002/query; a "page" = 15 records, billed per page.
+
+**The catch — per-request pricing is the wrong model for a live radar.** Our proxy needs
+~1 upstream `/point` fetch **per active geographic tile per refresh window** (shared
+across all devices in that tile). Do the math for one *isolated* device (its own tile):
+
+| upstream refresh | fetches/mo per tile | ADSBexchange @ $0.001 | AeroAPI @ ~$0.002 |
+|---|---|---|---|
+| 30 s | ~86,400 | ~$86/mo | ~$170/mo + $200 min |
+| 60 s | ~43,200 | ~$43/mo | ~$86/mo + $200 min |
+
+That's **more than the hardware, per device** — because these APIs are priced for
+*occasional flight-status lookups*, not continuous polling. It only gets affordable when
+many devices **share a tile** (same metro), or with a very slow refresh. `BLIPS_FRESH_TTL_MS`
+is the direct cost knob.
+
+**Conclusion:**
+- **Community feeds + commercial permission** (airplanes.live / adsb.fi) remain the
+  economically right model — flat/donation, not per-request. **Priority.**
+- A **fixed-IP egress proxy** (~$5/mo VPS in front of adsb.lol keyless) is worth a spike:
+  a dedicated IP gets adsb.lol's anonymous per-IP limit *to ourselves* instead of sharing
+  the Cloudflare pool — possibly fixing the 429 for ~$5/mo flat, no per-request cost.
+- **Paid per-request APIs** (ADSBexchange/AeroAPI) only pencil out at heavy device
+  clustering; keep as a **spot fallback**, not the backbone.
+- A **flat-rate bulk feed** (FlightAware Firehose, ADSBexchange enterprise) is the
+  "at real scale" option — predictable but quote-based (likely $100s–1,000s/mo).
+
 ## Draft: airplanes.live (primary-source permission)
 
 > **Subject:** Commercial API use + attribution — Blipscope desk ADS-B radar

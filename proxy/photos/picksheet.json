@@ -672,5 +672,12 @@
     "layer": "mil-tier",
     "title": "File:C-21A Learjet before its last flight out of Al Udeid Air Base, Qatar.jpg",
     "autoPicked": false
+  },
+  {
+    "target": "EC35",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Police eurocopter ec135 g-wcao arp.jpg",
+    "autoPicked": true
   }
 ]
