@@ -1266,14 +1266,21 @@ void AircraftManager::RunFetchTask()
 #ifdef FEATURE_CLOUD_FEED
         else if (req->cloud) {
             // /v1/blips: the proxy quantizes to its cache tile/bucket, clips,
-            // sorts by distance, and caps server-side -- the reply is <= ~2 KB
-            // with a fixed Content-Length, so the streaming decode is trivial.
+            // sorts by distance, and caps server-side. Ask for 40 (up from 25) so a
+            // wide radius over a busy area fills most of the scope instead of
+            // clustering the nearest 25 in the centre. NOT the full MAX_AIRCRAFT
+            // (60): each tracked contact carries a 60-point trail + enrichment, and
+            // requesting 60 dropped the largest contiguous heap block toward the TLS
+            // floor (~28 KB), starving handshakes (hardFail + DATA STALE observed).
+            // 40 keeps a comfortable margin while covering the useful picture.
+            constexpr int BLIPS_LIMIT = 40;
+            static_assert(BLIPS_LIMIT <= (int)MAX_AIRCRAFT, "blips limit must fit the tracked cap");
             result = http.GetJson(
                 CloudFeed::BlipsUrl(req->cloudBase), doc,
                 { { "lat", String(req->lat, 4) },
                   { "lon", String(req->lon, 4) },
                   { "r", String((int)lround(req->rangeKm)) },
-                  { "limit", "25" } },
+                  { "limit", String(BLIPS_LIMIT) } },
                 CloudFeed::Headers(req->cloudKey, req->otaMem));
         }
 #endif
