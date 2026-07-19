@@ -34,11 +34,21 @@ the production path:** (1) the weekly `refresh-data` workflow flipped to product
 (`CLOUD_FEED_BASE` + a baked/ per-device key) — gated on the slowdown fix.
 
 **Production feed findings (2026-07-18 bench session) — LAUNCH BLOCKERS:**
-- **adsb.lol feeder key (the real fix).** adsb.lol shared-egress **429**s the Worker's
-  Cloudflare outbound IPs, and production had **no failover**, so `/v1/blips` + `/v1/enrich`
-  went empty (no planes, no enrichment) whenever it 429'd. Get an adsb.lol feeder key and
-  set the `ADSB_LOL_API_KEY` secret (`--env production`) to lift the limit. **This is the
-  actual "failover off at launch" enabler.**
+See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + outreach drafts.
+- **The feed problem is sourcing, not code.** adsb.lol shared-egress **429**s the Worker's
+  Cloudflare outbound IPs (other CF tenants' traffic on the shared per-colo IP, not our
+  volume), worst on the high-volume `/point`. **Corrected 2026-07-18:** the "adsb.lol
+  feeder key" is NOT an actionable fix — per adsb.lol's docs the key is *future* ("in the
+  future you will require an API key… by feeding"), not issued yet, and their feeder API
+  (`re-api`) is **IP-locked** to the feeding station, so a Cloudflare Worker can't use it.
+- **Shipped mitigation:** airplanes.live is now **primary for positions** (adsb.lol 429s
+  that endpoint hardest), adsb.lol stays primary for per-hex type; this ended the
+  `DATA STALE` churn on the bench. But it rides on airplanes.live's goodwill —
+- **THE launch gate is commercial permission or a paid feed:** email airplanes.live +
+  adsb.fi for commercial-use OK (drafts in FEED-SOURCING.md; adsb.fi currently 403s our
+  Worker), and/or price a paid commercial API (ADSBexchange/RapidAPI, FlightAware AeroAPI)
+  as the SLA-backed fallback — a few ¢/device/month, baked into pricing. Offer-to-feed
+  email to adsb.lol sent for when their key program lands.
 - **Production failover is temporarily ENABLED** (`adsb.fi` + `airplanes.live` = `"true"`,
   owner-approved for the private bench soak; see the `REVISIT` comment in
   [wrangler.toml](proxy/wrangler.toml)). **Must revert to `"false"` before customer
