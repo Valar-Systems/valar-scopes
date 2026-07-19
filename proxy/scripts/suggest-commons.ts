@@ -54,6 +54,7 @@ const PRIORITY: Record<string, string> = {
   LJ45: "Learjet 45",
   LJ35: "C-21A United States Air Force Learjet",
   EC35: "Eurocopter EC135 helicopter in flight",
+  EPIC: "Epic E1000 LT aircraft",
   R22: "Robinson R22 helicopter",
   R66: "Robinson R66 helicopter",
   B06: "Bell 206 JetRanger",
