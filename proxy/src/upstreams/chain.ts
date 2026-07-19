@@ -12,9 +12,27 @@ import { adsbFi } from "./adsb_fi";
 import { airplanesLive } from "./airplanes_live";
 import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed } from "./types";
 
-// Priority order. adsb.lol is the licensed primary; the other two ship disabled
-// behind env flags until commercial permission clears.
+// The full set of feeds (for health reporting + enablement). Ordering for the
+// actual fetch is per-operation below.
 export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbFi, airplanesLive];
+
+// Per-operation priority, split because the two endpoints fail differently under
+// adsb.lol's keyless shared-egress 429 (a Cloudflare colo egress IP shared across
+// tenants trips adsb.lol's anonymous per-IP limit):
+//   - POSITIONS (/point, high-volume bulk): adsb.lol 429s this near-constantly,
+//     which starved the picture to STALE. airplanes.live isn't limited that way,
+//     so it LEADS for positions; adsb.lol is the fallback.
+//   - METADATA (/hex, low-volume per-tap): adsb.lol carries the ICAO type inline
+//     (airplanes.live often omits it) and 429s far less here, so it stays primary;
+//     airplanes.live + the adsbdb type backfill cover any miss.
+// Only enabled feeds are tried, so where airplanes.live is off (default vars) both
+// orders collapse to adsb.lol-first -- unchanged behaviour.
+const POINT_ORDER: UpstreamAircraftFeed[] = [airplanesLive, adsbLol, adsbFi];
+const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLol, airplanesLive, adsbFi];
+
+function ordered(env: Env, order: UpstreamAircraftFeed[]): UpstreamAircraftFeed[] {
+  return order.filter((f) => f.enabled(env));
+}
 
 export function enabledFeeds(env: Env): UpstreamAircraftFeed[] {
   return FEEDS.filter((f) => f.enabled(env));
@@ -115,7 +133,7 @@ export async function fetchPointChain(
   lonQ: string,
   distNm: number,
 ): Promise<PointResult | null> {
-  for (const feed of enabledFeeds(env)) {
+  for (const feed of ordered(env, POINT_ORDER)) {
     if (!breakerAllows(feed.id)) continue;
     const started = Date.now();
     try {
@@ -146,7 +164,7 @@ export interface HexResult {
 }
 
 export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | null> {
-  for (const feed of enabledFeeds(env)) {
+  for (const feed of ordered(env, HEX_ORDER)) {
     if (!breakerAllows(feed.id)) continue;
     const started = Date.now();
     try {
