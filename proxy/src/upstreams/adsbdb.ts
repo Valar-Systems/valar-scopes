@@ -15,6 +15,38 @@ export function adsbdbHeaders(): Record<string, string> {
   return { "User-Agent": USER_AGENT };
 }
 
+// Aircraft metadata by hex. Used as a TYPE BACKFILL only: our failover feed
+// (airplanes.live) returns a hex's registration but not its ICAO type, so a
+// failover away from adsb.lol loses the type -- and with it the type name and
+// the type-keyed stock photo. adsbdb is a different provider/host, so it isn't
+// subject to the same shared-egress 429 that pushes us off adsb.lol.
+export function adsbdbAircraftUrl(hex: string): string {
+  return `https://api.adsbdb.com/v0/aircraft/${hex}`;
+}
+
+export interface AdsbdbAircraft {
+  r: string; // registration
+  t: string; // ICAO type designator
+  tn: string; // adsbdb's verbose type description (fallback friendly name)
+}
+
+// Parse an adsbdb /v0/aircraft body. Returns null for unrecognized shapes or an
+// all-empty record (nothing worth backfilling).
+export function parseAdsbdbAircraft(json: unknown): AdsbdbAircraft | null {
+  const root = json as Record<string, unknown> | null;
+  if (root === null || typeof root !== "object") return null;
+  const response = root.response;
+  if (response === null || typeof response !== "object") return null;
+  const aircraft = (response as Record<string, unknown>).aircraft;
+  if (aircraft === null || typeof aircraft !== "object") return null;
+  const a = aircraft as Record<string, unknown>;
+  const t = typeof a.icao_type === "string" ? a.icao_type.trim().toUpperCase() : "";
+  const r = typeof a.registration === "string" ? a.registration.trim() : "";
+  const tn = typeof a.type === "string" ? a.type.trim() : "";
+  if (!t && !r && !tn) return null;
+  return { r, t, tn };
+}
+
 export interface AdsbdbRoute {
   o: string;
   d: string;

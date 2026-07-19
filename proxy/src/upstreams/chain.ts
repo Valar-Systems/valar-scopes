@@ -1,7 +1,13 @@
 import type { Env } from "../types";
 import { intEnv } from "../util";
 import { adsbLol, routesetRequest } from "./adsb_lol";
-import { adsbdbHeaders, adsbdbRouteUrl, parseAdsbdbRoute } from "./adsbdb";
+import {
+  adsbdbAircraftUrl,
+  adsbdbHeaders,
+  adsbdbRouteUrl,
+  parseAdsbdbAircraft,
+  parseAdsbdbRoute,
+} from "./adsbdb";
 import { adsbFi } from "./adsb_fi";
 import { airplanesLive } from "./airplanes_live";
 import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed } from "./types";
@@ -163,6 +169,55 @@ export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | 
     }
   }
   return null;
+}
+
+// adsbdb aircraft-by-hex type backfill. Its own breaker (a broken/limited adsbdb
+// must not open the aircraft-feed or route breakers). Called only when the
+// position feed resolved a hex with no ICAO type.
+const ADSBDB_AC_BREAKER_ID = "adsbdb_ac";
+
+export interface AircraftMetaBackfill {
+  r: string;
+  t: string;
+  tn: string;
+}
+
+export async function fetchAircraftMetaAdsbdb(
+  env: Env,
+  hex: string,
+): Promise<AircraftMetaBackfill | null> {
+  if (env.ROUTE_ADSBDB_ENABLED === "false") return null; // same master switch as the route source
+  if (!breakerAllows(ADSBDB_AC_BREAKER_ID)) return null;
+  const started = Date.now();
+  try {
+    let json: unknown;
+    try {
+      json = await fetchJsonWithTimeout(
+        adsbdbAircraftUrl(hex),
+        { headers: adsbdbHeaders() },
+        timeoutMs(env),
+        retryDelayMs(env),
+        2,
+      );
+    } catch (err) {
+      // adsbdb answers unknown aircraft with a JSON-bodied 404: a definitive
+      // negative (nothing to backfill), not an outage -- don't trip the breaker.
+      if (err instanceof HttpStatusError && err.status === 404) {
+        breakerRecord(ADSBDB_AC_BREAKER_ID, true);
+        logUpstream(ADSBDB_AC_BREAKER_ID, "aircraft", true, Date.now() - started);
+        return null;
+      }
+      throw err;
+    }
+    breakerRecord(ADSBDB_AC_BREAKER_ID, true);
+    logUpstream(ADSBDB_AC_BREAKER_ID, "aircraft", true, Date.now() - started);
+    const parsed = parseAdsbdbAircraft(json);
+    return parsed ? { r: parsed.r, t: parsed.t, tn: parsed.tn } : null;
+  } catch (err) {
+    breakerRecord(ADSBDB_AC_BREAKER_ID, false);
+    logUpstream(ADSBDB_AC_BREAKER_ID, "aircraft", false, Date.now() - started, err);
+    return null;
+  }
 }
 
 export interface RouteResult {
