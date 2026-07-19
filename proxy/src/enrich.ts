@@ -1,7 +1,7 @@
 import type { Env } from "./types";
 import type { RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
-import { fetchHexChain, fetchRoute } from "./upstreams/chain";
+import { fetchAircraftMetaAdsbdb, fetchHexChain, fetchRoute } from "./upstreams/chain";
 import { militaryCallsignOperator, militaryOperator } from "./military";
 import { TYPE_NAMES } from "./typenames";
 import { resolvePhoto } from "./photos";
@@ -84,6 +84,23 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   if (!res) return null; // chain down: serve empties now, cache nothing, next tap retries
   meta.upstream = res.upstream;
   const built = await buildMeta(env, res.raw);
+  // Type backfill: airplanes.live (our failover when adsb.lol 429s) returns a
+  // hex's registration but NOT its ICAO type, so a failover loses the type -- and
+  // with it the type name and the type-keyed stock photo. When the feed gave us a
+  // hex but no type, ask adsbdb (a different host, not subject to the same 429)
+  // for the type. Merged in before caching, so ac:<hex> stores the full record
+  // and the card's next request is a warm hit with the photo joined.
+  if (!built.t) {
+    const bf = await fetchAircraftMetaAdsbdb(env, hex);
+    if (bf?.t) {
+      built.t = bf.t;
+      if (!built.r && bf.r) built.r = bf.r;
+      // Prefer our own naming (KV override, then the baked table) over adsbdb's
+      // verbose description, for consistency with the primary-feed path.
+      built.tn = (await env.ENRICH_KV.get(`tn:${bf.t}`)) ?? TYPE_NAMES[bf.t] ?? bf.tn ?? "";
+      built.found = true;
+    }
+  }
   // TTL by CONTENT, not mere upstream presence: many military hexes return a
   // live position with an all-empty DB record, and 30 d of cached emptiness
   // kept a later-appearing record blank for a month. An empty meta is a

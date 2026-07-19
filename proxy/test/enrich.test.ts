@@ -58,6 +58,27 @@ describe("/v1/enrich/{hex}", () => {
     expect(body.o).toBe(""); // no callsign given -> no route lookup
   });
 
+  it("backfills the type from adsbdb when the feed has a hex+reg but no type (airplanes.live failover)", async () => {
+    // airplanes.live's failover shape: registration present, ICAO type MISSING.
+    // Losing the type would also lose the type-keyed stock photo -- the backfill
+    // recovers it from adsbdb (a different host, not subject to adsb.lol's 429).
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/a34878" }).reply(200, hexBody([{ hex: "a34878", r: "N310SY" }]));
+    fetchMock
+      .get(ADSBDB)
+      .intercept({ path: "/v0/aircraft/a34878" })
+      .reply(200, JSON.stringify({ response: { aircraft: { registration: "N310SY", icao_type: "e75l", type: "ERJ 170-200 LR" } } }));
+
+    const res = await call(apiRequest("/v1/enrich/a34878"));
+    const body = (await res.json()) as { r: string; t: string; tn: string };
+    expect(body.t).toBe("E75L"); // uppercased
+    expect(body.r).toBe("N310SY");
+    expect(body.tn).toBe("Embraer E175 (long wing)"); // our table, not adsbdb's verbose string
+
+    // Backfilled meta is cached: the repeat needs no interceptors (any real fetch throws).
+    const res2 = await call(apiRequest("/v1/enrich/a34878"));
+    expect((await res2.json() as { t: string }).t).toBe("E75L");
+  });
+
   it("caches negative aircraft lookups", async () => {
     fetchMock.get(LOL).intercept({ path: "/v2/hex/cccccc" }).reply(200, hexBody([]));
 
