@@ -23,7 +23,10 @@ const DEFAULT_FRESH_TTL_MS = 3000;
 const SWR_MAX_AGE_S = 600;
 
 const DEFAULT_LIMIT = 25;
-const MAX_LIMIT = 50;
+// Raised 60 to match the firmware's MAX_AIRCRAFT tracked cap: a device on a wide
+// radius over a busy basin asks for up to 60 so the whole scope fills instead of
+// the nearest 25 clustering in the centre. Still a compact reply (~5 KB).
+const MAX_LIMIT = 60;
 
 // Cold-miss serve deadline. The firmware's HTTP client aborts reads after ~5 s,
 // and busy-basin tiles can take ~5 s upstream -- so a cold tile must not make
