@@ -1230,5 +1230,16 @@
     "layer": "mil-tier",
     "autoPicked": false,
     "file": "src/lj35.jpg"
+  },
+  {
+    "target": "EC35",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Police_eurocopter_ec135_g-wcao_arp.jpg",
+    "author": "Public domainPublic domainfalsefalse This work has been released into the public domain by its author, Arpingstone. This applies worldwide. In some countries this may not be legally possible; if so: Arpingstone grants anyone the right to use this work for any purpose, without any conditions, unless such conditions are required by law.",
+    "credit": "Police eurocopter ec135 g-wcao arp",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/ec35.jpg"
   }
 ]
