@@ -679,5 +679,12 @@
     "layer": "auto",
     "title": "File:Police eurocopter ec135 g-wcao arp.jpg",
     "autoPicked": true
+  },
+  {
+    "target": "EPIC",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Epic E1000 (N445LL, cn K045) (2-14-2025).jpg",
+    "autoPicked": true
   }
 ]

@@ -1241,5 +1241,17 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/ec35.jpg"
+  },
+  {
+    "target": "EPIC",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Epic_E1000_(N445LL,_cn_K045)_(2-14-2025).jpg",
+    "author": "ZLEA",
+    "credit": "Epic E1000 (N445LL, cn K045) (2-14-2025)",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/epic.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
   }
 ]
