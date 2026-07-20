@@ -1253,5 +1253,120 @@
     "autoPicked": true,
     "file": "src/epic.jpg",
     "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C206",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna.206h.stationair2.arp.jpg",
+    "author": "Arpingstone",
+    "credit": "Cessna.206h.stationair2.arp",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c206.jpg"
+  },
+  {
+    "target": "C210",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna.210.centurion.d-ebws.arp.jpg",
+    "author": "Arpingstone",
+    "credit": "Cessna.210.centurion.d-ebws.arp",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c210.jpg"
+  },
+  {
+    "target": "C525",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:I-RVRP_-_Cessna_525_CitationJet_CJ1_(25465244288).jpg",
+    "author": "Dylan Agbagni (No copyrights) from Bayonne, France",
+    "credit": "I-RVRP - Cessna 525 CitationJet CJ1 (25465244288)",
+    "license": "CC0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c525.jpg"
+  },
+  {
+    "target": "C25A",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Untitled_Cessna_525A_Citation_CJ2%2B_D-IDAS_(24042804719).jpg",
+    "author": "Kambui",
+    "credit": "Untitled Cessna 525A Citation CJ2+ D-IDAS (24042804719)",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c25a.jpg"
+  },
+  {
+    "target": "C25C",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:ASJ_Untitled_(Skyservice_Business_Aviation)-_Cessna_525C_Citation_CJ4_-_C-FANJ_-_(9572236536).jpg",
+    "author": "Lord of the Wings© from Toronto, Canada",
+    "credit": "ASJ Untitled (Skyservice Business Aviation)- Cessna 525C Citation CJ4 - C-FANJ - (9572236536)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c25c.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C510",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Untitled_(TAG_Aviation)_Cessna_510_Citation_Mustang_G-FBLK_(25467740823).jpg",
+    "author": "Kambui",
+    "credit": "Untitled (TAG Aviation) Cessna 510 Citation Mustang G-FBLK (25467740823)",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c510.jpg"
+  },
+  {
+    "target": "C550",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna_550_Citation_II_(N89GA,_cn_550-0122)_(8-29-2022).jpg",
+    "author": "ZLEA",
+    "credit": "Cessna 550 Citation II (N89GA, cn 550-0122) (8-29-2022)",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c550.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C560",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:N812DC_Cessna_560_Citation_Encore_C-N_560-0541_(5514282960).jpg",
+    "author": "Tomás Del Coro from Las Vegas, Nevada, USA",
+    "credit": "N812DC Cessna 560 Citation Encore C-N 560-0541 (5514282960)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c560.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C680",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:N888SF_Cessna_Citation_Sovereign_680_(25870001345).jpg",
+    "author": "James from Cheltenham, Gloucestershire",
+    "credit": "N888SF Cessna Citation Sovereign 680 (25870001345)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c680.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C68A",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:N613CL_Cessna_Citation_Latitude_680A_Textron_Aviation_(30012668735).jpg",
+    "author": "James from Cheltenham, Gloucestershire",
+    "credit": "N613CL Cessna Citation Latitude 680A Textron Aviation (30012668735)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c68a.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
   }
 ]

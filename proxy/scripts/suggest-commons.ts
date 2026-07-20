@@ -47,6 +47,17 @@ const PRIORITY: Record<string, string> = {
   M20P: "Mooney M20 aircraft",
   TBM9: "Daher TBM 930",
   PC24: "Pilatus PC-24",
+  // --- Cessna long tail (GA singles + the Citation family) ---
+  C206: "Cessna 206 Stationair in flight",
+  C210: "Cessna 210 Centurion aircraft",
+  C525: "Cessna CitationJet CJ1 525",
+  C25A: "Cessna Citation CJ2 525A",
+  C25C: "Cessna Citation CJ4 525C",
+  C510: "Cessna Citation Mustang 510",
+  C550: "Cessna Citation II 550 aircraft",
+  C560: "Cessna Citation V 560 aircraft",
+  C680: "Cessna Citation Sovereign 680",
+  C68A: "Cessna Citation Latitude 680A",
   // --- bizjet / rotor (common secondary) ---
   C700: "Cessna Citation Longitude",
   C750: "Cessna Citation X",
