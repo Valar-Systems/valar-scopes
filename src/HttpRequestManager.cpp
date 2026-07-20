@@ -240,30 +240,37 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
-    http.begin(fullUrl);
-    result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
 
-    // Follow 3xx redirects. adsbdb's photo thumbnails are served from airport-data.com
-    // behind a redirect; without this the GET stops at the redirect and hands back the
-    // empty 3xx body -- which, because the status code is still > 0, was treated as a
-    // successful response. That is exactly the "[photo] ... bytes=0 decoded=0" failure:
-    // a blank photo from a "successful" fetch. Only GETs use this client, so always
-    // re-issuing on a redirect is safe.
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-
-    // Bound how long one request can block. These run synchronously on the loop task,
-    // and a slow or half-open host that stalls for many seconds monopolises the single
-    // core long enough to starve the watchdog-fed async_tcp service task into a reboot.
-    http.setConnectTimeout(5000); // TCP connect
-    http.setTimeout(5000);        // per-read stream timeout
-
-    // add headers to request
-    for (const auto& header : headers) {
-        http.addHeader(header.first, header.second);
+    // One request, with a single retry on a STALE KEEP-ALIVE socket. The TLS client
+    // holds its connection open for reuse (see the header note), but Cloudflare closes
+    // an idle keep-alive after only a few seconds -- so a socket we reuse can be
+    // half-open, and the GET then fails at the transport layer (read timeout / connection
+    // refused) rather than returning a status. When that happens on a socket we REUSED
+    // (not one we just handshaked), the connection is the suspect: drop it and retry once
+    // on a fresh handshake. A failure on a freshly opened socket is a real network error,
+    // so don't loop. This is what was intermittently blanking cloud enrichment cards.
+    //
+    // setFollowRedirects: adsbdb's photo thumbnails are served from airport-data.com
+    // behind a redirect; without it the GET stops at the redirect and hands back the empty
+    // 3xx body -- a blank photo from a "successful" fetch. Only GETs use this client, so
+    // re-issuing on a redirect is safe. setConnectTimeout/setTimeout bound how long one
+    // request can block: these run synchronously and a half-open host that stalls for many
+    // seconds would starve the watchdog-fed async_tcp service task into a reboot.
+    int responseCode = 0;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        http.begin(fullUrl);
+        result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
+        http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.setConnectTimeout(5000); // TCP connect
+        http.setTimeout(5000);        // per-read stream timeout
+        for (const auto& header : headers)
+            http.addHeader(header.first, header.second);
+        responseCode = http.GET();
+        if (responseCode > 0 || !result.reusedConnection)
+            break;
+        Serial.printf("[GET] stale keep-alive (%d) on reused socket; retrying fresh\n", responseCode);
+        http.end(); // close the dead socket so the retry's begin() handshakes anew
     }
-
-    // send request and handle response
-    int responseCode = http.GET();
     result.statusCode = responseCode;
 
     if (responseCode > 0) {
@@ -296,21 +303,30 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
-    http.begin(fullUrl);
-    result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    http.setConnectTimeout(5000);
-    http.setTimeout(5000);
 
-    // Keep the Transfer-Encoding so the body-read below can tell a chunked reply (no
-    // Content-Length) from a close-delimited one and pick the right yielding reader.
+    // Single retry on a stale keep-alive socket (see Get() for the full rationale): a
+    // reused connection Cloudflare has already closed fails at the transport layer, so on
+    // a failure that hit a REUSED socket we drop it and retry once on a fresh handshake.
+    // This is the fix for the intermittent cloud-enrich blanks (read timeout / connection
+    // refused on the shared TLS client). collectHeaders keeps the Transfer-Encoding so the
+    // body-read below can tell a chunked reply from a close-delimited one.
     static const char* kCollectHeaders[] = { "Transfer-Encoding" };
-    http.collectHeaders(kCollectHeaders, 1);
-
-    for (const auto& header : headers)
-        http.addHeader(header.first, header.second);
-
-    const int responseCode = http.GET();
+    int responseCode = 0;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        http.begin(fullUrl);
+        result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
+        http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.setConnectTimeout(5000);
+        http.setTimeout(5000);
+        http.collectHeaders(kCollectHeaders, 1);
+        for (const auto& header : headers)
+            http.addHeader(header.first, header.second);
+        responseCode = http.GET();
+        if (responseCode > 0 || !result.reusedConnection)
+            break;
+        Serial.printf("[GET] stale keep-alive (%d) on reused socket; retrying fresh\n", responseCode);
+        http.end(); // close the dead socket so the retry's begin() handshakes anew
+    }
     result.statusCode = responseCode;
 
     if (responseCode > 0) {

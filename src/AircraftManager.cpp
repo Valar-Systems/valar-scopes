@@ -4140,7 +4140,19 @@ void AircraftManager::ProcessMetadataLookups()
     if (now - lastMetadataLookup < METADATA_LOOKUP_INTERVAL)
         return;
 
-    // Queue the first aircraft still awaiting a lookup, then stop for this tick.
+    // Queue the NEAREST aircraft still awaiting a lookup, then stop for this tick --
+    // not just the first in map (icao-order) order. On a full scope the fast movers
+    // crossing the middle are what a user actually taps, and a map-order round-robin
+    // let them age out of the fleet before their turn came up -- so airliners kept
+    // coming back un-enriched. Nearest-first spends the (deliberately still-paced)
+    // enrich cadence where it's most likely to be looked at; far contacts are enriched
+    // once the near ones are done, and one that leaves before its turn was a plane the
+    // user was never going to tap. Cache hits are free, so apply those to EVERY eligible
+    // plane while scanning; only the nearest cache-MISS actually makes a network call.
+    const float cosLat = cosf((float)lat * (float)DEG_TO_RAD);
+    TrackedAircraft* best = nullptr;
+    const String* bestIcao = nullptr;
+    float bestD2 = 0.0f, bestLat = 0.0f, bestLon = 0.0f;
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.metadataState != TrackedAircraft::MetadataState::NotFetched)
             continue;
@@ -4151,27 +4163,42 @@ void AircraftManager::ProcessMetadataLookups()
         if (useCloudSource) {
             if (!CloudShouldBackgroundEnrich(tracked))
                 continue;
-            // A cache hit costs nothing -- apply it and keep scanning for one
-            // that actually needs the network.
+            // A cache hit costs nothing -- apply it and keep scanning.
             if (const CloudFeed::Enrichment* cached = enrichCache.Find(icao)) {
                 ApplyEnrichment(tracked, *cached);
                 continue;
             }
-            String callsign = tracked.state.callsign;
-            callsign.trim();
-            auto [acLat, acLon] = tracked.GetDisplayPosition();
-            lastMetadataLookup = now;
-            tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
-            RequestCloudEnrich(icao, callsign, acLat, acLon);
-            return;
         }
 #endif
+        // Cheap planar range to the device centre (lon scaled by cos lat); we only
+        // need to RANK, not measure, so the squared value is enough.
+        auto [acLat, acLon] = tracked.GetDisplayPosition();
+        const float dLat = acLat - (float)lat;
+        const float dLon = (acLon - (float)lon) * cosLat;
+        const float d2 = dLat * dLat + dLon * dLon;
+        if (best == nullptr || d2 < bestD2) {
+            best = &tracked;
+            bestIcao = &icao;
+            bestD2 = d2;
+            bestLat = acLat;
+            bestLon = acLon;
+        }
+    }
 
-        lastMetadataLookup = now;
-        tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
-        RequestMetadata(icao);
+    if (best == nullptr)
+        return; // nothing needs a network lookup this tick
+
+    lastMetadataLookup = now;
+    best->metadataState = TrackedAircraft::MetadataState::Fetching;
+#ifdef FEATURE_CLOUD_FEED
+    if (useCloudSource) {
+        String callsign = best->state.callsign;
+        callsign.trim();
+        RequestCloudEnrich(*bestIcao, callsign, bestLat, bestLon);
         return;
     }
+#endif
+    RequestMetadata(*bestIcao);
 }
 #ifdef BISECT_TEST
 // ---- bisection-harness hooks (the harness itself is src/BisectHarness.cpp) ----
