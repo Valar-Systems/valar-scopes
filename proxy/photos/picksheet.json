@@ -931,5 +931,474 @@
     "layer": "auto",
     "title": "File:HondaJet, AERO 2018, Friedrichshafen (1X7A4378).jpg",
     "autoPicked": true
+  },
+  {
+    "target": "A310",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:HEATHROW MARCH 1986 TURKISH AIRLINES AIRBUS A310 TC-JCN.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A318",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Frontier Airlines Airbus A318-111 N810FR.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A342",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:South African Airways Airbus A340-200.JPG",
+    "autoPicked": true
+  },
+  {
+    "target": "A343",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:AIRFRANCE Airbus A340-300.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A345",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Etihad Airways Airbus A340-500 landing at Geneva International Airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A346",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Thai airways a340-600 hs-tna takeoff arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "B462",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:PK-BRE British Aerospace BAe-146-200 (cn E2139) ACE Transvalair Aviastar. (8109591160) (2).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "B463",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:British Aerospace BAe-146-300, Crossair AN0517474.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "B736",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:SAS-boeing-737-600-alta-airport-alf.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "B753",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:United Boeing 757-300 N77867 on final approach to Boston Feb 2022.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "CRJX",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Bombardier CRJ1000 - F-HMLL from HOP! landing at ORY airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "D328",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Dornier 328-100 taxiing.JPG",
+    "autoPicked": true
+  },
+  {
+    "target": "F70",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:PH-JCT Fokker 70 KLM cityhopper.JPG",
+    "autoPicked": true
+  },
+  {
+    "target": "RJ1H",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:SE-DSO Avro RJ100 BRA VBY.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "RJ85",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Indonesian presidential aircraft Avro RJ85 landed in Nusantara.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "SB20",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:F-GTSE (Regional Airlines) Saab 2000 STN.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "SU95",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Sukhoi Superjet 100.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "AT43",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:S2-AHI - Hello Airlines - ATR 42-300(QC) - MSN 312 - VGHS.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "AT45",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Sky Express (Greece) ATR 42-500 (SX-TWO) @ ZTH, May 2017.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "AT75",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:F-WWEZ (948) ATR.72-212A(500) FlyFireFly TLS 30AUG11 (6097869500).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "MD82",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Alitalia md-82 i-dacz planform arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "MD83",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:McDonnell Douglas MD-83 (DC-9-83) - Spanair - EC-FXA - LEMD - 20050305.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "MD88",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:N905DE - McDonnell Douglas MD-88 - Delta Air Lines.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "MD90",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:McDonnell Douglas MD-90 (Japan Airlines) d.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "BE40",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Raytheon Beechjet 400A HB-VNE@ZRH;16.07.2010 (4800110278).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "CL30",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:XOJET Bombardier Challenger 300 N538XJ approaching Newark Airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "CL60",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:N880ET, Bombardier Challenger 604 @LHR .jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "F900",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Dassault.falcon900.cs-dfh.arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "FA7X",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Dassault Falcon 7X - PR-SVN on taxiway at LFBT airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "FA8X",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Dassault Falcon 8X F-WWQA Bourget 2017 n3.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "GALX",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:HB-JGL IAI Gulfstream G200 Galaxy FPG (15576696676).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "GL5T",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Bombardier Global 5000 N13JS take off at McCarran Airport Sep 2008 (2823271941).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "GL7T",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Bombardier Global 7500 on static display, EBACE 2018, Le Grand-Saconnex (BL7C0578).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "GLF4",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Gulfstream G-400.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "H25B",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Hawker 800 C-GCGT (5438042372).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "LJ60",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Learjet 60 AN1661740.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "LJ75",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Learjet 75 N446LJ at PRG 01.JPG",
+    "autoPicked": true
+  },
+  {
+    "target": "BE33",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:N567M Beechcraft Bonanza 33 (BE33).JPG",
+    "autoPicked": true
+  },
+  {
+    "target": "BE55",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Beechcraft 95-55 Baron (N938Q, cn TC-184) (4-12-2024).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "BE58",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Beechcraft 58 Baron (N874WH, cn TH-1681) (4-12-2024).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "DA42",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Diamond DA42 Twin Star SP-NBA -- fly-by (3318845648).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "DA62",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:G-DVOR - Diamond DA62 - Flight Calibration Services (36251498543).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "DHC6",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Twin Otter beginning takeoff from airstrip near Margaret Lake, Ivvavik National Park.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "P28B",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Piper PA-28R-200 Arrow II (VH-IGL) taxiing at Wagga Wagga Airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "PA31",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:TI-ALD Piper PA-31 Navajo Aero Costa Sol (7466585624).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "PA34",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Piper PA-34 Seneca aircraft at London Oxford Airport, Oxfordshire, UK - 20070926.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "PA46",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Piper PA-46-350P Malibu Mirage AN1754758.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "RV7",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Vans.rv-7.g-kels.arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "RV10",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Landing. RV-10 (15473940176).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "SR2T",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:BRUNO STOCKER CIRRUS SR22T TURBO HB-KGC (52238283285).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "TBM8",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:TBM-850 N850BN 29sep14 LFBO.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A139",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Bristow Helicopters Australia (VH-ZFV) AgustaWestland AW139 taxiing at Wagga Wagga Airport (4).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "AS50",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Helicopter Eurocopter AS350 B3 ZK-ITY (31517289691).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "AS65",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:AS-365N Dauphin 2 of The Iceland Coast Guard.JPEG",
+    "autoPicked": true
+  },
+  {
+    "target": "B412",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Bell 412 of the Montenegrin Air Force in flight near Žabljak, September 2022 02.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "B429",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:NYPD Police Helicopter N917PD Bell 429 GlobalRanger (27642407020).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "EC30",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Eurocopter EC130 T2 (N908AC, cn 1591) (12-9-2022).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "EH10",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Portuguese Air Force Agusta-Westland EH-101 Merlin Mk.514 19606 Royal International Air Tattoo 2025 01.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "NH90",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:NHIndustries NH90 TTH Italian Army MM81540 EI-223 PAS 2013 01.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "S92",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Sikorsky S-92 inflight over Riyadh at night.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A400",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Airbus A400M EC-404 ILA 2012 05.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C295",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Portuguese Air Force C-295 arrives RIAT Fairford 10thJuly2014 arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "EUFI",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Eurofighter Typhoon climb.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "HAWK",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Bae hawk t1 xx245 inflight arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "MC12",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:MC-12 Liberty.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "PC21",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:RAAF Roulette (A54-033) Pilatus PC-21 landing at Canberra Airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "A338",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:KUWAIT AIRWAYS AIRBUS A330-800 9K-APG (52891864301).jpg",
+    "autoPicked": true
   }
 ]
