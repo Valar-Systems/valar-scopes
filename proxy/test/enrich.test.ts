@@ -58,6 +58,22 @@ describe("/v1/enrich/{hex}", () => {
     expect(body.o).toBe(""); // no callsign given -> no route lookup
   });
 
+  it("strips the upstream 'unconfirmed type' marker so name + photo joins still match", async () => {
+    // Mictronics/tar1090 (via adsb.lol) suffix an unconfirmed type with " ?"
+    // ("P8 ?"). Passed through verbatim it broke the name lookup AND the
+    // type-keyed photo join, and showed "Type: P8 ?" on the card (bug: military
+    // P-8 with no name/photo). The code must be normalized to the bare "P8".
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/ae6813" })
+      .reply(200, hexBody([{ hex: "ae6813", t: "P8 ?" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae6813"));
+    const body = (await res.json()) as { t: string; tn: string };
+    expect(body.t).toBe("P8"); // marker stripped
+    expect(body.tn).toBe("Boeing P-8 Poseidon"); // name lookup now matches
+  });
+
   it("backfills the type from adsbdb when the feed has a hex+reg but no type (airplanes.live failover)", async () => {
     // airplanes.live's failover shape: registration present, ICAO type MISSING.
     // Losing the type would also lose the type-keyed stock photo -- the backfill

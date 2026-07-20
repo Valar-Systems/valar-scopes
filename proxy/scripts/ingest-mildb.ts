@@ -99,7 +99,10 @@ async function main(): Promise<void> {
     const inBlock = militaryOperator(hex) !== "";
     if (!isFlagged && !inBlock) continue;
     const r = (e.r ?? "").trim();
-    const t = (e.t ?? "").trim().toUpperCase();
+    // Keep only the leading [A-Z0-9] run: the source marks an unconfirmed type
+    // with a trailing " ?" ("P8 ?"), which would break the type-keyed name/photo
+    // joins downstream (see normType in src/enrich.ts).
+    const t = ((e.t ?? "").toUpperCase().match(/[A-Z0-9]+/)?.[0]) ?? "";
     const tn = (e.d ?? "").trim();
     if (!r && !t) {
       skippedEmpty++;

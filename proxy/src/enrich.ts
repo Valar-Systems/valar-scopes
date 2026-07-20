@@ -51,11 +51,20 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+// ICAO type designators are 2-4 chars of [A-Z0-9]. Upstream DBs (Mictronics /
+// tar1090, reached via adsb.lol) suffix an UNCONFIRMED type with " ?" -- e.g.
+// "P8 ?". Passed through verbatim that breaks the friendly-name lookup and the
+// type-keyed stock-photo join (both key on the bare code) and shows an ugly
+// "Type: P8 ?" on the card. Keep only the leading alphanumeric run.
+function normType(v: unknown): string {
+  return str(v).toUpperCase().match(/^[A-Z0-9]+/)?.[0] ?? "";
+}
+
 async function buildMeta(env: Env, raw: unknown): Promise<AcMeta> {
   if (raw === null || typeof raw !== "object") return { found: false, r: "", t: "", tn: "", op: "" };
   const r = raw as Record<string, unknown>;
   const reg = str(r.r);
-  const type = str(r.t).toUpperCase();
+  const type = normType(r.t);
   const op = str(r.ownOp);
   // dbFlags bit 0 = military, when the upstream DB supplies it. Recorded so the
   // serve-time military floor can label hexes outside the static block table.
@@ -92,12 +101,13 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   // and the card's next request is a warm hit with the photo joined.
   if (!built.t) {
     const bf = await fetchAircraftMetaAdsbdb(env, hex);
-    if (bf?.t) {
-      built.t = bf.t;
-      if (!built.r && bf.r) built.r = bf.r;
+    const bt = normType(bf?.t);
+    if (bt) {
+      built.t = bt;
+      if (!built.r && bf?.r) built.r = bf.r;
       // Prefer our own naming (KV override, then the baked table) over adsbdb's
       // verbose description, for consistency with the primary-feed path.
-      built.tn = (await env.ENRICH_KV.get(`tn:${bf.t}`)) ?? TYPE_NAMES[bf.t] ?? bf.tn ?? "";
+      built.tn = (await env.ENRICH_KV.get(`tn:${bt}`)) ?? TYPE_NAMES[bt] ?? bf?.tn ?? "";
       built.found = true;
     }
   }
@@ -196,10 +206,19 @@ export async function handleEnrich(
     const mil = await env.ENRICH_KV.get<MilEntry>(`mil:${hex}`, "json");
     if (mil) {
       acR = str(mil.r);
-      acT = str(mil.t).toUpperCase();
+      acT = normType(mil.t);
       acTn = str(mil.tn) || (acT ? (TYPE_NAMES[acT] ?? "") : "");
     }
   }
+
+  // Sanitize the type designator at SERVE time too, not only where it is built:
+  // an ac:<hex> entry cached before this normalization existed (or any future
+  // dirty source) can still hold "P8 ?", and that value flows straight into the
+  // response and the photo join below. Strip it here and re-resolve the friendly
+  // name from the clean code, so already-cached hexes are fixed on the next
+  // request instead of waiting out the 30 d TTL.
+  acT = normType(acT);
+  if (acT && !acTn) acTn = (await env.ENRICH_KV.get(`tn:${acT}`)) ?? TYPE_NAMES[acT] ?? "";
 
   // Stock-photo join: per-hex override first, then generic type stock (needs the
   // resolved type). Two fast KV reads worst case; a cold meta miss (no type yet)
