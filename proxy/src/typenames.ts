@@ -46,7 +46,7 @@ export const TYPE_NAMES: Record<string, string> = {
   MD90: "McDonnell Douglas MD-90", B462: "BAe 146-200", B463: "BAe 146-300",
   // Bizjets
   C25A: "Cessna Citation CJ2", C25B: "Cessna Citation CJ3",
-  C25C: "Cessna Citation CJ4", C525: "Cessna Citation CJ1",
+  C25C: "Cessna Citation CJ4", C510: "Cessna Citation Mustang", C525: "Cessna Citation CJ1",
   C550: "Cessna Citation II", C560: "Cessna Citation V",
   C56X: "Cessna Citation Excel", C680: "Cessna Citation Sovereign",
   C68A: "Cessna Citation Latitude", C700: "Cessna Citation Longitude",

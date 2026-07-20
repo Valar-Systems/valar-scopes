@@ -686,5 +686,75 @@
     "layer": "auto",
     "title": "File:Epic E1000 (N445LL, cn K045) (2-14-2025).jpg",
     "autoPicked": true
+  },
+  {
+    "target": "C206",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Cessna.206h.stationair2.arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C210",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Cessna.210.centurion.d-ebws.arp.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C525",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:I-RVRP - Cessna 525 CitationJet CJ1 (25465244288).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C25A",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Untitled Cessna 525A Citation CJ2+ D-IDAS (24042804719).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C25C",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:ASJ Untitled (Skyservice Business Aviation)- Cessna 525C Citation CJ4 - C-FANJ - (9572236536).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C510",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Untitled (TAG Aviation) Cessna 510 Citation Mustang G-FBLK (25467740823).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C550",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Cessna 550 Citation II (N89GA, cn 550-0122) (8-29-2022).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C560",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:N812DC Cessna 560 Citation Encore C-N 560-0541 (5514282960).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C680",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:N888SF Cessna Citation Sovereign 680 (25870001345).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "C68A",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:N613CL Cessna Citation Latitude 680A Textron Aviation (30012668735).jpg",
+    "autoPicked": true
   }
 ]
