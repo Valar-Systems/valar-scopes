@@ -40,6 +40,7 @@ export const TYPE_NAMES: Record<string, string> = {
   DHC6: "De Havilland Twin Otter", C208: "Cessna 208 Caravan",
   PC12: "Pilatus PC-12", TBM8: "Daher TBM 850", TBM9: "Daher TBM 900/930",
   B350: "Beechcraft King Air 350", BE20: "Beechcraft King Air 200",
+  B190: "Beechcraft 1900", SW4: "Fairchild SA227 Metroliner",
   // MD / legacy
   MD11: "McDonnell Douglas MD-11", MD82: "McDonnell Douglas MD-82",
   MD83: "McDonnell Douglas MD-83", MD88: "McDonnell Douglas MD-88",
@@ -52,7 +53,8 @@ export const TYPE_NAMES: Record<string, string> = {
   C68A: "Cessna Citation Latitude", C700: "Cessna Citation Longitude",
   C750: "Cessna Citation X", E50P: "Embraer Phenom 100",
   E55P: "Embraer Phenom 300", E545: "Embraer Legacy 450",
-  E550: "Embraer Legacy 500", F2TH: "Dassault Falcon 2000",
+  E550: "Embraer Legacy 500", SF50: "Cirrus Vision Jet",
+  HDJT: "Honda HA-420 HondaJet", F2TH: "Dassault Falcon 2000",
   F900: "Dassault Falcon 900", FA7X: "Dassault Falcon 7X",
   FA8X: "Dassault Falcon 8X", GLF4: "Gulfstream IV", GLF5: "Gulfstream V",
   GLF6: "Gulfstream G650", GL5T: "Bombardier Global 5000",
