@@ -756,5 +756,47 @@
     "layer": "auto",
     "title": "File:N613CL Cessna Citation Latitude 680A Textron Aviation (30012668735).jpg",
     "autoPicked": true
+  },
+  {
+    "target": "E135",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Embraer ERJ 135 de Lorizon Aircraft F-HSTE à l'Aéroport de Lorient.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "E295",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Porter Airlines C-GKQK Embraer E195-E2 aircraft at Tampa International Airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "E50P",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Embraer Phenom 100 (N610AS).jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "E55P",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Embraer Phenom 300 N235EE FDK MD2.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "E545",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:D-BFIL Embraer EMB Legacy 450 Atlas Air Serices at Gloucestershire Airport.jpg",
+    "autoPicked": true
+  },
+  {
+    "target": "E550",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Sparkle Roll Jet Embraer Legacy 500 B-3385 on Final Approaching at Taipei Songshan Airport 20160924a.jpg",
+    "autoPicked": true
   }
 ]

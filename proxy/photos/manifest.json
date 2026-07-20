@@ -1368,5 +1368,74 @@
     "autoPicked": true,
     "file": "src/c68a.jpg",
     "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "E135",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Embraer_ERJ_135_de_Lorizon_Aircraft_F-HSTE_%C3%A0_l%27A%C3%A9roport_de_Lorient.jpg",
+    "author": "Nuiteux731",
+    "credit": "Embraer ERJ 135 de Lorizon Aircraft F-HSTE à l'Aéroport de Lorient",
+    "license": "CC0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e135.jpg"
+  },
+  {
+    "target": "E295",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Porter_Airlines_C-GKQK_Embraer_E195-E2_aircraft_at_Tampa_International_Airport.jpg",
+    "author": "Andrew Heneen",
+    "credit": "Porter Airlines C-GKQK Embraer E195-E2 aircraft at Tampa International Airport",
+    "license": "CC BY 4.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e295.jpg"
+  },
+  {
+    "target": "E50P",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Embraer_Phenom_100_(N610AS).jpg",
+    "author": "Greg Goebel",
+    "credit": "Embraer Phenom 100 (N610AS)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e50p.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "E55P",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Embraer_Phenom_300_N235EE_FDK_MD2.jpg",
+    "author": "Acroterion",
+    "credit": "Embraer Phenom 300 N235EE FDK MD2",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e55p.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "E545",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:D-BFIL_Embraer_EMB_Legacy_450_Atlas_Air_Serices_at_Gloucestershire_Airport.jpg",
+    "author": "James Lloyds",
+    "credit": "D-BFIL Embraer EMB Legacy 450 Atlas Air Serices at Gloucestershire Airport",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e545.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "E550",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Sparkle_Roll_Jet_Embraer_Legacy_500_B-3385_on_Final_Approaching_at_Taipei_Songshan_Airport_20160924a.jpg",
+    "author": "玄史生",
+    "credit": "Sparkle Roll Jet Embraer Legacy 500 B-3385 on Final Approaching at Taipei Songshan Airport 20160924a",
+    "license": "CC0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e550.jpg"
   }
 ]

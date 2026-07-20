@@ -58,6 +58,13 @@ const PRIORITY: Record<string, string> = {
   C560: "Cessna Citation V 560 aircraft",
   C680: "Cessna Citation Sovereign 680",
   C68A: "Cessna Citation Latitude 680A",
+  // --- Embraer long tail (regional jets + the Phenom/Legacy bizjets) ---
+  E135: "Embraer ERJ-135 aircraft",
+  E295: "Embraer E195-E2 aircraft",
+  E50P: "Embraer Phenom 100 aircraft",
+  E55P: "Embraer Phenom 300 aircraft",
+  E545: "Embraer Legacy 450 aircraft",
+  E550: "Embraer Legacy 500 aircraft",
   // --- bizjet / rotor (common secondary) ---
   C700: "Cessna Citation Longitude",
   C750: "Cessna Citation X",
