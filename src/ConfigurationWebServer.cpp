@@ -288,6 +288,28 @@ R"(
                         dump1090-fa / readsb / PiAware / tar1090. Enter the device's IP (e.g. 192.168.1.50)
                         or the full aircraft.json URL. No API limits &mdash; the radar updates once a second.
                     </span>
+                    <label class="field">
+                        <span>Aircraft details:</span>
+                        <select name="local-details" class="grow">
+                            <option value="cloud" %LD_CLOUD%>Blipscope Cloud (recommended)</option>
+                            <option value="adsbdb" %LD_ADSBDB%>adsbdb direct</option>
+                            <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
+                        </select>
+                    </label>
+                    <span class="hint">
+                        Your receiver supplies positions either way; this only controls the
+                        detail card (type, airline, route, photo).<br>
+                        <b>Blipscope Cloud</b> &mdash; sends the tapped aircraft's ICAO hex, its
+                        callsign and its position, plus your device model, firmware version and
+                        access key. Your receiver's address is never sent, and your own location
+                        is not sent &mdash; though an aircraft you tap is by definition near you.
+                        This <i>replaces</i> the adsbdb connection, so details cost one internet
+                        host instead of two, and it is the only option with photos.<br>
+                        <b>adsbdb direct</b> &mdash; queries api.adsbdb.com (and a second host for
+                        thumbnails). No photo library, no caching.<br>
+                        <b>Off</b> &mdash; contacts nothing; the card shows only what your receiver
+                        reports.
+                    </span>
                 </div>
 
                 <fieldset>
@@ -1543,6 +1565,10 @@ void ConfigurationWebServer::Initialise() {
         const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky");
 #endif
         const String localUrl = HtmlEscape(prefs.getString("local-url", ""));
+        // Detail-card source for a local receiver. Unset -> "cloud": that is both the
+        // better card and the lighter network path (one host instead of two), so a
+        // device upgrading into this option should land on it.
+        const String localDetails = prefs.getString("local-details", "cloud");
         const String scanlineEnabled = HtmlEscape(prefs.getString("scanline", "true"));
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
@@ -1793,7 +1819,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1818,6 +1844,9 @@ void ConfigurationWebServer::Initialise() {
 #endif
                 if (var == "DATASRC_LOCAL")   return dataSource == "local" ? "selected" : "";
                 if (var == "LOCAL_URL")      return localUrl;
+                if (var == "LD_CLOUD")  return localDetails == "adsbdb" || localDetails == "off" ? "" : "selected";
+                if (var == "LD_ADSBDB") return localDetails == "adsbdb" ? "selected" : "";
+                if (var == "LD_OFF")    return localDetails == "off" ? "selected" : "";
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
@@ -2141,6 +2170,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("opensky-id");
         TrySaveParam("data-source");
         TrySaveParam("local-url");
+        TrySaveParam("local-details");
 #ifdef FEATURE_CLOUD_FEED
         TrySaveParam("cloud-url");
         // cloud key: same masked-value handling as the OpenSky secret (the GET

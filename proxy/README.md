@@ -537,9 +537,37 @@ Privacy stance (the user-facing wording lives in the root [README](../README.md#
 operational telemetry only — heap numbers, firmware versions, a result code. No
 identifiers beyond the headers a device must already send to be served
 (`X-Blip-Key`, `X-Blip-Model`), and it rides a request cloud mode requires
-anyway. Local-receiver and self-hosted users never reach this Worker, so they
-transmit nothing — **that existing mode is the opt-out, by architecture rather
-than by toggle.**
+anyway.
+
+**Qualified 2026-07-21 — this used to say local-receiver users "never reach this
+Worker".** That is no longer unconditionally true. A local-receiver device now
+has an *Aircraft details* setting (config key `local-details`) that defaults to
+routing detail-card lookups through this Worker, because the alternative
+(api.adsbdb.com plus a second host for thumbnails) gave the users running their
+own receiver the weakest cards and the heaviest network path. What that sends,
+exactly — verified against `RequestCloudEnrich` and `CloudFeed::Headers`:
+
+| sent | not sent |
+| --- | --- |
+| tapped aircraft's ICAO hex (in the path) | the receiver's address or hostname |
+| its callsign, and **its** lat/lon (`cs`, `lat`, `lon`) | the device's configured location |
+| `X-Blip-Key`, `X-Blip-Model`, `X-Blip-FW` | anything about other tracked aircraft |
+| `X-Blip-OTA-Mem`, once, after an OTA attempt | |
+
+Two honest caveats, because "no device position is sent" is true but incomplete:
+
+- **A tapped aircraft is by definition near the receiver.** Its position is not
+  the user's position, but across several taps the centroid approximates it.
+  Anyone reasoning about this mode's privacy should treat it as coarse location,
+  not as no location.
+- **The device's IP reaches the Worker**, as with any HTTP request. It is used
+  for per-IP rate limiting and appears in request logs (currently sampled at
+  100% for the pilot).
+
+**The architectural opt-out still exists, and is now explicit rather than
+implied:** *Aircraft details → Off* contacts nothing at all (no background
+enrichment, no tap lookup, no photo), and *adsbdb direct* keeps the old
+third-party behaviour. Neither reaches this Worker.
 
 ## Cost model
 
