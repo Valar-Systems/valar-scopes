@@ -407,8 +407,10 @@ Manual run: Actions -> refresh-data -> Run workflow, choosing `production`
 Then point the shipping firmware env at `https://scopes.valarsystems.com`
 (`CLOUD_FEED_BASE`) and bake its key (`CLOUD_FEED_KEY`, ideally per-device via
 `npm run derive-device-key`) so a customer device works with nothing to paste.
-**Gate:** don't cut the firmware release until the overnight slowdown is fixed
-(ROADMAP "Release readiness").
+**Gate:** the overnight-slowdown gate was retired 2026-07-21 (closed, not
+reproduced). The remaining gates before cutting a firmware release are a clean
+24 h bench soak and the shipping-feature bench pass — see ROADMAP
+"Release readiness".
 
 ### Bench burn-in against production
 

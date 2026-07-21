@@ -18,11 +18,24 @@ alerts, window-up, night clock, tones, Logbook v2, TODAY stats, airports overlay
 Aircraft-of-the-Day, MQTT events, distinct watchlist tones, location profiles, the
 spotting leaderboard, rarest catch, and the AMOLED scaffold. All shipping SKUs build.
 
-**Decision: do NOT cut the OTA release yet.** Publishing a GitHub Release pushes
-firmware to every customer device, and the [[s3-128-overnight-slowdown]] is still open
-and unroot-caused — shipping potentially-unstable firmware to the fleet mid-investigation
-is the wrong trade. `FW_VERSION` is deliberately left at 4 (bumping it ships nothing
-until a Release is published, so there's nothing to gain by bumping early).
+**Decision: do NOT cut the OTA release yet** — but the reason has changed. The
+[[s3-128-overnight-slowdown]] was **closed 2026-07-21 as not reproduced** (see below), so
+it is no longer what's holding the release. What remains are the feed-sourcing LAUNCH
+BLOCKERS below. `FW_VERSION` is deliberately left at 4 (bumping it ships nothing until a
+Release is published, so there's nothing to gain by bumping early).
+
+**[[s3-128-overnight-slowdown]] — CLOSED 2026-07-21, not reproduced.** The original report
+was real (observed ~14 h uptime: planes barely moving, taps needing several tries, detail
+card ~10 s to close), but it never recurred under observation across three clean
+multi-hour windows on the current build — frame time pinned 28–32 ms with no creep, the
+largest heap block flat or *rising*, `allocFail`/`hardFail` at 0, and zero `LOOP STALL`.
+Most likely explanation: the [[ghost-tap-stale-deadreckon]] pathology fixed in PR #93
+(unbounded dead-reckoning plus eviction that never ran on a fully dead feed), which
+matches the reported symptoms — an overflowing tap hit-test is exactly what makes touch
+need several tries and a card slow to dismiss. Not being able to prove that is why this is
+"closed, not reproduced" rather than "root-caused and fixed". The `LOOP STALL` / `max=` /
+`allocFail` / `hardFail` telemetry added during the hunt stays in, so a recurrence will be
+caught with evidence rather than anecdote.
 
 **Production backend stood up 2026-07-17.** `scopes.valarsystems.com` is live: Worker
 deployed, `[env.production]` KV namespace created + wired, `BLIP_KEYS` secret set, all
@@ -31,7 +44,9 @@ full authed path verified (`/v1/config` → 200, correct per-model tier, `upstre
 `/credits` serves the photos; failover feeds off pending licensing). **Still pending on
 the production path:** (1) the weekly `refresh-data` workflow flipped to production + its
 `CLOUDFLARE_API_TOKEN` repo secret, (2) firmware repointed at production
-(`CLOUD_FEED_BASE` + a baked/ per-device key) — gated on the slowdown fix.
+(`CLOUD_FEED_BASE` + a baked/ per-device key) — no longer gated on the slowdown (closed
+2026-07-21); now gated on the pilot burn-in. Bench boards can run against production today
+via the throwaway `*-prodburn` envs without touching the shipping `*-cloud` envs.
 
 **Production feed findings (2026-07-18 bench session) — LAUNCH BLOCKERS:**
 See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + outreach drafts.
@@ -62,9 +77,12 @@ See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + out
 - **Flash the photo-null fix** (PR #94, [[ghost-tap-stale-deadreckon]] sibling) to the bench
   and fold into the `v5` OTA — the bench still runs the ghost-tap build.
 
-**Go criteria (all three):** (1) the slowdown is root-caused and fixed (the new
-`LOOP STALL` telemetry should catch the next recurrence), (2) a clean 24 h bench soak on
-the s3-128 with the full feature set, (3) the shipping features get a bench pass (below).
+**Go criteria (both):** (1) a clean 24 h bench soak on the s3-128 with the full feature
+set, (2) the shipping features get a bench pass (below). The former slowdown criterion is
+retired with the bug (closed 2026-07-21, not reproduced) — but the 24 h soak is **kept**:
+it was always broader than the slowdown hunt, and with the bug closed on absence-of-
+evidence rather than a root cause, an unattended soak is the cheapest thing standing
+between us and shipping a recurrence to the fleet.
 When those clear: bump `FW_VERSION` to 5, merge, and publish the `v5` Release per
 [RELEASING.md](RELEASING.md) — the CI matrix already covers every SKU.
 
@@ -385,9 +403,12 @@ Everything above except the scoring-radius normalization landed as one feature:
 - **PARTIAL — scoring-radius fairness:** the board is now transparent about each
   device's play radius (shown on the profile, flagged when under the 30 mi standard),
   and `STANDARD_RADIUS_KM` is defined server-side. The **automatic background
-  normalization** (a 30 mi scoring poll) remains **DEFERRED**: it widens the *tracked*
-  aircraft set, which is the render/heap path under investigation for the
-  [[s3-128-overnight-slowdown]] — it must not land mid-bug-hunt. When the slowdown is
-  root-caused, the safe implementation is likely a server-side count from
-  already-served traffic (verified devices) rather than a wider device-side ring.
+  normalization** (a 30 mi scoring poll) remains **DEFERRED**, though the reason has
+  softened: it widens the *tracked* aircraft set, which was the render/heap path under
+  investigation for the [[s3-128-overnight-slowdown]] (closed 2026-07-21, not reproduced).
+  With that bug closed on absence of evidence rather than a root cause, widening the
+  tracked set is still the one change most likely to resurrect it — and we now know
+  first-hand that tracked-set size has real cost (raising the cloud blips limit to 60
+  starved the TLS heap; PR #100 settled on 40). The safe implementation is a server-side
+  count from already-served traffic (verified devices) rather than a wider device-side ring.
   Rarity weighting already does most of the radius equalizing meanwhile.
