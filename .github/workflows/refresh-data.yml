@@ -10,8 +10,14 @@ name: refresh-data
 # write on the target account). Without it the job is skipped, so a fork or a
 # pre-launch repo doesn't fail weekly -- the guard step gates on the secret.
 #
-# Manual runs (workflow_dispatch) take an `env` input (default staging). The
-# schedule targets staging until production exists; flip the default then.
+# The weekly schedule refreshes BOTH environments. Production is the one that
+# matters to customers, but staging is the pre-flight test rig -- letting its
+# military/airport data rot makes it a misleading place to check things before a
+# production change, which is worse than not having it. fail-fast is off so a
+# staging hiccup can never skip the production refresh.
+#
+# Manual runs (workflow_dispatch) take an `env` input: "production" (default),
+# "staging", or "both".
 
 on:
   schedule:
@@ -19,21 +25,43 @@ on:
   workflow_dispatch:
     inputs:
       env:
-        description: "wrangler env to load (staging | production)"
+        description: "which env to refresh"
         required: true
-        default: "staging"
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+          - both
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # a staging failure must not abort the production refresh
+      matrix:
+        env: [production, staging]
     defaults:
       run:
         working-directory: proxy
     steps:
       - uses: actions/checkout@v4
 
+      - name: Decide whether this env is in scope
+        id: target
+        run: |
+          WANT="${{ github.event.inputs.env }}"
+          # No input => scheduled run => refresh every env in the matrix.
+          if [ -z "$WANT" ] || [ "$WANT" = "both" ] || [ "$WANT" = "${{ matrix.env }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Manual run targeted '$WANT' -- skipping ${{ matrix.env }}."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Guard on the Cloudflare token
         id: guard
+        if: steps.target.outputs.run == 'true'
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -55,14 +83,14 @@ jobs:
         if: steps.guard.outputs.run == 'true'
         run: npm ci
 
-      - name: Refresh military airframe side table
+      - name: Refresh military airframe side table (${{ matrix.env }})
         if: steps.guard.outputs.run == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npm run ingest:mildb -- --env "${{ github.event.inputs.env || 'staging' }}"
+        run: npm run ingest:mildb -- --env "${{ matrix.env }}"
 
-      - name: Refresh airport tiles
+      - name: Refresh airport tiles (${{ matrix.env }})
         if: steps.guard.outputs.run == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npm run ingest:airports -- --env "${{ github.event.inputs.env || 'staging' }}"
+        run: npm run ingest:airports -- --env "${{ matrix.env }}"
