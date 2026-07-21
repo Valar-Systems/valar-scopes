@@ -15,6 +15,15 @@ name = "blipscope-proxy"
 main = "src/index.ts"
 compatibility_date = "2025-12-01"
 
+# Pin the account explicitly. Without this wrangler calls /memberships to work out
+# which account to target, which needs a User->User Details->Read permission the CI
+# token deliberately does NOT have -- that token is scoped to Workers KV Storage:
+# Edit and nothing else. Naming the account here keeps the token minimal instead of
+# widening a write credential just so it can look up its own owner. It also pins
+# deploys to one account, so a second account on this login can never receive them.
+# An account ID is an identifier, not a credential: it grants nothing without a token.
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+
 [vars]
 UPSTREAM_ADSB_FI_ENABLED = "false"        # flip to "true" once commercial permission clears
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false" # flip to "true" once commercial permission clears
