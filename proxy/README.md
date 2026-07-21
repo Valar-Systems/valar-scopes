@@ -365,9 +365,44 @@ npm run ingest -- --env production            # 68 stock photos + manifest/credi
 npm run ingest:mildb -- --env production      # ~17k military airframes
 npm run ingest:airports -- --env production   # ~9.4k airport tiles
 
-# 5. Flip the weekly refresh workflow to production (.github/workflows/refresh-data.yml
-#    default env), and set the repo secret CLOUDFLARE_API_TOKEN so it can write KV.
+# 5. Set the repo secret CLOUDFLARE_API_TOKEN so the weekly refresh can write KV.
+#    (.github/workflows/refresh-data.yml already refreshes BOTH envs -- see
+#    "Weekly data refresh" below; no default to flip any more.)
 ```
+
+### Revert to adsb.lol-only
+
+The failover feeds are enabled pending commercial permission from their
+operators. To pull them at any moment, set **both** of these in
+`[env.production.vars]` in `wrangler.toml` and redeploy. It is two vars, not one
+line -- do not miss the second:
+
+```toml
+UPSTREAM_ADSB_FI_ENABLED        = "false"
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
+```
+
+```sh
+npm run deploy:production
+```
+
+Leave `ROUTE_ADSBDB_ENABLED = "true"` alone -- adsbdb supplies routes and the
+type backfill, not aircraft positions, so it is not part of this revert.
+
+Expect the feed to go empty during adsb.lol's shared-egress 429 windows once the
+failovers are off; that is the trade being made, and it is why they were enabled
+for the bench soak in the first place.
+
+### Weekly data refresh
+
+`.github/workflows/refresh-data.yml` runs Mondays 06:17 UTC and refreshes the
+military side table + airport tiles for **both** production and staging, as a
+matrix with `fail-fast: false` (a staging hiccup must never skip production).
+Staging is deliberately kept current: it is the pre-flight rig, and stale
+military/airport data there makes it a misleading place to check a change.
+
+Manual run: Actions -> refresh-data -> Run workflow, choosing `production`
+(default), `staging`, or `both`.
 
 Then point the shipping firmware env at `https://scopes.valarsystems.com`
 (`CLOUD_FEED_BASE`) and bake its key (`CLOUD_FEED_KEY`, ideally per-device via
@@ -375,14 +410,32 @@ Then point the shipping firmware env at `https://scopes.valarsystems.com`
 **Gate:** don't cut the firmware release until the overnight slowdown is fixed
 (ROADMAP "Release readiness").
 
-Smoke test:
+### Bench burn-in against production
+
+Before the pilot batch is flashed, burn a bench board in against the real
+backend using the throwaway envs in `platformio.ini` — they point
+`CLOUD_FEED_BASE` at production while every shipping `*-cloud` env stays on
+staging, so this is not the shipping switch:
 
 ```sh
-BASE=https://scopes-staging.valarsystems.com KEY=<staging key>
-curl -s $BASE/healthz
-curl -s -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=47.39&lon=8.55&r=40"
-curl -s -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/4b1817?cs=SWR123&lat=47.4&lon=8.5"
-curl -s -H "X-Blip-Key: $KEY" -H "X-Blip-Model: s3-146" "$BASE/v1/config"
+pio run -e blipscope-s3-128-prodburn -t upload   # or -s3-146-prodburn
+```
+
+No key is baked (repo key policy): paste the access key into the config page
+once after flashing. Delete these envs when the pilot switch happens.
+
+### Smoke test
+
+`scripts/smoke-prod.sh` runs the full checklist — `/healthz`, `/v1/blips` over
+Bend, `/v1/enrich` on a live hex pulled from that response, `/v1/config` for
+every `variant::SLUG`, and `/v1/photo` via the enrich pointer — printing
+PASS/FAIL per check plus raw bodies. It reads the key from **your** environment
+and never prints it:
+
+```sh
+export BLIP_KEY='<your key>'          # never committed, never echoed
+./scripts/smoke-prod.sh                                  # production
+BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh
 ```
 
 ## Observability
@@ -390,8 +443,16 @@ curl -s -H "X-Blip-Key: $KEY" -H "X-Blip-Model: s3-146" "$BASE/v1/config"
 - **Logs:** one JSON line per request:
   `{"evt":"req","ep":"/v1/blips","status":200,"ms":4,"model":"s3-146","colo":"ZRH","cache":"HIT","upstream":"adsb_lol","upstreamMs":0}`
   plus `evt:upstream` lines per upstream attempt and `evt:error` on 500s.
-  Staging keeps 100% (`head_sampling_rate = 1`); at fleet scale sample to
-  1–5 % or logs become a real line item (~200 B × requests).
+  Both staging and production currently keep **100%** (`head_sampling_rate = 1`).
+
+  **Request log sampling — revisit around a few hundred devices.** Production ran
+  at 1-in-20 (`0.05`) until the pilot. That was the wrong trade for a ~55-board
+  fleet: at ~250k req/day an individual customer's requests were statistically
+  invisible, so the logs could not answer "what happened on *this* device?" --
+  the main reason to have them. Full sampling may tip into billed log volume,
+  which is a rounding error against that. Once the fleet is in the hundreds the
+  volume, not the debugging value, starts to dominate: drop back toward 1–5%
+  (~200 B × requests) and lean on Analytics Engine for aggregates instead.
 - **Analytics Engine** (`blipscope_proxy[_staging]`): blobs `[endpoint, cache,
   upstream, model]`, doubles `[status, ms, upstreamMs, weight]`, index
   `endpoint`. Successful HIT/STALE points are sampled 1:10 with `weight = 10`
