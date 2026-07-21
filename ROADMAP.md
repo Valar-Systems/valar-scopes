@@ -41,12 +41,38 @@ caught with evidence rather than anecdote.
 deployed, `[env.production]` KV namespace created + wired, `BLIP_KEYS` secret set, all
 three datasets ingested (68 photos, ~17k mil airframes, ~9.4k airport tiles), and the
 full authed path verified (`/v1/config` → 200, correct per-model tier, `upstreamState:ok`;
-`/credits` serves the photos; failover feeds off pending licensing). **Still pending on
-the production path:** (1) the weekly `refresh-data` workflow flipped to production + its
-`CLOUDFLARE_API_TOKEN` repo secret, (2) firmware repointed at production
-(`CLOUD_FEED_BASE` + a baked/ per-device key) — no longer gated on the slowdown (closed
-2026-07-21); now gated on the pilot burn-in. Bench boards can run against production today
-via the throwaway `*-prodburn` envs without touching the shipping `*-cloud` envs.
+`/credits` serves the photos; failover feeds off pending licensing).
+
+**Production hardening 2026-07-21** (PR #108): `cpu_ms = 200` per-invocation kill switch
+added (there was none on either env — verified live in `script_runtime.limits`), request
+log sampling taken 0.05 → **1.0** for the pilot, `refresh-data` reworked to refresh
+**both** envs weekly, throwaway `*-prodburn` firmware envs added, and
+`proxy/scripts/smoke-prod.sh` written (reads the key from the operator's env; never
+prints it).
+
+> ### ⚠️ BLOCKER — `CLOUDFLARE_API_TOKEN` repo secret is NOT set
+>
+> Verified empty via `gh secret list` on 2026-07-21. **This fails silently and that is
+> the danger:** `refresh-data.yml` guards on the token and no-ops without it, so the
+> weekly job goes **green while refreshing nothing**. Left alone, the military airframe
+> and airport datasets quietly rot in *both* production and staging — and a stale
+> staging is exactly the misleading pre-flight rig the both-envs refresh was meant to
+> prevent.
+>
+> Fix: repo secret `CLOUDFLARE_API_TOKEN`, scoped **Workers KV Storage: Edit**.
+> Confirm with a manual run: Actions → refresh-data → Run workflow → `both`.
+
+**Still pending on the production path:** (1) the `CLOUDFLARE_API_TOKEN` repo secret
+above, (2) firmware repointed at production (`CLOUD_FEED_BASE` + a baked/ per-device key)
+— no longer gated on the slowdown (closed 2026-07-21); now gated on the pilot burn-in.
+Bench boards can run against production today via the throwaway `*-prodburn` envs without
+touching the shipping `*-cloud` envs. (3) **Before the pilot ships:** an
+Account Analytics **Read** API token so the `enrich_gap` points (PR #110) are readable —
+they are being written now but are write-only until then, and the ranked "what to add to
+the photo library next" query in the proxy README needs it. Keep it a *separate*,
+read-only token from the KV-write one above: different blast radius. Not urgent while the
+fleet is one bench board (a ranking off one location is meaningless); the data accumulates
+either way and can be queried retroactively within Analytics Engine retention.
 
 **Production feed findings (2026-07-18 bench session) — LAUNCH BLOCKERS:**
 See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + outreach drafts.

@@ -66,7 +66,14 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ -z "$CF_TOKEN" ]; then
-            echo "CLOUDFLARE_API_TOKEN not set -- skipping (expected before launch)."
+            # Surface this as a real warning, not a quiet log line. Skipping still
+            # exits 0 on purpose (a fork must not fail weekly), but a run that
+            # refreshed NOTHING while showing a green check is how a dataset rots
+            # for weeks unnoticed -- so make it visible in the Actions UI and the
+            # job summary.
+            echo "::warning title=refresh-data skipped::CLOUDFLARE_API_TOKEN is not set, so ${{ matrix.env }} was NOT refreshed. Its military/airport data is going stale."
+            echo "### :warning: ${{ matrix.env }} NOT refreshed" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`CLOUDFLARE_API_TOKEN\` (Workers KV Storage: Edit) is missing." >> "$GITHUB_STEP_SUMMARY"
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
