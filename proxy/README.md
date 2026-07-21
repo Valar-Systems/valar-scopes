@@ -39,6 +39,67 @@ device ──HTTPS keep-alive──> Worker ──> edge cache (blips, 3 s + SWR
   vars) pending commercial permission from their operators. Until then the
   outage story is: circuit breaker → stale-while-revalidate serves the last
   picture (stamped with its original `t`) → devices show their stale indicator.
+
+### Upstream licensing posture
+
+**As of 2026-07-21, both staging and production run adsb.lol-only.** The state of
+each upstream, and precisely what would change it:
+
+| upstream | status | why | to enable |
+| --- | --- | --- | --- |
+| **adsb.lol** | **ENABLED** | ODbL 1.0 explicitly permits commercial use with attribution. The only cleared source. | already on |
+| **airplanes.live** | DISABLED | Operator replied with **paid** terms: ~$50/mo indie key, requiring attribution **and splash-screen branding**. Undecided as of 2026-07-21; the decision was deferred ~2 weeks. Their *free* API is deliberately NOT used while that is unresolved — using it during a pricing negotiation is not a position worth being in. | a signed paid plan, or written commercial grant |
+| **adsb.fi** | DISABLED | Permission never granted. Separately, it **403s our Cloudflare egress** anyway. | written commercial grant *and* fixing the 403 |
+| **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
+
+**History, so this isn't re-litigated:** both failovers were switched ON
+2026-07-18 (owner-approved) for a *private bench soak*, because adsb.lol's
+shared-egress 429s left production with no fallback and the feed went empty. That
+was always scoped to the bench. Shipping pilot boards turns it into customer
+traffic, so it was reverted **before** the flash rather than after.
+
+**What we do not know yet:** the adsb.lol-only 429 rate has never been measured.
+The 2.1% stale rate observed on the bench (2026-07-18 → 21) was *with*
+airplanes.live carrying positions — a best case, not this configuration. Measuring
+it requires traffic against `/v1/blips`; see "Watching adsb.lol-only" below.
+
+### Watching adsb.lol-only
+
+`scripts/watch-upstream.sh` polls `/v1/blips` at a device-like cadence and
+records what a **customer** experiences, which is not the upstream's raw error
+rate — a device never sees a 429, it sees *staleness*:
+
+```sh
+export BLIP_KEY='<prod key>'
+./scripts/watch-upstream.sh            # 24 h at 30 s, summary + per-poll log
+```
+
+It classifies each poll fresh / stale / warm / down and reports the **longest
+unbroken degraded run**, because a worst window is what someone notices — a 2%
+average spread evenly is invisible, and the same 2% in one 30-minute block is a
+support ticket.
+
+> **This needs traffic to exist.** The Worker only calls an upstream when a device
+> asks it to. A production with no devices polling (e.g. every board in
+> local-receiver mode) generates **zero** upstream calls, so breakers never move
+> and a watch measures nothing. Either point a board at cloud mode for the window
+> or run the script above as a synthetic device.
+
+**If the adsb.lol feeder key arrives** (requested for station
+`valar-systems-bend`): applying it is **one command, no code change** —
+
+```sh
+npx wrangler secret put ADSB_LOL_API_KEY --env production   # and --env staging
+```
+
+Verified 2026-07-21: all three adsb.lol call sites already attach the key when the
+var is present — `headers(env)` covers `pointUrl` and `hexUrl`, `routesetRequest`
+covers routes, and `chain.ts` applies both at every fetch site. **One caveat:** the
+header name `X-Api-Key` is our assumption; adsb.lol has not published a feeder-key
+spec. If they issue a Bearer token or a query parameter instead, that is a one-line
+change in [`src/upstreams/adsb_lol.ts`](src/upstreams/adsb_lol.ts). If the key lifts
+the rate limit, adsb.lol-only stops being a compromise and the paid-feed question
+becomes optional rather than pressing.
 - **Why not adsbdb anymore:** the firmware used adsbdb.com for registration /
   type / operator / route. adsb.lol's v2 responses already carry registration
   (`r`), type code (`t`), and — where its DB knows them — a friendly description

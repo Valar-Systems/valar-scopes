@@ -55,8 +55,11 @@ routes = [
 # Permission emails to both operators remain the licensing to-do; staging traffic
 # is bench-scale (single-digit devices).
 [env.staging.vars]
-UPSTREAM_ADSB_FI_ENABLED = "true"
-UPSTREAM_AIRPLANES_LIVE_ENABLED = "true"
+# LICENSED-ONLY as of 2026-07-21 -- staging mirrors production so it stays a valid
+# pre-flight rig. See "Upstream licensing posture" in README.md before re-enabling
+# either of these.
+UPSTREAM_ADSB_FI_ENABLED = "false"
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
 
 # Full request logs on staging (low traffic). Production should sample --
@@ -118,13 +121,21 @@ routes = [
 # airplanes.live stay disabled until their operators grant commercial use (the
 # open licensing to-do). Flip to "true" per feed only once permission clears.
 [env.production.vars]
-# 2026-07-18: failover ENABLED for the private bench soak (owner-approved) so the
-# feed survives adsb.lol's shared-egress 429s -- production had no fallback and
-# went empty whenever adsb.lol rate-limited us. REVISIT before customer launch:
-# revert to "false" (or keep) once the adsb.lol feeder key lifts the rate limit
-# and/or commercial permission from adsb.fi / airplanes.live clears.
-UPSTREAM_ADSB_FI_ENABLED = "true"
-UPSTREAM_AIRPLANES_LIVE_ENABLED = "true"
+# LICENSED-ONLY as of 2026-07-21. adsb.lol (ODbL 1.0) is the only upstream cleared
+# for commercial use, so it is the only one enabled.
+#
+# The 2026-07-18 bench soak ran with both failovers ON (owner-approved, private) to
+# survive adsb.lol's shared-egress 429s. That was always scoped to the bench, and
+# shipping pilot boards makes it customer traffic -- so it ends here, ahead of the
+# flash rather than after it.
+#   adsb.fi        -- never granted permission; also 403s our egress.
+#   airplanes.live -- replied with PAID terms ($50/mo indie key, attribution +
+#                     splash-screen branding). Undecided, and their FREE API is not
+#                     being used while that is unresolved.
+# Re-enable ONLY on a written commercial grant (or a paid plan) for the feed in
+# question. See "Upstream licensing posture" in README.md.
+UPSTREAM_ADSB_FI_ENABLED = "false"
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
 
 # Runaway kill switch, NOT a performance target. CPU time excludes time waiting on
