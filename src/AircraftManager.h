@@ -448,6 +448,37 @@ private:
     bool IsDataStale() const;
     void DrawStaleIndicator(BandCanvas& backbuffer) const;
 
+public:
+    // Escalation ladder for stale data. The failure this exists to prevent is a
+    // FROZEN SKY THAT LOOKS LIVE: nothing evicts aircraft when fetches stop (the
+    // eviction pass runs inside the successful-merge path), so without this the
+    // scope keeps drawing a plausible picture indefinitely -- planes drifting,
+    // then motionless, under a small amber tag that is easy to miss. An empty
+    // radar reads as "something is wrong"; a still one reads as "working".
+    //
+    // Age is (millis() - lastGoodDataMs) + the snapshot's own lag, which is
+    // source-independent: an unplugged local receiver, a dead OpenSky token and a
+    // failing upstream all land here identically, which is the point.
+    enum class StaleStage : uint8_t {
+        Live,   // fresh, or nothing merged yet (that's "starting up", not stale)
+        Stale,  // past staleFactor x interval -- quiet amber tag, as before
+        Aging,  // the picture is old enough that a glance must not read as live
+        NoData, // past the dead-reckoning cap: stop presenting a plausible picture
+    };
+
+    // Age of the newest data we have merged, including the lag the snapshot
+    // already carried. 0 before the first merge.
+    unsigned long DataAgeMs() const;
+    StaleStage CurrentStaleStage() const;
+
+    // The sweep is the strongest "this is live" affordance on the scope, so it
+    // stops once the data is Aging. A sweeping radar over stale contacts is
+    // exactly the lie this ladder is closing. Cheap, too: suppressing it SAVES
+    // the per-frame sweep render rather than adding work.
+    bool SweepSuppressed() const { return CurrentStaleStage() >= StaleStage::Aging; }
+
+private:
+
 #ifdef FEATURE_CLOUD_FEED
     void RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
     void RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task

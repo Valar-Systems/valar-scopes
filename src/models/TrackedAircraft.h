@@ -19,6 +19,11 @@ struct TrackedAircraft {
     // outstanding on the enrichment task (don't re-queue); Fetched -> a definitive
     // answer arrived (which can still leave the strings empty for aircraft adsbdb
     // doesn't know), so it's never looked up again.
+    // Dead-reckoning horizon. Past this a contact is frozen, not flying -- see
+    // PredictPosition. AircraftManager::CurrentStaleStage keys its NoData stage off
+    // this exact value so the two can never disagree.
+    static constexpr float MAX_DR_SECONDS = 600.0f;
+
     enum class MetadataState : uint8_t { NotFetched, Fetching, Fetched };
     MetadataState metadataState = MetadataState::NotFetched;
     // A transient lookup failure returns the aircraft to NotFetched; without a
@@ -190,7 +195,10 @@ struct TrackedAircraft {
         // (b) overflow the int hit-test math downstream -- making an invisible ghost
         // tappable across the whole screen. 10 min is well past any legitimate poll
         // gap; beyond it the contact is gone, not still flying.
-        constexpr float MAX_DR_SECONDS = 600.0f;
+        // Named at class scope (below) so the display ladder can key its "NO DATA"
+        // stage off the SAME number: the moment DR caps is the moment the sky stops
+        // moving, and the UI must stop implying the picture is live at exactly that
+        // instant, not at some separately-maintained threshold that can drift.
         if (dt > MAX_DR_SECONDS) dt = MAX_DR_SECONDS;
 
         float headingRad = radians(state.trueTrack);

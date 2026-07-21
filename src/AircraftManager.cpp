@@ -1042,17 +1042,77 @@ bool AircraftManager::IsDataStale() const
     return ageMs > (unsigned long)staleFactor * CurrentPollIntervalMs();
 }
 
+unsigned long AircraftManager::DataAgeMs() const
+{
+    if (lastGoodDataMs == 0)
+        return 0; // nothing merged yet
+    return (millis() - lastGoodDataMs) + dataLagAtMergeMs;
+}
+
+AircraftManager::StaleStage AircraftManager::CurrentStaleStage() const
+{
+    if (lastGoodDataMs == 0)
+        return StaleStage::Live; // starting up, not stale
+
+    // Escalate once the picture is old enough that a passing glance must not read
+    // it as live. 75 s is deliberately well past a few missed polls (which are
+    // routine on every source) but well inside the span where someone would still
+    // believe what they are looking at.
+    constexpr unsigned long AGING_MS = 75000UL;
+    // Derived from the dead-reckoning cap itself, not copied from it: that is the
+    // moment the sky freezes in place, so it is exactly the moment the display has
+    // to stop implying the picture means anything. Bound to the source of truth so
+    // changing one cannot silently desync the other.
+    constexpr unsigned long NODATA_MS =
+        (unsigned long)(TrackedAircraft::MAX_DR_SECONDS * 1000.0f);
+    static_assert(NODATA_MS > AGING_MS, "NoData must escalate after Aging");
+
+    const unsigned long age = DataAgeMs();
+    if (age >= NODATA_MS) return StaleStage::NoData;
+    if (age >= AGING_MS)  return StaleStage::Aging;
+    return IsDataStale() ? StaleStage::Stale : StaleStage::Live;
+}
+
+// Render the ladder's banner. No String anywhere: a fixed stack buffer keeps the
+// render path allocation-free (this runs every frame while degraded).
 void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
 {
-    if (!IsDataStale())
+    const StaleStage stage = CurrentStaleStage();
+    if (stage == StaleStage::Live)
         return;
-    // Small amber tag at the top of the scope: the picture is dead-reckoning on
-    // old data (feed trouble upstream or local). Deliberately quiet -- an
-    // indicator, not an alarm.
+
+    char buf[24];
+    uint32_t colour;
+    const unsigned long ageS = DataAgeMs() / 1000UL;
+
+    switch (stage) {
+        case StaleStage::Stale:
+            // As before: quiet amber, no number. A few missed polls is routine and
+            // does not deserve a countdown.
+            colour = lgfx::color888(255, 176, 40);
+            snprintf(buf, sizeof(buf), "STALE DATA");
+            break;
+        case StaleStage::Aging:
+            // Now it earns a number -- "how long has this been wrong?" is the
+            // question a user actually has, and an elapsed age answers it without
+            // needing them to have watched the whole time.
+            colour = lgfx::color888(255, 176, 40);
+            if (ageS < 600UL) snprintf(buf, sizeof(buf), "STALE %lum", ageS / 60UL);
+            else              snprintf(buf, sizeof(buf), "STALE %luh", ageS / 3600UL);
+            break;
+        case StaleStage::NoData:
+        default:
+            // Red, and no longer describing the aircraft as merely stale: at this
+            // point they are not a picture of anything.
+            colour = lgfx::color888(255, 64, 48);
+            if (ageS < 3600UL) snprintf(buf, sizeof(buf), "NO DATA - %lum", ageS / 60UL);
+            else               snprintf(buf, sizeof(buf), "NO DATA - %luh", ageS / 3600UL);
+            break;
+    }
+
     backbuffer.setTextSize(1);
-    backbuffer.setTextColor(lgfx::color888(255, 176, 40));
-    const char* tag = "STALE DATA";
-    backbuffer.drawString(tag, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(tag) / 2, 14);
+    backbuffer.setTextColor(colour);
+    backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, 14);
 }
 
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
@@ -1798,7 +1858,12 @@ float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
     DrawRadarCircles(backbuffer);
-    DrawStaleIndicator(backbuffer); // quiet amber tag when the picture is dead-reckoning on old data
+    DrawStaleIndicator(backbuffer); // escalating banner: STALE -> STALE <age> -> NO DATA <age>
+
+    // Hoisted out of the per-aircraft loop below: one cheap age comparison per
+    // frame instead of one per contact (up to MAX_AIRCRAFT of them), so the ladder
+    // costs the render path effectively nothing.
+    const bool noData = CurrentStaleStage() == StaleStage::NoData;
 
     // fixed geography under the moving traffic: airports ground the picture
     // ("that blip is landing at OUR airport")
@@ -1858,10 +1923,17 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             // (full bright when the sweep is off). The annotation overlays below
             // -- highlight/watchlist/pin reticles, NEW flag -- stay full bright so
             // they remain legible regardless of the fade.
-            const uint32_t markerColor = scaleColor(
-                displayAltColor ? altitudeColor(tracked.state.baroAltitude)
-                                : lgfx::color888(0, 255, 0),
-                blip);
+            // At NoData the contacts are no longer a picture of anything -- dead
+            // reckoning has capped and they are frozen wherever they last were. Draw
+            // them dim grey rather than live green (or an altitude colour, which
+            // would imply data we do not have). Deliberately greyed, NOT cleared:
+            // the trails and enrichment survive, so recovery is instant and the
+            // scope visibly snaps back to colour the moment a merge lands.
+            const uint32_t baseColor =
+                noData ? lgfx::color888(90, 90, 90)
+                       : (displayAltColor ? altitudeColor(tracked.state.baroAltitude)
+                                          : lgfx::color888(0, 255, 0));
+            const uint32_t markerColor = scaleColor(baseColor, blip);
 
             if (displayTriangles)
                 DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);

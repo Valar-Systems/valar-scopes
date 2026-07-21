@@ -6,6 +6,7 @@
 #include "LGFX.h"
 #include "Layout.h"
 #include "BootScreen.h"
+#include "SplashScreen.h"
 #include "Board.h"
 #include "DeviceIdentity.h"
 #include "WiFiManagerHelpers.h"
@@ -75,8 +76,7 @@ AircraftManager appManager(configServer, authHandler, http, tft);
 
 void setup()
 {
-  Serial.begin(115200);
-  while (!Serial && millis() < 3000) { delay(10); } // wait up to 3s for the USB CDC host to open the port
+  Serial.begin(115200); // non-blocking; the wait for a CDC *host* happens after the splash below
 
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
@@ -113,6 +113,23 @@ void setup()
     backbuffer.setPsram(true);
   backbuffer.setColorDepth(8);
   void* spriteBuf = backbuffer.createSprite(SCREEN_SIZE, BAND_H);
+
+  // FIRST PIXELS EVER DRAWN. Everything above this point is panel/bus bring-up, so this
+  // is the earliest the wordmark can physically appear -- ~100-150 ms after reset, and
+  // ahead of the up-to-3 s USB-CDC wait that used to run before the display came up at
+  // all (that wait is now below, spent behind the splash instead of a dark screen).
+  // Same splash in every mode and on every SKU: it is the brand, not a data-source
+  // credit. See SplashScreen.h.
+#ifndef SPLASH_COST_BASELINE
+  DrawSplash(tft, backbuffer);
+#endif
+  const uint32_t splashDrawnAtMs = millis();
+
+  // Now wait (up to 3 s) for a USB CDC host to open the port, so a bench capture still
+  // catches the boot log below. On a wall wart no host ever appears and this runs in
+  // full -- which is exactly why it must come after the splash, not before it.
+  while (!Serial && millis() < 3000) { delay(10); }
+
   Serial.printf("[disp] tft.init=%d %dx%d  backbuffer %s; psram_free=%u heap_free=%u\n",
                 panelOk, (int)tft.width(), (int)tft.height(), spriteBuf ? "ok" : "ALLOC FAILED",
                 (unsigned)ESP.getFreePsram(), (unsigned)ESP.getFreeHeap());
@@ -143,6 +160,7 @@ void setup()
   // no OTA, no config web server. The hypothesis under test is "sweep-render load
   // alone wedges the CST816"; the network half stays out of the experiment entirely.
   // See src/BisectHarness.h for the harness and the verdict semantics.
+  HoldSplash(splashDrawnAtMs); // same minimum as the normal path (also keeps the var used here)
   DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(255, 176, 40),
                      "BISECTION HARNESS", "networking OFF");
   board::DisplayFlush(tft);
@@ -150,6 +168,10 @@ void setup()
 #else
   // establish WiFi connection. Composed through the backbuffer so it renders on the SPD2010 (which
   // can't take direct per-glyph writes); a no-op-different path on every other SKU. See BootScreen.h.
+  // Guarantee the wordmark got its minimum time before the first status screen paints
+  // over it. Normally a no-op -- the CDC wait above has already outlasted it.
+  HoldSplash(splashDrawnAtMs);
+
   DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), "Connecting to WiFi...");
   board::DisplayFlush(tft); // RGB panels: make the boot screen visible (no-op on SPI SKUs)
 
@@ -316,7 +338,8 @@ void loop()
   // tick, trail sampling) only on the first pass so the bands stay in sync.
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
   const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView()
-                        && !appManager.NightClockActive(); // no beam under the night clock face
+                        && !appManager.NightClockActive()  // no beam under the night clock face
+                        && !appManager.SweepSuppressed();  // and none over data too old to be live
 
   // The sweep angle is owned by AircraftManager (advanced in Update()), so the
   // drawn beam matches the blip paint-and-fade crossing test exactly. Sampled
