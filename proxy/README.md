@@ -455,6 +455,33 @@ BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh
   which is a rounding error against that. Once the fleet is in the hundreds the
   volume, not the debugging value, starts to dominate: drop back toward 1–5%
   (~200 B × requests) and lean on Analytics Engine for aggregates instead.
+### Finding enrichment gaps (what to add to the library next)
+
+Every enrich that can't fully resolve emits one `enrich_gap` point — the **root**
+gap only, so one unknown airframe is counted once rather than three times:
+
+| gap | meaning | fix |
+| --- | --- | --- |
+| `type` | no ICAO type resolved at all | per-hex fix (mil side table / hex photo override), or it's simply in no upstream DB |
+| `name` | type resolved, no friendly name | add to `TYPE_NAMES`, or a `tn:<CODE>` KV key (no deploy needed) |
+| `photo` | type + name resolved, no stock photo | run suggest → harvest → ingest for that code |
+
+This is the point: the backlog stops being guesswork and becomes a list ranked by
+what the fleet actually looks at. Rank the photo gaps with:
+
+```sql
+SELECT blob3 AS type, SUM(_sample_interval) AS lookups
+FROM blipscope_proxy
+WHERE blob1 = 'enrich_gap' AND blob2 = 'photo'
+  AND timestamp > NOW() - INTERVAL '7' DAY
+GROUP BY type ORDER BY lookups DESC LIMIT 25
+```
+
+Swap `blob2` for `'name'` (cheapest wins) or `'type'` and read `blob4` for the
+hex. Run it against the Analytics Engine SQL API with an account API token that
+has Analytics Read. Grepping Workers Logs for `"evt":"enrich_gap"` works too for
+a live spot-check on one device.
+
 - **Analytics Engine** (`blipscope_proxy[_staging]`): blobs `[endpoint, cache,
   upstream, model]`, doubles `[status, ms, upstreamMs, weight]`, index
   `endpoint`. Successful HIT/STALE points are sampled 1:10 with `weight = 10`

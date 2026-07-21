@@ -58,6 +58,29 @@ describe("/v1/enrich/{hex}", () => {
     expect(body.o).toBe(""); // no callsign given -> no route lookup
   });
 
+  it("reports only the ROOT enrichment gap, so a work list built from it is actionable", async () => {
+    // A type with a name but no stock photo is a photo-library gap, not three
+    // separate gaps -- reporting name+photo+type for one unknown airframe would
+    // triple-count it and skew whatever we prioritise off these points.
+    const seen: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => { seen.push(String(a[0])); };
+    try {
+      fetchMock
+        .get(LOL)
+        .intercept({ path: "/v2/hex/dddddd" })
+        .reply(200, hexBody([{ hex: "dddddd", r: "N1234Z", t: "ZZZZ" }]));
+      await call(apiRequest("/v1/enrich/dddddd"));
+    } finally {
+      console.log = orig;
+    }
+    const gaps = seen.filter((l) => l.includes('"evt":"enrich_gap"'));
+    expect(gaps).toHaveLength(1);
+    // ZZZZ is not in TYPE_NAMES, so the name is the root gap -- not the photo.
+    expect(gaps[0]).toContain('"gap":"name"');
+    expect(gaps[0]).toContain('"t":"ZZZZ"');
+  });
+
   it("strips the upstream 'unconfirmed type' marker so name + photo joins still match", async () => {
     // Mictronics/tar1090 (via adsb.lol) suffix an unconfirmed type with " ?"
     // ("P8 ?"). Passed through verbatim it broke the name lookup AND the
