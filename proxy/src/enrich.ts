@@ -1,5 +1,5 @@
 import type { Env } from "./types";
-import type { RequestMetric } from "./metrics";
+import { recordEnrichGap, type RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
 import { fetchAircraftMetaAdsbdb, fetchHexChain, fetchRoute } from "./upstreams/chain";
 import { militaryCallsignOperator, militaryOperator } from "./military";
@@ -234,6 +234,16 @@ export async function handleEnrich(
   let op = acMeta?.op ?? "";
   if (!op) {
     op = militaryCallsignOperator(cs) || militaryOperator(hex) || (acMeta?.mil ? "Military" : "");
+  }
+
+  // Report the ROOT gap only (a missing type makes name/photo unanswerable), so a
+  // work list built from these points is actionable rather than triple-counting one
+  // unknown airframe. Only for lookups that actually resolved something or that the
+  // upstream chain answered -- a chain outage is an outage, not a library gap.
+  if (metaOutcome !== "deadline") {
+    if (!acT) recordEnrichGap(env, "type", "", hex);
+    else if (!acTn) recordEnrichGap(env, "name", acT, hex);
+    else if (!photo) recordEnrichGap(env, "photo", acT, hex);
   }
 
   const body: Record<string, string | number> = {
