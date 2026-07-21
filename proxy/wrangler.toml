@@ -118,11 +118,21 @@ UPSTREAM_ADSB_FI_ENABLED = "true"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "true"
 ROUTE_ADSBDB_ENABLED = "true"
 
-# Sampled logging: keep 1-in-20 requests (~200 B each is real money at fleet
-# scale). Raise temporarily when debugging a production incident.
+# Runaway kill switch, NOT a performance target. CPU time excludes time waiting on
+# I/O, so the real work here is JSON parse + nearest-N sort on the blips path;
+# measured warm tiles are ~4 ms worker-side, so 200 ms is ~50x headroom. It exists
+# to kill an infinite loop, not to shave milliseconds -- do not tune it tighter.
+[env.production.limits]
+cpu_ms = 200
+
+# FULL logging during the pilot. A ~55-board fleet is ~250k req/day; at the old
+# 1-in-20 an individual customer's requests were statistically invisible, which
+# defeats the point of having logs when someone reports a problem. Revisit around
+# a few hundred devices (see README "Request log sampling"), where the volume --
+# not the debugging value -- starts to dominate.
 [env.production.observability]
 enabled = true
-head_sampling_rate = 0.05
+head_sampling_rate = 1.0
 
 [[env.production.kv_namespaces]]
 binding = "ENRICH_KV"
