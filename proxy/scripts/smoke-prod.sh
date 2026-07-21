@@ -43,6 +43,13 @@ hit() {
     printf 'RESULT: FAIL\n'; fail=$((fail+1))
   fi
   LAST_BODY="$body"
+  LAST_STATUS="$status"
+}
+
+skipped=0
+skip() {
+  printf '\n===== %s =====\nRESULT: SKIPPED -- %s\n' "$1" "$2"
+  skipped=$((skipped+1))
 }
 
 echo "smoke-prod against $BASE  (key sent as X-Blip-Key; value never printed)"
@@ -55,11 +62,15 @@ hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
   -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
 
 # Pull a live hex out of that response: rows are
-# [hex, cs, lat, lon, alt, gs, track, vrate, category, age]
-HEX="$(printf '%s' "$LAST_BODY" | grep -oE '\["[0-9a-f~]{6}"' | head -1 | tr -d '["')"
-if [ -z "$HEX" ]; then
-  printf '\n!! no aircraft in the blips response -- skipping /v1/enrich (not a proxy failure;\n'
-  printf '   it means the tile was empty at this moment). Re-run when traffic is up.\n'
+# [hex, cs, lat, lon, alt, gs, track, vrate, category, age].
+# Distinguish the two very different reasons we might not have one -- conflating
+# them once made a 401 read as "the sky is empty", which is exactly backwards.
+HEX=""
+if [ "$LAST_STATUS" != "200" ]; then
+  skip "/v1/enrich" "/v1/blips returned $LAST_STATUS, so there is no hex to enrich. Fix that FIRST -- this check did not run and is not passing."
+elif ! HEX="$(printf '%s' "$LAST_BODY" | grep -oE '\["[0-9a-f~]{6}"' | head -1 | tr -d '["')" || [ -z "$HEX" ]; then
+  HEX=""
+  skip "/v1/enrich" "/v1/blips returned 200 with zero aircraft -- a genuinely empty tile right now, not a proxy fault. Re-run when there is traffic over Bend."
 else
   hit "/v1/enrich/$HEX (live hex from the blips response)" 200 \
     -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX"
@@ -76,19 +87,27 @@ done
 # 4. a seeded type photo. The photo key is only discoverable through an enrich
 #    (the device never guesses one), so fetch the pointer exactly the way a device
 #    does: enrich a live hex, read `p`, then GET it.
+P=""
 if [ -n "${HEX:-}" ]; then
   P="$(curl -s --max-time 25 -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4)"
-  if [ -n "$P" ]; then
-    hit "/v1/photo (via enrich pointer $P)" 200 \
-      -H "X-Blip-Key: $KEY" "$BASE$P" --output /dev/null --write-out '%{content_type} %{size_download} bytes'
-  else
-    printf 'live hex %s has no photo pointer; trying the credits page instead.\n' "$HEX"
-    hit "/credits (public, proves the photo library rendered)" 200 "$BASE/credits"
-  fi
+fi
+if [ -n "$P" ]; then
+  hit "/v1/photo (via enrich pointer $P)" 200 \
+    -H "X-Blip-Key: $KEY" "$BASE$P" --output /dev/null --write-out '%{content_type} %{size_download} bytes'
+elif [ -n "${HEX:-}" ]; then
+  skip "/v1/photo" "live hex $HEX resolved no photo pointer (that type has no stock photo). Not a failure -- but /v1/photo went untested."
 else
-  hit "/credits (public, proves the photo library rendered)" 200 "$BASE/credits"
+  skip "/v1/photo" "no live hex available, so the pointer could not be resolved. /v1/photo went UNTESTED."
 fi
 
+# Public, so it works regardless of auth -- proves the photo library rendered at
+# ingest. Deliberately its OWN check rather than a stand-in for /v1/photo: passing
+# this while /v1/photo was skipped must not read as "the photo path works".
+hit "/credits (public; photo library rendered)" 200 "$BASE/credits"
+
 printf '\n================ SUMMARY ================\n'
-printf 'PASS: %d   FAIL: %d\n' "$pass" "$fail"
+printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
+if [ "$skipped" -gt 0 ]; then
+  printf 'NOTE: skipped checks did NOT run. Do not read this as a clean pass.\n'
+fi
 [ "$fail" -eq 0 ] || exit 1
