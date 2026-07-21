@@ -552,7 +552,14 @@ exactly — verified against `RequestCloudEnrich` and `CloudFeed::Headers`:
 | tapped aircraft's ICAO hex (in the path) | the receiver's address or hostname |
 | its callsign, and **its** lat/lon (`cs`, `lat`, `lon`) | the device's configured location |
 | `X-Blip-Key`, `X-Blip-Model`, `X-Blip-FW` | anything about other tracked aircraft |
-| `X-Blip-OTA-Mem`, once, after an OTA attempt | |
+| | **`X-Blip-OTA-Mem` — never on this path** |
+
+The OTA memory report rides only the cloud *feed* and *config* fetches
+(`Headers(key, otaMem)`); `fetchCloudEnrich` calls `Headers(key)`, so the
+`otaMem` default of `""` applies and the header is simply absent. The photo leg
+is leaner still — `fetchPhoto` sends `X-Blip-Key` alone. A local-receiver device
+makes neither of the two fetches that carry it, so **heap telemetry never rides a
+detail tap.** Both call sites are commented to keep it that way.
 
 Two honest caveats, because "no device position is sent" is true but incomplete:
 
@@ -568,6 +575,27 @@ Two honest caveats, because "no device position is sent" is true but incomplete:
 implied:** *Aircraft details → Off* contacts nothing at all (no background
 enrichment, no tap lookup, no photo), and *adsbdb direct* keeps the old
 third-party behaviour. Neither reaches this Worker.
+
+**There is no default.** The option renders unselected and the config page
+requires a pick before a local-receiver setup saves; firmware treats unset — or
+any value it does not recognise — as *Off*. So a device never starts contacting
+anything because of an upgrade, a downgrade, or a config it could not parse, and
+the setting means the same thing on every device forever.
+
+### Fleet config does not reach local-receiver devices
+
+A local device **never fetches `/v1/config`** — deliberately, since the whole
+point of that mode is not depending on us for the feed, and a config round trip
+would undercut it. Consequences worth knowing before someone files a bug:
+
+- Fleet retuning (poll cadence, `minFw`, the enrich level, anything published via
+  the KV fleet config) **does not apply to them.** Their cadence comes from the
+  local receiver loop, and their enrichment runs at the baked default
+  (`Enrich::Full`, which still respects `metadataNeeded`).
+- So a config change that visibly moves cloud devices will appear to do nothing
+  on a local one. That is correct behaviour, not a failed rollout.
+- The lever that *does* reach them is a firmware release (OTA), same as any other
+  baked default.
 
 ## Cost model
 

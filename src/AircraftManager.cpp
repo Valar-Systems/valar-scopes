@@ -388,6 +388,10 @@ EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& re
     }
 
     JsonDocument doc;
+    // Headers(key) deliberately, NOT Headers(key, otaMem): the OTA memory report
+    // rides the cloud feed/config fetches only. A local-receiver device on
+    // details=cloud makes neither of those, and heap telemetry has no business
+    // riding a detail tap -- do not add otaMem here.
     const HttpResult result = http.GetJson(
         CloudFeed::EnrichUrl(req.cloudBase, req.icao24), doc, params,
         CloudFeed::Headers(req.cloudKey));
@@ -680,15 +684,17 @@ void AircraftManager::Initialise()
     useLocalSource = dataSource == "local";
     localUrl = useLocalSource ? normalizeLocalUrl(configServer.GetStoredString("local-url")) : "";
 
-    // Detail-card source for a local receiver. Unset (a device that predates this
-    // option) defaults to Cloud: that is the better card AND the lighter network
-    // path, so an upgrading device should land on it. "off" and "adsbdb" are only
-    // taken when explicitly chosen.
+    // Detail-card source for a local receiver. There is NO default: only an exact,
+    // explicitly-saved value selects a source, and anything else (unset, or a value
+    // this firmware does not recognise) falls to Off. That is the one fallback that
+    // can never surprise a user -- a device does not begin contacting anything
+    // because of an upgrade, a downgrade, or a config it could not parse. The config
+    // page enforces the choice up front; this is the belt-and-braces half.
     {
         const String det = configServer.GetStoredString("local-details");
-        localDetails = det == "off"    ? LocalDetails::Off
+        localDetails = det == "cloud"  ? LocalDetails::Cloud
                      : det == "adsbdb" ? LocalDetails::Adsbdb
-                                       : LocalDetails::Cloud;
+                                       : LocalDetails::Off;
     }
 
 #ifdef FEATURE_CLOUD_FEED
