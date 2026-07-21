@@ -246,6 +246,39 @@ private:
     bool useLocalSource = false;
     String localUrl = ""; // normalised aircraft.json URL, empty unless local
 
+    // Where a LOCAL-receiver device gets detail-card enrichment (config
+    // "local-details"). Only consulted when useLocalSource.
+    //
+    // Cloud is the default because the adsbdb-direct path is the worse deal on
+    // every axis that matters here: it needs TWO external hosts for one card
+    // (api.adsbdb.com for metadata + a separate callsign call, then
+    // airport-data.com behind a redirect for the thumbnail), it has no shared
+    // cache, no failover, and no access to the curated photo library -- so the
+    // users running their own receiver got the weakest cards. Routing details
+    // through the proxy REPLACES that connection rather than adding to it: one
+    // host, one round trip for metadata+route+photo pointer, and the same
+    // keep-alive client the rest of the firmware already uses.
+    enum class LocalDetails : uint8_t {
+        Cloud,   // via the Blipscope Cloud proxy (default)
+        Adsbdb,  // legacy behaviour: straight to api.adsbdb.com, no photos
+        Off,     // contact nothing; the card shows only what the receiver reports
+    };
+    LocalDetails localDetails = LocalDetails::Cloud;
+
+    // True when detail lookups should go through the proxy: either a full cloud
+    // device, or a local-receiver device that opted into cloud details AND has
+    // somewhere to send them. The URL/key check is what makes an unconfigured
+    // device fall back instead of firing requests at an empty host.
+    bool UseCloudEnrich() const {
+#ifdef FEATURE_CLOUD_FEED
+        if (useCloudSource) return true;
+        return useLocalSource && localDetails == LocalDetails::Cloud
+               && !cloudUrl.isEmpty() && !cloudKey.isEmpty();
+#else
+        return false;
+#endif
+    }
+
 #ifdef FEATURE_CLOUD_FEED
     // Blipscope Cloud (the proxy/ Worker): the DEFAULT source on cloud builds.
     // One host, keep-alive TLS, tiny payloads; the proxy handles the upstream

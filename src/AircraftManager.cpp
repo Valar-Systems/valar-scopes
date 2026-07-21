@@ -388,6 +388,10 @@ EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& re
     }
 
     JsonDocument doc;
+    // Headers(key) deliberately, NOT Headers(key, otaMem): the OTA memory report
+    // rides the cloud feed/config fetches only. A local-receiver device on
+    // details=cloud makes neither of those, and heap telemetry has no business
+    // riding a detail tap -- do not add otaMem here.
     const HttpResult result = http.GetJson(
         CloudFeed::EnrichUrl(req.cloudBase, req.icao24), doc, params,
         CloudFeed::Headers(req.cloudKey));
@@ -679,6 +683,19 @@ void AircraftManager::Initialise()
     const String dataSource = configServer.GetStoredString("data-source");
     useLocalSource = dataSource == "local";
     localUrl = useLocalSource ? normalizeLocalUrl(configServer.GetStoredString("local-url")) : "";
+
+    // Detail-card source for a local receiver. There is NO default: only an exact,
+    // explicitly-saved value selects a source, and anything else (unset, or a value
+    // this firmware does not recognise) falls to Off. That is the one fallback that
+    // can never surprise a user -- a device does not begin contacting anything
+    // because of an upgrade, a downgrade, or a config it could not parse. The config
+    // page enforces the choice up front; this is the belt-and-braces half.
+    {
+        const String det = configServer.GetStoredString("local-details");
+        localDetails = det == "cloud"  ? LocalDetails::Cloud
+                     : det == "adsbdb" ? LocalDetails::Adsbdb
+                                       : LocalDetails::Off;
+    }
 
 #ifdef FEATURE_CLOUD_FEED
     // An unset key defaults to cloud on cloud builds: new devices land on the
@@ -1075,9 +1092,14 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // climbing allocFail points at heap fragmentation (a big contiguous alloc
     // can't be satisfied), climbing hardFail at TLS/DNS starvation. Cheap: two
     // counter reads.
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  interval=%lums%s\n",
+    // tls=<handshakes>/<reuses>: a fresh https connection needs a large contiguous
+    // block, so handshakes -- not sub-KB body parses -- are what actually costs heap
+    // here. The ratio is the direct measure of whether detail lookups are staying on
+    // one host (reuses climb) or ping-ponging between two (handshakes climb).
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)heapFree, (unsigned)largest,
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
+                  (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
 
 #ifdef SOAK_TEST
@@ -3087,11 +3109,22 @@ void AircraftManager::ProcessDetailLookups()
     if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
         return;
 
+    // "Off" on a local receiver means the card shows only what the receiver
+    // itself reported -- no metadata, no route, no photo, nothing leaves here.
+    if (useLocalSource && localDetails == LocalDetails::Off) {
+        photoIcao = selectedIcao;   // mark resolved so the card stops saying "Loading"
+        photoResolved = true;
+        return;
+    }
+
 #ifdef FEATURE_CLOUD_FEED
-    if (useCloudSource) {
+    if (UseCloudEnrich()) {
         // Cloud detail path: ONE pre-joined /v1/enrich GET covers what used to be
         // two adsbdb lookups (metadata + route), and (when the proxy's stock
         // library has an image for this hex/type) a licensed photo path in `p`.
+        // A local-receiver device on details=Cloud lands here too: same single
+        // host, same keep-alive client -- it REPLACES the adsbdb pair rather than
+        // adding to it, so a local card costs one external host, never two.
         // Step 1 -- metadata/route/photo-path via the single enrich GET.
         if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
             if (millis() < tracked.metadataRetryAfter)
@@ -4097,6 +4130,12 @@ void AircraftManager::ProcessMetadataLookups()
     if constexpr (kNoNet)
         return; // bisection: no enrichment task, no lookups
 
+    // A local-receiver device that opted out of external detail lookups does no
+    // background enrichment at all -- "Off" has to mean nothing leaves the device,
+    // not merely "no photos".
+    if (useLocalSource && localDetails == LocalDetails::Off)
+        return;
+
 #ifdef FEATURE_CLOUD_FEED
     if (useCloudSource) {
         // The /v1/config enrich level is the master switch in cloud mode. Off:
@@ -4160,7 +4199,12 @@ void AircraftManager::ProcessMetadataLookups()
             continue; // still in post-failure cooldown; skip so others get a turn
 
 #ifdef FEATURE_CLOUD_FEED
-        if (useCloudSource) {
+        if (UseCloudEnrich()) {
+            // NB a local-receiver device never fetches /v1/config, so cloudCfg here
+            // is the baked default (Enrich::Full, which still respects
+            // metadataNeeded). That is deliberate: it matches the economy of the
+            // adsbdb path it replaces, without adding a config round trip to a
+            // device whose whole point is not depending on us for the feed.
             if (!CloudShouldBackgroundEnrich(tracked))
                 continue;
             // A cache hit costs nothing -- apply it and keep scanning.
@@ -4191,7 +4235,7 @@ void AircraftManager::ProcessMetadataLookups()
     lastMetadataLookup = now;
     best->metadataState = TrackedAircraft::MetadataState::Fetching;
 #ifdef FEATURE_CLOUD_FEED
-    if (useCloudSource) {
+    if (UseCloudEnrich()) {
         String callsign = best->state.callsign;
         callsign.trim();
         RequestCloudEnrich(*bestIcao, callsign, bestLat, bestLon);

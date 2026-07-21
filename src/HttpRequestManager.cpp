@@ -260,6 +260,7 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
     for (int attempt = 0; attempt < 2; ++attempt) {
         http.begin(fullUrl);
         result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
+        if (attempt == 0) NoteTls(fullUrl, result.reusedConnection); // count once per logical request, not per retry
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         http.setConnectTimeout(5000); // TCP connect
         http.setTimeout(5000);        // per-read stream timeout
@@ -315,6 +316,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     for (int attempt = 0; attempt < 2; ++attempt) {
         http.begin(fullUrl);
         result.reusedConnection = http.connected(); // pre-existing socket -> no TLS handshake this request
+        if (attempt == 0) NoteTls(fullUrl, result.reusedConnection); // count once per logical request, not per retry
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         http.setConnectTimeout(5000);
         http.setTimeout(5000);

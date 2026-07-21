@@ -288,6 +288,33 @@ R"(
                         dump1090-fa / readsb / PiAware / tar1090. Enter the device's IP (e.g. 192.168.1.50)
                         or the full aircraft.json URL. No API limits &mdash; the radar updates once a second.
                     </span>
+                    <label class="field">
+                        <span>Aircraft details:</span>
+                        <select name="local-details" id="local-details" class="grow">
+                            <option value="" disabled %LD_UNSET%>Choose one &mdash; no default</option>
+                            <option value="cloud" %LD_CLOUD%>Blipscope Cloud</option>
+                            <option value="adsbdb" %LD_ADSBDB%>adsbdb direct</option>
+                            <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
+                        </select>
+                    </label>
+                    <span class="hint">
+                        Your receiver supplies the positions either way; this only decides where the
+                        detail card (type, airline, route, photo) comes from. There is deliberately
+                        no default &mdash; it is your call, and it will never change on its own.
+                        <b>Until you choose, details stay off.</b><br>
+                        <b>Blipscope Cloud</b> &mdash; sends the tapped aircraft's ICAO hex, callsign
+                        and position, plus your device model, firmware version and access key. Your
+                        receiver's address is never sent, and neither is your own location &mdash;
+                        but an aircraft you tapped is by definition near you, so
+                        <i>treat this as coarse location rather than none</i>. This <i>replaces</i>
+                        the adsbdb connection rather than adding to it, so details cost one internet
+                        host instead of two, and it is the only option with photos.<br>
+                        <b>adsbdb direct</b> &mdash; queries the public api.adsbdb.com, plus a second
+                        host for thumbnails. We are never contacted; a third party is. No photo
+                        library, no caching.<br>
+                        <b>Off</b> &mdash; contacts nothing at all. The card shows only what your own
+                        receiver reported.
+                    </span>
                 </div>
 
                 <fieldset>
@@ -503,11 +530,19 @@ R"(
             const openskyFields = document.getElementById('opensky-fields');
             const localFields = document.getElementById('local-fields');
             const cloudFields = document.getElementById('cloud-fields');
+            // "Aircraft details" has no default on purpose, so it must be an explicit
+            // pick before a local-receiver setup can be saved. `required` is toggled
+            // with visibility rather than set in the markup: a required control inside
+            // a display:none block still blocks submit, and the browser cannot focus it
+            // to say why -- so leaving it always-on would wedge the form for cloud and
+            // OpenSky users with an error they cannot see or fix.
+            const localDetails = document.getElementById('local-details');
             function syncDataSource() {
                 const v = dataSource.value;
                 openskyFields.style.display = v === 'opensky' ? '' : 'none';
                 localFields.style.display = v === 'local' ? '' : 'none';
                 if (cloudFields) cloudFields.style.display = v === 'cloud' ? '' : 'none';
+                if (localDetails) localDetails.required = (v === 'local');
             }
             dataSource.addEventListener('change', syncDataSource);
             syncDataSource();
@@ -1543,6 +1578,11 @@ void ConfigurationWebServer::Initialise() {
         const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky");
 #endif
         const String localUrl = HtmlEscape(prefs.getString("local-url", ""));
+        // Detail-card source for a local receiver. Deliberately NO default: an unset
+        // value renders the placeholder, so choosing is an explicit act. The firmware
+        // treats unset as "off" (contacts nothing), which is the only fallback that
+        // cannot surprise anyone -- nothing starts talking to us on its own.
+        const String localDetails = prefs.getString("local-details", "");
         const String scanlineEnabled = HtmlEscape(prefs.getString("scanline", "true"));
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
@@ -1793,7 +1833,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1818,6 +1858,13 @@ void ConfigurationWebServer::Initialise() {
 #endif
                 if (var == "DATASRC_LOCAL")   return dataSource == "local" ? "selected" : "";
                 if (var == "LOCAL_URL")      return localUrl;
+                // Exact matches only -- anything unrecognised (including unset) leaves the
+                // placeholder selected rather than quietly implying a choice.
+                if (var == "LD_CLOUD")  return localDetails == "cloud"  ? "selected" : "";
+                if (var == "LD_ADSBDB") return localDetails == "adsbdb" ? "selected" : "";
+                if (var == "LD_OFF")    return localDetails == "off"    ? "selected" : "";
+                if (var == "LD_UNSET")  return (localDetails == "cloud" || localDetails == "adsbdb"
+                                                || localDetails == "off") ? "" : "selected";
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
@@ -2141,6 +2188,7 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("opensky-id");
         TrySaveParam("data-source");
         TrySaveParam("local-url");
+        TrySaveParam("local-details");
 #ifdef FEATURE_CLOUD_FEED
         TrySaveParam("cloud-url");
         // cloud key: same masked-value handling as the OpenSky secret (the GET
