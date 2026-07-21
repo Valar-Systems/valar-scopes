@@ -48,11 +48,18 @@ device ──HTTPS keep-alive──> Worker ──> edge cache (blips, 3 s + SWR
   to a KV table (`tn:<CODE>`, updatable without a deploy) and a baked table of
   ~150 common types. If real gaps show up in the field, adsbdb can return as a
   disabled adapter behind the same interface.
-- **Photos: none in v1.** The old firmware hotlinked airport-data.com thumbnails
-  via adsbdb — legally shaky for a commercial product and a third TLS host on
-  the C3, so cloud mode ships photo-less on all models (changelog: known
-  regression vs adsbdb mode). A pre-resized RGB565 photo endpoint stays parked
-  until a licensed source exists.
+- **Photos: licensed stock library, type-level.** Cloud mode serves pre-resized,
+  license-gated stock photos via `GET /v1/photo/<key>`, joined into `/v1/enrich`
+  as `p`/`pk` (see "Stock photo library for cloud mode" below). The library is
+  currently **212 type-level "representative" shots** (30 hand-curated military
+  `mil-tier` + 182 auto-harvested civil `auto`); **no per-airframe (`pk:"hex"`)
+  overrides are populated yet**, so an aircraft whose *type* is in the library
+  shows a representative photo (the card labels it "representative photo") and
+  everything else falls back to the silhouette. Every image is
+  `PD-USGov` / `CC-BY` / `CC-BY-SA` (civil tier only) / `OGL` / `own` — NC/ND
+  always rejected — and attributed on the public `/credits` page. This
+  supersedes v1's photo-less launch (the old firmware hotlinked airport-data.com
+  thumbnails via adsbdb, which is not re-hostable for a commercial product).
 
 ## Endpoints
 
@@ -66,7 +73,7 @@ status; 429/503 include `Retry-After`.
 ### `GET /v1/blips?lat=&lon=&r=[&limit=]`
 
 Aircraft near a point. `lat`/`lon` in decimal degrees, `r` in km, `limit`
-optional (default 25, max 50).
+optional (default 25, max 60; the shipping firmware requests 40).
 
 ```json
 {"v":1,"t":1751970245,"n":2,"a":[
@@ -361,7 +368,7 @@ npx wrangler secret put ADSB_LOL_API_KEY --env production    # once issued (laun
 npm run deploy:production
 
 # 4. Seed the KV-backed datasets into the fresh production namespace:
-npm run ingest -- --env production            # 68 stock photos + manifest/credits
+npm run ingest -- --env production            # the stock-photo library + manifest/credits (currently 212 type photos)
 npm run ingest:mildb -- --env production      # ~17k military airframes
 npm run ingest:airports -- --env production   # ~9.4k airport tiles
 
@@ -602,11 +609,12 @@ floor, KV side-table hit, prefix fill.
 > follow-ups driven by live bench reports: **military batch 2** (H64 TEX2 H47
 > C130 T38 V22 P8 F18S — ~65% of the mil side-table fleet now photo-covered)
 > and the **civil long tail** (the 737/A320neo families, E-Jets, CRJs, DH8D,
-> widebodies, and common GA/bizjet/helo types) — **58 types live on
-> `/credits`**. The tool now skips already-held files, paces downloads, and
-> backs off on Wikimedia 429s. Remaining: further long tail ranked by
-> proxy-log traffic (extend `photos/picksheet.json`, re-run harvest +
-> ingest), and production ingest at launch.
+> widebodies, and common GA/bizjet/helo types). The tool now skips already-held
+> files, paces downloads, and backs off on Wikimedia 429s. The library has since
+> grown to **212 type-level entries live in the manifest** (30 `mil-tier` + 182
+> `auto`; all `kind:"type"` — no `hex` overrides yet). Remaining: further long
+> tail ranked by proxy-log traffic (extend `photos/picksheet.json`, re-run
+> harvest + ingest), and production ingest at launch.
 
 **Harvest-phase checklist (when content population begins):**
 
