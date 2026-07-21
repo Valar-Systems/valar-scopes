@@ -7,7 +7,7 @@ const BASE = "https://api.airplanes.live";
 export const airplanesLive: UpstreamAircraftFeed = {
   id: "airplanes_live",
   enabled: (env) => env.UPSTREAM_AIRPLANES_LIVE_ENABLED === "true",
-  pointUrl: (lat, lon, distNm) => `${BASE}/v2/point/${lat}/${lon}/${distNm}`,
-  hexUrl: (hex) => `${BASE}/v2/hex/${hex}`,
+  pointUrl: (_env, lat, lon, distNm) => `${BASE}/v2/point/${lat}/${lon}/${distNm}`,
+  hexUrl: (_env, hex) => `${BASE}/v2/hex/${hex}`,
   headers: () => ({ "User-Agent": USER_AGENT }),
 };

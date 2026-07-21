@@ -8,7 +8,7 @@ const BASE = "https://opendata.adsb.fi/api";
 export const adsbFi: UpstreamAircraftFeed = {
   id: "adsb_fi",
   enabled: (env) => env.UPSTREAM_ADSB_FI_ENABLED === "true",
-  pointUrl: (lat, lon, distNm) => `${BASE}/v2/lat/${lat}/lon/${lon}/dist/${distNm}`,
-  hexUrl: (hex) => `${BASE}/v2/icao/${hex}`, // adsb.fi names the hex lookup /v2/icao
+  pointUrl: (_env, lat, lon, distNm) => `${BASE}/v2/lat/${lat}/lon/${lon}/dist/${distNm}`,
+  hexUrl: (_env, hex) => `${BASE}/v2/icao/${hex}`, // adsb.fi names the hex lookup /v2/icao
   headers: () => ({ "User-Agent": USER_AGENT }),
 };

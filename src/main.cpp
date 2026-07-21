@@ -120,9 +120,7 @@ void setup()
   // all (that wait is now below, spent behind the splash instead of a dark screen).
   // Same splash in every mode and on every SKU: it is the brand, not a data-source
   // credit. See SplashScreen.h.
-#ifndef SPLASH_COST_BASELINE
   DrawSplash(tft, backbuffer);
-#endif
   const uint32_t splashDrawnAtMs = millis();
 
   // Now wait (up to 3 s) for a USB CDC host to open the port, so a bench capture still
