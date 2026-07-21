@@ -82,4 +82,27 @@ public:
     // otherwise. TryAcquireBus() returns true iff it took the lock; pair with ReleaseBus().
     bool TryAcquireBus() { return xSemaphoreTake(mutex, 0) == pdTRUE; }
     void ReleaseBus()    { xSemaphoreGive(mutex); }
+
+    // TLS connection accounting (https only; plain-http LAN requests never
+    // handshake). A FRESH https connection needs a large contiguous block for the
+    // handshake, and on this heap that -- not parsing a sub-KB body -- is the
+    // expensive part of a request. Alternating between two hosts forces a new
+    // handshake every switch, because the keep-alive socket only helps when the
+    // next request goes to the same place.
+    //
+    // Counting handshakes vs reuses turns "does routing detail lookups through one
+    // host instead of two reduce heap pressure?" into a measured number rather than
+    // an argument. Both counters are only ever touched while holding the request
+    // mutex, so they need no separate synchronisation.
+    uint32_t TlsHandshakes() const { return tlsHandshakes; }
+    uint32_t TlsReuses() const     { return tlsReuses; }
+
+private:
+    uint32_t tlsHandshakes = 0;
+    uint32_t tlsReuses = 0;
+    // Call with the mutex held, after reusedConnection is known.
+    void NoteTls(const String& url, bool reused) {
+        if (url.startsWith("http://")) return; // plain http: no TLS context at all
+        if (reused) ++tlsReuses; else ++tlsHandshakes;
+    }
 };
