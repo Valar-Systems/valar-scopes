@@ -3109,9 +3109,11 @@ void AircraftManager::ProcessDetailLookups()
     if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
         return;
 
-    // "Off" on a local receiver means the card shows only what the receiver
-    // itself reported -- no metadata, no route, no photo, nothing leaves here.
-    if (useLocalSource && localDetails == LocalDetails::Off) {
+    // Same rule as the background sweep: the card stays receiver-only when the
+    // chosen detail source is Off, or is Cloud but unusable (no URL/key). Falling
+    // through to adsbdb here would silently substitute a third party for the
+    // source the user actually picked.
+    if (useLocalSource && localDetails != LocalDetails::Adsbdb && !UseCloudEnrich()) {
         photoIcao = selectedIcao;   // mark resolved so the card stops saying "Loading"
         photoResolved = true;
         return;
@@ -4130,10 +4132,12 @@ void AircraftManager::ProcessMetadataLookups()
     if constexpr (kNoNet)
         return; // bisection: no enrichment task, no lookups
 
-    // A local-receiver device that opted out of external detail lookups does no
-    // background enrichment at all -- "Off" has to mean nothing leaves the device,
-    // not merely "no photos".
-    if (useLocalSource && localDetails == LocalDetails::Off)
+    // Local receiver: do no background enrichment unless the CHOSEN source is
+    // actually usable. "Off" obviously sends nothing. But "Cloud" with no URL or
+    // key must ALSO send nothing -- it must never fall through to the adsbdb path
+    // below, because that would quietly hand a third party the data of a user who
+    // explicitly picked us. A chosen source that cannot run stays silent.
+    if (useLocalSource && localDetails != LocalDetails::Adsbdb && !UseCloudEnrich())
         return;
 
 #ifdef FEATURE_CLOUD_FEED
