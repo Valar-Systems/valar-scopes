@@ -118,10 +118,10 @@ void setup()
   // is the earliest the wordmark can physically appear -- ~100-150 ms after reset, and
   // ahead of the up-to-3 s USB-CDC wait that used to run before the display came up at
   // all (that wait is now below, spent behind the splash instead of a dark screen).
-  // Same splash in every mode and on every SKU: it is the brand, not a data-source
-  // credit. See SplashScreen.h.
+  // Same wordmark in every mode and on every SKU: it is the brand, not a data-source
+  // credit. It STAYS on screen from here until the app's first frame -- the boot
+  // messages below render as status lines underneath it. See SplashScreen.h.
   DrawSplash(tft, backbuffer);
-  const uint32_t splashDrawnAtMs = millis();
 
   // Now wait (up to 3 s) for a USB CDC host to open the port, so a bench capture still
   // catches the boot log below. On a wall wart no host ever appears and this runs in
@@ -158,7 +158,6 @@ void setup()
   // no OTA, no config web server. The hypothesis under test is "sweep-render load
   // alone wedges the CST816"; the network half stays out of the experiment entirely.
   // See src/BisectHarness.h for the harness and the verdict semantics.
-  HoldSplash(splashDrawnAtMs); // same minimum as the normal path (also keeps the var used here)
   DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(255, 176, 40),
                      "BISECTION HARNESS", "networking OFF");
   board::DisplayFlush(tft);
@@ -166,12 +165,10 @@ void setup()
 #else
   // establish WiFi connection. Composed through the backbuffer so it renders on the SPD2010 (which
   // can't take direct per-glyph writes); a no-op-different path on every other SKU. See BootScreen.h.
-  // Guarantee the wordmark got its minimum time before the first status screen paints
-  // over it. Normally a no-op -- the CDC wait above has already outlasted it.
-  HoldSplash(splashDrawnAtMs);
-
-  DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0), "Connecting to WiFi...");
-  board::DisplayFlush(tft); // RGB panels: make the boot screen visible (no-op on SPI SKUs)
+  // Status renders BENEATH the wordmark, which stays exactly where it was first painted
+  // -- so this reads as a line changing under a fixed brand mark, not as the splash
+  // being replaced by a different screen. DrawSplash flushes for RGB panels itself.
+  DrawSplash(tft, backbuffer, "Connecting to WiFi...");
 
 #if defined(BLIPSCOPE_PANEL_SPD2010)
   // Critical ordering for the 1.46B: the Wi-Fi radio must NOT come up in the first seconds after
@@ -256,9 +253,7 @@ void setup()
     // host line is also available any time on the radar's Stats screen.
     const String host = DeviceIdentity::Name() + ".local";
     const String ip   = WiFi.localIP().toString();
-    DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
-                       "- CONNECTED -", host.c_str(), ip.c_str());
-    board::DisplayFlush(tft); // RGB panels: make the screen visible (no-op on SPI SKUs)
+    DrawSplash(tft, backbuffer, "- CONNECTED -", host.c_str(), ip.c_str());
     delay(4000);
   }
 
