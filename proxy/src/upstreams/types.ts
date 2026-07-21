@@ -10,8 +10,11 @@ export const USER_AGENT = "BlipscopeProxy/1.0 (+daniel@valarsystems.com)";
 export interface UpstreamAircraftFeed {
   id: string;
   enabled(env: Env): boolean;
-  pointUrl(lat: string, lon: string, distNm: number): string;
-  hexUrl(hex: string): string;
+  // env is passed to the URL builders (not just headers) so an upstream whose auth
+  // is a QUERY PARAMETER can be supported by changing that upstream alone -- see
+  // AUTH_SCHEME in adsb_lol.ts. Unused by feeds that authenticate via headers.
+  pointUrl(env: Env, lat: string, lon: string, distNm: number): string;
+  hexUrl(env: Env, hex: string): string;
   headers(env: Env): Record<string, string>;
 }
 

@@ -138,7 +138,7 @@ export async function fetchPointChain(
     const started = Date.now();
     try {
       const json = (await fetchJsonWithTimeout(
-        feed.pointUrl(latQ, lonQ, distNm),
+        feed.pointUrl(env, latQ, lonQ, distNm),
         { headers: feed.headers(env) },
         timeoutMs(env),
         retryDelayMs(env),
@@ -171,7 +171,7 @@ export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | 
       // 3 attempts: the hex path 429s harder than the point path under shared
       // colo egress, and an enrich response with empty fields is user-visible.
       const json = (await fetchJsonWithTimeout(
-        feed.hexUrl(hex),
+        feed.hexUrl(env, hex),
         { headers: feed.headers(env) },
         timeoutMs(env),
         retryDelayMs(env),
