@@ -205,9 +205,16 @@ void setup()
 
   WiFiManagerHelpers::ConfigureWiFiManager(wm, tft, backbuffer);
 
-  const bool connected = wm.autoConnect(WiFiManagerHelpers::WiFiManagerName().c_str());
-  Serial.printf("[WiFi] autoConnect() returned %s\n",
-                connected ? "true (connected)" : "false (portal timed out / not connected)");
+  // Aim straight at the last known-good AP before doing this the slow way. On a
+  // mesh SSID that turns a multi-scan, multi-minute join into a ~1-2 s one; it
+  // silently falls through to autoConnect() whenever it can't (first boot, moved
+  // device, that node gone). See WiFiManagerHelpers for the full rationale.
+  bool connected = WiFiManagerHelpers::TryFastJoin();
+  if (!connected) {
+    connected = wm.autoConnect(WiFiManagerHelpers::WiFiManagerName().c_str());
+    Serial.printf("[WiFi] autoConnect() returned %s\n",
+                  connected ? "true (connected)" : "false (portal timed out / not connected)");
+  }
 
   // Disable Wi-Fi modem-sleep. By default the radio sleeps between beacons and
   // wakes each DTIM to listen, pulsing the supply current at the beacon rate.
@@ -216,6 +223,10 @@ void setup()
   // and silences it. The device is USB/mains powered, so the extra ~20-30 mA is
   // a non-issue, and latency/throughput actually improve.
   if (connected) {
+    // Remember this AP for the next boot's fast join -- but only if the link was
+    // solid (a weak connect clears the hint instead; see RememberFastAp).
+    WiFiManagerHelpers::RememberFastAp();
+
     WiFi.setSleep(WIFI_PS_NONE);
 
     // Show how to reach the config page so the user doesn't have to remember the device's
