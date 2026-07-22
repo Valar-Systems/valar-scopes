@@ -46,6 +46,32 @@ describe("/v1/enrich/{hex}", () => {
     expect(JSON.parse(await res2.text())).toEqual(JSON.parse(text));
   });
 
+  it("shards enrichment onto relay-b first, failing over to relay-a", async () => {
+    // Load sharding: /v2/hex leads with relay-b while positions lead with relay-a, so
+    // each relay IP carries ~one workload and stays under adsb.lol's per-IP limit.
+    // relay-b is tried FIRST here -- its failure is consumed and the chain falls over
+    // to relay-a. If hex were (wrongly) relay-a-first again, relay-a would answer
+    // first and relay-b's interceptor would be left pending -> afterEach would fail.
+    const RA = "https://relay-a.valarsystems.com";
+    const RB = "https://relay-b.valarsystems.com";
+    const relayEnv = {
+      UPSTREAM_ADSB_LOL_BASE: RA,
+      UPSTREAM_ADSB_LOL_BASE_B: RB,
+      RELAY_KEY: "test-relay-key",
+    };
+    fetchMock.get(RB).intercept({ path: "/v2/hex/e30001" }).replyWithError(new Error("relay-b down"));
+    fetchMock
+      .get(RA)
+      .intercept({ path: "/v2/hex/e30001", headers: { "x-relay-key": "test-relay-key" } })
+      .reply(200, hexBody([{ hex: "e30001", r: "N737XX", t: "B738" }]));
+
+    const res = await call(apiRequest("/v1/enrich/e30001"), relayEnv);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { r: string; tn: string };
+    expect(body.r).toBe("N737XX");
+    expect(body.tn).toBe("Boeing 737-800"); // relay-a's data, reached via failover
+  });
+
   it("falls back to the baked type-name table when the upstream has no desc", async () => {
     fetchMock
       .get(LOL)

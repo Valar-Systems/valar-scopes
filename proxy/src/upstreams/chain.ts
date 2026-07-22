@@ -18,18 +18,20 @@ import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed }
 // prohibited by operator and ships permanently dark (see airplanes_live.ts).
 export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, airplanesLive];
 
-// Per-operation priority. The dedicated-egress relays remove the shared-IP 429
-// that once forced positions to lead with a different feed, so both operations now
-// use the same order: relay-a (primary) -> relay-b (secondary). The trailing feeds
-// are inert -- airplanes.live is prohibited by operator and ships dark, adsb.fi is
-// disabled pending permission -- so `ordered()` filters both away and the enabled
-// chain is just [relay-a, relay-b]. relay-b is then the terminal feed, which the
-// breaker never skips (see the loops below): a relay-a outage FAILS OVER to
-// relay-b rather than blanking the fleet.
-// Only enabled feeds are tried; with the relay URLs unset (dev/test) the chain
+// Per-operation priority, deliberately SHARDED across the two relay IPs to stay under
+// adsb.lol's per-IP rate limit. Positions (/v2/lat) and enrichment (/v2/hex) are the
+// two roughly-equal sources of upstream load; sending both through one IP pushed ~40%
+// of fetches into 429 (use_stale covered it, but it's the scaling ceiling). So POINT
+// leads with relay-a and HEX leads with relay-b -- each IP carries ~one workload, so
+// its request rate to adsb.lol roughly halves. Each order still lists BOTH relays, so
+// the load simply fails over to the other IP if one relay is down (the second-listed
+// relay is the terminal feed, which the breaker never skips -- see the loops below).
+// The trailing feeds are inert (airplanes.live prohibited + dark, adsb.fi disabled),
+// so `ordered()` filters them; with the relay URLs unset (dev/test) each chain
 // collapses to a single direct-adsb.lol feed -- unchanged legacy behaviour.
+// To add headroom: stand up more relay IPs and extend these orders (see relay/README).
 const POINT_ORDER: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, airplanesLive, adsbFi];
-const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, airplanesLive, adsbFi];
+const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLolB, adsbLol, airplanesLive, adsbFi];
 
 function ordered(env: Env, order: UpstreamAircraftFeed[]): UpstreamAircraftFeed[] {
   return order.filter((f) => f.enabled(env));
