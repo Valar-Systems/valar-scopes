@@ -110,6 +110,30 @@ describe("/v1/blips", () => {
     expect(((await r3.json()) as { n: number }).n).toBe(2); // the revalidated data
   });
 
+  it("refreshes in-band (not just background) once a tile is past the stale-serve cap", async () => {
+    // Fresh window 0 => instantly stale; stale-serve cap 0 => any stale tile refreshes
+    // in the request path; deadline generous so the in-band build wins the race. This
+    // is the low-traffic guard: a recycled waitUntil can drop a background refresh, so
+    // past the cap the fresh picture must land in THIS response, not a later poll.
+    const capEnv = { BLIPS_FRESH_TTL_MS: "0", BLIPS_STALE_SERVE_MS: "0", BLIPS_SERVE_DEADLINE_MS: "5000" };
+    const tile = "/v2/lat/50.00/lon/50.00/dist/24";
+
+    fetchMock.get(LOL).intercept({ path: tile }).reply(200, pointBody([makeAc({ hex: "e00001", lat: 50, lon: 50 })]));
+    const r1 = await call(apiRequest("/v1/blips?lat=50&lon=50&r=40"), capEnv);
+    expect(r1.headers.get("X-Cache")).toBe("MISS");
+    expect(((await r1.json()) as { n: number }).n).toBe(1);
+
+    // Stale + past the cap: the SAME response carries the freshly-built picture (n=2),
+    // NOT the old one -- proving the refresh happened in-band, not deferred.
+    fetchMock
+      .get(LOL)
+      .intercept({ path: tile })
+      .reply(200, pointBody([makeAc({ hex: "e00001", lat: 50, lon: 50 }), makeAc({ hex: "e00002", lat: 50.01, lon: 50 })]));
+    const r2 = await call(apiRequest("/v1/blips?lat=50&lon=50&r=40"), capEnv);
+    expect(r2.headers.get("X-Cache")).toBe("MISS"); // fresh this very response
+    expect(((await r2.json()) as { n: number }).n).toBe(2); // the NEW picture, immediately
+  });
+
   it("503s fast on a cold slow tile, then serves the warmed cache", async () => {
     const warmEnv = { BLIPS_SERVE_DEADLINE_MS: "50", UPSTREAM_TIMEOUT_MS: "5000" };
     fetchMock

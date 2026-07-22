@@ -30,5 +30,6 @@ export interface Env {
   UPSTREAM_RETRY_DELAY_MS?: string;   // default 400 (pause before the single 429/5xx retry)
   BLIPS_FRESH_TTL_MS?: string;        // default 3000
   BLIPS_SERVE_DEADLINE_MS?: string;   // default 3500 (cold-miss wait cap; see blips.ts)
+  BLIPS_STALE_SERVE_MS?: string;      // default 12000 (in-band refresh past this age; see blips.ts)
   ENRICH_SERVE_DEADLINE_MS?: string;  // default 2500 (cold-lookup wait cap; see enrich.ts)
 }
