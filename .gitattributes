@@ -5,6 +5,10 @@
 # which would break scripts/smoke-prod.sh for anyone running it from Git Bash.
 *.sh    text eol=lf
 
+# The egress relay is deployed on Linux (Pi / VPS). Keep its nginx config and any
+# includes LF so a CRLF checkout can never make `nginx -t` fail cryptically.
+relay/** text eol=lf
+
 # Binary assets: mark explicitly so `text=auto`'s heuristic detection can never
 # misfire and normalize line endings inside them (autocrlf is on for Windows
 # checkouts). Covers the stock-photo library and any firmware/data blobs.
