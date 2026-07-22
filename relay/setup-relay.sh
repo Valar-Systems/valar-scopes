@@ -137,8 +137,12 @@ server {
         # OUR proxy_cache_valid governs the cache, not whatever adsb.lol sends --
         # otherwise an upstream "Cache-Control: no-cache" would disable collapsing.
         proxy_ignore_headers Cache-Control Expires Set-Cookie;
+        # ONLY cache 200s. Caching 429/5xx let a single transient adsb.lol 429
+        # become the cached object, clobber the good tile, and then get served on
+        # repeat by use_stale (ustatus=- in the logs). Non-200s are NOT cached;
+        # a 429 instead falls through to use_stale below, which serves the last
+        # good 200 tile.
         proxy_cache_valid 200 __CACHE_TTL__;
-        proxy_cache_valid 429 500 502 503 504 1s;
 
         # Collapse concurrent identical polls (many CF colos, same tile) into ONE
         # upstream fetch -- this is what caps our adsb.lol request rate.
@@ -158,7 +162,8 @@ server {
         # (The Worker builds its own cached Response and ignores this header.)
         add_header Cache-Control "no-store" always;
         proxy_connect_timeout 5s;
-        proxy_read_timeout 8s;
+        proxy_read_timeout 15s;   # busy-basin tiles measured ~12s; SWR serves stale meanwhile
+
     }
 }
 NGINX
