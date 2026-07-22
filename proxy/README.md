@@ -78,6 +78,47 @@ The 2.1% stale rate observed on the bench (2026-07-18 → 21) was *with*
 airplanes.live carrying positions — a best case, not this configuration. Measuring
 it requires traffic against `/v1/blips`; see "Watching adsb.lol-only" below.
 
+### Enrichment load model (and the non-goal)
+
+The load that pressures adsb.lol is **enrichment (`/v2/hex`), not positions.**
+Positions are already tile-collapsed to one fetch per geographic tile per TTL.
+Aircraft **metadata is immutable on human timescales** — type/reg/operator change
+only on re-registration (months) — so it is cached hard and fetched rarely:
+
+- **KV is the authority.** `enrich.ts` fetches a hex from upstream **only on a
+  30-day KV miss** (a never-seen airframe), then stores it. A re-seen hex never
+  hits an upstream. The relay caches `/v2/hex` 200s for **24 h** as a second line.
+- **Negative caching / hold-down** — *a 429 makes the next attempt LATER, never
+  sooner.* Previously a 429'd hex cached nothing, so every device re-fired it every
+  poll: a self-amplifying storm (~94 % sustained `/v2/hex` 429 from **one** bench
+  board). Now the relay negative-caches the 429 (`proxy_cache_valid 429 60s`) and
+  the Worker writes a brief (90 s) empty KV marker on a failed fetch, so the whole
+  **fleet** holds a failing hex down instead of hammering. `use_stale` keeps
+  shielding any hex already seen.
+- **Bounded background enrichment.** The device background-enriches per the fleet
+  `enrich` level: `full` (every visible aircraft, when a feature needs metadata),
+  `watchlist` (only watchlist matches; everything else is tap-to-enrich), `off`.
+  With the caching above, `full` is fetch-bounded to *new* airframes; `watchlist`
+  is the tighter setting for a constrained feed (its only visible cost: the List
+  screen's Type column shows `--` until a plane is tapped — radar and the
+  tap-to-fill card are unchanged).
+
+**Steady state:** once the fleet has seen an area's airframes (cached 30 d),
+upstream hex fetches drop to the rate of *newly appearing* airframes — **requests
+per hour, not per second.**
+
+**Explicit non-goal: no IP-sharding to evade community rate limits.** The two
+relays are a good-citizen **primary + failover** pair carrying gentle, collapsed
+traffic — not a load-split to double our per-IP allowance, and never an IP farm.
+If honest post-fix volume still needs more headroom, the answer is a **sponsorship
+/ paid tier with adsb.lol**, not more egress IPs. Measure the real post-fix rates
+with `relay/measure.mjs` (relay-side upstream + 429 rate split by hex/positions,
+X-Cache flips, longest degraded run) — those are the numbers for that conversation:
+
+```sh
+ssh root@<relay-ip> "cat /var/log/nginx/relay.log" | node relay/measure.mjs --hours 24
+```
+
 ### Watching adsb.lol-only
 
 `scripts/watch-upstream.sh` polls `/v1/blips` at a device-like cadence and

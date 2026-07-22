@@ -146,7 +146,7 @@ proxy_read_timeout 30s;   # anon throttle ~12 KB/s; a 187 KB busy tile is ~16s. 
 NGINX
 
 # ---- relay vhost ------------------------------------------------------------
-log "writing relay vhost (tile TTL=$CACHE_TTL, hex TTL=1h)"
+log "writing relay vhost (tile TTL=$CACHE_TTL, hex TTL=24h + 429 hold-down 60s)"
 cat > "$SITE" <<'NGINX'
 proxy_cache_path /var/cache/nginx/adsblol levels=1:2 keys_zone=adsblol:10m
                  max_size=100m inactive=2h use_temp_path=off;
