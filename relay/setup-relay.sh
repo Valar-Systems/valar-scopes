@@ -130,6 +130,9 @@ server {
 
         proxy_cache adsblol;
         proxy_cache_key "$request_uri";     # the Worker already quantizes tiles
+        # OUR proxy_cache_valid governs the cache, not whatever adsb.lol sends --
+        # otherwise an upstream "Cache-Control: no-cache" would disable collapsing.
+        proxy_ignore_headers Cache-Control Expires Set-Cookie;
         proxy_cache_valid 200 __CACHE_TTL__;
         proxy_cache_valid 429 500 502 503 504 1s;
 
@@ -145,6 +148,11 @@ server {
         proxy_cache_background_update on;
 
         add_header X-Relay-Cache $upstream_cache_status always;
+        # These hostnames are orange-clouded, so tell the Cloudflare edge in front
+        # of the relay NOT to add its own cache layer: our nginx cache + the
+        # Worker's SWR are the only two caches, and freshness stays controlled.
+        # (The Worker builds its own cached Response and ignores this header.)
+        add_header Cache-Control "no-store" always;
         proxy_connect_timeout 5s;
         proxy_read_timeout 8s;
     }

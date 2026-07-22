@@ -57,13 +57,15 @@ they end the Cloudflare shared-egress 429. The state of each upstream:
 | upstream | status | why | to enable |
 | --- | --- | --- | --- |
 | **adsb.lol** (via relay-a / relay-b) | **ENABLED** | ODbL 1.0 explicitly permits commercial use with attribution. The only cleared source. Polled from dedicated relay IPs, not Cloudflare's shared egress. | already on |
-| **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated July 2026. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
+| **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated 2026-07-22. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
 | **adsb.fi** | DISABLED | Permission never granted. Separately, it **403s our Cloudflare egress** anyway. | written commercial grant *and* fixing the 403 |
 | **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
 
 **Relay IPs are announced to adsb.lol** as a courtesy identification (we run a
-feeder). Current relay IPs: relay-a = Hetzner, Hillsboro OR; relay-b = Vultr,
-Seattle WA. Keep this current when relays change.
+feeder; the email goes out once the soak passes). Current relay IPs:
+relay-a = DigitalOcean NYC1 `67.205.155.80`; relay-b = Vultr Seattle
+`104.238.156.243`. relay-a leads (NYC is closer to adsb.lol's Hetzner-EU
+upstream). Keep this current when relays change.
 
 **History, so this isn't re-litigated:** both failovers were switched ON
 2026-07-18 (owner-approved) for a *private bench soak*, because adsb.lol's

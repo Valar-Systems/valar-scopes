@@ -15,12 +15,14 @@ so the whole fleet's polls for a tile become one upstream fetch per cache window
 
 ## Topology (shipping HA pair)
 
-| relay | host | box | region | base URL var |
+| relay | host | box | IP | base URL var |
 |---|---|---|---|---|
-| relay-a (primary)   | `relay-a.valarsystems.com` | Hetzner CPX11 | Hillsboro OR | `UPSTREAM_ADSB_LOL_BASE` |
-| relay-b (secondary) | `relay-b.valarsystems.com` | Vultr         | Seattle WA   | `UPSTREAM_ADSB_LOL_BASE_B` |
+| relay-a (primary)   | `relay-a.valarsystems.com` | DigitalOcean NYC1 (1 GB) | `67.205.155.80`   | `UPSTREAM_ADSB_LOL_BASE` |
+| relay-b (secondary) | `relay-b.valarsystems.com` | Vultr Seattle (vc2-1c-1gb) | `104.238.156.243` | `UPSTREAM_ADSB_LOL_BASE_B` |
 
-Both hosts are orange-clouded (Cloudflare proxied) with a Cloudflare Origin cert,
+relay-a leads the chain because **NYC is closer to adsb.lol's Hetzner-EU
+upstream** than Seattle. Both hosts are orange-clouded (Cloudflare proxied) with
+a Cloudflare Origin cert,
 so Worker → Cloudflare → relay is TLS end to end and the origin IP stays hidden.
 The relays are modelled as **two feeds in the Worker's failover chain**: relay-a
 primary → relay-b secondary. relay-b is the *terminal* feed, so the breaker never
@@ -44,20 +46,23 @@ value is never in the script or in git.
 
 ### scp (run locally, per box)
 
-```sh
-# relay-a  (Hetzner, Hillsboro)
-scp origin.pem origin.key relay.key setup-relay.sh root@<A-IP>:/root/
-ssh root@<A-IP> 'install -D -m600 /root/origin.key /etc/ssl/cloudflare/origin.key && \
-                 install -D -m644 /root/origin.pem /etc/ssl/cloudflare/origin.pem && \
-                 install -D -m600 /root/relay.key  /etc/nginx/relay.key && \
-                 sudo CACHE_TTL=6s bash /root/setup-relay.sh'
+Use the **raw IPs** for scp/ssh — the hostnames are orange-clouded, so
+`relay-a.valarsystems.com` resolves to Cloudflare, not the box.
 
-# relay-b  (Vultr, Seattle) -- identical
-scp origin.pem origin.key relay.key setup-relay.sh root@<B-IP>:/root/
-ssh root@<B-IP> 'install -D -m600 /root/origin.key /etc/ssl/cloudflare/origin.key && \
-                 install -D -m644 /root/origin.pem /etc/ssl/cloudflare/origin.pem && \
-                 install -D -m600 /root/relay.key  /etc/nginx/relay.key && \
-                 sudo CACHE_TTL=6s bash /root/setup-relay.sh'
+```sh
+# relay-a  (DigitalOcean NYC1)
+scp origin.pem origin.key relay.key setup-relay.sh root@67.205.155.80:/root/
+ssh root@67.205.155.80 'install -D -m600 /root/origin.key /etc/ssl/cloudflare/origin.key && \
+                        install -D -m644 /root/origin.pem /etc/ssl/cloudflare/origin.pem && \
+                        install -D -m600 /root/relay.key  /etc/nginx/relay.key && \
+                        sudo CACHE_TTL=6s bash /root/setup-relay.sh'
+
+# relay-b  (Vultr Seattle) -- identical
+scp origin.pem origin.key relay.key setup-relay.sh root@104.238.156.243:/root/
+ssh root@104.238.156.243 'install -D -m600 /root/origin.key /etc/ssl/cloudflare/origin.key && \
+                          install -D -m644 /root/origin.pem /etc/ssl/cloudflare/origin.pem && \
+                          install -D -m600 /root/relay.key  /etc/nginx/relay.key && \
+                          sudo CACHE_TTL=6s bash /root/setup-relay.sh'
 ```
 
 The same `relay.key` string goes on **both** boxes and into the Worker secret
