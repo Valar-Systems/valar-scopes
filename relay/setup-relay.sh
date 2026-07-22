@@ -84,13 +84,43 @@ unset RELAY_KEY_VALUE
 # ---- cache dir --------------------------------------------------------------
 mkdir -p "$CACHE_DIR"; chown www-data:www-data "$CACHE_DIR"
 
+# ---- shared upstream proxy directives (included by each location) -----------
+# Factored out so the two locations below differ ONLY in cache TTL. Quoted
+# heredoc: nginx $variables must reach the file, not be expanded by bash.
+mkdir -p /etc/nginx/snippets
+cat > /etc/nginx/snippets/relay-upstream.conf <<'NGINX'
+if ($relay_ok = 0) { return 403; }
+set $upstream "api.adsb.lol";
+proxy_pass https://$upstream;
+proxy_ssl_server_name on;
+proxy_ssl_name api.adsb.lol;
+proxy_set_header Host api.adsb.lol;
+proxy_set_header User-Agent "blipscope-relay";
+proxy_set_header X-Relay-Key "";   # never forward our secret upstream
+proxy_cache adsblol;
+proxy_cache_key "$request_uri";     # the Worker already quantizes tiles
+# OUR proxy_cache_valid (per location) governs the cache, not adsb.lol's headers.
+proxy_ignore_headers Cache-Control Expires Set-Cookie;
+# Collapse concurrent identical requests into ONE upstream fetch.
+proxy_cache_lock on;
+proxy_cache_lock_timeout 6s;
+# Absorb adsb.lol flakiness here: serve last-good while refreshing / on 429/5xx.
+# ONLY 200s are cached (per location) -- a 429 is never cached, it falls through
+# to this use_stale, which serves the last good response.
+proxy_cache_use_stale updating error timeout http_429 http_500 http_502 http_503 http_504;
+proxy_cache_background_update on;
+add_header X-Relay-Cache $upstream_cache_status always;
+# Orange-clouded: tell the CF edge NOT to add its own cache (Worker ignores this).
+add_header Cache-Control "no-store" always;
+proxy_connect_timeout 5s;
+proxy_read_timeout 15s;   # busy-basin tiles measured ~12s; SWR serves stale meanwhile
+NGINX
+
 # ---- relay vhost ------------------------------------------------------------
-# Quoted heredoc: nginx $variables must survive to the file, not be expanded by
-# bash. CACHE_TTL is substituted afterward via the __CACHE_TTL__ placeholder.
-log "writing relay vhost (TTL=$CACHE_TTL)"
+log "writing relay vhost (tile TTL=$CACHE_TTL, hex TTL=1h)"
 cat > "$SITE" <<'NGINX'
 proxy_cache_path /var/cache/nginx/adsblol levels=1:2 keys_zone=adsblol:10m
-                 max_size=100m inactive=10m use_temp_path=off;
+                 max_size=100m inactive=2h use_temp_path=off;
 
 # Log adsb.lol's OWN status (ustatus) + our cache status, so the soak measures the
 # one honest unknown -- the real per-IP 429 rate -- from these logs:
@@ -121,49 +151,20 @@ server {
     # Re-resolve api.adsb.lol periodically (its IP can move).
     resolver 1.1.1.1 8.8.8.8 valid=300s ipv6=off;
 
+    # Aircraft METADATA (/v2/hex) is static -- type/reg don't change -- and an
+    # enrichment sweep asks for many distinct hexes at once. Cache it LONG so each
+    # hex hits adsb.lol at most ~once/hour instead of every tile TTL. This is what
+    # stops the /v2/hex 429 storm that was also starving tile revalidation.
+    location ^~ /v2/hex/ {
+        include /etc/nginx/snippets/relay-upstream.conf;
+        proxy_cache_valid 200 1h;
+    }
+
+    # Live POSITIONS (/v2/lat), routeset, everything else: short TTL for a fresh
+    # picture. 200s only; a 429 falls through to use_stale (last good tile).
     location / {
-        if ($relay_ok = 0) { return 403; }
-
-        set $upstream "api.adsb.lol";
-        proxy_pass https://$upstream;
-        proxy_ssl_server_name on;
-        proxy_ssl_name api.adsb.lol;
-        proxy_set_header Host api.adsb.lol;
-        proxy_set_header User-Agent "blipscope-relay";
-        proxy_set_header X-Relay-Key "";   # never forward our secret upstream
-
-        proxy_cache adsblol;
-        proxy_cache_key "$request_uri";     # the Worker already quantizes tiles
-        # OUR proxy_cache_valid governs the cache, not whatever adsb.lol sends --
-        # otherwise an upstream "Cache-Control: no-cache" would disable collapsing.
-        proxy_ignore_headers Cache-Control Expires Set-Cookie;
-        # ONLY cache 200s. Caching 429/5xx let a single transient adsb.lol 429
-        # become the cached object, clobber the good tile, and then get served on
-        # repeat by use_stale (ustatus=- in the logs). Non-200s are NOT cached;
-        # a 429 instead falls through to use_stale below, which serves the last
-        # good 200 tile.
+        include /etc/nginx/snippets/relay-upstream.conf;
         proxy_cache_valid 200 __CACHE_TTL__;
-
-        # Collapse concurrent identical polls (many CF colos, same tile) into ONE
-        # upstream fetch -- this is what caps our adsb.lol request rate.
-        proxy_cache_lock on;
-        proxy_cache_lock_timeout 6s;
-
-        # Absorb adsb.lol flakiness here, not in the fleet: serve last-good while
-        # refreshing, or if adsb.lol errors/times out/429s.
-        proxy_cache_use_stale updating error timeout
-                              http_429 http_500 http_502 http_503 http_504;
-        proxy_cache_background_update on;
-
-        add_header X-Relay-Cache $upstream_cache_status always;
-        # These hostnames are orange-clouded, so tell the Cloudflare edge in front
-        # of the relay NOT to add its own cache layer: our nginx cache + the
-        # Worker's SWR are the only two caches, and freshness stays controlled.
-        # (The Worker builds its own cached Response and ignores this header.)
-        add_header Cache-Control "no-store" always;
-        proxy_connect_timeout 5s;
-        proxy_read_timeout 15s;   # busy-basin tiles measured ~12s; SWR serves stale meanwhile
-
     }
 }
 NGINX
