@@ -1,88 +1,114 @@
 # Blipscope egress relay
 
-A dedicated-IP reverse-proxy cache in front of adsb.lol. It exists for exactly
-one reason: **Cloudflare Workers egress from a shared per-colo IP pool, and
-adsb.lol's anonymous limiter counts other tenants' traffic against us.** A direct
-`api.adsb.lol` curl from any normal dedicated IP returns live data at the same
-moment the Worker path gets throttled — the only variable is the IP. The relay
-gives adsb.lol one stable, non-shared IP to rate-limit, and the Worker consumes
-tiles from the relay instead of hitting adsb.lol directly.
+A dedicated-IP reverse-proxy cache in front of adsb.lol. It exists for one reason:
+**Cloudflare Workers egress from a shared per-colo IP pool, and adsb.lol's
+anonymous limiter counts other tenants' traffic against us.** A direct
+`api.adsb.lol` curl from any dedicated IP returns live data at the same instant
+the Worker path is throttled — the only variable is the IP. The relay gives
+adsb.lol one stable, non-shared IP to rate-limit; the Worker consumes tiles from
+the relay instead of hitting adsb.lol directly.
 
-Nothing in the Worker's architecture changes: edge cache, stale-while-revalidate,
-the circuit breaker, and the multi-feed failover chain all stay put. Only the
-upstream base URL moves (`UPSTREAM_ADSB_LOL_BASE`). The relay adds one thing the
-Worker can't do across colos: **request collapsing** (`proxy_cache_lock`), so the
-whole fleet's polls for a tile become one upstream fetch per cache window.
+The Worker architecture is unchanged (edge cache, SWR, breaker, failover chain);
+only the upstream base URL moves (`UPSTREAM_ADSB_LOL_BASE`). The relay adds one
+thing the Worker can't do across colos: **request collapsing** (`proxy_cache_lock`),
+so the whole fleet's polls for a tile become one upstream fetch per cache window.
 
-## HA topology (the shipping shape)
+## Topology (shipping HA pair)
 
-Two relays on **diverse US IPs** (Hetzner Hillsboro + a second in Ashburn or on
-Fly), modelled as **two feeds in the Worker's failover chain**:
+| relay | host | box | IP | base URL var |
+|---|---|---|---|---|
+| relay-a (primary)   | `relay-a.valarsystems.com` | DigitalOcean NYC1 (1 GB) | `67.205.155.80`   | `UPSTREAM_ADSB_LOL_BASE` |
+| relay-b (secondary) | `relay-b.valarsystems.com` | Vultr Seattle (vc2-1c-1gb) | `104.238.156.243` | `UPSTREAM_ADSB_LOL_BASE_B` |
 
+relay-a leads the chain because **NYC is closer to adsb.lol's Hetzner-EU
+upstream** than Seattle. Both hosts are orange-clouded (Cloudflare proxied) with
+a Cloudflare Origin cert,
+so Worker → Cloudflare → relay is TLS end to end and the origin IP stays hidden.
+The relays are modelled as **two feeds in the Worker's failover chain**: relay-a
+primary → relay-b secondary. relay-b is the *terminal* feed, so the breaker never
+skips it (PR #119) — a relay-a outage fails over rather than blanking the fleet.
+
+**Fleet failure story:** relay-a down → chain uses relay-b (invisible). Both down
+→ Worker serves SWR cache (up to `SWR_MAX_AGE_S = 600 s`), then the device's stale
+ladder escalates honestly. A cold tile during a total double-relay outage still
+503s (no data to serve) — the residual gap the HA pair makes rare.
+
+## Files on each box (scp these first)
+
+| path | perms | what |
+|---|---|---|
+| `/etc/ssl/cloudflare/origin.pem` | 0644 root | Cloudflare Origin **certificate** |
+| `/etc/ssl/cloudflare/origin.key` | 0600 root | Origin cert **private key** |
+| `/etc/nginx/relay.key`           | 0600 root | the **X-Relay-Key** value (same string as the `RELAY_KEY` Worker secret) |
+
+`setup-relay.sh` reads `relay.key` and generates the root-only nginx map; the key
+value is never in the script or in git.
+
+### scp (run locally, per box)
+
+Use the **raw IPs** for scp/ssh — the hostnames are orange-clouded, so
+`relay-a.valarsystems.com` resolves to Cloudflare, not the box.
+
+```sh
+# relay-a  (DigitalOcean NYC1)
+scp origin.pem origin.key relay.key setup-relay.sh root@67.205.155.80:/root/
+ssh root@67.205.155.80 'install -D -m600 /root/origin.key /etc/ssl/cloudflare/origin.key && \
+                        install -D -m644 /root/origin.pem /etc/ssl/cloudflare/origin.pem && \
+                        install -D -m600 /root/relay.key  /etc/nginx/relay.key && \
+                        sudo CACHE_TTL=6s bash /root/setup-relay.sh'
+
+# relay-b  (Vultr Seattle) -- identical
+scp origin.pem origin.key relay.key setup-relay.sh root@104.238.156.243:/root/
+ssh root@104.238.156.243 'install -D -m600 /root/origin.key /etc/ssl/cloudflare/origin.key && \
+                          install -D -m644 /root/origin.pem /etc/ssl/cloudflare/origin.pem && \
+                          install -D -m600 /root/relay.key  /etc/nginx/relay.key && \
+                          sudo CACHE_TTL=6s bash /root/setup-relay.sh'
 ```
-Worker failover chain:  adsb_lol_relay_a  (primary)
-                        adsb_lol_relay_b  (terminal — always tried; see PR #119)
-```
 
-If relay-A dies, the breaker opens on `adsb_lol_relay_a` and the chain fails over
-to `adsb_lol_relay_b`. Because B is the terminal feed, the breaker never skips it
-(PR #119). This is the "failover-chain-as-relay-HA" integration — soak it as the
-HA pair, not as a single relay, because single-then-add soaks the wrong config.
+The same `relay.key` string goes on **both** boxes and into the Worker secret
+`RELAY_KEY` (one shared relay key for the fleet).
 
-**Fleet failure story:** relay-A down → chain uses relay-B (invisible). Both down
-→ Worker serves SWR cache (up to `SWR_MAX_AGE_S = 600 s`), then the device's
-stale ladder escalates honestly. A cold tile during a total double-relay outage
-still 503s (no data to serve) — the residual gap the HA pair makes rare.
+## Worker secrets / vars
 
-## Run it (Pi bench this week / VPS for launch)
+- **Secret:** `RELAY_KEY` — `npx wrangler secret put RELAY_KEY --env staging`
+  (then `--env production` at cutover). Value = the contents of `relay.key`.
+- **Vars** (already in `wrangler.toml`, not secret): `UPSTREAM_ADSB_LOL_BASE` and
+  `UPSTREAM_ADSB_LOL_BASE_B` = the two relay hostnames.
 
-1. Set the shared secret. Do **not** commit it. Render `nginx.conf` from a
-   template or drop a root-only include that sets the `map`:
-   ```
-   # /etc/nginx/relay-key.conf  (chmod 600, git-ignored)
-   map $http_x_relay_key $relay_ok { default 0; "<your-secret>" 1; }
-   ```
-   and replace the placeholder `map` block in `nginx.conf` with `include`.
-2. `sudo mkdir -p /var/cache/nginx/adsblol && sudo cp nginx.conf /etc/nginx/sites-enabled/relay`
-3. `sudo nginx -t && sudo systemctl reload nginx`
-4. Smoke test (needs the secret; a bare request must 403):
-   ```
-   curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/v2/lat/40/lon/-74/dist/50            # 403
-   curl -s -H 'X-Relay-Key: <secret>' http://localhost:8080/v2/lat/40/lon/-74/dist/50 | head -c 80     # aircraft JSON
-   ```
+Two adapter instances need **nothing beyond this**: `adsb_lol` (relay-a) and
+`adsb_lol_b` (relay-b) are one code shape parameterised by base URL + id; they
+share the `RELAY_KEY` header and get independent circuit breakers automatically.
 
-### Pointing the Worker at the Pi (bench proof)
+## Verification sequence (staging first, then prod cutover)
 
-The Pi is on your LAN, unreachable from a deployed Worker, so prove it with a
-**local** Worker:
-```
-cd proxy
-UPSTREAM_ADSB_LOL_BASE=http://<pi-ip>:8080 npx wrangler dev
-# then hit the local Worker's /v1/blips with a dev key and watch X-Cache
-```
-(The `UPSTREAM_ADSB_LOL_BASE` plumbing lands in the Worker-side PR; until then,
-temporarily point `BASE` in `src/upstreams/adsb_lol.ts` at the Pi for the bench.)
+1. Boxes up: `curl https://relay-a.valarsystems.com/healthz` → `ok`; a keyless
+   `/v2/...` → `403`; with `-H "X-Relay-Key: <key>"` → aircraft JSON + an
+   `X-Relay-Cache` header.
+2. `npx wrangler secret put RELAY_KEY --env staging`, then
+   `npx wrangler deploy --env staging`.
+3. Board on **staging** cloud mode; confirm `X-Cache` flips MISS → **HIT** on
+   `scopes-staging.valarsystems.com/v1/blips` and the device shows a live,
+   non-stale picture.
+4. **Cutover:** `npx wrangler secret put RELAY_KEY --env production`, then
+   `npx wrangler deploy --env production`.
 
-## Soak — measure the one honest unknown
+## Soak (one week) — pass criteria defined up front
 
-adsb.lol's actual per-IP tolerance is undocumented ("dynamic based on load"). The
-relay's log is instrumented to measure it directly:
+Measured from the relay logs + fleet-side `X-Cache`:
 
-- **adsb.lol throttle rate from our dedicated IP:** `grep -c 'ustatus=429' relay.log`
-  over a window. This is the number that decides whether one IP carries the fleet
-  or we need to raise `proxy_cache_valid` / shard tiles across more IPs.
-- **Cache effectiveness:** `awk '{for(i=1;i<=NF;i++)if($i~/^cache=/)print $i}' relay.log | sort | uniq -c`
-  — MISS is upstream load, HIT/EXPIRED/UPDATING is collapsed load.
-- **Fleet-side:** the Worker's `X-Cache` flip rate (STALE→HIT) on real devices.
-- **HA:** kill relay-A mid-soak and confirm the chain fails to relay-B with no
-  fleet-visible gap.
+| metric | source | PASS |
+|---|---|---|
+| adsb.lol 429 rate from the relay | `grep -c 'ustatus=429' relay.log` ÷ total | **< 1%** of upstream requests |
+| upstream request rate (one IP) | `grep -c 'cache=MISS' relay.log` over time | **< 10 req/s** sustained at pilot volume |
+| fleet freshness | Worker `X-Cache` HIT+STALE served vs MISS | **≥ 99%** served warm; STALE runs bounded |
+| longest unbroken degraded run | device `[health]` DATA STALE spans | **< 90 s** (never reaches the NoData cap) |
+| relay-a kill → failover | stop nginx on relay-a; watch `X-Upstream` | flips to `adsb_lol_b`, **no fleet-visible gap** |
 
-Expected upstream rate ≈ distinct hot tiles ÷ `proxy_cache_valid` (device-count
-independent once tiles are shared): ~7–8 req/s at 50 devices / 8 s TTL. Tune the
-TTL up or shard across IPs if the 429 measurement says so.
+Fail any → tune `CACHE_TTL` up (fewer upstream calls) or coarsen tiles before
+adding a third relay IP. The design degrades by a knob, not off a cliff.
 
 ## Operator courtesy
 
-When a relay goes live its IP is **announced to adsb.lol** as a courtesy
-identification (we already feed them). The production upstream table in the main
-README records which IPs are announced; keep it current when relays change.
+Relay IPs are **announced to adsb.lol** as courtesy identification (we feed them).
+The production upstream table in [proxy/README.md](../proxy/README.md) records
+which IPs are announced — keep it current when relays change.

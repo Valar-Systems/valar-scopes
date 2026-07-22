@@ -46,6 +46,47 @@ describe("/v1/enrich/{hex}", () => {
     expect(JSON.parse(await res2.text())).toEqual(JSON.parse(text));
   });
 
+  it("routes enrichment through relay-a, failing over to relay-b", async () => {
+    // Both operations use the same good-citizen order: relay-a primary -> relay-b
+    // failover (no load-splitting to defeat the per-IP limit). relay-a is tried FIRST
+    // here -- its failure is consumed and the chain falls over to relay-b (terminal,
+    // so the breaker never skips it), which carries the X-Relay-Key the nginx checks.
+    const RA = "https://relay-a.valarsystems.com";
+    const RB = "https://relay-b.valarsystems.com";
+    const relayEnv = {
+      UPSTREAM_ADSB_LOL_BASE: RA,
+      UPSTREAM_ADSB_LOL_BASE_B: RB,
+      RELAY_KEY: "test-relay-key",
+    };
+    fetchMock.get(RA).intercept({ path: "/v2/hex/e30001" }).replyWithError(new Error("relay-a down"));
+    fetchMock
+      .get(RB)
+      .intercept({ path: "/v2/hex/e30001", headers: { "x-relay-key": "test-relay-key" } })
+      .reply(200, hexBody([{ hex: "e30001", r: "N737XX", t: "B738" }]));
+
+    const res = await call(apiRequest("/v1/enrich/e30001"), relayEnv);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { r: string; tn: string };
+    expect(body.r).toBe("N737XX");
+    expect(body.tn).toBe("Boeing 737-800"); // relay-b's data, reached via failover
+  });
+
+  it("holds a hex down fleet-wide after a failed lookup, instead of re-firing it", async () => {
+    // The storm: a 429'd hex cached nothing, so every poll re-fired it. Now a failed
+    // lookup writes a brief empty KV marker so the next lookup is a quiet KV hit.
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/f40001" }).reply(429, "").times(3); // chain exhausts its 3 retries
+
+    const r1 = await call(apiRequest("/v1/enrich/f40001"));
+    expect(r1.status).toBe(200);
+    expect(((await r1.json()) as { t: string }).t).toBe(""); // empty this time
+
+    // Second lookup: served from the hold-down marker. NO upstream interceptor is
+    // registered, so a re-fire would throw on an unmatched request (assertNoPending...).
+    const r2 = await call(apiRequest("/v1/enrich/f40001"));
+    expect(r2.status).toBe(200);
+    expect(((await r2.json()) as { t: string }).t).toBe("");
+  });
+
   it("falls back to the baked type-name table when the upstream has no desc", async () => {
     fetchMock
       .get(LOL)

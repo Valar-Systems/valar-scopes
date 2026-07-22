@@ -35,6 +35,17 @@ const MAX_LIMIT = 60;
 // background and caches, so the next poll a few seconds later hits a warm tile.
 const DEFAULT_SERVE_DEADLINE_MS = 3500;
 
+// Staleness cap. A cached tile older than this is refreshed IN the request path
+// (bounded by the serve deadline) instead of relying purely on a background
+// waitUntil revalidation. Under low traffic Cloudflare recycles the isolate between
+// polls and can cut a waitUntil before it writes cache, so a purely-background
+// refresh lets staleness run away (observed: a tile climbing past 4 min with one
+// board polling). The in-band path writes cache inline when the build lands in time,
+// which is not subject to isolate recycling -- so served staleness stays bounded at
+// any traffic level. Kept above the fresh TTL so the common moderately-stale poll
+// still takes the cheap background path.
+const DEFAULT_STALE_SERVE_MS = 12000;
+
 // One background revalidation per cache key per isolate; a poll storm on a
 // popular tile must not fan out into a poll storm on the upstream.
 const inflightRevalidations = new Set<string>();
@@ -143,18 +154,52 @@ export async function handleBlips(
     `https://blips-cache.internal/v1/blips?lat=${latQ}&lon=${lonQ}&r=${bucketKm}&limit=${limit}&sv=${SCHEMA_V}`,
   );
   const freshTtlMs = intEnv(env.BLIPS_FRESH_TTL_MS, DEFAULT_FRESH_TTL_MS);
+  const staleServeMs = intEnv(env.BLIPS_STALE_SERVE_MS, DEFAULT_STALE_SERVE_MS);
+  const deadlineMs = intEnv(env.BLIPS_SERVE_DEADLINE_MS, DEFAULT_SERVE_DEADLINE_MS);
 
   const stored = await caches.default.match(cacheKey);
   if (stored) {
     const fetchedAt = Number(stored.headers.get("X-Fetched-At") ?? 0);
     const upstream = stored.headers.get("X-Upstream") ?? "";
     const body = await stored.text();
-    if (Date.now() - fetchedAt <= freshTtlMs) {
+    const age = Date.now() - fetchedAt;
+    if (age <= freshTtlMs) {
       meta.cache = "HIT";
       return served(body, "HIT", upstream);
     }
-    // Stale: answer immediately with the old picture -- its body still carries
-    // the ORIGINAL `t`, so the device's stale indicator stays honest -- and
+
+    // Very stale: the background path isn't keeping up (see DEFAULT_STALE_SERVE_MS).
+    // Refresh IN the request path, bounded by the serve deadline: start the build,
+    // race the deadline, and if it lands write cache INLINE (guaranteed to run, unlike
+    // a recycled waitUntil) and serve the fresh body. If the deadline wins, serve the
+    // stale body and let the already in-flight build finish under waitUntil.
+    if (age > staleServeMs && !inflightRevalidations.has(cacheKey.url)) {
+      inflightRevalidations.add(cacheKey.url);
+      const buildPromise = buildFresh(env, latQ, lonQ, bucketKm, limit, meta);
+      const winner = await Promise.race([
+        buildPromise,
+        new Promise<"deadline">((resolve) => setTimeout(() => resolve("deadline"), deadlineMs)),
+      ]);
+      if (winner && winner !== "deadline") {
+        await caches.default.put(cacheKey, winner.stored);
+        inflightRevalidations.delete(cacheKey.url);
+        meta.cache = "MISS";
+        return served(winner.body, "MISS", winner.stored.headers.get("X-Upstream") ?? upstream);
+      }
+      ctx.waitUntil(
+        buildPromise
+          .then(async (built) => {
+            if (built) await caches.default.put(cacheKey, built.stored);
+          })
+          .catch(() => {})
+          .finally(() => inflightRevalidations.delete(cacheKey.url)),
+      );
+      meta.cache = "STALE";
+      return served(body, "STALE", upstream);
+    }
+
+    // Moderately stale: answer immediately with the old picture -- its body still
+    // carries the ORIGINAL `t`, so the device's stale indicator stays honest -- and
     // refresh in the background.
     if (!inflightRevalidations.has(cacheKey.url)) {
       inflightRevalidations.add(cacheKey.url);
@@ -166,7 +211,6 @@ export async function handleBlips(
 
   meta.cache = "MISS";
   const buildPromise = buildFresh(env, latQ, lonQ, bucketKm, limit, meta);
-  const deadlineMs = intEnv(env.BLIPS_SERVE_DEADLINE_MS, DEFAULT_SERVE_DEADLINE_MS);
   const winner = await Promise.race([
     buildPromise,
     new Promise<"deadline">((resolve) => setTimeout(() => resolve("deadline"), deadlineMs)),

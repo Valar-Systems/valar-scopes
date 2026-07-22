@@ -1,30 +1,41 @@
 import type { Env } from "../types";
 import { USER_AGENT, type UpstreamAircraftFeed } from "./types";
 
-// PRIMARY upstream. adsb.lol data is licensed ODbL 1.0 -- explicitly compatible
-// with commercial use, with attribution (see README "Data sources & licensing";
-// the device config page carries the credit line too).
-const BASE = "https://api.adsb.lol";
+// adsb.lol (ODbL 1.0 -- commercial use OK with attribution; see README "Data
+// sources & licensing" and the device config-page credit line) reached via our
+// DEDICATED-EGRESS RELAY. See relay/.
+//
+// Why the relay: Cloudflare Workers egress from a shared per-colo IP pool, so
+// adsb.lol's anonymous per-IP limiter 429s us for OTHER tenants' traffic. A relay
+// on a dedicated IP polls adsb.lol and the Worker consumes from it; adsb.lol then
+// only ever sees the relay's one IP. Two relays -- relay-a (primary) and relay-b
+// (secondary) -- give HA through the failover chain (relay-b is terminal, so the
+// breaker never skips it; see chain.ts).
+//
+// Base URLs are per-env vars. Unset -> the primary falls back to api.adsb.lol
+// DIRECT (dev/test + the pre-relay path) and the secondary feed is simply
+// disabled, so nothing changes until the relay URLs are configured.
+const DIRECT = "https://api.adsb.lol";
+const baseA = (env: Env): string => env.UPSTREAM_ADSB_LOL_BASE || DIRECT;
+const baseB = (env: Env): string => env.UPSTREAM_ADSB_LOL_BASE_B || "";
 
-// ---------------------------------------------------------------------------
-// Feeder-key authentication -- SCHEME IS UNVERIFIED
-//
-// adsb.lol has published NO feeder-key specification. A key was requested for
-// station `valar-systems-bend`; until they reply, everything below is an
-// ASSUMPTION and must be treated as such -- do not let the confident-looking
-// header name mislead a future reader into thinking it was confirmed.
-//
-// When their spec arrives, changing AUTH_SCHEME (and, if needed, the matching
-// name constant) is the WHOLE change -- every adsb.lol request routes through
-// authHeaders()/authQuery() below, so no call site moves:
-//
+// --- Auth hop 1: Worker -> our relay ----------------------------------------
+// X-Relay-Key authenticates the Worker to the relay's nginx (which 403s anything
+// else). The relay STRIPS this header before forwarding upstream, so it never
+// reaches adsb.lol. Empty on the direct dev path (no relay -> no key needed).
+function relayHeaders(env: Env): Record<string, string> {
+  return env.RELAY_KEY ? { "X-Relay-Key": env.RELAY_KEY } : {};
+}
+
+// --- Auth hop 2: relay -> adsb.lol (feeder key) -- SCHEME UNVERIFIED ---------
+// adsb.lol has published NO feeder-key spec (a key was requested for station
+// `valar-systems-bend`). With the relay in front this machinery is INERT (no key
+// issued, and a real key is better applied AT THE RELAY so it isn't sprayed from
+// the Worker) -- but it is harmless (emits nothing when ADSB_LOL_API_KEY is
+// unset) and documents the one-line change if the spec ever lands:
 //   "header" -> X-Api-Key: <key>            (current assumption)
 //   "bearer" -> Authorization: Bearer <key>
 //   "query"  -> ...?api_key=<key>           (why the URL builders take env)
-//
-// Applying the key itself stays `wrangler secret put ADSB_LOL_API_KEY`; nothing
-// here needs a code change unless the SCHEME differs from the guess.
-// ---------------------------------------------------------------------------
 type AuthScheme = "header" | "bearer" | "query";
 
 /** THE one line to change when adsb.lol publishes their spec. */
@@ -33,7 +44,6 @@ const AUTH_SCHEME: AuthScheme = "header";
 const AUTH_HEADER_NAME = "X-Api-Key"; // used when AUTH_SCHEME === "header"
 const AUTH_QUERY_PARAM = "api_key";   // used when AUTH_SCHEME === "query"
 
-/** Auth headers for the configured scheme; empty when no key is set. */
 function authHeaders(env: Env): Record<string, string> {
   const key = env.ADSB_LOL_API_KEY;
   if (!key) return {};
@@ -44,28 +54,39 @@ function authHeaders(env: Env): Record<string, string> {
   }
 }
 
-/** Query suffix ("?api_key=...") for the query scheme; "" otherwise. */
 function authQuery(env: Env): string {
   const key = env.ADSB_LOL_API_KEY;
   if (!key || AUTH_SCHEME !== "query") return "";
   return `?${AUTH_QUERY_PARAM}=${encodeURIComponent(key)}`;
 }
 
-export const adsbLol: UpstreamAircraftFeed = {
-  id: "adsb_lol",
-  enabled: () => true,
-  pointUrl: (env, lat, lon, distNm) =>
-    `${BASE}/v2/lat/${lat}/lon/${lon}/dist/${distNm}${authQuery(env)}`,
-  hexUrl: (env, hex) => `${BASE}/v2/hex/${hex}${authQuery(env)}`,
-  headers: (env) => ({
-    "User-Agent": USER_AGENT,
-    ...authHeaders(env),
-  }),
-};
+// One adapter shape, two instances differing only by base URL + id. Nothing else
+// differs: both carry the relay key (hop 1) and the inert feeder key (hop 2), and
+// a feed is enabled only when its base URL resolves (primary always does via the
+// DIRECT fallback; secondary only when UPSTREAM_ADSB_LOL_BASE_B is set).
+function makeFeed(id: string, base: (env: Env) => string): UpstreamAircraftFeed {
+  return {
+    id,
+    enabled: (env) => base(env).length > 0,
+    pointUrl: (env, lat, lon, distNm) =>
+      `${base(env)}/v2/lat/${lat}/lon/${lon}/dist/${distNm}${authQuery(env)}`,
+    hexUrl: (env, hex) => `${base(env)}/v2/hex/${hex}${authQuery(env)}`,
+    headers: (env) => ({
+      "User-Agent": USER_AGENT,
+      ...relayHeaders(env),
+      ...authHeaders(env),
+    }),
+  };
+}
+
+export const adsbLol = makeFeed("adsb_lol", baseA); // relay-a (or direct when unset)
+export const adsbLolB = makeFeed("adsb_lol_b", baseB); // relay-b (disabled unless set)
 
 // Callsign -> route via adsb.lol's tar1090-style routeset API (their
-// vrs-standing-data route DB). adsb.lol-only: the other feeds don't carry
-// routes, so when adsb.lol is down routes simply resolve unknown.
+// vrs-standing-data route DB). adsb.lol-only: the other feeds don't carry routes,
+// so when adsb.lol is unreachable routes simply resolve unknown. Routed through
+// the PRIMARY relay base (relay-a); routes are a nice-to-have, not worth a second
+// relay hop, so relay-b does not carry them.
 export function routesetRequest(
   env: Env,
   callsign: string,
@@ -73,12 +94,13 @@ export function routesetRequest(
   lon: number | undefined,
 ): { url: string; init: RequestInit } {
   return {
-    url: `${BASE}/api/0/routeset${authQuery(env)}`,
+    url: `${baseA(env)}/api/0/routeset${authQuery(env)}`,
     init: {
       method: "POST",
       headers: {
         "User-Agent": USER_AGENT,
         "Content-Type": "application/json",
+        ...relayHeaders(env),
         ...authHeaders(env),
       },
       // lat/lng feed the API's plausibility check (callsigns get reused across
