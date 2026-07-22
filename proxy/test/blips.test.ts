@@ -176,6 +176,27 @@ describe("/v1/blips", () => {
     }
   });
 
+  it("never lets the breaker skip the sole enabled feed (adsb.lol terminal)", async () => {
+    // Default env: both failovers off, so adsb.lol is the ONLY enabled feed and
+    // therefore terminal. An open breaker on a terminal feed has nothing to fall
+    // over to -- fast-failing it just manufactures a 30 s all-503 window -- so it
+    // must be tried on EVERY request regardless of breaker state. Trip the 3-strike
+    // breaker on three cold tiles, then prove request #4 STILL reaches adsb.lol.
+    // (Pre-fix, #4 was skipped and returned 503 upstream_unavailable.)
+    fetchMock.get(LOL).intercept({ path: /\/v2\/lat\/8[012]\.00\/lon\/10\.00\/dist\/24/ }).replyWithError(new Error("down")).times(3);
+    fetchMock.get(LOL).intercept({ path: "/v2/lat/83.00/lon/10.00/dist/24" }).reply(200, pointBody([makeAc({ hex: "f80001", lat: 83, lon: 10 })]));
+
+    for (const lat of [80, 81, 82]) {
+      const res = await call(apiRequest(`/v1/blips?lat=${lat}&lon=10&r=40`));
+      expect(res.status).toBe(503); // cold tile + adsb.lol down, nothing cached
+    }
+    // Breaker is now "open" after 3 strikes -- but adsb.lol is terminal, so the
+    // 4th request still tries it and succeeds instead of self-inflicting a 503.
+    const recovered = await call(apiRequest("/v1/blips?lat=83&lon=10&r=40"));
+    expect(recovered.status).toBe(200);
+    expect(recovered.headers.get("X-Upstream")).toBe("adsb_lol");
+  });
+
   it("rejects bad parameters", async () => {
     expect((await call(apiRequest("/v1/blips?lat=999&lon=8&r=40"))).status).toBe(400);
     expect((await call(apiRequest("/v1/blips?lat=47&lon=8&r=nope"))).status).toBe(400);

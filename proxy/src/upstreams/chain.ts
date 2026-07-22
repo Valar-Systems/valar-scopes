@@ -133,8 +133,16 @@ export async function fetchPointChain(
   lonQ: string,
   distNm: number,
 ): Promise<PointResult | null> {
-  for (const feed of ordered(env, POINT_ORDER)) {
-    if (!breakerAllows(feed.id)) continue;
+  const feeds = ordered(env, POINT_ORDER);
+  for (let i = 0; i < feeds.length; i++) {
+    const feed = feeds[i];
+    // The breaker exists to skip a flaky feed IN FAVOUR OF the next one. The
+    // LAST enabled feed has nothing to fall over to, so an open breaker there
+    // just manufactures a 30 s all-503 window with no upstream benefit (and with
+    // failovers disabled, adsb.lol IS the terminal feed). Always try the terminal
+    // feed; the per-call timeout + retry still bound its latency.
+    const isTerminal = i === feeds.length - 1;
+    if (!isTerminal && !breakerAllows(feed.id)) continue;
     const started = Date.now();
     try {
       const json = (await fetchJsonWithTimeout(
@@ -164,8 +172,13 @@ export interface HexResult {
 }
 
 export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | null> {
-  for (const feed of ordered(env, HEX_ORDER)) {
-    if (!breakerAllows(feed.id)) continue;
+  const feeds = ordered(env, HEX_ORDER);
+  for (let i = 0; i < feeds.length; i++) {
+    const feed = feeds[i];
+    // Same rule as the point chain: never let the breaker skip the terminal feed
+    // (nothing to fall over to), only the ones that have a fallback after them.
+    const isTerminal = i === feeds.length - 1;
+    if (!isTerminal && !breakerAllows(feed.id)) continue;
     const started = Date.now();
     try {
       // 3 attempts: the hex path 429s harder than the point path under shared
