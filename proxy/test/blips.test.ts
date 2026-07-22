@@ -197,6 +197,30 @@ describe("/v1/blips", () => {
     expect(recovered.headers.get("X-Upstream")).toBe("adsb_lol");
   });
 
+  it("routes through relay-a, sends X-Relay-Key, fails over to relay-b", async () => {
+    // Production shape: adsb.lol reached via two dedicated-egress relays. relay-a
+    // is primary; when it errors the chain fails over to relay-b (terminal, so the
+    // breaker never skips it). Both must carry the X-Relay-Key that the relay's
+    // nginx checks -- asserted here via the header matcher on relay-b.
+    const RA = "https://relay-a.valarsystems.com";
+    const RB = "https://relay-b.valarsystems.com";
+    const relayEnv = {
+      UPSTREAM_ADSB_LOL_BASE: RA,
+      UPSTREAM_ADSB_LOL_BASE_B: RB,
+      RELAY_KEY: "test-relay-key",
+    };
+    fetchMock.get(RA).intercept({ path: "/v2/lat/55.00/lon/55.00/dist/24" }).replyWithError(new Error("relay-a down"));
+    fetchMock
+      .get(RB)
+      .intercept({ path: "/v2/lat/55.00/lon/55.00/dist/24", headers: { "x-relay-key": "test-relay-key" } })
+      .reply(200, pointBody([makeAc({ hex: "e20001", lat: 55, lon: 55 })]));
+
+    const res = await call(apiRequest("/v1/blips?lat=55&lon=55&r=40"), relayEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol_b");
+    expect(((await res.json()) as { n: number }).n).toBe(1);
+  });
+
   it("rejects bad parameters", async () => {
     expect((await call(apiRequest("/v1/blips?lat=999&lon=8&r=40"))).status).toBe(400);
     expect((await call(apiRequest("/v1/blips?lat=47&lon=8&r=nope"))).status).toBe(400);

@@ -1,6 +1,6 @@
 import type { Env } from "../types";
 import { intEnv } from "../util";
-import { adsbLol, routesetRequest } from "./adsb_lol";
+import { adsbLol, adsbLolB, routesetRequest } from "./adsb_lol";
 import {
   adsbdbAircraftUrl,
   adsbdbHeaders,
@@ -13,22 +13,23 @@ import { airplanesLive } from "./airplanes_live";
 import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed } from "./types";
 
 // The full set of feeds (for health reporting + enablement). Ordering for the
-// actual fetch is per-operation below.
-export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbFi, airplanesLive];
+// actual fetch is per-operation below. adsb_lol + adsb_lol_b are the same data
+// via two dedicated-egress relays (relay-a / relay-b); airplanes.live is
+// prohibited by operator and ships permanently dark (see airplanes_live.ts).
+export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, airplanesLive];
 
-// Per-operation priority, split because the two endpoints fail differently under
-// adsb.lol's keyless shared-egress 429 (a Cloudflare colo egress IP shared across
-// tenants trips adsb.lol's anonymous per-IP limit):
-//   - POSITIONS (/point, high-volume bulk): adsb.lol 429s this near-constantly,
-//     which starved the picture to STALE. airplanes.live isn't limited that way,
-//     so it LEADS for positions; adsb.lol is the fallback.
-//   - METADATA (/hex, low-volume per-tap): adsb.lol carries the ICAO type inline
-//     (airplanes.live often omits it) and 429s far less here, so it stays primary;
-//     airplanes.live + the adsbdb type backfill cover any miss.
-// Only enabled feeds are tried, so where airplanes.live is off (default vars) both
-// orders collapse to adsb.lol-first -- unchanged behaviour.
-const POINT_ORDER: UpstreamAircraftFeed[] = [airplanesLive, adsbLol, adsbFi];
-const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLol, airplanesLive, adsbFi];
+// Per-operation priority. The dedicated-egress relays remove the shared-IP 429
+// that once forced positions to lead with a different feed, so both operations now
+// use the same order: relay-a (primary) -> relay-b (secondary). The trailing feeds
+// are inert -- airplanes.live is prohibited by operator and ships dark, adsb.fi is
+// disabled pending permission -- so `ordered()` filters both away and the enabled
+// chain is just [relay-a, relay-b]. relay-b is then the terminal feed, which the
+// breaker never skips (see the loops below): a relay-a outage FAILS OVER to
+// relay-b rather than blanking the fleet.
+// Only enabled feeds are tried; with the relay URLs unset (dev/test) the chain
+// collapses to a single direct-adsb.lol feed -- unchanged legacy behaviour.
+const POINT_ORDER: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, airplanesLive, adsbFi];
+const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, airplanesLive, adsbFi];
 
 function ordered(env: Env, order: UpstreamAircraftFeed[]): UpstreamAircraftFeed[] {
   return order.filter((f) => f.enabled(env));

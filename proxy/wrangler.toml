@@ -9,7 +9,11 @@
 #
 # Secrets (per environment, never in this file):
 #   npx wrangler secret put BLIP_KEYS --env staging          # comma-separated device keys
-#   npx wrangler secret put ADSB_LOL_API_KEY --env staging   # optional, when adsb.lol issues keys
+#   npx wrangler secret put RELAY_KEY --env staging          # X-Relay-Key -> our egress relay (see relay/)
+#   npx wrangler secret put ADSB_LOL_API_KEY --env staging   # optional, if adsb.lol ever issues feeder keys
+#
+# Upstream base URLs are per-env VARS (below), not secrets -- they are the relay
+# hostnames (relay-a/relay-b.valarsystems.com), which are public DNS.
 
 name = "blipscope-proxy"
 main = "src/index.ts"
@@ -25,8 +29,10 @@ compatibility_date = "2025-12-01"
 account_id = "48822e896bb10c45aa6bfe139bcff3d1"
 
 [vars]
+# NB: no UPSTREAM_ADSB_LOL_BASE here -- top-level config is what tests/dev use, and
+# they must fall back to api.adsb.lol direct. The relay URLs live per-env below.
 UPSTREAM_ADSB_FI_ENABLED = "false"        # flip to "true" once commercial permission clears
-UPSTREAM_AIRPLANES_LIVE_ENABLED = "false" # flip to "true" once commercial permission clears
+UPSTREAM_AIRPLANES_LIVE_ENABLED = "false" # DEAD no-op: airplanes.live is prohibited by operator (hardcoded off)
 ROUTE_ADSBDB_ENABLED = "true"             # route fallback; "false" once adsb.lol routeset recovers
 
 [[kv_namespaces]]
@@ -50,14 +56,15 @@ routes = [
   { pattern = "scopes-staging.valarsystems.com", custom_domain = true }
 ]
 
-# Failover feeds enabled 2026-07-10 (user ruling) during a multi-hour adsb.lol
-# hard outage (502 from Worker AND residential -- their backend, not throttling).
-# Permission emails to both operators remain the licensing to-do; staging traffic
-# is bench-scale (single-digit devices).
 [env.staging.vars]
-# LICENSED-ONLY as of 2026-07-21 -- staging mirrors production so it stays a valid
-# pre-flight rig. See "Upstream licensing posture" in README.md before re-enabling
-# either of these.
+# adsb.lol reached via the DEDICATED-EGRESS RELAYS (see relay/). relay-a primary,
+# relay-b secondary -> HA through the failover chain. Requires the RELAY_KEY
+# secret set on this env (npx wrangler secret put RELAY_KEY --env staging).
+UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
+UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
+# adsb.fi disabled (permission never granted). airplanes.live is PROHIBITED by
+# operator (written refusal) and hardcoded off in code -- this var is a dead
+# no-op. See "Upstream licensing posture" in README.md.
 UPSTREAM_ADSB_FI_ENABLED = "false"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
@@ -117,23 +124,22 @@ routes = [
   { pattern = "scopes.valarsystems.com", custom_domain = true }
 ]
 
-# Failover feeds OFF at launch: adsb.lol is the licensed primary; adsb.fi and
-# airplanes.live stay disabled until their operators grant commercial use (the
-# open licensing to-do). Flip to "true" per feed only once permission clears.
-[env.production.vars]
-# LICENSED-ONLY as of 2026-07-21. adsb.lol (ODbL 1.0) is the only upstream cleared
-# for commercial use, so it is the only one enabled.
+# adsb.lol via the DEDICATED-EGRESS RELAYS is the whole upstream story at launch.
+# The relays (dedicated IPs) are what make adsb.lol-only viable: they end the
+# Cloudflare shared-egress 429 that starved the picture to STALE. relay-a primary,
+# relay-b secondary -> HA through the failover chain.
 #
-# The 2026-07-18 bench soak ran with both failovers ON (owner-approved, private) to
-# survive adsb.lol's shared-egress 429s. That was always scoped to the bench, and
-# shipping pilot boards makes it customer traffic -- so it ends here, ahead of the
-# flash rather than after it.
-#   adsb.fi        -- never granted permission; also 403s our egress.
-#   airplanes.live -- replied with PAID terms ($50/mo indie key, attribution +
-#                     splash-screen branding). Undecided, and their FREE API is not
-#                     being used while that is unresolved.
-# Re-enable ONLY on a written commercial grant (or a paid plan) for the feed in
-# question. See "Upstream licensing posture" in README.md.
+# CUTOVER (do AFTER staging verify -- see README verification sequence):
+#   1. npx wrangler secret put RELAY_KEY --env production
+#   2. npx wrangler deploy --env production   <- this deploy IS the cutover
+[env.production.vars]
+UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
+UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
+#   adsb.fi        -- disabled; permission never granted; also 403s our egress.
+#   airplanes.live -- PROHIBITED by operator: written refusal ("do not use our
+#                     data"), dated July 2026. Hardcoded off in airplanes_live.ts;
+#                     the var below is a dead no-op. NOT a reserve option -- off the
+#                     table, not undecided. See "Upstream licensing posture".
 UPSTREAM_ADSB_FI_ENABLED = "false"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"

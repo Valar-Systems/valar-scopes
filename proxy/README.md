@@ -12,8 +12,13 @@ load onto them.
 ```
 device ──HTTPS keep-alive──> Worker ──> edge cache (blips, 3 s + SWR)
                                    ──> KV (enrich 30 d/24 h, fleet config)
-                                   ──> adsb.lol (primary; adsb.fi / airplanes.live ship disabled)
+                                   ──> relay-a ─┐ (dedicated-egress nginx cache) ──> adsb.lol
+                                   ──> relay-b ─┘ (HA failover; see relay/)
 ```
+
+The Worker never hits `api.adsb.lol` directly in production: Cloudflare's shared
+egress IP gets 429'd, so two dedicated-IP relays (relay-a primary, relay-b
+secondary) poll adsb.lol and the Worker consumes from them. See [relay/](../relay/).
 
 ## Data sources & licensing
 
@@ -35,22 +40,30 @@ device ──HTTPS keep-alive──> Worker ──> edge cache (blips, 3 s + SWR
   stays on adsb.lol). Empty routeset answers fall through to adsbdb; only
   definitive answers (from either source) are negative-cached. Disable the
   fallback with `ROUTE_ADSBDB_ENABLED = "false"` once routeset recovers.
-- **adsb.fi and airplanes.live adapters ship DISABLED** (`UPSTREAM_*_ENABLED`
-  vars) pending commercial permission from their operators. Until then the
-  outage story is: circuit breaker → stale-while-revalidate serves the last
-  picture (stamped with its original `t`) → devices show their stale indicator.
+- **airplanes.live is PROHIBITED by operator** (written refusal, July 2026) and
+  ships permanently dark — hardcoded off in `airplanes_live.ts`, not a reserve
+  option. **adsb.fi** ships disabled pending permission (and 403s our egress).
+  With adsb.lol reached via the relays, the outage story is: relay-a fails over
+  to relay-b; if both are down the circuit breaker → stale-while-revalidate
+  serves the last picture (stamped with its original `t`) → devices show their
+  stale indicator, then the firmware's stale ladder escalates.
 
 ### Upstream licensing posture
 
-**As of 2026-07-21, both staging and production run adsb.lol-only.** The state of
-each upstream, and precisely what would change it:
+**Staging and production run adsb.lol-only, reached via the dedicated-egress
+relays** ([relay/](../relay/)). The relays are what make adsb.lol-only viable —
+they end the Cloudflare shared-egress 429. The state of each upstream:
 
 | upstream | status | why | to enable |
 | --- | --- | --- | --- |
-| **adsb.lol** | **ENABLED** | ODbL 1.0 explicitly permits commercial use with attribution. The only cleared source. | already on |
-| **airplanes.live** | DISABLED | Operator replied with **paid** terms: ~$50/mo indie key, requiring attribution **and splash-screen branding**. Undecided as of 2026-07-21; the decision was deferred ~2 weeks. Their *free* API is deliberately NOT used while that is unresolved — using it during a pricing negotiation is not a position worth being in. | a signed paid plan, or written commercial grant |
+| **adsb.lol** (via relay-a / relay-b) | **ENABLED** | ODbL 1.0 explicitly permits commercial use with attribution. The only cleared source. Polled from dedicated relay IPs, not Cloudflare's shared egress. | already on |
+| **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated July 2026. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
 | **adsb.fi** | DISABLED | Permission never granted. Separately, it **403s our Cloudflare egress** anyway. | written commercial grant *and* fixing the 403 |
 | **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
+
+**Relay IPs are announced to adsb.lol** as a courtesy identification (we run a
+feeder). Current relay IPs: relay-a = Hetzner, Hillsboro OR; relay-b = Vultr,
+Seattle WA. Keep this current when relays change.
 
 **History, so this isn't re-litigated:** both failovers were switched ON
 2026-07-18 (owner-approved) for a *private bench soak*, because adsb.lol's
@@ -704,15 +717,19 @@ free ADS-B APIs rate-limit anonymously by IP — so our requests can be 429'd
 because of *other tenants'* traffic, in bursts lasting seconds to minutes,
 regardless of our own volume. Observed live from colo SEA against **both**
 adsb.lol (`/v2/lat`, `/v2/hex`) and adsbdb (`/v0/callsign`) while the same
-queries returned 200 from a residential IP. Mitigations already in the Worker:
+queries returned 200 from a residential IP. Mitigations in the Worker:
 retry ladders (2 attempts on `/v2/lat`, 3 on `/v2/hex` and the adsbdb route
 path, linear backoff), SWR serving stale through bursts, the warming responses
-above, and KV meaning any enrichment that lands once is fleet-shared for its
-TTL. The real fix is the **adsb.lol API key** (`ADSB_LOL_API_KEY` secret, sent
-as `X-Api-Key`): treat obtaining one via their feeder program as a **launch
-requirement**, not an optimization — and enabling one failover feed (pending
-permission) de-risks the rest. adsbdb has no key program; routes converge
-through throttle gaps and stay cached 24 h once landed.
+above, and KV meaning any enrichment that lands once is fleet-shared for its TTL.
+
+**The real fix is the dedicated-egress relay** ([relay/](../relay/)): adsb.lol is
+now polled from our own stable IPs, not Cloudflare's shared pool, so the
+*other-tenant* 429 disappears. (The once-hoped adsb.lol API key turned out not to
+exist — it is on their roadmap, not available — so it is **not** the fix; the
+relay is.) adsbdb enrichment/route calls still egress from Cloudflare directly, so
+they keep the retry/SWR mitigations; if adsbdb throttling becomes launch-relevant
+it moves behind a relay too. Routes converge through throttle gaps and stay cached
+24 h once landed.
 
 ## Testing
 
