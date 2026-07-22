@@ -24,11 +24,15 @@
 set -euo pipefail
 
 # ---- tunables ---------------------------------------------------------------
-# THE scaling knob. adsb.lol request rate ~= (distinct hot tiles) / CACHE_TTL,
-# independent of device count. 6s keeps a desk radar current (the device
-# dead-reckons between polls) while collapsing the fleet to a trickle. Raise it
-# if the soak shows adsb.lol throttling one IP at our volume; lower for freshness.
-CACHE_TTL="${CACHE_TTL:-6s}"
+# THE scaling knob. adsb.lol upstream fetch rate ~= (distinct hot tiles) / CACHE_TTL,
+# independent of device count (the fleet collapses to one fetch per tile per TTL).
+# 15s because adsb.lol throttles the anon API to ~12 KB/s, so a busy tile's fetch
+# takes up to ~16s; keeping TTL >= the worst fetch time means a background refresh
+# finishes before the next is due (no overlap, no pile-up). Devices still see a
+# live picture -- background_update serves the cached tile instantly and the device
+# dead-reckons between updates. Lower for freshness ONLY if fetches are fast (small
+# radius); raise if a soak shows overlap or throttling.
+CACHE_TTL="${CACHE_TTL:-15s}"
 
 UPSTREAM_HOST="api.adsb.lol"
 CERT="/etc/ssl/cloudflare/origin.pem"
@@ -104,26 +108,33 @@ proxy_ignore_headers Cache-Control Expires Set-Cookie;
 # Collapse concurrent identical requests into ONE upstream fetch.
 proxy_cache_lock on;
 proxy_cache_lock_timeout 6s;
-# Absorb adsb.lol flakiness here: serve last-good while refreshing / on 429/5xx.
+# Absorb adsb.lol slowness here: serve last-good instantly while a refresh runs.
 # ONLY 200s are cached (per location) -- a 429 is never cached, it falls through
 # to this use_stale, which serves the last good response.
 #
-# REFRESH IN THE FOREGROUND, not via proxy_cache_background_update. Background
-# updates wedged entries permanently in "UPDATING": a stale hit fired one async
-# refresh, nginx then served stale to everyone WITHOUT firing another, and if that
-# lone subrequest hung (observed: 7s+ for a 0.27s upstream, a known interaction
-# with proxy_cache_lock) the tile froze forever -- fresh data never landed. With
-# no `background_update`, a stale entry is refreshed by the requesting client
-# (upstream is ~0.27s, imperceptible); `use_stale updating` lets CONCURRENT
-# requests serve stale instantly while that one refresh runs, and proxy_cache_lock
-# still collapses the fleet into a single upstream fetch per TTL. Nothing can stick
-# in UPDATING because there is no orphan async subrequest to hang.
+# adsb.lol bandwidth-throttles the ANONYMOUS API to ~100 kbit/s (~12 KB/s), measured
+# identically from both relays AND an unrelated home ISP -- a server-side egress cap,
+# not a per-IP limit we can escape. A busy 160 km tile is ~187 KB => a full fetch
+# takes ~16 s (rural tiles are ~1 KB => instant). The relay's whole job is to make
+# that invisible: the fleet's polls collapse to ONE upstream fetch per tile per TTL,
+# and `background_update` serves the cached tile INSTANTLY while that slow fetch runs
+# out of band, so no device ever waits on adsb.lol. use_stale `updating` covers the
+# concurrent requests during a refresh; the fetch stays stale-until-fresh so a device
+# never sees a gap.
+#
+# The earlier "stuck in UPDATING" wedge was NOT a hang -- it was proxy_read_timeout
+# (15 s) landing ~0.1 s SHORT of the 15.7 s throttled body, so every background
+# refresh timed out before caching a fresh 200 and re-fired forever. proxy_read_timeout
+# is now 30 s (below) so the throttled body completes and caches. Keep the requested
+# radius bounded (see the Worker's R_BUCKETS_KM) so no single fetch approaches 30 s.
 proxy_cache_use_stale updating error timeout http_429 http_500 http_502 http_503 http_504;
+proxy_cache_background_update on;
 add_header X-Relay-Cache $upstream_cache_status always;
 # Orange-clouded: tell the CF edge NOT to add its own cache (Worker ignores this).
 add_header Cache-Control "no-store" always;
 proxy_connect_timeout 5s;
-proxy_read_timeout 15s;   # busy-basin tiles measured ~12s; SWR serves stale meanwhile
+proxy_read_timeout 30s;   # anon throttle ~12 KB/s; a 187 KB busy tile is ~16s. Must
+                          # exceed the worst throttled body or bg refresh never caches.
 NGINX
 
 # ---- relay vhost ------------------------------------------------------------
