@@ -154,8 +154,11 @@ proxy_cache_path /var/cache/nginx/adsblol levels=1:2 keys_zone=adsblol:10m
 # Log adsb.lol's OWN status (ustatus) + our cache status, so the soak measures the
 # one honest unknown -- the real per-IP 429 rate -- from these logs:
 #   grep -c 'ustatus=429' /var/log/nginx/relay.log
+# `warm=$http_x_warm` tags the tile warmer's own requests (it sends X-Warm: 1) so the
+# warmer can EXCLUDE them when it scans the log for tiles to keep warm -- otherwise it
+# would keep warming a tile forever after every real device stopped asking for it.
 log_format relay '$time_iso8601 cache=$upstream_cache_status status=$status '
-                 'ustatus=$upstream_status rt=$request_time uri="$request_uri"';
+                 'ustatus=$upstream_status rt=$request_time warm=$http_x_warm uri="$request_uri"';
 
 server {
     listen 443 ssl;
@@ -202,6 +205,65 @@ sed -i "s/__CACHE_TTL__/$CACHE_TTL/" "$SITE"
 ln -sf "$SITE" /etc/nginx/sites-enabled/relay
 rm -f /etc/nginx/sites-enabled/default
 
+# ---- tile warmer ------------------------------------------------------------
+# Keeps recently-requested /v2/lat tiles warm PROACTIVELY, so a client (the Worker)
+# always hits a fresh cache entry instead of being the one to trigger the slow
+# (~4-16 s, throttled) foreground refresh. That matters because the Worker gets its
+# stale answer instantly and disconnects, which under sparse polling would orphan the
+# refresh and let staleness climb. The warmer's own curl WAITS for the full response,
+# so the refresh always lands; clients then ride the warm cache. Upstream fetch rate is
+# unchanged -- still one fetch per distinct hot tile per TTL -- just decoupled from
+# client timing. It seeds ONLY from real client requests (grep -v warm=1), so a tile
+# ages out of the warm set once no device is asking for it.
+log "installing tile warmer (systemd: blipscope-warm)"
+cat > /usr/local/bin/blipscope-warm.sh <<'WARM'
+#!/usr/bin/env bash
+set -u
+KEYF=/etc/nginx/relay.key
+LOG=/var/log/nginx/relay.log
+# Warm a touch faster than the tile TTL so a client rarely meets an expired tile.
+INTERVAL="${WARM_INTERVAL:-3}"
+# Only tiles a real client asked for in this recent window stay warm.
+WINDOW_LINES="${WARM_WINDOW_LINES:-400}"
+while true; do
+  KEY=$(tr -d ' \t\r\n' < "$KEYF" 2>/dev/null || true)
+  if [ -n "${KEY:-}" ] && [ -r "$LOG" ]; then
+    # Distinct /v2/lat tiles from recent REAL client lines (exclude our own warm=1).
+    tiles=$(tail -n "$WINDOW_LINES" "$LOG" 2>/dev/null \
+            | grep -v 'warm=1' \
+            | grep -oE '/v2/lat/[0-9.-]+/lon/[0-9.-]+/dist/[0-9]+' \
+            | sort -u)
+    for t in $tiles; do
+      curl -s -o /dev/null --max-time 25 \
+           -H "X-Relay-Key: $KEY" -H "X-Warm: 1" \
+           --resolve localhost:443:127.0.0.1 -k "https://localhost${t}" || true
+    done
+  fi
+  sleep "$INTERVAL"
+done
+WARM
+chmod 755 /usr/local/bin/blipscope-warm.sh
+
+cat > /etc/systemd/system/blipscope-warm.service <<'UNIT'
+[Unit]
+Description=Blipscope relay tile warmer
+After=nginx.service
+Wants=nginx.service
+
+[Service]
+ExecStart=/usr/local/bin/blipscope-warm.sh
+Restart=always
+RestartSec=5
+User=root
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable blipscope-warm >/dev/null 2>&1 || true
+
 # ---- firewall ---------------------------------------------------------------
 # Allow SSH BEFORE enabling ufw so we can't lock ourselves out.
 log "configuring ufw (22 + 443-from-Cloudflare)"
@@ -219,6 +281,8 @@ done
 log "nginx -t"
 nginx -t
 systemctl reload nginx
+# (Re)start the warmer AFTER nginx is serving the new config.
+systemctl restart blipscope-warm >/dev/null 2>&1 || true
 systemctl enable nginx >/dev/null 2>&1 || true
 
 log "done. verify:"
