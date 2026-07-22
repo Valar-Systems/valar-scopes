@@ -26,13 +26,15 @@ set -euo pipefail
 # ---- tunables ---------------------------------------------------------------
 # THE scaling knob. adsb.lol upstream fetch rate ~= (distinct hot tiles) / CACHE_TTL,
 # independent of device count (the fleet collapses to one fetch per tile per TTL).
-# 15s because adsb.lol throttles the anon API to ~12 KB/s, so a busy tile's fetch
-# takes up to ~16s; keeping TTL >= the worst fetch time means a background refresh
-# finishes before the next is due (no overlap, no pile-up). Devices still see a
-# live picture -- background_update serves the cached tile instantly and the device
-# dead-reckons between updates. Lower for freshness ONLY if fetches are fast (small
-# radius); raise if a soak shows overlap or throttling.
-CACHE_TTL="${CACHE_TTL:-15s}"
+# 8s: the device flags "stale" past staleFactor(3) x poll interval = 15s on an ACTIVE
+# (5s) poll, so the data it receives must stay well under 15s old. TTL is the floor on
+# how fresh a tile can be; 8s keeps a rural tile (small body, ~4s foreground fetch)
+# refreshing fast enough that the device sees ~10-15s-old data. It is NOT a pile-up
+# risk: refresh is foreground + proxy_cache_lock, so a busy tile whose fetch (~16s)
+# exceeds the TTL just refreshes at its fetch rate (one at a time) while use_stale
+# serves the rest -- the TTL is a floor, the throttle is the real ceiling. Lower for
+# freshness; raise only if a soak shows adsb.lol 429ing at our fetch rate.
+CACHE_TTL="${CACHE_TTL:-8s}"
 
 UPSTREAM_HOST="api.adsb.lol"
 CERT="/etc/ssl/cloudflare/origin.pem"
@@ -115,20 +117,26 @@ proxy_cache_lock_timeout 6s;
 # adsb.lol bandwidth-throttles the ANONYMOUS API to ~100 kbit/s (~12 KB/s), measured
 # identically from both relays AND an unrelated home ISP -- a server-side egress cap,
 # not a per-IP limit we can escape. A busy 160 km tile is ~187 KB => a full fetch
-# takes ~16 s (rural tiles are ~1 KB => instant). The relay's whole job is to make
-# that invisible: the fleet's polls collapse to ONE upstream fetch per tile per TTL,
-# and `background_update` serves the cached tile INSTANTLY while that slow fetch runs
-# out of band, so no device ever waits on adsb.lol. use_stale `updating` covers the
-# concurrent requests during a refresh; the fetch stays stale-until-fresh so a device
-# never sees a gap.
+# takes ~16 s (rural tiles are ~1 KB => instant). The relay makes that invisible by
+# COLLAPSING the fleet to one upstream fetch per tile per TTL and serving stale in the
+# meantime -- but the refresh runs in the FOREGROUND, NOT via background_update.
 #
-# The earlier "stuck in UPDATING" wedge was NOT a hang -- it was proxy_read_timeout
-# (15 s) landing ~0.1 s SHORT of the 15.7 s throttled body, so every background
-# refresh timed out before caching a fresh 200 and re-fired forever. proxy_read_timeout
-# is now 30 s (below) so the throttled body completes and caches. Keep the requested
-# radius bounded (see the Worker's R_BUCKETS_KM) so no single fetch approaches 30 s.
+# background_update ORPHANS the refresh under sparse polling: nginx serves the stale
+# copy instantly, the triggering client disconnects, and the in-flight update subrequest
+# is cut short before it caches. A tile polled every ~15 s then re-serves stale and
+# re-orphans forever (observed: a tile stuck 21 min stale while the device polled it
+# every 15 s; only a 5 s curl loop kept a refresh alive long enough to land). Foreground
+# has no orphan: the request that finds the tile stale DOES the fetch and waits for it,
+# so fresh data always lands. use_stale `updating` serves any CONCURRENT requests stale
+# while that one fetch runs, so only the single refreshing request waits. And the wait is
+# invisible: the Worker's revalidation runs in ctx.waitUntil (the device already has its
+# instant answer from the Worker cache), so the relay can take 4-16 s to return fresh.
+#
+# The earlier "stuck in UPDATING" wedge was proxy_read_timeout (15 s) landing ~0.1 s
+# SHORT of the 15.7 s throttled body, so a refresh timed out before caching and re-fired
+# forever. read_timeout is now 30 s (below) so the throttled body completes. Keep the
+# requested radius bounded (Worker R_BUCKETS_KM) so no single fetch approaches 30 s.
 proxy_cache_use_stale updating error timeout http_429 http_500 http_502 http_503 http_504;
-proxy_cache_background_update on;
 add_header X-Relay-Cache $upstream_cache_status always;
 # Orange-clouded: tell the CF edge NOT to add its own cache (Worker ignores this).
 add_header Cache-Control "no-store" always;
