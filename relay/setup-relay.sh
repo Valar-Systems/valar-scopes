@@ -107,8 +107,18 @@ proxy_cache_lock_timeout 6s;
 # Absorb adsb.lol flakiness here: serve last-good while refreshing / on 429/5xx.
 # ONLY 200s are cached (per location) -- a 429 is never cached, it falls through
 # to this use_stale, which serves the last good response.
+#
+# REFRESH IN THE FOREGROUND, not via proxy_cache_background_update. Background
+# updates wedged entries permanently in "UPDATING": a stale hit fired one async
+# refresh, nginx then served stale to everyone WITHOUT firing another, and if that
+# lone subrequest hung (observed: 7s+ for a 0.27s upstream, a known interaction
+# with proxy_cache_lock) the tile froze forever -- fresh data never landed. With
+# no `background_update`, a stale entry is refreshed by the requesting client
+# (upstream is ~0.27s, imperceptible); `use_stale updating` lets CONCURRENT
+# requests serve stale instantly while that one refresh runs, and proxy_cache_lock
+# still collapses the fleet into a single upstream fetch per TTL. Nothing can stick
+# in UPDATING because there is no orphan async subrequest to hang.
 proxy_cache_use_stale updating error timeout http_429 http_500 http_502 http_503 http_504;
-proxy_cache_background_update on;
 add_header X-Relay-Cache $upstream_cache_status always;
 # Orange-clouded: tell the CF edge NOT to add its own cache (Worker ignores this).
 add_header Cache-Control "no-store" always;
