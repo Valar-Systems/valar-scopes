@@ -101,7 +101,8 @@ log_format relay '$time_iso8601 cache=$upstream_cache_status status=$status '
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
-    http2 on;
+    # (no HTTP/2: not needed for a machine-to-machine proxy, and the standalone
+    # `http2 on;` directive only exists in nginx >= 1.25.1; Ubuntu 24.04 ships 1.24.)
     server_name _;
 
     ssl_certificate     /etc/ssl/cloudflare/origin.pem;
