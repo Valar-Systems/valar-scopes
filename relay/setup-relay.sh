@@ -180,13 +180,21 @@ server {
     # Re-resolve api.adsb.lol periodically (its IP can move).
     resolver 1.1.1.1 8.8.8.8 valid=300s ipv6=off;
 
-    # Aircraft METADATA (/v2/hex) is static -- type/reg don't change -- and an
-    # enrichment sweep asks for many distinct hexes at once. Cache it LONG so each
-    # hex hits adsb.lol at most ~once/hour instead of every tile TTL. This is what
-    # stops the /v2/hex 429 storm that was also starving tile revalidation.
+    # Aircraft METADATA (/v2/hex) is IMMUTABLE on human timescales -- type/reg/operator
+    # change only on re-registration (months). The Worker's 30-day fleet KV is the real
+    # authority and fetches a hex ONLY on a KV miss (never-seen airframe); this cache is
+    # the second line. Cache 200s for 24h so a re-seen hex never re-hits adsb.lol.
+    #
+    # NEGATIVE-CACHE the 429 (60s hold-down): the storm was a 429'd hex caching nothing,
+    # so every poll re-fired it -- ~94% sustained 429 from one device. Caching the 429
+    # for 60s means a 429 makes the next upstream attempt LATER, never sooner. use_stale
+    # (http_429, in the snippet) still shields any hex we HAVE seen -- it serves the
+    # cached 200 and the 429 is not stored; the 60s hold-down only applies to a
+    # never-seen hex that has no good copy to fall back to.
     location ^~ /v2/hex/ {
         include /etc/nginx/snippets/relay-upstream.conf;
-        proxy_cache_valid 200 1h;
+        proxy_cache_valid 200 24h;
+        proxy_cache_valid 429 60s;
     }
 
     # Live POSITIONS (/v2/lat), routeset, everything else: short TTL for a fresh

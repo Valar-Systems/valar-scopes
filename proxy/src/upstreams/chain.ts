@@ -18,20 +18,20 @@ import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed }
 // prohibited by operator and ships permanently dark (see airplanes_live.ts).
 export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, airplanesLive];
 
-// Per-operation priority, deliberately SHARDED across the two relay IPs to stay under
-// adsb.lol's per-IP rate limit. Positions (/v2/lat) and enrichment (/v2/hex) are the
-// two roughly-equal sources of upstream load; sending both through one IP pushed ~40%
-// of fetches into 429 (use_stale covered it, but it's the scaling ceiling). So POINT
-// leads with relay-a and HEX leads with relay-b -- each IP carries ~one workload, so
-// its request rate to adsb.lol roughly halves. Each order still lists BOTH relays, so
-// the load simply fails over to the other IP if one relay is down (the second-listed
-// relay is the terminal feed, which the breaker never skips -- see the loops below).
-// The trailing feeds are inert (airplanes.live prohibited + dark, adsb.fi disabled),
-// so `ordered()` filters them; with the relay URLs unset (dev/test) each chain
-// collapses to a single direct-adsb.lol feed -- unchanged legacy behaviour.
-// To add headroom: stand up more relay IPs and extend these orders (see relay/README).
+// Per-operation priority: both operations use relay-a (primary) -> relay-b (failover).
+// The two relays are a good-citizen PRIMARY + FAILOVER pair, NOT a load-split to defeat
+// adsb.lol's per-IP limit -- collapsed, gentle traffic through one IP with the other
+// as hot standby. (An earlier build sharded hex onto relay-b to halve per-IP load; that
+// was the wrong fix. The right fix is not hammering adsb.lol at all -- KV-authoritative
+// enrichment + negative caching + watchlist-only background, see enrich.ts and the
+// relay's /v2/hex hold-down. Scaling headroom via an IP farm is an explicit non-goal.)
+// relay-b is the terminal feed, which the breaker never skips (see the loops below), so
+// a relay-a outage fails over rather than blanking the fleet. The trailing feeds are
+// inert (airplanes.live prohibited + dark, adsb.fi disabled), so `ordered()` filters
+// them; with the relay URLs unset (dev/test) each chain collapses to a single
+// direct-adsb.lol feed -- unchanged legacy behaviour.
 const POINT_ORDER: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, airplanesLive, adsbFi];
-const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLolB, adsbLol, airplanesLive, adsbFi];
+const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, airplanesLive, adsbFi];
 
 function ordered(env: Env, order: UpstreamAircraftFeed[]): UpstreamAircraftFeed[] {
   return order.filter((f) => f.enabled(env));
