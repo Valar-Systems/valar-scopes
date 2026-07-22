@@ -168,9 +168,9 @@
   {
     "target": "B738",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Ryanair_-_Boeing_737-800_-_EI-DCW_-_Orio_al_Serio_International_Airport-7869.jpg",
-    "author": "Raimond Spekking",
-    "credit": "Ryanair - Boeing 737-800 - EI-DCW - Orio al Serio International Airport-7869",
+    "source": "https://commons.wikimedia.org/wiki/File:American_Boeing_737-800_N359PX_BWI_MD1.jpg",
+    "author": "Acroterion",
+    "credit": "American Boeing 737-800 N359PX BWI MD1",
     "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
@@ -180,13 +180,14 @@
   {
     "target": "A320",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Lufthansa_A320-211_(D-AIPC)_landing_at_Munich_Airport.jpg",
-    "author": "Alessandro Caproni",
-    "credit": "Lufthansa A320-211 (D-AIPC) landing at Munich Airport",
-    "license": "CC BY 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Delta_Airbus_A320_N317US_BWI_MD1.jpg",
+    "author": "Acroterion",
+    "credit": "Delta Airbus A320 N317US BWI MD1",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
-    "file": "src/a320.jpg"
+    "file": "src/a320.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "A321",
@@ -202,10 +203,10 @@
   {
     "target": "B77W",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Emirates_Boeing_777-31HER_A6-EBZ_Landing_(8042290513).jpg",
-    "author": "Faisal Akram from Dhaka, Bangladesh",
-    "credit": "Emirates Boeing 777-31HER A6-EBZ Landing (8042290513)",
-    "license": "CC BY-SA 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:United_Boeing_777-300ER_N2136U_IAD_VA2.jpg",
+    "author": "Acroterion",
+    "credit": "United Boeing 777-300ER N2136U IAD VA2",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
     "file": "src/b77w.jpg",
@@ -408,13 +409,14 @@
   {
     "target": "A319",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Lufthansa_A319-114_(D-AILI)_landing_at_London_Heathrow_Airport.jpg",
-    "author": "Adrian Pingstone (Arpingstone)",
-    "credit": "Lufthansa A319-114 (D-AILI) landing at London Heathrow Airport",
-    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:United_Airbus_A319_N805UA_BWI_MD1.jpg",
+    "author": "Acroterion",
+    "credit": "United Airbus A319 N805UA BWI MD1",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
-    "file": "src/a319.jpg"
+    "file": "src/a319.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "A21N",

@@ -189,13 +189,15 @@
     "target": "B738",
     "kind": "type",
     "layer": "auto",
-    "title": "File:Ryanair - Boeing 737-800 - EI-DCW - Orio al Serio International Airport-7869.jpg"
+    "title": "File:American Boeing 737-800 N359PX BWI MD1.jpg",
+    "autoPicked": false
   },
   {
     "target": "A320",
     "kind": "type",
     "layer": "auto",
-    "title": "File:Lufthansa A320-211 (D-AIPC) landing at Munich Airport.jpg"
+    "title": "File:Delta Airbus A320 N317US BWI MD1.jpg",
+    "autoPicked": false
   },
   {
     "target": "A321",
@@ -207,7 +209,8 @@
     "target": "B77W",
     "kind": "type",
     "layer": "auto",
-    "title": "File:Emirates Boeing 777-31HER A6-EBZ Landing (8042290513).jpg"
+    "title": "File:United Boeing 777-300ER N2136U IAD VA2.jpg",
+    "autoPicked": false
   },
   {
     "target": "B789",
@@ -261,7 +264,8 @@
     "target": "A319",
     "kind": "type",
     "layer": "auto",
-    "title": "File:Lufthansa A319-114 (D-AILI) landing at London Heathrow Airport.jpg"
+    "title": "File:United Airbus A319 N805UA BWI MD1.jpg",
+    "autoPicked": false
   },
   {
     "target": "A21N",
