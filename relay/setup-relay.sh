@@ -7,6 +7,9 @@
 #   - installs nginx (apt) + unattended-upgrades
 #   - writes the caching relay vhost: proxy_cache + cache_lock, use_stale on
 #     error/timeout/429, TTL a clearly-marked tunable (CACHE_TTL, starts 6s)
+#   - serves TWO upstreams: adsb.lol at the root (the shipping source) and
+#     adsb.fi under /fi (bench measurement only -- licence-blocked, see below),
+#     each in its own cache zone but under identical TTL/hold-down policy
 #   - X-Relay-Key gate: 403 unless the caller presents the key, read from a
 #     ROOT-ONLY file (never in this script or in git)
 #   - installs the Cloudflare Origin certificate for TLS (443)
@@ -36,6 +39,12 @@ set -euo pipefail
 # freshness; raise only if a soak shows adsb.lol 429ing at our fetch rate.
 CACHE_TTL="${CACHE_TTL:-8s}"
 
+# Tile TTL for the /fi50 experiment path only (see the location block below).
+# The Worker's BLIPS_FEED_MAX_AGE_MS must satisfy N >= 2 x this + 25s, or every
+# fetch on this path looks degraded and the chain walks all feeds every request.
+FI50_TTL="${FI50_TTL:-50s}"
+FI25_TTL="${FI25_TTL:-25s}"
+
 UPSTREAM_HOST="api.adsb.lol"
 CERT="/etc/ssl/cloudflare/origin.pem"
 KEY="/etc/ssl/cloudflare/origin.key"
@@ -43,6 +52,12 @@ RELAY_KEY_FILE="/etc/nginx/relay.key"
 KEY_MAP="/etc/nginx/conf.d/00-relay-key.conf"
 SITE="/etc/nginx/sites-available/relay"
 CACHE_DIR="/var/cache/nginx/adsblol"
+# Second upstream, served under the /fi path prefix: adsb.fi. BENCH MEASUREMENT
+# ONLY -- their terms are personal/non-commercial with no redistribution right, so
+# the Worker ships with this source disabled (see proxy/src/upstreams/adsb_fi.ts).
+# Its own cache zone so the two upstreams can be sized, inspected and dropped
+# independently -- deleting adsb.fi must never cost us a warm adsb.lol tile.
+CACHE_DIR_FI="/var/cache/nginx/adsbfi"
 
 log() { printf '\033[1;36m[relay]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[relay] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -87,8 +102,9 @@ EOF
 umask 022
 unset RELAY_KEY_VALUE
 
-# ---- cache dir --------------------------------------------------------------
-mkdir -p "$CACHE_DIR"; chown www-data:www-data "$CACHE_DIR"
+# ---- cache dirs -------------------------------------------------------------
+mkdir -p "$CACHE_DIR" "$CACHE_DIR_FI"
+chown www-data:www-data "$CACHE_DIR" "$CACHE_DIR_FI"
 
 # ---- shared upstream proxy directives (included by each location) -----------
 # Factored out so the two locations below differ ONLY in cache TTL. Quoted
@@ -145,17 +161,74 @@ proxy_read_timeout 30s;   # anon throttle ~12 KB/s; a 187 KB busy tile is ~16s. 
                           # exceed the worst throttled body or bg refresh never caches.
 NGINX
 
+# ---- adsb.fi upstream snippet (served under /fi) ----------------------------
+# Same shape as the adsb.lol snippet above: same key gate, same collapsing, same
+# use_stale, same "a 429 makes the next attempt LATER, never sooner" principle.
+# It differs in exactly three ways, all forced by the upstream:
+#
+#  1. PATH REWRITE. adsb.fi's API lives under /api, so /fi/v3/... -> /api/v3/....
+#     $request_uri (the CACHE KEY) keeps the original /fi/... form, so the two
+#     upstreams can never collide on a key even if they shared a zone.
+#  2. ITS OWN CACHE ZONE (adsbfi). Independent sizing + a clean "drop adsb.fi"
+#     story that cannot evict a warm adsb.lol tile.
+#  3. SHORTER read timeout. adsb.fi is NOT bandwidth-capped -- measured ~90 KB/s
+#     from both relays (27 KB tile in ~0.30 s) vs adsb.lol's ~12 KB/s anon cap --
+#     so 30 s of patience buys nothing here; a slow response means trouble, and
+#     failing fast keeps a stuck fetch from occupying the cache lock.
+#
+# RATE LIMIT -- the binding constraint, read before touching CACHE_TTL:
+# adsb.fi's public limit is 1 req/s PER IP, and 400/401/403/404/429 responses
+# COUNT TOWARD IT (their docs), so a re-firing 429 doesn't just fail, it digs the
+# hole deeper and earns "a temporary IP address restriction". Upstream rate here
+# is (distinct hot tiles) / CACHE_TTL, so at TTL=8s the ceiling is only ~8 hot
+# tiles per relay. The hold-down below is therefore load-bearing, not courtesy.
+cat > /etc/nginx/snippets/relay-upstream-fi.conf <<'NGINX'
+if ($relay_ok = 0) { return 403; }
+set $upstream_fi "opendata.adsb.fi";
+# Strip our prefix and map onto adsb.fi's /api root. Matches BOTH the normal /fi
+# path and the /fi50 experiment path (this snippet is shared by both locations);
+# $request_uri -- the cache key -- keeps the original prefix, so the two never
+# share a cache entry.
+rewrite ^/fi(?:25|50)?/(.*)$ /api/$1 break;   # /fi50/v3/lat/... -> /api/v3/lat/...
+proxy_pass https://$upstream_fi;
+proxy_ssl_server_name on;
+proxy_ssl_name opendata.adsb.fi;
+proxy_set_header Host opendata.adsb.fi;
+proxy_set_header User-Agent "blipscope-relay";
+proxy_set_header X-Relay-Key "";   # never forward our secret upstream
+proxy_cache adsbfi;
+proxy_cache_key "$request_uri";     # the ORIGINAL /fi/... uri, not the rewritten one
+proxy_ignore_headers Cache-Control Expires Set-Cookie;
+proxy_cache_lock on;
+proxy_cache_lock_timeout 6s;
+proxy_cache_use_stale updating error timeout http_429 http_500 http_502 http_503 http_504;
+add_header X-Relay-Cache $upstream_cache_status always;
+add_header Cache-Control "no-store" always;
+proxy_connect_timeout 5s;
+proxy_read_timeout 10s;
+NGINX
+
 # ---- relay vhost ------------------------------------------------------------
-log "writing relay vhost (tile TTL=$CACHE_TTL, hex TTL=24h + 429 hold-down 60s)"
+log "writing relay vhost (tile TTL=$CACHE_TTL + 429 hold-down 15s, hex TTL=24h + 429 hold-down 60s)"
+log "  upstreams: / -> api.adsb.lol (shipping) | /fi -> opendata.adsb.fi (bench only)"
 cat > "$SITE" <<'NGINX'
 proxy_cache_path /var/cache/nginx/adsblol levels=1:2 keys_zone=adsblol:10m
                  max_size=100m inactive=2h use_temp_path=off;
+# adsb.fi (bench measurement only, served under /fi). Smaller: it caches one
+# comparison tile, not the fleet's working set.
+proxy_cache_path /var/cache/nginx/adsbfi levels=1:2 keys_zone=adsbfi:5m
+                 max_size=50m inactive=2h use_temp_path=off;
 
 # Log adsb.lol's OWN status (ustatus) + our cache status, so the soak measures the
 # one honest unknown -- the real per-IP 429 rate -- from these logs:
 #   grep -c 'ustatus=429' /var/log/nginx/relay.log
+# src=$remote_addr separates the two kinds of traffic that share this log: the
+# bench poller runs ON the box (127.0.0.1) while real fleet traffic arrives from
+# Cloudflare. Without it a staging soak can't tell its own synthetic load from the
+# Worker's. Kept AFTER rt= so measure.mjs's `.*uri=` regex is unaffected.
 log_format relay '$time_iso8601 cache=$upstream_cache_status status=$status '
-                 'ustatus=$upstream_status rt=$request_time uri="$request_uri"';
+                 'ustatus=$upstream_status rt=$request_time src=$remote_addr '
+                 'uri="$request_uri"';
 
 server {
     listen 443 ssl;
@@ -198,14 +271,80 @@ server {
     }
 
     # Live POSITIONS (/v2/lat), routeset, everything else: short TTL for a fresh
-    # picture. 200s only; a 429 falls through to use_stale (last good tile).
+    # picture. A tile we HAVE seen keeps its last-good 200 -- use_stale (http_429,
+    # in the snippet) serves that stale copy on a 429 and the 429 is NOT stored,
+    # so the good tile is never clobbered (verified live: the /v2/hex block has run
+    # this same valid-429 + use_stale-429 pair without breaking seen-hex HITs).
+    #
+    # The 429 hold-down (15s) matches the /v2/hex fix, one class of bug: without it,
+    # a COLD tile (no last-good) that adsb.lol 429s caches nothing, so every ~15s
+    # device poll re-fires upstream -- a 429 must make the next attempt LATER, never
+    # sooner. It only bites the cold case (a seen tile is shielded by use_stale
+    # above); 15s (not the hex 60s) because positions are live -- a cold tile must
+    # start refreshing again quickly once the throttle clears.
     location / {
         include /etc/nginx/snippets/relay-upstream.conf;
         proxy_cache_valid 200 __CACHE_TTL__;
+        proxy_cache_valid 429 15s;
+    }
+
+    # ---- adsb.fi under /fi (BENCH MEASUREMENT ONLY -- licence-blocked) -------
+    # Deliberately identical TTL/hold-down policy to the adsb.lol blocks above,
+    # so the 24 h comparison measures the UPSTREAM and not our own tuning. Longer
+    # prefixes win in nginx, so /fi/v2/hex/ takes the metadata policy and
+    # everything else under /fi takes the live-positions policy.
+    #
+    # Nothing in the shipping product points at these: the Worker keeps
+    # UPSTREAM_ADSB_FI_ENABLED = "false" in every env. They exist to be polled by
+    # the bench harness under adsb.fi's TESTING grant, at ~1 req/15 s per relay --
+    # well inside their 1 req/s public limit. Do NOT wire them into a serving path
+    # without a written commercial grant.
+    location ^~ /fi/v2/hex/ {
+        include /etc/nginx/snippets/relay-upstream-fi.conf;
+        proxy_cache_valid 200 24h;
+        proxy_cache_valid 429 60s;
+    }
+
+    location ^~ /fi/ {
+        include /etc/nginx/snippets/relay-upstream-fi.conf;
+        proxy_cache_valid 200 __CACHE_TTL__;
+        proxy_cache_valid 429 15s;
+    }
+
+    # ---- /fi50: the SLOW-TTL EXPERIMENT path (staging only) ------------------
+    # Identical to /fi except positions cache for FI50_TTL instead of CACHE_TTL.
+    # It exists to answer one question by eye before we commit to it fleet-wide:
+    # a long tile TTL is what buys headroom under adsb.fi's 1 req/s limit
+    # (upstream rate = distinct hot tiles / TTL), but it is paid for in freshness,
+    # and the honest test is pattern traffic at a field like KBDN where
+    # dead-reckoning is weakest -- tight circuits, constant turns, low speed.
+    #
+    # Separate LOCATION, not a separate zone: it shares the adsbfi cache zone but
+    # its own cache keys (/fi50/... vs /fi/...), so the experiment can never serve
+    # a 50 s tile to something asking on the normal path, and vice versa.
+    #
+    # REVERSIBLE BY ENV VAR, not by a relay change: staging points
+    # UPSTREAM_ADSB_FI_BASE at /fi50 and production does not. To end the
+    # experiment, repoint staging back at /fi -- this block can stay.
+    location ^~ /fi50/ {
+        include /etc/nginx/snippets/relay-upstream-fi.conf;
+        proxy_cache_valid 200 __FI50_TTL__;
+        proxy_cache_valid 429 15s;
+    }
+
+    # The other half of the A/B. 25 s is what a raised rate limit (two IPs, or a
+    # commercial tier) would buy back; 50 s is what one IP forces at pilot scale.
+    # Same upstream, same everything else -- so switching the Worker's base URL
+    # between /fi25 and /fi50 changes exactly ONE variable, which is the only way
+    # a by-eye judgement of dead-reckoning quality means anything.
+    location ^~ /fi25/ {
+        include /etc/nginx/snippets/relay-upstream-fi.conf;
+        proxy_cache_valid 200 __FI25_TTL__;
+        proxy_cache_valid 429 15s;
     }
 }
 NGINX
-sed -i "s/__CACHE_TTL__/$CACHE_TTL/" "$SITE"
+sed -i "s/__CACHE_TTL__/$CACHE_TTL/; s/__FI50_TTL__/$FI50_TTL/; s/__FI25_TTL__/$FI25_TTL/" "$SITE"
 
 ln -sf "$SITE" /etc/nginx/sites-enabled/relay
 rm -f /etc/nginx/sites-enabled/default

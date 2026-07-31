@@ -107,6 +107,42 @@ Measured from the relay logs + fleet-side `X-Cache`:
 Fail any → tune `CACHE_TTL` up (fewer upstream calls) or coarsen tiles before
 adding a third relay IP. The design degrades by a knob, not off a cliff.
 
+## Second upstream: adsb.fi under `/fi` (bench measurement only)
+
+Each relay also proxies **adsb.fi** under a `/fi` path prefix (`/fi/v3/lat/...` →
+`opendata.adsb.fi/api/v3/lat/...`), in its own cache zone but under **identical**
+TTL and 429 hold-down policy, so a comparison measures the upstream rather than
+our tuning.
+
+**This is not a serving path.** adsb.fi granted permission to *test*, but their
+terms are "personal, non-commercial use only … you may not license, sell, rent, or
+lease any part of the data or the service" — no ODbL-style redistribution right,
+which is exactly what this relay does. The Worker therefore ships with
+`UPSTREAM_ADSB_FI_ENABLED = "false"` in every env. **Do not wire `/fi` into a
+serving path without a written commercial grant** (see the reply draft in
+[proxy/FEED-SOURCING.md](../proxy/FEED-SOURCING.md)).
+
+Because it is out of the chain, a chain-order test would never exercise it. The
+comparison instead comes from `fi-bench.sh`, a poller that runs on each box and
+drives `/fi` directly — same tile, same radius, same ~15 s cadence as the adsb.lol
+soak, so `measure.mjs` reports both upstreams side by side from one log:
+
+```sh
+bash fi-bench.sh --install                        # per box; systemd, restarts on boot
+systemctl disable --now blipscope-fi-bench        # stop when the window closes
+ssh root@<ip> "cat /var/log/nginx/relay.log" | node measure.mjs --hours 24
+```
+
+**Rate budget:** adsb.fi's public limit is **1 req/s per IP**, strictly enforced
+(4 back-to-back requests → `200,429,429,429`; the same 4 spaced 1.2 s → all `200`),
+and 4xx/429 responses *count toward the limit*, so the hold-down is load-bearing
+rather than merely polite. The bench runs at ~0.08 req/s per relay (~8% of the
+limit). Keep it there.
+
+That 1 req/s is also the reason adsb.fi could not simply replace adsb.lol even if
+licensing cleared: upstream rate here is `(distinct hot tiles) ÷ CACHE_TTL`, so at
+`CACHE_TTL=8s` it supports only **~8 hot tiles per relay IP**.
+
 ## Operator courtesy
 
 Relay IPs are **announced to adsb.lol** as courtesy identification (we feed them).
