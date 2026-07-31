@@ -6,6 +6,7 @@
 
 #include "OtaUpdater.h"       // FW_VERSION for the X-Blip-FW header
 #include "variants/Variant.h" // variant::SLUG for the X-Blip-Model header
+#include "DeviceIdentity.h"  // LeaderboardId() for the X-Blip-Device header
 
 namespace CloudFeed {
 
@@ -47,6 +48,18 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
         { "X-Blip-Key", key },
         { "X-Blip-Model", variant::SLUG },
         { "X-Blip-FW", String(FW_VERSION) },
+        // Device identity, so the proxy can use its PER-DEVICE key path. The server
+        // side has been complete since the deviceauth work but could never fire:
+        // authenticate() only tries it when a request carries this header, and the
+        // firmware never sent it, so every device silently fell back to the shared
+        // BLIP_KEYS. Sending it costs 16 hex chars per request and changes nothing
+        // on its own -- a device still authenticates by its shared key until it is
+        // given a minted one (DEVICE_KEY_SECRET + npm run derive-device-key).
+        //
+        // Safe to send unconditionally: LeaderboardId() is the salted SHA-256 of the
+        // MAC, already published on the leaderboard, and is not a secret. It is NOT
+        // the raw MAC -- that never leaves the device.
+        { "X-Blip-Device", DeviceIdentity::LeaderboardId() },
     };
     // One-shot OTA memory report, present only on the first check-in after an
     // update attempt (see OtaUpdater.h / README "Telemetry"). It rides a request
