@@ -706,6 +706,12 @@
     "autoPicked": true
   },
   {
+    "target": "C140",
+    "kind": "type",
+    "layer": "auto",
+    "title": "File:Cessna 140 (NC89109) 05.jpg"
+  },
+  {
     "target": "C525",
     "kind": "type",
     "layer": "auto",

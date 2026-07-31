@@ -83,6 +83,15 @@ async function buildMeta(env: Env, raw: unknown): Promise<AcMeta> {
   let tn = str(r.desc);
   if (!tn && type) {
     tn = (await env.ENRICH_KV.get(`tn:${type}`)) ?? TYPE_NAMES[type] ?? "";
+    // Every source missed: the card will show the raw designator. Report it so the
+    // FLEET tells us what it actually sees instead of us guessing from synthetic
+    // samples -- which is how "TWEN" (Tecnam P2010) reached a customer's screen.
+    //
+    // Cheap by construction: this runs only inside buildMeta, i.e. on an ac:<hex>
+    // KV MISS -- a never-before-seen airframe -- measured at ~59-74/h FLEET-WIDE,
+    // and only the unresolved subset of that logs. It is NOT on the warm path.
+    // Feed the results back via scripts/ingest-typenames.ts or a curated row.
+    if (!tn) console.log(JSON.stringify({ evt: "tn_miss", t: type }));
   }
   return { found: true, r: reg, t: type, tn, op, mil };
 }

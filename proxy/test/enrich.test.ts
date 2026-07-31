@@ -138,6 +138,42 @@ describe("/v1/enrich/{hex}", () => {
     expect(body.tn).toBe("Boeing P-8 Poseidon"); // name lookup now matches
   });
 
+  it("prefers a tn:<CODE> KV row over the baked table, and the feed's desc over both", async () => {
+    // Precedence is load-bearing for the backfill: scripts/ingest-typenames.ts
+    // bulk-loads tn:<CODE> rows, and KV WINS over TYPE_NAMES. That is why the
+    // script skips any code already curated -- a blind load would replace
+    // "Cessna 140" with the raw aggregate "140".
+    await env.ENRICH_KV.put("tn:ZZZZ", "Backfilled Type Name");
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/bb0001" }).reply(200, hexBody([{ hex: "bb0001", t: "ZZZZ" }]));
+    const a = (await (await call(apiRequest("/v1/enrich/bb0001"))).json()) as { tn: string };
+    expect(a.tn).toBe("Backfilled Type Name");
+
+    // ...but the feed's own desc still outranks KV.
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/bb0002" })
+      .reply(200, hexBody([{ hex: "bb0002", t: "ZZZZ", desc: "Feed Description" }]));
+    const b = (await (await call(apiRequest("/v1/enrich/bb0002"))).json()) as { tn: string };
+    expect(b.tn).toBe("Feed Description");
+  });
+
+  it("reports tn_miss when no source can name the type", async () => {
+    // The discovery signal for the long tail: feed has no desc, KV has no row,
+    // the baked table has no entry -> the card shows a raw designator, and we
+    // want the fleet to tell us rather than waiting for someone to notice.
+    const logged: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => void logged.push(String(a[0]));
+    try {
+      fetchMock.get(LOL).intercept({ path: "/v2/hex/bb0003" }).reply(200, hexBody([{ hex: "bb0003", t: "QQQQ" }]));
+      const res = await call(apiRequest("/v1/enrich/bb0003"));
+      expect((await res.json() as { tn: string }).tn).toBe("");
+    } finally {
+      console.log = orig;
+    }
+    expect(logged.some((l) => l.includes('"evt":"tn_miss"') && l.includes('"t":"QQQQ"'))).toBe(true);
+  });
+
   it("backfills the type from adsbdb when the feed has a hex+reg but no type (airplanes.live failover)", async () => {
     // airplanes.live's failover shape: registration present, ICAO type MISSING.
     // Losing the type would also lose the type-keyed stock photo -- the backfill

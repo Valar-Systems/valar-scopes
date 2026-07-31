@@ -2424,5 +2424,16 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/a338.jpg"
+  },
+  {
+    "target": "C140",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna_140_(NC89109)_05.jpg",
+    "author": "Huhu Uet",
+    "credit": "Cessna 140 (NC89109) 05",
+    "license": "CC BY 3.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c140.jpg"
   }
 ]

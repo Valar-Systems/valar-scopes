@@ -71,7 +71,24 @@ describe("GET /credits", () => {
   it("serves an empty-but-valid page when nothing has been ingested", async () => {
     const res = await call(new Request("https://proxy.test/credits"));
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("Blipscope photo credits");
+    const html = await res.text();
+    expect(html).toContain("Blipscope credits");
+    expect(html).toContain("Photo credits");
+  });
+
+  it("always credits BOTH aircraft-data sources, even with no photos ingested", async () => {
+    // Attribution is a licence obligation, not a function of what the chain
+    // happened to serve: adsb.fi requires a citation + link to its home page and
+    // adsb.lol's ODbL requires attribution, while failover can switch sources
+    // mid-session. So the data-source block must not depend on the manifest.
+    const html = await (await call(new Request("https://proxy.test/credits"))).text();
+    expect(html).toContain('href="https://adsb.fi"');
+    expect(html).toContain('href="https://adsb.lol"');
+    expect(html).toContain("ODbL 1.0");
+    expect(html).toContain("Mictronics aircraft database");
+    expect(html).toContain("adsbdb");
+    // adsb.fi grants no ODbL -- the licence must not be attached to its sentence.
+    expect(html).toMatch(/adsb\.lol<\/a>\s*&mdash;\s*&copy; adsb\.lol contributors/);
   });
 });
 
@@ -101,6 +118,33 @@ describe("/v1/enrich photo join", () => {
     const body = (await res.json()) as { p?: string; pk?: string };
     expect(body.p).toBe("/v1/photo/photo:abc123-11223344");
     expect(body.pk).toBe("hex");
+  });
+
+  it("falls back to the base type's photo for a variant designator", async () => {
+    // S22T and SR2T are both the Cirrus SR22T. Only SR22 has a picksheet entry, so
+    // an exact-match-only lookup gave the same airframe a photo under one code and
+    // not the other. The alias closes that without duplicating the blob.
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/c22201" })
+      .reply(200, hexBody([{ hex: "c22201", r: "N22CT", t: "S22T" }]));
+    await env.ENRICH_KV.put("pptr:t:SR22", "photo:SR22-12345678");
+
+    const body = (await (await call(apiRequest("/v1/enrich/c22201"))).json()) as Record<string, string>;
+    expect(body.p).toBe("/v1/photo/photo:SR22-12345678");
+    expect(body.pk).toBe("type"); // still a representative shot, not an airframe override
+  });
+
+  it("prefers a variant's OWN photo over the aliased base type", async () => {
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/c22202" })
+      .reply(200, hexBody([{ hex: "c22202", r: "N22CU", t: "C82S" }]));
+    await env.ENRICH_KV.put("pptr:t:C182", "photo:C182-aaaaaaaa");
+    await env.ENRICH_KV.put("pptr:t:C82S", "photo:C82S-bbbbbbbb");
+
+    const body = (await (await call(apiRequest("/v1/enrich/c22202"))).json()) as Record<string, string>;
+    expect(body.p).toBe("/v1/photo/photo:C82S-bbbbbbbb");
   });
 
   it("omits p/pk entirely when the library has no image for the aircraft", async () => {
