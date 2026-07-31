@@ -19,12 +19,13 @@ HOW IT DIFFERS FROM THE SINGLE-BOARD SCRIPT (both matter at batch scale):
     concurrent `pio run -t upload` would race on the same .pio/build directory.
     We build once, then drive esptool directly.
 
-  * ONE esptool call per board, writing the merged factory image AND that board's
-    NVS together:
-        write_flash 0x0 firmware.factory.bin 0x9000 <that board's nvs.bin>
-    The factory image spans 0x0..end-of-app, so it covers the NVS region at
-    0x9000 with 0xFF -- writing NVS second in the same call is what leaves the
-    key in place. Do not reorder these.
+  * TWO esptool calls per board, in this order and no other:
+        write_flash 0x0     firmware.factory.bin
+        write_flash <nvs>   <that board's nvs.bin>
+    The factory image spans 0x0..end-of-app, so it CONTAINS the NVS region and
+    blanks it with 0xFF gap fill -- the key must therefore be written after it.
+    They cannot be combined into one call: esptool 5 rejects overlapping regions.
+    NVS offset and size come from the env's partition table, never hardcoded.
 
   * IDEMPOTENT BY MAC, not by port. COM numbers are recycled the moment you
     unplug, so port identity means nothing here. A board whose MAC is already in
@@ -71,7 +72,9 @@ pd = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pd)
 
 FACTORY_OFFSET = "0x0"
-NVS_OFFSET = pd.NVS_OFFSET  # 0x9000
+# NVS offset/size come from the env's partition table at run time (see
+# provision-device.nvs_geometry): this SKU moved to an 84 KB nvs, and a hardcoded
+# 0x5000 would leave 64 KB of the partition holding whatever was there before.
 
 print_lock = threading.Lock()
 
@@ -96,21 +99,31 @@ def factory_image(env: str) -> Path:
 
 def build_once(env: str) -> None:
     say(f"  building {env} (once, for the whole batch) ...")
-    r = subprocess.run(["pio", "run", "-e", env], cwd=REPO, shell=(os.name == "nt"))
+    r = subprocess.run([pd.pio_exe(), "run", "-e", env], cwd=REPO)
     if r.returncode != 0:
         pd.die("build failed")
 
 
+_discovery_complained = False
+
+
 def list_esp_ports() -> list[str]:
     """Attached Espressif USB devices. VID 303A covers the S3's native USB-CDC
-    and USB-JTAG; a hub full of identical boards all present as 303A:1001."""
+    and USB-JTAG; a hub full of identical boards all present as 303A:1001.
+
+    Discovery failures are REPORTED, once. This swallowed its exception silently
+    and, with a bare "pio" that was not on PATH, presented as a watcher sitting
+    at zero boards forever with no clue on stdout."""
+    global _discovery_complained
     try:
         import json
-        out = subprocess.run(["pio", "device", "list", "--json-output"],
-                             capture_output=True, text=True, timeout=60,
-                             shell=(os.name == "nt")).stdout
+        out = subprocess.run([pd.pio_exe(), "device", "list", "--json-output"],
+                             capture_output=True, text=True, timeout=60).stdout
         return sorted(d["port"] for d in json.loads(out) if "303A" in (d.get("hwid") or "").upper())
-    except Exception:
+    except Exception as e:
+        if not _discovery_complained:
+            _discovery_complained = True
+            say(f"  !! port discovery failing ({type(e).__name__}: {e}) -- no boards will be seen")
         return []
 
 
@@ -127,10 +140,16 @@ def already_done(log_path: Path) -> set[str]:
 
 
 def verify(base: str, key: str, dev_id: str) -> int:
+    """HTTP status from presenting this key to the proxy. 200 = accepted.
+
+    The User-Agent is NOT decoration: Cloudflare's edge 403s the default
+    `Python-urllib/3.x` before the Worker ever sees the request, which looks
+    exactly like a rejected key and sent me chasing DEVICE_KEY_SECRET."""
     import urllib.request
     req = urllib.request.Request(
         base.rstrip("/") + "/v1/config",
-        headers={"X-Blip-Key": key, "X-Blip-Device": dev_id, "X-Blip-Model": "s3-128"})
+        headers={"X-Blip-Key": key, "X-Blip-Device": dev_id, "X-Blip-Model": "s3-128",
+                 "User-Agent": "Blipscope-Provisioner/1"})
     try:
         return urllib.request.urlopen(req, timeout=30).status
     except Exception as e:
@@ -163,24 +182,32 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
             return port, "DRY", f"{mac} -> {dev_id} (nothing flashed)"
 
         with tempfile.TemporaryDirectory() as td:
-            nvs_bin = pd.build_nvs(key, cfg.cloud_url, Path(td))
-            # Factory image FIRST, NVS SECOND, in one call -- see the module docstring.
-            cmd = cfg.esptool_cmd + ["--port", port, "--baud", str(cfg.baud),
-                                     "write-flash" if cfg.dashed else "write_flash",
-                                     FACTORY_OFFSET, str(cfg.image),
-                                     NVS_OFFSET, str(nvs_bin)]
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if r.returncode != 0:
-                tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
-                return port, "FAIL", f"{mac}: flash failed -- " + " / ".join(tail)
+            nvs_bin = pd.build_nvs(key, cfg.cloud_url, Path(td), cfg.nvs_size)
+            write = "write-flash" if cfg.dashed else "write_flash"
+            # TWO calls, factory FIRST then NVS -- not one call with both offsets.
+            # The factory image spans 0x0..end-of-app, which contains the NVS
+            # region, and esptool 5 rejects overlapping regions within a single
+            # write_flash. Order is load-bearing: the factory image blanks NVS
+            # (0xFF gap fill), so the key must be written after it, not before.
+            for label, off, img in (("factory", FACTORY_OFFSET, str(cfg.image)),
+                                    ("nvs", cfg.nvs_offset, str(nvs_bin))):
+                cmd = cfg.esptool_cmd + ["--port", port, "--baud", str(cfg.baud),
+                                         write, off, img]
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+                if r.returncode != 0:
+                    tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
+                    return port, "FAIL", f"{mac}: {label} write failed -- " + " / ".join(tail)
 
         if cfg.verify_url:
             code = verify(cfg.verify_url, key, dev_id)
+            if code == 401:
+                # THE one that means the batch is bad: DEVICE_KEY_SECRET here does
+                # not match the Worker's, so every key in this run is worthless.
+                return port, "FAIL", f"{mac}: key REJECTED (401) -- DEVICE_KEY_SECRET does not match the Worker's"
             if code != 200:
-                # The key is wrong, not the board. Almost always DEVICE_KEY_SECRET
-                # here not matching the Worker's -- which would silently ship the
-                # WHOLE batch unauthenticated, so it is worth shouting about.
-                return port, "FAIL", f"{mac}: key REJECTED (HTTP {code}) -- check DEVICE_KEY_SECRET"
+                # Anything else is the check failing, not the key. Don't send the
+                # operator hunting for a secret mismatch that isn't there.
+                return port, "FAIL", f"{mac}: verify inconclusive (HTTP {code}) -- board is flashed; key not confirmed"
 
         with state.lock:
             state.done.add(mac)
@@ -229,6 +256,7 @@ def main() -> None:
 
     print(f"\n=== batch provisioning [{args.env}] ===")
     salt = pd.salt_from_sources(args.env)
+    nvs_offset, nvs_size = pd.nvs_geometry(args.env)
     esptool_cmd, dashed = pd.find_esptool()   # once: it mutates PYTHONPATH
     if not args.skip_build and not args.dry_run:
         build_once(args.env)
@@ -237,6 +265,7 @@ def main() -> None:
     cfg = Cfg()
     cfg.env, cfg.salt, cfg.secret = args.env, salt, secret
     cfg.esptool_cmd, cfg.dashed, cfg.baud = esptool_cmd, dashed, args.baud
+    cfg.nvs_offset, cfg.nvs_size = nvs_offset, nvs_size
     cfg.image = factory_image(args.env) if not args.dry_run else None
     cfg.verify_url, cfg.cloud_url = args.verify_url, args.cloud_url
     cfg.count, cfg.dry_run = args.count, args.dry_run
