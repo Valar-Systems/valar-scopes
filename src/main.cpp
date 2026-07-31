@@ -78,6 +78,25 @@ void setup()
 {
   Serial.begin(115200); // non-blocking; the wait for a CDC *host* happens after the splash below
 
+#if ARDUINO_USB_CDC_ON_BOOT
+  // Never let a Serial write stall the loop. On native USB-CDC (every SKU but the
+  // s3-21, which is on UART0) HWCDC::write BLOCKS when the port is enumerated but
+  // nothing is draining it -- a device plugged into a computer with no terminal
+  // open. isPlugged() stays true (the SOF watchdog still sees the host), so the
+  // driver falls back to a bounded wait of max_consec_timeouts(20) x
+  // tx_timeout_ms(100) = UP TO 2 s PER write() CALL. RecordFrameUs' [health]
+  // report emits two printfs every 30 s, so the loop froze for ~2-4 s every 30 s:
+  // the sweep stopped and touch -- polled once per pass -- went dead, which reads
+  // exactly as "slow to open and close cards". Diagnosed 2026-07-31 on the bench
+  // s3-128 after its serial capture had been detached for 10 days.
+  //
+  // 2 ms caps the worst case at ~40 ms (under one frame) while still giving the
+  // ring a beat to drain under an attached monitor, so the soak ledger keeps its
+  // lines. 0 would be strictly non-blocking but drops bytes the moment the ring
+  // fills, and these boards are our measurement instrument.
+  Serial.setTxTimeoutMs(2);
+#endif
+
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
   // on the single-core C3 that can keep the watchdog-fed async_tcp service task from
