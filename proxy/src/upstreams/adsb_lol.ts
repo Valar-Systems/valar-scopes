@@ -23,7 +23,9 @@ const baseB = (env: Env): string => env.UPSTREAM_ADSB_LOL_BASE_B || "";
 // X-Relay-Key authenticates the Worker to the relay's nginx (which 403s anything
 // else). The relay STRIPS this header before forwarding upstream, so it never
 // reaches adsb.lol. Empty on the direct dev path (no relay -> no key needed).
-function relayHeaders(env: Env): Record<string, string> {
+// Exported: adsb.fi rides the SAME relays (under a /fi path prefix), so it needs
+// the identical hop-1 credential. One definition, one place to rotate it.
+export function relayHeaders(env: Env): Record<string, string> {
   return env.RELAY_KEY ? { "X-Relay-Key": env.RELAY_KEY } : {};
 }
 

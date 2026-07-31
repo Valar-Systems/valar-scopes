@@ -62,10 +62,28 @@ routes = [
 # secret set on this env (npx wrangler secret put RELAY_KEY --env staging).
 UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
 UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
-# adsb.fi disabled (permission never granted). airplanes.live is PROHIBITED by
-# operator (written refusal) and hardcoded off in code -- this var is a dead
-# no-op. See "Upstream licensing posture" in README.md.
-UPSTREAM_ADSB_FI_ENABLED = "false"
+# adsb.fi ENABLED ON STAGING 2026-07-30 -- written caching/redistribution permission.
+# This is the soak ahead of the production cutover: staging runs the real shipping
+# order (adsb.fi primary -> adsb.lol fallback) for a day before production follows.
+# The /fi path prefix is the relay's adsb.fi upstream; /fi50 is the separate slow-TTL
+# experiment path and is deliberately NOT used here -- staging must run the same TTL
+# production will, or the soak validates a config we aren't shipping.
+UPSTREAM_ADSB_FI_ENABLED = "true"
+# FRESHNESS A/B IN PROGRESS -- staging is currently on the 50 s TTL path.
+# The relay serves the SAME adsb.fi upstream at three tile TTLs, differing in
+# nothing else, so switching this pair is a one-variable experiment:
+#   /fi     8 s -- production-like, what the cutover soak should watch
+#   /fi25  25 s -- what a raised rate limit (2 IPs, or a commercial tier) buys back
+#   /fi50  50 s -- what ONE IP forces at 50-unit pilot scale
+# Flip with `wrangler deploy --env staging` after editing, or edit the var in the
+# Cloudflare dashboard for an instant change with no deploy.
+UPSTREAM_ADSB_FI_BASE = "https://relay-a.valarsystems.com/fi50"
+UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi50"
+# N >= 2 x TTL + 25 s. 125 s satisfies ALL THREE paths above (50/25/8 s), so the
+# A/B never needs this flipped in step with the base URL -- one variable moves.
+BLIPS_FEED_MAX_AGE_MS = "125000"
+# airplanes.live is PROHIBITED by operator (written refusal) and hardcoded off in
+# code -- this var is a dead no-op. See "Upstream licensing posture" in README.md.
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
 
@@ -135,12 +153,19 @@ routes = [
 [env.production.vars]
 UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
 UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
-#   adsb.fi        -- disabled; permission never granted; also 403s our egress.
+#   adsb.fi        -- caching/redistribution permission granted IN WRITING 2026-07-30.
+#                     Still "false" here: it goes live in production only after the
+#                     staging soak is reviewed. THE CUTOVER IS THIS FLAG plus the two
+#                     base URLs below -- uncomment them together, never separately (an
+#                     enabled feed with no base URL falls back to hitting adsb.fi
+#                     DIRECT from Cloudflare's shared egress, which is what used to 403).
 #   airplanes.live -- PROHIBITED by operator: written refusal ("do not use our
 #                     data"), dated July 2026. Hardcoded off in airplanes_live.ts;
 #                     the var below is a dead no-op. NOT a reserve option -- off the
 #                     table, not undecided. See "Upstream licensing posture".
 UPSTREAM_ADSB_FI_ENABLED = "false"
+# UPSTREAM_ADSB_FI_BASE   = "https://relay-a.valarsystems.com/fi"
+# UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
 

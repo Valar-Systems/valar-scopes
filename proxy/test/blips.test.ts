@@ -175,28 +175,123 @@ describe("/v1/blips", () => {
     expect(((await res.json()) as { n: number }).n).toBe(1);
   });
 
-  it("fails over to adsb.fi when enabled and adsb.lol errors", async () => {
+  it("leads with adsb.fi and falls back to adsb.lol when the primary errors", async () => {
+    // Shipping order since 2026-07-30: adsb.fi primary (written redistribution
+    // permission, ~19x rate headroom), adsb.lol the licensed ODbL fallback whose
+    // grant no operator can revoke. This asserts the DIRECTION of that failover.
     const failoverEnv = { UPSTREAM_ADSB_FI_ENABLED: "true" };
-    fetchMock.get(LOL).intercept({ path: /\/v2\/lat\/50\.00.*/ }).replyWithError(new Error("down"));
-    fetchMock.get(FI).intercept({ path: "/api/v2/lat/50.00/lon/50.00/dist/24" }).reply(200, pointBody([makeAc({ hex: "e00001", lat: 50, lon: 50 })]));
+    fetchMock.get(FI).intercept({ path: "/api/v3/lat/50.00/lon/50.00/dist/24" }).replyWithError(new Error("down"));
+    fetchMock.get(LOL).intercept({ path: "/v2/lat/50.00/lon/50.00/dist/24" }).reply(200, pointBody([makeAc({ hex: "e00001", lat: 50, lon: 50 })]));
 
     const res = await call(apiRequest("/v1/blips?lat=50&lon=50&r=40"), failoverEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+    expect(((await res.json()) as { n: number }).n).toBe(1);
+  });
+
+  it("serves from adsb.fi alone when it is healthy -- adsb.lol is never called", async () => {
+    // One response, one source. No adsb.lol interceptor is registered, so
+    // disableNetConnect proves the chain stopped at the first healthy feed rather
+    // than merging two sources (explicitly not approved).
+    const failoverEnv = { UPSTREAM_ADSB_FI_ENABLED: "true" };
+    fetchMock.get(FI).intercept({ path: "/api/v3/lat/51.00/lon/50.00/dist/24" }).reply(200, pointBody([makeAc({ hex: "e00002", lat: 51, lon: 50 })]));
+
+    const res = await call(apiRequest("/v1/blips?lat=51&lon=50&r=40"), failoverEnv);
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Upstream")).toBe("adsb_fi");
     expect(((await res.json()) as { n: number }).n).toBe(1);
   });
 
+  it("UPSTREAM_FEED_ORDER demotes a misbehaving primary without a deploy", async () => {
+    // The 2 a.m. rollback knob: put adsb.lol back in front by editing one var.
+    const rollbackEnv = { UPSTREAM_ADSB_FI_ENABLED: "true", UPSTREAM_FEED_ORDER: "adsb_lol,adsb_lol_b" };
+    fetchMock.get(LOL).intercept({ path: "/v2/lat/52.00/lon/50.00/dist/24" }).reply(200, pointBody([makeAc({ hex: "e00003", lat: 52, lon: 50 })]));
+
+    const res = await call(apiRequest("/v1/blips?lat=52&lon=50&r=40"), rollbackEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+  });
+
+  // ---- stale-200 failover (the relay-a/relay-b 70:1 split) -------------------
+  // Our relays answer 200 with last-good data when the upstream 429s, so transport
+  // success alone never revealed that relay-a was serving a 12-minute-old picture --
+  // and relay-b, a whole dedicated egress IP, went unused. The chain now judges the
+  // feed's own `now` stamp.
+  const RELAY = { UPSTREAM_ADSB_LOL_BASE: "https://relay-a.test", UPSTREAM_ADSB_LOL_BASE_B: "https://relay-b.test" };
+  const A = "https://relay-a.test";
+  const B = "https://relay-b.test";
+  const tile = (lat: number) => `/v2/lat/${lat}.00/lon/50.00/dist/24`;
+
+  it("stops at the primary when its picture is fresh -- the secondary is never called", async () => {
+    // No relay-b interceptor is registered, so assertNoPendingInterceptors is not
+    // what proves this; disableNetConnect is -- any call to B would throw.
+    fetchMock.get(A).intercept({ path: tile(70) }).reply(200, pointBody([makeAc({ hex: "aa0001", lat: 70, lon: 50 })]));
+
+    const res = await call(apiRequest("/v1/blips?lat=70&lon=50&r=40"), RELAY);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+  });
+
+  it("fails over to relay-b when the primary answers 200 with a stale picture", async () => {
+    // relay-a: HTTP 200, but the picture is 5 minutes old (upstream has been 429ing
+    // and nginx is serving use_stale). Pre-fix this returned immediately.
+    fetchMock.get(A).intercept({ path: tile(71) }).reply(200, pointBody([makeAc({ hex: "aa0002", lat: 71, lon: 50 })], FIXTURE_NOW_MS - 300_000));
+    fetchMock.get(B).intercept({ path: tile(71) }).reply(200, pointBody([makeAc({ hex: "bb0002", lat: 71, lon: 50 })]));
+
+    const res = await call(apiRequest("/v1/blips?lat=71&lon=50&r=40"), RELAY);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol_b");
+    expect(((await res.json()) as { a: unknown[][] }).a[0]?.[0]).toBe("bb0002");
+  });
+
+  it("serves the FRESHEST stale picture when every feed is degraded", async () => {
+    // Non-regression: a degraded feed is never discarded, only deprioritized. Every
+    // request that used to get data must still get data.
+    fetchMock.get(A).intercept({ path: tile(72) }).reply(200, pointBody([makeAc({ hex: "aa0003", lat: 72, lon: 50 })], FIXTURE_NOW_MS - 600_000));
+    fetchMock.get(B).intercept({ path: tile(72) }).reply(200, pointBody([makeAc({ hex: "bb0003", lat: 72, lon: 50 })], FIXTURE_NOW_MS - 120_000));
+
+    const res = await call(apiRequest("/v1/blips?lat=72&lon=50&r=40"), RELAY);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol_b"); // 2 min beats 10 min
+    expect(((await res.json()) as { a: unknown[][] }).a[0]?.[0]).toBe("bb0003");
+  });
+
+  it("does not fail over for staleness within the threshold", async () => {
+    // 20 s old is normal (relay TTL + a slow throttled upstream fetch), not degraded.
+    // Failing over here would flap on every busy tile and double our upstream load.
+    fetchMock.get(A).intercept({ path: tile(73) }).reply(200, pointBody([makeAc({ hex: "aa0004", lat: 73, lon: 50 })], FIXTURE_NOW_MS - 20_000));
+
+    const res = await call(apiRequest("/v1/blips?lat=73&lon=50&r=40"), RELAY);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+  });
+
+  it("honours BLIPS_FEED_MAX_AGE_MS -- the threshold must track the relay TTL", async () => {
+    // Raising the relay CACHE_TTL (as the adsb.fi 1 req/s budget requires) makes
+    // legitimately-old pictures normal, so N has to move with it or the chain walks
+    // every feed on every request.
+    fetchMock.get(A).intercept({ path: tile(74) }).reply(200, pointBody([makeAc({ hex: "aa0005", lat: 74, lon: 50 })], FIXTURE_NOW_MS - 90_000));
+
+    const res = await call(apiRequest("/v1/blips?lat=74&lon=50&r=40"), {
+      ...RELAY,
+      BLIPS_FEED_MAX_AGE_MS: "120000",
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Upstream")).toBe("adsb_lol"); // 90 s < 120 s -> fresh enough
+  });
+
   it("opens the circuit breaker after 3 consecutive failures", async () => {
     const failoverEnv = { UPSTREAM_ADSB_FI_ENABLED: "true" };
-    // Exactly 3 adsb.lol interceptors: the 4th request must NOT reach adsb.lol
-    // (breaker open) -- assertNoPendingInterceptors + disableNetConnect prove it.
-    fetchMock.get(LOL).intercept({ path: /\/v2\/lat\/.*/ }).replyWithError(new Error("down")).times(3);
-    fetchMock.get(FI).intercept({ path: /\/api\/v2\/lat\/.*/ }).reply(200, pointBody([])).times(4);
+    // Exactly 3 adsb.fi interceptors: adsb.fi is the PRIMARY now, so it is the feed
+    // that trips, and the 4th request must NOT reach it (breaker open) --
+    // assertNoPendingInterceptors + disableNetConnect prove it.
+    fetchMock.get(FI).intercept({ path: /\/api\/v3\/lat\/.*/ }).replyWithError(new Error("down")).times(3);
+    fetchMock.get(LOL).intercept({ path: /\/v2\/lat\/.*/ }).reply(200, pointBody([])).times(4);
 
     for (const lat of [60, 61, 62, 63]) {
       const res = await call(apiRequest(`/v1/blips?lat=${lat}&lon=10&r=40`), failoverEnv);
       expect(res.status).toBe(200);
-      expect(res.headers.get("X-Upstream")).toBe("adsb_fi");
+      expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
     }
   });
 
