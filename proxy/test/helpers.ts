@@ -46,7 +46,12 @@ export function makeAc(overrides: Record<string, unknown> = {}): Record<string, 
   };
 }
 
-export const FIXTURE_NOW_MS = 1751970245000;
+// Fixture picture timestamp. MUST be relative to the real clock: the chain now
+// treats a feed whose `now` is older than BLIPS_FEED_MAX_AGE_MS as degraded and
+// walks on to the next feed (see fetchPointChain). A hardcoded past date would
+// make every fixture look years stale, so the whole suite would silently exercise
+// the degraded path instead of the normal one.
+export const FIXTURE_NOW_MS = Date.now();
 
 export function pointBody(ac: unknown[], nowMs: number = FIXTURE_NOW_MS): string {
   return JSON.stringify({ ac, msg: "No error", now: nowMs, total: ac.length, ctime: nowMs });

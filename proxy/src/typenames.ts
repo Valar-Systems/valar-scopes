@@ -41,6 +41,7 @@ export const TYPE_NAMES: Record<string, string> = {
   PC12: "Pilatus PC-12", TBM8: "Daher TBM 850", TBM9: "Daher TBM 900/930",
   B350: "Beechcraft King Air 350", BE20: "Beechcraft King Air 200",
   B190: "Beechcraft 1900", SW4: "Fairchild SA227 Metroliner",
+  SH33: "Short 330", SH36: "Short 360",
   // MD / legacy
   MD11: "McDonnell Douglas MD-11", MD82: "McDonnell Douglas MD-82",
   MD83: "McDonnell Douglas MD-83", MD88: "McDonnell Douglas MD-88",
@@ -74,6 +75,14 @@ export const TYPE_NAMES: Record<string, string> = {
   DA40: "Diamond DA40", DA42: "Diamond DA42", DA62: "Diamond DA62",
   M20P: "Mooney M20", RV7: "Van's RV-7", RV10: "Van's RV-10",
   EPIC: "Epic E1000",
+  // Vintage / classic singles. These carry `desc` from the feed most of the time,
+  // so the gap only shows on records without one -- where the card fell back to a
+  // bare "C140". Cheap to close, and this end of the fleet is exactly what a local
+  // desk radar sees on a nice weekend.
+  C120: "Cessna 120", C140: "Cessna 140", C170: "Cessna 170",
+  C195: "Cessna 195 Businessliner", J3: "Piper J-3 Cub",
+  PA18: "Piper PA-18 Super Cub", BE23: "Beechcraft Musketeer/Sundowner",
+  AA5: "Grumman AA-5 Traveler/Cheetah",
   // Helicopters
   R22: "Robinson R22", R44: "Robinson R44", R66: "Robinson R66", EC30: "Airbus H130",
   EC35: "Airbus H135", EC45: "Airbus H145", AS50: "Airbus AS350 Ecureuil",
@@ -91,6 +100,50 @@ export const TYPE_NAMES: Record<string, string> = {
   F16: "F-16 Fighting Falcon", F15: "F-15 Eagle", F35: "F-35 Lightning II",
   A10: "A-10 Thunderbolt II", B52: "Boeing B-52 Stratofortress",
   EUFI: "Eurofighter Typhoon",
+  // Third pass 2026-07-30. Found by sweeping ten 250 NM US tiles for airborne
+  // designators absent from this table: 163 distinct types / 779 aircraft. Nearly
+  // all of them DO carry `desc` from the feed, so they already render -- these are
+  // the fallback for the records that don't, ordered by observed frequency. Names
+  // are the feed's own descriptions normalized to house style, not guesses.
+  //
+  // The pattern this exposes: the table had the base model but none of its
+  // variants (C182 but no C82R/C82S/C82T; C172 but no C72R; SR22 but no S22T).
+  // Variants are a third of the light-GA traffic a desk radar actually sees.
+  C150: "Cessna 150", C152: "Cessna 152", C310: "Cessna 310", C402: "Cessna 402",
+  C72R: "Cessna 172RG Cutlass", T206: "Cessna T206 Turbo Stationair",
+  C82R: "Cessna R182 Skylane RG", C82S: "Cessna T182 Turbo Skylane",
+  C82T: "Cessna TR182 Turbo Skylane RG",
+  S22T: "Cirrus SR22T", RV12: "Van's RV-12",
+  P28R: "Piper PA-28R Arrow", P32R: "Piper Saratoga/Lance",
+  PA32: "Piper Cherokee Six", PA44: "Piper PA-44 Seminole",
+  P46T: "Piper Malibu Meridian",
+  BE9L: "Beechcraft King Air 90", BE30: "Beechcraft Super King Air 300",
+  TBM7: "Daher TBM 700", DHC2: "De Havilland DHC-2 Beaver",
+  E45X: "Embraer ERJ-145XR", G280: "Gulfstream G280", GA6C: "Gulfstream G600",
+  AT8T: "Air Tractor AT-802", AT5T: "Air Tractor AT-504",
+  SLG4: "Sling 4",
+  // These carry NO `desc` at all, so they showed a bare code on the card until now
+  // -- the only entries here that were genuinely broken rather than merely uncovered.
+  // Resolved against ICAO Doc 8643 (doc8643.com) rather than guessed, because a
+  // wrong name on a customer's screen is worse than a bare code.
+  //
+  // This is the failure mode to watch: no `desc` from the feed AND no row here means
+  // the card shows a raw designator. adsbdb can't rescue it either -- it 404s most
+  // light GA (checked: N157TD/a0e5dd, a 2021 Tecnam, is a 404 there).
+  BE19: "Beechcraft Musketeer Sport", E300: "Extra EA-300",
+  EV97: "Evektor EV-97 EuroStar", PA23: "Piper PA-23 Apache/Aztec",
+  SLG2: "Sling 2", VL3: "JMB VL-3 Evolution",
+  AG10: "CAIGA AG-100", CRER: "RANS S-7 Courier", J600: "Skyleader 600",
+  // OSCR is the Partenavia P.66 Oscar family; Doc 8643 names the AFIC RSA-200
+  // Falcon branch, but across 446k real airframes the Mictronics DB shows the
+  // Vulcanair V1.0 branch dominating. Match the DB: it is the same table the
+  // feed's own `desc` comes from, so the card reads the same whether the fallback
+  // fires or not.
+  OSCR: "Vulcanair V1.0", SD4: "Tomark SD-4 Viper",
+  // Tecnam: the whole family was missing, and the P2010 is common at flight schools
+  // (it's what prompted this -- N157TD over KBDN showed a bare "TWEN").
+  TWEN: "Tecnam P2010 Twenty-Ten", P06T: "Tecnam P2006T",
+  P208: "Tecnam P2008", P212: "Tecnam P2012 Traveller",
   // Second pass 2026-07-16: the most-common military types the Mictronics
   // side-table slice surfaces whose rows often lack a description (tn falls
   // back here). Ordered roughly by fleet count in that dataset.

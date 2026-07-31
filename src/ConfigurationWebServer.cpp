@@ -4,6 +4,9 @@
 #include <Preferences.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
+#ifdef FEATURE_CLOUD_FEED
+#include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
+#endif
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #include "Logbook.h"              // radar-only; serves the spotting lifelist as /logbook.json
@@ -245,8 +248,12 @@ R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B re
                 </label>
 )"
 #ifdef FEATURE_CLOUD_FEED
-// Cloud fields double as the data credit: the ODbL attribution shows whenever
-// the adsb.lol-backed source is selected.
+// Cloud fields double as the data credit. BOTH position sources are named here
+// permanently, regardless of which one served any given response -- adsb.fi
+// requires a citation + link to their home page, adsb.lol's ODbL requires
+// attribution, and the chain can fail over between them mid-session. Their
+// licences differ (adsb.fi grants no ODbL), so each gets its OWN sentence: a
+// shared "licensed under ODbL 1.0" clause would misattribute adsb.fi's terms.
 R"(
                 <div id="cloud-fields" class="stack">
                     <label class="field">
@@ -259,10 +266,13 @@ R"(
                     </label>
                     <span class="hint">
                         Managed Blipscope feed &mdash; no account needed; leave both fields blank for the
-                        built-in defaults. Aircraft data &copy; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>
-                        contributors, licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>;
-                        military airframe data from the <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics aircraft database</a>,
+                        built-in defaults. Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
+                        and <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>.
+                        adsb.lol data &copy; adsb.lol contributors, licensed under
+                        <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
+                        Military airframe data from the <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics aircraft database</a>,
                         licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>.
+                        %CREDITS_LINK%
                     </span>
                 </div>
 )"
@@ -445,7 +455,7 @@ R"(
                         <input name="lb-name" value='%LB_NAME%' maxlength="24" placeholder="e.g. Redmond Radar" class="grow">
                     </label>
                     <span class="hint mt">
-                        Opt in to the public <a href="/leaderboard" target="_blank" rel="noopener">spotting leaderboard</a> &mdash;
+                        Opt in to the public %LB_LINK% &mdash;
                         compete on unique types, airlines, and countries seen overhead. <b>Counts only leave your device</b>
                         (plus your type list, for rarity scoring): never your location, never which flights you saw. Off by default;
                         requires the Blipscope Cloud feed. First device to claim a name owns it.
@@ -1616,6 +1626,40 @@ void ConfigurationWebServer::Initialise() {
         const String logbookOn = HtmlEscape(prefs.isKey("logbook") ? prefs.getString("logbook", "false") : "false");
         const String lbEnabled = HtmlEscape(prefs.isKey("lb-enabled") ? prefs.getString("lb-enabled", "false") : "false");
         const String lbName = HtmlEscape(prefs.getString("lb-name", ""));
+        // --- links to pages the CLOUD PROXY serves, not this device -------------
+        // Both of these used to be (or were missing precisely because of) a
+        // host-confusion bug: the config page is served by the DEVICE, so a
+        // root-relative "/leaderboard" resolved to
+        // http://blipscope-xxxxxx.local/leaderboard -- a route this server does not
+        // have -- and 404'd for every user who opted in. The pages live on the
+        // proxy. Build ABSOLUTE urls from the same base the feed itself uses: the
+        // saved "cloud-url" override when set, else the compiled-in default. Doing
+        // it from the feed's own base (rather than a hardcoded host) means these
+        // links can never drift away from the backend the device is really talking
+        // to -- staging boards get staging pages, production gets production.
+        //
+        // Both degrade to no-link rather than a dead link when no base is known (a
+        // non-cloud build, or one with no CLOUD_FEED_BASE and no override): a link
+        // that silently 404s is exactly what caused this.
+        String lbLink = F("spotting leaderboard");
+        String creditsLink;
+#ifdef FEATURE_CLOUD_FEED
+        {
+            String cloudBase = CloudFeed::NormalizeBaseUrl(
+                prefs.isKey("cloud-url") ? prefs.getString("cloud-url", "") : String(""));
+            if (cloudBase.isEmpty()) cloudBase = CloudFeed::NormalizeBaseUrl(String(CLOUD_FEED_BASE));
+            if (!cloudBase.isEmpty()) {
+                lbLink = "<a href='" + HtmlEscape(cloudBase + "/leaderboard")
+                       + "' target='_blank' rel='noopener'>spotting leaderboard</a>";
+                // The credits page carries the photo attribution (CC-BY / CC-BY-SA
+                // obligations) alongside the data-source lines above, so it needs to
+                // be reachable, not just to exist.
+                creditsLink = "Full credits, including aircraft photos: <a href='"
+                            + HtmlEscape(cloudBase + "/credits")
+                            + "' target='_blank' rel='noopener'>credits</a>.";
+            }
+        }
+#endif
         const String lookupOn = HtmlEscape(prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false");
         const String lookupAlert = HtmlEscape(prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false");
         const String lookupDist = HtmlEscape(prefs.isKey("lookup-dist") ? prefs.getString("lookup-dist", "3") : "3");
@@ -1833,7 +1877,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -1898,6 +1942,8 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "LOGBOOK")        return logbookOn == "true" ? "checked" : "";
                 if (var == "LB_ENABLED")     return lbEnabled == "true" ? "checked" : "";
                 if (var == "LB_NAME")        return lbName;
+                if (var == "LB_LINK")        return lbLink;
+                if (var == "CREDITS_LINK")   return creditsLink;
                 if (var == "AIRPORTS_MIN_ALL")   return airportsMin == "all" ? "selected" : "";
                 if (var == "AIRPORTS_MIN_MED")   return airportsMin == "med" ? "selected" : "";
                 if (var == "AIRPORTS_MIN_LARGE") return airportsMin == "large" ? "selected" : "";

@@ -47,6 +47,15 @@ const PRIORITY: Record<string, string> = {
   M20P: "Mooney M20 aircraft",
   TBM9: "Daher TBM 930",
   PC24: "Pilatus PC-24",
+  // --- vintage / classic singles (weekend traffic on a local radar) ---
+  C140: "Cessna 140 aircraft",
+  C120: "Cessna 120 aircraft",
+  C170: "Cessna 170 aircraft",
+  C195: "Cessna 195 Businessliner",
+  J3: "Piper J-3 Cub in flight",
+  PA18: "Piper PA-18 Super Cub",
+  BE23: "Beechcraft Musketeer aircraft",
+  AA5: "Grumman American AA-5 Traveler",
   // --- Cessna long tail (GA singles + the Citation family) ---
   C206: "Cessna 206 Stationair in flight",
   C210: "Cessna 210 Centurion aircraft",

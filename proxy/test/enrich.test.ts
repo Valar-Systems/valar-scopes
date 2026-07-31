@@ -46,6 +46,47 @@ describe("/v1/enrich/{hex}", () => {
     expect(JSON.parse(await res2.text())).toEqual(JSON.parse(text));
   });
 
+  it("routes enrichment through relay-a, failing over to relay-b", async () => {
+    // Both operations use the same good-citizen order: relay-a primary -> relay-b
+    // failover (no load-splitting to defeat the per-IP limit). relay-a is tried FIRST
+    // here -- its failure is consumed and the chain falls over to relay-b (terminal,
+    // so the breaker never skips it), which carries the X-Relay-Key the nginx checks.
+    const RA = "https://relay-a.valarsystems.com";
+    const RB = "https://relay-b.valarsystems.com";
+    const relayEnv = {
+      UPSTREAM_ADSB_LOL_BASE: RA,
+      UPSTREAM_ADSB_LOL_BASE_B: RB,
+      RELAY_KEY: "test-relay-key",
+    };
+    fetchMock.get(RA).intercept({ path: "/v2/hex/e30001" }).replyWithError(new Error("relay-a down"));
+    fetchMock
+      .get(RB)
+      .intercept({ path: "/v2/hex/e30001", headers: { "x-relay-key": "test-relay-key" } })
+      .reply(200, hexBody([{ hex: "e30001", r: "N737XX", t: "B738" }]));
+
+    const res = await call(apiRequest("/v1/enrich/e30001"), relayEnv);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { r: string; tn: string };
+    expect(body.r).toBe("N737XX");
+    expect(body.tn).toBe("Boeing 737-800"); // relay-b's data, reached via failover
+  });
+
+  it("holds a hex down fleet-wide after a failed lookup, instead of re-firing it", async () => {
+    // The storm: a 429'd hex cached nothing, so every poll re-fired it. Now a failed
+    // lookup writes a brief empty KV marker so the next lookup is a quiet KV hit.
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/f40001" }).reply(429, "").times(3); // chain exhausts its 3 retries
+
+    const r1 = await call(apiRequest("/v1/enrich/f40001"));
+    expect(r1.status).toBe(200);
+    expect(((await r1.json()) as { t: string }).t).toBe(""); // empty this time
+
+    // Second lookup: served from the hold-down marker. NO upstream interceptor is
+    // registered, so a re-fire would throw on an unmatched request (assertNoPending...).
+    const r2 = await call(apiRequest("/v1/enrich/f40001"));
+    expect(r2.status).toBe(200);
+    expect(((await r2.json()) as { t: string }).t).toBe("");
+  });
+
   it("falls back to the baked type-name table when the upstream has no desc", async () => {
     fetchMock
       .get(LOL)
@@ -95,6 +136,42 @@ describe("/v1/enrich/{hex}", () => {
     const body = (await res.json()) as { t: string; tn: string };
     expect(body.t).toBe("P8"); // marker stripped
     expect(body.tn).toBe("Boeing P-8 Poseidon"); // name lookup now matches
+  });
+
+  it("prefers a tn:<CODE> KV row over the baked table, and the feed's desc over both", async () => {
+    // Precedence is load-bearing for the backfill: scripts/ingest-typenames.ts
+    // bulk-loads tn:<CODE> rows, and KV WINS over TYPE_NAMES. That is why the
+    // script skips any code already curated -- a blind load would replace
+    // "Cessna 140" with the raw aggregate "140".
+    await env.ENRICH_KV.put("tn:ZZZZ", "Backfilled Type Name");
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/bb0001" }).reply(200, hexBody([{ hex: "bb0001", t: "ZZZZ" }]));
+    const a = (await (await call(apiRequest("/v1/enrich/bb0001"))).json()) as { tn: string };
+    expect(a.tn).toBe("Backfilled Type Name");
+
+    // ...but the feed's own desc still outranks KV.
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/bb0002" })
+      .reply(200, hexBody([{ hex: "bb0002", t: "ZZZZ", desc: "Feed Description" }]));
+    const b = (await (await call(apiRequest("/v1/enrich/bb0002"))).json()) as { tn: string };
+    expect(b.tn).toBe("Feed Description");
+  });
+
+  it("reports tn_miss when no source can name the type", async () => {
+    // The discovery signal for the long tail: feed has no desc, KV has no row,
+    // the baked table has no entry -> the card shows a raw designator, and we
+    // want the fleet to tell us rather than waiting for someone to notice.
+    const logged: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => void logged.push(String(a[0]));
+    try {
+      fetchMock.get(LOL).intercept({ path: "/v2/hex/bb0003" }).reply(200, hexBody([{ hex: "bb0003", t: "QQQQ" }]));
+      const res = await call(apiRequest("/v1/enrich/bb0003"));
+      expect((await res.json() as { tn: string }).tn).toBe("");
+    } finally {
+      console.log = orig;
+    }
+    expect(logged.some((l) => l.includes('"evt":"tn_miss"') && l.includes('"t":"QQQQ"'))).toBe(true);
   });
 
   it("backfills the type from adsbdb when the feed has a hex+reg but no type (airplanes.live failover)", async () => {

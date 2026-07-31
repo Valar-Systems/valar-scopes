@@ -227,14 +227,28 @@ export function renderCreditsHtml(entries: ManifestEntry[]): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Blipscope photo credits</title>
+<title>Blipscope credits</title>
 <style>
   body{font:15px/1.5 system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#111;background:#fff}
-  h1{font-size:1.4rem} ul{padding-left:1.1rem} li{margin:.35rem 0}
+  h1{font-size:1.4rem} h2{font-size:1.1rem;margin:1.6rem 0 .4rem} ul{padding-left:1.1rem} li{margin:.35rem 0}
   a{color:#0a58ca} .note{color:#555;font-size:.9rem}
   @media(prefers-color-scheme:dark){body{background:#111;color:#eee}a{color:#6ea8fe}.note{color:#aaa}}
 </style></head><body>
-<h1>Blipscope photo credits</h1>
+<h1>Blipscope credits</h1>
+<h2>Data sources</h2>
+<ul>
+<li>Live aircraft data from <a href="https://adsb.fi" rel="noopener">adsb.fi</a>.</li>
+<li>Live aircraft data from <a href="https://adsb.lol" rel="noopener">adsb.lol</a> &mdash;
+&copy; adsb.lol contributors, licensed under
+<a href="https://opendatacommons.org/licenses/odbl/1-0/" rel="noopener">ODbL 1.0</a>.</li>
+<li>Military airframe data from the
+<a href="https://github.com/Mictronics/aircraft-database" rel="noopener">Mictronics aircraft database</a>,
+licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" rel="noopener">ODC-By 1.0</a>.</li>
+<li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>
+</ul>
+<p class="note">Both aircraft-data sources are credited here permanently, regardless of
+which served any given response.</p>
+<h2>Photo credits</h2>
 <p class="note">Aircraft images shown on Blipscope devices in cloud mode. Public-domain
 images are credited as a courtesy; CC BY, CC BY-SA, and OGL images are attributed as
 their licenses require. Images are resized for the device display.</p>

@@ -19,7 +19,8 @@
     "deploy:staging": "wrangler deploy --env staging",
     "tail:staging": "wrangler tail --env staging",
     "deploy:production": "wrangler deploy --env production",
-    "tail:production": "wrangler tail --env production"
+    "tail:production": "wrangler tail --env production",
+    "ingest:typenames": "tsx scripts/ingest-typenames.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",

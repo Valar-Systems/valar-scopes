@@ -23,6 +23,14 @@ const AC_TTL_S = 30 * 86400;
 const AC_NEG_TTL_S = 86400;
 const RT_TTL_S = 86400;
 
+// Fleet hold-down on a FAILED hex fetch (chain down / 429). Without this, a failed
+// lookup cached nothing and every device re-fired the same hex on the next poll -- a
+// self-amplifying 429 storm. Caching a brief empty marker means the whole fleet holds
+// that hex down for a short window instead of hammering. SHORT (90s, not the 1 d
+// negative) so a transient outage doesn't blank a real airframe for long; the airframe
+// resolves for real on the next attempt after the marker expires.
+const AC_FAIL_TTL_S = 90;
+
 interface AcMeta {
   found: boolean;
   r: string; // registration
@@ -75,6 +83,15 @@ async function buildMeta(env: Env, raw: unknown): Promise<AcMeta> {
   let tn = str(r.desc);
   if (!tn && type) {
     tn = (await env.ENRICH_KV.get(`tn:${type}`)) ?? TYPE_NAMES[type] ?? "";
+    // Every source missed: the card will show the raw designator. Report it so the
+    // FLEET tells us what it actually sees instead of us guessing from synthetic
+    // samples -- which is how "TWEN" (Tecnam P2010) reached a customer's screen.
+    //
+    // Cheap by construction: this runs only inside buildMeta, i.e. on an ac:<hex>
+    // KV MISS -- a never-before-seen airframe -- measured at ~59-74/h FLEET-WIDE,
+    // and only the unresolved subset of that logs. It is NOT on the warm path.
+    // Feed the results back via scripts/ingest-typenames.ts or a curated row.
+    if (!tn) console.log(JSON.stringify({ evt: "tn_miss", t: type }));
   }
   return { found: true, r: reg, t: type, tn, op, mil };
 }
@@ -90,7 +107,16 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   const started = Date.now();
   const res = await fetchHexChain(env, hex);
   meta.upstreamMs = Date.now() - started;
-  if (!res) return null; // chain down: serve empties now, cache nothing, next tap retries
+  if (!res) {
+    // Chain down (typically a 429 storm): hold this hex down fleet-wide for a short
+    // window so devices stop re-firing the same failing lookup every poll. A brief
+    // empty marker, NOT the 1 d negative -- a transient outage must not blank a real
+    // airframe for long. The next attempt after it expires resolves for real.
+    await env.ENRICH_KV.put(`ac:${hex}`, JSON.stringify({ found: false, r: "", t: "", tn: "", op: "" } satisfies AcMeta), {
+      expirationTtl: AC_FAIL_TTL_S,
+    });
+    return null; // serve empties now; the marker makes the next lookup a quiet KV hit
+  }
   meta.upstream = res.upstream;
   const built = await buildMeta(env, res.raw);
   // Type backfill: airplanes.live (our failover when adsb.lol 429s) returns a

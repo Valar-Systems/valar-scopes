@@ -1,6 +1,6 @@
 import type { Env } from "../types";
 import { intEnv } from "../util";
-import { adsbLol, routesetRequest } from "./adsb_lol";
+import { adsbLol, adsbLolB, routesetRequest } from "./adsb_lol";
 import {
   adsbdbAircraftUrl,
   adsbdbHeaders,
@@ -8,30 +8,87 @@ import {
   parseAdsbdbAircraft,
   parseAdsbdbRoute,
 } from "./adsbdb";
-import { adsbFi } from "./adsb_fi";
+import { adsbFi, adsbFiB } from "./adsb_fi";
 import { airplanesLive } from "./airplanes_live";
 import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed } from "./types";
 
 // The full set of feeds (for health reporting + enablement). Ordering for the
-// actual fetch is per-operation below.
-export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbFi, airplanesLive];
+// actual fetch is per-operation below. adsb_lol + adsb_lol_b are the same data
+// via two dedicated-egress relays (relay-a / relay-b); airplanes.live is
+// prohibited by operator and ships permanently dark (see airplanes_live.ts).
+export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, adsbFiB, airplanesLive];
 
-// Per-operation priority, split because the two endpoints fail differently under
-// adsb.lol's keyless shared-egress 429 (a Cloudflare colo egress IP shared across
-// tenants trips adsb.lol's anonymous per-IP limit):
-//   - POSITIONS (/point, high-volume bulk): adsb.lol 429s this near-constantly,
-//     which starved the picture to STALE. airplanes.live isn't limited that way,
-//     so it LEADS for positions; adsb.lol is the fallback.
-//   - METADATA (/hex, low-volume per-tap): adsb.lol carries the ICAO type inline
-//     (airplanes.live often omits it) and 429s far less here, so it stays primary;
-//     airplanes.live + the adsbdb type backfill cover any miss.
-// Only enabled feeds are tried, so where airplanes.live is off (default vars) both
-// orders collapse to adsb.lol-first -- unchanged behaviour.
-const POINT_ORDER: UpstreamAircraftFeed[] = [airplanesLive, adsbLol, adsbFi];
-const HEX_ORDER: UpstreamAircraftFeed[] = [adsbLol, airplanesLive, adsbFi];
+// ---- SHIPPING ORDER (2026-07-30): adsb.fi primary, adsb.lol licensed fallback ----
+// Reordered on the owner's decision once adsb.fi granted caching/redistribution
+// permission IN WRITING. The reasoning, recorded so it isn't re-litigated:
+//
+//   adsb.fi leads on operational grounds -- written permission, ~19x the rate headroom
+//   (3600 req/h/IP vs the ~190/h where adsb.lol starts 429ing us), better throughput
+//   (~90 KB/s vs the ~12 KB/s anonymous cap), and an operator who answers email.
+//   Measured over a 21.3 h two-relay soak: adsb.fi returned 0 % 429 across 10,037
+//   position fetches; adsb.lol ran 68 % 429 with a 720 s unbroken degraded run.
+//
+//   adsb.lol stays in the chain because its ODbL 1.0 grant is a right no operator can
+//   revoke -- that is worth more as a fallback than as a primary. Its maintainer is
+//   unresponsive and has publicly flagged that the public API may have to be withdrawn,
+//   so the fleet's primary path must not depend on it. The $50/mo sponsorship continues
+//   REGARDLESS of chain position: it funds the licensed foundation, not a slot in this
+//   array (see the sponsorship posture in README.md).
+//
+// NOT APPROVED, deliberately: merging aircraft from both sources into one picture.
+// One response, one source, failover only -- the loops below return the FIRST feed that
+// answers freshly and never combine two. Blending would make provenance, attribution and
+// dedupe everyone's problem forever; the failover chain keeps each response traceable to
+// exactly one operator.
+//
+// Per-operation priority: each source leads with relay-a and fails over to relay-b.
+// The two relays are a good-citizen PRIMARY + FAILOVER pair, NOT a load-split to defeat
+// adsb.lol's per-IP limit -- collapsed, gentle traffic through one IP with the other
+// as hot standby. (An earlier build sharded hex onto relay-b to halve per-IP load; that
+// was the wrong fix. The right fix is not hammering adsb.lol at all -- KV-authoritative
+// enrichment + negative caching + watchlist-only background, see enrich.ts and the
+// relay's /v2/hex hold-down. Scaling headroom via an IP farm is an explicit non-goal.)
+// relay-b is the terminal feed, which the breaker never skips (see the loops below), so
+// a relay-a outage fails over rather than blanking the fleet. The trailing feeds are
+// inert (airplanes.live prohibited + dark, adsb.fi licence-blocked), so `ordered()`
+// filters them; with the relay URLs unset (dev/test) each chain collapses to a single
+// direct-adsb.lol feed -- unchanged legacy behaviour.
+//
+// adsb_lol_b stays TERMINAL (last), which is load-bearing: the breaker may never skip
+// the terminal feed, so the one leg the chain can always fall back to is the one with
+// the irrevocable licence. Enabling adsb.fi does not change that. airplanes.live sits
+// mid-array but is hardcoded dark, so `ordered()` always filters it out.
+const POINT_ORDER: UpstreamAircraftFeed[] = [adsbFi, adsbFiB, airplanesLive, adsbLol, adsbLolB];
+const HEX_ORDER: UpstreamAircraftFeed[] = [adsbFi, adsbFiB, airplanesLive, adsbLol, adsbLolB];
+
+// Optional per-env priority override: UPSTREAM_FEED_ORDER = "adsb_lol,adsb_lol_b".
+// THE ROLLBACK KNOB. The default order below is the shipping decision; this exists so
+// demoting a misbehaving primary is a var edit (dashboard, no deploy) at 2 a.m. rather
+// than a code change and a release. Applies to both the point and hex chains.
+// Deliberately non-destructive: unknown ids are ignored, and any feed you DIDN'T list is
+// appended in its default position rather than dropped -- so a typo can only reorder the
+// chain, never shorten it, and the terminal-feed guarantee (the last enabled feed is
+// always tried) is impossible to configure away.
+function applyOrderOverride(
+  env: Env,
+  order: UpstreamAircraftFeed[],
+  raw: string | undefined,
+): UpstreamAircraftFeed[] {
+  if (!raw) return order;
+  const wanted = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const front: UpstreamAircraftFeed[] = [];
+  for (const id of wanted) {
+    const feed = order.find((f) => f.id === id);
+    if (feed && !front.includes(feed)) front.push(feed);
+  }
+  return [...front, ...order.filter((f) => !front.includes(f))];
+}
 
 function ordered(env: Env, order: UpstreamAircraftFeed[]): UpstreamAircraftFeed[] {
-  return order.filter((f) => f.enabled(env));
+  return applyOrderOverride(env, order, env.UPSTREAM_FEED_ORDER).filter((f) => f.enabled(env));
 }
 
 export function enabledFeeds(env: Env): UpstreamAircraftFeed[] {
@@ -120,11 +177,48 @@ export interface PointResult {
   ac: unknown[];
 }
 
-function logUpstream(id: string, op: string, ok: boolean, ms: number, err?: unknown): void {
+function logUpstream(
+  id: string,
+  op: string,
+  ok: boolean,
+  ms: number,
+  err?: unknown,
+  ageS?: number,
+): void {
   console.log(
-    JSON.stringify({ evt: "upstream", id, op, ok, ms, ...(err ? { err: String(err) } : {}) }),
+    JSON.stringify({
+      evt: "upstream",
+      id,
+      op,
+      ok,
+      ms,
+      ...(err ? { err: String(err) } : {}),
+      ...(ageS !== undefined ? { ageS } : {}),
+    }),
   );
 }
+
+// ---- degraded-feed threshold (the stale-200 failover fix) --------------------
+// THE BUG: our relays serve last-good data on an upstream 429 (proxy_cache_use_stale)
+// and answer the Worker with a perfectly good HTTP 200. The chain only ever looked at
+// transport success, so relay-a "succeeded" even while serving a 12-minute-old picture,
+// and the loop returned before relay-b was ever tried. Measured over 21.3 h: relay-a
+// took 2950 adsb.lol position fetches to relay-b's 42 -- a 70:1 split of what is
+// supposed to be a primary/failover pair, with an entire dedicated IP sitting idle.
+//
+// THE SIGNAL: every readsb-family feed stamps the picture with its own `now`, which we
+// already parse (upstreamNowMs). Age = our clock - that stamp. Measured skew between
+// both upstreams and our relays is ~0.4 s (and most of that is fetch latency), so this
+// needs no relay header plumbing and works identically for any upstream.
+//
+// CHOOSING N: the healthy worst case is (relay CACHE_TTL) + (upstream fetch time) +
+// skew. At CACHE_TTL=8s that is 8 + ~16 (an adsb.lol busy tile at its ~12 KB/s anon
+// cap) + ~1 = ~25 s, so 45 s sits at ~1.8x the honest worst case -- late enough never to
+// flap on a slow busy tile, early enough to fail over before the device's own stale
+// ladder (staleFactor 3 x 15 s idle poll = 45 s) starts showing amber. Keep the rule
+// N >= 2 x CACHE_TTL + 25 s: RAISING THE RELAY TTL MUST RAISE THIS or every fetch
+// looks degraded and the chain walks all feeds on every request.
+const DEFAULT_FEED_MAX_AGE_MS = 45_000;
 
 // Walk the enabled, breaker-closed feeds in priority order; first success wins.
 export async function fetchPointChain(
@@ -134,6 +228,14 @@ export async function fetchPointChain(
   distNm: number,
 ): Promise<PointResult | null> {
   const feeds = ordered(env, POINT_ORDER);
+  const maxAgeMs = intEnv(env.BLIPS_FEED_MAX_AGE_MS, DEFAULT_FEED_MAX_AGE_MS);
+  // Freshest degraded answer seen so far. A stale picture still beats no picture, so
+  // we never DISCARD one -- we only decline to stop walking the chain on it. This
+  // makes the fix strictly non-regressive: every request that used to get data still
+  // gets data, and some now get fresher data from a feed we previously never reached.
+  let bestStale: PointResult | null = null;
+  let bestStaleAgeMs = Infinity;
+
   for (let i = 0; i < feeds.length; i++) {
     const feed = feeds[i];
     // The breaker exists to skip a flaky feed IN FAVOUR OF the next one. The
@@ -151,19 +253,36 @@ export async function fetchPointChain(
         timeoutMs(env),
         retryDelayMs(env),
       )) as Record<string, unknown>;
+      // Transport succeeded, so the breaker closes regardless of data age: a relay
+      // serving stale-but-valid data is DEGRADED, not down. Opening the breaker here
+      // would skip it entirely and throw away the fallback copy we may still need.
       breakerRecord(feed.id, true);
-      logUpstream(feed.id, "point", true, Date.now() - started);
-      return {
+      const result: PointResult = {
         upstream: feed.id,
         nowMs: upstreamNowMs(json?.now),
         ac: Array.isArray(json?.ac) ? (json.ac as unknown[]) : [],
       };
+      const ageMs = Date.now() - result.nowMs;
+
+      if (ageMs <= maxAgeMs) {
+        logUpstream(feed.id, "point", true, Date.now() - started, undefined, Math.round(ageMs / 1000));
+        return result;
+      }
+      // Degraded: a 200 carrying a picture older than N. Keep it as a fallback and
+      // give the next feed -- a different relay on a different egress IP, with its own
+      // independent cache and last-good copy -- a real chance to do better.
+      logUpstream(feed.id, "point", true, Date.now() - started, "degraded_stale", Math.round(ageMs / 1000));
+      if (ageMs < bestStaleAgeMs) {
+        bestStale = result;
+        bestStaleAgeMs = ageMs;
+      }
     } catch (err) {
       breakerRecord(feed.id, false);
       logUpstream(feed.id, "point", false, Date.now() - started, err);
     }
   }
-  return null;
+  // Every feed was degraded (or failed): serve the freshest picture anyone had.
+  return bestStale;
 }
 
 export interface HexResult {
