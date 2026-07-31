@@ -167,8 +167,8 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
         return port, "FAIL", f"could not read MAC: {e}"
 
     with state.lock:
-        if mac in state.done:
-            return port, "SKIP", f"{mac} already provisioned"
+        if mac in state.done and not cfg.force:
+            return port, "SKIP", f"{mac} already provisioned (--force to redo)"
         if mac in state.inflight:
             return port, "SKIP", f"{mac} already in flight"
         state.inflight.add(mac)
@@ -245,6 +245,10 @@ def main() -> None:
     ap.add_argument("--cloud-url", help="also bake this into NVS as cloud-url")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--once", action="store_true", help="do what's attached now, then exit (no watching)")
+    # Rework/RMA: re-provision a board that is already in the record. Not the
+    # default, because the skip is what makes a re-plugged board safe to ignore
+    # during a batch -- and re-provisioning ERASES the board's config and Wi-Fi.
+    ap.add_argument("--force", action="store_true", help="re-provision boards already in the log")
     ap.add_argument("--dry-run", action="store_true", help="compute and report; flash nothing")
     ap.add_argument("--skip-build", action="store_true", help="reuse the existing build")
     ap.add_argument("--log", default=str(REPO / "provisioned.csv"))
@@ -268,7 +272,7 @@ def main() -> None:
     cfg.nvs_offset, cfg.nvs_size = nvs_offset, nvs_size
     cfg.image = factory_image(args.env) if not args.dry_run else None
     cfg.verify_url, cfg.cloud_url = args.verify_url, args.cloud_url
-    cfg.count, cfg.dry_run = args.count, args.dry_run
+    cfg.count, cfg.dry_run, cfg.force = args.count, args.dry_run, args.force
     cfg.log = Path(args.log)
 
     done = already_done(cfg.log)

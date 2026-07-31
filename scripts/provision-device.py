@@ -58,7 +58,8 @@ PIO_HOME = Path(os.environ.get("PLATFORMIO_CORE_DIR", Path.home() / ".platformio
 # what makes the result deterministic.
 NVS_DEFAULT_OFFSET, NVS_DEFAULT_SIZE = "0x9000", 0x5000
 NVS_NAMESPACE = "config"
-KEY_NVS_KEY = "cloud-key"   # matches ConfigurationWebServer's prefs key
+KEY_NVS_KEY = "cloud-key"        # the editable override, masked on the config page
+KEY_NVS_FACTORY = "cloud-key-fac"  # read-only factory identity; the recovery source
 URL_NVS_KEY = "cloud-url"
 
 # Must match include/DeviceIdentity.h. Parsed from source below rather than
@@ -246,9 +247,18 @@ def device_key(secret: str, dev_id: str) -> str:
 
 def build_nvs(key: str, cloud_url: str | None, workdir: Path, size: int = NVS_DEFAULT_SIZE) -> Path:
     csv_path, bin_path = workdir / "nvs.csv", workdir / "nvs.bin"
+    # TWO copies of the same key, and the second one is the whole support story.
+    #   cloud-key      -- the editable override shown (masked) on the config page
+    #   cloud-key-fac  -- the factory identity, never rendered and never writable
+    #                     from the web UI, so no browser action can destroy it
+    # AircraftManager falls back to -fac whenever the override is empty, which makes
+    # "clear the box and save" the customer-side repair for a mangled key. Without
+    # it, a wiped key is unrecoverable on the device and every occurrence becomes an
+    # email asking the operator to re-derive it from the fleet secret.
     rows = [["key", "type", "encoding", "value"],
             [NVS_NAMESPACE, "namespace", "", ""],
-            [KEY_NVS_KEY, "data", "string", key]]
+            [KEY_NVS_KEY, "data", "string", key],
+            [KEY_NVS_FACTORY, "data", "string", key]]
     if cloud_url:
         rows.append([URL_NVS_KEY, "data", "string", cloud_url])
     with csv_path.open("w", newline="", encoding="utf-8") as f:

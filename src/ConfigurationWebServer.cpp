@@ -262,11 +262,13 @@ R"(
                     </label>
                     <label class="field">
                         <span>Access key:</span>
-                        <input name="cloud-key" type="password" autocomplete="off" value='%CLOUD_KEY%' placeholder="built-in default" class="grow">
+                        <input name="cloud-key" type="password" autocomplete="off" value='%CLOUD_KEY%' placeholder="access key" class="grow">
                     </label>
                     <span class="hint">
-                        Managed Blipscope feed &mdash; no account needed; leave both fields blank for the
-                        built-in defaults. Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
+                        Managed Blipscope feed &mdash; no account needed. Leave the server blank to use the
+                        built-in default. Your access key is set during assembly: leave it as it is, and if
+                        it ever gets changed by mistake, clear the box and save to restore it.
+                        Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
                         and <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>.
                         adsb.lol data &copy; adsb.lol contributors, licensed under
                         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
@@ -2238,7 +2240,15 @@ void ConfigurationWebServer::Initialise() {
 #ifdef FEATURE_CLOUD_FEED
         TrySaveParam("cloud-url");
         // cloud key: same masked-value handling as the OpenSky secret (the GET
-        // serves it as asterisks; only a genuinely new value overwrites)
+        // serves it as asterisks; only a genuinely new value overwrites).
+        //
+        // An EMPTY box is stored as empty on purpose: this key is only ever an
+        // OVERRIDE. AircraftManager falls back to "cloud-key-fac" -- written once
+        // during assembly and never exposed here -- so clearing this field restores
+        // the key the device shipped with instead of destroying it. That inverts
+        // the failure: the obvious customer reflex ("clear it and try again") is
+        // now the repair, and no browser action can produce a device that needs a
+        // key mailed to it.
         const auto* cloudKeyParam = request->getParam("cloud-key", true);
         if (cloudKeyParam != nullptr) {
             const String& key = cloudKeyParam->value();
@@ -2473,12 +2483,40 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("sc-a-offline", request->hasParam("sc-a-offline", true) ? "true" : "false");
         prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
 #endif
+        // Read the STORED location back before closing, so the warning below
+        // reflects what the device will actually run with -- not merely what this
+        // form post contained. A partial save from a page where the location was
+        // already set must not cry wolf.
+        const String savedLat = prefs.getString("latitude", "");
+        const String savedLon = prefs.getString("longitude", "");
         prefs.end();
 
         // No reboot: flag the change and let loop() re-read settings on the main
         // task. NVS is already committed by the putString() calls above, so the
         // reload will see the new values.
         configChanged = true;
+
+        // TELL THE USER WHEN THE DEVICE CANNOT WORK. Without a location there is no
+        // tile to request, so the radar draws nothing -- and "Saved" on a screen
+        // that then stays empty reads as a broken product rather than an unfinished
+        // setup. This is the exact state a factory-fresh board is in: provisioning
+        // writes the access key and nothing else, so location is the one field the
+        // customer MUST supply, and it is the one most likely to be skipped.
+        //
+        // Editions that plot something near you only; Space/EAM/Claudescope/Speed
+        // have no geography and must not be nagged about it.
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+        if (savedLat.isEmpty() || savedLon.isEmpty()) {
+            Serial.printf("[POST] saved, but location incomplete (lat=%s lon=%s)\n",
+                          savedLat.isEmpty() ? "unset" : savedLat.c_str(),
+                          savedLon.isEmpty() ? "unset" : savedLon.c_str());
+            request->send(200, "text/html",
+                          "Saved - but LOCATION IS MISSING, so nothing will appear on screen. "
+                          "Enter your latitude and longitude above and save again. "
+                          "(Tip: paste \"44.10, -121.30\" into the latitude box and it splits itself.)");
+            return;
+        }
+#endif
         request->send(200, "text/html", "Saved - settings applied.");
         }
     );

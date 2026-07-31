@@ -44,13 +44,32 @@ def otadata_offset(csv_path):
 csv_path = env.subst("$PARTITIONS_TABLE_CSV")  # noqa: F821
 want = otadata_offset(csv_path)
 
+def is_boot_app0(value):
+    return "boot_app0" in str(value).replace("\\", "/")
+
+
 if want:
-    patched, images = [], env.get("FLASH_EXTRA_IMAGES", [])  # noqa: F821
-    changed = False
-    for offset, image in images:
-        if "boot_app0" in str(image).replace("\\", "/") and str(offset).lower() != want.lower():
+    # (a) FLASH_EXTRA_IMAGES -- consumed lazily by the merged-factory-image action.
+    patched, changed = [], False
+    for offset, image in env.get("FLASH_EXTRA_IMAGES", []):  # noqa: F821
+        if is_boot_app0(image) and str(offset).lower() != want.lower():
             print(f"boot_app0: {offset} -> {want} (otadata per {os.path.basename(csv_path)})")
             offset, changed = want, True
         patched.append((offset, image))
     if changed:
         env.Replace(FLASH_EXTRA_IMAGES=patched)  # noqa: F821
+
+    # (b) UPLOADERFLAGS -- and this one is NOT optional. The platform flattens the
+    # image list into the esptool argv (`env.Append(UPLOADERFLAGS=[image[0],
+    # image[1]])`) while its own builder runs, i.e. BEFORE this script, so fixing
+    # (a) alone leaves `pio run -t upload` still writing boot_app0 at the stale
+    # offset. Observed exactly that: the build log said 0x1E000 and the upload log
+    # said 0xe000 on the same run. Offsets sit immediately before their filename.
+    flags = list(env.get("UPLOADERFLAGS", []))  # noqa: F821
+    fixed = False
+    for i, value in enumerate(flags):
+        if is_boot_app0(value) and i > 0 and str(flags[i - 1]).lower() != want.lower():
+            print(f"boot_app0 (upload): {flags[i - 1]} -> {want}")
+            flags[i - 1], fixed = want, True
+    if fixed:
+        env.Replace(UPLOADERFLAGS=flags)  # noqa: F821

@@ -107,6 +107,83 @@ namespace WiFiManagerHelpers
         return false;
     }
 
+    // ---- boot-time hold-to-forget: the FALLBACK recovery path ----
+    //
+    // The on-screen Stats reset is the primary route and covers the normal stuck
+    // case (wrong credentials: the device still boots and renders, the radar just
+    // has no data). This covers the states where that UI does not exist yet --
+    // the config portal itself, where setup() has not returned, and any future
+    // wedge that never reaches the main loop. It is the touchscreen equivalent of
+    // "hold the button while powering on", for an enclosure with no exposed button.
+    //
+    // Shape: we only need to notice a finger that is ALREADY down at power-on
+    // (that is what the instruction tells the customer to do), so the detect
+    // window is short -- 1.2 s, the only cost added to an ordinary boot. Once a
+    // finger is seen we ask for a further 3 s of continuous contact, with
+    // on-screen feedback the whole time, so it can never fire silently and
+    // releasing is always a cancel.
+    //
+    // Returns true if the user held it through. Caller does the resetSettings().
+    inline bool BootHoldToForget(LGFX& tft, LGFX_Sprite& backbuffer)
+    {
+        constexpr uint32_t DETECT_MS = 1200; // watch for an already-present finger
+        constexpr uint32_t HOLD_MS   = 3000; // then require this much unbroken contact
+
+        // Is the touch controller actually up this early? tft.init() brings it up
+        // with the panel, but "the driver exists" and "the chip answers" are
+        // different claims, and this whole path is worthless if it silently never
+        // sees a finger. Logged every boot so a regression (or a batch with a
+        // different touch IC -- see INCOMING-INSPECTION.md) shows up as a line in
+        // the ledger rather than as a recovery route that quietly stopped working.
+        int32_t x = 0, y = 0;
+        const bool haveDriver = (tft.touch() != nullptr);
+        uint32_t polls = 0;
+        bool sawTouch = false;
+
+        const uint32_t detectUntil = millis() + DETECT_MS;
+        while ((int32_t)(millis() - detectUntil) < 0) {
+            ++polls;
+            if (tft.getTouch(&x, &y)) { sawTouch = true; break; }
+            delay(20);
+        }
+        Serial.printf("[wifi-reset] boot touch window: driver=%d polls=%lu touched=%d\n",
+                      (int)haveDriver, (unsigned long)polls, (int)sawTouch);
+
+        if (!sawTouch || !tft.getTouch(&x, &y))
+            return false; // nothing held -- the overwhelmingly common path
+
+        Serial.println("[wifi-reset] boot touch detected; hold to confirm");
+        const uint32_t holdStart = millis();
+        uint32_t lastShown = UINT32_MAX;
+        while (tft.getTouch(&x, &y)) {
+            const uint32_t held = millis() - holdStart;
+            if (held >= HOLD_MS) {
+                DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
+                                   lgfx::color888(255, 176, 0),
+                                   "WIFI RESET", "Forgetting network...", "Release now");
+                delay(1200);
+                Serial.println("[wifi-reset] hold completed -- clearing credentials");
+                return true;
+            }
+            // Count down out loud. Silent detection would be worse than none: the
+            // customer needs to know it is working AND that letting go cancels.
+            const uint32_t left = (HOLD_MS - held + 999) / 1000;
+            if (left != lastShown) {
+                lastShown = left;
+                DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
+                                   lgfx::color888(255, 176, 0), "KEEP HOLDING",
+                                   ("Reset WiFi in " + String((int)left) + "...").c_str(),
+                                   "Release to cancel");
+            }
+            delay(30);
+        }
+        Serial.println("[wifi-reset] released early -- cancelled");
+        DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
+                           "CANCELLED", "WiFi settings kept", "");
+        delay(900);
+        return false;
+    }
+
     static void ConfigureWiFiManager(WiFiManager& wm, LGFX& tft, LGFX_Sprite& backbuffer)
     {
         // DEV level prints the SSID/password the portal actually received, plus the
@@ -125,6 +202,34 @@ namespace WiFiManagerHelpers
         // way a normal client does.
         wm.setConnectRetries(5);
         wm.setConnectTimeout(15); // seconds per attempt; polls through transient reason-2 disconnects
+
+        // THE PORTAL MUST GIVE UP -- BUT ONLY WHEN THERE IS SOMETHING TO RETRY.
+        //
+        // Default is 0 = block in the portal forever, which loses a device to the
+        // commonest household event there is: a power cut. The board is up in ~10 s,
+        // a router takes 1-3 min, so the join fails, the portal opens, and the unit
+        // sits in setup mode indefinitely -- long after the network came back, with
+        // the customer having done nothing wrong. Timing out and rebooting retries
+        // the saved credentials, which is the self-heal.
+        //
+        // On a NEVER-PROVISIONED board there are no saved credentials, so a reboot
+        // retries nothing -- all it does is drop the setup hotspot every 3 minutes
+        // while the customer is still scanning for it on their phone. So the timeout
+        // is armed only when credentials exist. (Out-of-box first setup is exactly
+        // this case, and it is the one moment the portal must be rock steady.)
+        //
+        // setAPClientCheck is the other half: the timeout is suspended while anyone
+        // is connected to the setup hotspot (WiFiManager checks
+        // WiFi_softap_num_stations()), so a customer typing their password is never
+        // cut off mid-setup even on the timed path.
+        if (wm.getWiFiIsSaved()) {
+            wm.setConfigPortalTimeout(180);
+            wm.setAPClientCheck(true);
+            Serial.println("[WiFi] credentials saved: portal will time out after 180 s and retry them");
+        } else {
+            wm.setConfigPortalTimeout(0); // explicit: never drop the hotspot during first setup
+            Serial.println("[WiFi] no saved credentials: portal stays up indefinitely for first setup");
+        }
 
         // log the moment the portal hands new credentials to the radio
         wm.setSaveConfigCallback([]() {

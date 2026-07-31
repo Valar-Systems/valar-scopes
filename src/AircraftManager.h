@@ -79,6 +79,18 @@ private:
     // detail card overlays whichever screen you're on.
     enum class Screen { Radar, List, Stats };
     Screen screen = Screen::Radar;
+
+    // Stats-screen "Reset WiFi" control. The row's drawn bounds are recorded each
+    // frame rather than computed twice, because the Stats layout is dynamic (rows
+    // are dropped as they run out of room above the clock) -- a hardcoded hit box
+    // would drift out of alignment on the smaller panels exactly where the rows
+    // get squeezed. armedUntil implements the confirming tap: first tap arms and
+    // says so, second tap within the window commits, and it disarms itself.
+    int  wifiRowY0 = -1, wifiRowY1 = -1;
+    unsigned long wifiResetArmedUntilMs = 0;
+    bool wifiResetRequested = false;
+    static constexpr unsigned long WIFI_RESET_ARM_MS = 6000;
+
     bool inDetail = false;     // detail card shown over the current screen
     String selectedIcao = "";  // aircraft shown in the detail card
     String pinnedIcao = "";    // aircraft kept highlighted ("tracked") on the radar
@@ -576,6 +588,14 @@ public:
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
+
+    // On-screen "Reset WiFi", consumed by main.cpp. This is the PRIMARY recovery
+    // path for a device with wrong credentials: it still boots, renders and takes
+    // touch -- only the feed is dead -- so the UI is fully available exactly when
+    // the config web page is not (that page needs the network the device has lost).
+    // Lives on the Stats screen, never the radar face, and needs a second
+    // confirming tap.
+    bool ConsumeWifiReset() { const bool r = wifiResetRequested; wifiResetRequested = false; return r; }
     // Night clock mode: at solar night with an empty sky (and NTP synced), the radar
     // screen shows a big seven-segment clock instead of a dead scope. main.cpp also
     // consults this to suppress the sweep beam under the clock face.
