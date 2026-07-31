@@ -94,8 +94,15 @@ See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + out
   owner-approved for the private bench soak; see the `REVISIT` comment in
   [wrangler.toml](proxy/wrangler.toml)). **Must revert to `"false"` before customer
   launch** unless commercial permission clears — it diverges from the documented posture.
-- **adsb.fi failover returns HTTP 403** to the Worker egress (airplanes.live is carrying
-  failover alone). Investigate: header/User-Agent/key requirement, or CF-egress block.
+- ~~**adsb.fi failover returns HTTP 403**~~ **RESOLVED 2026-07-29 — and superseded by a
+  licensing blocker.** The 403 was the Cloudflare shared egress, not a header/key
+  requirement: both relay IPs (`67.205.155.80`, `104.238.156.243`) get **HTTP 200** with
+  no allowlisting needed, and adsb.fi granted testing permission. But their published
+  terms are **"personal, non-commercial use only … you may not license, sell, rent, or
+  lease any part of the data or the service"** — no ODbL-style redistribution right, so
+  adsb.fi **cannot be a production upstream** without a written commercial grant. Their
+  public rate limit (**1 req/s per IP**) is also below fleet need, so the ask is *two*
+  things, not one. adsb.fi is a bench-measurement source only until that lands.
 - **BLIP_KEYS drift.** The staging *and* production `BLIP_KEYS` secrets got out of sync with
   `Cloudflare keys.txt`, causing confusing 401s (a valid-looking key rejected). Reconcile:
   document the actual deployed key per env and tidy the keys file. Cloudflare secrets are

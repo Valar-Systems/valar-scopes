@@ -42,7 +42,8 @@ secondary) poll adsb.lol and the Worker consumes from them. See [relay/](../rela
   fallback with `ROUTE_ADSBDB_ENABLED = "false"` once routeset recovers.
 - **airplanes.live is PROHIBITED by operator** (written refusal, July 2026) and
   ships permanently dark — hardcoded off in `airplanes_live.ts`, not a reserve
-  option. **adsb.fi** ships disabled pending permission (and 403s our egress).
+  option. **adsb.fi is now the primary** (written redistribution permission,
+  2026-07-30) with adsb.lol demoted to licensed fallback — see the table below.
   With adsb.lol reached via the relays, the outage story is: relay-a fails over
   to relay-b; if both are down the circuit breaker → stale-while-revalidate
   serves the last picture (stamped with its original `t`) → devices show their
@@ -50,16 +51,40 @@ secondary) poll adsb.lol and the Worker consumes from them. See [relay/](../rela
 
 ### Upstream licensing posture
 
-**Staging and production run adsb.lol-only, reached via the dedicated-egress
-relays** ([relay/](../relay/)). The relays are what make adsb.lol-only viable —
-they end the Cloudflare shared-egress 429. The state of each upstream:
+**Both position sources are reached via the dedicated-egress relays**
+([relay/](../relay/)) — the relays are what ended the Cloudflare shared-egress 429,
+and they are also why adsb.fi works at all (its old 403 was that same shared egress).
+The state of each upstream:
 
-| upstream | status | why | to enable |
-| --- | --- | --- | --- |
-| **adsb.lol** (via relay-a / relay-b) | **ENABLED** | ODbL 1.0 explicitly permits commercial use with attribution. The only cleared source. Polled from dedicated relay IPs, not Cloudflare's shared egress. | already on |
-| **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated 2026-07-22. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
-| **adsb.fi** | DISABLED | Permission never granted. Separately, it **403s our Cloudflare egress** anyway. | written commercial grant *and* fixing the 403 |
-| **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
+**Chain order (2026-07-30): adsb.fi → adsb.lol.** Each source leads with relay-a and
+fails over to relay-b, so the full point/hex chain is
+`adsb_fi` → `adsb_fi_b` → `adsb_lol` → `adsb_lol_b`.
+
+| # | upstream | status | why | notes |
+| --- | --- | --- | --- | --- |
+| 1–2 | **adsb.fi** (via relay-a / relay-b) | **PRIMARY** — staging 2026-07-30, production pending soak review | **Caching/redistribution permission granted in writing 2026-07-30.** Leads on operational grounds: ~19× the rate headroom (3600 req/h/IP vs the ~190/h where adsb.lol starts 429ing us), ~90 KB/s vs adsb.lol's ~12 KB/s anonymous cap, and an operator who answers email. Measured over a 21.3 h two-relay soak: **0 % 429 across 10,037 position fetches.** | Public limit **1 req/s per IP** — the binding scale constraint; see the rate model below. The old "adsb.fi 403s us" was Cloudflare shared egress, not policy, and the relays solve it. |
+| 3–4 | **adsb.lol** (via relay-a / relay-b) | **FALLBACK** (was primary) | **ODbL 1.0 — a right no operator can revoke**, which is worth more as a fallback than as a primary. Demoted, not dropped: the maintainer is unresponsive and has publicly flagged the public API may have to be withdrawn, so the fleet's primary path must not depend on it. Same soak: **68 % 429, with a 720 s unbroken degraded run.** | `adsb_lol_b` is deliberately the **terminal** feed — the breaker may never skip the terminal feed, so the one leg the chain can always reach is the one with the irrevocable licence. |
+| — | **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated 2026-07-22. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
+| — | **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
+
+**Sponsorship posture — unconditional.** Blipscope sponsors **adsb.lol at $50/month
+regardless of chain position**, and that does not change now that it is the fallback.
+The sponsorship funds the licensed foundation the whole architecture rests on; it does
+not buy a slot in the chain. Treating it as leverage would be the wrong relationship
+with a volunteer project and would make every future routing decision look like a
+negotiating tactic. If adsb.fi's commercial tier is taken up, the intent is to fund them
+on the same terms rather than move money between them.
+
+**One response, one source.** The chain returns the first feed that answers freshly and
+never merges aircraft from two sources. Blending would make provenance, attribution and
+dedupe a permanent problem; failover keeps every response traceable to exactly one
+operator. Both sources are credited on the device and `/credits` at all times regardless
+of which served any given response.
+
+**Rollback.** `UPSTREAM_FEED_ORDER` (e.g. `"adsb_lol,adsb_lol_b"`) moves feeds to the
+front of both chains without a deploy — the 2 a.m. knob for demoting a misbehaving
+primary. It is non-destructive: unlisted feeds keep their default position, so a typo can
+reorder the chain but never shorten it.
 
 **Relay IPs are announced to adsb.lol** as a courtesy identification (we run a
 feeder; the email goes out once the soak passes). Current relay IPs:
