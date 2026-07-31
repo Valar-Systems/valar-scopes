@@ -90,7 +90,13 @@ private:
     Preferences prefs;
 
     // Bounds chosen so each serialized store stays under the NVS ~4000-byte
-    // string cap: types "CODE|day|count" is <=17 B worst case (220 x 17 = 3740),
+    // per-entry cap. NOTE (v3, 2026-07-31): the stores are written as BLOBs, not
+    // strings -- a string must fit contiguously in one 4 KB page, which is what
+    // made `operators` fail with NOT_ENOUGH_SPACE at only ~2.6 KB. Blobs are
+    // chunked across pages by NVS, so the real remaining limit is total space in
+    // the 20 KB partition shared with the config namespace. Watch the
+    // `NVS entries free` figure on the [logbook] persist line before raising any
+    // of these: types "CODE|day|count" is <=17 B worst case (220 x 17 = 3740),
     // operators "NAME|day" is <=31 B (120 x 31 = 3720). v2 lowered the caps from
     // 400/140 -- existing over-cap lists still load and persist (MAX_BLOB is the
     // hard ceiling); they just can't grow further.
