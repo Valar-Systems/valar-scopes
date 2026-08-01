@@ -127,12 +127,25 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // the rest of the script.
 #define CONFIG_SHELL_JS \
     R"(<script>)" \
-    R"(document.getElementById('cfg').addEventListener('submit',function(e){e.preventDefault();var st=document.getElementById('result');st.textContent='saving...';fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){st.textContent=t}).catch(function(){st.textContent='save failed - device unreachable'})});)" \
+    R"(document.getElementById('cfg').addEventListener('submit',function(e){e.preventDefault();var st=document.getElementById('result');)" \
+    R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]'),miss=[];)" \
+    R"([la,lo].forEach(function(i){if(!i)return;var bad=!String(i.value).trim();i.style.outline=bad?'2px solid #ff4d4d':'';i.style.background=bad?'#4a0000':'';)" \
+    R"(if(bad){miss.push(i);i.addEventListener('input',function(){i.style.outline='';i.style.background=''},{once:true})}});)" \
+    R"(st.textContent='saving...';st.style.color='';st.style.fontWeight='';)" \
+    R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){)" \
+    R"(st.textContent=t;var w=/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
+    R"(if(miss.length){miss[0].scrollIntoView({block:'center'});miss[0].focus()}}).catch(function(){st.textContent='save failed - device unreachable'})});)" \
     R"(document.getElementById('resetwifi').addEventListener('click',function(){if(!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.'))return;fetch('/reset-wifi',{method:'POST',headers:{'X-Blipscope':'1'}}).then(function(r){return r.text()}).then(function(t){document.getElementById('result').textContent=t})});)" \
     R"(var shBr=document.querySelector('input[name=brightness]'),shBv=document.getElementById('brival');)" \
     R"(if(shBr&&shBv){var shSync=function(){shBv.textContent=shBr.value};shBr.addEventListener('input',shSync);shSync()})" \
     R"(var shLa=document.querySelector('input[name=latitude]'),shLo=document.querySelector('input[name=longitude]');)" \
     R"(if(shLa&&shLo){shLa.addEventListener('paste',function(e){var t=(e.clipboardData||window.clipboardData).getData('text'),m=t.match(/(-?\d+(?:\.\d+)?)[,;\s]+(-?\d+(?:\.\d+)?)/);if(m){e.preventDefault();shLa.value=m[1];shLo.value=m[2]}})})" \
+    R"(if(shLa&&shLo&&(!String(shLa.value).trim()||!String(shLo.value).trim())){var shB=document.createElement('div');)" \
+    R"(shB.textContent='Set your location below. Until you do, the screen will stay empty.';)" \
+    R"(shB.style.cssText='background:#4a0000;color:#ffb3b3;border:1px solid #ff4d4d;border-radius:6px;padding:10px;margin:10px 0;font-weight:bold';)" \
+    R"(var shF=document.getElementById('cfg');shF.parentNode.insertBefore(shB,shF);)" \
+    R"([shLa,shLo].forEach(function(i){i.style.outline='2px solid #ff4d4d';i.style.background='#4a0000';)" \
+    R"(i.addEventListener('input',function(){i.style.outline='';i.style.background='';if(String(shLa.value).trim()&&String(shLo.value).trim())shB.remove()})})})" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
     R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"
