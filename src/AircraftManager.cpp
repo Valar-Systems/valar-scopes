@@ -357,13 +357,31 @@ EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url, const Stri
 
     // The BYO adsbdb thumbnail host is public; the cloud /v1/photo route needs
     // the device key. authKey is "" for BYO, the proxy key in cloud mode.
+    //
+    // USE THE FULL HEADER SET, not just X-Blip-Key. This hand-rolled the one
+    // header and was correct for exactly as long as every device shared one key.
+    // With per-device keys it broke: the proxy only tries its per-device auth path
+    // when a request carries X-Blip-Device, so a photo request without it fell
+    // back to the shared BLIP_KEYS list, did not find the minted key, and got a
+    // 401 -- whose 30-byte JSON body then reached the JPEG decoder:
+    //     [photo] a8dc3a: decode FAILED (bytes=30 head=7b22)   ("{\"" = JSON)
+    // Feed and enrichment were unaffected (they already use CloudFeed::Headers),
+    // so a provisioned board looked entirely healthy and simply never showed a
+    // single photo.
     std::vector<std::pair<String, String>> headers;
     if (!authKey.isEmpty())
-        headers.push_back({ "X-Blip-Key", authKey });
+        headers = CloudFeed::Headers(authKey);
 
     HttpResult result = http.Get(url, {}, headers);
     if (!result.success) {
         Serial.printf("[photo] fetch failed: %s\n", result.errorMessage.c_str());
+        return res; // photoFetched stays false
+    }
+    // A JSON body here is an error envelope, not an image. Say so plainly rather
+    // than letting it reach drawJpg and surface as a decode failure.
+    if (result.response.length() > 0 && result.response[0] == '{') {
+        Serial.printf("[photo] rejected: proxy returned JSON, not an image: %s\n",
+                      result.response.substring(0, 96).c_str());
         return res; // photoFetched stays false
     }
 
@@ -2129,9 +2147,21 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
 
     int y = 48;
     const int lh = backbuffer.fontHeight() + 10;
-    const int clockTop = SCREEN_SIZE - 30; // matches DrawClock's y
+    const int clockRow = SCREEN_SIZE - 30; // matches DrawClock's y
+
+    // RESERVED, not space-guarded: the "Reset WiFi" control gets its own row just
+    // above the clock, and everything else stops short of it. It used to be drawn
+    // last like any other line, which meant a busy scope silently deleted it --
+    // HIGH/FAST/NEAR, the leaderboard and the feed block consumed the budget, `y`
+    // passed the limit, and the row (and with it its tap target, which is derived
+    // from the drawn bounds) simply never appeared. The one control a customer
+    // needs when the device is off the network cannot be the first thing crowded
+    // out by scoreboard rows.
+    const int wifiRowTop = clockRow - lh - 2;
+    const int clockTop = wifiRowTop;   // the ceiling every optional block below obeys
+
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-    // Space-guarded: a line that would reach the clock row is dropped, so the
+    // Space-guarded: a line that would reach the reserved row is dropped, so the
     // block order below is also the priority order on the small 240 px panels.
     auto line = [&](const String& s) {
         if (y + lh > clockTop) return;
@@ -2290,9 +2320,11 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // recorded for HandleTap; -1 means it wasn't drawn this frame (no room), and
     // then it cannot be tapped either -- the hit test and the pixels agree by
     // construction.
-    wifiRowY0 = wifiRowY1 = -1;
     {
         const bool up = WiFi.status() == WL_CONNECTED;
+
+        // The SSID line is a nicety and stays space-guarded -- it answers "is it
+        // even on my WiFi?", but it is not the thing that must survive.
         if (y + lh <= clockTop) {
             y += 6;
             backbuffer.setTextColor(up ? lgfx::color888(0, 255, 0) : lgfx::color888(255, 176, 0));
@@ -2300,14 +2332,16 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
             if (up && ssid.isEmpty()) ssid = "(unnamed)";
             line(up ? ("WiFi " + ssid) : String("WiFi NOT CONNECTED"));
         }
-        if (y + lh <= clockTop) {
-            const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
-            backbuffer.setTextColor(armed ? lgfx::color888(255, 80, 80)
-                                          : lgfx::color888(0, 200, 0));
-            wifiRowY0 = y - 2;
-            line(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset WiFi ]"));
-            wifiRowY1 = y + 2; // line() has advanced y past the row
-        }
+
+        // The control itself is drawn UNCONDITIONALLY in its reserved row.
+        const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
+        backbuffer.setTextColor(armed ? lgfx::color888(255, 80, 80)
+                                      : lgfx::color888(0, 200, 0));
+        centered(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset WiFi ]"), wifiRowTop);
+        // Tap target = the drawn row, padded to a fingertip. Derived from the same
+        // constant the text uses, so the hit box cannot drift from the pixels.
+        wifiRowY0 = wifiRowTop - 8;
+        wifiRowY1 = wifiRowTop + lh;
     }
 
     // THIS DEVICE -- the config page is at http://<name>.local, so a user who forgot the name
