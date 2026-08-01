@@ -15,3 +15,8 @@ bench-logs/*.bin
 # fleet roster -- keep it local. Override the location with --log if you want it
 # somewhere else entirely.
 provisioned.csv
+
+# Per-run bench ledgers written by scripts/bench-capture.ps1 (machine-specific,
+# one file per capture run). The historical soak logs above stay tracked.
+bench-logs/s3-128-*.log
+bench-logs/capture.pid
