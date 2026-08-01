@@ -48,12 +48,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 PIO_HOME = Path(os.environ.get("PLATFORMIO_CORE_DIR", Path.home() / ".platformio"))
 
-# NVS partition: identical in min_spiffs.csv and default_16MB.csv, and the
-# Arduino Preferences namespace the config server writes to.
-NVS_OFFSET = "0x9000"
-NVS_SIZE = 0x5000
+# NVS geometry is READ FROM THE ENV'S PARTITION TABLE, never assumed. It used to
+# be hardcoded 0x9000/0x5000 -- true for min_spiffs.csv and default_16MB.csv, and
+# silently wrong the moment a SKU moved to partitions-s3-16mb-bignvs.csv (84 KB).
+# A short image written into a long partition leaves whatever was there before
+# beyond its end, and the platform's uploader writes boot_app0 at a hardcoded
+# 0xe000 -- inside an enlarged NVS -- so the tail is not blank, it is garbage.
+# Generating the image at the FULL partition size overwrites all of it, which is
+# what makes the result deterministic.
+NVS_DEFAULT_OFFSET, NVS_DEFAULT_SIZE = "0x9000", 0x5000
 NVS_NAMESPACE = "config"
-KEY_NVS_KEY = "cloud-key"   # matches ConfigurationWebServer's prefs key
+KEY_NVS_KEY = "cloud-key"        # the editable override, masked on the config page
+KEY_NVS_FACTORY = "cloud-key-fac"  # read-only factory identity; the recovery source
 URL_NVS_KEY = "cloud-url"
 
 # Must match include/DeviceIdentity.h. Parsed from source below rather than
@@ -99,6 +105,69 @@ def salt_from_sources(env: str) -> str:
     if override and header_default and override != header_default:
         print(f"  note: env overrides the header salt ({header_default!r} -> {override!r})")
     return salt
+
+
+def nvs_geometry(env: str) -> tuple[str, int]:
+    """(offset, size) of the nvs partition for this env, from its partition CSV.
+
+    Resolution mirrors PlatformIO's: `board_build.partitions` inside the env (or
+    the [env] it extends) names either a repo-local CSV or one shipped with the
+    framework. Parsed rather than assumed, for the same reason the salt is --
+    a mismatch here is invisible until the boards are already provisioned.
+    """
+    ini = (REPO / "platformio.ini").read_text(encoding="utf-8")
+    blocks, cur = {}, None
+    for line in ini.splitlines():
+        if line.startswith("["):
+            cur = line.strip().strip("[]")
+            blocks[cur] = []
+        elif cur:
+            blocks[cur].append(line)
+
+    def find(section: str, depth: int = 0) -> str | None:
+        if depth > 5 or section not in blocks:
+            return None
+        for line in blocks[section]:
+            m = re.match(r"\s*board_build\.partitions\s*=\s*(\S+)", line)
+            if m:
+                return m.group(1)
+        for line in blocks[section]:  # follow `extends = ...` only if not set here
+            m = re.match(r"\s*extends\s*=\s*(\S+)", line)
+            if m:
+                return find(m.group(1), depth + 1)
+        return None
+
+    csv_name = find(f"env:{env}")
+    if not csv_name:
+        return NVS_DEFAULT_OFFSET, NVS_DEFAULT_SIZE
+
+    for cand in (REPO / csv_name,
+                 PIO_HOME / "packages" / "framework-arduinoespressif32" / "tools" / "partitions" / csv_name):
+        if cand.exists():
+            for row in cand.read_text(encoding="utf-8").splitlines():
+                if row.strip().startswith("#") or not row.strip():
+                    continue
+                f = [c.strip() for c in row.split(",")]
+                if len(f) >= 5 and f[0] == "nvs":
+                    off, size = f[3], int(f[4], 0)
+                    print(f"  partitions {csv_name}: nvs at {off}, {size // 1024} KB")
+                    return off, size
+    die(f"could not find an nvs row in {csv_name}")
+
+
+def pio_exe() -> str:
+    """PlatformIO's launcher, by absolute path.
+
+    A bare "pio" is frequently NOT on PATH -- it lives in PlatformIO's own venv,
+    and the VS Code / IDE integrations add it per-shell. Combined with a silent
+    `except: return []` in port discovery that cost 15 minutes of a batch watcher
+    finding zero boards with nothing on stdout to say why.
+    """
+    for c in (PIO_HOME / "penv" / "Scripts" / "platformio.exe",   # Windows
+              PIO_HOME / "penv" / "bin" / "platformio"):           # POSIX
+        if c.exists():
+            return str(c)
+    return "pio"
 
 
 def pio_python() -> str:
@@ -176,17 +245,26 @@ def device_key(secret: str, dev_id: str) -> str:
     return hmac.new(secret.encode("utf-8"), dev_id.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def build_nvs(key: str, cloud_url: str | None, workdir: Path) -> Path:
+def build_nvs(key: str, cloud_url: str | None, workdir: Path, size: int = NVS_DEFAULT_SIZE) -> Path:
     csv_path, bin_path = workdir / "nvs.csv", workdir / "nvs.bin"
+    # TWO copies of the same key, and the second one is the whole support story.
+    #   cloud-key      -- the editable override shown (masked) on the config page
+    #   cloud-key-fac  -- the factory identity, never rendered and never writable
+    #                     from the web UI, so no browser action can destroy it
+    # AircraftManager falls back to -fac whenever the override is empty, which makes
+    # "clear the box and save" the customer-side repair for a mangled key. Without
+    # it, a wiped key is unrecoverable on the device and every occurrence becomes an
+    # email asking the operator to re-derive it from the fleet secret.
     rows = [["key", "type", "encoding", "value"],
             [NVS_NAMESPACE, "namespace", "", ""],
-            [KEY_NVS_KEY, "data", "string", key]]
+            [KEY_NVS_KEY, "data", "string", key],
+            [KEY_NVS_FACTORY, "data", "string", key]]
     if cloud_url:
         rows.append([URL_NVS_KEY, "data", "string", cloud_url])
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerows(rows)
     subprocess.run([pio_python(), str(find_nvs_gen()), "generate",
-                    str(csv_path), str(bin_path), str(NVS_SIZE)],
+                    str(csv_path), str(bin_path), str(size)],
                    check=True, capture_output=True, text=True)
     csv_path.unlink()  # it contains the device key in plaintext -- do not leave it around
     return bin_path
@@ -210,6 +288,7 @@ def main() -> None:
 
     print(f"\n=== provisioning [{args.env}] ===")
     salt = salt_from_sources(args.env)
+    nvs_offset, nvs_size = nvs_geometry(args.env)
     esptool_cmd, dashed = find_esptool()
 
     mac = read_mac(esptool_cmd, dashed, args.port)
@@ -225,18 +304,18 @@ def main() -> None:
 
     if not args.skip_app:
         print("\n  flashing app ...")
-        r = subprocess.run(["pio", "run", "-e", args.env, "-t", "upload"]
+        r = subprocess.run([pio_exe(), "run", "-e", args.env, "-t", "upload"]
                            + (["--upload-port", args.port] if args.port else []),
-                           cwd=REPO, shell=(os.name == "nt"))
+                           cwd=REPO)
         if r.returncode != 0:
             die("app upload failed")
 
     if not args.skip_nvs:
         print("\n  building + flashing NVS (ERASES Wi-Fi and all device config) ...")
         with tempfile.TemporaryDirectory() as td:
-            nvs_bin = build_nvs(key, args.cloud_url, Path(td))
+            nvs_bin = build_nvs(key, args.cloud_url, Path(td), nvs_size)
             cmd = esptool_cmd + (["--port", args.port] if args.port else []) \
-                + ["write-flash" if dashed else "write_flash", NVS_OFFSET, str(nvs_bin)]
+                + ["write-flash" if dashed else "write_flash", nvs_offset, str(nvs_bin)]
             r = subprocess.run(cmd)
             if r.returncode != 0:
                 die("NVS flash failed")
@@ -246,9 +325,12 @@ def main() -> None:
         # matches the Worker's, so every key from this run is valid. A 401 means
         # the secret is wrong and the whole batch would ship unauthenticated.
         import urllib.request
+        # UA matters: Cloudflare 403s the default Python-urllib one at the edge,
+        # which is indistinguishable from a rejected key unless you know.
         req = urllib.request.Request(
             args.verify_url.rstrip("/") + "/v1/config",
-            headers={"X-Blip-Key": key, "X-Blip-Device": dev_id, "X-Blip-Model": "s3-128"})
+            headers={"X-Blip-Key": key, "X-Blip-Device": dev_id, "X-Blip-Model": "s3-128",
+                     "User-Agent": "Blipscope-Provisioner/1"})
         try:
             code = urllib.request.urlopen(req, timeout=30).status
         except Exception as e:

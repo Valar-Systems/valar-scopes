@@ -8,3 +8,10 @@ business/
 
 # Stock-firmware dumps and other large bench binaries stay local (insurance copies, never shipped)
 bench-logs/*.bin
+
+# Manufacturing record written by scripts/provision-device.py: one row per board
+# with its factory MAC and derived deviceId. Not a secret (the device KEY is never
+# written anywhere), but it is customer-hardware data and a public-repo leak of the
+# fleet roster -- keep it local. Override the location with --log if you want it
+# somewhere else entirely.
+provisioned.csv

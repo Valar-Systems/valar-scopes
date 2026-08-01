@@ -1,6 +1,8 @@
 #include "Logbook.h"
 
 #include <ctime>
+#include <memory>
+#include <new>
 
 namespace {
 
@@ -32,6 +34,27 @@ void forEachRecord(const String& blob, Fn fn)
             start = i + 1;
         }
     }
+}
+
+// Read one serialized store. v3 writes these as NVS BLOBs; v2 wrote STRINGs, so
+// fall back on the string when the key still carries the legacy type (the first
+// persist after an OTA rewrites it as a blob). getType() first, because calling
+// getBytesLength() on a string-typed key logs an NVS_TYPE_MISMATCH error.
+String readStore(Preferences& p, const char* key)
+{
+    if (!p.isKey(key))
+        return "";
+    if (p.getType(key) != PT_BLOB)
+        return p.getString(key, ""); // legacy v2
+    const size_t n = p.getBytesLength(key);
+    if (n == 0)
+        return "";
+    std::unique_ptr<char[]> buf(new (std::nothrow) char[n + 1]);
+    if (!buf)
+        return "";
+    p.getBytes(key, buf.get(), n);
+    buf[n] = '\0';
+    return String(buf.get());
 }
 
 } // namespace
@@ -85,8 +108,8 @@ void Logbook::Begin()
 
     // types: v2 records are "CODE|firstDay|count"; a legacy v1 record is the
     // bare code and parses as day 0 (unknown) / count 1.
-    if (prefs.isKey("types")) {
-        forEachRecord(prefs.getString("types", ""), [this](const String& rec) {
+    {
+        forEachRecord(readStore(prefs, "types"), [this](const String& rec) {
             String f[3];
             const int n = splitFields(rec, f, 3);
             TypeStat st;
@@ -97,23 +120,19 @@ void Logbook::Begin()
         });
     }
     // operators: v2 "NAME|firstDay"; legacy is the bare name.
-    if (prefs.isKey("operators")) {
-        forEachRecord(prefs.getString("operators", ""), [this](const String& rec) {
+    {
+        forEachRecord(readStore(prefs, "operators"), [this](const String& rec) {
             String f[2];
             const int n = splitFields(rec, f, 2);
             if (!f[0].isEmpty()) operators[f[0]] = n >= 2 ? (uint16_t)f[1].toInt() : 0;
         });
     }
-    if (prefs.isKey("countries")) {
-        forEachRecord(prefs.getString("countries", ""), [this](const String& rec) {
-            countries.insert(rec);
-        });
-    }
-    if (prefs.isKey("airports")) {
-        forEachRecord(prefs.getString("airports", ""), [this](const String& rec) {
-            airports.insert(rec);
-        });
-    }
+    forEachRecord(readStore(prefs, "countries"), [this](const String& rec) {
+        countries.insert(rec);
+    });
+    forEachRecord(readStore(prefs, "airports"), [this](const String& rec) {
+        airports.insert(rec);
+    });
     contacts = prefs.getUInt("contacts", 0);
     loadRecord(prefs, "rec-high", recHigh);
     loadRecord(prefs, "rec-fast", recFast);
@@ -255,7 +274,7 @@ String Logbook::ExportJson()
 
     json += ",\"types\":[";
     bool first = true;
-    forEachRecord(p.isKey("types") ? p.getString("types", "") : "", [&](const String& rec) {
+    forEachRecord(readStore(p, "types"), [&](const String& rec) {
         String f[3];
         const int n = splitFields(rec, f, 3);
         if (f[0].isEmpty()) return;
@@ -268,7 +287,7 @@ String Logbook::ExportJson()
 
     json += "],\"airlines\":[";
     first = true;
-    forEachRecord(p.isKey("operators") ? p.getString("operators", "") : "", [&](const String& rec) {
+    forEachRecord(readStore(p, "operators"), [&](const String& rec) {
         String f[2];
         const int n = splitFields(rec, f, 2);
         if (f[0].isEmpty()) return;
@@ -280,7 +299,7 @@ String Logbook::ExportJson()
 
     const auto stringArray = [&](const char* key) {
         bool firstEl = true;
-        forEachRecord(p.isKey(key) ? p.getString(key, "") : "", [&](const String& rec) {
+        forEachRecord(readStore(p, key), [&](const String& rec) {
             if (!firstEl) json += ',';
             firstEl = false;
             json += "\"" + jsonEscape(rec) + "\"";
@@ -350,20 +369,51 @@ void Logbook::MaybePersist()
         airportsBlob += a;
     }
 
-    prefs.begin("logbook", false);
-    prefs.putString("types", typesBlob);
-    prefs.putString("operators", opsBlob);
-    prefs.putString("countries", countriesBlob);
-    prefs.putString("airports", airportsBlob);
+    if (!prefs.begin("logbook", false)) {
+        Serial.println("[logbook] PERSIST FAILED: cannot open the NVS namespace");
+        lastPersist = now; // don't spin; retry on the next debounce with dirty still set
+        return;
+    }
+
+    // Stores go in as BLOBs, not strings. An NVS string must fit CONTIGUOUSLY
+    // inside one 4 KB page, so at ~86 airlines the operators store (~2.6 KB, ~82
+    // of a page's 126 entries) needed an 82-entry run in a single page -- and once
+    // the 20 KB partition's pages are fragmented by ten-minute rewrites, no such
+    // run exists and nvs_set_str returns NOT_ENOUGH_SPACE while the partition
+    // still has plenty of free entries. Blobs are chunked across pages by NVS
+    // itself, so they only need the space, not the contiguity. Observed failing
+    // 2026-07-31 on the bench s3-128 ("nvs_set_str fail: operators
+    // NOT_ENOUGH_SPACE") -- silently, because nobody read the return values.
+    int failed = 0;
+    const auto put = [&](const char* key, const String& blob) {
+        if (prefs.putBytes(key, blob.c_str(), blob.length()) == blob.length())
+            return;
+        ++failed;
+        Serial.printf("[logbook] PERSIST FAILED: key=%s bytes=%u freeEntries=%u\n",
+                      key, (unsigned)blob.length(), (unsigned)prefs.freeEntries());
+    };
+    put("types", typesBlob);
+    put("operators", opsBlob);
+    put("countries", countriesBlob);
+    put("airports", airportsBlob);
     prefs.putUInt("contacts", contacts);
     saveRecord("rec-high", recHigh);
     saveRecord("rec-fast", recFast);
     saveRecord("rec-near", recNear);
+    const size_t freeLeft = prefs.freeEntries();
     prefs.end();
 
     lastPersist = now;
-    dirty = false;
-    Serial.printf("[logbook] persisted (%u types, %u airlines, %u countries, %u contacts)\n",
+    // Only clear `dirty` when everything landed -- a partial write must be retried
+    // on the next debounce, not forgotten. The old code cleared it unconditionally
+    // and printed "persisted", so a full NVS lost entries with no trace.
+    if (failed == 0)
+        dirty = false;
+    Serial.printf("[logbook] %s (%u types, %u airlines, %u countries, %u contacts; %u B blobs, %u NVS entries free)\n",
+                  failed == 0 ? "persisted" : "PARTIALLY persisted",
                   (unsigned)types.size(), (unsigned)operators.size(),
-                  (unsigned)countries.size(), (unsigned)contacts);
+                  (unsigned)countries.size(), (unsigned)contacts,
+                  (unsigned)(typesBlob.length() + opsBlob.length() +
+                             countriesBlob.length() + airportsBlob.length()),
+                  (unsigned)freeLeft);
 }

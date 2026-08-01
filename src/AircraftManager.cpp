@@ -705,8 +705,25 @@ void AircraftManager::Initialise()
     cloudUrl = CloudFeed::NormalizeBaseUrl(configServer.GetStoredString("cloud-url"));
     if (cloudUrl.isEmpty())
         cloudUrl = CloudFeed::NormalizeBaseUrl(CLOUD_FEED_BASE);
+    // Access key, in priority order: the user-editable override, then the key
+    // burned in at assembly, then the compile-time default.
+    //
+    // "cloud-key-fac" is written once by scripts/provision-device.py and is NEVER
+    // shown or writable on the config page, so nothing a customer does in a browser
+    // can destroy it. That makes an EMPTY "cloud-key" the repair rather than the
+    // injury: clearing the box on the settings page restores the key the device
+    // shipped with. Before this, a wiped key was unrecoverable on the device --
+    // the page only ever displayed asterisks, so the customer had never seen the
+    // value they had just deleted, and every instance became a support round-trip
+    // to re-derive it from the fleet secret.
     cloudKey = configServer.GetStoredString("cloud-key");
     cloudKey.trim();
+    if (cloudKey.isEmpty()) {
+        cloudKey = configServer.GetStoredString("cloud-key-fac");
+        cloudKey.trim();
+        if (!cloudKey.isEmpty())
+            Serial.println("[cloud] no key override; using the factory-provisioned key");
+    }
     if (cloudKey.isEmpty())
         cloudKey = CLOUD_FEED_KEY;
 
@@ -2266,6 +2283,33 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         }
     }
 
+    // NETWORK -- the first thing a customer looks for when "it stopped working",
+    // and the answer to the question they actually have ("is it even on my WiFi?").
+    // The reset row directly beneath it is the recovery path that does NOT require
+    // the network, unlike the /reset-wifi button on the config page. Its bounds are
+    // recorded for HandleTap; -1 means it wasn't drawn this frame (no room), and
+    // then it cannot be tapped either -- the hit test and the pixels agree by
+    // construction.
+    wifiRowY0 = wifiRowY1 = -1;
+    {
+        const bool up = WiFi.status() == WL_CONNECTED;
+        if (y + lh <= clockTop) {
+            y += 6;
+            backbuffer.setTextColor(up ? lgfx::color888(0, 255, 0) : lgfx::color888(255, 176, 0));
+            String ssid = up ? WiFi.SSID() : String();
+            if (up && ssid.isEmpty()) ssid = "(unnamed)";
+            line(up ? ("WiFi " + ssid) : String("WiFi NOT CONNECTED"));
+        }
+        if (y + lh <= clockTop) {
+            const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
+            backbuffer.setTextColor(armed ? lgfx::color888(255, 80, 80)
+                                          : lgfx::color888(0, 200, 0));
+            wifiRowY0 = y - 2;
+            line(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset WiFi ]"));
+            wifiRowY1 = y + 2; // line() has advanced y past the row
+        }
+    }
+
     // THIS DEVICE -- the config page is at http://<name>.local, so a user who forgot the name
     // can swipe here to read it (the IP is an mDNS fallback). Drawn last, and only as far as it
     // fits above the clock row, so it never collides on the small round C3 screen: the host line
@@ -3058,6 +3102,22 @@ void AircraftManager::HandleTap(int tx, int ty)
     // instantly reopened that contact's card). Wrap-safe signed comparison.
     if ((long)(millis() - tapSuppressUntilMs) < 0)
         return;
+
+    // Stats screen: the "Reset WiFi" row. Two taps, because one tap is how a
+    // customer loses their network by brushing the screen while dusting it. The
+    // row only responds where it was actually drawn this frame (wifiRowY0/Y1),
+    // and the arm expires on its own so a half-finished reset never lingers.
+    if (screen == Screen::Stats && wifiRowY0 >= 0 && ty >= wifiRowY0 && ty <= wifiRowY1) {
+        if ((long)(millis() - wifiResetArmedUntilMs) < 0) {
+            Serial.println("[wifi-reset] confirmed from the Stats screen");
+            wifiResetRequested = true;   // main.cpp does the reset + restart
+            wifiResetArmedUntilMs = 0;
+        } else {
+            Serial.println("[wifi-reset] armed -- tap again to confirm");
+            wifiResetArmedUntilMs = millis() + WIFI_RESET_ARM_MS;
+        }
+        return;
+    }
 
     if (screen == Screen::Radar) {
         // Pick the contact under the finger. Markers are tiny (~3 px) and a fingertip lands a

@@ -1,0 +1,36 @@
+# 16 MB S3 layout with an 84 KB NVS (stock default_16MB.csv gives 20 KB).
+#
+# WHY. 20 KB could not hold this application. Measured on the bench s3-128
+# (2026-07-31, NVS read back off the board and parsed): 497 of 630 entries used,
+# and the logbook was only 36% of it --
+#
+#     logbook  181 entries    config  149     nvs.net80211  97
+#     phy       66            wifi-fast 4
+#
+# The WiFi stack, the PHY calibration blob and `config` take ~10 KB before the
+# logbook stores a single aircraft, leaving ~6 KB for a lifelist whose caps want
+# 13 KB. The result was every write failing with NOT_ENOUGH_SPACE -- including a
+# 4-byte putUInt -- while the logbook rewrote ~4 KB every 10 minutes onto a GC
+# treadmill it could not win. One page always sits empty because NVS reserves it
+# for garbage collection and can never spend it.
+#
+# 84 KB = 21 pages = 2646 entries, ~5x current usage. Sized to be boring.
+#
+# SAFE FOR OTA, WHICH IS WHY THIS COULD BE CHANGED LATE. An app image is not tied
+# to a flash offset (that is what makes two-slot OTA work at all) and OTA never
+# rewrites the partition table, so a device flashed with the stock table keeps it
+# and still takes every future update. Only USB factory flashing changes layout.
+#
+# Adopted before the 50-unit pilot burn: whatever table those boards ship with is
+# permanent for them, and the fleet at that moment was the bench.
+#
+# App slots are unchanged at 6.5 MB each (firmware is ~1.7 MB); spiffs gives up
+# 64 KB. App offsets must stay 0x10000-aligned.
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x15000,
+otadata,  data, ota,     0x1E000,  0x2000,
+app0,     app,  ota_0,   0x20000,  0x640000,
+app1,     app,  ota_1,   0x660000, 0x640000,
+spiffs,   data, spiffs,  0xCA0000, 0x350000,
+coredump, data, coredump,0xFF0000, 0x10000,

@@ -21,8 +21,10 @@ spotting leaderboard, rarest catch, and the AMOLED scaffold. All shipping SKUs b
 **Decision: do NOT cut the OTA release yet** — but the reason has changed. The
 [[s3-128-overnight-slowdown]] was **closed 2026-07-21 as not reproduced** (see below), so
 it is no longer what's holding the release. What remains are the feed-sourcing LAUNCH
-BLOCKERS below. `FW_VERSION` is deliberately left at 4 (bumping it ships nothing until a
-Release is published, so there's nothing to gain by bumping early).
+BLOCKERS below. `FW_VERSION` was bumped to **5** on 2026-07-31 ahead of the Release: the
+50-unit pilot boards are being burned now and must carry a version the `v5` Release can
+supersede, and bumping ships nothing on its own — an OTA only happens once a Release
+publishes a matching `version.txt`.
 
 **[[s3-128-overnight-slowdown]] — CLOSED 2026-07-21, not reproduced.** The original report
 was real (observed ~14 h uptime: planes barely moving, taps needing several tries, detail
@@ -116,8 +118,8 @@ retired with the bug (closed 2026-07-21, not reproduced) — but the 24 h soak i
 it was always broader than the slowdown hunt, and with the bug closed on absence-of-
 evidence rather than a root cause, an unattended soak is the cheapest thing standing
 between us and shipping a recurrence to the fleet.
-When those clear: bump `FW_VERSION` to 5, merge, and publish the `v5` Release per
-[RELEASING.md](RELEASING.md) — the CI matrix already covers every SKU.
+When those clear: publish the `v5` Release per [RELEASING.md](RELEASING.md) — the CI matrix
+already covers every SKU, and `FW_VERSION` is already at 5.
 
 ---
 

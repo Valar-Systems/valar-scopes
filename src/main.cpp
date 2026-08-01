@@ -78,6 +78,32 @@ void setup()
 {
   Serial.begin(115200); // non-blocking; the wait for a CDC *host* happens after the splash below
 
+#if ARDUINO_USB_CDC_ON_BOOT
+  // Never let a Serial write stall the loop. On native USB-CDC (every SKU but the
+  // s3-21, which is on UART0) HWCDC::write BLOCKS when the port is enumerated but
+  // nothing is draining it -- a device plugged into a computer with no terminal
+  // open. isPlugged() stays true (the SOF watchdog still sees the host), so the
+  // driver falls back to a bounded wait of max_consec_timeouts(20) x
+  // tx_timeout_ms(100) = UP TO 2 s PER write() CALL. RecordFrameUs' [health]
+  // report emits two printfs every 30 s, so the loop froze for ~2-4 s every 30 s:
+  // the sweep stopped and touch -- polled once per pass -- went dead, which reads
+  // exactly as "slow to open and close cards". Diagnosed 2026-07-31 on the bench
+  // s3-128 after its serial capture had been detached for 10 days.
+  //
+  // 2 ms caps the worst case at ~40 ms (under one frame) while still giving the
+  // ring a beat to drain under an attached monitor, so the soak ledger keeps its
+  // lines. 0 would be strictly non-blocking but drops bytes the moment the ring
+  // fills, and these boards are our measurement instrument.
+  // ...and give it room so the bound is rarely reached in the first place. The
+  // ring defaults to 256 B, which a boot burst (WiFiManager's DEV-level log)
+  // overruns in a few lines -- at a 2 ms timeout the overflow is DROPPED, and it
+  // ate a diagnostic line outright, leaving mangled half-merged output in the
+  // ledger. 4 KB absorbs the burst, so a host that is draining loses nothing and
+  // the timeout only ever bites when nothing is reading at all.
+  Serial.setTxBufferSize(4096);
+  Serial.setTxTimeoutMs(2);
+#endif
+
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
   // on the single-core C3 that can keep the watchdog-fed async_tcp service task from
@@ -224,6 +250,17 @@ void setup()
 
   WiFiManagerHelpers::ConfigureWiFiManager(wm, tft, backbuffer);
 
+  // Hold-to-forget, checked BEFORE any join attempt so it works even when the
+  // saved credentials would hang the boot. Costs 1.2 s on an ordinary boot; see
+  // BootHoldToForget for why the window is that shape.
+  if (WiFiManagerHelpers::BootHoldToForget(tft, backbuffer)) {
+    wm.resetSettings();
+    WiFiManagerHelpers::ForgetFastAp(); // the pinned BSSID belongs to the old network
+    DrawSplash(tft, backbuffer, "WiFi cleared", "Restarting into setup...");
+    delay(1200);
+    ESP.restart();
+  }
+
   // Aim straight at the last known-good AP before doing this the slow way. On a
   // mesh SSID that turns a multi-scan, multi-minute join into a ~1-2 s one; it
   // silently falls through to autoConnect() whenever it can't (first boot, moved
@@ -233,6 +270,17 @@ void setup()
     connected = wm.autoConnect(WiFiManagerHelpers::WiFiManagerName().c_str());
     Serial.printf("[WiFi] autoConnect() returned %s\n",
                   connected ? "true (connected)" : "false (portal timed out / not connected)");
+    if (!connected) {
+      // The portal timed out with nobody using it (see setConfigPortalTimeout).
+      // Reboot rather than run on without a network: that retries the SAVED
+      // credentials from the top, which is the whole point -- it is what lets a
+      // unit that came up before its router heal itself a few minutes later
+      // instead of parking in setup mode until a human intervenes.
+      Serial.println("[WiFi] no network and nobody at the portal -- restarting to retry saved credentials");
+      DrawSplash(tft, backbuffer, "No WiFi", "Retrying...");
+      delay(1500);
+      ESP.restart();
+    }
   }
 
   // Disable Wi-Fi modem-sleep. By default the radio sleeps between beacons and
@@ -294,12 +342,56 @@ void loop()
   const uint32_t frameStartUs = micros();
 #endif
 
-  // Forget WiFi credentials and reboot into the setup portal when requested.
-  if (configServer.ConsumeWifiReset()) {
+  // Forget WiFi credentials and reboot into the setup portal when requested --
+  // from the config web page, or from the on-screen Stats reset (radar builds),
+  // which is the path that still works when the device is off the network.
+  bool forgetWifi = configServer.ConsumeWifiReset();
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+  forgetWifi = forgetWifi || appManager.ConsumeWifiReset();
+#endif
+  if (forgetWifi) {
     wm.resetSettings();
-    delay(200); // let the HTTP response flush before the reboot
+    WiFiManagerHelpers::ForgetFastAp(); // pinned BSSID belongs to the network we just forgot
+    DrawSplash(tft, backbuffer, "WiFi cleared", "Restarting into setup...");
+    delay(1000); // let the HTTP response flush, and let the user read the screen
     ESP.restart();
   }
+
+#ifndef BISECT_TEST
+  // RUNTIME WIFI WATCHDOG. Losing the network after boot recovered nowhere: the
+  // IDF's auto-reconnect retries forever, setup() has already returned, and the
+  // loop never looked at WiFi.status() -- so a password changed while the device
+  // was running left a customer staring at a dead feed with no route forward and
+  // no indication anything was wrong beyond "no data".
+  //
+  // Rebooting converts that into the boot-time case, which now self-heals (portal
+  // timeout -> restart -> retry saved credentials) or presents the setup portal.
+  //
+  // 10 minutes, deliberately not less: a router reboot is 1-3 min and a router
+  // firmware update can be ~5, and rebooting a perfectly healthy device over a
+  // blip would be a worse bug than the one being fixed. At a 15 s poll cadence
+  // this is ~40 consecutive missed polls -- not ambiguous. Only armed once we
+  // have actually been connected, so it can never fight the boot path.
+  {
+    constexpr unsigned long WIFI_DOWN_REBOOT_MS = 10UL * 60UL * 1000UL;
+    static unsigned long wifiDownSinceMs = 0;
+    static bool everConnected = false;
+    if (WiFi.status() == WL_CONNECTED) {
+      everConnected = true;
+      wifiDownSinceMs = 0;
+    } else if (everConnected) {
+      if (wifiDownSinceMs == 0) {
+        wifiDownSinceMs = millis();
+        Serial.println("[WiFi] link lost; watchdog armed (reboot in 10 min if it stays down)");
+      } else if (millis() - wifiDownSinceMs >= WIFI_DOWN_REBOOT_MS) {
+        Serial.println("[WiFi] down 10 min -- restarting to re-run the join/portal path");
+        DrawSplash(tft, backbuffer, "WiFi lost", "Restarting...");
+        delay(1500);
+        ESP.restart();
+      }
+    }
+  }
+#endif
 
 #ifndef BISECT_TEST
   // re-check for firmware updates once a day for always-on devices
