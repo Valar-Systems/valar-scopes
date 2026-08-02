@@ -154,18 +154,25 @@ routes = [
 UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
 UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
 #   adsb.fi        -- caching/redistribution permission granted IN WRITING 2026-07-30.
-#                     Still "false" here: it goes live in production only after the
-#                     staging soak is reviewed. THE CUTOVER IS THIS FLAG plus the two
-#                     base URLs below -- uncomment them together, never separately (an
-#                     enabled feed with no base URL falls back to hitting adsb.fi
-#                     DIRECT from Cloudflare's shared egress, which is what used to 403).
+#                     LIVE IN PRODUCTION 2026-07-31, as chain primary. The flag and the
+#                     two base URLs move TOGETHER, never separately: an enabled feed
+#                     with no base URL falls back to hitting adsb.fi DIRECT from
+#                     Cloudflare's shared egress, which is what used to 403.
+#                     Cut over ahead of the planned staging soak because adsb.lol had
+#                     stopped serving positions outright -- a LAX tile returned
+#                     upstream_unavailable and a rural one returned zero aircraft with
+#                     X-Upstream=adsb_lol, i.e. the un-cacheable per-IP 429 throttle
+#                     biting in production, not a quiet sky. adsb.lol stays in the
+#                     chain below as the licensed (ODbL) fallback and stays sponsored
+#                     regardless of chain position. Rollback is UPSTREAM_FEED_ORDER,
+#                     no deploy required.
 #   airplanes.live -- PROHIBITED by operator: written refusal ("do not use our
 #                     data"), dated July 2026. Hardcoded off in airplanes_live.ts;
 #                     the var below is a dead no-op. NOT a reserve option -- off the
 #                     table, not undecided. See "Upstream licensing posture".
-UPSTREAM_ADSB_FI_ENABLED = "false"
-# UPSTREAM_ADSB_FI_BASE   = "https://relay-a.valarsystems.com/fi"
-# UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_ENABLED = "true"
+UPSTREAM_ADSB_FI_BASE   = "https://relay-a.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
 

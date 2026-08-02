@@ -14,6 +14,7 @@ import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
 import { limitByIp, limitByKey } from "./ratelimit";
 import { feedHealth } from "./upstreams/chain";
+import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 
 // Authenticate a request. Tries the per-device key path first (only active when
@@ -29,8 +30,16 @@ async function authenticate(
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
 
-  // Per-device path: HMAC-derived key keyed to the X-Blip-Device id.
   const deviceId = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
+
+  // Revocation is checked BEFORE any key path, so a revoked device cannot slip
+  // through by presenting a still-valid SHARED key -- revocation is by identity,
+  // not by which credential happened to be offered. isRevoked fails OPEN on a KV
+  // error (see revocation.ts): a storage blip must never take the fleet down to
+  // enforce a list that is almost always empty.
+  if (deviceId && (await isRevoked(env, deviceId))) return null;
+
+  // Per-device path: HMAC-derived key keyed to the X-Blip-Device id.
   if (deviceId && (await verifyDeviceKey(env, deviceId, provided))) {
     return { bucket: `dev:${deviceId}`, deviceAuthed: true };
   }
