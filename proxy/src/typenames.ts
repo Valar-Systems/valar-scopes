@@ -157,4 +157,9 @@ export const TYPE_NAMES: Record<string, string> = {
   E8: "Boeing E-8 JSTARS", U2: "Lockheed U-2 Dragon Lady",
   B1: "Rockwell B-1 Lancer", B2: "Northrop B-2 Spirit",
   F22: "Lockheed Martin F-22 Raptor",
+  // Requested 2026-08-02 (not from a sweep -- two light-GA codes spotted in the
+  // wild). Both resolved against ICAO Doc 8643 rather than guessed. ERCO is the
+  // manufacturer's own name (Engineering & Research Corp), so "ERCO Ercoupe"
+  // would read as a stutter on the card; Doc 8643's model field is just "415".
+  ERCO: "Ercoupe 415", HUSK: "Aviat A-1 Husky",
 };

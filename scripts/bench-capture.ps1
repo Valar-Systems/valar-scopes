@@ -22,6 +22,18 @@
 #
 # NOT committed to the repo on purpose (bench tooling, machine-specific port).
 
+# FLASHING WHILE THIS RUNS: kill it and WAIT for the port to actually open before
+# invoking esptool. Killing the process returns immediately but Windows releases
+# the COM handle a beat later, so an upload fired straight afterwards fails in
+# ~10 s with a misleading "FAILED" that looks like a build error. Bit me twice.
+#
+#   Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+#     Where-Object { $_.CommandLine -like '*bench-capture*' } |
+#     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+#   for ($i=0; $i -lt 15; $i++) {
+#     try { $sp = New-Object System.IO.Ports.SerialPort 'COM118',115200
+#           $sp.Open(); $sp.Close(); $sp.Dispose(); break } catch { Start-Sleep 2 } }
+#
 $stamp    = Get-Date -Format 'yyyy-MM-dd-HHmm'
 $log      = "c:\Github\Blipscope\bench-logs\s3-128-$stamp.log"
 $fallback = 'COM118'
