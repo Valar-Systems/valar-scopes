@@ -1200,8 +1200,16 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // block, so handshakes -- not sub-KB body parses -- are what actually costs heap
     // here. The ratio is the direct measure of whether detail lookups are staying on
     // one host (reuses climb) or ping-ponging between two (handshakes climb).
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
-                  avgMs, p95Ms, maxMs, (unsigned)heapFree, (unsigned)largest,
+    // n=<tracked>: the aircraft count these frame times were measured AT. Without
+    // it the health line reports a p95 with no load attached, so every "is this a
+    // regression?" question can only be answered by inference -- which is exactly
+    // how the BLIPS_LIMIT budget argument stalled. Frame cost is dominated by how
+    // many contacts get drawn, so this is the x-axis for the p95 the line already
+    // prints. One size_t read; it stays in shipping builds because it is just as
+    // useful for "why is this customer's device slow?" as it is on the bench.
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
+                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(),
+                  (unsigned)heapFree, (unsigned)largest,
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
