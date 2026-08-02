@@ -368,9 +368,18 @@ EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url, const Stri
     // Feed and enrichment were unaffected (they already use CloudFeed::Headers),
     // so a provisioned board looked entirely healthy and simply never showed a
     // single photo.
+    // The full header set exists only on cloud builds -- this function is also
+    // compiled into the plain radar envs for the BYO adsbdb thumbnail, where
+    // CloudFeed is not included at all. authKey is always "" on those, so the
+    // branch is dead there; it still has to COMPILE.
     std::vector<std::pair<String, String>> headers;
-    if (!authKey.isEmpty())
+    if (!authKey.isEmpty()) {
+#ifdef FEATURE_CLOUD_FEED
         headers = CloudFeed::Headers(authKey);
+#else
+        headers.push_back({ "X-Blip-Key", authKey });
+#endif
+    }
 
     HttpResult result = http.Get(url, {}, headers);
     if (!result.success) {
