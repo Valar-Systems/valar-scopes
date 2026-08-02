@@ -4,6 +4,7 @@
 #include <Preferences.h>
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
+#include "CoordParse.h"       // forgiving lat/lon parsing for /save (see the header)
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
 #endif
@@ -128,9 +129,16 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 #define CONFIG_SHELL_JS \
     R"(<script>)" \
     R"(document.getElementById('cfg').addEventListener('submit',function(e){e.preventDefault();var st=document.getElementById('result');)" \
-    R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]'),miss=[];)" \
-    R"([la,lo].forEach(function(i){if(!i)return;var bad=!String(i.value).trim();i.style.outline=bad?'2px solid #ff4d4d':'';i.style.background=bad?'#4a0000':'';)" \
-    R"(if(bad){miss.push(i);i.addEventListener('input',function(){i.style.outline='';i.style.background=''},{once:true})}});)" \
+    R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]'),miss=[],junk=[];)" \
+    R"([la,lo].forEach(function(i){if(!i)return;var raw=String(i.value).trim(),empty=!raw,bad=!!raw&&!isFinite(bpOne(raw,i===la));)" \
+    R"(i.style.outline=(empty||bad)?'2px solid #ff4d4d':'';i.style.background=(empty||bad)?'#4a0000':'';)" \
+    R"(if(empty)miss.push(i);if(bad)junk.push(i);)" \
+    R"(if(empty||bad){i.addEventListener('input',function(){i.style.outline='';i.style.background=''},{once:true})}});)" \
+    /* An unparseable coordinate stops the save outright rather than storing it: a \
+       half-saved form is more confusing than a rejected one, and the offending box \
+       is already on screen. Every line inside a macro needs the continuation. */ \
+    R"(if(junk.length){st.textContent='NOT SAVED - could not read that '+(junk[0]===la?'latitude':'longitude')+'. Examples: 44.058173 or 44.058 N or 44 3 29.4 N';)" \
+    R"(st.style.color='#ff4d4d';st.style.fontWeight='bold';junk[0].scrollIntoView({block:'center'});junk[0].focus();return})" \
     R"(st.textContent='saving...';st.style.color='';st.style.fontWeight='';)" \
     R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){)" \
     R"(st.textContent=t;var w=/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
@@ -139,7 +147,58 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(var shBr=document.querySelector('input[name=brightness]'),shBv=document.getElementById('brival');)" \
     R"(if(shBr&&shBv){var shSync=function(){shBv.textContent=shBr.value};shBr.addEventListener('input',shSync);shSync()})" \
     R"(var shLa=document.querySelector('input[name=latitude]'),shLo=document.querySelector('input[name=longitude]');)" \
-    R"(if(shLa&&shLo){shLa.addEventListener('paste',function(e){var t=(e.clipboardData||window.clipboardData).getData('text'),m=t.match(/(-?\d+(?:\.\d+)?)[,;\s]+(-?\d+(?:\.\d+)?)/);if(m){e.preventDefault();shLa.value=m[1];shLo.value=m[2]}})})" \
+    /* Fold the punctuation people actually paste down to plain ASCII. Written as \
+       \u escapes so this file stays 7-bit: the degree sign, both prime marks, the \
+       unicode minus and the smart quotes all arrive from map sites and phones. */ \
+    R"(function bpN(t){return String(t).replace(/[\u2212\u2013\u2014]/g,'-').replace(/[\u00b0\u00ba]/g,' '))" \
+    R"(.replace(/[\u2032\u2019']/g,' ').replace(/[\u2033\u201d]/g,' ').replace(/["\t\r\n]/g,' ').replace(/\s+/g,' ').trim().toUpperCase()})" \
+    /* One coordinate -> number, or NaN. Decimal degrees, degrees+decimal minutes \
+       and full DMS, hemisphere letter at either end. Deliberately strict about \
+       what it REJECTS: a stray letter fails the whole value rather than parsing a \
+       prefix, so "Bend, Oregon" and a ZIP code can never become a location. */ \
+    R"(function bpOne(t,isLat){var s=bpN(t);if(!s)return NaN;if(/[^0-9NSEW.\-+ ]/.test(s))return NaN;)" \
+    R"(var hm=s.match(/[NSEW]/g);if(hm&&hm.length>1)return NaN;var h=hm?hm[0]:'';)" \
+    R"(if(h&&isLat&&(h=='E'||h=='W'))return NaN;if(h&&!isLat&&(h=='N'||h=='S'))return NaN;)" \
+    R"(var p=s.replace(/[NSEW]/g,' ').match(/[-+]?\d+(?:\.\d+)?/g);if(!p||p.length<1||p.length>3)return NaN;)" \
+    R"(p=p.map(Number);if(p.some(function(n){return !isFinite(n)}))return NaN;)" \
+    R"(var m=p.length>1?p[1]:0,sc=p.length>2?p[2]:0;if(m<0||sc<0||m>=60||sc>=60)return NaN;)" \
+    R"(var v=Math.abs(p[0])+m/60+sc/3600;if(p[0]<0||h=='S'||h=='W')v=-v;)" \
+    R"(if(!(Math.abs(v)<=(isLat?90:180)))return NaN;return v})" \
+    /* A pasted blob -> [lat,lon] or null, trying separators strongest-first: an \
+       explicit comma, then a pair of hemisphere letters, then an even count of \
+       numeric terms split down the middle (which is what covers pasted DMS). */ \
+    R"(function bpPair(t){var s=bpN(t);if(!s)return null;var hv=[],c=s.indexOf(',');)" \
+    R"(if(c>0)hv.push([s.slice(0,c),s.slice(c+1)]);)" \
+    R"(var lt=s.match(/[NSEW]/g);if(lt&&lt.length==2){var j=s.search(/[NSEW]/);hv.push([s.slice(0,j+1),s.slice(j+1)])})" \
+    R"(var ns=s.match(/[-+]?\d+(?:\.\d+)?/g);)" \
+    R"(if(ns&&ns.length>=2&&(ns.length&1)==0){var k=0;for(var i=0;i<ns.length/2;i++)k=s.indexOf(ns[i],k)+ns[i].length;hv.push([s.slice(0,k),s.slice(k)])})" \
+    R"(for(var q=0;q<hv.length;q++){var a=bpOne(hv[q][0],true),b=bpOne(hv[q][1],false);if(isFinite(a)&&isFinite(b))return [a,b]}return null})" \
+    /* Stored at 6 dp (~11 cm, far past what a desk radar can use) with trailing \
+       zeros trimmed; echoed at 4 dp, which is the precision a human can actually \
+       check against the place they meant. */ \
+    R"(function bpF(v){return String(Number(v.toFixed(6)))})" \
+    R"(if(shLa&&shLo){var bpMsg=null;)" \
+    R"(function bpSay(txt,ok){if(!bpMsg){bpMsg=document.createElement('div');bpMsg.style.cssText='margin:.35rem 0 0;font-size:.8rem';)" \
+    R"(var r=shLa.closest?shLa.closest('.row'):null;if(r&&r.parentNode)r.parentNode.insertBefore(bpMsg,r.nextSibling);else shLa.parentNode.appendChild(bpMsg)})" \
+    R"(bpMsg.textContent=txt;bpMsg.style.color=ok?'var(--ink)':'#ff4d4d'})" \
+    /* Confirm what was understood, so a paste that landed looks like it landed. */ \
+    R"(function bpEcho(){var a=String(shLa.value).trim(),b=String(shLo.value).trim();if(!a&&!b){if(bpMsg)bpMsg.textContent='';return})" \
+    R"(var x=bpOne(a,true),y=bpOne(b,false);)" \
+    R"(if(a&&!isFinite(x)){bpSay('Could not read the latitude. Examples: 44.058173 or 44.058 N or 44 3 29.4 N',false);return})" \
+    R"(if(b&&!isFinite(y)){bpSay('Could not read the longitude. Examples: -121.315308 or 121.315 W or 121 18 55 W',false);return})" \
+    R"(if(!a||!b){bpSay('Enter both boxes to finish.',false);return})" \
+    R"(bpSay('Using '+x.toFixed(4)+', '+y.toFixed(4),true)})" \
+    /* Normalise on blur, never per-keystroke: rewriting the box while someone is \
+       still typing into it is the kind of "help" that loses their input. */ \
+    R"(function bpTidy(i,isLat){var raw=String(i.value).trim();if(!raw)return;var v=bpOne(raw,isLat);if(isFinite(v))i.value=bpF(v);bpEcho()})" \
+    R"(shLa.addEventListener('change',function(){bpTidy(shLa,true)});shLo.addEventListener('change',function(){bpTidy(shLo,false)});)" \
+    /* A pair pasted into EITHER box fills both -- people paste into whichever one \
+       they clicked, and being wrong about which should not cost them the paste. */ \
+    R"([[shLa,true],[shLo,false]].forEach(function(f){f[0].addEventListener('paste',function(e){)" \
+    R"(var t=((e.clipboardData||window.clipboardData).getData('text')||'');var pr=bpPair(t);)" \
+    R"(if(pr){e.preventDefault();shLa.value=bpF(pr[0]);shLo.value=bpF(pr[1]);bpEcho();return})" \
+    R"(var one=bpOne(t,f[1]);if(isFinite(one)){e.preventDefault();f[0].value=bpF(one);bpEcho()}})});)" \
+    R"(bpEcho()})" \
     R"(if(shLa&&shLo&&(!String(shLa.value).trim()||!String(shLo.value).trim())){var shB=document.createElement('div');)" \
     R"(shB.textContent='Set your location below. Until you do, the screen will stay empty.';)" \
     R"(shB.style.cssText='background:#4a0000;color:#ffb3b3;border:1px solid #ff4d4d;border-radius:6px;padding:10px;margin:10px 0;font-weight:bold';)" \
@@ -185,14 +244,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Tip: paste a &ldquo;lat, lon&rdquo; pair (right-click a spot in Google Maps and copy it) into the latitude box and both fields fill in.</span>
+                <span class="hint">Right-click your spot in Google Maps and copy the numbers, then paste into either box &mdash; both fill in. &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <details class="auto">
                     <summary>Saved locations (home / work)</summary>
@@ -620,14 +679,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Optional. Used for propagation day/night and the command-post bearing/distance. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                <span class="hint">Optional. Used for propagation day/night and the command-post bearing/distance. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <details class="auto">
                     <summary>Command-post watch</summary>
@@ -773,14 +832,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                <span class="hint">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <details class="auto">
                     <summary>Alerts (ntfy)</summary>
@@ -870,14 +929,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Your location centres the quake radar, the "near me" feed and alerts, and the solar night auto-dim. Without it you still get the worldwide list and stats. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                <span class="hint">Your location centres the quake radar, the "near me" feed and alerts, and the solar night auto-dim. Without it you still get the worldwide list and stats. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <fieldset>
                     <legend>Radar</legend>
@@ -980,14 +1039,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Your location centres the sightings radar, the nearby feeds, and alerts. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                <span class="hint">Your location centres the sightings radar, the nearby feeds, and alerts. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <fieldset>
                     <legend>Search</legend>
@@ -1089,14 +1148,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                <span class="hint">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <fieldset>
                     <legend>Freshwater (USGS)</legend>
@@ -1281,14 +1340,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it. Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                <span class="hint">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
 
                 <details class="auto">
                     <summary>Alerts (ntfy)</summary>
@@ -1412,14 +1471,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     <div class="row mt">
                         <label class="field">
                             <span>Latitude:</span>
-                            <input name="latitude" type="number" min="-90" step="0.000001" max="90" value='%LATITUDE%' class="grow">
+                            <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                         </label>
                         <label class="field">
                             <span>Longitude:</span>
-                            <input name="longitude" type="number" min="-180" step="0.000001" max="180" value='%LONGITUDE%' class="grow">
+                            <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                         </label>
                     </div>
-                    <span class="hint mt">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot). Tip: paste a &ldquo;lat, lon&rdquo; pair into the latitude box and both fields fill in.</span>
+                    <span class="hint mt">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot). Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
                     <label class="field mt">
                         <span>Brightness:</span>
                         <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
@@ -2231,15 +2290,41 @@ void ConfigurationWebServer::Initialise() {
             return true;
             };
 
+        // Coordinate fields go through CoordParse first, so NVS only ever holds a
+        // canonical decimal string. The page's JS has normally done this already
+        // and the value arrives clean; this is the path a JS-less browser or a
+        // curl POST takes. An unreadable value is NOT stored -- keeping whatever
+        // was there beats overwriting a working location with a typo -- and the
+        // field name is collected so the response can name it.
+        String badCoord;
+        auto TrySaveCoord = [request, &prefs, &badCoord](const char* paramName, bool isLat) {
+            const auto* param = request->getParam(paramName, true);
+            if (param == nullptr)
+                return false;
+            const String raw = param->value();
+            if (raw.length() == 0) { // clearing a field is a legitimate edit
+                prefs.putString(paramName, raw);
+                return true;
+            }
+            double v = 0.0;
+            if (!CoordParse::Parse(raw, isLat, v)) {
+                if (badCoord.isEmpty()) badCoord = paramName;
+                Serial.printf("[POST] rejected %s: could not parse a coordinate\n", paramName);
+                return false;
+            }
+            prefs.putString(paramName, CoordParse::Format(v));
+            return true;
+            };
+
         prefs.begin("config", false);
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         // Saved location profiles (home / work / trip).
-        TrySaveParam("loc0-name"); TrySaveParam("loc0-lat"); TrySaveParam("loc0-lon");
-        TrySaveParam("loc1-name"); TrySaveParam("loc1-lat"); TrySaveParam("loc1-lon");
-        TrySaveParam("loc2-name"); TrySaveParam("loc2-lat"); TrySaveParam("loc2-lon");
+        TrySaveParam("loc0-name"); TrySaveCoord("loc0-lat", true); TrySaveCoord("loc0-lon", false);
+        TrySaveParam("loc1-name"); TrySaveCoord("loc1-lat", true); TrySaveCoord("loc1-lon", false);
+        TrySaveParam("loc2-name"); TrySaveCoord("loc2-lat", true); TrySaveCoord("loc2-lon", false);
         TrySaveParam("radius");
         TrySaveParam("radius-unit");
         TrySaveParam("brightness");
@@ -2329,8 +2414,8 @@ void ConfigurationWebServer::Initialise() {
 #elif defined(FEATURE_EAM)
         // FEATURE_EAM: persist the EAM config fields.
         TrySaveParam("eam-base-url");
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("abncp-source");
         TrySaveParam("opensky-id");
         TrySaveParam("abncp-watch");
@@ -2358,8 +2443,8 @@ void ConfigurationWebServer::Initialise() {
 #elif defined(FEATURE_SPACE)
         // FEATURE_SPACE: persist the Spacescope config fields.
         TrySaveParam("space-base-url");
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("ntfy-topic");
         TrySaveParam("brightness");
 
@@ -2389,8 +2474,8 @@ void ConfigurationWebServer::Initialise() {
 #elif defined(FEATURE_SEISMIC)
         // FEATURE_SEISMIC: persist the Seismic edition config fields.
         TrySaveParam("se-base-url");
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("se-min-mag");
         TrySaveParam("se-radius-km");
         TrySaveParam("se-big-mag");
@@ -2405,8 +2490,8 @@ void ConfigurationWebServer::Initialise() {
         prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
 #elif defined(FEATURE_BIRDING)
         // FEATURE_BIRDING: persist the Birding edition config fields.
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("bd-radius-km");
         TrySaveParam("bd-back-days");
         TrySaveParam("bd-targets");
@@ -2426,8 +2511,8 @@ void ConfigurationWebServer::Initialise() {
 #elif defined(FEATURE_FISHING)
         // FEATURE_FISHING: persist the Reelscope config fields. All feeds are keyless (no secret).
         TrySaveParam("fi-water");
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("fi-usgs");
         TrySaveParam("fi-noaa");
         TrySaveParam("fi-buoy");
@@ -2460,8 +2545,8 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_CLAUDESCOPE: persist the Claudescope config fields. All feeds are keyless -- no
         // masked secret to guard (the OAuth token lives on the sidecar host, never here).
         TrySaveParam("cl-base-url");
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("cl-tz-offset");
         TrySaveParam("cl-session-pct");
         TrySaveParam("cl-week-pct");
@@ -2479,8 +2564,8 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("sc-limit");
         TrySaveParam("sc-alert-speed");
         TrySaveParam("sc-tz-offset");
-        TrySaveParam("latitude");
-        TrySaveParam("longitude");
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
         TrySaveParam("ntfy-topic");
         TrySaveParam("brightness");
 
@@ -2508,6 +2593,21 @@ void ConfigurationWebServer::Initialise() {
         // task. NVS is already committed by the putString() calls above, so the
         // reload will see the new values.
         configChanged = true;
+
+        // A coordinate we could not read is reported rather than swallowed. The
+        // page's JS normally catches this first and never submits; reaching here
+        // means a JS-less client, so the reply has to carry the whole message
+        // including an example of a good value. The word MISSING keeps the
+        // existing red-and-bold styling in the status bar.
+        if (!badCoord.isEmpty()) {
+            const bool isLat = badCoord.endsWith("lat") || badCoord == "latitude";
+            request->send(200, "text/html",
+                          String("Saved the other settings, but the ") + badCoord +
+                          " value was MISSING or unreadable, so it was left as it was. Examples: " +
+                          (isLat ? "44.058173, or 44.058 N, or 44 3 29.4 N"
+                                 : "-121.315308, or 121.315 W, or 121 18 55.1 W"));
+            return;
+        }
 
         // TELL THE USER WHEN THE DEVICE CANNOT WORK. Without a location there is no
         // tile to request, so the radar draws nothing -- and "Saved" on a screen
