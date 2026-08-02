@@ -1284,10 +1284,18 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     //   - The mechanism is unidentified, so any tighter line would be fitted to
     //     a 31-minute sample of one bench board in one place.
     // Nothing crossed 60 ms in 63 samples here, nor in 1396 samples overnight.
-    // NOTE the overnight run (cefe95d, same board, same location) sat at p95
-    // 46.6-48.0 ms SUSTAINED for 11.6 h -- ~18 ms above today's steady state,
-    // and not a warm-up transient. That gap is unexplained and is the loose
-    // thread worth pulling before anyone moves this constant.
+    //
+    // THE LOOSE THREAD, worth pulling before anyone moves this constant: the
+    // overnight run (cefe95d, same board, same location) sat at p95 46.6-48.0 ms
+    // SUSTAINED for 11.6 h -- ~18 ms above today's steady state, and not a
+    // warm-up transient. Two runs on one board in one place cannot honestly
+    // disagree by 18 ms, so START WITH MEASUREMENT INTEGRITY, NOT PERFORMANCE:
+    // did both runs measure the same thing? Same build flags (the first attempt
+    // at this measurement was void because it was flashed to the non-cloud env),
+    // same sampling window, same definition of a frame, same screen. Only once
+    // the two are established to be comparable does "what made it slower?"
+    // become the right question -- and if they are not comparable, the number in
+    // this comment is the one to distrust, not the overnight one.
     constexpr float FRAME_P95_BUDGET_MS = 60.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
