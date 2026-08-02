@@ -1207,8 +1207,19 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // many contacts get drawn, so this is the x-axis for the p95 the line already
     // prints. One size_t read; it stays in shipping builds because it is just as
     // useful for "why is this customer's device slow?" as it is on the bench.
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
-                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(),
+    // ap=<airports>: the overlay symbol count, added 2026-08-02 when it turned
+    // out to track frame p95 far better than n does (see the budget note below).
+    // Whichever overlay is actually in force: the cloud long tail while it has
+    // landed, else the baked majors table DrawAirports falls back to -- so the
+    // number always means "symbols available to draw", on every build.
+#ifdef FEATURE_CLOUD_FEED
+    const unsigned apCount = cloudAirports.empty() ? (unsigned)AIRPORT_COUNT
+                                                   : (unsigned)cloudAirports.size();
+#else
+    const unsigned apCount = (unsigned)AIRPORT_COUNT;
+#endif
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
+                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
                   (unsigned)heapFree, (unsigned)largest,
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
@@ -1237,6 +1248,35 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // grazing the old line 42x in 10 h with zero functional impact -- so 50
     // flagged the renderer's honest steady state, not a regression. 60 ms =
     // measured envelope + margin, per bench ruling. Heap floor unchanged.
+    //
+    // RE-EXAMINED 2026-08-02 to answer "what is p95 at BLIPS_LIMIT=40 under peak
+    // load?" -- and the honest answer is that the question had the wrong load
+    // axis. Measured on the s3-128 prodburn build, cloud feed, active cadence,
+    // 212 samples across four configurations:
+    //
+    //   location / radius        aircraft  airports   p95
+    //   Bend, r=30                 24-25        60    44.7 ms   <- worst
+    //   LA basin, r=100            41-65        41    29.3 ms
+    //   LA basin, r=30             40 (cap)     25    28.7 ms   <- most aircraft
+    //
+    // AIRCRAFT COUNT IS NOT THE FRAME LEVER. 40 contacts measured ~16 ms CHEAPER
+    // than 25. Radius was ruled out separately: at a fixed location, 30 km and
+    // 100 km were within 0.6 ms. What p95 tracks is the AIRPORT OVERLAY -- 60
+    // symbols vs 25 -- which is why a quiet field surrounded by small strips
+    // (central Oregon) is the slow case and a dense metro is not. That inverts
+    // the intuition the budget was argued from, so it is the thing to measure
+    // first next time; `ap=` is on the health line now for exactly that.
+    //
+    // BUDGET UNCHANGED AT 60 ms, deliberately, not for lack of a new number:
+    //   - Worst p95 measured anywhere today is 44.7 ms. 60 keeps ~34 % margin,
+    //     MORE than the ~15 % it had when the July ruling set it.
+    //   - Tightening toward the measured envelope would re-create the exact
+    //     failure that forced 50 -> 60: a line that flags the renderer's honest
+    //     steady state as a regression.
+    //   - The axis that does matter (airport density) is unswept. A customer in
+    //     strip-dense country is the untested case, and it is the slow one.
+    // Nothing crossed 60 ms in 212 samples; the July-era 51-53 ms at this same
+    // location is now 44.7, so the renderer got ~7 ms cheaper, not worse.
     constexpr float FRAME_P95_BUDGET_MS = 60.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
@@ -1407,6 +1447,12 @@ void AircraftManager::RunFetchTask()
             // requesting 60 dropped the largest contiguous heap block toward the TLS
             // floor (~28 KB), starving handshakes (hardFail + DATA STALE observed).
             // 40 keeps a comfortable margin while covering the useful picture.
+            //
+            // CONFIRMED 2026-08-02 against a tile that actually saturates it (LA
+            // basin, count pinned at 40 for 14 min): largest contiguous block held
+            // at 52,212 B with allocFail=0 -- the heap headroom this bound exists
+            // to protect is intact at 40. Frame cost is not a reason to lower it;
+            // 40 contacts render CHEAPER than 25 (see FRAME_P95_BUDGET_MS).
             constexpr int BLIPS_LIMIT = 40;
             static_assert(BLIPS_LIMIT <= (int)MAX_AIRCRAFT, "blips limit must fit the tracked cap");
             result = http.GetJson(
