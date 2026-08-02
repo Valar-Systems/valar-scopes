@@ -1,0 +1,22 @@
+{
+  "name": "blipscope-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Access-gated fleet console for Blipscope Cloud: per-device usage, firmware rollout, OTA outcomes, revocation",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "deploy:production": "wrangler deploy --env production",
+    "tail:production": "wrangler tail --env production"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.71",
+    "@cloudflare/workers-types": "^4.20250906.0",
+    "typescript": "^5.5.0",
+    "vitest": "~3.2.0",
+    "wrangler": "4.35.0"
+  }
+}
