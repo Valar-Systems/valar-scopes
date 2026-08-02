@@ -1207,8 +1207,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // many contacts get drawn, so this is the x-axis for the p95 the line already
     // prints. One size_t read; it stays in shipping builds because it is just as
     // useful for "why is this customer's device slow?" as it is on the bench.
-    // ap=<airports>: the overlay symbol count, added 2026-08-02 when it turned
-    // out to track frame p95 far better than n does (see the budget note below).
+    // ap=<airports>: the overlay symbol count, added 2026-08-02 because it is
+    // the leading suspect for what actually drives frame p95 (n does not -- see
+    // the budget note below) and there was no way to test that without it.
     // Whichever overlay is actually in force: the cloud long tail while it has
     // landed, else the baked majors table DrawAirports falls back to -- so the
     // number always means "symbols available to draw", on every build.
@@ -1250,33 +1251,43 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // measured envelope + margin, per bench ruling. Heap floor unchanged.
     //
     // RE-EXAMINED 2026-08-02 to answer "what is p95 at BLIPS_LIMIT=40 under peak
-    // load?" -- and the honest answer is that the question had the wrong load
-    // axis. Measured on the s3-128 prodburn build, cloud feed, active cadence,
-    // 212 samples across four configurations:
+    // load?" -- and the load axis in that question turned out to be the wrong
+    // one. s3-128 prodburn, cloud feed, 63 samples over 31 min, four setups:
     //
     //   location / radius        aircraft  airports   p95
-    //   Bend, r=30                 24-25        60    44.7 ms   <- worst
-    //   LA basin, r=100            41-65        41    29.3 ms
-    //   LA basin, r=30             40 (cap)     25    28.7 ms   <- most aircraft
+    //   Bend, r=30 (first 5 min)   24-25        60    41.4-44.7 ms  <- the only
+    //   LA basin, r=100            41-65        41    28.7-31.1 ms     band over
+    //   LA basin, r=30             40 (cap)     25    28.6-29.4 ms     ~31 ms
+    //   Bend, r=30 (again, later)  14-21     lost*    27.5-28.6 ms
     //
-    // AIRCRAFT COUNT IS NOT THE FRAME LEVER. 40 contacts measured ~16 ms CHEAPER
-    // than 25. Radius was ruled out separately: at a fixed location, 30 km and
-    // 100 km were within 0.6 ms. What p95 tracks is the AIRPORT OVERLAY -- 60
-    // symbols vs 25 -- which is why a quiet field surrounded by small strips
-    // (central Oregon) is the slow case and a dense metro is not. That inverts
-    // the intuition the budget was argued from, so it is the thing to measure
-    // first next time; `ap=` is on the health line now for exactly that.
+    // AIRCRAFT COUNT IS NOT THE FRAME LEVER, which is the solid finding here:
+    // 40 contacts render CHEAPER than 25, and p95 is flat (~28-31 ms) from n=14
+    // to n=65. Radius is not it either -- at a fixed location, 30 km and 100 km
+    // sat within 0.6 ms.
+    //
+    // What IS the lever is not established. The airport overlay is the leading
+    // candidate: the slow band is the only one with 60 symbols, and returning to
+    // that exact location and radius did NOT bring the cost back -- but the
+    // overlay did not come back either (*the refetch after that config save
+    // never landed, so DrawAirports was on the baked majors). Confounded, twice
+    // over: that band was also the first few minutes after boot, and the board
+    // was touched mid-run. Treat "overlay drives it" as the hypothesis to test
+    // first, NOT as a result. `ap=` is on the health line now so the next person
+    // measures it instead of re-deriving it from location changes.
     //
     // BUDGET UNCHANGED AT 60 ms, deliberately, not for lack of a new number:
-    //   - Worst p95 measured anywhere today is 44.7 ms. 60 keeps ~34 % margin,
-    //     MORE than the ~15 % it had when the July ruling set it.
+    //   - Worst p95 measured anywhere is 44.7 ms, and steady state is ~29. 60
+    //     keeps >=34 % margin, MORE than the ~15 % it had when July set it.
     //   - Tightening toward the measured envelope would re-create the exact
     //     failure that forced 50 -> 60: a line that flags the renderer's honest
     //     steady state as a regression.
-    //   - The axis that does matter (airport density) is unswept. A customer in
-    //     strip-dense country is the untested case, and it is the slow one.
-    // Nothing crossed 60 ms in 212 samples; the July-era 51-53 ms at this same
-    // location is now 44.7, so the renderer got ~7 ms cheaper, not worse.
+    //   - The mechanism is unidentified, so any tighter line would be fitted to
+    //     a 31-minute sample of one bench board in one place.
+    // Nothing crossed 60 ms in 63 samples here, nor in 1396 samples overnight.
+    // NOTE the overnight run (cefe95d, same board, same location) sat at p95
+    // 46.6-48.0 ms SUSTAINED for 11.6 h -- ~18 ms above today's steady state,
+    // and not a warm-up transient. That gap is unexplained and is the loose
+    // thread worth pulling before anyone moves this constant.
     constexpr float FRAME_P95_BUDGET_MS = 60.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
