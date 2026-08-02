@@ -9,7 +9,7 @@ import {
   handleLeaderboardSubmit,
   handleProfile,
 } from "./leaderboard";
-import { record, recordOtaMem, type RequestMetric } from "./metrics";
+import { record, recordOtaMem, setDeviceAttribution, type RequestMetric } from "./metrics";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
 import { limitByIp, limitByKey } from "./ratelimit";
@@ -85,6 +85,9 @@ async function route(
   if (ipLimited) return ipLimited;
   const auth = await authenticate(env, request);
   if (auth === null) return errorResponse(401, "unauthorized");
+  // Attribute the metric to the device only now that its key has been verified;
+  // see setDeviceAttribution() for why unauthenticated headers are never stored.
+  setDeviceAttribution(meta, request, auth.deviceAuthed);
   const keyLimited = await limitByKey(env, auth.bucket);
   if (keyLimited) return keyLimited;
 
@@ -92,7 +95,7 @@ async function route(
   // only past auth + rate limiting, so an anonymous caller can never spend our
   // Analytics Engine budget, and it cannot affect the response the device came
   // for: whatever this does, the request below is served identically.
-  recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model);
+  recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model, meta.dev);
 
   if (url.pathname === "/v1/blips") return handleBlips(request, env, ctx, meta);
   if (url.pathname === "/v1/config") return handleConfig(request, env);
