@@ -673,6 +673,15 @@ firmware fetches a photo exactly once per aircraft when a detail card is opened,
 which only happens on a tap. `requests` measures uptime — a device polls on a
 timer whether or not anyone is in the room.
 
+**Do not add behavioural telemetry to close that gap.** Which screen a customer
+uses, how often they tap, and how long they watch are all deliberately *not*
+collected — a settled product position as of 2026-08-02, published in the main
+[README's Privacy & telemetry section](../README.md#privacy--telemetry) and
+reasoned through in
+[dashboard/README.md](../dashboard/README.md#screen-usage-telemetry-is-a-non-goal-not-a-backlog-item).
+`cards_opened` is not an exception: it is a photo fetch the device must make to
+draw the card, not a counter we attached.
+
 ### OTA memory telemetry (`X-Blip-OTA-Mem`)
 
 A device attaches this header to the **first check-in after a firmware-update

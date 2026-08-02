@@ -175,14 +175,36 @@ looking at. There is a test that asserts it.
 Worth knowing before it gets used to make product decisions:
 
 - **Which screen someone uses.** Radar vs List vs Stats, swipes, zoom changes —
-  none of it reaches the cloud. The device would have to report it.
+  none of it reaches the cloud.
 - **Whether the device is on but ignored.** A board on a shelf and a board being
   watched look identical apart from the Cards column.
 - **Anything about a local-receiver user.** They don't talk to the proxy at all.
 - **Who a device belongs to.** The id is a hash of the MAC; `provisioned.csv` is
   the registry that maps it to a unit.
 
-Closing the first two means adding interaction counters to the firmware and
-reporting them on a request the device already makes. That is a small change
-technically and a real decision otherwise — it is behavioural data about a device
-in someone's home, and it should be disclosed before it is collected, not after.
+### Screen-usage telemetry is a NON-GOAL, not a backlog item
+
+**Decided 2026-08-02. Do not propose adding it.**
+
+The first two above are closeable — the device already makes a request we could
+hang interaction counters on, and it would be a small change. We are not going to,
+and the reason is worth writing down so this doesn't get re-litigated every time
+someone notices the gap:
+
+1. **It is behavioural data from a device in someone's home.** A screen glanced at
+   over morning coffee is not our business, and no product question here is worth
+   that trade.
+2. **At this scale it wouldn't even work well.** At 50 units, emailing ten owners
+   answers "how do people use this?" better than instrumenting all of them — with
+   more nuance, and with the *why* attached.
+3. **"Blipscope doesn't track how you use it" is a sentence worth being able to
+   keep saying**, and it is only true while it stays entirely true.
+
+This is stated on the customer-facing side too, in the main
+[README's Privacy & telemetry section](../README.md#privacy--telemetry) — so it is
+a published commitment, not an internal preference that could quietly lapse.
+
+**Cards is not an exception to this.** It isn't a counter we added; it is a
+photo fetch the device has to make to draw the card at all. If a future change
+ever made photos local, that column would simply disappear rather than being
+replaced with a reporting call.
