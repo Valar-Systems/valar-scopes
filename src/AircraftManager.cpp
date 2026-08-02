@@ -1207,8 +1207,20 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // many contacts get drawn, so this is the x-axis for the p95 the line already
     // prints. One size_t read; it stays in shipping builds because it is just as
     // useful for "why is this customer's device slow?" as it is on the bench.
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
-                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(),
+    // ap=<airports>: the overlay symbol count, added 2026-08-02 because it is
+    // the leading suspect for what actually drives frame p95 (n does not -- see
+    // the budget note below) and there was no way to test that without it.
+    // Whichever overlay is actually in force: the cloud long tail while it has
+    // landed, else the baked majors table DrawAirports falls back to -- so the
+    // number always means "symbols available to draw", on every build.
+#ifdef FEATURE_CLOUD_FEED
+    const unsigned apCount = cloudAirports.empty() ? (unsigned)AIRPORT_COUNT
+                                                   : (unsigned)cloudAirports.size();
+#else
+    const unsigned apCount = (unsigned)AIRPORT_COUNT;
+#endif
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
+                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
                   (unsigned)heapFree, (unsigned)largest,
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
@@ -1237,6 +1249,53 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // grazing the old line 42x in 10 h with zero functional impact -- so 50
     // flagged the renderer's honest steady state, not a regression. 60 ms =
     // measured envelope + margin, per bench ruling. Heap floor unchanged.
+    //
+    // RE-EXAMINED 2026-08-02 to answer "what is p95 at BLIPS_LIMIT=40 under peak
+    // load?" -- and the load axis in that question turned out to be the wrong
+    // one. s3-128 prodburn, cloud feed, 63 samples over 31 min, four setups:
+    //
+    //   location / radius        aircraft  airports   p95
+    //   Bend, r=30 (first 5 min)   24-25        60    41.4-44.7 ms  <- the only
+    //   LA basin, r=100            41-65        41    28.7-31.1 ms     band over
+    //   LA basin, r=30             40 (cap)     25    28.6-29.4 ms     ~31 ms
+    //   Bend, r=30 (again, later)  14-21     lost*    27.5-28.6 ms
+    //
+    // AIRCRAFT COUNT IS NOT THE FRAME LEVER, which is the solid finding here:
+    // 40 contacts render CHEAPER than 25, and p95 is flat (~28-31 ms) from n=14
+    // to n=65. Radius is not it either -- at a fixed location, 30 km and 100 km
+    // sat within 0.6 ms.
+    //
+    // What IS the lever is not established. The airport overlay is the leading
+    // candidate: the slow band is the only one with 60 symbols, and returning to
+    // that exact location and radius did NOT bring the cost back -- but the
+    // overlay did not come back either (*the refetch after that config save
+    // never landed, so DrawAirports was on the baked majors). Confounded, twice
+    // over: that band was also the first few minutes after boot, and the board
+    // was touched mid-run. Treat "overlay drives it" as the hypothesis to test
+    // first, NOT as a result. `ap=` is on the health line now so the next person
+    // measures it instead of re-deriving it from location changes.
+    //
+    // BUDGET UNCHANGED AT 60 ms, deliberately, not for lack of a new number:
+    //   - Worst p95 measured anywhere is 44.7 ms, and steady state is ~29. 60
+    //     keeps >=34 % margin, MORE than the ~15 % it had when July set it.
+    //   - Tightening toward the measured envelope would re-create the exact
+    //     failure that forced 50 -> 60: a line that flags the renderer's honest
+    //     steady state as a regression.
+    //   - The mechanism is unidentified, so any tighter line would be fitted to
+    //     a 31-minute sample of one bench board in one place.
+    // Nothing crossed 60 ms in 63 samples here, nor in 1396 samples overnight.
+    //
+    // THE LOOSE THREAD, worth pulling before anyone moves this constant: the
+    // overnight run (cefe95d, same board, same location) sat at p95 46.6-48.0 ms
+    // SUSTAINED for 11.6 h -- ~18 ms above today's steady state, and not a
+    // warm-up transient. Two runs on one board in one place cannot honestly
+    // disagree by 18 ms, so START WITH MEASUREMENT INTEGRITY, NOT PERFORMANCE:
+    // did both runs measure the same thing? Same build flags (the first attempt
+    // at this measurement was void because it was flashed to the non-cloud env),
+    // same sampling window, same definition of a frame, same screen. Only once
+    // the two are established to be comparable does "what made it slower?"
+    // become the right question -- and if they are not comparable, the number in
+    // this comment is the one to distrust, not the overnight one.
     constexpr float FRAME_P95_BUDGET_MS = 60.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
@@ -1407,6 +1466,12 @@ void AircraftManager::RunFetchTask()
             // requesting 60 dropped the largest contiguous heap block toward the TLS
             // floor (~28 KB), starving handshakes (hardFail + DATA STALE observed).
             // 40 keeps a comfortable margin while covering the useful picture.
+            //
+            // CONFIRMED 2026-08-02 against a tile that actually saturates it (LA
+            // basin, count pinned at 40 for 14 min): largest contiguous block held
+            // at 52,212 B with allocFail=0 -- the heap headroom this bound exists
+            // to protect is intact at 40. Frame cost is not a reason to lower it;
+            // 40 contacts render CHEAPER than 25 (see FRAME_P95_BUDGET_MS).
             constexpr int BLIPS_LIMIT = 40;
             static_assert(BLIPS_LIMIT <= (int)MAX_AIRCRAFT, "blips limit must fit the tracked cap");
             result = http.GetJson(
