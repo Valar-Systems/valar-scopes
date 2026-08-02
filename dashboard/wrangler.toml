@@ -1,0 +1,67 @@
+# Blipscope Cloud fleet dashboard -- a SEPARATE Worker from the one devices talk
+# to. See src/index.ts for why. Nothing here is on the device serving path.
+#
+# Secrets (never in this file):
+#   npx wrangler secret put CF_API_TOKEN --env production
+#     -> a Cloudflare API token with Account Analytics: Read and nothing else.
+#        It reads telemetry; it is not an account key. Scope it that narrowly.
+#
+# Vars that must be set before this is reachable (see [env.production.vars]):
+#   ACCESS_TEAM_DOMAIN, ACCESS_AUD -- with either missing the Worker refuses
+#   every request. A half-configured dashboard serves nobody rather than
+#   everybody; see src/access.ts.
+
+name = "blipscope-dashboard"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+
+# Same account as the proxy. An account id is an identifier, not a credential.
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+
+# workers.dev is DISABLED, deliberately and on every environment. A workers.dev
+# URL is a second route to this code that Cloudflare Access is not in front of.
+# The Worker verifies the Access JWT itself so that would still be refused --
+# but defence in depth means not offering the door in the first place.
+workers_dev = false
+
+[vars]
+AE_DATASET = "blipscope_proxy"
+
+# Placeholder KV id: tests run in-memory. The real namespace is per-env below and
+# is THE SAME namespace the device Worker binds as ENRICH_KV -- the dashboard
+# reads leaderboard rows and reads/writes the cfg:revoked entry that Worker
+# already honours.
+[[kv_namespaces]]
+binding = "ENRICH_KV"
+id = "0000000000000000000000000000dev0"
+
+# ===================== production =====================
+[env.production]
+name = "blipscope-dashboard"
+workers_dev = false
+
+routes = [
+  { pattern = "fleet.valarsystems.com", custom_domain = true }
+]
+
+[env.production.vars]
+AE_DATASET = "blipscope_proxy"
+# Fill both in before the first deploy (see README "Putting Access in front").
+ACCESS_TEAM_DOMAIN = "REPLACE_ME.cloudflareaccess.com"
+ACCESS_AUD = "REPLACE_ME"
+CF_ACCOUNT_ID = "48822e896bb10c45aa6bfe139bcff3d1"
+# Optional belt-and-braces list on top of the Access policy itself.
+# ACCESS_ALLOWED_EMAILS = "danielfrenkel@gmail.com"
+
+[[env.production.kv_namespaces]]
+binding = "ENRICH_KV"
+id = "733bf90056104f56be9492e62450a0bf"
+
+# The dashboard is read by a human a few times a day. It has no reason to be
+# generous with CPU, and a runaway query should fail rather than bill.
+[env.production.limits]
+cpu_ms = 200
+
+[env.production.observability]
+enabled = true
+head_sampling_rate = 1.0

@@ -20,3 +20,6 @@ provisioned.csv
 # one file per capture run). The historical soak logs above stay tracked.
 bench-logs/s3-128-*.log
 bench-logs/capture.pid
+
+# wrangler local state (dev server, deploy cache) -- per-machine, never shared
+.wrangler/

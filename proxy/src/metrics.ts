@@ -9,6 +9,72 @@ export interface RequestMetric {
   cache?: string; // HIT | STALE | MISS (blips), HIT | MISS (enrich KV)
   upstream?: string;
   upstreamMs?: number;
+  // The authenticated device id, or "" -- see setDeviceAttribution() for why
+  // this is only ever populated on the device-key path.
+  dev?: string;
+  fw?: string; // X-Blip-FW, digits only, same authentication rule as `dev`
+}
+
+// Device attribution for a metric, applied ONLY once a request has proven it
+// holds that device's key.
+//
+// WHY THE RULE IS "AUTHENTICATED OR NOTHING". X-Blip-Device and X-Blip-FW are
+// device-supplied strings on an unauthenticated edge. If we recorded them before
+// the key check, anyone could write arbitrary device ids into the dataset --
+// which would not break serving, but would quietly make the fleet view a
+// fiction, and a fleet view you cannot trust is worse than none. On the shared
+// BLIP_KEYS path the caller has not proven WHICH device it is, so `dev` stays
+// empty there too; those requests aggregate as "unattributed" rather than being
+// guessed at.
+//
+// Shapes are re-checked here rather than assumed from deviceauth.ts, because
+// this is the boundary where the value stops being a credential and becomes
+// stored data.
+export function setDeviceAttribution(
+  m: RequestMetric,
+  request: Request,
+  deviceAuthed: boolean,
+): void {
+  if (!deviceAuthed) return;
+  const id = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
+  if (/^[0-9a-f]{8,32}$/.test(id)) m.dev = id;
+  const fw = (request.headers.get("X-Blip-FW") ?? "").trim();
+  if (/^\d{1,6}$/.test(fw)) m.fw = fw;
+}
+
+// The endpoint as a bounded ROUTE, for the Analytics Engine blob and index.
+//
+// WHY. `ep` is the raw pathname, so /v1/enrich/<hex> and /v1/photo/<key> made
+// index1 effectively unbounded -- one index value per airframe, plus one per
+// path any internet scanner ever probed. That has two costs: Analytics Engine
+// samples per index bucket, so unbounded cardinality degrades the aggregates it
+// is meant to accelerate; and GROUP BY endpoint could never answer "how many
+// enrichments did this device do?" because every row was its own group. This
+// collapses it to ~12 values.
+//
+// The raw path is unaffected in the request LOG line, which is where per-request
+// debugging actually happens. This changes what blob1/index1 mean from the
+// deploy onward -- retained points from before keep the old shape, so a query
+// spanning the boundary sees both. Filtering on the exact string ('/v1/blips')
+// still behaves identically, because that route was never templated.
+const KNOWN_ROUTES = new Set([
+  "/v1/blips",
+  "/v1/config",
+  "/v1/airports",
+  "/v1/leaderboard",
+  "/healthz",
+  "/credits",
+  "/leaderboard",
+  "/leaderboard.json",
+]);
+
+export function routeTemplate(pathname: string): string {
+  if (pathname.startsWith("/v1/enrich/")) return "/v1/enrich";
+  if (pathname.startsWith("/v1/photo/")) return "/v1/photo";
+  if (/^\/leaderboard\/[0-9a-f]{8,32}$/.test(pathname)) return "/leaderboard/:id";
+  // Anything unrecognised is one bucket. A 404 sweep must not be able to mint
+  // index values, which is a cardinality attack on our own telemetry.
+  return KNOWN_ROUTES.has(pathname) ? pathname : "/other";
 }
 
 // Cache hits dominate traffic and each Analytics Engine data point is billed:
@@ -24,10 +90,15 @@ export function record(env: Env, m: RequestMetric): void {
   try {
     const sampled = m.status < 400 && (m.cache === "HIT" || m.cache === "STALE");
     if (sampled && Math.random() >= HIT_SAMPLE_RATE) return;
+    // blob5/blob6 (dev, fw) are APPENDED, never inserted: existing queries index
+    // blobs positionally, so anything that shifts blob1..blob4 silently rewrites
+    // the meaning of three months of retained points. Append-only is the rule for
+    // this dataset -- same reasoning as the schema evolution rule in the README.
+    const route = routeTemplate(m.ep);
     env.METRICS?.writeDataPoint({
-      blobs: [m.ep, m.cache ?? "", m.upstream ?? "", m.model],
+      blobs: [route, m.cache ?? "", m.upstream ?? "", m.model, m.dev ?? "", m.fw ?? ""],
       doubles: [m.status, m.ms, m.upstreamMs ?? 0, sampled ? 1 / HIT_SAMPLE_RATE : 1],
-      indexes: [m.ep],
+      indexes: [route],
     });
   } catch {
     // never let telemetry break serving
@@ -86,7 +157,7 @@ export function recordEnrichGap(env: Env, gap: EnrichGap, type: string, hex: str
 // scale -- see the README cost model). And it is device-supplied input, so it is
 // validated to a fixed shape before it reaches storage; anything off-shape is
 // dropped silently rather than allowed to shape a data point.
-export function recordOtaMem(env: Env, raw: string | null, model: string): void {
+export function recordOtaMem(env: Env, raw: string | null, model: string, dev?: string): void {
   if (!raw) return;
   try {
     if (raw.length > 128) return; // nothing legitimate approaches this
@@ -99,8 +170,10 @@ export function recordOtaMem(env: Env, raw: string | null, model: string): void 
     const result = (parts[4] ?? "").trim().slice(0, 24).replace(/[^\w.-]/g, "");
     if (!result) return;
     const [fwFrom, fwTo, preLargest, postLargest] = nums as [number, number, number, number];
+    // blob4 = the device, so a failed update names the unit to go and look at
+    // instead of just a model. Appended, for the same reason as record()'s.
     env.METRICS?.writeDataPoint({
-      blobs: ["ota", result, model],
+      blobs: ["ota", result, model, dev ?? ""],
       doubles: [fwFrom, fwTo, preLargest, postLargest],
       indexes: ["ota"], // own index: OTA points query separately from per-request ones
     });

@@ -1,0 +1,45 @@
+# Typecheck + test the two Cloudflare Workers.
+#
+# firmware.yml builds every board; nothing ran the Worker suites, so ~213 tests
+# only ever executed on a developer's machine. That was survivable when the proxy
+# was the only Worker and its failure mode was "aircraft stop appearing". It is
+# not survivable now that dashboard/ verifies Access tokens and writes the
+# revocation denylist: a silent rot there is an open admin surface or a fleet
+# that can't be cut off.
+#
+# Deliberately path-filtered. A firmware-only PR should not wait on Node.
+name: workers
+
+on:
+  push:
+    branches: [main]
+    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml"]
+  pull_request:
+    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one Worker failing should not hide the other's result
+      matrix:
+        worker: [proxy, dashboard]
+    defaults:
+      run:
+        working-directory: ${{ matrix.worker }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.worker }}/package-lock.json
+
+      # npm ci, not npm install: the lockfile is the thing under test alongside
+      # the source, and a resolution that drifts in CI tests something nobody has.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test

@@ -624,9 +624,9 @@ hex. Run it against the Analytics Engine SQL API with an account API token that
 has Analytics Read. Grepping Workers Logs for `"evt":"enrich_gap"` works too for
 a live spot-check on one device.
 
-- **Analytics Engine** (`blipscope_proxy[_staging]`): blobs `[endpoint, cache,
-  upstream, model]`, doubles `[status, ms, upstreamMs, weight]`, index
-  `endpoint`. Successful HIT/STALE points are sampled 1:10 with `weight = 10`
+- **Analytics Engine** (`blipscope_proxy[_staging]`): blobs `[route, cache,
+  upstream, model, dev, fw]`, doubles `[status, ms, upstreamMs, weight]`, index
+  `route`. Successful HIT/STALE points are sampled 1:10 with `weight = 10`
   (bill control); everything else is 1:1 with `weight = 1` — **always
   `SUM(double4)`, never `COUNT(*)`**. Example, cache hit rate over 24 h:
 
@@ -635,6 +635,43 @@ SELECT blob2 AS cache, SUM(double4) AS requests
 FROM blipscope_proxy WHERE timestamp > NOW() - INTERVAL '24' HOUR AND blob1 = '/v1/blips'
 GROUP BY cache
 ```
+
+#### `route` (blob1/index1) is templated, and `dev`/`fw` (blob5/blob6) are new
+
+Two changes landed with the [fleet dashboard](../dashboard/README.md):
+
+- **`blob1`/`index1` is a bounded ROUTE, not the raw path.** `/v1/enrich/<hex>`
+  and `/v1/photo/<key>` collapse to `/v1/enrich` and `/v1/photo`; anything
+  unrecognised becomes `/other`. Previously index1 was effectively unbounded —
+  one value per airframe, plus one per URL any scanner probed — which degrades
+  the aggregates Analytics Engine exists to accelerate and made `GROUP BY
+  endpoint` meaningless for those two routes. Filtering on a fixed route
+  (`blob1 = '/v1/blips'`) behaves exactly as before. The raw path is untouched
+  in the request **log** line, which is where per-request debugging happens.
+- **`blob5 = dev`, `blob6 = fw`**, populated *only* on the device-key path.
+  `X-Blip-Device` is device-supplied on an unauthenticated edge, so recording it
+  before the key check would let anyone write arbitrary ids into the dataset;
+  shared-key requests aggregate as unattributed rather than being guessed at.
+
+Both are **appends**. Points are queried by blob position and retained three
+months, so inserting rather than appending would silently rewrite the meaning of
+everything already stored. A query spanning the deploy sees both shapes.
+
+Per-device usage over 24 h:
+
+```sql
+SELECT blob5 AS dev, argMax(blob4, timestamp) AS model,
+       SUM(double4) AS requests,
+       SUM(IF(blob1 = '/v1/photo', double4, 0)) AS cards_opened
+FROM blipscope_proxy
+WHERE timestamp > NOW() - INTERVAL '24' HOUR AND blob5 != ''
+GROUP BY dev ORDER BY requests DESC
+```
+
+`cards_opened` is the one unambiguous *interaction* signal on the wire: the
+firmware fetches a photo exactly once per aircraft when a detail card is opened,
+which only happens on a tap. `requests` measures uptime — a device polls on a
+timer whether or not anyone is in the room.
 
 ### OTA memory telemetry (`X-Blip-OTA-Mem`)
 
