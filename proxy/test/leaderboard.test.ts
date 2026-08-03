@@ -217,3 +217,46 @@ describe("tap-to-claim scoring (v2)", () => {
     expect(body.points).toBe(10 + 5); // unchanged by the seen flood
   });
 });
+
+describe("public board copy and percentile", () => {
+  // This exact phrase is the canary in the deploy runbook: step 2 greps for it to
+  // confirm the v2 Worker is actually the one bound before the irreversible reset
+  // in step 3 runs. If someone rewrites the copy, this test fails rather than the
+  // deploy silently proceeding against a v1 Worker.
+  const CANARY = "ranks spotters, not antennas";
+
+  it("states the claim rule on the public board, including the canary", async () => {
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    expect(html).toContain(CANARY);
+    expect(html).toContain("Tap an aircraft on your Blipscope to claim it");
+    // The four things one tap credits must be named, not implied.
+    for (const word of ["type", "airline", "country", "route airports"]) {
+      expect(html).toContain(word);
+    }
+    // And the old rule must be gone.
+    expect(html).not.toContain("Scores come only from what each device logs overhead");
+  });
+
+  it("suppresses the percentile until there are enough rows to mean anything", async () => {
+    await call(submit({ id: ID_A, name: "Solo", claimed: {}, claimedTypes: ["A320"] }));
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    expect(html).toContain("Solo");
+    // One row: no percentile at all, and specifically never the old "top 0%".
+    expect(html).not.toContain("top 0%");
+    expect(html).not.toMatch(/top \d+%/);
+  });
+
+  it("never renders 'top 0%' for the leader at any fleet size", async () => {
+    for (let i = 0; i < 12; i++) {
+      await call(submit({ id: `c000${1000 + i}`, name: `C${i}`, claimed: { airlines: i }, claimedTypes: ["A320"] }));
+    }
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    expect(html).not.toContain("top 0%");
+    // 12 rows is past the threshold, so percentiles appear -- and the leader is
+    // top 1 in 12 -> ceil(8.3) = 9%, floored at 1 but nowhere near 0.
+    expect(html).toMatch(/top \d+%/);
+    const pcts = [...html.matchAll(/top (\d+)%/g)].map((m) => Number(m[1]));
+    expect(Math.min(...pcts)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...pcts)).toBeLessThanOrEqual(100);
+  });
+});

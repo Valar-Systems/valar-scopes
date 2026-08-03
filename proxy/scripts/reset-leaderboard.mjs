@@ -26,24 +26,31 @@
  * Running it before step 1 just means the surviving v1 Worker rebuilds a v1
  * board from the next submission, and you get to do it again.
  *
- * NAME CLAIMS ARE RELEASED TOO. lb:name:* is what makes a display name
- * first-come-first-served; clearing it frees every name. That is correct for a
- * real reset and is safe at bench-fleet scale, but it does mean a name could be
- * taken by someone else afterwards. Pass --keep-names to preserve them.
+ * DISPLAY NAMES ARE KEPT BY DEFAULT. lb:name:* is what makes a display name
+ * first-come-first-served. Clearing it is defensible for a "true" reset, but it
+ * frees every name someone has already chosen -- so a name a customer is using
+ * becomes claimable by a stranger, which is a worse outcome than a stale key and
+ * is not undoable once taken. Scores are what became meaningless in v2; names did
+ * not. Releasing them is therefore opt-in:
  *
  *   node scripts/reset-leaderboard.mjs --dry-run          # list what would go
- *   node scripts/reset-leaderboard.mjs --env production   # do it
+ *   node scripts/reset-leaderboard.mjs --env production   # scores only, names kept
+ *   node scripts/reset-leaderboard.mjs --release-names    # also free every name
+ *
+ * --keep-names is accepted and is a no-op, so a runbook that names it explicitly
+ * still reads correctly.
  */
 import { execFileSync } from "node:child_process";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
-const keepNames = args.includes("--keep-names");
+const releaseNames = args.includes("--release-names");
+const keepNames = !releaseNames;
 const envIdx = args.indexOf("--env");
 const cfEnv = envIdx >= 0 ? args[envIdx + 1] : "production";
 
 const PREFIXES = ["lb:dev:", "lb:firsttype:", "lb:board"];
-if (!keepNames) PREFIXES.push("lb:name:");
+if (releaseNames) PREFIXES.push("lb:name:");
 
 const wrangler = (...a) =>
   execFileSync("npx", ["wrangler", ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
@@ -90,4 +97,4 @@ execFileSync("npx", ["wrangler", "kv", "bulk", "delete", "--binding", "ENRICH_KV
   encoding: "utf8",
   stdio: ["pipe", "inherit", "inherit"],
 });
-console.log(`done. ${keepNames ? "Display names were kept." : "Display names were released."}`);
+console.log(`done. ${keepNames ? "Display names were KEPT (pass --release-names to free them)." : "Display names were RELEASED and are claimable by anyone."}`);

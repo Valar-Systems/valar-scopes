@@ -510,17 +510,31 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
+// A percentile needs enough rows to mean anything. Below this the column is
+// blank rather than wrong: "top 34%" out of three devices is noise dressed as a
+// statistic, and on a one-row board it read "top 0%", which looks like a defect.
+const PERCENTILE_MIN_ROWS = 10;
+
+// Rank 1 is "top 1%", never "top 0%". The old form was `100 - (1 - (rank-1)/n)`
+// scaled, which for rank 1 gave 0 AT EVERY FLEET SIZE -- the leader of fifty
+// boards would have read the same as the only board on an empty leaderboard.
+// Ceil, floored at 1, so the number answers "what fraction of spotters are at
+// least this good" and the top slot is 1% rather than nothing.
+function percentileLabel(rank: number, total: number): string {
+  if (total < PERCENTILE_MIN_ROWS) return "";
+  return `top ${Math.max(1, Math.ceil((rank / total) * 100))}%`;
+}
+
 function renderBoardHtml(board: Board): string {
   const rowsHtml = board.rows
     .slice(0, 100)
     .map((r) => {
-      const pct = board.rows.length > 1 ? Math.round((1 - (r.rank - 1) / board.rows.length) * 100) : 100;
       const badges = r.badges.map((b) => `<span class="badge" title="${esc(BADGE_LABEL[b] ?? b)}">${(BADGE_LABEL[b] ?? b).split(" ")[0]}</span>`).join("");
       return `<tr>
         <td class="rank">${r.rank}</td>
         <td class="name"><a href="/leaderboard/${esc(r.id)}">${esc(r.name)}</a> ${r.verified ? '<span class="v" title="cloud-verified">✓</span>' : ""} ${badges}</td>
         <td class="pts">${r.points.toLocaleString("en-US")}</td>
-        <td class="pctl">top ${100 - pct}%</td>
+        <td class="pctl">${percentileLabel(r.rank, board.rows.length)}</td>
       </tr>`;
     })
     .join("");
@@ -535,7 +549,8 @@ function renderBoardHtml(board: Board): string {
   body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 2rem 1rem; }
   main { max-width: 720px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
-  .sub { color: var(--dim); margin: 0 0 1.5rem; }
+  .sub { color: var(--dim); margin: 0 0 .5rem; }
+  .rule { margin: 0 0 1.5rem; padding: .7rem .9rem; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: .92rem; }
   .leaders { margin: 0 0 1.5rem; padding: .75rem 1rem; border: 1px solid var(--line); border-radius: 8px; }
   .lead { font-size: .9rem; } .ll { color: var(--dim); display: inline-block; min-width: 5.5rem; }
   table { width: 100%; border-collapse: collapse; }
@@ -552,7 +567,10 @@ function renderBoardHtml(board: Board): string {
   footer { color: var(--dim); font-size: .8rem; margin-top: 2rem; }
 </style></head><body><main>
   <h1>Blipscope Spotting Leaderboard</h1>
-  <p class="sub">Season ${esc(board.season)} — who's <b>claimed</b> the most. Aircraft only score when someone taps them on the device, so this ranks spotters, not antennas.</p>
+  <p class="sub">Season ${esc(board.season)} — who's <b>claimed</b> the most.</p>
+  <p class="rule"><b>Tap an aircraft on your Blipscope to claim it.</b> One tap claims that aircraft's type,
+  airline, country and route airports, all at once. Aircraft you never tapped score nothing, however many
+  fly over — so this ranks spotters, not antennas. Each type counts once, so it rewards range, not volume.</p>
   <div class="tabs"><a href="/leaderboard" class="on">Lifetime</a><a href="/leaderboard?view=season">This season</a></div>
   <div class="leaders">
     ${leaderRow("Most types", board.leaders.types)}
