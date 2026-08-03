@@ -25,3 +25,4 @@ relay/** text eol=lf
 # --check compares content rather than checkout style.
 proxy/src/pages.generated.ts text eol=lf
 proxy/pages/*.html text eol=lf
+proxy/fonts/*.woff2 binary

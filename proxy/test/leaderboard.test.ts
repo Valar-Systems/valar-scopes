@@ -322,3 +322,45 @@ describe("season category leaders", () => {
     expect(body.season.leaders.airlines).toEqual({ name: "", count: 0 });
   });
 });
+
+describe("self-hosted fonts", () => {
+  // The board page used to pull three families from Google, which sent every
+  // visitor's IP to a third party. These are served from the Worker instead.
+  it("serves each font immutably with the right type", async () => {
+    for (const name of ["inter.woff2", "mono.woff2", "grotesk.woff2"]) {
+      const res = await call(new Request(`https://proxy.test/fonts/${name}`));
+      expect(res.status, name).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("font/woff2");
+      expect(res.headers.get("Cache-Control")).toContain("immutable");
+      const buf = await res.arrayBuffer();
+      expect(buf.byteLength, name).toBeGreaterThan(10_000);
+      // woff2 magic: "wOF2". A truncated or base64-mangled embed would still
+      // return 200 with the wrong bytes, and the browser's failure is silent.
+      expect(new TextDecoder().decode(new Uint8Array(buf, 0, 4))).toBe("wOF2");
+    }
+  });
+
+  it("404s an unknown font without touching the filesystem", async () => {
+    // Exact-name map lookup, so traversal has nothing to traverse.
+    for (const p of ["nope.woff2", "../src/index.ts", "..%2F..%2Fetc%2Fpasswd"]) {
+      const res = await call(new Request(`https://proxy.test/fonts/${p}`));
+      expect(res.status, p).toBe(404);
+    }
+  });
+});
+
+describe("profile links", () => {
+  // The page builds row links as /leaderboard/<id>. Before this, `id` was not in
+  // the JSON at all -- the old server-rendered board built links from a value the
+  // endpoint never exposed, so a client-side page had no key to use.
+  it("emits the id that the profile route actually accepts", async () => {
+    await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 1 }, claimedTypes: ["A320"] }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const id = body.lifetime.rows[0].id;
+    expect(id).toBe(ID_A);
+    expect(id).toMatch(/^[0-9a-f]{8,32}$/); // the shape the route's regex requires
+    const profile = await call(new Request(`https://proxy.test/leaderboard/${id}`));
+    expect(profile.status).toBe(200);
+    expect(await profile.text()).toContain("Alpha");
+  });
+});

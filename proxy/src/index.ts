@@ -9,6 +9,7 @@ import {
   handleLeaderboardSubmit,
   handleProfile,
 } from "./leaderboard";
+import { FONTS } from "./fonts.generated";
 import { record, recordOtaMem, setDeviceAttribution, type RequestMetric } from "./metrics";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
@@ -78,6 +79,26 @@ async function route(
   if (url.pathname === "/leaderboard.json") return handleLeaderboardJson(request, env);
   const profileMatch = url.pathname.match(/^\/leaderboard\/([0-9a-f]{8,32})$/);
   if (profileMatch) return handleProfile(env, profileMatch[1] as string);
+  // Self-hosted webfonts for the board page. Previously pulled from Google,
+  // which sent every visitor's IP to a third party from a page whose whole
+  // posture is not needing to explain itself. Exact-name lookup against the
+  // embedded map -- no path joining, so nothing here can be traversed.
+  if (url.pathname.startsWith("/fonts/")) {
+    const font = FONTS[url.pathname.slice("/fonts/".length)];
+    if (!font) return errorResponse(404, "not_found");
+    return new Response(font, {
+      headers: {
+        "Content-Type": "font/woff2",
+        "Content-Length": String(font.byteLength),
+        // Immutable for a year: these bytes never change under a given name.
+        // Changing a font means changing its filename (see fonts.generated.ts).
+        "Cache-Control": "public, max-age=31536000, immutable",
+        // The page is same-origin, but a font served without this is unusable
+        // from any other origin and the failure is silent in most browsers.
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
   if (!url.pathname.startsWith("/v1/")) return errorResponse(404, "not_found");
 
   // Per-IP limit first (throttles key-guessing too), then auth, then per-key.

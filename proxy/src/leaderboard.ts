@@ -359,7 +359,13 @@ interface Board {
   seasonLeaders: Leaders; // this month: biggest GROWTH per category
 }
 
-const BOARD_STALE_MS = 5 * 60 * 1000; // lazy rebuild cadence (bench fleet)
+// Lazy rebuild cadence. 60s, not the original 5 min: the JSON is served with
+// max-age=60, and a board rebuilt every 5 min behind a 60s cache is false
+// precision -- the header implies a freshness the data does not have. A rebuild
+// is a small KV list at bench-fleet scale, so matching them costs little.
+// Revisit at the D1 point, when a per-device-row scan stops being cheap; that is
+// the same threshold that forces the cron-built board.
+const BOARD_STALE_MS = 60 * 1000;
 
 // Every badge now reads off CLAIMS. `row.types` is the claim map, so the
 // widebody/warbird tests changed meaning without changing shape: you earn them
@@ -547,6 +553,14 @@ export async function handleLeaderboardJson(_request: Request, env: Env): Promis
   const board = await getBoard(env);
 
   const rowOut = (r: ScoredRow, season: boolean) => ({
+    // The profile key. It was NOT emitted before -- the old server-rendered board
+    // built its own links from a value the JSON never carried, so a client-side
+    // page had no way to construct /leaderboard/<id> and would have had to invent
+    // one. Safe to publish: `id` is the device's LeaderboardId, the first 8 bytes
+    // of SHA-256(MAC || salt) as 16 hex chars, computed on-device so the raw MAC
+    // never leaves it and the id cannot be reversed to hardware. It is already
+    // the public profile URL.
+    id: r.id,
     rank: season ? r.seasonRank : r.rank,
     name: r.name,
     points: season ? r.seasonPoints : r.points,
