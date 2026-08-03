@@ -74,7 +74,7 @@ async function route(
   if (url.pathname === "/credits") return handleCredits(env);
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).
-  if (url.pathname === "/leaderboard") return handleLeaderboardPage(env);
+  if (url.pathname === "/leaderboard") return handleLeaderboardPage();
   if (url.pathname === "/leaderboard.json") return handleLeaderboardJson(request, env);
   const profileMatch = url.pathname.match(/^\/leaderboard\/([0-9a-f]{8,32})$/);
   if (profileMatch) return handleProfile(env, profileMatch[1] as string);

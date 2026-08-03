@@ -40,6 +40,14 @@ jobs:
       # the source, and a resolution that drifts in CI tests something nobody has.
       - run: npm ci
 
+      # The leaderboard page is authored as proxy/pages/*.html and embedded into
+      # a generated TS module. Without this check the failure is silent and slow:
+      # someone edits the HTML, forgets to regenerate, every test still passes
+      # against the OLD markup, and the deploy ships a page nobody has looked at.
+      - name: Embedded pages are up to date
+        if: matrix.worker == 'proxy'
+        run: node scripts/embed-pages.mjs --check
+
       - run: npm run typecheck
 
       - run: npm test
