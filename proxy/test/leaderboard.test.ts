@@ -363,6 +363,67 @@ describe("self-hosted fonts", () => {
   });
 });
 
+describe("v1 rows cannot produce a self-contradicting profile", () => {
+  // The exact row a real device had in KV: written by the v1 Worker, so `types`
+  // is a SEEN map, there is no `claimed` object, and there is no `legacy` field
+  // either -- which is why `!r.legacy` let it rank.
+  function writeV1Row(id: string, name: string) {
+    return env.ENRICH_KV.put(`lb:dev:${id}`, JSON.stringify({
+      id, name, model: "s3-128", verified: true, radiusKm: 16,
+      counts: { types: 12, airlines: 120, countries: 0, airports: 186 },
+      // no `claimed`, no `legacy` -- the v1 shape exactly
+      types: { B39M: "2026-07", A320: "2026-07", B738: "2026-07" },
+      seasonMonth: "2026-08",
+      monthStartCounts: { types: 0, airlines: 0, countries: 0, airports: 0 },
+      streakDays: 0, streakLastDay: "", createdAt: 1, updatedAt: 2,
+    }));
+  }
+
+  it("does not rank a v1 row, so no score appears beside zero claims", async () => {
+    await writeV1Row(ID_A, "Bend-Man");
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    // Previously this row ranked #1 with points from its SEEN types and a
+    // rarestType, while every claimed counter read 0.
+    expect(body.lifetime.rows).toHaveLength(0);
+    expect((await call(new Request(`https://proxy.test/leaderboard/${ID_A}`))).status).toBe(404);
+  });
+
+  it("re-admits the device the moment its firmware submits once", async () => {
+    await writeV1Row(ID_A, "Bend-Man");
+    await call(submit({
+      id: ID_A, name: "Bend-Man",
+      counts: { types: 153, airlines: 120, countries: 0, airports: 186 },
+      claimed: { types: 15, airlines: 9, countries: 0, airports: 4 },
+      claimedTypes: ["B39M", "A320", "B738"],
+    }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const row = body.lifetime.rows[0];
+    expect(row.name).toBe("Bend-Man");
+    // Counters are non-zero AND the score is consistent with them.
+    expect(row.claimed.types).toBe(3); // authoritative from the claim map, not the device's own number
+    expect(row.points).toBeGreaterThan(0);
+    expect(row.seen.types).toBe(153); // absolute lifetime count, straight from the device
+  });
+
+  it("never publishes a score or a rarest catch beside zero claimed types", async () => {
+    // The property itself, over every row the endpoint will serve -- not just
+    // the one shape known to break it.
+    await writeV1Row(ID_A, "Bend-Man");
+    await call(submit({ id: ID_B, name: "Real", claimed: { airlines: 2 }, claimedTypes: ["C17"] }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    for (const scope of ["lifetime", "season"]) {
+      for (const r of body[scope].rows) {
+        const c = r.claimed;
+        const claims = c.types + c.airlines + c.countries + c.airports;
+        // A score has to be explainable by something claimed...
+        if (claims === 0) expect(r.points, `${scope} ${r.name} points`).toBe(0);
+        // ...and a "rarest catch" needs claimed types to have been rarest among.
+        if (c.types === 0) expect(r.rarestType, `${scope} ${r.name} rarest`).toBe("");
+      }
+    }
+  });
+});
+
 describe("profile links", () => {
   // The page builds row links as /leaderboard/<id>. Before this, `id` was not in
   // the JSON at all -- the old server-rendered board built links from a value the

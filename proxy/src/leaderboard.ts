@@ -383,6 +383,27 @@ function computeBadges(row: DeviceRow, firstTypeCount: number): string[] {
   return badges;
 }
 
+// A row is rankable only if the DEVICE said so (`legacy` is false -- the
+// submission carried a claimedTypes array) AND the STORED ROW itself is v2.
+//
+// The second half is not redundant, and its absence was a live bug. A row
+// written by the v1 Worker has no `claimed` object at all, and its `types` map
+// means SEEN, not claimed. `!r.legacy` on such a row is `!undefined` === true,
+// so it ranked -- which did two wrong things at once. It resurrected exactly the
+// antenna advantage v2 exists to remove (every type the aerial ever heard,
+// scored as though someone had tapped it). And it published a self-contradicting
+// profile: `points` and `rarestType` computed from `types`, sitting beside
+// all-zero counters read from the `claimed` that isn't there. That is how a real
+// device rendered "Spotter Score 120, rarest catch Boeing 737 MAX 9, types
+// claimed 0 of 12".
+//
+// Score and counters have to come from one source or they can disagree, and a
+// page disagreeing with itself is worse than a page saying nothing. An excluded
+// device reappears the moment its firmware submits once.
+function isRankable(r: DeviceRow): boolean {
+  return r.legacy !== true && r.claimed !== undefined && r.claimed !== null;
+}
+
 async function buildBoard(env: Env): Promise<Board> {
   const now = Date.now();
   const season = monthOf(now);
@@ -400,7 +421,7 @@ async function buildBoard(env: Env): Promise<Board> {
   // Legacy rows are stored but never ranked, and they must not skew rarity
   // either: their `types` map is empty under v2, so counting them as devices
   // would inflate every claimed type's apparent rarity.
-  const rows = all.filter((r) => !r.legacy);
+  const rows = all.filter(isRankable);
 
   // Rarity: fraction of devices that have CLAIMED each type. Deliberately not
   // "seen" -- a type everybody receives but nobody bothers to open is genuinely
@@ -420,7 +441,7 @@ async function buildBoard(env: Env): Promise<Board> {
     fc = page.list_complete ? undefined : page.cursor;
   } while (fc);
 
-  const scored = rows.map((r) => {
+  const allScored = rows.map((r) => {
     let typePts = 0;
     let seasonTypePts = 0;
     // Track the device's rarest logged type (lowest fleet-wide frequency) as we go.
@@ -461,6 +482,27 @@ async function buildBoard(env: Env): Promise<Board> {
       rank: 0,
       seasonRank: 0,
     };
+  });
+
+  // INVARIANT: a published row's score and its counters derive from the same
+  // claim map, so "a score with zero claims" is not a state that can exist.
+  // isRankable() removes the one shape known to produce it; this enforces the
+  // property itself rather than trusting that enumeration to stay complete. A
+  // row that still manages to violate it is DROPPED, not clamped and not
+  // published -- an unexplained absence is recoverable, a number a customer can
+  // see is contradicted by the number beside it is not. Logged so a recurrence
+  // is findable instead of silent.
+  // Stated precisely, because the loose version ("points with no claimed types")
+  // rejects a legitimate row: the wire permits claimed countries/airlines without
+  // claimed types, and the growth-clamp path relies on it. The two things that
+  // genuinely cannot be true are a score with NOTHING claimed, and a "rarest
+  // catch" with no claimed types to have been rarest among.
+  const scored = allScored.filter((r) => {
+    const claims = r.counts.types + r.counts.airlines + r.counts.countries + r.counts.airports;
+    const contradictory = (r.points > 0 && claims === 0) || (r.rarestType !== "" && r.counts.types === 0);
+    if (contradictory)
+      console.log(JSON.stringify({ evt: "incoherent_row", id: r.id, points: r.points }));
+    return !contradictory;
   });
 
   const byPoints = [...scored].sort((a, b) => b.points - a.points);

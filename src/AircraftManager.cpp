@@ -922,17 +922,53 @@ void AircraftManager::Update()
 #ifdef FEATURE_CLOUD_FEED
     // Public leaderboard: submit the logbook tallies hourly (first submit ~30 s
     // after boot so the lifelist has loaded and the clock/feed have settled).
-    // QueueLeaderboardSubmit self-gates on the shared enrich queue; a busy tick
-    // just retries next loop, and lastLeaderboardSubmit only advances on a
-    // successful enqueue so a missed hour isn't skipped.
+    //
+    // ONCE DUE, THE SUBMIT TAKES PRIORITY over new enrichment. It used to merely
+    // retry -- QueueLeaderboardSubmit returns false while enrichInFlight, and the
+    // hourly retry would "just catch the next gap". Under a dense sky there is no
+    // gap: the tracked set is pinned at MAX_AIRCRAFT and churns continuously, so
+    // enrichment (queue depth 1, one outstanding at a time) is always in flight
+    // and a request issued once an hour loses every race, permanently. Measured
+    // at LAX with a 10 mi radius: zero submits landed. The device kept claiming,
+    // the board kept showing nothing, and nothing anywhere reported an error --
+    // the worst shape a bug can take.
+    //
+    // So `lbSubmitPending` latches when due and holds new enrichment off until
+    // the submit is away (see RequestMetadata/Route/Photo/CloudEnrich). One small
+    // request per hour delaying one photo by a second or two is the right trade;
+    // the reverse -- a photo stream permanently starving the only report the
+    // owner's collection ever makes -- is not.
     if (lbEnabled && useCloudSource && !cloudUrl.isEmpty()) {
         constexpr unsigned long LB_INTERVAL_MS = 60UL * 60UL * 1000UL; // hourly
         constexpr unsigned long LB_FIRST_DELAY_MS = 30UL * 1000UL;
         const bool due = lastLeaderboardSubmit == 0
             ? now >= LB_FIRST_DELAY_MS
             : now - lastLeaderboardSubmit >= LB_INTERVAL_MS;
-        if (due && QueueLeaderboardSubmit())
+        if (due && !lbSubmitPending) {
+            lbSubmitPending = true;
+            lbSubmitDueMs = now; // start the due -> away clock the soak gate reads
+            lbStarvedReported = false;
+        }
+#ifdef LB_SUBMIT_GATE_MS
+        // Dense-sky gate (blipscope-s3-128-densesky). Starvation is silent by
+        // nature -- the device keeps working, the board just never changes -- so
+        // the run has to say so out loud or a 24 h log proves nothing. Once per
+        // episode, not per loop: a line every frame is a line nobody reads.
+        if (lbSubmitPending && !lbStarvedReported && now - lbSubmitDueMs > LB_SUBMIT_GATE_MS) {
+            lbStarvedReported = true;
+            Serial.printf("[leaderboard] GATE BROKEN: due %lu ms ago, still not away "
+                          "(enrichInFlight=%d)\n", now - lbSubmitDueMs, (int)enrichInFlight);
+        }
+#endif
+        if (lbSubmitPending && QueueLeaderboardSubmit()) {
+            const unsigned long waited = now - lbSubmitDueMs;
+            if (waited > lbWorstSubmitWaitMs)
+                lbWorstSubmitWaitMs = waited;
+            lbSubmitPending = false;
             lastLeaderboardSubmit = now;
+            Serial.printf("[leaderboard] submit away after %lu ms (worst %lu ms)\n",
+                          waited, lbWorstSubmitWaitMs);
+        }
     }
 #endif
 
@@ -3538,6 +3574,17 @@ void AircraftManager::ProcessDetailLookups()
     if (enrichInFlight)
         return;
 
+    // Same for a leaderboard submit that is already due -- but the check MUST be
+    // here, at the top, and not left to the Request* calls below. This function
+    // commits state BEFORE it enqueues ("photoIcao = selectedIcao" is marked
+    // attempted regardless of outcome, with no retry; metadataState goes to
+    // Fetching). A deferral swallowed inside RequestPhoto would therefore burn
+    // the single attempt and the card would never load its photo -- the exact
+    // symptom this whole change is meant to relieve. Bailing early re-runs the
+    // step next loop, which is what the enrichInFlight gate above already does.
+    if (EnrichDeferredForSubmit())
+        return;
+
     // same TLS-heap guard as the radar path: a handshake with too little contiguous
     // heap only fails and churns, so defer the detail lookups until heap recovers.
     if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
@@ -3705,20 +3752,41 @@ void AircraftManager::RunEnrichTask()
     }
 }
 
+// Yield the next free enrich slot to a leaderboard submit that is already due.
+// Checked by every enrichment entry point below: the queue is depth 1 and one
+// request is outstanding at a time, so without this a continuous enrichment
+// stream simply never leaves a gap for the hourly submit (see the Update() note).
+// Nothing is lost -- the deferred lookup is re-issued on the next sweep of the
+// tracked set, one cycle later.
+bool AircraftManager::EnrichDeferredForSubmit() const
+{
+#ifdef FEATURE_CLOUD_FEED
+    return lbSubmitPending;
+#else
+    return false;
+#endif
+}
+
 void AircraftManager::RequestMetadata(const String& icao24)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Metadata, icao24, "", "" }))
         enrichInFlight = true;
 }
 
 void AircraftManager::RequestRoute(const String& icao24, const String& callsign)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Route, icao24, callsign, "" }))
         enrichInFlight = true;
 }
 
 void AircraftManager::RequestPhoto(const String& icao24, const String& url, const String& authKey)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     EnrichRequest* req = new EnrichRequest{ EnrichKind::Photo, icao24, "", url };
     req->cloudKey = authKey; // "" for the BYO adsbdb thumbnail; the proxy key in cloud mode
     if (enqueueEnrich(enrichRequestQueue, req))
@@ -3729,6 +3797,8 @@ void AircraftManager::RequestPhoto(const String& icao24, const String& url, cons
 void AircraftManager::RequestCloudEnrich(const String& icao24, const String& callsign,
                                          float acLat, float acLon)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     EnrichRequest* req = new EnrichRequest{};
     req->kind = EnrichKind::CloudEnrich;
     req->icao24 = icao24;

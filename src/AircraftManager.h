@@ -333,6 +333,13 @@ private:
     long lbPoints = 0, lbSeasonPoints = 0;
     String lbRarestType;                     // this device's rarest logged type (fleet-wide)
     int lbRarestPct = 0;                     // % of opted-in devices that also have it
+    // A due submit outranks new enrichment until it is away. Without this the
+    // hourly request loses every race for the depth-1 enrich queue on a dense
+    // sky and never lands at all -- silently, since nothing errors.
+    bool lbSubmitPending = false;            // due, waiting for the enrich slot
+    unsigned long lbSubmitDueMs = 0;         // millis() it became due
+    unsigned long lbWorstSubmitWaitMs = 0;   // worst due->away wait (the soak gate reads this)
+    bool lbStarvedReported = false;          // GATE BROKEN printed once per pending episode
 
     // Rank-up toast: a transient celebratory banner drawn over any screen for a few
     // seconds after a submit whose overall rank climbed. Armed only once a standing
@@ -544,6 +551,7 @@ private:
     void StartEnrichTask();                      // spawn the enrichment task once
     static void EnrichTaskTrampoline(void* arg); // FreeRTOS entry -> RunEnrichTask()
     void RunEnrichTask();                        // blocking adsbdb GET / photo download, off-loop
+    bool EnrichDeferredForSubmit() const;    // true while a due submit owns the next enrich slot
     void RequestMetadata(const String& icao24);                      // loop: queue a metadata lookup
     void RequestRoute(const String& icao24, const String& callsign); // loop: queue a route lookup
     void RequestPhoto(const String& icao24, const String& url, const String& authKey = ""); // loop: queue a photo download (authKey set in cloud mode)

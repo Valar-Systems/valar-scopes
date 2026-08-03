@@ -234,6 +234,16 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              No percent signs below - the template engine claims that character (see the
              favicon comment above), so every size is fr/px/flex. -->
         <style>
+          /* The rail has to be ADDITIVE, not carved out of the form. .wrap is 42rem
+             and shared with the other seven editions; dropping a 170px column inside
+             it left the form column ~27rem -- narrow enough that every two-word
+             checkbox label wrapped onto two lines: Directional aircraft, Altitude
+             colors, Night clock, Position source. Widen by exactly the rail plus its
+             gap so the form is the same width it was before the nav existed.
+             Scoped to this radar-only block, so the other editions keep 42rem.
+             NB no close-paren-then-double-quote anywhere in this block: that pair
+             ends the C++ raw string literal the whole page lives in. */
+          .wrap{max-width:54rem}
           .shell{display:grid;grid-template-columns:170px 1fr;gap:1.1rem;align-items:start}
           .side{display:flex;flex-direction:column;gap:.2rem;position:sticky;top:.5rem}
           .navb{text-align:left;background:none;border:1px solid transparent;color:var(--dim);
@@ -566,6 +576,16 @@ R"(
                         Flashes a cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance (in your radar's units) of your location &mdash; glance up and spot it.
                     </span>
                 </details>
+
+                </div><!-- /sec -->
+
+                <!-- The logbook toggle is the master switch for what the Collection
+                     tab renders, and the leaderboard opt-in publishes that same
+                     collection. Both sat under "Location & Radar", so turning the
+                     logbook off emptied a tab you were not looking at. A section is
+                     a SET of blocks, so moving them costs nothing but this boundary
+                     -- no markup moves and the form stays one whole-form POST. -->
+                <div class="sec" data-sec="collection">
 
                 <details class="auto">
                     <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
