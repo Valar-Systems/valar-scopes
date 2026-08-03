@@ -916,6 +916,9 @@ void AircraftManager::Update()
     if (logbookEnabled)
         logbook.MaybePersist();
 
+    // Retire an expired claim confirmation and start the next queued one.
+    UpdateClaimToast();
+
 #ifdef FEATURE_CLOUD_FEED
     // Public leaderboard: submit the logbook tallies hourly (first submit ~30 s
     // after boot so the lifelist has loaded and the clock/feed have settled).
@@ -1943,6 +1946,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     DrawClock(backbuffer);
     DrawVisualAlert(backbuffer); // military/emergency ring pulse / flash, over any screen
     DrawRankToast(backbuffer);   // transient "RANK UP" banner after a leaderboard climb
+    DrawClaimToast(backbuffer);  // transient "CLAIMED <type> #N" after a tap-to-claim
 }
 
 SpecialAircraft::Class AircraftManager::SpecialClassOf(const TrackedAircraft& tracked) const
@@ -2121,11 +2125,19 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.drawString(SpecialAircraft::Tag(sc), x + 11, y - 3);
         }
 
-        // fresh logbook catch: a gold "NEW" flag for a never-before-seen type/airline
-        if (logbookEnabled && tracked.freshCatch) {
+        // Claimable: a gold NEW flag plus a ring, meaning "this TYPE is not in your
+        // collection yet -- tap it". It clears the moment the card is opened, and
+        // it comes back for the next unclaimed type rather than never again.
+        //
+        // Only ever shown for a contact whose type is already known, which is a
+        // real limit rather than an oversight: the type arrives from enrichment,
+        // so on a board where enrichment is heap-gated (the C3) most blips carry
+        // no badge and the reveal-on-tap path is what makes the mechanic work.
+        if (logbookEnabled && tracked.claimable) {
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(255, 215, 0));
             backbuffer.drawString("NEW", x + 11, y + 6);
+            backbuffer.drawCircle(x, y, 7, lgfx::color888(255, 215, 0));
         }
 
         // overhead: pulsing "look up!" ring when a contact is passing near-overhead
@@ -2358,9 +2370,19 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         line("LIFELIST");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-        line(String(logbook.TypeCount()) + " types  " + String(logbook.OperatorCount()) + " airlines");
-        line(String(logbook.CountryCount()) + " countries  " + String(logbook.AirportCount()) + " airports");
-        line(String(logbook.Contacts()) + " seen");
+        // CLAIMED / SEEN, and it REPLACES the old counts rather than adding a row.
+        // Every line here is space-guarded and silently dropped when the face
+        // fills (that is how the Reset-WiFi row once vanished -- see the reserved
+        // row above), so the gap has to earn its place from the existing budget.
+        //
+        // It lives here, not in the LEADERBOARD block below, because that block is
+        // behind an opt-in AND a returned standing. The gap is local, always
+        // available, and it is the number that makes somebody want to tap -- so it
+        // must not be hidden behind a cloud feature the owner may never enable.
+        line(String(logbook.ClaimedTypeCount()) + "/" + String(logbook.TypeCount()) + " types claimed");
+        line(String(logbook.ClaimedOperatorCount()) + "/" + String(logbook.OperatorCount()) + " airlines  " +
+             String(logbook.ClaimedCountryCount()) + "/" + String(logbook.CountryCount()) + " countries");
+        line(String(logbook.Contacts()) + " contacts seen");
 
         // lifetime record holders, one compact line: highest / fastest / closest ever
         const Logbook::Record& rh = logbook.HighRecord();
@@ -3053,6 +3075,101 @@ void AircraftManager::DismissVisualAlert()
 
 constexpr unsigned long RANK_TOAST_MS = 6000; // how long the rank-up banner stays up
 
+void AircraftManager::PushClaimToast(const String& text)
+{
+    if (claimToastCount >= CLAIM_TOAST_QUEUE)
+        return; // full: drop the newest rather than evict one already promised
+    claimToastText[claimToastCount++] = text;
+    if (claimToastUntilMs == 0)
+        claimToastUntilMs = millis() + CLAIM_TOAST_MS; // start the front entry's dwell
+}
+
+void AircraftManager::UpdateClaimToast()
+{
+    if (claimToastCount == 0)
+        return;
+    if ((long)(millis() - claimToastUntilMs) < 0)
+        return; // front entry still showing
+    // Retire the front entry and start the next one, if any.
+    for (size_t i = 1; i < claimToastCount; ++i)
+        claimToastText[i - 1] = claimToastText[i];
+    --claimToastCount;
+    claimToastUntilMs = claimToastCount > 0 ? millis() + CLAIM_TOAST_MS : 0;
+}
+
+void AircraftManager::DrawClaimToast(BandCanvas& backbuffer) const
+{
+    if (claimToastCount == 0)
+        return;
+
+    // Same gold pill as the rank toast, but seated BELOW centre so a claim landing
+    // during a rank-up doesn't collide with it. Deliberately the same visual
+    // language: both mean "you gained something".
+    const String& text = claimToastText[0];
+    backbuffer.setTextSize(1);
+    const int tw = (int)backbuffer.textWidth(text);
+    const int th = backbuffer.fontHeight();
+    const int padX = 10, padY = 6;
+    const int w = tw + 2 * padX;
+    const int h = th + 2 * padY;
+    const int cx = SCREEN_SIZE_DIV_2;
+    const int cy = SCREEN_SIZE_DIV_2 + SCREEN_SIZE / 5;
+    const int x = cx - w / 2, y = cy - h / 2;
+
+    backbuffer.fillRoundRect(x, y, w, h, 5, lgfx::color888(40, 30, 0));
+    backbuffer.drawRoundRect(x, y, w, h, 5, lgfx::color888(255, 210, 0));
+    backbuffer.setTextColor(lgfx::color888(255, 210, 0));
+    backbuffer.drawString(text, cx - tw / 2, cy - th / 2);
+
+    // More than one waiting: a small tally so three fast claims read as three.
+    if (claimToastCount > 1) {
+        const String more = "+" + String((int)claimToastCount - 1);
+        backbuffer.drawString(more, x + w + 4, cy - th / 2);
+    }
+}
+
+void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
+{
+    // THE CLAIM. Deliberately NOT bound to the tap itself: the type code arrives
+    // from enrichment, not from the position feed, so a tap on an un-enriched
+    // blip has nothing to claim yet. Binding it to "card open AND type known"
+    // instead means the claim lands with the REVEAL -- tap an anonymous contact,
+    // it resolves to a C-5 nobody has claimed, and it is yours in that moment.
+    // Binding it to the tap would silently drop every claim on a cold contact.
+    if (!logbookEnabled || tracked.typeCode.isEmpty() || tracked.claimFired)
+        return;
+    if (!logbook.ClaimType(tracked.typeCode))
+        return; // already claimed (or never seen): nothing to celebrate
+
+    tracked.claimFired = true;
+    tracked.claimable = false;
+
+    // A tap claims EVERYTHING the aircraft carries. One deliberate action credits
+    // the whole card, which keeps airlines/countries/airports meaningful as
+    // collection categories without inventing a second mechanic for each -- and
+    // without letting them accrue passively, which is what made a busy sky win.
+    logbook.ClaimOperator(tracked.operatorName);
+    logbook.ClaimCountry(tracked.state.originCountry);
+    logbook.ClaimAirport(tracked.routeOrigin);
+    logbook.ClaimAirport(tracked.routeDest);
+
+    // Claiming is per TYPE, so every other contact of this type on screen stops
+    // being claimable in the same instant. Without this sweep their badges would
+    // sit there until each one happened to be re-enriched -- inviting taps that
+    // silently earn nothing, which is exactly the "did that do anything?" feeling
+    // the confirmation exists to avoid. One pass over at most a few dozen
+    // contacts, on an event that happens a handful of times a day.
+    const String& claimedType = tracked.typeCode;
+    for (auto& [icao, other] : trackedAircraft)
+        if (other.claimable && other.typeCode == claimedType)
+            other.claimable = false;
+
+    const String label = !tracked.typeCode.isEmpty() ? tracked.typeCode : String("TYPE");
+    PushClaimToast("CLAIMED " + label + "  #" + String((int)logbook.ClaimedTypeCount()));
+    Serial.printf("[claim] %s claimed (%u/%u types)\n", label.c_str(),
+                  (unsigned)logbook.ClaimedTypeCount(), (unsigned)logbook.TypeCount());
+}
+
 void AircraftManager::DrawRankToast(BandCanvas& backbuffer) const
 {
 #ifdef FEATURE_CLOUD_FEED
@@ -3328,6 +3445,11 @@ void AircraftManager::HandleTap(int tx, int ty)
             selectedIcao = cands[tapCycleIndex].second;
             inDetail = true;
             detailPage = 0;
+            // Already enriched: claim now, so the confirmation lands with the tap.
+            // Cold contacts claim later, when enrichment reveals the type.
+            auto sel = trackedAircraft.find(selectedIcao);
+            if (sel != trackedAircraft.end())
+                ClaimTappedAircraft(sel->second);
         }
     } else if (screen == Screen::List) {
         // map the tapped row to an aircraft (same layout as DrawList)
@@ -3340,6 +3462,9 @@ void AircraftManager::HandleTap(int tx, int ty)
                     selectedIcao = order[idx];
                     inDetail = true;
                     detailPage = 0;
+                    auto sel = trackedAircraft.find(selectedIcao); // same claim-on-open as the radar
+                    if (sel != trackedAircraft.end())
+                        ClaimTappedAircraft(sel->second);
                 }
             }
         }
@@ -3632,13 +3757,22 @@ void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed:
     if (logbookEnabled) {
         const bool newType = logbook.NoteType(tracked.typeCode);
         const bool newOperator = logbook.NoteOperator(tracked.operatorName);
-        if (newType || newOperator)
-            tracked.freshCatch = true;
-        // route endpoints feed the airports-seen lifelist (no NEW flag: the
-        // catch mechanic stays about the aircraft, not its schedule)
+        // SEEN is recorded unconditionally; CLAIMABLE is a live question about the
+        // type, asked again every time enrichment lands rather than latched at
+        // first sighting. That is what lets a type seen months ago still be worth
+        // tapping today, and what makes the badge disappear the instant it is
+        // claimed on any aircraft of that type.
+        tracked.claimable = !tracked.typeCode.isEmpty() && !logbook.IsTypeClaimed(tracked.typeCode);
+        // route endpoints feed the airports-seen lifelist; they are claimed as
+        // riders when the card is opened, never on their own
         logbook.NoteAirport(tracked.routeOrigin);
         logbook.NoteAirport(tracked.routeDest);
         ConsiderAircraftOfDay(tracked, newType, newOperator);
+        // Enrichment can land while the card is already open -- that is the
+        // reveal-then-claim path, and it is the only one that works for a contact
+        // tapped before its type was known.
+        if (inDetail && selectedIcao == tracked.state.icao24)
+            ClaimTappedAircraft(tracked);
     }
 }
 
@@ -3729,13 +3863,14 @@ void AircraftManager::ConsumeEnrichResults()
                     t.registration = res->registration;
                     t.photoUrl = res->photoUrl;
 
-                    // add the type / airline to the lifelist; a brand-new entry marks
-                    // this a "fresh catch". On the loop -- the logbook is loop-owned.
+                    // Record what was SEEN (that happens on its own, and is what the
+                    // lifelist counts), then ask whether the type is still
+                    // unclaimed -- which is what the badge means. On the loop; the
+                    // logbook is loop-owned.
                     if (logbookEnabled) {
-                        const bool newType = logbook.NoteType(t.typeCode);
-                        const bool newOperator = logbook.NoteOperator(t.operatorName);
-                        if (newType || newOperator)
-                            t.freshCatch = true;
+                        logbook.NoteType(t.typeCode);
+                        logbook.NoteOperator(t.operatorName);
+                        t.claimable = !t.typeCode.isEmpty() && !logbook.IsTypeClaimed(t.typeCode);
                     }
                 } else {
                     // transient network failure: allow a later retry, but not before
@@ -3973,9 +4108,22 @@ bool AircraftManager::QueueNtfyPost(const String& title, const String& tags, con
 #ifdef FEATURE_CLOUD_FEED
 // Queue the hourly leaderboard submission onto the enrichment task (off-loop,
 // like ntfy). Builds the JSON body from the logbook tallies + the salted device
-// id + the opted-in spotter name. The full type-code list is the ONE list sent
-// (rarity scoring needs it); airlines/countries/airports stay counts-only so
-// those lists -- which would fingerprint the user's location -- never leave.
+// id + the opted-in spotter name.
+//
+// WHAT CHANGED IN v4 AND WHY IT IS AN ADDITION, NOT AN EDIT. `counts` still means
+// SEEN and keeps its old meaning exactly. The scoring list is the NEW field
+// `claimedTypes`. Silently redefining the old `typeCodes` to mean "claimed"
+// instead would have been far worse than a schema break: a device still running
+// v3 firmware would keep submitting its SEEN list into a field the server now
+// scores as claimed, handing every un-updated unit the exact antenna advantage
+// this rework exists to remove -- invisibly, and in their favour. The server
+// instead treats a submission with no `claimedTypes` as legacy and does not rank
+// it, which fails in the direction that cannot be gamed.
+//
+// `typeCodes` (the seen list) is no longer sent at all. Rarity is computed over
+// claims now, so it had no remaining purpose -- and it was the largest thing the
+// device disclosed. Airlines/countries/airports stay counts-only, as before,
+// because those lists would fingerprint the user's location.
 bool AircraftManager::QueueLeaderboardSubmit()
 {
     if (enrichInFlight || cloudUrl.isEmpty())
@@ -3990,9 +4138,15 @@ bool AircraftManager::QueueLeaderboardSubmit()
     counts["airlines"]  = (uint32_t)logbook.OperatorCount();
     counts["countries"] = (uint32_t)logbook.CountryCount();
     counts["airports"]  = (uint32_t)logbook.AirportCount();
-    JsonArray types = doc["typeCodes"].to<JsonArray>();
+    JsonObject claimed = doc["claimed"].to<JsonObject>();
+    claimed["types"]     = (uint32_t)logbook.ClaimedTypeCount();
+    claimed["airlines"]  = (uint32_t)logbook.ClaimedOperatorCount();
+    claimed["countries"] = (uint32_t)logbook.ClaimedCountryCount();
+    claimed["airports"]  = (uint32_t)logbook.ClaimedAirportCount();
+    JsonArray types = doc["claimedTypes"].to<JsonArray>();
     for (const auto& kv : logbook.Types())
-        types.add(kv.first);
+        if (kv.second.claimDay != 0)
+            types.add(kv.first);
 
     EnrichRequest* req = new EnrichRequest{};
     req->kind = EnrichKind::Leaderboard;
@@ -4379,10 +4533,18 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     }
 
-    // first-ever sighting of this type/airline
-    if (logbookEnabled && tracked.freshCatch) {
+    // The claim line. Opening this card IS the claim, so by the time it is drawn
+    // the usual state is "just claimed" -- the card reports what the tap earned
+    // rather than advertising something still to do. `claimable` only survives to
+    // here when the type is not yet known (enrichment still in flight), which is
+    // exactly when "NEW" is still the honest word.
+    if (logbookEnabled && tracked.claimFired) {
         backbuffer.setTextColor(lgfx::color888(255, 215, 0));
-        line("* NEW CATCH *");
+        line("* CLAIMED #" + String((int)logbook.ClaimedTypeCount()) + " *");
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    } else if (logbookEnabled && tracked.claimable) {
+        backbuffer.setTextColor(lgfx::color888(255, 215, 0));
+        line("* NEW *");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     }
 

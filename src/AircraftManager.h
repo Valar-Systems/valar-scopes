@@ -346,6 +346,28 @@ private:
     CloudFeed::EnrichCache enrichCache;
 #endif
 
+    // Claim confirmation. A claim is the whole reward for tapping, so it is
+    // acknowledged rather than left to be inferred from a badge disappearing.
+    //
+    // A QUEUE, not a single slot. Repeated taps at one spot cycle through stacked
+    // contacts (see HandleTap), so three claims can land inside a couple of
+    // seconds; overwriting would show one pill and silently swallow the other two,
+    // which is the exact failure the confirmation exists to prevent. Small and
+    // fixed: claims are rare, and a queue that can grow is a leak on a device that
+    // runs for months.
+    static constexpr size_t CLAIM_TOAST_QUEUE = 4;
+    static constexpr unsigned long CLAIM_TOAST_MS = 2200;
+    String claimToastText[CLAIM_TOAST_QUEUE];
+    size_t claimToastCount = 0;             // entries waiting, including the one showing
+    unsigned long claimToastUntilMs = 0;    // millis() the front entry expires (0 = idle)
+    void PushClaimToast(const String& text);
+    void UpdateClaimToast();
+    void DrawClaimToast(BandCanvas& backbuffer) const;
+    // Claim everything a tapped aircraft is carrying (type, airline, country,
+    // route airports) and queue the confirmation. Safe to call every frame the
+    // card is open: it no-ops once the type is claimed.
+    void ClaimTappedAircraft(TrackedAircraft& tracked);
+
     // Staleness bookkeeping (all sources): when the last good feed merge landed
     // (device clock), and how old the server said that snapshot already was --
     // cloud mode's SWR-served stale tiles keep their original t, so the lag is

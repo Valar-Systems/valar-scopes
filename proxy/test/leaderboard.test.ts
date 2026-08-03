@@ -28,7 +28,7 @@ afterEach(async () => {
 describe("POST /v1/leaderboard", () => {
   it("stores a submission and returns the device's standing", async () => {
     const res = await call(
-      submit({ id: ID_A, name: "Redmond Radar", radiusKm: 48, counts: { airlines: 12, countries: 3, airports: 20 }, typeCodes: ["A320", "B738", "C17"] }),
+      submit({ id: ID_A, name: "Redmond Radar", radiusKm: 48, claimed: { airlines: 12, countries: 3, airports: 20 }, claimedTypes: ["A320", "B738", "C17"] }),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; name: string; rank: number; points: number };
@@ -50,22 +50,22 @@ describe("POST /v1/leaderboard", () => {
   });
 
   it("keeps counts monotonic -- a lower resubmission cannot shrink the tally", async () => {
-    await call(submit({ id: ID_A, name: "A", counts: { airlines: 20, countries: 5, airports: 10 }, typeCodes: ["A320", "B738"] }));
-    const res = await call(submit({ id: ID_A, name: "A", counts: { airlines: 3, countries: 1, airports: 0 }, typeCodes: [] }));
+    await call(submit({ id: ID_A, name: "A", claimed: { airlines: 20, countries: 5, airports: 10 }, claimedTypes: ["A320", "B738"] }));
+    const res = await call(submit({ id: ID_A, name: "A", claimed: { airlines: 3, countries: 1, airports: 0 }, claimedTypes: [] }));
     const body = (await res.json()) as { points: number };
     // still 2 types (x1) + 20 airlines + 5 countries + 10 airports (nothing shrank)
     expect(body.points).toBe(2 * 10 + 20 * 5 + 5 * 25 + 10 * 2);
   });
 
   it("suffixes a display-name collision from a different device", async () => {
-    await call(submit({ id: ID_A, name: "Ace", counts: {}, typeCodes: [] }));
-    const res = await call(submit({ id: ID_B, name: "Ace", counts: {}, typeCodes: [] }));
+    await call(submit({ id: ID_A, name: "Ace", claimed: {}, claimedTypes: [] }));
+    const res = await call(submit({ id: ID_B, name: "Ace", claimed: {}, claimedTypes: [] }));
     expect(((await res.json()) as { name: string }).name).toBe("Ace 2");
   });
 
   it("clamps an implausible one-shot country jump for an existing device", async () => {
-    await call(submit({ id: ID_A, name: "A", counts: { countries: 2 }, typeCodes: [] }));
-    const res = await call(submit({ id: ID_A, name: "A", counts: { countries: 500 }, typeCodes: [] }));
+    await call(submit({ id: ID_A, name: "A", claimed: { countries: 2 }, claimedTypes: [] }));
+    const res = await call(submit({ id: ID_A, name: "A", claimed: { countries: 500 }, claimedTypes: [] }));
     const body = (await res.json()) as { points: number };
     // countries clamped to prev(2) + 10/day cap = 12
     expect(body.points).toBe(12 * 25);
@@ -85,10 +85,10 @@ describe("leaderboard scoring & rarity", () => {
     // 20 filler devices all with B738 (common); device A adds a rare C17 that
     // only it has -> 1/21 = 4.7% < 5% -> x5.
     for (let i = 0; i < 20; i++) {
-      await call(submit({ id: `f000${(1000 + i)}`, name: `F${i}`, counts: {}, typeCodes: ["B738"] }));
+      await call(submit({ id: `f000${(1000 + i)}`, name: `F${i}`, claimed: {}, claimedTypes: ["B738"] }));
     }
-    await call(submit({ id: ID_A, name: "A", counts: {}, typeCodes: ["B738", "C17"] }));
-    const res = await call(submit({ id: ID_A, name: "A", counts: {}, typeCodes: ["B738", "C17"] }));
+    await call(submit({ id: ID_A, name: "A", claimed: {}, claimedTypes: ["B738", "C17"] }));
+    const res = await call(submit({ id: ID_A, name: "A", claimed: {}, claimedTypes: ["B738", "C17"] }));
     const body = (await res.json()) as { rank: number; points: number; rarestType: string; rarestPct: number };
     // B738 x1 (21/21) *10 + C17 x5 (1/21) *10 = 10 + 50 = 60
     expect(body.points).toBe(60);
@@ -101,7 +101,7 @@ describe("leaderboard scoring & rarity", () => {
 
 describe("public leaderboard pages", () => {
   it("serves the JSON board unauthenticated with per-category leaders", async () => {
-    await call(submit({ id: ID_A, name: "Alpha", counts: { airlines: 9, countries: 4, airports: 5 }, typeCodes: ["A320"] }));
+    await call(submit({ id: ID_A, name: "Alpha", claimed: { airlines: 9, countries: 4, airports: 5 }, claimedTypes: ["A320"] }));
     const res = await call(new Request("https://proxy.test/leaderboard.json"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { rows: { name: string }[]; leaders: { airlines: string[] } };
@@ -110,7 +110,7 @@ describe("public leaderboard pages", () => {
   });
 
   it("renders the public HTML board and a device profile unauthenticated", async () => {
-    await call(submit({ id: ID_A, name: "Alpha", counts: { countries: 15 }, typeCodes: ["A320"] }));
+    await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 15 }, claimedTypes: ["A320"] }));
     const page = await call(new Request("https://proxy.test/leaderboard"));
     expect(page.status).toBe(200);
     expect(page.headers.get("Content-Type")).toContain("text/html");
@@ -129,8 +129,134 @@ describe("public leaderboard pages", () => {
   });
 
   it("awards the First! badge to the earliest logger of a type", async () => {
-    await call(submit({ id: ID_A, name: "Alpha", counts: {}, typeCodes: ["A320"] }));
+    await call(submit({ id: ID_A, name: "Alpha", claimed: {}, claimedTypes: ["A320"] }));
     const profile = await call(new Request(`https://proxy.test/leaderboard/${ID_A}`));
     expect(await profile.text()).toContain("First!");
+  });
+});
+
+// The v1 -> v2 boundary. These are the tests that would have caught the failure
+// mode this rework was designed around: a device on old firmware submitting its
+// SEEN list into a field the server now treats as claims.
+describe("tap-to-claim scoring (v2)", () => {
+  it("does not rank a legacy submission that has no claimedTypes field", async () => {
+    // Exactly what v3 firmware sends: counts + typeCodes, no claim data at all.
+    const res = await call(
+      submit({ id: ID_A, name: "Legacy", counts: { types: 90, airlines: 40, countries: 12, airports: 80 }, typeCodes: ["A320", "B738", "C17"] }),
+    );
+    const body = (await res.json()) as { ok: boolean; legacy: boolean; rank: number; points: number };
+    expect(body.ok).toBe(true);
+    expect(body.legacy).toBe(true);
+    // Stored, but absent from the board: a big SEEN tally must earn nothing.
+    expect(body.points).toBe(0);
+    expect(body.rank).toBe(0);
+    const board = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as { rows: unknown[] };
+    expect(board.rows).toHaveLength(0);
+  });
+
+  it("distinguishes 'claimed nothing yet' from 'legacy firmware'", async () => {
+    // An empty ARRAY is a real, rankable score of zero -- unlike a missing field.
+    const res = await call(submit({ id: ID_B, name: "Fresh", claimed: {}, claimedTypes: [] }));
+    const body = (await res.json()) as { legacy: boolean; rank: number; points: number };
+    expect(body.legacy).toBe(false);
+    expect(body.points).toBe(0);
+    expect(body.rank).toBe(1); // on the board, just at zero
+  });
+
+  it("scores claims and ignores the seen counts entirely", async () => {
+    const res = await call(
+      submit({
+        id: ID_A,
+        name: "Spotter",
+        counts: { types: 500, airlines: 400, countries: 90, airports: 900 }, // huge antenna
+        claimed: { types: 2, airlines: 1, countries: 1, airports: 3 },        // small attention
+        claimedTypes: ["A320", "B738"],
+      }),
+    );
+    const body = (await res.json()) as { points: number };
+    // 2 claimed types (x1 in a one-device fleet) + 1 airline + 1 country + 3 airports.
+    // None of the 500/400/90/900 seen figures appear anywhere in this number.
+    expect(body.points).toBe(2 * 10 + 1 * 5 + 1 * 25 + 3 * 2);
+  });
+
+  it("shows claimed-of-seen on the public profile", async () => {
+    await call(
+      submit({
+        id: ID_A, name: "Alpha",
+        counts: { types: 153, airlines: 120, countries: 8, airports: 34 },
+        claimed: { types: 47, airlines: 30, countries: 5, airports: 12 },
+        claimedTypes: ["A320", "B738"],
+      }),
+    );
+    const html = await (await call(new Request(`https://proxy.test/leaderboard/${ID_A}`))).text();
+    expect(html).toContain("Types claimed");
+    expect(html).toContain("of 153 seen"); // the denominator is visible, and is not the score
+  });
+
+  it("weights rarity by who CLAIMED a type, not who received it", async () => {
+    // Nine devices all claim B738; only ID_A also claims C17. C17 is therefore
+    // held by 1 of 10 (<25% -> x2) while B738 is at 100% (x1).
+    for (let i = 0; i < 9; i++) {
+      await call(submit({ id: `f000${1000 + i}`, name: `F${i}`, claimed: {}, claimedTypes: ["B738"] }));
+    }
+    await call(submit({ id: ID_A, name: "A", claimed: {}, claimedTypes: ["B738", "C17"] }));
+    const res = await call(submit({ id: ID_A, name: "A", claimed: {}, claimedTypes: ["B738", "C17"] }));
+    const body = (await res.json()) as { points: number; rarestType: string };
+    expect(body.rarestType).toBe("C17");
+    expect(body.points).toBe(10 * 1 + 10 * 2); // B738 x1 + C17 x2
+  });
+
+  it("extends the streak on a new claim, not on a new sighting", async () => {
+    // First submit establishes the row and a 1-day streak from its first claim.
+    await call(submit({ id: ID_A, name: "A", claimed: { airlines: 1 }, claimedTypes: ["A320"] }));
+    // Second submit adds SEEN volume but no new claims: nothing to extend.
+    const res = await call(
+      submit({ id: ID_A, name: "A", counts: { types: 999, airlines: 999 }, claimed: { airlines: 1 }, claimedTypes: ["A320"] }),
+    );
+    const body = (await res.json()) as { points: number };
+    expect(body.points).toBe(10 + 5); // unchanged by the seen flood
+  });
+});
+
+describe("public board copy and percentile", () => {
+  // This exact phrase is the canary in the deploy runbook: step 2 greps for it to
+  // confirm the v2 Worker is actually the one bound before the irreversible reset
+  // in step 3 runs. If someone rewrites the copy, this test fails rather than the
+  // deploy silently proceeding against a v1 Worker.
+  const CANARY = "ranks spotters, not antennas";
+
+  it("states the claim rule on the public board, including the canary", async () => {
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    expect(html).toContain(CANARY);
+    expect(html).toContain("Tap an aircraft on your Blipscope to claim it");
+    // The four things one tap credits must be named, not implied.
+    for (const word of ["type", "airline", "country", "route airports"]) {
+      expect(html).toContain(word);
+    }
+    // And the old rule must be gone.
+    expect(html).not.toContain("Scores come only from what each device logs overhead");
+  });
+
+  it("suppresses the percentile until there are enough rows to mean anything", async () => {
+    await call(submit({ id: ID_A, name: "Solo", claimed: {}, claimedTypes: ["A320"] }));
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    expect(html).toContain("Solo");
+    // One row: no percentile at all, and specifically never the old "top 0%".
+    expect(html).not.toContain("top 0%");
+    expect(html).not.toMatch(/top \d+%/);
+  });
+
+  it("never renders 'top 0%' for the leader at any fleet size", async () => {
+    for (let i = 0; i < 12; i++) {
+      await call(submit({ id: `c000${1000 + i}`, name: `C${i}`, claimed: { airlines: i }, claimedTypes: ["A320"] }));
+    }
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    expect(html).not.toContain("top 0%");
+    // 12 rows is past the threshold, so percentiles appear -- and the leader is
+    // top 1 in 12 -> ceil(8.3) = 9%, floored at 1 but nowhere near 0.
+    expect(html).toMatch(/top \d+%/);
+    const pcts = [...html.matchAll(/top (\d+)%/g)].map((m) => Number(m[1]));
+    expect(Math.min(...pcts)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...pcts)).toBeLessThanOrEqual(100);
   });
 });
