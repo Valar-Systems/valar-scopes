@@ -3088,6 +3088,20 @@ void AircraftManager::UpdateClaimToast()
 {
     if (claimToastCount == 0)
         return;
+
+    // HOLD THE DWELL WHILE THE CARD IS UP. The claim fires when the detail card
+    // OPENS, but Draw() returns straight after drawing the card and never reaches
+    // DrawClaimToast -- so the dwell was counting down behind a screen that
+    // covers the toast's seat. Anyone who read the card for more than ~2.2 s
+    // closed it to nothing, which is every normal use: the confirmation was
+    // invisible in the exact flow that produces it. Re-arming here starts the
+    // dwell when the toast can actually be seen. Nothing is left unconfirmed in
+    // the meantime -- the card draws its own "* CLAIMED #n *" line.
+    if (inDetail) {
+        claimToastUntilMs = millis() + CLAIM_TOAST_MS;
+        return;
+    }
+
     if ((long)(millis() - claimToastUntilMs) < 0)
         return; // front entry still showing
     // Retire the front entry and start the next one, if any.
