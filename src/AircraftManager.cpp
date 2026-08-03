@@ -1272,52 +1272,52 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // flagged the renderer's honest steady state, not a regression. 60 ms =
     // measured envelope + margin, per bench ruling. Heap floor unchanged.
     //
-    // RE-EXAMINED 2026-08-02 to answer "what is p95 at BLIPS_LIMIT=40 under peak
-    // load?" -- and the load axis in that question turned out to be the wrong
-    // one. s3-128 prodburn, cloud feed, 63 samples over 31 min, four setups:
+    // RE-EXAMINED 2026-08-02, and the re-examination was WRONG. Retracted and
+    // rewritten 2026-08-03. The original note here concluded "aircraft count is
+    // not the frame lever -- 40 contacts render cheaper than 25". That was an
+    // artefact of the measurement, not a property of the renderer.
     //
-    //   location / radius        aircraft  airports   p95
-    //   Bend, r=30 (first 5 min)   24-25        60    41.4-44.7 ms  <- the only
-    //   LA basin, r=100            41-65        41    28.7-31.1 ms     band over
-    //   LA basin, r=30             40 (cap)     25    28.6-29.4 ms     ~31 ms
-    //   Bend, r=30 (again, later)  14-21     lost*    27.5-28.6 ms
+    // WHAT HAPPENED. The measurement changed location by POSTing to /save from a
+    // script. Every checkbox absent from a POST was written as false (correct for
+    // a browser, which always submits the whole form), so that POST silently
+    // turned OFF the airport overlay, trails, fade and scanline. Every sample
+    // after it measured a STRIPPED renderer. The "40 aircraft are cheaper" result
+    // compared a full renderer at n=25 against a gutted one at n=40.
     //
-    // AIRCRAFT COUNT IS NOT THE FRAME LEVER, which is the solid finding here:
-    // 40 contacts render CHEAPER than 25, and p95 is flat (~28-31 ms) from n=14
-    // to n=65. Radius is not it either -- at a fixed location, 30 km and 100 km
-    // sat within 0.6 ms.
+    // Once that is accounted for, the numbers agree and there is no mystery:
     //
-    // What IS the lever is not established. The airport overlay is the leading
-    // candidate: the slow band is the only one with 60 symbols, and returning to
-    // that exact location and radius did NOT bring the cost back -- but the
-    // overlay did not come back either (*the refetch after that config save
-    // never landed, so DrawAirports was on the baked majors). Confounded, twice
-    // over: that band was also the first few minutes after boot, and the board
-    // was touched mid-run. Treat "overlay drives it" as the hypothesis to test
-    // first, NOT as a result. `ap=` is on the health line now so the next person
-    // measures it instead of re-deriving it from location changes.
+    //   configuration                          render features   p95
+    //   overnight soak at cefe95d, 11.6 h      all on            46.6-48.0 ms
+    //   2026-08-02, first ~5 min               all on            41.4-44.7 ms
+    //   2026-08-02, everything after           overlay/trails    27.5-31.1 ms
+    //                                          /fade/scanline off
     //
-    // BUDGET UNCHANGED AT 60 ms, deliberately, not for lack of a new number:
-    //   - Worst p95 measured anywhere is 44.7 ms, and steady state is ~29. 60
-    //     keeps >=34 % margin, MORE than the ~15 % it had when July set it.
-    //   - Tightening toward the measured envelope would re-create the exact
-    //     failure that forced 50 -> 60: a line that flags the renderer's honest
-    //     steady state as a regression.
-    //   - The mechanism is unidentified, so any tighter line would be fitted to
-    //     a 31-minute sample of one bench board in one place.
-    // Nothing crossed 60 ms in 63 samples here, nor in 1396 samples overnight.
+    // The ~18 ms "unexplained gap" between the overnight run and the rest was
+    // never a gap between two honest measurements. The two all-on windows agree
+    // with each other. The lesson generalises: when two runs on one board in one
+    // place disagree, establish that they measured the same thing before
+    // theorising about what changed -- that is what finally resolved this.
     //
-    // THE LOOSE THREAD, worth pulling before anyone moves this constant: the
-    // overnight run (cefe95d, same board, same location) sat at p95 46.6-48.0 ms
-    // SUSTAINED for 11.6 h -- ~18 ms above today's steady state, and not a
-    // warm-up transient. Two runs on one board in one place cannot honestly
-    // disagree by 18 ms, so START WITH MEASUREMENT INTEGRITY, NOT PERFORMANCE:
-    // did both runs measure the same thing? Same build flags (the first attempt
-    // at this measurement was void because it was flashed to the non-cloud env),
-    // same sampling window, same definition of a frame, same screen. Only once
-    // the two are established to be comparable does "what made it slower?"
-    // become the right question -- and if they are not comparable, the number in
-    // this comment is the one to distrust, not the overnight one.
+    // WHAT IS ACTUALLY KNOWN about frame cost: the all-on steady state on this
+    // board is ~42-48 ms p95, and the difference between the two all-on windows
+    // (~3 ms) is not attributed. The load axis is UNTESTED. Aircraft count,
+    // airport-overlay size and trail rendering are all still candidates and were
+    // never separated, because the one experiment that looked like it separated
+    // them was the artefact above. `ap=` is on the health line so the overlay
+    // hypothesis can be tested properly; nothing here should be cited as
+    // evidence for or against it.
+    //
+    // BUDGET UNCHANGED AT 60 ms:
+    //   - The honest all-on envelope is 48.0 ms, so 60 keeps ~25 % margin.
+    //   - Tightening toward it would re-create the exact failure that forced
+    //     50 -> 60: a line that flags the renderer's honest steady state as a
+    //     regression. 48.0 is uncomfortably close to 50 for that reason.
+    //   - Nothing crossed 60 ms in any window: 1396 overnight samples plus 110
+    //     the next day, across every configuration measured including the
+    //     accidental one.
+    // BLIPS_LIMIT=40 is unaffected by all of this -- it is bounded by heap, not
+    // frame time, and that bound was measured on the cloud build with the feed
+    // saturated (see the constant).
     constexpr float FRAME_P95_BUDGET_MS = 60.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
@@ -1492,8 +1492,12 @@ void AircraftManager::RunFetchTask()
             // CONFIRMED 2026-08-02 against a tile that actually saturates it (LA
             // basin, count pinned at 40 for 14 min): largest contiguous block held
             // at 52,212 B with allocFail=0 -- the heap headroom this bound exists
-            // to protect is intact at 40. Frame cost is not a reason to lower it;
-            // 40 contacts render CHEAPER than 25 (see FRAME_P95_BUDGET_MS).
+            // to protect is intact at 40 -- which is the bound that matters here,
+            // since this limit exists for heap and not for frame time.
+            // (An earlier version of this note also claimed 40 contacts render
+            // cheaper than 25. That was a measurement artefact and is retracted;
+            // see FRAME_P95_BUDGET_MS. The heap result above is unaffected -- it
+            // was taken on the cloud build with the feed genuinely saturated.)
             constexpr int BLIPS_LIMIT = 40;
             static_assert(BLIPS_LIMIT <= (int)MAX_AIRCRAFT, "blips limit must fit the tracked cap");
             result = http.GetJson(
