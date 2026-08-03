@@ -16,6 +16,28 @@ permissions:
   contents: write   # needed to upload release assets
 
 jobs:
+  # Structural check on the config page, ahead of the builds because it is seconds
+  # and catches a class of defect no compiler can see: the page must stay ONE
+  # whole-form POST. A section that becomes its own <form>, a named control that
+  # drifts outside it, or a `disabled` attribute inside it all compile perfectly
+  # and silently clear every setting the POST did not mention -- the 2026-08-02
+  # bug that cost a day and produced a wrong frame-budget conclusion (#130).
+  # --selftest runs first so a checker that has stopped checking fails loudly
+  # instead of passing everything. Also prints each page's flash size, so the
+  # CONFIG_HTML trend is visible per-commit rather than measured when someone
+  # gets suspicious.
+  config-form:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove the checker catches each violation
+        run: python scripts/check-config-form.py --selftest
+      - name: Every config page is a single whole form
+        run: python scripts/check-config-form.py
+
   build:
     runs-on: ubuntu-latest
     strategy:
