@@ -5,10 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blipscope Spotting Leaderboard</title>
 <meta name="description" content="Who's claimed the most aircraft. Points come from noticing, not from antennas.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/inter.woff2) format('woff2')}
+  @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/mono.woff2) format('woff2')}
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500 700;
+    font-display:swap;src:url(/fonts/grotesk.woff2) format('woff2')}
   :root{
     --bg:#101215; --panel:#171a1e; --panel-2:#1c2025; --edge:#2a2f36;
     --ink:#eceef1; --ink-2:#a8aeb7; --ink-3:#6f7680;
@@ -64,8 +67,11 @@
   .row.top .rank{color:var(--gold)}
   .who{display:flex;align-items:center;gap:8px;min-width:0}
   .name{font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;
-        text-overflow:ellipsis}
-  .verified{color:var(--live);font-size:12px;flex:none}
+        text-overflow:ellipsis;color:var(--ink);border-bottom:none}
+  a.name:hover{color:var(--live)}
+  a.name:focus-visible{outline:2px solid var(--live);outline-offset:2px;border-radius:2px}
+  .rare{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-3);
+        border:1px solid var(--edge);border-radius:3px;padding:1px 6px;flex:none}
   .stats{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-3);
          margin-top:2px;letter-spacing:.02em}
   .pts{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;
@@ -149,7 +155,7 @@
 
 <footer>
   <div class="wrap">
-    Opt in from your Blipscope’s config page. Counts only — no location or flight data leaves your device. ✓ marks a cloud-verified device.<br>
+    Opt in from your Blipscope’s config page. Counts only — no location or flight data leaves your device.<br>
     <a href="https://valarsystems.com/blipscope">About Blipscope</a> · Valar Systems, Bend, Oregon
   </div>
 </footer>
@@ -172,19 +178,32 @@ function renderRows(rows){
       Nobody has tapped an aircraft yet. The first person to claim something takes the top spot.</div>`;
     return;
   }
+  // The rarity percentile only means anything once the fleet is big enough for a
+  // fraction to be a fraction. On a bench board of one, every claimed type is
+  // held by 100% of devices, so every row would read "top 100%" -- which reads as
+  // a bug AND inverts the badge (a higher number means COMMONER). Below this the
+  // badge shows the type code alone, which is true at any fleet size.
+  const MIN_ROWS_FOR_PCT = 10;
+  const showPct = rows.length >= MIN_ROWS_FOR_PCT;
+
   board.innerHTML = rows.map((r,i) => {
-    const bits = [];
-    if (r.claimed?.types    != null) bits.push(`${nf(r.claimed.types)} types`);
-    if (r.claimed?.airlines != null) bits.push(`${nf(r.claimed.airlines)} airlines`);
-    if (r.claimed?.countries!= null) bits.push(`${nf(r.claimed.countries)} countries`);
-    if (r.claimed?.airports != null) bits.push(`${nf(r.claimed.airports)} airports`);
+    const c = r.claimed ?? r.counts ?? {};
+    const s = r.seen ?? {};
+    const pair = (k,label) => c[k] == null ? '' :
+      (s[k] != null ? `${nf(c[k])} of ${nf(s[k])} ${label}` : `${nf(c[k])} ${label}`);
+    const bits = [pair('types','types'), pair('airlines','airlines'),
+                  pair('countries','countries'), pair('airports','airports')].filter(Boolean);
+    const rank = r.rank ?? (i+1);
+    const nameHtml = r.id
+      ? `<a class="name" href="/leaderboard/${encodeURIComponent(r.id)}">${esc(r.name || 'Unnamed scope')}</a>`
+      : `<span class="name">${esc(r.name || 'Unnamed scope')}</span>`;
+    const rare = r.rarestType
+      ? `<span class="rare" title="Rarest claim">${esc(r.rarestType)}${showPct && r.rarestPct != null ? ` · top ${r.rarestPct}%` : ''}</span>`
+      : '';
     return `<div class="row${i===0?' top':''}">
-      <div class="rank">${i+1}</div>
+      <div class="rank">${rank}</div>
       <div>
-        <div class="who">
-          <span class="name">${esc(r.name || 'Unnamed scope')}</span>
-          ${r.verified ? '<span class="verified" title="Cloud-verified device">✓</span>' : ''}
-        </div>
+        <div class="who">${nameHtml}${rare}</div>
         ${bits.length ? `<div class="stats">${bits.join('  ·  ')}</div>` : ''}
       </div>
       <div class="pts">${nf(r.points)}</div>

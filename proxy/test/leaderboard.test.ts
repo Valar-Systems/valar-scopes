@@ -340,6 +340,20 @@ describe("self-hosted fonts", () => {
     }
   });
 
+  it("serves every font the page actually asks for", async () => {
+    // The CI staleness check proves fonts/ and the generated module agree; it
+    // says nothing about whether the PAGE requests names that exist. Renaming a
+    // font (which the immutable cache header REQUIRES on any change) would
+    // otherwise 404 silently and drop every visitor to system type -- a failure
+    // that looks like a styling opinion rather than a bug.
+    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    const wanted = [...html.matchAll(/url\(\/fonts\/([^)]+)\)/g)].map((m) => m[1] as string);
+    expect(wanted.length).toBe(3);
+    for (const name of wanted) {
+      expect((await call(new Request(`https://proxy.test/fonts/${name}`))).status, name).toBe(200);
+    }
+  });
+
   it("404s an unknown font without touching the filesystem", async () => {
     // Exact-name map lookup, so traversal has nothing to traverse.
     for (const p of ["nope.woff2", "../src/index.ts", "..%2F..%2Fetc%2Fpasswd"]) {
