@@ -658,7 +658,10 @@ R"(
 
                 </div><!-- /sec -->
 
-                <div class="sec" data-sec="location network">
+                <!-- Every section that contains a control needs the savebar. Moving
+                     the logbook/leaderboard blocks to Collection without adding it
+                     here left that tab with toggles and no way to apply them. -->
+                <div class="sec" data-sec="collection location network">
                 <div class="savebar">
                     <input type="submit" value="Save" class="btn">
                     <span id="result"></span>

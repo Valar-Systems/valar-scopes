@@ -311,7 +311,12 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     // This is the fix for the intermittent cloud-enrich blanks (read timeout / connection
     // refused on the shared TLS client). collectHeaders keeps the Transfer-Encoding so the
     // body-read below can tell a chunked reply from a close-delimited one.
-    static const char* kCollectHeaders[] = { "Transfer-Encoding" };
+    // X-Cache / X-Upstream are the proxy's own attribution of where this body came
+    // from. Collecting them costs two header slots and turns "was the feed dry, or
+    // did the device stop asking?" from a cross-system log join into a field on
+    // the result.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding", "X-Cache", "X-Upstream" };
+    const unsigned long reqStartMs = millis();
     int responseCode = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
         http.begin(fullUrl);
@@ -320,7 +325,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         http.setConnectTimeout(5000);
         http.setTimeout(5000);
-        http.collectHeaders(kCollectHeaders, 1);
+        http.collectHeaders(kCollectHeaders, 3);
         for (const auto& header : headers)
             http.addHeader(header.first, header.second);
         responseCode = http.GET();
@@ -332,7 +337,11 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     result.statusCode = responseCode;
 
     if (responseCode > 0) {
+        // Attribution first: valid even on the paths that bail out below.
+        result.cacheState = http.header("X-Cache");
+        result.upstream = http.header("X-Upstream");
         DeserializationError err;
+        const unsigned long parseStartMs = millis();
         const int bodyLen = http.getSize();
         if (bodyLen >= 0 && (size_t)bodyLen > MAX_JSON_BODY) {
             // Refuse up front: parsing it would exhaust the heap mid-stream.
@@ -386,6 +395,13 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
                               (unsigned)s.length(), err.c_str());
         }
 
+        // Transfer + deserialize are inseparable on the streaming paths (the parser
+        // pulls the socket), so this is honestly "time to consume the body", not
+        // pure CPU. Named parseMs because that is what it bounds: whatever the
+        // split, the poll cannot go faster than this.
+        result.parseMs = millis() - parseStartMs;
+        if (bodyLen > 0) result.bodyBytes = (size_t)bodyLen;
+
         if (err) {
             result.errorMessage = err.c_str();
             Serial.printf("[GET] JSON parse failed (%d): %s\n", responseCode, err.c_str());
@@ -397,6 +413,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
         Serial.printf("[GET] HTTP Error (%d): %s\n", responseCode, result.errorMessage.c_str());
     }
 
+    result.requestMs = millis() - reqStartMs;
     http.end();
     xSemaphoreGive(mutex);
     return result;

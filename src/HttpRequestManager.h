@@ -12,6 +12,17 @@ struct HttpResult {
     String response;        // Response body (empty on error)
     String errorMessage;    // Error description if success == false
     bool reusedConnection = false; // socket was already open at request start (keep-alive, no TLS handshake)
+
+    // --- per-request measurement (see MEASUREMENT in AircraftManager) ----------
+    // The proxy has always returned X-Cache (HIT/STALE/MISS) and X-Upstream, and
+    // the device has always thrown them away -- so "is the feed dry or is the
+    // device not asking?" needed a cross-system log join to answer. Kept here it
+    // is answerable per poll, on the device, with no correlation step at all.
+    String cacheState;             // X-Cache: HIT | STALE | MISS ("" if absent)
+    String upstream;               // X-Upstream: which source actually served it
+    size_t bodyBytes = 0;          // response body size (Content-Length, or bytes read)
+    unsigned long parseMs = 0;     // JSON deserialize time only, excluding transfer
+    unsigned long requestMs = 0;   // whole call: connect + transfer + parse
 };
 
 class HttpRequestManager
