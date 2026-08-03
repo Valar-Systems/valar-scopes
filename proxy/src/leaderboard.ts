@@ -266,11 +266,23 @@ export async function handleLeaderboardSubmit(request: Request, env: Env): Promi
   }
 
   // "First!" badge: first device ever to CLAIM a type, not merely to receive one.
-  for (const t of sub.claimedTypes) {
-    if (prev && types[t] !== nowMonth) continue; // only newly-claimed types are worth checking
+  //
+  // CONCURRENT, not sequential, and that is a correctness matter rather than a
+  // tidiness one. This was `for (...) { await get; await put }`, so a device
+  // catching up on a backlog of claims paid two serial KV round trips PER TYPE.
+  // A real board carrying 40 claimed types against a stored row that knew of 12
+  // spent seconds here, the POST blew the device's 5 s read timeout, and the
+  // submit failed -- so the backlog never cleared and the next hourly submit
+  // presented the same backlog and failed the same way. Permanently stuck, with
+  // "[leaderboard] submit failed: HTTP -11 read Timeout" as the only symptom.
+  //
+  // The candidate list is computed first so the filter stays readable; the awaits
+  // then overlap instead of queueing. Distinct keys, so nothing here races.
+  const firstCandidates = sub.claimedTypes.filter((t) => !prev || types[t] === nowMonth);
+  await Promise.all(firstCandidates.map(async (t) => {
     const owner = await env.ENRICH_KV.get(`lb:firsttype:${t}`);
     if (owner === null) await env.ENRICH_KV.put(`lb:firsttype:${t}`, sub.id);
-  }
+  }));
 
   const row: DeviceRow = {
     id: sub.id,

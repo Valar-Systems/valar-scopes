@@ -8,6 +8,7 @@
 #include "BootScreen.h"
 #include "SplashScreen.h"
 #include "Board.h"
+#include "BuildIdentity.h"
 #include "DeviceIdentity.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
@@ -103,6 +104,12 @@ void setup()
   Serial.setTxBufferSize(4096);
   Serial.setTxTimeoutMs(2);
 #endif
+
+  // FIRST LINE OUT, before any subsystem can fail and before anything else can
+  // scroll it away: what this binary actually is. See BuildIdentity.h -- a
+  // wrong-env flash presents as a hardware or upstream fault, and the only cheap
+  // defence is that the device says its own name unprompted.
+  BuildIdentity::PrintBanner();
 
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;

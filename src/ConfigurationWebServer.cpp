@@ -5,6 +5,7 @@
 #include <memory>             // shared_ptr: keeps the chunked logbook stream alive across fills
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
+#include "BuildIdentity.h"
 #include "CoordParse.h"       // forgiving lat/lon parsing for /save (see the header)
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
@@ -274,6 +275,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION%</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <div class="shell">
@@ -889,6 +891,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (EAM)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1049,6 +1052,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Space)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1147,6 +1151,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Seismic)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1249,6 +1254,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Birding)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1358,6 +1364,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Reelscope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1555,6 +1562,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Claudescope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1644,6 +1652,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Speedscope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -2321,6 +2330,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "MQTT_DISCO")     return mqttDisco == "true" ? "checked" : "";
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2356,6 +2368,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "EAM_SCREENS")    return eamScreens;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2383,6 +2398,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "SPACE_SCREENS_HTML") return spaceScreensHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2409,6 +2427,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2433,6 +2454,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2478,6 +2502,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2502,6 +2529,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2534,6 +2564,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
