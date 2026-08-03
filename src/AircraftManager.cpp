@@ -762,6 +762,7 @@ void AircraftManager::Initialise()
         // Location / radius / toggle may just have changed: drop the airport
         // long tail and re-fetch (the baked majors serve in the gap).
         lastCloudAirportsFetch = 0;
+        cloudAirportsRetryMs = 0; // a config save clears any failure backoff too
         cloudAirports.clear();
         Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
                       cloudUrl.c_str(), cloudCfg.pollActiveMs);
@@ -1021,9 +1022,15 @@ void AircraftManager::Update()
         if (useCloudSource && !cloudUrl.isEmpty()) {
             constexpr unsigned long CFG_REFRESH_MS = 24UL * 60UL * 60UL * 1000UL;
             if (lastCloudCfgFetch == 0 || now - lastCloudCfgFetch >= CFG_REFRESH_MS) {
-                lastCloudCfgFetch = now;
-                RequestCloudConfig();
-                return; // the fetch task is busy now; the feed poll goes next cycle
+                // STAMP ONLY ON SUCCESS. Committing the timestamp before the
+                // request is known to be queued converts a dropped request into
+                // a 24 h outage of this feed: the retry condition is already
+                // satisfied-away, and nothing logs it. Leaving the timer at its
+                // previous value means the next loop pass simply tries again.
+                if (RequestCloudConfig()) {
+                    lastCloudCfgFetch = now;
+                    return; // the fetch task is busy now; the feed poll goes next cycle
+                }
             }
         }
 
@@ -1035,10 +1042,25 @@ void AircraftManager::Update()
         // while DrawAirports serves the baked majors table.
         if (useCloudSource && displayAirports && !cloudUrl.isEmpty()) {
             constexpr unsigned long APT_REFRESH_MS = 24UL * 60UL * 60UL * 1000UL;
-            if (lastCloudAirportsFetch == 0 || now - lastCloudAirportsFetch >= APT_REFRESH_MS) {
-                lastCloudAirportsFetch = now;
-                RequestCloudAirports();
-                return; // same single-fetch-task etiquette as the config fetch
+            // BOUND THE FAILURE. Daily is right once the overlay has landed, but
+            // while it is EMPTY the same interval means any lost fetch costs a
+            // customer 24 h of missing airports -- silently, and degrading to
+            // the baked majors so it reads as "the small airports went away"
+            // rather than as a fault. Retrying an empty overlay every 5 min
+            // makes any cause -- including one we have not identified (#129) --
+            // a five-minute blip instead. This is deliberately a bound on the
+            // CLASS of failure, not a fix for a specific one.
+            constexpr unsigned long APT_EMPTY_RETRY_MS = 5UL * 60UL * 1000UL;
+            // A failed fetch sets its own backoff and that wins; otherwise an
+            // empty overlay is due in 5 min and a populated one in 24 h.
+            const unsigned long due = cloudAirportsRetryMs != 0
+                                          ? cloudAirportsRetryMs
+                                          : (cloudAirports.empty() ? APT_EMPTY_RETRY_MS : APT_REFRESH_MS);
+            if (lastCloudAirportsFetch == 0 || now - lastCloudAirportsFetch >= due) {
+                if (RequestCloudAirports()) {
+                    lastCloudAirportsFetch = now;
+                    return; // same single-fetch-task etiquette as the config fetch
+                }
             }
         }
 #endif
@@ -1250,52 +1272,52 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // flagged the renderer's honest steady state, not a regression. 60 ms =
     // measured envelope + margin, per bench ruling. Heap floor unchanged.
     //
-    // RE-EXAMINED 2026-08-02 to answer "what is p95 at BLIPS_LIMIT=40 under peak
-    // load?" -- and the load axis in that question turned out to be the wrong
-    // one. s3-128 prodburn, cloud feed, 63 samples over 31 min, four setups:
+    // RE-EXAMINED 2026-08-02, and the re-examination was WRONG. Retracted and
+    // rewritten 2026-08-03. The original note here concluded "aircraft count is
+    // not the frame lever -- 40 contacts render cheaper than 25". That was an
+    // artefact of the measurement, not a property of the renderer.
     //
-    //   location / radius        aircraft  airports   p95
-    //   Bend, r=30 (first 5 min)   24-25        60    41.4-44.7 ms  <- the only
-    //   LA basin, r=100            41-65        41    28.7-31.1 ms     band over
-    //   LA basin, r=30             40 (cap)     25    28.6-29.4 ms     ~31 ms
-    //   Bend, r=30 (again, later)  14-21     lost*    27.5-28.6 ms
+    // WHAT HAPPENED. The measurement changed location by POSTing to /save from a
+    // script. Every checkbox absent from a POST was written as false (correct for
+    // a browser, which always submits the whole form), so that POST silently
+    // turned OFF the airport overlay, trails, fade and scanline. Every sample
+    // after it measured a STRIPPED renderer. The "40 aircraft are cheaper" result
+    // compared a full renderer at n=25 against a gutted one at n=40.
     //
-    // AIRCRAFT COUNT IS NOT THE FRAME LEVER, which is the solid finding here:
-    // 40 contacts render CHEAPER than 25, and p95 is flat (~28-31 ms) from n=14
-    // to n=65. Radius is not it either -- at a fixed location, 30 km and 100 km
-    // sat within 0.6 ms.
+    // Once that is accounted for, the numbers agree and there is no mystery:
     //
-    // What IS the lever is not established. The airport overlay is the leading
-    // candidate: the slow band is the only one with 60 symbols, and returning to
-    // that exact location and radius did NOT bring the cost back -- but the
-    // overlay did not come back either (*the refetch after that config save
-    // never landed, so DrawAirports was on the baked majors). Confounded, twice
-    // over: that band was also the first few minutes after boot, and the board
-    // was touched mid-run. Treat "overlay drives it" as the hypothesis to test
-    // first, NOT as a result. `ap=` is on the health line now so the next person
-    // measures it instead of re-deriving it from location changes.
+    //   configuration                          render features   p95
+    //   overnight soak at cefe95d, 11.6 h      all on            46.6-48.0 ms
+    //   2026-08-02, first ~5 min               all on            41.4-44.7 ms
+    //   2026-08-02, everything after           overlay/trails    27.5-31.1 ms
+    //                                          /fade/scanline off
     //
-    // BUDGET UNCHANGED AT 60 ms, deliberately, not for lack of a new number:
-    //   - Worst p95 measured anywhere is 44.7 ms, and steady state is ~29. 60
-    //     keeps >=34 % margin, MORE than the ~15 % it had when July set it.
-    //   - Tightening toward the measured envelope would re-create the exact
-    //     failure that forced 50 -> 60: a line that flags the renderer's honest
-    //     steady state as a regression.
-    //   - The mechanism is unidentified, so any tighter line would be fitted to
-    //     a 31-minute sample of one bench board in one place.
-    // Nothing crossed 60 ms in 63 samples here, nor in 1396 samples overnight.
+    // The ~18 ms "unexplained gap" between the overnight run and the rest was
+    // never a gap between two honest measurements. The two all-on windows agree
+    // with each other. The lesson generalises: when two runs on one board in one
+    // place disagree, establish that they measured the same thing before
+    // theorising about what changed -- that is what finally resolved this.
     //
-    // THE LOOSE THREAD, worth pulling before anyone moves this constant: the
-    // overnight run (cefe95d, same board, same location) sat at p95 46.6-48.0 ms
-    // SUSTAINED for 11.6 h -- ~18 ms above today's steady state, and not a
-    // warm-up transient. Two runs on one board in one place cannot honestly
-    // disagree by 18 ms, so START WITH MEASUREMENT INTEGRITY, NOT PERFORMANCE:
-    // did both runs measure the same thing? Same build flags (the first attempt
-    // at this measurement was void because it was flashed to the non-cloud env),
-    // same sampling window, same definition of a frame, same screen. Only once
-    // the two are established to be comparable does "what made it slower?"
-    // become the right question -- and if they are not comparable, the number in
-    // this comment is the one to distrust, not the overnight one.
+    // WHAT IS ACTUALLY KNOWN about frame cost: the all-on steady state on this
+    // board is ~42-48 ms p95, and the difference between the two all-on windows
+    // (~3 ms) is not attributed. The load axis is UNTESTED. Aircraft count,
+    // airport-overlay size and trail rendering are all still candidates and were
+    // never separated, because the one experiment that looked like it separated
+    // them was the artefact above. `ap=` is on the health line so the overlay
+    // hypothesis can be tested properly; nothing here should be cited as
+    // evidence for or against it.
+    //
+    // BUDGET UNCHANGED AT 60 ms:
+    //   - The honest all-on envelope is 48.0 ms, so 60 keeps ~25 % margin.
+    //   - Tightening toward it would re-create the exact failure that forced
+    //     50 -> 60: a line that flags the renderer's honest steady state as a
+    //     regression. 48.0 is uncomfortably close to 50 for that reason.
+    //   - Nothing crossed 60 ms in any window: 1396 overnight samples plus 110
+    //     the next day, across every configuration measured including the
+    //     accidental one.
+    // BLIPS_LIMIT=40 is unaffected by all of this -- it is bounded by heap, not
+    // frame time, and that bound was measured on the cloud build with the feed
+    // saturated (see the constant).
     constexpr float FRAME_P95_BUDGET_MS = 60.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
@@ -1470,8 +1492,12 @@ void AircraftManager::RunFetchTask()
             // CONFIRMED 2026-08-02 against a tile that actually saturates it (LA
             // basin, count pinned at 40 for 14 min): largest contiguous block held
             // at 52,212 B with allocFail=0 -- the heap headroom this bound exists
-            // to protect is intact at 40. Frame cost is not a reason to lower it;
-            // 40 contacts render CHEAPER than 25 (see FRAME_P95_BUDGET_MS).
+            // to protect is intact at 40 -- which is the bound that matters here,
+            // since this limit exists for heap and not for frame time.
+            // (An earlier version of this note also claimed 40 contacts render
+            // cheaper than 25. That was a measurement artefact and is retracted;
+            // see FRAME_P95_BUDGET_MS. The heap result above is unaffected -- it
+            // was taken on the cloud build with the feed genuinely saturated.)
             constexpr int BLIPS_LIMIT = 40;
             static_assert(BLIPS_LIMIT <= (int)MAX_AIRCRAFT, "blips limit must fit the tracked cap");
             result = http.GetJson(
@@ -1638,17 +1664,23 @@ void AircraftManager::RequestFetch()
         );
     }
 
-    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
-    else
-        delete req; // queue full (shouldn't happen: we only request when !fetchInFlight)
+    } else {
+        // "Shouldn't happen: we only request when !fetchInFlight" was the old
+        // comment here, and it may well be true -- but it was never observable.
+        // The feed poll self-heals (the next interval retries), so this line is
+        // for diagnosis, not recovery.
+        Serial.println("[feed] fetch request DROPPED: queue full");
+        delete req;
+    }
 }
 
 #ifdef FEATURE_CLOUD_FEED
-void AircraftManager::RequestCloudConfig()
+bool AircraftManager::RequestCloudConfig()
 {
     if (cloudUrl.isEmpty())
-        return;
+        return false;
     FetchRequest* req = new FetchRequest();
     req->kind = FetchKind::CloudConfig;
     req->cloudBase = cloudUrl;
@@ -1656,16 +1688,23 @@ void AircraftManager::RequestCloudConfig()
     // Whichever check-in is built first after an OTA carries the report; the
     // config fetch is normally it (boot runs it ahead of the first feed poll).
     req->otaMem = TakeOtaMemReport();
-    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
-    else
-        delete req;
+        return true;
+    }
+    // A drop here used to be COMPLETELY SILENT, which is why the 2026-08-02
+    // bench observation could not be diagnosed: config and airport refetches
+    // both stopped landing for 10+ min after repeated config saves, with no
+    // evidence of where they went. Everything else on this path logs.
+    Serial.println("[cloud] config request DROPPED: fetch queue full");
+    delete req;
+    return false;
 }
 
-void AircraftManager::RequestCloudAirports()
+bool AircraftManager::RequestCloudAirports()
 {
     if (cloudUrl.isEmpty())
-        return;
+        return false;
     FetchRequest* req = new FetchRequest();
     req->kind = FetchKind::Airports;
     req->cloudBase = cloudUrl;
@@ -1675,10 +1714,13 @@ void AircraftManager::RequestCloudAirports()
     req->lat = lat;
     req->lon = lon;
     req->rangeKm = rangeKmCfg;
-    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
-    else
-        delete req;
+        return true;
+    }
+    Serial.println("[cloud] airports request DROPPED: fetch queue full");
+    delete req;
+    return false;
 }
 #endif
 
@@ -1717,11 +1759,16 @@ void AircraftManager::ConsumeFetchResult()
     if (res->kind == FetchKind::Airports) {
         if (res->ok) {
             cloudAirports = std::move(res->airports);
+            cloudAirportsRetryMs = 0; // back to the default rule
             Serial.printf("[cloud] airports: %u within %d km\n",
                           (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));
         } else {
             // Retry in 15 min; the baked majors table keeps serving meanwhile.
-            lastCloudAirportsFetch = millis() - (24UL * 60UL * 60UL * 1000UL) + (15UL * 60UL * 1000UL);
+            // An explicit interval, not a rewound timestamp: the old trick
+            // assumed the due time was always a fixed 24 h, so it would have
+            // collapsed to a per-loop retry against the 5 min empty-overlay rule.
+            cloudAirportsRetryMs = 15UL * 60UL * 1000UL;
+            Serial.println("[cloud] airports fetch failed; retry in 15 min (baked majors serving)");
         }
         delete res;
         return;

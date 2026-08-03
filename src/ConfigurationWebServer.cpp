@@ -240,6 +240,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <div class="row">
                     <label class="field">
@@ -669,6 +670,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <label class="field">
                     <span>EAM feed base URL:</span>
@@ -828,6 +830,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <div class="row">
                     <label class="field">
@@ -925,6 +928,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <div class="row">
                     <label class="field">
@@ -1026,6 +1030,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <fieldset>
                     <legend>eBird</legend>
@@ -1134,6 +1139,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <label class="field">
                     <span>Water type:</span>
@@ -1330,6 +1336,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <label class="field">
                     <span>Sidecar URL:</span>
@@ -1418,6 +1425,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
             </div>
 
             <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
 
                 <fieldset>
                     <legend>MiniSpeedCam</legend>
@@ -2316,6 +2324,27 @@ void ConfigurationWebServer::Initialise() {
             return true;
             };
 
+        // CHECKBOX SEMANTICS. An unchecked box is simply absent from the body, so
+        // "absent means false" is the only way a browser can ever turn one OFF.
+        // That is correct for a browser -- and a trap for anything else: a
+        // hand-rolled POST that sets one field silently clears EVERY toggle on
+        // the page. That is not hypothetical; it happened on 2026-08-02, when a
+        // bench script POSTing only lat/lon/radius turned off the airport
+        // overlay, trails, fade, scanline and the logbook, and the resulting
+        // frame-time change was misread as a rendering finding for most of a day.
+        //
+        // The form carries a hidden `cfg-form` marker. With it present the body
+        // is a whole form and absent means false, exactly as before. Without it
+        // the POST is partial, and a toggle nobody mentioned is left ALONE
+        // rather than silently cleared.
+        const bool wholeForm = request->hasParam("cfg-form", true);
+        auto SaveToggle = [request, &prefs, wholeForm](const char* name) {
+            if (request->hasParam(name, true))
+                prefs.putString(name, "true");
+            else if (wholeForm)
+                prefs.putString(name, "false");
+            };
+
         prefs.begin("config", false);
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
@@ -2379,38 +2408,36 @@ void ConfigurationWebServer::Initialise() {
                 prefs.putString("mqtt-pass", pass);
         }
 
-        prefs.putString("scanline", request->hasParam("scanline", true) ? "true" : "false");
-        prefs.putString("fade", request->hasParam("fade", true) ? "true" : "false");
-        prefs.putString("triangle", request->hasParam("triangle", true) ? "true" : "false");
-        prefs.putString("airports", request->hasParam("airports", true) ? "true" : "false");
+        SaveToggle("scanline");
+        SaveToggle("fade");
+        SaveToggle("triangle");
+        SaveToggle("airports");
         TrySaveParam("airports-min");
-        prefs.putString("trail", request->hasParam("trail", true) ? "true" : "false");
-        prefs.putString("altcolor", request->hasParam("altcolor", true) ? "true" : "false");
-        prefs.putString("highlight", request->hasParam("highlight", true) ? "true" : "false");
-        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
-        prefs.putString("night-clock", request->hasParam("night-clock", true) ? "true" : "false");
-        prefs.putString("infotext", request->hasParam("infotext", true) ? "true" : "false");
-        prefs.putString("mil-show", request->hasParam("mil-show", true) ? "true" : "false");
-        prefs.putString("mil-alert", request->hasParam("mil-alert", true) ? "true" : "false");
-        prefs.putString("visual-night", request->hasParam("visual-night", true) ? "true" : "false");
-        prefs.putString("emg-alert", request->hasParam("emg-alert", true) ? "true" : "false");
-        prefs.putString("tones", request->hasParam("tones", true) ? "true" : "false");
-        prefs.putString("heli-show", request->hasParam("heli-show", true) ? "true" : "false");
-        prefs.putString("spc-show", request->hasParam("spc-show", true) ? "true" : "false");
-        prefs.putString("logbook", request->hasParam("logbook", true) ? "true" : "false");
-        prefs.putString("lb-enabled", request->hasParam("lb-enabled", true) ? "true" : "false");
+        SaveToggle("trail");
+        SaveToggle("altcolor");
+        SaveToggle("highlight");
+        SaveToggle("autodim");
+        SaveToggle("night-clock");
+        SaveToggle("infotext");
+        SaveToggle("mil-show");
+        SaveToggle("mil-alert");
+        SaveToggle("visual-night");
+        SaveToggle("emg-alert");
+        SaveToggle("tones");
+        SaveToggle("heli-show");
+        SaveToggle("spc-show");
+        SaveToggle("logbook");
+        SaveToggle("lb-enabled");
         TrySaveParam("lb-name");
-        prefs.putString("lookup", request->hasParam("lookup", true) ? "true" : "false");
-        prefs.putString("lookup-alert", request->hasParam("lookup-alert", true) ? "true" : "false");
-        prefs.putString("mqtt", request->hasParam("mqtt", true) ? "true" : "false");
-        prefs.putString("mqtt-disco", request->hasParam("mqtt-disco", true) ? "true" : "false");
+        SaveToggle("lookup");
+        SaveToggle("lookup-alert");
+        SaveToggle("mqtt");
+        SaveToggle("mqtt-disco");
 
         // an unchecked checkbox isn't sent in the form body, so hasParam() is the
         // on/off signal for each individual info field
-        for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
-            const char* key = AIRCRAFT_INFO_FIELDS[i].key;
-            prefs.putString(key, request->hasParam(key, true) ? "true" : "false");
-        }
+        for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i)
+            SaveToggle(AIRCRAFT_INFO_FIELDS[i].key);
 #elif defined(FEATURE_EAM)
         // FEATURE_EAM: persist the EAM config fields.
         TrySaveParam("eam-base-url");
@@ -2434,12 +2461,12 @@ void ConfigurationWebServer::Initialise() {
         }
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("eam-alert-new", request->hasParam("eam-alert-new", true) ? "true" : "false");
-        prefs.putString("eam-alert-tempo", request->hasParam("eam-alert-tempo", true) ? "true" : "false");
-        prefs.putString("eam-alert-abncp", request->hasParam("eam-alert-abncp", true) ? "true" : "false");
-        prefs.putString("eam-alert-space", request->hasParam("eam-alert-space", true) ? "true" : "false");
-        prefs.putString("eam-colon-blink", request->hasParam("eam-colon-blink", true) ? "true" : "false");
-        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("eam-alert-new");
+        SaveToggle("eam-alert-tempo");
+        SaveToggle("eam-alert-abncp");
+        SaveToggle("eam-alert-space");
+        SaveToggle("eam-colon-blink");
+        SaveToggle("autodim");
 #elif defined(FEATURE_SPACE)
         // FEATURE_SPACE: persist the Spacescope config fields.
         TrySaveParam("space-base-url");
@@ -2459,18 +2486,22 @@ void ConfigurationWebServer::Initialise() {
                     csv += SPACE_SCREEN_DEFS[i].id;
                 }
             }
-            prefs.putString("space-screens", csv.isEmpty() ? String("clock") : csv);
+            // Rebuilt wholesale from the checkboxes, so it carries the same
+            // partial-POST hazard as the toggles: without the whole form this
+            // would collapse the screen list to "clock". Guarded the same way.
+            if (wholeForm)
+                prefs.putString("space-screens", csv.isEmpty() ? String("clock") : csv);
         }
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("sp-alert-launch", request->hasParam("sp-alert-launch", true) ? "true" : "false");
-        prefs.putString("sp-alert-aurora", request->hasParam("sp-alert-aurora", true) ? "true" : "false");
-        prefs.putString("sp-alert-flare", request->hasParam("sp-alert-flare", true) ? "true" : "false");
-        prefs.putString("sp-alert-iss", request->hasParam("sp-alert-iss", true) ? "true" : "false");
-        prefs.putString("sp-alert-dsn", request->hasParam("sp-alert-dsn", true) ? "true" : "false");
-        prefs.putString("sp-alert-neo", request->hasParam("sp-alert-neo", true) ? "true" : "false");
-        prefs.putString("sp-chime", request->hasParam("sp-chime", true) ? "true" : "false");
-        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("sp-alert-launch");
+        SaveToggle("sp-alert-aurora");
+        SaveToggle("sp-alert-flare");
+        SaveToggle("sp-alert-iss");
+        SaveToggle("sp-alert-dsn");
+        SaveToggle("sp-alert-neo");
+        SaveToggle("sp-chime");
+        SaveToggle("autodim");
 #elif defined(FEATURE_SEISMIC)
         // FEATURE_SEISMIC: persist the Seismic edition config fields.
         TrySaveParam("se-base-url");
@@ -2484,10 +2515,10 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("brightness");
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("se-alert-big", request->hasParam("se-alert-big", true) ? "true" : "false");
-        prefs.putString("se-alert-near", request->hasParam("se-alert-near", true) ? "true" : "false");
-        prefs.putString("se-alert-tsnmi", request->hasParam("se-alert-tsnmi", true) ? "true" : "false");
-        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("se-alert-big");
+        SaveToggle("se-alert-near");
+        SaveToggle("se-alert-tsnmi");
+        SaveToggle("autodim");
 #elif defined(FEATURE_BIRDING)
         // FEATURE_BIRDING: persist the Birding edition config fields.
         TrySaveCoord("latitude", true);
@@ -2497,9 +2528,9 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("bd-targets");
         TrySaveParam("ntfy-topic");
         TrySaveParam("brightness");
-        prefs.putString("bd-alert-rare", request->hasParam("bd-alert-rare", true) ? "true" : "false");
-        prefs.putString("bd-alert-target", request->hasParam("bd-alert-target", true) ? "true" : "false");
-        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("bd-alert-rare");
+        SaveToggle("bd-alert-target");
+        SaveToggle("autodim");
 
         // eBird key: don't overwrite the stored value with the masked placeholder
         const auto* ebirdParam = request->getParam("ebird-key", true);
@@ -2526,21 +2557,21 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("brightness");
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("fi-v-tide",    request->hasParam("fi-v-tide", true) ? "true" : "false");
-        prefs.putString("fi-v-flow",    request->hasParam("fi-v-flow", true) ? "true" : "false");
-        prefs.putString("fi-v-temp",    request->hasParam("fi-v-temp", true) ? "true" : "false");
-        prefs.putString("fi-v-solunar", request->hasParam("fi-v-solunar", true) ? "true" : "false");
-        prefs.putString("fi-v-weather", request->hasParam("fi-v-weather", true) ? "true" : "false");
-        prefs.putString("fi-v-moon",    request->hasParam("fi-v-moon", true) ? "true" : "false");
-        prefs.putString("fi-v-catch",   request->hasParam("fi-v-catch", true) ? "true" : "false");
-        prefs.putString("fi-v-clock",   request->hasParam("fi-v-clock", true) ? "true" : "false");
-        prefs.putString("fi-a-flow",    request->hasParam("fi-a-flow", true) ? "true" : "false");
-        prefs.putString("fi-a-temp",    request->hasParam("fi-a-temp", true) ? "true" : "false");
-        prefs.putString("fi-a-solunar", request->hasParam("fi-a-solunar", true) ? "true" : "false");
-        prefs.putString("fi-a-baro",    request->hasParam("fi-a-baro", true) ? "true" : "false");
-        prefs.putString("fi-a-tide",    request->hasParam("fi-a-tide", true) ? "true" : "false");
-        prefs.putString("fi-chime",     request->hasParam("fi-chime", true) ? "true" : "false");
-        prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("fi-v-tide");
+        SaveToggle("fi-v-flow");
+        SaveToggle("fi-v-temp");
+        SaveToggle("fi-v-solunar");
+        SaveToggle("fi-v-weather");
+        SaveToggle("fi-v-moon");
+        SaveToggle("fi-v-catch");
+        SaveToggle("fi-v-clock");
+        SaveToggle("fi-a-flow");
+        SaveToggle("fi-a-temp");
+        SaveToggle("fi-a-solunar");
+        SaveToggle("fi-a-baro");
+        SaveToggle("fi-a-tide");
+        SaveToggle("fi-chime");
+        SaveToggle("autodim");
 #elif defined(FEATURE_CLAUDESCOPE)
         // FEATURE_CLAUDESCOPE: persist the Claudescope config fields. All feeds are keyless -- no
         // masked secret to guard (the OAuth token lives on the sidecar host, never here).
@@ -2554,9 +2585,9 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("brightness");
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("cl-alert-sess", request->hasParam("cl-alert-sess", true) ? "true" : "false");
-        prefs.putString("cl-alert-week", request->hasParam("cl-alert-week", true) ? "true" : "false");
-        prefs.putString("autodim", request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("cl-alert-sess");
+        SaveToggle("cl-alert-week");
+        SaveToggle("autodim");
 #elif defined(FEATURE_SPEED)
         // FEATURE_SPEED: persist the Speedscope config fields. The camera endpoints are keyless (no secret).
         TrySaveParam("sc-host");
@@ -2570,16 +2601,16 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("brightness");
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
-        prefs.putString("sc-v-last",    request->hasParam("sc-v-last", true) ? "true" : "false");
-        prefs.putString("sc-v-live",    request->hasParam("sc-v-live", true) ? "true" : "false");
-        prefs.putString("sc-v-list",    request->hasParam("sc-v-list", true) ? "true" : "false");
-        prefs.putString("sc-v-stats",   request->hasParam("sc-v-stats", true) ? "true" : "false");
-        prefs.putString("sc-v-device",  request->hasParam("sc-v-device", true) ? "true" : "false");
-        prefs.putString("sc-v-clock",   request->hasParam("sc-v-clock", true) ? "true" : "false");
-        prefs.putString("sc-a-speeder", request->hasParam("sc-a-speeder", true) ? "true" : "false");
-        prefs.putString("sc-a-record",  request->hasParam("sc-a-record", true) ? "true" : "false");
-        prefs.putString("sc-a-offline", request->hasParam("sc-a-offline", true) ? "true" : "false");
-        prefs.putString("autodim",      request->hasParam("autodim", true) ? "true" : "false");
+        SaveToggle("sc-v-last");
+        SaveToggle("sc-v-live");
+        SaveToggle("sc-v-list");
+        SaveToggle("sc-v-stats");
+        SaveToggle("sc-v-device");
+        SaveToggle("sc-v-clock");
+        SaveToggle("sc-a-speeder");
+        SaveToggle("sc-a-record");
+        SaveToggle("sc-a-offline");
+        SaveToggle("autodim");
 #endif
         // Read the STORED location back before closing, so the warning below
         // reflects what the device will actually run with -- not merely what this

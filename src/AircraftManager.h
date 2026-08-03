@@ -314,6 +314,14 @@ private:
     // to the baked majors. Fetched once the location is known, then daily.
     std::vector<CloudFeed::CloudAirport> cloudAirports;
     unsigned long lastCloudAirportsFetch = 0; // millis() of the last request (0 = never)
+    // How long to wait before the next airports request. 0 = use the default
+    // rule (5 min while the overlay is empty, 24 h once it has landed). Set to
+    // a real backoff only by a FAILED fetch. This replaced a trick where the
+    // failure path rewound lastCloudAirportsFetch to fake a 15 min due time --
+    // which silently stopped working the moment the due interval was no longer
+    // a fixed 24 h, and would have turned a persistent failure into a retry
+    // every loop pass.
+    unsigned long cloudAirportsRetryMs = 0;
 
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.
@@ -492,8 +500,12 @@ public:
 private:
 
 #ifdef FEATURE_CLOUD_FEED
-    void RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
-    void RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task
+    // Both return TRUE only when the request actually reached the fetch queue.
+    // The caller MUST NOT commit its "last fetched" timestamp until it does --
+    // stamping first turns a dropped request into a 24 h outage of that feed,
+    // because the retry condition is then already satisfied-away. See #129.
+    bool RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
+    bool RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /v1/leaderboard POST
     void RequestCloudEnrich(const String& icao24, const String& callsign,
                             float acLat, float acLon); // loop: queue a /v1/enrich lookup
