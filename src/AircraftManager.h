@@ -529,6 +529,7 @@ private:
     bool RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
     bool RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /v1/leaderboard POST
+    void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
     void RequestCloudEnrich(const String& icao24, const String& callsign,
                             float acLat, float acLon); // loop: queue a /v1/enrich lookup
     // Apply one enrichment payload to a tracked aircraft (shared by the network

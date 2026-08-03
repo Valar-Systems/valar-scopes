@@ -367,10 +367,29 @@ The public spotting leaderboard ([src/leaderboard.ts](src/leaderboard.ts)).
   numeric suffix), stamps each new type's first-seen month, tracks streaks, and
   claims "First!" ownership of never-before-seen types. Responds with this
   device's `{rank, points, seasonRank, seasonPoints, total}` for the Stats block.
-- `GET /leaderboard` — public HTML board (lifetime + `?view=season`), per-category
-  leaders, badges, verified check, percentile framing.
-- `GET /leaderboard.json` — the same data as JSON (`?view=season` too).
-- `GET /leaderboard/<id>` — a device's public profile + badge case.
+- `GET /leaderboard` — the public board. **Static markup**, authored as
+  [`pages/leaderboard.html`](pages/leaderboard.html) and embedded by
+  `scripts/embed-pages.mjs` into `src/pages.generated.ts` (CI fails if that is
+  stale). It renders nothing server-side; it fetches the JSON below itself, so
+  the page can be iterated on without touching scoring and vice versa. Serving it
+  touches no KV at all.
+- `GET /leaderboard.json` — **both scopes in one response**, since the board
+  computes lifetime and season ranks in the same pass and making the page's tab
+  switch a second round trip bought nothing:
+  ```jsonc
+  { "v": 1, "scoring": "claims-v2",
+    "lifetime": { "rows": [...], "leaders": {...} },
+    "season":   { "id": "2026-08", "rows": [...], "leaders": {...} } }
+  ```
+  Each row is `{rank, name, points, verified, badges, claimed, seen, rarestType,
+  rarestPct}` where `points` means *that scope's* points and `claimed`/`seen` are
+  the two halves of "47 of 156". (`counts` remains as an alias of `claimed` for
+  anything still reading the pre-rework name.) Each leader is `{name, count}`.
+  `Cache-Control: public, max-age=60` — but note **`BOARD_STALE_MS` is what
+  actually governs freshness** (5 min); lower that, not the header.
+  `scoring` is the deploy gate's marker — see the reset script's header.
+- `GET /leaderboard/<id>` — a device's public profile + badge case. Still
+  server-rendered; it is a per-device page with no client-side data source.
 
 **Scoring** (server-side, tunable without a firmware change): unique type ×10×
 rarity, airline ×5, country ×25, airport ×2, raw contacts ×0. Rarity multiplier

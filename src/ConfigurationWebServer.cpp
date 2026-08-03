@@ -228,8 +228,34 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
         <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#15803d;--btn:#22c55e}</style>
 )" CONFIG_SHELL_CSS R"(
+        <!-- Sidebar layout. Radar-only on purpose: the other seven editions have short
+             single-screen forms a nav would only get in the way of, and this block is
+             PROGMEM, so scoping it here keeps ~1 KB off each of their pages.
+             No percent signs below - the template engine claims that character (see the
+             favicon comment above), so every size is fr/px/flex. -->
+        <style>
+          .shell{display:grid;grid-template-columns:170px 1fr;gap:1.1rem;align-items:start}
+          .side{display:flex;flex-direction:column;gap:.2rem;position:sticky;top:.5rem}
+          .navb{text-align:left;background:none;border:1px solid transparent;color:var(--dim);
+                padding:.45rem .6rem;border-radius:6px;cursor:pointer;font:inherit;line-height:1.3}
+          .navb:hover{color:var(--ink)}
+          .navb.on{color:var(--ink);border-color:var(--line);background:rgba(34,197,94,.10);font-weight:600}
+          .content{min-width:0}
+          .sec{display:none}
+          .sec.on{display:block}
+          .stand{border:1px solid var(--line);border-radius:8px;padding:.6rem .75rem;margin-bottom:.9rem}
+          .kv{display:flex;justify-content:space-between;gap:.5rem;border-bottom:1px solid var(--line);padding:.3rem 0}
+          /* Phone: the rail becomes a scrollable chip row above the content. No drawer,
+             no hamburger, nothing that can get stuck open while somebody is standing next
+             to the device trying to set their location. */
+          @media(max-width:700px){
+            .shell{grid-template-columns:1fr;gap:.6rem}
+            .side{flex-direction:row;overflow-x:auto;position:static;gap:.3rem;padding-bottom:.3rem}
+            .navb{white-space:nowrap;flex:0 0 auto;padding:.4rem .7rem}
+          }
+        </style>
     </head>
-    <body>
+    <body data-start="%START_SECTION%">
         <fieldset class="wrap">
             <legend>Configure Blipscope</legend>
 
@@ -240,8 +266,30 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>firmware v%FW_VERSION%</span>
             </div>
 
+            <div class="shell">
+                <nav class="side" id="side">
+                    <button type="button" class="navb" data-go="collection">Collection</button>
+                    <button type="button" class="navb" data-go="location">Location &amp; Radar</button>
+                    <button type="button" class="navb" data-go="network">Network</button>
+                    <button type="button" class="navb" data-go="about">About</button>
+                </nav>
+                <div class="content">
+
+                <div class="sec" data-sec="collection">
+                    <div class="stand">%LB_STANDING%</div>
+                    <div id="col"><span class="hint">Loading your collection&hellip;</span></div>
+                    <div class="hint mt">
+                        Seeing an aircraft is your antenna's doing. Claiming it is yours &mdash; open a
+                        contact's card on the device and one tap claims its type, airline, country and
+                        route airports at once. Only claims score.
+                        <a href="/logbook.json?download=1">Download a copy</a> of everything below.
+                    </div>
+                </div>
+
             <form id="cfg" action="/save" method="POST">
                 <input type="hidden" name="cfg-form" value="1">
+
+                <div class="sec" data-sec="location">
 
                 <div class="row">
                     <label class="field">
@@ -303,6 +351,9 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     </select>
                 </label>
 
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="network">
                 <label class="field">
                     <span>Data source:</span>
                     <select id="data-source" name="data-source" class="grow">
@@ -403,6 +454,9 @@ R"(
                     </span>
                 </div>
 
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="location">
                 <fieldset>
                     <legend>Display</legend>
                     <div class="grid3">
@@ -526,11 +580,6 @@ R"(
                     </span>
                 </details>
 
-                <details id="colwrap">
-                    <summary>Your collection</summary>
-                    <div id="col"><span class="hint">Loading&hellip;</span></div>
-                </details>
-
                 <details class="auto">
                     <summary>Spotting leaderboard <input name="lb-enabled" type="checkbox" %LB_ENABLED%></summary>
                     <label class="field">
@@ -545,6 +594,9 @@ R"(
                     </span>
                 </details>
 
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="network">
                 <details class="auto">
                     <summary>Home Assistant / MQTT <input name="mqtt" type="checkbox" %MQTT%></summary>
                     <div class="stack">
@@ -582,16 +634,36 @@ R"(
                     </span>
                 </details>
 
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="location network">
                 <div class="savebar">
                     <input type="submit" value="Save" class="btn">
                     <span id="result"></span>
                 </div>
+                </div><!-- /sec -->
             </form>
 
-            <div class="foot">
-                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
-                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
-            </div>
+                <div class="sec" data-sec="about">
+                    <div class="grid2">
+                        <div class="kv"><span>Device</span><b>%DEVICE_NAME%.local</b></div>
+                        <div class="kv"><span>Address</span><b>%DEVICE_IP%</b></div>
+                        <div class="kv"><span>WiFi signal</span><b>%WIFI_RSSI% dBm</b></div>
+                        <div class="kv"><span>Firmware</span><b>v%FW_VERSION%</b></div>
+                    </div>
+                    <div class="foot mt">
+                        <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                        %CREDITS_LINK%
+                    </div>
+                    <div class="hint mt">
+                        Reset WiFi makes the device forget this network and restart into its setup
+                        portal. Your location, settings and spotting logbook are kept.
+                    </div>
+                    <div class="mt"><button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button></div>
+                </div>
+
+                </div><!-- /content -->
+            </div><!-- /shell -->
         </fieldset>
 )" CONFIG_SHELL_JS R"(
         <script>
@@ -662,7 +734,6 @@ R"(
             //
             // Lazy: nothing is fetched until the section is actually opened, so the
             // common visit (set location, save) never pays for it.
-            const colWrap = document.getElementById('colwrap');
             const col = document.getElementById('col');
             let colLoaded = false;
             const esc = function (s) {
@@ -736,7 +807,42 @@ R"(
                     col.innerHTML = '<span class="hint">Could not load the logbook from the device.</span>';
                 });
             };
-            colWrap.addEventListener('toggle', function () { if (colWrap.open) loadCollection(); });
+            // ---- sidebar navigation ---------------------------------------------
+            // A section is a SET of blocks, not one range: `data-sec` holds a
+            // space-separated list, and Location's two halves sit either side of the
+            // data-source block. That is what let the whole layout land without moving
+            // a single line of existing markup -- and moving markup across the
+            // #ifdef FEATURE_CLOUD_FEED boundaries in there is exactly the kind of edit
+            // that breaks one build config and not the others.
+            //
+            // Sections are shown and hidden with CSS. They are NOT separate forms and
+            // must never become separate forms: `display:none` leaves a field in
+            // FormData, so the whole page still posts as one body. `disabled` would
+            // not -- which is why nothing here ever disables an input, and why
+            // scripts/check-config-form.py fails the build if anything starts to.
+            const secs = document.querySelectorAll('.sec');
+            const navs = document.querySelectorAll('.navb');
+            function showSection(name) {
+                for (const el of secs) {
+                    el.classList.toggle('on', (el.dataset.sec || '').split(' ').indexOf(name) >= 0);
+                }
+                for (const b of navs) b.classList.toggle('on', b.dataset.go === name);
+                if (name === 'collection') loadCollection();
+                try { history.replaceState(null, '', '#' + name); } catch (e) { /* file:// etc. */ }
+            }
+            for (const b of navs) {
+                b.addEventListener('click', function () { showSection(b.dataset.go); });
+            }
+            // The landing section is decided ON THE DEVICE and arrives in the markup
+            // (body[data-start]), not computed here: a first-run customer with no
+            // location set must land on Location & Radar, and doing that in JS would
+            // paint the Collection first and then jump -- which over a slow AP link is
+            // the moment somebody decides the page is broken. A #hash still wins, so
+            // links into a section keep working.
+            const startFromHash = (location.hash || '').replace('#', '');
+            const valid = ['collection', 'location', 'network', 'about'];
+            showSection(valid.indexOf(startFromHash) >= 0 ? startFromHash
+                        : (document.body.dataset.start || 'collection'));
         </script>
     </body>
 </html>
@@ -1838,6 +1944,53 @@ void ConfigurationWebServer::Initialise() {
             }
         }
 #endif
+        // --- the Collection tab's standing block --------------------------------
+        // Rendered here rather than fetched, because there is nothing to fetch: the
+        // standing lives in AircraftManager on the loop task, which this async
+        // handler cannot reach. The manager writes a compact "rank/total/points/
+        // seasonRank/seasonPoints" record to NVS after each successful submit
+        // (hourly, so the flash wear is nil) and this reads it back like any other
+        // stored value. Every branch below is a state a real owner can be in, and
+        // each says what to do next rather than just being empty.
+        String lbStanding;
+        {
+            const bool on = lbEnabled == "true";
+            const String rec = prefs.getString("lb-standing", "");
+            String f[5];
+            int nf = 0, start = 0;
+            for (int k = 0; k <= (int)rec.length() && nf < 5; ++k) {
+                if (k == (int)rec.length() || rec[k] == '/') {
+                    f[nf++] = rec.substring(start, k);
+                    start = k + 1;
+                }
+            }
+            if (!on) {
+                lbStanding = F("<b>Your collection is private.</b><br><span class='hint'>Turn on the "
+                               "spotting leaderboard under Location &amp; Radar to compare claim counts "
+                               "with other spotters. Only a display name and your counts are shared.</span>");
+            } else if (nf < 3 || f[0].toInt() <= 0) {
+                lbStanding = "<b>Opted in" + (lbName.isEmpty() ? String() : " as " + lbName) + ".</b><br>"
+                           + F("<span class='hint'>No standing yet &mdash; the device submits about once an "
+                               "hour. Claim a few aircraft and check back.</span>");
+            } else {
+                lbStanding = "<b>Rank #" + f[0] + (f[1].toInt() > 0 ? " of " + f[1] : String()) + "</b>"
+                           + " &middot; " + f[2] + " pts";
+                if (nf >= 5 && f[3].toInt() > 0)
+                    lbStanding += "<br><span class='hint'>This season: #" + f[3] + ", " + f[4] + " pts</span>";
+                lbStanding += "<div class='hint mt'>See the " + lbLink + ".</div>";
+            }
+        }
+
+        // --- which section the page lands on ------------------------------------
+        // DECIDED HERE, not in the browser. A first-run owner with no location set
+        // must land on Location & Radar: it is the one thing that has to happen in
+        // their first ten minutes, and every one of the pilot units takes this path.
+        // Choosing in JS would paint Collection first and then jump, and over a slow
+        // AP link that flash of the wrong screen is where somebody decides the page
+        // is broken and reboots the device mid-save.
+        const bool haveLocation = !latitude.isEmpty() && !longitude.isEmpty();
+        const String startSection = haveLocation ? F("collection") : F("location");
+
         const String lookupOn = HtmlEscape(prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false");
         const String lookupAlert = HtmlEscape(prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false");
         const String lookupDist = HtmlEscape(prefs.isKey("lookup-dist") ? prefs.getString("lookup-dist", "3") : "3");
@@ -2055,7 +2208,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg
 #endif
@@ -2121,6 +2274,8 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "LB_ENABLED")     return lbEnabled == "true" ? "checked" : "";
                 if (var == "LB_NAME")        return lbName;
                 if (var == "LB_LINK")        return lbLink;
+                if (var == "LB_STANDING")    return lbStanding;
+                if (var == "START_SECTION")  return startSection;
                 if (var == "CREDITS_LINK")   return creditsLink;
                 if (var == "AIRPORTS_MIN_ALL")   return airportsMin == "all" ? "selected" : "";
                 if (var == "AIRPORTS_MIN_MED")   return airportsMin == "med" ? "selected" : "";

@@ -19,8 +19,15 @@
  *
  *   1. Deploy the v2 Worker.        Old firmware still submits, and is stored
  *                                   as `legacy` -- accepted, never ranked.
- *   2. Run this script.             Clears v1 rows, name claims and First! flags.
- *   3. Devices update over OTA.     Each starts submitting claims and appears on
+ *   2. PROVE it is bound:
+ *        curl -s https://scopes.valarsystems.com/leaderboard.json \
+ *          | grep -q '"scoring":"claims-v2"'
+ *      A machine-readable marker, deliberately NOT a sentence from the board
+ *      page: that page is edited freely as a design artefact, and a deploy gate
+ *      that breaks when somebody improves a subtitle is a gate that gets deleted.
+ *      The marker is present even on an empty board, which is what step 2 sees.
+ *   3. Run this script.             Clears v1 rows and First! flags.
+ *   4. Devices update over OTA.     Each starts submitting claims and appears on
  *                                   the board as it is used.
  *
  * Running it before step 1 just means the surviving v1 Worker rebuilds a v1

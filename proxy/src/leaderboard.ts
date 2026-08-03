@@ -1,6 +1,7 @@
 import type { Env } from "./types";
 import { SCHEMA_V } from "./schema";
 import { TYPE_NAMES } from "./typenames";
+import { leaderboardHtml } from "./pages.generated";
 import { errorResponse, jsonResponse } from "./util";
 
 // The public spotting leaderboard.
@@ -341,14 +342,30 @@ interface ScoredRow {
 // rarity multiplier already does most of the radius equalizing.
 const STANDARD_RADIUS_KM = 48;
 
+// One category leader, with the number that earned it. The old shape was a bare
+// array of five names -- "Most types: Redmond Radar" with nothing to say how
+// many, which is a claim the page cannot substantiate.
+interface Leader {
+  name: string;
+  count: number;
+}
+type Leaders = { types: Leader; airlines: Leader; countries: Leader; airports: Leader };
+
 interface Board {
   builtAt: number;
   season: string;
   rows: ScoredRow[];
-  leaders: { types: string[]; airlines: string[]; countries: string[]; airports: string[] };
+  leaders: Leaders;       // lifetime: biggest claimed tally per category
+  seasonLeaders: Leaders; // this month: biggest GROWTH per category
 }
 
-const BOARD_STALE_MS = 5 * 60 * 1000; // lazy rebuild cadence (bench fleet)
+// Lazy rebuild cadence. 60s, not the original 5 min: the JSON is served with
+// max-age=60, and a board rebuilt every 5 min behind a 60s cache is false
+// precision -- the header implies a freshness the data does not have. A rebuild
+// is a small KV list at bench-fleet scale, so matching them costs little.
+// Revisit at the D1 point, when a per-device-row scan stops being cheap; that is
+// the same threshold that forces the cron-built board.
+const BOARD_STALE_MS = 60 * 1000;
 
 // Every badge now reads off CLAIMS. `row.types` is the claim map, so the
 // widebody/warbird tests changed meaning without changing shape: you earn them
@@ -451,8 +468,47 @@ async function buildBoard(env: Env): Promise<Board> {
   const bySeason = [...scored].sort((a, b) => b.seasonPoints - a.seasonPoints);
   bySeason.forEach((r, i) => (r.seasonRank = i + 1));
 
-  const topBy = (sel: (c: Counts) => number): string[] =>
-    [...scored].sort((a, b) => sel(b.counts) - sel(a.counts)).slice(0, 5).map((r) => r.name);
+  // Lifetime leader: the biggest claimed tally in each category.
+  const topBy = (sel: (c: Counts) => number): Leader => {
+    let best: Leader = { name: "", count: 0 };
+    for (const r of scored) {
+      const v = sel(r.counts);
+      if (v > best.count) best = { name: r.name, count: v };
+    }
+    return best;
+  };
+  // Season leader: the biggest GROWTH since the month start, which is a different
+  // question and a different winner. Ranking the season tab by lifetime totals
+  // would have made "this season" a slower-updating copy of "lifetime".
+  const growth = new Map<string, Counts>();
+  for (const r of rows) {
+    const cl = r.claimed ?? { types: 0, airlines: 0, countries: 0, airports: 0 };
+    const ms = r.seasonMonth === season ? r.monthStartCounts : cl;
+    growth.set(r.id, {
+      // TYPES ARE COUNTED FROM THEIR CLAIM MONTH, not from a count delta, because
+      // that is how season POINTS already work (seasonTypePts sums types stamped
+      // with this month). Using cl.types - ms.types here instead looked right and
+      // was silently always 0 for a device on its first submission, since
+      // monthStartCounts is seeded from that submission -- so the season tab's
+      // whole "category leaders" block rendered empty and the page hid it.
+      types: Object.values(r.types).filter((m) => m === season).length,
+      // The other three genuinely are deltas: they arrive as tallies with no
+      // per-item date, so growth-since-month-start is the only season signal
+      // available for them.
+      airlines: Math.max(0, cl.airlines - ms.airlines),
+      countries: Math.max(0, cl.countries - ms.countries),
+      airports: Math.max(0, cl.airports - ms.airports),
+    });
+  }
+  const topBySeason = (sel: (c: Counts) => number): Leader => {
+    let best: Leader = { name: "", count: 0 };
+    for (const r of scored) {
+      const g = growth.get(r.id);
+      const v = g ? sel(g) : 0;
+      if (v > best.count) best = { name: r.name, count: v };
+    }
+    return best;
+  };
 
   const board: Board = {
     builtAt: now,
@@ -463,6 +519,12 @@ async function buildBoard(env: Env): Promise<Board> {
       airlines: topBy((c) => c.airlines),
       countries: topBy((c) => c.countries),
       airports: topBy((c) => c.airports),
+    },
+    seasonLeaders: {
+      types: topBySeason((c) => c.types),
+      airlines: topBySeason((c) => c.airlines),
+      countries: topBySeason((c) => c.countries),
+      airports: topBySeason((c) => c.airports),
     },
   };
   await env.ENRICH_KV.put("lb:board", JSON.stringify(board));
@@ -478,23 +540,66 @@ async function getBoard(env: Env): Promise<Board> {
 
 // ---- public read endpoints ---------------------------------------------------
 
-export async function handleLeaderboardJson(request: Request, env: Env): Promise<Response> {
+// The board JSON. Shape is driven by pages/leaderboard.html, which is now the
+// only consumer: the page is static and fetches this, so iterating on the page
+// never touches this file and vice versa.
+//
+// BOTH SCOPES IN ONE RESPONSE. The old endpoint served one view per request via
+// ?view=season, which made the page's tab switch a second network round trip for
+// data the server had already computed -- buildBoard ranks lifetime AND season in
+// the same pass. `points` inside each scope means THAT scope's points, so the
+// page can render a row without knowing which tab it is on.
+export async function handleLeaderboardJson(_request: Request, env: Env): Promise<Response> {
   const board = await getBoard(env);
-  const url = new URL(request.url);
-  const seasonView = url.searchParams.get("view") === "season";
-  const rows = (seasonView ? [...board.rows].sort((a, b) => a.seasonRank - b.seasonRank) : board.rows)
-    .slice(0, 100)
-    .map((r) => ({
-      rank: seasonView ? r.seasonRank : r.rank,
-      name: r.name,
-      points: seasonView ? r.seasonPoints : r.points,
-      verified: r.verified,
-      badges: r.badges,
-      counts: r.counts,
-      rarestType: r.rarestType,
-      rarestPct: r.rarestPct,
-    }));
-  return jsonResponse({ v: SCHEMA_V, season: board.season, view: seasonView ? "season" : "lifetime", leaders: board.leaders, rows });
+
+  const rowOut = (r: ScoredRow, season: boolean) => ({
+    // The profile key. It was NOT emitted before -- the old server-rendered board
+    // built its own links from a value the JSON never carried, so a client-side
+    // page had no way to construct /leaderboard/<id> and would have had to invent
+    // one. Safe to publish: `id` is the device's LeaderboardId, the first 8 bytes
+    // of SHA-256(MAC || salt) as 16 hex chars, computed on-device so the raw MAC
+    // never leaves it and the id cannot be reversed to hardware. It is already
+    // the public profile URL.
+    id: r.id,
+    rank: season ? r.seasonRank : r.rank,
+    name: r.name,
+    points: season ? r.seasonPoints : r.points,
+    verified: r.verified,
+    badges: r.badges,
+    // `claimed` is what scores and what the page reads. `counts` is kept as an
+    // alias for anything still reading the pre-rework name; `seen` is the
+    // denominator that makes "47 of 156" possible, and was previously computed
+    // server-side but never exposed.
+    claimed: r.counts,
+    counts: r.counts,
+    seen: r.seen,
+    rarestType: r.rarestType,
+    rarestPct: r.rarestPct,
+  });
+
+  const lifetime = [...board.rows].sort((a, b) => a.rank - b.rank).slice(0, 100);
+  const season = [...board.rows].sort((a, b) => a.seasonRank - b.seasonRank).slice(0, 100);
+
+  return jsonResponse(
+    {
+      v: SCHEMA_V,
+      // Machine-readable marker that this Worker scores CLAIMS. The deploy runbook
+      // greps for it before running the irreversible KV reset. Deliberately not a
+      // sentence from the page: the page's copy is edited freely, and a deploy
+      // gate that breaks when someone improves a subtitle is a gate that gets
+      // removed.
+      scoring: "claims-v2",
+      lifetime: { rows: lifetime.map((r) => rowOut(r, false)), leaders: board.leaders },
+      season: { id: board.season, rows: season.map((r) => rowOut(r, true)), leaders: board.seasonLeaders },
+    },
+    200,
+    // A browser page, not a device: overrides the shared helper's no-store, which
+    // exists for devices polling every few seconds. NOTE this is not what governs
+    // freshness -- BOARD_STALE_MS rebuilds the board at most every 5 min, so the
+    // data can be ~5 min old however short this is. Lower that, not this, to make
+    // the board feel live.
+    { "Cache-Control": "public, max-age=60" },
+  );
 }
 
 const BADGE_LABEL: Record<string, string> = {
@@ -510,89 +615,23 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
-// A percentile needs enough rows to mean anything. Below this the column is
-// blank rather than wrong: "top 34%" out of three devices is noise dressed as a
-// statistic, and on a one-row board it read "top 0%", which looks like a defect.
-const PERCENTILE_MIN_ROWS = 10;
+// The "top N percent" column is gone: the static board page renders rank by
+// position and shows no percentile at all. The fix that lived here (rank 1 read
+// "top 0 percent" at every fleet size, not just on a one-row board) is therefore
+// moot rather than wrong, and the code is deleted instead of being kept warm for
+// a column nothing renders. If a percentile comes back, it belongs in the page.
 
-// Rank 1 is "top 1%", never "top 0%". The old form was `100 - (1 - (rank-1)/n)`
-// scaled, which for rank 1 gave 0 AT EVERY FLEET SIZE -- the leader of fifty
-// boards would have read the same as the only board on an empty leaderboard.
-// Ceil, floored at 1, so the number answers "what fraction of spotters are at
-// least this good" and the top slot is 1% rather than nothing.
-function percentileLabel(rank: number, total: number): string {
-  if (total < PERCENTILE_MIN_ROWS) return "";
-  return `top ${Math.max(1, Math.ceil((rank / total) * 100))}%`;
-}
-
-function renderBoardHtml(board: Board): string {
-  const rowsHtml = board.rows
-    .slice(0, 100)
-    .map((r) => {
-      const badges = r.badges.map((b) => `<span class="badge" title="${esc(BADGE_LABEL[b] ?? b)}">${(BADGE_LABEL[b] ?? b).split(" ")[0]}</span>`).join("");
-      return `<tr>
-        <td class="rank">${r.rank}</td>
-        <td class="name"><a href="/leaderboard/${esc(r.id)}">${esc(r.name)}</a> ${r.verified ? '<span class="v" title="cloud-verified">✓</span>' : ""} ${badges}</td>
-        <td class="pts">${r.points.toLocaleString("en-US")}</td>
-        <td class="pctl">${percentileLabel(r.rank, board.rows.length)}</td>
-      </tr>`;
-    })
-    .join("");
-  const leaderRow = (label: string, names: string[]): string =>
-    `<div class="lead"><span class="ll">${label}</span> ${names.filter(Boolean).map(esc).join(" · ") || "—"}</div>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Blipscope Spotting Leaderboard</title>
-<style>
-  :root { color-scheme: light dark; --fg:#111; --dim:#666; --line:#ddd; --bg:#fff; --accent:#0a6; }
-  @media (prefers-color-scheme: dark) { :root { --fg:#eee; --dim:#999; --line:#333; --bg:#141414; --accent:#3d9; } }
-  body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 2rem 1rem; }
-  main { max-width: 720px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
-  .sub { color: var(--dim); margin: 0 0 .5rem; }
-  .rule { margin: 0 0 1.5rem; padding: .7rem .9rem; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: .92rem; }
-  .leaders { margin: 0 0 1.5rem; padding: .75rem 1rem; border: 1px solid var(--line); border-radius: 8px; }
-  .lead { font-size: .9rem; } .ll { color: var(--dim); display: inline-block; min-width: 5.5rem; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: .5rem .4rem; border-bottom: 1px solid var(--line); }
-  th { color: var(--dim); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
-  .rank { width: 2.5rem; color: var(--dim); font-variant-numeric: tabular-nums; }
-  .pts { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-  .pctl { text-align: right; color: var(--dim); font-size: .85rem; white-space: nowrap; }
-  .name a { color: var(--fg); text-decoration: none; } .name a:hover { text-decoration: underline; }
-  .v { color: var(--accent); font-weight: 700; }
-  .badge { font-size: .85rem; }
-  .tabs { margin: 0 0 1rem; } .tabs a { color: var(--dim); text-decoration: none; margin-right: 1rem; padding-bottom: .2rem; }
-  .tabs a.on { color: var(--fg); border-bottom: 2px solid var(--accent); }
-  footer { color: var(--dim); font-size: .8rem; margin-top: 2rem; }
-</style></head><body><main>
-  <h1>Blipscope Spotting Leaderboard</h1>
-  <p class="sub">Season ${esc(board.season)} — who's <b>claimed</b> the most.</p>
-  <p class="rule"><b>Tap an aircraft on your Blipscope to claim it.</b> One tap claims that aircraft's type,
-  airline, country and route airports, all at once. Aircraft you never tapped score nothing, however many
-  fly over — so this ranks spotters, not antennas. Each type counts once, so it rewards range, not volume.</p>
-  <div class="tabs"><a href="/leaderboard" class="on">Lifetime</a><a href="/leaderboard?view=season">This season</a></div>
-  <div class="leaders">
-    ${leaderRow("Most types", board.leaders.types)}
-    ${leaderRow("Airlines", board.leaders.airlines)}
-    ${leaderRow("Countries", board.leaders.countries)}
-    ${leaderRow("Airports", board.leaders.airports)}
-  </div>
-  <table>
-    <thead><tr><th>#</th><th>Spotter</th><th class="pts">Points</th><th class="pctl"></th></tr></thead>
-    <tbody>${rowsHtml || '<tr><td colspan="4" style="color:var(--dim);padding:2rem 0;text-align:center">No spotters yet — opt in on your device to join.</td></tr>'}</tbody>
-  </table>
-  <footer>Opt in from your Blipscope's config page. Counts and your claimed type list only — no location, and no record of flights you didn't claim. ✓ = cloud-verified.</footer>
-</main></body></html>`;
-}
-
-export async function handleLeaderboardPage(env: Env): Promise<Response> {
-  const board = await getBoard(env);
-  const html = renderBoardHtml(board);
-  const bytes = new TextEncoder().encode(html);
+export function handleLeaderboardPage(): Response {
+  const bytes = new TextEncoder().encode(leaderboardHtml);
   return new Response(bytes, {
     status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8", "Content-Length": String(bytes.byteLength), "Cache-Control": "public, max-age=300" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": String(bytes.byteLength),
+      // Longer than the JSON's 60s: the markup changes on deploys, the numbers
+      // change on their own.
+      "Cache-Control": "public, max-age=300",
+    },
   });
 }
 

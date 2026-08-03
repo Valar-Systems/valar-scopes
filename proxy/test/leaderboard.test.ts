@@ -100,27 +100,78 @@ describe("leaderboard scoring & rarity", () => {
 });
 
 describe("public leaderboard pages", () => {
-  it("serves the JSON board unauthenticated with per-category leaders", async () => {
-    await call(submit({ id: ID_A, name: "Alpha", claimed: { airlines: 9, countries: 4, airports: 5 }, claimedTypes: ["A320"] }));
+  it("serves both scopes in one response, shaped for the static page", async () => {
+    await call(submit({
+      id: ID_A, name: "Alpha",
+      counts: { types: 156, airlines: 120, countries: 8, airports: 183 },
+      claimed: { types: 1, airlines: 9, countries: 4, airports: 5 },
+      claimedTypes: ["A320"],
+    }));
     const res = await call(new Request("https://proxy.test/leaderboard.json"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { rows: { name: string }[]; leaders: { airlines: string[] } };
-    expect(body.rows[0].name).toBe("Alpha");
-    expect(body.leaders.airlines[0]).toBe("Alpha");
+    // A browser page, not a device: this route overrides the shared no-store.
+    expect(res.headers.get("Cache-Control")).toContain("max-age=60");
+    const body = (await res.json()) as any;
+
+    // The deploy runbook greps this instead of a sentence from the page, so the
+    // copy can be rewritten without disarming the gate before the KV reset.
+    expect(body.scoring).toBe("claims-v2");
+
+    // Both scopes present without a second request; season carries its own id.
+    expect(body.lifetime.rows[0].name).toBe("Alpha");
+    expect(body.season.rows[0].name).toBe("Alpha");
+    expect(body.season.id).toMatch(/^\d{4}-\d{2}$/);
+
+    // The page reads row.claimed; row.seen is the denominator behind "1 of 156".
+    expect(body.lifetime.rows[0].claimed.airlines).toBe(9);
+    expect(body.lifetime.rows[0].seen.types).toBe(156);
+
+    // Leaders carry the number that earned them, not just a name.
+    expect(body.lifetime.leaders.airlines).toEqual({ name: "Alpha", count: 9 });
   });
 
-  it("renders the public HTML board and a device profile unauthenticated", async () => {
+  it("ranks the season scope by season points, not lifetime points", async () => {
+    // Both submit the same claims, so lifetime is a tie broken by insertion; the
+    // point is that each scope reports ITS OWN points under the same key, which
+    // is what lets the page render a row without knowing which tab it is on.
+    await call(submit({ id: ID_A, name: "Alpha", claimed: { airlines: 20 }, claimedTypes: ["A320", "B738"] }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const life = body.lifetime.rows.find((r: any) => r.name === "Alpha");
+    const seas = body.season.rows.find((r: any) => r.name === "Alpha");
+
+    // Lifetime: 2 claimed types (x1 rarity in a one-device fleet) + 20 airlines.
+    expect(life.points).toBe(2 * 10 + 20 * 5);
+
+    // Season is NOT the same number, and the difference is deliberate. A device's
+    // count-based categories are measured as growth since its FIRST submission
+    // (monthStartCounts is seeded from it), so a scope that joins the board
+    // already holding 20 claimed airlines does not get to bank all 20 as this
+    // month's progress. Types are different: each carries the month it was
+    // claimed, so genuinely-new claims do count immediately.
+    expect(seas.points).toBe(2 * 10);
+  });
+
+  it("serves the board page as static markup that fetches its own data", async () => {
     await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 15 }, claimedTypes: ["A320"] }));
     const page = await call(new Request("https://proxy.test/leaderboard"));
     expect(page.status).toBe(200);
     expect(page.headers.get("Content-Type")).toContain("text/html");
-    expect(await page.text()).toContain("Alpha");
+    const html = await page.text();
 
+    // Static: no spotter name is templated in. The page fetches the JSON itself,
+    // which is what lets the markup be iterated on without touching scoring.
+    expect(html).not.toContain("Alpha");
+    expect(html).toContain("fetch('/leaderboard.json')");
+    expect(html).toContain("Spotting Leaderboard");
+  });
+
+  it("still renders a device profile server-side", async () => {
+    await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 15 }, claimedTypes: ["A320"] }));
     const profile = await call(new Request(`https://proxy.test/leaderboard/${ID_A}`));
     expect(profile.status).toBe(200);
     const html = await profile.text();
     expect(html).toContain("Alpha");
-    expect(html).toContain("Globetrotter"); // 15 countries earns the badge
+    expect(html).toContain("Globetrotter"); // 15 claimed countries earns the badge
   });
 
   it("404s an unknown profile id and 400s a malformed one", async () => {
@@ -150,8 +201,9 @@ describe("tap-to-claim scoring (v2)", () => {
     // Stored, but absent from the board: a big SEEN tally must earn nothing.
     expect(body.points).toBe(0);
     expect(body.rank).toBe(0);
-    const board = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as { rows: unknown[] };
-    expect(board.rows).toHaveLength(0);
+    const board = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    expect(board.lifetime.rows).toHaveLength(0);
+    expect(board.season.rows).toHaveLength(0);
   });
 
   it("distinguishes 'claimed nothing yet' from 'legacy firmware'", async () => {
@@ -218,45 +270,111 @@ describe("tap-to-claim scoring (v2)", () => {
   });
 });
 
-describe("public board copy and percentile", () => {
-  // This exact phrase is the canary in the deploy runbook: step 2 greps for it to
-  // confirm the v2 Worker is actually the one bound before the irreversible reset
-  // in step 3 runs. If someone rewrites the copy, this test fails rather than the
-  // deploy silently proceeding against a v1 Worker.
-  const CANARY = "ranks spotters, not antennas";
-
-  it("states the claim rule on the public board, including the canary", async () => {
-    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
-    expect(html).toContain(CANARY);
-    expect(html).toContain("Tap an aircraft on your Blipscope to claim it");
-    // The four things one tap credits must be named, not implied.
-    for (const word of ["type", "airline", "country", "route airports"]) {
-      expect(html).toContain(word);
-    }
-    // And the old rule must be gone.
-    expect(html).not.toContain("Scores come only from what each device logs overhead");
+describe("the deploy gate", () => {
+  // The runbook's step 2 proves the v2 Worker is bound BEFORE step 3 runs an
+  // irreversible KV reset against it. It used to grep a sentence from the board
+  // page; the page is now a file the author edits freely, so the gate moved to a
+  // machine-readable marker. This test is what stops that marker being renamed
+  // without anyone noticing the deploy check had silently stopped checking.
+  it("exposes the scoring marker the deploy runbook greps for", async () => {
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    expect(body.scoring).toBe("claims-v2");
   });
 
-  it("suppresses the percentile until there are enough rows to mean anything", async () => {
-    await call(submit({ id: ID_A, name: "Solo", claimed: {}, claimedTypes: ["A320"] }));
-    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
-    expect(html).toContain("Solo");
-    // One row: no percentile at all, and specifically never the old "top 0%".
-    expect(html).not.toContain("top 0%");
-    expect(html).not.toMatch(/top \d+%/);
+  it("keeps the marker present on an empty board", async () => {
+    // The reset empties every row, and step 2 may well run against a board with
+    // nothing on it. The marker must not depend on there being data.
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    expect(body.lifetime.rows).toHaveLength(0);
+    expect(body.scoring).toBe("claims-v2");
+  });
+});
+
+describe("season category leaders", () => {
+  // Regression: the season leader for TYPES was computed as a count delta, which
+  // is always 0 for a device on its first submission (monthStartCounts is seeded
+  // from it). Every season leader came back with an empty name, and the page
+  // hides the whole "category leaders" block when no leader has a name -- so the
+  // season tab quietly lost a section. Types are counted from their claim month,
+  // which is how season POINTS already worked.
+  it("names a types leader on the season tab from a first submission", async () => {
+    await call(submit({
+      id: ID_A, name: "Redmond Radar",
+      claimed: { types: 4, airlines: 30, countries: 5, airports: 12 },
+      claimedTypes: ["A320", "B738", "C17", "B77W"],
+    }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    expect(body.season.leaders.types).toEqual({ name: "Redmond Radar", count: 4 });
+    expect(body.lifetime.leaders.types).toEqual({ name: "Redmond Radar", count: 4 });
   });
 
-  it("never renders 'top 0%' for the leader at any fleet size", async () => {
-    for (let i = 0; i < 12; i++) {
-      await call(submit({ id: `c000${1000 + i}`, name: `C${i}`, claimed: { airlines: i }, claimedTypes: ["A320"] }));
+  it("leaves count-only categories empty until they actually grow", async () => {
+    // Airlines/countries/airports arrive as tallies with no per-item date, so a
+    // first submission has no measurable season growth. Empty is the honest
+    // answer -- crediting the opening balance would let a device that joins
+    // mid-season with a full book top the season board on day one.
+    await call(submit({
+      id: ID_A, name: "Redmond Radar",
+      claimed: { types: 4, airlines: 30, countries: 5, airports: 12 },
+      claimedTypes: ["A320", "B738", "C17", "B77W"],
+    }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    expect(body.season.leaders.airlines).toEqual({ name: "", count: 0 });
+  });
+});
+
+describe("self-hosted fonts", () => {
+  // The board page used to pull three families from Google, which sent every
+  // visitor's IP to a third party. These are served from the Worker instead.
+  it("serves each font immutably with the right type", async () => {
+    for (const name of ["inter.woff2", "mono.woff2", "grotesk.woff2"]) {
+      const res = await call(new Request(`https://proxy.test/fonts/${name}`));
+      expect(res.status, name).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("font/woff2");
+      expect(res.headers.get("Cache-Control")).toContain("immutable");
+      const buf = await res.arrayBuffer();
+      expect(buf.byteLength, name).toBeGreaterThan(10_000);
+      // woff2 magic: "wOF2". A truncated or base64-mangled embed would still
+      // return 200 with the wrong bytes, and the browser's failure is silent.
+      expect(new TextDecoder().decode(new Uint8Array(buf, 0, 4))).toBe("wOF2");
     }
+  });
+
+  it("serves every font the page actually asks for", async () => {
+    // The CI staleness check proves fonts/ and the generated module agree; it
+    // says nothing about whether the PAGE requests names that exist. Renaming a
+    // font (which the immutable cache header REQUIRES on any change) would
+    // otherwise 404 silently and drop every visitor to system type -- a failure
+    // that looks like a styling opinion rather than a bug.
     const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
-    expect(html).not.toContain("top 0%");
-    // 12 rows is past the threshold, so percentiles appear -- and the leader is
-    // top 1 in 12 -> ceil(8.3) = 9%, floored at 1 but nowhere near 0.
-    expect(html).toMatch(/top \d+%/);
-    const pcts = [...html.matchAll(/top (\d+)%/g)].map((m) => Number(m[1]));
-    expect(Math.min(...pcts)).toBeGreaterThanOrEqual(1);
-    expect(Math.max(...pcts)).toBeLessThanOrEqual(100);
+    const wanted = [...html.matchAll(/url\(\/fonts\/([^)]+)\)/g)].map((m) => m[1] as string);
+    expect(wanted.length).toBe(3);
+    for (const name of wanted) {
+      expect((await call(new Request(`https://proxy.test/fonts/${name}`))).status, name).toBe(200);
+    }
+  });
+
+  it("404s an unknown font without touching the filesystem", async () => {
+    // Exact-name map lookup, so traversal has nothing to traverse.
+    for (const p of ["nope.woff2", "../src/index.ts", "..%2F..%2Fetc%2Fpasswd"]) {
+      const res = await call(new Request(`https://proxy.test/fonts/${p}`));
+      expect(res.status, p).toBe(404);
+    }
+  });
+});
+
+describe("profile links", () => {
+  // The page builds row links as /leaderboard/<id>. Before this, `id` was not in
+  // the JSON at all -- the old server-rendered board built links from a value the
+  // endpoint never exposed, so a client-side page had no key to use.
+  it("emits the id that the profile route actually accepts", async () => {
+    await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 1 }, claimedTypes: ["A320"] }));
+    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const id = body.lifetime.rows[0].id;
+    expect(id).toBe(ID_A);
+    expect(id).toMatch(/^[0-9a-f]{8,32}$/); // the shape the route's regex requires
+    const profile = await call(new Request(`https://proxy.test/leaderboard/${id}`));
+    expect(profile.status).toBe(200);
+    expect(await profile.text()).toContain("Alpha");
   });
 });

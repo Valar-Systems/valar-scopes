@@ -3088,6 +3088,20 @@ void AircraftManager::UpdateClaimToast()
 {
     if (claimToastCount == 0)
         return;
+
+    // HOLD THE DWELL WHILE THE CARD IS UP. The claim fires when the detail card
+    // OPENS, but Draw() returns straight after drawing the card and never reaches
+    // DrawClaimToast -- so the dwell was counting down behind a screen that
+    // covers the toast's seat. Anyone who read the card for more than ~2.2 s
+    // closed it to nothing, which is every normal use: the confirmation was
+    // invisible in the exact flow that produces it. Re-arming here starts the
+    // dwell when the toast can actually be seen. Nothing is left unconfirmed in
+    // the meantime -- the card draws its own "* CLAIMED #n *" line.
+    if (inDetail) {
+        claimToastUntilMs = millis() + CLAIM_TOAST_MS;
+        return;
+    }
+
     if ((long)(millis() - claimToastUntilMs) < 0)
         return; // front entry still showing
     // Retire the front entry and start the next one, if any.
@@ -3943,6 +3957,7 @@ void AircraftManager::ConsumeEnrichResults()
                     Serial.printf("[leaderboard] rank up #%d -> #%d (+%d)\n",
                                   prevRank, res->lbRank, rankToastDelta);
                 }
+                PersistLeaderboardStanding();
             }
             break;
 #endif
@@ -4124,6 +4139,25 @@ bool AircraftManager::QueueNtfyPost(const String& title, const String& tags, con
 // claims now, so it had no remaining purpose -- and it was the largest thing the
 // device disclosed. Airlines/countries/airports stay counts-only, as before,
 // because those lists would fingerprint the user's location.
+// Mirror the current standing into NVS so the config page's Collection tab can
+// show it. The page is served by the ASYNC WEB TASK, which cannot read these
+// members -- they live on the loop task and are mutated there. NVS is the
+// existing, already-serialized channel between the two, and it is the same one
+// every other config value crosses.
+//
+// One compact record instead of five keys: it is written together, read
+// together, and is meaningless in pieces. Hourly at most, so flash wear is not a
+// consideration (the logbook rewrites several KB every ten minutes by design).
+void AircraftManager::PersistLeaderboardStanding()
+{
+    Preferences p;
+    if (!p.begin("config", false))
+        return; // not fatal: the tab falls back to "no standing yet"
+    p.putString("lb-standing", String(lbRank) + "/" + String(lbTotal) + "/" + String(lbPoints) +
+                               "/" + String(lbSeasonRank) + "/" + String(lbSeasonPoints));
+    p.end();
+}
+
 bool AircraftManager::QueueLeaderboardSubmit()
 {
     if (enrichInFlight || cloudUrl.isEmpty())
