@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
+#include <memory>             // shared_ptr: keeps the chunked logbook stream alive across fills
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
 #include "CoordParse.h"       // forgiving lat/lon parsing for /save (see the header)
@@ -517,10 +518,17 @@ R"(
                     <span class="hint">
                         Keeps a running &ldquo;lifelist&rdquo; of every unique aircraft type, airline, country,
                         and route airport you've seen overhead (shown on the Stats screen), with first-seen dates,
-                        per-type counts, and lifetime records &mdash; and flags a gold &ldquo;NEW&rdquo; on first
-                        sightings. It looks up each contact's type/airline, so it adds a little network traffic.
-                        Export it any time: <a href="/logbook.json">logbook.json</a>.
+                        per-type counts, and lifetime records. Anything you haven't claimed yet shows a gold
+                        &ldquo;NEW&rdquo; on the radar &mdash; <b>tap it to claim it</b>. Seeing an aircraft is
+                        your antenna's doing; claiming it is yours, and only claims score.
+                        It looks up each contact's type/airline, so it adds a little network traffic.
+                        Download a copy any time: <a href="/logbook.json?download=1">logbook.json</a>.
                     </span>
+                </details>
+
+                <details id="colwrap">
+                    <summary>Your collection</summary>
+                    <div id="col"><span class="hint">Loading&hellip;</span></div>
                 </details>
 
                 <details class="auto">
@@ -641,6 +649,94 @@ R"(
             }
             infoMaster.addEventListener('change', syncInfoFields);
             syncInfoFields();
+
+            // ---- collection view -------------------------------------------------
+            // THE DEVICE SHIPS DATA; THE BROWSER RENDERS IT. Building this list as
+            // HTML on the ESP32 would mean one contiguous String of roughly 32 KB at
+            // full caps, on the async task, against a largest-free-block that was
+            // measured at 36-44 KB with TLS competing for the same heap. It would
+            // work on a small logbook and fail on a full one -- the worst failure
+            // shape there is. This JS lives in flash (streamed to the browser 1 KB
+            // at a time like the rest of the page) and costs no heap at all; the
+            // only heap on the device is /logbook.json, which is itself chunked.
+            //
+            // Lazy: nothing is fetched until the section is actually opened, so the
+            // common visit (set location, save) never pays for it.
+            const colWrap = document.getElementById('colwrap');
+            const col = document.getElementById('col');
+            let colLoaded = false;
+            const esc = function (s) {
+                const d = document.createElement('div');
+                d.textContent = s == null ? '' : String(s);
+                return d.innerHTML;
+            };
+            // Claimed things are solid gold; unclaimed are outlined and dim. The
+            // difference has to be obvious at a glance -- the whole point of the
+            // page is showing someone the gap they could go and close.
+            const chip = function (label, claimed, title) {
+                const bg = claimed ? '#ffd200' : 'transparent';
+                const fg = claimed ? '#141414' : '#969696';
+                const bd = claimed ? '#ffd200' : '#5a5a5a';
+                return '<span title="' + esc(title) + '" style="display:inline-block;margin:2px;padding:2px 7px;' +
+                    'border:1px solid ' + bd + ';border-radius:10px;font-size:.78rem;' +
+                    'background:' + bg + ';color:' + fg + '">' + esc(label) + '</span>';
+            };
+            // A flex-grow pair rather than a width percentage: the page is a C++ raw
+            // string literal and the template processor claims the percent sign.
+            const bar = function (claimed, total) {
+                const rest = Math.max(0, total - claimed);
+                return '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;' +
+                    'background:#3c3c3c;margin:.4rem 0">' +
+                    '<div style="flex-grow:' + claimed + ';background:#ffd200"></div>' +
+                    '<div style="flex-grow:' + rest + '"></div></div>';
+            };
+            const section = function (title, items, keyName, claimedN) {
+                if (!items || !items.length) return '';
+                let h = '<div style="margin:.9rem 0 .2rem"><b>' + esc(title) + '</b> ' +
+                    '<span class="hint">' + claimedN + ' of ' + items.length + ' claimed</span></div>';
+                h += bar(claimedN, items.length);
+                const sorted = items.slice().sort(function (a, b) {
+                    if (a.claimed !== b.claimed) return a.claimed ? -1 : 1;
+                    return String(a[keyName]).localeCompare(String(b[keyName]));
+                });
+                h += '<div>';
+                for (const it of sorted) {
+                    const when = it.claimed ? ('claimed ' + (it.claimedOn || 'date unknown'))
+                        : ('seen ' + (it.first || 'date unknown') + ' - not claimed yet');
+                    const n = it.count ? (' x' + it.count) : '';
+                    h += chip(it[keyName] + n, it.claimed, when);
+                }
+                return h + '</div>';
+            };
+            const loadCollection = function () {
+                if (colLoaded) return;
+                colLoaded = true;
+                fetch('/logbook.json').then(function (r) { return r.json(); }).then(function (d) {
+                    const c = d.counts || {}, k = d.claimed || {};
+                    let h = '<div class="hint">Seeing an aircraft is your antenna. Claiming it is you &mdash; ' +
+                        'open a contact\'s card on the device to claim its type, airline, country and airports at once.</div>';
+                    h += section('Types', d.types, 'code', k.types || 0);
+                    h += section('Airlines', d.airlines, 'name', k.airlines || 0);
+                    h += section('Countries', d.countries, 'name', k.countries || 0);
+                    h += section('Airports', d.airports, 'code', k.airports || 0);
+                    const rec = d.records || {};
+                    const bits = [];
+                    if (rec.high) bits.push('Highest ' + esc(rec.high.callsign) + ' ' + rec.high.value + ' ' + esc(rec.high.unit));
+                    if (rec.fast) bits.push('Fastest ' + esc(rec.fast.callsign) + ' ' + rec.fast.value + ' ' + esc(rec.fast.unit));
+                    if (rec.near) bits.push('Closest ' + esc(rec.near.callsign) + ' ' + rec.near.value + ' ' + esc(rec.near.unit));
+                    if (bits.length) h += '<div style="margin:.9rem 0 .2rem"><b>Records</b></div><div class="hint">' + bits.join('<br>') + '</div>';
+                    h += '<div class="hint" style="margin-top:.9rem">' + (d.contacts || 0) + ' contacts seen in total.</div>';
+                    if (!d.types || !d.types.length) {
+                        h = '<span class="hint">Nothing logged yet. Turn on the spotting logbook above, ' +
+                            'and give the device a while to see some traffic.</span>';
+                    }
+                    col.innerHTML = h;
+                }).catch(function () {
+                    colLoaded = false; // let a retry happen on the next open
+                    col.innerHTML = '<span class="hint">Could not load the logbook from the device.</span>';
+                });
+            };
+            colWrap.addEventListener('toggle', function () { if (colWrap.open) loadCollection(); });
         </script>
     </body>
 </html>
@@ -2679,10 +2775,30 @@ void ConfigurationWebServer::Initialise() {
     // Spotting-logbook export (radar edition). Serves the persisted lifelist straight
     // from NVS as JSON -- read-only, so it's safe from the async task alongside the
     // loop-task logbook writer (at most one debounce interval stale).
+    //
+    // CHUNKED, not one String. This is the data behind the collection view on the
+    // page above, so it is now fetched on every visit rather than only when
+    // somebody clicks "export" -- and at full caps the document is ~25 KB. Handing
+    // beginResponse a String that size asks for one contiguous block on a device
+    // whose largest free block sits around 36-44 KB with TLS also competing for
+    // it. The stream keeps at most one serialized store (~5 KB) alive at a time,
+    // so the cost stops scaling with the size of the logbook.
+    //
+    // The stream owns an open read-only Preferences handle, so it is kept in a
+    // shared_ptr the lambda captures by value: ESPAsyncWebServer calls the filler
+    // repeatedly and then drops it, which is exactly when the handle should close.
     server.on("/logbook.json", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* r = request->beginResponse(200, "application/json", Logbook::ExportJson());
-        r->addHeader("Content-Disposition", "attachment; filename=\"logbook.json\"");
+        auto stream = std::make_shared<Logbook::JsonStream>();
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "application/json",
+            [stream](uint8_t* buffer, size_t maxLen, size_t) -> size_t {
+                return stream->Read(buffer, maxLen);
+            });
         r->addHeader("Cache-Control", "no-store");
+        // The collection view fetches this inline; the "download a copy" link
+        // asks for ?download=1 and gets the attachment disposition instead.
+        if (request->hasParam("download"))
+            r->addHeader("Content-Disposition", "attachment; filename=\"logbook.json\"");
         request->send(r);
     });
 #endif

@@ -46,7 +46,15 @@ struct TrackedAircraft {
     // once per aircraft, not every poll. Bit0 watchlist, 1 emergency, 2 military,
     // 3 overhead. Independent of the ntfy notified flags above.
     uint8_t mqttEventFlags = 0;
-    bool freshCatch = false;        // this sighting added a brand-new type/airline to the logbook
+    // CLAIMABLE, not "new" (v4, 2026-08-03). This used to mean "this sighting was
+    // the first time the type/airline was ever seen", latched once at first
+    // sighting. It now means "this aircraft's TYPE has not been claimed yet", a
+    // property of the type rather than of the sighting -- so a C-5 that went past
+    // unattended overnight still shows NEW the next time one appears, and stops
+    // only when somebody actually opens its card. Recomputed from the logbook
+    // whenever the type is known, never latched.
+    bool claimable = false;
+    bool claimFired = false;        // the claim confirmation has been shown for this contact
     String typeCode = "";    // adsbdb icao_type, e.g. "B738"
     String typeName = "";    // adsbdb full model, e.g. "Boeing 737-800"
     String operatorName = "";
