@@ -762,6 +762,7 @@ void AircraftManager::Initialise()
         // Location / radius / toggle may just have changed: drop the airport
         // long tail and re-fetch (the baked majors serve in the gap).
         lastCloudAirportsFetch = 0;
+        cloudAirportsRetryMs = 0; // a config save clears any failure backoff too
         cloudAirports.clear();
         Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
                       cloudUrl.c_str(), cloudCfg.pollActiveMs);
@@ -1021,9 +1022,15 @@ void AircraftManager::Update()
         if (useCloudSource && !cloudUrl.isEmpty()) {
             constexpr unsigned long CFG_REFRESH_MS = 24UL * 60UL * 60UL * 1000UL;
             if (lastCloudCfgFetch == 0 || now - lastCloudCfgFetch >= CFG_REFRESH_MS) {
-                lastCloudCfgFetch = now;
-                RequestCloudConfig();
-                return; // the fetch task is busy now; the feed poll goes next cycle
+                // STAMP ONLY ON SUCCESS. Committing the timestamp before the
+                // request is known to be queued converts a dropped request into
+                // a 24 h outage of this feed: the retry condition is already
+                // satisfied-away, and nothing logs it. Leaving the timer at its
+                // previous value means the next loop pass simply tries again.
+                if (RequestCloudConfig()) {
+                    lastCloudCfgFetch = now;
+                    return; // the fetch task is busy now; the feed poll goes next cycle
+                }
             }
         }
 
@@ -1035,10 +1042,25 @@ void AircraftManager::Update()
         // while DrawAirports serves the baked majors table.
         if (useCloudSource && displayAirports && !cloudUrl.isEmpty()) {
             constexpr unsigned long APT_REFRESH_MS = 24UL * 60UL * 60UL * 1000UL;
-            if (lastCloudAirportsFetch == 0 || now - lastCloudAirportsFetch >= APT_REFRESH_MS) {
-                lastCloudAirportsFetch = now;
-                RequestCloudAirports();
-                return; // same single-fetch-task etiquette as the config fetch
+            // BOUND THE FAILURE. Daily is right once the overlay has landed, but
+            // while it is EMPTY the same interval means any lost fetch costs a
+            // customer 24 h of missing airports -- silently, and degrading to
+            // the baked majors so it reads as "the small airports went away"
+            // rather than as a fault. Retrying an empty overlay every 5 min
+            // makes any cause -- including one we have not identified (#129) --
+            // a five-minute blip instead. This is deliberately a bound on the
+            // CLASS of failure, not a fix for a specific one.
+            constexpr unsigned long APT_EMPTY_RETRY_MS = 5UL * 60UL * 1000UL;
+            // A failed fetch sets its own backoff and that wins; otherwise an
+            // empty overlay is due in 5 min and a populated one in 24 h.
+            const unsigned long due = cloudAirportsRetryMs != 0
+                                          ? cloudAirportsRetryMs
+                                          : (cloudAirports.empty() ? APT_EMPTY_RETRY_MS : APT_REFRESH_MS);
+            if (lastCloudAirportsFetch == 0 || now - lastCloudAirportsFetch >= due) {
+                if (RequestCloudAirports()) {
+                    lastCloudAirportsFetch = now;
+                    return; // same single-fetch-task etiquette as the config fetch
+                }
             }
         }
 #endif
@@ -1638,17 +1660,23 @@ void AircraftManager::RequestFetch()
         );
     }
 
-    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
-    else
-        delete req; // queue full (shouldn't happen: we only request when !fetchInFlight)
+    } else {
+        // "Shouldn't happen: we only request when !fetchInFlight" was the old
+        // comment here, and it may well be true -- but it was never observable.
+        // The feed poll self-heals (the next interval retries), so this line is
+        // for diagnosis, not recovery.
+        Serial.println("[feed] fetch request DROPPED: queue full");
+        delete req;
+    }
 }
 
 #ifdef FEATURE_CLOUD_FEED
-void AircraftManager::RequestCloudConfig()
+bool AircraftManager::RequestCloudConfig()
 {
     if (cloudUrl.isEmpty())
-        return;
+        return false;
     FetchRequest* req = new FetchRequest();
     req->kind = FetchKind::CloudConfig;
     req->cloudBase = cloudUrl;
@@ -1656,16 +1684,23 @@ void AircraftManager::RequestCloudConfig()
     // Whichever check-in is built first after an OTA carries the report; the
     // config fetch is normally it (boot runs it ahead of the first feed poll).
     req->otaMem = TakeOtaMemReport();
-    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
-    else
-        delete req;
+        return true;
+    }
+    // A drop here used to be COMPLETELY SILENT, which is why the 2026-08-02
+    // bench observation could not be diagnosed: config and airport refetches
+    // both stopped landing for 10+ min after repeated config saves, with no
+    // evidence of where they went. Everything else on this path logs.
+    Serial.println("[cloud] config request DROPPED: fetch queue full");
+    delete req;
+    return false;
 }
 
-void AircraftManager::RequestCloudAirports()
+bool AircraftManager::RequestCloudAirports()
 {
     if (cloudUrl.isEmpty())
-        return;
+        return false;
     FetchRequest* req = new FetchRequest();
     req->kind = FetchKind::Airports;
     req->cloudBase = cloudUrl;
@@ -1675,10 +1710,13 @@ void AircraftManager::RequestCloudAirports()
     req->lat = lat;
     req->lon = lon;
     req->rangeKm = rangeKmCfg;
-    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE)
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
-    else
-        delete req;
+        return true;
+    }
+    Serial.println("[cloud] airports request DROPPED: fetch queue full");
+    delete req;
+    return false;
 }
 #endif
 
@@ -1717,11 +1755,16 @@ void AircraftManager::ConsumeFetchResult()
     if (res->kind == FetchKind::Airports) {
         if (res->ok) {
             cloudAirports = std::move(res->airports);
+            cloudAirportsRetryMs = 0; // back to the default rule
             Serial.printf("[cloud] airports: %u within %d km\n",
                           (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));
         } else {
             // Retry in 15 min; the baked majors table keeps serving meanwhile.
-            lastCloudAirportsFetch = millis() - (24UL * 60UL * 60UL * 1000UL) + (15UL * 60UL * 1000UL);
+            // An explicit interval, not a rewound timestamp: the old trick
+            // assumed the due time was always a fixed 24 h, so it would have
+            // collapsed to a per-loop retry against the 5 min empty-overlay rule.
+            cloudAirportsRetryMs = 15UL * 60UL * 1000UL;
+            Serial.println("[cloud] airports fetch failed; retry in 15 min (baked majors serving)");
         }
         delete res;
         return;
