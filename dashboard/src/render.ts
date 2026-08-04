@@ -271,6 +271,34 @@ export function gapsBody(rows: { gap: string; type: string; lookups: number }[])
   </section>`;
 }
 
+// The per-hex work list. The summary above answers "how bad", this answers "go
+// look at what" -- and for the `type` gap it is the only thing that can, because
+// a type gap has no type to group by, so every unknown airframe in the fleet
+// collapses into one "(none)" row up there.
+export function unknownAirframesBody(
+  rows: { hex: string; lookups: number }[],
+  gap: string,
+): string {
+  const body = rows.length
+    ? rows
+        .map(
+          (r) => `<tr><td><code>${esc(r.hex)}</code></td><td class="n">${n(r.lookups)}</td>
+      <td><a href="https://globe.adsbexchange.com/?icao=${encodeURIComponent(r.hex)}"
+             target="_blank" rel="noopener">look up</a></td></tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="3" class="mute">No <code>${esc(gap)}</code> gaps with a recorded hex in this window.</td></tr>`;
+  return `<section><h2>Airframes to chase &mdash; <code>${esc(gap)}</code> gaps</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>ICAO hex</th><th class="n">Lookups</th><th>Check</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+    <p class="note">Top of the list is what the fleet keeps asking about and keeps not getting.
+      Deliberately not broken down by device: the set of hexes one scope asks about is that
+      scope's location at aircraft range, and the privacy commitment is that location never
+      leaves the device &mdash; reconstructing it here would break that just as completely.</p>
+  </section>`;
+}
+
 export function flashOk(msg: string): string {
   return `<section style="border-color:var(--ink)"><span class="pill ok">done</span> ${esc(msg)}</section>`;
 }

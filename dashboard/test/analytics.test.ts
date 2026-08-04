@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clampHours, fleetRows, fleetTotals, otaOutcomes, runSql } from "../src/analytics";
+import { clampHours, fleetRows, fleetTotals, otaOutcomes, runSql, unknownAirframes } from "../src/analytics";
 import type { Env } from "../src/types";
 
 const base = { CF_ACCOUNT_ID: "acct", CF_API_TOKEN: "tok" } as Env;
@@ -120,5 +120,50 @@ describe("row coercion", () => {
     ]);
     const rows = await fleetRows(base, 24);
     expect(rows[0]).toMatchObject({ requests: 1234, errors: 2, cards: 17, revoked: false });
+  });
+});
+
+// The per-hex work list. The gap SUMMARY groups by gap+type, which cannot answer
+// "which airframes" for a `type` gap -- by definition nothing resolved a type, so
+// blob3 is empty and every unknown aircraft collapses into one "(none)" row. The
+// hex was always recorded in blob4; this is the query that reads it.
+describe("unknownAirframes", () => {
+  it("selects the hex and filters to the requested gap", async () => {
+    const seen = captureSql([{ hex: "a1b2c3", lookups: "40" }]);
+    const out = await unknownAirframes(base, 24, "type");
+    expect(seen[0]).toContain("blob4 AS hex");
+    expect(seen[0]).toContain("blob1 = 'enrich_gap'");
+    expect(seen[0]).toContain("blob2 = 'type'");
+    expect(out).toEqual([{ hex: "a1b2c3", lookups: 40 }]);
+  });
+
+  it("binds the gap to a whitelist rather than interpolating it", async () => {
+    // blob2 is set by recordEnrichGap and is never user input today, but it
+    // reaches a SQL API and this route takes it from ?gap=. "It can only ever be
+    // one of three values" is exactly the assumption that stops being true later.
+    const seen = captureSql();
+    await unknownAirframes(base, 24, "'; DROP TABLE x; --");
+    expect(seen[0]).toContain("blob2 = 'type'"); // fell back, did not interpolate
+    expect(seen[0]).not.toContain("DROP TABLE");
+  });
+
+  it("never attributes a gap to a device", async () => {
+    // The set of hexes one scope asks about IS that scope's location at aircraft
+    // range. The README promises location never leaves the device, and a join
+    // that reconstructs it here breaks that just as completely as sending
+    // coordinates would. Asserted so a future "which devices?" column has to
+    // delete this test on purpose.
+    const seen = captureSql();
+    await unknownAirframes(base, 24, "type");
+    expect(seen[0]).not.toContain("blob5");
+    expect(seen[0].toLowerCase()).not.toContain("distinct");
+  });
+
+  it("drops points that carry no hex", async () => {
+    // Points written before blob4 existed have nothing to chase; a blank-code row
+    // in a work list is worse than a shorter list.
+    captureSql([{ hex: "", lookups: "5" }, { hex: "abc123", lookups: "2" }]);
+    const out = await unknownAirframes(base, 24, "name");
+    expect(out).toEqual([{ hex: "abc123", lookups: 2 }]);
   });
 });

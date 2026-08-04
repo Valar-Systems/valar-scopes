@@ -2,6 +2,7 @@ import { verifyAccess } from "./access";
 import {
   clampHours,
   enrichGaps,
+  unknownAirframes,
   firmwareSpread,
   fleetRows,
   fleetTotals,
@@ -15,6 +16,7 @@ import {
   flashOk,
   fleetBody,
   gapsBody,
+  unknownAirframesBody,
   otaBody,
   page,
 } from "./render";
@@ -177,13 +179,21 @@ export default {
       }
 
       if (url.pathname === "/gaps") {
+        // ?gap= picks which work list sits under the summary. Defaults to `type`,
+        // the gap that most needs it: a type gap has no type to group by, so the
+        // summary above can only ever show it as one "(none)" row.
+        const gap = url.searchParams.get("gap") ?? "type";
+        const [summary, chase] = await Promise.all([
+          enrichGaps(env, hours),
+          unknownAirframes(env, hours, gap),
+        ]);
         return html(
           page({
             title: "Enrichment gaps",
             email: who.email,
             hours,
             active: "/gaps",
-            body: gapsBody(await enrichGaps(env, hours)),
+            body: gapsBody(summary) + unknownAirframesBody(chase, gap === "name" || gap === "photo" ? gap : "type"),
           }),
         );
       }

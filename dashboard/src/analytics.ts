@@ -212,3 +212,49 @@ export async function enrichGaps(env: Env, hours: number): Promise<{ gap: string
   const out = await runSql<{ gap: string; type: string; lookups: number | string }>(env, sql);
   return out.data.map((r) => ({ gap: r.gap, type: r.type || "(none)", lookups: num(r.lookups) }));
 }
+
+// The same data as a WORK LIST rather than a metric.
+//
+// enrichGaps() groups by gap+type, which is the right summary but cannot answer
+// the only question worth asking about a `type` gap: WHICH airframes. A type gap
+// is by definition one where no type resolved, so blob3 is empty and every
+// unknown aircraft in the fleet collapses into a single "(none)" row. The hex has
+// been recorded in blob4 all along (see recordEnrichGap) and simply was not
+// surfaced.
+//
+// Ordered by lookups, so the top of the list is the airframe the fleet keeps
+// asking about and keeps not getting -- which is the one worth chasing first.
+//
+// DELIBERATELY NOT ATTRIBUTED TO A DEVICE. A "how many scopes saw this" column
+// would be genuinely useful for triage (one neighbour's based aircraft vs a real
+// library gap), and recordEnrichGap could carry the device id as easily as the
+// per-request points already do. It does not, and should not: the set of hexes a
+// given device asks about IS that device's location, at aircraft-range
+// resolution. The README promises "never your location", and a join that
+// reconstructs it from operational telemetry breaks that promise just as
+// completely as sending coordinates would. Total lookups is the triage signal;
+// it costs nothing and reveals nobody.
+export async function unknownAirframes(
+  env: Env,
+  hours: number,
+  gap = "type",
+): Promise<{ hex: string; lookups: number }[]> {
+  const ds = dataset(env);
+  // blob2 is a fixed vocabulary set by recordEnrichGap ("type" | "name" |
+  // "photo"), never user input, but it is still bound to a whitelist rather than
+  // interpolated -- this string reaches a SQL API, and "it can only ever be one
+  // of three values" is exactly the assumption that stops being true later.
+  const which = gap === "name" || gap === "photo" ? gap : "type";
+  const sql = `
+    SELECT blob4 AS hex, SUM(_sample_interval) AS lookups
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
+      AND blob1 = 'enrich_gap' AND blob2 = '${which}'
+    GROUP BY hex
+    ORDER BY lookups DESC
+    LIMIT 50`;
+  const out = await runSql<{ hex: string; lookups: number | string }>(env, sql);
+  return out.data
+    .filter((r) => r.hex) // a point written before blob4 existed has no hex to chase
+    .map((r) => ({ hex: r.hex, lookups: num(r.lookups) }));
+}
