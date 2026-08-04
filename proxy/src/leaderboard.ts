@@ -221,17 +221,67 @@ export async function handleLeaderboardSubmit(request: Request, env: Env): Promi
   // Counts are monotonic (they can only grow) and rate-limited for countries.
   const zero: Counts = { types: 0, airlines: 0, countries: 0, airports: 0 };
   const prevCounts = prev?.claimed ?? zero;
-  const mono = (cur: number, was: number, cap = Infinity): number =>
-    Math.max(was, Math.min(cur, was + cap));
+
+  // EVERY CLAMP IS LOGGED, because submits carry absolute lifetime counts and so
+  // a stored count that differs from the submitted one is the single observable
+  // symptom of the whole silent-drift class -- the v1 contamination sat here for
+  // weeks reading 57 stored against 53 submitted and announced itself nowhere.
+  //
+  // It cannot be an alarm, because mono() clamping upward is also DESIGNED: a
+  // submit that arrives late or out of order legitimately carries a count lower
+  // than what is stored, and the floor is what stops it going backwards. Stored >
+  // submitted is therefore both the correct behaviour and the contamination
+  // signature, and only the frequency tells them apart -- an occasional floor
+  // clamp is a stale submit, a floor clamp on every submit from the same device
+  // is drift. So this records rather than judges, and a quiet log means no drift.
+  const clamps: Array<{ field: string; stored: number; submitted: number; kind: string }> = [];
+  const mono = (field: string, cur: number, was: number, cap = Infinity): number => {
+    const stored = Math.max(was, Math.min(cur, was + cap));
+    if (stored !== cur) {
+      // floor: the stored total refused to go down (stale submit, or drift).
+      // cap:   growth was rate-limited this day (anti-spoof, expected on a burst).
+      clamps.push({ field, stored, submitted: cur, kind: stored > cur ? "floor" : "cap" });
+    }
+    return stored;
+  };
   // What scores: the CLAIMED tallies. `types` is authoritative from the (capped)
   // claim map rather than the device's own number, so a device cannot claim a
   // total it has not enumerated.
   const claimedCounts: Counts = {
     types: Object.keys(types).length,
-    airlines: mono(sub.claimed.airlines, prevCounts.airlines),
-    countries: mono(sub.claimed.countries, prevCounts.countries, prev ? MAX_COUNTRY_GROWTH_PER_DAY : Infinity),
-    airports: mono(sub.claimed.airports, prevCounts.airports),
+    airlines: mono("airlines", sub.claimed.airlines, prevCounts.airlines),
+    countries: mono("countries", sub.claimed.countries, prevCounts.countries, prev ? MAX_COUNTRY_GROWTH_PER_DAY : Infinity),
+    airports: mono("airports", sub.claimed.airports, prevCounts.airports),
   };
+  // `types` never passes through mono() -- it is the size of the merged claim map
+  // -- but it is the same drift class and it is where the v1 contamination
+  // ACTUALLY lived: `{ ...prev.types }` inherited the old rows' SEEN types, so the
+  // map outgrew what any device had claimed. Logging only the mono() fields would
+  // leave the one field that actually broke unwatched.
+  //
+  // Compared against the ENUMERATED LIST, not sub.claimed.types. The count field
+  // diverges from the list for entirely benign reasons -- codes dropped by TYPE_RE
+  // (adsb.lol's "P8 ?" uncertainty marker is one), the TYPE_CODES_MAX slice -- and
+  // comparing against it fired on healthy submits, which would have buried a real
+  // drift line under routine noise and cost the log its whole value. Submits carry
+  // absolute lifetime claims, so after the first one the map should equal the list
+  // exactly; anything else is either inheritance (excess) or the growth cap.
+  // Deduped, because the map dedupes and a device may repeat a code.
+  // Legacy submissions enumerate nothing by design, so they are exempt.
+  if (!sub.legacy) {
+    const enumerated = new Set(sub.claimedTypes).size;
+    if (claimedCounts.types !== enumerated) {
+      clamps.push({
+        field: "types",
+        stored: claimedCounts.types,
+        submitted: enumerated,
+        kind: claimedCounts.types > enumerated ? "map-excess" : "cap",
+      });
+    }
+  }
+  if (clamps.length) {
+    console.log(JSON.stringify({ evt: "lb_clamp", id: sub.id, model, legacy: sub.legacy, clamps }));
+  }
   // What is kept for context only. Seen counts are shown on the profile page as
   // the denominator ("47 of 153") and score nothing, so they are not rate-limited
   // -- there is nothing to gain by inflating them.

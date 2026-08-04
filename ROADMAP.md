@@ -26,6 +26,25 @@ BLOCKERS below. `FW_VERSION` was bumped to **5** on 2026-07-31 ahead of the Rele
 supersede, and bumping ships nothing on its own — an OTA only happens once a Release
 publishes a matching `version.txt`.
 
+> ### ☑ LAUNCH CHECKLIST — publish a Release ≥ `fw5` on the `s3-128` channel BEFORE pilot assembly
+>
+> Not a nice-to-have: a shipped unit that sits *ahead* of `version.txt` has a dead OTA
+> path from the moment it is boxed. The gate compares the device's `FW_VERSION` against
+> the published `version.txt`, so a device on 5 against a published 4 never updates —
+> and it never will, because it can only ever move forward. Every such unit needs a
+> USB flash by hand, which for 50 boards in customers' homes is not a recovery, it is a
+> recall.
+>
+> This is observed, not theoretical. The bench board reports it today:
+>
+> ```
+> [ota] channel=s3-128 current=5 latest=4
+> ```
+>
+> Fine on a board sitting on a desk with a USB cable in it. Fatal on a shipped one.
+> **Publish the Release first, confirm `latest` ≥ `current` on one assembled unit, then
+> assemble the rest.**
+
 **[[s3-128-overnight-slowdown]] — CLOSED 2026-07-21, not reproduced.** The original report
 was real (observed ~14 h uptime: planes barely moving, taps needing several tries, detail
 card ~10 s to close), but it never recurred under observation across three clean

@@ -1,7 +1,24 @@
 import { env } from "cloudflare:test";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { rarityMultiplier } from "../src/leaderboard";
 import { call, TEST_KEY } from "./helpers";
+
+// Capture the structured console lines the submit path emits, so a diagnostic
+// that is supposed to fire can be shown firing rather than assumed to.
+async function captureLogs<T>(fn: () => Promise<T>): Promise<{ result: T; events: any[] }> {
+  const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    const result = await fn();
+    const events = spy.mock.calls
+      .map((c) => c[0])
+      .filter((a): a is string => typeof a === "string")
+      .map((s) => { try { return JSON.parse(s); } catch { return null; } })
+      .filter((o): o is any => o !== null);
+    return { result, events };
+  } finally {
+    spy.mockRestore();
+  }
+}
 
 // A leaderboard submit: authed POST with a JSON body.
 function submit(body: unknown, headers: Record<string, string> = {}): Request {
@@ -267,6 +284,67 @@ describe("tap-to-claim scoring (v2)", () => {
     );
     const body = (await res.json()) as { points: number };
     expect(body.points).toBe(10 + 5); // unchanged by the seen flood
+  });
+});
+
+describe("clamp logging makes silent drift self-announcing", () => {
+  it("says nothing when nothing is clamped", async () => {
+    // The signal is the absence of noise, so the quiet case is the one that
+    // matters most: if a healthy submit logged a clamp, the log would be
+    // worthless the moment a real one appeared.
+    const { events } = await captureLogs(() =>
+      call(submit({ id: ID_A, name: "Quiet", claimed: { types: 2, airlines: 1, countries: 1, airports: 2 }, claimedTypes: ["A320", "B738"] })),
+    );
+    expect(events.filter((e) => e.evt === "lb_clamp")).toHaveLength(0);
+  });
+
+  it("logs a floor clamp with the stored and submitted counts", async () => {
+    await call(submit({ id: ID_A, name: "Drifty", claimed: { types: 2, airlines: 6, countries: 0, airports: 0 }, claimedTypes: ["A320", "B738"] }));
+    // A later submit carrying FEWER airlines: monotonicity holds the stored
+    // total at 6, which is exactly the shape the v1 contamination had.
+    const { events } = await captureLogs(() =>
+      call(submit({ id: ID_A, name: "Drifty", claimed: { types: 2, airlines: 4, countries: 0, airports: 0 }, claimedTypes: ["A320", "B738"] })),
+    );
+    const clamp = events.find((e) => e.evt === "lb_clamp");
+    expect(clamp).toBeDefined();
+    expect(clamp.id).toBe(ID_A);
+    expect(clamp.clamps).toContainEqual({ field: "airlines", stored: 6, submitted: 4, kind: "floor" });
+  });
+
+  it("logs the types map outgrowing what the device claims -- the v1 signature", async () => {
+    // Seed a row holding three claimed types, then submit only two. The merged
+    // claim map keeps all three, so stored (3) exceeds submitted (2): precisely
+    // the 57-vs-53 contamination, now announced instead of silent.
+    await call(submit({ id: ID_A, name: "Excess", claimed: { types: 3, airlines: 0, countries: 0, airports: 0 }, claimedTypes: ["A320", "B738", "C17"] }));
+    const { events } = await captureLogs(() =>
+      call(submit({ id: ID_A, name: "Excess", claimed: { types: 2, airlines: 0, countries: 0, airports: 0 }, claimedTypes: ["A320", "B738"] })),
+    );
+    const clamp = events.find((e) => e.evt === "lb_clamp");
+    expect(clamp).toBeDefined();
+    expect(clamp.clamps).toContainEqual({ field: "types", stored: 3, submitted: 2, kind: "map-excess" });
+  });
+
+  it("logs a cap clamp distinctly from a floor clamp", async () => {
+    // Countries are rate-limited to +10/day after the first submit, so a jump
+    // from 1 to 40 stores 11. That is the anti-spoof working, NOT drift, and it
+    // must not read the same in the log.
+    await call(submit({ id: ID_A, name: "Fast", claimed: { types: 1, airlines: 0, countries: 1, airports: 0 }, claimedTypes: ["A320"] }));
+    const { events } = await captureLogs(() =>
+      call(submit({ id: ID_A, name: "Fast", claimed: { types: 1, airlines: 0, countries: 40, airports: 0 }, claimedTypes: ["A320"] })),
+    );
+    const clamp = events.find((e) => e.evt === "lb_clamp");
+    expect(clamp).toBeDefined();
+    expect(clamp.clamps).toContainEqual({ field: "countries", stored: 11, submitted: 40, kind: "cap" });
+  });
+
+  it("does not log a clamp for a legacy submission's expected zero claims", async () => {
+    // Legacy firmware sends no claimedTypes, so the stored claim map is empty
+    // while the submitted count is whatever its SEEN tally was. That gap is by
+    // design; logging it would bury real drift under every un-updated device.
+    const { events } = await captureLogs(() =>
+      call(submit({ id: ID_B, name: "Old", counts: { types: 90, airlines: 40, countries: 12, airports: 80 }, typeCodes: ["A320"] })),
+    );
+    expect(events.filter((e) => e.evt === "lb_clamp" && e.clamps.some((c: any) => c.field === "types"))).toHaveLength(0);
   });
 });
 
