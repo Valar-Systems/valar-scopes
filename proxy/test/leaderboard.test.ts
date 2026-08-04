@@ -375,6 +375,58 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     expect(stray.status).toBe(404);
   });
 
+  // EDITION ISOLATION. The normalizer strips EXACTLY TWO prefixes -- /v1/ and
+  // /api/v1/blipscope/ -- and must never be loosened to a general /api/v1/*/
+  // match. If it were, another edition's path would normalize into a Blipscope
+  // handler, and this Worker would answer for a product it knows nothing about:
+  // /api/v1/missileer/leaderboard would silently write a Missileer submission
+  // into Blipscope's KV. Edition isolation is the entire point of the prefix, so
+  // it gets a test rather than a comment.
+  it("404s another edition's namespace instead of normalizing it", async () => {
+    const foreign = [
+      "/api/v1/missileer/blips",
+      "/api/v1/missileer/leaderboard",
+      "/api/v1/orbitscope/config",
+      "/api/v1/quakescope/airports",
+      "/api/v1/missileer/enrich/abc123",
+    ];
+    for (const p of foreign) {
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      expect(res.status, `${p} must not reach a Blipscope handler`).toBe(404);
+    }
+  });
+
+  it("404s near-miss prefixes -- exactly two are stripped, not a wildcard", async () => {
+    const nearMiss = [
+      "/api/v1/blips", // no edition segment
+      "/api/blipscope/blips", // no version segment
+      "/api/v1/blipscope", // prefix without a trailing slash or endpoint
+      "/v2/blips", // wrong version
+      "/blipscope/blips", // page namespace, not the API one
+    ];
+    for (const p of nearMiss) {
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      expect(res.status, `${p} must not route`).toBe(404);
+    }
+  });
+
+  it("does not let another edition's leaderboard path write a Blipscope row", async () => {
+    // The strongest form of the isolation claim: not "a different status code"
+    // but "no handler ran at all". A status assertion alone would still pass if
+    // the submit were processed and then something later returned an error.
+    const body = { id: ID_A, name: "Foreign", claimed: { airlines: 9 }, claimedTypes: ["A320", "B738"] };
+    const res = await call(new Request("https://proxy.test/api/v1/missileer/leaderboard", {
+      method: "POST",
+      headers: { "X-Blip-Key": TEST_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+    expect(res.status).not.toBe(200);
+    // Nothing was stored under any key, so the handler was never entered.
+    expect(await env.ENRICH_KV.get(`lb:dev:${ID_A}`)).toBeNull();
+    const board = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
+    expect(board.lifetime.rows).toHaveLength(0);
+  });
+
   it("emits the namespaced photo path in the enrich response", async () => {
     // Server-supplied and treated as opaque by firmware, so this string alone
     // moves the fleet's photo fetches -- it is the one path with no OTA gate.
