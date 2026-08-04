@@ -141,7 +141,7 @@ namespace JsonParser {
         // predictor extrapolate from local elapsed time only.
         a.timePosition = 0;
         a.lastContact = 0;
-        a.originCountry = ""; // not provided by the local feed
+        a.originCountry = ""; // not provided by the local feed; AircraftManager derives it from the ICAO address
         a.spi = false;
 
         return true;

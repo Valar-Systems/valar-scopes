@@ -144,7 +144,12 @@ bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch)
         a.squawk = "";
         a.spi = false;
         a.positionSource = 0;
-        a.originCountry = ""; // not on the wire; logbook counts countries only on other sources
+        // Not on the wire, and deliberately not added to it: the ICAO address in
+        // row[0] already determines the country of registration, so AircraftManager
+        // fills this in from IcaoCountry::Lookup rather than paying per-aircraft
+        // bytes on every poll. Left empty here so that fallback is the single place
+        // the derivation happens.
+        a.originCountry = "";
 
         out.push_back(a);
     }

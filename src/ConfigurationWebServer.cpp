@@ -2009,7 +2009,15 @@ void ConfigurationWebServer::Initialise() {
                            + " &middot; " + f[2] + " pts";
                 if (nf >= 5 && f[3].toInt() > 0)
                     lbStanding += "<br><span class='hint'>This season: #" + f[3] + ", " + f[4] + " pts</span>";
-                lbStanding += "<div class='hint mt'>See the " + lbLink + ".</div>";
+                // Say WHOSE number this is. It is the score the leaderboard sent
+                // back in the last submit response, not one the device worked out
+                // -- but the device submits about once an hour, so between submits
+                // it legitimately trails the board page. Unlabelled, that gap reads
+                // as two authorities disagreeing about your score, which is the one
+                // impression a game must never give. Naming the source costs a line
+                // and makes the lag self-explanatory instead of suspicious.
+                lbStanding += "<div class='hint mt'>Scored by the leaderboard, not by this device "
+                              "&mdash; as of the last hourly submit. See the " + lbLink + ".</div>";
             }
         }
 
