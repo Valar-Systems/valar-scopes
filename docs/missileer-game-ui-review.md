@@ -41,7 +41,28 @@ Order and enable/disable come from **`eam-screens`, a CSV of string ids** ([:40-
 
 ### NEW pulse
 
-[EamManager.cpp:141](../src/eam/EamManager.cpp#L141): `newPulseUntilMs = millis() + 2000` — a **2-second** visual pulse when a fresh EAM lands. It does **not** navigate, interrupt, or extend dwell. It is the only place in the shell that knows "a real EAM just arrived", which makes it the natural preempt hook (§3).
+[EamManager.cpp:140-145](../src/eam/EamManager.cpp#L140-L145), on a fresh top-of-feed EAM, does **four** things:
+
+```cpp
+newPulseUntilMs = millis() + 2000;   // 2 s "NEW" pulse
+current = Screen::Ticker;            // navigates
+lastInteractionMs = millis();        // fakes a touch -> 30 s rotation hold
+tickerScroll = 0;                    // rewinds the marquee
+```
+
+> **Correction (2026-08-04).** An earlier revision of this section said the pulse "does not
+> navigate, interrupt, or extend dwell." That was wrong on all three counts, and it is the
+> baseline §6.6 was decided against. The shipping monitor **already** yanks the screen to the
+> ticker and pins it there for 30 s. The pulse is not a screen-agnostic flash either — it
+> renders only inside `DrawTicker` ([EamScreens.cpp:62](../src/eam/EamScreens.cpp#L62)), which
+> is consistent: the device jumps first, then pulses where it landed.
+
+**The backlog is already edge-seeded.** [EamFeedClient.cpp:276](../src/eam/EamFeedClient.cpp#L276)
+requires `!lastTopId.isEmpty()`, so the first poll after boot only records the top id and
+raises no edge. Anything hung on this hook inherits that for free.
+
+It remains the only place in the shell that knows "a real EAM just arrived", which makes it
+the natural preempt hook (§3).
 
 ### Brightness / night-dim
 
@@ -98,11 +119,9 @@ While the modal is up:
 
 ### (a) New real EAM during rotation
 
-Today: a 2 s pulse, no navigation. §4 says *"new real traffic **preempts** a running sequence — real-world traffic takes precedence."*
+Today: a hard jump to the ticker plus a 30 s hold (see the correction in §1). §4 says *"new real traffic **preempts** a running sequence — real-world traffic takes precedence."*
 
-Strictly, §4's preemption is about *game sequences*, so the plain rotation case is arguably unchanged. But if the game ships and a real EAM does not pull the user to it, the NEW pulse becomes the only cue and it is 2 seconds long on a device nobody is staring at.
-
-**Recommendation:** on a fresh EAM, force `current = Screen::Ticker` and reset the dwell timer. Small, uses the existing hook, and matches "real traffic is the engine" (§1.1). **This is a change to the shipping monitor's behaviour and needs sign-off** — it is not game-gated unless deliberately put behind `FEATURE_EAM_GAME`.
+So the shipping monitor already implements the strongest available reading of "real traffic wins" for the plain rotation case. The live question is not whether to *add* an interruption — it is whether that interruption should stay a **takeover** or become a **print**. Settled in §6.6.
 
 ### (b) New real EAM during the modal sequence
 
@@ -121,7 +140,7 @@ So the player is penalised for an interruption **the game itself caused**. That 
 
 ### Interaction with the NEW pulse
 
-If (a) is adopted, the pulse becomes redundant as an alert and should be repurposed as the **arrival marker on the ticker** rather than a screen-agnostic flash. If (a) is rejected, the pulse is the *only* cue and 2 s is too short — it should extend to at least one dwell period (8 s) so it survives to be seen.
+Subsumed by the arrival banner (§6.6): the banner is the arrival cue on whatever screen is up, and the 2 s ticker-local pulse goes away with it.
 
 ---
 
@@ -173,7 +192,9 @@ Safe because order is persisted by **id string**, not index (§1). `idToScreen()
 
 ## 6. Calls — decided 2026-08-04
 
-All five original calls are answered. **One new one is standing** (§6.6).
+**All calls answered; count is zero.** §6.6 closed the last one. Two items carry forward as
+implementation notes rather than open questions: the banner replaces an existing behaviour
+(§6.6 note 1) and needs a ≤ 15-char config key (§6.6 note 3).
 
 ### 6.1 Preemption: suspends, never cancels
 
@@ -224,22 +245,57 @@ idle product loop — **the 45 ms idle figure is the wrong floor** and would hav
 bucket an order of magnitude too coarse. The leaderboard displays the smallest bucket the
 measured floor supports. Added to the results template as a fourth number.
 
-### 6.6 STILL OPEN: does a fresh EAM navigate the rotation to the ticker?
+### 6.6 Arrival banner — decided
 
-§6.4 settles *processing* order and §6.2 settles the *sortie* regimes, but neither answers
-the plain monitoring case: **a real EAM lands while the carousel is idling on, say, Tempo —
-does the screen move?**
+A fresh EAM **prints a teletype-style arrival banner into a band of the current screen**:
+message type, first group(s), frequency. Not gated behind `FEATURE_EAM_GAME` — this is a
+monitoring improvement for all EAM devices, and it is design doc §11's *"messages print, not
+pop"* arriving early. Default-on, with a config toggle.
 
-Today it does not; it flashes a 2 s NEW pulse and carries on. Two coupled sub-questions:
+| | |
+|---|---|
+| **Trigger** | the `newPulseUntilMs` assignment ([EamManager.cpp:141](../src/eam/EamManager.cpp#L141)) — the established single source of truth; the banner **subsumes** the 2 s pulse |
+| **Duration** | at least one full dwell (8 s) |
+| **Beneath it** | the carousel keeps running |
+| **Tap** | jump to Ticker; counts as an interaction (normal 30 s hold) |
+| **Swipe** | dismiss |
+| **A newer EAM** | refreshes the banner |
+| **Draw** | the overlay pattern (like the radar's detail card) — never joins the rotation, never navigates on its own |
+| **Backlog** | edge-seeded; only messages first seen live ever print |
+| **During a live sortie** | takes the band opposite the countdown chrome |
+| **Inside the modal** | does not render at all — the preemption path owns real traffic there (§6.4 ordering) |
 
-- If the answer is **yes, navigate**, that is a behaviour change to the *shipping monitor*,
-  not just the game, and needs to be either accepted for all EAM devices or put behind
-  `FEATURE_EAM_GAME`.
-- If the answer is **no**, the 2 s pulse is the only cue on a device nobody is staring at,
-  and it should extend to at least one dwell period (8 s) so it survives long enough to be
-  seen.
+Three things the decision inherits, one of which it has to overturn:
 
-There is no default that is obviously right, which is why it is still here.
+**1. It is a removal, not just an addition.** The decision was taken against a baseline that
+said the shell does not navigate on a fresh EAM. It does — `current = Screen::Ticker` plus a
+30 s hold, [EamManager.cpp:140-145](../src/eam/EamManager.cpp#L140-L145). Every clause above
+("carousel continues beneath", "tap → jump to Ticker", "never navigates on its own") is
+incompatible with keeping that jump, and only "tap → jump" is even *meaningful* if the device
+has already jumped. **Resolution applied: the banner replaces the auto-jump.** The spec is
+unambiguous as a target state; it simply described a change from a baseline one revision out
+of date. But this now *removes* a takeover from the shipping monitor rather than *adding* a
+cue to it, which is a larger change than the one that was approved, and is called out here so
+it can be reversed on sight rather than discovered on a bench.
+
+**2. What "off" means.** The toggle reverts to **today's behaviour** — jump to ticker + 2 s
+pulse — not to silence. A monitoring product should not ship a setting whose effect is
+"be quieter about a real EAM", and making off ≡ status quo ante means the toggle doubles as
+the fleet's rollback if the banner reads worse in the room than it does on paper.
+
+**3. The key must be ≤ 15 characters.** `eam-arrival-banner` is 18. Form field names double as
+NVS keys and NVS caps names at `NVS_KEY_NAME_MAX_SIZE - 1`; over-long keys fail **silently**
+in `putString`/`isKey` — the toggle renders, appears to save, and never sticks
+([ConfigurationWebServer.cpp:2614](../src/ConfigurationWebServer.cpp#L2614)). Proposed:
+**`eam-arrival`** (11), consistent with `eam-colon-blink` (15, the current longest).
+
+**Free from the existing hook:** backlog seeding. `newLatestEdge` already requires a non-empty
+`lastTopId` ([EamFeedClient.cpp:276](../src/eam/EamFeedClient.cpp#L276)), so the first poll
+after boot raises no edge and the backlog cannot print.
+
+**Converges with §6.2.** The pulse renders only inside `DrawTicker` today; a banner over *any*
+screen needs a shell-level overlay in the common draw tail — which is exactly the mechanism
+§6.2's between-commit-and-modal countdown chrome already requires. One hook, two customers.
 
 ### 6.7 Sortie board visibility — decided
 
