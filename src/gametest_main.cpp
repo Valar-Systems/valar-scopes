@@ -62,6 +62,21 @@ namespace {
 
 LGFX tft;
 
+// FULL-SCREEN BACKBUFFER. The first bench build drew straight to the panel, and
+// every repaint began with fillScreen -- so at the 10 Hz repaint rate the whole
+// screen visibly flickered 3-5 times a second, which on a HOLD test is actively
+// harmful: the thing being measured is a finger held still while the operator
+// watches the HUD, and a strobing screen is both unreadable and unusable on the
+// bench video this exists to produce.
+//
+// The product solves this with BandCanvas; the harness gets the simpler version
+// because this board has PSRAM to spare -- 240x240x16bpp is 115 KB, which would
+// not fit internal RAM but is nothing against 8 MB of PSRAM. Falls back to
+// direct drawing if the sprite cannot be created, so a PSRAM-less board still
+// runs the tests (flickering, but running beats not running on a bench tool).
+LGFX_Sprite canvas(&tft);
+bool haveCanvas = false;
+
 constexpr int      TP_PORT = BLIPSCOPE_TOUCH_I2C_PORT;
 constexpr int      TP_ADDR = BLIPSCOPE_TOUCH_I2C_ADDR;
 constexpr uint32_t TP_FREQ = BLIPSCOPE_TOUCH_FREQ;
@@ -164,13 +179,16 @@ long UncertaintyMs()
 }
 
 // ---- drawing ---------------------------------------------------------------
+// One accessor so every draw call is written once and lands on the backbuffer
+// when there is one, or on the panel when there is not.
+inline LovyanGFX& gfx() { return haveCanvas ? static_cast<LovyanGFX&>(canvas) : static_cast<LovyanGFX&>(tft); }
 void Banner(const char* title)
 {
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextDatum(textdatum_t::top_center);
-    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    tft.setTextSize(1);
-    tft.drawString(title, C, 6);
+    gfx().fillScreen(TFT_BLACK);
+    gfx().setTextDatum(textdatum_t::top_center);
+    gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+    gfx().setTextSize(1);
+    gfx().drawString(title, C, 6);
 }
 
 void DrawHold()
@@ -179,89 +197,89 @@ void DrawHold()
 
     // The switch arc the deputy holds.
     const int r = C - 22;
-    tft.drawArc(C, C, r, r - 8, 200, 340, holdActive ? TFT_GREEN : TFT_DARKGREY);
+    gfx().drawArc(C, C, r, r - 8, 200, 340, holdActive ? TFT_GREEN : TFT_DARKGREY);
 
-    tft.setTextDatum(textdatum_t::middle_center);
+    gfx().setTextDatum(textdatum_t::middle_center);
     if (holdActive) {
         const unsigned long held = millis() - holdStartMs;
         const bool ok = held >= HOLD_TARGET_MS;
-        tft.setTextColor(inDropout ? TFT_RED : (ok ? TFT_GREEN : TFT_YELLOW), TFT_BLACK);
-        tft.setTextSize(4);
-        tft.drawString(inDropout ? "DROPPED" : "HELD", C, C - 18);
-        tft.setTextSize(3);
+        gfx().setTextColor(inDropout ? TFT_RED : (ok ? TFT_GREEN : TFT_YELLOW), TFT_BLACK);
+        gfx().setTextSize(4);
+        gfx().drawString(inDropout ? "DROPPED" : "HELD", C, C - 18);
+        gfx().setTextSize(3);
         char b[16];
         snprintf(b, sizeof(b), "%lu.%lus", held / 1000, (held % 1000) / 100);
-        tft.drawString(b, C, C + 22);
-        tft.setTextSize(2);
-        tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+        gfx().drawString(b, C, C + 22);
+        gfx().setTextSize(2);
+        gfx().setTextColor(TFT_ORANGE, TFT_BLACK);
         snprintf(b, sizeof(b), "drops %lu", runDropouts);
-        tft.drawString(b, C, C + 56);
+        gfx().drawString(b, C, C + 56);
     } else {
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setTextSize(2);
-        tft.drawString("PRESS &", C, C - 30);
-        tft.drawString("HOLD 10s", C, C - 6);
+        gfx().setTextColor(TFT_WHITE, TFT_BLACK);
+        gfx().setTextSize(2);
+        gfx().drawString("PRESS &", C, C - 30);
+        gfx().drawString("HOLD 10s", C, C - 6);
         const ArmStats& a = CurArm();
-        tft.setTextSize(1);
-        tft.setTextColor(TFT_CYAN, TFT_BLACK);
+        gfx().setTextSize(1);
+        gfx().setTextColor(TFT_CYAN, TFT_BLACK);
         char b[40];
         snprintf(b, sizeof(b), "runs %lu  clean %lu%%", a.runs,
                  a.runs ? (a.cleanRuns * 100 / a.runs) : 0);
-        tft.drawString(b, C, C + 34);
+        gfx().drawString(b, C, C + 34);
         snprintf(b, sizeof(b), "swipe: next   long-press: arm A/B");
-        tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        tft.drawString(b, C, variant::SCREEN_SIZE - 14);
+        gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+        gfx().drawString(b, C, variant::SCREEN_SIZE - 14);
     }
 }
 
 void DrawMulti()
 {
     Banner("MULTITOUCH");
-    tft.setTextDatum(textdatum_t::middle_center);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextSize(1);
-    tft.drawString("MAX POINTS SEEN", C, C - 44);
-    tft.setTextSize(6);
-    tft.setTextColor(maxPointsSeen > 1 ? TFT_ORANGE : TFT_GREEN, TFT_BLACK);
+    gfx().setTextDatum(textdatum_t::middle_center);
+    gfx().setTextColor(TFT_WHITE, TFT_BLACK);
+    gfx().setTextSize(1);
+    gfx().drawString("MAX POINTS SEEN", C, C - 44);
+    gfx().setTextSize(6);
+    gfx().setTextColor(maxPointsSeen > 1 ? TFT_ORANGE : TFT_GREEN, TFT_BLACK);
     char b[24];
     snprintf(b, sizeof(b), "%d", maxPointsSeen);
-    tft.drawString(b, C, C - 6);
-    tft.setTextSize(2);
-    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    gfx().drawString(b, C, C - 6);
+    gfx().setTextSize(2);
+    gfx().setTextColor(TFT_CYAN, TFT_BLACK);
     snprintf(b, sizeof(b), "live %d", livePoints);
-    tft.drawString(b, C, C + 34);
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    gfx().drawString(b, C, C + 34);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
     snprintf(b, sizeof(b), "%d,%d", liveX, liveY);
-    tft.drawString(b, C, C + 56);
+    gfx().drawString(b, C, C + 56);
 }
 
 void DrawNtp()
 {
     Banner("NTP SYNC");
-    tft.setTextDatum(textdatum_t::middle_center);
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString("UNCERTAINTY (ms)", C, C - 48);
-    tft.setTextSize(6);
+    gfx().setTextDatum(textdatum_t::middle_center);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_WHITE, TFT_BLACK);
+    gfx().drawString("UNCERTAINTY (ms)", C, C - 48);
+    gfx().setTextSize(6);
     char b[24];
     if (firstSyncMs == 0) {
-        tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        tft.drawString("--", C, C - 8);
+        gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+        gfx().drawString("--", C, C - 8);
     } else {
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        gfx().setTextColor(TFT_GREEN, TFT_BLACK);
         snprintf(b, sizeof(b), "%ld", UncertaintyMs());
-        tft.drawString(b, C, C - 8);
+        gfx().drawString(b, C, C - 8);
     }
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_CYAN, TFT_BLACK);
     snprintf(b, sizeof(b), "first sync %lums", firstSyncMs ? firstSyncMs - bootMs : 0);
-    tft.drawString(b, C, C + 34);
+    gfx().drawString(b, C, C + 34);
     snprintf(b, sizeof(b), "syncs %lu  worst adj %ldms", syncCount, worstAdjustUs / 1000);
-    tft.drawString(b, C, C + 48);
+    gfx().drawString(b, C, C + 48);
     snprintf(b, sizeof(b), "wifi %s", WiFi.status() == WL_CONNECTED ? "up" : "DOWN");
-    tft.setTextColor(WiFi.status() == WL_CONNECTED ? TFT_DARKGREY : TFT_RED, TFT_BLACK);
-    tft.drawString(b, C, C + 62);
+    gfx().setTextColor(WiFi.status() == WL_CONNECTED ? TFT_DARKGREY : TFT_RED, TFT_BLACK);
+    gfx().drawString(b, C, C + 62);
 }
 
 // ---- arm switching ---------------------------------------------------------
@@ -383,8 +401,42 @@ void setup()
     tft.setBrightness(255);
     Serial.printf("[disp] tft.init=%d %dx%d\n", panelOk ? 1 : 0, tft.width(), tft.height());
 
+    // Backbuffer in PSRAM (see the note at the declaration). Reported either way:
+    // if it ever falls back, the flicker is explained in the log rather than
+    // rediscovered on the bench.
+    canvas.setPsram(true);
+    canvas.setColorDepth(16);
+    haveCanvas = canvas.createSprite(variant::SCREEN_SIZE, variant::SCREEN_SIZE) != nullptr;
+    Serial.printf("[disp] backbuffer %s (%dx%d, psram_free=%u)\n",
+                  haveCanvas ? "ok" : "FAILED - drawing direct, expect flicker",
+                  variant::SCREEN_SIZE, variant::SCREEN_SIZE,
+                  (unsigned)ESP.getFreePsram());
+
+    // WAIT FOR THE TOUCH CHIP TO ANSWER before reading anything from it. The
+    // first run of this harness probed immediately after tft.init() and got
+    // chipid=NACK / touchnum=-1: the CST816 is still coming out of its reset
+    // (TP_RST is a real GPIO on this variant and the product's watchdog allows a
+    // 450 ms boot wait for the same reason). Everything downstream inherited
+    // that -- the config dump was empty and, worse, the A/B arm write went to a
+    // chip that was not listening, so a run would have been attributed to an arm
+    // that was never actually set. A silent NACK at setup is the one failure
+    // that makes every later number wrong while looking fine.
+    unsigned long probeAttempts = 0;
+    const unsigned long probeStart = millis();
+    while (ReadReg(REG_CHIPID) < 0 && millis() - probeStart < 2000) {
+        ++probeAttempts;
+        delay(25);
+    }
+    const int chipId = ReadReg(REG_CHIPID);
+    Serial.printf("REG,probe,attempts,%lu,ms,%lu,chipid,%d\n",
+                  probeAttempts, millis() - probeStart, chipId);
+    if (chipId < 0) {
+        Serial.println("REG,FATAL,touch chip never ACKed -- every number from this run is void");
+        Serial.println("REG,FATAL,do not record results; check TP_RST / bus wiring first");
+    }
+
     // Touch identity + the config space this test's interpretation depends on.
-    Serial.printf("REG,identity,chipid,0x%02X,touchnum,%d\n", ReadReg(REG_CHIPID), ReadReg(REG_TOUCHNUM));
+    Serial.printf("REG,identity,chipid,0x%02X,touchnum,%d\n", chipId, ReadReg(REG_TOUCHNUM));
     Serial.printf("REG,config,disautosleep_0xFE,%d,autosleeptime_0xF9,%d,irqctl_0xFA,0x%02X\n",
                   ReadReg(REG_DISAUTOSLEEP), ReadReg(REG_AUTOSLEEPTIME), ReadReg(REG_IRQCTL));
     Serial.println("REG,note,0xFE=1 means auto-sleep DISABLED (this board's factory state)");
@@ -460,7 +512,20 @@ void loop()
     }
     wasTouched = touched;
 
-    if (screen == Screen::Hold) HoldTick(touched, now);
+    // A hold run is only valid while the Hold screen is up. The first bench run
+    // showed why this needs saying: a swipe mid-hold moved to another screen,
+    // HoldTick stopped being called, and the run sat frozen until the screen came
+    // back -- then "completed" with 14 s of total time and zero dropouts. It
+    // presented as a clean pass. Abort and void it instead; a discarded run is
+    // recoverable, a fabricated clean one is not.
+    if (screen == Screen::Hold) {
+        HoldTick(touched, now);
+    } else if (holdActive) {
+        Serial.printf("HOLD,run_void,%lu,reason,screen_changed\n", now);
+        holdActive = false;
+        inDropout = false;
+        needsRepaint = true;
+    }
 
     // ---- NTP sampling ----
     if (ntpSyncFlag) {
@@ -509,6 +574,9 @@ void loop()
             case Screen::Ntp:   DrawNtp();   break;
             default: break;
         }
+        // One transfer per repaint. Without this the fillScreen at the top of
+        // every frame is visible as a full-screen flash.
+        if (haveCanvas) canvas.pushSprite(0, 0);
     }
 
     delay(5); // ~5 ms poll: fine enough to resolve the <10 ms dropout bucket
