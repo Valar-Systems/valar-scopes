@@ -62,6 +62,21 @@ namespace {
 
 LGFX tft;
 
+// FULL-SCREEN BACKBUFFER. The first bench build drew straight to the panel, and
+// every repaint began with fillScreen -- so at the 10 Hz repaint rate the whole
+// screen visibly flickered 3-5 times a second, which on a HOLD test is actively
+// harmful: the thing being measured is a finger held still while the operator
+// watches the HUD, and a strobing screen is both unreadable and unusable on the
+// bench video this exists to produce.
+//
+// The product solves this with BandCanvas; the harness gets the simpler version
+// because this board has PSRAM to spare -- 240x240x16bpp is 115 KB, which would
+// not fit internal RAM but is nothing against 8 MB of PSRAM. Falls back to
+// direct drawing if the sprite cannot be created, so a PSRAM-less board still
+// runs the tests (flickering, but running beats not running on a bench tool).
+LGFX_Sprite canvas(&tft);
+bool haveCanvas = false;
+
 constexpr int      TP_PORT = BLIPSCOPE_TOUCH_I2C_PORT;
 constexpr int      TP_ADDR = BLIPSCOPE_TOUCH_I2C_ADDR;
 constexpr uint32_t TP_FREQ = BLIPSCOPE_TOUCH_FREQ;
@@ -107,6 +122,19 @@ unsigned long pollGapMaxMs = 0, pollGapSumMs = 0, pollCount = 0;
 // REJOIN_MS, so the finger never actually left. A real lift ends the run.
 constexpr unsigned long HOLD_TARGET_MS = 10000;
 constexpr unsigned long REJOIN_MS      = 100; // "release <100 ms not user-initiated"
+// Arm C only: consecutive-NACK ceiling before the run is voided as a bus failure
+// rather than scored. See the source-selection block in loop() for why an
+// unbounded hold-previous-state is worse than no arm C at all.
+constexpr unsigned long NACK_VOID_MS   = 100;
+unsigned long busFailRuns = 0;
+
+// KEY-WINDOW POLL INTERVAL -- the fourth number this harness produces. Scoring
+// granularity is max(NTP uncertainty, INPUT latency), and the input floor that
+// matters is the one inside a focused high-rate poll window (what the launch
+// key-turn will actually run), NOT the idle product loop. Measured separately
+// from the general poll cadence for exactly that reason: the idle figure is the
+// wrong floor and would set the leaderboard bucket an order of magnitude coarse.
+unsigned long keyPollGapMaxMs = 0, keyPollSumMs = 0, keyPollCount = 0;
 
 bool holdActive = false;
 unsigned long holdStartMs = 0, holdContactMs = 0;
@@ -119,11 +147,40 @@ struct ArmStats {
     unsigned long runs = 0, cleanRuns = 0, dropouts = 0, longestMs = 0;
     unsigned long hist[5] = {0,0,0,0,0}; // <10, <25, <50, <100, >=100 ms
 };
-ArmStats armFactory;  // 0xFE = 1 (auto-sleep DISABLED -- this board's factory state)
-ArmStats armSleepOn;  // 0xFE = 0 (auto-sleep ARMED -- deliberately the reject value)
-bool sleepArmed = false; // which arm is live
+// THREE ARMS. A and B are the sleep A/B (see the header note on why its polarity
+// is inverted on this board). C exists because of finding (b): the driver and the
+// chip disagree on a static contact, and the chip is the one that keeps the truth.
+//
+//   A  factory      0xFE=1 (sleep OFF)   contact source: the DRIVER (getTouch)
+//   B  sleep armed  0xFE=0 (sleep ON)    contact source: the DRIVER
+//   C  chip poll    0xFE=0 (sleep ON)    contact source: the CHIP (TouchNum, 0x02)
+//
+// C deliberately runs under the HOSTILE sleep config rather than the benign one.
+// If direct register polling holds clean with the sleep engine armed, it holds
+// clean everywhere, and that is one run instead of two. It is also the result
+// that matters most: if C is clean, the deputy gesture is solved by a game-mode
+// poll window that ignores INT entirely, and the sleep engine never has to be
+// touched in the shipping product -- no register writes, no departure from the
+// factory config the incoming-inspection gate checks for.
+enum class Arm : uint8_t { FactoryNoSleep, SleepArmed, ChipPoll, COUNT };
+const char* ArmName(Arm a)
+{
+    switch (a) {
+        case Arm::FactoryNoSleep: return "A_factory_nosleep";
+        case Arm::SleepArmed:     return "B_sleep_armed";
+        case Arm::ChipPoll:       return "C_chip_poll";
+        default:                  return "?";
+    }
+}
+ArmStats armStats[(int)Arm::COUNT];
+Arm arm = Arm::FactoryNoSleep;
 
-ArmStats& CurArm() { return sleepArmed ? armSleepOn : armFactory; }
+// C reads the chip; A and B read the driver.
+bool ArmUsesChipSource(Arm a) { return a == Arm::ChipPoll; }
+// C wants the sleep engine armed (hostile); B does too; A does not.
+uint8_t ArmWantsDisAutoSleep(Arm a) { return a == Arm::FactoryNoSleep ? 1 : 0; }
+
+ArmStats& CurArm() { return armStats[(int)arm]; }
 
 void Bucket(ArmStats& a, unsigned long ms)
 {
@@ -164,104 +221,107 @@ long UncertaintyMs()
 }
 
 // ---- drawing ---------------------------------------------------------------
+// One accessor so every draw call is written once and lands on the backbuffer
+// when there is one, or on the panel when there is not.
+inline LovyanGFX& gfx() { return haveCanvas ? static_cast<LovyanGFX&>(canvas) : static_cast<LovyanGFX&>(tft); }
 void Banner(const char* title)
 {
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextDatum(textdatum_t::top_center);
-    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    tft.setTextSize(1);
-    tft.drawString(title, C, 6);
+    gfx().fillScreen(TFT_BLACK);
+    gfx().setTextDatum(textdatum_t::top_center);
+    gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+    gfx().setTextSize(1);
+    gfx().drawString(title, C, 6);
 }
 
 void DrawHold()
 {
-    Banner(sleepArmed ? "HOLD  [sleep ARMED]" : "HOLD  [factory]");
+    Banner(ArmName(arm));
 
     // The switch arc the deputy holds.
     const int r = C - 22;
-    tft.drawArc(C, C, r, r - 8, 200, 340, holdActive ? TFT_GREEN : TFT_DARKGREY);
+    gfx().drawArc(C, C, r, r - 8, 200, 340, holdActive ? TFT_GREEN : TFT_DARKGREY);
 
-    tft.setTextDatum(textdatum_t::middle_center);
+    gfx().setTextDatum(textdatum_t::middle_center);
     if (holdActive) {
         const unsigned long held = millis() - holdStartMs;
         const bool ok = held >= HOLD_TARGET_MS;
-        tft.setTextColor(inDropout ? TFT_RED : (ok ? TFT_GREEN : TFT_YELLOW), TFT_BLACK);
-        tft.setTextSize(4);
-        tft.drawString(inDropout ? "DROPPED" : "HELD", C, C - 18);
-        tft.setTextSize(3);
+        gfx().setTextColor(inDropout ? TFT_RED : (ok ? TFT_GREEN : TFT_YELLOW), TFT_BLACK);
+        gfx().setTextSize(4);
+        gfx().drawString(inDropout ? "DROPPED" : "HELD", C, C - 18);
+        gfx().setTextSize(3);
         char b[16];
         snprintf(b, sizeof(b), "%lu.%lus", held / 1000, (held % 1000) / 100);
-        tft.drawString(b, C, C + 22);
-        tft.setTextSize(2);
-        tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+        gfx().drawString(b, C, C + 22);
+        gfx().setTextSize(2);
+        gfx().setTextColor(TFT_ORANGE, TFT_BLACK);
         snprintf(b, sizeof(b), "drops %lu", runDropouts);
-        tft.drawString(b, C, C + 56);
+        gfx().drawString(b, C, C + 56);
     } else {
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setTextSize(2);
-        tft.drawString("PRESS &", C, C - 30);
-        tft.drawString("HOLD 10s", C, C - 6);
+        gfx().setTextColor(TFT_WHITE, TFT_BLACK);
+        gfx().setTextSize(2);
+        gfx().drawString("PRESS &", C, C - 30);
+        gfx().drawString("HOLD 10s", C, C - 6);
         const ArmStats& a = CurArm();
-        tft.setTextSize(1);
-        tft.setTextColor(TFT_CYAN, TFT_BLACK);
+        gfx().setTextSize(1);
+        gfx().setTextColor(TFT_CYAN, TFT_BLACK);
         char b[40];
         snprintf(b, sizeof(b), "runs %lu  clean %lu%%", a.runs,
                  a.runs ? (a.cleanRuns * 100 / a.runs) : 0);
-        tft.drawString(b, C, C + 34);
+        gfx().drawString(b, C, C + 34);
         snprintf(b, sizeof(b), "swipe: next   long-press: arm A/B");
-        tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        tft.drawString(b, C, variant::SCREEN_SIZE - 14);
+        gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+        gfx().drawString(b, C, variant::SCREEN_SIZE - 14);
     }
 }
 
 void DrawMulti()
 {
     Banner("MULTITOUCH");
-    tft.setTextDatum(textdatum_t::middle_center);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextSize(1);
-    tft.drawString("MAX POINTS SEEN", C, C - 44);
-    tft.setTextSize(6);
-    tft.setTextColor(maxPointsSeen > 1 ? TFT_ORANGE : TFT_GREEN, TFT_BLACK);
+    gfx().setTextDatum(textdatum_t::middle_center);
+    gfx().setTextColor(TFT_WHITE, TFT_BLACK);
+    gfx().setTextSize(1);
+    gfx().drawString("MAX POINTS SEEN", C, C - 44);
+    gfx().setTextSize(6);
+    gfx().setTextColor(maxPointsSeen > 1 ? TFT_ORANGE : TFT_GREEN, TFT_BLACK);
     char b[24];
     snprintf(b, sizeof(b), "%d", maxPointsSeen);
-    tft.drawString(b, C, C - 6);
-    tft.setTextSize(2);
-    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    gfx().drawString(b, C, C - 6);
+    gfx().setTextSize(2);
+    gfx().setTextColor(TFT_CYAN, TFT_BLACK);
     snprintf(b, sizeof(b), "live %d", livePoints);
-    tft.drawString(b, C, C + 34);
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    gfx().drawString(b, C, C + 34);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
     snprintf(b, sizeof(b), "%d,%d", liveX, liveY);
-    tft.drawString(b, C, C + 56);
+    gfx().drawString(b, C, C + 56);
 }
 
 void DrawNtp()
 {
     Banner("NTP SYNC");
-    tft.setTextDatum(textdatum_t::middle_center);
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString("UNCERTAINTY (ms)", C, C - 48);
-    tft.setTextSize(6);
+    gfx().setTextDatum(textdatum_t::middle_center);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_WHITE, TFT_BLACK);
+    gfx().drawString("UNCERTAINTY (ms)", C, C - 48);
+    gfx().setTextSize(6);
     char b[24];
     if (firstSyncMs == 0) {
-        tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        tft.drawString("--", C, C - 8);
+        gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+        gfx().drawString("--", C, C - 8);
     } else {
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        gfx().setTextColor(TFT_GREEN, TFT_BLACK);
         snprintf(b, sizeof(b), "%ld", UncertaintyMs());
-        tft.drawString(b, C, C - 8);
+        gfx().drawString(b, C, C - 8);
     }
-    tft.setTextSize(1);
-    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_CYAN, TFT_BLACK);
     snprintf(b, sizeof(b), "first sync %lums", firstSyncMs ? firstSyncMs - bootMs : 0);
-    tft.drawString(b, C, C + 34);
+    gfx().drawString(b, C, C + 34);
     snprintf(b, sizeof(b), "syncs %lu  worst adj %ldms", syncCount, worstAdjustUs / 1000);
-    tft.drawString(b, C, C + 48);
+    gfx().drawString(b, C, C + 48);
     snprintf(b, sizeof(b), "wifi %s", WiFi.status() == WL_CONNECTED ? "up" : "DOWN");
-    tft.setTextColor(WiFi.status() == WL_CONNECTED ? TFT_DARKGREY : TFT_RED, TFT_BLACK);
-    tft.drawString(b, C, C + 62);
+    gfx().setTextColor(WiFi.status() == WL_CONNECTED ? TFT_DARKGREY : TFT_RED, TFT_BLACK);
+    gfx().drawString(b, C, C + 62);
 }
 
 // ---- arm switching ---------------------------------------------------------
@@ -271,12 +331,12 @@ void ApplyArm()
     // CST816T this register NACKs entirely, and a batch that ships 0xFE=0 is the
     // documented reject condition. If the readback disagrees with intent, the run
     // is not the arm it claims to be and the CSV must say so.
-    const uint8_t want = sleepArmed ? 0 : 1;
+    const uint8_t want = ArmWantsDisAutoSleep(arm);
     const int pre = ReadReg(REG_DISAUTOSLEEP);
     const bool wrote = WriteReg(REG_DISAUTOSLEEP, want);
     const int back = ReadReg(REG_DISAUTOSLEEP);
     Serial.printf("REG,arm,%s,pre,%d,write,%s,readback,%d,intended,%u,honoured,%d\n",
-                  sleepArmed ? "sleep_armed" : "factory_nosleep",
+                  ArmName(arm),
                   pre, wrote ? "ok" : "NACK", back, want,
                   (back == (int)want) ? 1 : 0);
     if (back != (int)want)
@@ -295,15 +355,36 @@ void ReportArm(const char* name, const ArmStats& a)
 
 void ReportBoth()
 {
-    ReportArm("factory_nosleep", armFactory);
-    ReportArm("sleep_armed", armSleepOn);
-    // The delta is the whole point of running two arms: it is the auto-sleep tax.
-    if (armFactory.runs && armSleepOn.runs) {
-        const long f = (long)(armFactory.cleanRuns * 100 / armFactory.runs);
-        const long s = (long)(armSleepOn.cleanRuns * 100 / armSleepOn.runs);
-        Serial.printf("HOLD,delta,cleanpct_factory,%ld,cleanpct_sleeparmed,%ld,autosleep_tax_pts,%ld\n",
-                      f, s, f - s);
-    }
+    for (int i = 0; i < (int)Arm::COUNT; ++i)
+        ReportArm(ArmName((Arm)i), armStats[i]);
+    // Two deltas, and they answer different questions:
+    //
+    //   A - B  the AUTO-SLEEP TAX: what the sleep engine costs a static hold.
+    //   C - B  the CHIP-POLL RESCUE: what bypassing INT recovers under the SAME
+    //          hostile sleep config. If this is large and C is near 100%, the
+    //          deputy gesture is solved by a game-mode poll window and the sleep
+    //          engine never has to be touched in the shipping product.
+    auto pct = [](const ArmStats& a) -> long {
+        return a.runs ? (long)(a.cleanRuns * 100 / a.runs) : -1;
+    };
+    const long a = pct(armStats[(int)Arm::FactoryNoSleep]);
+    const long b = pct(armStats[(int)Arm::SleepArmed]);
+    const long c = pct(armStats[(int)Arm::ChipPoll]);
+    Serial.printf("HOLD,delta,cleanpct_A,%ld,cleanpct_B,%ld,cleanpct_C,%ld,"
+                  "autosleep_tax_pts,%ld,chippoll_rescue_pts,%ld\n",
+                  a, b, c,
+                  (a >= 0 && b >= 0) ? a - b : 0,
+                  (c >= 0 && b >= 0) ? c - b : 0);
+    if (a < 0 || b < 0 || c < 0)
+        Serial.println("HOLD,note,an arm with cleanpct -1 has no runs yet -- deltas involving it are meaningless");
+    // Bus failures are reported as their OWN count, never folded into dropouts:
+    // a wedged bus is an equipment fault, and averaging it into a touch-quality
+    // number would corrupt the very figure the gate is read from.
+    Serial.printf("HOLD,busfail,runs_voided,%lu\n", busFailRuns);
+    // The fourth number (see the declaration): the key-window input floor.
+    Serial.printf("HOLD,keywindow,avg_ms,%lu,max_ms,%lu,samples,%lu\n",
+                  keyPollCount ? keyPollSumMs / keyPollCount : 0,
+                  keyPollGapMaxMs, keyPollCount);
 }
 
 // ---- hold-test state machine ----------------------------------------------
@@ -316,7 +397,8 @@ void HoldTick(bool touched, unsigned long now)
         lastDownMs = now;
         runDropouts = 0;
         runLongestDropoutMs = 0;
-        Serial.printf("HOLD,run_start,%lu,arm,%s\n", now, sleepArmed ? "sleep_armed" : "factory_nosleep");
+        Serial.printf("HOLD,run_start,%lu,arm,%s,source,%s\n", now, ArmName(arm),
+                      ArmUsesChipSource(arm) ? "chip_touchnum" : "driver_gettouch");
         needsRepaint = true;
         return;
     }
@@ -383,13 +465,47 @@ void setup()
     tft.setBrightness(255);
     Serial.printf("[disp] tft.init=%d %dx%d\n", panelOk ? 1 : 0, tft.width(), tft.height());
 
+    // Backbuffer in PSRAM (see the note at the declaration). Reported either way:
+    // if it ever falls back, the flicker is explained in the log rather than
+    // rediscovered on the bench.
+    canvas.setPsram(true);
+    canvas.setColorDepth(16);
+    haveCanvas = canvas.createSprite(variant::SCREEN_SIZE, variant::SCREEN_SIZE) != nullptr;
+    Serial.printf("[disp] backbuffer %s (%dx%d, psram_free=%u)\n",
+                  haveCanvas ? "ok" : "FAILED - drawing direct, expect flicker",
+                  variant::SCREEN_SIZE, variant::SCREEN_SIZE,
+                  (unsigned)ESP.getFreePsram());
+
+    // WAIT FOR THE TOUCH CHIP TO ANSWER before reading anything from it. The
+    // first run of this harness probed immediately after tft.init() and got
+    // chipid=NACK / touchnum=-1: the CST816 is still coming out of its reset
+    // (TP_RST is a real GPIO on this variant and the product's watchdog allows a
+    // 450 ms boot wait for the same reason). Everything downstream inherited
+    // that -- the config dump was empty and, worse, the A/B arm write went to a
+    // chip that was not listening, so a run would have been attributed to an arm
+    // that was never actually set. A silent NACK at setup is the one failure
+    // that makes every later number wrong while looking fine.
+    unsigned long probeAttempts = 0;
+    const unsigned long probeStart = millis();
+    while (ReadReg(REG_CHIPID) < 0 && millis() - probeStart < 2000) {
+        ++probeAttempts;
+        delay(25);
+    }
+    const int chipId = ReadReg(REG_CHIPID);
+    Serial.printf("REG,probe,attempts,%lu,ms,%lu,chipid,%d\n",
+                  probeAttempts, millis() - probeStart, chipId);
+    if (chipId < 0) {
+        Serial.println("REG,FATAL,touch chip never ACKed -- every number from this run is void");
+        Serial.println("REG,FATAL,do not record results; check TP_RST / bus wiring first");
+    }
+
     // Touch identity + the config space this test's interpretation depends on.
-    Serial.printf("REG,identity,chipid,0x%02X,touchnum,%d\n", ReadReg(REG_CHIPID), ReadReg(REG_TOUCHNUM));
+    Serial.printf("REG,identity,chipid,0x%02X,touchnum,%d\n", chipId, ReadReg(REG_TOUCHNUM));
     Serial.printf("REG,config,disautosleep_0xFE,%d,autosleeptime_0xF9,%d,irqctl_0xFA,0x%02X\n",
                   ReadReg(REG_DISAUTOSLEEP), ReadReg(REG_AUTOSLEEPTIME), ReadReg(REG_IRQCTL));
     Serial.println("REG,note,0xFE=1 means auto-sleep DISABLED (this board's factory state)");
 
-    sleepArmed = false;
+    arm = Arm::FactoryNoSleep;
     ApplyArm();
 
     // WiFi from stored credentials (the board has joined before). NTP only; no
@@ -421,6 +537,14 @@ void loop()
     if (gap > pollGapMaxMs) pollGapMaxMs = gap;
     pollGapSumMs += gap;
     pollCount++;
+    // The key-window floor, sampled only while an arm-C hold is live -- that is
+    // the focused high-rate window the launch key-turn will run in, and the only
+    // cadence the scoring bucket may honestly be derived from.
+    if (ArmUsesChipSource(arm) && holdActive) {
+        if (gap > keyPollGapMaxMs) keyPollGapMaxMs = gap;
+        keyPollSumMs += gap;
+        keyPollCount++;
+    }
 
     // ---- touch: driver answer AND the chip's own count, every poll ----
     int32_t tx = 0, ty = 0;
@@ -453,14 +577,66 @@ void loop()
             needsRepaint = true;
             Serial.printf("TOUCH,screen,%d\n", (int)screen);
         } else if (held > 1500 && screen == Screen::Hold && !holdActive) {
-            sleepArmed = !sleepArmed;
+            arm = (Arm)(((int)arm + 1) % (int)Arm::COUNT); // A -> B -> C -> A
             ApplyArm();
             needsRepaint = true;
         }
     }
     wasTouched = touched;
 
-    if (screen == Screen::Hold) HoldTick(touched, now);
+    // A hold run is only valid while the Hold screen is up. The first bench run
+    // showed why this needs saying: a swipe mid-hold moved to another screen,
+    // HoldTick stopped being called, and the run sat frozen until the screen came
+    // back -- then "completed" with 14 s of total time and zero dropouts. It
+    // presented as a clean pass. Abort and void it instead; a discarded run is
+    // recoverable, a fabricated clean one is not.
+    if (screen == Screen::Hold) {
+        // ARM C FEEDS FROM THE CHIP, not the driver. This is the whole point of
+        // the third arm: finding (b) says the chip keeps the contact the driver
+        // loses on a static finger, so arm C asks TouchNum (0x02) directly and
+        // ignores INT entirely. A chipN of -1 is a NACK, not a release -- treating
+        // a failed read as a lifted finger would manufacture the exact dropouts
+        // this arm exists to rule out, so it holds the previous state instead.
+        // BOUNDED. Holding the previous state through a single NACK is right;
+        // holding it forever is not. A persistent stall (bus wedged, chip gone)
+        // would freeze `contact` at true and report an eternal, flawless hold --
+        // manufacturing exactly the opposite artifact this arm exists to rule
+        // out, and doing it in the direction that looks like success. So a NACK
+        // streak past NACK_VOID_MS voids the run outright rather than scoring it.
+        static bool lastChipContact = false;
+        static unsigned long nackSinceMs = 0;
+        bool contact;
+        if (ArmUsesChipSource(arm)) {
+            if (chipN >= 0) {
+                lastChipContact = chipN > 0;
+                nackSinceMs = 0;
+            } else {
+                if (nackSinceMs == 0) nackSinceMs = now;
+                if (now - nackSinceMs > NACK_VOID_MS) {
+                    if (holdActive) {
+                        ++busFailRuns;
+                        Serial.printf("HOLD,run_void,%lu,reason,BUS_FAIL,nack_ms,%lu,arm,%s\n",
+                                      now, now - nackSinceMs, ArmName(arm));
+                        holdActive = false;
+                        inDropout = false;
+                        needsRepaint = true;
+                    }
+                    nackSinceMs = 0;
+                    lastChipContact = false;
+                }
+            }
+            contact = lastChipContact;
+        } else {
+            contact = touched;
+            nackSinceMs = 0;
+        }
+        HoldTick(contact, now);
+    } else if (holdActive) {
+        Serial.printf("HOLD,run_void,%lu,reason,screen_changed\n", now);
+        holdActive = false;
+        inDropout = false;
+        needsRepaint = true;
+    }
 
     // ---- NTP sampling ----
     if (ntpSyncFlag) {
@@ -509,7 +685,15 @@ void loop()
             case Screen::Ntp:   DrawNtp();   break;
             default: break;
         }
+        // One transfer per repaint. Without this the fillScreen at the top of
+        // every frame is visible as a full-screen flash.
+        if (haveCanvas) canvas.pushSprite(0, 0);
     }
 
-    delay(5); // ~5 ms poll: fine enough to resolve the <10 ms dropout bucket
+    // ~5 ms poll normally; 2 ms while an arm-C hold is live. C is the "fixed high
+    // rate" arm, and its result is only as trustworthy as its sampling floor --
+    // a dropout shorter than the poll gap is invisible, so the arm claiming to
+    // rule dropouts out has to sample fastest. A 1-byte read at 400 kHz is ~50 us,
+    // so 2 ms is nowhere near saturating the bus.
+    delay((ArmUsesChipSource(arm) && holdActive) ? 2 : 5);
 }

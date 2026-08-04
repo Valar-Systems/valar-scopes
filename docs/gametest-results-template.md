@@ -20,7 +20,8 @@ Board: _____________ (MAC / COM)  ·  Date: _____________  ·  Firmware: `gamete
 |---|---|---|---|
 | 1 | Dropout-free % of a 10 s static hold | **______ %** | whether the deputy hold gesture exists at all |
 | 2 | Max simultaneous touch points | **______** | design assumes 1; >1 would allow a two-hands-one-device variant |
-| 3 | NTP sync uncertainty | **______ ms** | deviation scoring granularity (§4) — round UP |
+| 3 | NTP sync uncertainty | **______ ms** | one half of the scoring floor |
+| 4 | Key-window poll interval | **______ ms** | the other half — measured inside a focused arm-C poll window, NOT the idle loop |
 
 ---
 
@@ -41,11 +42,28 @@ Run **≥20 holds per arm**. A run is *clean* when it reaches 10 s with zero dro
 > with `honoured,0|1` — **if `honoured` is 0 the chip refused the write and that
 > arm's numbers describe an unknown state.** Record it as void, not as a result.
 
-| Arm | `0xFE` | Runs | Clean | **Clean %** | Dropouts | Longest (ms) |
-|---|---|---|---|---|---|---|
-| Factory (no auto-sleep) | 1 | | | | | |
-| Sleep armed | 0 | | | | | |
-| | | | | **Δ = auto-sleep tax** | | |
+| Arm | `0xFE` | Source | Runs | Clean | **Clean %** | Dropouts | Longest (ms) |
+|---|---|---|---|---|---|---|---|
+| **A** factory | 1 | driver `getTouch` | | | | | |
+| **B** sleep armed | 0 | driver `getTouch` | | | | | |
+| **C** chip poll | 0 | chip `TouchNum` | | | | | |
+
+- **A − B = auto-sleep tax** — what the sleep engine costs a static hold: ______ pts
+- **C − B = chip-poll rescue** — what bypassing INT recovers under the *same* hostile
+  config: ______ pts
+- **Bus failures (`BUS_FAIL`)**: ______ runs voided
+
+> **C is the result that matters most.** It runs under the hostile sleep config on purpose:
+> if direct register polling holds clean with the engine armed, it holds clean everywhere.
+> A clean C means the deputy gesture is solved by a **game-mode poll window** that ignores
+> INT entirely — and the shipping product never writes a touch register, keeping the exact
+> factory config the incoming-inspection gate checks for.
+>
+> `BUS_FAIL` is counted separately and never folded into dropouts: a wedged bus is an
+> equipment fault, and averaging it into a touch-quality number would corrupt the figure the
+> gate is read from. A run with >100 ms of consecutive NACKs is voided, not scored — holding
+> the last known state forever would report an eternal flawless hold, which is the opposite
+> artifact arm C exists to rule out, in the direction that looks like success.
 
 Dropout histogram (ms): `<10` ___ · `<25` ___ · `<50` ___ · `<100` ___ · `≥100` ___
 
@@ -91,10 +109,24 @@ The firmware reports `max(worst adjustment, max poll gap)` — the correction NT
 had to apply is the error a device would carry into a deviation score, and we
 cannot claim tighter than we sample.
 
-**Set scoring granularity to this number rounded UP**, per §13 build task 1's
-"err pessimistic". If it lands at ~50 ms, score in 50 ms buckets — do not display
-single milliseconds the fleet cannot actually resolve. A leaderboard quoting
-precision it does not have is worse than a coarser one that is honest.
+### The scoring floor has TWO halves
+
+`granularity = max(NTP uncertainty, key-window poll interval)`
+
+| Half | Value | From |
+|---|---|---|
+| Clock | ______ ms | NTP screen (`worst adjustment`) |
+| Input | ______ ms | `HOLD,keywindow,max_ms` — arm-C window only |
+| **Floor** | **______ ms** | the larger |
+
+**Use the key-window figure, not the idle poll figure.** The idle loop measured
+~45 ms max; the launch key-turn runs a focused high-rate poll, so the idle number
+is the wrong floor and would set the bucket an order of magnitude too coarse.
+
+**Round UP**, per §13's "err pessimistic". The leaderboard displays the smallest
+bucket this floor supports — a ranking quoting precision it does not have is
+worse than a coarser one that is honest, and somebody will eventually try to beat
+it by a millisecond.
 
 Chosen granularity: **______ ms**
 
