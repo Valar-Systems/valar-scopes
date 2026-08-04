@@ -1,0 +1,565 @@
+# Missileer Gamification — Design Notes & Source Digest
+
+Working notes from the design session of 2026-08-04. Companion to
+[#135](https://github.com/Valar-Systems/valar-scopes/issues/135) (gamify EAM reception) and
+[#136](https://github.com/Valar-Systems/valar-scopes/issues/136) (shredded-paper pack-in).
+Status: brainstorm output, not a spec. Nothing here is committed.
+
+---
+
+## 1. Tone principles (settled)
+
+1. **Real traffic is the engine; the player is the escalation.** The device reacts to a real
+   EAM soberly — klaxon, message rendered verbatim, documentary. Everything game-shaped
+   (ack, authenticate, enable, key-turn, animation, detonation) happens only because a human
+   chose to run their drill on it. The device never auto-animates off real traffic.
+   - Why: agency is the tone gate. If a human turned the key, the joke is on the human. If
+     the device auto-plays a launch animation during a real-world crisis traffic spike, the
+     joke is on the message — and someone screenshots it.
+2. **Remote hold flag.** One cloud config bit reverts the whole fleet to pure monitoring.
+   Ships in v1. Makes the tone call reversible.
+3. **Deadpan bureaucracy is the comedic register.** The publicly depicted reality of the job
+   is binders, checklists, printouts, padlocks, and a clock. Drama comes from procedure and
+   the sweep toward T — not klaxons and red strobes. Post-detonation copy: "Your
+   participation has been noted in your permanent record."
+4. **The vague version is the better toy.** Take published skeletons, invent freely in the
+   gaps, never chase fidelity. (See §10 — even the best public article gets corrected by
+   veterans in its own comments. Fidelity is a treadmill; vagueness is both the legal
+   posture and the design philosophy.)
+5. **Exercise framing.** Synthetic/training traffic is marked the way the real world
+   publicly marks it: EXERCISE EXERCISE EXERCISE. The edition carries a
+   Nuclear-Companion-style disclaimer: *based on unclassified public sources; procedure
+   depicted is a guess; deliberately so.*
+6. **Real units' real failures are off-limits.** The wing articles document failed surety
+   inspections and the 2014 proficiency-test cheating scandal. Public ≠ usable: the game
+   takes real *institutions* (monthly proficiency testing, annual competition) and never
+   references real incidents, named individuals, or a real unit's disciplinary history.
+   Same logic as #136's box rule — a joke about a real organisation's worst day is a claim,
+   not a toy.
+
+## 2. Sourcing rule (standing, applies to everything)
+
+Only publicly citable material: AF public affairs, NPS Minuteman NHS, declassified
+material, prepublication-reviewed books, environmental-review documents, Wikipedia-level
+secondary sources. "Nobody told me it was classified" is not a test — classification isn't
+briefed fact-by-fact, material can be CUI, aggregation matters, NDAs outlast service.
+**Veteran anecdotes (e.g. blog comment sections) are folklore, not source** — don't build
+on them, don't chase their corrections. The tension comes from the timing window and the
+second person, not procedural fidelity.
+
+## 3. Core game loop
+
+Skeleton = the six-step REACT launch procedure as published by Nuclear Companion (itself
+explicitly a guess from unclassified sources — the right provenance posture).
+
+| # | Real step (published outline) | Game port |
+|---|---|---|
+| 1 | Decode & authenticate EAM | Real EAM arrives → prints on screen (paper-strip animation) → device "auto-decodes" (REACT's published EWO auto-processing) → reveals message class (§5) and, for execution traffic, **T** (Zulu execution time). Player acks = commits the sortie. Authenticate visual: padlocked SAS safe, two crew locks, crack the seal. |
+| 2 | Set preparatory launch procedures | Confirm/adjust war plan: target from FDM (default) or manual override (§6). Locks at T−X. |
+| 3 | Cooperative enable | **Split-knowledge minigame**: system derives 6 characters; each crew member's device shows 3; each keys in their own 3 correctly within a time limit. Two-player, citable, already designed by Ford Aerospace. |
+| 4 | Execute launch command (four-hand) | **Commander**: key-turn (press-drag arc on bezel, hold) at exactly T. **Deputy**: cooperative switches held through the window. All inputs within the published **2-second window**. |
+| 5 | Second LCC vote | Crew's execution registers a **launch vote**, visible fleet-wide. Another crew can: second it (ELC → launch proceeds), **Inhibit** it (playable verb!), or let the dead-man timer expire (launch proceeds alone). |
+| 6 | Terminal countdown | Published **30 seconds**. Then flight (§7). |
+
+## 4. Scoring (settles #135's passive-scoring objection)
+
+- **Score the human, not the antenna.** Receptions are the antenna's achievement; acks,
+  copies, and executions are the human's.
+- **Ratio, not count**: readiness = committed sorties executed cleanly ÷ sorties committed.
+  Ignoring a message costs nothing (kills the 0300 problem and the uptime advantage).
+  Acking commits you; missing T after commitment is a logged failed execution.
+- **Precision metric**: deviation from T in milliseconds. Commander scored on |key − T|,
+  deputy on hold coverage of the window. Crew score = combined.
+- **Deviation → miss distance.** Timing error maps to impact offset at the target (300 ms
+  late ≈ 300 m off — tune the curve). Flight animation ends at the offset point. Leaderboard
+  stat: average miss distance ("CEP"), lower is better. Published benchmark to beat:
+  Minuteman III CEP ≈ 800 ft / 240 m.
+- Backlog seeding: solved by construction — animations require a live human in the loop, so
+  history renders as a stack of already-printed message strips.
+- Dwell/interruption: new real traffic **preempts** a running sequence ("real-world traffic
+  takes precedence"). Losing your window because the world got busy is the game at its best.
+
+## 5. Message taxonomy (from REACT's published RMP classes)
+
+Synthetic decode layer assigns each real message a class. Rarity distribution is a design
+knob (weights TBD; derive deterministically from message hash so the fleet agrees).
+
+| Class | Real meaning (published) | Game meaning | Rarity |
+|---|---|---|---|
+| **NAM** | Non-Action Message | Nothing happens. True to life. The driest joke in the game. | Common |
+| **FDM** | Force Direction Message (targeting) | Assigns/updates your war plan target coordinates. Solves "who picks the target" — manual entry becomes optional override. | Uncommon |
+| **EAM w/ execution** | Launch execution order | Carries T. The launch event. | Rare |
+
+The real EAM structure publicly includes a timing plan / launch delay time (fratricide
+deconfliction) — the "message tells you when to launch" mechanic is the real message shape.
+
+**Arrival rate & weight tuning.** Community sources are qualitative only: EAMs are "a very
+common broadcast type" (priyom.org), "heard daily, 7 days a week, 365 days a year"
+(mt-milcom) — call it single-digit-to-dozens per day, bursty, with exercise spikes and
+quiet stretches. **Fleet telemetry is the authoritative rate — tune decode weights from
+observed arrivals, not forum lore.** Target: execution events ≈ once/day at ~20 msgs/day
+observed (≈5% weight); FDMs ~10–15%. Two required handlings: (1) **dedupe repeats** — the
+same EAM string is rebroadcast; hash-triggering must fire once per unique message;
+(2) **storm damping** — a cooldown floor / dynamic down-weight on execution decodes after
+each launch event, so exercise-week traffic spikes don't inflate launch night into launch
+week. Droughts stay droughts (that's fishing); storms get clipped.
+
+## 6. Timing, T, and targeting
+
+- **T derivation**: deterministic from message content (hash → offset), anchored to message
+  timestamp rounded to a Zulu boundary, not local arrival (feed latency varies). No cloud
+  needed for solo play; **the whole fleet computes the same T** → every execution EAM is a
+  fleet-wide simultaneous event, rankable that night.
+- **T offset (DECIDED 2026-08-04)**: hash-derived, mostly **5–15 min** after decode — room
+  to ack, pair, run the enable minigame, and face the retarget-or-launch dilemma — with a
+  rare **~2-min "snap execution"** tier to keep everyone honest. Distribution weights TBD in
+  playtest.
+- **Retargeting cost gradient** (published): MRT mode (small azimuth change) = fast;
+  CEP mode (big swing, platform realign) = 15–30 min published. Staying near your
+  FDM-assigned target is cheap; wrenching across the map costs clock. Targeting locks at
+  T−X because a retarget can't complete inside the window.
+- **Launch origin**: player selects wing → squadron → flight/capsule (e.g. "90th MW →
+  Golf-01"). All locations public (Sentinel EIS, NPS, Wikipedia LF lists). Origin matters:
+  real great-circle geometry gives different flight times to the same target.
+- **v1 targeting scope (DECIDED 2026-08-04)**: **FDM-assigned targets only.** No coordinate
+  entry UI in v1 — the message assigns the target, the taxonomy provides the mechanism, and
+  the hardest round-screen UX problem leaves the critical path. Manual entry (rotary dials
+  first candidate, companion page fallback) ships later as the override; the MRT/CEP cost
+  gradient still plays in v1 via successive FDMs moving your war plan.
+- **Guidance drift & alignment (solo upkeep loop)** — from the guidance-system history
+  (minutemanmissile.com): the inertial platform's gyros spin continuously on alert and the
+  platform must be kept aligned to its reference azimuth; drift degrades accuracy. Game:
+  each sortie has a slow **guidance drift** stat that adds baseline error to its miss
+  distance unless the player runs a short alignment ritual between messages. Gives solo
+  players a skillful idle-time loop, deepens CEP scoring (a well-kept flight out-shoots a
+  neglected one at equal timing skill), and gives device uptime an in-fiction home
+  ("gyros spinning") **without scoring uptime** — flavor only, per §4.
+
+## 7. Flight & impact
+
+- Real time. Intercontinental ≈ 30 min (public figure). Launch → device returns to
+  monitoring → ntfy push at impact. The dead time is the bit.
+- Animation script = the published Minuteman III MIRV flight sequence (8 phases:
+  1st-stage sep ~60 s, shroud eject, 3rd-stage ~120 s, post-boost ~180 s, RV/chaff/decoy
+  deploy, burst). Public numbers, free choreography.
+- **Payload select before launch — the tone escape hatch.** Absurd payloads only: 2,000 lb
+  of shredded paper (→ #136: the pack-in is *recovered payload debris*), glitter, a formal
+  apology. The moment the warhead is shredded paper, the feature reads toy, not sim.
+
+## 8. Roles & the two-person rule
+
+- **Capsule = two seats (RESTRUCTURED 2026-08-04).** A capsule (LCC) has 2 crew positions —
+  MCCC + DMCCC, the real structure — so **the crew and the vote are separate mechanisms**:
+  the four-hand execution (enable 3+3, switches, key, 2-s window) happens **inside one
+  capsule between its two seats** (the two real workstations = the two devices — the enable
+  minigame's "half the characters on each workstation's VDU" is now literal); the **vote**
+  happens **between capsules** of a squadron (§9). Topology: seat → capsule (2 people,
+  standing crew, shared 10 birds) → squadron (5 capsules, 10 people, vote network + party
+  line) → wing (3 squadrons) → fleet.
+- **Placement flips from scarcity to concentration**: 45 capsules × 2 = **90 seats vs ~50
+  owners**. Placement UI lists **capsules with an open seat first** ("Golf-01 needs a
+  deputy") before offering to open a new capsule — every filled seat is an instant standing
+  crew; a solo owner is a "crew wanted" listing with a story. Self-crewing = one owner
+  holding both seats of their capsule, publicly attributed. Full squadron salvo is now a
+  **10-person** event — rarer and better.
+- **Target hardware (DECIDED 2026-08-05): the S3 1.28"** (GC9A01 240×240 round +
+  **CST816T**, the Blipscope default board — variant `s3_128.h`, touch bus verified). The
+  S3 1.46" SPD2010 AMOLED (`missileer-s3-146` env, which currently exists in the repo) is
+  the upgrade SKU down the road. Consequences: a `missileer-s3-128` env must be created
+  (variant header already exists; CLAUDE.md's add-a-SKU recipe applies), and **game
+  screens must fit 240×240**.
+- **⚠ CST816 auto-sleep vs the hold gesture:** the repo's own bench history (C3 1.28"
+  retirement + wedge program, platformio.ini) implicates the **CST816's auto-sleep
+  engine** in both observed touch-wedge classes. A multi-second static hold is the most
+  auto-sleep-shaped input the game asks for — the deputy-gesture prototype is now aimed at
+  a *documented* failure mode, not a hypothetical. Bench firmware must test holds with
+  auto-sleep in its current config AND held off.
+- Also already built in `src/eam/`: the 7-segment Zulu clock (Clock = idle screen), the
+  10-screen rotation/swipe shell, `Msg.id` dedupe, the single-worker feed poll pattern,
+  `LeaderboardId`, the `eam-` OTA channel.
+- Hardware truth: CST816 = single touch → one press-hold per human → the honest port is
+  two devices. REACT's published config (1 launch key + 3 cooperative launch switches,
+  four-hand, 2-second concurrency) makes the roles **asymmetric**:
+  - **Commander (MCCC)** — the key. Precision role. Sits left (published convention).
+  - **Deputy (DMCCC)** — the switches. Steadiness role. Sits right. LEP is publicly part of
+    the deputy's workstation.
+  - Exact control split beyond that is folklore → invent freely.
+- Era note: two keys = pre-1994 CDB (the movie image). Key + switches = REACT. **Committed:
+  REACT era** — better asymmetry, and the citation is the Wikipedia article.
+- Solo failure is mechanical, not thematic: no deputy holding switches → key-turn at T does
+  nothing. "Second officer not on station." Never fake a partner.
+- **Solo mode (DECIDED 2026-08-04): solo vote + dead-man timer.** A solo player runs the
+  full drill alone (their one press-hold = a degraded single-operator execution); a clean
+  execution registers a **lone launch vote** that pends on the dead-man timer. If no crew
+  seconds it and nobody inhibits, the launch proceeds — slow, lonely, and real. Crew launch
+  is instant and prestigious. This is the published one-vote-plus-timer mechanic doing the
+  game-balance work; the fiction balances solo vs crew, no artificial nerf needed. Solo
+  launches share the main ladder (no split leaderboards at 50 units); ALCS fiction shelved.
+- **Async countersign fallback**: off-schedule launch order sits pending until another owner
+  countersigns within hours. Turns "both online now" into "someone, today." NTP-simultaneous
+  crew launch stays the prestige version. Build in the same release as pairing.
+- Pairs that complete a joint launch become a **standing crew** (persistent, named, crew
+  leaderboard). At 50 units, few sticky bonds > ambient matchmaking.
+
+## 9. Fleet, teams, progression
+
+- **Delicious coincidence: REACT was deployed to exactly 50 LCCs. The fleet is ~50 units.**
+  The game fleet can map 1:1 onto the real REACT force. Use this everywhere.
+- **Teams = the three wings** (setup choice, permanent-ish): 90th "Mighty Ninety"
+  (F.E. Warren), 91st "Roughriders" (Minot), 341st (Malmstrom). ~17 per team at current
+  fleet size — the granularity where a 50-unit leaderboard feels alive. Monthly
+  wing-vs-wing readiness competition.
+- **Wing assignment (DECIDED 2026-08-04): player choice with current wing populations
+  visible at setup.** Chosen identity builds attachment; visible counts self-balance well
+  enough at this fleet size. Revisit only if one wing hollows out.
+- **Squadron nicknames are public and glorious** (Wikipedia): 319th "Screaming Eagles",
+  740th "Vulgar Vultures", 741st "Gravelhaulers", 742nd "Wolf Pack", 12th "Red Dawgs",
+  490th "Farsiders", 10th "First Aces". Free team identity.
+- **Capsule-picker data structure confirmed** (90th MW article): each wing = 3 missile
+  squadrons (90th: 319th/320th/321st) × 5 flights = **15 flights per wing, lettered
+  A→O, 45 fleet-wide** — matching the 45-MAF constant in §12. Picker: wing → squadron →
+  flight letter. The 90th's field spans ~9,600 sq mi across Wyoming/Nebraska/Colorado —
+  tri-state capsule coordinates are on the map for real.
+- **90th-specific flavor** (public): F.E. Warren is the first operational ICBM base
+  (Atlas-D, 1960) and hosts 20 AF HQ; the Peacekeeper (LGM-118) served **only** at the
+  90th (400th MS, retired 2005) → candidate wing-exclusive cosmetic/easter egg;
+  Quebec-01 preserved on base (reference-photo target, add to §15 museum list).
+- **Huey overflights** (20 AF article: 582nd Helicopter Group, UH-1N, missile-field
+  security support): occasional tiny helicopter sprite crossing the idle map screen.
+  Pure flavor, zero mechanics, exactly the right amount of alive.
+- **Squadron = 5 crews sharing a party line.** Published: the Hardened Voice Channel links
+  the five LCCs of a squadron, party-line, no privacy. Game: squadron-of-5 chat/ping channel
+  ("HVC"). Right-sized social unit for a small fleet.
+- **Rank progression with public structure**: PLCC crew → Squadron Command Post → Wing/
+  Alternate Command Post. Published authorities map to game powers: SCP can execute for a
+  failed flight and **countermand** launches in its squadron; WCP for the wing. Veteran
+  players earn inhibit/execute-on-behalf authority. (Also the inhibit-balancing lever:
+  inhibits gated by rank + scarcity, one per message, so one griefer can't ruin launch night.)
+- **Top of the ladder: Twentieth Air Force** — the numbered air force commanding all three
+  missile wings (HQ at F.E. Warren, under AFGSC; "America's ICBM team"). Use it as the
+  in-fiction **Higher Authority**: decoded traffic is branded as coming from 20 AF, and the
+  rank ladder tops out there (crew → SCP → WCP → 20 AF staff, cosmetic). Skip the WWII
+  lineage entirely — the toy doesn't need it and the tone rule (§1) says leave it alone.
+- **Wing competition has a directly citable model: Olympic Arena / the Blanchard Trophy.**
+  The 341st article names both — SAC's annual missile competition and its "most coveted
+  prize" (341st won in 1976, '86, '90, '91). So the annual fleet-wide championship is an
+  Olympic-Arena-shaped event with an invented trophy name (real structure, invented name,
+  per §2). The Omaha Trophy (90th accolades) is the secondary reference point.
+- **Season cadence — proposed answer (closes open question, pending sign-off):** the real
+  institutions provide it. Individual ladders reset on a **monthly proficiency-test cycle**
+  (monthly launch-officer proficiency testing is a documented institution); the annual
+  Olympic-Arena-style championship crowns the year. Monthly rhythm for individuals, annual
+  for wings.
+- **Wing identity kits for the selection screen** (public mottoes + emblems): 341st
+  *"Pax Orbis per Arma Aerea"* (World Peace Through Air Strength) at Malmstrom; 91st
+  "Roughriders," *"Poised for Peace,"* at Minot — where the 5th Bomb Wing's B-52s share
+  the base (the dual-nuclear-base bragging right is public); 90th "Mighty Ninety" at
+  F.E. Warren with 20 AF HQ. Three distinct flavors of swagger, all citable.
+- **Malmstrom heritage cosmetics** (341st article): first Minuteman wing ever (first
+  LGM-30A arrived July 1962, emplaced at **Alpha-9**); the only wing that fielded the
+  Minuteman IA; hosted America's **1,000th Minuteman** (completion-of-deployment
+  milestone); once ran four squadrons / 200 silos (564th MS, 1966–2008). Wing-exclusive
+  easter eggs, same slot as the 90th's Peacekeeper history. "Rivet MILE" (Minuteman
+  Integrated Life Extension, 341st lead unit) is the real name-shape for the sortie
+  maintenance/regen cycle — invent a variant.
+- **Votes are squadron-scoped (ADDED 2026-08-04 — supersedes "visible fleet-wide" voting).**
+  In the real system the voting network is the squadron: only the 5 LCCs of your squadron
+  can second, inhibit, or leave your vote to the dead-man timer. Game consequences:
+  - **The vote network and the HVC party line are the same five people** — the squadron
+    becomes the fundamental social unit (classic 5-player party size).
+  - **Inhibit griefing is solved structurally**: your inhibitor is one of four known
+    squadron-mates on a shared party line; attribution + proximity self-polices. §13's
+    inhibit economics shrinks to "pick a timer length."
+  - **Placement system** (superseded by §8's two-seat capsule structure): 3 wings × 3
+    squadrons × 5 capsules × 2 seats = **90 seats** vs ~50-unit fleet. Choose wing → fill
+    an open seat in an existing capsule (preferred; instant standing crew) or open a new
+    capsule. Squadron = **10 people** in 5 capsules. **Expansion valve with a citation:
+    reactivate the 564th** (Malmstrom's real fourth squadron, 1966–2008) if the fleet ever
+    outgrows the structure.
+  - **Squadron pool**: 5 × 10 = 50 birds collectively; squadron readiness = the monthly
+    competitive stat. Leaderboard tiers: crew/capsule → squadron → wing.
+  - **Prestige ladder from the published two-LCC rule**: crew launch < squadron launch
+    (two crews, same squadron, same T) < **full squadron salvo** (all 5 capsules clean on
+    one T — the once-ever, fleet-witnessed, framed-screenshot event).
+  - **SCP as rotating honor**: one Squadron Command Post per squadron, held monthly by the
+    squadron's top proficiency scorer; carries countermand authority (published basis).
+    Replaces grind-rank progression at squadron level.
+  - Witnessing stays fleet-wide (§ above) — everyone sees every launch; only voting
+    *agency* is squadron-scoped. Fleet-shared T keeps execution nights communal; each
+    squadron resolves its own votes inside the shared moment.
+- Vote → inhibit → dead-man timer (published triad) is the squadron co-op layer. Remaining
+  balancing = timer length only (§13).
+- **Fleet witnessing (DECIDED 2026-08-04): every launch is a shared, ambient event.** When
+  a vote goes terminal, all devices show the track on their map + a status line ("LAUNCH IN
+  PROGRESS — GOLF-01 / 90 MW"); impact draws the ring fleet-wide at the same moment.
+  Full-screen is for participants only; spectators tap-to-watch (opt-in klaxon setting).
+  Same interruption-budget logic as the real-traffic rule: nobody's screen gets hijacked
+  because someone else played. At ~1 launch/day this shared moment is the core social
+  payoff of a 50-unit fleet.
+- **Attribution (DECIDED 2026-08-04): names on everything — crew, seconder, inhibitor.**
+  Accountability is what the two-person rule is about; the fiction demands a record.
+  Bureaucratic credits format: "LAUNCH 0347Z — GOLF-01 — MAVERICK / GOOSE — SECONDED:
+  WOLFPACK — DEVIATION: 43 MS." Callsigns only (owner-chosen handle on `LeaderboardId`),
+  never real names. Inhibits are attributed, not anonymous — anonymity shields the one
+  griefer; attribution + the party line self-polices. Inhibiting requires picking a reason
+  from a deadpan dropdown ("targeting discrepancy," "safety of flight," "paperwork
+  incomplete"); the reason appears in the credits. The permanent record is the game.
+- Scheduled fleet exercises (invented two-word codenames — VIGILANT HAMSTER) demoted to
+  secondary events: onboarding cohorts, thin-traffic weeks, guaranteed-pairing nights. The
+  real EAM is the primary bell — it hits every device within seconds, free, on the USAF's
+  schedule. Practice/training mode runs on EXERCISE-marked synthetic traffic only.
+- Solo-mode fiction if wanted: ALCS ("Looking Glass" airborne missileers, E-6B) is the
+  published survivable-launch fallback — a citable frame for playing without a ground crew.
+
+## 9b. Web presence — scopes.valarsystems.com (added 2026-08-04)
+
+Server exists; Pi (SDR) records the HFGCS audio. One site, three surfaces, one pipeline.
+
+**Architecture note (2026-08-05, corrected after repo review):** Missileer's backend is
+the separate **`valar-eam-feed`** repo — a **Render service**
+(`https://valar-eam-feed.onrender.com`, the firmware's `EAM_FEED_BASE`), *not* a
+Cloudflare Worker like Blipscope's proxy. The device already polls its normalized
+endpoints (`/eam/latest`, `/eam/skykings`, `/eam/tempo`, `/eam/stats`, `/eam/codewords`,
+`/propagation`, `/launches/icbm`). Getting `/missileer/*` onto scopes.valarsystems.com
+therefore needs a routing hop — Worker proxy to Render, a Cloudflare origin/route rule,
+or Worker-served pages calling the Render API — **open, delegated to the backend prompt's
+discovery step**. Still true: build on the new convention from day one (no legacy paths),
+and inherit Blipscope's metrics pattern (exact-match route allow-list).
+
+**URL convention (DECIDED 2026-08-04): edition-namespaced paths.** `/leaderboard` was
+already Blipscope's — the fix is a standard template every edition inherits:
+`scopes.valarsystems.com/{edition}/{surface}`. Blipscope migrates to
+`/blipscope/leaderboard` with a **301 from the old `/leaderboard`** (existing firmware and
+links keep working). Root `/` becomes the hub page listing all scopes. API mirrors it:
+`/api/v1/{edition}/…`. Bonus this unlocks: one owner identity across editions — the same
+callsign on Blipscope and Missileer, and an owner profile page aggregating their scopes
+(a cross-edition "service record").
+
+- **/missileer/log — the permanent record (centerpiece).** Public launch log: credits line
+  per launch (time, capsule, crew callsigns, seconded/inhibited + reason, deviation, miss
+  distance). **Each entry links to the audio of the real EAM that triggered it** — game
+  event and source transmission, one click apart. Live "LAUNCH IN PROGRESS" banner + map
+  track while a vote is terminal (shareable URL).
+- **/missileer/leaderboard.** Individual (monthly proficiency cycle: avg deviation ms, CEP,
+  readiness ratio), crew board, wing standings (annual championship), cycle history. Reuses
+  fleet auth + `LeaderboardId` from the radar edition.
+- **/missileer/archive.** Every recorded EAM: timestamp, duration, playback, decode class,
+  cross-links to resulting log entries. Stands alone as an SWL-community resource (audio
+  EAM archives are scarce; text logs aren't) → organic discovery traffic from non-owners.
+- **Pipeline (DECIDED 2026-08-04):** Pi records **squelch-triggered clips** (pad a few
+  seconds each side; watch for mis-set squelch clipping message starts) → per-transmission
+  Opus + metadata → server ingest → (a) archive, (b) fleet event feed. **The ingest event
+  doubles as the fleet-wide witnessing push (§9)** — one pipeline serves both. Storage
+  trivial (~100 MB/month at 20 msgs/day).
+- **Event feed (DECIDED 2026-08-04): SSE + ntfy.** Server-sent events from the scopes
+  server carry live vote state, witnessing tracks, and the web banner; ntfy keeps impact
+  pings and owner alerts. One-directional is all this needs; revisit WebSocket only if
+  devices ever send interactive traffic.
+- **Device tie-in (optional):** tap a printed strip in history → QR/short-link to that
+  message's archive page. On-device audio playback only if the speaker hardware merits it;
+  the web is the listening surface.
+- **Republication posture:** same practice as WebSDR live streams and long-running YouTube
+  EAM archives — traffic is broadcast in the clear worldwide, and EAM content is itself
+  ciphertext. Consistent with §2.
+
+## 10. Sortie economy
+
+- Published structure: flight = 1 LCC + 10 LFs → **your capsule controls 10 missiles,
+  shared between its two seats** (the crew shares one inventory — reinforces the
+  partnership). Squadron pool: 5 × 10 = 50.
+- **Inventory outcomes (DECIDED 2026-08-04) — tiered by fault, not flat:**
+  | Outcome | Inventory effect | Other cost |
+  |---|---|---|
+  | Launched | Expended → regen queue | — (you got the launch + score) |
+  | Missed after commit | **24 h maintenance stand-down**, then returns | Readiness ratio hit + public log entry (the real deterrent) |
+  | Preempted by real traffic | Returned immediately | **None** — "real-world traffic takes precedence," exempt by rule |
+  | Inhibited | Returned immediately | None (griefing never costs the victim a bird) |
+- **Regen rate (DECIDED 2026-08-04): 1 bird / 3 days** — a full rack rebuilds in ~a month,
+  matching the monthly proficiency cycle. A launch spends ~3 days of capacity; a miss's
+  stand-down is a third of that. (Real-world flavor: F.E. Warren publicly retargeted up to
+  22 missiles/month as routine maintenance.)
+- Sortie status ladder (published/status-code folklore, safe at label level): Strategic
+  Alert → Enabled → Launch Commanded → Launch in Progress → CES (Committed Executed
+  Sortie). This is the 10-sortie status board — and a squadron-wide sortie board is
+  literally REACT's advertised feature.
+
+## 11. Visual & UI spec (art bible = released USAF imagery)
+
+| Element | Source | Port |
+|---|---|---|
+| **TODC clock** | Published: Time-of-Day Clock, upper center bay, red 7-segment, spec'd ≤1 s drift/24 h, survives power loss | Idle face: red 7-seg Zulu on black. Countdown to T in same face. (NTP quietly beats the nuclear-hardened spec — README joke.) |
+| **Paper-strip printer** | Center console in crew photos | Messages *print*, teletype pacing, character by character; history = scrollable stack of printed strips |
+| **Padlocks / SAS safe** | Photo shelf padlocks; "SAS safe with two crew locks" (Wikipedia gallery) | Authenticate step visual: locked compartment, two locks, crack the seal. Depict the padlock, never the procedure. |
+| **Fisheye capsule** | The classic crew photo is a round image | Round display = porthole into the LCC: console arc hugging bezel, clock top, printer center |
+| **Palette** | Photos | 7-seg red (time), paper white (traffic), checklist green (interactive), binder tabs / brass padlock (accents) |
+| **Seating** | Published | Commander left, deputy right — pairing screen convention |
+| **Floppy disk** | Published: FDD archives the crew log | Log/session export icon |
+| **Retro-tech flavor** | VAX 810, trackball, Ada, drum-memory ancestry | "Armageddon with a floppy disk and a trackball" — the aesthetic is the joke |
+
+Physical capsule flavor (published, for boot screens/easter eggs): 4.5 ft concrete walls,
+blast door, room suspended as a pendulum on four shock isolators, EMP shielding, sand-filled
+escape tunnel, 2006 "Netlink" internet upgrade (cite when explaining why a nuclear capsule
+aesthetic has Wi-Fi).
+
+## 12. Published constants (cite, don't invent)
+
+| Constant | Value | Source |
+|---|---|---|
+| Cooperative concurrency window | **2 s** | Nuclear Companion |
+| Terminal countdown | **30 s** | Nuclear Companion |
+| Enable minigame | 6 chars, 3+3 split, time-limited | Nuclear Companion |
+| MM III range | 8,700 mi / 14,000 km (targeting range cap) | Wikipedia LGM-30 |
+| Terminal speed | Mach 23 | Wikipedia LGM-30 |
+| MM III CEP | ~800 ft / 240 m (miss-distance benchmark) | Wikipedia LGM-30 |
+| Retarget, CEP mode | 15–30 min realign | Nuclear Companion |
+| Retarget, whole force (REACT) | 10–12 min | Nuclear Companion |
+| Flight sequence | stage 1 ~60 s, stage 3 ~120 s, post-boost ~180 s | Wikipedia LGM-30 sidebar |
+| Force structure | 3 wings, 400 missiles, 450 silos, 45 MAFs, 15/wing; flight = 1 LCC + 10 LF; squadron = 5 flights; **REACT fleet = 50 LCCs** | Wikipedia ×2, Nuclear Companion |
+| Separation | LFs ≥3 mi apart, ≥3 mi from LCC | Wikipedia LGM-30 |
+| Alert tour | 24 h | Wikipedia / photos |
+| TODC drift spec | ≤1 s / 24 h | Nuclear Companion |
+
+Invented freely (public record is silent — per rule §2): T offset distribution, ack window,
+inhibit economics, deviation→distance curve, message-class weights, sortie regen rate,
+choreography of the four-hand split, exercise codenames, payload roster.
+
+## 13. Decisions & remaining work
+
+### Decided 2026-08-05 (walkthrough session)
+
+| Decision | Call |
+|---|---|
+| Ack/commit cutoff | **T−60 s** (snaps stay playable for the quick) |
+| Miss cost | **Tiered stand-down** (see §10 table) |
+| Dead-man timer | **10 minutes** |
+| Enable time limit | **60 seconds** |
+| Regen rate | **1 bird / 3 days** |
+| Seasons | **Monthly proficiency cycle + annual championship** (SCP rotates monthly; impact map wipes annually) |
+| Onboarding | **Certification required** — one full drill on EXERCISE traffic before first live commitment |
+| Impact map | **Seasonal accumulation** — strikes persist all season, wiped at championship |
+| Late copy | **<2 min to T = non-scorable** for that device (no offer, no penalty) |
+| Event feed | **SSE + ntfy** (§9b) |
+| Audio capture | **Squelch-triggered clips** (§9b) |
+| State authority | Server-authoritative votes/launches/records (default adopted) |
+| Callsigns | Length/charset limits + light profanity filter (default adopted) |
+| Self-crewing | Allowed, publicly attributed (default adopted) |
+| Augmentee | Allowed, logged as AUGMENTEE in credits (default adopted) |
+
+### Remaining — build tasks, not decisions
+
+1. **Deputy hold gesture prototype** (gates crew layer): test firmware — draw switch, 10 s
+   hold, log touch events, report dropout rate. Same build also measures **NTP sync
+   accuracy** (sets honest scoring granularity for the deviation leaderboard).
+2. **Firmware UI review** — how the game face coexists with the current monitoring face.
+3. **Blipscope URL migration** (prompt delivered 2026-08-04) — lands before Missileer web
+   surfaces.
+
+### Remaining — content & playtest tunables
+
+Deviation→distance curve (start linear, small deadzone) · message-class weights (tune from
+fleet telemetry, §5) · payload roster · codename wordlists · achievements · certification
+drill script · inhibit-reason dropdown list.
+
+### Superseded — original open-questions list (for the record)
+
+Settled 2026-08-04 (details inline): T offset (5–15 min + rare ~2-min snaps) · solo mode
+(lone vote + dead-man timer, shared ladder) · v1 targeting (FDM-assigned only) · wing
+assignment (choice, populations shown) · fleet witnessing (ambient, participants
+full-screen) · attribution (callsigns on crew/seconder/inhibitor + reason dropdown) ·
+URL convention (/{edition}/{surface}, Blipscope 301).
+
+### A. Gates the v1 solo build
+
+1. **Ack/commit cutoff** — proposed: commitment allowed from decode until **T−60 s**;
+   snaps demand an instant decision by design.
+2. **Missed execution consumes the sortie?** — proposed: **yes**. Ack is optional; don't
+   commit what you can't execute. Makes commitment dramatic.
+3. **NTP sync vs ms scoring** — deviation leaderboard is only honest if fleet clock sync
+   is tighter than displayed precision (ESP32 WiFi NTP jitter typically ±10–50 ms).
+   **Measure on hardware** (same test firmware as the gesture prototype); set score
+   granularity to what the measurement supports.
+4. **Feed latency fairness** — proposed: message arriving with **<2 min to T** is
+   non-scorable for that device (no commitment offered; no penalty, no temptation).
+5. **State authority** — proposed: server-authoritative votes/launches/records; devices
+   report events; trust the 50-unit fleet, revisit at scale.
+6. **UI coexistence with current monitoring face** — needs a firmware/repo review, not a
+   design decision.
+
+### B. Gates the crew layer
+
+7. **Deputy hold gesture** — the known one. Prototype first; a flaky multi-second hold on
+   the CST816 poisons the whole crew mechanic. Test firmware: draw switch, 10 s hold,
+   log touch events, report dropout rate. The number makes the decision.
+8. **Crew formation flow** — largely resolved by the two-seat capsule structure (§8):
+   your capsule-mate IS your standing crew, default partner on mutual ack. Remaining
+   design: cross-capsule fill-in when your capsule-mate is absent (an "augmentee" from
+   the squadron takes the empty seat for one launch — proposed: allowed, logged in the
+   credits as AUGMENTEE); seat/role swap rules within a capsule.
+9. **Self-crewing** (one owner, two devices) — proposed: **allowed and publicly
+   attributed** — the same callsign twice in the credits is the joke, and the fleet sees it.
+10. **Dead-man timer length** — inhibit economics largely dissolved by squadron-scoped
+    voting (§9): the five-person vote network self-polices via attribution + party line.
+    Remaining proposals: timer **10 min**; inhibited sortie **returned** to inventory;
+    reason always logged; one inhibit per capsule per message as a backstop.
+11. **Enable minigame time limit** — proposed: **60 s**.
+
+### C. Gates the web launch
+
+12. **Event channel** — ntfy vs WebSocket/SSE on the scopes server. Proposed: SSE for live
+    vote/witness state; ntfy stays for impact pings & alerts.
+13. **Audio pipeline** — squelch-trigger vs continuous+trim on the Pi; clip format (Opus);
+    retention (keep all — storage trivial).
+14. **Callsign rules** — public pages ⇒ length/charset limits + light profanity filter.
+    Boring, mandatory.
+15. **Blipscope URL migration lands first** (prompt delivered 2026-08-04).
+
+### D. Content & tunables (non-blocking)
+
+16. Season cadence — proposed in §9 (monthly proficiency + annual championship);
+    **awaiting sign-off**.
+17. Deviation→distance curve (start linear, small deadzone) · payload roster · codename
+    wordlists · achievements.
+18. **Onboarding gate** — proposed: short in-fiction **crew certification** (practice
+    drill on EXERCISE traffic) required before first live commitment.
+19. **Persistent impacts** (new idea, 2026-08-04) — proposed: impact markers accumulate on
+    the shared fleet map through the season (the world map slowly fills with
+    shredded-paper strikes — the season's collective artifact); wiped at championship
+    reset.
+
+## 14. Backlog mapping
+
+**#135 (gamify EAM reception):**
+- Passive-scoring objection → resolved: ratio scoring + ack-as-commitment + deviation
+  metric (§4). Leaderboard scores humans, not antennas. Record **votes**, not launches, in
+  the event schema from day one (renaming later is a migration).
+- Tone product call → resolved: player-escalates principle + remote hold flag (§1).
+- Backlog seeding → resolved by construction (§4).
+- Dwell/interruption → resolved: real traffic preempts; it's a mechanic (§4).
+
+**#136 (shredded-paper pack-in):**
+- New tie-in: paper = *recovered payload debris* from the shredded-paper warhead (§7).
+- Constraint stands: invented unit names only; the box must obviously read as a joke;
+  candidate: the edition disclaimer (§1.5) printed on the box.
+- Adjacent pack-in idea: perforated "authenticator card" deck (break-the-seal ritual,
+  invented codes).
+
+**Suggested new issues:** core loop (§3) · scoring (§4) · message taxonomy + T derivation
+(§5–6) · crew pairing & roles (§8) · fleet vote/inhibit layer (§9) · visual spec (§11) ·
+deputy-gesture hardware prototype (§13.3).
+
+## 15. Source register
+
+| Source | What it gave |
+|---|---|
+| USAF missile combat crew photo (public domain) | Art bible: TODC clock, printer, padlocks, binders, fisheye composition, seating, tone register |
+| Nuclear Companion, *"REACT: Armageddon with a floppy disk and trackball!"* (Paul Dent, 2023) | Six-step loop skeleton; split-knowledge enable (6 chars, 3+3); 2 s window; 30 s TCD; NAM/FDM/EAM taxonomy; vote/inhibit/dead-man triad; MRT vs CEP retarget; console components (VDU/RMP/WSP/LEP/LCP/CLS/OID/TODC/FDD); the disclaimer template. Comments = folklore, not source. |
+| Wikipedia, *Rapid Execution and Combat Targeting System* | 1 key + 3 cooperative switches; auto EWO processing; retarget times; REACT era choice |
+| Wikipedia, *Missile launch control center* | LCC hierarchy (ACP/SCP/PLCC) + countermand authority (rank system); HVC party line (squadron social unit); capsule physical details; SAS safe w/ two crew locks; 2-person crew; Netlink |
+| Wikipedia, *LGM-30 Minuteman* | Specs table (range/speed/CEP); MIRV flight sequence; wing/squadron structure + nicknames; ALCS/Looking Glass; ERCS; surviving museum sites (Delta-01/-09, Oscar-Zero, November-33, Quebec-One — reference-photo targets); Sentinel timeline |
+| Wikipedia, *Twentieth Air Force* | Org umbrella over the three wings → Higher Authority fiction + rank-ladder top; 582nd Helicopter Group (UH-1N field security) → idle-screen flavor. WWII lineage deliberately not used. |
+| Wikipedia, *90th Missile Wing* | 3 squadrons × 5 flights = 15 flights/wing (A→O), confirms 45-MAF structure → capsule-picker schema; tri-state field ~9,600 sq mi; first-ICBM-base lineage; Peacekeeper exclusivity (400th MS) → wing cosmetic; Omaha Trophy accolades → wing-trophy shape; Quebec-01 on-base |
+| Wikipedia, *341st Missile Wing* | **Olympic Arena + Blanchard Trophy** (wing-competition model); motto *Pax Orbis per Arma Aerea*; first-Minuteman-wing heritage (Alpha-9, 1962; 1,000th missile; only LGM-30A wing; 564th MS fourth-squadron era); Rivet MILE (maintenance-cycle name shape); monthly proficiency testing as institution. Notable-incidents section is explicitly NOT used (tone rule §1.6). |
+| Wikipedia, *91st Missile Wing* | "Roughriders" / *Poised for Peace* identity kit; 740th/741st/742nd structure confirmed; Minot dual-nuclear-base flavor (5th Bomb Wing B-52s share the base) |
+| minutemanmissile.com, *Missile Guidance System* | Guidance lineage (NS-10Q/D-17B drum computer → NS-17/D-37C → NS-20/D-37D → GRP); gyros spin continuously on alert; platform alignment vs drift → alignment/upkeep mechanic (§6); retro-computing flavor. Enthusiast secondary source — same tier as Nuclear Companion. |
+| NPS Minuteman Missile NHS + state historic sites | Standing citable references; key-turn shape (turn-and-hold); future reference-photo source |
+| priyom.org HFGCS page + mt-milcom EAM primer | EAM arrival-rate characterization ("very common," daily 24/7/365, ~30-char strings); repeats/rebroadcast behavior → dedupe requirement (§5) |
