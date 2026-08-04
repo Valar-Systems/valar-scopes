@@ -73,16 +73,84 @@ struct TrackedAircraft {
     // path doesn't re-request the route every frame while adsbdb is unreachable.
     unsigned long routeRetryAfter = 0;
 
-    // Recent display positions for the fading trail, stored as geographic
-    // coordinates (so they reproject correctly) in a ring buffer sampled once a
-    // second. ~TRAIL_CAPACITY seconds of history.
-    struct TrailPoint { float lat; float lon; };
-    static constexpr int TRAIL_CAPACITY = 60;
-    static constexpr unsigned long TRAIL_SAMPLE_MS = 1000;
+    // REPORTED FIXES for the fading trail -- not display positions -- stored as
+    // geographic coordinates (so they reproject correctly) in a ring buffer, one
+    // entry per distinct fix.
+    //
+    // THIS USED TO SAMPLE GetDisplayPosition() ONCE A SECOND, and that is what
+    // made stale data look broken. The display position is dead-reckoned AND
+    // blended, so on a stale feed the trail recorded, in order: the extrapolated
+    // guess, then the renderer sweeping the marker SIDEWAYS onto the true fix
+    // when it finally arrived, then the resumed track. That lateral excursion is
+    // a path no aircraft ever flew -- it is the renderer catching up -- and it
+    // drew as a zig-zag that got uglier the longer the drought ran.
+    //
+    // Recording the FIX removes the artifact by construction rather than
+    // smoothing it away: every point is a position the aircraft actually
+    // reported. During a drought the trail simply stops growing while the marker
+    // dead-reckons on, which reads as "the trail paused" instead of "the
+    // aircraft convulsed". The draw loop already joins the newest point to the
+    // live marker, so the trail stays attached with no gap.
+    //
+    // NB the obvious fix -- skip sampling while blendAlpha < 1 -- would have
+    // stopped trails almost entirely: blendSpeed 0.15 needs ~6.7 s to complete
+    // and the active cloud poll is 5 s, so blendAlpha is reset before it ever
+    // reaches 1.0 and that condition is almost never true.
+    //
+    // TRAIL LENGTH IS AN AGE, NOT A COUNT, and it has to be: sampling is
+    // fix-driven, so a pure count cap would tie trail DURATION to poll cadence
+    // and give the shortest trail in the best mode. A local receiver polls at
+    // 1 Hz, so 16 fixes there is a 16-second trail; the 5 s cloud poll would
+    // draw 80 s from the same buffer.
+    //
+    // Duration is held constant by three rules together -- an age cap alone is
+    // not enough, because at 1 Hz a 90 s window wants 90 points and the buffer
+    // holds 60, so capacity would bind first and cadence would leak back in:
+    //
+    //   1. dedupe          -- only a CHANGED fix is ever appended
+    //   2. min interval    -- at most one point per TRAIL_MIN_INTERVAL_S
+    //   3. age expiry      -- points older than TRAIL_MAX_AGE_S are dropped
+    //
+    // The interval must satisfy MAX_AGE / INTERVAL <= CAPACITY, or capacity binds
+    // first and cadence leaks straight back in. 90 / 2 = 45 points worst case
+    // against a 60-entry buffer, so AGE is always the limit that fires and the
+    // duration is identical in every mode. Everything is whole SECONDS
+    // deliberately: at a 2 s floor sub-second precision buys nothing, and a
+    // seconds/millis mix is exactly where an off-by-1000 hides.
+    //
+    // Simulated over a 10-minute run (see the PR): span is 89 s in every mode
+    // that can fill the window, and the point COUNT absorbs the cadence instead.
+    //
+    //   local receiver 1 Hz   -> point every 2 s,  45 points, 89 s
+    //   cloud active   5 s    -> point every 5 s,  18 points, 89 s
+    //   OpenSky        ~10 s  -> point every 10 s,  9 points, 89 s
+    //   cloud idle     15 s   -> point every 15 s,  6 points, 89 s
+    //   cloud night    60 s   -> point every 60 s,  1 point,  <=60 s  (see below)
+    //
+    // THE NIGHT POLL IS A GENUINE EXCEPTION, not a policy failure: at 60 s only
+    // one or two fixes exist inside a 90 s window at all, so there is no history
+    // to draw and no sampling rule can invent one. It degenerates to a 1-2 point
+    // stub. Acceptable -- that cadence only runs when the room is dark and the
+    // display is dimmed -- but it is the one mode where trail length still tracks
+    // the feed. Raising MAX_AGE past 120 s would fix it and cost trail relevance
+    // everywhere else; not worth it.
+    //
+    // Timestamps are SECONDS since boot in a uint16 rather than millis in a
+    // uint32: 4 bytes/point over a 60-entry buffer is 14 KB across a full
+    // contact table on a device that counts contiguous heap. It wraps every
+    // 18.2 h, which is harmless here because elapsed is computed by unsigned
+    // subtraction and every point is expired at 90 s -- an age this arithmetic
+    // could misread would have to survive 18 hours in a buffer that drops it
+    // after ninety seconds.
+    struct TrailPoint { float lat; float lon; uint16_t sec; };
+    static constexpr int      TRAIL_CAPACITY       = 60;
+    static constexpr uint16_t TRAIL_MAX_AGE_S      = 90;
+    static constexpr uint16_t TRAIL_MIN_INTERVAL_S = 2; // >= ceil(MAX_AGE / CAPACITY)
+    static_assert(TRAIL_MAX_AGE_S / TRAIL_MIN_INTERVAL_S <= TRAIL_CAPACITY,
+                  "trail would fill by COUNT before AGE -- duration becomes poll-cadence dependent");
     TrailPoint trail[TRAIL_CAPACITY];
     int trailWrite = 0;                 // index of the next slot to overwrite
     int trailCount = 0;                 // valid points so far (<= TRAIL_CAPACITY)
-    unsigned long lastTrailSample = 0;
 
     // Radar "paint" state for the PPI sweep. With the sweep enabled, a blip's
     // drawn position is latched here the moment the rotating beam crosses its
@@ -122,20 +190,55 @@ struct TrackedAircraft {
         float deltaSeconds = (now - lastTick) / 1000.0f;
         lastTick = now;
 
-        const float blendSpeed = 0.15f; // lower = slower, higher = faster
+        // 0.25 -> the blend completes in 4 s, INSIDE the 5 s active cloud poll.
+        //
+        // It was 0.15, which needs ~6.7 s: longer than the poll, so every update
+        // reset blendAlpha before it ever reached 1.0 and the marker was
+        // permanently mid-correction, chasing a target it never caught. 0.20 was
+        // rejected deliberately -- it completes in exactly the poll interval,
+        // which is the boundary case of the same defect and would tip back into
+        // it on any jitter or a slightly faster cadence.
+        const float blendSpeed = 0.25f; // lower = slower, higher = faster
         blendAlpha = min(blendAlpha + deltaSeconds * blendSpeed, 1.0f);
     }
 
-    // Append the current display position to the trail at most once per
-    // TRAIL_SAMPLE_MS; call every frame (it self-throttles).
+    // Append the latest REPORTED FIX to the trail, if it is a new one. Call every
+    // frame (or every sweep pass): it self-dedupes, so there is no timer.
+    //
+    // Exact float compare is the right test here rather than a distance epsilon:
+    // the feed quantizes position, so an unchanged fix is bit-identical, and
+    // "the value did not change" is precisely the condition we want. A drought
+    // therefore appends nothing at all, which is the whole point.
     void SampleTrail() {
-        unsigned long now = millis();
-        if (trailCount > 0 && now - lastTrailSample < TRAIL_SAMPLE_MS)
-            return;
-        lastTrailSample = now;
+        const uint16_t nowSec = (uint16_t)(millis() / 1000UL);
 
-        auto [lat, lon] = GetDisplayPosition();
-        trail[trailWrite] = { lat, lon };
+        // Expire FIRST, and unconditionally -- ageing must keep running through a
+        // drought, when no new fix arrives to trigger it. Reducing trailCount
+        // drops the oldest points, because TrailPointAt indexes back from
+        // trailWrite. Oldest-first order means the first survivor ends the walk.
+        while (trailCount > 0) {
+            const int oldest = (trailWrite - trailCount + TRAIL_CAPACITY) % TRAIL_CAPACITY;
+            if ((uint16_t)(nowSec - trail[oldest].sec) <= TRAIL_MAX_AGE_S)
+                break;
+            --trailCount;
+        }
+
+        const float lat = state.latitude;
+        const float lon = state.longitude;
+        if (trailCount > 0) {
+            const int last = (trailWrite - 1 + TRAIL_CAPACITY) % TRAIL_CAPACITY;
+            // Same fix as last time: nothing new was reported. Exact compare is
+            // the right test -- the feed quantizes position, so an unchanged fix
+            // is bit-identical and "the value did not change" is the condition.
+            if (trail[last].lat == lat && trail[last].lon == lon)
+                return;
+            // A changed fix, but too soon: a 1 Hz local receiver would otherwise
+            // fill the buffer in 60 s and cap the trail by COUNT, reintroducing
+            // the cadence dependence this interval exists to remove.
+            if ((uint16_t)(nowSec - trail[last].sec) < TRAIL_MIN_INTERVAL_S)
+                return;
+        }
+        trail[trailWrite] = { lat, lon, nowSec };
         trailWrite = (trailWrite + 1) % TRAIL_CAPACITY;
         if (trailCount < TRAIL_CAPACITY)
             ++trailCount;
