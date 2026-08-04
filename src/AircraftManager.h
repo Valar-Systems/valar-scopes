@@ -601,6 +601,9 @@ private:
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal
     void HandleSwipe(Swipe swipe);  // route a swipe to navigation / pin
     void ExitDetail();              // leave the detail card and free its ~15 KB photo sprite
+    // Backfill the logbook from contacts already on screen when it is switched on
+    // mid-session. EDGE-ONLY (NoteContact is an odometer); see the definition.
+    void SeedLogbookFromTracked();
 
     // Resolve the selected aircraft's metadata, route, then photo. Each step is
     // handed to the enrichment task and applied when it returns, so the card fills

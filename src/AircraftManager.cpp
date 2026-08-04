@@ -669,6 +669,10 @@ void AircraftManager::Initialise()
 
     // spotting logbook: when on, learn each contact's type/airline (so it needs
     // the adsbdb enrichment) and start the persistent store once.
+    //
+    // The PREVIOUS state is captured because turning the logbook on mid-session
+    // has to backfill from what is already on screen -- see the seed call below.
+    const bool logbookWasEnabled = logbookEnabled;
     const String logbookStr = configServer.GetStoredString("logbook");
     logbookEnabled = logbookStr.isEmpty() ? false : (logbookStr == "true");
     if (logbookEnabled) {
@@ -690,6 +694,23 @@ void AircraftManager::Initialise()
         lastLeaderboardSubmit = 0; // submit promptly after (re)initialise
     }
 #endif
+
+    // BACKFILL WHEN THE LOGBOOK IS SWITCHED ON MID-SESSION. Checked here, after
+    // the leaderboard block, because opting into the leaderboard forces the
+    // logbook on too and that edge has to seed as well.
+    //
+    // Without this the toggle silently did nothing until unfamiliar traffic
+    // wandered into range. The logbook is only ever written where a contact is
+    // FIRST emplaced, so every aircraft already on screen had been emplaced
+    // before the toggle and never revisited that branch -- contacts stayed 0, no
+    // type was ever noted, and because ClaimType() rejects a type that was never
+    // seen, tapping those aircraft produced no claim AND no toast. The owner taps,
+    // nothing happens, and nothing says why: exactly the "did that do anything?"
+    // failure the claim confirmation exists to prevent. It hits everyone who
+    // enables the logbook while their scope is already populated, which is the
+    // only way anyone would ever do it.
+    if (logbookEnabled && !logbookWasEnabled)
+        SeedLogbookFromTracked();
 
     // "look up!" overhead alert. The distance is entered in the same unit as the
     // radar radius; store it in km for the centre-distance comparison.
@@ -3519,6 +3540,47 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
     }
 
     wasTouched = touched;
+}
+
+// Backfill the logbook from contacts already being tracked, for the moment the
+// owner switches the logbook (or the leaderboard) on with a populated scope.
+//
+// Deliberately mirrors the two places the logbook is normally written -- the
+// first-emplacement branch in the merge, and ApplyEnrichment -- rather than
+// inventing a third path, so a contact seeded here is indistinguishable from one
+// that arrived a second later. Enrichment fields are only noted when already
+// present: an unenriched contact is left alone and picked up by ApplyEnrichment
+// in the normal way when its lookup lands.
+//
+// NoteContact is an odometer, so this is an EDGE-ONLY call (Initialise runs on
+// every config save; seeding on each one would inflate the count by the size of
+// the sky every time somebody pressed Save).
+void AircraftManager::SeedLogbookFromTracked()
+{
+    if (trackedAircraft.empty())
+        return;
+
+    uint16_t seededTypes = 0, seededOps = 0, seededPorts = 0, seededCountries = 0;
+    for (auto& kv : trackedAircraft) {
+        TrackedAircraft& t = kv.second;
+        logbook.NoteContact();
+        if (logbook.NoteCountry(t.state.originCountry)) ++seededCountries;
+        if (!t.typeCode.isEmpty()) {
+            if (logbook.NoteType(t.typeCode)) ++seededTypes;
+            // Same live question ApplyEnrichment asks: is this type unclaimed?
+            // Without it the gold NEW badge would not appear until the contact
+            // happened to be re-enriched, and the owner would be looking at a
+            // scope full of claimable aircraft that do not say so.
+            t.claimable = !logbook.IsTypeClaimed(t.typeCode);
+        }
+        if (!t.operatorName.isEmpty() && logbook.NoteOperator(t.operatorName)) ++seededOps;
+        if (logbook.NoteAirport(t.routeOrigin)) ++seededPorts;
+        if (logbook.NoteAirport(t.routeDest)) ++seededPorts;
+    }
+    Serial.printf("[logbook] seeded from %u contact(s) already tracked: "
+                  "%u types, %u airlines, %u countries, %u airports\n",
+                  (unsigned)trackedAircraft.size(), (unsigned)seededTypes,
+                  (unsigned)seededOps, (unsigned)seededCountries, (unsigned)seededPorts);
 }
 
 void AircraftManager::ExitDetail()
