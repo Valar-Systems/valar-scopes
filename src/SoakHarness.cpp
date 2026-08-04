@@ -40,6 +40,36 @@ namespace {
     unsigned long bursts = 0, presses = 0;
     uint32_t minLargest = UINT32_MAX;
 
+    // ---- detail-card dwell ---------------------------------------------------
+    // A single tap that lands on an aircraft opens its detail card, and NOTHING in
+    // the product closes it: ExitDetail() is only ever reached from another tap,
+    // there is no timeout. So before this existed, a card opened by one burst
+    // stayed open until the NEXT burst 6-16 minutes later.
+    //
+    // That is not a cosmetic detail, it silently aims the whole run at the wrong
+    // code path. The gate's criteria are steady-state RADAR criteria, and
+    // IsRadarView() is `screen == Radar && !inDetail`:
+    //
+    //   - touch is serialized against TLS only on the radar view; on the detail
+    //     card HandleTouch is deliberately UNGATED so close-taps stay instant. The
+    //     touch-vs-TLS contention this soak lineage exists to hunt therefore is
+    //     not under test at all while a card is up.
+    //   - the sweep is not rendering, so frame-budget breaches are not sampled
+    //     against the load the budget was set for.
+    //   - the card holds a ~15 KB photo sprite that ExitDetail() frees, so
+    //     minLargest is measured against an allocation profile the device does not
+    //     spend most of its life in.
+    //
+    // A human who opens a card reads it for a few seconds and closes it, which is
+    // what "human-scale duty" is supposed to mean. So when a card is open the wait
+    // collapses to a plausible dwell and the next press is a close tap. Costs
+    // ~30-40 extra presses/day (~155 -> ~190), which is if anything closer to a
+    // real owner than the original figure.
+    constexpr long DWELL_MIN_S = 8, DWELL_MAX_S = 25;
+    bool dwelling = false;      // the shortened wait is a card dwell, not a burst gap
+    bool forceCloseTap = false; // next press must dismiss the open card
+    unsigned long cardDismissals = 0;
+
     // ---- the script: one burst every 6-16 min (mean ~11 -> ~131 bursts/day),
     //      each 60% single tap / 20% double-tap / 20% swipe (~1.2 presses/burst
     //      -> ~155 presses/day, the "human-scale" duty the gate specifies). ----
@@ -68,8 +98,22 @@ namespace {
 
     void StartBurst(unsigned long now)
     {
-        bursts++;
         constexpr int C = SCREEN_SIZE / 2;
+
+        // Dismissing an open card is not a burst -- it is the tail of the burst
+        // that opened it, so it must not inflate the burst count the duty figure
+        // is read from. A short press near centre lands on the card and closes it.
+        if (forceCloseTap) {
+            forceCloseTap = false;
+            dwelling = false;
+            cardDismissals++;
+            BeginPress(C + (int)RandIn(-20, 20), C + (int)RandIn(-20, 20),
+                       C + (int)RandIn(-20, 20), C + (int)RandIn(-20, 20),
+                       RandIn(70, 130), now);
+            return;
+        }
+
+        bursts++;
         const uint32_t roll = Rand() % 100;
         if (roll < 60) { // single tap somewhere plausible on the scope
             const float ang = (float)(Rand() % 628) / 100.0f;
@@ -136,13 +180,33 @@ void SoakHarness::Tick(AircraftManager& mgr)
             minLargest = largest;
     }
 
+    // Card left open by the burst that just ended: collapse the 6-16 min gap to a
+    // reading dwell and make the next press dismiss it (see DWELL_MIN_S above).
+    // Only from Wait, so a burst mid-flight is never cut short, and only once per
+    // card -- `dwelling` keeps this from re-arming every loop while the dwell runs.
+    if (phase == Phase::Wait && !dwelling && !forceCloseTap && mgr.DetailCardOpen()) {
+        dwelling = true;
+        forceCloseTap = true;
+        phaseEndMs = now + (unsigned long)RandIn(DWELL_MIN_S, DWELL_MAX_S) * 1000UL;
+    }
+    // The card can also close without us -- a real finger during bench testing, or
+    // the second press of a double-tap burst. Disarm rather than fire a close tap
+    // at a radar that no longer has a card on it, which would OPEN one instead and
+    // invert the fix.
+    if (dwelling && !mgr.DetailCardOpen()) {
+        dwelling = false;
+        forceCloseTap = false;
+        ScheduleNextBurst(now);
+    }
+
     if (now - lastStatsMs >= STATS_EVERY_MS) {
         lastStatsMs = now;
         const auto& wd = TouchWatchdog::GetStats();
         const unsigned long up = (now - startMs) / 1000UL;
         const uint32_t gateBreaches = warmedUp ? mgr.BudgetBreachCount() - breachBase : 0;
-        Serial.printf("[soak] up=%02lu:%02lu:%02lu presses=%lu bursts=%lu | wd wedges=%lu recov=%lu/%lu (s%lu/h%lu) wakes=%lu maxOutage=%lums rebootRec=%lu | breaches=%lu heap=%u minLargest=%u trend=%+ld allocFail=%lu hardFail=%lu%s\n",
+        Serial.printf("[soak] up=%02lu:%02lu:%02lu presses=%lu bursts=%lu cards=%lu%s | wd wedges=%lu recov=%lu/%lu (s%lu/h%lu) wakes=%lu maxOutage=%lums rebootRec=%lu | breaches=%lu heap=%u minLargest=%u trend=%+ld allocFail=%lu hardFail=%lu%s\n",
                       up / 3600, (up / 60) % 60, up % 60, presses, bursts,
+                      cardDismissals, mgr.DetailCardOpen() ? " CARD-OPEN" : "",
                       (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
                       (unsigned long)wd.recoverAttempts, (unsigned long)wd.softRecoveries,
                       (unsigned long)wd.hardRecoveries, (unsigned long)wd.wakes,
