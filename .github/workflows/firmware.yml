@@ -38,6 +38,23 @@ jobs:
       - name: Every config page is a single whole form
         run: python scripts/check-config-form.py
 
+  # The ICAO country table is binary-searched, so "sorted and non-overlapping" is a
+  # correctness precondition rather than a style rule -- and breaking it produces no
+  # compiler error, just a few addresses that silently resolve to the wrong country
+  # (or to none) and land as permanent wrong entries in an owner's lifelist.
+  # --selftest first, same reasoning as config-form above.
+  icao-country:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the checker catches each violation
+        run: node scripts/check_icao_country.mjs --selftest
+      - name: ICAO country table is sorted, non-overlapping, and resolves correctly
+        run: node scripts/check_icao_country.mjs
+
   build:
     runs-on: ubuntu-latest
     strategy:

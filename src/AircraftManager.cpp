@@ -8,6 +8,7 @@
 #include <WiFi.h> // WiFi.localIP() for the device address on the Stats screen
 
 #include "SpecialAircraft.h"
+#include "IcaoCountry.h"      // origin country from the ICAO address, for feeds that omit it
 #include "DeviceIdentity.h"
 #include "Layout.h"
 #include "Board.h"
@@ -1917,11 +1918,27 @@ void AircraftManager::ConsumeFetchResult()
         }
 
         for (auto& ac : res->aircraft) {
+            // Country of registration, when the feed did not supply one. OpenSky
+            // sends it in state[2]; the cloud feed and a local dump1090/readsb do
+            // not, which left the highest-scoring logbook category (25 pts each)
+            // reading "0 of 0 countries" forever on the DEFAULT feed -- not merely
+            // unpopulated but unwinnable. Derived from the ICAO address block that
+            // is already on the wire, so it costs no extra bytes on a poll that is
+            // near its payload ceiling.
+            //
+            // Fallback ONLY, and deliberately before the emplace so the detail
+            // card, the logbook, and the claim all see the same value: a feed that
+            // does send a country stays authoritative, so an existing OpenSky
+            // lifelist keeps the exact strings it was built with rather than
+            // gaining near-duplicates under our shorter names.
+            if (ac.originCountry.isEmpty())
+                ac.originCountry = IcaoCountry::Lookup(ac.icao24);
+
             auto it = trackedAircraft.find(ac.icao24);
             if (it == trackedAircraft.end()) {
                 auto emplaced = trackedAircraft.emplace(ac.icao24, TrackedAircraft{ ac, now });
                 // a fresh contact entered range: bump the odometer and log its
-                // origin country (the one logbook field the feed gives us directly).
+                // origin country (now known on every feed -- see the fallback above).
                 if (logbookEnabled) {
                     logbook.NoteContact();
                     logbook.NoteCountry(ac.originCountry);
