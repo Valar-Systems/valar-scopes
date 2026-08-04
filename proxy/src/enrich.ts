@@ -282,7 +282,17 @@ export async function handleEnrich(
     d: route.d,
   };
   if (photo) {
-    body.p = `/v1/photo/${photo.key}`;
+    // The photo path is SERVER-SUPPLIED: firmware treats it as an opaque string
+    // and concatenates it onto its cloud base, so changing it here moves the
+    // whole fleet -- including devices that will never take another OTA -- the
+    // instant this deploys, with no firmware change at all. The Worker deploy is
+    // atomic, so the new /api/v1/blipscope/photo route exists before any device
+    // can be handed this string.
+    //
+    // The /api/v1/blipscope/photo alias is kept anyway, for URLs already cached on a device
+    // across the deploy moment, and so the deprecation story is the same for all
+    // six endpoints rather than five-plus-a-special-case.
+    body.p = `/api/v1/blipscope/photo/${photo.key}`;
     body.pk = photo.kind; // "hex" (per-airframe) | "type" (generic -> "representative photo")
   }
   return jsonResponse(body);

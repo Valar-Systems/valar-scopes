@@ -20,9 +20,17 @@ async function captureLogs<T>(fn: () => Promise<T>): Promise<{ result: T; events
   }
 }
 
+// Edition-namespaced paths (docs/web-url-convention.md). The deprecated
+// unprefixed ones still work -- pages by 301, APIs by internal alias -- and that
+// is asserted as its own contract in "legacy URL compatibility" below rather
+// than by leaving the rest of the suite pointed at the old paths, which would
+// have tested the aliases everywhere and the real paths nowhere.
+const API = "/api/v1/blipscope";
+const PAGE = "/blipscope";
+
 // A leaderboard submit: authed POST with a JSON body.
-function submit(body: unknown, headers: Record<string, string> = {}): Request {
-  return new Request("https://proxy.test/v1/leaderboard", {
+function submit(body: unknown, headers: Record<string, string> = {}, path = `${API}/leaderboard`): Request {
+  return new Request(`https://proxy.test${path}`, {
     method: "POST",
     headers: { "X-Blip-Key": TEST_KEY, "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
@@ -58,7 +66,7 @@ describe("POST /v1/leaderboard", () => {
 
   it("rejects malformed bodies and unauthed requests", async () => {
     expect((await call(submit({ id: "nope" }))).status).toBe(400);
-    const noKey = new Request("https://proxy.test/v1/leaderboard", {
+    const noKey = new Request(`https://proxy.test${API}/leaderboard`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: ID_A }),
@@ -124,7 +132,7 @@ describe("public leaderboard pages", () => {
       claimed: { types: 1, airlines: 9, countries: 4, airports: 5 },
       claimedTypes: ["A320"],
     }));
-    const res = await call(new Request("https://proxy.test/leaderboard.json"));
+    const res = await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`));
     expect(res.status).toBe(200);
     // A browser page, not a device: this route overrides the shared no-store.
     expect(res.headers.get("Cache-Control")).toContain("max-age=60");
@@ -152,7 +160,7 @@ describe("public leaderboard pages", () => {
     // point is that each scope reports ITS OWN points under the same key, which
     // is what lets the page render a row without knowing which tab it is on.
     await call(submit({ id: ID_A, name: "Alpha", claimed: { airlines: 20 }, claimedTypes: ["A320", "B738"] }));
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     const life = body.lifetime.rows.find((r: any) => r.name === "Alpha");
     const seas = body.season.rows.find((r: any) => r.name === "Alpha");
 
@@ -170,7 +178,7 @@ describe("public leaderboard pages", () => {
 
   it("serves the board page as static markup that fetches its own data", async () => {
     await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 15 }, claimedTypes: ["A320"] }));
-    const page = await call(new Request("https://proxy.test/leaderboard"));
+    const page = await call(new Request(`https://proxy.test${PAGE}/leaderboard`));
     expect(page.status).toBe(200);
     expect(page.headers.get("Content-Type")).toContain("text/html");
     const html = await page.text();
@@ -178,13 +186,13 @@ describe("public leaderboard pages", () => {
     // Static: no spotter name is templated in. The page fetches the JSON itself,
     // which is what lets the markup be iterated on without touching scoring.
     expect(html).not.toContain("Alpha");
-    expect(html).toContain("fetch('/leaderboard.json')");
+    expect(html).toContain("fetch('/blipscope/leaderboard.json')");
     expect(html).toContain("Spotting Leaderboard");
   });
 
   it("still renders a device profile server-side", async () => {
     await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 15 }, claimedTypes: ["A320"] }));
-    const profile = await call(new Request(`https://proxy.test/leaderboard/${ID_A}`));
+    const profile = await call(new Request(`https://proxy.test${PAGE}/leaderboard/${ID_A}`));
     expect(profile.status).toBe(200);
     const html = await profile.text();
     expect(html).toContain("Alpha");
@@ -192,13 +200,13 @@ describe("public leaderboard pages", () => {
   });
 
   it("404s an unknown profile id and 400s a malformed one", async () => {
-    expect((await call(new Request("https://proxy.test/leaderboard/deadbeef"))).status).toBe(404);
-    expect((await call(new Request("https://proxy.test/leaderboard/xyz"))).status).toBe(404); // no route match -> not_found
+    expect((await call(new Request(`https://proxy.test${PAGE}/leaderboard/deadbeef`))).status).toBe(404);
+    expect((await call(new Request(`https://proxy.test${PAGE}/leaderboard/xyz`))).status).toBe(404); // no route match -> not_found
   });
 
   it("awards the First! badge to the earliest logger of a type", async () => {
     await call(submit({ id: ID_A, name: "Alpha", claimed: {}, claimedTypes: ["A320"] }));
-    const profile = await call(new Request(`https://proxy.test/leaderboard/${ID_A}`));
+    const profile = await call(new Request(`https://proxy.test${PAGE}/leaderboard/${ID_A}`));
     expect(await profile.text()).toContain("First!");
   });
 });
@@ -218,7 +226,7 @@ describe("tap-to-claim scoring (v2)", () => {
     // Stored, but absent from the board: a big SEEN tally must earn nothing.
     expect(body.points).toBe(0);
     expect(body.rank).toBe(0);
-    const board = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const board = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     expect(board.lifetime.rows).toHaveLength(0);
     expect(board.season.rows).toHaveLength(0);
   });
@@ -257,7 +265,7 @@ describe("tap-to-claim scoring (v2)", () => {
         claimedTypes: ["A320", "B738"],
       }),
     );
-    const html = await (await call(new Request(`https://proxy.test/leaderboard/${ID_A}`))).text();
+    const html = await (await call(new Request(`https://proxy.test${PAGE}/leaderboard/${ID_A}`))).text();
     expect(html).toContain("Types claimed");
     expect(html).toContain("of 153 seen"); // the denominator is visible, and is not the score
   });
@@ -284,6 +292,147 @@ describe("tap-to-claim scoring (v2)", () => {
     );
     const body = (await res.json()) as { points: number };
     expect(body.points).toBe(10 + 5); // unchanged by the seen flood
+  });
+});
+
+describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
+  // PAGES REDIRECT. Browsers follow 301s and a permanent redirect is what gets a
+  // bookmark rewritten. Every page path already in someone's history, and on the
+  // config page of every device that has not taken an OTA, arrives here.
+  it("301s every deprecated page path to its namespaced equivalent", async () => {
+    const moves: Array<[string, string]> = [
+      ["/leaderboard", "/blipscope/leaderboard"],
+      ["/leaderboard.json", "/blipscope/leaderboard.json"],
+      [`/leaderboard/${ID_A}`, `/blipscope/leaderboard/${ID_A}`],
+    ];
+    for (const [from, to] of moves) {
+      const res = await call(new Request(`https://proxy.test${from}`, { redirect: "manual" }));
+      expect(res.status, `${from} should 301`).toBe(301);
+      expect(new URL(res.headers.get("Location") as string).pathname, `${from} target`).toBe(to);
+    }
+  });
+
+  it("preserves the query string through a page redirect", async () => {
+    // A dropped query turns a redirect into a subtly different request, and the
+    // page would render without noticing.
+    const res = await call(new Request("https://proxy.test/leaderboard.json?scope=season", { redirect: "manual" }));
+    const loc = new URL(res.headers.get("Location") as string);
+    expect(loc.pathname).toBe("/blipscope/leaderboard.json");
+    expect(loc.search).toBe("?scope=season");
+  });
+
+  // APIS MUST NOT REDIRECT. Deployed ESP32 firmware is not guaranteed to follow a
+  // 301, and on the submit POST following one would mean re-sending the body. A
+  // redirect here breaks the whole fleet on deploy and looks like an outage.
+  it("NEVER redirects an API path -- the aliases are internal", async () => {
+    const legacy = ["/v1/blips", "/v1/config", "/v1/airports", "/v1/enrich/abc123", "/v1/photo/whatever"];
+    for (const p of legacy) {
+      const res = await call(new Request(`https://proxy.test${p}`, {
+        headers: { "X-Blip-Key": TEST_KEY },
+        redirect: "manual",
+      }));
+      expect([301, 302, 307, 308], `${p} must not redirect`).not.toContain(res.status);
+    }
+  });
+
+  it("serves the leaderboard POST identically on both path families", async () => {
+    const payload = { id: ID_A, name: "Twin", claimed: { airlines: 3, countries: 2, airports: 4 }, claimedTypes: ["A320", "B738"] };
+    const viaNew = await call(submit(payload));
+    const viaOld = await call(submit(payload, {}, "/v1/leaderboard"));
+    expect(viaOld.status).toBe(viaNew.status);
+    // Same handler, so the second submit is simply idempotent against the first:
+    // identical stored row, identical standing back.
+    expect(await viaOld.json()).toEqual(await viaNew.json());
+  });
+
+  it("rejects an unauthed legacy API call exactly as the namespaced one does", async () => {
+    // The alias must not slip past the auth gate. A prefix that fails to reach
+    // that check is not a 404, it is an endpoint without authentication.
+    for (const p of [`${API}/blips`, "/v1/blips"]) {
+      const res = await call(new Request(`https://proxy.test${p}`));
+      expect(res.status, `${p} unauthed`).toBe(401);
+    }
+  });
+
+  it("still 405s a POST to a non-submit endpoint on both families", async () => {
+    for (const p of [`${API}/blips`, "/v1/blips"]) {
+      const res = await call(new Request(`https://proxy.test${p}`, {
+        method: "POST",
+        headers: { "X-Blip-Key": TEST_KEY },
+        body: "{}",
+      }));
+      expect(res.status, `${p} POST`).toBe(405);
+    }
+  });
+
+  it("404s an unknown endpoint on both families, and anything outside them", async () => {
+    for (const p of [`${API}/nope`, "/v1/nope"]) {
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      expect(res.status, p).toBe(404);
+    }
+    // Not an API prefix at all -> 404 before auth, and NOT routed into a handler.
+    const stray = await call(new Request("https://proxy.test/api/v1/missileer/blips", { headers: { "X-Blip-Key": TEST_KEY } }));
+    expect(stray.status).toBe(404);
+  });
+
+  // EDITION ISOLATION. The normalizer strips EXACTLY TWO prefixes -- /v1/ and
+  // /api/v1/blipscope/ -- and must never be loosened to a general /api/v1/*/
+  // match. If it were, another edition's path would normalize into a Blipscope
+  // handler, and this Worker would answer for a product it knows nothing about:
+  // /api/v1/missileer/leaderboard would silently write a Missileer submission
+  // into Blipscope's KV. Edition isolation is the entire point of the prefix, so
+  // it gets a test rather than a comment.
+  it("404s another edition's namespace instead of normalizing it", async () => {
+    const foreign = [
+      "/api/v1/missileer/blips",
+      "/api/v1/missileer/leaderboard",
+      "/api/v1/orbitscope/config",
+      "/api/v1/quakescope/airports",
+      "/api/v1/missileer/enrich/abc123",
+    ];
+    for (const p of foreign) {
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      expect(res.status, `${p} must not reach a Blipscope handler`).toBe(404);
+    }
+  });
+
+  it("404s near-miss prefixes -- exactly two are stripped, not a wildcard", async () => {
+    const nearMiss = [
+      "/api/v1/blips", // no edition segment
+      "/api/blipscope/blips", // no version segment
+      "/api/v1/blipscope", // prefix without a trailing slash or endpoint
+      "/v2/blips", // wrong version
+      "/blipscope/blips", // page namespace, not the API one
+    ];
+    for (const p of nearMiss) {
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      expect(res.status, `${p} must not route`).toBe(404);
+    }
+  });
+
+  it("does not let another edition's leaderboard path write a Blipscope row", async () => {
+    // The strongest form of the isolation claim: not "a different status code"
+    // but "no handler ran at all". A status assertion alone would still pass if
+    // the submit were processed and then something later returned an error.
+    const body = { id: ID_A, name: "Foreign", claimed: { airlines: 9 }, claimedTypes: ["A320", "B738"] };
+    const res = await call(new Request("https://proxy.test/api/v1/missileer/leaderboard", {
+      method: "POST",
+      headers: { "X-Blip-Key": TEST_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+    expect(res.status).not.toBe(200);
+    // Nothing was stored under any key, so the handler was never entered.
+    expect(await env.ENRICH_KV.get(`lb:dev:${ID_A}`)).toBeNull();
+    const board = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
+    expect(board.lifetime.rows).toHaveLength(0);
+  });
+
+  it("emits the namespaced photo path in the enrich response", async () => {
+    // Server-supplied and treated as opaque by firmware, so this string alone
+    // moves the fleet's photo fetches -- it is the one path with no OTA gate.
+    const { leaderboardHtml } = await import("../src/pages.generated");
+    expect(leaderboardHtml).toContain("/blipscope/leaderboard.json");
+    expect(leaderboardHtml).not.toContain("fetch('/leaderboard.json')");
   });
 });
 
@@ -355,14 +504,14 @@ describe("the deploy gate", () => {
   // machine-readable marker. This test is what stops that marker being renamed
   // without anyone noticing the deploy check had silently stopped checking.
   it("exposes the scoring marker the deploy runbook greps for", async () => {
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     expect(body.scoring).toBe("claims-v2");
   });
 
   it("keeps the marker present on an empty board", async () => {
     // The reset empties every row, and step 2 may well run against a board with
     // nothing on it. The marker must not depend on there being data.
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     expect(body.lifetime.rows).toHaveLength(0);
     expect(body.scoring).toBe("claims-v2");
   });
@@ -381,7 +530,7 @@ describe("season category leaders", () => {
       claimed: { types: 4, airlines: 30, countries: 5, airports: 12 },
       claimedTypes: ["A320", "B738", "C17", "B77W"],
     }));
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     expect(body.season.leaders.types).toEqual({ name: "Redmond Radar", count: 4 });
     expect(body.lifetime.leaders.types).toEqual({ name: "Redmond Radar", count: 4 });
   });
@@ -396,7 +545,7 @@ describe("season category leaders", () => {
       claimed: { types: 4, airlines: 30, countries: 5, airports: 12 },
       claimedTypes: ["A320", "B738", "C17", "B77W"],
     }));
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     expect(body.season.leaders.airlines).toEqual({ name: "", count: 0 });
   });
 });
@@ -424,7 +573,7 @@ describe("self-hosted fonts", () => {
     // font (which the immutable cache header REQUIRES on any change) would
     // otherwise 404 silently and drop every visitor to system type -- a failure
     // that looks like a styling opinion rather than a bug.
-    const html = await (await call(new Request("https://proxy.test/leaderboard"))).text();
+    const html = await (await call(new Request(`https://proxy.test${PAGE}/leaderboard`))).text();
     const wanted = [...html.matchAll(/url\(\/fonts\/([^)]+)\)/g)].map((m) => m[1] as string);
     expect(wanted.length).toBe(3);
     for (const name of wanted) {
@@ -459,11 +608,11 @@ describe("v1 rows cannot produce a self-contradicting profile", () => {
 
   it("does not rank a v1 row, so no score appears beside zero claims", async () => {
     await writeV1Row(ID_A, "Bend-Man");
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     // Previously this row ranked #1 with points from its SEEN types and a
     // rarestType, while every claimed counter read 0.
     expect(body.lifetime.rows).toHaveLength(0);
-    expect((await call(new Request(`https://proxy.test/leaderboard/${ID_A}`))).status).toBe(404);
+    expect((await call(new Request(`https://proxy.test${PAGE}/leaderboard/${ID_A}`))).status).toBe(404);
   });
 
   it("re-admits the device the moment its firmware submits once", async () => {
@@ -474,7 +623,7 @@ describe("v1 rows cannot produce a self-contradicting profile", () => {
       claimed: { types: 15, airlines: 9, countries: 0, airports: 4 },
       claimedTypes: ["B39M", "A320", "B738"],
     }));
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     const row = body.lifetime.rows[0];
     expect(row.name).toBe("Bend-Man");
     // Counters are non-zero AND the score is consistent with them.
@@ -488,7 +637,7 @@ describe("v1 rows cannot produce a self-contradicting profile", () => {
     // the one shape known to break it.
     await writeV1Row(ID_A, "Bend-Man");
     await call(submit({ id: ID_B, name: "Real", claimed: { airlines: 2 }, claimedTypes: ["C17"] }));
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     for (const scope of ["lifetime", "season"]) {
       for (const r of body[scope].rows) {
         const c = r.claimed;
@@ -508,11 +657,11 @@ describe("profile links", () => {
   // endpoint never exposed, so a client-side page had no key to use.
   it("emits the id that the profile route actually accepts", async () => {
     await call(submit({ id: ID_A, name: "Alpha", claimed: { countries: 1 }, claimedTypes: ["A320"] }));
-    const body = (await (await call(new Request("https://proxy.test/leaderboard.json"))).json()) as any;
+    const body = (await (await call(new Request(`https://proxy.test${PAGE}/leaderboard.json`))).json()) as any;
     const id = body.lifetime.rows[0].id;
     expect(id).toBe(ID_A);
     expect(id).toMatch(/^[0-9a-f]{8,32}$/); // the shape the route's regex requires
-    const profile = await call(new Request(`https://proxy.test/leaderboard/${id}`));
+    const profile = await call(new Request(`https://proxy.test${PAGE}/leaderboard/${id}`));
     expect(profile.status).toBe(200);
     expect(await profile.text()).toContain("Alpha");
   });

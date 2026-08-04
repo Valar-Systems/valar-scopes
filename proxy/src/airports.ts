@@ -2,7 +2,7 @@ import type { Env } from "./types";
 import { SCHEMA_V } from "./schema";
 import { errorResponse, jsonResponse } from "./util";
 
-// GET /v1/airports?lat&lon&r -- the airport overlay's long tail. The firmware
+// GET /api/v1/blipscope/airports?lat&lon&r -- the airport overlay's long tail. The firmware
 // bakes ~260 curated majors into flash (include/Airports.h); this endpoint
 // supersedes that table in cloud mode with the full OurAirports dataset
 // (public domain), pre-tiled into KV by scripts/ingest-airports.ts:

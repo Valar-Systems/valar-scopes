@@ -195,7 +195,7 @@ function renderRows(rows){
                   pair('countries','countries'), pair('airports','airports')].filter(Boolean);
     const rank = r.rank ?? (i+1);
     const nameHtml = r.id
-      ? `<a class="name" href="/leaderboard/${encodeURIComponent(r.id)}">${esc(r.name || 'Unnamed scope')}</a>`
+      ? `<a class="name" href="/blipscope/leaderboard/${encodeURIComponent(r.id)}">${esc(r.name || 'Unnamed scope')}</a>`
       : `<span class="name">${esc(r.name || 'Unnamed scope')}</span>`;
     const rare = r.rarestType
       ? `<span class="rare" title="Rarest claim">${esc(r.rarestType)}${showPct && r.rarestPct != null ? ` · top ${r.rarestPct}%` : ''}</span>`
@@ -257,7 +257,7 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-fetch('/leaderboard.json')
+fetch('/blipscope/leaderboard.json')
   .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
   .then(j => { data = j; paint(); })
   .catch(() => {

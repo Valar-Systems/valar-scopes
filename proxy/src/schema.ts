@@ -53,7 +53,7 @@ function num(v: unknown): number | null {
 }
 
 // One readsb-style aircraft entry -> normalized shape, or null when it doesn't
-// belong in /v1/blips at all: no position, on the ground (the endpoint is
+// belong in /api/v1/blipscope/blips at all: no position, on the ground (the endpoint is
 // airborne-only -- documented in the README), or a stale position.
 export function normalizeReadsbAc(raw: unknown): NormalizedAircraft | null {
   const r = raw as Record<string, unknown> | null;

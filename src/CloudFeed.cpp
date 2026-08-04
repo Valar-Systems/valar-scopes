@@ -69,10 +69,22 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
     return h;
 }
 
-String BlipsUrl(const String& base)  { return base + "/v1/blips"; }
-String EnrichUrl(const String& base, const String& icao24) { return base + "/v1/enrich/" + icao24; }
-String ConfigUrl(const String& base) { return base + "/v1/config"; }
-String AirportsUrl(const String& base) { return base + "/v1/airports"; }
+// Edition-namespaced API paths (docs/web-url-convention.md). The domain routes
+// /api/v1/{edition}/... so each edition can be its own Worker; Blipscope's old
+// unprefixed /v1/... paths still work as server-side ALIASES -- never redirects,
+// because this client is not guaranteed to follow a 301 and certainly not on the
+// leaderboard POST. So a device on old firmware keeps working untouched, and
+// this build simply stops using the deprecated space.
+//
+// The photo URL is deliberately absent here: the proxy sends its path inside the
+// enrich response and the firmware treats it as an opaque string, so that one
+// moved with the Worker deploy and needed no firmware change at all.
+#define BLIPSCOPE_API "/api/v1/blipscope"
+String BlipsUrl(const String& base)  { return base + BLIPSCOPE_API "/blips"; }
+String EnrichUrl(const String& base, const String& icao24) { return base + BLIPSCOPE_API "/enrich/" + icao24; }
+String ConfigUrl(const String& base) { return base + BLIPSCOPE_API "/config"; }
+String AirportsUrl(const String& base) { return base + BLIPSCOPE_API "/airports"; }
+String LeaderboardUrl(const String& base) { return base + BLIPSCOPE_API "/leaderboard"; }
 
 bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch)
 {
@@ -140,7 +152,7 @@ bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch)
             a.lastContact = 0;
         }
 
-        a.onGround = false; // /v1/blips is airborne-only (schema contract)
+        a.onGround = false; // /api/v1/blipscope/blips is airborne-only (schema contract)
         a.squawk = "";
         a.spi = false;
         a.positionSource = 0;

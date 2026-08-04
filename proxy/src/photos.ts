@@ -71,7 +71,7 @@ export async function resolvePhoto(
   return null;
 }
 
-// GET /v1/photo/<key>: serve the immutable, content-addressed JPEG blob. Keys
+// GET /api/v1/blipscope/photo/<key>: serve the immutable, content-addressed JPEG blob. Keys
 // are content-addressed, so the long immutable cache is safe (a re-upload lands
 // on a new key + pointer flip, never a mutated blob). Auth + rate limiting are
 // applied by the router before this runs.

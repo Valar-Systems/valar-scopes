@@ -78,6 +78,18 @@ const num = (v: number | string | null | undefined): number => {
   return Number.isFinite(n) ? Math.round(n) : 0;
 };
 
+// ENDPOINT FILTERS MATCH TWO PATH FAMILIES, on purpose. Blipscope's APIs moved
+// to the edition-namespaced /api/v1/blipscope/... convention (see
+// docs/web-url-convention.md); the old /v1/... paths remain as aliases until the
+// fleet has updated. Analytics Engine points are RETAINED, not rewritten, so any
+// window spanning the cutover legitimately holds both shapes -- and a device on
+// old firmware keeps producing the old one long after. Filtering on the new path
+// alone would silently read 0 for cards and enriches, which looks exactly like a
+// fleet that stopped fetching photos rather than a query that stopped matching.
+// Drop the legacy strings only once /v1/* hit-rate has been zero for a full
+// fleet-update cycle (that count is the deprecation instrument -- see
+// proxy/src/metrics.ts, which deliberately keeps the two as separate templates).
+
 // One row per device that has checked in inside the window.
 export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
   const ds = dataset(env);
@@ -88,8 +100,8 @@ export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
       argMax(blob6, timestamp) AS fw,
       SUM(double4) AS requests,
       SUM(IF(double1 >= 400, double4, 0)) AS errors,
-      SUM(IF(blob1 = '/v1/photo', double4, 0)) AS cards,
-      SUM(IF(blob1 = '/v1/enrich', double4, 0)) AS enriches,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/enrich', '/v1/enrich'), double4, 0)) AS enriches,
       SUM(IF(blob2 = 'STALE', double4, 0)) AS stale_served,
       MAX(timestamp) AS last_seen
     FROM ${ds}
@@ -128,7 +140,7 @@ export async function fleetTotals(env: Env, hours: number): Promise<FleetTotals>
       uniq(IF(blob5 != '', blob5, NULL)) AS devices,
       SUM(double4) AS requests,
       SUM(IF(double1 >= 400, double4, 0)) AS errors,
-      SUM(IF(blob1 = '/v1/photo', double4, 0)) AS cards,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards,
       SUM(IF(blob5 = '', double4, 0)) AS unattributed
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR`;

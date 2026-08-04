@@ -57,18 +57,36 @@ export function setDeviceAttribution(
 // deploy onward -- retained points from before keep the old shape, so a query
 // spanning the boundary sees both. Filtering on the exact string ('/v1/blips')
 // still behaves identically, because that route was never templated.
+// Namespaced and legacy paths are DELIBERATELY SEPARATE entries, never merged
+// into one template. Merging them would lose the only number that says when the
+// aliases can go: legacy hit-rate is the deprecation instrument. When /v1/*
+// counts sit at zero across a full fleet-update cycle, every device has taken
+// the OTA and the alias layer can be deleted -- and until then, the count is
+// also how you find the units that have not updated.
 const KNOWN_ROUTES = new Set([
+  // Edition-namespaced (current)
+  "/api/v1/blipscope/blips",
+  "/api/v1/blipscope/config",
+  "/api/v1/blipscope/airports",
+  "/api/v1/blipscope/leaderboard",
+  "/blipscope/leaderboard",
+  "/blipscope/leaderboard.json",
+  // DEPRECATED aliases + redirects (retire when these read zero -- see above)
   "/v1/blips",
   "/v1/config",
   "/v1/airports",
   "/v1/leaderboard",
-  "/healthz",
-  "/credits",
   "/leaderboard",
   "/leaderboard.json",
+  // Not edition-scoped: infrastructure, shared across editions
+  "/healthz",
+  "/credits",
 ]);
 
 export function routeTemplate(pathname: string): string {
+  if (pathname.startsWith("/api/v1/blipscope/enrich/")) return "/api/v1/blipscope/enrich";
+  if (pathname.startsWith("/api/v1/blipscope/photo/")) return "/api/v1/blipscope/photo";
+  if (/^\/blipscope\/leaderboard\/[0-9a-f]{8,32}$/.test(pathname)) return "/blipscope/leaderboard/:id";
   if (pathname.startsWith("/v1/enrich/")) return "/v1/enrich";
   if (pathname.startsWith("/v1/photo/")) return "/v1/photo";
   if (/^\/leaderboard\/[0-9a-f]{8,32}$/.test(pathname)) return "/leaderboard/:id";

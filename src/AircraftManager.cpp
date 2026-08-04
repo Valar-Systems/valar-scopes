@@ -84,7 +84,7 @@ static constexpr size_t MAX_AIRCRAFT = 60;
 
 // Handoff payloads for the background OpenSky fetch task. Both are passed between
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
-// The same task also serves the cloud feed and its /v1/config fetch (kind), so all
+// The same task also serves the cloud feed and its /api/v1/blipscope/config fetch (kind), so all
 // blocking cloud I/O shares the one TLS client + keep-alive connection.
 enum class FetchKind : uint8_t { Feed, CloudConfig, Airports };
 
@@ -98,7 +98,7 @@ struct FetchRequest {
     bool   cloud = false;            // true: poll the Blipscope Cloud proxy
     String cloudBase;                // normalised proxy base URL (cloud + CloudConfig)
     String cloudKey;                 // X-Blip-Key value (cloud + CloudConfig)
-    double rangeKm = 100.0;          // /v1/blips r param
+    double rangeKm = 100.0;          // /api/v1/blipscope/blips r param
     String otaMem;                   // X-Blip-OTA-Mem value, "" when nothing to report.
                                      // Read (and cleared) on the LOOP task at request
                                      // build time -- TakeOtaMemReport touches NVS, and
@@ -129,7 +129,7 @@ struct FetchResult {
 };
 
 // Handoff payloads for the background enrichment task (adsbdb metadata/route +
-// aircraft photo, the cloud /v1/enrich join, and the ntfy alert POSTs -- anything
+// aircraft photo, the cloud /api/v1/blipscope/enrich join, and the ntfy alert POSTs -- anything
 // blocking that must never run on the loop). Like the fetch payloads above,
 // ownership transfers by pointer through a depth-1 queue: the receiver frees it.
 // The task fills a result the loop applies; it never touches trackedAircraft,
@@ -148,7 +148,7 @@ struct EnrichRequest {
     bool   hasPos = false;
     // Ntfy: the alert content, POSTed off-loop with the usual ntfy headers.
     String ntfyTitle, ntfyTags, ntfyBody;
-    // Leaderboard: the JSON submission body, POSTed to cloudBase + /v1/leaderboard.
+    // Leaderboard: the JSON submission body, POSTed to cloudBase + /api/v1/blipscope/leaderboard.
     String lbBody;
 };
 
@@ -168,7 +168,7 @@ struct EnrichResult {
     String typeCode, typeName, operatorName, registration, photoUrl;
     // Route (CloudEnrich carries the route in the same fields)
     String routeCallsign, routeOrigin, routeDest;
-    // CloudEnrich stock-photo join: the proxy's relative /v1/photo path (made
+    // CloudEnrich stock-photo join: the proxy's relative /api/v1/blipscope/photo path (made
     // absolute in ApplyEnrichment) and whether it's a generic type shot.
     String photoPath;
     bool photoRepresentative = false;
@@ -370,7 +370,7 @@ EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url, const Stri
 {
     EnrichResult* res = new EnrichResult();
 
-    // The BYO adsbdb thumbnail host is public; the cloud /v1/photo route needs
+    // The BYO adsbdb thumbnail host is public; the cloud /api/v1/blipscope/photo route needs
     // the device key. authKey is "" for BYO, the proxy key in cloud mode.
     //
     // USE THE FULL HEADER SET, not just X-Blip-Key. This hand-rolled the one
@@ -415,7 +415,7 @@ EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url, const Stri
 }
 
 #ifdef FEATURE_CLOUD_FEED
-// One GET to the proxy replaces the old two adsbdb lookups: /v1/enrich pre-joins
+// One GET to the proxy replaces the old two adsbdb lookups: /api/v1/blipscope/enrich pre-joins
 // registration/type/operator AND the route. Streams the ~200 B body straight
 // into the document like the feed fetch does.
 EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& req)
@@ -578,7 +578,7 @@ void AircraftManager::Initialise()
     const String renderTris = configServer.GetStoredString("triangle");
     const String renderAirports = configServer.GetStoredString("airports");
     if (!renderAirports.isEmpty()) displayAirports = renderAirports == "true";
-    // Minimum airport size to draw (cloud /v1/airports overlay only; the baked
+    // Minimum airport size to draw (cloud /api/v1/blipscope/airports overlay only; the baked
     // majors are all major-class so the filter is a no-op there). Default: all.
     const String airportsMinStr = configServer.GetStoredString("airports-min");
     airportsMin = airportsMinStr == "large" ? AirportsMin::LargeOnly
@@ -770,7 +770,7 @@ void AircraftManager::Initialise()
         cloudKey = CLOUD_FEED_KEY;
 
     if (useCloudSource) {
-        // Cadence is the /v1/config-driven active/idle/night state machine (see
+        // Cadence is the /api/v1/blipscope/config-driven active/idle/night state machine (see
         // CurrentPollIntervalMs); fetchInterval only seeds the pre-config default.
         fetchInterval = cloudCfg.pollActiveMs;
         lastCloudCfgFetch = 0; // re-fetch the fleet config promptly after any (re)initialise
@@ -1088,7 +1088,7 @@ void AircraftManager::Update()
         ProcessAlerts();
 
 #ifdef FEATURE_CLOUD_FEED
-        // Fleet config (/v1/config): on boot, then daily; a failed fetch retries
+        // Fleet config (/api/v1/blipscope/config): on boot, then daily; a failed fetch retries
         // in 15 min (ConsumeFetchResult shifts the timer). Runs on the shared
         // fetch task ahead of the next feed poll so cadence/enrich-level tunables
         // land before the picture builds up.
@@ -1107,7 +1107,7 @@ void AircraftManager::Update()
             }
         }
 
-        // Airport overlay long tail (/v1/airports): geography is static, so
+        // Airport overlay long tail (/api/v1/blipscope/airports): geography is static, so
         // once after boot and then daily is plenty. Gated on the display toggle
         // (no toggle, no traffic); Initialise() zeroes the timer on every
         // config save, so a location / range / toggle change re-fetches. A
@@ -1505,7 +1505,7 @@ void AircraftManager::RunFetchTask()
             continue;
         }
 
-        // Airport-overlay fetch (/v1/airports): same one-off GET pattern as the
+        // Airport-overlay fetch (/api/v1/blipscope/airports): same one-off GET pattern as the
         // config fetch above. The reply is server-capped (<= 60 rows, ~2 KB),
         // so the streaming decode stays trivial on the C3-class heap.
         if (req->kind == FetchKind::Airports) {
@@ -1553,7 +1553,7 @@ void AircraftManager::RunFetchTask()
         }
 #ifdef FEATURE_CLOUD_FEED
         else if (req->cloud) {
-            // /v1/blips: the proxy quantizes to its cache tile/bucket, clips,
+            // /api/v1/blipscope/blips: the proxy quantizes to its cache tile/bucket, clips,
             // sorts by distance, and caps server-side. Ask for 40 (up from 25) so a
             // wide radius over a busy area fills most of the scope instead of
             // clustering the nearest 25 in the centre. NOT the full MAX_AIRCRAFT
@@ -2801,7 +2801,7 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
     };
 
 #ifdef FEATURE_CLOUD_FEED
-    // The /v1/airports long tail supersedes the baked majors once loaded. At
+    // The /api/v1/blipscope/airports long tail supersedes the baked majors once loaded. At
     // wide zooms only large/medium fields draw -- ~60 grass strips would
     // confetti a 240 px face; zoom in past ~60 km half-width and they appear.
     // The airportsMin config filter is a hard floor on top of that: a user in a
@@ -3739,7 +3739,7 @@ void AircraftManager::ProcessDetailLookups()
 
 #ifdef FEATURE_CLOUD_FEED
     if (UseCloudEnrich()) {
-        // Cloud detail path: ONE pre-joined /v1/enrich GET covers what used to be
+        // Cloud detail path: ONE pre-joined /api/v1/blipscope/enrich GET covers what used to be
         // two adsbdb lookups (metadata + route), and (when the proxy's stock
         // library has an image for this hex/type) a licensed photo path in `p`.
         // A local-receiver device on details=Cloud lands here too: same single
@@ -3767,7 +3767,7 @@ void AircraftManager::ProcessDetailLookups()
             return; // await the enrich result before deciding on a photo
 
         // Step 2 -- photo, once per aircraft. Mirrors the BYO photo step but
-        // authenticated with the cloud key (the /v1/photo route requires it).
+        // authenticated with the cloud key (the /api/v1/blipscope/photo route requires it).
         // photoUrl is the absolute proxy URL ApplyEnrichment built from `p`, or
         // "" when the library has no image (-> silhouette, as before).
         if (photoIcao != selectedIcao) {
@@ -4427,7 +4427,7 @@ bool AircraftManager::QueueLeaderboardSubmit()
 
     EnrichRequest* req = new EnrichRequest{};
     req->kind = EnrichKind::Leaderboard;
-    req->url = cloudUrl + "/v1/leaderboard";
+    req->url = CloudFeed::LeaderboardUrl(cloudUrl);
     req->cloudKey = cloudKey;
     serializeJson(doc, req->lbBody);
 
@@ -4876,7 +4876,7 @@ void AircraftManager::ProcessMetadataLookups()
 
 #ifdef FEATURE_CLOUD_FEED
     if (useCloudSource) {
-        // The /v1/config enrich level is the master switch in cloud mode. Off:
+        // The /api/v1/blipscope/config enrich level is the master switch in cloud mode. Off:
         // nothing (taps still enrich). Watchlist: the per-aircraft filter below
         // decides -- the watchlist itself is the need, so metadataNeeded doesn't
         // gate it. Full: same metadataNeeded economy as the adsbdb path.
@@ -4938,7 +4938,7 @@ void AircraftManager::ProcessMetadataLookups()
 
 #ifdef FEATURE_CLOUD_FEED
         if (UseCloudEnrich()) {
-            // NB a local-receiver device never fetches /v1/config, so cloudCfg here
+            // NB a local-receiver device never fetches /api/v1/blipscope/config, so cloudCfg here
             // is the baked default (Enrich::Full, which still respects
             // metadataNeeded). That is deliberate: it matches the economy of the
             // adsbdb path it replaces, without adding a config round trip to a
