@@ -171,13 +171,96 @@ Safe because order is persisted by **id string**, not index (§1). `idToScreen()
 
 ---
 
-## 6. Open calls
+## 6. Calls — decided 2026-08-04
 
-1. **Swipe during a live sortie** — blocked, or a deliberate leave-and-return? (§2c)
-2. **Does a preempting real EAM void or penalise the sortie?** §4 vs §10. Recommendation: void. (§3b)
-3. **Does a fresh EAM yank the rotation to the ticker?** Changes shipping monitor behaviour. (§3a)
-4. **Sortie board default visibility** for users with an explicit `eam-screens` CSV. (§1)
-5. **Split-knowledge entry method** on a round single-touch 240 px panel. (§4)
+All five original calls are answered. **One new one is standing** (§6.6).
+
+### 6.1 Preemption: suspends, never cancels
+
+Real traffic **suspends** the sequence. The commitment stands and re-entry is allowed right
+up to T. If T passes and a preemption occurred **anywhere inside the commit window**, the
+miss is exempt — bird returned, no ratio hit, logged `PREEMPTED` not `FAILED`.
+
+**No could-they-have-made-it-back adjudication**; any preemption in the window exempts. That
+is the load-bearing half: the alternative is a judgement about whether the player had time
+left, which is unanswerable and unappealable, and would make the fairest-sounding rule the
+most arbitrary one in the game. Design doc §10 table patched to match.
+
+### 6.2 Swipe: two regimes
+
+| Regime | Swipe | Countdown |
+|---|---|---|
+| Commit → modal entry | carousel runs **free** | rides as **persistent chrome on every screen** |
+| Inside the modal | **blocked** | the face itself |
+
+Modal exits are exactly three: **completion**, **real-traffic preemption**, or a deliberate
+**long-press ABORT**. Abort costs what a miss costs (stand-down + ratio) and is logged
+`ABORTED` — ack is a promise, so breaking it deliberately costs what breaking it by accident
+costs, and the honest label is the only difference.
+
+> Note the chrome requirement is a real change: the countdown must render on **every** screen
+> between commit and modal entry, which means a shell-level overlay rather than a per-screen
+> element. Cheapest place is the same draw tail every screen already returns through.
+
+### 6.3 Auto-dim: inhibited for the sortie's lifetime
+
+`MaybeAdjustBrightness` gets a live-sortie inhibit — full brightness from commit to
+resolution. Same shape as the radar's visual-alert brightness override.
+
+### 6.4 `Update()` ordering
+
+```
+real-traffic intake  ->  preemption check  ->  modal input  ->  carousel
+```
+
+Real traffic always wins; the modal never starves message processing. Preempt hook stays at
+the `newPulseUntilMs` assignment — one event, one source of truth.
+
+### 6.5 Scoring granularity
+
+`max(NTP uncertainty, key-window input latency)`, where the key window runs **arm-C-style
+direct high-rate polling**. Measure the input floor *inside a focused poll window*, not the
+idle product loop — **the 45 ms idle figure is the wrong floor** and would have set the
+bucket an order of magnitude too coarse. The leaderboard displays the smallest bucket the
+measured floor supports. Added to the results template as a fourth number.
+
+### 6.6 STILL OPEN: does a fresh EAM navigate the rotation to the ticker?
+
+§6.4 settles *processing* order and §6.2 settles the *sortie* regimes, but neither answers
+the plain monitoring case: **a real EAM lands while the carousel is idling on, say, Tempo —
+does the screen move?**
+
+Today it does not; it flashes a 2 s NEW pulse and carries on. Two coupled sub-questions:
+
+- If the answer is **yes, navigate**, that is a behaviour change to the *shipping monitor*,
+  not just the game, and needs to be either accepted for all EAM devices or put behind
+  `FEATURE_EAM_GAME`.
+- If the answer is **no**, the 2 s pulse is the only cue on a device nobody is staring at,
+  and it should extend to at least one dwell period (8 s) so it survives long enough to be
+  seen.
+
+There is no default that is obviously right, which is why it is still here.
+
+### 6.7 Sortie board visibility — decided
+
+Do **not** auto-inject into an explicit `eam-screens` list; a hand-curated rotation is a user
+choice. Instead:
+
+- `HasData(Sortie)` requires `FEATURE_EAM_GAME` **and a claimed seat**, so non-players never
+  see it at all.
+- The config page's game section shows a one-line notice when a seat is claimed but `sortie`
+  is missing from an explicit list, **quoting the exact CSV value to add**.
+- Empty-config users get it automatically, as they do every other screen.
+
+### 6.8 Split-knowledge — parked to crew scope, with constraints
+
+Seeded so the study starts from the right place rather than from a keyboard:
+
+1. Each seat renders and enters **only its own 3 characters** — never 6 on one panel.
+2. Entry is a **rotary dial-to-character selector on the bezel arc**, not a keypad.
+
+If the dial cannot clear 3 characters comfortably inside the 60 s enable limit, that is a
+real problem and the mechanic needs rethinking rather than tuning.
 
 ## 7. Not in scope here, but load-bearing
 

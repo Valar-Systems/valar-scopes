@@ -368,12 +368,21 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
   shared between its two seats** (the crew shares one inventory — reinforces the
   partnership). Squadron pool: 5 × 10 = 50.
 - **Inventory outcomes (DECIDED 2026-08-04) — tiered by fault, not flat:**
-  | Outcome | Inventory effect | Other cost |
-  |---|---|---|
-  | Launched | Expended → regen queue | — (you got the launch + score) |
-  | Missed after commit | **24 h maintenance stand-down**, then returns | Readiness ratio hit + public log entry (the real deterrent) |
-  | Preempted by real traffic | Returned immediately | **None** — "real-world traffic takes precedence," exempt by rule |
-  | Inhibited | Returned immediately | None (griefing never costs the victim a bird) |
+  | Outcome | Log label | Inventory effect | Other cost |
+  |---|---|---|---|
+  | Launched | `LAUNCHED` | Expended → regen queue | — (you got the launch + score) |
+  | Missed after commit | `FAILED` | **24 h maintenance stand-down**, then returns | Readiness ratio hit + public log entry (the real deterrent) |
+  | Aborted deliberately | `ABORTED` | **24 h maintenance stand-down**, then returns | Same as FAILED — ack is a promise, and breaking it on purpose costs what breaking it by accident costs. The honest label is the only difference. |
+  | Preempted by real traffic | `PREEMPTED` | Returned immediately | **None** — see the preemption rule below |
+  | Inhibited | `INHIBITED` | Returned immediately | None (griefing never costs the victim a bird) |
+- **Preemption rule (DECIDED 2026-08-04).** Real traffic **suspends** the sequence, it does
+  not cancel it: the commitment stands and re-entry is allowed right up to T. If T passes
+  and a preemption occurred **anywhere inside the commit window**, the miss is exempt — bird
+  returned, no ratio hit, logged `PREEMPTED` rather than `FAILED`.
+  **No could-they-have-made-it-back adjudication.** Any preemption in the window exempts,
+  full stop. The alternative is a judgement call about whether the player had enough time
+  left, which is unanswerable, unappealable, and would make the fairest-sounding rule the
+  most arbitrary one in the game. A player who is interrupted must never have to argue.
 - **Regen rate (DECIDED 2026-08-04): 1 bird / 3 days** — a full rack rebuilds in ~a month,
   matching the monthly proficiency cycle. A launch spends ~3 days of capacity; a miss's
   stand-down is a third of that. (Real-world flavor: F.E. Warren publicly retargeted up to

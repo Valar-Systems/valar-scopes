@@ -122,6 +122,19 @@ unsigned long pollGapMaxMs = 0, pollGapSumMs = 0, pollCount = 0;
 // REJOIN_MS, so the finger never actually left. A real lift ends the run.
 constexpr unsigned long HOLD_TARGET_MS = 10000;
 constexpr unsigned long REJOIN_MS      = 100; // "release <100 ms not user-initiated"
+// Arm C only: consecutive-NACK ceiling before the run is voided as a bus failure
+// rather than scored. See the source-selection block in loop() for why an
+// unbounded hold-previous-state is worse than no arm C at all.
+constexpr unsigned long NACK_VOID_MS   = 100;
+unsigned long busFailRuns = 0;
+
+// KEY-WINDOW POLL INTERVAL -- the fourth number this harness produces. Scoring
+// granularity is max(NTP uncertainty, INPUT latency), and the input floor that
+// matters is the one inside a focused high-rate poll window (what the launch
+// key-turn will actually run), NOT the idle product loop. Measured separately
+// from the general poll cadence for exactly that reason: the idle figure is the
+// wrong floor and would set the leaderboard bucket an order of magnitude coarse.
+unsigned long keyPollGapMaxMs = 0, keyPollSumMs = 0, keyPollCount = 0;
 
 bool holdActive = false;
 unsigned long holdStartMs = 0, holdContactMs = 0;
@@ -364,6 +377,14 @@ void ReportBoth()
                   (c >= 0 && b >= 0) ? c - b : 0);
     if (a < 0 || b < 0 || c < 0)
         Serial.println("HOLD,note,an arm with cleanpct -1 has no runs yet -- deltas involving it are meaningless");
+    // Bus failures are reported as their OWN count, never folded into dropouts:
+    // a wedged bus is an equipment fault, and averaging it into a touch-quality
+    // number would corrupt the very figure the gate is read from.
+    Serial.printf("HOLD,busfail,runs_voided,%lu\n", busFailRuns);
+    // The fourth number (see the declaration): the key-window input floor.
+    Serial.printf("HOLD,keywindow,avg_ms,%lu,max_ms,%lu,samples,%lu\n",
+                  keyPollCount ? keyPollSumMs / keyPollCount : 0,
+                  keyPollGapMaxMs, keyPollCount);
 }
 
 // ---- hold-test state machine ----------------------------------------------
@@ -516,6 +537,14 @@ void loop()
     if (gap > pollGapMaxMs) pollGapMaxMs = gap;
     pollGapSumMs += gap;
     pollCount++;
+    // The key-window floor, sampled only while an arm-C hold is live -- that is
+    // the focused high-rate window the launch key-turn will run in, and the only
+    // cadence the scoring bucket may honestly be derived from.
+    if (ArmUsesChipSource(arm) && holdActive) {
+        if (gap > keyPollGapMaxMs) keyPollGapMaxMs = gap;
+        keyPollSumMs += gap;
+        keyPollCount++;
+    }
 
     // ---- touch: driver answer AND the chip's own count, every poll ----
     int32_t tx = 0, ty = 0;
@@ -568,13 +597,38 @@ void loop()
         // ignores INT entirely. A chipN of -1 is a NACK, not a release -- treating
         // a failed read as a lifted finger would manufacture the exact dropouts
         // this arm exists to rule out, so it holds the previous state instead.
+        // BOUNDED. Holding the previous state through a single NACK is right;
+        // holding it forever is not. A persistent stall (bus wedged, chip gone)
+        // would freeze `contact` at true and report an eternal, flawless hold --
+        // manufacturing exactly the opposite artifact this arm exists to rule
+        // out, and doing it in the direction that looks like success. So a NACK
+        // streak past NACK_VOID_MS voids the run outright rather than scoring it.
         static bool lastChipContact = false;
+        static unsigned long nackSinceMs = 0;
         bool contact;
         if (ArmUsesChipSource(arm)) {
-            if (chipN >= 0) lastChipContact = chipN > 0;
+            if (chipN >= 0) {
+                lastChipContact = chipN > 0;
+                nackSinceMs = 0;
+            } else {
+                if (nackSinceMs == 0) nackSinceMs = now;
+                if (now - nackSinceMs > NACK_VOID_MS) {
+                    if (holdActive) {
+                        ++busFailRuns;
+                        Serial.printf("HOLD,run_void,%lu,reason,BUS_FAIL,nack_ms,%lu,arm,%s\n",
+                                      now, now - nackSinceMs, ArmName(arm));
+                        holdActive = false;
+                        inDropout = false;
+                        needsRepaint = true;
+                    }
+                    nackSinceMs = 0;
+                    lastChipContact = false;
+                }
+            }
             contact = lastChipContact;
         } else {
             contact = touched;
+            nackSinceMs = 0;
         }
         HoldTick(contact, now);
     } else if (holdActive) {
