@@ -428,7 +428,7 @@ describe("military enrichment deepening", () => {
     const body = (await res.json()) as { t: string; tn: string; p?: string; pk?: string };
     expect(body.t).toBe("C17");
     expect(body.tn).toBe("Boeing C-17 Globemaster III"); // baked TYPE_NAMES fallback (row had no tn)
-    expect(body.p).toBe("/v1/photo/photo:C17-0123abcd");
+    expect(body.p).toBe("/api/v1/blipscope/photo/photo:C17-0123abcd");
     expect(body.pk).toBe("type");
   });
 

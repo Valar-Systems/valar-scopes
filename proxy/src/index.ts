@@ -58,6 +58,49 @@ function handleHealth(env: Env): Response {
   return jsonResponse({ ok: true, upstreams: feedHealth(env) });
 }
 
+// ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
+//
+// Pages live at /{edition}/{surface} and APIs at /api/v1/{edition}/..., so the
+// domain can multiplex one Worker per edition by route later: /blipscope/* here,
+// /missileer/* at the eam Worker. Blipscope's old unprefixed paths stay working,
+// but the two surfaces get OPPOSITE treatment, and the difference is the whole
+// point:
+//
+//   PAGES  -> 301. Browsers follow redirects and updating a bookmark is free.
+//   APIs   -> INTERNAL ALIAS, never a redirect. Deployed ESP32 firmware is not
+//             guaranteed to follow a 301, and certainly not on a POST, where
+//             following one at all would require re-sending the body. A redirect
+//             here would brick the leaderboard submit for the entire fleet the
+//             moment it deployed, and the failure would look like a server
+//             outage rather than a routing change.
+//
+// /v1/* is now Blipscope-legacy alias space and must never be assigned to
+// another edition, because a device somewhere will keep calling it until every
+// unit has taken an OTA.
+const EDITION = "blipscope";
+const API_PREFIX = `/api/v1/${EDITION}/`;
+const API_LEGACY_PREFIX = "/v1/";
+const PAGE_PREFIX = `/${EDITION}`;
+
+// Reduce either API prefix to the bare endpoint ("blips", "enrich/<hex>"), so
+// dispatch below happens ONCE against the suffix. Structural rather than a
+// duplicated route table: an alias cannot drift from its new path, because there
+// is only one of each handler call and both prefixes reach it the same way.
+// Returns null for anything that is not an API request at all.
+function apiEndpoint(pathname: string): { suffix: string; legacy: boolean } | null {
+  if (pathname.startsWith(API_PREFIX)) return { suffix: pathname.slice(API_PREFIX.length), legacy: false };
+  if (pathname.startsWith(API_LEGACY_PREFIX)) return { suffix: pathname.slice(API_LEGACY_PREFIX.length), legacy: true };
+  return null;
+}
+
+// 301, not 302: the move is permanent, and a permanent redirect is what gets
+// bookmarks and search results rewritten instead of re-followed forever.
+function movedTo(url: URL, newPath: string): Response {
+  const target = new URL(url.toString());
+  target.pathname = newPath;
+  return new Response(null, { status: 301, headers: { Location: target.toString() } });
+}
+
 async function route(
   request: Request,
   env: Env,
@@ -65,20 +108,31 @@ async function route(
   url: URL,
   meta: RequestMetric,
 ): Promise<Response> {
+  const api = apiEndpoint(url.pathname);
   // POST is accepted ONLY for the leaderboard submit (authed below); every
-  // other route is GET.
-  const isLeaderboardSubmit = url.pathname === "/v1/leaderboard" && request.method === "POST";
+  // other route is GET. Keyed off the normalized suffix so the legacy path
+  // POSTs exactly as the new one does.
+  const isLeaderboardSubmit = api?.suffix === "leaderboard" && request.method === "POST";
   if (request.method !== "GET" && !isLeaderboardSubmit) return errorResponse(405, "method_not_allowed");
   if (url.pathname === "/healthz") return handleHealth(env);
   // Public photo-attribution page (a browser follows the config page's link; no
   // device key). Rendered from the manifest the ingest script publishes to KV.
   if (url.pathname === "/credits") return handleCredits(env);
+
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).
-  if (url.pathname === "/leaderboard") return handleLeaderboardPage();
-  if (url.pathname === "/leaderboard.json") return handleLeaderboardJson(request, env);
-  const profileMatch = url.pathname.match(/^\/leaderboard\/([0-9a-f]{8,32})$/);
+  if (url.pathname === `${PAGE_PREFIX}/leaderboard`) return handleLeaderboardPage();
+  if (url.pathname === `${PAGE_PREFIX}/leaderboard.json`) return handleLeaderboardJson(request, env);
+  const profileMatch = url.pathname.match(/^\/blipscope\/leaderboard\/([0-9a-f]{8,32})$/);
   if (profileMatch) return handleProfile(env, profileMatch[1] as string);
+
+  // DEPRECATED page paths -- permanent redirects to the namespaced ones above.
+  // Kept indefinitely: these are the URLs already in customers' browser history
+  // and on the config page of every device that has not taken an OTA.
+  if (url.pathname === "/leaderboard") return movedTo(url, `${PAGE_PREFIX}/leaderboard`);
+  if (url.pathname === "/leaderboard.json") return movedTo(url, `${PAGE_PREFIX}/leaderboard.json`);
+  const legacyProfile = url.pathname.match(/^\/leaderboard\/([0-9a-f]{8,32})$/);
+  if (legacyProfile) return movedTo(url, `${PAGE_PREFIX}/leaderboard/${legacyProfile[1]}`);
   // Self-hosted webfonts for the board page. Previously pulled from Google,
   // which sent every visitor's IP to a third party from a page whose whole
   // posture is not needing to explain itself. Exact-name lookup against the
@@ -99,7 +153,12 @@ async function route(
       },
     });
   }
-  if (!url.pathname.startsWith("/v1/")) return errorResponse(404, "not_found");
+  // THE AUTH GATE, and it is load-bearing for all six aliases: everything past
+  // this point is authed + rate-limited, so a prefix that fails to reach here is
+  // not merely a 404, it is an endpoint that skipped authentication. Both
+  // prefixes must arrive, which is why this tests the normalized `api` rather
+  // than a literal prefix string.
+  if (api === null) return errorResponse(404, "not_found");
 
   // Per-IP limit first (throttles key-guessing too), then auth, then per-key.
   const ipLimited = await limitByIp(env, request);
@@ -118,13 +177,17 @@ async function route(
   // for: whatever this does, the request below is served identically.
   recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model, meta.dev);
 
-  if (url.pathname === "/v1/blips") return handleBlips(request, env, ctx, meta);
-  if (url.pathname === "/v1/config") return handleConfig(request, env);
-  if (url.pathname === "/v1/airports") return handleAirports(request, env);
+  // Dispatch on the normalized suffix: one call site per handler, reached
+  // identically from /api/v1/blipscope/<x> and the deprecated /v1/<x>. Same
+  // handler, same auth, same status codes, byte-identical bodies -- which is the
+  // alias contract, and is asserted path-family-by-path-family in the tests.
+  if (api.suffix === "blips") return handleBlips(request, env, ctx, meta);
+  if (api.suffix === "config") return handleConfig(request, env);
+  if (api.suffix === "airports") return handleAirports(request, env);
   if (isLeaderboardSubmit) return handleLeaderboardSubmit(request, env);
-  const enrichMatch = url.pathname.match(/^\/v1\/enrich\/([^/]+)$/);
+  const enrichMatch = api.suffix.match(/^enrich\/([^/]+)$/);
   if (enrichMatch) return handleEnrich(request, env, ctx, enrichMatch[1] as string, meta);
-  const photoMatch = url.pathname.match(/^\/v1\/photo\/([^/]+)$/);
+  const photoMatch = api.suffix.match(/^photo\/([^/]+)$/);
   if (photoMatch) return handlePhoto(env, photoMatch[1] as string);
   return errorResponse(404, "not_found");
 }

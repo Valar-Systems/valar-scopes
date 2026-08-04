@@ -55,7 +55,7 @@ private:
     bool displayInfoText = true;
     bool displayTriangles = true;
     bool displayAirports = true;  // fixed airport markers from the baked table (Airports.h)
-    // Minimum airport size class to draw from the cloud /v1/airports overlay:
+    // Minimum airport size class to draw from the cloud /api/v1/blipscope/airports overlay:
     // All (zoom rule only), MedLarge (hide small strips), LargeOnly.
     enum class AirportsMin : uint8_t { All, MedLarge, LargeOnly };
     AirportsMin airportsMin = AirportsMin::All;
@@ -298,9 +298,9 @@ private:
     bool useCloudSource = false;
     String cloudUrl = "";  // normalised base URL: NVS "cloud-url" else CLOUD_FEED_BASE
     String cloudKey = "";  // X-Blip-Key: NVS "cloud-key" else CLOUD_FEED_KEY (never logged)
-    double rangeKmCfg = 100.0; // configured radar radius in km, the /v1/blips r param
+    double rangeKmCfg = 100.0; // configured radar radius in km, the /api/v1/blipscope/blips r param
 
-    // Fleet tunables from /v1/config (server-resolved for this X-Blip-Model),
+    // Fleet tunables from /api/v1/blipscope/config (server-resolved for this X-Blip-Model),
     // fetched on boot + daily and applied live -- no reboot. cloudCfg's defaults
     // serve until the first fetch lands.
     CloudFeed::Config cloudCfg;
@@ -308,7 +308,7 @@ private:
     bool cloudCfgEverApplied = false;
     bool otaCheckRequested = false; // set when config minFw > FW_VERSION; main.cpp consumes
 
-    // Airport overlay long tail from /v1/airports (server-capped, priority-
+    // Airport overlay long tail from /api/v1/blipscope/airports (server-capped, priority-
     // sorted). While non-empty it supersedes the baked include/Airports.h
     // table in DrawAirports; empty (boot, fetch failed, non-cloud) falls back
     // to the baked majors. Fetched once the location is known, then daily.
@@ -569,12 +569,12 @@ private:
     // The caller MUST NOT commit its "last fetched" timestamp until it does --
     // stamping first turns a dropped request into a 24 h outage of that feed,
     // because the retry condition is then already satisfied-away. See #129.
-    bool RequestCloudConfig();                  // loop: queue a /v1/config fetch on the fetch task
-    bool RequestCloudAirports();                // loop: queue a /v1/airports fetch on the fetch task
-    bool QueueLeaderboardSubmit();              // loop: queue an hourly /v1/leaderboard POST
+    bool RequestCloudConfig();                  // loop: queue a /api/v1/blipscope/config fetch on the fetch task
+    bool RequestCloudAirports();                // loop: queue a /api/v1/blipscope/airports fetch on the fetch task
+    bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
     void RequestCloudEnrich(const String& icao24, const String& callsign,
-                            float acLat, float acLon); // loop: queue a /v1/enrich lookup
+                            float acLat, float acLon); // loop: queue a /api/v1/blipscope/enrich lookup
     // Apply one enrichment payload to a tracked aircraft (shared by the network
     // result and the LRU-cache hit paths); notes the logbook like adsbdb did.
     void ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e);
@@ -702,7 +702,7 @@ public:
     uint32_t FetchHardFailCount() const; // fetches failing with statusCode <= 0 (TLS/DNS/connect/timeout class)
 
 #ifdef FEATURE_CLOUD_FEED
-    // True once after /v1/config reported minFw newer than this build; main.cpp
+    // True once after /api/v1/blipscope/config reported minFw newer than this build; main.cpp
     // consumes it to run the normal OTA check immediately instead of waiting for
     // the daily timer.
     bool ConsumeOtaCheckRequest() {

@@ -13,7 +13,7 @@
 
 // Tunables (override with -D in the env for a harsher run).
 #ifndef BISECT_FLEET_N
-#define BISECT_FLEET_N 25 // the cloud C3 blips ceiling (/v1/blips limit=25); 60 = firmware MAX_AIRCRAFT
+#define BISECT_FLEET_N 25 // the cloud C3 blips ceiling (/api/v1/blipscope/blips limit=25); 60 = firmware MAX_AIRCRAFT
 #endif
 #ifndef BISECT_INJECT_MS
 #define BISECT_INJECT_MS 2000 // merge cadence; harsher than the C3 cloud active poll (5 s)

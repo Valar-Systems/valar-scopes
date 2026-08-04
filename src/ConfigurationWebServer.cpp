@@ -1973,7 +1973,11 @@ void ConfigurationWebServer::Initialise() {
                 prefs.isKey("cloud-url") ? prefs.getString("cloud-url", "") : String(""));
             if (cloudBase.isEmpty()) cloudBase = CloudFeed::NormalizeBaseUrl(String(CLOUD_FEED_BASE));
             if (!cloudBase.isEmpty()) {
-                lbLink = "<a href='" + HtmlEscape(cloudBase + "/leaderboard")
+                // Edition-namespaced page path (docs/web-url-convention.md). The
+                // old /leaderboard still 301s here, so a device that never takes
+                // another OTA keeps a working link -- this just stops sending new
+                // builds through the redirect.
+                lbLink = "<a href='" + HtmlEscape(cloudBase + "/blipscope/leaderboard")
                        + "' target='_blank' rel='noopener'>spotting leaderboard</a>";
                 // The credits page carries the photo attribution (CC-BY / CC-BY-SA
                 // obligations) alongside the data-source lines above, so it needs to

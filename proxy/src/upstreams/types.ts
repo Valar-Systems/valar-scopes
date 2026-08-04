@@ -59,7 +59,7 @@ export function breakerState(id: string): "closed" | "open" {
   return breakers.get(id)?.openedAt ? "open" : "closed";
 }
 
-// Rolled-up upstream health for /v1/config's upstreamState field.
+// Rolled-up upstream health for /api/v1/blipscope/config's upstreamState field.
 export function upstreamOverallState(ids: string[]): "ok" | "degraded" | "down" {
   if (ids.length === 0) return "down";
   const open = ids.filter((id) => breakerState(id) === "open").length;

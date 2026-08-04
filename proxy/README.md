@@ -198,6 +198,15 @@ becomes optional rather than pressing.
 
 ## Endpoints
 
+> **URL convention.** Pages are `/{edition}/{surface}`, APIs are
+> `/api/v1/{edition}/...` — see [docs/web-url-convention.md](../docs/web-url-convention.md).
+> Blipscope's old unprefixed paths still work: **pages 301**, **APIs alias
+> internally and never redirect** (deployed firmware is not guaranteed to follow
+> a 301, and following one on the submit POST would mean re-sending the body).
+> `/v1/*` is Blipscope-legacy space and must never be reassigned to another
+> edition. Legacy hit-rate in `metrics.ts` is the signal for when the aliases can
+> be deleted.
+
 All `/v1/*` endpoints require the `X-Blip-Key` header and are rate-limited.
 Devices also send `X-Blip-Model` (hardware slug, e.g. `c3-128`, `s3-146`) and
 `X-Blip-FW` (firmware version). Responses always carry `Content-Length` (no
@@ -205,7 +214,7 @@ chunked encoding), `Cache-Control: no-store, no-transform`, and a schema
 version `v` in the body. Errors are `{"v":1,"error":"..."}` with a proper
 status; 429/503 include `Retry-After`.
 
-### `GET /v1/blips?lat=&lon=&r=[&limit=]`
+### `GET /api/v1/blipscope/blips?lat=&lon=&r=[&limit=]`
 
 Aircraft near a point. `lat`/`lon` in decimal degrees, `r` in km, `limit`
 optional (default 25, max 50).
@@ -253,7 +262,7 @@ Semantics (all part of the contract):
   projecting. Sorted nearest-first from the **quantized tile centre**, capped
   at `limit`.
 
-### `GET /v1/enrich/{hex}[?cs=CALLSIGN&lat=&lon=]`
+### `GET /api/v1/blipscope/enrich/{hex}[?cs=CALLSIGN&lat=&lon=]`
 
 One aircraft's details, pre-joined from the aircraft DB and the route DB —
 one request replaces the firmware's old two adsbdb calls. Target < 512 B.
@@ -289,7 +298,7 @@ gets the warm KV hit. Sub-second responses are therefore the warm-path norm;
 only a first-ever tap on an aircraft during upstream throttling comes back
 partially empty once.
 
-### `GET /v1/config`
+### `GET /api/v1/blipscope/config`
 
 Fleet tunables, resolved **server-side** for the requesting `X-Blip-Model`.
 Devices fetch on boot + daily and apply without reboot.
@@ -314,7 +323,7 @@ Baked tiers: default/`c3-128` poll 5/15/60 s (C3 enriches `watchlist`-only);
 `s3-146`/`s3-21` poll 2/10/45 s — the S3's near-realtime motion is a pure
 server-side knob.
 
-### `GET /v1/airports?lat&lon&r`
+### `GET /api/v1/blipscope/airports?lat&lon&r`
 
 The airport overlay's long tail beyond the firmware's baked ~260 majors
 (include/Airports.h stays as the BYO/offline fallback). Backed by the
@@ -335,7 +344,7 @@ Row order is frozen `[lat, lon, code, kind]` (code = IATA, else FAA local,
 else ident, ≤4 chars; kind `L`/`M`/`S`); extra trailing fields are the
 evolution path, same rule as blips.
 
-### `GET /v1/photo/<key>`
+### `GET /api/v1/blipscope/photo/<key>`
 
 Serves one immutable, content-addressed stock photo (`key` =
 `photo:<TYPE|hex>-<hash8>`, exactly the value returned in the enrich `p` field).
@@ -352,13 +361,13 @@ manifest the ingest script publishes to KV — satisfies CC-BY / CC-BY-SA / OGL
 attribution in one place and courtesy-credits the PD shots. Linked from the
 device config page; a browser follows the link, so no device key.
 
-### `POST /v1/leaderboard` + public `GET /leaderboard[.json]` / `/leaderboard/<id>`
+### `POST /api/v1/blipscope/leaderboard` + public `GET /blipscope/leaderboard[.json]` / `/blipscope/leaderboard/<id>`
 
 The public spotting leaderboard ([src/leaderboard.ts](src/leaderboard.ts)).
 **Opt-in, off by default** on the device. The submit is authed (same
 `X-Blip-Key` as the rest); the read pages are public like `/credits`.
 
-- `POST /v1/leaderboard` — hourly submission: `{id, name, radiusKm, counts:{types,
+- `POST /api/v1/blipscope/leaderboard` — hourly submission: `{id, name, radiusKm, counts:{types,
   airlines, countries, airports}, typeCodes:[...]}`. `id` is a salted MAC hash
   (the raw MAC never leaves the device); `typeCodes` is the ONE list sent (rarity
   scoring needs it) — airline/country/airport *lists* stay counts-only because
@@ -367,13 +376,13 @@ The public spotting leaderboard ([src/leaderboard.ts](src/leaderboard.ts)).
   numeric suffix), stamps each new type's first-seen month, tracks streaks, and
   claims "First!" ownership of never-before-seen types. Responds with this
   device's `{rank, points, seasonRank, seasonPoints, total}` for the Stats block.
-- `GET /leaderboard` — the public board. **Static markup**, authored as
+- `GET /blipscope/leaderboard` — the public board. **Static markup**, authored as
   [`pages/leaderboard.html`](pages/leaderboard.html) and embedded by
   `scripts/embed-pages.mjs` into `src/pages.generated.ts` (CI fails if that is
   stale). It renders nothing server-side; it fetches the JSON below itself, so
   the page can be iterated on without touching scoring and vice versa. Serving it
   touches no KV at all.
-- `GET /leaderboard.json` — **both scopes in one response**, since the board
+- `GET /blipscope/leaderboard.json` — **both scopes in one response**, since the board
   computes lifetime and season ranks in the same pass and making the page's tab
   switch a second round trip bought nothing:
   ```jsonc
@@ -388,7 +397,7 @@ The public spotting leaderboard ([src/leaderboard.ts](src/leaderboard.ts)).
   `Cache-Control: public, max-age=60` — but note **`BOARD_STALE_MS` is what
   actually governs freshness** (5 min); lower that, not the header.
   `scoring` is the deploy gate's marker — see the reset script's header.
-- `GET /leaderboard/<id>` — a device's public profile + badge case. Still
+- `GET /blipscope/leaderboard/<id>` — a device's public profile + badge case. Still
   server-rendered; it is a per-device page with no client-side data source.
 
 **Scoring** (server-side, tunable without a firmware change): unique type ×10×

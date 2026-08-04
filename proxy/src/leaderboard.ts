@@ -749,7 +749,7 @@ export async function handleProfile(env: Env, id: string): Promise<Response> {
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(me.name)} — Blipscope Spotter</title>
 <style>:root{color-scheme:light dark}body{font:15px/1.6 system-ui,sans-serif;max-width:560px;margin:0 auto;padding:2rem 1rem}h1{margin:0}.dim{color:#888}.stat{display:flex;justify-content:space-between;border-bottom:1px solid #8883;padding:.4rem 0}ul{padding-left:1.2rem}a{color:inherit}</style>
 </head><body>
-  <p class="dim"><a href="/leaderboard">← Leaderboard</a></p>
+  <p class="dim"><a href="/blipscope/leaderboard">← Leaderboard</a></p>
   <h1>${esc(me.name)} ${me.verified ? "✓" : ""}</h1>
   <p class="dim">Rank #${me.rank} lifetime · #${me.seasonRank} this season</p>
   <div class="stat"><span>Spotter Score</span><b>${me.points.toLocaleString("en-US")}</b></div>

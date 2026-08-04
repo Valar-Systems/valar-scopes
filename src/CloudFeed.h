@@ -5,9 +5,9 @@
 // non-cloud builds stay byte-identical. The proxy pre-joins and caches upstream
 // data server-side, so the device makes ONE keep-alive HTTPS connection to ONE
 // host and parses payloads measured in hundreds of bytes:
-//   GET /v1/blips?lat&lon&r&limit  -> compact aircraft arrays + snapshot time t
-//   GET /v1/enrich/{hex}?cs&lat&lon -> reg/type/operator/route in one response
-//   GET /v1/config                  -> fleet tunables, resolved per X-Blip-Model
+//   GET /api/v1/blipscope/blips?lat&lon&r&limit  -> compact aircraft arrays + snapshot time t
+//   GET /api/v1/blipscope/enrich/{hex}?cs&lat&lon -> reg/type/operator/route in one response
+//   GET /api/v1/blipscope/config                  -> fleet tunables, resolved per X-Blip-Model
 #ifdef FEATURE_CLOUD_FEED
 
 #include <Arduino.h>
@@ -34,7 +34,7 @@ namespace CloudFeed {
 // bumps v and this constant together).
 constexpr int SCHEMA_V = 1;
 
-// Fleet tunables from /v1/config, already resolved server-side for this model.
+// Fleet tunables from /api/v1/blipscope/config, already resolved server-side for this model.
 // The defaults here are the pre-first-fetch fallback and match the server's
 // baked "default" tier.
 struct Config {
@@ -49,7 +49,7 @@ struct Config {
     Enrich enrich = Enrich::Full;        // background-enrichment level
 };
 
-// One airport from /v1/airports -- the overlay's long tail (the full
+// One airport from /api/v1/blipscope/airports -- the overlay's long tail (the full
 // OurAirports dataset, tiled server-side), superseding the baked
 // include/Airports.h majors table whenever a fetch has landed. kind is the
 // dataset's size class: 'L' large / 'M' medium / 'S' small, which the radar
@@ -61,7 +61,7 @@ struct CloudAirport {
     char kind = 'S';
 };
 
-// One aircraft's enrichment as served by /v1/enrich. Empty string = unknown.
+// One aircraft's enrichment as served by /api/v1/blipscope/enrich. Empty string = unknown.
 struct Enrichment {
     String registration;
     String typeCode;
@@ -71,7 +71,7 @@ struct Enrichment {
     String routeDest;
 
     // Stock-photo join (proxy `p`/`pk`). photoPath is the relative proxy path
-    // ("/v1/photo/<key>") of a licensed image the server has for this hex or
+    // ("/api/v1/blipscope/photo/<key>") of a licensed image the server has for this hex or
     // type, "" when the library has none. photoRepresentative is true for a
     // generic type shot (pk:"type") -- the card captions it "representative
     // photo"; a per-airframe override (pk:"hex") IS that aircraft, uncaptioned.
@@ -103,6 +103,11 @@ String BlipsUrl(const String& base);
 String EnrichUrl(const String& base, const String& icao24);
 String ConfigUrl(const String& base);
 String AirportsUrl(const String& base);
+// The hourly leaderboard submit target. Previously built inline at the POST site,
+// which is how it stayed on the old path while the other four were namespaced --
+// an endpoint that lives outside the list of endpoints is the one that gets
+// missed. Declared here so all five sit together and move together.
+String LeaderboardUrl(const String& base);
 
 // Parsers for the payloads. Each returns false on a schema-version
 // mismatch or a shape that isn't the endpoint's (e.g. an error body).

@@ -102,7 +102,7 @@ describe("/v1/enrich photo join", () => {
 
     const res = await call(apiRequest("/v1/enrich/4b1817"));
     const body = (await res.json()) as { p?: string; pk?: string };
-    expect(body.p).toBe("/v1/photo/photo:A343-aabbccdd");
+    expect(body.p).toBe("/api/v1/blipscope/photo/photo:A343-aabbccdd");
     expect(body.pk).toBe("type");
   });
 
@@ -116,7 +116,7 @@ describe("/v1/enrich photo join", () => {
 
     const res = await call(apiRequest("/v1/enrich/abc123"));
     const body = (await res.json()) as { p?: string; pk?: string };
-    expect(body.p).toBe("/v1/photo/photo:abc123-11223344");
+    expect(body.p).toBe("/api/v1/blipscope/photo/photo:abc123-11223344");
     expect(body.pk).toBe("hex");
   });
 
@@ -131,7 +131,7 @@ describe("/v1/enrich photo join", () => {
     await env.ENRICH_KV.put("pptr:t:SR22", "photo:SR22-12345678");
 
     const body = (await (await call(apiRequest("/v1/enrich/c22201"))).json()) as Record<string, string>;
-    expect(body.p).toBe("/v1/photo/photo:SR22-12345678");
+    expect(body.p).toBe("/api/v1/blipscope/photo/photo:SR22-12345678");
     expect(body.pk).toBe("type"); // still a representative shot, not an airframe override
   });
 
@@ -144,7 +144,7 @@ describe("/v1/enrich photo join", () => {
     await env.ENRICH_KV.put("pptr:t:C82S", "photo:C82S-bbbbbbbb");
 
     const body = (await (await call(apiRequest("/v1/enrich/c22202"))).json()) as Record<string, string>;
-    expect(body.p).toBe("/v1/photo/photo:C82S-bbbbbbbb");
+    expect(body.p).toBe("/api/v1/blipscope/photo/photo:C82S-bbbbbbbb");
   });
 
   it("omits p/pk entirely when the library has no image for the aircraft", async () => {
