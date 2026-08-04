@@ -333,6 +333,17 @@ private:
     long lbPoints = 0, lbSeasonPoints = 0;
     String lbRarestType;                     // this device's rarest logged type (fleet-wide)
     int lbRarestPct = 0;                     // % of opted-in devices that also have it
+    // A due submit outranks new enrichment until it is away. Without this the
+    // hourly request loses every race for the depth-1 enrich queue on a dense
+    // sky and never lands at all -- silently, since nothing errors.
+    bool lbSubmitPending = false;            // due, waiting for the enrich slot
+    unsigned long lbSubmitDueMs = 0;         // millis() it became due
+    unsigned long lbWorstSubmitWaitMs = 0;   // worst due->away wait (the soak gate reads this)
+    bool lbStarvedReported = false;          // GATE BROKEN printed once per pending episode
+    uint8_t lbConsecutiveFails = 0;          // identical-failure run; 0 whenever one succeeds
+    unsigned long lbRetryBackoffMs = 0;      // 0 = healthy hourly schedule, else the backoff gap
+
+
 
     // Rank-up toast: a transient celebratory banner drawn over any screen for a few
     // seconds after a submit whose overall rank climbed. Armed only once a standing
@@ -345,6 +356,38 @@ private:
     // instant even when a contact flapped out of range and back.
     CloudFeed::EnrichCache enrichCache;
 #endif
+
+    // ---- MEASUREMENT (a [perf] line every 60 s) ------------------------------
+    // Answering one question before any capacity work is built: at a dense
+    // location, is the delay CONTENTION (the shared depth-1 client busy with
+    // enrichment while polls slip) or UPSTREAM DROUGHT (the feed itself dry --
+    // adsb.lol positions run ~90 percent 429 with stretches to 43 min)? The two
+    // demand fixes in different workstreams and look identical on the glass.
+    //
+    // The split is decidable on-device and needs no log join. Data age is
+    // (millis() - lastGoodDataMs) + dataLagAtMergeMs: the first term is time WE
+    // did not poll, the second is age the snapshot already carried when it
+    // arrived. Contention inflates the first. A dry feed inflates the second.
+    // X-Cache/X-Upstream then say which of the two the proxy blames.
+    struct PerfWindow {
+        uint32_t polls = 0;              // completed position fetches
+        uint32_t enrichReqs = 0;         // enrichment requests issued
+        unsigned long fetchBusyMs = 0;   // wall time inside position fetches
+        unsigned long enrichBusyMs = 0;  // wall time inside enrichment requests
+        unsigned long parseMs = 0;       // of fetchBusyMs, time consuming the body
+        uint64_t bodyBytes = 0;          // position payload bytes
+        uint32_t acReceived = 0;         // aircraft in the payload, BEFORE the MAX_AIRCRAFT cut
+        uint32_t acKept = 0;             // aircraft actually tracked
+        uint32_t cacheHit = 0, cacheStale = 0, cacheMiss = 0;
+        unsigned long lagSumMs = 0;      // sum of dataLagAtMergeMs -- upstream staleness
+        unsigned long lagMaxMs = 0;
+        unsigned long gapMaxMs = 0;      // longest observed gap between good merges
+        uint32_t episodes = 0;           // times the picture crossed into Aging
+    };
+    PerfWindow perf;
+    unsigned long lastPerfReportMs = 0;
+    bool perfInEpisode = false;          // currently past AGING_MS (edge-detect for episodes)
+    void ReportPerf();
 
     // Claim confirmation. A claim is the whole reward for tapping, so it is
     // acknowledged rather than left to be inferred from a badge disappearing.
@@ -544,6 +587,7 @@ private:
     void StartEnrichTask();                      // spawn the enrichment task once
     static void EnrichTaskTrampoline(void* arg); // FreeRTOS entry -> RunEnrichTask()
     void RunEnrichTask();                        // blocking adsbdb GET / photo download, off-loop
+    bool EnrichDeferredForSubmit() const;    // true while a due submit owns the next enrich slot
     void RequestMetadata(const String& icao24);                      // loop: queue a metadata lookup
     void RequestRoute(const String& icao24, const String& callsign); // loop: queue a route lookup
     void RequestPhoto(const String& icao24, const String& url, const String& authKey = ""); // loop: queue a photo download (authKey set in cloud mode)

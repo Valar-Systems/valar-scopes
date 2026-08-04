@@ -5,6 +5,7 @@
 #include <memory>             // shared_ptr: keeps the chunked logbook stream alive across fills
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
+#include "BuildIdentity.h"
 #include "CoordParse.h"       // forgiving lat/lon parsing for /save (see the header)
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
@@ -234,6 +235,16 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              No percent signs below - the template engine claims that character (see the
              favicon comment above), so every size is fr/px/flex. -->
         <style>
+          /* The rail has to be ADDITIVE, not carved out of the form. .wrap is 42rem
+             and shared with the other seven editions; dropping a 170px column inside
+             it left the form column ~27rem -- narrow enough that every two-word
+             checkbox label wrapped onto two lines: Directional aircraft, Altitude
+             colors, Night clock, Position source. Widen by exactly the rail plus its
+             gap so the form is the same width it was before the nav existed.
+             Scoped to this radar-only block, so the other editions keep 42rem.
+             NB no close-paren-then-double-quote anywhere in this block: that pair
+             ends the C++ raw string literal the whole page lives in. */
+          .wrap{max-width:54rem}
           .shell{display:grid;grid-template-columns:170px 1fr;gap:1.1rem;align-items:start}
           .side{display:flex;flex-direction:column;gap:.2rem;position:sticky;top:.5rem}
           .navb{text-align:left;background:none;border:1px solid transparent;color:var(--dim);
@@ -264,6 +275,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION%</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <div class="shell">
@@ -567,6 +579,16 @@ R"(
                     </span>
                 </details>
 
+                </div><!-- /sec -->
+
+                <!-- The logbook toggle is the master switch for what the Collection
+                     tab renders, and the leaderboard opt-in publishes that same
+                     collection. Both sat under "Location & Radar", so turning the
+                     logbook off emptied a tab you were not looking at. A section is
+                     a SET of blocks, so moving them costs nothing but this boundary
+                     -- no markup moves and the form stays one whole-form POST. -->
+                <div class="sec" data-sec="collection">
+
                 <details class="auto">
                     <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
                     <span class="hint">
@@ -636,7 +658,10 @@ R"(
 
                 </div><!-- /sec -->
 
-                <div class="sec" data-sec="location network">
+                <!-- Every section that contains a control needs the savebar. Moving
+                     the logbook/leaderboard blocks to Collection without adding it
+                     here left that tab with toggles and no way to apply them. -->
+                <div class="sec" data-sec="collection location network">
                 <div class="savebar">
                     <input type="submit" value="Save" class="btn">
                     <span id="result"></span>
@@ -869,6 +894,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (EAM)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1029,6 +1055,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Space)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1127,6 +1154,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Seismic)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1229,6 +1257,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Birding)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1338,6 +1367,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Reelscope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1535,6 +1565,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Claudescope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -1624,6 +1655,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <span>%DEVICE_IP%</span>
                 <span>WiFi %WIFI_RSSI% dBm</span>
                 <span>firmware v%FW_VERSION% (Speedscope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
             </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -2301,6 +2333,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "MQTT_DISCO")     return mqttDisco == "true" ? "checked" : "";
                 if (var == "INFO_FIELDS")    return infoFieldsHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2336,6 +2371,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "EAM_SCREENS")    return eamScreens;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2363,6 +2401,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "SPACE_SCREENS_HTML") return spaceScreensHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2389,6 +2430,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2413,6 +2457,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2458,6 +2505,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2482,6 +2532,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;
@@ -2514,6 +2567,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
                 if (var == "DEVICE_NAME")    return deviceName;
                 if (var == "DEVICE_IP")      return deviceIp;
                 if (var == "WIFI_RSSI")      return wifiRssi;

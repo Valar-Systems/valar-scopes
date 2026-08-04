@@ -114,6 +114,17 @@ struct FetchResult {
     CloudFeed::Config config;        // CloudConfig kind only
     std::vector<CloudFeed::CloudAirport> airports; // Airports kind only
 #endif
+    // Measurement carried back to the loop task, which owns the counters (this
+    // struct crosses a queue; the fetch task must not touch loop state).
+    // receivedCount is taken BEFORE the MAX_AIRCRAFT cut -- the gap between it and
+    // aircraft.size() is exactly the work spent parsing contacts that get thrown
+    // away, which is the case for Worker-side truncation if it is large.
+    size_t receivedCount = 0;
+    size_t bodyBytes = 0;
+    unsigned long parseMs = 0;
+    unsigned long requestMs = 0;
+    String cacheState;   // X-Cache from the proxy
+    String upstream;     // X-Upstream from the proxy
 };
 
 // Handoff payloads for the background enrichment task (adsbdb metadata/route +
@@ -148,6 +159,9 @@ struct EnrichResult {
     // adsbdb outages back off 30 s; a cloud proxy still warming its caches
     // answers in seconds, so its retries come quicker.
     unsigned long retryCooldownMs = 30000;
+    // MEASUREMENT: wall time this request held the shared HTTP client. Summed on
+    // the loop task into the [perf] window's enrich share.
+    unsigned long busyMs = 0;
 
     // Metadata / CloudEnrich
     String typeCode, typeName, operatorName, registration, photoUrl;
@@ -919,20 +933,75 @@ void AircraftManager::Update()
     // Retire an expired claim confirmation and start the next queued one.
     UpdateClaimToast();
 
+    // MEASUREMENT: edge-detect entry into an Aging picture (a "stale episode"),
+    // then report the window. Stamped with UTC in ReportPerf so an episode can be
+    // lined up against the relay's own log for the same minute -- the backstop
+    // that catches the case the on-device numbers cannot see, namely NO DEVICE
+    // TRAFFIC AT THE RELAY AT ALL. That signature is what would have identified a
+    // wrong-image flash in minutes instead of hours.
+    {
+        const bool aging = CurrentStaleStage() >= StaleStage::Aging;
+        if (aging && !perfInEpisode) perf.episodes++;
+        perfInEpisode = aging;
+    }
+    if (now - lastPerfReportMs >= 60000UL) {
+        lastPerfReportMs = now;
+        ReportPerf();
+    }
+
 #ifdef FEATURE_CLOUD_FEED
     // Public leaderboard: submit the logbook tallies hourly (first submit ~30 s
     // after boot so the lifelist has loaded and the clock/feed have settled).
-    // QueueLeaderboardSubmit self-gates on the shared enrich queue; a busy tick
-    // just retries next loop, and lastLeaderboardSubmit only advances on a
-    // successful enqueue so a missed hour isn't skipped.
+    //
+    // ONCE DUE, THE SUBMIT TAKES PRIORITY over new enrichment. It used to merely
+    // retry -- QueueLeaderboardSubmit returns false while enrichInFlight, and the
+    // hourly retry would "just catch the next gap". Under a dense sky there is no
+    // gap: the tracked set is pinned at MAX_AIRCRAFT and churns continuously, so
+    // enrichment (queue depth 1, one outstanding at a time) is always in flight
+    // and a request issued once an hour loses every race, permanently. Measured
+    // at LAX with a 10 mi radius: zero submits landed. The device kept claiming,
+    // the board kept showing nothing, and nothing anywhere reported an error --
+    // the worst shape a bug can take.
+    //
+    // So `lbSubmitPending` latches when due and holds new enrichment off until
+    // the submit is away (see RequestMetadata/Route/Photo/CloudEnrich). One small
+    // request per hour delaying one photo by a second or two is the right trade;
+    // the reverse -- a photo stream permanently starving the only report the
+    // owner's collection ever makes -- is not.
     if (lbEnabled && useCloudSource && !cloudUrl.isEmpty()) {
         constexpr unsigned long LB_INTERVAL_MS = 60UL * 60UL * 1000UL; // hourly
         constexpr unsigned long LB_FIRST_DELAY_MS = 30UL * 1000UL;
+        // lbRetryBackoffMs is 0 in the healthy case, so this is the plain hourly
+        // schedule until something actually fails.
+        const unsigned long wait = lbRetryBackoffMs > 0 ? lbRetryBackoffMs : LB_INTERVAL_MS;
         const bool due = lastLeaderboardSubmit == 0
             ? now >= LB_FIRST_DELAY_MS
-            : now - lastLeaderboardSubmit >= LB_INTERVAL_MS;
-        if (due && QueueLeaderboardSubmit())
+            : now - lastLeaderboardSubmit >= wait;
+        if (due && !lbSubmitPending) {
+            lbSubmitPending = true;
+            lbSubmitDueMs = now; // start the due -> away clock the soak gate reads
+            lbStarvedReported = false;
+        }
+#ifdef LB_SUBMIT_GATE_MS
+        // Dense-sky gate (blipscope-s3-128-densesky). Starvation is silent by
+        // nature -- the device keeps working, the board just never changes -- so
+        // the run has to say so out loud or a 24 h log proves nothing. Once per
+        // episode, not per loop: a line every frame is a line nobody reads.
+        if (lbSubmitPending && !lbStarvedReported && now - lbSubmitDueMs > LB_SUBMIT_GATE_MS) {
+            lbStarvedReported = true;
+            Serial.printf("[leaderboard] GATE BROKEN: due %lu ms ago, still not away "
+                          "(enrichInFlight=%d)\n", now - lbSubmitDueMs, (int)enrichInFlight);
+        }
+#endif
+        if (lbSubmitPending && QueueLeaderboardSubmit()) {
+            const unsigned long waited = now - lbSubmitDueMs;
+            if (waited > lbWorstSubmitWaitMs)
+                lbWorstSubmitWaitMs = waited;
+            lbSubmitPending = false;
             lastLeaderboardSubmit = now;
+            Serial.printf("[leaderboard] submit away after %lu ms (worst %lu ms)\n",
+                          waited, lbWorstSubmitWaitMs);
+        }
     }
 #endif
 
@@ -1587,6 +1656,14 @@ void AircraftManager::RunFetchTask()
         // render loop. nth_element partitions in O(n) -- cheaper than a full sort, and we only need
         // "the closest N", not them ordered. Distance is a cheap planar metric (longitude scaled by
         // cos(lat)); exact great-circle isn't needed to rank neighbours.
+        // Before the cut: what the feed actually sent us. See FetchResult.
+        res->receivedCount = res->aircraft.size();
+        res->bodyBytes = result.bodyBytes;
+        res->parseMs = result.parseMs;
+        res->requestMs = result.requestMs;
+        res->cacheState = result.cacheState;
+        res->upstream = result.upstream;
+
         if (res->ok && res->aircraft.size() > MAX_AIRCRAFT) {
             const double clat = cos(req->lat * DEG_TO_RAD);
             std::nth_element(res->aircraft.begin(), res->aircraft.begin() + MAX_AIRCRAFT,
@@ -1791,6 +1868,13 @@ void AircraftManager::ConsumeFetchResult()
         // old the server said the snapshot already was (cloud tiles served
         // stale-while-revalidate keep their original t; other sources have no
         // server-side lag to account for).
+        // MEASUREMENT: the gap since the last good merge is time WE were not
+        // polling (contention); dataLagAtMergeMs below is age the snapshot already
+        // carried (upstream drought). Captured here, before lastGoodDataMs moves.
+        if (lastGoodDataMs != 0) {
+            const unsigned long gap = now - lastGoodDataMs;
+            if (gap > perf.gapMaxMs) perf.gapMaxMs = gap;
+        }
         lastGoodDataMs = now;
         dataLagAtMergeMs = 0;
 #ifdef FEATURE_CLOUD_FEED
@@ -1800,6 +1884,17 @@ void AircraftManager::ConsumeFetchResult()
                 dataLagAtMergeMs = (unsigned long)((long)nowEpoch - res->dataEpoch) * 1000UL;
         }
 #endif
+        perf.polls++;
+        perf.fetchBusyMs += res->requestMs;
+        perf.parseMs += res->parseMs;
+        perf.bodyBytes += res->bodyBytes;
+        perf.acReceived += (uint32_t)res->receivedCount;
+        perf.acKept += (uint32_t)res->aircraft.size();
+        perf.lagSumMs += dataLagAtMergeMs;
+        if (dataLagAtMergeMs > perf.lagMaxMs) perf.lagMaxMs = dataLagAtMergeMs;
+        if (res->cacheState == "HIT")        perf.cacheHit++;
+        else if (res->cacheState == "STALE") perf.cacheStale++;
+        else if (res->cacheState == "MISS")  perf.cacheMiss++;
 
         // TODAY counters: roll over at local midnight, then attribute fresh
         // contacts to their local hour. NTP-gated (no clock = no attribution).
@@ -3184,8 +3279,69 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
                   (unsigned)logbook.ClaimedTypeCount(), (unsigned)logbook.TypeCount());
 }
 
+// One [perf] line a minute: the whole feed-vs-contention question in a form that
+// can be read straight off a serial capture, with no post-processing and no join.
+//
+// HOW TO READ IT. `busy` is the share of the window the shared HTTP client spent
+// working, split fetch/enrich -- that is the contention term, and it is the ONLY
+// thing device-side scheduling can improve. `lag` is how old the data already was
+// when it arrived, which no amount of device scheduling can fix. `gapMax` is the
+// longest we went without a good merge.
+//
+//   lag high, busy low     -> upstream drought. Feed workstream. Build nothing here.
+//   busy high, lag low     -> contention. The capacity plan is justified.
+//   both low, episodes > 0 -> neither: look at the relay log for the window.
+//
+// `ac` is received/kept: a large gap is parse and bandwidth spent on aircraft
+// thrown away by the MAX_AIRCRAFT cut, and is the case for Worker-side
+// truncation. `cache` is the proxy's own attribution (HIT/STALE/MISS).
+void AircraftManager::ReportPerf()
+{
+    if (perf.polls == 0 && perf.enrichReqs == 0)
+        return; // nothing happened; a line of zeros is noise
+
+    const unsigned long windowMs = 60000UL;
+    const unsigned long busyMs = perf.fetchBusyMs + perf.enrichBusyMs;
+    const uint32_t n = perf.polls ? perf.polls : 1;
+
+    // UTC so an episode lines up with the relay log. Falls back to uptime before NTP.
+    char stamp[24];
+    const time_t utc = time(nullptr);
+    if (utc > 1600000000) {
+        struct tm t;
+        gmtime_r(&utc, &t);
+        snprintf(stamp, sizeof(stamp), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+                 t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
+    } else {
+        snprintf(stamp, sizeof(stamp), "up+%lus", millis() / 1000UL);
+    }
+
+    Serial.printf("[perf] %s polls=%lu busy=%lu%%(fetch=%lu%% enrich=%lu%%) "
+                  "parse=%lums/poll bytes=%lu/poll ac=%lu/%lu "
+                  "lag=avg%lums,max%lums gapMax=%lums episodes=%lu "
+                  "cache=H%lu/S%lu/M%lu enrichReqs=%lu\n",
+                  stamp,
+                  (unsigned long)perf.polls,
+                  busyMs * 100UL / windowMs,
+                  perf.fetchBusyMs * 100UL / windowMs,
+                  perf.enrichBusyMs * 100UL / windowMs,
+                  perf.parseMs / n,
+                  (unsigned long)(perf.bodyBytes / n),
+                  (unsigned long)(perf.acReceived / n),
+                  (unsigned long)(perf.acKept / n),
+                  perf.lagSumMs / n, perf.lagMaxMs,
+                  perf.gapMaxMs,
+                  (unsigned long)perf.episodes,
+                  (unsigned long)perf.cacheHit, (unsigned long)perf.cacheStale,
+                  (unsigned long)perf.cacheMiss,
+                  (unsigned long)perf.enrichReqs);
+
+    perf = PerfWindow{}; // windows are independent; a running total hides the episode
+}
+
 void AircraftManager::DrawRankToast(BandCanvas& backbuffer) const
 {
+
 #ifdef FEATURE_CLOUD_FEED
     if ((long)(millis() - rankToastUntilMs) >= 0)
         return; // expired (or never armed)
@@ -3538,6 +3694,17 @@ void AircraftManager::ProcessDetailLookups()
     if (enrichInFlight)
         return;
 
+    // Same for a leaderboard submit that is already due -- but the check MUST be
+    // here, at the top, and not left to the Request* calls below. This function
+    // commits state BEFORE it enqueues ("photoIcao = selectedIcao" is marked
+    // attempted regardless of outcome, with no retry; metadataState goes to
+    // Fetching). A deferral swallowed inside RequestPhoto would therefore burn
+    // the single attempt and the card would never load its photo -- the exact
+    // symptom this whole change is meant to relieve. Bailing early re-runs the
+    // step next loop, which is what the enrichInFlight gate above already does.
+    if (EnrichDeferredForSubmit())
+        return;
+
     // same TLS-heap guard as the radar path: a handshake with too little contiguous
     // heap only fails and churns, so defer the detail lookups until heap recovers.
     if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
@@ -3679,6 +3846,8 @@ void AircraftManager::RunEnrichTask()
             continue;
 
         EnrichResult* res = nullptr;
+        const unsigned long enrichStartMs = millis(); // MEASUREMENT: the other consumer
+                                                      // of the shared client
         switch (req->kind) {
             case EnrichKind::Metadata: res = fetchAircraftMetadata(http, req->icao24); break;
             case EnrichKind::Route:    res = fetchRoute(http, req->callsign);          break;
@@ -3694,6 +3863,7 @@ void AircraftManager::RunEnrichTask()
         if (res != nullptr) {
             res->kind = req->kind;
             res->icao24 = req->icao24; // who the result applies to (route req carries it too)
+            res->busyMs = millis() - enrichStartMs;
 
             // hand the result back; the loop consumed the previous one before
             // requesting again, so the depth-1 queue always has room
@@ -3705,20 +3875,41 @@ void AircraftManager::RunEnrichTask()
     }
 }
 
+// Yield the next free enrich slot to a leaderboard submit that is already due.
+// Checked by every enrichment entry point below: the queue is depth 1 and one
+// request is outstanding at a time, so without this a continuous enrichment
+// stream simply never leaves a gap for the hourly submit (see the Update() note).
+// Nothing is lost -- the deferred lookup is re-issued on the next sweep of the
+// tracked set, one cycle later.
+bool AircraftManager::EnrichDeferredForSubmit() const
+{
+#ifdef FEATURE_CLOUD_FEED
+    return lbSubmitPending;
+#else
+    return false;
+#endif
+}
+
 void AircraftManager::RequestMetadata(const String& icao24)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Metadata, icao24, "", "" }))
         enrichInFlight = true;
 }
 
 void AircraftManager::RequestRoute(const String& icao24, const String& callsign)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Route, icao24, callsign, "" }))
         enrichInFlight = true;
 }
 
 void AircraftManager::RequestPhoto(const String& icao24, const String& url, const String& authKey)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     EnrichRequest* req = new EnrichRequest{ EnrichKind::Photo, icao24, "", url };
     req->cloudKey = authKey; // "" for the BYO adsbdb thumbnail; the proxy key in cloud mode
     if (enqueueEnrich(enrichRequestQueue, req))
@@ -3729,6 +3920,8 @@ void AircraftManager::RequestPhoto(const String& icao24, const String& url, cons
 void AircraftManager::RequestCloudEnrich(const String& icao24, const String& callsign,
                                          float acLat, float acLon)
 {
+    if (EnrichDeferredForSubmit())
+        return;
     EnrichRequest* req = new EnrichRequest{};
     req->kind = EnrichKind::CloudEnrich;
     req->icao24 = icao24;
@@ -3859,6 +4052,8 @@ void AircraftManager::ConsumeEnrichResults()
         return; // nothing ready
 
     enrichInFlight = false;
+    perf.enrichReqs++;              // MEASUREMENT: the enrich half of `busy`
+    perf.enrichBusyMs += res->busyMs;
 
     // The aircraft may have left range while the lookup was outstanding. Metadata
     // and route results target a map entry (gone -> nothing to apply); the photo is
@@ -3958,6 +4153,37 @@ void AircraftManager::ConsumeEnrichResults()
                                   prevRank, res->lbRank, rankToastDelta);
                 }
                 PersistLeaderboardStanding();
+                lbConsecutiveFails = 0;
+                lbRetryBackoffMs = 0;
+            } else {
+                // ESCALATING BACKOFF. A submit that fails the same way every hour
+                // is not self-correcting: the payload that overran the server is
+                // the payload the next attempt sends, so a slow server wedged
+                // submits permanently and the only symptom was a read timeout.
+                // (Seen for real: a 40-type catch-up blew the 5 s read timeout
+                // against a server doing two serial KV round trips per type, and
+                // the backlog it needed to clear was what kept it failing.)
+                //
+                // Retrying HARDER cannot help, so retry LATER: 2 min doubling to
+                // 60 min, with +-12.5 percent jitter so a fleet that hits a
+                // server-side fault together does not resynchronise into a
+                // thundering herd on every retry. The hourly schedule is
+                // unchanged on success -- this only ever lengthens the gap after
+                // a failure.
+                if (lbConsecutiveFails < 255)
+                    lbConsecutiveFails++;
+                constexpr unsigned long LB_BACKOFF_BASE_MS = 2UL * 60UL * 1000UL;
+                constexpr unsigned long LB_BACKOFF_MAX_MS  = 60UL * 60UL * 1000UL;
+                unsigned long back = LB_BACKOFF_BASE_MS;
+                for (uint8_t i = 1; i < lbConsecutiveFails && back < LB_BACKOFF_MAX_MS; ++i)
+                    back <<= 1;
+                if (back > LB_BACKOFF_MAX_MS) back = LB_BACKOFF_MAX_MS;
+                const long jitter = (long)(back / 8) - (long)random(back / 4 + 1);
+                lbRetryBackoffMs = (unsigned long)max(1000L, (long)back - jitter);
+                // Distinct line: "failed" is a single event, this is a STATE, and
+                // the two need to be separable when reading a long log.
+                Serial.printf("[leaderboard] BACKOFF: %u consecutive failures, next attempt in %lu s\n",
+                              (unsigned)lbConsecutiveFails, lbRetryBackoffMs / 1000UL);
             }
             break;
 #endif
