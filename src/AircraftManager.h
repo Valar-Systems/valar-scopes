@@ -387,7 +387,7 @@ private:
     PerfWindow perf;
     unsigned long lastPerfReportMs = 0;
     bool perfInEpisode = false;          // currently past AGING_MS (edge-detect for episodes)
-    void ReportPerf();
+    void ReportPerf();
 
     // Claim confirmation. A claim is the whole reward for tapping, so it is
     // acknowledged rather than left to be inferred from a badge disappearing.
@@ -667,6 +667,12 @@ public:
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
+    // Is the detail card up? Distinct from !IsRadarView(), which is also true on
+    // the List and Stats screens -- a caller that needs "a card is covering the
+    // view" cannot get it from IsRadarView() without conflating the two. Read-only,
+    // so it adds no mutation surface; the soak harness uses it to dwell on a card
+    // and then dismiss it rather than leaving it open until the next burst.
+    bool DetailCardOpen() const { return inDetail; }
 
     // On-screen "Reset WiFi", consumed by main.cpp. This is the PRIMARY recovery
     // path for a device with wrong credentials: it still boots, renders and takes
@@ -713,7 +719,7 @@ public:
     // queue and merge, and aimed taps use the real screen projection.
     void BisectApplyTestConfig();                          // deterministic bench config (overrides NVS)
     bool BisectInjectFleet(std::vector<Aircraft>&& fleet); // false = result queue busy (e.g. card open); drop the frame
-    bool BisectCardOpen() const { return inDetail; }
+    bool BisectCardOpen() const { return DetailCardOpen(); } // kept for the harness's existing call sites
     std::pair<int, int> BisectProject(float la, float lo) const { return ProjectCoordinateToScreen(la, lo); }
 #endif
 };
