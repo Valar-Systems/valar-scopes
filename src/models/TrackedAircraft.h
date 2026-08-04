@@ -73,16 +73,39 @@ struct TrackedAircraft {
     // path doesn't re-request the route every frame while adsbdb is unreachable.
     unsigned long routeRetryAfter = 0;
 
-    // Recent display positions for the fading trail, stored as geographic
-    // coordinates (so they reproject correctly) in a ring buffer sampled once a
-    // second. ~TRAIL_CAPACITY seconds of history.
+    // REPORTED FIXES for the fading trail -- not display positions -- stored as
+    // geographic coordinates (so they reproject correctly) in a ring buffer, one
+    // entry per distinct fix.
+    //
+    // THIS USED TO SAMPLE GetDisplayPosition() ONCE A SECOND, and that is what
+    // made stale data look broken. The display position is dead-reckoned AND
+    // blended, so on a stale feed the trail recorded, in order: the extrapolated
+    // guess, then the renderer sweeping the marker SIDEWAYS onto the true fix
+    // when it finally arrived, then the resumed track. That lateral excursion is
+    // a path no aircraft ever flew -- it is the renderer catching up -- and it
+    // drew as a zig-zag that got uglier the longer the drought ran.
+    //
+    // Recording the FIX removes the artifact by construction rather than
+    // smoothing it away: every point is a position the aircraft actually
+    // reported. During a drought the trail simply stops growing while the marker
+    // dead-reckons on, which reads as "the trail paused" instead of "the
+    // aircraft convulsed". The draw loop already joins the newest point to the
+    // live marker, so the trail stays attached with no gap.
+    //
+    // NB the obvious fix -- skip sampling while blendAlpha < 1 -- would have
+    // stopped trails almost entirely: blendSpeed 0.15 needs ~6.7 s to complete
+    // and the active cloud poll is 5 s, so blendAlpha is reset before it ever
+    // reaches 1.0 and that condition is almost never true.
+    //
+    // CAPACITY IS NOW FIXES, NOT SECONDS. At the 5 s active poll, 16 fixes is
+    // ~80 s of history -- close to the ~60 s the old 60-at-1 Hz buffer held, and
+    // 60 entries would have been 5 minutes, long enough to run off the scope.
+    // It also gives back ~21 KB across a full 60-contact table.
     struct TrailPoint { float lat; float lon; };
-    static constexpr int TRAIL_CAPACITY = 60;
-    static constexpr unsigned long TRAIL_SAMPLE_MS = 1000;
+    static constexpr int TRAIL_CAPACITY = 16;
     TrailPoint trail[TRAIL_CAPACITY];
     int trailWrite = 0;                 // index of the next slot to overwrite
     int trailCount = 0;                 // valid points so far (<= TRAIL_CAPACITY)
-    unsigned long lastTrailSample = 0;
 
     // Radar "paint" state for the PPI sweep. With the sweep enabled, a blip's
     // drawn position is latched here the moment the rotating beam crosses its
@@ -126,15 +149,21 @@ struct TrackedAircraft {
         blendAlpha = min(blendAlpha + deltaSeconds * blendSpeed, 1.0f);
     }
 
-    // Append the current display position to the trail at most once per
-    // TRAIL_SAMPLE_MS; call every frame (it self-throttles).
+    // Append the latest REPORTED FIX to the trail, if it is a new one. Call every
+    // frame (or every sweep pass): it self-dedupes, so there is no timer.
+    //
+    // Exact float compare is the right test here rather than a distance epsilon:
+    // the feed quantizes position, so an unchanged fix is bit-identical, and
+    // "the value did not change" is precisely the condition we want. A drought
+    // therefore appends nothing at all, which is the whole point.
     void SampleTrail() {
-        unsigned long now = millis();
-        if (trailCount > 0 && now - lastTrailSample < TRAIL_SAMPLE_MS)
-            return;
-        lastTrailSample = now;
-
-        auto [lat, lon] = GetDisplayPosition();
+        const float lat = state.latitude;
+        const float lon = state.longitude;
+        if (trailCount > 0) {
+            const int last = (trailWrite - 1 + TRAIL_CAPACITY) % TRAIL_CAPACITY;
+            if (trail[last].lat == lat && trail[last].lon == lon)
+                return; // same fix as last time -- nothing new was reported
+        }
         trail[trailWrite] = { lat, lon };
         trailWrite = (trailWrite + 1) % TRAIL_CAPACITY;
         if (trailCount < TRAIL_CAPACITY)
