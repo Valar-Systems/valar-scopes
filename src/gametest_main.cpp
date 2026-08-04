@@ -134,11 +134,40 @@ struct ArmStats {
     unsigned long runs = 0, cleanRuns = 0, dropouts = 0, longestMs = 0;
     unsigned long hist[5] = {0,0,0,0,0}; // <10, <25, <50, <100, >=100 ms
 };
-ArmStats armFactory;  // 0xFE = 1 (auto-sleep DISABLED -- this board's factory state)
-ArmStats armSleepOn;  // 0xFE = 0 (auto-sleep ARMED -- deliberately the reject value)
-bool sleepArmed = false; // which arm is live
+// THREE ARMS. A and B are the sleep A/B (see the header note on why its polarity
+// is inverted on this board). C exists because of finding (b): the driver and the
+// chip disagree on a static contact, and the chip is the one that keeps the truth.
+//
+//   A  factory      0xFE=1 (sleep OFF)   contact source: the DRIVER (getTouch)
+//   B  sleep armed  0xFE=0 (sleep ON)    contact source: the DRIVER
+//   C  chip poll    0xFE=0 (sleep ON)    contact source: the CHIP (TouchNum, 0x02)
+//
+// C deliberately runs under the HOSTILE sleep config rather than the benign one.
+// If direct register polling holds clean with the sleep engine armed, it holds
+// clean everywhere, and that is one run instead of two. It is also the result
+// that matters most: if C is clean, the deputy gesture is solved by a game-mode
+// poll window that ignores INT entirely, and the sleep engine never has to be
+// touched in the shipping product -- no register writes, no departure from the
+// factory config the incoming-inspection gate checks for.
+enum class Arm : uint8_t { FactoryNoSleep, SleepArmed, ChipPoll, COUNT };
+const char* ArmName(Arm a)
+{
+    switch (a) {
+        case Arm::FactoryNoSleep: return "A_factory_nosleep";
+        case Arm::SleepArmed:     return "B_sleep_armed";
+        case Arm::ChipPoll:       return "C_chip_poll";
+        default:                  return "?";
+    }
+}
+ArmStats armStats[(int)Arm::COUNT];
+Arm arm = Arm::FactoryNoSleep;
 
-ArmStats& CurArm() { return sleepArmed ? armSleepOn : armFactory; }
+// C reads the chip; A and B read the driver.
+bool ArmUsesChipSource(Arm a) { return a == Arm::ChipPoll; }
+// C wants the sleep engine armed (hostile); B does too; A does not.
+uint8_t ArmWantsDisAutoSleep(Arm a) { return a == Arm::FactoryNoSleep ? 1 : 0; }
+
+ArmStats& CurArm() { return armStats[(int)arm]; }
 
 void Bucket(ArmStats& a, unsigned long ms)
 {
@@ -193,7 +222,7 @@ void Banner(const char* title)
 
 void DrawHold()
 {
-    Banner(sleepArmed ? "HOLD  [sleep ARMED]" : "HOLD  [factory]");
+    Banner(ArmName(arm));
 
     // The switch arc the deputy holds.
     const int r = C - 22;
@@ -289,12 +318,12 @@ void ApplyArm()
     // CST816T this register NACKs entirely, and a batch that ships 0xFE=0 is the
     // documented reject condition. If the readback disagrees with intent, the run
     // is not the arm it claims to be and the CSV must say so.
-    const uint8_t want = sleepArmed ? 0 : 1;
+    const uint8_t want = ArmWantsDisAutoSleep(arm);
     const int pre = ReadReg(REG_DISAUTOSLEEP);
     const bool wrote = WriteReg(REG_DISAUTOSLEEP, want);
     const int back = ReadReg(REG_DISAUTOSLEEP);
     Serial.printf("REG,arm,%s,pre,%d,write,%s,readback,%d,intended,%u,honoured,%d\n",
-                  sleepArmed ? "sleep_armed" : "factory_nosleep",
+                  ArmName(arm),
                   pre, wrote ? "ok" : "NACK", back, want,
                   (back == (int)want) ? 1 : 0);
     if (back != (int)want)
@@ -313,15 +342,28 @@ void ReportArm(const char* name, const ArmStats& a)
 
 void ReportBoth()
 {
-    ReportArm("factory_nosleep", armFactory);
-    ReportArm("sleep_armed", armSleepOn);
-    // The delta is the whole point of running two arms: it is the auto-sleep tax.
-    if (armFactory.runs && armSleepOn.runs) {
-        const long f = (long)(armFactory.cleanRuns * 100 / armFactory.runs);
-        const long s = (long)(armSleepOn.cleanRuns * 100 / armSleepOn.runs);
-        Serial.printf("HOLD,delta,cleanpct_factory,%ld,cleanpct_sleeparmed,%ld,autosleep_tax_pts,%ld\n",
-                      f, s, f - s);
-    }
+    for (int i = 0; i < (int)Arm::COUNT; ++i)
+        ReportArm(ArmName((Arm)i), armStats[i]);
+    // Two deltas, and they answer different questions:
+    //
+    //   A - B  the AUTO-SLEEP TAX: what the sleep engine costs a static hold.
+    //   C - B  the CHIP-POLL RESCUE: what bypassing INT recovers under the SAME
+    //          hostile sleep config. If this is large and C is near 100%, the
+    //          deputy gesture is solved by a game-mode poll window and the sleep
+    //          engine never has to be touched in the shipping product.
+    auto pct = [](const ArmStats& a) -> long {
+        return a.runs ? (long)(a.cleanRuns * 100 / a.runs) : -1;
+    };
+    const long a = pct(armStats[(int)Arm::FactoryNoSleep]);
+    const long b = pct(armStats[(int)Arm::SleepArmed]);
+    const long c = pct(armStats[(int)Arm::ChipPoll]);
+    Serial.printf("HOLD,delta,cleanpct_A,%ld,cleanpct_B,%ld,cleanpct_C,%ld,"
+                  "autosleep_tax_pts,%ld,chippoll_rescue_pts,%ld\n",
+                  a, b, c,
+                  (a >= 0 && b >= 0) ? a - b : 0,
+                  (c >= 0 && b >= 0) ? c - b : 0);
+    if (a < 0 || b < 0 || c < 0)
+        Serial.println("HOLD,note,an arm with cleanpct -1 has no runs yet -- deltas involving it are meaningless");
 }
 
 // ---- hold-test state machine ----------------------------------------------
@@ -334,7 +376,8 @@ void HoldTick(bool touched, unsigned long now)
         lastDownMs = now;
         runDropouts = 0;
         runLongestDropoutMs = 0;
-        Serial.printf("HOLD,run_start,%lu,arm,%s\n", now, sleepArmed ? "sleep_armed" : "factory_nosleep");
+        Serial.printf("HOLD,run_start,%lu,arm,%s,source,%s\n", now, ArmName(arm),
+                      ArmUsesChipSource(arm) ? "chip_touchnum" : "driver_gettouch");
         needsRepaint = true;
         return;
     }
@@ -441,7 +484,7 @@ void setup()
                   ReadReg(REG_DISAUTOSLEEP), ReadReg(REG_AUTOSLEEPTIME), ReadReg(REG_IRQCTL));
     Serial.println("REG,note,0xFE=1 means auto-sleep DISABLED (this board's factory state)");
 
-    sleepArmed = false;
+    arm = Arm::FactoryNoSleep;
     ApplyArm();
 
     // WiFi from stored credentials (the board has joined before). NTP only; no
@@ -505,7 +548,7 @@ void loop()
             needsRepaint = true;
             Serial.printf("TOUCH,screen,%d\n", (int)screen);
         } else if (held > 1500 && screen == Screen::Hold && !holdActive) {
-            sleepArmed = !sleepArmed;
+            arm = (Arm)(((int)arm + 1) % (int)Arm::COUNT); // A -> B -> C -> A
             ApplyArm();
             needsRepaint = true;
         }
@@ -519,7 +562,21 @@ void loop()
     // presented as a clean pass. Abort and void it instead; a discarded run is
     // recoverable, a fabricated clean one is not.
     if (screen == Screen::Hold) {
-        HoldTick(touched, now);
+        // ARM C FEEDS FROM THE CHIP, not the driver. This is the whole point of
+        // the third arm: finding (b) says the chip keeps the contact the driver
+        // loses on a static finger, so arm C asks TouchNum (0x02) directly and
+        // ignores INT entirely. A chipN of -1 is a NACK, not a release -- treating
+        // a failed read as a lifted finger would manufacture the exact dropouts
+        // this arm exists to rule out, so it holds the previous state instead.
+        static bool lastChipContact = false;
+        bool contact;
+        if (ArmUsesChipSource(arm)) {
+            if (chipN >= 0) lastChipContact = chipN > 0;
+            contact = lastChipContact;
+        } else {
+            contact = touched;
+        }
+        HoldTick(contact, now);
     } else if (holdActive) {
         Serial.printf("HOLD,run_void,%lu,reason,screen_changed\n", now);
         holdActive = false;
@@ -579,5 +636,10 @@ void loop()
         if (haveCanvas) canvas.pushSprite(0, 0);
     }
 
-    delay(5); // ~5 ms poll: fine enough to resolve the <10 ms dropout bucket
+    // ~5 ms poll normally; 2 ms while an arm-C hold is live. C is the "fixed high
+    // rate" arm, and its result is only as trustworthy as its sampling floor --
+    // a dropout shorter than the poll gap is invisible, so the arm claiming to
+    // rule dropouts out has to sample fastest. A 1-byte read at 400 kHz is ~50 us,
+    // so 2 ms is nowhere near saturating the bus.
+    delay((ArmUsesChipSource(arm) && holdActive) ? 2 : 5);
 }

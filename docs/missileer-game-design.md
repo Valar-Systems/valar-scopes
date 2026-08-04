@@ -451,7 +451,7 @@ choreography of the four-hand split, exercise codenames, payload roster.
    hold, log touch events, report dropout rate. Same build also measures **NTP sync
    accuracy** (sets honest scoring granularity for the deviation leaderboard).
 2. **Firmware UI review** — how the game face coexists with the current monitoring face.
-   **Done 2026-08-04: [missileer-ui-coexistence.md](missileer-ui-coexistence.md).** Headline:
+   **Done 2026-08-04: [missileer-game-ui-review.md](missileer-game-ui-review.md).** Headline:
    the dwell-timed carousel (8 s/screen, 30 s touch hold) actively defeats a 5–15 min sortie,
    so the launch face must be an **overlay + a mode**, never a rotation screen; auto-rotation
    and auto-dim suspend for the sortie's lifetime; interrupt precedence needs stating
