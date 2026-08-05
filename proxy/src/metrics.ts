@@ -78,6 +78,16 @@ const KNOWN_ROUTES = new Set([
   "/v1/leaderboard",
   "/leaderboard",
   "/leaderboard.json",
+  // Missileer -- proxied to valar-eam-feed (see missileer.ts). Listed here for
+  // the same reason as everything else: an unlisted path buckets to "/other"
+  // and stops being distinguishable in analytics, so a Missileer outage would
+  // be invisible in exactly the window we would be looking for it. No legacy
+  // family, because this edition never had one.
+  "/missileer",
+  "/missileer/log",
+  "/missileer/leaderboard",
+  "/missileer/archive",
+  "/api/v1/missileer/config",
   // Not edition-scoped: infrastructure, shared across editions
   "/healthz",
   "/credits",
