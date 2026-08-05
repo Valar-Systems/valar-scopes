@@ -64,12 +64,10 @@ routes = [
 # the diff is the point -- a routing target that changes silently is a routing
 # target nobody can review.
 #
-# LEFT COMMENTED DELIBERATELY. Uncommenting is a behaviour change on deploy
-# (503 -> live proxy), so it is an explicit decision rather than something that
-# arrives with a metrics patch. Until then every Missileer path answers 503 with
-# a body that names this variable, and the Worker logs one warning per isolate
-# saying the same thing.
-# MISSILEER_ORIGIN = "https://valar-eam-feed.onrender.com"
+# ENABLED 2026-08-05 -- the deliberate 503 -> live-proxy flip deferred from the
+# metrics PR. Preconditions checked before flipping: enrollment closed,
+# DATABASE_URL wired, game API healthy at the origin.
+MISSILEER_ORIGIN = "https://valar-eam-feed.onrender.com"
 #
 # adsb.lol reached via the DEDICATED-EGRESS RELAYS (see relay/). relay-a primary,
 # relay-b secondary -> HA through the failover chain. Requires the RELAY_KEY
@@ -165,6 +163,17 @@ routes = [
 #   1. npx wrangler secret put RELAY_KEY --env production
 #   2. npx wrangler deploy --env production   <- this deploy IS the cutover
 [env.production.vars]
+# Missileer origin -- valar-eam-feed on Render. See src/missileer.ts for why the
+# Worker proxies rather than routes, and valar-eam-feed/docs/missileer-routing.md
+# for the alternatives that were rejected.
+#
+# A VAR, NOT A SECRET: a public hostname. Visible in the diff on purpose -- a
+# routing target that can change silently is one nobody can review.
+#
+# ENABLED 2026-08-05. Before this, every /missileer/* and /api/v1/missileer/*
+# path answered 503 missileer_unconfigured.
+MISSILEER_ORIGIN = "https://valar-eam-feed.onrender.com"
+
 UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
 UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
 #   adsb.fi        -- caching/redistribution permission granted IN WRITING 2026-07-30.
