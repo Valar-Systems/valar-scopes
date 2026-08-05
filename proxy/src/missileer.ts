@@ -41,7 +41,7 @@
  * ---------------------------------------------------------------------------
  */
 import type { Env } from "./types";
-import { errorResponse } from "./util";
+import { errorResponse, jsonResponse } from "./util";
 
 /** Pages: /missileer and /missileer/<surface>. APIs: /api/v1/missileer/<...>. */
 const PAGE_PREFIX = "/missileer";
@@ -71,12 +71,53 @@ const STRIP_REQUEST_HEADERS = ["x-blip-key", "x-blip-ota-mem", "cf-connecting-ip
 /** Bound the origin call so a slow Render instance cannot pin a Worker. */
 const ORIGIN_TIMEOUT_MS = 10_000;
 
+/**
+ * Warn ONCE PER ISOLATE that the origin is unset.
+ *
+ * A Worker has no boot hook to hang this on -- module scope cannot read `env`,
+ * which arrives per request -- so the first request that finds it missing is
+ * the closest thing to boot there is. Latching means a scanner hammering
+ * /missileer/* cannot turn a config warning into a log flood; request logs are
+ * real money at fleet scale (see the README cost model).
+ *
+ * It is a WARNING and not silence because the alternative is a 503 with no
+ * explanation anywhere: the route is deployed and live, so "it does not work"
+ * looks identical to "the product is broken" unless something says which.
+ */
+let warnedUnconfigured = false;
+
 export async function handleMissileer(request: Request, env: Env, url: URL): Promise<Response> {
-  const origin = env.MISSILEER_ORIGIN;
+  const origin = (env.MISSILEER_ORIGIN ?? "").trim();
   // Unconfigured is 503, not 404: 404 would say "this product does not exist",
   // which is a different and wrong answer during a staged rollout where the
   // route is live but the origin is not yet pointed at anything.
-  if (!origin) return errorResponse(503, "missileer_unconfigured");
+  if (!origin) {
+    if (!warnedUnconfigured) {
+      warnedUnconfigured = true;
+      console.warn(
+        JSON.stringify({
+          evt: "missileer_unconfigured",
+          msg:
+            "MISSILEER_ORIGIN is not set: /missileer/* and /api/v1/missileer/* answer 503. " +
+            "Set it per environment in proxy/wrangler.toml ([env.<name>.vars]) to the " +
+            "valar-eam-feed base URL, e.g. https://valar-eam-feed.onrender.com. " +
+            "It is a var, not a secret -- the value is a public hostname.",
+          path: url.pathname,
+        }),
+      );
+    }
+    // The BODY says why too. A 503 whose reason lives only in a log line is a
+    // reason nobody reading the response will ever see, and during bring-up the
+    // person hitting this endpoint is usually not the person with log access.
+    return jsonResponse(
+      {
+        v: 1,
+        error: "missileer_unconfigured",
+        message: "MISSILEER_ORIGIN is not set on this Worker environment; the Missileer origin is unrouted.",
+      },
+      503,
+    );
+  }
 
   // Path is preserved verbatim, including the /api/v1/missileer prefix, so the
   // origin's routes, its logs and ours all read the same URL. Rewriting here

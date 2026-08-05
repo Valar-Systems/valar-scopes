@@ -57,6 +57,20 @@ routes = [
 ]
 
 [env.staging.vars]
+# Missileer origin -- the valar-eam-feed Render service that /missileer/* and
+# /api/v1/missileer/* are proxied to (see src/missileer.ts).
+#
+# A VAR, NOT A SECRET: the value is a public hostname, and having it visible in
+# the diff is the point -- a routing target that changes silently is a routing
+# target nobody can review.
+#
+# LEFT COMMENTED DELIBERATELY. Uncommenting is a behaviour change on deploy
+# (503 -> live proxy), so it is an explicit decision rather than something that
+# arrives with a metrics patch. Until then every Missileer path answers 503 with
+# a body that names this variable, and the Worker logs one warning per isolate
+# saying the same thing.
+# MISSILEER_ORIGIN = "https://valar-eam-feed.onrender.com"
+#
 # adsb.lol reached via the DEDICATED-EGRESS RELAYS (see relay/). relay-a primary,
 # relay-b secondary -> HA through the failover chain. Requires the RELAY_KEY
 # secret set on this env (npx wrangler secret put RELAY_KEY --env staging).
