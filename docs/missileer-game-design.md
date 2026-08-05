@@ -92,9 +92,42 @@ explicitly a guess from unclassified sources — the right provenance posture).
   > tries to beat it by one — while keeping the ladder competitive. 20 buckets across the 2 s
   > window *will* tie on single nights at 50 players; the month is the real ladder.
 - **Deviation → miss distance.** Timing error maps to impact offset at the target (300 ms
-  late ≈ 300 m off — tune the curve). Flight animation ends at the offset point. Leaderboard
-  stat: average miss distance ("CEP"), lower is better. Published benchmark to beat:
-  Minuteman III CEP ≈ 800 ft / 240 m.
+  late ≈ 300 m off). Flight animation ends at the offset point. Leaderboard stat: miss
+  distance ("CEP"), lower is better. Published benchmark to beat: Minuteman III CEP ≈ 800 ft
+  / 240 m.
+
+  **Curve (proposed default, 2026-08-05).** Bucket `b = |dev| / 0.1 s`:
+
+  | `b` | Result |
+  |---|---|
+  | `b ≤ 1` | **direct hit — "SHACK"**, miss 0 m |
+  | `b > 1` | miss = **100 m × (b − 1)**, capped at the window edge |
+
+  The 100 m per 0.1 s slope is not a free parameter — it *is* the bullet's own 300 ms ≈ 300 m,
+  so the curve and the flavour text agree by construction. The deadzone is the §13 "small
+  deadzone" and it is exactly the measurement floor: 0.1 s is what the fleet can resolve
+  (§4 amendment), so forgiving the first bucket is the same statement as not claiming
+  precision we do not have.
+
+  > **Three flags on this default — none blocking, all cheap now and expensive later.**
+  >
+  > 1. **"Capped at the 2 s window edge" is ambiguous by a factor of two.** The published
+  >    window is 2 s *wide* (§12), so if T sits at its centre the largest possible deviation is
+  >    ±1 s → `b=10` → **900 m**. Read as a full 2 s of deviation it is `b=20` → **1,900 m**.
+  >    That is the difference between a worst shot ~4× Minuteman CEP and one ~8×. Recommend
+  >    pinning it to the **±1 s half-window (900 m)**.
+  > 2. **"CEP" must be the MEDIAN, not the average, or the benchmark comparison is invalid.**
+  >    CEP is by definition the radius containing 50 % of impacts. Comparing a *mean* miss to
+  >    a published *CEP* compares two different statistics, and the Minuteman 240 m line is the
+  >    one number in this doc a player is most likely to check. Same data, one percentile
+  >    call — but only free before the ladder has history.
+  > 3. **A 0 m deadzone collapses the top of the CEP ladder.** Any player who lands `b ≤ 1` on
+  >    more than half their launches has a median miss of **exactly 0 m**, and so does everyone
+  >    else who manages it — a permanent, unbreakable tie at rank 1 that gets *more* crowded as
+  >    players improve. That is the same tie problem the §4 amendment already solved for single
+  >    nights, reappearing at the top of the season ladder where it matters more. Cheapest fix:
+  >    score the deadzone at its **expected value** (~50 m) rather than 0, and keep "SHACK" as
+  >    the *displayed* result. The player still sees a bullseye; the ladder still separates.
 - Backlog seeding: solved by construction — animations require a live human in the loop, so
   history renders as a stack of already-printed message strips.
 - Dwell/interruption: new real traffic **preempts** a running sequence ("real-world traffic
@@ -113,6 +146,36 @@ knob (weights TBD; derive deterministically from message hash so the fleet agree
 
 The real EAM structure publicly includes a timing plan / launch delay time (fratricide
 deconfliction) — the "message tells you when to launch" mechanic is the real message shape.
+
+### EVERY MESSAGE GETS WORKED
+
+The basis is documented practice, not a game convenience: the **RMP processes all traffic**
+(Nuclear Companion), and the **HVC links the squadron** (Wikipedia, LCC). So every message is
+worked, not just the rare ones that carry a T.
+
+1. **Banner tap runs the decoder** — the ritual beat. A short decode animation, then the class
+   reveal. The tap is the whole point: it is the player choosing to work the message, which is
+   what §1.1 requires of everything game-shaped.
+2. **Unattended messages auto-decode** after a few minutes, so a device nobody is watching
+   still keeps a complete log.
+3. **T is anchored to the message timestamp regardless** of when it was decoded — so working a
+   message late never moves the launch window, and auto-decode cannot advantage or disadvantage
+   anyone.
+4. **CONFIRM COPY** (one hold) posts to the **squadron receipt board**: `COPY CONFIRMED · 6/10`.
+   The number is the squadron, and watching it fill is the ambient social beat of a quiet night.
+
+**Scoring is additive only** — "watch days" accumulate, with a **daily cap**. Working traffic
+can earn, never penalise. This is deliberately not a streak: a streak punishes absence, and
+§4's whole objection to passive scoring is that the device must never turn into an attendance
+sheet. The cap is what stops a bot-like operator from farming a quiet week.
+
+### RV count — server config, default 1
+
+The number of RVs a sortie carries is a **server-side config value, default 1**. Single-RV
+loading has been documented since 16 Jun 2014 (minutemanmissile.com), and post-New-START
+**upload readiness** was reported in 2026 (TWZ, CSIS) — so both the default and the ability to
+raise it are grounded, and the game can follow the real posture by changing one number rather
+than shipping a build.
 
 **Arrival rate & weight tuning.** Community sources are qualitative only: EAMs are "a very
 common broadcast type" (priyom.org), "heard daily, 7 days a week, 365 days a year"
@@ -156,6 +219,39 @@ week. Droughts stay droughts (that's fishing); storms get clipped.
   neglected one at equal timing skill), and gives device uptime an in-fiction home
   ("gyros spinning") **without scoring uptime** — flavor only, per §4.
 
+## 6b. Targeting tiers & publication policy (DECIDED)
+
+**The product picks what the PUBLIC RECORD shows, not what the player aims at.** On-device
+targeting is the player's own sandbox — the precedent is NUKEMAP, which has let anyone place a
+detonation anywhere for over a decade as a public-education tool. What Missileer controls is
+its own published surfaces, and that is where the policy lives.
+
+**Real-adversary targeting is never a feature.** Not a tier, not an unlock, not an easter egg.
+
+| Tier | Target source | Public record shows |
+|---|---|---|
+| **1 · FREE-FIRE** (post-v1) | manual coordinates | **Private.** `/log` renders range class + land/water only — never the coordinates |
+| **2 · DUELS** | opponent's self-declared 4-char Maidenhead grid | **Full public credits** — both callsigns, deviation, outcome |
+| **3 · EVENTS** | community-nominated, fleet-voted | **Codenamed scored windows**, fully public |
+| **v1** | FDM-assigned **Broad Ocean Area** | Public; BOA under the 1994 detargeting posture |
+
+- **Tier 1 free-fire** exists because the sandbox is the player's business; the log's silence
+  is what keeps the *product* out of it. Range class + land/water is enough to score and to
+  narrate, and carries nothing worth publishing.
+- **Tier 2 duels** are opt-in station-vs-station. The target is the opponent's **self-declared
+  4-character Maidenhead grid** — the ham-radio convention, ~1° × 2° and deliberately coarse,
+  which is a locator rather than an address and is the reason it can be public at all. Launch
+  is from a **real wing LF**, so great-circle geometry stays honest; **score scales with
+  great-circle range** (the long shot is the hard shot).
+  **Defense = a GMD interceptor**: scarce, a midcourse timing minigame, with the **published
+  ~50% test record used as the odds**. Hits are **cosmetic and logged, never destructive** —
+  a duel can never cost the victim inventory, because a game where losing costs you your
+  ability to play stops being played.
+- **Tier 3 events** are the community's: nominated, fleet-voted, codenamed, and time-boxed.
+- **v1 ships the BOA** — the Broad Ocean Area is the published practice target under the 1994
+  detargeting posture, which means the game's default aim point is the one the real force
+  uses, and it is ocean.
+
 ## 7. Flight & impact
 
 - Real time. Intercontinental ≈ 30 min (public figure). Launch → device returns to
@@ -163,9 +259,60 @@ week. Droughts stay droughts (that's fishing); storms get clipped.
 - Animation script = the published Minuteman III MIRV flight sequence (8 phases:
   1st-stage sep ~60 s, shroud eject, 3rd-stage ~120 s, post-boost ~180 s, RV/chaff/decoy
   deploy, burst). Public numbers, free choreography.
-- **Payload select before launch — the tone escape hatch.** Absurd payloads only: 2,000 lb
-  of shredded paper (→ #136: the pack-in is *recovered payload debris*), glitter, a formal
-  apology. The moment the warhead is shredded paper, the feature reads toy, not sim.
+
+### FLIGHT DIRECTOR — real-time flights, time-division views
+
+The flight is ~30 real minutes and the device is a monitor for most of it. So the flight is
+**time-divided**, and each division gets the treatment its phase deserves:
+
+| Phase | Wall-clock | Treatment |
+|---|---|---|
+| **Boost → RV release** | ~T+0–4 min | **Full-screen cinematic**, at the *true published* T+ marks. **Participants only** |
+| **Midcourse** | ~T+4 min → T−90 s | **Monitoring resumes**, with flight chrome over it (the shared overlay mechanism). Tap for the map |
+| **Terminal** | **REAL T−90 s** | **Re-escalates: REENTRY view** — plasma descent, penaids burning through |
+| **Detonation** | wall-clock impact second | Full-screen |
+
+The device goes back to being a monitor in the middle because that is what the real dead time
+*is*, and because a 26-minute animation nobody watches is worse than a 4-minute one everybody
+does. Terminal re-escalation at the real T−90 s is what makes the return feel earned.
+
+> **Match-cut rule.** Ascent ends by shrinking the vehicle to a single dot; the map opens with
+> that same dot. One continuous object across a cut between two entirely different renderers —
+> it is the cheapest possible way to make two views read as one flight, and it stops working
+> the instant either side redraws the dot differently.
+
+### Time-of-flight & range — minimum-energy Lambert
+
+Ballistic TOF from great-circle distance `d`, minimum-energy (the honest first-order model,
+and it needs no launch-angle input):
+
+```
+RE = 6371 km            MU = 398600.4418 km³/s²
+th   = d / RE                       (central angle, radians)
+c    = 2 · RE · sin(th / 2)         (chord)
+s    = RE + c / 2                   (semiperimeter)
+a    = s / 2                        (minimum-energy semi-major axis)
+beta = 2 · asin( sqrt( (s − c) / s ) )
+TOF  = sqrt(a³ / MU) · ( (π − beta) + sin(beta) )
+```
+
+Validates against the published figures: **6,700 km → 24.9 min · 9,700 → 31.6 · 14,000 → 38.5**.
+The ~30 min intercontinental figure in the bullet above falls out of it rather than being
+asserted.
+
+**All tiers validate `d ≤ 14,000 km`** (the §12 range cap). The map **renders the reachable
+boundary**, so the constraint is visible rather than an error message after the fact.
+
+> Consequence worth keeping as a **discoverable**, not a documented rule: the southern Indian
+> Ocean is unreachable from CONUS — it is roughly antipodal, and a minimum-energy ballistic
+> shot cannot get there. Players who go looking for the one place they cannot hit should find
+> it themselves.
+- **Payload select before launch — the tone escape hatch. STATUS: OPEN.** Originally: absurd
+  payloads only — 2,000 lb of shredded paper (→ #136: the pack-in is *recovered payload
+  debris*), glitter, a formal apology; the moment the warhead is shredded paper, the feature
+  reads toy, not sim. **Shredded paper was removed by the §11 locked art direction**, which is
+  too committed to absorb a joke payload mid-sequence. The tone valve it provided still has to
+  come from somewhere — that is the open part, not whether one is needed.
 
 ## 8. Roles & the two-person rule
 
@@ -251,6 +398,24 @@ week. Droughts stay droughts (that's fishing); storms get clipped.
 - **Squadron = 5 crews sharing a party line.** Published: the Hardened Voice Channel links
   the five LCCs of a squadron, party-line, no privacy. Game: squadron-of-5 chat/ping channel
   ("HVC"). Right-sized social unit for a small fleet.
+- **HVC presence — ambient callsign chirps.** The party line carries small presence lines:
+  `HVC · WOLFPACK: COPY 4181`. Two rules make this a feature rather than surveillance:
+  - **Fired ONLY by affirmative acts** — a confirmed copy, a vote, a commit, a launch.
+    **Never by passive telemetry.** Presence is something a player *did*, never something the
+    device observed about them. This is the §14 non-goal applied to the social layer: the line
+    is "a consequence of an action you took", and "who is at their desk" is on the far side
+    of it.
+  - **Each callsign gets a stable 6×6 glyph**, hash-derived from the callsign, so squadron-mates
+    become recognisable at a glance on a 240 px face where a name would not fit.
+
+  Placements: the **commit-wait** screen shows squadron-mates on the same T (the strongest one —
+  you can see you are not alone in the window); **pending votes** show who is on watch; the
+  **Clock ambient rotation** carries the quiet version; the **receipt board** lists confirmations
+  in arrival order.
+- **Self-declared grid locator (optional).** A player may publish a **4-character Maidenhead
+  grid** as their station locator. **Absent = not duelable** — no locator, no Tier 2, no prompt,
+  no penalty. Opting in is the entire consent mechanism for §6b Tier 2, which is why it is a
+  field the player fills rather than anything derived from the device.
 - **Rank progression with public structure**: PLCC crew → Squadron Command Post → Wing/
   Alternate Command Post. Published authorities map to game powers: SCP can execute for a
   failed flight and **countermand** launches in its squadron; WCP for the wing. Veteran
@@ -361,6 +526,11 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
   distance). **Each entry links to the audio of the real EAM that triggered it** — game
   event and source transmission, one click apart. Live "LAUNCH IN PROGRESS" banner + map
   track while a vote is terminal (shareable URL).
+  **Rendering is keyed off `target_class` per the §6b publication policy** — the enum
+  `{BOA, STATION, EVENT, FREEFIRE}` **ships in v1**, even though only `BOA` is reachable in v1.
+  Shipping the discriminator early is the point: the log format never has to be migrated when
+  free-fire lands, and there is no version of the schema in which a free-fire coordinate could
+  be rendered because the renderer never had a branch for it.
 - **/missileer/leaderboard.** Individual (monthly proficiency cycle: avg deviation — a *cycle
   average*, so it may render hundredths per the §4 amendment; single sorties stay in tenths — CEP,
   readiness ratio), crew board, wing standings (annual championship), cycle history. Reuses
@@ -380,6 +550,13 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
 - **Device tie-in (optional):** tap a printed strip in history → QR/short-link to that
   message's archive page. On-device audio playback only if the speaker hardware merits it;
   the web is the listening surface.
+- **/missileer/sources — public provenance.** A walkthrough of the launch sequence, **beat by
+  beat, each beat citing the source it came from**. Rules: public-domain and CC material is
+  **embedded**; commercial video is **linked, never rehosted**; and anything invented is
+  **explicitly marked as an invention**.
+  This is §2 made externally checkable rather than internally promised. It also converts the
+  project's most awkward question — "is any of this real?" — into its best page, and gives the
+  answer a permanent URL instead of a paragraph in a README.
 - **Republication posture:** same practice as WebSDR live streams and long-running YouTube
   EAM archives — traffic is broadcast in the clear worldwide, and EAM content is itself
   ciphertext. Consistent with §2.
@@ -414,6 +591,32 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
   Sortie). This is the 10-sortie status board — and a squadron-wide sortie board is
   literally REACT's advertised feature.
 
+### Tunables — set, not proposed
+
+Gathered here because they were decided across three sessions and were only recorded in §13's
+decision table; a number that governs the economy belongs where the economy is specified.
+
+| Tunable | Value |
+|---|---|
+| Miss after commit | **24 h stand-down** |
+| Regen rate | **1 bird / 3 days** |
+| Dead-man timer | **10 min** |
+| Enable minigame limit | **60 s** |
+| Ack / commit cutoff | **T−60 s** |
+
+**Gesture spec (bench-measured 2026-08-05 — see
+[gametest-results-2026-08-05.md](gametest-results-2026-08-05.md)):**
+
+- **≥100 ms rejoin window.** Contact is debounced, never sampled raw. Every dropout measured
+  across three arms was ≤56 ms, so 100 ms clears the worst by better than 2×.
+- **Driver source** (`getTouch()`), **not** the chip's `TouchNum` register. Polling the register
+  directly measured *worse* — it was the losing arm by 30 points.
+- **Auto-sleep off** — worth ~20 points of clean-hold rate.
+- **LATE-START tolerance.** The gesture waits for a clean contact-begin and **never fails the
+  attempt** because the first touch did not register. Two contacts landing simultaneously can
+  register nothing at all on this single-point controller, so a palm arriving with the thumb
+  must cost a moment, not a bird.
+
 ## 11. Visual & UI spec (art bible = released USAF imagery)
 
 | Element | Source | Port |
@@ -422,15 +625,53 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
 | **Paper-strip printer** | Center console in crew photos | Messages *print*, teletype pacing, character by character; history = scrollable stack of printed strips |
 | **Padlocks / SAS safe** | Photo shelf padlocks; "SAS safe with two crew locks" (Wikipedia gallery) | Authenticate step visual: locked compartment, two locks, crack the seal. Depict the padlock, never the procedure. |
 | **Fisheye capsule** | The classic crew photo is a round image | Round display = porthole into the LCC: console arc hugging bezel, clock top, printer center |
-| **Palette** | Photos | 7-seg red (time), paper white (traffic), checklist green (interactive), binder tabs / brass padlock (accents) |
+| **Palette** | Photos | 7-seg red (time), paper white (traffic), checklist green (interactive), binder tabs / brass padlock (accents), **amber = training** |
 | **Seating** | Published | Commander left, deputy right — pairing screen convention |
 | **Floppy disk** | Published: FDD archives the crew log | Log/session export icon |
 | **Retro-tech flavor** | VAX 810, trackball, Ada, drum-memory ancestry | "Armageddon with a floppy disk and a trackball" — the aesthetic is the joke |
+
+**AMBER is the fourth accent, and it means one thing only: training / EXERCISE.** Never
+decoration, never a second warning colour. It is load-bearing precisely because it is reserved —
+a player must be able to tell a drill from the real thing at a glance and from across a desk,
+and a colour that appears anywhere else stops carrying that.
 
 Physical capsule flavor (published, for boot screens/easter eggs): 4.5 ft concrete walls,
 blast door, room suspended as a pendulum on four shock isolators, EMP shielding, sand-filled
 escape tunnel, 2006 "Netlink" internet upgrade (cite when explaining why a nuclear capsule
 aesthetic has Wi-Fi).
+
+### Animation art direction (LOCKED)
+
+Reference: the **Northrop Grumman 2007 flight-sequence video**, used as the beat sheet. The
+whole ascent plays as a **script over a sinking Earth limb** — the horizon dropping away is what
+sells altitude on a screen with no other scale cue.
+
+**Separations are AXIAL** — flash plus an anamorphic streak at the joint, embers, and the spent
+stage receding *along the flight line* rather than tumbling off sideways. And each separation
+carries the full **STAGING BEAT**:
+
+```
+burnout  ->  sep  ->  ~1 s coast (exposed, UNLIT bell)  ->  IGNITION  ->  burn
+```
+
+The one-second unlit coast is the whole beat. It is the pause where a real vehicle is committed
+and not yet accelerating, and cutting it — going straight from separation to a lit engine —
+removes the only moment in the ascent with any suspense in it.
+
+| Beat | Direction |
+|---|---|
+| **Shroud** | clamshell halves |
+| **Post-boost** | blue porcupine RCS |
+| **PSRE pitch-over** | continues the arc **nose-down** — downrange velocity is conserved, so the RV releases *in the direction of travel*. Getting this backwards is the tell that an animation was drawn rather than reasoned |
+| **RV release** | **SILENT.** No ordnance, no bang. The quietest moment in the sequence is the one that matters most |
+| **Bus** | **backs away** under retro thrust |
+| **Penaids** | deploy from the backing bus |
+| **Reentry** | decoy streaks burning out |
+| **Detonation** | **Plumbbob Hood / Upshot-Knothole Badger** fire palette — full-screen, cooling to rust |
+
+**Shredded paper is removed.** The §7 payload-select escape hatch is **OPEN** as a result: the
+tone valve it provided has to come from somewhere, and this direction is too committed to
+absorb a joke payload mid-sequence.
 
 ## 12. Published constants (cite, don't invent)
 
@@ -466,7 +707,7 @@ choreography of the four-hand split, exercise codenames, payload roster.
 | Enable time limit | **60 seconds** |
 | Regen rate | **1 bird / 3 days** |
 | Seasons | **Monthly proficiency cycle + annual championship** (SCP rotates monthly; impact map wipes annually) |
-| Onboarding | **Certification required** — one full drill on EXERCISE traffic before first live commitment |
+| Onboarding | **Certification required** — one full drill on EXERCISE traffic before first live commitment. **Built from existing parts, no bespoke training animation**: the live sequence in EXERCISE dress (amber, per §11) + instruction chrome + a game card on the Reference screen + an on-device attract-mode demo |
 | Impact map | **Seasonal accumulation** — strikes persist all season, wiped at championship |
 | Late copy | **<2 min to T = non-scorable** for that device (no offer, no penalty) |
 | Event feed | **SSE + ntfy** (§9b) |
@@ -600,3 +841,13 @@ deputy-gesture hardware prototype (§13.3).
 | minutemanmissile.com, *Missile Guidance System* | Guidance lineage (NS-10Q/D-17B drum computer → NS-17/D-37C → NS-20/D-37D → GRP); gyros spin continuously on alert; platform alignment vs drift → alignment/upkeep mechanic (§6); retro-computing flavor. Enthusiast secondary source — same tier as Nuclear Companion. |
 | NPS Minuteman Missile NHS + state historic sites | Standing citable references; key-turn shape (turn-and-hold); future reference-photo source |
 | priyom.org HFGCS page + mt-milcom EAM primer | EAM arrival-rate characterization ("very common," daily 24/7/365, ~30-char strings); repeats/rebroadcast behavior → dedupe requirement (§5) |
+| **Northrop Grumman 2007 Minuteman III flight-sequence video** | The §11 locked beat sheet: ascent over a sinking Earth limb, axial separations, staging beat (burnout→sep→coast→ignition), clamshell shroud, PSRE pitch-over, silent RV release, bus backing away. **Commercial — linked from /missileer/sources, never rehosted** |
+| **AiTelly flight-sequence explainer** | Secondary corroboration of the staging order and post-boost behaviour; same tier as Nuclear Companion (enthusiast) |
+| **Wikipedia, MIRV-path diagram** | The bus/RV release geometry that makes "releases in the direction of travel" checkable rather than asserted |
+| **minutemanmissile.com, MIRVs/RVs page** | Single-RV loading documented since 16 Jun 2014 → §5 RV-count default of 1 |
+| **TWZ + CSIS, post-New-START upload-readiness reporting (2026)** | Why RV count is a server config rather than a constant — the real posture can change without a firmware build |
+| **AEC test photography — Plumbbob Hood, Upshot-Knothole Badger** | Detonation fire palette (§11). Public-domain US government imagery → embeddable on /missileer/sources |
+| **1994 detargeting agreement + Broad Ocean Area practice targets** | §6b v1 default: the game's aim point is the real force's practice aim point, and it is ocean |
+| **NUKEMAP (Alex Wellerstein)** | Precedent for the §6b posture — a decade of public arbitrary-target placement as an education tool; the product picks what it *publishes*, not what the player aims at |
+| **GMD interception test record (~50 %)** | §6b Tier 2 defense odds — the published record used as the actual probability, so the least believable part of duels is the sourced part |
+| **Minimum-energy Lambert time-of-flight** | §7 TOF model; validates 6,700 km → 24.9 min, 9,700 → 31.6, 14,000 → 38.5, so the "≈30 min" figure is derived rather than asserted |
