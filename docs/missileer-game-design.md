@@ -98,10 +98,11 @@ explicitly a guess from unclassified sources — the right provenance posture).
 
   **Curve (proposed default, 2026-08-05).** Bucket `b = |dev| / 0.1 s`:
 
-  | `b` | Result |
-  |---|---|
-  | `b ≤ 1` | **direct hit — "SHACK"**, miss 0 m |
-  | `b > 1` | miss = **100 m × (b − 1)**, capped at the window edge |
+  | `b` | Scores | Displays |
+  |---|---|---|
+  | `b ≤ 1` | **50 m** (see ruling 3) | **"SHACK"** — direct hit |
+  | `b > 1` | miss = **100 m × (b − 1)** | the distance |
+  | `b = 10` | **900 m** — the cap (see ruling 1) | — |
 
   The 100 m per 0.1 s slope is not a free parameter — it *is* the bullet's own 300 ms ≈ 300 m,
   so the curve and the flavour text agree by construction. The deadzone is the §13 "small
@@ -109,25 +110,38 @@ explicitly a guess from unclassified sources — the right provenance posture).
   (§4 amendment), so forgiving the first bucket is the same statement as not claiming
   precision we do not have.
 
-  > **Three flags on this default — none blocking, all cheap now and expensive later.**
+  **Rulings on the three flags (DECIDED 2026-08-05).**
+
+  1. **CAP = 900 m.** Deviation only exists *inside a valid execution window*, and the window is
+     **±1 s around T** (2 s total width, §12). A key landing outside it is a FAILED execution
+     with no flight at all, per §3 — so `|dev| ≤ 1.0 s` **by construction**, `b ≤ 10`, and the
+     worst recordable miss is 900 m. The 1,900 m reading assumed a deviation the game can never
+     record. Board flavour line stays honest: *"worst valid shot ≈ 4× published CEP."*
+  2. **CEP = MEDIAN.** The ladder stat is the **median** miss distance, which is what CEP
+     actually means — the radius containing 50 % of impacts. A mean may appear as a secondary
+     stat but **never under the CEP label**. Comparison against the published 240 m is then
+     statistics-honest rather than a category error.
+  3. **SHACK scores 50 m, displays SHACK.** 50 m is not an arbitrary tiebreak: it is the
+     **expected miss of a shot known only to be inside the first bucket**. Uniform over ±0.1 s
+     gives `E[|dev|] = 0.05 s`, which at the 100 m-per-bucket slope is exactly 50 m. The
+     deadzone scores its expected value; the display keeps the reward. The player still sees a
+     bullseye; the ladder still separates.
+
+  > **One interaction the three rulings do not close, raised 2026-08-05.** Rulings 2 and 3 are
+  > each right and they collide. If every SHACK scores *exactly* 50 m, then any player who
+  > SHACKs more than half their launches has a **median of exactly 50 m** — and so does every
+  > other such player. The tie at the top of the CEP ladder is **moved from 0 m to 50 m, not
+  > removed**, and it still crowds as players improve.
   >
-  > 1. **"Capped at the 2 s window edge" is ambiguous by a factor of two.** The published
-  >    window is 2 s *wide* (§12), so if T sits at its centre the largest possible deviation is
-  >    ±1 s → `b=10` → **900 m**. Read as a full 2 s of deviation it is `b=20` → **1,900 m**.
-  >    That is the difference between a worst shot ~4× Minuteman CEP and one ~8×. Recommend
-  >    pinning it to the **±1 s half-window (900 m)**.
-  > 2. **"CEP" must be the MEDIAN, not the average, or the benchmark comparison is invalid.**
-  >    CEP is by definition the radius containing 50 % of impacts. Comparing a *mean* miss to
-  >    a published *CEP* compares two different statistics, and the Minuteman 240 m line is the
-  >    one number in this doc a player is most likely to check. Same data, one percentile
-  >    call — but only free before the ladder has history.
-  > 3. **A 0 m deadzone collapses the top of the CEP ladder.** Any player who lands `b ≤ 1` on
-  >    more than half their launches has a median miss of **exactly 0 m**, and so does everyone
-  >    else who manages it — a permanent, unbreakable tie at rank 1 that gets *more* crowded as
-  >    players improve. That is the same tie problem the §4 amendment already solved for single
-  >    nights, reappearing at the top of the season ladder where it matters more. Cheapest fix:
-  >    score the deadzone at its **expected value** (~50 m) rather than 0, and keep "SHACK" as
-  >    the *displayed* result. The player still sees a bullseye; the ladder still separates.
+  > Ruling 3 does de-tie the **mean** (60 % SHACKs and 80 % SHACKs give different averages);
+  > it cannot de-tie a **median**, because a median only reads which bucket the middle sample
+  > sits in, and above 50 % that bucket is always the deadzone.
+  >
+  > **Suggested resolution, using machinery §4 already has:** rank the cycle ladder on the
+  > **average**, which the §4 amendment established sharpens as `0.1/√N` with volume — that is
+  > precisely the mechanism that separates crowded tops — and keep **median miss as the
+  > displayed CEP stat** against the 240 m benchmark. Ranking and headline stat need not be the
+  > same number, and here they should not be. **Not applied; flagged for a ruling.**
 - Backlog seeding: solved by construction — animations require a live human in the loop, so
   history renders as a stack of already-printed message strips.
 - Dwell/interruption: new real traffic **preempts** a running sequence ("real-world traffic
@@ -402,9 +416,22 @@ boundary**, so the constraint is visible rather than an error message after the 
   `HVC · WOLFPACK: COPY 4181`. Two rules make this a feature rather than surveillance:
   - **Fired ONLY by affirmative acts** — a confirmed copy, a vote, a commit, a launch.
     **Never by passive telemetry.** Presence is something a player *did*, never something the
-    device observed about them. This is the §14 non-goal applied to the social layer: the line
-    is "a consequence of an action you took", and "who is at their desk" is on the far side
-    of it.
+    device observed about them.
+
+    > **This rule is load-bearing twice, and it is the same rule both times.** It is
+    > [CLAUDE.md](../CLAUDE.md)'s *"Non-goal: behavioural telemetry (settled 2026-08-02)"*
+    > applied to the social layer — the repo-wide line is "a consequence of serving the device,
+    > not a measurement of the person", and here it reads "a consequence of an action you took,
+    > not a measurement of who is at their desk."
+    >
+    > It is also **squadron trust**: a party line that reports presence you did not announce is
+    > surveillance wearing a game's clothes, and the squadron is the one place in this design
+    > where other real people are watching.
+    >
+    > Recorded explicitly because the softening is so easy and so plausible — "just show who is
+    > online" is one line of code, is what every other product does, and would quietly convert
+    > an ethics commitment into a presence indicator. Anyone proposing it should have to argue
+    > with the non-goal by name.
   - **Each callsign gets a stable 6×6 glyph**, hash-derived from the callsign, so squadron-mates
     become recognisable at a glance on a 240 px face where a name would not fit.
 
