@@ -68,8 +68,29 @@ explicitly a guess from unclassified sources — the right provenance posture).
 - **Ratio, not count**: readiness = committed sorties executed cleanly ÷ sorties committed.
   Ignoring a message costs nothing (kills the 0300 problem and the uptime advantage).
   Acking commits you; missing T after commitment is a logged failed execution.
-- **Precision metric**: deviation from T in milliseconds. Commander scored on |key − T|,
-  deputy on hold coverage of the window. Crew score = combined.
+- **Precision metric**: deviation from T, scored and displayed in **tenths of a second**.
+  Commander scored on |key − T|, deputy on hold coverage of the window. Crew score = combined.
+
+  > **Amended 2026-08-05, on measurement.** This said "milliseconds", provisionally, pending
+  > §13 task 1. The bench answer is a **75.7 ms** clock floor (worst NTP correction, 6 syncs /
+  > 17 h) against a 43 ms input floor, so `max(clock, input)` ≈ 76 ms and the finest honest
+  > bucket is 0.1 s. §13's rule — display the smallest bucket the measured floor supports —
+  > is what executes here. See [gametest-results-2026-08-05.md](gametest-results-2026-08-05.md).
+  >
+  > 1. **Single-execution deviation: 0.1 s buckets.** The board says so plainly and footnotes
+  >    the 75.7 ms clock floor as the reason. The honesty is on-brand; a spec-sheet caveat is
+  >    period-correct.
+  > 2. **Aggregates may display finer.** Quantization error averages down, so a monthly average
+  >    over N launches has effective precision ~0.1/√N s: the proficiency-cycle ladder may show
+  >    hundredths on season averages while single launches show tenths. Stated on the board as
+  >    *"single sorties in tenths; cycle averages sharpen with volume."*
+  > 3. **Applies wherever deviation renders** — device VOTE REGISTERED screen (`+0.1 s`
+  >    format), credits lines, `/log`, duels.
+  >
+  > This kills the beat-a-record-by-a-fake-millisecond failure mode — a ranking quoting digits
+  > the fleet cannot resolve is worse than a coarser honest one, because someone eventually
+  > tries to beat it by one — while keeping the ladder competitive. 20 buckets across the 2 s
+  > window *will* tie on single nights at 50 players; the month is the real ladder.
 - **Deviation → miss distance.** Timing error maps to impact offset at the target (300 ms
   late ≈ 300 m off — tune the curve). Flight animation ends at the offset point. Leaderboard
   stat: average miss distance ("CEP"), lower is better. Published benchmark to beat:
@@ -340,7 +361,8 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
   distance). **Each entry links to the audio of the real EAM that triggered it** — game
   event and source transmission, one click apart. Live "LAUNCH IN PROGRESS" banner + map
   track while a vote is terminal (shareable URL).
-- **/missileer/leaderboard.** Individual (monthly proficiency cycle: avg deviation ms, CEP,
+- **/missileer/leaderboard.** Individual (monthly proficiency cycle: avg deviation — a *cycle
+  average*, so it may render hundredths per the §4 amendment; single sorties stay in tenths — CEP,
   readiness ratio), crew board, wing standings (annual championship), cycle history. Reuses
   fleet auth + `LeaderboardId` from the radar edition.
 - **/missileer/archive.** Every recorded EAM: timestamp, duration, playback, decode class,
@@ -490,10 +512,9 @@ URL convention (/{edition}/{surface}, Blipscope 301).
    snaps demand an instant decision by design.
 2. **Missed execution consumes the sortie?** — proposed: **yes**. Ack is optional; don't
    commit what you can't execute. Makes commitment dramatic.
-3. **NTP sync vs ms scoring** — deviation leaderboard is only honest if fleet clock sync
-   is tighter than displayed precision (ESP32 WiFi NTP jitter typically ±10–50 ms).
-   **Measure on hardware** (same test firmware as the gesture prototype); set score
-   granularity to what the measurement supports.
+3. ~~**NTP sync vs ms scoring**~~ — **CLOSED 2026-08-05.** Measured at **75.7 ms** (worst
+   correction, 6 syncs / 17 h) — above the ±10–50 ms this anticipated. Granularity set to
+   0.1 s per the amendment above. Input floor (43 ms) is not binding.
 4. **Feed latency fairness** — proposed: message arriving with **<2 min to T** is
    non-scorable for that device (no commitment offered; no penalty, no temptation).
 5. **State authority** — proposed: server-authoritative votes/launches/records; devices

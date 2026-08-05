@@ -141,6 +141,10 @@ unsigned long pollGapMaxMs = 0, pollGapSumMs = 0, pollCount = 0;
 // difference between those two is the difference between "fine" and "this board
 // cannot host a millisecond-scored game at all".
 unsigned long pollGapMaxAtMs = 0;
+// The gap of the poll we are currently in, so a dropout can report how much of
+// its own measured duration was just this loop not looking. See the artifact
+// note on HoldTick's dropout branch.
+unsigned long curGapMs = 0;
 
 // ---- HOLD TEST -------------------------------------------------------------
 // A DROPOUT is a release the operator did not make: contact returns within
@@ -479,14 +483,29 @@ void HoldTick(bool touched, unsigned long now)
         a.dropouts++;
         if (gap > a.longestMs) a.longestMs = gap;
         Bucket(a, gap);
-        Serial.printf("HOLD,dropout,%lu,gap_ms,%lu,run_drops,%lu\n", now, gap, runDropouts);
+        // MEASURED DURATION IS AN UPPER BOUND, NOT THE OUTAGE. The gap is
+        // wall-clock between observing contact lost and observing it back, so
+        // it includes however long this loop spent not looking -- and the first
+        // bench run made that concrete: all 48 dropouts across three arms fell
+        // in 39-45 ms, the same band as the max poll gap, because entering a
+        // dropout used to force an immediate repaint and the repaint delayed
+        // the very observation that ends it. A distribution that tight is a
+        // property of the instrument, not of a touch controller. poll_gap_ms is
+        // logged so the two can be told apart; if it dominates gap_ms, the real
+        // outage was one poll and the rest was us.
+        Serial.printf("HOLD,dropout,%lu,gap_ms,%lu,poll_gap_ms,%lu,run_drops,%lu\n",
+                      now, gap, curGapMs, runDropouts);
         needsRepaint = true;
     } else if (!touched && !inDropout) {
         inDropout = true;
         lastUpMs = now;
         holdContactMs += now - lastDownMs;
         Serial.printf("HOLD,up,%lu\n", now);
-        needsRepaint = true;
+        // DELIBERATELY NO needsRepaint HERE. Painting on dropout ENTRY inserts
+        // a full 240x240 sprite push between "contact lost" and "contact back",
+        // which lands inside the interval being measured and inflates every
+        // dropout to roughly the frame time. The throttled 100 ms repaint still
+        // shows the state; it just no longer contaminates the measurement.
     } else if (!touched && inDropout && (now - lastUpMs) > REJOIN_MS) {
         // Stayed up past the rejoin window: the operator lifted. End the run.
         const unsigned long total = lastUpMs - holdStartMs;
@@ -510,6 +529,25 @@ void HoldTick(bool touched, unsigned long now)
 void setup()
 {
     Serial.begin(115200);
+#if ARDUINO_USB_CDC_ON_BOOT
+    // THE HARNESS FREEZE, ROOT-CAUSED 2026-08-05. This guard exists in the
+    // product (main.cpp) and this TU has its own setup(), so it never got it --
+    // and the omission made the board "almost unusable" for a whole bench day.
+    //
+    // With nothing draining the USB-CDC, Serial.write blocks once the TX ring
+    // fills. This harness prints a TOUCH line on every transition, so an
+    // unattended session fills it in seconds and the LOOP then stalls on the
+    // print. Measured: 20 042 ms worst poll gap unattended, versus 43 ms across
+    // 31 728 samples with a reader attached. The proof it was buffering and not
+    // scheduling: when a recorder finally attached 17 h into a run, the first
+    // lines it received were the beats from 60 s and 120 s after boot.
+    //
+    // A bench harness that freezes only when no one is watching is the worst
+    // possible failure shape -- it corrupts poll_max_ms, which is the very
+    // number the scoring floor is derived from.
+    Serial.setTxBufferSize(4096);
+    Serial.setTxTimeoutMs(2);
+#endif
     delay(300);
     bootMs = millis();
 
@@ -598,6 +636,7 @@ void loop()
     // ---- poll cadence (the sampling-confound control) ----
     const unsigned long gap = now - lastPollMs;
     lastPollMs = now;
+    curGapMs = gap;
     if (gap > pollGapMaxMs) { pollGapMaxMs = gap; pollGapMaxAtMs = now; }
     pollGapSumMs += gap;
     pollCount++;
