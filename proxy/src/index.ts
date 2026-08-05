@@ -11,6 +11,7 @@ import {
 } from "./leaderboard";
 import { FONTS } from "./fonts.generated";
 import { record, recordOtaMem, setDeviceAttribution, type RequestMetric } from "./metrics";
+import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
 import { limitByIp, limitByKey } from "./ratelimit";
@@ -108,6 +109,14 @@ async function route(
   url: URL,
   meta: RequestMetric,
 ): Promise<Response> {
+  // MISSILEER FIRST, and deliberately before both the method gate and the auth
+  // gate. It is a different edition with a different auth model, reverse-proxied
+  // to the valar-eam-feed origin -- see missileer.ts for why this Worker proxies
+  // rather than a route rule dispatching, and why it must never inherit
+  // Blipscope's device-key check. Method policy belongs to the origin too: this
+  // edition will POST votes, and the 405 below is a Blipscope rule.
+  if (isMissileerPath(url.pathname)) return handleMissileer(request, env, url);
+
   const api = apiEndpoint(url.pathname);
   // POST is accepted ONLY for the leaderboard submit (authed below); every
   // other route is GET. Keyed off the normalized suffix so the legacy path

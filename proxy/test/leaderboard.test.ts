@@ -370,9 +370,13 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
       const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
       expect(res.status, p).toBe(404);
     }
-    // Not an API prefix at all -> 404 before auth, and NOT routed into a handler.
+    // Not a Blipscope API prefix -> never routed into a Blipscope handler.
+    // Missileer now has its own branch, so this lands there (503 in tests, where
+    // MISSILEER_ORIGIN is unset) rather than falling through to 404. The claim
+    // under test is unchanged and is about which handler ran, not which number
+    // came back.
     const stray = await call(new Request("https://proxy.test/api/v1/missileer/blips", { headers: { "X-Blip-Key": TEST_KEY } }));
-    expect(stray.status).toBe(404);
+    expect(stray.status).not.toBe(200);
   });
 
   // EDITION ISOLATION. The normalizer strips EXACTLY TWO prefixes -- /v1/ and
@@ -382,18 +386,48 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
   // /api/v1/missileer/leaderboard would silently write a Missileer submission
   // into Blipscope's KV. Edition isolation is the entire point of the prefix, so
   // it gets a test rather than a comment.
-  it("404s another edition's namespace instead of normalizing it", async () => {
-    const foreign = [
+  it("never normalizes another edition's namespace into a Blipscope handler", async () => {
+    // Editions with NO branch of their own still 404 -- the normalizer is not a
+    // wildcard, so an unclaimed namespace routes nowhere.
+    const unclaimed = ["/api/v1/orbitscope/config", "/api/v1/quakescope/airports"];
+    for (const p of unclaimed) {
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      expect(res.status, `${p} must not route`).toBe(404);
+    }
+
+    // Missileer HAS a branch now (reverse-proxied to valar-eam-feed), so its
+    // paths must reach THAT and never a Blipscope handler. In tests
+    // MISSILEER_ORIGIN is unset, so the branch answers 503 -- which is itself
+    // the proof the branch ran, because nothing else in this Worker emits 503
+    // for these paths. The isolation claim gets STRONGER here, not weaker: it
+    // used to be "falls through to 404", it is now "provably handled by another
+    // edition". A regression that widened apiEndpoint() to /api/v1/*/ would
+    // show up as a Blipscope status (200/401/404), never as this.
+    const missileer = [
       "/api/v1/missileer/blips",
       "/api/v1/missileer/leaderboard",
-      "/api/v1/orbitscope/config",
-      "/api/v1/quakescope/airports",
       "/api/v1/missileer/enrich/abc123",
+      "/api/v1/missileer/config",
     ];
-    for (const p of foreign) {
+    for (const p of missileer) {
       const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
-      expect(res.status, `${p} must not reach a Blipscope handler`).toBe(404);
+      expect(res.status, `${p} must reach the Missileer branch, not Blipscope`).toBe(503);
     }
+  });
+
+  it("does not hand a Blipscope device key to the Missileer origin", async () => {
+    // A device key is a credential for THIS Worker. Forwarding it to a
+    // third-party origin hands that origin a working key it has no need for --
+    // cheap to strip, permanent to leak. Asserted at the boundary the Worker
+    // controls: with no origin configured the request never leaves, so this
+    // pins the contract that reaching the branch is not the same as forwarding
+    // the caller's credentials.
+    const res = await call(new Request("https://proxy.test/api/v1/missileer/config", {
+      headers: { "X-Blip-Key": TEST_KEY },
+    }));
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as any;
+    expect(JSON.stringify(body)).not.toContain(TEST_KEY);
   });
 
   it("404s near-miss prefixes -- exactly two are stripped, not a wildcard", async () => {

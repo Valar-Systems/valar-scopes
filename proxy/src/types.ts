@@ -28,6 +28,8 @@ export interface Env {
                                             // the front of both chains; unlisted feeds keep their default order
   UPSTREAM_AIRPLANES_LIVE_ENABLED?: string; // DEAD no-op: airplanes.live is prohibited by operator (see airplanes_live.ts)
   ROUTE_ADSBDB_ENABLED?: string;            // default on; "false" once adsb.lol routeset recovers
+  MISSILEER_ORIGIN?: string;                // valar-eam-feed base URL; unset -> /missileer/* answers 503, not 404
+                                            // (503 says "not wired yet"; 404 would say "no such product")
 
   // Tunables with baked defaults; overridable per-env (and by tests).
   UPSTREAM_TIMEOUT_MS?: string;       // default 8000 (bounds background fetches)
