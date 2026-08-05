@@ -127,21 +127,39 @@ explicitly a guess from unclassified sources — the right provenance posture).
      deadzone scores its expected value; the display keeps the reward. The player still sees a
      bullseye; the ladder still separates.
 
-  > **One interaction the three rulings do not close, raised 2026-08-05.** Rulings 2 and 3 are
-  > each right and they collide. If every SHACK scores *exactly* 50 m, then any player who
-  > SHACKs more than half their launches has a **median of exactly 50 m** — and so does every
-  > other such player. The tie at the top of the CEP ladder is **moved from 0 m to 50 m, not
-  > removed**, and it still crowds as players improve.
+  4. **Rank on the mean; headline the median (DECIDED 2026-08-05).** Rulings 2 and 3 are each
+     right and they collide: if every SHACK scores *exactly* 50 m, any player who SHACKs more
+     than half their launches has a median of **exactly 50 m** — as does every other such
+     player, so the tie moved from 0 m to 50 m rather than going away. Ruling 3 de-ties the
+     *mean* (60 % and 80 % SHACK rates give different averages) but cannot de-tie a *median*,
+     which only reads which bucket the middle sample falls in — and above 50 % that is always
+     the deadzone. So the two statistics split jobs:
+
+     | | Stat | Role |
+     |---|---|---|
+     | **Rank** | **mean miss distance** (deviation-derived, SHACK floored at its 50 m expected value) | the §4 sharpening stat — separates crowded tops at `0.1/√N`, and **every launch counts, including the bad ones** |
+     | **Headline** | **CEP = median miss**, labelled as median | compared against the published 240 m. **Never used for rank** |
+
+     The mean's outlier sensitivity is **a feature in a ranking**: consistency is the skill
+     being measured, and a stat that lets you discard your worst nights measures something
+     else. It is a bug in a headline, which is why the headline is the median.
+
+     Board presentation makes the split legible in one line:
+
+     ```
+     RANKED BY AVG MISS · CEP SHOWN IS MEDIAN (50% RADIUS)
+     ```
+
+  > **General principle, recorded so it survives us.** **Ranking stats and headline stats have
+  > different jobs.** Ranking wants **sensitivity** — it must move when performance moves, and
+  > it must not saturate at the top where the contest actually is. Headlines want
+  > **robustness** — they are read once, compared to an outside number, and must not be
+  > swingable by one bad night.
   >
-  > Ruling 3 does de-tie the **mean** (60 % SHACKs and 80 % SHACKs give different averages);
-  > it cannot de-tie a **median**, because a median only reads which bucket the middle sample
-  > sits in, and above 50 % that bucket is always the deadzone.
-  >
-  > **Suggested resolution, using machinery §4 already has:** rank the cycle ladder on the
-  > **average**, which the §4 amendment established sharpens as `0.1/√N` with volume — that is
-  > precisely the mechanism that separates crowded tops — and keep **median miss as the
-  > displayed CEP stat** against the 240 m benchmark. Ranking and headline stat need not be the
-  > same number, and here they should not be. **Not applied; flagged for a ruling.**
+  > Collapsing the two into one number is exactly how the 50 m tie happened: a median was asked
+  > to rank, and medians do not rank — they describe. Any future stat added to a board should
+  > be asked which of the two jobs it is doing, and if the answer is "both", it is about to
+  > have this bug.
 - Backlog seeding: solved by construction — animations require a live human in the loop, so
   history renders as a stack of already-printed message strips.
 - Dwell/interruption: new real traffic **preempts** a running sequence ("real-world traffic
@@ -562,6 +580,13 @@ callsign on Blipscope and Missileer, and an owner profile page aggregating their
   average*, so it may render hundredths per the §4 amendment; single sorties stay in tenths — CEP,
   readiness ratio), crew board, wing standings (annual championship), cycle history. Reuses
   fleet auth + `LeaderboardId` from the radar edition.
+  **Rank is by mean miss distance; the displayed CEP is the median** (§4 ruling 4), and the
+  board says so in one line rather than leaving a reader to assume the number they are sorted
+  by is the number they are shown:
+
+  ```
+  RANKED BY AVG MISS · CEP SHOWN IS MEDIAN (50% RADIUS)
+  ```
 - **/missileer/archive.** Every recorded EAM: timestamp, duration, playback, decode class,
   cross-links to resulting log entries. Stands alone as an SWL-community resource (audio
   EAM archives are scarce; text logs aren't) → organic discovery traffic from non-owners.
