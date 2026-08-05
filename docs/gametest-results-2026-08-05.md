@@ -15,7 +15,7 @@ scoring granularity is `max(clock, input)`.
 | # | Question | Verdict |
 |---|---|---|
 | 1 | Hold-gesture dropout | **VIABLE** — with a ≥100 ms rejoin window, driver source. §8's two-person rule survives. |
-| 2 | Multitouch | **CLOSED BY DESIGN** — single contact. Not measured, not required. |
+| 2 | Multitouch | **SINGLE-POINT**, measured. Closed by design anyway; stray contact needs no filter. |
 | 3 | NTP uncertainty | **75.7 ms** — forces ~0.1 s scoring buckets, not milliseconds. |
 | 4 | Key-window input floor | **avg 3 ms, max 43 ms** over 31 728 samples. Not the binding constraint. |
 
@@ -86,19 +86,40 @@ has more margin, not less.
 
 ---
 
-## 2. Multitouch — closed by design, not by measurement
+## 2. Multitouch — single-point, and not required either way
 
-`chip_touchnum` never exceeded 1, but no two-finger input was ever applied, so that proves
-nothing. It does not need to: §6.8 already ruled that **each seat renders and enters only its
-own 3 characters**, so the crew scope is two devices, never two fingers on one panel. Confirmed
-2026-08-05 on ergonomics as well — the device sits on a desk and is operated with one thumb.
+The design question was closed before the probe: §6.8 already ruled that **each seat renders and
+enters only its own 3 characters**, so the crew scope is two devices, never two fingers on one
+panel — and the ergonomics agree, since the device sits on a desk and is operated with one thumb.
 
-Recorded as *not required* rather than *unmeasured*; the two age differently.
+**Hardware answer, measured:** `chip_touchnum` never exceeded 1 across 393 samples with two
+fingers deliberately applied. Single-point controller, confirmed rather than assumed.
 
-**Residual, separate question:** a stray second contact (resting palm, knuckle) is not a design
-input but will happen, and if the controller then reports a garbage coordinate it could corrupt
-the **key-turn bezel drag** mid-sortie. If that probe shows garbage, the key-turn needs a
-plausibility filter — reject position jumps above N px/poll — rather than trusting the stream.
+### Stray-contact robustness — probed, and it needs no filter
+
+A second contact (resting palm, knuckle) is not a design input but will happen, and the concern
+was a garbage coordinate corrupting the **key-turn bezel drag** mid-sortie. It does not:
+
+- **Coordinates stay sane.** Stable at (121,112), then (117,114), through the whole two-finger
+  period. No jumps, no wandering midpoint, no garbage. **A stray contact cannot send the drag
+  somewhere wrong**, so the key-turn needs no plausibility filter.
+- **Contact reporting gets noisier.** The driver reported no-touch while the chip still held a
+  point nine times: 11, 11, 11, 42, 44, 47, 47, 56 ms. Every one inside the 100 ms rejoin, so
+  the debounce §1 already requires covers this case too.
+
+Note the disagreement runs the **opposite** way here from the hold test: during a single-finger
+hold the chip blinks to zero while the driver holds; with a second contact the driver drops
+while the chip holds. Neither source is reliable alone, which is a further argument for the
+rejoin window doing the work rather than either raw stream.
+
+**One behaviour worth carrying into the key-turn design:** two contacts landing *simultaneously*
+produced no detection at all until both were lifted and re-applied (operator-observed; it cannot
+be isolated in the ledger, because a period with nothing detected is indistinguishable from a
+period with nothing touched when lines are only written on change). The sequential case — finger
+already down, palm arrives after — is the one that matters for a key-turn, and that is the case
+measured above as short interruptions. But a simultaneous double-landing at the *start* of a
+gesture may register nothing, so the key-turn must tolerate a late start rather than assume
+contact begins on the first attempt.
 
 ---
 
@@ -191,7 +212,6 @@ Guard added. Two consequences worth carrying:
 
 ## Open items
 
-- **Stray-contact probe** (§2 residual) — 30 s, before the next reflash.
 - **Re-measure dropout durations** with the repaint artifact removed, if any duration is ever
   quoted as a controller property. The counts and the ≥100 ms rejoin conclusion do not depend
   on it.
