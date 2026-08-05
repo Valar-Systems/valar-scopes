@@ -63,7 +63,10 @@ export function setDeviceAttribution(
 // counts sit at zero across a full fleet-update cycle, every device has taken
 // the OTA and the alias layer can be deleted -- and until then, the count is
 // also how you find the units that have not updated.
-const KNOWN_ROUTES = new Set([
+// Exported for test/missileer-routes.test.ts, which pins this list against the
+// game service's route table in the other repo. Nothing at runtime reads it
+// from outside this module.
+export const KNOWN_ROUTES = new Set([
   // Edition-namespaced (current)
   "/api/v1/blipscope/blips",
   "/api/v1/blipscope/config",
@@ -78,20 +81,70 @@ const KNOWN_ROUTES = new Set([
   "/v1/leaderboard",
   "/leaderboard",
   "/leaderboard.json",
+  // ---------------------------------------------------------------------
   // Missileer -- proxied to valar-eam-feed (see missileer.ts). Listed here for
   // the same reason as everything else: an unlisted path buckets to "/other"
   // and stops being distinguishable in analytics, so a Missileer outage would
   // be invisible in exactly the window we would be looking for it. No legacy
   // family, because this edition never had one.
+  //
+  // THIS LIST MIRRORS ANOTHER REPO'S ROUTE TABLE, which is a maintenance hazard
+  // worth naming: the routes are registered in valar-eam-feed's
+  // src/routes/game.ts, and nothing in THIS repo imports them. test/
+  // missileer-routes.test.ts pins the two lists against each other so they
+  // cannot drift silently -- see its header for what that can and cannot catch.
+  //
+  // Phase 1 added twelve endpoints and only /config was listed, so eleven paths
+  // plus two id-bearing shapes were bucketing to "/other" -- i.e. the metrics
+  // were blind across the whole game surface, during bring-up, which is the one
+  // window they exist for.
+  // ---------------------------------------------------------------------
+  // Pages (server-rendered by valar-eam-feed; see its docs/missileer-routing.md)
   "/missileer",
   "/missileer/log",
   "/missileer/leaderboard",
   "/missileer/archive",
+  "/missileer/sources",
+  // API -- config and health
   "/api/v1/missileer/config",
+  "/api/v1/missileer/status",
+  // API -- placement (§8/§9). The wing-scoped capsule list is TEMPLATED below.
+  "/api/v1/missileer/placement/wings",
+  "/api/v1/missileer/seats/claim",
+  "/api/v1/missileer/seats",
+  // API -- identity
+  "/api/v1/missileer/me",
+  "/api/v1/missileer/me/callsign",
+  "/api/v1/missileer/me/grid",
+  // API -- votes. The per-vote actions are TEMPLATED below; /votes/live is a
+  // literal path and must not be swallowed by that template.
+  "/api/v1/missileer/votes",
+  "/api/v1/missileer/votes/live",
+  // API -- SSE
+  "/api/v1/missileer/events",
   // Not edition-scoped: infrastructure, shared across editions
   "/healthz",
   "/credits",
 ]);
+
+/**
+ * Missileer's two id-bearing shapes.
+ *
+ * Templated for the same reason /v1/enrich/<hex> was: without this, ONE INDEX
+ * VALUE PER CAPSULE AND PER VOTE. Analytics Engine samples per index bucket, so
+ * unbounded cardinality degrades the aggregates the index exists to accelerate
+ * -- and `GROUP BY endpoint` could never answer "how many votes were seconded
+ * this week?" because every row would be its own group. Vote ids are a
+ * bigserial, so this one grows without limit rather than merely being large.
+ *
+ * The ACTIONS ARE ENUMERATED rather than matched as a wildcard segment. A
+ * wildcard would quietly absorb a typo'd or probed action into a real bucket;
+ * enumerating means anything else falls through to "/other", which is the
+ * correct home for a request that is not a route. Adding an action to the game
+ * service means adding it here, and the drift test says so out loud.
+ */
+const MISSILEER_VOTE_ACTION = /^\/api\/v1\/missileer\/votes\/\d{1,19}\/(execute|second|inhibit|abort|preempt)$/;
+const MISSILEER_WING_CAPSULES = /^\/api\/v1\/missileer\/placement\/wings\/\d{1,9}\/capsules$/;
 
 export function routeTemplate(pathname: string): string {
   if (pathname.startsWith("/api/v1/blipscope/enrich/")) return "/api/v1/blipscope/enrich";
@@ -100,6 +153,15 @@ export function routeTemplate(pathname: string): string {
   if (pathname.startsWith("/v1/enrich/")) return "/v1/enrich";
   if (pathname.startsWith("/v1/photo/")) return "/v1/photo";
   if (/^\/leaderboard\/[0-9a-f]{8,32}$/.test(pathname)) return "/leaderboard/:id";
+  // Checked BEFORE the exact-match set, like every other template. Order is not
+  // load-bearing between these two and the literal Missileer paths -- both
+  // regexes require a segment the literals do not have, so
+  // /api/v1/missileer/votes/live cannot match MISSILEER_VOTE_ACTION (one
+  // segment, not two) and /placement/wings cannot match the capsule shape.
+  // Stated because "add /votes/:id" as a looser pattern later WOULD swallow
+  // /votes/live, and it would look correct.
+  if (MISSILEER_VOTE_ACTION.test(pathname)) return "/api/v1/missileer/votes/:id/:action";
+  if (MISSILEER_WING_CAPSULES.test(pathname)) return "/api/v1/missileer/placement/wings/:id/capsules";
   // Anything unrecognised is one bucket. A 404 sweep must not be able to mint
   // index values, which is a cardinality attack on our own telemetry.
   return KNOWN_ROUTES.has(pathname) ? pathname : "/other";
