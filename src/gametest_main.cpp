@@ -105,17 +105,46 @@ enum class Screen : uint8_t { Hold, Multi, Ntp, COUNT };
 Screen screen = Screen::Hold;
 bool needsRepaint = true;
 
-// ---- gesture state (swipe to advance; same shape as EamManager::HandleTouch) -
+// ---- gesture state ---------------------------------------------------------
+// A SWIPE IS CLASSIFIED FROM MOVEMENT DURING CONTACT, NOT FROM THE RELEASE
+// SAMPLE. The first bench session was lost to the obvious version of this:
+// dx was computed at release from getTouch()'s output, and getTouch() zeroes
+// its out-params when it returns false. So every lift produced dx = 0 - pressX
+// -- a 100+ px "swipe" on a 40 px threshold -- and 33 consecutive hold runs
+// voided as screen_changed with not one run_end among them. The arm-cycle
+// branch sat behind that swipe test as an `else if` and was unreachable, so the
+// banner never changed either and all 33 runs recorded as arm A.
+//
+// Two independent guards now, because either alone still fails:
+//   1. track the largest displacement seen WHILE contact is live, so a zeroed
+//      release sample can never enter the delta at all;
+//   2. require the contact to have been SHORT. A deliberate swipe is a flick;
+//      a 10 s hold that drifts 40 px across the glass is not a swipe, and
+//      classifying it as one would void exactly the runs we came here to get.
 bool wasTouched = false;
 int  pressX = 0, pressY = 0;
+int  maxMovePx = 0;              // peak |displacement| from the press point, live contact only
 unsigned long pressMs = 0;
-constexpr int SWIPE_MIN_PX = 40;
+bool pressInBanner = false;      // press began on the arm chip -> cycles the arm, never a run
+constexpr int  SWIPE_MIN_PX  = 40;
+constexpr unsigned long SWIPE_MAX_MS = 800;   // longer than this is a hold, whatever it did
+constexpr int  BANNER_H_PX   = 50;            // top band: tap here to change arm
 
 // ---- poll cadence ----------------------------------------------------------
 // Logged because sampling is the obvious confound: a 60 ms poll cannot resolve a
 // 40 ms dropout, and without this number a clean result is unfalsifiable.
 unsigned long lastPollMs = 0;
 unsigned long pollGapMaxMs = 0, pollGapSumMs = 0, pollCount = 0;
+// WHEN the worst gap happened, because an unexplained number is not a result.
+// The first session reported poll_max_ms=6036 against a 5 ms loop and there was
+// no way to tell a one-off startup stall from a recurring 6 s freeze -- and the
+// difference between those two is the difference between "fine" and "this board
+// cannot host a millisecond-scored game at all".
+unsigned long pollGapMaxAtMs = 0;
+// The gap of the poll we are currently in, so a dropout can report how much of
+// its own measured duration was just this loop not looking. See the artifact
+// note on HoldTick's dropout branch.
+unsigned long curGapMs = 0;
 
 // ---- HOLD TEST -------------------------------------------------------------
 // A DROPOUT is a release the operator did not make: contact returns within
@@ -213,8 +242,15 @@ void OnNtpSync(struct timeval* /*tv*/) { ntpSyncFlag = true; }
 // measuring how wrong that prediction was is exactly the error a device would
 // carry into a deviation score. Reported pessimistically (worst, not mean), and
 // floored by the poll cadence -- we cannot claim tighter than we can sample.
+// Returns -1 for UNMEASURED, which is not the same as good. The first session
+// read `syncs,1  worst_us,0  uncertainty_ms,6036` -- and every part of that was
+// misleading: worst_us was 0 because a drift correction needs TWO syncs to
+// exist at all, and the 6036 came entirely from the poll floor, so the headline
+// figure was a startup stall wearing a clock number's clothes. A harness whose
+// job is to produce one number must never let "no data yet" render as data.
 long UncertaintyMs()
 {
+    if (syncCount < 2) return -1;
     const long adjMs = (worstAdjustUs < 0 ? -worstAdjustUs : worstAdjustUs) / 1000;
     const long pollMs = (long)pollGapMaxMs;
     return adjMs > pollMs ? adjMs : pollMs;
@@ -233,44 +269,76 @@ void Banner(const char* title)
     gfx().drawString(title, C, 6);
 }
 
+// Runs wanted per arm before the deltas mean anything. Shown on glass so the
+// operator can see the denominator filling instead of guessing at "a bunch".
+constexpr unsigned long RUNS_PER_ARM = 10;
+
 void DrawHold()
 {
-    Banner(ArmName(arm));
+    char b[44];
 
-    // The switch arc the deputy holds.
-    const int r = C - 22;
-    gfx().drawArc(C, C, r, r - 8, 200, 340, holdActive ? TFT_GREEN : TFT_DARKGREY);
+    // ---- arm chip: the control sits on the label it changes ----
+    gfx().fillScreen(TFT_BLACK);
+    gfx().setTextDatum(textdatum_t::top_center);
+    gfx().setTextSize(1);
+    gfx().setTextColor(TFT_BLACK, TFT_CYAN);
+    snprintf(b, sizeof(b), " %s ", ArmName(arm));
+    gfx().drawString(b, C, 8);
+    gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+    gfx().drawString(holdActive ? "" : "tap here to change arm", C, 24);
+
+    // ---- progress ring: fills to the 10 s target ----
+    const int r = C - 8;
+    const unsigned long held = holdActive ? millis() - holdStartMs : 0;
+    gfx().drawArc(C, C, r, r - 6, 0, 360, 0x2104); // unfilled track
+    if (holdActive) {
+        const float frac = held >= HOLD_TARGET_MS ? 1.0f : (float)held / HOLD_TARGET_MS;
+        const int sweep = (int)(360.0f * frac);
+        if (sweep > 0)
+            gfx().drawArc(C, C, r, r - 6, 0, sweep,
+                          inDropout ? TFT_RED : (frac >= 1.0f ? TFT_GREEN : TFT_YELLOW));
+    }
 
     gfx().setTextDatum(textdatum_t::middle_center);
     if (holdActive) {
-        const unsigned long held = millis() - holdStartMs;
         const bool ok = held >= HOLD_TARGET_MS;
         gfx().setTextColor(inDropout ? TFT_RED : (ok ? TFT_GREEN : TFT_YELLOW), TFT_BLACK);
-        gfx().setTextSize(4);
-        gfx().drawString(inDropout ? "DROPPED" : "HELD", C, C - 18);
         gfx().setTextSize(3);
-        char b[16];
-        snprintf(b, sizeof(b), "%lu.%lus", held / 1000, (held % 1000) / 100);
-        gfx().drawString(b, C, C + 22);
-        gfx().setTextSize(2);
-        gfx().setTextColor(TFT_ORANGE, TFT_BLACK);
-        snprintf(b, sizeof(b), "drops %lu", runDropouts);
-        gfx().drawString(b, C, C + 56);
+        gfx().drawString(inDropout ? "DROPPED" : (ok ? "OK - LIFT" : "HOLD..."), C, C - 30);
+        gfx().setTextSize(5);
+        snprintf(b, sizeof(b), "%lu.%lu", held / 1000, (held % 1000) / 100);
+        gfx().drawString(b, C, C + 6);
+        gfx().setTextSize(1);
+        gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+        gfx().drawString(ok ? "target met - lift to bank it" : "of 10.0 s - keep still", C, C + 38);
+        if (runDropouts) {
+            gfx().setTextColor(TFT_ORANGE, TFT_BLACK);
+            snprintf(b, sizeof(b), "drops %lu", runDropouts);
+            gfx().drawString(b, C, C + 54);
+        }
     } else {
+        // Idle: say the instruction, then the denominator, then the last result.
         gfx().setTextColor(TFT_WHITE, TFT_BLACK);
         gfx().setTextSize(2);
-        gfx().drawString("PRESS &", C, C - 30);
-        gfx().drawString("HOLD 10s", C, C - 6);
+        gfx().drawString("PRESS &", C, C - 40);
+        gfx().drawString("HOLD", C, C - 18);
+        gfx().setTextSize(1);
+        gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
+        gfx().drawString("anywhere below the chip, 10 s", C, C + 2);
+
         const ArmStats& a = CurArm();
+        gfx().setTextSize(2);
+        const bool enough = a.runs >= RUNS_PER_ARM;
+        gfx().setTextColor(enough ? TFT_GREEN : TFT_CYAN, TFT_BLACK);
+        snprintf(b, sizeof(b), "%lu / %lu runs", a.runs, RUNS_PER_ARM);
+        gfx().drawString(b, C, C + 26);
         gfx().setTextSize(1);
         gfx().setTextColor(TFT_CYAN, TFT_BLACK);
-        char b[40];
-        snprintf(b, sizeof(b), "runs %lu  clean %lu%%", a.runs,
-                 a.runs ? (a.cleanRuns * 100 / a.runs) : 0);
-        gfx().drawString(b, C, C + 34);
-        snprintf(b, sizeof(b), "swipe: next   long-press: arm A/B");
+        snprintf(b, sizeof(b), "clean %lu%%   this arm", a.runs ? (a.cleanRuns * 100 / a.runs) : 0);
+        gfx().drawString(b, C, C + 46);
+
         gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
-        gfx().drawString(b, C, variant::SCREEN_SIZE - 14);
+        gfx().drawString("swipe = next screen", C, variant::SCREEN_SIZE - 22);
     }
 }
 
@@ -305,7 +373,7 @@ void DrawNtp()
     gfx().drawString("UNCERTAINTY (ms)", C, C - 48);
     gfx().setTextSize(6);
     char b[24];
-    if (firstSyncMs == 0) {
+    if (UncertaintyMs() < 0) {
         gfx().setTextColor(TFT_DARKGREY, TFT_BLACK);
         gfx().drawString("--", C, C - 8);
     } else {
@@ -415,14 +483,29 @@ void HoldTick(bool touched, unsigned long now)
         a.dropouts++;
         if (gap > a.longestMs) a.longestMs = gap;
         Bucket(a, gap);
-        Serial.printf("HOLD,dropout,%lu,gap_ms,%lu,run_drops,%lu\n", now, gap, runDropouts);
+        // MEASURED DURATION IS AN UPPER BOUND, NOT THE OUTAGE. The gap is
+        // wall-clock between observing contact lost and observing it back, so
+        // it includes however long this loop spent not looking -- and the first
+        // bench run made that concrete: all 48 dropouts across three arms fell
+        // in 39-45 ms, the same band as the max poll gap, because entering a
+        // dropout used to force an immediate repaint and the repaint delayed
+        // the very observation that ends it. A distribution that tight is a
+        // property of the instrument, not of a touch controller. poll_gap_ms is
+        // logged so the two can be told apart; if it dominates gap_ms, the real
+        // outage was one poll and the rest was us.
+        Serial.printf("HOLD,dropout,%lu,gap_ms,%lu,poll_gap_ms,%lu,run_drops,%lu\n",
+                      now, gap, curGapMs, runDropouts);
         needsRepaint = true;
     } else if (!touched && !inDropout) {
         inDropout = true;
         lastUpMs = now;
         holdContactMs += now - lastDownMs;
         Serial.printf("HOLD,up,%lu\n", now);
-        needsRepaint = true;
+        // DELIBERATELY NO needsRepaint HERE. Painting on dropout ENTRY inserts
+        // a full 240x240 sprite push between "contact lost" and "contact back",
+        // which lands inside the interval being measured and inflates every
+        // dropout to roughly the frame time. The throttled 100 ms repaint still
+        // shows the state; it just no longer contaminates the measurement.
     } else if (!touched && inDropout && (now - lastUpMs) > REJOIN_MS) {
         // Stayed up past the rejoin window: the operator lifted. End the run.
         const unsigned long total = lastUpMs - holdStartMs;
@@ -446,6 +529,25 @@ void HoldTick(bool touched, unsigned long now)
 void setup()
 {
     Serial.begin(115200);
+#if ARDUINO_USB_CDC_ON_BOOT
+    // THE HARNESS FREEZE, ROOT-CAUSED 2026-08-05. This guard exists in the
+    // product (main.cpp) and this TU has its own setup(), so it never got it --
+    // and the omission made the board "almost unusable" for a whole bench day.
+    //
+    // With nothing draining the USB-CDC, Serial.write blocks once the TX ring
+    // fills. This harness prints a TOUCH line on every transition, so an
+    // unattended session fills it in seconds and the LOOP then stalls on the
+    // print. Measured: 20 042 ms worst poll gap unattended, versus 43 ms across
+    // 31 728 samples with a reader attached. The proof it was buffering and not
+    // scheduling: when a recorder finally attached 17 h into a run, the first
+    // lines it received were the beats from 60 s and 120 s after boot.
+    //
+    // A bench harness that freezes only when no one is watching is the worst
+    // possible failure shape -- it corrupts poll_max_ms, which is the very
+    // number the scoring floor is derived from.
+    Serial.setTxBufferSize(4096);
+    Serial.setTxTimeoutMs(2);
+#endif
     delay(300);
     bootMs = millis();
 
@@ -534,7 +636,8 @@ void loop()
     // ---- poll cadence (the sampling-confound control) ----
     const unsigned long gap = now - lastPollMs;
     lastPollMs = now;
-    if (gap > pollGapMaxMs) pollGapMaxMs = gap;
+    curGapMs = gap;
+    if (gap > pollGapMaxMs) { pollGapMaxMs = gap; pollGapMaxAtMs = now; }
     pollGapSumMs += gap;
     pollCount++;
     // The key-window floor, sampled only while an arm-C hold is live -- that is
@@ -566,21 +669,36 @@ void loop()
         lastChipN = chipN;
     }
 
-    // ---- gesture: swipe advances the screen; long-press flips the A/B arm ----
+    // ---- gesture: swipe advances the screen; a banner tap cycles the arm ----
+    // THE ARM CANNOT BE A LONG-PRESS. On the Hold screen every press starts a
+    // hold run by definition, so "press and hold to change arm" and "press and
+    // hold to test" are the same gesture and the arm control is unreachable
+    // behind the thing it configures. It moved to a tap on the arm chip, which
+    // is also the only self-describing place to put it -- the control sits on
+    // the label it changes.
     if (touched && !wasTouched) {
         pressX = tx; pressY = ty; pressMs = now;
+        maxMovePx = 0;
+        pressInBanner = (ty < BANNER_H_PX);
+    } else if (touched) {
+        // Live contact: accumulate the peak displacement. Only samples where the
+        // driver reports contact are trusted, so a zeroed release never lands here.
+        const int dx = abs(tx - pressX), dy = abs(ty - pressY);
+        const int m = dx > dy ? dx : dy;
+        if (m > maxMovePx) maxMovePx = m;
     } else if (!touched && wasTouched) {
-        const int dx = tx - pressX, dy = ty - pressY;
         const unsigned long held = now - pressMs;
-        if (abs(dx) > SWIPE_MIN_PX || abs(dy) > SWIPE_MIN_PX) {
-            screen = (Screen)(((int)screen + 1) % (int)Screen::COUNT);
-            needsRepaint = true;
-            Serial.printf("TOUCH,screen,%d\n", (int)screen);
-        } else if (held > 1500 && screen == Screen::Hold && !holdActive) {
+        if (pressInBanner && held < SWIPE_MAX_MS && maxMovePx <= SWIPE_MIN_PX) {
             arm = (Arm)(((int)arm + 1) % (int)Arm::COUNT); // A -> B -> C -> A
             ApplyArm();
             needsRepaint = true;
+        } else if (held < SWIPE_MAX_MS && maxMovePx > SWIPE_MIN_PX) {
+            screen = (Screen)(((int)screen + 1) % (int)Screen::COUNT);
+            needsRepaint = true;
+            Serial.printf("TOUCH,screen,%d,move_px,%d,held_ms,%lu\n",
+                          (int)screen, maxMovePx, held);
         }
+        pressInBanner = false;
     }
     wasTouched = touched;
 
@@ -630,7 +748,11 @@ void loop()
             contact = touched;
             nackSinceMs = 0;
         }
-        HoldTick(contact, now);
+        // A press that began on the arm chip is a control, not a run. Without
+        // this, every arm change also books a ~200 ms run against the arm being
+        // left -- junk denominators in the one statistic this harness exists to
+        // produce.
+        if (!pressInBanner) HoldTick(contact, now);
     } else if (holdActive) {
         Serial.printf("HOLD,run_void,%lu,reason,screen_changed\n", now);
         holdActive = false;
@@ -668,9 +790,12 @@ void loop()
     if (now - lastBeat >= 60000) {
         lastBeat = now;
         Serial.printf("NTP,beat,%lu,syncs,%lu,worst_us,%ld,uncertainty_ms,%ld,"
-                      "poll_avg_ms,%lu,poll_max_ms,%lu\n",
+                      "poll_avg_ms,%lu,poll_max_ms,%lu,poll_max_at_ms,%lu\n",
                       now, syncCount, worstAdjustUs, UncertaintyMs(),
-                      pollCount ? pollGapSumMs / pollCount : 0, pollGapMaxMs);
+                      pollCount ? pollGapSumMs / pollCount : 0, pollGapMaxMs, pollGapMaxAtMs);
+        if (syncCount < 2)
+            Serial.println("NTP,note,uncertainty_ms=-1 means UNMEASURED -- a drift correction "
+                           "needs two syncs; SNTP's default re-sync is hourly");
         needsRepaint = true;
     }
 
