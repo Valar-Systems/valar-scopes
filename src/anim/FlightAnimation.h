@@ -125,8 +125,27 @@ public:
     /** Restart the whole sequence at T+0. */
     void Restart();
 
-    /** Jump to a beat's first frame. Clamped to the sequence. */
-    void Seek(Beat b);
+    /**
+     * Jump into a beat. `progress` is 0..1 through it, so a rig can land on a
+     * MOMENT rather than only on a boundary -- "the globe, 70% flown" is a thing
+     * you want to hold still and photograph, and it is not the first frame of
+     * any beat.
+     */
+    void Seek(Beat b, float progress = 0.0f);
+
+    /**
+     * Retarget the globe. Rig hook.
+     *
+     * The camera orientation is DERIVED from the launch/aim pair (see
+     * kGlobeTilt), so every scenario gets its own view of the Earth and its own
+     * arc -- which is exactly what makes a survey worth running: the projection
+     * has to hold up for whatever target the game eventually picks, not just for
+     * the one it was tuned against.
+     */
+    void SetScenario(float launchLon, float launchLat, float aimLon, float aimLat);
+
+    /** Great-circle range of the current scenario, km. */
+    float ScenarioRangeKm() const;
 
     /** Advance to the next/previous beat, wrapping at the ends. */
     void StepBeat(int delta);

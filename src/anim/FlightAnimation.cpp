@@ -824,9 +824,14 @@ constexpr int kCoastCount = (int)(sizeof(kCoast) / sizeof(kCoast[0]));
 
 /* The look target's GOLF-07 scenario: F.E. Warren AFB to the South Pacific pole
  * of inaccessibility. Open ocean, per the tone rule -- the aim point is never a
- * populated place. */
-constexpr float kLaunchLon = -104.87f, kLaunchLat =  41.15f;
-constexpr float kAimLon    = -123.39f, kAimLat    = -48.87f;
+ * populated place.
+ *
+ * NOT constexpr, because the camera orientation is derived from these and a rig
+ * needs to be able to sweep targets to see whether the projection holds up for
+ * more than the one pair it was tuned against. Director::SetScenario writes them
+ * and clears gGlobeReady; nothing else should touch them. */
+float gLaunchLon = -104.87f, gLaunchLat =  41.15f;
+float gAimLon    = -123.39f, gAimLat    = -48.87f;
 
 constexpr float kGlobeR = 110.0f;   // 240-space; leaves the caption its rows
 
@@ -907,8 +912,8 @@ void BuildGlobeBasis()
     gGlobeReady = true;
 
     float L[3], A[3];
-    UnitVec(kLaunchLon, kLaunchLat, L);
-    UnitVec(kAimLon,    kAimLat,    A);
+    UnitVec(gLaunchLon, gLaunchLat, L);
+    UnitVec(gAimLon,    gAimLat,    A);
 
     float n[3]; Cross3(L, A, n); Norm3(n);                 // great-circle normal
     float m[3] = {L[0] + A[0], L[1] + A[1], L[2] + A[2]};  // arc midpoint
@@ -944,8 +949,8 @@ inline bool GlobePt(float x, float y, float z, float c, float R, float& sx, floa
 void GreatCircle(float f, float* o)
 {
     float v1[3], v2[3];
-    UnitVec(kLaunchLon, kLaunchLat, v1);
-    UnitVec(kAimLon,    kAimLat,    v2);
+    UnitVec(gLaunchLon, gLaunchLat, v1);
+    UnitVec(gAimLon,    gAimLat,    v2);
     float d = Dot3(v1, v2);
     if (d >  1.0f) d =  1.0f;
     if (d < -1.0f) d = -1.0f;
@@ -1090,7 +1095,7 @@ void Director::Restart()
     EnterBeat(Beat::Liftoff);
 }
 
-void Director::Seek(Beat b)
+void Director::Seek(Beat b, float progress)
 {
     if ((int)b < 0) b = Beat::Liftoff;
     if ((int)b >= (int)Beat::COUNT) b = (Beat)((int)Beat::COUNT - 1);
@@ -1099,6 +1104,38 @@ void Director::Seek(Beat b)
     for (int i = 0; i < (int)b; ++i) seqElapsedMs_ += BeatDurationMs((Beat)i, mode_);
     finished_ = false;
     EnterBeat(b);
+
+    // Landing mid-beat has to go through the kinematics, not just set a clock:
+    // EnterBeat puts the vehicle at the beat's START anchor, and every Draw call
+    // reads vx_/vy_/scale_. Without this, seeking to "70% of midcourse" would
+    // draw the map with the dot still parked where the beat began.
+    if (progress > 0.0f) {
+        const uint32_t dur = BeatDurationMs(b, mode_);
+        beatElapsedMs_ = (uint32_t)(Clamp01(progress) * (float)dur);
+        seqElapsedMs_ += beatElapsedMs_;
+        UpdateKinematics(0);
+    }
+}
+
+void Director::SetScenario(float launchLon, float launchLat, float aimLon, float aimLat)
+{
+    gLaunchLon = launchLon; gLaunchLat = launchLat;
+    gAimLon    = aimLon;    gAimLat    = aimLat;
+    // The camera is derived from the pair, so it has to be rebuilt -- this is the
+    // whole point of deriving it rather than hard-coding an orientation.
+    gGlobeReady = false;
+    BuildGlobeBasis();
+}
+
+float Director::ScenarioRangeKm() const
+{
+    float a[3], b[3];
+    UnitVec(gLaunchLon, gLaunchLat, a);
+    UnitVec(gAimLon,    gAimLat,    b);
+    float d = Dot3(a, b);
+    if (d >  1.0f) d =  1.0f;
+    if (d < -1.0f) d = -1.0f;
+    return acosf(d) * 6371.0f;
 }
 
 void Director::StepBeat(int delta)
@@ -2628,8 +2665,8 @@ void Director::DrawMap(LovyanGFX& g, int dy) const
     // screen from "here is a dot" into "here is how far along it is".
     float lx, ly, ax, ay;
     float Lv[3], Av[3];
-    UnitVec(kLaunchLon, kLaunchLat, Lv);
-    UnitVec(kAimLon,    kAimLat,    Av);
+    UnitVec(gLaunchLon, gLaunchLat, Lv);
+    UnitVec(gAimLon,    gAimLat,    Av);
     if (GlobePt(Lv[0], Lv[1], Lv[2], c, R, lx, ly)) {
         g.drawCircle((int)lx, (int)ly - dy, (int)(3 * u), pal::Green());
     }

@@ -74,6 +74,61 @@ TimeMode mode = TimeMode::Compressed;
 
 bool paused = false;
 
+#ifdef ANIM_GLOBE_SURVEY
+// ---------------------------------------------------------------------------
+// GLOBE SURVEY. Not part of the sequence -- a separate mode that holds MIDCOURSE
+// at 70% (past the cut, so the globe owns the frame, and far enough along that
+// the track has a visible flown/unflown split) and walks a table of targets.
+//
+// It exists because the camera orientation is DERIVED from the launch/aim pair,
+// which means every scenario is a different view of the Earth and a differently
+// shaped arc. One target proves nothing: the tilt was chosen against GOLF-07,
+// and the question that matters is whether the projection still reads when the
+// game aims somewhere else.
+//
+// The scenarios are picked to break it if it can be broken -- near-meridional,
+// hard east-west, trans-polar, trans-Pacific, southern hemisphere, equatorial,
+// and a short one. Real sites and real aim points; the aim points stay open
+// ocean or bare ground per the tone rule, except where a city is named to make
+// the geometry legible on a photograph.
+// ---------------------------------------------------------------------------
+struct Scenario {
+    const char* name;
+    float launchLon, launchLat;
+    float aimLon, aimLat;
+};
+const Scenario kScenarios[] = {
+    {"GOLF-07",   -104.87f,  41.15f, -123.39f, -48.87f},  // the tuned case
+    {"POLAR",     -104.87f,  41.15f,   37.62f,  55.75f},  // hard east-west, high lat
+    {"TRANSPOLE", -101.30f,  48.42f,  116.40f,  39.90f},  // longest, over the top
+    {"PACIFIC",   -120.57f,  34.74f,  167.73f,   8.72f},  // Vandenberg->Kwajalein
+    {"ARCTIC",    -101.30f,  48.42f,   56.00f,  74.00f},  // straight over the pole
+    {"S-ATL",     -104.87f,  41.15f,  -15.00f, -35.00f},  // southeast quadrant
+    {"EQUATOR",    -52.77f,   5.24f,   75.00f, -25.00f},  // low latitude both ends
+    {"SHORT",     -111.18f,  47.51f, -170.00f,  45.00f},  // short arc, small bow
+};
+constexpr int kScenarioCount = (int)(sizeof(kScenarios) / sizeof(kScenarios[0]));
+constexpr unsigned long SURVEY_DWELL_MS = 4000;
+
+int           surveyIx = 0;
+unsigned long surveyAt = 0;
+
+void SurveyApply()
+{
+    const Scenario& s = kScenarios[surveyIx];
+    director.SetScenario(s.launchLon, s.launchLat, s.aimLon, s.aimLat);
+    // Re-seek so the dot lands on the NEW great circle. Without this the map
+    // redraws around a dot still sitting on the old one -- the exact "two
+    // opinions about where the vehicle is" bug the match-cut rule exists to
+    // prevent, reintroduced by a rig.
+    director.Seek(Beat::Midcourse, 0.70f);
+    Serial.printf("SURVEY,%d/%d,%s,launch,%.2f,%.2f,aim,%.2f,%.2f,range_km,%.0f\n",
+                  surveyIx + 1, kScenarioCount, s.name,
+                  s.launchLon, s.launchLat, s.aimLon, s.aimLat,
+                  director.ScenarioRangeKm());
+}
+#endif
+
 // ---------------------------------------------------------------------------
 // Per-beat frame timing. Worst case is the number that matters: an average
 // hides exactly the frame that drops, and a sequence that averages 40 fps while
@@ -187,6 +242,21 @@ void DrawHud(LovyanGFX& g)
     g.setTextDatum(textdatum_t::top_center);
 
     char buf[48];
+
+#ifdef ANIM_GLOBE_SURVEY
+    // THE PHOTOGRAPH HAS TO SAY WHICH ONE IT IS. Eight globes on a camera roll
+    // are eight unlabelled globes; the whole point of a survey is comparing them
+    // afterwards, and a beat name is the one thing that does not vary here.
+    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
+    g.drawString(kScenarios[surveyIx].name, SCREEN / 2, (int)(16 * u));
+    snprintf(buf, sizeof(buf), "%d/%d  %.0f KM", surveyIx + 1, kScenarioCount,
+             director.ScenarioRangeKm());
+    g.setTextColor(lgfx::color888(0x1D, 0x7A, 0x4A));  // GREEN_DIM
+    g.drawString(buf, SCREEN / 2, (int)(28 * u));
+    g.setTextDatum(textdatum_t::top_left);
+    return;
+#endif
+
     g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
     g.drawString(missileer::flight::BeatName(director.CurrentBeat()),
                  SCREEN / 2, (int)(16 * u));
@@ -454,10 +524,50 @@ void setup()
     director.Begin(SCREEN, mode);
     ResetTimings();
     lastFrameMs = millis();
+
+#ifdef ANIM_GLOBE_SURVEY
+    Serial.printf("[anim] GLOBE SURVEY -- %d targets, %lu ms each, tap to advance\n",
+                  kScenarioCount, (unsigned long)SURVEY_DWELL_MS);
+    surveyAt = millis();
+    SurveyApply();
+#endif
 }
 
 void loop()
 {
+#ifdef ANIM_GLOBE_SURVEY
+    // The survey does not advance the sequence at all -- it holds one frame per
+    // scenario, which is what makes the globes comparable between photographs.
+    // Tap steps to the next target immediately; the dwell timer does the rest.
+    {
+        int32_t tx = 0, ty = 0;
+        const bool down = tft.getTouch(&tx, &ty);
+        const unsigned long now = millis();
+        if ((down && !wasTouched) || now - surveyAt >= SURVEY_DWELL_MS) {
+            surveyIx = (surveyIx + 1) % kScenarioCount;
+            surveyAt = now;
+            SurveyApply();
+        }
+        wasTouched = down;
+
+        if (haveCanvas) {
+            const uint32_t t0 = micros();
+            director.Render(canvas, 0);
+            const uint32_t t1 = micros();
+            DrawHud(canvas);
+            canvas.pushSprite(0, 0);
+            const uint32_t t2 = micros();
+            static uint32_t frame = 0;
+            if ((frame++ % 30) == 0) {
+                Serial.printf("SURVEY,frame,%s,compose_us,%lu,total_us,%lu\n",
+                              kScenarios[surveyIx].name,
+                              (unsigned long)(t1 - t0), (unsigned long)(t2 - t0));
+            }
+        }
+        return;
+    }
+#endif
+
     HandleTouch();
 
     const unsigned long now = millis();
