@@ -16,7 +16,8 @@ rather than guessing.
 | 3 | `kHaloRings` 5 → 4 | DETONATION | **49.8** | 20.1 |
 | 4 | real world map replaces the placeholder globe | DETONATION | **49.7** | 20.1 |
 | 5 | attitude + plasma fixes, 8-offset caption halo | DETONATION | **50.2** | 19.9 |
-| 6 | caption halo 8 → 4 offsets — **shipping** | DETONATION | **50.0** | 20.0 |
+| 6 | caption halo 8 → 4 offsets | DETONATION | **50.0** | 20.0 |
+| 7 | Stage IV propulsion, one-piece shroud, RV/PBV continuity, midcourse choreography — **shipping** | DETONATION | **50.0** | 20.0 |
 
 TRUE-TIME was run at the run-3 config over the full 1,915 s; see below.
 
@@ -56,33 +57,40 @@ here is push-bound, so every finding below is an art finding.
 
 ---
 
-## Per-beat table — COMPRESSED, run 6 (shipping config)
+## Per-beat table — COMPRESSED, run 7 (shipping config)
 
-Includes the real world map, the 4-offset caption halo, the subject-size boost
-and the attitude/plasma fixes.
+Everything: the real world map, the 4-offset caption halo, the subject-size
+boost, the attitude/plasma fixes, Stage IV's two propulsion systems, the
+one-piece shroud, the slender lit-rim RV, and the midcourse choreography.
 
 | # | Beat | T+ | Frames | Avg ms | **Worst ms** | Worst fps | Compose worst | Push worst |
 |---|---|---|---|---|---|---|---|---|
-| 1 | IGNITION | 0 | 185 | 32.1 | 32.5 | 30.7 | 6.7 | 25.8 |
-| 2 | STAGE 1 SEP | 62 | 93 | 31.8 | 32.6 | 30.7 | 6.8 | 25.8 |
-| 3 | STAGE 2 | 65 | 150 | 32.8 | 32.9 | 30.4 | 7.1 | 25.8 |
-| 4 | SHROUD | 121 | 76 | 32.4 | 32.4 | 30.9 | 6.6 | 25.8 |
-| 5 | STAGE 2 SEP | 123 | 93 | 31.8 | 32.7 | 30.5 | 6.9 | 25.8 |
-| 6 | STAGE 3 | 126 | 153 | 32.2 | 32.7 | 30.6 | 6.9 | 25.8 |
-| 7 | STAGE 3 SEP | 177 | 95 | 31.0 | **31.3** | 31.9 | 5.5 | 25.8 |
-| 8 | POST-BOOST | 180 | 183 | 32.2 | 32.3 | 31.0 | 6.5 | 25.8 |
-| 9 | PSRE PITCH | 205 | 188 | 31.6 | 31.7 | 31.6 | 5.9 | 25.8 |
-| 10 | RV RELEASE | 225 | 190 | 31.0 | **31.1** | 32.1 | **5.3** | 25.8 |
-| 11 | BUS BACKAWAY | 233 | 158 | 31.1 | **31.1** | 32.1 | **5.3** | 25.8 |
-| 12 | PENAIDS | 245 | 157 | 31.5 | 31.5 | 31.7 | 5.7 | 25.8 |
-| 13 | MIDCOURSE | 260 | 347 | 33.9 | 36.9 | 27.1 | 11.0 | 25.8 |
+| 1 | IGNITION | 0 | 184 | 32.2 | 32.6 | 30.7 | 6.8 | 25.8 |
+| 2 | STAGE 1 SEP | 62 | 93 | 31.8 | 32.6 | 30.6 | 6.8 | 25.8 |
+| 3 | STAGE 2 | 65 | 150 | 32.9 | 33.0 | 30.3 | 7.2 | 25.8 |
+| 4 | SHROUD | 121 | 76 | 32.5 | 32.5 | 30.8 | 6.7 | 25.8 |
+| 5 | STAGE 2 SEP | 123 | 92 | 31.9 | 32.8 | 30.4 | 7.0 | 25.8 |
+| 6 | STAGE 3 | 126 | 153 | 32.3 | 32.8 | 30.5 | 7.0 | 25.8 |
+| 7 | STAGE 3 SEP | 177 | 95 | 31.1 | 31.4 | 31.8 | 5.6 | 25.8 |
+| 8 | POST-BOOST | 180 | 182 | 32.5 | 32.5 | 30.7 | 6.7 | 25.8 |
+| 9 | PSRE PITCH | 205 | 186 | 31.7 | 31.8 | 31.4 | 6.0 | 25.8 |
+| 10 | RV RELEASE | 225 | 188 | 31.3 | **31.3** | 31.9 | **5.5** | 25.8 |
+| 11 | BUS BACKAWAY | 233 | 158 | 31.3 | 31.4 | 31.9 | 5.5 | 25.8 |
+| 12 | PENAIDS | 245 | 155 | 31.6 | 31.7 | 31.5 | 5.9 | 25.8 |
+| 13 | MIDCOURSE | 260 | 347 | 34.0 | 36.8 | 27.1 | 11.0 | 25.8 |
 | 14 | REENTRY | 1806 | 249 | 31.6 | 34.9 | 28.6 | 9.2 | 25.8 |
 | 15 | DETONATION | 1896 | 242 | 45.1 | **50.0** | **20.0** | **24.2** | 25.8 |
-| 16 | MATCH CUT | — | 180 | 32.8 | 36.1 | 27.7 | 10.3 | 25.8 |
+| 16 | MATCH CUT | — | 181 | 32.8 | 36.1 | 27.7 | 10.3 | 25.8 |
 
-Fifteen beats span **31.1–36.9 ms**. The cheapest are RV RELEASE and BUS
-BACKAWAY at 5.3 ms compose, which is a pleasing accident: §11's quietest moment
-is also the one that draws the least.
+Fifteen beats span **31.3–36.8 ms**. The cheapest is RV RELEASE at 5.5 ms
+compose, which is a pleasing accident: §11's quietest moment is also the one that
+draws the least — and it stayed the cheapest even after the RV got twice the size
+and the bus grew an engine and eight thrusters.
+
+**The detonation is at 50.0 ms against a 50.0 ms bar.** Not under it. Every art
+addition since run 3 has been paid for out of the only beat with no headroom, and
+the remaining lever (`kPuffRings`, billow shading on the marquee beat) is an open
+look decision rather than a perf one.
 
 **The detonation is at 50.0 ms against a 50.0 ms bar.** Not under it. Everything
 added to the frame since run 3 — the world map does not touch this beat, but the
