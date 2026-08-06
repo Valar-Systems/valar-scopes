@@ -243,23 +243,44 @@ void DrawHud(LovyanGFX& g)
 
     char buf[48];
 
+    // HALOED, AND NOT GREEN, for the same two reasons the flight track is not
+    // green. The globe now fills the whole face, so this chrome no longer sits on
+    // black -- it sits on coastlines. Green-on-green vanished, and brass read as
+    // yellow against them, which on this product is the one thing chrome must
+    // never do: amber means EXERCISE and a colour that turns up elsewhere stops
+    // carrying that. It is a dull olive-gold, not the amber token, but at 6 px on
+    // a dark green sphere that distinction is not one a viewer can make.
+    //
+    // So: paper and grey over a one-pixel dark halo -- the same mechanism
+    // DrawCaption uses, for the same reason (no fixed row is safe when what is
+    // underneath moves). The rig chrome gives up its brass to buy that; being
+    // legible beats being visually distinct from the product's own lower third,
+    // which is at the OTHER end of the screen anyway.
+    auto hud = [&](const char* s, int row, uint32_t col) {
+        static const int8_t kHalo[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        g.setTextColor(lgfx::color888(0x06, 0x08, 0x0A));
+        for (int i = 0; i < 4; ++i) {
+            g.drawString(s, SCREEN / 2 + kHalo[i][0], row + kHalo[i][1]);
+        }
+        g.setTextColor(col);
+        g.drawString(s, SCREEN / 2, row);
+    };
+    const uint32_t kHudName = lgfx::color888(0xEC, 0xE7, 0xD6);  // PAPER
+    const uint32_t kHudSub  = lgfx::color888(0x7A, 0x7D, 0x86);  // GREY
+
 #ifdef ANIM_GLOBE_SURVEY
     // THE PHOTOGRAPH HAS TO SAY WHICH ONE IT IS. Eight globes on a camera roll
     // are eight unlabelled globes; the whole point of a survey is comparing them
     // afterwards, and a beat name is the one thing that does not vary here.
-    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
-    g.drawString(kScenarios[surveyIx].name, SCREEN / 2, (int)(16 * u));
+    hud(kScenarios[surveyIx].name, (int)(16 * u), kHudName);
     snprintf(buf, sizeof(buf), "%d/%d  %.0f KM", surveyIx + 1, kScenarioCount,
              director.ScenarioRangeKm());
-    g.setTextColor(lgfx::color888(0x1D, 0x7A, 0x4A));  // GREEN_DIM
-    g.drawString(buf, SCREEN / 2, (int)(28 * u));
+    hud(buf, (int)(28 * u), kHudSub);
     g.setTextDatum(textdatum_t::top_left);
     return;
 #endif
 
-    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
-    g.drawString(missileer::flight::BeatName(director.CurrentBeat()),
-                 SCREEN / 2, (int)(16 * u));
+    hud(missileer::flight::BeatName(director.CurrentBeat()), (int)(16 * u), kHudName);
 
     // Mode, beat position, and the TRUE T+ mark -- the number the art is judged
     // against even in compressed mode (see Director::TPlusMs).
@@ -267,9 +288,10 @@ void DrawHud(LovyanGFX& g)
     snprintf(buf, sizeof(buf), "%s%s %d/%d T+%lu:%02lu", ModeName(), paused ? " PAUSE" : "",
              (int)director.CurrentBeat() + 1, (int)Beat::COUNT,
              (unsigned long)(tp / 60000), (unsigned long)((tp / 1000) % 60));
-    g.setTextColor(paused ? lgfx::color888(0xFF, 0x3B, 0x30)    // RED
-                          : lgfx::color888(0x1D, 0x7A, 0x4A));  // GREEN_DIM
-    g.drawString(buf, SCREEN / 2, (int)(28 * u));
+    // Red when paused, because a paused rig that looks like a running one has
+    // wasted a bench session before. Grey otherwise -- it was GREEN_DIM, which is
+    // invisible over the globe during MIDCOURSE.
+    hud(buf, (int)(28 * u), paused ? lgfx::color888(0xFF, 0x3B, 0x30) : kHudSub);
 
     g.setTextDatum(textdatum_t::top_left);
 }

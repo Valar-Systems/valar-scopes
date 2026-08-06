@@ -850,7 +850,21 @@ constexpr int kCoastCount = (int)(sizeof(kCoast) / sizeof(kCoast[0]));
 float gLaunchLon = -104.87f, gLaunchLat =  41.15f;
 float gAimLon    = -123.39f, gAimLat    = -48.87f;
 
-constexpr float kGlobeR = 110.0f;   // 240-space; leaves the caption its rows
+/**
+ * THE LARGEST CIRCLE THAT DRAWS COMPLETELY. 119, not 120: centred at 120 a
+ * radius of 120 touches x=240, which is outside a 0..239 buffer, so the limb
+ * would be clipped at the four cardinal points -- and the limb is the one line
+ * that makes the disc read as a sphere rather than as a circle of noise.
+ *
+ * It was 110, to keep the caption rows clear of the globe. That was
+ * over-cautious: the lower third already carries a one-pixel dark halo, added
+ * because NO fixed row is safe on this panel (see DrawCaption), and it works
+ * over ocean and coastline exactly as it works over the Earth limb during the
+ * ascent. Ten pixels of black ring bought nothing and cost 15% of the globe's
+ * area -- on the one screen whose whole argument is that a sphere's natural
+ * shape is the display's shape.
+ */
+constexpr float kGlobeR = 119.0f;
 
 /**
  * TILT OFF THE GREAT-CIRCLE PLANE, and the obvious value is the broken one.
