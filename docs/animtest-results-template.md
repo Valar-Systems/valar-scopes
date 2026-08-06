@@ -59,6 +59,36 @@ motion.
 > compose has a **~24 ms budget**, and a beat that misses the bar is always an
 > art problem here, never a bus one. Ascent beats spend 4.4–5.4 ms of it.
 
+## Three standing facts about this panel
+
+Measured on the S3 1.28" Kit, and true for every screen this product draws — not
+just the animation. Budget against these, not against intuition.
+
+**1. The SPI push floor is 25.8 ms.** A 240×240 16 bpp frame is 115 KB on a
+40 MHz bus. Nothing composed can beat it, so ~24 ms is the entire compose budget
+against a 50 ms bar. Every budget question is an art question.
+
+**2. Cost is per line-PIXEL, not per line — 1.06 µs/px.** Measured:
+`drawLine` of 3 px is 2.45 µs and of 8 px is 7.76 µs, so setup is negligible and
+length is everything. **This inverts eyeball budgeting.** A dozen long graticule
+lines outweigh hundreds of short coastline segments: 12 meridians + 5 parallels
+cost 3.75 ms, more than every coastline on the planet. When something is too
+slow, count the pixels the strokes cover, not the strokes.
+
+For contrast, span fills are ~37× cheaper per pixel: `fillScreen` 240×240 is
+3.30 ms, i.e. **28.6 ns/px**. A full-disc `fillCircle` costs less than a thousand
+pixels of stroke.
+
+**3. Sprite caching does not pay at full-screen size.** `pushSprite` of a
+240×240 PSRAM sprite is **6.24 ms** — *more than drawing the content live* — and
+it spends 115 KB to do it. Nothing full-screen should be pre-rendered. This
+killed a planned static-map cache before it was built; the globe that replaced
+it draws live every frame and is cheaper.
+
+> All three come from the `BENCH,` lines `animtest_main.cpp` prints at boot under
+> `-DANIM_PROFILE`. Re-run them before trusting any of the above on a new panel
+> or a new LovyanGFX version.
+
 Past runs: [animtest-results-2026-08-06.md](animtest-results-2026-08-06.md).
 
 ---
@@ -99,7 +129,7 @@ assertion that no other beat pays for it.
 | 11 | RV RELEASE | 225 | | | | | | | 0 | silent |
 | 12 | BUS BACKAWAY | 233 | | | | | | | 0 | |
 | 13 | PENAIDS | 245 | | | | | | | 0 | |
-| 14 | MIDCOURSE | 260 | | | | | | | 0 | **not** the cheapest — the match cut opens the map inside it |
+| 14 | MIDCOURSE | 260 | | | | | | | 0 | **not** the cheapest — the match cut opens the **globe** inside it |
 | 15 | REENTRY | 1806 | | | | | | | 0 | own sky gradient + cloud deck |
 | 16 | DETONATION | 1896 | | | | | | | 0 | **expected worst — 46 puffs, full-screen** |
 | 17 | MATCH CUT | — | | | | | | | 0 | map opens on the dot |
@@ -212,6 +242,28 @@ separation and nothing ever falls below half the pad.
 > geometry, where the shroud and the RV are one 14 px cone; the rig gives the RV
 > its own 18 px cone (the jettison is a real reveal), so every state after the
 > shroud goes is larger than the reference's. Measure the rig, not the preview.
+
+---
+
+## The globe — what to look at
+
+The far side of the match cut is an **orthographic sphere**, fixed orientation,
+tilted 30° off the great-circle plane. Only the last of these is checkable from a
+log.
+
+- Does the great circle read as an **arc**? (bow should be ~17 px). If it looks
+  straight, the tilt has been lost — see `kGlobeTilt`, where φ=0 gives exactly
+  0.0 px of bow and is the natural-looking wrong answer.
+- Are **both endpoints** on the visible hemisphere, at ~80 % of the disc radius?
+  Two fixed marks with a dot crawling between them is the entire reason the
+  camera does not follow the vehicle.
+- Does the **dot sit on the arc**, on both sides of the cut?
+- Is the stroke hierarchy legible at desk distance — track brightest, then
+  coastlines, then graticule, then ocean? ☐ yes ☐ mush
+- Do 6 meridians + 3 parallels read as "sphere" without clutter? If the sphere
+  cue is weak, the limb circle is the thing to strengthen, **not** the graticule
+  count (see standing fact 2 — meridians are the most expensive pixels here).
+- Are the continents recognisable? 1,306 vertices at 0.5° spherical tolerance.
 
 ---
 

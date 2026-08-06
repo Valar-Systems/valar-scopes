@@ -149,9 +149,15 @@ inline uint32_t CloudDeck() { return lgfx::color888(0xE4, 0xEA, 0xEE); }
 inline uint32_t Plasma()    { return lgfx::color888(0xFF, 0x96, 0x3C); }
 inline uint32_t PlasmaCore(){ return lgfx::color888(0xFF, 0xF2, 0xD7); }
 
-// Map (the far side of the match cut).
-inline uint32_t MapLand() { return lgfx::color888(0x0C, 0x20, 0x13); }
-inline uint32_t MapGrid() { return lgfx::color888(0x0E, 0x2A, 0x1C); }
+// The globe (the far side of the match cut), in STROKE-HIERARCHY order --
+// dimmest to brightest, which is also the order they are drawn in. The track and
+// the vehicle are the brightest things on the screen because they are the only
+// two that answer a question; everything else is context.
+//
+//   ocean disc  <  graticule  <  coastlines  <  track (pal::Green)
+inline uint32_t Ocean()     { return lgfx::color888(0x06, 0x18, 0x14); }
+inline uint32_t Graticule() { return lgfx::color888(0x12, 0x46, 0x33); }
+inline uint32_t Coast()     { return lgfx::color888(0x2A, 0x9E, 0x62); }
 
 // The pad. Ground camera only -- these appear in exactly one beat and nowhere
 // else, which is why they can be this dark: the whole frame is a night-ish
@@ -776,129 +782,179 @@ const float kRcsPods[4][2] = {{-1.8f, -1.0f}, {-1.8f, 1.0f},
                               {-4.4f, -1.0f}, {-4.4f, 1.0f}};
 
 // ---------------------------------------------------------------------------
-// THE WORLD MAP -- the far side of the match cut.
+// THE GLOBE -- the far side of the match cut.
 //
-// #155 deferred this on the grounds that §7 puts full map rendering after v1, and
-// drew a graticule globe instead. That was wrong twice over: a featureless disc
-// does not read as the Earth, and the placeholder track had no relationship to
-// the dot, which is the one thing §11's match-cut rule is about.
+// AN ORTHOGRAPHIC SPHERE, not a flat map. A sphere seen from outside is already
+// a circle and this panel is a circle, so it is the one projection whose natural
+// shape is the display's; nothing is clipped into corners that do not exist.
+// More importantly it is the only projection on which the great circle READS AS
+// AN ARC, which is the most educational thing this screen can show -- and on the
+// flat map it was provably invisible: the GOLF-07 track bowed 0.83 px off a
+// straight line, because a near-meridional great circle IS straight under
+// equirectangular. The map was not wrong; it could not express the thing.
 //
-// Coastlines, projection and the great-circle solution are the look target's,
-// ported verbatim. Equirectangular, lon -180..180 -> x 10..230, lat 72..-60 ->
-// y 30..210, in 240-space and scaled by u. Six landmasses, 126 points, ~500
-// bytes of flash. Antarctica is absent in the reference and stays absent -- at
-// this projection it is a smear along the bottom edge that the round face cuts
-// off anyway.
+// Coastlines are Natural Earth 1:110m, decimated by spherical Douglas-Peucker at
+// 0.5 deg (~1 px at this radius) -- see scripts/gen_coastlines.py, which is the
+// only thing that should ever edit Coastlines.inc. They replace 126 hand-drawn
+// whole-degree points that had the Gulf of Mexico as land, no Hudson Bay, no
+// British Isles and no Japan.
+//
+// NO TRIG IN THE INNER LOOP. Every vertex is a precomputed int16 unit vector, so
+// a frame is: 3x3 rotate (9 mul, 6 add), one z>0 test to drop the far
+// hemisphere, and take x,y -- which IS the orthographic projection. Measured at
+// 262 ns/vertex on this board, so 1,306 vertices cost 0.34 ms and vertex count
+// is not the budget. LINE PIXELS ARE, at 1.06 us/px measured: a dozen long
+// graticule lines outweigh hundreds of short coastline segments, which is why
+// there are six meridians and three parallels rather than twelve and five.
+//
+// AND NOTHING IS CACHED. A 240x240 PSRAM sprite costs 6.24 ms/frame to blit,
+// which is more than drawing the whole globe live, and spends 115 KB doing it.
+// Measured; see the BENCH block in animtest_main.cpp.
+//
+// NO LAND FILL. Filling a continent on a sphere means clipping its polygon to
+// the limb, and the scanline fill it would use assumes straight projected edges,
+// which is false here. The disc is filled once as ocean and coastlines are
+// stroked over it; land is implied by its outline, which is also the look every
+// missile-plot in the genre has.
 // ---------------------------------------------------------------------------
-struct GeoPt { int16_t lon, lat; };
-
-const GeoPt kNorthAmerica[] = {
-    {-166,62},{-158,58},{-152,60},{-146,61},{-136,57},{-131,52},{-125,48},
-    {-124,42},{-120,34},{-115,30},{-110,24},{-105,20},{ -97,16},{ -92,15},
-    { -85,12},{ -81, 9},{ -79, 9},{ -77, 8},{ -81,25},{ -80,32},{ -75,36},
-    { -70,42},{ -66,45},{ -60,47},{ -55,52},{ -60,58},{ -68,60},{ -75,62},
-    { -85,66},{ -95,69},{-110,68},{-125,70},{-140,69},{-155,70},{-166,68},
-};
-const GeoPt kSouthAmerica[] = {
-    {-77,  8},{-79,  2},{-81, -5},{-76,-14},{-70,-18},{-70,-25},{-71,-32},
-    {-73,-40},{-74,-46},{-72,-52},{-69,-55},{-66,-55},{-63,-49},{-62,-41},
-    {-58,-34},{-48,-28},{-40,-22},{-35, -9},{-44, -3},{-50,  0},{-61,  6},
-    {-64, 10},{-72, 12},
-};
-const GeoPt kGreenland[] = {
-    {-52,60},{-58,66},{-52,72},{-40,72},{-32,68},{-40,62},
-};
-const GeoPt kEurasia[] = {
-    { -9,36},{ -9,43},{  2,51},{  8,57},{ 18,56},{ 30,60},{ 40,66},{ 60,69},
-    { 90,73},{110,73},{140,72},{160,70},{178,66},{170,60},{157,53},{142,54},
-    {135,44},{122,39},{122,31},{108,16},{100,10},{ 92,20},{ 80,12},{ 70,22},
-    { 57,24},{ 43,14},{ 34,28},{ 26,36},{ 10,38},{ -2,36},
-};
-const GeoPt kAfrica[] = {
-    { -6,35},{ 10,37},{ 20,33},{ 32,31},{ 43,12},{ 51,10},{ 40, -5},{ 35,-20},
-    { 26,-34},{ 18,-34},{ 12,-18},{  8,  4},{ -8,  5},{-17, 15},{-17, 21},
-    {-10,29},
-};
-const GeoPt kAustralia[] = {
-    {114,-22},{122,-18},{132,-12},{142,-11},{146,-19},{153,-27},{146,-39},
-    {135,-35},{124,-33},{114,-35},
-};
-struct Landmass { const GeoPt* pts; int n; };
-const Landmass kLand[] = {
-    {kNorthAmerica, (int)(sizeof(kNorthAmerica) / sizeof(GeoPt))},
-    {kSouthAmerica, (int)(sizeof(kSouthAmerica) / sizeof(GeoPt))},
-    {kGreenland,    (int)(sizeof(kGreenland)    / sizeof(GeoPt))},
-    {kEurasia,      (int)(sizeof(kEurasia)      / sizeof(GeoPt))},
-    {kAfrica,       (int)(sizeof(kAfrica)       / sizeof(GeoPt))},
-    {kAustralia,    (int)(sizeof(kAustralia)    / sizeof(GeoPt))},
-};
-constexpr int kLandCount = (int)(sizeof(kLand) / sizeof(kLand[0]));
-constexpr int kMaxPolyPts = 40; // largest landmass is North America at 35
+struct GeoVec { int16_t x, y, z; };
+struct Coastline { const GeoVec* v; int n; };
+#include "Coastlines.inc"
+constexpr int kCoastCount = (int)(sizeof(kCoast) / sizeof(kCoast[0]));
 
 /* The look target's GOLF-07 scenario: F.E. Warren AFB to the South Pacific pole
- * of inaccessibility. Open ocean, per §1.6's tone rule -- the aim point is never
- * a populated place. */
+ * of inaccessibility. Open ocean, per the tone rule -- the aim point is never a
+ * populated place. */
 constexpr float kLaunchLon = -104.87f, kLaunchLat =  41.15f;
 constexpr float kAimLon    = -123.39f, kAimLat    = -48.87f;
 
-inline void Project(float lon, float lat, float u, float& x, float& y)
-{
-    x = ((lon + 180.0f) / 360.0f * 220.0f + 10.0f) * u;
-    y = ((72.0f - lat)  / 132.0f * 180.0f + 30.0f) * u;
-}
+constexpr float kGlobeR = 110.0f;   // 240-space; leaves the caption its rows
 
-/** Great-circle interpolation, launch -> aim. The track is a real one. */
-void GreatCircle(float f, float& lon, float& lat)
+/**
+ * TILT OFF THE GREAT-CIRCLE PLANE, and the obvious value is the broken one.
+ *
+ * Centre the view on the arc's midpoint -- the natural choice -- and the view
+ * direction lies IN the great-circle plane, so the arc projects to a STRAIGHT
+ * LINE through the centre of the disc. That is the same failure the flat map
+ * had, faithfully reproduced on a sphere, and it would have been found on glass
+ * rather than on paper.
+ *
+ * Tilting the view toward the plane's normal by phi bows it. Computed for
+ * GOLF-07 at R=110, with both endpoints' angular distance from the disc centre:
+ *
+ *     phi     bow       endpoints     r/R
+ *      0     0.0 px     45.7 deg     0.72   <- the trap
+ *     20    11.4 px     49.0 deg     0.75
+ *     30    16.6 px     52.8 deg     0.80   <- here
+ *     45    23.5 px     60.4 deg     0.87   severe foreshortening
+ *
+ * 30 deg is clearly bowed with the endpoints at 80% of the radius, where
+ * foreshortening is still mild. DERIVED FROM THE TRAJECTORY rather than dialled
+ * in, so it stays correct for whatever target the game picks later.
+ */
+constexpr float kGlobeTilt = 30.0f;
+
+inline void UnitVec(float lonDeg, float latDeg, float* o)
 {
     const float d2r = 0.0174533f;
-    const float c1 = cosf(kLaunchLat * d2r), c2 = cosf(kAimLat * d2r);
-    const float v1[3] = {c1 * cosf(kLaunchLon * d2r), c1 * sinf(kLaunchLon * d2r), sinf(kLaunchLat * d2r)};
-    const float v2[3] = {c2 * cosf(kAimLon    * d2r), c2 * sinf(kAimLon    * d2r), sinf(kAimLat    * d2r)};
-    float dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
-    if (dot >  1.0f) dot =  1.0f;
-    if (dot < -1.0f) dot = -1.0f;
-    const float ang = acosf(dot);
+    const float c = cosf(latDeg * d2r);
+    o[0] = c * cosf(lonDeg * d2r);
+    o[1] = c * sinf(lonDeg * d2r);
+    o[2] = sinf(latDeg * d2r);
+}
+
+inline void Norm3(float* v)
+{
+    const float m = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (m > 1e-9f) { v[0] /= m; v[1] /= m; v[2] /= m; }
+}
+
+inline void Cross3(const float* a, const float* b, float* o)
+{
+    o[0] = a[1] * b[2] - a[2] * b[1];
+    o[1] = a[2] * b[0] - a[0] * b[2];
+    o[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+inline float Dot3(const float* a, const float* b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+/**
+ * The camera. FIXED for the whole beat, and that is a decision, not a shortcut.
+ *
+ * A following camera -- vehicle centred, ground sliding under it -- answers
+ * nothing: the dot never moves, so there is no progress cue at all, and a world
+ * sliding under a stationary marker reads as the WORLD moving. A fixed
+ * orientation with the launch point and the target both on the visible
+ * hemisphere answers "how far along am I" at a glance, which is the question the
+ * flat map left entirely to a frame counter. The match-cut rule needs it too:
+ * the map opens on the dot the ascent shrank to, and a permanently centred dot
+ * has no payoff. And this screen is handed back to monitoring for twenty-six
+ * minutes -- a continuously rotating globe is a screensaver.
+ *
+ * NORTH IS UP, and the tilt is applied toward the great-circle normal, so the
+ * arc bows across the disc instead of running down its spine.
+ */
+struct GlobeBasis { float v[3], r[3], u[3]; };
+GlobeBasis gGlobe;
+bool gGlobeReady = false;
+
+void BuildGlobeBasis()
+{
+    if (gGlobeReady) return;
+    gGlobeReady = true;
+
+    float L[3], A[3];
+    UnitVec(kLaunchLon, kLaunchLat, L);
+    UnitVec(kAimLon,    kAimLat,    A);
+
+    float n[3]; Cross3(L, A, n); Norm3(n);                 // great-circle normal
+    float m[3] = {L[0] + A[0], L[1] + A[1], L[2] + A[2]};  // arc midpoint
+    Norm3(m);
+
+    const float phi = kGlobeTilt * 0.0174533f;
+    const float cp = cosf(phi), sp = sinf(phi);
+    for (int i = 0; i < 3; ++i) gGlobe.v[i] = m[i] * cp + n[i] * sp;
+    Norm3(gGlobe.v);
+
+    // right = worldNorth x view, up = view x right. Degenerate only looking
+    // straight down a pole, which this tilt cannot produce.
+    float north[3] = {0.0f, 0.0f, 1.0f};
+    Cross3(north, gGlobe.v, gGlobe.r);
+    if (Dot3(gGlobe.r, gGlobe.r) < 1e-6f) {
+        gGlobe.r[0] = 1.0f; gGlobe.r[1] = 0.0f; gGlobe.r[2] = 0.0f;
+    }
+    Norm3(gGlobe.r);
+    Cross3(gGlobe.v, gGlobe.r, gGlobe.u);
+    Norm3(gGlobe.u);
+}
+
+/** World unit vector -> screen. Returns true on the near hemisphere. */
+inline bool GlobePt(float x, float y, float z, float c, float R, float& sx, float& sy)
+{
+    const float zz = gGlobe.v[0] * x + gGlobe.v[1] * y + gGlobe.v[2] * z;
+    sx = c + (gGlobe.r[0] * x + gGlobe.r[1] * y + gGlobe.r[2] * z) * R;
+    sy = c - (gGlobe.u[0] * x + gGlobe.u[1] * y + gGlobe.u[2] * z) * R;
+    return zz > 0.0f;
+}
+
+/** Great-circle interpolation, launch -> aim, as a unit vector. */
+void GreatCircle(float f, float* o)
+{
+    float v1[3], v2[3];
+    UnitVec(kLaunchLon, kLaunchLat, v1);
+    UnitVec(kAimLon,    kAimLat,    v2);
+    float d = Dot3(v1, v2);
+    if (d >  1.0f) d =  1.0f;
+    if (d < -1.0f) d = -1.0f;
+    const float ang = acosf(d);
     const float s   = sinf(ang);
     float a = 1.0f - f, b = f;
     if (s > 1e-5f) { a = sinf((1.0f - f) * ang) / s; b = sinf(f * ang) / s; }
-    const float v[3] = {v1[0] * a + v2[0] * b, v1[1] * a + v2[1] * b, v1[2] * a + v2[2] * b};
-    const float m = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    lon = atan2f(v[1], v[0]) / d2r;
-    lat = asinf(v[2] / (m > 1e-6f ? m : 1.0f)) / d2r;
-}
-
-/** Scanline fill of a projected polygon. No fillPolygon on this backend. */
-void FillGeo(LovyanGFX& g, const GeoPt* pts, int n, float u, int dy, uint32_t col)
-{
-    if (n < 3 || n > kMaxPolyPts) return;
-    float px[kMaxPolyPts], py[kMaxPolyPts];
-    float ymin = 1e9f, ymax = -1e9f;
-    for (int i = 0; i < n; ++i) {
-        Project((float)pts[i].lon, (float)pts[i].lat, u, px[i], py[i]);
-        if (py[i] < ymin) ymin = py[i];
-        if (py[i] > ymax) ymax = py[i];
-    }
-    for (int y = (int)ymin; y <= (int)ymax; ++y) {
-        float xs[kMaxPolyPts];
-        int   cnt = 0;
-        for (int i = 0, j = n - 1; i < n; j = i++) {
-            const float y0 = py[j], y1 = py[i];
-            if ((y0 <= (float)y && y1 > (float)y) || (y1 <= (float)y && y0 > (float)y)) {
-                xs[cnt++] = px[j] + (((float)y - y0) / (y1 - y0)) * (px[i] - px[j]);
-                if (cnt >= kMaxPolyPts) break;
-            }
-        }
-        for (int a = 1; a < cnt; ++a) { // insertion sort; cnt is tiny
-            const float v = xs[a];
-            int b = a - 1;
-            while (b >= 0 && xs[b] > v) { xs[b + 1] = xs[b]; --b; }
-            xs[b + 1] = v;
-        }
-        for (int a = 0; a + 1 < cnt; a += 2) {
-            const int x0 = (int)xs[a], x1 = (int)xs[a + 1];
-            if (x1 > x0) g.drawFastHLine(x0, y - dy, x1 - x0, col);
-        }
-    }
+    for (int i = 0; i < 3; ++i) o[i] = v1[i] * a + v2[i] * b;
+    Norm3(o);
 }
 
 inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
@@ -2463,66 +2519,125 @@ float Director::TrackFraction() const
 
 void Director::TrackPoint(float f, float& x, float& y) const
 {
-    float lon, lat;
-    GreatCircle(Clamp01(f), lon, lat);
-    Project(lon, lat, screen_ / 240.0f, x, y);
+    BuildGlobeBasis();
+    float p[3];
+    GreatCircle(Clamp01(f), p);
+    const float u = screen_ / 240.0f;
+    // The near-hemisphere flag is discarded on purpose: the whole GOLF-07 arc
+    // sits within 53 deg of the disc centre, and a caller that wanted to hide the
+    // dot behind the Earth would be hiding the one thing the screen is for.
+    GlobePt(p[0], p[1], p[2], screen_ * 0.5f, kGlobeR * u, x, y);
 }
 
 void Director::DrawMap(LovyanGFX& g, int dy) const
 {
+    BuildGlobeBasis();
     const float u = screen_ / 240.0f;
+    const float R = kGlobeR * u;
+    const float c = screen_ * 0.5f;
+    const int   ci = (int)c;
 
-    // Graticule first, so land sits on top of it.
-    for (int lon = -180; lon <= 180; lon += 30) {
-        float x0, y0, x1, y1;
-        Project((float)lon,  72.0f, u, x0, y0);
-        Project((float)lon, -60.0f, u, x1, y1);
-        g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::MapGrid());
-    }
-    for (int lat = -40; lat <= 60; lat += 20) {
-        float x0, y0, x1, y1;
-        Project(-180.0f, (float)lat, u, x0, y0);
-        Project( 180.0f, (float)lat, u, x1, y1);
-        g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::MapGrid());
-    }
+    // ---- ocean disc -------------------------------------------------------
+    // The dimmest thing in the frame, per the stroke hierarchy: track and
+    // vehicle brightest, then coastlines, then graticule, then this. It is also
+    // the cheapest -- a span fill at 28.6 ns/px against 1.06 us/px for a line,
+    // so 38,000 px of disc costs less than a thousand pixels of stroke.
+    g.fillCircle(ci, ci - dy, (int)R, pal::Ocean());
 
-    // Land: filled dark green, coastline stroked in the brighter green. The
-    // stroke is what makes a continent recognisable at this size -- the fill
-    // alone is barely above the ocean.
-    for (int i = 0; i < kLandCount; ++i) {
-        FillGeo(g, kLand[i].pts, kLand[i].n, u, dy, pal::MapLand());
-        const GeoPt* p = kLand[i].pts;
-        const int    n = kLand[i].n;
-        for (int a = 0, b = n - 1; a < n; b = a++) {
-            float x0, y0, x1, y1;
-            Project((float)p[b].lon, (float)p[b].lat, u, x0, y0);
-            Project((float)p[a].lon, (float)p[a].lat, u, x1, y1);
-            if (fabsf(x1 - x0) > screen_ * 0.45f) continue; // antimeridian wrap
-            g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::GreenDim());
+    // ---- graticule --------------------------------------------------------
+    // SIX MERIDIANS AND THREE PARALLELS, not twelve and five, and the reason is
+    // measured rather than aesthetic: cost is per LINE PIXEL (1.06 us/px), and
+    // the graticule is a handful of very long lines while the coastline is
+    // hundreds of very short ones. Twelve and five cost 3.75 ms -- half again
+    // what every coastline on the planet costs -- and bought clutter, because at
+    // R=110 twelve meridians bunch into mush near the limb.
+    //
+    // Its only job is to say "sphere", and the limb circle plus the coastlines'
+    // own foreshortening already carry most of that. Nothing in a graticule
+    // answers "where is it" or "how far along"; the arc, the dot and the two
+    // endpoints do.
+    for (int mi = 0; mi < 6; ++mi) {
+        const float lon = -180.0f + mi * 60.0f;
+        float px = 0, py = 0; bool pv = false;
+        for (int j = 0; j <= 18; ++j) {
+            const float lat = -90.0f + j * 10.0f;
+            float w[3]; UnitVec(lon, lat, w);
+            float x, y; const bool v = GlobePt(w[0], w[1], w[2], c, R, x, y);
+            if (v && pv) g.drawLine((int)px, (int)py - dy, (int)x, (int)y - dy, pal::Graticule());
+            px = x; py = y; pv = v;
+        }
+    }
+    for (int pi = 0; pi < 3; ++pi) {
+        const float lat = 45.0f - pi * 45.0f;   // +45, 0, -45
+        float px = 0, py = 0; bool pv = false;
+        for (int j = 0; j <= 24; ++j) {
+            const float lon = -180.0f + j * 15.0f;
+            float w[3]; UnitVec(lon, lat, w);
+            float x, y; const bool v = GlobePt(w[0], w[1], w[2], c, R, x, y);
+            if (v && pv) g.drawLine((int)px, (int)py - dy, (int)x, (int)y - dy, pal::Graticule());
+            px = x; py = y; pv = v;
         }
     }
 
-    // The track, flown portion bright and the rest dim -- and it is the SAME
-    // great circle the dot rides, so the dot cannot drift off it.
+    // ---- coastlines -------------------------------------------------------
+    // A segment is drawn only when BOTH ends are on the near hemisphere. The
+    // alternative -- clipping the segment to the limb -- buys at most half a
+    // pixel here, because the data is decimated to ~1 px and everything near the
+    // limb is foreshortened to less than that.
+    constexpr float kInv = 1.0f / 32767.0f;
+    for (int i = 0; i < kCoastCount; ++i) {
+        const GeoVec* v = kCoast[i].v;
+        const int     n = kCoast[i].n;
+        float px = 0, py = 0; bool pv = false;
+        for (int a = 0; a <= n; ++a) {
+            const GeoVec& p = v[a == n ? 0 : a];      // close the ring
+            float x, y;
+            const bool vis = GlobePt(p.x * kInv, p.y * kInv, p.z * kInv, c, R, x, y);
+            if (vis && pv) g.drawLine((int)px, (int)py - dy, (int)x, (int)y - dy, pal::Coast());
+            px = x; py = y; pv = vis;
+        }
+    }
+
+    // ---- limb -------------------------------------------------------------
+    // The one line that makes the disc a sphere rather than a circle of noise.
+    g.drawCircle(ci, ci - dy, (int)R, pal::Graticule());
+
+    // ---- the track --------------------------------------------------------
+    // The SAME great circle the dot rides, so the dot cannot drift off it -- and
+    // on a sphere it finally reads as an arc. On the flat map this bowed 0.83 px,
+    // which is not a bug in the map: a near-meridional great circle IS a straight
+    // line under equirectangular. See kGlobeTilt for why the view is tilted 30
+    // deg off the arc's own plane, and what happens at zero.
     const float flown = TrackFraction();
-    float prevX = -1e9f, prevY = 0;
+    float prevX = 0, prevY = 0; bool prevV = false;
     for (int i = 0; i <= 60; ++i) {
         const float t = (float)i / 60.0f;
+        float p[3]; GreatCircle(t, p);
         float x, y;
-        TrackPoint(t, x, y);
-        if (prevX > -1e8f && fabsf(x - prevX) < screen_ * 0.45f) {
+        const bool vis = GlobePt(p[0], p[1], p[2], c, R, x, y);
+        if (vis && prevV) {
             g.drawLine((int)prevX, (int)prevY - dy, (int)x, (int)y - dy,
                        t <= flown ? pal::Green() : pal::GreenDim());
         }
-        prevX = x; prevY = y;
+        prevX = x; prevY = y; prevV = vis;
     }
 
-    // Aim point.
-    float ax, ay;
-    Project(kAimLon, kAimLat, u, ax, ay);
-    g.drawCircle((int)ax, (int)ay - dy, (int)(5 * u), pal::Red());
-    g.drawFastHLine((int)ax - (int)(8 * u), (int)ay - dy, (int)(16 * u), pal::Red());
-    g.drawFastVLine((int)ax, (int)ay - (int)(8 * u) - dy, (int)(16 * u), pal::Red());
+    // ---- endpoints --------------------------------------------------------
+    // BOTH of them, because two fixed marks with a dot crawling between is the
+    // whole reason the camera does not follow the vehicle: it is what turns the
+    // screen from "here is a dot" into "here is how far along it is".
+    float lx, ly, ax, ay;
+    float Lv[3], Av[3];
+    UnitVec(kLaunchLon, kLaunchLat, Lv);
+    UnitVec(kAimLon,    kAimLat,    Av);
+    if (GlobePt(Lv[0], Lv[1], Lv[2], c, R, lx, ly)) {
+        g.drawCircle((int)lx, (int)ly - dy, (int)(3 * u), pal::Green());
+    }
+    if (GlobePt(Av[0], Av[1], Av[2], c, R, ax, ay)) {
+        g.drawCircle((int)ax, (int)ay - dy, (int)(5 * u), pal::Red());
+        g.drawFastHLine((int)ax - (int)(8 * u), (int)ay - dy, (int)(16 * u), pal::Red());
+        g.drawFastVLine((int)ax, (int)ay - (int)(8 * u) - dy, (int)(16 * u), pal::Red());
+    }
 }
 
 void Director::DrawMatchCut(LovyanGFX& g, int dy) const

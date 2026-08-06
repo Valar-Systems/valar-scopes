@@ -361,6 +361,101 @@ template.
 
 ---
 
+## Run 13 — the map became an orthographic globe
+
+The flat map was replaced by an **orthographic sphere**: fixed orientation,
+tilted 30° off the great-circle plane, Natural Earth 1:110m coastlines at
+1,306 vertices, no land fill.
+
+### Measured
+
+| | Worst ms | Worst fps | Compose | Push |
+|---|---|---|---|---|
+| MIDCOURSE | **37.5** | 26.7 | **11.7** | 25.8 |
+| MATCH CUT | 36.8 | 27.2 | 11.0 | 25.8 |
+
+**The whole globe costs +0.7 ms over the 126-point flat map it replaced.**
+MIDCOURSE compose 11.0 → 11.7; MATCH CUT 10.3 → 11.0. 12.5 ms of headroom
+remains and DETONATION is still the worst beat at 48.6.
+
+### The estimate was 5 ms high, and the reason is worth keeping
+
+Predicted ~7.9 ms for the globe against ~3–4 ms for the flat map; actual delta
++0.7 ms. The error was in the coastline term: I assumed ~2.5 px average segments
+and got ~1 px, because 0.5° of spherical tolerance on a 110 px radius decimates
+to almost exactly one pixel. **Since cost is per line-pixel, halving the segment
+length halves the cost** — the same fact that makes the graticule expensive makes
+a densely decimated coastline cheap. 1,306 vertices are nearly free; a dozen long
+lines are not.
+
+That is the useful shape of it: *vertex count is not the budget, stroke length
+is.* It is why 6 meridians + 3 parallels was the right cut and why the coastline
+data did not need thinning.
+
+### What the globe is for
+
+The flat map could not express the thing it was drawn for. The GOLF-07 track
+bowed **0.83 px** off a straight line — not a bug: a near-meridional great circle
+*is* straight under equirectangular. Same launch point to Beijing would have
+bowed 121 px. The projection was hiding the trajectory, not misdrawing it.
+
+On the sphere it reads as an arc, **but only if the view is tilted.** Centring on
+the arc's midpoint — the natural choice — puts the view direction *in* the
+great-circle plane and projects the arc to a straight line through the centre of
+the disc: the same failure, faithfully reproduced. Computed bow at φ=0 is exactly
+0.0 px.
+
+| φ | bow | endpoints from centre | r/R |
+|---|---|---|---|
+| 0° | 0.0 px | 45.7° | 0.72 |
+| 20° | 11.4 px | 49.0° | 0.75 |
+| **30°** | **16.6 px** | **52.8°** | **0.80** |
+| 45° | 23.5 px | 60.4° | 0.87 |
+
+φ is **derived from the trajectory** (`v = m·cos φ + n·sin φ`, for `m` the arc
+midpoint and `n` the great-circle normal), so it stays correct for whatever
+target the game picks rather than being tuned for GOLF-07.
+
+### Decisions, and what they rest on
+
+**Fixed camera, not following.** A following camera answers nothing — the dot is
+permanently centred, so there is no progress cue, and a world sliding under a
+static marker reads as *the world* moving. Fixed, with both endpoints visible and
+a dot crawling between them, answers "how far along am I" at a glance. §11's match
+cut needs it too: the map opens on the dot the ascent shrank to, and a centred dot
+has no payoff. And §7 hands this screen back to monitoring for 26 minutes — a
+rotating globe is a screensaver.
+
+Note this is *not* the caching argument. Caching was measured and rejected
+(6.24 ms/frame, 115 KB); the globe draws live either way.
+
+**No land fill.** Filling a continent on a sphere means clipping its polygon to
+the limb, and the scanline fill assumes straight projected edges, which is false
+here. The disc is filled once as ocean (a span fill, 28.6 ns/px) and coastlines
+are stroked over it.
+
+**6 meridians + 3 parallels.** The graticule's only job is to say *sphere*, and
+the limb circle plus the coastlines' own foreshortening already carry most of
+that. Nothing in a graticule answers "where" or "how far". At R=110, twelve
+meridians bunch into mush near the limb — 3.75 ms for clutter at the edges.
+
+**Stroke hierarchy**, dimmest to brightest and drawn in that order: ocean disc,
+graticule, coastlines, track and vehicle.
+
+### Two rules from the flat-map era deleted, both non-problems on a sphere
+
+Antarctica was dropped for spanning 360° of longitude, which a single-ring
+scanline fill on an equirectangular map cannot express — a globe has no seam and
+no fill, so it is just more coastline. The antimeridian guard went for the same
+reason. Ring count 44 → 84.
+
+Its lesson survives in the generator anyway: the first version tested **total**
+longitude span and rejected **Eurasia**, which runs Portugal to the Bering Strait
+across 197° without crossing anything. Only the step between *adjacent* vertices
+ever meant anything.
+
+---
+
 ## Raw captures
 
 `bench-logs/animtest-2026-08-06-{1144,1147,1150}.log` (runs 1–3, COMPRESSED) and
