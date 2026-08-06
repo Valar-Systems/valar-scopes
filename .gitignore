@@ -18,8 +18,17 @@ provisioned.csv
 
 # Per-run bench ledgers written by scripts/bench-capture.ps1 (machine-specific,
 # one file per capture run). The historical soak logs above stay tracked.
+#
+# The animation rig produces these by the dozen -- a single afternoon of tuning
+# LIFTOFF left 25 of them -- and they are only ever read minutes after they are
+# written. What survives a run is the numbers copied into docs/animtest-results-*.
 bench-logs/s3-128-*.log
+bench-logs/animtest-*.log
+bench-logs/gametest-*.log
+bench-logs/deto-*.log
+bench-logs/splash-*.log
 bench-logs/capture.pid
+bench-logs/capture-*.pid
 
 # wrangler local state (dev server, deploy cache) -- per-machine, never shared
 .wrangler/
