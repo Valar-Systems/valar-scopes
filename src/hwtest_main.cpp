@@ -168,6 +168,12 @@ void setup()
     step("4. tft.init() + solid colour fills");
     const bool ok = tft.init();
     Serial.printf("  tft.init = %d   %dx%d\n", (int)ok, tft.width(), tft.height());
+    // The GC9A01 boots inverted (src/main.cpp:137 does this on the product). It
+    // matters MORE here than anywhere: the whole point of step 4 is that a human
+    // reads the fill colours back, and without this the RED fill is cyan and the
+    // BLACK fill is white -- a panel that is working looks broken.
+    tft.invertDisplay(BLIPSCOPE_DISP_INVERT);
+    Serial.printf("  invertDisplay(%d)  <- GC9A01 boots inverted\n", (int)BLIPSCOPE_DISP_INVERT);
     tft.setBrightness(255);
     Serial.println("  brightness = 255");
     Serial.println("  -> cycling RED / GREEN / BLUE / WHITE / BLACK, 1.5 s each, forever");

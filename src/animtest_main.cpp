@@ -165,24 +165,37 @@ void ResetTimings()
  */
 void DrawHud(LovyanGFX& g)
 {
+    // THE FACE IS ROUND, AND THE TOP OF IT IS NARROW. This chrome first sat at
+    // x=8 on rows 4 and 16, which put both lines partly outside the glass -- the
+    // chord of a 240 px circle is only 61 px at y=4 and 120 px at y=16, so text
+    // starting at x=8 does not exist until x~90. On the bench it read as
+    // "T+1:03" with the beat name simply missing, which looks like a truncation
+    // bug rather than a placement one.
+    //
+    // So: CENTRED, and low enough to have room.
+    //     y=16 -> 120 px chord, holds the beat name (12 chars = 72 px)
+    //     y=28 -> 154 px chord, holds "TRUE PAUSE 16/16 T+31:56" (24 = 144 px)
+    // Same arithmetic as the module's caption rows; see DrawCaption.
+    const float u = SCREEN / 240.0f;
     g.setTextSize(1);
+    g.setTextDatum(textdatum_t::top_center);
 
-    // Beat name + the TRUE T+ mark, which is the number the art is judged
+    char buf[48];
+    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
+    g.drawString(missileer::flight::BeatName(director.CurrentBeat()),
+                 SCREEN / 2, (int)(16 * u));
+
+    // Mode, beat position, and the TRUE T+ mark -- the number the art is judged
     // against even in compressed mode (see Director::TPlusMs).
     const uint32_t tp = director.TPlusMs();
-    char buf[48];
-    snprintf(buf, sizeof(buf), "%s  T+%lu:%02lu",
-             missileer::flight::BeatName(director.CurrentBeat()),
+    snprintf(buf, sizeof(buf), "%s%s %d/%d T+%lu:%02lu", ModeName(), paused ? " PAUSE" : "",
+             (int)director.CurrentBeat() + 1, (int)Beat::COUNT,
              (unsigned long)(tp / 60000), (unsigned long)((tp / 1000) % 60));
-    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
-    g.drawString(buf, 8, 4);
-
-    // Mode + beat position, so a swipe's destination is legible without counting.
-    snprintf(buf, sizeof(buf), "%s%s  %d/%d", ModeName(), paused ? " PAUSE" : "",
-             (int)director.CurrentBeat() + 1, (int)Beat::COUNT);
     g.setTextColor(paused ? lgfx::color888(0xFF, 0x3B, 0x30)    // RED
                           : lgfx::color888(0x1D, 0x7A, 0x4A));  // GREEN_DIM
-    g.drawString(buf, 8, 16);
+    g.drawString(buf, SCREEN / 2, (int)(28 * u));
+
+    g.setTextDatum(textdatum_t::top_left);
 }
 
 void HandleTouch()
@@ -269,8 +282,19 @@ void setup()
     variant::BoardPreInit(); // no-op on this variant; kept so the sequence matches the product
     const bool panelOk = tft.init();
     tft.setRotation(0);
+    // THE GC9A01 BOOTS INVERTED. src/main.cpp:137 does this and the bench TUs did
+    // not, so every colour on this rig was the exact complement of what the code
+    // wrote: black space came out white, the olive vehicle came out blue, the
+    // Earth limb came out orange, and the Hood/Badger fireball came out cyan.
+    //
+    // It is invisible from the serial log and invisible from a build -- the only
+    // symptom is a photograph, which is how it was found (2026-08-06). Any bench
+    // rig that renders colour and skips this line is judging the complement of
+    // its own palette.
+    tft.invertDisplay(BLIPSCOPE_DISP_INVERT);
     tft.setBrightness(255);
-    Serial.printf("[disp] tft.init=%d %dx%d\n", panelOk ? 1 : 0, (int)tft.width(), (int)tft.height());
+    Serial.printf("[disp] tft.init=%d %dx%d invert=%d\n", panelOk ? 1 : 0,
+                  (int)tft.width(), (int)tft.height(), (int)BLIPSCOPE_DISP_INVERT);
 
     // Full-screen backbuffer in PSRAM. 240x240x16bpp = 115 KB -- nothing against
     // 8 MB of PSRAM, and mandatory here: composing straight to the panel would

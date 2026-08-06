@@ -564,8 +564,14 @@ void setup()
     variant::BoardPreInit(); // no-op on this variant; kept so the sequence matches the product
     const bool panelOk = tft.init();
     tft.setRotation(0);
+    // The GC9A01 boots inverted; src/main.cpp:137 undoes it and this rig did not,
+    // so every colour here was the complement of what the code wrote. Harmless
+    // for the hold-gesture measurement, wrong for anything judged by eye.
+    // Found 2026-08-06 on animtest, which draws in colour and made it obvious.
+    tft.invertDisplay(BLIPSCOPE_DISP_INVERT);
     tft.setBrightness(255);
-    Serial.printf("[disp] tft.init=%d %dx%d\n", panelOk ? 1 : 0, tft.width(), tft.height());
+    Serial.printf("[disp] tft.init=%d %dx%d invert=%d\n", panelOk ? 1 : 0,
+                  (int)tft.width(), (int)tft.height(), (int)BLIPSCOPE_DISP_INVERT);
 
     // Backbuffer in PSRAM (see the note at the declaration). Reported either way:
     // if it ever falls back, the flicker is explained in the log rather than
