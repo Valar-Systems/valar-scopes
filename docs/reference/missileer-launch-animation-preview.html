@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Missileer — Launch Animation Preview (240×240)</title>
+<style>
+  :root{
+    --red:#ff3b30; --paper:#ece7d6; --green:#3ddc84; --green-dim:#1d7a4a;
+    --brass:#c9a15c; --bg:#0a0a0c; --bezel:#17181c;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--paper);
+    font-family:ui-monospace,'Cascadia Mono','JetBrains Mono',Consolas,monospace;}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:18px;padding:28px 12px 40px;}
+  h1{font-size:14px;font-weight:600;letter-spacing:.18em;color:#8b8e96;margin:0;text-transform:uppercase}
+  h1 b{color:var(--paper)}
+  .device{position:relative;width:520px;height:520px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #23252b 0%, var(--bezel) 55%, #0c0d10 100%);
+    box-shadow:0 30px 80px rgba(0,0,0,.75), inset 0 2px 6px rgba(255,255,255,.06), inset 0 -8px 24px rgba(0,0,0,.7);
+    display:flex;align-items:center;justify-content:center;}
+  .screen-ring{width:488px;height:488px;border-radius:50%;background:#000;
+    box-shadow:inset 0 0 0 3px #050506, inset 0 0 40px rgba(0,0,0,.9);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  canvas{width:480px;height:480px;image-rendering:pixelated;border-radius:50%;}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:640px}
+  button{background:#141519;color:#aeb2bb;border:1px solid #26282f;border-radius:6px;
+    padding:7px 12px;font:inherit;font-size:12px;cursor:pointer;letter-spacing:.06em}
+  button:hover{border-color:#3a3d46;color:var(--paper)}
+  button.active{background:#1c2b22;border-color:var(--green-dim);color:var(--green)}
+  button.play{background:#2a1512;border-color:#5c221c;color:var(--red)}
+  .note{font-size:11px;color:#6d707a;max-width:620px;text-align:center;line-height:1.6}
+  .note b{color:#9a9da6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><b>MISSILEER</b> · LAUNCH SEQUENCE PREVIEW · 240×240 @2×</h1>
+  <div class="device"><div class="screen-ring"><canvas id="cv" width="240" height="240"></canvas></div></div>
+  <div class="controls" id="ctl"></div>
+  <div class="note">
+    Rendered at true <b>240×240</b> and pixel-doubled — what fits here fits the 1.28" GC9A01.
+    Timings are compressed for the demo (real flight ≈ 30 min with an ntfy ping at impact).
+    Palette per design doc §11: 7-seg red · paper white · checklist green · brass.
+    Message content, unit, and coordinates are invented; target is open ocean (oceanic pole of inaccessibility).
+  </div>
+</div>
+<script>
+"use strict";
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=240,H=240,CX=120,CY=120,R=120;
+const RED='#ff3b30', RED_DIM='#3a100c', PAPER='#ece7d6', GREEN='#3ddc84',
+      GREEN_DIM='#1d7a4a', BRASS='#c9a15c', GREY='#7a7d86';
+
+/* ---------------- phase machine ---------------- */
+const PHASES=[
+ {id:'IDLE',    dur:3.0},
+ {id:'ARRIVAL', dur:7.0},
+ {id:'DECODE',  dur:5.0},
+ {id:'COMMIT',  dur:3.5},
+ {id:'COUNTDOWN',dur:6.0},
+ {id:'KEY',     dur:7.0},
+ {id:'TCD',     dur:4.0},
+ {id:'LIFTOFF', dur:7.0},
+ {id:'ASCENT',  dur:29.0},
+ {id:'FLIGHT',  dur:12.0},
+ {id:'REENTRY', dur:8.0},
+ {id:'DETONATION', dur:11.0},
+ {id:'CREDITS', dur:6.0},
+];
+let phaseIx=0, phaseT=0, playing=true, last=performance.now();
+
+/* ---------------- controls ---------------- */
+const ctl=document.getElementById('ctl');
+const playBtn=document.createElement('button');
+playBtn.className='play'; playBtn.textContent='⏸ PAUSE';
+playBtn.onclick=()=>{playing=!playing; playBtn.textContent=playing?'⏸ PAUSE':'▶ PLAY';};
+ctl.appendChild(playBtn);
+PHASES.forEach((p,i)=>{
+  const b=document.createElement('button'); b.textContent=p.id; b.dataset.ix=i;
+  b.onclick=()=>{ if(p.id==='LIFTOFF'&&PHASES[phaseIx].id!=='LIFTOFF') scenIx=(scenIx+1)%SCENARIOS.length;
+    if(p.id==='DETONATION') cloud=null;
+    phaseIx=i; phaseT=0; };
+  ctl.appendChild(b);
+});
+function markActive(){ [...ctl.children].forEach(b=>{ if(b.dataset.ix!==undefined)
+  b.classList.toggle('active', +b.dataset.ix===phaseIx); }); }
+
+/* ---------------- helpers ---------------- */
+function clipRound(){ ctx.save(); ctx.beginPath(); ctx.arc(CX,CY,R,0,7); ctx.clip(); }
+function bg(){ ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); }
+function txt(s,x,y,size,color,align='center',bold=false){
+  ctx.fillStyle=color; ctx.textAlign=align; ctx.textBaseline='middle';
+  ctx.font=(bold?'bold ':'')+size+'px monospace'; ctx.fillText(s,x,y);
+}
+/* 7-segment ---------------------------------------------------- */
+const SEGMAP={'0':'abcdef','1':'bc','2':'abged','3':'abgcd','4':'fgbc','5':'afgcd',
+              '6':'afgedc','7':'abc','8':'abcdefg','9':'abcfgd','-':'g',' ':''};
+function seg7(ch,x,y,w,h,color,dim){
+  const t=Math.max(2,Math.round(w*0.18)), on=SEGMAP[ch]??'';
+  const segs={
+    a:[x+t,y,w-2*t,t], b:[x+w-t,y+t,t,h/2-1.5*t], c:[x+w-t,y+h/2+t/2,t,h/2-1.5*t],
+    d:[x+t,y+h-t,w-2*t,t], e:[x,y+h/2+t/2,t,h/2-1.5*t], f:[x,y+t,t,h/2-1.5*t],
+    g:[x+t,y+h/2-t/2,w-2*t,t]};
+  for(const k in segs){ ctx.fillStyle=on.includes(k)?color:(dim||'transparent');
+    const s=segs[k]; ctx.fillRect(s[0],s[1],s[2],s[3]); }
+}
+function seg7str(s,x,y,dw,dh,gap,color,dim){ let cx=x;
+  for(const ch of s){
+    if(ch===':'){ ctx.fillStyle=color;
+      if(Math.floor(clockNow()*2)%2===0||!colonBlink){ ctx.fillRect(cx+gap/2-1,y+dh*0.28,3,3); ctx.fillRect(cx+gap/2-1,y+dh*0.62,3,3);}
+      cx+=gap+4; }
+    else { seg7(ch,cx,y,dw,dh,color,dim); cx+=dw+gap; } } return cx; }
+let colonBlink=false; // steady colons (matches firmware default)
+function clockNow(){ return performance.now()/1000; }
+function zuluStr(off=0){ const d=new Date(Date.now()+off*1000);
+  return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0'); }
+
+/* map ----------------------------------------------------------- */
+/* stylized world coastlines, equirect: lon -180..180, lat 72..-60 */
+const NA=[[-166,62],[-158,58],[-152,60],[-146,61],[-136,57],[-131,52],[-125,48],
+ [-124,42],[-120,34],[-115,30],[-110,24],[-105,20],[-97,16],[-92,15],[-85,12],
+ [-81,9],[-79,9],[-77,8],[-81,25],[-80,32],[-75,36],[-70,42],[-66,45],[-60,47],
+ [-55,52],[-60,58],[-68,60],[-75,62],[-85,66],[-95,69],[-110,68],[-125,70],
+ [-140,69],[-155,70],[-166,68],[-166,62]];
+const SA=[[-77,8],[-79,2],[-81,-5],[-76,-14],[-70,-18],[-70,-25],[-71,-32],[-73,-40],[-74,-46],[-72,-52],[-69,-55],[-66,-55],[-63,-49],[-62,-41],[-58,-34],[-48,-28],[-40,-22],[-35,-9],[-44,-3],[-50,0],[-61,6],[-64,10],[-72,12],[-77,8]];
+const GRL=[[-52,60],[-58,66],[-52,72],[-40,72],[-32,68],[-40,62],[-52,60]];
+const EUR=[[-9,36],[-9,43],[2,51],[8,57],[18,56],[30,60],[40,66],[60,69],[90,73],
+ [110,73],[140,72],[160,70],[178,66],[170,60],[157,53],[142,54],[135,44],[122,39],
+ [122,31],[108,16],[100,10],[92,20],[80,12],[70,22],[57,24],[43,14],[34,28],
+ [26,36],[10,38],[-2,36],[-9,36]];
+const AFR=[[-6,35],[10,37],[20,33],[32,31],[43,12],[51,10],[40,-5],[35,-20],[26,-34],
+ [18,-34],[12,-18],[8,4],[-8,5],[-17,15],[-17,21],[-10,29],[-6,35]];
+const AUS=[[114,-22],[122,-18],[132,-12],[142,-11],[146,-19],[153,-27],[146,-39],
+ [135,-35],[124,-33],[114,-35],[114,-22]];
+const LON0=-180, LON1=180, LAT0=72, LAT1=-60;
+function proj(lon,lat){ return [ (lon-LON0)/(LON1-LON0)*220+10, (LAT0-lat)/(LAT0-LAT1)*180+30 ]; }
+function drawCoast(pts){ ctx.beginPath();
+  pts.forEach((p,i)=>{ const q=proj(p[0],p[1]); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
+  ctx.closePath(); ctx.fillStyle='#0c2013'; ctx.fill();
+  ctx.strokeStyle=GREEN_DIM; ctx.lineWidth=1; ctx.stroke(); }
+function drawMap(){
+  ctx.strokeStyle='#0e2a1c'; ctx.lineWidth=1;
+  for(let lon=-180;lon<=180;lon+=30){ const a=proj(lon,72),b=proj(lon,-60);
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke(); }
+  for(let lat=-40;lat<=60;lat+=20){ const a=proj(-180,lat),b=proj(180,lat);
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke(); }
+  [NA,SA,GRL,EUR,AFR,AUS].forEach(drawCoast);
+}
+/* ---- launch scenarios: three wings, open-ocean targets ---- */
+const SCENARIOS=[
+ {cap:'GOLF-07',    wing:'90 MW',  A:{lon:-104.87,lat:41.15}, B:{lon:-123.39,lat:-48.87}, tname:'S PACIFIC · PT NEMO'},
+ {cap:'NOVEMBER-33',wing:'91 MW',  A:{lon:-101.30,lat:48.42}, B:{lon:-38.0,  lat:12.0},   tname:'MID-ATLANTIC'},
+ {cap:'OSCAR-01',   wing:'341 MW', A:{lon:-111.19,lat:47.50}, B:{lon:132.0,  lat:14.0},   tname:'PHILIPPINE SEA'},
+ {cap:'BRAVO-04',   wing:'90 MW',  A:{lon:-104.87,lat:41.15}, B:{lon:165.0,  lat:-28.0},  tname:'SW PACIFIC'},
+ {cap:'ROMEO-12',   wing:'341 MW', A:{lon:-111.19,lat:47.50}, B:{lon:-20.0,  lat:-42.0},  tname:'S ATLANTIC'},
+];
+/* real physics: great-circle distance + minimum-energy Lambert time-of-flight */
+function gcKm(A,B){ const r=Math.PI/180, RE=6371;
+  const la1=A.lat*r,la2=B.lat*r,dlo=(B.lon-A.lon)*r,dla=la2-la1;
+  return 2*RE*Math.asin(Math.sqrt(Math.sin(dla/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dlo/2)**2)); }
+function tofMin(dKm){ const MU=398600.4418, RE=6371;
+  const th=dKm/RE, c=2*RE*Math.sin(th/2), s=RE+c/2, a=s/2;
+  const beta=2*Math.asin(Math.sqrt(Math.max(0,(s-c)/s)));
+  return Math.sqrt(a*a*a/MU)*((Math.PI-beta)+Math.sin(beta))/60; }
+let scenIx=0;
+const SCEN=()=>SCENARIOS[scenIx%SCENARIOS.length];
+function gc(f){ // slerp along current scenario's great circle
+  const A=SCEN().A, B=SCEN().B, r=Math.PI/180;
+  const v1=[Math.cos(A.lat*r)*Math.cos(A.lon*r),Math.cos(A.lat*r)*Math.sin(A.lon*r),Math.sin(A.lat*r)];
+  const v2=[Math.cos(B.lat*r)*Math.cos(B.lon*r),Math.cos(B.lat*r)*Math.sin(B.lon*r),Math.sin(B.lat*r)];
+  const d=Math.acos(v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2]);
+  const s1=Math.sin((1-f)*d)/Math.sin(d), s2=Math.sin(f*d)/Math.sin(d);
+  const v=[v1[0]*s1+v2[0]*s2, v1[1]*s1+v2[1]*s2, v1[2]*s1+v2[2]*s2];
+  return {lon:Math.atan2(v[1],v[0])/r, lat:Math.asin(v[2]/Math.hypot(...v))/r};
+}
+function fmtCoord(p){ return Math.abs(p.lat).toFixed(2)+(p.lat<0?'S':'N')+' '+Math.abs(p.lon).toFixed(2)+(p.lon<0?'W':'E'); }
+
+/* teletype strip ------------------------------------------------- */
+const EAM_GROUPS='N4T7WL K9R2XQ D5J8VC P3M6ZH F7Q1YS';
+function strip(y,h){ ctx.fillStyle=PAPER; ctx.fillRect(0,y,W,h);
+  ctx.fillStyle='#b9b39f'; ctx.fillRect(0,y,W,1); ctx.fillRect(0,y+h-1,W,1); }
+
+/* paper confetti -------------------------------------------------- */
+let confetti=[];
+function spawnConfetti(x,y,n,down){ for(let i=0;i<n;i++) confetti.push({
+  x,y, vx:(Math.random()-0.5)*(down?14:30), vy:down?(Math.random()*8+2):(-Math.random()*25-5),
+  rot:Math.random()*6.28, vr:(Math.random()-0.5)*6, life:(down?3.5:2.5)+Math.random()*1.5 }); }
+function stepConfetti(dt){ confetti.forEach(c=>{ c.life-=dt; c.x+=c.vx*dt;
+  c.vy+=22*dt; c.y+=c.vy*dt; c.rot+=c.vr*dt; }); confetti=confetti.filter(c=>c.life>0); }
+function drawConfetti(){ confetti.forEach(c=>{ ctx.save(); ctx.translate(c.x,c.y);
+  ctx.rotate(c.rot); ctx.fillStyle=PAPER; ctx.globalAlpha=Math.min(1,c.life);
+  ctx.fillRect(-2,-0.5,4,1); ctx.restore(); }); ctx.globalAlpha=1; }
+
+/* ---------------- screens ---------------- */
+function scrIdle(t){
+  txt('TIME OF DAY',CX,52,8,GREY);
+  seg7str(zuluStr(),26,96,24,44,6,RED,RED_DIM);
+  txt('Z',218,138,10,RED,'center');
+  txt('HFGCS 11175 · MONITORING',CX,178,8,GREEN_DIM);
+  txt('TEMPO NORMAL',CX,192,8,GREEN_DIM);
+}
+function scrArrival(t){
+  scrIdle(t); // banner prints OVER the current screen — the §6.6 decision
+  const h=46, y=150;
+  strip(y,h);
+  const head='EAM · 11175 kHz · 03:37:12Z';
+  const chars=Math.floor(t*22);
+  txt(head.slice(0,Math.min(chars,head.length)),CX,y+12,8,'#20201a');
+  if(chars>head.length){
+    const body=EAM_GROUPS.slice(0,Math.min(chars-head.length,EAM_GROUPS.length));
+    ctx.font='bold 9px monospace'; ctx.fillStyle='#20201a'; ctx.textAlign='center';
+    ctx.fillText(body,CX,y+28);
+  }
+  if(t>5.2&&Math.floor(t*2)%2===0) txt('TAP TO OPEN',CX,y+40,7,'#8a8574');
+}
+function scrDecode(t){
+  txt('RMP · MESSAGE PROCESSING',CX,42,8,GREY);
+  ctx.font='bold 9px monospace'; ctx.fillStyle=PAPER; ctx.textAlign='center';
+  ctx.fillText(EAM_GROUPS.slice(0,18),CX,62); ctx.fillText(EAM_GROUPS.slice(19),CX,74);
+  if(t>1.2){ txt('DECODE',CX,100,8,GREY);
+    const cls=t>2.0?'CLASS: EXECUTION ORDER':'CLASS: ▮▮▮▮▮▮▮▮';
+    txt(cls,CX,114,10,t>2.0?RED:GREY,'center',true); }
+  if(t>3.0){ txt('EXECUTE AT',CX,140,8,GREY);
+    seg7str('03:47:00',42,150,15,28,3,RED,RED_DIM); txt('Z',202,178,9,RED);
+  }
+  if(t>4.0&&Math.floor(t*2)%2===0) txt('HOLD TO ACKNOWLEDGE',CX,206,8,GREEN);
+}
+function scrCommit(t){
+  // SAS seal crack — padlock, two crew locks
+  txt('AUTHENTICATE',CX,46,9,GREY);
+  const y=105, open=t>1.6;
+  ctx.strokeStyle=BRASS; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(CX,y-18,14,Math.PI,open?ctx.startAngle||0:0); ctx.stroke();
+  if(open){ ctx.beginPath(); ctx.arc(CX-8,y-22,14,Math.PI*1.05,Math.PI*1.75); ctx.stroke(); }
+  ctx.fillStyle=BRASS; ctx.fillRect(CX-22,y-6,44,34);
+  ctx.fillStyle='#1a1206'; ctx.fillRect(CX-3,y+6,6,12);
+  txt(open?'SEAL BROKEN':'SAS ·  TWO CREW LOCKS',CX,y+52,8,open?RED:GREY);
+  if(t>2.4){ txt('SORTIE COMMITTED',CX,182,10,GREEN,'center',true);
+    txt(SCEN().cap+' · '+SCEN().wing,CX,196,8,GREEN_DIM); }
+}
+function scrCountdown(t){
+  const total=9*60+41, rem=Math.max(0,total-Math.floor(t*total/6)); // compressed
+  const mm=String(Math.floor(rem/60)).padStart(2,'0'), ss=String(rem%60).padStart(2,'0');
+  txt('EXECUTE 03:47:00Z',CX,44,8,GREY);
+  txt('T-',58,110,16,RED,'center',true);
+  seg7str(mm+':'+ss,78,86,20,38,5,RED,RED_DIM);
+  // dwell arc
+  ctx.strokeStyle=GREEN_DIM; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(CX,CY,112,-Math.PI/2,-Math.PI/2+6.28*(t/6)); ctx.stroke();
+  txt(SCEN().cap+' COMMITTED · CAROUSEL FREE',CX,160,7,GREY);
+  txt('countdown chrome rides every screen',CX,172,7,'#4c4f57');
+  txt('(time compressed for demo)',CX,196,7,'#4c4f57');
+}
+function scrKey(t){
+  txt('EXECUTE WINDOW',CX,40,9,GREY);
+  seg7str(zuluStr(),52,54,16,28,4,RED,RED_DIM);
+  // key arc along bezel bottom
+  const a0=Math.PI*0.75, a1=Math.PI*0.25;
+  ctx.strokeStyle='#2a2c33'; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.arc(CX,CY,102,a0,Math.PI-a1,false); ctx.stroke();
+  const f=Math.min(1,Math.max(0,(t-1.5)/3));
+  const ang=a0+(Math.PI-a1-a0)*f;
+  ctx.strokeStyle=BRASS; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.arc(CX,CY,102,a0,ang,false); ctx.stroke();
+  // key glyph
+  const kx=CX+102*Math.cos(ang), ky=CY+102*Math.sin(ang);
+  ctx.fillStyle=BRASS; ctx.beginPath(); ctx.arc(kx,ky,7,0,7); ctx.fill();
+  ctx.fillStyle='#141519'; ctx.beginPath(); ctx.arc(kx,ky,3,0,7); ctx.fill();
+  txt('SET',58,206,8,f>0?GREY:BRASS); txt('LAUNCH',182,206,8,f>=1?RED:GREY,'center',f>=1);
+  if(f>=1){
+    if(t<5.4){ txt('HOLD',CX,126,14,RED,'center',true);
+      const w=Math.min(1,(t-4.5)/0.9); ctx.fillStyle=RED; ctx.fillRect(CX-40,140,80*w,4);
+      txt('2.0 s WINDOW',CX,156,7,GREY); }
+    else { txt('VOTE REGISTERED',CX,126,11,GREEN,'center',true);
+      txt('DEVIATION  +043 ms',CX,144,9,PAPER); }
+  } else if(t>0.6) txt('ROTATE KEY TO LAUNCH',CX,126,8,GREEN);
+}
+function scrTcd(t){
+  const rem=Math.max(0,30-Math.floor(t*30/4));
+  txt('TERMINAL COUNTDOWN',CX,58,9,GREY);
+  seg7str(String(rem).padStart(2,'0'),78,84,32,58,8,RED,RED_DIM);
+  txt('LAUNCH IN PROGRESS',CX,170,9,rem<10&&Math.floor(t*3)%2===0?RED:GREY);
+  txt('GOLF-07 · SORTIE 03',CX,186,8,GREEN_DIM);
+}
+/* side-profile silo liftoff -------------------------------------- */
+let smoke=[];
+function scrLiftoff(t){
+  if(t<0.05) smoke=[];
+  const groundY=208;
+  // camera shake during ignition
+  const shake=t<2.2?(Math.random()-0.5)*2.4*(1-t/2.2):0;
+  ctx.save(); ctx.translate(shake,shake*0.6);
+  // ground + silo mouth
+  ctx.strokeStyle='#22231f'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,groundY); ctx.lineTo(W,groundY); ctx.stroke();
+  ctx.fillStyle='#101110'; ctx.fillRect(CX-14,groundY-2,28,6);
+  ctx.strokeStyle='#3a3b36'; ctx.strokeRect(CX-14,groundY-2,28,6);
+  // missile kinematics: hot-launch — fully below grade, then accelerate out
+  const IGN=0.9;
+  const mw=11, mh=66, nose=14;
+  let base=groundY+mh+nose+6;                           // buried: nothing above ground
+  if(t>IGN) base=groundY+mh+nose+6-Math.pow((t-IGN)*1.35,2.6)*30;
+  // silo glow before/at emergence — drawn FIRST so the missile occludes it
+  if(t>0.35&&base>groundY-6){ const a=Math.min(1,(t-0.35)/0.4);
+    ctx.fillStyle='rgba(255,180,80,'+0.55*a+')'; ctx.fillRect(CX-13,groundY-3,26,4); }
+  // exhaust + smoke while in view
+  if(t>IGN*0.5&&base<groundY+45){
+    // billowing ground smoke
+    if(base>groundY-90&&Math.random()<0.85) smoke.push({
+      x:CX+(Math.random()-0.5)*30, y:groundY-2, r:4+Math.random()*7,
+      vx:(Math.random()-0.5)*22-(Math.random()<0.5?10:-10), vy:-Math.random()*6,
+      life:2.6+Math.random()*1.6});
+  }
+  smoke.forEach(s=>{ s.x+=s.vx*0.016; s.y+=s.vy*0.016; s.r+=0.22; s.life-=0.016; });
+  smoke=smoke.filter(s=>s.life>0);
+  smoke.forEach(s=>{ ctx.globalAlpha=Math.min(0.75,s.life/2); ctx.fillStyle='#7e7b70';
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill(); });
+  ctx.globalAlpha=1;
+  // the missile (side profile, MM III silhouette) — clipped at grade
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,groundY+2); ctx.clip();
+  if(base>-mh-nose-40){
+    const y0=base-mh;                                    // body top
+    ctx.fillStyle='#e8e4d6';
+    ctx.fillRect(CX-mw/2,y0,mw,mh);                      // body
+    ctx.fillStyle='#c9c4b3';                             // interstage lines
+    ctx.fillRect(CX-mw/2,y0+mh*0.38,mw,2); ctx.fillRect(CX-mw/2,y0+mh*0.68,mw,2);
+    ctx.fillStyle='#3b3c38';                             // shroud
+    ctx.beginPath(); ctx.moveTo(CX-mw/2,y0); ctx.lineTo(CX,y0-nose); ctx.lineTo(CX+mw/2,y0); ctx.closePath(); ctx.fill();
+    // flame — layered flickering teardrop out the bottom
+    if(t>IGN){
+      const fl=26+Math.random()*22+Math.min(28,(t-IGN)*12);
+      const flame=(w,l,col)=>{ ctx.fillStyle=col; ctx.beginPath();
+        ctx.moveTo(CX-w/2,base); ctx.quadraticCurveTo(CX-w*0.55,base+l*0.45,CX,base+l);
+        ctx.quadraticCurveTo(CX+w*0.55,base+l*0.45,CX+w/2,base); ctx.closePath(); ctx.fill(); };
+      flame(mw+7,fl,'rgba(255,122,41,0.85)');
+      flame(mw+2,fl*0.72,'rgba(255,210,62,0.9)');
+      flame(mw-4,fl*0.45,'#fff6e0');
+      // sparks
+      for(let i=0;i<3;i++){ ctx.fillStyle='rgba(255,180,80,'+Math.random()+')';
+        ctx.fillRect(CX+(Math.random()-0.5)*16, base+Math.random()*fl, 1.5,1.5); }
+    }
+  }
+  ctx.restore(); // grade clip
+  ctx.restore(); // shake
+  // captions + altitude
+  const s=SCEN();
+  if(t<IGN) txt('T-0 · STAGE 1 IGNITION',CX,36,9,RED,'center',true);
+  else if(base>-mh-nose) txt(t<3.4?'LIFTOFF':'T+3 · PITCH MANEUVER',CX,36,10,PAPER,'center',true);
+  else txt('T+10 · FIRST ROLL MANEUVER',CX,36,9,GREEN,'center',true);
+  if(t>IGN){ const alt=Math.max(0,Math.pow((t-IGN)*1.35,2.6)*30*38);
+    txt('ALT '+String(Math.round(alt)).padStart(6,'0')+' FT',CX,224,8,GREY); }
+  txt(s.cap+' · '+s.wing,CX,52,7,GREEN_DIM);
+}
+/* chase-cam ascent — beats & numbers from the published NG 2007 flight sequence */
+let debris=[], STARS=null, sepGapT=-99;
+function scrAscent(t){
+  if(t<0.05){ debris=[]; sepGapT=-99; }
+  if(!STARS){ STARS=[]; for(let i=0;i<40;i++) STARS.push([Math.random()*W,Math.random()*W,Math.random()*0.5+0.2]); }
+  // beats: [t0, cap1, cap2, stages, burn]  stages: 3=full stack..0=PBV/RV only; burn: 0 off, 1 solid, 2 rcs
+  const BEATS=[
+   [0,   'T+19 · MACH 1','1,100 FT/SEC · 8,300 FT ALT',3,1],
+   [2.5, 'T+39 · MACH 3','38,000 FT ALT',3,1],
+   [5,   'T+45 · SECOND ROLL MANEUVER','50,000 FT ALT',3,1],
+   [7.5, 'T+62 · STAGE 1 SEPARATION','18 NAUTICAL MILES',2,1],
+   [10,  'T+78 · ORDNANCE IGNITES','STAGE 1-2 SKIRT SEPARATION',2,1],
+   [12.5,'T+121 · RV SHROUD JETTISONED','315,000 FT ALT',2,1],
+   [15,  'T+123 · STAGE 2 SEPARATION','90 NM · 240,000 FT ALT',1,1],
+   [17.5,'PSRE PREPARED FOR OPERATION','',1,1],
+   [19.5,'STAGE 3 SEPARATION','',0,2],
+   [21.3,'POST BOOST FLIGHT','MANEUVER TO WINDOW IN SPACE',0,2],
+   [23.3,'RV POSITIONED','THRUST TERMINATED',0,0],
+   [24.8,'RV AWAY','BUS BACKS AWAY',-1,0],
+   [26.8,'PENAIDS DEPLOYED','DECOYS · CHAFF',-1,0],
+  ];
+  let bi=0; for(let i=0;i<BEATS.length;i++) if(t>=BEATS[i][0]) bi=i;
+  const B_=BEATS[bi], bt=t-B_[0];
+  // sky: stars fade in as limb sinks
+  const sink=Math.min(1,t/16);                    // earth limb recedes over the phase
+  STARS.forEach(s=>{ ctx.globalAlpha=s[2]*sink; ctx.fillStyle='#cfd6dd';
+    ctx.fillRect(s[0],s[1]*0.8,1,1); }); ctx.globalAlpha=1;
+  // earth limb — big arc low in frame, bluer & lower as we climb
+  const ecy=330+90*sink, er=250;
+  let g=ctx.createRadialGradient(CX,ecy,er*0.55,CX,ecy,er);
+  g.addColorStop(0,'#123a56'); g.addColorStop(0.82,'#2e7fae'); g.addColorStop(0.95,'#9fd4e8'); g.addColorStop(1,'#03070c');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(CX,ecy,er,0,7); ctx.fill();
+  // sparse clouds on the limb
+  ctx.fillStyle='rgba(230,238,242,0.18)';
+  for(let i=0;i<7;i++){ const a=-1.35+i*0.11;
+    ctx.beginPath(); ctx.ellipse(CX+Math.cos(a)*er*0.92,ecy+Math.sin(a)*er*0.92,16,5,a+1.57,0,7); ctx.fill(); }
+  // vehicle attitude & axis (computed BEFORE debris so separations spawn on-axis)
+  // PSRE pitch-over: during post-boost the bus rotates the stack nose-DOWN toward
+  // Earth to aim the RV at the reentry window — release happens in descent attitude
+  const pitch=Math.min(1,Math.max(0,(t-21.3)/2.6)), pe=pitch*pitch*(3-2*pitch);
+  const ang=-0.62+pe*3.23+Math.sin(t*0.35)*0.03*(1-pe*0.7),
+        vx=CX-6+t*0.7, vy=CY+6-Math.sin(t*0.1)*4;
+  const tdx=-Math.sin(ang), tdy=Math.cos(ang);          // tail direction (behind, along flight axis)
+  // AXIAL separations — flash+gas at the joint, spent stage recedes straight behind (NG ref)
+  if(bt<0.06&&bi>0&&BEATS[bi][3]!==BEATS[bi-1][3]&&debris.filter(d=>d.beat===bi).length===0){
+    const segLens=[22,16,14], dropped=3-BEATS[bi-1][3];  // stage 1 (bottom) drops first
+    let tailLen=0; for(let i=Math.max(0,3-BEATS[bi][3]);i<3;i++) tailLen+=segLens[i];
+    if(BEATS[bi][3]<=0) tailLen=0;
+    const jx=vx+tdx*(tailLen+2), jy=vy+tdy*(tailLen+2);
+    if(BEATS[bi][3]>=0&&dropped>=0){                     // stage drop: rect recedes on-axis
+      debris.push({beat:bi,kind:'rect',x:jx,y:jy,vx:tdx*26+(Math.random()-0.5)*4,
+        vy:tdy*26+(Math.random()-0.5)*4,rot:ang,vr:0.9+(Math.random()-0.5)*0.6,
+        w:10,h:segLens[dropped]||12,life:2.6});
+    } else {                                             // RV away: SILENT — spring push, no ordnance
+      debris.push({beat:bi,kind:'pbv',x:jx,y:jy,vx:tdx*10,vy:tdy*10,rot:ang,vr:0.1,w:9,h:8,life:7});
+    }
+    if(BEATS[bi][3]>=0&&dropped>=0&&dropped<3){          // ordnance effects: stage drops only
+      for(let i=0;i<10;i++){ const a=Math.random()*6.283, v=18+Math.random()*26;
+        debris.push({beat:bi,kind:'ember',x:jx,y:jy,vx:Math.cos(a)*v,vy:Math.sin(a)*v,
+          rot:0,vr:0,w:0,h:0,life:0.45+Math.random()*0.35}); }
+      for(let i=0;i<3;i++) debris.push({beat:bi,kind:'gas',x:jx+(Math.random()-0.5)*6,
+        y:jy+(Math.random()-0.5)*6,vx:tdx*6,vy:tdy*6,rot:0,vr:0,w:4,h:0,life:1.1});
+      debris.push({beat:bi,kind:'flash',x:jx,y:jy,vx:0,vy:0,rot:0,vr:0,w:0,h:0,life:0.5}); }
+    if(BEATS[bi][3]>=1) sepGapT=t;   // coast gap: next stage's nozzle exposed, unlit, then ignites
+  }
+  // shroud jettison — TWO clamshell halves peel forward-sideways (AiTelly ref)
+  if(bi===5&&bt<0.06&&debris.filter(d=>d.beat===55).length===0){
+    const nx=vx-tdx*30, ny=vy-tdy*30;                    // nose position
+    [[-1,1],[1,-1]].forEach(s=>{ debris.push({beat:55,kind:'shell',x:nx,y:ny,
+      vx:-tdx*16+tdy*s[0]*14, vy:-tdy*16-tdx*s[0]*14, rot:ang, vr:s[1]*2.2, w:5,h:12, life:2.4}); });
+  }
+  // penaids deploy WHILE the bus backs away (diagram step 6)
+  if(bi===12&&bt<0.06&&debris.filter(d=>d.beat===99).length===0){
+    const bus=debris.find(d=>d.kind==='pbv');
+    if(bus){ for(let i=0;i<8;i++) debris.push({beat:99,kind:'chaff',x:bus.x,y:bus.y,
+        vx:(Math.random()-0.5)*20-tdx*4, vy:(Math.random()-0.5)*20-tdy*4,
+        rot:Math.random()*6.28, vr:(Math.random()-0.5)*4, w:0,h:0, life:3});
+      for(let i=0;i<2;i++) debris.push({beat:99,kind:'decoy',x:bus.x,y:bus.y,
+        vx:-tdx*(14+i*5)+(Math.random()-0.5)*6, vy:-tdy*(14+i*5)+(Math.random()-0.5)*6,
+        rot:ang, vr:(Math.random()-0.5)*1.2, w:0,h:0, life:4.5}); } }
+  // debris update/draw
+  debris.forEach(d=>{ d.x+=d.vx*0.016; d.y+=d.vy*0.016; d.rot+=d.vr*0.016; d.life-=0.016;
+    if(d.life<=0) return;
+    if(d.kind==='rect'||d.kind==='pbv'){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+      ctx.fillStyle=d.kind==='pbv'?'#8a8672':'#6f6e52'; ctx.fillRect(-d.w/2,-d.h/2,d.w,d.h);
+      ctx.fillStyle='#b8a06a'; ctx.fillRect(-d.w/2,-d.h/2,d.w,1.5); ctx.restore();
+      if(d.kind==='pbv'){ // retro jets: exhaust points TOWARD the RV (opposite the backing motion)
+        const m=Math.hypot(d.vx,d.vy)||1, ux=-d.vx/m, uy=-d.vy/m;
+        ctx.strokeStyle='rgba(190,225,255,'+(0.5+Math.random()*0.4)+')'; ctx.lineWidth=1.2;
+        for(let j=-1;j<=1;j+=2){ const l=4+Math.random()*5;
+          ctx.beginPath(); ctx.moveTo(d.x+ux*5+uy*j*2.5, d.y+uy*5-ux*j*2.5);
+          ctx.lineTo(d.x+ux*(5+l)+uy*j*2.5, d.y+uy*(5+l)-ux*j*2.5); ctx.stroke(); } } }
+    else if(d.kind==='chaff'){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+      ctx.fillStyle='rgba(236,231,214,'+Math.min(0.8,d.life/2)+')';
+      ctx.fillRect(-1.5,-0.4,3,0.8); ctx.restore(); }
+    else if(d.kind==='decoy'){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+      ctx.fillStyle='#55564e'; ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(2.2,2.5);
+      ctx.lineTo(-2.2,2.5); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    else if(d.kind==='shell'){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+      ctx.fillStyle='#4a4b45'; ctx.beginPath(); ctx.moveTo(0,-d.h/2);
+      ctx.quadraticCurveTo(d.w, 0, 0, d.h/2); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    else if(d.kind==='ember'){ ctx.fillStyle='rgba(255,170,70,'+Math.min(1,d.life*2)+')';
+      ctx.fillRect(d.x,d.y,1.5,1.5); }
+    else if(d.kind==='gas'){ d.w+=0.28; ctx.fillStyle='rgba(235,238,240,'+(0.20*d.life)+')';
+      ctx.beginPath(); ctx.arc(d.x,d.y,d.w,0,7); ctx.fill(); }
+    else if(d.kind==='flash'){ const a=d.life/0.5;
+      const g=ctx.createRadialGradient(d.x,d.y,0,d.x,d.y,16);
+      g.addColorStop(0,'rgba(255,250,230,'+a+')'); g.addColorStop(0.5,'rgba(255,170,60,'+(0.7*a)+')');
+      g.addColorStop(1,'rgba(255,100,30,0)'); ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(d.x,d.y,16,0,7); ctx.fill();
+      // anamorphic streak through the flash (NG signature)
+      const lg=ctx.createLinearGradient(d.x-34,d.y,d.x+34,d.y);
+      lg.addColorStop(0,'rgba(255,200,150,0)'); lg.addColorStop(0.5,'rgba(255,235,210,'+(0.8*a)+')');
+      lg.addColorStop(1,'rgba(255,200,150,0)'); ctx.fillStyle=lg;
+      ctx.fillRect(d.x-34,d.y-0.8,68,1.6); }
+  });
+  debris=debris.filter(d=>d.life>0);
+  ctx.save(); ctx.translate(vx,vy); ctx.rotate(ang);
+  const st=B_[3];
+  const segs=[[22,11,'#6f6e52'],[16,10,'#7a7758'],[14,9,'#6f6e52']]; // stage1,2,3 (olive)
+  let yoff=0;
+  for(let i=2;i>=0;i--){ if(st>0&&i>=3-st){ const s2=segs[i];
+    ctx.fillStyle=s2[2]; ctx.fillRect(-s2[1]/2, yoff, s2[1], s2[0]);
+    ctx.fillStyle='#b8a06a'; ctx.fillRect(-s2[1]/2, yoff, s2[1], 2);   // tan interstage band
+    yoff+=s2[0]; } }
+  // PBV bus + shroud/RV
+  if(st>=0){ ctx.fillStyle='#8a8672'; ctx.fillRect(-4.5,-8,9,8); }      // bus
+  const shroudOn=bi<5;                                                   // gone after T+121
+  ctx.fillStyle='#3b3c38'; ctx.beginPath();
+  if(st>=0){ ctx.moveTo(-4.5,-8); ctx.lineTo(0,-8-(shroudOn?14:9)); ctx.lineTo(4.5,-8); }
+  else { ctx.moveTo(-4,4); ctx.lineTo(0,-10); ctx.lineTo(4,4); }         // free RV cone
+  ctx.closePath(); ctx.fill();
+  // exposed engine bell at the tail — visible always, and STARRING during the coast gap
+  const tail=(st>=1?yoff:(st===0?0:4));
+  if(st>=1){ ctx.fillStyle='#3b3c38'; ctx.beginPath();
+    ctx.moveTo(-3,tail); ctx.lineTo(3,tail); ctx.lineTo(4.5,tail+4);
+    ctx.lineTo(-4.5,tail+4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#1c1d1a'; ctx.fillRect(-3,tail+3,6,1); }
+  // plume — suppressed during the post-separation coast, then IGNITION
+  const burn=B_[4], gap=t-sepGapT, coasting=(burn===1&&gap>=0&&gap<0.85);
+  if(burn===1&&!coasting){
+    if(gap>=0.85&&gap<1.15){                       // ignition burst at the bell
+      const ia=1-(gap-0.85)/0.3;
+      const ig=ctx.createRadialGradient(0,tail+4,0,0,tail+4,14);
+      ig.addColorStop(0,'rgba(255,250,230,'+ia+')'); ig.addColorStop(0.5,'rgba(255,170,60,'+(0.8*ia)+')');
+      ig.addColorStop(1,'rgba(255,90,30,0)'); ctx.fillStyle=ig;
+      ctx.beginPath(); ctx.arc(0,tail+4,14,0,7); ctx.fill(); }
+    const fl=20+Math.random()*10;
+    const fp=(w,l,c)=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(-w/2,tail+3);
+      ctx.quadraticCurveTo(-w*0.6,tail+3+l*0.5,0,tail+3+l);
+      ctx.quadraticCurveTo(w*0.6,tail+3+l*0.5,w/2,tail+3); ctx.closePath(); ctx.fill(); };
+    fp(12,fl,'rgba(255,122,41,0.8)'); fp(8,fl*0.7,'rgba(255,210,62,0.9)'); fp(5,fl*0.42,'#fff6e0');
+  } else if(burn===2){                                   // PBV porcupine — many small radial jets
+    for(let i=0;i<6;i++){ if(Math.random()<0.3) continue;
+      const a=(i/6)*6.283+Math.random()*0.3, l=4+Math.random()*6;
+      ctx.strokeStyle='rgba(190,225,255,'+(0.55+Math.random()*0.4)+')'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a)*4,(st>=0?-4:0)+Math.sin(a)*4);
+      ctx.lineTo(Math.cos(a)*(4+l),(st>=0?-4:0)+Math.sin(a)*(4+l)); ctx.stroke(); } }
+  ctx.restore();
+  // NG-style lower-third caption (coast gap gets its own line)
+  const gap2=t-sepGapT;
+  if(gap2>=0&&gap2<0.85) txt('SEPARATION · COAST',CX,206,9,PAPER,'center',true);
+  else if(gap2>=0.85&&gap2<1.6) txt('IGNITION',CX,206,10,'#ffd23e','center',true);
+  else txt(B_[1],CX,206,9,PAPER,'center',true);
+  if(B_[2]&&(gap2<0||gap2>=1.6)) txt(B_[2],CX,220,8,GREY);
+  txt(SCEN().cap+' · '+SCEN().wing,CX,26,7,GREEN_DIM);
+}
+/* terminal reentry — flight director gates this to REAL T−90s in the product */
+function scrReentry(t){
+  let g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#02030a'); g.addColorStop(0.45,'#0b2036');
+  g.addColorStop(0.8,'#2e5a7a'); g.addColorStop(1,'#9fb8c8');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  if(STARS) STARS.forEach(s=>{ if(s[1]*0.8<90){ ctx.globalAlpha=s[2]*0.5;
+    ctx.fillStyle='#cfd6dd'; ctx.fillRect(s[0],s[1]*0.8,1,1); } }); ctx.globalAlpha=1;
+  // cloud deck
+  ctx.fillStyle='rgba(228,234,238,0.9)';
+  for(let i=0;i<10;i++){ ctx.beginPath();
+    ctx.ellipse(10+i*24,206+(i%3)*5,20,7,0,0,7); ctx.fill(); }
+  // RV: accelerating descent, plasma sheath + trail
+  const f=Math.min(1,t/7.4), e=f*f;
+  const x=46+128*e, y=42+148*e, ang=Math.atan2(148,128);
+  ctx.strokeStyle='rgba(255,150,60,'+(0.25+0.35*f)+')'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x-Math.cos(ang)*(18+38*f),y-Math.sin(ang)*(18+38*f));
+  ctx.lineTo(x,y); ctx.stroke();
+  const pr=8+9*f, pg=ctx.createRadialGradient(x,y,0,x,y,pr);
+  pg.addColorStop(0,'rgba(255,242,215,0.95)'); pg.addColorStop(0.5,'rgba(255,140,50,'+(0.4+0.3*f)+')');
+  pg.addColorStop(1,'rgba(255,80,30,0)'); ctx.fillStyle=pg;
+  ctx.beginPath(); ctx.arc(x,y,pr,0,7); ctx.fill();
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang+Math.PI/2);
+  ctx.fillStyle='#2b2c28'; ctx.beginPath();
+  ctx.moveTo(0,-7); ctx.lineTo(3.5,4); ctx.lineTo(-3.5,4); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // penaids: decoy streaks flank the RV, then burn out — only the real one survives
+  if(f<0.6){ const da=(0.6-f)/0.6;
+    [[-16,-10],[13,-16]].forEach(o=>{ const dx=x+o[0], dy=y+o[1];
+      ctx.strokeStyle='rgba(255,150,60,'+(0.35*da)+')'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(dx-Math.cos(ang)*(10+22*f),dy-Math.sin(ang)*(10+22*f));
+      ctx.lineTo(dx,dy); ctx.stroke();
+      ctx.fillStyle='rgba(255,170,80,'+(0.5*da)+')';
+      ctx.beginPath(); ctx.arc(dx,dy,2.4,0,7); ctx.fill(); });
+    if(t<3.5) txt('PENAIDS BURNING THROUGH',CX,52,7,'#7a5a3a'); }
+  txt('TERMINAL · REENTRY',CX,24,9,RED,'center',true);
+  const s=Math.max(0,Math.ceil(90*(1-f)));
+  txt('TTI '+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'),CX,38,8,GREY);
+  txt('REAL TIME: THIS VIEW FIRES AT T−90s',CX,224,7,'#4c4f57');
+  if(t>7.6){ ctx.fillStyle='rgba(255,255,255,'+Math.min(1,(t-7.6)/0.4)+')'; ctx.fillRect(0,0,W,H); }
+}
+function scrFlight(t){
+  drawMap();
+  const A=SCEN().A, B=SCEN().B;
+  const pA=proj(A.lon,A.lat), pB=proj(B.lon,B.lat);
+  // target crosshair
+  ctx.strokeStyle=RED; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(pB[0],pB[1],5,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pB[0]-8,pB[1]); ctx.lineTo(pB[0]+8,pB[1]);
+  ctx.moveTo(pB[0],pB[1]-8); ctx.lineTo(pB[0],pB[1]+8); ctx.stroke();
+  let cap='', capCol=GREEN;
+  let f=Math.min(1,0.12+0.88*(t/12));
+  if(t<6) cap='MIDCOURSE · BALLISTIC';
+  else if(t<9) cap='RV SEPARATION';
+  else { cap='TERMINAL'; capCol=RED; }
+  // track line (split at the antimeridian)
+  ctx.strokeStyle=GREEN; ctx.lineWidth=1; ctx.beginPath();
+  let prevX=null;
+  for(let i=0;i<=90;i++){ const q=gc((i/90)*f), p=proj(q.lon,q.lat);
+    if(prevX!==null&&Math.abs(p[0]-prevX)>110) ctx.moveTo(p[0],p[1]);
+    else i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);
+    prevX=p[0]; }
+  ctx.stroke();
+  // vehicle(s)
+  const head=gc(f), hp=proj(head.lon,head.lat);
+  const blink=Math.floor(t*5)%2===0;
+  if(t>6){ // single RV (current public loading; count is server config) + chaff scatter
+    ctx.fillStyle=blink?PAPER:RED;
+    ctx.beginPath(); ctx.arc(hp[0],hp[1],2,0,7); ctx.fill();
+    const ca=Math.max(0,0.85-f);
+    ctx.fillStyle='rgba(236,231,214,'+ca+')';
+    [[-4,-2],[3,-4],[-2,3],[5,1],[-6,2]].forEach(o=>
+      ctx.fillRect(hp[0]+o[0]*(0.7+f), hp[1]+o[1]*(0.7+f), 1.5, 1));
+  } else { ctx.fillStyle=blink?PAPER:RED;
+    ctx.beginPath(); ctx.arc(hp[0],hp[1],2,0,7); ctx.fill();
+    ctx.fillStyle='rgba(255,59,48,.25)'; ctx.beginPath(); ctx.arc(hp[0],hp[1],5,0,7); ctx.fill(); }
+  // chrome — real physics: distance + minimum-energy TOF for THIS pairing
+  txt(cap,CX,24,8,capCol,'center',true);
+  const dKm=gcKm(SCEN().A,SCEN().B), TOT=tofMin(dKm);
+  const elapsed=TOT*f, tti=Math.max(0,TOT*(1-f));
+  const mm=x=>String(Math.floor(x)).padStart(2,'0')+':'+String(Math.floor((x%1)*60)).padStart(2,'0');
+  txt('TOF '+mm(elapsed)+' · TTI '+mm(tti)+' · '+Math.round(dKm).toLocaleString()+' KM',CX,216,8,GREY);
+  txt(SCEN().cap+' → '+fmtCoord(SCEN().B)+' · '+SCEN().tname,CX,228,7,GREEN_DIM);
+}
+/* full-screen side-profile mushroom cloud ----------------------- */
+let cloud=null;
+function initCloud(){ cloud={cap:[],capIn:[],stem:[],skirt:[]};
+  for(let i=0;i<16;i++) cloud.cap.push({a:(i/16)*6.283+Math.random()*0.2, jr:0.55+Math.random()*0.7,
+    spin:(0.06+Math.random()*0.12)*(i%2?1:-1)});
+  for(let i=0;i<8;i++) cloud.capIn.push({a:(i/8)*6.283+Math.random()*0.4, jr:0.6+Math.random()*0.6,
+    spin:(0.05+Math.random()*0.09)*(i%2?-1:1)});
+  for(let i=0;i<14;i++) cloud.stem.push({o:(Math.random()-0.5)*12, jr:0.7+Math.random()*0.55});
+  for(let i=0;i<8;i++) cloud.skirt.push({o:(i-3.5)*15+(Math.random()-0.5)*8, jr:0.7+Math.random()*0.7});
+}
+function puff(x,y,r,pal,alpha){
+  const g=ctx.createRadialGradient(x-r*0.24,y-r*0.28,r*0.12,x,y,r);
+  g.addColorStop(0,pal[0]); g.addColorStop(0.55,pal[1]); g.addColorStop(1,pal[2]);
+  ctx.globalAlpha=alpha; ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); ctx.globalAlpha=1;
+}
+/* fire palettes — Plumbbob Hood / Upshot-Knothole Badger reference */
+function lerpC(h1,h2,f){ const a=parseInt(h1.slice(1),16),b=parseInt(h2.slice(1),16);
+  const r=(a>>16)+(((b>>16)-(a>>16))*f), g=((a>>8)&255)+((((b>>8)&255)-((a>>8)&255))*f),
+        bl=(a&255)+(((b&255)-(a&255))*f);
+  return 'rgb('+(r|0)+','+(g|0)+','+(bl|0)+')'; }
+function firePal(hot,cool,c){ return [lerpC(hot[0],cool[0],c),lerpC(hot[1],cool[1],c),lerpC(hot[2],cool[2],c)]; }
+const CAP_HOT =['#fff9e3','#ffd23e','#e0611a'], CAP_COOL =['#ffb066','#d96a1a','#7a2408'];
+const CRN_HOT =['#ffc23e','#e07a1f','#7a2408'], CRN_COOL =['#e08a3c','#a04812','#4a1404'];
+const STM_HOT =['#ffd76a','#e8821f','#7a2d0a'], STM_COOL =['#e09a4a','#a04e14','#4a1806'];
+const SKT_HOT =['#e07a1f','#9c3a10','#3a1206'], SKT_COOL =['#a04e18','#5c220a','#200a04'];
+function scrDetonation(t){
+  if(t<0.06&&(!cloud||t===0)) initCloud();
+  if(!cloud) initCloud();
+  const groundY=206;
+  const rise=Math.min(1,t/5); const e=rise*rise*(3-2*rise); // smoothstep
+  const cool=Math.max(0,Math.min(1,(t-5.5)/5));             // incandescence fades late
+  const capCY=150-72*e - Math.max(0,t-5)*1.2;
+  const capR=26+82*e + Math.max(0,t-5)*0.8;
+  // sky: black -> deep red toward the horizon (Badger)
+  let sg=ctx.createLinearGradient(0,0,0,groundY+10);
+  sg.addColorStop(0,'#050101'); sg.addColorStop(0.55,lerpC('#2a0503','#3a0a04',1-cool));
+  sg.addColorStop(1,lerpC('#7a1606','#4a0e05',cool));
+  ctx.fillStyle=sg; ctx.fillRect(0,0,W,groundY+10);
+  // warm halo around the cap (Hood)
+  let hg=ctx.createRadialGradient(CX,capCY,capR*0.3,CX,capCY,capR*1.9);
+  hg.addColorStop(0,'rgba(255,140,40,'+(0.34*(1-cool*0.6))+')');
+  hg.addColorStop(1,'rgba(255,60,20,0)');
+  ctx.fillStyle=hg; ctx.fillRect(0,0,W,H);
+  // ground: dark rust with lit rim + silhouetted brush
+  ctx.fillStyle='#160503'; ctx.fillRect(0,groundY+6,W,H-groundY);
+  ctx.fillStyle='rgba(255,140,50,'+(0.5*(1-cool*0.5))+')'; ctx.fillRect(0,groundY+6,W,1.5);
+  ctx.fillStyle='#0a0202';
+  cloud.skirt.forEach((s,i)=>{ const x=30+i*36+s.o*0.4;
+    ctx.beginPath(); ctx.moveTo(x-5,groundY+8); ctx.lineTo(x,groundY+2-(i%3)*2); ctx.lineTo(x+4,groundY+8);
+    ctx.closePath(); ctx.fill(); });
+  // ground shockwave ring
+  if(t>0.35&&t<2.6){ const rx=(t-0.35)*150, a=Math.max(0,1-(t-0.35)/2.2);
+    ctx.strokeStyle='rgba(255,210,140,'+a+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(CX,groundY+4,rx,rx*0.16,0,0,7); ctx.stroke(); }
+  // dust skirt — broad rolling billows, lit from within
+  cloud.skirt.forEach(s=>{ puff(CX+s.o*(0.6+e), groundY-4, (17+20*e)*s.jr,
+    firePal(SKT_HOT,SKT_COOL,cool), 0.92); });
+  // stem — tall, fluted, orange-hot (Hood)
+  const stemTop=capCY+capR*0.30;
+  cloud.stem.forEach((s,i)=>{ const f=i/(cloud.stem.length-1);
+    const y=groundY-8-(groundY-8-stemTop)*f*e - 2;
+    const wob=Math.sin(t*0.9+i*1.7)*3*e;
+    puff(CX+s.o*0.55+wob, y, (8+10*e*(0.5+f*0.8))*s.jr,
+      firePal(STM_HOT,STM_COOL,cool), 0.95); });
+  // cap — churned billow cluster (outer crown + inner ring), no single dome
+  cloud.cap.forEach(c=>{ const a=c.a+t*c.spin;
+    const px=CX+Math.cos(a)*capR*0.62, py=capCY+Math.sin(a)*capR*0.36;
+    puff(px,py,capR*0.30*c.jr, firePal(CRN_HOT,CRN_COOL,cool), 0.96); });
+  cloud.capIn.forEach(c=>{ const a=c.a+t*c.spin;
+    const px=CX+Math.cos(a)*capR*0.30, py=capCY-capR*0.06+Math.sin(a)*capR*0.20;
+    puff(px,py,capR*0.28*c.jr, firePal(CAP_HOT,CAP_COOL,cool), 0.97); });
+  // white-hot core — strong early, floor until late
+  const coreA=Math.max(t<8?0.18:0, 1-cool);
+  if(coreA>0){ const g=ctx.createRadialGradient(CX,capCY-capR*0.05,2,CX,capCY-capR*0.05,capR*0.55);
+    g.addColorStop(0,'rgba(255,252,235,'+Math.min(1,1.1*coreA)+')');
+    g.addColorStop(0.4,'rgba(255,205,90,'+(0.6*coreA)+')');
+    g.addColorStop(1,'rgba(255,90,30,0)'); ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(CX,capCY-capR*0.05,capR*0.8,0,7); ctx.fill(); }
+  // detonation flash
+  if(t<0.5){ ctx.fillStyle='rgba(255,255,255,'+(1-t/0.5)+')'; ctx.fillRect(0,0,W,H); }
+  if(t>9.5) txt('IMPACT LOGGED · 04:16:12Z',CX,224,7,GREEN_DIM);
+}
+function scrCredits(t){
+  txt('■ PERMANENT RECORD ■',CX,44,9,BRASS,'center',true);
+  const lines=[
+    ['LAUNCH','03:47:00Z'],
+    ['CAPSULE',SCEN().cap+' · '+SCEN().wing],
+    ['TARGET',SCEN().tname],
+    ['CREW','MAVERICK (SOLO)'],
+    ['VOTE','LONE · TIMER EXPIRED'],
+    ['DEVIATION','+043 ms'],
+    ['MISS','43 m  (CEP: BEAT)'],
+  ];
+  lines.forEach((l,i)=>{ const y=70+i*16, vis=t>0.3+i*0.35;
+    if(vis){ txt(l[0],78,y,8,GREY,'right'); txt(l[1],88,y,8,PAPER,'left'); }});
+  if(t>3.2){ txt('YOUR PARTICIPATION HAS BEEN',CX,186,7,GREEN_DIM);
+    txt('NOTED IN YOUR PERMANENT RECORD',CX,196,7,GREEN_DIM); }
+}
+
+/* ---------------- main loop ---------------- */
+const DRAW={IDLE:scrIdle,ARRIVAL:scrArrival,DECODE:scrDecode,COMMIT:scrCommit,
+  COUNTDOWN:scrCountdown,KEY:scrKey,TCD:scrTcd,LIFTOFF:scrLiftoff,ASCENT:scrAscent,
+  FLIGHT:scrFlight,REENTRY:scrReentry,DETONATION:scrDetonation,CREDITS:scrCredits};
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(playing){ phaseT+=dt;
+    if(phaseT>=PHASES[phaseIx].dur){ phaseT=0; phaseIx=(phaseIx+1)%PHASES.length;
+      if(PHASES[phaseIx].id!=='DETONATION') confetti=[];
+      if(PHASES[phaseIx].id==='DETONATION') cloud=null;
+      if(phaseIx===0) scenIx=(scenIx+1)%SCENARIOS.length; } }
+  stepConfetti(dt);
+  bg(); clipRound();
+  DRAW[PHASES[phaseIx].id](phaseT);
+  // subtle round-screen vignette
+  const g=ctx.createRadialGradient(CX,CY,R*0.72,CX,CY,R);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  markActive();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -12,6 +12,10 @@
 // that drives it and measures it, and it owns three things the module must not:
 // the panel, the touch controls, and the clock.
 //
+// The look being iterated toward is docs/reference/missileer-launch-animation-
+// preview.html -- open it next to the board. That is the comparison this rig
+// exists to make cheap.
+//
 // ---------------------------------------------------------------------------
 // PERFORMANCE IS A DELIVERABLE, NOT A FOOTNOTE.
 //
@@ -153,6 +157,11 @@ void ResetTimings()
  * design surface, and anything prettier here would start getting mistaken for
  * the product's flight HUD (which §7 has not specified yet). It uses only §11's
  * accents; amber appears nowhere, on the chrome or in the art.
+ *
+ * ALL OF IT LIVES AT THE TOP. The bottom of the frame is the animation's own
+ * lower third -- the reference video's captions, drawn by the module -- and rig
+ * chrome sitting on top of the art it is measuring would be instrumentation that
+ * changes the thing observed. Hex values are the look target's.
  */
 void DrawHud(LovyanGFX& g)
 {
@@ -161,21 +170,19 @@ void DrawHud(LovyanGFX& g)
     // Beat name + the TRUE T+ mark, which is the number the art is judged
     // against even in compressed mode (see Director::TPlusMs).
     const uint32_t tp = director.TPlusMs();
-    char buf[40];
+    char buf[48];
     snprintf(buf, sizeof(buf), "%s  T+%lu:%02lu",
              missileer::flight::BeatName(director.CurrentBeat()),
              (unsigned long)(tp / 60000), (unsigned long)((tp / 1000) % 60));
-    g.setTextColor(lgfx::color888(0xB0, 0x8D, 0x3E)); // brass
-    g.drawString(buf, 8, 6);
+    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
+    g.drawString(buf, 8, 4);
 
-    snprintf(buf, sizeof(buf), "%s%s", ModeName(), paused ? " PAUSE" : "");
-    g.setTextColor(paused ? lgfx::color888(0xFF, 0x2A, 0x1A) : lgfx::color888(0x37, 0xD0, 0x5C));
-    g.drawString(buf, 8, SCREEN - 16);
-
-    // Beat position, so a swipe's destination is legible without counting.
-    snprintf(buf, sizeof(buf), "%d/%d", (int)director.CurrentBeat() + 1, (int)Beat::COUNT);
-    g.setTextColor(lgfx::color888(0x6B, 0x6A, 0x5E));
-    g.drawString(buf, SCREEN - 34, SCREEN - 16);
+    // Mode + beat position, so a swipe's destination is legible without counting.
+    snprintf(buf, sizeof(buf), "%s%s  %d/%d", ModeName(), paused ? " PAUSE" : "",
+             (int)director.CurrentBeat() + 1, (int)Beat::COUNT);
+    g.setTextColor(paused ? lgfx::color888(0xFF, 0x3B, 0x30)    // RED
+                          : lgfx::color888(0x1D, 0x7A, 0x4A));  // GREEN_DIM
+    g.drawString(buf, 8, 16);
 }
 
 void HandleTouch()

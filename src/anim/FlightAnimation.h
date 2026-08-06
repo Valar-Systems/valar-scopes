@@ -27,6 +27,11 @@
 // published T+ marks are the specification, not a rendering detail.
 // ---------------------------------------------------------------------------
 //
+// LOOK TARGET: docs/reference/missileer-launch-animation-preview.html. Every
+// hex and every T+ mark in the .cpp is lifted from it. Where it and the design
+// doc disagree the DOC WINS and the deviation is written down -- see the
+// DEVIATIONS block at the top of the .cpp.
+//
 // Palette: §11's four accents. AMBER IS ABSENT BY CONSTRUCTION -- it means
 // EXERCISE and nothing else, and a launch animation that borrowed it for a
 // warning glow would quietly destroy the one colour a player must be able to
@@ -40,24 +45,30 @@ namespace missileer {
 namespace flight {
 
 // ---------------------------------------------------------------------------
-// The beat sheet. Order is the flight; the marks are published (§7/§12).
+// The beat sheet. Order is the flight; the marks are PUBLISHED, not chosen.
+//
+// Structural beats only -- a beat exists where the ART CHANGES (a stage leaves,
+// a motor lights, an attitude reverses). The published telemetry marks that
+// change nothing structural (T+19 Mach 1, T+39 Mach 3, T+45 second roll) are
+// carried by the caption track instead; see CurrentCaption(). That split is why
+// there are 16 beats and 20 captions.
 // ---------------------------------------------------------------------------
 enum class Beat : uint8_t {
     Ignition,      // T+0    -- first motion, the limb still flat
-    Stage1Sep,     // T+60   -- STAGING BEAT (burnout -> sep -> coast -> ignition)
-    Stage2Burn,    //           second stage running, limb sinking
-    ShroudEject,   // T+~85  -- clamshell halves
-    Stage2Sep,     // T+120  -- STAGING BEAT
-    Stage3Burn,    //
+    Stage1Sep,     // T+62   -- STAGING BEAT (burnout -> sep -> coast -> ignition)
+    Stage2Burn,    // T+65   -- second stage running, limb sinking
+    ShroudEject,   // T+121  -- clamshell halves. TWO SECONDS before stage 2 sep
+    Stage2Sep,     // T+123  -- STAGING BEAT
+    Stage3Burn,    // T+126
     Stage3Sep,     // T+177  -- STAGING BEAT, last one
     PostBoost,     // T+180  -- blue porcupine RCS
-    PitchOver,     // T+200  -- PSRE continues the arc NOSE-DOWN
+    PitchOver,     // T+205  -- PSRE continues the arc NOSE-DOWN
     RvRelease,     // T+225  -- SILENT. No ordnance, no flash
     BusBackaway,   // T+233  -- bus retros away from the RV
     PenaidDeploy,  // T+245  -- penaids leave the BACKING bus
     Midcourse,     // T+260  -- the long quiet; §7 hands the screen back
-    Reentry,       // impact-90 s -- plasma, decoys burning out
-    Detonation,    // impact -- Hood/Badger palette, cooling to rust
+    Reentry,       // T+1806 = impact-90 s -- plasma, decoys burning out
+    Detonation,    // T+1896 = impact -- Hood/Badger palette, cooling to rust
     MatchCut,      // the cut: vehicle shrinks to a dot, map opens on that dot
     COUNT
 };
@@ -119,6 +130,17 @@ public:
     /** Draw the current frame. `yOffset` supports banded rendering (see header). */
     void Render(LovyanGFX& g, int yOffset = 0);
 
+    /**
+     * The NG-style lower third for this instant: up to two lines, either of
+     * which may be "" (never null).
+     *
+     * Part of the picture, not chrome -- the reference video's captions ARE how
+     * the ascent tells you what it is doing, and a silent 62-second first stage
+     * is the failure mode they exist to prevent. Exposed as well as drawn so a
+     * product HUD can place them itself without re-deriving the marks.
+     */
+    void CurrentCaption(const char*& line1, const char*& line2) const;
+
     Beat CurrentBeat() const { return beat_; }
     TimeMode Mode() const { return mode_; }
     /** 0..1 through the current beat. */
@@ -144,6 +166,7 @@ private:
     // ---- art helpers, one per locked beat element -------------------------
     void DrawSky(LovyanGFX& g, int dy) const;
     void DrawEarthLimb(LovyanGFX& g, int dy) const;
+    void DrawCaption(LovyanGFX& g, int dy) const;
     void DrawVehicle(LovyanGFX& g, int dy) const;
     void DrawPlume(LovyanGFX& g, int dy) const;
     void DrawDebris(LovyanGFX& g, int dy) const;
@@ -184,6 +207,11 @@ private:
 
     float busX_ = 0, busY_ = 0;  // bus, once it starts backing away
     float rvX_ = 0, rvY_ = 0;    // the RV, after the silent release
+
+    // Clamshell halves outlive their own beat -- the shroud goes at T+121 and
+    // stage 2 separates at T+123, so the halves are still in frame during the
+    // next beat. 0 = gone.
+    float shroudLife_ = 0;
 };
 
 } // namespace flight
