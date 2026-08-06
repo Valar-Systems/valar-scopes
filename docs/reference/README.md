@@ -19,6 +19,31 @@ substitute for the other, and where a look target implies something the spec
 forbids, the spec wins and the deviation gets written down rather than quietly
 resolved.
 
+### A look target is authoritative for WHAT and WHEN, never for WHETHER IT CAN BE SEEN
+
+**Standing rule, 2026-08-06.** Choreography, beat timing and palette *intent*
+port faithfully. **Legibility does not.** Legibility at 240 px across ~32 mm of
+glass at desk distance is a device-side judgment and it overrides the reference.
+
+The reason is in the file: these previews are authored on a 240×240 canvas
+*displayed at 480 CSS px* (`canvas{width:480px}`, `image-rendering:pixelated`)
+on a bright laptop. Every size and contrast decision in one was made at 2×
+magnification in a viewing condition the product never has. On the panel, 1 px
+is **0.135 mm**.
+
+Two things this has already caught, both faithfully ported and both wrong on
+glass:
+
+- the reentry vehicle is ~14 px of geometry — **1.9 mm**, below the size at
+  which a viewer can tell what the object is;
+- it is drawn `#2B2C28` on black — about **4% luminance**, invisible on the
+  panel and, in truth, invisible in the browser too. Nobody noticed because 2×
+  on a backlit laptop forgives both.
+
+**"The reference does it this way" is never a defence for something invisible on
+the panel.** Fix it device-side, and record the deviation in the consuming
+file's DEVIATIONS block.
+
 ## Contents
 
 ### `missileer-launch-animation-preview.html`

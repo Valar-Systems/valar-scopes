@@ -96,7 +96,20 @@ inline uint32_t Shroud()   { return lgfx::color888(0x3B, 0x3C, 0x38); }
 inline uint32_t Throat()   { return lgfx::color888(0x1C, 0x1D, 0x1A); }
 inline uint32_t Shell()    { return lgfx::color888(0x4A, 0x4B, 0x45); }
 inline uint32_t Decoy()    { return lgfx::color888(0x55, 0x56, 0x4E); }
-inline uint32_t RvBody()   { return lgfx::color888(0x2B, 0x2C, 0x28); }
+inline uint32_t RvBody()   { return lgfx::color888(0x2B, 0x2C, 0x28); } // reentry only -- see RvLit
+/**
+ * The RV in space. The reference draws it #2B2C28 -- about 4% luminance -- on
+ * black, which is invisible on this panel, and it is invisible in the reference
+ * too; nobody noticed because the browser shows it at 2x on a bright laptop.
+ *
+ * Legibility is a device-side judgment, so the space-side RV is LIT. This is
+ * also the physically honest choice: a sunlit object against a black sky is the
+ * brightest thing in frame, not the darkest. The dark value stays for REENTRY,
+ * where the RV sits inside a bright plasma sheath against a daylit gradient and
+ * dark-on-light is what makes it read -- the same object, coloured for the
+ * background it is actually on.
+ */
+inline uint32_t RvLit()    { return lgfx::color888(0xC6, 0xC2, 0xAE); }
 inline uint32_t Rcs()      { return lgfx::color888(0xBE, 0xE1, 0xFF); } // §11: BLUE porcupine
 inline uint32_t Gas()      { return lgfx::color888(0x8A, 0x8C, 0x8E); } // vented gas, pre-blended
 
@@ -362,6 +375,37 @@ const Anchor kAnchors[(int)Beat::COUNT] = {
 struct Segment { float len, wide; };
 const Segment kSegments[3] = {{14, 9}, {16, 10}, {22, 11}}; // stage 3, 2, 1
 
+/**
+ * APPARENT-SIZE FLOOR -- the first place the reference is deliberately not
+ * followed, under the standing rule that it is authoritative for WHAT and WHEN
+ * and never for WHETHER IT CAN BE SEEN.
+ *
+ * The reference was authored on a 240x240 canvas displayed at 480 CSS px on a
+ * bright laptop. This panel is 240 px across ~32 mm of glass at desk distance,
+ * so 1 px is 0.135 mm and the reference's geometry ports to:
+ *
+ *     full stack + bus + shroud   74 px   10.0 mm
+ *     after stage 1               52 px    7.0 mm
+ *     after stage 2               31 px    4.2 mm
+ *     after stage 3 (bus + cone)  17 px    2.3 mm   <- 45 s of true time
+ *     RV alone                    14 px    1.9 mm   <- and shrinking
+ *
+ * The stack is fine. Everything after the third separation is at or below the
+ * size where a viewer can tell what the object is, and the RV is the subject of
+ * five consecutive beats. §11's "shrink to a dot" is about the END of the
+ * ascent and the match cut, where being a dot is the point -- it is not a
+ * licence for the vehicle to be unreadable through the whole of midcourse.
+ *
+ * So the vehicle is boosted once the stack is gone. RAMPED ACROSS THE LAST
+ * SEPARATION rather than switched, because a silhouette that doubles in one
+ * frame is a pop; ramped, it reads as the camera pushing in as the stack falls
+ * away, which is what a real flight-sequence video does at exactly this moment.
+ *
+ * Proportions are untouched -- this multiplies scale_, so every relative size
+ * the reference chose survives. Only the apparent size changes.
+ */
+constexpr float kSubjectBoost = 2.0f;   // 14 px -> 28 px (1.9 mm -> 3.8 mm)
+
 inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 inline float Clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 inline float Smooth(float t) { return t * t * (3.0f - 2.0f * t); }
@@ -568,6 +612,16 @@ void Director::UpdateKinematics(uint32_t dtMs)
     altitude_ = Lerp(a.alt0, a.alt1, p);
     scale_    = Lerp(a.s0, a.s1, p);
 
+    // THE SHRINK IS A MOMENT, NOT THE BEAT. Midcourse is 26 minutes of true
+    // time, and lerping scale 1.00 -> 0.05 across all of it left the RV under
+    // 5 px for the last ~60% -- unreadable for a quarter of an hour to buy a
+    // transition that lasts seconds. §11 wants the ascent to END by shrinking to
+    // a dot, immediately before the map opens with that same dot, so the shrink
+    // is held off until just before DrawMatchCut flips to the map side at 0.45.
+    if (beat_ == Beat::Midcourse) {
+        scale_ = (p < 0.40f) ? 1.0f : Lerp(1.0f, 0.05f, Clamp01((p - 0.40f) / 0.05f));
+    }
+
     const float dt = (float)dtMs / 16.0f; // ~frames at 60 Hz, so motion is frame-rate independent
 
     if (stageLife_ > 0) {
@@ -625,6 +679,15 @@ void Director::Advance(uint32_t dtMs)
         dur = BeatDurationMs(beat_, mode_);
     }
     UpdateKinematics(dtMs);
+}
+
+float Director::SubjectScale() const
+{
+    // See kSubjectBoost. Ramped across STAGE 3 SEP so the stack's departure and
+    // the push-in are one move rather than a jump.
+    if (beat_ == Beat::Stage3Sep) return scale_ * Lerp(1.0f, kSubjectBoost, BeatProgress());
+    if (beat_ >  Beat::Stage3Sep) return scale_ * kSubjectBoost;
+    return scale_;
 }
 
 float Director::BeatProgress() const
@@ -841,7 +904,7 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
     if (beat_ >= Beat::RvRelease) return; // from here the RV and bus are drawn separately
 
     const float u = screen_ / 240.0f;
-    const float k = scale_ * u;
+    const float k = SubjectScale() * u;
     const float r = angleDeg_ * 0.01745f;
 
     // How much stack is left. Stages leave AT the flash, a few hundred ms into
@@ -889,8 +952,31 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
 
     // THE EXPOSED, UNLIT BELL. §11 calls the coast "the whole beat"; the bell is
     // what makes it legible -- the player sees an engine that is there and is
-    // not firing, which is the suspense. It is drawn whenever a stage is
-    // attached, and it STARS during the coast because nothing else is lit.
+    // not firing, which is the suspense.
+    //
+    // ---- RESOLVING A CONTRADICTION IN THE REFERENCE -------------------------
+    // The reference comments this block "exposed engine bell at the tail --
+    // visible always, and STARRING during the coast gap" and then guards it with
+    // `if(st>=1)`, which stops drawing it the moment the last stage is gone.
+    // Comment says always; code says stages-only. They cannot both be right and
+    // the port inherited the disagreement as a flicker.
+    //
+    // Taken against the beat sheet, BOTH halves are half-right:
+    //
+    //   * The COMMENT is right that a nozzle is always there while something is
+    //     propelling. §11 gives every separation the full staging beat --
+    //     "burnout -> sep -> ~1 s coast (exposed, UNLIT bell) -> IGNITION" --
+    //     and STAGE 3 SEP is a separation. Under `st>=1` that last coast had no
+    //     nozzle at all from 300 ms in, so the final staging beat, the one §11
+    //     calls the whole point, was the only one drawn without its subject.
+    //   * The CODE is right that it is not the same bell. §11 lists post-boost
+    //     as "blue porcupine RCS": the PBV is a separate propulsion element, and
+    //     inheriting stage 3's big solid bell would claim a fourth solid motor
+    //     the vehicle does not have.
+    //
+    // So: a nozzle is drawn whenever something is attached to propel with, and
+    // it changes identity when the propulsion does. Solid bell while a stage is
+    // there; the PSRE's smaller nozzle on the bus once they are gone.
     if (remaining >= 1) {
         const float tail = along * k;
         float x0, y0, x1, y1, x2, y2, x3, y3;
@@ -901,6 +987,18 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
         g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Shroud());
         g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Shroud());
         FillQuad(g, vx_, vy_, r, tail + 3.0f * k, tail + 4.0f * k, 3.0f * k, dy, pal::Throat());
+    } else {
+        // PSRE nozzle: smaller, on the bus tail. Keeps STAGE 3 SEP's coast
+        // legible and keeps the post-boost bus reading as propulsive rather
+        // than as debris that happens to still be in frame.
+        float x0, y0, x1, y1, x2, y2, x3, y3;
+        Axis(vx_, vy_, r, 0.0f,           -2.0f * k, x0, y0);
+        Axis(vx_, vy_, r, 0.0f,            2.0f * k, x1, y1);
+        Axis(vx_, vy_, r, 3.0f * k,        3.0f * k, x2, y2);
+        Axis(vx_, vy_, r, 3.0f * k,       -3.0f * k, x3, y3);
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Shroud());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Shroud());
+        FillQuad(g, vx_, vy_, r, 2.2f * k, 3.0f * k, 2.0f * k, dy, pal::Throat());
     }
 }
 
@@ -1007,26 +1105,41 @@ void Director::DrawRvAndBus(LovyanGFX& g, int dy) const
     // the absence is the direction. Anything added to this function to make the
     // moment "land" is the mistake the locked section is guarding against.
     const float u = screen_ / 240.0f;
-    const float k = scale_ * u;
+    const float k = SubjectScale() * u;
     const float r = angleDeg_ * 0.01745f;
 
-    if (beat_ >= Beat::BusBackaway) {
+    // THE BUS DOES NOT VANISH WHEN THE RV LEAVES IT.
+    //
+    // This guard used to be `beat_ >= BusBackaway`, and DrawVehicle returns early
+    // from RvRelease onward -- so across the whole RV RELEASE beat (8 s of true
+    // time) NEITHER function drew the bus, and it reappeared at BusBackaway. A
+    // part that comes back is a state bug: the two functions disagreed about
+    // which one owned the bus during the handover beat, and the answer was
+    // "neither". Same family as the #155 survivor-order bugs -- a guard
+    // describing what exists that does not match what has actually separated.
+    //
+    // The bus exists continuously from the moment the stack is gone. What starts
+    // at BusBackaway is the RETRO BURN, not the bus.
+    if (beat_ >= Beat::RvRelease) {
         FillQuad(g, busX_, busY_, r, -4.0f * k, 4.0f * k, 4.5f * k, dy, pal::Bus());
-        // Retro plumes point FORWARD -- it is thrusting against the direction of
-        // travel to open the gap. Exhaust toward the RV, motion away from it.
-        for (int i = -1; i <= 1; i += 2) {
-            float ex, ey;
-            Axis(busX_, busY_, r + i * 0.4f, -10.0f * u, 0, ex, ey);
-            g.drawLine((int)busX_, (int)busY_ - dy, (int)ex, (int)ey - dy, pal::Rcs());
+        if (beat_ >= Beat::BusBackaway) {
+            // Retro plumes point FORWARD -- it is thrusting against the direction
+            // of travel to open the gap. Exhaust toward the RV, motion away.
+            for (int i = -1; i <= 1; i += 2) {
+                float ex, ey;
+                Axis(busX_, busY_, r + i * 0.4f, -10.0f * u, 0, ex, ey);
+                g.drawLine((int)busX_, (int)busY_ - dy, (int)ex, (int)ey - dy, pal::Rcs());
+            }
         }
     }
 
-    // The RV: a small dart, nose along the direction of travel.
+    // The RV: a dart, nose along the direction of travel. LIT, not the
+    // reference's near-black -- see pal::RvLit.
     float x0, y0, x1, y1, x2, y2;
     Axis(rvX_, rvY_, r, -10.0f * k, 0, x0, y0);
     Axis(rvX_, rvY_, r, 4.0f * k, -4.0f * k, x1, y1);
     Axis(rvX_, rvY_, r, 4.0f * k,  4.0f * k, x2, y2);
-    g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::RvBody());
+    g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::RvLit());
 }
 
 void Director::DrawPenaids(LovyanGFX& g, int dy) const

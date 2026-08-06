@@ -162,6 +162,8 @@ public:
 private:
     void EnterBeat(Beat b);
     void UpdateKinematics(uint32_t dtMs);
+    /** scale_, floored so the subject stays readable on glass. See the .cpp. */
+    float SubjectScale() const;
 
     // ---- art helpers, one per locked beat element -------------------------
     void DrawSky(LovyanGFX& g, int dy) const;
