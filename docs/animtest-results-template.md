@@ -138,15 +138,24 @@ half the beat and peaks for a fraction of that, so an average reports a system
 that is free right up until the frame that drops.
 
 The cloud is bounded by arithmetic rather than by a cap: the spawn window is
-fixed at 0.45–2.35 pad-seconds and the spacing at 0.06 s, so it admits **33
+fixed at 0.45–4.55 pad-seconds and the spacing at 0.085 s, so it admits **49
 puffs, ever**, at any frame rate or time mode. Levers, in the order to spend
 them:
 
 | Constant | Default | Effect | What you lose |
 |---|---|---|---|
-| `kSmokeDtS` | 0.06 | linear in puff count | density — the bank stops closing over the pad |
-| `kSmokeRMax` | 40 | caps the late, faint, largest discs | the outer roll's reach |
-| `kSmokeGrowth` | 12 px/s | shrinks every puff at once | volume; the cloud stops billowing and just drifts |
+| `kSmokeDtS` | 0.085 | linear in puff count | density — the column stops reading as solid |
+| `kSmokeRMax` | 34 | caps the late, faint, largest discs | the billowing head |
+| `kSmokeGrowth` | 12 px/s | shrinks every puff at once | volume; the column becomes a rope |
+| `kSmokeRise` | 30 px/s | column height | **spend last** — this is the NG video's column vs the preview's ground bank |
+
+> `smoke_worst_ms` on a beat that draws no smoke must be **0.0**. It is zeroed
+> per frame in `Render()` for exactly this reason: the counter is only written by
+> `DrawSmoke`, so without that a stale sample crosses the beat boundary into the
+> next beat's max. It did — 1.9 ms on STAGE 1 — and it read a convincing 0.0 the
+> first time it was measured, because that beat happened to end after the last
+> puff died. A non-zero in this column on any row but LIFTOFF is an instrument
+> fault, not a finding.
 
 Smoke worst: ______ ms · of a compose worst of ______ ms · **cut? ☐ no ☐ yes**
 
@@ -207,8 +216,10 @@ supposed to be the same picture, not merely the same idea.
 | | Preview | Glass | Match? |
 |---|---|---|---|
 | Vehicle is **fully buried** before first motion, then hot-launches | ✓ | | ☐ |
-| Ground smoke **billows outward** and closes over the pad | ✓ | | ☐ |
+| Smoke builds a **tall vertical column**, not a low bank (*NG video, not the preview*) | ✓ | | ☐ |
+| At T-0 the frame is **fireball + column and no vehicle at all** | ✓ | | ☐ |
 | Camera **shakes** at ignition and settles by ~2.2 s | ✓ | | ☐ |
+| The launch is **slow enough to watch** — ~4.9 s of visible transit | — | | ☐ |
 | Vehicle reads as **three olive stages with tan bands** | ✓ | | ☐ |
 | Limb has a **bright atmospheric rim**, not a flat blue edge | ✓ | | ☐ |
 | Separations are **axial** — spent stage recedes on the flight line | ✓ | | ☐ |

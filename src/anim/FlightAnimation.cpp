@@ -159,7 +159,9 @@ inline uint32_t MapGrid() { return lgfx::color888(0x0E, 0x2A, 0x1C); }
 inline uint32_t Ground()   { return lgfx::color888(0x22, 0x23, 0x1F); } // grade line
 inline uint32_t SiloMouth(){ return lgfx::color888(0x10, 0x11, 0x10); } // the hole
 inline uint32_t SiloEdge() { return lgfx::color888(0x3A, 0x3B, 0x36); } // its lip
-inline uint32_t SiloGlow() { return lgfx::color888(0x8C, 0x63, 0x2C); } // 0.55 of #ffb450 on black
+// No SiloGlow: the fire at the pad is the PLUME palette (FlameOuter/Mid/Core),
+// because it is the same motor. A separate glow colour existed only to render
+// the look target's 26x4 px strip, and that strip is not what the video opens on.
 inline uint32_t SmokeCore(){ return lgfx::color888(0x8E, 0x8B, 0x80); }
 inline uint32_t SmokeRim() { return lgfx::color888(0x4A, 0x48, 0x3F); }
 /** The daylight the pad vehicle is lifted toward. See Director::sunLift_. */
@@ -303,11 +305,17 @@ struct BeatSpec {
  * the motor lit would be lying, and STAGE 1 puts it in the same vocabulary as
  * STAGE 2 and STAGE 3.
  *
- * The compressed column for LIFTOFF is 7000 -- the look target's own phase
- * length, per the rule above that its tuned phase lengths are not re-guessed.
+ * LIFTOFF IS BARELY COMPRESSED AT ALL -- 9000 against a true 10000 -- and that
+ * is the same decision as the staging coast being 1 s in both columns. The look
+ * target's 7000 was carried over on the rule that its tuned phase lengths are
+ * not re-guessed, and on glass at 7000 the vehicle was visible for 1.5 seconds
+ * of it. There is nothing in a ten-second launch to compress: it is already the
+ * shortest beat with an event in it, and squeezing the one moment the whole
+ * ground camera exists to show is how it gets missed. (Measured before and
+ * after: 1.5 s of visible transit -> 4.7 s. See the launch curve in PadBase.)
  */
 const BeatSpec kBeats[(int)Beat::COUNT] = {
-    /* Liftoff      */ {"LIFTOFF",       10000,  7000},  // T+0   -> T+10, from the ground
+    /* Liftoff      */ {"LIFTOFF",       10000,  9000},  // T+0   -> T+10, from the ground
     /* Stage1Burn   */ {"STAGE 1",       52000,  6000},  // T+10  -> T+62
     /* Stage1Sep    */ {"STAGE 1 SEP",    3000,  3000},  // T+62  -- coast is 1 s in both
     /* Stage2Burn   */ {"STAGE 2",       56000,  5000},  // T+65  -> T+121
@@ -478,32 +486,44 @@ constexpr float kSiloHalfW = 14.0f;
 constexpr float kPadBase0 = kGroundY + kStackLen + 6.0f;
 
 /**
- * SMOKE, and it is BOUNDED BY ARITHMETIC rather than by a cap.
+ * SMOKE. A COLUMN, not a ground bank -- and that is the NG video, not the look
+ * target.
  *
- * The reference spawns ~51 puffs a second for the ~1.9 s the vehicle is low
- * enough to be blasting the pad, which is ~100 alive at once with lives of
- * 2.6-4.2 s. That is the one genuinely expensive thing this beat adds, and 100
- * filled discs of 40+ px radius is not a cost worth finding out about on glass.
+ * The look target rolls its puffs outward at +/-21 px/s and lifts them at 0-6,
+ * which builds a low bank hugging the pad. The NG 2007 video that §11 names as
+ * the beat sheet does not look like that at any point: at T-0 the frame is a
+ * TALL VERTICAL COLUMN reaching two thirds of the way up, with a fireball at its
+ * foot and a billowing head -- and the vehicle is not visible at all. At T+3 the
+ * vehicle sits on TOP of that column. The column is the subject; the missile is
+ * the small thing riding it.
  *
- * So the spawn window is kept (it is choreography -- smoke starts before first
- * motion and stops when the vehicle is clear) and only the RATE is thinned. At
- * kSmokeDtS spacing the window admits a fixed, small number of puffs, so the
- * cloud has a hard ceiling that does not depend on frame rate, time mode, or how
- * long the beat is left running:
+ * The authority order settles which one wins: the design doc is the spec, and
+ * the spec names the video. docs/reference/* is the LOOK, which fills in where
+ * the spec is silent -- it does not overrule the source the spec cites. So the
+ * rise dominates the drift here, and the outward roll is kept only for the flare
+ * at the base.
  *
- *     (2.35 - 0.45) / 0.06 + 1  =  33 puffs, ever
+ * BOUNDED BY ARITHMETIC rather than by a cap. The reference spawns ~51 puffs a
+ * second, which is ~100 alive at once; 100 filled discs of 40 px radius is not a
+ * cost worth discovering on glass. The spawn window is choreography and is kept
+ * (smoke starts before first motion, stops when the vehicle is clear of it);
+ * only the RATE is thinned, and at kSmokeDtS spacing the window admits a fixed
+ * number whatever the frame rate, time mode, or how long the beat runs:
  *
- * Density is bought back with size instead of count -- each puff grows faster
- * and further than the reference's, so the bank still closes over the pad. The
- * last one dies at 2.35 + 4.2 = 6.55 s of 7.0, which is what keeps the held
- * ground shot from becoming an empty frame before the cut.
+ *     (4.55 - 0.45) / 0.085 + 1  =  49 puffs, ever
+ *
+ * kSmokeEndS moved with the launch curve, not independently of it: it is the
+ * reference's own "while base > groundY - 90" condition, re-solved for the
+ * slower ascent in PadBase. The last puff dies at 4.55 + 4.2 = 8.75 of 9.0 wall
+ * seconds, which is what keeps the held shot from going empty before the cut.
  */
 constexpr float kSmokeStartS = 0.45f;   // reference: IGN * 0.5
-constexpr float kSmokeEndS   = 2.35f;   // reference: while base > groundY - 90
-constexpr float kSmokeDtS    = 0.06f;
-constexpr int   kSmokeMax    = 34;      // ceil((end-start)/dt) + 1, with one spare
+constexpr float kSmokeEndS   = 4.55f;   // reference: while base > groundY - 90
+constexpr float kSmokeDtS    = 0.085f;
+constexpr int   kSmokeMax    = 52;      // ceil((end-start)/dt) + 1, with spares
 constexpr float kSmokeGrowth = 12.0f;   // px/s
-constexpr float kSmokeRMax   = 40.0f;
+constexpr float kSmokeRMax   = 34.0f;   // a column stops being one if every puff is huge
+constexpr float kSmokeRise   = 30.0f;   // px/s, the column term -- reference had 0-6
 
 /**
  * MIX TOWARD DAYLIGHT. See Director::sunLift_ for why the pad vehicle is the
@@ -1131,22 +1151,43 @@ float Director::PadSeconds() const
 
 float Director::PadBase(float ts)
 {
-    // THE HOT LAUNCH, verbatim from the look target:
+    // THE HOT LAUNCH. The look target's curve is
     //
     //     base = groundY + mh + nose + 6 - pow((t - IGN) * 1.35, 2.6) * 30
     //
-    // A 2.6-power curve, not a lerp, and that exponent is the whole read: the
-    // vehicle barely creeps for the first half second out of the silo and is
-    // then gone, which is what a hot launch looks like and what a linear rise
-    // never does.
+    // and the 2.6 power is the whole read: the vehicle barely creeps out of the
+    // silo and is then gone, which is what a hot launch looks like and what a
+    // linear rise never does. The exponent is kept.
     //
-    // The one thing worth writing down is what it lines up with for free. The
-    // nose clears grade at t = 1.30 s, which on this beat's mapping is T+1.86 --
-    // and kCaptions puts the word LIFTOFF at T+1.80. The picture and the caption
-    // land 60 ms apart without either being tuned to the other, because both come
-    // from the same published sequence.
+    // THE TIME SCALE IS NOT. At 1.35 the vehicle clears grade at t = 1.30 s and
+    // has left the frame by t = 2.76 -- ONE AND A HALF SECONDS of visible
+    // transit, in a beat that then holds four more on an empty pad. That is the
+    // worst of both: the event is over before it registers and the beat still
+    // feels long. It was missable on glass, and the whole reason this beat exists
+    // as a beat is that the launch is the moment nobody should miss.
+    //
+    // 0.534 is solved, not dialled. With the exponent fixed at 2.6 the ratio
+    // between "clears grade" and "leaves frame" is fixed too -- 4.66, whatever
+    // the coefficient -- so there is exactly one degree of freedom, and setting
+    // the exit at 5.7 of the 7 pad-seconds determines everything else:
+    //
+    //               clears grade   leaves frame   visible   dead hold
+    //     1.35          1.30 s         2.79 s      1.5 s      4.2 s
+    //     0.534         1.91 s         5.68 s      3.8 s      1.3 s
+    //
+    // Those are pad-seconds. In wall clock, with the beat also going 7000 ->
+    // 9000 ms, the visible transit is 1.5 s -> 4.9 s and the hold after it is
+    // 1.7 s. Three and a quarter times as long on screen.
+    //
+    // The cost is a coincidence worth recording as lost: at 1.35 the nose came
+    // through grade at T+1.86 and kCaptions has had LIFTOFF at T+1.80 since
+    // before this beat existed. It now emerges at T+2.73, which is if anything
+    // more correct -- LIFTOFF is called at FIRST MOTION, which happens at kIgnS
+    // with the vehicle still in the hole, not when it clears the lip. The caption
+    // is on screen T+1.8 to T+3.0, so it now spans the emergence instead of
+    // landing on it.
     if (ts <= kIgnS) return kPadBase0;
-    return kPadBase0 - powf((ts - kIgnS) * 1.35f, 2.6f) * 30.0f;
+    return kPadBase0 - powf((ts - kIgnS) * 0.534f, 2.6f) * 30.0f;
 }
 
 float Director::SubjectScale() const
@@ -1288,12 +1329,12 @@ void Director::DrawSmoke(LovyanGFX& g, int dy) const
         const float life = 2.6f + n3 * 1.6f;
         if (age >= life) continue;
 
-        // Rolling outward off the pad and rising slowly, at the reference's
-        // velocities. The +/-10 term is what splits the bank around the vehicle
-        // instead of piling it up underneath -- without it the smoke reads as a
-        // puff of exhaust rather than as a blast deflector doing its job.
-        const float vx = (n1 - 0.5f) * 22.0f + (n0 < 0.5f ? -10.0f : 10.0f);
-        const float vy = -n2 * 6.0f;
+        // RISE DOMINATES DRIFT -- this is the column, see the note at kSmokeRise.
+        // The outward term is kept but halved: it is what flares the foot of the
+        // column and splits it around the vehicle, and without any of it the
+        // smoke reads as a rope rather than as a blast deflector doing its job.
+        const float vx = (n1 - 0.5f) * 11.0f + (n0 < 0.5f ? -5.0f : 5.0f);
+        const float vy = -(kSmokeRise * (0.55f + n2 * 0.75f));
 
         float r = 5.0f + n2 * 7.0f + age * kSmokeGrowth;
         if (r > kSmokeRMax) r = kSmokeRMax;
@@ -1347,27 +1388,41 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
 
     DrawSmoke(g, dy);
 
-    // ---- the glow in the hole --------------------------------------------
+    // ---- the fire at the foot of the column -------------------------------
     //
-    // DRAWN BEFORE THE VEHICLE so the vehicle occludes it on the way out -- that
-    // is the reference's rule and the reason its glow reads as light coming from
-    // *behind* the emerging missile rather than painted on it.
+    // THE T-0 FRAME OF THE NG VIDEO IS THIS, AND NOTHING ELSE. No vehicle -- it
+    // is still in the hole -- just a bright fireball at grade with the smoke
+    // column standing on it. The look target renders that moment as a 26x4 px
+    // strip of #ffb450, which is a glow in a slot rather than the thing the video
+    // opens on, and under a 49-puff column it is not visible at all.
     //
-    // AFTER THE SMOKE, though, which the reference does not do. Its cloud is ~100
-    // small puffs; this one is 33 large ones spawned within +/-15 px of a glow
-    // that is +/-13 px wide, so under the reference's ordering the smoke simply
-    // buries it -- and this is the only thing on screen between ignition and
-    // first motion. The motor is lit, the vehicle has not moved, and light
-    // coming out of the ground is the whole of what the shot has to say for those
-    // four hundred milliseconds; losing it to exhaust costs the beat its opening.
+    // So it is a real fireball: three stacked ellipses, flickering, in the plume
+    // palette. Not the detonation ramps -- this is a motor burning, and reaching
+    // for Hood/Badger here would spend the one fire palette that means "warhead"
+    // on an engine. (Nor amber; see the palette note. Fire is not chrome.)
     //
-    // Glow over smoke is also the more honest of the two: light from the silo
-    // illuminates the cloud, it does not hide behind it.
-    if (ts > 0.35f && base > kGroundY - 6.0f) {
-        const float a  = fminf(1.0f, (ts - 0.35f) / 0.4f);
-        const int   gw = (int)(13 * u);
-        g.fillRect(cx - gw, gy - (int)(3 * u) - dy, gw * 2, (int)(4 * u) + 1,
-                   Shade(pal::SiloGlow(), a));
+    // DRAWN AFTER THE SMOKE, unlike the reference, because light from the silo
+    // illuminates the cloud rather than hiding behind it -- and BEFORE THE
+    // VEHICLE, which is the reference's rule and the reason the fire reads as
+    // coming from behind the emerging missile instead of painted onto it.
+    //
+    // It fades out as the vehicle climbs away rather than switching off at grade:
+    // the video still shows fire at the base of the column at T+3, well after the
+    // missile has cleared it.
+    if (ts > 0.35f) {
+        const float up = kGroundY - base;                 // tail height above grade
+        float a = fminf(1.0f, (ts - 0.35f) / 0.4f);       // the pre-ignition ramp
+        if (up > 40.0f) a *= fmaxf(0.0f, 1.0f - (up - 40.0f) / 50.0f);
+        if (a > 0.02f) {
+            const float fl = 0.85f + 0.15f * Noise(beatElapsedMs_ / 50u + 61u);
+            const int   fw = (int)(24 * u * fl);
+            g.fillEllipse(cx, gy - dy, fw, (int)(11 * u),
+                          Shade(pal::FlameOuter(), a * 0.80f));
+            g.fillEllipse(cx, gy - dy, (int)(fw * 0.62f), (int)(7 * u),
+                          Shade(pal::FlameMid(), a * 0.90f));
+            g.fillEllipse(cx, gy - (int)(1 * u) - dy, (int)(fw * 0.30f), (int)(4 * u),
+                          Shade(pal::FlameCore(), a));
+        }
     }
 
     // ---- the vehicle, CLIPPED AT GRADE -----------------------------------
@@ -2273,6 +2328,17 @@ void Director::DrawMatchCut(LovyanGFX& g, int dy) const
 void Director::Render(LovyanGFX& g, int yOffset)
 {
     const int dy = yOffset;
+
+#ifdef ANIM_PROFILE
+    // ZEROED PER FRAME, not left to whatever DrawSmoke last wrote. Only LIFTOFF
+    // draws smoke, so on every other beat the reading is stale -- and the harness
+    // takes a per-beat MAX, so one stale sample at a beat boundary is enough to
+    // attribute LIFTOFF's cost to STAGE 1. It did: 1.9 ms, on a beat with no
+    // smoke in it. Worse, it read 0.0 the first time this was measured and looked
+    // correct, because the beat then happened to end after the last puff had
+    // died. An instrument that is right by luck is the kind that gets believed.
+    smokeUs_ = 0;
+#endif
 
     // THE GROUND CAMERA. It owns its whole frame: no sky gradient and no Earth
     // limb, because at grade the limb IS the ground line and drawing both would

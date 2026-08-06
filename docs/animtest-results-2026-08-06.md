@@ -377,22 +377,29 @@ and `Ignition` became `Stage1Burn` (T+10 → T+62, 62000 → 52000).
 
 ## The number
 
+Shipping config, after the retune below. `beats=17 sequence=101500ms`.
+
 | | Worst ms | Worst fps | Compose worst | Push worst | **Smoke worst** |
 |---|---|---|---|---|---|
-| LIFTOFF | **35.6** | 28.1 | 9.9 | 26.0 | **5.0** |
+| LIFTOFF | **36.9** | 27.1 | 11.1 | 25.8 | **5.9** |
 
 Against the 50 ms bar with a 25.8 ms push floor, compose has 24.2 ms and LIFTOFF
-spends **9.9 ms of it — 14.3 ms of headroom.** The smoke is 5.0 ms of that 9.9,
-so it is *half the beat's compose cost and one seventh of the frame*. **Nothing
-is cut.** All three levers (`kSmokeDtS`, `kSmokeRMax`, `kSmokeGrowth`) stay at
-their defaults and the cloud keeps its 33 puffs.
+spends **11.1 ms of it — 13.1 ms of headroom.** The smoke is 5.9 ms of that, so
+it is *half the beat's compose cost and one sixth of the frame*. **Nothing is
+cut.** All four levers (`kSmokeDtS`, `kSmokeRMax`, `kSmokeGrowth`, `kSmokeRise`)
+stay at their defaults and the cloud keeps its 49 puffs.
 
-The worst frame lands at **4,562 ms of a 7,000 ms beat** — 65 % through, which is
-*after* the vehicle has left frame at ~39 %. That is the expected shape and worth
-recording as a sanity check on the model: spawning stops at 2.35 s, so peak fill
-is not peak *count*, it is the moment the surviving puffs are simultaneously
-numerous and at maximum radius. A cloud whose worst frame arrived during the
-launch itself would mean the growth term was wrong.
+The worst frame lands at **6,570 ms of a 9,000 ms beat** — 73 % through, just
+*before* the vehicle leaves frame at 81 %, with the column at full height and the
+vehicle still on top of it. That is the busiest the frame ever gets and it is
+where the worst frame belongs. Worth recording as a sanity check on the model:
+spawning stops at 4.55 pad-seconds, so peak fill is not peak *count* — it is the
+moment the surviving puffs are simultaneously numerous and at maximum radius.
+
+### First measurement, for the record
+
+Before the retune: **35.6 ms / 9.9 compose / 5.0 smoke** at 7,000 ms and 33
+puffs. The retune bought 4.9 s of visible launch for 1.2 ms of compose.
 
 ## The regression check, which is the more important result
 
@@ -411,11 +418,87 @@ kind of edit that silently moves published marks. It did not move any:
 | DETONATION | T+1896 | 1,896,009 |
 
 And the sixteen pre-existing beats are **numerically unchanged** from run 7 —
-DETONATION still 48.5 / 22.8, MIDCOURSE still 36.8 / 11.0, MATCH CUT still
+DETONATION still 48.6 / 22.8, MIDCOURSE still 36.8 / 11.0, MATCH CUT still
 36.1 / 10.3, REENTRY 35.0 vs 34.9. `STAGE 1` at 32.6 / 6.8 is bit-identical to
 what `IGNITION` measured before the rename and the ten-second trim, which is the
 cleanest possible evidence that the beat lost its first ten seconds and nothing
 else. Every row's `smoke_worst_ms` is 0.0 except LIFTOFF's.
+
+### …and one row of that was a lie the first time
+
+`STAGE 1` originally reported `smoke_worst_ms 1.9` — on a beat that draws no
+smoke. `smokeUs_` is written only by `DrawSmoke`, which only LIFTOFF calls, so on
+every other beat the reading was **stale**; the harness takes a per-beat max, and
+one stale sample surviving the beat boundary was enough to attribute LIFTOFF's
+cost to STAGE 1.
+
+The instructive part is that **it read 0.0 the first time and looked correct.**
+At 7,000 ms and a spawn window ending at 2.35 s the last puff died well before
+the beat did, so the final frames genuinely measured ~0. Lengthening the beat
+exposed it. `Render()` now zeroes the counter per frame, which is what makes
+"every other row is 0.0" an assertion instead of a coincidence.
+
+---
+
+## Run 10 — the retune: "liftoff is too fast and will easily be missed"
+
+Correct, and the arithmetic says why. At the look target's pace the vehicle
+cleared grade at 1.30 pad-seconds and was out of frame by 2.79 — **1.5 seconds of
+visible transit**, followed by 4.2 seconds of held empty pad. The worst of both:
+the event was over before it registered and the beat still felt long.
+
+Five stills from the **NG 2007 video itself** (not the preview) drove three
+changes. Where the two disagree the video wins — §11 names the video as its
+source, and a look target derived from a source does not overrule the source.
+That authority edge is now written into `docs/reference/README.md`; it had not
+come up before.
+
+**1. The launch is 3.3× slower on screen.** The 2.6 exponent is kept — it is the
+hot-launch character, the creep-then-gone that a linear rise never gives. Only
+the time scale moved, 1.35 → **0.534**, and it is *solved rather than dialled*:
+with the exponent fixed, the ratio between "clears grade" and "leaves frame" is
+fixed at 4.66 whatever the coefficient, so pinning the exit at 5.7 of the 7
+pad-seconds determines everything else.
+
+| coefficient | clears grade | leaves frame | visible | dead hold |
+|---|---|---|---|---|
+| 1.35 (preview) | 1.30 s | 2.79 s | 1.5 s | 4.2 s |
+| **0.534** | 1.91 s | 5.68 s | 3.8 s | 1.3 s |
+
+The beat also went **7,000 → 9,000 ms** against a true 10,000, so in wall clock
+the transit is **1.5 s → 4.9 s**. That is the same decision as the staging coast
+being 1 s in both columns: there is nothing in a ten-second launch to compress,
+and squeezing the one moment the ground camera exists to show is how it gets
+missed.
+
+Cost, recorded because it was cited as a virtue in run 9: the 60 ms coincidence
+is gone. At 1.35 the nose came through grade at T+1.86 against a LIFTOFF caption
+at T+1.80. It now emerges at T+2.73 — which is arguably *more* correct, since
+LIFTOFF is called at first motion (`kIgnS`, vehicle still in the hole), not when
+it clears the lip. The caption runs T+1.8→T+3.0, so it now spans the emergence
+instead of landing on it.
+
+**2. The smoke is a column, not a ground bank.** The preview rolls puffs outward
+at ±21 px/s and lifts them at 0–6, which hugs the pad. The video's T-0 frame is a
+**tall vertical column** reaching two thirds up the frame with a fireball at its
+foot and **no vehicle visible at all**; at T+3 the vehicle sits on *top* of that
+column. Rise now dominates drift (`kSmokeRise` 30 px/s vs the preview's 0–6), the
+outward term is halved to flare the foot, and the spawn window follows the slower
+ascent — the same `base > groundY - 90` condition, re-solved: 0.45→**4.55**
+pad-seconds. Spacing widened 0.06 → 0.085 to keep the count bounded: **49 puffs,
+ever**, up from 33.
+
+**3. The silo glow became a real fireball.** It was a 26×4 px strip of `#ffb450`
+— which is both why the smoke buried it and why it never read as the thing the
+video *opens* on. It is now three stacked flickering ellipses in the plume
+palette (not the detonation ramps: this is a motor, and spending Hood/Badger on
+an engine would cost the one fire palette that means *warhead*), drawn after the
+smoke because light from a silo illuminates a cloud rather than hiding behind it,
+and fading out as the vehicle climbs away rather than switching off at grade —
+the video still shows fire at the foot of the column at T+3.
+
+Net cost of all three: **35.6 → 36.9 ms**, +1.2 ms of compose, +0.9 ms of smoke.
+13.1 ms of headroom remains.
 
 ## Vehicle scale — reported, not tuned
 
