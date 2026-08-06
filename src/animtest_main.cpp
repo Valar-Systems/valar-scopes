@@ -243,30 +243,37 @@ void DrawHud(LovyanGFX& g)
 
     char buf[48];
 
-    // HALOED, AND NOT GREEN, for the same two reasons the flight track is not
-    // green. The globe now fills the whole face, so this chrome no longer sits on
-    // black -- it sits on coastlines. Green-on-green vanished, and brass read as
-    // yellow against them, which on this product is the one thing chrome must
-    // never do: amber means EXERCISE and a colour that turns up elsewhere stops
-    // carrying that. It is a dull olive-gold, not the amber token, but at 6 px on
-    // a dark green sphere that distinction is not one a viewer can make.
+    // ON A PLATE, because a halo was not enough and could not have been.
     //
-    // So: paper and grey over a one-pixel dark halo -- the same mechanism
-    // DrawCaption uses, for the same reason (no fixed row is safe when what is
-    // underneath moves). The rig chrome gives up its brass to buy that; being
-    // legible beats being visually distinct from the product's own lower third,
-    // which is at the OTHER end of the screen anyway.
+    // The globe now fills the whole face, so this chrome sits on coastlines, not
+    // on black. Two earlier attempts failed for the SAME underlying reason:
+    // GREEN_DIM collided with the land in hue, and the grey that replaced it
+    // collided with it in LUMINANCE -- grey 0x7A7D86 is Y=125, coastline green
+    // 0x2A9E62 is Y=129. Four points apart, and grey is achromatic, so it had no
+    // hue left to separate with either. It separated on nothing. Moving off green
+    // fixed half a problem and I recorded it as the whole one.
+    //
+    // A one-pixel halo cannot rescue that: it darkens the ring immediately around
+    // each glyph, which works against a flat ground but not against a field of
+    // 1 px strokes at the text's own brightness -- the strokes simply resume on
+    // the far side of the halo and read as part of the letterform.
+    //
+    // So the chrome brings its own ground. An opaque plate makes legibility
+    // independent of whatever the globe is doing underneath, which is the
+    // property a bench HUD actually needs: it must stay readable across eight
+    // scenarios and seventeen beats, and no colour choice can be verified against
+    // all of them. It costs a band of globe near the limb, where there is least to
+    // see. Brass stays gone (it read as yellow at 6 px, and amber means EXERCISE).
+    const uint32_t kHudName  = lgfx::color888(0xEC, 0xE7, 0xD6);  // PAPER, Y=231
+    const uint32_t kHudSub   = lgfx::color888(0xA8, 0xAB, 0xB2);  // Y=171, was 125
+    const uint32_t kHudPlate = lgfx::color888(0x06, 0x08, 0x0A);
     auto hud = [&](const char* s, int row, uint32_t col) {
-        static const int8_t kHalo[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-        g.setTextColor(lgfx::color888(0x06, 0x08, 0x0A));
-        for (int i = 0; i < 4; ++i) {
-            g.drawString(s, SCREEN / 2 + kHalo[i][0], row + kHalo[i][1]);
-        }
+        const int w = g.textWidth(s);
+        const int h = g.fontHeight();
+        g.fillRoundRect(SCREEN / 2 - w / 2 - 3, row - 2, w + 6, h + 3, 3, kHudPlate);
         g.setTextColor(col);
         g.drawString(s, SCREEN / 2, row);
     };
-    const uint32_t kHudName = lgfx::color888(0xEC, 0xE7, 0xD6);  // PAPER
-    const uint32_t kHudSub  = lgfx::color888(0x7A, 0x7D, 0x86);  // GREY
 
 #ifdef ANIM_GLOBE_SURVEY
     // THE PHOTOGRAPH HAS TO SAY WHICH ONE IT IS. Eight globes on a camera roll
