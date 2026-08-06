@@ -749,7 +749,7 @@ removes the only moment in the ascent with any suspense in it.
 
 | Beat | Direction |
 |---|---|
-| **Shroud** | clamshell halves |
+| **Shroud** | **one piece.** The aeroshell leaves whole, forward and to the side, tumbling away on its own arc with a separation-motor flare. *Corrected 2026-08-06. This row said "clamshell halves", which came from a third-party animation (AiTelly) that this section does not cite. **The NG 2007 video named at the top of this section shows a single shroud at T+121**, and so does the MM3 MIRV-path diagram (item E). Both of the sources we actually rely on agree; the row was wrong.* |
 | **Post-boost** | blue porcupine RCS |
 | **PSRE pitch-over** | continues the arc **nose-down** — downrange velocity is conserved, so the RV releases *in the direction of travel*. Getting this backwards is the tell that an animation was drawn rather than reasoned |
 | **RV release** | **SILENT.** No ordnance, no bang. The quietest moment in the sequence is the one that matters most |

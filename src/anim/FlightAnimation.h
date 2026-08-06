@@ -170,6 +170,26 @@ private:
     void DrawEarthLimb(LovyanGFX& g, int dy) const;
     void DrawCaption(LovyanGFX& g, int dy) const;
     void DrawVehicle(LovyanGFX& g, int dy) const;
+    /**
+     * The payload cone, drawn from vx_/vy_ in the stack's own frame.
+     *
+     * ONE DEFINITION, because it is one object: under the shroud it is the
+     * shroud, after jettison it is the RV, and after release it is still the RV.
+     * Drawn from two places with two geometries it jumped backwards into the bus
+     * at the release boundary.
+     */
+    void DrawNoseCone(LovyanGFX& g, float baseX, float baseY, float r, float k,
+                      float len, float halfW, int dy, uint32_t col, uint32_t rim = 0) const;
+    /**
+     * The post-boost vehicle: body plus its four attitude-thruster pods.
+     *
+     * One definition, drawn from the stack and after the release, for the same
+     * reason DrawNoseCone is one definition -- and the pods matter because they
+     * are the hardware §11's "porcupine" comes out of. Quills with no nozzles
+     * under them read as light with no source.
+     */
+    void DrawBus(LovyanGFX& g, float ox, float oy, float r, float k, int dy,
+                 bool showEngine) const;
     void DrawPlume(LovyanGFX& g, int dy) const;
     void DrawDebris(LovyanGFX& g, int dy) const;
     void DrawSeparationFlash(LovyanGFX& g, int dy) const;
@@ -216,7 +236,9 @@ private:
     Penaid penaids_[kPenaids] {};
 
     float busX_ = 0, busY_ = 0;  // bus, once it starts backing away
-    float rvX_ = 0, rvY_ = 0;    // the RV, after the silent release
+    // The RV deliberately has NO position of its own: it is drawn from vx_ in
+    // the stack's frame, so "the tip of the stack" and "the free vehicle" cannot
+    // disagree about where it is.
 
     // Clamshell halves outlive their own beat -- the shroud goes at T+121 and
     // stage 2 separates at T+123, so the halves are still in frame during the
