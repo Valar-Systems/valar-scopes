@@ -157,14 +157,21 @@ const Rgb kSktHot[3]  = {{0xE0,0x7A,0x1F},{0x9C,0x3A,0x10},{0x3A,0x12,0x06}};
 const Rgb kSktCool[3] = {{0xA0,0x4E,0x18},{0x5C,0x22,0x0A},{0x20,0x0A,0x04}};
 
 /**
- * Rings per cloud puff.
+ * Detonation cost levers, IN MEASURED ORDER OF EFFECT.
  *
- * THIS IS THE TUNING LEVER for the detonation, and the one the bench run is
- * meant to settle. §11 is explicit that the fireball is full-screen, so the fix
- * for a slow detonation is a cheaper puff, never a smaller cloud. Lowering this
- * to 3 costs the billows their internal shading; raising it to 7 buys very
- * little that survives a 240 px face.
+ * §11 is explicit that the fireball is full-screen, so the fix for a slow
+ * detonation is always a cheaper cloud and never a smaller one. The bench run of
+ * 2026-08-06 put numbers on which "cheaper" actually pays:
+ *
+ *   kHaloRings  10 -> 5   -19 ms   the halo was the whole problem (see DrawDetonation)
+ *   kPuffRings   5 -> 4    -4 ms   costs the billows some internal shading
+ *   kCrownPuffs 16 -> 10   -3 ms   below ~10 the head starts reading as a dome
+ *
+ * That order is the opposite of what this file assumed before it was measured:
+ * the 46 billows are only about a fifth of the pixels the halo was spending on a
+ * wash you can barely see. Do not re-guess it; re-measure it.
  */
+constexpr int kHaloRings = 4;
 constexpr int kPuffRings = 5;
 
 /* Puff counts. The preview's, unchanged -- pre-emptively trimming them would be
@@ -1136,10 +1143,19 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     }
 
     // Warm halo around the head (Hood). Pre-blended rings, outermost first.
+    //
+    // MEASURED 2026-08-06, and it is the reason this beat used to miss its bar.
+    // The preview's halo is a radial to 1.9x capR, which at full rise is a 215 px
+    // radius on a 240 px screen -- so ten of them was ~558k pixels of nearly
+    // full-screen overdraw, four and a half times the cost of all 46 billows put
+    // together. It read as a subtle warm wash and cost more than the fireball.
+    //
+    // Five rings to 1.35x is ~160k px. Same wash, 19 ms cheaper, and the outer
+    // stops were mostly off-screen anyway.
     const float haloA = 0.34f * (1.0f - cool * 0.6f);
-    for (int i = 10; i >= 1; --i) {
-        const float f = (float)i / 10.0f;
-        g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.9f * f),
+    for (int i = kHaloRings; i >= 1; --i) {
+        const float f = (float)i / (float)kHaloRings;
+        g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.35f * f),
                      Over({0xFF,0x8C,0x28}, skyMid, haloA * (1.0f - f) * 1.6f));
     }
 
