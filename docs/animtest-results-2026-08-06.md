@@ -366,3 +366,135 @@ template.
 `bench-logs/animtest-2026-08-06-{1144,1147,1150}.log` (runs 1–3, COMPRESSED) and
 `bench-logs/animtest-true-2026-08-06-*.log` (TRUE-TIME). Not committed — CSV
 volume; the tables above are the durable record.
+
+---
+
+# Run 9 — LIFTOFF, the ground camera (issue #156)
+
+`bench-logs/animtest-liftoff-2026-08-06-1417.log`, COMPRESSED, one full pass.
+`beats=17 sequence=99500ms`. The beat sheet gained `Beat::Liftoff` at the head
+and `Ignition` became `Stage1Burn` (T+10 → T+62, 62000 → 52000).
+
+## The number
+
+| | Worst ms | Worst fps | Compose worst | Push worst | **Smoke worst** |
+|---|---|---|---|---|---|
+| LIFTOFF | **35.6** | 28.1 | 9.9 | 26.0 | **5.0** |
+
+Against the 50 ms bar with a 25.8 ms push floor, compose has 24.2 ms and LIFTOFF
+spends **9.9 ms of it — 14.3 ms of headroom.** The smoke is 5.0 ms of that 9.9,
+so it is *half the beat's compose cost and one seventh of the frame*. **Nothing
+is cut.** All three levers (`kSmokeDtS`, `kSmokeRMax`, `kSmokeGrowth`) stay at
+their defaults and the cloud keeps its 33 puffs.
+
+The worst frame lands at **4,562 ms of a 7,000 ms beat** — 65 % through, which is
+*after* the vehicle has left frame at ~39 %. That is the expected shape and worth
+recording as a sanity check on the model: spawning stops at 2.35 s, so peak fill
+is not peak *count*, it is the moment the surviving puffs are simultaneously
+numerous and at maximum radius. A cloud whose worst frame arrived during the
+launch itself would mean the growth term was wrong.
+
+## The regression check, which is the more important result
+
+Inserting a beat at position 0 and re-cutting the one after it is exactly the
+kind of edit that silently moves published marks. It did not move any:
+
+| Mark | Expected | Logged |
+|---|---|---|
+| STAGE 1 (chase cam opens) | T+10 | 10,026 |
+| STAGE 1 SEP | T+62 | 62,010 |
+| SHROUD | T+121 | 121,020 |
+| STAGE 2 SEP | T+123 | 123,000 |
+| STAGE 3 SEP | T+177 | 177,029 |
+| POST-BOOST | T+180 | 180,004 |
+| REENTRY | T+1806 | 1,806,067 |
+| DETONATION | T+1896 | 1,896,009 |
+
+And the sixteen pre-existing beats are **numerically unchanged** from run 7 —
+DETONATION still 48.5 / 22.8, MIDCOURSE still 36.8 / 11.0, MATCH CUT still
+36.1 / 10.3, REENTRY 35.0 vs 34.9. `STAGE 1` at 32.6 / 6.8 is bit-identical to
+what `IGNITION` measured before the rename and the ten-second trim, which is the
+cleanest possible evidence that the beat lost its first ten seconds and nothing
+else. Every row's `smoke_worst_ms` is 0.0 except LIFTOFF's.
+
+## Vehicle scale — reported, not tuned
+
+The pad is the reference because the pad is where the vehicle is largest, and the
+chase cam opens on the **same 74 px** by construction. Measured off
+`kNoseAlong`→tail, 1 px = 0.135 mm:
+
+| State | px | mm | vs pad |
+|---|---|---|---|
+| Pad / full stack + bus + shroud | 74 | 10.0 | 1.00 |
+| After stage 1 | 52 | 7.0 | 0.70 |
+| After stage 2 (shroud gone, RV cone) | 40 | 5.4 | 0.54 |
+| After stage 3 (bus + cone), ×2 boost | 52 | 7.0 | 0.70 |
+| RV alone, ×2 boost | 36 | 4.9 | 0.49 |
+
+**Three of these five numbers were wrong in the earlier report** (31 / 17 / 14 px
+for the last three rows). Those were the *reference's* geometry, where the shroud
+and the RV are one 14 px cone. The rig gives the RV its own 18 px cone — the
+jettison is a real reveal, per §11's corrected Shroud row — so every state after
+the shroud goes is larger than the preview's. The instruction was to measure the
+rig; measuring the rig is what caught it.
+
+The boost's effect, stated against the pad rather than in the abstract: without
+it the last two rows are 0.35 and 0.24 of the pad silhouette for the five beats
+the RV is the subject of. With it, the post-stack vehicle is the same apparent
+size it was after the *first* separation, and nothing ever falls below half.
+
+## The two rulings, as built
+
+**Own beat, not a camera split.** `Beat::Liftoff`. The instrument argument
+decided it and the numbers vindicate it immediately: 9.9 ms of compose against
+STAGE 1's 6.8 ms is a 46 % difference that a merged beat would have reported as
+a single averaged figure, and the smoke's 5.0 ms would have been invisible inside
+a 56-second beat.
+
+**Cut on absence.** The ground camera holds from ~39 % to 100 % of the beat with
+no vehicle in it. What crosses the cut instead is the vehicle's identity:
+`sunLift_` lifts the *same* airframe colours toward daylight at the pad and fades
+that out over the opening quarter of STAGE 1, so the frame before the cut and the
+frame after it are one object at one size in one paint under changing light. The
+pad is not a second palette — `DrawVehicle` is called from both cameras.
+
+The caption block moves to rows 36/48 for this beat only, because on the ground
+camera the bottom of the frame is the ground: the grade line is at y=208 and the
+silo mouth spans 206–212. `T+10 - FIRST ROLL MANEUVER` is 156 px of ink into the
+171 px chord at y=36 — 7 px a side, and the tightest caption fit in the sequence.
+
+## Deviation 2 replaced
+
+The old #2 was "no silo / ground camera". Its replacement is the pad altimeter:
+the preview reads out `pow((t-IGN)*1.35,2.6)*30*38` ft, which reaches 273,000 ft
+at a phase its own caption track labels T+10 — and that track says T+19 is
+8,300 ft. The preview contradicts itself, and its own geometry says which half is
+wrong: it draws a 59.9 ft missile 66 px tall, so a pixel is 0.9 ft, not 38.
+
+The **motion curve is kept verbatim** (it is the look, and matching the published
+climb rate would have the vehicle crawl out of the silo for four seconds, which
+is wrong dramatically and physically). Only the **number** is re-derived, from
+the published mark and the preview's own exponent: `8,300 × (t/19)^2.6`. The
+standing rule inverted — the reference owns what and when, and a readout of a
+published quantity is neither.
+
+One thing fell out of the port for free and is worth recording because it was not
+tuned: the reference's launch curve puts the nose through grade at t = 1.30 s,
+which on this beat's mapping is **T+1.86**, and `kCaptions` has put the word
+LIFTOFF at **T+1.80** since before the beat existed. Sixty milliseconds apart,
+from two independent readings of the same published sequence.
+
+## Still open (visual) — the second photo set
+
+Nothing below is answerable from a log.
+
+- Does the vehicle read as **one object** across the cut, or as two? (the
+  `sunLift_` trap — the single most important thing to look at)
+- Can you catch the daylight fade happening in the first 25 % of STAGE 1?
+- Does the vehicle **emerge from a hole**, or slide up past a line? (the grade
+  clip)
+- Is the held ground shot alive with smoke to the cut, or does it go empty?
+- Camera shake at ignition — present, and settled by ~2.2 s?
+- Caption at rows 36/48 — clipped on the round face? This is the tightest fit
+  in the sequence.
+- ALT readout at y=224, below the grade line — legible, and not colliding?

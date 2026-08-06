@@ -72,24 +72,30 @@ reconciled with §12 (`stage 1 ~60 s, stage 3 ~120 s, post-boost ~180 s`).
 
 **Mode: ☐ COMPRESSED ☐ TRUE-TIME**
 
-| # | Beat | T+ | Frames | Avg ms | **Worst ms** | Worst fps | Compose worst | Push worst | Notes |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | IGNITION | 0 | | | | | | | 4 captions ride inside it |
-| 2 | STAGE 1 SEP | 62 | | | | | | | staging beat |
-| 3 | STAGE 2 | 65 | | | | | | | |
-| 4 | SHROUD | 121 | | | | | | | clamshell, 2 s before sep |
-| 5 | STAGE 2 SEP | 123 | | | | | | | staging beat + shroud still in frame |
-| 6 | STAGE 3 | 126 | | | | | | | |
-| 7 | STAGE 3 SEP | 177 | | | | | | | staging beat, **no ignition** — RCS answers |
-| 8 | POST-BOOST | 180 | | | | | | | porcupine RCS |
-| 9 | PSRE PITCH | 205 | | | | | | | nose-down through horizontal |
-| 10 | RV RELEASE | 225 | | | | | | | silent |
-| 11 | BUS BACKAWAY | 233 | | | | | | | |
-| 12 | PENAIDS | 245 | | | | | | | |
-| 13 | MIDCOURSE | 260 | | | | | | | **not** the cheapest — the match cut opens the map inside it |
-| 14 | REENTRY | 1806 | | | | | | | own sky gradient + cloud deck |
-| 15 | DETONATION | 1896 | | | | | | | **expected worst — 46 puffs, full-screen** |
-| 16 | MATCH CUT | — | | | | | | | map opens on the dot |
+`smoke worst` is the LIFTOFF ground-smoke pass timed on its own, inside the
+module, behind `-DANIM_PROFILE`. It is carried on **every** row so the column is
+a constant width — and so the zeros on the other sixteen rows are themselves the
+assertion that no other beat pays for it.
+
+| # | Beat | T+ | Frames | Avg ms | **Worst ms** | Worst fps | Compose worst | Push worst | Smoke worst | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | LIFTOFF | 0 | | | | | | | | ground camera; **only beat with smoke** |
+| 2 | STAGE 1 | 10 | | | | | | | 0 | chase cam; 3 captions ride inside it |
+| 3 | STAGE 1 SEP | 62 | | | | | | | 0 | staging beat |
+| 4 | STAGE 2 | 65 | | | | | | | 0 | |
+| 5 | SHROUD | 121 | | | | | | | 0 | clamshell, 2 s before sep |
+| 6 | STAGE 2 SEP | 123 | | | | | | | 0 | staging beat + shroud still in frame |
+| 7 | STAGE 3 | 126 | | | | | | | 0 | |
+| 8 | STAGE 3 SEP | 177 | | | | | | | 0 | staging beat, **no ignition** — RCS answers |
+| 9 | POST-BOOST | 180 | | | | | | | 0 | porcupine RCS |
+| 10 | PSRE PITCH | 205 | | | | | | | 0 | nose-down through horizontal |
+| 11 | RV RELEASE | 225 | | | | | | | 0 | silent |
+| 12 | BUS BACKAWAY | 233 | | | | | | | 0 | |
+| 13 | PENAIDS | 245 | | | | | | | 0 | |
+| 14 | MIDCOURSE | 260 | | | | | | | 0 | **not** the cheapest — the match cut opens the map inside it |
+| 15 | REENTRY | 1806 | | | | | | | 0 | own sky gradient + cloud deck |
+| 16 | DETONATION | 1896 | | | | | | | 0 | **expected worst — 46 puffs, full-screen** |
+| 17 | MATCH CUT | — | | | | | | | 0 | map opens on the dot |
 
 ---
 
@@ -124,6 +130,26 @@ order of effect:
 
 Detonation worst: ______ ms · levers spent: ______
 
+**2b. What does the smoke cost, on its own?** LIFTOFF's ground smoke is the only
+new particle system in the sequence and the only per-beat draw with genuinely
+open-ended cost, so it is timed separately (`smoke_worst_ms`, above). Its
+**worst** frame is the number, not the beat average — the cloud exists for about
+half the beat and peaks for a fraction of that, so an average reports a system
+that is free right up until the frame that drops.
+
+The cloud is bounded by arithmetic rather than by a cap: the spawn window is
+fixed at 0.45–2.35 pad-seconds and the spacing at 0.06 s, so it admits **33
+puffs, ever**, at any frame rate or time mode. Levers, in the order to spend
+them:
+
+| Constant | Default | Effect | What you lose |
+|---|---|---|---|
+| `kSmokeDtS` | 0.06 | linear in puff count | density — the bank stops closing over the pad |
+| `kSmokeRMax` | 40 | caps the late, faint, largest discs | the outer roll's reach |
+| `kSmokeGrowth` | 12 px/s | shrinks every puff at once | volume; the cloud stops billowing and just drifts |
+
+Smoke worst: ______ ms · of a compose worst of ______ ms · **cut? ☐ no ☐ yes**
+
 **3. Does the Earth limb scale?** It draws column-wise — 240 columns × four
 spans plus seven cloud ellipses — and it is on screen for every ascent beat. It
 should be a flat cost across beats 1–13; if it is not, something else is the
@@ -142,6 +168,37 @@ arithmetic in `DrawCaption`). Check the longest ones on glass:
 
 ---
 
+## Vehicle scale — the pad is the reference
+
+LIFTOFF is where the vehicle is largest in frame, so it is where the scale
+language is **established**; every later state is measured against it. The chase
+cam opens on the same 74 px, deliberately — a cut that changed the subject's size
+would break the same-object read as surely as a colour change would.
+
+Measured off `kNoseAlong`→tail, which is what `DrawVehicle` actually draws.
+1 px = 0.135 mm on this panel.
+
+| State | px | mm | vs pad | Legible on glass? |
+|---|---|---|---|---|
+| Pad / full stack + bus + shroud | 74 | 10.0 | 1.00 | ☐ |
+| After stage 1 | 52 | 7.0 | 0.70 | ☐ |
+| After stage 2 (shroud gone, RV cone) | 40 | 5.4 | 0.54 | ☐ |
+| After stage 3 (bus + cone), ×2 boost | 52 | 7.0 | 0.70 | ☐ |
+| RV alone, ×2 boost | 36 | 4.9 | 0.49 | ☐ |
+
+Without `kSubjectBoost` the last two are 26 px / 3.5 mm and 18 px / 2.4 mm — 0.35
+and 0.24 of the pad silhouette, for the five beats the RV is the subject of. With
+it, the post-stack vehicle is the same apparent size it was after the first
+separation and nothing ever falls below half the pad.
+
+> **These numbers moved once already.** An earlier version of this table read
+> 31 px / 17 px / 14 px for the last three rows. Those were the *reference's*
+> geometry, where the shroud and the RV are one 14 px cone; the rig gives the RV
+> its own 18 px cone (the jettison is a real reveal), so every state after the
+> shroud goes is larger than the reference's. Measure the rig, not the preview.
+
+---
+
 ## Look-target match
 
 Open the preview in a browser and step the same beat on both. The firmware is
@@ -149,6 +206,9 @@ supposed to be the same picture, not merely the same idea.
 
 | | Preview | Glass | Match? |
 |---|---|---|---|
+| Vehicle is **fully buried** before first motion, then hot-launches | ✓ | | ☐ |
+| Ground smoke **billows outward** and closes over the pad | ✓ | | ☐ |
+| Camera **shakes** at ignition and settles by ~2.2 s | ✓ | | ☐ |
 | Vehicle reads as **three olive stages with tan bands** | ✓ | | ☐ |
 | Limb has a **bright atmospheric rim**, not a flat blue edge | ✓ | | ☐ |
 | Separations are **axial** — spent stage recedes on the flight line | ✓ | | ☐ |
@@ -163,11 +223,31 @@ confirm they read as acceptable rather than as bugs):
 
 1. `IGNITION` caption is paper white, not the preview's `#ffd23e`. **Does the
    caution read as over-caution on glass?** ☐ keep ☐ revert to yellow
-2. No silo / ground camera — the sequence opens already airborne.
+2. Pad altimeter re-derived from the published mark (`8,300 × (t/19)^2.6`)
+   instead of the preview's own `×38 ft/px`, which reaches 273,000 ft at a
+   caption that says T+10. The **motion curve** is the preview's, unchanged.
 3. No world map behind the match cut (graticule globe stands in).
 4. Alpha approximated: opaque puffs, pre-blended washes, flashes collapse
    instead of fading. **Does any of it look wrong in motion?** ______
 5. No pre-launch or credits phases.
+
+### LIFTOFF, and the one thing to actually look at
+
+The cut out of the ground camera is a **cut on absence** — the vehicle leaves
+frame at ~39 % of the beat, the shot holds on smoke, and the cut is motivated by
+the subject having gone. Nothing has to match across it *except* the vehicle
+itself, which is why the pad and the chase cam draw the **same object at the same
+size in the same paint** (`Lit()` over `sunLift_`, not a second palette).
+
+That is the failure mode to hunt for, and it is only visible in motion:
+
+- Step LIFTOFF → STAGE 1 across the boundary. Does the vehicle read as **one
+  object under changing light**, or as **two different objects**? ☐ one ☐ two
+- Is the daylight fade (first 25 % of STAGE 1) **invisible**, or can you catch it
+  happening? ☐ invisible ☐ visible
+- Does the vehicle **emerge from a hole**, or slide up past a line? ☐ hole ☐ line
+- Is the held ground shot (39 %→100 %) **still alive** with smoke, or does it go
+  empty before the cut? ☐ alive ☐ empty
 
 ---
 

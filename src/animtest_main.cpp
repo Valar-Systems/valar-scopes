@@ -86,6 +86,7 @@ struct BeatTiming {
     uint32_t worstAtMs = 0;   // when, so a one-off stall is distinguishable from a pattern
     uint32_t composeWorstUs = 0; // draw only, excluding the panel push
     uint32_t pushWorstUs = 0;    // the SPI push alone -- the floor art cannot beat
+    uint32_t smokeWorstUs = 0;   // LIFTOFF's smoke pass alone; 0 on every other beat
 };
 BeatTiming timings[(int)Beat::COUNT];
 bool summaryPrinted = false;
@@ -123,11 +124,16 @@ void LogBeatSummary(Beat b)
     const BeatTiming& t = timings[(int)b];
     if (t.frames == 0) return;
     const float avgMs = (t.sumUs / (float)t.frames) / 1000.0f;
+    // smoke_worst_ms is carried on EVERY row, not only LIFTOFF's, so the column
+    // is a constant width for the capture parser and the zeros are themselves the
+    // assertion that no other beat pays for it.
     Serial.printf("FPS,%s,%s,frames,%lu,avg_ms,%.1f,worst_ms,%.1f,worst_at_ms,%lu,"
-                  "compose_worst_ms,%.1f,push_worst_ms,%.1f,avg_fps,%.1f,worst_fps,%.1f\n",
+                  "compose_worst_ms,%.1f,push_worst_ms,%.1f,smoke_worst_ms,%.1f,"
+                  "avg_fps,%.1f,worst_fps,%.1f\n",
                   ModeName(), missileer::flight::BeatName(b), (unsigned long)t.frames, avgMs,
                   t.worstUs / 1000.0f, (unsigned long)t.worstAtMs,
                   t.composeWorstUs / 1000.0f, t.pushWorstUs / 1000.0f,
+                  t.smokeWorstUs / 1000.0f,
                   avgMs > 0 ? 1000.0f / avgMs : 0.0f,
                   t.worstUs > 0 ? 1000000.0f / t.worstUs : 0.0f);
 }
@@ -137,7 +143,7 @@ void PrintFullSummary()
     Serial.println("FPS,---- per-beat summary ----");
     for (int i = 0; i < (int)Beat::COUNT; ++i) LogBeatSummary((Beat)i);
     // The one line to copy into the results doc's verdict row.
-    uint32_t worst = 0; Beat worstBeat = Beat::Ignition;
+    uint32_t worst = 0; Beat worstBeat = Beat::Liftoff;
     for (int i = 0; i < (int)Beat::COUNT; ++i) {
         if (timings[i].worstUs > worst) { worst = timings[i].worstUs; worstBeat = (Beat)i; }
     }
@@ -363,6 +369,15 @@ void loop()
         if (total > bt.worstUs) { bt.worstUs = total; bt.worstAtMs = now; }
         if (compose > bt.composeWorstUs) bt.composeWorstUs = compose;
         if (push > bt.pushWorstUs) bt.pushWorstUs = push;
+#ifdef ANIM_PROFILE
+        // THE SMOKE'S OWN WORST CASE, which is the number the particle count
+        // stands or falls on. A beat average would hide it completely: the cloud
+        // exists for about half of LIFTOFF and peaks for a fraction of that, so
+        // averaging it across the beat reports a system that is roughly free
+        // right up until the frame that drops.
+        const uint32_t smoke = director.SmokeUs();
+        if (smoke > bt.smokeWorstUs) bt.smokeWorstUs = smoke;
+#endif
 
         // Per-frame line, throttled. Every frame would be 40 lines/s of CSV and
         // the print itself would become the slowest thing in the loop --

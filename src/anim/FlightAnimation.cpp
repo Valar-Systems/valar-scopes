@@ -21,10 +21,18 @@
 //    keeps #ffd23e, because a plume cannot be mistaken for a mode indicator.
 //    One line to revert if that reads as over-caution on glass.
 //
-// 2. NO SILO / GROUND CAMERA. The preview's LIFTOFF phase is a side-on hot
-//    launch -- ground plane, silo mouth, billowing smoke, camera shake -- and it
-//    is a second camera with a second art set. This module opens already
-//    airborne. Largest remaining gap between rig and look target.
+// 2. THE PAD ALTIMETER IS NOT THE PREVIEW'S. Its LIFTOFF phase reads out
+//    `pow((t-IGN)*1.35,2.6)*30*38` feet, which reaches 273,000 ft by the end of a
+//    phase its own caption track labels T+10 -- and the caption track says T+19 is
+//    8,300 ft. The preview contradicts itself, and its own geometry says which
+//    half is wrong: it draws a 59.9 ft missile 66 px tall, so a pixel is 0.9 ft,
+//    not the 38 ft that constant assumes. The MOTION curve is kept verbatim (it
+//    is the look, and matching the published climb rate would have the vehicle
+//    crawl out of the silo for four seconds, which is wrong dramatically and
+//    physically). Only the NUMBER is re-derived, from the published mark and the
+//    preview's own exponent: alt = 8,300 x (t/19)^2.6. The standing rule inverted
+//    -- the reference owns what and when, and a readout of a published quantity
+//    is neither; §12 and the caption track own that.
 //
 // 3. THE WORLD MAP IS NOT PORTED. The preview carries six coastline arrays, an
 //    equirectangular projection and a minimum-energy Lambert time-of-flight
@@ -144,6 +152,18 @@ inline uint32_t PlasmaCore(){ return lgfx::color888(0xFF, 0xF2, 0xD7); }
 // Map (the far side of the match cut).
 inline uint32_t MapLand() { return lgfx::color888(0x0C, 0x20, 0x13); }
 inline uint32_t MapGrid() { return lgfx::color888(0x0E, 0x2A, 0x1C); }
+
+// The pad. Ground camera only -- these appear in exactly one beat and nowhere
+// else, which is why they can be this dark: the whole frame is a night-ish
+// ground shot and the only bright things in it are the flame and the smoke.
+inline uint32_t Ground()   { return lgfx::color888(0x22, 0x23, 0x1F); } // grade line
+inline uint32_t SiloMouth(){ return lgfx::color888(0x10, 0x11, 0x10); } // the hole
+inline uint32_t SiloEdge() { return lgfx::color888(0x3A, 0x3B, 0x36); } // its lip
+inline uint32_t SiloGlow() { return lgfx::color888(0x8C, 0x63, 0x2C); } // 0.55 of #ffb450 on black
+inline uint32_t SmokeCore(){ return lgfx::color888(0x8E, 0x8B, 0x80); }
+inline uint32_t SmokeRim() { return lgfx::color888(0x4A, 0x48, 0x3F); }
+/** The daylight the pad vehicle is lifted toward. See Director::sunLift_. */
+inline uint32_t Sun()      { return lgfx::color888(0xFF, 0xF4, 0xE0); }
 } // namespace pal
 
 // ---------------------------------------------------------------------------
@@ -273,9 +293,22 @@ struct BeatSpec {
  * Impact is the 9,700 km validation case: 31.6 min = 1,896 s. Terminal
  * re-escalates 90 s earlier at T+1,806, exactly as §7 requires, and the
  * detonation begins on the impact second.
+ *
+ * LIFTOFF TAKES ITS TEN SECONDS OUT OF STAGE 1, IT DOES NOT ADD THEM. The first
+ * stage still separates at T+62; what changed is that the first ten of those
+ * seconds are now shot from the ground, so the beat that was "IGNITION, T+0 ->
+ * T+62" is "STAGE 1, T+10 -> T+62" and 62000 became 52000. Every published mark
+ * downstream is untouched. The rename is not cosmetic either: with the ignition
+ * itself now inside LIFTOFF, a beat named IGNITION that begins ten seconds after
+ * the motor lit would be lying, and STAGE 1 puts it in the same vocabulary as
+ * STAGE 2 and STAGE 3.
+ *
+ * The compressed column for LIFTOFF is 7000 -- the look target's own phase
+ * length, per the rule above that its tuned phase lengths are not re-guessed.
  */
 const BeatSpec kBeats[(int)Beat::COUNT] = {
-    /* Ignition     */ {"IGNITION",      62000,  6000},  // T+0   -> T+62
+    /* Liftoff      */ {"LIFTOFF",       10000,  7000},  // T+0   -> T+10, from the ground
+    /* Stage1Burn   */ {"STAGE 1",       52000,  6000},  // T+10  -> T+62
     /* Stage1Sep    */ {"STAGE 1 SEP",    3000,  3000},  // T+62  -- coast is 1 s in both
     /* Stage2Burn   */ {"STAGE 2",       56000,  5000},  // T+65  -> T+121
     /* ShroudEject  */ {"SHROUD",         2000,  2500},  // T+121 -> T+123
@@ -361,7 +394,13 @@ constexpr int kCaptionCount = sizeof(kCaptions) / sizeof(kCaptions[0]);
  */
 struct Anchor { float x0, y0, x1, y1, a0, a1, alt0, alt1, s0, s1; };
 const Anchor kAnchors[(int)Beat::COUNT] = {
-    /* Ignition     */ {114, 132, 117, 128,   0,  25, 0.00f, 0.22f, 1.00f, 1.00f},
+    // LIFTOFF's y is DERIVED, not lerped -- the hot launch is a power curve, not
+    // a straight line, so UpdateKinematics overwrites vy_ from PadBase(). The
+    // endpoints below are the curve's, recorded so the row still reads as a
+    // position; they are not a second opinion about where the vehicle is (see
+    // the note on Reentry's derived attitude for why that distinction matters).
+    /* Liftoff      */ {120, 236, 120, -60,   0,   0, 0.00f, 0.00f, 1.00f, 1.00f},
+    /* Stage1Burn   */ {114, 132, 117, 128,   0,  25, 0.00f, 0.22f, 1.00f, 1.00f},
     /* Stage1Sep    */ {117, 128, 118, 127,  25,  28, 0.22f, 0.25f, 1.00f, 1.00f},
     /* Stage2Burn   */ {118, 127, 124, 124,  28,  36, 0.25f, 0.58f, 1.00f, 1.00f},
     /* ShroudEject  */ {124, 124, 125, 123,  36,  37, 0.58f, 0.61f, 1.00f, 1.00f},
@@ -392,19 +431,133 @@ inline uint32_t StageColour(int i)
 }
 
 /**
+ * THE SHROUD AND THE RV ARE NOT THE SAME SHAPE, and jettison is a real reveal.
+ *
+ * From the NG 2007 video: at T+121 the aeroshell is a BLUNT cone as wide as the
+ * bus it sits on; at "REENTRY VEHICLE RELEASED" the RV that comes out of it is a
+ * long slender cone, roughly 4:1, markedly narrower than the PBV's forward face.
+ * Drawing both with one geometry made the shroud jettison a colour change and
+ * nothing more.
+ */
+constexpr float kShroudLen = 14.0f, kShroudHalfW = 4.5f;
+constexpr float kRvLen     = 18.0f, kRvHalfW     = 2.5f;
+
+// Stack extents in the body frame, 240-space -- DERIVED from the geometry above
+// rather than restated, because the pad needs three of them and a hand-copied
+// 74 would go stale the first time a segment length or the cone changed.
+//
+//   along = 0 is the vehicle origin (vx_/vy_), which is the BUS's forward face.
+//   Negative is toward the nose; positive is toward the tail.
+/** The stack's tail: the sum of kSegments. */
+constexpr float kTailAlong = 14.0f + 16.0f + 22.0f;             // +52
+/** The shroud tip: the bus's -8 front face, plus the cone standing on it. */
+constexpr float kNoseAlong = -8.0f - kShroudLen;                // -22
+/** Nose tip to stage-1 tail. The number every other vehicle state is measured against. */
+constexpr float kStackLen  = kTailAlong - kNoseAlong;           //  74
+
+// ---------------------------------------------------------------------------
+// THE PAD -- the ground camera's whole geometry, in 240-space.
+//
+// All of it is the look target's scrLiftoff(), which is the only phase it draws
+// from a camera that is not moving with the vehicle. Ported rather than
+// reinvented because the choreography here is unusually load-bearing: the beat
+// is a hot launch, and a hot launch is legible only if the vehicle is FULLY
+// BURIED first. A vehicle that starts at grade and slides up is a rocket on a
+// pad, not a missile coming out of a hole.
+//
+// kPhaseS is the reference's own phase length, and the beat is parameterised in
+// those seconds rather than in wall time so the choreography is identical in
+// both time modes -- true time simply plays the same seven seconds over ten.
+// ---------------------------------------------------------------------------
+constexpr float kPhaseS  = 7.0f;    // reference LIFTOFF phase length
+constexpr float kIgnS    = 0.9f;    // first motion
+constexpr float kGroundY = 208.0f;
+constexpr float kSiloHalfW = 14.0f;
+
+/** Where the vehicle sits before the motor lights: fully below grade, plus 6 px. */
+constexpr float kPadBase0 = kGroundY + kStackLen + 6.0f;
+
+/**
+ * SMOKE, and it is BOUNDED BY ARITHMETIC rather than by a cap.
+ *
+ * The reference spawns ~51 puffs a second for the ~1.9 s the vehicle is low
+ * enough to be blasting the pad, which is ~100 alive at once with lives of
+ * 2.6-4.2 s. That is the one genuinely expensive thing this beat adds, and 100
+ * filled discs of 40+ px radius is not a cost worth finding out about on glass.
+ *
+ * So the spawn window is kept (it is choreography -- smoke starts before first
+ * motion and stops when the vehicle is clear) and only the RATE is thinned. At
+ * kSmokeDtS spacing the window admits a fixed, small number of puffs, so the
+ * cloud has a hard ceiling that does not depend on frame rate, time mode, or how
+ * long the beat is left running:
+ *
+ *     (2.35 - 0.45) / 0.06 + 1  =  33 puffs, ever
+ *
+ * Density is bought back with size instead of count -- each puff grows faster
+ * and further than the reference's, so the bank still closes over the pad. The
+ * last one dies at 2.35 + 4.2 = 6.55 s of 7.0, which is what keeps the held
+ * ground shot from becoming an empty frame before the cut.
+ */
+constexpr float kSmokeStartS = 0.45f;   // reference: IGN * 0.5
+constexpr float kSmokeEndS   = 2.35f;   // reference: while base > groundY - 90
+constexpr float kSmokeDtS    = 0.06f;
+constexpr int   kSmokeMax    = 34;      // ceil((end-start)/dt) + 1, with one spare
+constexpr float kSmokeGrowth = 12.0f;   // px/s
+constexpr float kSmokeRMax   = 40.0f;
+
+/**
+ * MIX TOWARD DAYLIGHT. See Director::sunLift_ for why the pad vehicle is the
+ * ascent vehicle under a different exposure rather than a different paint.
+ *
+ * 0.35 at full sun: enough that the airframe reads as lit from outside rather
+ * than as a silhouette, and not so much that the three stage colours converge --
+ * losing them at the pad would cost the separation cue the scheme exists for.
+ */
+inline uint32_t Lit(uint32_t c, float sun)
+{
+    if (sun <= 0.0f) return c;
+    const uint32_t s = pal::Sun();
+    const Rgb base = {(uint8_t)(c >> 16), (uint8_t)(c >> 8), (uint8_t)c};
+    const Rgb sky  = {(uint8_t)(s >> 16), (uint8_t)(s >> 8), (uint8_t)s};
+    return Rgb2c(MixRgb(base, sky, 0.35f * sun));
+}
+
+/**
+ * A colour at `a` opacity OVER BLACK, which on the pad is exact rather than an
+ * approximation: the ground shot has no background to composite against, so
+ * scaling the channels IS the blend. DEVIATION 4's caveat about pre-blending
+ * does not apply here.
+ */
+inline uint32_t Shade(uint32_t c, float a)
+{
+    if (a <= 0) return 0;
+    if (a > 1) a = 1;
+    return lgfx::color888((uint8_t)(((c >> 16) & 0xFF) * a),
+                          (uint8_t)(((c >>  8) & 0xFF) * a),
+                          (uint8_t)(( c        & 0xFF) * a));
+}
+
+/**
  * APPARENT-SIZE FLOOR -- the first place the reference is deliberately not
  * followed, under the standing rule that it is authoritative for WHAT and WHEN
  * and never for WHETHER IT CAN BE SEEN.
  *
  * The reference was authored on a 240x240 canvas displayed at 480 CSS px on a
  * bright laptop. This panel is 240 px across ~32 mm of glass at desk distance,
- * so 1 px is 0.135 mm and the reference's geometry ports to:
+ * so 1 px is 0.135 mm. Measured off the geometry above -- kNoseAlong to the tail
+ * of whatever is still attached, which is what DrawVehicle actually draws:
  *
- *     full stack + bus + shroud   74 px   10.0 mm
- *     after stage 1               52 px    7.0 mm
- *     after stage 2               31 px    4.2 mm
- *     after stage 3 (bus + cone)  17 px    2.3 mm   <- 45 s of true time
- *     RV alone                    14 px    1.9 mm   <- and shrinking
+ *                                        px     mm    vs pad
+ *     pad / full stack + bus + shroud    74   10.0     1.00   <- the reference
+ *     after stage 1                      52    7.0     0.70
+ *     after stage 2 (shroud gone, RV)    40    5.4     0.54
+ *     after stage 3 (bus + cone)         26    3.5     0.35   <- 45 s of true time
+ *     RV alone                           18    2.4     0.24   <- and shrinking
+ *
+ * THE PAD IS THE REFERENCE BECAUSE THE PAD IS WHERE THE VEHICLE IS LARGEST, and
+ * because the chase cam opens on the same 74 px -- a cut that changed the
+ * subject's size would break the same-object read as surely as a colour change
+ * would (see Director::sunLift_ for the other half of that).
  *
  * The stack is fine. Everything after the third separation is at or below the
  * size where a viewer can tell what the object is, and the RV is the subject of
@@ -419,8 +572,18 @@ inline uint32_t StageColour(int i)
  *
  * Proportions are untouched -- this multiplies scale_, so every relative size
  * the reference chose survives. Only the apparent size changes.
+ *
+ * What the boost buys, against the same pad reference:
+ *
+ *     after stage 3 (bus + cone)  26 -> 52 px   3.5 -> 7.0 mm   0.35 -> 0.70
+ *     RV alone                    18 -> 36 px   2.4 -> 4.9 mm   0.24 -> 0.49
+ *
+ * So the post-stack vehicle ends up the same apparent size it was after the
+ * first separation, and the RV alone never falls below half the pad silhouette.
+ * That is the whole claim: the subject of the last five beats stays as legible
+ * as the subject of the first five.
  */
-constexpr float kSubjectBoost = 2.0f;   // 14 px -> 28 px (1.9 mm -> 3.8 mm)
+constexpr float kSubjectBoost = 2.0f;   // 18 px -> 36 px (2.4 mm -> 4.9 mm)
 
 /**
  * MIDCOURSE CHOREOGRAPHY, as fractions of the beat.
@@ -443,18 +606,6 @@ constexpr float kSubjectBoost = 2.0f;   // 14 px -> 28 px (1.9 mm -> 3.8 mm)
  */
 constexpr float kShrinkStart = 0.34f;
 constexpr float kDotAt       = 0.44f;
-
-/**
- * THE SHROUD AND THE RV ARE NOT THE SAME SHAPE, and jettison is a real reveal.
- *
- * From the NG 2007 video: at T+121 the aeroshell is a BLUNT cone as wide as the
- * bus it sits on; at "REENTRY VEHICLE RELEASED" the RV that comes out of it is a
- * long slender cone, roughly 4:1, markedly narrower than the PBV's forward face.
- * Drawing both with one geometry made the shroud jettison a colour change and
- * nothing more.
- */
-constexpr float kShroudLen = 14.0f, kShroudHalfW = 4.5f;
-constexpr float kRvLen     = 18.0f, kRvHalfW     = 2.5f;
 
 /**
  * THE POST-BOOST VEHICLE HAS TWO PROPULSION SYSTEMS, AND THEY ARE NOT THE SAME
@@ -732,12 +883,12 @@ void Director::Restart()
 {
     seqElapsedMs_ = 0;
     finished_ = false;
-    EnterBeat(Beat::Ignition);
+    EnterBeat(Beat::Liftoff);
 }
 
 void Director::Seek(Beat b)
 {
-    if ((int)b < 0) b = Beat::Ignition;
+    if ((int)b < 0) b = Beat::Liftoff;
     if ((int)b >= (int)Beat::COUNT) b = (Beat)((int)Beat::COUNT - 1);
     // Sequence time follows the beat, so the HUD's T+ stays truthful after a jump.
     seqElapsedMs_ = 0;
@@ -778,6 +929,13 @@ void Director::EnterBeat(Beat b)
     angleDeg_ = a.a0;
     altitude_ = a.alt0;
     scale_    = a.s0;
+
+    // Seek() enters a beat without advancing it, so the first frame after a jump
+    // draws before UpdateKinematics has ever run. Both of these have to be right
+    // in that frame: an unset sunLift_ would flash the pad vehicle in altitude
+    // paint, and a stale shake would leave the ground furniture offset.
+    sunLift_ = (b == Beat::Liftoff || b == Beat::Stage1Burn) ? 1.0f : 0.0f;
+    shakeX_ = shakeY_ = 0.0f;
 
     const bool isSep = (b == Beat::Stage1Sep || b == Beat::Stage2Sep || b == Beat::Stage3Sep);
 
@@ -867,6 +1025,46 @@ void Director::UpdateKinematics(uint32_t dtMs)
         TrackPoint(TrackFraction(), vx_, vy_);
     }
 
+    // ---- the pad ---------------------------------------------------------
+    //
+    // Position comes off the launch curve, not the anchor lerp (see the kAnchors
+    // note). The vehicle stays vertical: the reference does not tilt it here, and
+    // the T+3 PITCH caption is announcing a manoeuvre the ground camera cannot
+    // resolve -- a two-degree cant on a vertical stack would read as a drawing
+    // error, not as a pitch program.
+    sunLift_ = 0.0f;
+    shakeX_ = shakeY_ = 0.0f;
+    if (beat_ == Beat::Liftoff) {
+        const float u  = screen_ / 240.0f;
+        const float ts = PadSeconds();
+        // PadBase() is the BOTTOM OF THE BODY (what the reference calls `base`
+        // and where the flame comes out); vx_/vy_ is the origin the body frame
+        // measures from, which sits kTailAlong above it. Subtracting the full
+        // stack length here instead would put the vehicle 22 px too high and the
+        // flame 22 px inside it.
+        vx_ = 120.0f * u;
+        vy_ = (PadBase(ts) - kTailAlong) * u;
+        angleDeg_ = 0.0f;
+        sunLift_  = 1.0f;
+
+        // Camera shake, decaying to nothing by 2.2 s. Deterministic, so a replay
+        // shakes identically -- the reference uses Math.random() here and a rig
+        // whose frames differ between runs cannot be photographed for review.
+        if (ts < 2.2f) {
+            const float amp = 2.4f * (1.0f - ts / 2.2f) * u;
+            shakeX_ = (Noise(beatElapsedMs_ / 33u + 101u) - 0.5f) * amp;
+            shakeY_ = (Noise(beatElapsedMs_ / 33u + 211u) - 0.5f) * amp * 0.6f;
+            vx_ += shakeX_;
+            vy_ += shakeY_;
+        }
+    } else if (beat_ == Beat::Stage1Burn) {
+        // The daylight fades out over the opening quarter of the chase cam, so
+        // the frame on either side of the cut is the same object in the same
+        // light and the exposure change happens where nothing can be compared
+        // against a previous frame. See Director::sunLift_.
+        sunLift_ = 1.0f - Clamp01(BeatProgress() / 0.25f);
+    }
+
     const float dt = (float)dtMs / 16.0f; // ~frames at 60 Hz, so motion is frame-rate independent
 
     if (stageLife_ > 0) {
@@ -924,6 +1122,31 @@ void Director::Advance(uint32_t dtMs)
         dur = BeatDurationMs(beat_, mode_);
     }
     UpdateKinematics(dtMs);
+}
+
+float Director::PadSeconds() const
+{
+    return BeatProgress() * kPhaseS;
+}
+
+float Director::PadBase(float ts)
+{
+    // THE HOT LAUNCH, verbatim from the look target:
+    //
+    //     base = groundY + mh + nose + 6 - pow((t - IGN) * 1.35, 2.6) * 30
+    //
+    // A 2.6-power curve, not a lerp, and that exponent is the whole read: the
+    // vehicle barely creeps for the first half second out of the silo and is
+    // then gone, which is what a hot launch looks like and what a linear rise
+    // never does.
+    //
+    // The one thing worth writing down is what it lines up with for free. The
+    // nose clears grade at t = 1.30 s, which on this beat's mapping is T+1.86 --
+    // and kCaptions puts the word LIFTOFF at T+1.80. The picture and the caption
+    // land 60 ms apart without either being tuned to the other, because both come
+    // from the same published sequence.
+    if (ts <= kIgnS) return kPadBase0;
+    return kPadBase0 - powf((ts - kIgnS) * 1.35f, 2.6f) * 30.0f;
 }
 
 float Director::SubjectScale() const
@@ -1040,6 +1263,142 @@ void Director::DrawEarthLimb(LovyanGFX& g, int dy) const
     }
 }
 
+void Director::DrawSmoke(LovyanGFX& g, int dy) const
+{
+#ifdef ANIM_PROFILE
+    const uint32_t t0 = micros();
+#endif
+    const float u  = screen_ / 240.0f;
+    const float ts = PadSeconds();
+
+    // Oldest first, so the young bright puffs sit on top of the old faint ones --
+    // which is what gives a flat 2-ring disc any depth at all.
+    for (int s = 0; s < kSmokeMax; ++s) {
+        const float born = kSmokeStartS + (float)s * kSmokeDtS;
+        if (born > kSmokeEndS) break;   // the spawn window closed; none after this
+        const float age = ts - born;
+        if (age <= 0) break;            // not born yet, and every later one is later
+
+        const uint32_t h  = (uint32_t)s * 2654435761u;
+        const float    n0 = Noise(h + 1u), n1 = Noise(h + 2u);
+        const float    n2 = Noise(h + 3u), n3 = Noise(h + 4u);
+
+        // continue, NOT break: lives differ, so an older puff can outlast a
+        // younger one and the loop must keep looking.
+        const float life = 2.6f + n3 * 1.6f;
+        if (age >= life) continue;
+
+        // Rolling outward off the pad and rising slowly, at the reference's
+        // velocities. The +/-10 term is what splits the bank around the vehicle
+        // instead of piling it up underneath -- without it the smoke reads as a
+        // puff of exhaust rather than as a blast deflector doing its job.
+        const float vx = (n1 - 0.5f) * 22.0f + (n0 < 0.5f ? -10.0f : 10.0f);
+        const float vy = -n2 * 6.0f;
+
+        float r = 5.0f + n2 * 7.0f + age * kSmokeGrowth;
+        if (r > kSmokeRMax) r = kSmokeRMax;
+        r *= u;
+
+        const float x = (120.0f + (n0 - 0.5f) * 30.0f + vx * age) * u + shakeX_;
+        const float y = (kGroundY - 2.0f + vy * age) * u + shakeY_;
+        if (x + r < 0 || x - r > screen_ || y + r < 0) continue;
+
+        const float a = fminf(0.75f, (life - age) * 0.5f);
+        if (a < 0.06f) continue;   // below this it is a black disc costing real fill
+
+        g.fillCircle((int)x, (int)y - dy, (int)r, Shade(pal::SmokeRim(), a));
+        const int ri = (int)(r * 0.62f);
+        if (ri > 0) {
+            g.fillCircle((int)(x - r * 0.18f), (int)(y - r * 0.20f) - dy, ri,
+                         Shade(pal::SmokeCore(), a));
+        }
+    }
+#ifdef ANIM_PROFILE
+    smokeUs_ = micros() - t0;
+#endif
+}
+
+void Director::DrawLiftoff(LovyanGFX& g, int dy) const
+{
+    const float u    = screen_ / 240.0f;
+    const float ts   = PadSeconds();
+    const float base = PadBase(ts);
+
+    // The furniture shakes with the vehicle, from the same stored offsets -- see
+    // Director::shakeX_. Recomputing the shake per element is how a ground line
+    // and a silo mouth end up moving independently in the same frame.
+    const int gy = (int)(kGroundY * u + shakeY_);
+    const int cx = (int)(screen_ * 0.5f + shakeX_);
+
+    g.fillScreen(pal::Space());
+
+    // ---- ground plane and silo mouth -------------------------------------
+    // The grade line runs the full width and simply leaves the glass at both
+    // ends, which is correct on a round face: a horizon that stopped short of
+    // the bezel would read as a drawn object rather than as the ground.
+    g.drawFastHLine(0, gy - dy, screen_, pal::Ground());
+    g.drawFastHLine(0, gy + 1 - dy, screen_, pal::Ground());
+
+    const int mw = (int)(kSiloHalfW * u);
+    const int mt = gy - (int)(2 * u);
+    const int mh = (int)(6 * u) + 1;
+    g.fillRect(cx - mw, mt - dy, mw * 2, mh, pal::SiloMouth());
+    g.drawRect(cx - mw, mt - dy, mw * 2, mh, pal::SiloEdge());
+
+    DrawSmoke(g, dy);
+
+    // ---- the glow in the hole --------------------------------------------
+    //
+    // DRAWN BEFORE THE VEHICLE so the vehicle occludes it on the way out -- that
+    // is the reference's rule and the reason its glow reads as light coming from
+    // *behind* the emerging missile rather than painted on it.
+    //
+    // AFTER THE SMOKE, though, which the reference does not do. Its cloud is ~100
+    // small puffs; this one is 33 large ones spawned within +/-15 px of a glow
+    // that is +/-13 px wide, so under the reference's ordering the smoke simply
+    // buries it -- and this is the only thing on screen between ignition and
+    // first motion. The motor is lit, the vehicle has not moved, and light
+    // coming out of the ground is the whole of what the shot has to say for those
+    // four hundred milliseconds; losing it to exhaust costs the beat its opening.
+    //
+    // Glow over smoke is also the more honest of the two: light from the silo
+    // illuminates the cloud, it does not hide behind it.
+    if (ts > 0.35f && base > kGroundY - 6.0f) {
+        const float a  = fminf(1.0f, (ts - 0.35f) / 0.4f);
+        const int   gw = (int)(13 * u);
+        g.fillRect(cx - gw, gy - (int)(3 * u) - dy, gw * 2, (int)(4 * u) + 1,
+                   Shade(pal::SiloGlow(), a));
+    }
+
+    // ---- the vehicle, CLIPPED AT GRADE -----------------------------------
+    //
+    // The clip is what makes this a hot launch rather than a rocket on a pad: the
+    // vehicle exists below the ground line for the first second and a bit and
+    // simply is not drawn there, so it emerges from the silo instead of sliding
+    // up past it. The flame is inside the clip too -- an exhaust plume painted
+    // over the ground while the motor is still in the hole is the single most
+    // obvious way to break it.
+    g.setClipRect(0, -dy, screen_, gy + 2);
+    DrawPlume(g, dy);
+    DrawVehicle(g, dy);
+    g.clearClipRect();
+
+    // ---- altimeter --------------------------------------------------------
+    // Re-derived from the published mark, not the reference's own constant; see
+    // DEVIATION 2. Suppressed until there is motion to report -- a readout of
+    // zero feet is noise, and the frame before first motion is deliberately bare.
+    if (ts > kIgnS) {
+        const float alt = 8300.0f * powf((float)TPlusMs() / 19000.0f, 2.6f);
+        char buf[20];
+        snprintf(buf, sizeof(buf), "ALT %06d FT", (int)alt);
+        g.setTextSize(1);
+        g.setTextDatum(textdatum_t::top_center);
+        g.setTextColor(pal::Grey());
+        g.drawString(buf, screen_ / 2, (int)(224 * u) - dy);
+        g.setTextDatum(textdatum_t::top_left);
+    }
+}
+
 void Director::DrawCaption(LovyanGFX& g, int dy) const
 {
     const char *l1 = "", *l2 = "";
@@ -1075,8 +1434,19 @@ void Director::DrawCaption(LovyanGFX& g, int dy) const
     // art the caption is describing. So: a one-pixel dark halo, which costs
     // eight extra drawString calls and works over the rim, over the ocean, over
     // space and over the fireball without hiding any of them.
-    const int y1 = (int)(192 * u) - dy;
-    const int y2 = (int)(204 * u) - dy;
+    // THE PAD PUTS ITS LOWER THIRD AT THE TOP, and so does the reference -- for
+    // the same reason, which is that on the ground camera the bottom of the frame
+    // is the GROUND. The grade line is at y=208 and the silo mouth spans 206-212,
+    // so the usual 192/204 block would straddle the one piece of furniture that
+    // establishes where the vehicle is coming out of, and the altimeter sits at
+    // 224 under it. There is no halo that fixes a caption drawn across a silo.
+    //
+    // Same chord arithmetic as below. y=36 -> 171 px, and the longest caption in
+    // this beat ("T+10 - FIRST ROLL MANEUVER", 26 chars) is 156 px of ink, so it
+    // clears by 7 px a side. Anything longer added for LIFTOFF breaks that.
+    const bool pad = (beat_ == Beat::Liftoff);
+    const int y1 = (int)((pad ? 36 : 192) * u) - dy;
+    const int y2 = (int)((pad ? 48 : 204) * u) - dy;
     const int cx = screen_ / 2;
 
     // FOUR OFFSETS, NOT EIGHT. Eight measured at +2.8 ms on a two-line caption
@@ -1109,7 +1479,11 @@ void Director::DrawPlume(LovyanGFX& g, int dy) const
     bool justLit = false;
     int  remaining = 3;
     switch (beat_) {
-        case Beat::Ignition:    burning = true; remaining = 3; break;
+        // The pad motor lights partway INTO the beat -- everything before kIgnS
+        // is the vehicle sitting in the hole with the glow building, which is the
+        // suspense the whole ground camera exists for.
+        case Beat::Liftoff:     burning = PadSeconds() > kIgnS; remaining = 3; break;
+        case Beat::Stage1Burn:  burning = true; remaining = 3; break;
         case Beat::Stage2Burn:
         case Beat::ShroudEject: burning = true; remaining = 2; break;
         case Beat::Stage3Burn:  burning = true; remaining = 1; break;
@@ -1175,7 +1549,22 @@ void Director::DrawPlume(LovyanGFX& g, int dy) const
     }
 
     const float flick = 0.75f + 0.25f * Noise(beatElapsedMs_ / 40u + 3u);
-    const float len   = (20.0f + 10.0f * flick) * scale_ * u;
+    float len  = (20.0f + 10.0f * flick) * scale_ * u;
+    float wide = 1.0f;
+
+    // THE PAD FLAME IS A DIFFERENT SIZE, NOT A DIFFERENT FLAME. The reference's
+    // ground shot runs 26 + jitter and grows 12 px/s as the motor comes up to
+    // pressure, against 18/13/7 widths instead of 12/8/5 -- roughly half again as
+    // wide and twice as long as the in-flight plume. That is a real difference:
+    // at sea level the nozzle is over-expanded and the plume is short and fat,
+    // and it is also simply closer to the camera. Scaling the one plume rather
+    // than writing a second is the same rule DrawNoseCone follows -- one object,
+    // one definition, or the two drift.
+    if (beat_ == Beat::Liftoff) {
+        len  = (26.0f + 22.0f * (flick - 0.75f) * 4.0f
+                + fminf(28.0f, (PadSeconds() - kIgnS) * 12.0f)) * u;
+        wide = 1.5f;
+    }
 
     // Three nested teardrops, widest and coolest outside. Triangles rather than
     // quadratics: at this size the curve is two pixels of difference.
@@ -1185,12 +1574,25 @@ void Director::DrawPlume(LovyanGFX& g, int dy) const
         { 5.0f, 0.42f, pal::FlameCore()},
     };
     for (int i = 0; i < 3; ++i) {
-        const float hw = layers[i].w * 0.5f * scale_ * u;
+        const float hw = layers[i].w * 0.5f * wide * scale_ * u;
         float x0, y0, x1, y1, x2, y2;
         Axis(vx_, vy_, r, tail, -hw, x0, y0);
         Axis(vx_, vy_, r, tail,  hw, x1, y1);
         Axis(vx_, vy_, r, tail + len * layers[i].l, 0, x2, y2);
         g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, layers[i].c);
+    }
+
+    // Sparks, on the pad only. Debris coming off a launch mount is a ground-shot
+    // detail -- there is nothing left to shed by the time the chase cam picks the
+    // vehicle up, and adding them at altitude would read as the vehicle breaking
+    // up. Three per frame, deterministic, straight from the reference.
+    if (beat_ == Beat::Liftoff) {
+        for (int i = 0; i < 3; ++i) {
+            const uint32_t s = beatElapsedMs_ / 30u + (uint32_t)i * 7919u;
+            float sx, sy;
+            Axis(vx_, vy_, r, tail + Noise(s + 1u) * len, (Noise(s + 2u) - 0.5f) * 16.0f * u, sx, sy);
+            g.fillRect((int)sx, (int)sy - dy, 2, 2, pal::Ember());
+        }
     }
 }
 
@@ -1207,7 +1609,8 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
     // frame early.
     int remaining = 3;
     switch (beat_) {
-        case Beat::Ignition:    remaining = 3; break;
+        case Beat::Liftoff:
+        case Beat::Stage1Burn:  remaining = 3; break;
         case Beat::Stage1Sep:   remaining = beatElapsedMs_ < 300 ? 3 : 2; break;
         case Beat::Stage2Burn:
         case Beat::ShroudEject: remaining = 2; break;
@@ -1221,13 +1624,19 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
     // kSegments IS in nose -> tail order, so what survives a separation is the
     // FIRST `remaining` entries -- stage 3 is nearest the payload and stage 1 is
     // the one at the tail that leaves first.
+    //
+    // Lit() is the ONLY thing the pad changes about the vehicle. Same segments,
+    // same colours, same proportions, same function -- see Director::sunLift_ for
+    // why the ground camera does not get its own paint. It is a no-op everywhere
+    // except LIFTOFF and the opening quarter of STAGE 1.
     float along = 0;
     for (int i = 0; i < remaining; ++i) {
         const Segment& s = kSegments[i];
         const float hw = s.wide * 0.5f * k;
         FillQuad(g, vx_, vy_, r, along * k, (along + s.len) * k, hw, dy,
-                 StageColour(i));
-        FillQuad(g, vx_, vy_, r, along * k, (along + 2.0f) * k, hw, dy, pal::Band());
+                 Lit(StageColour(i), sunLift_));
+        FillQuad(g, vx_, vy_, r, along * k, (along + 2.0f) * k, hw, dy,
+                 Lit(pal::Band(), sunLift_));
         along += s.len;
     }
 
@@ -1240,7 +1649,8 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
     float bx, by;
     Axis(vx_, vy_, r, -8.0f * k, 0, bx, by);
     if (beat_ < Beat::ShroudEject) {
-        DrawNoseCone(g, bx, by, r, k, kShroudLen, kShroudHalfW, dy, pal::Aeroshell());
+        DrawNoseCone(g, bx, by, r, k, kShroudLen, kShroudHalfW, dy,
+                     Lit(pal::Aeroshell(), sunLift_));
     } else {
         DrawNoseCone(g, bx, by, r, k, kRvLen, kRvHalfW, dy, pal::RvBody(), pal::RvLit());
     }
@@ -1360,7 +1770,9 @@ void Director::DrawNoseCone(LovyanGFX& g, float baseX, float baseY, float r, flo
 void Director::DrawBus(LovyanGFX& g, float ox, float oy, float r, float k, int dy,
                        bool showEngine) const
 {
-    FillQuad(g, ox, oy, r, -8.0f * k, 0.0f, kBusHalfW * k, dy, pal::Bus());
+    // Lit() carries the pad's daylight; a no-op once sunLift_ has faded, which is
+    // long before the bus is ever seen on its own.
+    FillQuad(g, ox, oy, r, -8.0f * k, 0.0f, kBusHalfW * k, dy, Lit(pal::Bus(), sunLift_));
 
     // THE AXIAL ENGINE. Only once the stages are gone -- while they are attached
     // this nozzle is buried inside stage 3 and drawing it puts an engine bell in
@@ -1861,6 +2273,25 @@ void Director::DrawMatchCut(LovyanGFX& g, int dy) const
 void Director::Render(LovyanGFX& g, int yOffset)
 {
     const int dy = yOffset;
+
+    // THE GROUND CAMERA. It owns its whole frame: no sky gradient and no Earth
+    // limb, because at grade the limb IS the ground line and drawing both would
+    // put a horizon in the sky above a horizon on the floor.
+    //
+    // THE CUT OUT OF IT IS A CUT ON ABSENCE, not a match cut. §11's match-cut
+    // rule governs the ascent -> map transition and matches on SHAPE (the vehicle
+    // becomes a dot; the map opens on that dot). This one matches on nothing,
+    // deliberately: the ground camera holds until the vehicle has left the frame
+    // -- it is gone by ~39% of the beat and the rest of the shot is smoke -- and
+    // the cut happens because the subject has departed, which is the oldest
+    // motivated cut there is and needs no device. What carries the continuity
+    // across it instead is that the vehicle is the same object at the same size
+    // in the same paint on both sides; see Director::sunLift_.
+    if (beat_ == Beat::Liftoff) {
+        DrawLiftoff(g, dy);
+        DrawCaption(g, dy);
+        return;
+    }
 
     // Two beats own their whole frame -- they are shot from somewhere else and
     // the ascent's sky and limb would only fight them.
