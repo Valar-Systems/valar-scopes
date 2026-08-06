@@ -96,13 +96,22 @@ explicitly a guess from unclassified sources — the right provenance posture).
   distance ("CEP"), lower is better. Published benchmark to beat: Minuteman III CEP ≈ 800 ft
   / 240 m.
 
-  **Curve (proposed default, 2026-08-05).** Bucket `b = |dev| / 0.1 s`:
+  **Curve — LINEAR (RATIFIED 2026-08-06).** §13's "start linear, small deadzone" is the
+  ruling. Deviation maps straight to distance at a fixed slope, with a deadzone at the
+  measurement floor and a cap at the window edge:
 
-  | `b` | Scores | Displays |
+  ```
+  miss = 1000 m per second of |dev|      ( = 100 m per 0.1 s )
+         floored at 50 m inside the deadzone   (|dev| ≤ 0.1 s — see ruling 3)
+         capped  at 900 m                      (binds above 0.9 s — see ruling 1)
+  ```
+
+  | `\|dev\|` | Scores | Displays |
   |---|---|---|
-  | `b ≤ 1` | **50 m** (see ruling 3) | **"SHACK"** — direct hit |
-  | `b > 1` | miss = **100 m × (b − 1)** | the distance |
-  | `b = 10` | **900 m** — the cap (see ruling 1) | — |
+  | ≤ 0.1 s | **50 m** (see ruling 3) | **"SHACK"** — direct hit |
+  | 0.3 s | **300 m** | the distance |
+  | 0.9 s | **900 m** | the distance |
+  | 1.0 s (window edge) | **900 m** — capped | the distance |
 
   The 100 m per 0.1 s slope is not a free parameter — it *is* the bullet's own 300 ms ≈ 300 m,
   so the curve and the flavour text agree by construction. The deadzone is the §13 "small
@@ -110,22 +119,50 @@ explicitly a guess from unclassified sources — the right provenance posture).
   (§4 amendment), so forgiving the first bucket is the same statement as not claiming
   precision we do not have.
 
+  > **What this replaced, and why it is worth a paragraph.** The previous table read
+  > `miss = 100 m × (b − 1)` over the bucket index — a **step** function — directly beneath the
+  > sentence claiming the slope *is* "300 ms ≈ 300 m". It is not: at `b = 3` that formula gives
+  > **200 m**. The section asserted a slope and specified a staircase, and the two had been
+  > sitting a line apart since 2026-08-05.
+  >
+  > The give-away is ruling 3 below, which derives the 50 m deadzone score from
+  > `E[|dev|] = 0.05 s` "at the 100 m-per-bucket slope". That derivation **only works on the
+  > linear curve** — under the step formula, 0.05 s falls in bucket 1 and scores 0 m, and the
+  > ruling would be deriving 50 from a curve that says 0. Ruling 3 was linear all along.
+  >
+  > The same two-formulas split had propagated into `valar-eam-feed`'s `game/config.ts`, where
+  > `maxMissM`'s comment carried the step arithmetic (`b ≤ 10 → 900 m`) while its sibling
+  > constants carried the slope. Both are now corrected, and the implementation
+  > (`src/game/scoring.ts` there) is linear. **The curve exists in exactly one place —
+  > `GAME_SCORE_*` config — so the device and the website cannot disagree about what a sortie
+  > scored.**
+
   **Rulings on the three flags (DECIDED 2026-08-05).**
 
   1. **CAP = 900 m.** Deviation only exists *inside a valid execution window*, and the window is
      **±1 s around T** (2 s total width, §12). A key landing outside it is a FAILED execution
-     with no flight at all, per §3 — so `|dev| ≤ 1.0 s` **by construction**, `b ≤ 10`, and the
-     worst recordable miss is 900 m. The 1,900 m reading assumed a deviation the game can never
-     record. Board flavour line stays honest: *"worst valid shot ≈ 4× published CEP."*
+     with no flight at all, per §3 — so `|dev| ≤ 1.0 s` **by construction**, and the 1,900 m
+     reading this ruling was written against assumed a deviation the game can never record.
+     Board flavour line stays honest: *"worst valid shot ≈ 4× published CEP."*
+
+     **Amended by the 2026-08-06 linear ratification:** on the linear curve the window edge
+     reaches **1,000 m**, so 900 m is a **cap that binds** above 0.9 s rather than a maximum
+     that falls out of the arithmetic. That distinction is not pedantry — a constant that can
+     never bind is a constant somebody eventually deletes as dead, and this one is doing work.
   2. **CEP = MEDIAN.** The ladder stat is the **median** miss distance, which is what CEP
      actually means — the radius containing 50 % of impacts. A mean may appear as a secondary
      stat but **never under the CEP label**. Comparison against the published 240 m is then
      statistics-honest rather than a category error.
   3. **SHACK scores 50 m, displays SHACK.** 50 m is not an arbitrary tiebreak: it is the
      **expected miss of a shot known only to be inside the first bucket**. Uniform over ±0.1 s
-     gives `E[|dev|] = 0.05 s`, which at the 100 m-per-bucket slope is exactly 50 m. The
-     deadzone scores its expected value; the display keeps the reward. The player still sees a
-     bullseye; the ladder still separates.
+     gives `E[|dev|] = 0.05 s`, which at the 1000 m/s slope is exactly 50 m. The deadzone
+     scores its expected value; the display keeps the reward. The player still sees a bullseye;
+     the ladder still separates.
+
+     **A SHACK never scores 0 m.** Recorded explicitly because "direct hit = zero miss" is the
+     obvious reading of the display and would undo this ruling by reflex: at 0 m every SHACK
+     ties exactly, which is the collapse ruling 4 then has to solve all over again — and the
+     mean would stop separating the top of the board too, not just the median.
 
   4. **Rank on the mean; headline the median (DECIDED 2026-08-05).** Rulings 2 and 3 are each
      right and they collide: if every SHACK scores *exactly* 50 m, any player who SHACKs more
@@ -787,9 +824,11 @@ choreography of the four-hand split, exercise codenames, payload roster.
 
 ### Remaining — content & playtest tunables
 
-Deviation→distance curve (start linear, small deadzone) · message-class weights (tune from
-fleet telemetry, §5) · payload roster · codename wordlists · achievements · certification
-drill script · inhibit-reason dropdown list.
+~~Deviation→distance curve~~ — **RATIFIED LINEAR 2026-08-06** (§4). "Start linear, small
+deadzone" was this line; it is now the specification and the implementation, and the constants
+live in `valar-eam-feed`'s `GAME_SCORE_*` config so tuning it is not a build. Still open:
+message-class weights (tune from fleet telemetry, §5) · payload roster (§7 escape hatch) ·
+codename wordlists · achievements · certification drill script · inhibit-reason dropdown list.
 
 ### Superseded — original open-questions list (for the record)
 
@@ -847,8 +886,8 @@ URL convention (/{edition}/{surface}, Blipscope 301).
 
 16. Season cadence — proposed in §9 (monthly proficiency + annual championship);
     **awaiting sign-off**.
-17. Deviation→distance curve (start linear, small deadzone) · payload roster · codename
-    wordlists · achievements.
+17. ~~Deviation→distance curve~~ **CLOSED 2026-08-06 — linear, ratified (§4).** Remaining:
+    payload roster · codename wordlists · achievements.
 18. **Onboarding gate** — proposed: short in-fiction **crew certification** (practice
     drill on EXERCISE traffic) required before first live commitment.
 19. **Persistent impacts** (new idea, 2026-08-04) — proposed: impact markers accumulate on
@@ -899,7 +938,7 @@ deputy-gesture hardware prototype (§13.3).
 | **minutemanmissile.com, MIRVs/RVs page** | Single-RV loading documented since 16 Jun 2014 → §5 RV-count default of 1 |
 | **TWZ + CSIS, post-New-START upload-readiness reporting (2026)** | Why RV count is a server config rather than a constant — the real posture can change without a firmware build |
 | **AEC test photography — Plumbbob Hood, Upshot-Knothole Badger** | Detonation fire palette (§11). Public-domain US government imagery → embeddable on /missileer/sources |
-| **1994 detargeting agreement + Broad Ocean Area practice targets** | §6b v1 default: the game's aim point is the real force's practice aim point, and it is ocean |
+| **1994 detargeting agreement + Glory Trip / Broad Ocean Area practice targets** | §6b v1 default: the game's aim point is the real force's practice aim point, and it is ocean. **Glory Trip** is the published name of the operational test-launch programme those shots fly under — the same GT series the backend already tracks (`valar-eam-feed`, `data/glory-trips.json` → `/launches/icbm`), so the game's v1 target and the launch feed the device already polls cite one programme |
 | **NUKEMAP (Alex Wellerstein)** | Precedent for the §6b posture — a decade of public arbitrary-target placement as an education tool; the product picks what it *publishes*, not what the player aims at |
 | **GMD interception test record (~50 %)** | §6b Tier 2 defense odds — the published record used as the actual probability, so the least believable part of duels is the sourced part |
 | **Minimum-energy Lambert time-of-flight** | §7 TOF model; validates 6,700 km → 24.9 min, 9,700 → 31.6, 14,000 → 38.5, so the "≈30 min" figure is derived rather than asserted |
