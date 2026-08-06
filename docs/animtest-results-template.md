@@ -54,6 +54,13 @@ Copy from the `FPS,VERDICT,…` line at the end of a full run.
 reads as a stutter rather than as slow motion, and the ascent is judged on
 motion.
 
+> **Measured floor:** `push_worst_ms` is **25.8 ms on every beat** (2026-08-06,
+> s3-128) — the SPI push of a 240×240×16bpp frame, invariant and untunable. So
+> compose has a **~24 ms budget**, and a beat that misses the bar is always an
+> art problem here, never a bus one. Ascent beats spend 4.4–5.4 ms of it.
+
+Past runs: [animtest-results-2026-08-06.md](animtest-results-2026-08-06.md).
+
 ---
 
 ## Per-beat table
@@ -79,7 +86,7 @@ reconciled with §12 (`stage 1 ~60 s, stage 3 ~120 s, post-boost ~180 s`).
 | 10 | RV RELEASE | 225 | | | | | | | silent |
 | 11 | BUS BACKAWAY | 233 | | | | | | | |
 | 12 | PENAIDS | 245 | | | | | | | |
-| 13 | MIDCOURSE | 260 | | | | | | | should be the cheapest |
+| 13 | MIDCOURSE | 260 | | | | | | | **not** the cheapest — the match cut opens the map inside it |
 | 14 | REENTRY | 1806 | | | | | | | own sky gradient + cloud deck |
 | 15 | DETONATION | 1896 | | | | | | | **expected worst — 46 puffs, full-screen** |
 | 16 | MATCH CUT | — | | | | | | | map opens on the dot |
@@ -99,17 +106,23 @@ Worst sep frame: ______ ms · neighbour beats: ______ ms · **hitch? ☐ yes ☐
 **2. Can the detonation stay full-screen?** §11 is explicit that it is
 full-screen ("at this point the frame is the event, and a fireball that politely
 stays inside a viewport is a firework"), so the lever is a **cheaper cloud, never
-a smaller one**. Three constants at the top of `FlightAnimation.cpp`, in the
-order to spend them:
+a smaller one**. Constants at the top of `FlightAnimation.cpp`, in **measured**
+order of effect:
 
-| Constant | Default | What you lose |
-|---|---|---|
-| `kPuffRings` | 5 | internal shading on each billow — try 3 first, it is the cheapest win |
-| `kCrownPuffs` | 16 | churn in the outer head; below ~10 it starts reading as a dome |
-| `kStemPuffs` | 14 | flutes in the column |
-| `kSkirtPuffs` | 8 | the ground dust roll (also drives the brush silhouettes) |
+| Constant | Default | Effect | What you lose |
+|---|---|---|---|
+| `kHaloRings` | 5 | **−19 ms** | the warm wash around the head. Was 10 rings to 1.9 × capR — a 215 px radius on a 240 px screen, ~558k px of nearly full-screen overdraw |
+| `kPuffRings` | 5 | ~−4 ms | internal shading on each billow |
+| `kCrownPuffs` | 16 | ~−3 ms | churn in the outer head; below ~10 it reads as a dome |
+| `kStemPuffs` | 14 | small | flutes in the column |
+| `kSkirtPuffs` | 8 | small | the ground dust roll (also drives the brush silhouettes) |
 
-Detonation worst: ______ ms · `kPuffRings` needed to pass: ______ · counts cut: ______
+> **This order was wrong until it was measured.** The first version of this doc
+> put `kPuffRings` first on the reasoning that 46 billows must be the expensive
+> thing. They are about a fifth of what the halo was spending on a wash you can
+> barely see. Re-measure before re-ordering.
+
+Detonation worst: ______ ms · levers spent: ______
 
 **3. Does the Earth limb scale?** It draws column-wise — 240 columns × four
 spans plus seven cloud ellipses — and it is on screen for every ascent beat. It
