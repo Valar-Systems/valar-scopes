@@ -77,9 +77,16 @@ module, behind `-DANIM_PROFILE`. It is carried on **every** row so the column is
 a constant width — and so the zeros on the other sixteen rows are themselves the
 assertion that no other beat pays for it.
 
+> **LIFTOFF is the one beat with a `preRollMs`.** It runs **T-4 → T+10**: the
+> locking pin and the closure door move before first-stage ignition, and T+0
+> *is* ignition. `BeatTrueStartMs` subtracts the pre-roll and `TPlusMs` holds at
+> T+0 through it, so the door can take as long as it needs without moving a mark
+> downstream. If STAGE 1 SEP ever logs anything but ~62,000, that subtraction is
+> the first place to look.
+
 | # | Beat | T+ | Frames | Avg ms | **Worst ms** | Worst fps | Compose worst | Push worst | Smoke worst | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | LIFTOFF | 0 | | | | | | | | ground camera; **only beat with smoke** |
+| 1 | LIFTOFF | −4 → 10 | | | | | | | | ground camera; **only beat with smoke, and the only one with a pre-roll** |
 | 2 | STAGE 1 | 10 | | | | | | | 0 | chase cam; 3 captions ride inside it |
 | 3 | STAGE 1 SEP | 62 | | | | | | | 0 | staging beat |
 | 4 | STAGE 2 | 65 | | | | | | | 0 | |
@@ -217,7 +224,7 @@ supposed to be the same picture, not merely the same idea.
 |---|---|---|---|
 | **Locking pin retracts first**, then the slab goes — reads as a mechanism, not a drawer | — | | ☐ |
 | **Launcher Closure Door slides sideways and clean off the frame** (*launch footage; in neither the NG animation nor the preview*) | — | | ☐ |
-| Door is fast but **not a blur** — you can see 110 tons moving | — | | ☐ |
+| Door takes **~1.8 s** — you can see 110 tons moving, not a panel snapping aside | — | | ☐ |
 | **Ignition happens after the door clears, with the vehicle still below grade** | — | | ☐ |
 | Vehicle is **fully buried** before first motion, then hot-launches | ✓ | | ☐ |
 | Fire has **no straight edges anywhere** — see the note below | — | | ☐ |

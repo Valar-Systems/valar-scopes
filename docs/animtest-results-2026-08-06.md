@@ -545,7 +545,104 @@ Sizing is now **derived from the vehicle in the same frame** rather than guessed
 — 3.5 ft of slab is 7 px, and the ~21 ft closure is 42 px across. Both guesses
 were close; they carry now if the vehicle's width ever changes.
 
-Sequence: pin 0.05 → 0.22, slab 0.24 → 0.66, first light 0.66, ignition 0.90.
+---
+
+## Run 12 — the door was still far too fast, and why that needed a beat change
+
+**"The door needs to open much slower."** It was 0.42 pad-seconds — 0.54 s of wall
+clock for 110 tons — and it read as a panel snapping aside rather than a mass
+being shoved.
+
+The obvious fix was blocked. Ignition sat at 0.9 pad-seconds, the door has to
+finish before it, and the pin has to finish before *that* — so there was simply
+nowhere to put the time. Slowing the door meant moving ignition, and moving
+ignition inside a beat whose duration feeds `BeatTrueStartMs` moves **every
+published mark downstream**. Choose one: a door that opens in half a second, or
+stage 1 separating at T+66.
+
+### The distinction that unblocks it: T-minus is not T-plus
+
+**T+0 is first-stage ignition.** The locking pin and the closure door both move
+*before* it. That time is real, it takes wall clock, and it must not consume T+
+time — which is a thing the beat table had no way to express, because a beat's
+`trueMs` was assumed to be entirely T+.
+
+`BeatSpec` gains **`preRollMs`**: how much of a beat's true duration happens
+before T+0. Zero for all sixteen other beats.
+
+- `BeatTrueStartMs` subtracts it, so LIFTOFF contributes 10,000 ms to the start
+  of STAGE 1 despite lasting 14,000 — every mark downstream is untouched.
+- `TPlusMs` holds at T+0 through it, which is also just *correct*: the caption
+  during those seconds is `T-0 - STAGE 1 IGNITION`, and it should be. Running the
+  clock from the top of the beat would have put the whole caption track four
+  seconds early and had the altimeter reporting climb before there was any.
+
+LIFTOFF is now **T-4 → T+10**: `{14000, 11000, 4000}`.
+
+### What that bought
+
+The pad phase runs 8.75 pad-seconds with ignition at 2.50 — a 2:5 split, chosen
+so the 14,000/4,000 pre-roll comes out at a clean 10,000 ms of T+ time.
+
+| | before | after | wall clock |
+|---|---|---|---|
+| pin | 0.05 → 0.22 | 0.15 → 0.75 | 0.75 s |
+| **slab** | 0.24 → 0.66 (0.42) | **0.85 → 2.30 (1.45)** | **1.8 s bench, 2.3 s true** |
+| first light | 0.66 | 2.30 | |
+| ignition | 0.90 | 2.50 | |
+
+**3.5× slower.** The easing exponent also softened, 2.0 → 1.6: a square ease-out
+puts a third of the travel in the first fifth of the time, which over 1.8 s reads
+as a snap followed by a long drift — the fast part looked as quick as the old
+door and the rest looked like it was running out of gas.
+
+### Two things that had to move with it, and one that came back
+
+The launch coefficient is **re-solved, not left alone** — 0.534 → **0.478**,
+against the same fixed 4.66 ratio, so the vehicle still leaves frame at 7.84 of
+8.75 and the held ground shot before the cut is unchanged. Visible transit is now
+**5.3 s**.
+
+The smoke window moved with the launch curve rather than independently of it:
+0.45 → **2.05** (the reference's "half a second before ignition") and 4.55 →
+**6.58** (its `base > groundY - 90`, re-solved). Hand-tuning either after a
+timing change is how the smoke ends up starting before the door has opened.
+
+And the coincidence the last retune lost is **back for free**: the nose comes
+through grade at T+1.61 against the LIFTOFF caption at T+1.80. Not tuned — both
+are now anchored to ignition rather than to the top of a beat with a pre-roll in
+front of it, which is the whole point of the change.
+
+### Measured, full pass
+
+| | Worst ms | Worst fps | Compose | Push | Smoke |
+|---|---|---|---|---|---|
+| LIFTOFF | **36.8** | 27.2 | 11.0 | 25.8 | 5.5 |
+
+37.2 → **36.8**, i.e. slightly *cheaper*: `kSmokeDtS` widened 0.085 → 0.095 to
+hold the puff count at 48 across the longer spawn window, so there is one fewer
+disc spread over more frames. 13.2 ms of headroom.
+
+**And the marks held**, which is the result that actually mattered here — the
+beat's true duration went 10,000 → 14,000 ms and not one of them moved:
+
+| Mark | Expected | Logged |
+|---|---|---|
+| STAGE 1 (chase cam opens) | T+10 | **10,043** |
+| STAGE 1 SEP | T+62 | **62,013** |
+| SHROUD | T+121 | 121,001 |
+| STAGE 2 SEP | T+123 | 123,012 |
+| STAGE 3 SEP | T+177 | 177,013 |
+| POST-BOOST | T+180 | 180,091 |
+| REENTRY | T+1806 | 1,806,404 |
+| DETONATION | T+1896 | 1,896,005 |
+
+DETONATION unchanged at 48.6 / 22.8 and still the worst beat; STAGE 1 unchanged
+at 32.6 / 6.8; every non-LIFTOFF row still `smoke 0.0`.
+
+---
+
+Sequence: pin 0.15 → 0.75, slab 0.85 → 2.30, first light 2.30, ignition 2.50.
 
 **2. Fire shoots straight up out of the hole, with the missile still inside it.**
 Four consecutive frames of that footage show **no vehicle at all** — just a

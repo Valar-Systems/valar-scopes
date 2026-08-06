@@ -278,6 +278,20 @@ struct BeatSpec {
     const char* name;
     uint32_t    trueMs;
     uint32_t    compressedMs;
+    /**
+     * How much of trueMs happens BEFORE T+0. Zero for every beat but LIFTOFF.
+     *
+     * The launch sequence does not start at T+0 -- T+0 is first-stage ignition,
+     * and the locking pin and the 110-ton closure both move before it. That is
+     * T-MINUS time: it takes wall clock but it must not consume T+ time, or every
+     * published mark downstream slides by however long the door takes.
+     *
+     * So BeatTrueStartMs subtracts it (the marks are unaffected by anything that
+     * happens on the near side of ignition) and TPlusMs holds at T+0 through it.
+     * Without this the choice was between a door that opens in half a second and
+     * a stage 1 separation at T+66.
+     */
+    uint32_t    preRollMs;
 };
 
 /*
@@ -307,17 +321,25 @@ struct BeatSpec {
  * the motor lit would be lying, and STAGE 1 puts it in the same vocabulary as
  * STAGE 2 and STAGE 3.
  *
- * LIFTOFF IS BARELY COMPRESSED AT ALL -- 9000 against a true 10000 -- and that
+ * LIFTOFF IS BARELY COMPRESSED AT ALL -- 11000 against a true 14000 -- and that
  * is the same decision as the staging coast being 1 s in both columns. The look
  * target's 7000 was carried over on the rule that its tuned phase lengths are
  * not re-guessed, and on glass at 7000 the vehicle was visible for 1.5 seconds
  * of it. There is nothing in a ten-second launch to compress: it is already the
  * shortest beat with an event in it, and squeezing the one moment the whole
  * ground camera exists to show is how it gets missed. (Measured before and
- * after: 1.5 s of visible transit -> 4.7 s. See the launch curve in PadBase.)
+ * after: 1.5 s of visible transit -> 5.3 s. See the launch curve in PadBase.)
+ *
+ * ITS 14000 IS T-4 TO T+10, NOT T+0 TO T+14. The 4000 in the fourth column is
+ * preRollMs: the pin and the 110-ton closure both move before first-stage
+ * ignition, which is what T+0 actually means. That time is real and has to be on
+ * the clock -- a door shoved by a gas generator still takes seconds -- but it is
+ * T-minus, so BeatTrueStartMs subtracts it and STAGE 1 still begins at T+10.
+ * Without the distinction the only options were a door that opens in half a
+ * second or a stage 1 separation at T+66.
  */
 const BeatSpec kBeats[(int)Beat::COUNT] = {
-    /* Liftoff      */ {"LIFTOFF",       10000,  9000},  // T+0   -> T+10, from the ground
+    /* Liftoff      */ {"LIFTOFF",       14000, 11000, 4000},  // T-4 -> T+10, from the ground
     /* Stage1Burn   */ {"STAGE 1",       52000,  6000},  // T+10  -> T+62
     /* Stage1Sep    */ {"STAGE 1 SEP",    3000,  3000},  // T+62  -- coast is 1 s in both
     /* Stage2Burn   */ {"STAGE 2",       56000,  5000},  // T+65  -> T+121
@@ -479,8 +501,15 @@ constexpr float kStackLen  = kTailAlong - kNoseAlong;           //  74
 // those seconds rather than in wall time so the choreography is identical in
 // both time modes -- true time simply plays the same seven seconds over ten.
 // ---------------------------------------------------------------------------
-constexpr float kPhaseS  = 7.0f;    // reference LIFTOFF phase length
-constexpr float kIgnS    = 0.9f;    // first motion
+// kPhaseS was the reference's own 7.0 with ignition at its 0.9. Both grew when
+// the closure door turned out to need seconds rather than half of one: the pad
+// now runs 8.75 pad-seconds with ignition at 2.5, so everything before T+0 has
+// room and everything after it is unchanged in shape.
+//
+// The split is exactly 2:5 (2.5 pre, 6.25 post), which is what makes the beat's
+// 14000/4000 preRoll come out at a clean 10000 ms of T+ time.
+constexpr float kPhaseS  = 8.75f;   // whole pad phase, T-minus included
+constexpr float kIgnS    = 2.50f;   // T+0. First-stage ignition, inside the tube
 constexpr float kGroundY = 208.0f;
 constexpr float kSiloHalfW = 14.0f;
 
@@ -530,16 +559,22 @@ constexpr float kSiloHalfW = 14.0f;
  * across. Both were guessed before those figures existed and both were close;
  * they are derived now, so a future change to the vehicle's width carries.
  *
- * Sequence: pin 0.05 -> 0.22, slab 0.24 -> 0.66, first light 0.66, ignition 0.90.
+ * Sequence: pin 0.15 -> 0.75, slab 0.85 -> 2.30, first light 2.30, ignition 2.50.
+ *
+ * THE SLIDE IS 1.45 PAD-SECONDS, WHICH IS 1.8 s ON THE BENCH AND 2.3 s AT TRUE
+ * SPEED. It was 0.42 (0.54 s) and looked like a panel snapping aside: 110 tons
+ * has to be SEEN to move. That is the whole reason the beat grew a pre-roll --
+ * the door could not be slowed while ignition sat at 0.9 pad-seconds, because
+ * there was nowhere to put the time.
  */
-constexpr float kPinStartS  = 0.05f;
-constexpr float kPinEndS    = 0.22f;
-constexpr float kDoorStartS = 0.24f;
-constexpr float kDoorEndS   = 0.66f;   // gas generator, not a winch
+constexpr float kPinStartS  = 0.15f;
+constexpr float kPinEndS    = 0.75f;
+constexpr float kDoorStartS = 0.85f;
+constexpr float kDoorEndS   = 2.30f;   // gas generator, but 110 tons of it
 constexpr float kDoorHalfW  = 21.0f;   // ~21 ft closure at 0.5 ft/px
 constexpr float kDoorThick  = 7.0f;    // 3.5 ft of concrete and steel
 constexpr float kDoorSlide  = 130.0f;  // clean off the panel, not parked beside the hole
-constexpr float kFireStartS = 0.66f;   // the motor lights once the path is clear
+constexpr float kFireStartS = 2.30f;   // the motor lights once the path is clear
 
 /**
  * THE FIRE IS A COLUMN OUT OF THE HOLE, NOT A DOME ON THE GROUND.
@@ -597,16 +632,17 @@ constexpr float kPadBase0 = kGroundY + kStackLen + 6.0f;
  * only the RATE is thinned, and at kSmokeDtS spacing the window admits a fixed
  * number whatever the frame rate, time mode, or how long the beat runs:
  *
- *     (4.55 - 0.45) / 0.085 + 1  =  49 puffs, ever
+ *     (6.58 - 2.05) / 0.095 + 1  =  48 puffs, ever
  *
- * kSmokeEndS moved with the launch curve, not independently of it: it is the
- * reference's own "while base > groundY - 90" condition, re-solved for the
- * slower ascent in PadBase. The last puff dies at 4.55 + 4.2 = 8.75 of 9.0 wall
- * seconds, which is what keeps the held shot from going empty before the cut.
+ * BOTH ENDS MOVE WITH THE REST OF THE PAD, never independently. The start is the
+ * reference's own "half a second before ignition" and the end is its "while
+ * base > groundY - 90", re-solved for the launch curve in PadBase. Hand-tuning
+ * either after a timing change is how the smoke ends up starting before the door
+ * has opened or stopping while the vehicle is still in the hole.
  */
-constexpr float kSmokeStartS = 0.45f;   // reference: IGN * 0.5
-constexpr float kSmokeEndS   = 4.55f;   // reference: while base > groundY - 90
-constexpr float kSmokeDtS    = 0.085f;
+constexpr float kSmokeStartS = 2.05f;   // reference: half a second before ignition
+constexpr float kSmokeEndS   = 6.58f;   // reference: while base > groundY - 90
+constexpr float kSmokeDtS    = 0.095f;
 constexpr int   kSmokeMax    = 52;      // ceil((end-start)/dt) + 1, with spares
 constexpr float kSmokeGrowth = 12.0f;   // px/s
 constexpr float kSmokeRMax   = 34.0f;   // a column stops being one if every puff is huge
@@ -963,8 +999,13 @@ uint32_t BeatDurationMs(Beat b, TimeMode mode)
 
 uint32_t BeatTrueStartMs(Beat b)
 {
+    // MINUS THE PRE-ROLL. T-minus time takes wall clock but is not T+ time; see
+    // BeatSpec::preRollMs. Only LIFTOFF has any, and this is what keeps STAGE 1
+    // beginning at T+10 however long the closure door is given to open.
     uint32_t t = 0;
-    for (int i = 0; i < (int)b && i < (int)Beat::COUNT; ++i) t += kBeats[i].trueMs;
+    for (int i = 0; i < (int)b && i < (int)Beat::COUNT; ++i) {
+        t += kBeats[i].trueMs - kBeats[i].preRollMs;
+    }
     return t;
 }
 
@@ -1253,18 +1294,26 @@ float Director::PadBase(float ts)
     // feels long. It was missable on glass, and the whole reason this beat exists
     // as a beat is that the launch is the moment nobody should miss.
     //
-    // 0.534 is solved, not dialled. With the exponent fixed at 2.6 the ratio
-    // between "clears grade" and "leaves frame" is fixed too -- 4.66, whatever
-    // the coefficient -- so there is exactly one degree of freedom, and setting
-    // the exit at 5.7 of the 7 pad-seconds determines everything else:
+    // The coefficient is solved, not dialled. With the exponent fixed at 2.6 the
+    // ratio between "clears grade" and "leaves frame" is fixed too -- 4.66,
+    // whatever the coefficient -- so there is exactly one degree of freedom.
+    // Below, as SECONDS AFTER IGNITION, which is the frame that matters now that
+    // ignition is not at the top of the beat:
     //
-    //               clears grade   leaves frame   visible   dead hold
-    //     1.35          1.30 s         2.79 s      1.5 s      4.2 s
-    //     0.534         1.91 s         5.68 s      3.8 s      1.3 s
+    //                clears grade   leaves frame   visible   hold before the cut
+    //     1.35 (ref)     0.40 s         1.89 s      1.5 s          4.2 s
+    //     0.534          1.01 s         4.78 s      3.8 s          1.3 s
+    //     0.478          1.13 s         5.34 s      4.2 s          0.9 s
     //
-    // Those are pad-seconds. In wall clock, with the beat also going 7000 ->
-    // 9000 ms, the visible transit is 1.5 s -> 4.9 s and the hold after it is
-    // 1.7 s. Three and a quarter times as long on screen.
+    // 0.478 re-solves the same equation against the longer phase (8.75 rather
+    // than 7.0 pad-seconds): the exit lands at 7.84, leaving the same held ground
+    // shot before the cut. In wall clock the visible transit is 5.3 s, against
+    // 1.5 s for the reference's own coefficient.
+    //
+    // It also puts the nose through grade at T+1.61 with the LIFTOFF caption at
+    // T+1.80 -- the near-alignment that the previous retune lost, back for free,
+    // because BOTH are now anchored to ignition rather than to the top of a beat
+    // that has a pre-roll in front of it.
     //
     // The cost is a coincidence worth recording as lost: at 1.35 the nose came
     // through grade at T+1.86 and kCaptions has had LIFTOFF at T+1.80 since
@@ -1274,7 +1323,7 @@ float Director::PadBase(float ts)
     // is on screen T+1.8 to T+3.0, so it now spans the emergence instead of
     // landing on it.
     if (ts <= kIgnS) return kPadBase0;
-    return kPadBase0 - powf((ts - kIgnS) * 0.534f, 2.6f) * 30.0f;
+    return kPadBase0 - powf((ts - kIgnS) * 0.478f, 2.6f) * 30.0f;
 }
 
 float Director::SubjectScale() const
@@ -1299,7 +1348,17 @@ uint32_t Director::TPlusMs() const
     // that showed it would be reporting the rig's clock as if it were the
     // flight's. The operator needs to know which T+ mark they are looking at;
     // that is the number §7 specifies the beats against.
-    return BeatTrueStartMs(beat_) + (uint32_t)(BeatProgress() * (float)kBeats[(int)beat_].trueMs);
+    //
+    // AND IT HOLDS AT T+0 THROUGH A PRE-ROLL. LIFTOFF opens on the locking pin
+    // and the closure door, which happen before first-stage ignition -- so for
+    // those four seconds the honest reading is T-0, exactly as the caption says,
+    // and the T+ clock starts when the motor lights. Running it from the top of
+    // the beat instead would have the whole caption track four seconds early and
+    // the altimeter reporting climb before there was any.
+    const BeatSpec& s = kBeats[(int)beat_];
+    const uint32_t elapsed = (uint32_t)(BeatProgress() * (float)s.trueMs);
+    if (elapsed <= s.preRollMs) return BeatTrueStartMs(beat_);
+    return BeatTrueStartMs(beat_) + (elapsed - s.preRollMs);
 }
 
 void Director::CurrentCaption(const char*& line1, const char*& line2) const
@@ -1485,8 +1544,14 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
 
         // EASE-OUT, not smoothstep: gas-generator driven, so it is at speed on
         // the first frame. Smoothstep would ease in as well, which is a crank.
+        //
+        // The exponent softened from 2.0 to 1.6 when the slide got 3.5x longer.
+        // A square ease-out puts a third of the travel in the first fifth of the
+        // time, which over 1.8 seconds reads as a snap followed by a long drift
+        // -- the fast part looked as quick as the old door and the rest looked
+        // like it was running out of gas.
         const float t     = Clamp01((ts - kDoorStartS) / (kDoorEndS - kDoorStartS));
-        const float slide = 1.0f - (1.0f - t) * (1.0f - t);
+        const float slide = 1.0f - powf(1.0f - t, 1.6f);
         const int   dx    = (int)(kDoorSlide * slide * u);
         const int   dw    = (int)(kDoorHalfW * u);
         const int   dh    = (int)(kDoorThick * u) + 1;
