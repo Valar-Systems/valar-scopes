@@ -1070,6 +1070,93 @@ void Puff(LovyanGFX& g, float x, float y, float r, int dy,
     }
 }
 
+/**
+ * THE FIREBALL -- ragged, not a disc, for the same reason the silo fire is blobs
+ * and not a frustum: a primitive drawn at this size reads as the primitive.
+ *
+ * What this replaces was four concentric fillCircles, and it failed four ways at
+ * once, which is why no amount of retuning was going to save it:
+ *
+ *   1. PERFECT EDGE.  A fireball has no boundary -- the edge is wherever the
+ *      emission falls below visible, and it is torn. A circle announces itself.
+ *   2. NO INTERNAL CONTRAST.  It blended a warm white (FFFCEB) over a warm white
+ *      (kCapHot[0] = FFF9E3), so the whole 118 px plate spanned FFE8AD..FFFBE8 --
+ *      about 25 points of luminance across 59 px of radius. Flat by construction.
+ *      The pale-blue dot in the middle was not a highlight, it was the one nearly
+ *      neutral stop sitting in a field of cream and reading cold by contrast.
+ *   3. IT COVERED THE CLOUD.  Drawn last and opaque, over the 46 billows that are
+ *      the most expensive and most carefully built art in the beat.
+ *   4. IT OUTLIVED ITS SUBJECT.  A 0.18 floor held it on screen to t+8 s. By the
+ *      time a mushroom has a stem the fireball is long gone; what glows then is
+ *      the cap, lit from inside.
+ *
+ * So: concentric RINGS OF BLOBS. Each layer is `kBallBlobs` overlapping circles
+ * on a jittered ring, which gives a torn silhouette and a real radial ramp at the
+ * same time -- and the ramp runs the blackbody sequence (white -> straw -> orange
+ * -> a dull red rim) instead of cream over cream. Drawn BEFORE the cloud, so the
+ * billows rise through it and swallow it, which is both what the footage does and
+ * a free fix for fault 3.
+ */
+constexpr int kBallLayers = 4;
+constexpr int kBallBlobs  = 7;
+const Rgb kBallHot[kBallLayers]  = {{0xFF,0xFD,0xF0},{0xFF,0xE2,0x86},{0xFF,0xA0,0x2A},{0xD2,0x4E,0x12}};
+const Rgb kBallCool[kBallLayers] = {{0xFF,0xC6,0x60},{0xEE,0x8A,0x28},{0xAE,0x42,0x0E},{0x5C,0x1A,0x05}};
+
+void Fireball(LovyanGFX& g, float cx, float cy, float r, int dy, float c)
+{
+    if (r < 2.0f) return;
+    for (int k = kBallLayers - 1; k >= 0; --k) {
+        const uint32_t col = Rgb2c(MixRgb(kBallHot[k], kBallCool[k], c));
+        if (k == 0) {                                   // the core has no ring
+            g.fillCircle((int)cx, (int)cy - dy, (int)(r * 0.26f), col);
+            continue;
+        }
+        const float f    = (float)k / (float)(kBallLayers - 1);   // 1 = rim
+        const float ring = r * 0.30f * f;
+        const float br   = r * (0.30f + 0.42f * f);
+        for (int i = 0; i < kBallBlobs; ++i) {
+            // Jitter both the angle and the radius. Even spacing at even size is
+            // a flower -- the exact failure the crown puffs were written to avoid.
+            const float a = (float)i / kBallBlobs * 6.2832f + Noise(k * 97u + i * 31u) * 1.1f;
+            const float j = 0.72f + Noise(k * 53u + i * 17u) * 0.62f;
+            g.fillCircle((int)(cx + cosf(a) * ring * j),
+                         (int)(cy + sinf(a) * ring * j * 0.88f) - dy,
+                         (int)(br * j), col);
+        }
+    }
+}
+
+/**
+ * THE DOUBLE FLASH -- the one thing that makes a nuclear detonation identifiable
+ * as nuclear, and essentially the only thing fiction never draws.
+ *
+ * A nuclear fireball peaks, DIPS, then peaks again far brighter and far longer.
+ * The dip is the shock front going optically opaque and hiding the core until it
+ * outruns it. The curve is specific enough that Vela satellites identified tests
+ * from the light alone -- the instrument is a bhangmeter, and the two-peak
+ * signature is what it looks for. Chemical explosions have one peak. So does
+ * every mushroom cloud on film.
+ *
+ * TIME-DILATED, deliberately and by a lot. On a few-hundred-kiloton airburst the
+ * first pulse peaks near 1 ms and the minimum lands around 15 ms; at 25-40 fps
+ * the entire first pulse falls between two frames and the effect would simply not
+ * exist. What is preserved is the SHAPE -- stab, dip, bigger and slower second
+ * peak, long thermal tail -- because the shape is the tell, not the timebase.
+ *
+ * Two gaussians and an exponential tail, maxed rather than summed so the trough
+ * between them stays a real trough (~0.08, not a shoulder).
+ */
+float Bhangmeter(float t)
+{
+    if (t < 0.0f) return 0.0f;
+    const float a = (t - 0.050f) / 0.075f;      // first pulse: a stab
+    const float b = (t - 0.500f) / 0.170f;      // second: brighter, slower
+    const float p1 = expf(-a * a);
+    const float p2 = expf(-b * b);
+    const float tail = 0.10f * expf(-t * 0.9f); // the thermal pulse that burns
+    return fminf(1.0f, fmaxf(p1, fmaxf(p2, tail)));
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -1822,18 +1909,37 @@ void Director::DrawCaption(LovyanGFX& g, int dy) const
     g.setTextDatum(textdatum_t::top_center);
 
     // THE ROWS ARE HIGHER THAN THE PREVIEW'S, and this is arithmetic rather than
-    // taste. THE FACE IS ROUND. The preview draws its lower third at y=206/220
-    // on a canvas that clips to the circle; on glass that clip eats the ends of
-    // real words. The longest caption on either line is 27 characters, which is
-    // 162 px of ink in the built-in font, and the chord of a 240 px circle is:
+    // taste. THE FACE IS ROUND. The preview draws its lower third at y=206/220 on
+    // a canvas that clips to the circle; on glass that clip eats the ends of real
+    // words.
     //
-    //     y=192 -> 192 px      y=204 -> 171 px
-    //     y=206 -> 167 px      y=216 -> 144 px   <- "MANEUVER TO WINDOW IN
-    //                                               SPACE" loses 18 px, 9 a side
+    // THE ARITHMETIC HERE WAS WRONG UNTIL 2026-08-06, and it cost the sub-line on
+    // POST-BOOST ("MANEUVER TO WINDOW IN SPACE", 27 chars) its ends on both
+    // sides. Two mistakes, and the first is the one worth remembering:
     //
-    // So 192/204: the widest line still clears by 9 px, and the block still sits
-    // in the bottom fifth where a lower third belongs. Any caption added to
-    // kCaptions longer than 27 characters breaks this and must be shortened.
+    //   1. THE CHORD WAS EVALUATED AT THE ROW, NOT AT THE GLYPH'S LAST INK ROW.
+    //      Text is not a line, it is a band -- eight rows tall in the built-in
+    //      font -- and below the equator the circle keeps closing through every
+    //      one of them. The old note checked y=204 (chord 171) and passed a
+    //      162 px caption. But the ink runs to y=210, where the chord is 158, and
+    //      the halo to y=211, where it is 157. It never fit; it was measured at
+    //      the row where it looked like it did.
+    //   2. NO ALLOWANCE FOR THE HALO OR THE RIM. The halo adds a pixel each side
+    //      (164, not 162), and the case rim overlaps the active area, so the
+    //      LAST few pixels of the panel are not pixels the viewer sees.
+    //
+    // Redone against the last ink row, with the radius taken as 116 rather than
+    // 120. That 4 px is a deliberate allowance for the rim, not a measurement of
+    // it -- a photograph is the only real check, and the allowance exists so the
+    // check is not the thing the design depends on.
+    //
+    //     need chord(y) >= 164  ->  |y - 120| <= sqrt(116^2 - 82^2) = 82
+    //                           ->  last ink row <= 202  ->  l2 row <= 196
+    //
+    // So 182/194: the widest caption clears at its bottom row, which is the row
+    // that was never being checked, and the block still sits in the bottom fifth
+    // where a lower third belongs. 27 characters is now genuinely the limit on
+    // both lines -- kCaptions has four of them and no headroom above it.
     //
     // AND IT IS HALOED, because no fixed row can be safe. The lower third sits
     // over the Earth limb, and the limb's bright atmospheric rim (#9FD4E8)
@@ -1853,12 +1959,14 @@ void Director::DrawCaption(LovyanGFX& g, int dy) const
     // establishes where the vehicle is coming out of, and the altimeter sits at
     // 224 under it. There is no halo that fixes a caption drawn across a silo.
     //
-    // Same chord arithmetic as below. y=36 -> 171 px, and the longest caption in
-    // this beat ("T+10 - FIRST ROLL MANEUVER", 26 chars) is 156 px of ink, so it
-    // clears by 7 px a side. Anything longer added for LIFTOFF breaks that.
+    // Same arithmetic, mirrored -- and note it binds at the OPPOSITE end. Above
+    // the equator the circle is opening as the glyphs descend, so the tight row
+    // is the FIRST one, and the halo sits a pixel above even that. y=40 gives
+    // chord(39) = 166 against the same 164 px worst case; the old y=36 gave 160
+    // and was already 4 px short before anyone looked at the bottom of the frame.
     const bool pad = (beat_ == Beat::Liftoff);
-    const int y1 = (int)((pad ? 36 : 192) * u) - dy;
-    const int y2 = (int)((pad ? 48 : 204) * u) - dy;
+    const int y1 = (int)((pad ?  40 : 182) * u) - dy;
+    const int y2 = (int)((pad ?  52 : 194) * u) - dy;
     const int cx = screen_ / 2;
 
     // FOUR OFFSETS, NOT EIGHT. Eight measured at +2.8 ms on a two-line caption
@@ -2463,6 +2571,14 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     const float capCY = (150.0f - 72.0f * e) * u - max(0.0f, t - 5.0f) * 1.2f * u;
     const float capR  = (26.0f + 82.0f * e) * u + max(0.0f, t - 5.0f) * 0.8f * u;
 
+    // The bhangmeter curve drives the WHOLE FRAME, not just an overlay, which is
+    // the difference between a flash and a light source. It is computed here
+    // because the sky and the ground have to be lit by it before anything is
+    // drawn on top of them -- a flash that only paints over the middle leaves the
+    // corners dark and reads as a white shape, not as the scene being blinded.
+    const float flash = Bhangmeter(t);
+    const Rgb   kBlind{0xFF,0xF4,0xE6};
+
     // Sky: black overhead, deep red toward the horizon (Badger).
     const Rgb skyTop{0x05,0x01,0x01};
     const Rgb skyMid = MixRgb({0x3A,0x0A,0x04}, {0x2A,0x05,0x03}, cool);
@@ -2472,7 +2588,7 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
         const float f = (float)y / (float)horizon;
         const Rgb c = (f < 0.55f) ? MixRgb(skyTop, skyMid, f / 0.55f)
                                   : MixRgb(skyMid, skyBot, (f - 0.55f) / 0.45f);
-        g.drawFastHLine(0, y - dy, screen_, Rgb2c(c));
+        g.drawFastHLine(0, y - dy, screen_, Rgb2c(MixRgb(c, kBlind, 0.62f * flash)));
     }
 
     // Warm halo around the head (Hood). Pre-blended rings, outermost first.
@@ -2492,15 +2608,22 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     // gain any banding it did not already have. The billows are untouched: they
     // are the fireball, and §11 is explicit that the fix for a slow detonation
     // is a cheaper cloud and never a smaller one.
+    //
+    // The alpha ramp is SQUARED so the outermost visible step is small. Linear
+    // put a 0.14 jump at the outer edge, which on a four-ring wash is not a wash
+    // at all -- it is a drawn circle around the cloud, and it is visible in every
+    // bench photograph. Quadratic drops that step to 0.05 for free; the inner
+    // stops land within a few percent of where they were.
     const float haloA = 0.34f * (1.0f - cool * 0.6f);
     for (int i = kHaloRings; i >= 1; --i) {
         const float f = (float)i / (float)kHaloRings;
         g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.15f * f),
-                     Over({0xFF,0x8C,0x28}, skyMid, haloA * (1.0f - f) * 1.6f));
+                     Over({0xFF,0x8C,0x28}, skyMid, haloA * (1.0f - f) * (1.0f - f) * 2.2f));
     }
 
     // Ground: dark rust, a lit rim, silhouetted brush.
-    g.fillRect(0, (int)(groundY + 6 * u) - dy, screen_, screen_, lgfx::color888(0x16, 0x05, 0x03));
+    g.fillRect(0, (int)(groundY + 6 * u) - dy, screen_, screen_,
+               Rgb2c(MixRgb({0x16,0x05,0x03}, kBlind, 0.55f * flash)));
     g.fillRect(0, (int)(groundY + 6 * u) - dy, screen_, (int)max(1.0f, 2 * u),
                Over({0xFF,0x8C,0x32}, {0x16,0x05,0x03}, 0.5f * (1.0f - cool * 0.5f)));
     for (int i = 0; i < kSkirtPuffs; ++i) {
@@ -2519,6 +2642,18 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
                       Over({0xFF,0xD2,0x8C}, {0x16,0x05,0x03}, a));
     }
 
+    // THE FIREBALL, BEFORE THE CLOUD. It grows hard for the first second, cools
+    // through the blackbody ramp, and is then overtaken by its own billows -- so
+    // it is occluded by the cloud rather than painted over it, and by the time
+    // there is a stem to see there is no fireball left, which is the order the
+    // footage has. Nothing draws it after t+3.6 s.
+    if (t < 3.6f) {
+        const float grow  = powf(Clamp01(t / 1.30f), 0.40f);
+        const float eaten = 0.28f * Clamp01((t - 1.60f) / 2.0f);
+        Fireball(g, cx, capCY, 74.0f * u * grow * (1.0f - eaten), dy,
+                 Clamp01((t - 0.50f) / 2.60f));
+    }
+
     // The cloud, bottom up: dust skirt, stem, crown, inner cap.
     for (int i = 0; i < kSkirtPuffs; ++i) {
         const float o  = ((i - 3.5f) * 15.0f + (Noise(i * 811u + 1u) - 0.5f) * 8.0f) * u;
@@ -2533,42 +2668,56 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
         const float y  = groundY - 8 * u - (groundY - 8 * u - stemTop) * f * e - 2 * u;
         const float wob = sinf(t * 0.9f + i * 1.7f) * 3.0f * e * u;
         Puff(g, cx + o * 0.55f + wob, y, (8 + 10 * e * (0.5f + f * 0.8f)) * u * jr, dy,
-             kStmHot, kStmCool, cool);
+             kStmHot, kStmCool, Clamp01(cool + (1.0f - cool) * 0.30f * Noise(i * 467u + 12u)));
     }
     // The head is a CHURNED CLUSTER, not a dome. A single filled dome is the
     // shape a cartoon mushroom has; the reference photographs are billows.
+    //
+    // LIT PER PUFF, which is what replaced the white-hot core disc. The source is
+    // inside the head, so a billow's brightness is its distance from the centre
+    // plus a mottle -- and doing it as a colour SELECTION costs nothing, where
+    // the disc it replaces cost 20k px a frame to cover the same billows it was
+    // meant to illuminate. The mottle matters as much as the falloff: a clean
+    // radial gradient across a cluster reads as one object with a shine on it,
+    // and the reference photographs are lumps at different temperatures.
     for (int i = 0; i < kCrownPuffs; ++i) {
         const float a  = (float)i / kCrownPuffs * 6.2832f + Noise(i * 331u + 5u) * 0.2f
                        + t * (0.06f + Noise(i * 149u + 6u) * 0.12f) * ((i & 1) ? 1.0f : -1.0f);
         const float jr = 0.55f + Noise(i * 227u + 7u) * 0.7f;
-        Puff(g, cx + cosf(a) * capR * 0.62f, capCY + sinf(a) * capR * 0.36f,
-             capR * 0.30f * jr, dy, kCrnHot, kCrnCool, cool);
+        const float px = cx + cosf(a) * capR * 0.62f;
+        const float py = capCY + sinf(a) * capR * 0.36f;
+        const float dx = px - cx, dyy = (py - capCY) * 1.7f;
+        const float pc = Clamp01(cool + (1.0f - cool) *
+                                 (0.50f * Clamp01(sqrtf(dx * dx + dyy * dyy) / (capR * 0.85f))
+                                  + 0.28f * Noise(i * 619u + 11u)));
+        Puff(g, px, py, capR * 0.30f * jr, dy, kCrnHot, kCrnCool, pc);
     }
     for (int i = 0; i < kCapPuffs; ++i) {
         const float a  = (float)i / kCapPuffs * 6.2832f + Noise(i * 691u + 8u) * 0.4f
                        + t * (0.05f + Noise(i * 83u + 9u) * 0.09f) * ((i & 1) ? -1.0f : 1.0f);
         const float jr = 0.6f + Noise(i * 313u + 10u) * 0.6f;
+        const float pc = Clamp01(cool + (1.0f - cool) * 0.24f * Noise(i * 743u + 13u));
         Puff(g, cx + cosf(a) * capR * 0.30f, capCY - capR * 0.06f + sinf(a) * capR * 0.20f,
-             capR * 0.28f * jr, dy, kCapHot, kCapCool, cool);
+             capR * 0.28f * jr, dy, kCapHot, kCapCool, pc);
     }
 
-    // White-hot core -- strong early, a floor until it finally goes.
-    const float coreA = max(t < 8.0f ? 0.18f : 0.0f, 1.0f - cool);
-    if (coreA > 0) {
-        for (int i = 4; i >= 1; --i) {
-            const float f = (float)i / 4.0f;
-            g.fillCircle((int)cx, (int)(capCY - capR * 0.05f) - dy, (int)(capR * 0.55f * f),
-                         Over(i == 1 ? Rgb{0xFF,0xFC,0xEB} : Rgb{0xFF,0xCD,0x5A},
-                              MixRgb(kCapHot[0], kCapCool[0], cool), coreA * (1.0f - f * 0.6f)));
-        }
-    }
-
-    // The detonation flash itself: white, then collapsing into the fireball.
-    if (t < 0.20f) {
+    // THE FLASH, on the bhangmeter curve -- stab, dip, second and bigger peak.
+    //
+    // The radius goes as flash SQUARED, not linearly. That is what lets one curve
+    // serve both jobs: at the peaks it runs past the corner and the panel is
+    // simply white, while on the way down it collapses onto the fireball instead
+    // of leaving a large dim disc floating over the ground. A dim near-full-screen
+    // wash is exactly the sticker this beat is being fixed for.
+    if (flash > 0.90f) {
         g.fillScreen(lgfx::color888(0xFF, 0xFF, 0xFF));
-    } else if (t < 0.5f) {
-        const float f = 1.0f - (t - 0.20f) / 0.30f;
-        g.fillCircle((int)cx, (int)capCY - dy, (int)(screen_ * 0.8f * f), lgfx::color888(0xFF, 0xFF, 0xFF));
+    } else if (flash > 0.08f) {
+        const Rgb hot = MixRgb(kBallHot[0], kBallCool[1], Clamp01(t / 1.2f));
+        const float rr = screen_ * 1.30f * flash * flash;
+        for (int i = 3; i >= 1; --i) {
+            const float f = (float)i / 3.0f;
+            g.fillCircle((int)cx, (int)capCY - dy, (int)(rr * f),
+                         Over({0xFF,0xFF,0xFF}, hot, Clamp01(flash * (1.30f - f * 0.45f))));
+        }
     }
 }
 

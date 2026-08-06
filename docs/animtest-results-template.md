@@ -59,10 +59,12 @@ motion.
 > compose has a **~24 ms budget**, and a beat that misses the bar is always an
 > art problem here, never a bus one. Ascent beats spend 4.4–5.4 ms of it.
 
-## Three standing facts about this panel
+## Five standing facts about this panel
 
 Measured on the S3 1.28" Kit, and true for every screen this product draws — not
-just the animation. Budget against these, not against intuition.
+just the animation. Budget against these, not against intuition. The first three
+are cost; the last two are legibility, and they have cost the same number of
+bench sessions.
 
 **1. The SPI push floor is 25.8 ms.** A 240×240 16 bpp frame is 115 KB on a
 40 MHz bus. Nothing composed can beat it, so ~24 ms is the entire compose budget
@@ -85,9 +87,25 @@ it spends 115 KB to do it. Nothing full-screen should be pre-rendered. This
 killed a planned static-map cache before it was built; the globe that replaced
 it draws live every frame and is cheaper.
 
-> All three come from the `BENCH,` lines `animtest_main.cpp` prints at boot under
+**4. Separate by HUE, not by brightness within one hue.** 240 px across 32 mm at
+desk distance: a value ramp inside a single hue is a *texture*, not a hierarchy.
+This has now failed three times on the same screen — the flight track drawn a
+step brighter than the coastlines, the rig HUD in GREEN_DIM over green land, and
+then the grey that replaced it, which turned out to be Y=125 against the
+coastlines' Y=129. That third one is the instructive one: **grey is achromatic,
+so once its luminance matches the field it has nothing left to separate with.**
+Check the luminance gap, not just the hue.
+
+**5. Chrome over moving art needs a PLATE, not a halo.** A one-pixel halo darkens
+the ring around each glyph, which works against a flat ground and fails against a
+field of 1 px strokes at the text's own brightness — the strokes resume on the
+far side of the halo and read as part of the letterform. When the background can
+be anything (a globe, a fireball, a limb), give the text an opaque ground and
+stop trying to find a colour that survives every frame. There isn't one.
+
+> Facts 1–3 come from the `BENCH,` lines `animtest_main.cpp` prints at boot under
 > `-DANIM_PROFILE`. Re-run them before trusting any of the above on a new panel
-> or a new LovyanGFX version.
+> or a new LovyanGFX version. Facts 4–5 are only ever confirmed by a photograph.
 
 Past runs: [animtest-results-2026-08-06.md](animtest-results-2026-08-06.md).
 
@@ -205,11 +223,19 @@ Limb-bearing beats spread (max − min worst ms): ______
 
 **4. Do the captions cost anything, and do they fit?** The lower third is drawn
 every frame. Text is cheap, but it is 27 characters at the widest and the face
-is **round** — the rows were moved to y=192/204 for exactly this reason (see the
-arithmetic in `DrawCaption`). Check the longest ones on glass:
+is **round** — the rows sit at y=182/194 for exactly this reason (see the
+arithmetic in `DrawCaption`).
 
-- `T+45 - SECOND ROLL MANEUVER` (line 1, 162 px into a 192 px chord) — clipped? ☐ no ☐ yes
-- `MANEUVER TO WINDOW IN SPACE` (line 2, 162 px into a 171 px chord) — clipped? ☐ no ☐ yes
+> **Measure the chord at the glyph's LAST INK ROW, not at the text row.** This
+> check used to read "162 px into a 171 px chord" and it passed a caption that
+> was visibly clipped on glass, because 171 is the chord at y=204 and the ink
+> runs to y=210 where the chord is 158. Text is a band, not a line, and below the
+> equator the circle closes through every row of it. Add a pixel each side for
+> the halo, and take the radius as 116 rather than 120 so the case rim has an
+> allowance.
+
+- `T+45 - SECOND ROLL MANEUVER` (line 1, 164 px into a 186 px chord at y=188) — clipped? ☐ no ☐ yes
+- `MANEUVER TO WINDOW IN SPACE` (line 2, 164 px into a 166 px chord at y=200) — clipped? ☐ no ☐ yes
 - Caption cost, if separable: ______ ms
 
 ---
