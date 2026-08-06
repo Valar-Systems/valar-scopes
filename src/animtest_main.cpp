@@ -204,6 +204,127 @@ void DrawHud(LovyanGFX& g)
     g.setTextDatum(textdatum_t::top_left);
 }
 
+#ifdef ANIM_PROFILE
+/**
+ * PRIMITIVE COSTS, measured once at boot.
+ *
+ * Exists because a projection change was proposed on the strength of an
+ * estimate, and the estimate rested on two numbers nobody had measured on this
+ * board: what a short drawLine costs, and what a full-screen PSRAM->PSRAM blit
+ * costs. Everything else in an orthographic-globe budget is arithmetic on top of
+ * those two, so guessing them wrong scales straight through to the answer.
+ *
+ * Deliberately crude -- it runs before the sequence starts, prints four CSV
+ * lines and never runs again. It is not a benchmark suite; it is the two
+ * constants a design decision needs.
+ */
+void BenchPrimitives(LGFX_Sprite& spr)
+{
+    if (!haveCanvas) return;
+
+    // Short strokes, which is what a decimated coastline is made of.
+    for (int len : {3, 8}) {
+        const uint32_t t0 = micros();
+        constexpr int kN = 2000;
+        for (int i = 0; i < kN; ++i) {
+            const int x = 20 + (i * 7) % (SCREEN - 40);
+            const int y = 20 + (i * 13) % (SCREEN - 40);
+            spr.drawLine(x, y, x + len, y + len, 0x1234u);
+        }
+        const uint32_t dt = micros() - t0;
+        Serial.printf("BENCH,drawLine,len,%d,calls,%d,total_us,%lu,per_call_ns,%lu\n",
+                      len, kN, (unsigned long)dt, (unsigned long)(dt * 1000UL / kN));
+    }
+
+    // fillScreen as a WRITE-RATE REFERENCE. Same 115 KB of destination, no
+    // source read. Any blit that comes out faster than this is not copying.
+    {
+        constexpr int kN = 20;
+        const uint32_t t0 = micros();
+        for (int i = 0; i < kN; ++i) spr.fillScreen((uint16_t)(0x0800u + i));
+        const uint32_t dt = micros() - t0;
+        Serial.printf("BENCH,fillScreen,%dx%d,per_call_us,%.1f\n",
+                      SCREEN, SCREEN, (dt / (float)kN));
+    }
+
+    // A second full-screen PSRAM sprite, blitted onto the first. This is the
+    // whole cost of a cached static map, and it does not scale with vertex
+    // count -- which is the entire argument for caching one.
+    //
+    // VERIFIED, NOT TIMED BLIND. The first version of this reported 6.2 us for
+    // 115 KB of PSRAM-to-PSRAM copy -- 18 GB/s, which is roughly 500x what the
+    // bus can do, so it was measuring a call that did nothing. The destination is
+    // now checked pixel by pixel afterwards and the check is printed: a blit that
+    // did not happen and a blit that did are otherwise indistinguishable from a
+    // timing number alone.
+    {
+        LGFX_Sprite cache(&tft);
+        cache.setPsram(true);
+        cache.setColorDepth(16);
+        if (cache.createSprite(SCREEN, SCREEN)) {
+            spr.fillScreen(0);
+            cache.fillScreen(cache.color888(0x20, 0xE0, 0x60));
+            // Read the reference back OUT of the source rather than assuming the
+            // literal survives colour conversion. The first version of this probe
+            // compared against a raw RGB565 constant and reported 0/225 on a blit
+            // that had plainly happened -- a probe that cries wolf is worse than
+            // no probe, because the next real failure gets waved through.
+            const uint32_t want = cache.readPixel(0, 0);
+            constexpr int kN = 20;
+            const uint32_t t0 = micros();
+            for (int i = 0; i < kN; ++i) cache.pushSprite(&spr, 0, 0);
+            const uint32_t dt = micros() - t0;
+            int hits = 0;
+            for (int y = 0; y < SCREEN; y += 17) {
+                for (int x = 0; x < SCREEN; x += 17) {
+                    if (spr.readPixel(x, y) == want) hits++;
+                }
+            }
+            const int probes = ((SCREEN + 16) / 17) * ((SCREEN + 16) / 17);
+            Serial.printf("BENCH,pushSprite,%dx%d,psram,per_call_us,%.1f,verified,%d/%d\n",
+                          SCREEN, SCREEN, (dt / (float)kN), hits, probes);
+            cache.deleteSprite();
+        } else {
+            Serial.println("BENCH,pushSprite,ALLOC_FAILED");
+        }
+    }
+
+    // The globe's inner loop, with no drawing at all: int16 unit vector -> 3x3
+    // rotate -> cull -> screen. This is the number the "no trig in the inner
+    // loop" design rests on.
+    {
+        static int16_t vx[512], vy[512], vz[512];
+        for (int i = 0; i < 512; ++i) {
+            const float a = i * 0.34f, b = i * 0.11f;
+            vx[i] = (int16_t)(cosf(b) * cosf(a) * 32767.0f);
+            vy[i] = (int16_t)(cosf(b) * sinf(a) * 32767.0f);
+            vz[i] = (int16_t)(sinf(b) * 32767.0f);
+        }
+        const float m[9] = {0.87f, -0.21f, 0.44f, 0.19f, 0.97f, 0.09f, -0.45f, 0.02f, 0.89f};
+        constexpr int kReps = 40;
+        volatile int sink = 0;
+        const uint32_t t0 = micros();
+        for (int r = 0; r < kReps; ++r) {
+            for (int i = 0; i < 512; ++i) {
+                const float x = vx[i] * (1.0f / 32767.0f);
+                const float y = vy[i] * (1.0f / 32767.0f);
+                const float z = vz[i] * (1.0f / 32767.0f);
+                const float rz = m[6] * x + m[7] * y + m[8] * z;
+                if (rz <= 0) continue;                       // far hemisphere
+                const float rx = m[0] * x + m[1] * y + m[2] * z;
+                const float ry = m[3] * x + m[4] * y + m[5] * z;
+                sink += (int)(120.0f + rx * 110.0f) + (int)(120.0f - ry * 110.0f);
+            }
+        }
+        const uint32_t dt = micros() - t0;
+        Serial.printf("BENCH,vertexXform,verts,%d,total_us,%lu,per_vert_ns,%lu,sink,%d\n",
+                      512 * kReps, (unsigned long)dt,
+                      (unsigned long)(dt * 1000UL / (512UL * kReps)), (int)sink);
+    }
+    spr.fillScreen(0);
+}
+#endif
+
 void HandleTouch()
 {
     int32_t tx = 0, ty = 0;
@@ -325,6 +446,10 @@ void setup()
     Serial.printf("[anim] mode=%s sequence=%lums beats=%d\n", ModeName(),
                   (unsigned long)missileer::flight::SequenceDurationMs(mode), (int)Beat::COUNT);
     Serial.println("[anim] tap=pause/step  swipe=jump beat  long-hold=replay  long-hold TOP=time mode");
+
+#ifdef ANIM_PROFILE
+    BenchPrimitives(canvas);
+#endif
 
     director.Begin(SCREEN, mode);
     ResetTimings();
