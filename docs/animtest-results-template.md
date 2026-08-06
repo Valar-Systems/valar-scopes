@@ -215,9 +215,9 @@ supposed to be the same picture, not merely the same idea.
 
 | | Preview | Glass | Match? |
 |---|---|---|---|
-| **Blast door slides sideways on its rails** to open the beat (*launch footage; in neither the NG animation nor the preview*) | — | | ☐ |
+| **Blast door slides sideways on its rails and clean off the frame** (*launch footage; in neither the NG animation nor the preview*) | — | | ☐ |
 | Vehicle is **fully buried** before first motion, then hot-launches | ✓ | | ☐ |
-| Fire is a **vertical jet out of the hole**, not a pool at grade | — | | ☐ |
+| Fire has **no straight edges anywhere** — see the note below | — | | ☐ |
 | The vehicle is **hidden inside the fire** and emerges from the **top** of it | — | | ☐ |
 | Smoke builds a **tall vertical column**, not a low bank (*NG video, not the preview*) | ✓ | | ☐ |
 | Camera **shakes** at ignition and settles by ~2.2 s | ✓ | | ☐ |
@@ -243,6 +243,33 @@ confirm they read as acceptable rather than as bugs):
 4. Alpha approximated: opaque puffs, pre-blended washes, flashes collapse
    instead of fading. **Does any of it look wrong in motion?** ______
 5. No pre-launch or credits phases.
+
+### A straight edge is the tell — read this before drawing any fire
+
+Caught on glass 2026-08-06 and worth generalising. The silo fire was three nested
+`fillTriangle` frusta, and on the panel it was **an orange rectangle with two
+boxes inside it.** The taper was there in the maths (1.55 → 0.95 half-width) and
+invisible on the panel.
+
+The dominant fault was not the taper: a triangle pair gives a **flat horizontal
+top**, and *one straight edge is enough to make a shape read as geometry rather
+than as fire.* Supporting faults, all of which only mattered because of that one:
+a 39 % narrowing over 76 px is indistinguishable from vertical sides at 240 px
+with no antialiasing; three layers of similar width read as concentric
+rectangles, not a gradient; and once the height collapsed, 43 × 40 px is a square
+whatever the taper says.
+
+The diagnostic was in the same photograph: **the vehicle's own plume looked
+fine**, and the difference is that `DrawPlume`'s teardrops come to a *point*.
+
+So, for anything on this panel that is meant to read as fire, smoke or plasma:
+
+- **no flat terminating edge.** Points (`DrawPlume`) or round blobs (`DrawSmoke`,
+  `DrawDetonation`, and now the silo fire). Never a frustum.
+- **irregularity is not optional** at this resolution — jitter the axis, vary the
+  radii. A symmetric solid of revolution reads as a drawn object.
+- **overlapping blobs give raggedness for free**, and let fire hand off to smoke
+  as one continuous thing rather than two stacked shapes.
 
 ### LIFTOFF, and the one thing to actually look at
 

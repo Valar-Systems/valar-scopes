@@ -498,13 +498,23 @@ constexpr float kSiloHalfW = 14.0f;
  * half-second was a dark rectangle and a glow ramping up, with nothing moving.
  * Now the beat opens on the one motion that says "this is a silo".
  *
+ * IT LEAVES THE FRAME ENTIRELY. The closure is thrown clear by a rocket, not
+ * winched, and it does not stop politely beside the hole -- so the slide runs
+ * until the slab is off the glass, and the motion is EASE-OUT (hard off the mark,
+ * settling) rather than the smoothstep it started with. Smoothstep eases IN as
+ * well, which is a heavy thing being cranked; this is a heavy thing being fired.
+ * The rocket itself is not drawn.
+ *
+ * kDoorSlide clears the round face with room to spare: the chord at grade spans
+ * x 38..202, so the slab's near edge is past the glass by ~30 px at full travel.
+ *
  * Timed to finish before the fire starts, so the two do not compete: slide
  * 0.10 -> 0.70, first light 0.55, ignition 0.90.
  */
 constexpr float kDoorStartS = 0.10f;
 constexpr float kDoorEndS   = 0.70f;
 constexpr float kDoorHalfW  = 17.0f;   // overlaps the mouth on both sides when shut
-constexpr float kDoorSlide  = 34.0f;   // far enough to clear the mouth completely
+constexpr float kDoorSlide  = 130.0f;  // clean off the panel, not parked beside the hole
 constexpr float kFireStartS = 0.55f;   // first light, as the door finishes
 
 /**
@@ -533,6 +543,7 @@ constexpr float kFireStartS = 0.55f;   // first light, as the door finishes
  */
 constexpr float kFireMaxH   = 76.0f;   // 240-space, ~a third of the frame
 constexpr float kFireOutH   = 60.0f;   // vehicle height at which the column is spent
+constexpr int   kFireBlobs  = 8;       // see the note in DrawLiftoff on why blobs
 
 /** Where the vehicle sits before the motor lights: fully below grade, plus 6 px. */
 constexpr float kPadBase0 = kGroundY + kStackLen + 6.0f;
@@ -1442,14 +1453,16 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
     //
     // See kDoorStartS. The rails are drawn even before the door moves, because
     // they are what makes the motion legible when it starts -- a slab that slides
-    // with nothing under it reads as a glitch, and two lines cost nothing.
-    // Eased rather than linear: this is a very heavy thing being winched.
+    // with nothing under it reads as a glitch, and two lines cost nothing. They
+    // run to the edge of the glass, because that is where the door goes.
     {
-        const int rw = (int)((kDoorSlide + kDoorHalfW) * u);
-        g.drawFastHLine(cx, gy + (int)(3 * u) - dy, rw, pal::SiloEdge());
-        g.drawFastHLine(cx, gy + (int)(5 * u) - dy, rw, pal::SiloEdge());
+        g.drawFastHLine(cx, gy + (int)(3 * u) - dy, screen_ - cx, pal::SiloEdge());
+        g.drawFastHLine(cx, gy + (int)(5 * u) - dy, screen_ - cx, pal::SiloEdge());
 
-        const float slide = Smooth(Clamp01((ts - kDoorStartS) / (kDoorEndS - kDoorStartS)));
+        // EASE-OUT, not smoothstep: thrown by a rocket, so it is at speed
+        // immediately. Smoothstep would ease in as well, which is a crank.
+        const float t     = Clamp01((ts - kDoorStartS) / (kDoorEndS - kDoorStartS));
+        const float slide = 1.0f - (1.0f - t) * (1.0f - t);
         const int   dx    = (int)(kDoorSlide * slide * u);
         const int   dw    = (int)(kDoorHalfW * u);
         const int   dt    = gy - (int)(4 * u);
@@ -1499,28 +1512,60 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
         float a = fminf(1.0f, (ts - kFireStartS) / 0.35f) * (1.0f - 0.55f * out);
 
         if (h > 2.0f && a > 0.03f) {
-            h *= u;
-            // Three nested tapered jets. Narrowing with height rather than
-            // flaring: a rocket exhaust escaping a hole is a jet, and a shape
-            // that widens as it rises is a bonfire.
-            const struct { float wb, wt, l; uint32_t c; } jet[3] = {
-                {1.55f, 0.95f, 1.00f, pal::FlameOuter()},
-                {1.10f, 0.62f, 0.86f, pal::FlameMid()},
-                {0.62f, 0.30f, 0.66f, pal::FlameCore()},
-            };
-            for (int i = 0; i < 3; ++i) {
-                const int wb = (int)(kSiloHalfW * jet[i].wb * u);
-                const int wt = (int)(kSiloHalfW * jet[i].wt * u);
-                const int ty = gy - (int)(h * jet[i].l) - dy;
-                const int by = gy + (int)(2 * u) - dy;
-                const uint32_t c = Shade(jet[i].c, a);
-                g.fillTriangle(cx - wb, by, cx + wb, by, cx + wt, ty, c);
-                g.fillTriangle(cx - wb, by, cx + wt, ty, cx - wt, ty, c);
+            // A STACK OF BLOBS, NOT A TAPERED JET.
+            //
+            // This was three nested triangle-pair frusta and on glass it was a
+            // hard-edged orange RECTANGLE with two boxes inside it. Four faults,
+            // all downstream of that one primitive:
+            //
+            //   * fillTriangle pairs give a FLAT HORIZONTAL TOP. Nothing else
+            //     mattered as much -- a flame does not end in a straight line,
+            //     and that single edge is what made it read as a box;
+            //   * the taper was 1.55 -> 0.95 half-width, a 39% narrowing, which
+            //     at 240 px with no antialiasing is indistinguishable from
+            //     vertical sides;
+            //   * three layers of similar width read as concentric rectangles,
+            //     not as a gradient;
+            //   * once `out` collapsed the height, 43 px wide by 40 tall is a
+            //     square whatever the taper says.
+            //
+            // The vehicle's own plume in the same frame looks right, and the
+            // difference is that DrawPlume's teardrops come to a POINT.
+            //
+            // So: the same primitive the smoke uses, in flame colours, cooling
+            // upward. The top is a round blob rather than an edge, the overlaps
+            // are ragged for free, and fire at the bottom becomes smoke at the
+            // top as ONE CONTINUOUS THING -- which is what the launch footage
+            // actually shows. Collapsed, it is a fireball in the mouth instead of
+            // a wide flat bar. It is also cheaper than what it replaces.
+            const Rgb hot  = {0xFF, 0xF6, 0xE0};   // FlameCore, at the throat
+            const Rgb warm = {0xFF, 0xD2, 0x3E};   // FlameMid
+            const Rgb cool = {0xFF, 0x7A, 0x29};   // FlameOuter, handing off to smoke
+
+            // Back to front: the hottest blob is at the bottom and must be drawn
+            // last, over the cooler ones stacked above it.
+            for (int i = kFireBlobs - 1; i >= 0; --i) {
+                const float f = (float)i / (float)(kFireBlobs - 1);  // 0 root, 1 tip
+                const uint32_t s = beatElapsedMs_ / 45u + (uint32_t)i * 2654435761u;
+
+                // The axis wavers, and more so with height -- a column of fire is
+                // not a symmetric solid of revolution. This is the other half of
+                // what stops it reading as a drawn shape.
+                const float jx = (Noise(s + 1u) - 0.5f) * 8.0f * f;
+                const float rr = (12.0f - 5.5f * f) * (0.80f + 0.40f * Noise(s + 2u));
+                const float by = kGroundY - h * f;
+
+                const Rgb c = (f < 0.5f) ? MixRgb(hot, warm, f * 2.0f)
+                                         : MixRgb(warm, cool, (f - 0.5f) * 2.0f);
+                g.fillCircle((int)((120.0f + jx) * u + shakeX_),
+                             (int)(by * u + shakeY_) - dy,
+                             (int)(rr * u),
+                             Shade(Rgb2c(c), a * (1.0f - 0.5f * f)));
             }
-            // The splash at grade -- the jet hitting the deflector and spreading.
-            g.fillEllipse(cx, gy - dy, (int)(kSiloHalfW * 1.9f * u * fl), (int)(6 * u),
-                          Shade(pal::FlameMid(), a * 0.85f));
-            g.fillEllipse(cx, gy - dy, (int)(kSiloHalfW * 1.0f * u * fl), (int)(4 * u),
+            // The splash at grade -- the jet hitting the deflector and spreading
+            // sideways. Low and wide, under the stack, so it reads as spread
+            // rather than as a base to the column.
+            g.fillEllipse(cx, gy - dy, (int)(kSiloHalfW * 1.5f * u * fl), (int)(4 * u),
                           Shade(pal::FlameCore(), a));
         }
     }
