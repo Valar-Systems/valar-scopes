@@ -154,7 +154,24 @@ inline uint32_t PlasmaCore(){ return lgfx::color888(0xFF, 0xF2, 0xD7); }
 // the vehicle are the brightest things on the screen because they are the only
 // two that answer a question; everything else is context.
 //
-//   ocean disc  <  graticule  <  coastlines  <  track (pal::Green)
+//   ocean disc  <  graticule  <  coastlines  <  track
+//
+// THE TRACK IS NOT GREEN, AND THAT IS THE WHOLE POINT. It was, and on glass it
+// disappeared into the coastlines -- because separating a line from its
+// background by BRIGHTNESS WITHIN ONE HUE is the weakest separation available at
+// 240 px across 32 mm of glass at desk distance. Three greens differing only in
+// value read as one texture.
+//
+// So the path system changes hue instead: PAPER for the flown track and the
+// launch mark, GREY for the unflown, against green land. That is ~2:1 in
+// luminance AND a hue shift, and it splits the semantics cleanly as a bonus --
+//
+//     green  = the world          (coastlines, graticule)
+//     paper  = the path           (track flown, launch point)
+//     red    = the object and its destination  (vehicle dot, aim point)
+//
+// -- so red stays scarce and keeps meaning "the thing that matters". Amber
+// appears nowhere; see the palette note at the top of this file.
 inline uint32_t Ocean()     { return lgfx::color888(0x06, 0x18, 0x14); }
 inline uint32_t Graticule() { return lgfx::color888(0x12, 0x46, 0x33); }
 inline uint32_t Coast()     { return lgfx::color888(0x2A, 0x9E, 0x62); }
@@ -2653,8 +2670,10 @@ void Director::DrawMap(LovyanGFX& g, int dy) const
         float x, y;
         const bool vis = GlobePt(p[0], p[1], p[2], c, R, x, y);
         if (vis && prevV) {
+            // Paper flown, grey ahead -- see the palette note. Green here was
+            // invisible against green land.
             g.drawLine((int)prevX, (int)prevY - dy, (int)x, (int)y - dy,
-                       t <= flown ? pal::Green() : pal::GreenDim());
+                       t <= flown ? pal::Paper() : pal::Grey());
         }
         prevX = x; prevY = y; prevV = vis;
     }
@@ -2668,7 +2687,8 @@ void Director::DrawMap(LovyanGFX& g, int dy) const
     UnitVec(gLaunchLon, gLaunchLat, Lv);
     UnitVec(gAimLon,    gAimLat,    Av);
     if (GlobePt(Lv[0], Lv[1], Lv[2], c, R, lx, ly)) {
-        g.drawCircle((int)lx, (int)ly - dy, (int)(3 * u), pal::Green());
+        // Paper, with the track: it is the start of the path, not a place.
+        g.drawCircle((int)lx, (int)ly - dy, (int)(3 * u), pal::Paper());
     }
     if (GlobePt(Av[0], Av[1], Av[2], c, R, ax, ay)) {
         g.drawCircle((int)ax, (int)ay - dy, (int)(5 * u), pal::Red());
