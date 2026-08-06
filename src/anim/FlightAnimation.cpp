@@ -85,14 +85,24 @@ inline uint32_t EarthEdge() { return lgfx::color888(0x03, 0x07, 0x0C); }
 inline uint32_t LimbCloud() { return lgfx::color888(0x38, 0x5A, 0x72); } // 0.18 white, pre-blended
 inline uint32_t Star()      { return lgfx::color888(0xCF, 0xD6, 0xDD); }
 
-// Vehicle. OLIVE with tan interstage bands -- not the grey-white this module
-// first guessed at. The bands are what make the stack read as three stacked
-// stages rather than one tube, at a body width of nine pixels.
-inline uint32_t Stage()    { return lgfx::color888(0x6F, 0x6E, 0x52); }
-inline uint32_t StageAlt() { return lgfx::color888(0x7A, 0x77, 0x58); }
-inline uint32_t Band()     { return lgfx::color888(0xB8, 0xA0, 0x6A); }
+// Vehicle. FROM THE AIRFRAME, not from the preview.
+//
+// The preview draws all three stages the same olive with tan bands, and the
+// museum article (NASM A19761115000) does not: bottom to top it runs pale sage,
+// cream, olive green, with tan interstage bands and a tan aeroshell over the RV.
+// Three stages that do not share a colour is worth more here than fidelity to
+// the preview, because §11 needs a separation to READ -- and the way a viewer
+// knows which stage just left is that the stack visibly changes colour, not just
+// length. On a nine-pixel body that is the only cue that survives.
+//
+// kSegments runs nose -> tail, so index 0 is stage 3 and index 2 is stage 1.
+inline uint32_t Stage1()   { return lgfx::color888(0xB2, 0xC0, 0xA8); } // pale sage, the big one
+inline uint32_t Stage2()   { return lgfx::color888(0xE2, 0xE0, 0xD6); } // cream
+inline uint32_t Stage3()   { return lgfx::color888(0x6E, 0x7A, 0x57); } // olive green
+inline uint32_t Band()     { return lgfx::color888(0xA8, 0x9A, 0x6E); } // tan interstage
+inline uint32_t Aeroshell(){ return lgfx::color888(0xB9, 0xA8, 0x7A); } // tan, over the RV
 inline uint32_t Bus()      { return lgfx::color888(0x8A, 0x86, 0x72); }
-inline uint32_t Shroud()   { return lgfx::color888(0x3B, 0x3C, 0x38); }
+inline uint32_t Nozzle()   { return lgfx::color888(0x3B, 0x3C, 0x38); } // bells, pods, throats
 inline uint32_t Throat()   { return lgfx::color888(0x1C, 0x1D, 0x1A); }
 inline uint32_t Shell()    { return lgfx::color888(0x4A, 0x4B, 0x45); }
 inline uint32_t Decoy()    { return lgfx::color888(0x55, 0x56, 0x4E); }
@@ -374,6 +384,12 @@ const Anchor kAnchors[(int)Beat::COUNT] = {
  * each joint is what sells three stages at a nine-pixel body width. */
 struct Segment { float len, wide; };
 const Segment kSegments[3] = {{14, 9}, {16, 10}, {22, 11}}; // stage 3, 2, 1
+
+/** Airframe colour by kSegments index (0 = stage 3 at the nose, 2 = stage 1). */
+inline uint32_t StageColour(int i)
+{
+    return (i == 0) ? pal::Stage3() : (i == 1) ? pal::Stage2() : pal::Stage1();
+}
 
 /**
  * APPARENT-SIZE FLOOR -- the first place the reference is deliberately not
@@ -1210,7 +1226,7 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
         const Segment& s = kSegments[i];
         const float hw = s.wide * 0.5f * k;
         FillQuad(g, vx_, vy_, r, along * k, (along + s.len) * k, hw, dy,
-                 (i == 1) ? pal::StageAlt() : pal::Stage());
+                 StageColour(i));
         FillQuad(g, vx_, vy_, r, along * k, (along + 2.0f) * k, hw, dy, pal::Band());
         along += s.len;
     }
@@ -1224,7 +1240,7 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
     float bx, by;
     Axis(vx_, vy_, r, -8.0f * k, 0, bx, by);
     if (beat_ < Beat::ShroudEject) {
-        DrawNoseCone(g, bx, by, r, k, kShroudLen, kShroudHalfW, dy, pal::Shroud());
+        DrawNoseCone(g, bx, by, r, k, kShroudLen, kShroudHalfW, dy, pal::Aeroshell());
     } else {
         DrawNoseCone(g, bx, by, r, k, kRvLen, kRvHalfW, dy, pal::RvBody(), pal::RvLit());
     }
@@ -1263,8 +1279,8 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
         Axis(vx_, vy_, r, tail,              3.0f * k, x1, y1);
         Axis(vx_, vy_, r, tail + 4.0f * k,   4.5f * k, x2, y2);
         Axis(vx_, vy_, r, tail + 4.0f * k,  -4.5f * k, x3, y3);
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Shroud());
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Shroud());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Nozzle());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Nozzle());
         FillQuad(g, vx_, vy_, r, tail + 3.0f * k, tail + 4.0f * k, 3.0f * k, dy, pal::Throat());
     }
     // No else: once the stages are gone the exposed nozzle is the PBV's AXIAL
@@ -1310,7 +1326,11 @@ void Director::DrawDebris(LovyanGFX& g, int dy) const
         const float u = screen_ / 240.0f;
         const float r = angleDeg_ * 0.01745f;
         const float L = 14.0f * stageLife_ * scale_ * u;
-        FillQuad(g, stageX_, stageY_, r, 0, L, L * 0.35f, dy, pal::Stage());
+        // The spent stage keeps ITS OWN colour, which is the whole point of the
+        // three-colour scheme: the thing falling away is recognisably the piece
+        // that just left the stack.
+        const int gone = (beat_ == Beat::Stage1Sep) ? 2 : (beat_ == Beat::Stage2Sep ? 1 : 0);
+        FillQuad(g, stageX_, stageY_, r, 0, L, L * 0.35f, dy, StageColour(gone));
         FillQuad(g, stageX_, stageY_, r, 0, L * 0.14f, L * 0.35f, dy, pal::Band());
     }
 }
@@ -1355,8 +1375,8 @@ void Director::DrawBus(LovyanGFX& g, float ox, float oy, float r, float k, int d
         Axis(ox, oy, r, 0.0f,         1.6f * k, e1, f1);
         Axis(ox, oy, r, 3.4f * k,     3.0f * k, e2, f2);
         Axis(ox, oy, r, 3.4f * k,    -3.0f * k, e3, f3);
-        g.fillTriangle((int)e0, (int)f0 - dy, (int)e1, (int)f1 - dy, (int)e2, (int)f2 - dy, pal::Shroud());
-        g.fillTriangle((int)e0, (int)f0 - dy, (int)e2, (int)f2 - dy, (int)e3, (int)f3 - dy, pal::Shroud());
+        g.fillTriangle((int)e0, (int)f0 - dy, (int)e1, (int)f1 - dy, (int)e2, (int)f2 - dy, pal::Nozzle());
+        g.fillTriangle((int)e0, (int)f0 - dy, (int)e2, (int)f2 - dy, (int)e3, (int)f3 - dy, pal::Nozzle());
         FillQuad(g, ox, oy, r, 2.6f * k, 3.4f * k, 2.0f * k, dy, pal::Throat());
     }
 
@@ -1368,8 +1388,8 @@ void Director::DrawBus(LovyanGFX& g, float ox, float oy, float r, float k, int d
         Axis(ox, oy, r, (a + 1.1f) * k, s * kBusHalfW * k, x1, y1);
         Axis(ox, oy, r, (a + 1.1f) * k, s * kPodOut   * k, x2, y2);
         Axis(ox, oy, r, (a - 1.1f) * k, s * kPodOut   * k, x3, y3);
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Shroud());
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Shroud());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Nozzle());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Nozzle());
     }
 }
 
@@ -1641,10 +1661,17 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     //
     // Five rings to 1.35x is ~160k px. Same wash, 19 ms cheaper, and the outer
     // stops were mostly off-screen anyway.
+    //
+    // Trimmed again to 1.15x, 2026-08-06, to buy the beat real margin. Area goes
+    // as r^2, so 1.35 -> 1.15 is a 27% cut for ~2 ms, and it costs only how far
+    // the glow REACHES -- the ring count stays at four, so the wash does not
+    // gain any banding it did not already have. The billows are untouched: they
+    // are the fireball, and §11 is explicit that the fix for a slow detonation
+    // is a cheaper cloud and never a smaller one.
     const float haloA = 0.34f * (1.0f - cool * 0.6f);
     for (int i = kHaloRings; i >= 1; --i) {
         const float f = (float)i / (float)kHaloRings;
-        g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.35f * f),
+        g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.15f * f),
                      Over({0xFF,0x8C,0x28}, skyMid, haloA * (1.0f - f) * 1.6f));
     }
 

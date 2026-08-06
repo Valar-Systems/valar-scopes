@@ -17,7 +17,8 @@ rather than guessing.
 | 4 | real world map replaces the placeholder globe | DETONATION | **49.7** | 20.1 |
 | 5 | attitude + plasma fixes, 8-offset caption halo | DETONATION | **50.2** | 19.9 |
 | 6 | caption halo 8 → 4 offsets | DETONATION | **50.0** | 20.0 |
-| 7 | Stage IV propulsion, one-piece shroud, RV/PBV continuity, midcourse choreography — **shipping** | DETONATION | **50.0** | 20.0 |
+| 7 | Stage IV propulsion, one-piece shroud, RV/PBV continuity, midcourse choreography | DETONATION | **50.0** | 20.0 |
+| 8 | airframe colours + halo radius 1.35 → 1.15 × capR — **shipping** | DETONATION | **48.5** | 20.6 |
 
 TRUE-TIME was run at the run-3 config over the full 1,915 s; see below.
 
@@ -273,6 +274,53 @@ Eight offsets bought legibility by spending the sequence's tightest beat, which
 is the wrong trade. Four cardinal offsets are half the cost and, at a six-pixel
 font, the same picture — the diagonals are already covered by the two cardinals
 either side of them.
+
+---
+
+## The detonation, resolved — and where the pixels actually go
+
+Recomputed at the run-7 config rather than reusing the run-1 number, which had
+gone stale:
+
+| Element | Pixels/frame | Share |
+|---|---|---|
+| **46 billows** | ~262k | **54%** |
+| Halo (4 rings, 1.35 × capR) | ~138k | 28% |
+| Sky gradient (240 hlines) | ~58k | 12% |
+| Core, ground, shock ring | ~30k | 6% |
+
+The halo **was** 63% at ten rings and 1.9×. After two cuts it is not the biggest
+item any more — the billows are. "The halo is the cheap win" stopped being true
+two runs before anyone would have noticed, which is a good argument for
+re-deriving a cost rather than quoting one.
+
+It is still the right lever, for a different reason: **area goes as r²**, so
+1.35 → 1.15 is a 27% cut that costs only how far the glow REACHES. Ring count
+stays at four, so the wash gains no banding it did not already have.
+
+| | Compose worst | Beat worst | Margin to the bar |
+|---|---|---|---|
+| run 7 | 24.2 ms | 50.0 ms | **0.0** |
+| run 8 | 22.7 ms | **48.5 ms** | **1.5 ms** (~7× the run-to-run variance) |
+
+**`kPuffRings` was NOT spent.** It buys ~2.4 ms and flattens the internal shading
+on all 46 billows — and that shading is what makes them read as a churned cluster
+rather than flat discs, which is the difference between Hood/Badger and a generic
+fireball. §11: the fix is a cheaper cloud and never a smaller one. If more is
+needed later, cut `kCrownPuffs` 16 → 12 (~1.3 ms) first: losing four of sixteen
+outer billows is less visible than degrading all forty-six.
+
+### A caveat on the bar itself
+
+The 50 ms bar was written generically, before anything was measured, and it is a
+**motion**-stutter threshold. The detonation has no translation — a slow
+smoothstep rise and a slow cool across 11 s — so 20 fps there does not read the
+way 20 fps during a separation would. The only element that could show stepping
+is the ground shock ring, which crosses at ~7.5 px/frame for 2.2 s.
+
+That is an argument for a **per-beat bar**, not for shipping at exactly 50.0 with
+no margin. Taking the margin was still right; the bar should be split when the
+next beat comes close.
 
 ---
 
