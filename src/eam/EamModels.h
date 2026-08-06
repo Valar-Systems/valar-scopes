@@ -41,7 +41,13 @@ struct Tempo {
     int countToday = 0;
     float baselineMedian = 0.0f;
     float ratio = 0.0f;
-    String level = "normal";         // "quiet" | "normal" | "elevated" | "high"
+    // "warming" | "quiet" | "normal" | "elevated" | "high". WARMING is not a
+    // grade -- it is the feed saying its baseline does not yet rest on enough of
+    // its OWN reception to call one, and it arrives with ratio 0 so the dial
+    // draws empty. Unknown values already render in the default colour and rank
+    // 0 for the alert, so this needed no firmware change; the comment was simply
+    // one value out of date.
+    String level = "normal";
     int windowDays = 0;
 };
 
