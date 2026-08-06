@@ -485,37 +485,61 @@ constexpr float kGroundY = 208.0f;
 constexpr float kSiloHalfW = 14.0f;
 
 /**
- * THE BLAST DOOR, and it is the first thing that happens.
+ * THE LAUNCHER CLOSURE DOOR, and it is the first thing that happens.
  *
- * From launch footage (Vandenberg, night): the silo is capped by a massive
- * concrete closure that SLIDES SIDEWAYS ON RAILS to uncover the hole, and it is
- * still sitting there beside the opening for the rest of the launch. Neither the
- * NG animation nor the preview has it -- both open on a hole that is simply
- * already there -- and it is the single most recognisable piece of hardware on a
- * missile field.
+ * Not "the blast door" -- that is its name. A 110-ton slab of reinforced
+ * concrete and steel, 3.5 ft thick, whose job is to keep a nuclear near-miss out
+ * of the tube. On an emergency launch a heavy steel LOCKING PIN retracts, and
+ * then a BALLISTIC GAS GENERATOR throws the lid open on steel tracks. It does not
+ * open; it is fired open.
  *
- * It also fixes a real problem rather than only adding a detail: the beat's first
- * half-second was a dark rectangle and a glow ramping up, with nothing moving.
- * Now the beat opens on the one motion that says "this is a silo".
+ * Neither the NG animation nor the preview has any of this -- both open on a hole
+ * that is simply already there -- and it is the single most recognisable piece of
+ * hardware on a missile field. It also fixes a real problem rather than adding a
+ * detail: the beat's first half-second was a dark rectangle and a glow ramping
+ * up, with nothing moving.
  *
- * IT LEAVES THE FRAME ENTIRELY. The closure is thrown clear by a rocket, not
- * winched, and it does not stop politely beside the hole -- so the slide runs
- * until the slab is off the glass, and the motion is EASE-OUT (hard off the mark,
- * settling) rather than the smoothstep it started with. Smoothstep eases IN as
- * well, which is a heavy thing being cranked; this is a heavy thing being fired.
- * The rocket itself is not drawn.
+ * THREE THINGS THE REAL MECHANISM CHANGES, all of them cheap:
  *
- * kDoorSlide clears the round face with room to spare: the chord at grade spans
- * x 38..202, so the slab's near edge is past the glass by ~30 px at full travel.
+ *   1. THE PIN GOES FIRST. A short beat of the locking bolt withdrawing, then a
+ *      pause, then the slab. Two-stage motion is what makes an opening read as a
+ *      MECHANISM rather than as a panel sliding; one continuous move reads as a
+ *      drawer. It costs one 6x2 px rect.
+ *   2. IT IS FAST, BUT IT IS NOT INSTANT. The gas generator moves 110 tons "in
+ *      seconds" -- violent, not teleported. The easing is EASE-OUT so it is at
+ *      speed on the first frame (smoothstep, which is what this had, eases IN as
+ *      well, and a 110-ton lid that accelerates gently is a crank), but the slide
+ *      gets 0.42 of the 0.9 pad-seconds before ignition rather than a 10-frame
+ *      blur. Fast enough to read as fired, slow enough to read at all.
+ *   3. IT LEAVES THE FRAME. It is thrown clear, so it does not park politely
+ *      beside the hole. kDoorSlide clears the round face with room to spare (the
+ *      chord at grade spans x 38..202). The gas generator itself is not drawn.
  *
- * Timed to finish before the fire starts, so the two do not compete: slide
- * 0.10 -> 0.70, first light 0.55, ignition 0.90.
+ * WHY SIDEWAYS AND NOT HINGED, recorded so nobody "improves" it into a flap: a
+ * lid that slides can shove its way clear through the dirt and debris a near-miss
+ * dumps on the surface. A hinged one lifts into that debris and jams.
+ *
+ * IGNITION IS AFTER THE DOOR, AND IT HAPPENS INSIDE THE TUBE. The first-stage
+ * motor lights once the closure has cleared the path, with the vehicle still
+ * fully below grade -- which is exactly what kIgnS at 0.90 against an emergence
+ * at 1.91 already does, and is now the reason rather than a coincidence.
+ *
+ * SCALE IS TAKEN OFF THE VEHICLE IN THE SAME FRAME, which is the only honest way
+ * to size it: kSegments gives stage 1 an 11 px body for a 5.5 ft airframe, so
+ * 1 px = 0.5 ft here. 3.5 ft of slab is 7 px, and the ~21 ft closure is 42 px
+ * across. Both were guessed before those figures existed and both were close;
+ * they are derived now, so a future change to the vehicle's width carries.
+ *
+ * Sequence: pin 0.05 -> 0.22, slab 0.24 -> 0.66, first light 0.66, ignition 0.90.
  */
-constexpr float kDoorStartS = 0.10f;
-constexpr float kDoorEndS   = 0.70f;
-constexpr float kDoorHalfW  = 17.0f;   // overlaps the mouth on both sides when shut
+constexpr float kPinStartS  = 0.05f;
+constexpr float kPinEndS    = 0.22f;
+constexpr float kDoorStartS = 0.24f;
+constexpr float kDoorEndS   = 0.66f;   // gas generator, not a winch
+constexpr float kDoorHalfW  = 21.0f;   // ~21 ft closure at 0.5 ft/px
+constexpr float kDoorThick  = 7.0f;    // 3.5 ft of concrete and steel
 constexpr float kDoorSlide  = 130.0f;  // clean off the panel, not parked beside the hole
-constexpr float kFireStartS = 0.55f;   // first light, as the door finishes
+constexpr float kFireStartS = 0.66f;   // the motor lights once the path is clear
 
 /**
  * THE FIRE IS A COLUMN OUT OF THE HOLE, NOT A DOME ON THE GROUND.
@@ -1459,14 +1483,26 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
         g.drawFastHLine(cx, gy + (int)(3 * u) - dy, screen_ - cx, pal::SiloEdge());
         g.drawFastHLine(cx, gy + (int)(5 * u) - dy, screen_ - cx, pal::SiloEdge());
 
-        // EASE-OUT, not smoothstep: thrown by a rocket, so it is at speed
-        // immediately. Smoothstep would ease in as well, which is a crank.
+        // EASE-OUT, not smoothstep: gas-generator driven, so it is at speed on
+        // the first frame. Smoothstep would ease in as well, which is a crank.
         const float t     = Clamp01((ts - kDoorStartS) / (kDoorEndS - kDoorStartS));
         const float slide = 1.0f - (1.0f - t) * (1.0f - t);
         const int   dx    = (int)(kDoorSlide * slide * u);
         const int   dw    = (int)(kDoorHalfW * u);
-        const int   dt    = gy - (int)(4 * u);
-        const int   dh    = (int)(8 * u) + 1;
+        const int   dh    = (int)(kDoorThick * u) + 1;
+        const int   dt    = gy - dh / 2;
+
+        // THE LOCKING PIN, and it goes FIRST. A steel bolt withdrawing, a pause,
+        // then 110 tons of concrete -- two-stage motion is what makes an opening
+        // read as a MECHANISM. One continuous move reads as a drawer. It is six
+        // pixels of steel and it is the cheapest characterful thing in the beat.
+        if (ts < kDoorStartS) {
+            const float pt = 1.0f - Clamp01((ts - kPinStartS) / (kPinEndS - kPinStartS));
+            const int   pl = (int)(6 * u * pt) + 1;
+            g.fillRect(cx - dw - pl, gy - (int)(3 * u) - dy, pl, (int)(2 * u) + 1,
+                       pal::DoorLit());
+        }
+
         g.fillRect(cx + dx - dw, dt - dy, dw * 2, dh, pal::Door());
         // A lit top face, which is the only thing that separates a concrete slab
         // from the ground it is sitting on at this size.

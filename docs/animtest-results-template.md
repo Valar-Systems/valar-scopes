@@ -215,7 +215,10 @@ supposed to be the same picture, not merely the same idea.
 
 | | Preview | Glass | Match? |
 |---|---|---|---|
-| **Blast door slides sideways on its rails and clean off the frame** (*launch footage; in neither the NG animation nor the preview*) | — | | ☐ |
+| **Locking pin retracts first**, then the slab goes — reads as a mechanism, not a drawer | — | | ☐ |
+| **Launcher Closure Door slides sideways and clean off the frame** (*launch footage; in neither the NG animation nor the preview*) | — | | ☐ |
+| Door is fast but **not a blur** — you can see 110 tons moving | — | | ☐ |
+| **Ignition happens after the door clears, with the vehicle still below grade** | — | | ☐ |
 | Vehicle is **fully buried** before first motion, then hot-launches | ✓ | | ☐ |
 | Fire has **no straight edges anywhere** — see the note below | — | | ☐ |
 | The vehicle is **hidden inside the fire** and emerges from the **top** of it | — | | ☐ |

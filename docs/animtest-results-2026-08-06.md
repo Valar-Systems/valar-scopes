@@ -508,18 +508,44 @@ Nine stills from **real launch footage** (Vandenberg, night). Two elements in
 them are in *neither* the NG animation nor the preview, and one of the two is the
 first thing that happens in a launch.
 
-**1. The blast door.** The silo is capped by a massive concrete closure that
-**slides sideways on rails** to uncover the hole, and it is still sitting there
-beside the opening for the rest of the launch. Both existing sources open on a
+**1. The Launcher Closure Door.** Not "the blast door" — that is its name. A
+110-ton slab of reinforced concrete and steel, 3.5 ft thick, that **slides
+sideways on steel tracks** to uncover the hole. Both existing sources open on a
 hole that is simply already there.
 
 This is not only a detail. The beat's first half-second was a dark rectangle and
 a glow ramping up, with **nothing moving** — the weakest part of the shot. It now
-opens on the one motion that says *silo*. Timed to finish before the fire starts
-so the two do not compete: slide 0.10 → 0.70, first light 0.55, ignition 0.90.
-Eased rather than linear, because it is a very heavy thing being winched. The
-rails are drawn from frame 0, before the door moves: a slab that slides with
-nothing under it reads as a glitch.
+opens on the one motion that says *silo*. The rails are drawn from frame 0,
+before the door moves: a slab that slides with nothing under it reads as a
+glitch.
+
+Three things the real mechanism settled, none of which I would have guessed:
+
+- **The locking pin goes first.** A steel bolt withdraws, a pause, *then* 110
+  tons of concrete. Two-stage motion is what makes an opening read as a
+  **mechanism**; one continuous move reads as a drawer. Six pixels of steel, and
+  the cheapest characterful thing in the beat.
+- **Fast, but not instant.** A ballistic gas generator burning solid propellant
+  shoves it — violent, but it moves *"in seconds"*, not teleported. The first
+  build had it at 0.30 pad-seconds, a ten-frame blur; it now gets 0.42 of the 0.9
+  pad-seconds before ignition. Easing is **ease-out**, so it is at speed on the
+  first frame — smoothstep, which this started with, eases *in* as well, and a
+  110-ton lid that accelerates gently is a crank.
+- **Ignition follows the door, inside the tube.** The first-stage motor lights
+  once the closure has cleared the path, vehicle still fully below grade. `kIgnS`
+  at 0.90 against an emergence at 1.91 already did that; it is now the *reason*
+  rather than a coincidence.
+
+Recorded in the source so nobody "improves" it into a hinged flap: **sideways is
+the point.** A sliding lid shoves its way clear through the dirt and debris a
+near-miss dumps on the surface; a hinged one lifts into that debris and jams.
+
+Sizing is now **derived from the vehicle in the same frame** rather than guessed:
+`kSegments` gives stage 1 an 11 px body for a 5.5 ft airframe, so 1 px = 0.5 ft
+— 3.5 ft of slab is 7 px, and the ~21 ft closure is 42 px across. Both guesses
+were close; they carry now if the vehicle's width ever changes.
+
+Sequence: pin 0.05 → 0.22, slab 0.24 → 0.66, first light 0.66, ignition 0.90.
 
 **2. Fire shoots straight up out of the hole, with the missile still inside it.**
 Four consecutive frames of that footage show **no vehicle at all** — just a
