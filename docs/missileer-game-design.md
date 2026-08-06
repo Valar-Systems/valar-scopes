@@ -749,7 +749,7 @@ removes the only moment in the ascent with any suspense in it.
 
 | Beat | Direction |
 |---|---|
-| **Shroud** | clamshell halves |
+| **Shroud** | **one piece.** The aeroshell leaves whole, forward and to the side, tumbling away on its own arc with a separation-motor flare. *Corrected 2026-08-06. This row said "clamshell halves", which came from a third-party animation (AiTelly) that this section does not cite. **The NG 2007 video named at the top of this section shows a single shroud at T+121**, and so does the MM3 MIRV-path diagram (item E). Both of the sources we actually rely on agree; the row was wrong.* |
 | **Post-boost** | blue porcupine RCS |
 | **PSRE pitch-over** | continues the arc **nose-down** — downrange velocity is conserved, so the RV releases *in the direction of travel*. Getting this backwards is the tell that an animation was drawn rather than reasoned |
 | **RV release** | **SILENT.** No ordnance, no bang. The quietest moment in the sequence is the one that matters most |
@@ -757,6 +757,20 @@ removes the only moment in the ascent with any suspense in it.
 | **Penaids** | deploy from the backing bus |
 | **Reentry** | decoy streaks burning out |
 | **Detonation** | **Plumbbob Hood / Upshot-Knothole Badger** fire palette — full-screen, cooling to rust |
+
+**The reference is authoritative for WHAT and WHEN, never for WHETHER IT CAN BE SEEN**
+(standing rule, 2026-08-06). The beat sheet above is ported from a preview authored on a
+240×240 canvas *displayed at 480 CSS px* on a bright laptop — every size and contrast
+decision in it was made at 2× magnification in a viewing condition the product never has.
+Choreography, beat timing and palette intent port faithfully. **Legibility at 240 px across
+~32 mm of glass at desk distance is a device-side judgment and it overrides the reference.**
+
+Already caught, both faithfully ported and both wrong on glass: the RV is ~14 px of geometry
+(**1.9 mm** — below the size at which a viewer can tell what the object is) drawn at ~4%
+luminance on black. *"The reference does it this way"* is not a defence for something
+invisible on the panel. Note also that "shrink the vehicle to a single dot" above is about
+the **end** of the ascent and the match cut, where being a dot is the point — it is not a
+licence for the vehicle to be unreadable through the whole of midcourse.
 
 **Shredded paper is removed.** The §7 payload-select escape hatch is **OPEN** as a result: the
 tone valve it provided has to come from somewhere, and this direction is too committed to

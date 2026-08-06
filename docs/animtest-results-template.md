@@ -214,10 +214,63 @@ it still does.
 
 ## Palette check
 
+### Polarity — do this FIRST, before judging any other colour
+
+**The GC9A01 boots inverted.** `src/main.cpp` undoes it per-variant and the bench
+TUs did not, so for one session every colour on this rig was the exact complement
+of what the code wrote — and it is invisible from the build, the serial log and
+the frame timings. The only symptom is looking at it.
+
+The standing check is the match-cut dot, because it is a known hex on a known
+ground:
+
+| | Correct | Inverted |
+|---|---|---|
+| Match-cut dot (`pal::Red()`) | **`#FF3B30`** red | **`#00C4CF`** cyan |
+| Space background | black | white |
+| Vehicle stages | olive | blue-grey |
+| Earth limb | blue | orange |
+
+**Dot cyan, or background white ⇒ stop.** Nothing else on this page means
+anything until polarity is right. The boot log now prints `invert=` — confirm it
+matches the variant's `BLIPSCOPE_DISP_INVERT`.
+
+- Polarity correct? ☐ yes ☐ **no — stop, nothing below is valid**
+
+### Amber
+
 §11 reserves amber (`#ffb000`) for EXERCISE traffic and nothing else.
 
 - Amber anywhere in the sequence or the rig chrome? ☐ no ☐ **yes — file it**
 - Detonation ramps read as Hood/Badger fire, not as a UI accent? ☐ yes ☐ no
+
+---
+
+## Standing rule: the reference cannot vouch for legibility
+
+**The look target is authoritative for WHAT and WHEN, never for WHETHER IT CAN BE
+SEEN.** It is authored on a 240×240 canvas displayed at **480 CSS px** on a bright
+laptop; the panel is 240 px across ~32 mm of glass at desk distance, where 1 px is
+**0.135 mm**. Choreography, beat timing and palette intent port faithfully.
+Legibility is a device-side judgment that overrides the reference, and *"the
+reference does it this way"* is never a defence for something invisible on the
+panel.
+
+So when a match row below fails, ask which kind of failure it is:
+
+- **Wrong shape / wrong moment / wrong hue** → the port is wrong, fix the port.
+- **Right in the browser, unreadable on glass** → the reference is wrong, fix it
+  device-side and record it in the `.cpp`'s DEVIATIONS block.
+
+Sizes as ported, for reference (1 px = 0.135 mm):
+
+| State | px | physical |
+|---|---|---|
+| Full stack + bus + shroud | 74 | 10.0 mm |
+| After stage 1 | 52 | 7.0 mm |
+| After stage 2 (shroud already gone) | 31 | 4.2 mm |
+| After stage 3 — bus + cone | 17 | 2.3 mm |
+| RV alone | 14 | **1.9 mm** |
 
 ---
 

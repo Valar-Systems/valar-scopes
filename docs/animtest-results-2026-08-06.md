@@ -14,6 +14,13 @@ rather than guessing.
 | 1 | as merged in #155 | DETONATION | **64.0** | 15.6 |
 | 2 | `kHaloRings` 10 → 5, radius 1.9 → 1.35 × capR | DETONATION | **51.0** | 19.6 |
 | 3 | `kHaloRings` 5 → 4 | DETONATION | **49.8** | 20.1 |
+| 4 | real world map replaces the placeholder globe | DETONATION | **49.7** | 20.1 |
+| 5 | attitude + plasma fixes, 8-offset caption halo | DETONATION | **50.2** | 19.9 |
+| 6 | caption halo 8 → 4 offsets | DETONATION | **50.0** | 20.0 |
+| 7 | Stage IV propulsion, one-piece shroud, RV/PBV continuity, midcourse choreography | DETONATION | **50.0** | 20.0 |
+| 8 | airframe colours + halo radius 1.35 → 1.15 × capR — **shipping** | DETONATION | **48.5** | 20.6 |
+
+TRUE-TIME was run at the run-3 config over the full 1,915 s; see below.
 
 ---
 
@@ -21,8 +28,8 @@ rather than guessing.
 
 | Mode | Worst beat | Worst frame | Worst fps | Verdict |
 |---|---|---|---|---|
-| COMPRESSED | DETONATION | 49.8 ms | 20.1 | ⚠ **marginal** — see below |
-| TRUE-TIME | _pending_ | | | |
+| COMPRESSED (run 6, shipping) | DETONATION | **50.0 ms** | 20.0 | ⚠ **at the bar, not under it** |
+| TRUE-TIME (run 3 config) | DETONATION | 49.8 ms | 20.1 | ⚠ same, and see the midcourse result |
 
 **Fifteen of sixteen beats ship comfortably.** They sit at 30.2–34.2 ms
 (29–33 fps) against a 50 ms bar, and the spread across the whole ascent is
@@ -51,29 +58,44 @@ here is push-bound, so every finding below is an art finding.
 
 ---
 
-## Per-beat table — COMPRESSED, run 3 (shipping config)
+## Per-beat table — COMPRESSED, run 7 (shipping config)
+
+Everything: the real world map, the 4-offset caption halo, the subject-size
+boost, the attitude/plasma fixes, Stage IV's two propulsion systems, the
+one-piece shroud, the slender lit-rim RV, and the midcourse choreography.
 
 | # | Beat | T+ | Frames | Avg ms | **Worst ms** | Worst fps | Compose worst | Push worst |
 |---|---|---|---|---|---|---|---|---|
-| 1 | IGNITION | 0 | 191 | 30.9 | 31.2 | 32.1 | 5.4 | 25.8 |
-| 2 | STAGE 1 SEP | 62 | 96 | 30.8 | 31.0 | 32.2 | 5.2 | 25.8 |
-| 3 | STAGE 2 | 65 | 159 | 31.0 | 31.0 | 32.2 | 5.2 | 25.8 |
-| 4 | SHROUD | 121 | 80 | 30.9 | 31.0 | 32.3 | 5.2 | 25.8 |
-| 5 | STAGE 2 SEP | 123 | 96 | 30.8 | 31.0 | 32.3 | 5.2 | 25.8 |
-| 6 | STAGE 3 | 126 | 160 | 30.7 | 30.9 | 32.3 | 5.1 | 25.8 |
-| 7 | STAGE 3 SEP | 177 | 97 | 30.3 | 30.6 | 32.7 | 4.7 | 25.8 |
-| 8 | POST-BOOST | 180 | 193 | 30.5 | 30.6 | 32.7 | 4.8 | 25.8 |
-| 9 | PSRE PITCH | 205 | 195 | 30.4 | **30.4** | 32.9 | 4.6 | 25.8 |
-| 10 | RV RELEASE | 225 | 196 | 30.1 | **30.2** | 33.1 | **4.4** | 25.8 |
-| 11 | BUS BACKAWAY | 233 | 163 | 30.2 | 30.3 | 33.0 | 4.5 | 25.8 |
-| 12 | PENAIDS | 245 | 162 | 30.2 | 30.3 | 33.0 | 4.5 | 25.8 |
-| 13 | MIDCOURSE | 260 | 373 | 31.7 | 33.1 | 30.2 | 7.3 | 25.8 |
-| 14 | REENTRY | 1806 | 255 | 30.9 | 34.2 | 29.2 | 8.5 | 25.8 |
-| 15 | DETONATION | 1896 | 243 | 44.8 | **49.8** | **20.1** | **24.0** | 25.8 |
-| 16 | MATCH CUT | — | 190 | 31.2 | 32.8 | 30.5 | 7.0 | 25.8 |
+| 1 | IGNITION | 0 | 184 | 32.2 | 32.6 | 30.7 | 6.8 | 25.8 |
+| 2 | STAGE 1 SEP | 62 | 93 | 31.8 | 32.6 | 30.6 | 6.8 | 25.8 |
+| 3 | STAGE 2 | 65 | 150 | 32.9 | 33.0 | 30.3 | 7.2 | 25.8 |
+| 4 | SHROUD | 121 | 76 | 32.5 | 32.5 | 30.8 | 6.7 | 25.8 |
+| 5 | STAGE 2 SEP | 123 | 92 | 31.9 | 32.8 | 30.4 | 7.0 | 25.8 |
+| 6 | STAGE 3 | 126 | 153 | 32.3 | 32.8 | 30.5 | 7.0 | 25.8 |
+| 7 | STAGE 3 SEP | 177 | 95 | 31.1 | 31.4 | 31.8 | 5.6 | 25.8 |
+| 8 | POST-BOOST | 180 | 182 | 32.5 | 32.5 | 30.7 | 6.7 | 25.8 |
+| 9 | PSRE PITCH | 205 | 186 | 31.7 | 31.8 | 31.4 | 6.0 | 25.8 |
+| 10 | RV RELEASE | 225 | 188 | 31.3 | **31.3** | 31.9 | **5.5** | 25.8 |
+| 11 | BUS BACKAWAY | 233 | 158 | 31.3 | 31.4 | 31.9 | 5.5 | 25.8 |
+| 12 | PENAIDS | 245 | 155 | 31.6 | 31.7 | 31.5 | 5.9 | 25.8 |
+| 13 | MIDCOURSE | 260 | 347 | 34.0 | 36.8 | 27.1 | 11.0 | 25.8 |
+| 14 | REENTRY | 1806 | 249 | 31.6 | 34.9 | 28.6 | 9.2 | 25.8 |
+| 15 | DETONATION | 1896 | 242 | 45.1 | **50.0** | **20.0** | **24.2** | 25.8 |
+| 16 | MATCH CUT | — | 181 | 32.8 | 36.1 | 27.7 | 10.3 | 25.8 |
 
-The cheapest beat is **RV RELEASE** at 4.4 ms compose, which is a pleasing
-accident: §11's quietest moment is also the one that draws the least.
+Fifteen beats span **31.3–36.8 ms**. The cheapest is RV RELEASE at 5.5 ms
+compose, which is a pleasing accident: §11's quietest moment is also the one that
+draws the least — and it stayed the cheapest even after the RV got twice the size
+and the bus grew an engine and eight thrusters.
+
+**The detonation is at 50.0 ms against a 50.0 ms bar.** Not under it. Every art
+addition since run 3 has been paid for out of the only beat with no headroom, and
+the remaining lever (`kPuffRings`, billow shading on the marquee beat) is an open
+look decision rather than a perf one.
+
+**The detonation is at 50.0 ms against a 50.0 ms bar.** Not under it. Everything
+added to the frame since run 3 — the world map does not touch this beat, but the
+caption halo does — has been paid for out of the only beat with no headroom.
 
 ---
 
@@ -151,6 +173,154 @@ template has been corrected.
 **REENTRY is the second most expensive beat** at 8.5 ms compose — the 240-row
 gradient sky plus ten cloud-deck ellipses. Never at risk (34.2 ms worst), but
 worth knowing it is 1.9× an ascent beat.
+
+---
+
+## TRUE-TIME — the full 1,915 s run
+
+Every beat matches COMPRESSED to within 0.1 ms, and the verdict is identical
+(DETONATION, 49.8 ms, 20.1 fps). ~59,700 frames at ~31 fps sustained for 32
+minutes.
+
+**The result that only this mode could produce:**
+
+| | Frames | Avg ms | Worst ms | Compose worst |
+|---|---|---|---|---|
+| MIDCOURSE, COMPRESSED (12 s) | 373 | 31.7 | 33.1 | 7.3 |
+| MIDCOURSE, TRUE-TIME (1,546 s) | **48,023** | **31.7** | **33.1** | **7.3** |
+
+**Identical to the decimal across a 129× increase in frame count.** 48,023
+consecutive frames of a 26-minute beat and the worst frame is the same as in 373.
+That is the drift/leak question answered: there is no accumulating cost, no heap
+creep expressed as slowing frames, and no timer drift over the longest beat in
+the sequence. A 12-second compressed midcourse is a valid proxy for a 26-minute
+real one, which is the assumption the whole compressed mode rests on.
+
+Other beats, TRUE-TIME (worst ms): IGNITION 31.2 · STAGE 1 SEP 31.0 · STAGE 2
+31.1 · SHROUD 31.0 · STAGE 2 SEP 31.0 · STAGE 3 30.9 · STAGE 3 SEP 30.6 ·
+POST-BOOST 30.6 · PSRE PITCH 30.4 · RV RELEASE 30.2 · BUS BACKAWAY 30.3 ·
+PENAIDS 30.3 · REENTRY 34.3 · DETONATION 49.8 · MATCH CUT 32.8.
+
+The *feel* questions this mode exists for are still open — they need a human
+watching, not a log. See the template's true-time section.
+
+---
+
+## Run 4 — the real world map
+
+The placeholder graticule globe was replaced with the reference's actual
+equirectangular map (six landmasses, 126 points, scanline-filled with stroked
+coastlines, a real great-circle track and the aim-point crosshair). Cost:
+
+| Beat | Placeholder globe | Real map | Δ compose |
+|---|---|---|---|
+| MIDCOURSE | 33.1 ms (7.3 compose) | **36.1 ms** (10.3) | +3.0 |
+| MATCH CUT | 32.8 ms (7.0 compose) | **35.9 ms** (10.1) | +3.1 |
+
+**Affordable.** Compose 10.3 ms against a ~24 ms budget; worst frame 36.1 ms
+against a 50 ms bar. The two map beats move from 5th/6th most expensive to
+2nd/3rd, behind the detonation and ahead of reentry, and the verdict is unchanged
+(DETONATION, 49.7 ms). Scanline polygon fill is the reason it is this cheap —
+~12.6k edge tests per frame across all six landmasses.
+
+Flash cost: **+4 KB** (map data + projection + great-circle solution).
+
+---
+
+## Run 5 — three bugs the photographs found that the log could not
+
+**1. The rotation sign was inverted, sequence-wide.** `Axis()` rotated the
+opposite way from the reference's `ctx.rotate()`, so positive angle canted the
+nose toward **−x** while the vehicle drifted toward **+x**. Every attitude in the
+sequence was mirrored, including the PSRE pitch-over — which is the one thing §11
+singles out: *"downrange velocity is conserved, so the RV releases in the
+direction of travel. Getting this backwards is the tell that an animation was
+drawn rather than reasoned."*
+
+It only became visible at REENTRY, because that is the only beat whose screen
+travel is large enough to contradict the attitude out loud. One sign in one
+function; everything downstream followed.
+
+**2. Reentry attitude and reentry path were written down separately** and
+disagreed by 16–29°. The angle now derives from the anchor's own endpoints
+(`atan2(dx, −dy)`), so editing the path moves the nose. Same single-source fix as
+the match-cut dot, same reason: two records of "which way is it heading" is two
+places to drift.
+
+**3. Both ends of the plasma were on the wrong side** — the ionised trail drew
+*ahead* of the vehicle and the bow shock *behind* it, an RV flying backwards down
+its own wake. The reference has the trail running back along the flight line and
+the sheath centred on the nose.
+
+None of the three is detectable from a frame time, a build, or a serial log.
+
+### And the caption cannot be fixed by moving it
+
+The limb's bright rim (`#9FD4E8`) **sweeps down through the frame** as altitude
+rises — y≈192 at liftoff to y≈235 at the top of the ascent. Any fixed caption row
+is crossed by it at some point in the climb; at T+0 the row starts underneath it,
+which is why liftoff specifically was unreadable.
+
+A scrim would cover the art the caption describes, so the text is haloed instead.
+Measured, and it is not free:
+
+| Halo | IGNITION compose | DETONATION worst |
+|---|---|---|
+| none | 5.4 ms | 49.7 ms |
+| 8 offsets | 8.2 ms (+2.8) | **50.2 ms — over the bar** |
+| 4 cardinal | see run 6 | see run 6 |
+
+Eight offsets bought legibility by spending the sequence's tightest beat, which
+is the wrong trade. Four cardinal offsets are half the cost and, at a six-pixel
+font, the same picture — the diagonals are already covered by the two cardinals
+either side of them.
+
+---
+
+## The detonation, resolved — and where the pixels actually go
+
+Recomputed at the run-7 config rather than reusing the run-1 number, which had
+gone stale:
+
+| Element | Pixels/frame | Share |
+|---|---|---|
+| **46 billows** | ~262k | **54%** |
+| Halo (4 rings, 1.35 × capR) | ~138k | 28% |
+| Sky gradient (240 hlines) | ~58k | 12% |
+| Core, ground, shock ring | ~30k | 6% |
+
+The halo **was** 63% at ten rings and 1.9×. After two cuts it is not the biggest
+item any more — the billows are. "The halo is the cheap win" stopped being true
+two runs before anyone would have noticed, which is a good argument for
+re-deriving a cost rather than quoting one.
+
+It is still the right lever, for a different reason: **area goes as r²**, so
+1.35 → 1.15 is a 27% cut that costs only how far the glow REACHES. Ring count
+stays at four, so the wash gains no banding it did not already have.
+
+| | Compose worst | Beat worst | Margin to the bar |
+|---|---|---|---|
+| run 7 | 24.2 ms | 50.0 ms | **0.0** |
+| run 8 | 22.7 ms | **48.5 ms** | **1.5 ms** (~7× the run-to-run variance) |
+
+**`kPuffRings` was NOT spent.** It buys ~2.4 ms and flattens the internal shading
+on all 46 billows — and that shading is what makes them read as a churned cluster
+rather than flat discs, which is the difference between Hood/Badger and a generic
+fireball. §11: the fix is a cheaper cloud and never a smaller one. If more is
+needed later, cut `kCrownPuffs` 16 → 12 (~1.3 ms) first: losing four of sixteen
+outer billows is less visible than degrading all forty-six.
+
+### A caveat on the bar itself
+
+The 50 ms bar was written generically, before anything was measured, and it is a
+**motion**-stutter threshold. The detonation has no translation — a slow
+smoothstep rise and a slow cool across 11 s — so 20 fps there does not read the
+way 20 fps during a separation would. The only element that could show stepping
+is the ground shock ring, which crosses at ~7.5 px/frame for 2.2 s.
+
+That is an argument for a **per-beat bar**, not for shipping at exactly 50.0 with
+no margin. Taking the margin was still right; the bar should be split when the
+next beat comes close.
 
 ---
 

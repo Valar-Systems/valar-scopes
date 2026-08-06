@@ -85,18 +85,41 @@ inline uint32_t EarthEdge() { return lgfx::color888(0x03, 0x07, 0x0C); }
 inline uint32_t LimbCloud() { return lgfx::color888(0x38, 0x5A, 0x72); } // 0.18 white, pre-blended
 inline uint32_t Star()      { return lgfx::color888(0xCF, 0xD6, 0xDD); }
 
-// Vehicle. OLIVE with tan interstage bands -- not the grey-white this module
-// first guessed at. The bands are what make the stack read as three stacked
-// stages rather than one tube, at a body width of nine pixels.
-inline uint32_t Stage()    { return lgfx::color888(0x6F, 0x6E, 0x52); }
-inline uint32_t StageAlt() { return lgfx::color888(0x7A, 0x77, 0x58); }
-inline uint32_t Band()     { return lgfx::color888(0xB8, 0xA0, 0x6A); }
+// Vehicle. FROM THE AIRFRAME, not from the preview.
+//
+// The preview draws all three stages the same olive with tan bands, and the
+// museum article (NASM A19761115000) does not: bottom to top it runs pale sage,
+// cream, olive green, with tan interstage bands and a tan aeroshell over the RV.
+// Three stages that do not share a colour is worth more here than fidelity to
+// the preview, because §11 needs a separation to READ -- and the way a viewer
+// knows which stage just left is that the stack visibly changes colour, not just
+// length. On a nine-pixel body that is the only cue that survives.
+//
+// kSegments runs nose -> tail, so index 0 is stage 3 and index 2 is stage 1.
+inline uint32_t Stage1()   { return lgfx::color888(0xB2, 0xC0, 0xA8); } // pale sage, the big one
+inline uint32_t Stage2()   { return lgfx::color888(0xE2, 0xE0, 0xD6); } // cream
+inline uint32_t Stage3()   { return lgfx::color888(0x6E, 0x7A, 0x57); } // olive green
+inline uint32_t Band()     { return lgfx::color888(0xA8, 0x9A, 0x6E); } // tan interstage
+inline uint32_t Aeroshell(){ return lgfx::color888(0xB9, 0xA8, 0x7A); } // tan, over the RV
 inline uint32_t Bus()      { return lgfx::color888(0x8A, 0x86, 0x72); }
-inline uint32_t Shroud()   { return lgfx::color888(0x3B, 0x3C, 0x38); }
+inline uint32_t Nozzle()   { return lgfx::color888(0x3B, 0x3C, 0x38); } // bells, pods, throats
 inline uint32_t Throat()   { return lgfx::color888(0x1C, 0x1D, 0x1A); }
 inline uint32_t Shell()    { return lgfx::color888(0x4A, 0x4B, 0x45); }
 inline uint32_t Decoy()    { return lgfx::color888(0x55, 0x56, 0x4E); }
-inline uint32_t RvBody()   { return lgfx::color888(0x2B, 0x2C, 0x28); }
+inline uint32_t RvBody()   { return lgfx::color888(0x2B, 0x2C, 0x28); } // reentry only -- see RvLit
+/**
+ * The RV in space. The reference draws it #2B2C28 -- about 4% luminance -- on
+ * black, which is invisible on this panel, and it is invisible in the reference
+ * too; nobody noticed because the browser shows it at 2x on a bright laptop.
+ *
+ * Legibility is a device-side judgment, so the space-side RV is LIT. This is
+ * also the physically honest choice: a sunlit object against a black sky is the
+ * brightest thing in frame, not the darkest. The dark value stays for REENTRY,
+ * where the RV sits inside a bright plasma sheath against a daylit gradient and
+ * dark-on-light is what makes it read -- the same object, coloured for the
+ * background it is actually on.
+ */
+inline uint32_t RvLit()    { return lgfx::color888(0xC6, 0xC2, 0xAE); }
 inline uint32_t Rcs()      { return lgfx::color888(0xBE, 0xE1, 0xFF); } // §11: BLUE porcupine
 inline uint32_t Gas()      { return lgfx::color888(0x8A, 0x8C, 0x8E); } // vented gas, pre-blended
 
@@ -362,6 +385,228 @@ const Anchor kAnchors[(int)Beat::COUNT] = {
 struct Segment { float len, wide; };
 const Segment kSegments[3] = {{14, 9}, {16, 10}, {22, 11}}; // stage 3, 2, 1
 
+/** Airframe colour by kSegments index (0 = stage 3 at the nose, 2 = stage 1). */
+inline uint32_t StageColour(int i)
+{
+    return (i == 0) ? pal::Stage3() : (i == 1) ? pal::Stage2() : pal::Stage1();
+}
+
+/**
+ * APPARENT-SIZE FLOOR -- the first place the reference is deliberately not
+ * followed, under the standing rule that it is authoritative for WHAT and WHEN
+ * and never for WHETHER IT CAN BE SEEN.
+ *
+ * The reference was authored on a 240x240 canvas displayed at 480 CSS px on a
+ * bright laptop. This panel is 240 px across ~32 mm of glass at desk distance,
+ * so 1 px is 0.135 mm and the reference's geometry ports to:
+ *
+ *     full stack + bus + shroud   74 px   10.0 mm
+ *     after stage 1               52 px    7.0 mm
+ *     after stage 2               31 px    4.2 mm
+ *     after stage 3 (bus + cone)  17 px    2.3 mm   <- 45 s of true time
+ *     RV alone                    14 px    1.9 mm   <- and shrinking
+ *
+ * The stack is fine. Everything after the third separation is at or below the
+ * size where a viewer can tell what the object is, and the RV is the subject of
+ * five consecutive beats. §11's "shrink to a dot" is about the END of the
+ * ascent and the match cut, where being a dot is the point -- it is not a
+ * licence for the vehicle to be unreadable through the whole of midcourse.
+ *
+ * So the vehicle is boosted once the stack is gone. RAMPED ACROSS THE LAST
+ * SEPARATION rather than switched, because a silhouette that doubles in one
+ * frame is a pop; ramped, it reads as the camera pushing in as the stack falls
+ * away, which is what a real flight-sequence video does at exactly this moment.
+ *
+ * Proportions are untouched -- this multiplies scale_, so every relative size
+ * the reference chose survives. Only the apparent size changes.
+ */
+constexpr float kSubjectBoost = 2.0f;   // 14 px -> 28 px (1.9 mm -> 3.8 mm)
+
+/**
+ * MIDCOURSE CHOREOGRAPHY, as fractions of the beat.
+ *
+ * §11: "Ascent ends by shrinking the vehicle to a single dot; the map opens with
+ * that same dot." Three things have to happen in that order and they did not:
+ *
+ *   0.00 .. 0.34   HOLD. Full size, where the ascent left it. §7 hands the
+ *                  screen back to monitoring here; nothing should be moving.
+ *   0.34 .. 0.44   SHRINK AND SLIDE, on ONE easing parameter, so the vehicle
+ *                  arrives at its track position exactly as it becomes a dot.
+ *   0.44           IT IS THE DOT. The RV stops being drawn and the dot starts,
+ *                  same place, same instant -- there is never both.
+ *   0.45           The map opens under a dot that is already sitting still.
+ *
+ * What was there before drew the red dot on top of the full-size RV for the
+ * whole beat and slid the pair across the frame at full size, which is a dot
+ * appearing on a vehicle and the vehicle then walking to the map -- the exact
+ * opposite of the read the rule asks for.
+ */
+constexpr float kShrinkStart = 0.34f;
+constexpr float kDotAt       = 0.44f;
+
+/**
+ * THE SHROUD AND THE RV ARE NOT THE SAME SHAPE, and jettison is a real reveal.
+ *
+ * From the NG 2007 video: at T+121 the aeroshell is a BLUNT cone as wide as the
+ * bus it sits on; at "REENTRY VEHICLE RELEASED" the RV that comes out of it is a
+ * long slender cone, roughly 4:1, markedly narrower than the PBV's forward face.
+ * Drawing both with one geometry made the shroud jettison a colour change and
+ * nothing more.
+ */
+constexpr float kShroudLen = 14.0f, kShroudHalfW = 4.5f;
+constexpr float kRvLen     = 18.0f, kRvHalfW     = 2.5f;
+
+/**
+ * THE POST-BOOST VEHICLE HAS TWO PROPULSION SYSTEMS, AND THEY ARE NOT THE SAME
+ * THING. From the Peacekeeper Stage IV cutaway (Rockwell LC600-520F):
+ *
+ *   AXIAL ENGINE (1)              -- aft centre. Propels the vehicle forward.
+ *                                    This is what shapes the trajectory during
+ *                                    post-boost ("MANEUVER TO WINDOW IN SPACE").
+ *   ATTITUDE CONTROL ENGINE (8)   -- a ring around the aft periphery. These only
+ *                                    fire when RE-ORIENTING the vehicle. They do
+ *                                    not push it anywhere; they point it.
+ *
+ * The rig had four pods firing continuously through every bus beat and no main
+ * engine at all, which is both halves wrong: the porcupine was on when the
+ * vehicle was not turning, and the thing that actually moves it was missing.
+ *
+ * Eight nozzles arranged around a cylinder cannot all be silhouetted in a side
+ * view, so four are drawn on the flanks (the two the silhouette would show, fore
+ * and aft on each side) and each fires a fanned pair -- eight jets, four visible
+ * nozzles, which is what the projection allows at eighteen pixels of bus.
+ */
+constexpr float kBusHalfW = 4.5f;
+constexpr float kPodOut   = 6.4f;   // how far a nozzle stands off the flank
+const float kRcsPods[4][2] = {{-1.8f, -1.0f}, {-1.8f, 1.0f},
+                              {-4.4f, -1.0f}, {-4.4f, 1.0f}};
+
+// ---------------------------------------------------------------------------
+// THE WORLD MAP -- the far side of the match cut.
+//
+// #155 deferred this on the grounds that §7 puts full map rendering after v1, and
+// drew a graticule globe instead. That was wrong twice over: a featureless disc
+// does not read as the Earth, and the placeholder track had no relationship to
+// the dot, which is the one thing §11's match-cut rule is about.
+//
+// Coastlines, projection and the great-circle solution are the look target's,
+// ported verbatim. Equirectangular, lon -180..180 -> x 10..230, lat 72..-60 ->
+// y 30..210, in 240-space and scaled by u. Six landmasses, 126 points, ~500
+// bytes of flash. Antarctica is absent in the reference and stays absent -- at
+// this projection it is a smear along the bottom edge that the round face cuts
+// off anyway.
+// ---------------------------------------------------------------------------
+struct GeoPt { int16_t lon, lat; };
+
+const GeoPt kNorthAmerica[] = {
+    {-166,62},{-158,58},{-152,60},{-146,61},{-136,57},{-131,52},{-125,48},
+    {-124,42},{-120,34},{-115,30},{-110,24},{-105,20},{ -97,16},{ -92,15},
+    { -85,12},{ -81, 9},{ -79, 9},{ -77, 8},{ -81,25},{ -80,32},{ -75,36},
+    { -70,42},{ -66,45},{ -60,47},{ -55,52},{ -60,58},{ -68,60},{ -75,62},
+    { -85,66},{ -95,69},{-110,68},{-125,70},{-140,69},{-155,70},{-166,68},
+};
+const GeoPt kSouthAmerica[] = {
+    {-77,  8},{-79,  2},{-81, -5},{-76,-14},{-70,-18},{-70,-25},{-71,-32},
+    {-73,-40},{-74,-46},{-72,-52},{-69,-55},{-66,-55},{-63,-49},{-62,-41},
+    {-58,-34},{-48,-28},{-40,-22},{-35, -9},{-44, -3},{-50,  0},{-61,  6},
+    {-64, 10},{-72, 12},
+};
+const GeoPt kGreenland[] = {
+    {-52,60},{-58,66},{-52,72},{-40,72},{-32,68},{-40,62},
+};
+const GeoPt kEurasia[] = {
+    { -9,36},{ -9,43},{  2,51},{  8,57},{ 18,56},{ 30,60},{ 40,66},{ 60,69},
+    { 90,73},{110,73},{140,72},{160,70},{178,66},{170,60},{157,53},{142,54},
+    {135,44},{122,39},{122,31},{108,16},{100,10},{ 92,20},{ 80,12},{ 70,22},
+    { 57,24},{ 43,14},{ 34,28},{ 26,36},{ 10,38},{ -2,36},
+};
+const GeoPt kAfrica[] = {
+    { -6,35},{ 10,37},{ 20,33},{ 32,31},{ 43,12},{ 51,10},{ 40, -5},{ 35,-20},
+    { 26,-34},{ 18,-34},{ 12,-18},{  8,  4},{ -8,  5},{-17, 15},{-17, 21},
+    {-10,29},
+};
+const GeoPt kAustralia[] = {
+    {114,-22},{122,-18},{132,-12},{142,-11},{146,-19},{153,-27},{146,-39},
+    {135,-35},{124,-33},{114,-35},
+};
+struct Landmass { const GeoPt* pts; int n; };
+const Landmass kLand[] = {
+    {kNorthAmerica, (int)(sizeof(kNorthAmerica) / sizeof(GeoPt))},
+    {kSouthAmerica, (int)(sizeof(kSouthAmerica) / sizeof(GeoPt))},
+    {kGreenland,    (int)(sizeof(kGreenland)    / sizeof(GeoPt))},
+    {kEurasia,      (int)(sizeof(kEurasia)      / sizeof(GeoPt))},
+    {kAfrica,       (int)(sizeof(kAfrica)       / sizeof(GeoPt))},
+    {kAustralia,    (int)(sizeof(kAustralia)    / sizeof(GeoPt))},
+};
+constexpr int kLandCount = (int)(sizeof(kLand) / sizeof(kLand[0]));
+constexpr int kMaxPolyPts = 40; // largest landmass is North America at 35
+
+/* The look target's GOLF-07 scenario: F.E. Warren AFB to the South Pacific pole
+ * of inaccessibility. Open ocean, per §1.6's tone rule -- the aim point is never
+ * a populated place. */
+constexpr float kLaunchLon = -104.87f, kLaunchLat =  41.15f;
+constexpr float kAimLon    = -123.39f, kAimLat    = -48.87f;
+
+inline void Project(float lon, float lat, float u, float& x, float& y)
+{
+    x = ((lon + 180.0f) / 360.0f * 220.0f + 10.0f) * u;
+    y = ((72.0f - lat)  / 132.0f * 180.0f + 30.0f) * u;
+}
+
+/** Great-circle interpolation, launch -> aim. The track is a real one. */
+void GreatCircle(float f, float& lon, float& lat)
+{
+    const float d2r = 0.0174533f;
+    const float c1 = cosf(kLaunchLat * d2r), c2 = cosf(kAimLat * d2r);
+    const float v1[3] = {c1 * cosf(kLaunchLon * d2r), c1 * sinf(kLaunchLon * d2r), sinf(kLaunchLat * d2r)};
+    const float v2[3] = {c2 * cosf(kAimLon    * d2r), c2 * sinf(kAimLon    * d2r), sinf(kAimLat    * d2r)};
+    float dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+    if (dot >  1.0f) dot =  1.0f;
+    if (dot < -1.0f) dot = -1.0f;
+    const float ang = acosf(dot);
+    const float s   = sinf(ang);
+    float a = 1.0f - f, b = f;
+    if (s > 1e-5f) { a = sinf((1.0f - f) * ang) / s; b = sinf(f * ang) / s; }
+    const float v[3] = {v1[0] * a + v2[0] * b, v1[1] * a + v2[1] * b, v1[2] * a + v2[2] * b};
+    const float m = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    lon = atan2f(v[1], v[0]) / d2r;
+    lat = asinf(v[2] / (m > 1e-6f ? m : 1.0f)) / d2r;
+}
+
+/** Scanline fill of a projected polygon. No fillPolygon on this backend. */
+void FillGeo(LovyanGFX& g, const GeoPt* pts, int n, float u, int dy, uint32_t col)
+{
+    if (n < 3 || n > kMaxPolyPts) return;
+    float px[kMaxPolyPts], py[kMaxPolyPts];
+    float ymin = 1e9f, ymax = -1e9f;
+    for (int i = 0; i < n; ++i) {
+        Project((float)pts[i].lon, (float)pts[i].lat, u, px[i], py[i]);
+        if (py[i] < ymin) ymin = py[i];
+        if (py[i] > ymax) ymax = py[i];
+    }
+    for (int y = (int)ymin; y <= (int)ymax; ++y) {
+        float xs[kMaxPolyPts];
+        int   cnt = 0;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            const float y0 = py[j], y1 = py[i];
+            if ((y0 <= (float)y && y1 > (float)y) || (y1 <= (float)y && y0 > (float)y)) {
+                xs[cnt++] = px[j] + (((float)y - y0) / (y1 - y0)) * (px[i] - px[j]);
+                if (cnt >= kMaxPolyPts) break;
+            }
+        }
+        for (int a = 1; a < cnt; ++a) { // insertion sort; cnt is tiny
+            const float v = xs[a];
+            int b = a - 1;
+            while (b >= 0 && xs[b] > v) { xs[b + 1] = xs[b]; --b; }
+            xs[b + 1] = v;
+        }
+        for (int a = 0; a + 1 < cnt; a += 2) {
+            const int x0 = (int)xs[a], x1 = (int)xs[a + 1];
+            if (x1 > x0) g.drawFastHLine(x0, y - dy, x1 - x0, col);
+        }
+    }
+}
+
 inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 inline float Clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 inline float Smooth(float t) { return t * t * (3.0f - 2.0f * t); }
@@ -382,8 +627,24 @@ inline float Noise(uint32_t seed)
  */
 inline void Axis(float cx, float cy, float r, float along, float across, float& X, float& Y)
 {
-    X = cx + sinf(r) * along + cosf(r) * across;
-    Y = cy + cosf(r) * along - sinf(r) * across;
+    // SIGN OF THE ROTATION, and it was wrong until 2026-08-06.
+    //
+    // Positive r must pitch the nose DOWNRANGE -- toward +x -- because that is
+    // what the anchor table's angle column says ("+90 = nose along the horizon")
+    // and what the reference does (`ctx.rotate(ang)` with the nose at local -y
+    // sends the nose to +x for positive ang). This function had the sin terms
+    // the other way round, so every positive angle canted the nose to the LEFT
+    // while the vehicle drifted right.
+    //
+    // §11 on exactly this: "downrange velocity is conserved, so the RV releases
+    // in the direction of travel. Getting this backwards is the tell that an
+    // animation was drawn rather than reasoned." It was backwards. It showed up
+    // at REENTRY because that is the only beat whose screen motion is large
+    // enough to contradict the attitude out loud.
+    //
+    // Nose direction is (sin r, -cos r); the tail is the negative of that.
+    X = cx - sinf(r) * along + cosf(r) * across;
+    Y = cy + cosf(r) * along + sinf(r) * across;
 }
 
 /** A rotated rectangle, as two triangles. */
@@ -545,7 +806,10 @@ void Director::EnterBeat(Beat b)
     }
 
     if (b == Beat::ShroudEject) shroudLife_ = 1.0f;
-    if (b == Beat::RvRelease) { rvX_ = vx_; rvY_ = vy_; busX_ = vx_; busY_ = vy_; }
+    // The bus starts where the stack was. The RV needs no origin of its own --
+    // DrawRvAndBus draws it from vx_ through the same DrawNoseCone the stack
+    // used, which is what stops it jumping at the release boundary.
+    if (b == Beat::RvRelease) { busX_ = vx_; busY_ = vy_; }
     if (b == Beat::PenaidDeploy) {
         for (int i = 0; i < kPenaids; ++i) {
             const float n1 = Noise(i * 131u + 3u), n2 = Noise(i * 271u + 5u);
@@ -565,15 +829,51 @@ void Director::UpdateKinematics(uint32_t dtMs)
     vx_       = Lerp(a.x0, a.x1, p);
     vy_       = Lerp(a.y0, a.y1, p);
     angleDeg_ = Lerp(a.a0, a.a1, p);
+
+    // REENTRY POINTS WHERE IT IS GOING, and the attitude is COMPUTED FROM THE
+    // PATH rather than stated beside it. An attitude column and a position
+    // column are two independent places to write down "which way is the vehicle
+    // heading", and two places to disagree -- which they did, by 16-29 degrees.
+    // Derived, they cannot: edit the anchor's endpoints and the nose follows.
+    //
+    // This is the one beat with enough screen travel for the mismatch to read.
+    // The ascent deliberately keeps its attitude in the table, because there the
+    // vehicle barely moves and the limb does the work (see the anchors note).
+    if (beat_ == Beat::Reentry) {
+        angleDeg_ = atan2f(a.x1 - a.x0, -(a.y1 - a.y0)) * 57.29578f;
+    }
     altitude_ = Lerp(a.alt0, a.alt1, p);
     scale_    = Lerp(a.s0, a.s1, p);
+
+    // THE SHRINK IS A MOMENT, NOT THE BEAT. Midcourse is 26 minutes of true
+    // time, and lerping scale 1.00 -> 0.05 across all of it left the RV under
+    // 5 px for the last ~60% -- unreadable for a quarter of an hour to buy a
+    // transition that lasts seconds. §11 wants the ascent to END by shrinking to
+    // a dot, immediately before the map opens with that same dot, so the shrink
+    // is held off until just before DrawMatchCut flips to the map side at 0.45.
+    if (beat_ == Beat::Midcourse) {
+        // ONE easing parameter drives both the shrink and the slide onto the
+        // great circle, so they cannot happen at different times -- which is
+        // what made the vehicle wander across the frame at full size. Before
+        // kShrinkStart it is zero, so the vehicle simply holds. See the
+        // choreography note at kShrinkStart.
+        const float e = Smooth(Clamp01((p - kShrinkStart) / (kDotAt - kShrinkStart)));
+        scale_ = Lerp(1.0f, 0.05f, e);
+        float tx, ty;
+        TrackPoint(TrackFraction(), tx, ty);
+        vx_ = Lerp(a.x0, tx, e);
+        vy_ = Lerp(a.y0, ty, e);
+    } else if (beat_ == Beat::MatchCut) {
+        TrackPoint(TrackFraction(), vx_, vy_);
+    }
 
     const float dt = (float)dtMs / 16.0f; // ~frames at 60 Hz, so motion is frame-rate independent
 
     if (stageLife_ > 0) {
-        // Receding ALONG the flight line: back down the velocity vector.
+        // Receding ALONG the flight line: back down the velocity vector, which
+        // is the tail direction (-sin r, +cos r). See the sign note in Axis().
         const float r = angleDeg_ * 0.01745f;
-        stageX_ += sinf(r) * 0.9f * dt;
+        stageX_ -= sinf(r) * 0.9f * dt;
         stageY_ += cosf(r) * 0.9f * dt;
         stageLife_ -= 0.012f * dt;
     }
@@ -590,9 +890,8 @@ void Director::UpdateKinematics(uint32_t dtMs)
         // direction of travel while the RV carries on -- the separation the
         // player reads is the gap opening between them.
         const float r = angleDeg_ * 0.01745f;
-        busX_ += sinf(r) * 0.22f * dt;
+        busX_ -= sinf(r) * 0.22f * dt;   // tail direction; see Axis()
         busY_ += cosf(r) * 0.22f * dt;
-        rvX_ = vx_; rvY_ = vy_;
     }
     if (beat_ == Beat::PenaidDeploy || beat_ == Beat::Midcourse || beat_ == Beat::Reentry) {
         for (int i = 0; i < kPenaids; ++i) {
@@ -625,6 +924,15 @@ void Director::Advance(uint32_t dtMs)
         dur = BeatDurationMs(beat_, mode_);
     }
     UpdateKinematics(dtMs);
+}
+
+float Director::SubjectScale() const
+{
+    // See kSubjectBoost. Ramped across STAGE 3 SEP so the stack's departure and
+    // the push-in are one move rather than a jump.
+    if (beat_ == Beat::Stage3Sep) return scale_ * Lerp(1.0f, kSubjectBoost, BeatProgress());
+    if (beat_ >  Beat::Stage3Sep) return scale_ * kSubjectBoost;
+    return scale_;
 }
 
 float Director::BeatProgress() const
@@ -756,13 +1064,39 @@ void Director::DrawCaption(LovyanGFX& g, int dy) const
     // in the bottom fifth where a lower third belongs. Any caption added to
     // kCaptions longer than 27 characters breaks this and must be shortened.
     //
+    // AND IT IS HALOED, because no fixed row can be safe. The lower third sits
+    // over the Earth limb, and the limb's bright atmospheric rim (#9FD4E8)
+    // SWEEPS DOWN THROUGH THE FRAME as altitude rises -- from y~192 at liftoff
+    // to y~235 at the top of the ascent. Whatever row the caption occupies, the
+    // rim crosses it at some point in the climb, and paper-white text on a pale
+    // blue rim is unreadable. It is unreadable at T+0 today.
+    //
+    // Moving the caption cannot fix a band that moves. A scrim would cover the
+    // art the caption is describing. So: a one-pixel dark halo, which costs
+    // eight extra drawString calls and works over the rim, over the ocean, over
+    // space and over the fireball without hiding any of them.
+    const int y1 = (int)(192 * u) - dy;
+    const int y2 = (int)(204 * u) - dy;
+    const int cx = screen_ / 2;
+
+    // FOUR OFFSETS, NOT EIGHT. Eight measured at +2.8 ms on a two-line caption
+    // and pushed the detonation from 49.7 ms back over its 50 ms bar -- a
+    // legibility fix is not worth spending the sequence's tightest beat on.
+    // At a six-pixel font the diagonals are already covered by the two cardinals
+    // either side of them, so this is half the cost and the same picture.
+    static const int8_t kHalo[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+    g.setTextColor(lgfx::color888(0x06, 0x08, 0x0A));
+    for (int i = 0; i < 4; ++i) {
+        g.drawString(l1, cx + kHalo[i][0], y1 + kHalo[i][1]);
+        if (l2 && *l2) g.drawString(l2, cx + kHalo[i][0], y2 + kHalo[i][1]);
+    }
     // Paper for the headline, grey for the telemetry under it -- the preview's
     // hierarchy. See DEVIATION 1 for why IGNITION is not yellow here.
     g.setTextColor(pal::Paper());
-    g.drawString(l1, screen_ / 2, (int)(192 * u) - dy);
+    g.drawString(l1, cx, y1);
     if (l2 && *l2) {
         g.setTextColor(pal::Grey());
-        g.drawString(l2, screen_ / 2, (int)(204 * u) - dy);
+        g.drawString(l2, cx, y2);
     }
     g.setTextDatum(textdatum_t::top_left);
 }
@@ -788,6 +1122,30 @@ void Director::DrawPlume(LovyanGFX& g, int dy) const
             burning = beatElapsedMs_ > 1000; remaining = 1;
             justLit = burning && beatElapsedMs_ < 1300;
             break;
+        // THE AXIAL ENGINE, which is a different thing from the eight attitude
+        // engines and the only one that actually moves the vehicle. It burns to
+        // shape the trajectory -- the beat's own caption is "MANEUVER TO WINDOW
+        // IN SPACE" -- and it is small, steady and liquid, nothing like the
+        // solid motors above it.
+        case Beat::PostBoost: {
+            const float uu = screen_ / 240.0f;
+            const float kk = SubjectScale() * uu;
+            const float rr = angleDeg_ * 0.01745f;
+            const float fl = (7.0f + 3.0f * Noise(beatElapsedMs_ / 60u + 17u)) * kk;
+            const struct { float w, l; uint32_t c; } ax[2] = {
+                {4.4f, 1.00f, pal::FlameOuter()},
+                {2.4f, 0.55f, pal::FlameCore()},
+            };
+            for (int i = 0; i < 2; ++i) {
+                float a0, b0, a1, b1, a2, b2;
+                Axis(vx_, vy_, rr, 3.4f * kk, -ax[i].w * 0.5f * kk, a0, b0);
+                Axis(vx_, vy_, rr, 3.4f * kk,  ax[i].w * 0.5f * kk, a1, b1);
+                Axis(vx_, vy_, rr, 3.4f * kk + fl * ax[i].l, 0, a2, b2);
+                g.fillTriangle((int)a0, (int)b0 - dy, (int)a1, (int)b1 - dy,
+                               (int)a2, (int)b2 - dy, ax[i].c);
+            }
+            return;
+        }
         // STAGE 3 SEP IS THE ONE STAGING BEAT WITH NO IGNITION AT THE END.
         // Nothing is left to light: what takes over is the post-boost bus, which
         // is cold gas. §11's coast still applies -- the unlit bell is still the
@@ -841,7 +1199,7 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
     if (beat_ >= Beat::RvRelease) return; // from here the RV and bus are drawn separately
 
     const float u = screen_ / 240.0f;
-    const float k = scale_ * u;
+    const float k = SubjectScale() * u;
     const float r = angleDeg_ * 0.01745f;
 
     // How much stack is left. Stages leave AT the flash, a few hundred ms into
@@ -868,29 +1226,52 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
         const Segment& s = kSegments[i];
         const float hw = s.wide * 0.5f * k;
         FillQuad(g, vx_, vy_, r, along * k, (along + s.len) * k, hw, dy,
-                 (i == 1) ? pal::StageAlt() : pal::Stage());
+                 StageColour(i));
         FillQuad(g, vx_, vy_, r, along * k, (along + 2.0f) * k, hw, dy, pal::Band());
         along += s.len;
     }
 
     // Post-boost bus, ahead of the stack.
-    FillQuad(g, vx_, vy_, r, -8.0f * k, 0.0f, 4.5f * k, dy, pal::Bus());
+    DrawBus(g, vx_, vy_, r, k, dy, remaining == 0);
 
-    // Shroud (a long ogive) until it is jettisoned; after that the bare RV cone.
-    const bool shroudOn = (beat_ < Beat::ShroudEject);
-    {
-        const float noseLen = shroudOn ? 14.0f : 9.0f;
-        float x0, y0, x1, y1, x2, y2;
-        Axis(vx_, vy_, r, -8.0f * k, -4.5f * k, x0, y0);
-        Axis(vx_, vy_, r, -8.0f * k,  4.5f * k, x1, y1);
-        Axis(vx_, vy_, r, (-8.0f - noseLen) * k, 0, x2, y2);
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Shroud());
+    // The payload cone: the shroud until T+121, the RV itself afterwards. Same
+    // geometry either way -- jettisoning an aeroshell reveals the vehicle that
+    // was inside it, it does not change its size.
+    float bx, by;
+    Axis(vx_, vy_, r, -8.0f * k, 0, bx, by);
+    if (beat_ < Beat::ShroudEject) {
+        DrawNoseCone(g, bx, by, r, k, kShroudLen, kShroudHalfW, dy, pal::Aeroshell());
+    } else {
+        DrawNoseCone(g, bx, by, r, k, kRvLen, kRvHalfW, dy, pal::RvBody(), pal::RvLit());
     }
 
     // THE EXPOSED, UNLIT BELL. §11 calls the coast "the whole beat"; the bell is
     // what makes it legible -- the player sees an engine that is there and is
-    // not firing, which is the suspense. It is drawn whenever a stage is
-    // attached, and it STARS during the coast because nothing else is lit.
+    // not firing, which is the suspense.
+    //
+    // ---- RESOLVING A CONTRADICTION IN THE REFERENCE -------------------------
+    // The reference comments this block "exposed engine bell at the tail --
+    // visible always, and STARRING during the coast gap" and then guards it with
+    // `if(st>=1)`, which stops drawing it the moment the last stage is gone.
+    // Comment says always; code says stages-only. They cannot both be right and
+    // the port inherited the disagreement as a flicker.
+    //
+    // Taken against the beat sheet, BOTH halves are half-right:
+    //
+    //   * The COMMENT is right that a nozzle is always there while something is
+    //     propelling. §11 gives every separation the full staging beat --
+    //     "burnout -> sep -> ~1 s coast (exposed, UNLIT bell) -> IGNITION" --
+    //     and STAGE 3 SEP is a separation. Under `st>=1` that last coast had no
+    //     nozzle at all from 300 ms in, so the final staging beat, the one §11
+    //     calls the whole point, was the only one drawn without its subject.
+    //   * The CODE is right that it is not the same bell. §11 lists post-boost
+    //     as "blue porcupine RCS": the PBV is a separate propulsion element, and
+    //     inheriting stage 3's big solid bell would claim a fourth solid motor
+    //     the vehicle does not have.
+    //
+    // So: a nozzle is drawn whenever something is attached to propel with, and
+    // it changes identity when the propulsion does. Solid bell while a stage is
+    // there; the PSRE's smaller nozzle on the bus once they are gone.
     if (remaining >= 1) {
         const float tail = along * k;
         float x0, y0, x1, y1, x2, y2, x3, y3;
@@ -898,10 +1279,13 @@ void Director::DrawVehicle(LovyanGFX& g, int dy) const
         Axis(vx_, vy_, r, tail,              3.0f * k, x1, y1);
         Axis(vx_, vy_, r, tail + 4.0f * k,   4.5f * k, x2, y2);
         Axis(vx_, vy_, r, tail + 4.0f * k,  -4.5f * k, x3, y3);
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Shroud());
-        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Shroud());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Nozzle());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Nozzle());
         FillQuad(g, vx_, vy_, r, tail + 3.0f * k, tail + 4.0f * k, 3.0f * k, dy, pal::Throat());
     }
+    // No else: once the stages are gone the exposed nozzle is the PBV's AXIAL
+    // ENGINE, and DrawBus owns that -- it is the bus's own hardware, not a
+    // stand-in for a fourth stage.
 }
 
 void Director::DrawSeparationFlash(LovyanGFX& g, int dy) const
@@ -942,64 +1326,165 @@ void Director::DrawDebris(LovyanGFX& g, int dy) const
         const float u = screen_ / 240.0f;
         const float r = angleDeg_ * 0.01745f;
         const float L = 14.0f * stageLife_ * scale_ * u;
-        FillQuad(g, stageX_, stageY_, r, 0, L, L * 0.35f, dy, pal::Stage());
+        // The spent stage keeps ITS OWN colour, which is the whole point of the
+        // three-colour scheme: the thing falling away is recognisably the piece
+        // that just left the stack.
+        const int gone = (beat_ == Beat::Stage1Sep) ? 2 : (beat_ == Beat::Stage2Sep ? 1 : 0);
+        FillQuad(g, stageX_, stageY_, r, 0, L, L * 0.35f, dy, StageColour(gone));
         FillQuad(g, stageX_, stageY_, r, 0, L * 0.14f, L * 0.35f, dy, pal::Band());
+    }
+}
+
+void Director::DrawNoseCone(LovyanGFX& g, float baseX, float baseY, float r, float k,
+                            float len, float halfW, int dy, uint32_t col, uint32_t rim) const
+{
+    float x0, y0, x1, y1, x2, y2;
+    Axis(baseX, baseY, r,        0, -halfW * k, x0, y0);
+    Axis(baseX, baseY, r,        0,  halfW * k, x1, y1);
+    Axis(baseX, baseY, r, -len * k,          0, x2, y2);
+    g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, col);
+    // A LIT EDGE, which is how a black object stays visible on a black sky.
+    //
+    // The RV is genuinely dark -- the NG video shows it near-black against the
+    // sunlit Earth. It is also lit from one side once it is out in space, which
+    // is the frame that matters here: a flat #2B2C28 fill on #000000 is ~4%
+    // luminance and simply is not there on this panel. Dark body plus a rim
+    // keeps the reference's colour AND obeys the standing rule that legibility
+    // is a device-side judgment. Rim of 0 means no highlight (the shroud, which
+    // spends its whole life against the bright limb and needs none).
+    if (rim) {
+        g.drawTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, rim);
+    }
+}
+
+void Director::DrawBus(LovyanGFX& g, float ox, float oy, float r, float k, int dy,
+                       bool showEngine) const
+{
+    FillQuad(g, ox, oy, r, -8.0f * k, 0.0f, kBusHalfW * k, dy, pal::Bus());
+
+    // THE AXIAL ENGINE. Only once the stages are gone -- while they are attached
+    // this nozzle is buried inside stage 3 and drawing it puts an engine bell in
+    // the middle of a solid motor.
+    //
+    // It is also the exposed, unlit nozzle §11 needs during the last staging
+    // coast: stage 3 leaves, and what is revealed underneath is the thing that
+    // will take over.
+    if (showEngine) {
+        float e0, f0, e1, f1, e2, f2, e3, f3;
+        Axis(ox, oy, r, 0.0f,        -1.6f * k, e0, f0);
+        Axis(ox, oy, r, 0.0f,         1.6f * k, e1, f1);
+        Axis(ox, oy, r, 3.4f * k,     3.0f * k, e2, f2);
+        Axis(ox, oy, r, 3.4f * k,    -3.0f * k, e3, f3);
+        g.fillTriangle((int)e0, (int)f0 - dy, (int)e1, (int)f1 - dy, (int)e2, (int)f2 - dy, pal::Nozzle());
+        g.fillTriangle((int)e0, (int)f0 - dy, (int)e2, (int)f2 - dy, (int)e3, (int)f3 - dy, pal::Nozzle());
+        FillQuad(g, ox, oy, r, 2.6f * k, 3.4f * k, 2.0f * k, dy, pal::Throat());
+    }
+
+    // The four visible attitude-control nozzles, standing off the flanks.
+    for (int i = 0; i < 4; ++i) {
+        const float a = kRcsPods[i][0], s = kRcsPods[i][1];
+        float x0, y0, x1, y1, x2, y2, x3, y3;
+        Axis(ox, oy, r, (a - 1.1f) * k, s * kBusHalfW * k, x0, y0);
+        Axis(ox, oy, r, (a + 1.1f) * k, s * kBusHalfW * k, x1, y1);
+        Axis(ox, oy, r, (a + 1.1f) * k, s * kPodOut   * k, x2, y2);
+        Axis(ox, oy, r, (a - 1.1f) * k, s * kPodOut   * k, x3, y3);
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::Nozzle());
+        g.fillTriangle((int)x0, (int)y0 - dy, (int)x2, (int)y2 - dy, (int)x3, (int)y3 - dy, pal::Nozzle());
     }
 }
 
 void Director::DrawShroud(LovyanGFX& g, int dy) const
 {
     if (shroudLife_ <= 0) return;
-    // §11: CLAMSHELL HALVES. Two shells peeling forward and sideways off the
-    // nose -- not a single cone popping off, which is a different vehicle's
-    // shroud. They outlive their own beat: the shroud goes at T+121 and stage 2
-    // separates at T+123, so they are still in frame for the next separation.
+    // ONE PIECE, not clamshell halves.
+    //
+    // §11's table said "clamshell halves" and the preview's comment credits it
+    // to a third-party animation (AiTelly). Neither source is the one §11
+    // actually names: THE NG 2007 VIDEO SHOWS A SINGLE SHROUD AT T+121, leaving
+    // forward and to the side with a separation-motor flare, and the MM3
+    // MIRV-path diagram (item E) shows the same. Both sources we rely on agreed
+    // with each other and not with the code. §11 corrected 2026-08-06.
+    //
+    // A worked example of the standing rule's neighbour: a reference can be
+    // wrong about WHAT, too, when the claim came from somewhere else.
+    //
+    // It outlives its own beat: the shroud goes at T+121 and stage 2 separates
+    // at T+123, so it is still in frame for the next separation -- which is the
+    // diagram's step 2 as well, the discarded shroud falling behind while the
+    // stack flies on.
     const float u = screen_ / 240.0f;
-    const float k = scale_ * u;
+    const float k = SubjectScale() * u;
     const float r = angleDeg_ * 0.01745f;
     const float p = 1.0f - shroudLife_;
 
-    float nx, ny;
-    Axis(vx_, vy_, r, -22.0f * k, 0, nx, ny); // the nose they came off
-    for (int side = -1; side <= 1; side += 2) {
-        const float open = p * 30.0f * u;
-        float hx, hy;
-        Axis(nx, ny, r, -open * 0.9f, side * open, hx, hy);
-        const float tilt = side * p * 2.2f;
-        float ax, ay, bx, by, cx2, cy2;
-        Axis(hx, hy, r + tilt,  6.0f * k, 0, ax, ay);
-        Axis(hx, hy, r + tilt, -6.0f * k, 0, bx, by);
-        Axis(hx, hy, r + tilt, 0, side * 5.0f * k, cx2, cy2);
-        g.fillTriangle((int)ax, (int)ay - dy, (int)bx, (int)by - dy, (int)cx2, (int)cy2 - dy, pal::Shell());
-    }
+    // Lifts off the nose along the flight line, drifts aside and tumbles.
+    float bx, by;
+    Axis(vx_, vy_, r, -8.0f * k - p * 52.0f * u, p * 16.0f * u, bx, by);
+    DrawNoseCone(g, bx, by, r + p * 2.6f, k, kShroudLen, kShroudHalfW, dy, pal::Shell());
 }
 
 void Director::DrawRcs(LovyanGFX& g, int dy) const
 {
-    // Picks up where the last staging coast leaves off: stage 3 separates and
-    // the cold-gas bus is what answers, not a fourth motor. See DrawPlume.
-    const bool afterLastSep = (beat_ == Beat::Stage3Sep && beatElapsedMs_ > 1000);
-    if (!afterLastSep && beat_ != Beat::PostBoost && beat_ != Beat::PitchOver) return;
+    // ATTITUDE CONTROL ENGINES FIRE ONLY WHEN RE-ORIENTING THE VEHICLE.
+    //
+    // Per the Stage IV cutaway these eight engines point the vehicle; they do
+    // not move it. So they run on exactly the two beats where the vehicle is
+    // being turned:
+    //
+    //   POST-BOOST  "MANEUVER TO WINDOW IN SPACE" -- settling and slewing after
+    //               staging, which is also §11's "post-boost = blue porcupine".
+    //   PSRE PITCH  the nose-down slew that aims the RV. Asymmetric, below.
+    //
+    // NOT at RV release -- §11 calls that the quietest moment in the sequence
+    // and a lit thruster is not quiet. NOT during bus backaway, which is the
+    // retro burn, a different system with its own plumes. NOT on the staging
+    // coast, where the whole point is that nothing is lit.
+    if (beat_ != Beat::PostBoost && beat_ != Beat::PitchOver) return;
     // §11: "post-boost = BLUE PORCUPINE RCS". Short quills in many directions,
     // pulsing -- the bus talking to itself. Blue because it is cold gas, and
     // because it is the one moment that must not read as a main engine.
     const float u = screen_ / 240.0f;
     const float r = angleDeg_ * 0.01745f;
-    const int   n = 12;
-    const float phase = (float)(beatElapsedMs_ % 700) / 700.0f;
-    for (int i = 0; i < n; ++i) {
-        const float a = r + (float)i * 6.2832f / n;
-        const float pulse = Noise(i * 3571u + beatElapsedMs_ / 90u);
-        if (pulse < 0.45f) continue;
-        const float len = (4.0f + 6.0f * pulse) * u * (0.6f + 0.4f * sinf(phase * 6.2832f));
-        g.drawLine((int)vx_, (int)vy_ - dy,
-                   (int)(vx_ + sinf(a) * len), (int)(vy_ + cosf(a) * len) - dy, pal::Rcs());
+    // Quills come OUT OF THE NOZZLES, and the bus is at the vehicle origin on
+    // both of these beats (it separates later).
+    const float qx = vx_, qy = vy_;
+    const float k  = SubjectScale() * u;
+
+    // DURING THE PITCH-OVER THE FIRING IS ASYMMETRIC, because that is what turns
+    // a vehicle. §11 has the PSRE continue the arc nose-down to aim the RV; a
+    // bus venting evenly in every direction would be holding attitude, not
+    // changing it. Forward pods on one flank, aft pods on the other: a couple.
+    const bool turning = (beat_ == Beat::PitchOver);
+
+    for (int i = 0; i < 4; ++i) {
+        const float a = kRcsPods[i][0], s = kRcsPods[i][1];
+        if (turning) {
+            const bool fwd = (a < -4.0f);
+            if ((fwd && s < 0) || (!fwd && s > 0)) continue; // the idle diagonal
+        }
+        float px, py;
+        Axis(qx, qy, r, a * k, s * kPodOut * k, px, py);
+
+        // Three jets per nozzle, fanned -- the "porcupine" is the spread, not
+        // one line per pod.
+        for (int j = -1; j <= 1; ++j) {
+            const float pulse = Noise((uint32_t)(i * 3571 + j * 811) + beatElapsedMs_ / 90u);
+            if (!turning && pulse < 0.40f) continue;
+            const float spread = j * 0.42f;
+            const float ux = cosf(r + spread) * s, uy = sinf(r + spread) * s;
+            const float len = (5.0f + 7.0f * pulse) * u * (turning ? 1.15f : 1.0f);
+            g.drawLine((int)px, (int)py - dy,
+                       (int)(px + ux * len), (int)(py + uy * len) - dy, pal::Rcs());
+        }
     }
 }
 
 void Director::DrawRvAndBus(LovyanGFX& g, int dy) const
 {
     if (beat_ < Beat::RvRelease || beat_ > Beat::Midcourse) return;
+    // Past kDotAt the vehicle IS the dot and DrawMatchCut owns it. Drawing both
+    // is what put a red dot in the middle of a full-size RV.
+    if (beat_ == Beat::Midcourse && BeatProgress() >= kDotAt) return;
 
     // THE RELEASE IS SILENT. §11: "no ordnance, no bang. The quietest moment in
     // the sequence is the one that matters most." So there is deliberately NO
@@ -1007,26 +1492,48 @@ void Director::DrawRvAndBus(LovyanGFX& g, int dy) const
     // the absence is the direction. Anything added to this function to make the
     // moment "land" is the mistake the locked section is guarding against.
     const float u = screen_ / 240.0f;
-    const float k = scale_ * u;
+    const float k = SubjectScale() * u;
     const float r = angleDeg_ * 0.01745f;
 
-    if (beat_ >= Beat::BusBackaway) {
-        FillQuad(g, busX_, busY_, r, -4.0f * k, 4.0f * k, 4.5f * k, dy, pal::Bus());
-        // Retro plumes point FORWARD -- it is thrusting against the direction of
-        // travel to open the gap. Exhaust toward the RV, motion away from it.
-        for (int i = -1; i <= 1; i += 2) {
-            float ex, ey;
-            Axis(busX_, busY_, r + i * 0.4f, -10.0f * u, 0, ex, ey);
-            g.drawLine((int)busX_, (int)busY_ - dy, (int)ex, (int)ey - dy, pal::Rcs());
+    // THE BUS DOES NOT VANISH WHEN THE RV LEAVES IT.
+    //
+    // This guard used to be `beat_ >= BusBackaway`, and DrawVehicle returns early
+    // from RvRelease onward -- so across the whole RV RELEASE beat (8 s of true
+    // time) NEITHER function drew the bus, and it reappeared at BusBackaway. A
+    // part that comes back is a state bug: the two functions disagreed about
+    // which one owned the bus during the handover beat, and the answer was
+    // "neither". Same family as the #155 survivor-order bugs -- a guard
+    // describing what exists that does not match what has actually separated.
+    //
+    // The bus exists continuously from the moment the stack is gone. What starts
+    // at BusBackaway is the RETRO BURN, not the bus.
+    if (beat_ >= Beat::RvRelease) {
+        // -8..0, THE SAME SPAN DrawVehicle GIVES IT. It was -4..+4 here, so at
+        // the release boundary the bus jumped forward half its length and
+        // swallowed the RV. The MM3 diagram is unambiguous: the RV rides on the
+        // nose of the post-boost vehicle and leaves forward from it -- it is
+        // never inside it.
+        DrawBus(g, busX_, busY_, r, k, dy, true);
+        if (beat_ >= Beat::BusBackaway) {
+            // Retro plumes point FORWARD -- it is thrusting against the direction
+            // of travel to open the gap. Exhaust toward the RV, motion away.
+            for (int i = -1; i <= 1; i += 2) {
+                float ex, ey;
+                Axis(busX_, busY_, r + i * 0.4f, -10.0f * u, 0, ex, ey);
+                g.drawLine((int)busX_, (int)busY_ - dy, (int)ex, (int)ey - dy, pal::Rcs());
+            }
         }
     }
 
-    // The RV: a small dart, nose along the direction of travel.
-    float x0, y0, x1, y1, x2, y2;
-    Axis(rvX_, rvY_, r, -10.0f * k, 0, x0, y0);
-    Axis(rvX_, rvY_, r, 4.0f * k, -4.0f * k, x1, y1);
-    Axis(rvX_, rvY_, r, 4.0f * k,  4.0f * k, x2, y2);
-    g.fillTriangle((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, (int)x2, (int)y2 - dy, pal::RvBody());
+    // THE RV IS THE SAME CONE IT WAS A FRAME AGO. Drawn through DrawNoseCone
+    // from the same base offset DrawVehicle uses, so the release boundary moves
+    // nothing: one frame it is the tip of the stack, the next it is a free
+    // vehicle, and it is in the same place both times. It had its own geometry
+    // here (-10..+4 instead of -8..-22) and consequently jumped backwards into
+    // the bus at exactly the beat §11 calls the quietest in the sequence.
+    float bx, by;
+    Axis(vx_, vy_, r, -8.0f * k, 0, bx, by);
+    DrawNoseCone(g, bx, by, r, k, kRvLen, kRvHalfW, dy, pal::RvBody(), pal::RvLit());
 }
 
 void Director::DrawPenaids(LovyanGFX& g, int dy) const
@@ -1078,19 +1585,21 @@ void Director::DrawReentry(LovyanGFX& g, int dy) const
                       (int)(20 * u), (int)(7 * u), pal::CloudDeck());
     }
 
-    // Plasma sheath + trail. The RV is running nose-first down its own track, so
-    // the trail is drawn back up the flight line rather than straight up.
+    // Plasma sheath and trail, and BOTH ENDS WERE ON THE WRONG SIDE. The trail
+    // was drawn ahead of the vehicle and the sheath behind it -- an RV flying
+    // backwards down its own wake. The reference has it right: the ionised trail
+    // runs BACK along the flight line (positive along = tail) and the sheath is
+    // centred ON the vehicle, because a bow shock wraps the nose rather than
+    // following it.
     const float r  = angleDeg_ * 0.01745f;
     const float heat = Clamp01(p * 1.3f);
     float tx, ty;
-    Axis(vx_, vy_, r, -(18.0f + 38.0f * p) * u, 0, tx, ty);
+    Axis(vx_, vy_, r, (18.0f + 38.0f * p) * u, 0, tx, ty);
     g.drawLine((int)tx, (int)ty - dy, (int)vx_, (int)vy_ - dy, pal::Plasma());
 
     for (int i = 4; i >= 1; --i) {
         const float f = (float)i / 4.0f;
-        float ax, ay;
-        Axis(vx_, vy_, r, (6.0f + 8.0f * f) * u, 0, ax, ay);
-        g.fillCircle((int)ax, (int)ay - dy, (int)((2 + 7 * f * heat) * u),
+        g.fillCircle((int)vx_, (int)vy_ - dy, (int)((2 + 7 * f * heat) * u),
                      i == 1 ? pal::PlasmaCore() : pal::Plasma());
     }
     float x0, y0, x1, y1, x2, y2;
@@ -1152,10 +1661,17 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     //
     // Five rings to 1.35x is ~160k px. Same wash, 19 ms cheaper, and the outer
     // stops were mostly off-screen anyway.
+    //
+    // Trimmed again to 1.15x, 2026-08-06, to buy the beat real margin. Area goes
+    // as r^2, so 1.35 -> 1.15 is a 27% cut for ~2 ms, and it costs only how far
+    // the glow REACHES -- the ring count stays at four, so the wash does not
+    // gain any banding it did not already have. The billows are untouched: they
+    // are the fireball, and §11 is explicit that the fix for a slow detonation
+    // is a cheaper cloud and never a smaller one.
     const float haloA = 0.34f * (1.0f - cool * 0.6f);
     for (int i = kHaloRings; i >= 1; --i) {
         const float f = (float)i / (float)kHaloRings;
-        g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.35f * f),
+        g.fillCircle((int)cx, (int)capCY - dy, (int)(capR * 1.15f * f),
                      Over({0xFF,0x8C,0x28}, skyMid, haloA * (1.0f - f) * 1.6f));
     }
 
@@ -1232,6 +1748,83 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     }
 }
 
+bool Director::OnMapSide() const
+{
+    if (beat_ == Beat::Midcourse) return BeatProgress() > 0.45f;
+    return beat_ == Beat::MatchCut && BeatProgress() > 0.5f;
+}
+
+float Director::TrackFraction() const
+{
+    // Fraction of the flight flown, by the published clock: impact is T+1,896 s.
+    constexpr float kImpactMs = 1896000.0f;
+    return Clamp01((float)TPlusMs() / kImpactMs);
+}
+
+void Director::TrackPoint(float f, float& x, float& y) const
+{
+    float lon, lat;
+    GreatCircle(Clamp01(f), lon, lat);
+    Project(lon, lat, screen_ / 240.0f, x, y);
+}
+
+void Director::DrawMap(LovyanGFX& g, int dy) const
+{
+    const float u = screen_ / 240.0f;
+
+    // Graticule first, so land sits on top of it.
+    for (int lon = -180; lon <= 180; lon += 30) {
+        float x0, y0, x1, y1;
+        Project((float)lon,  72.0f, u, x0, y0);
+        Project((float)lon, -60.0f, u, x1, y1);
+        g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::MapGrid());
+    }
+    for (int lat = -40; lat <= 60; lat += 20) {
+        float x0, y0, x1, y1;
+        Project(-180.0f, (float)lat, u, x0, y0);
+        Project( 180.0f, (float)lat, u, x1, y1);
+        g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::MapGrid());
+    }
+
+    // Land: filled dark green, coastline stroked in the brighter green. The
+    // stroke is what makes a continent recognisable at this size -- the fill
+    // alone is barely above the ocean.
+    for (int i = 0; i < kLandCount; ++i) {
+        FillGeo(g, kLand[i].pts, kLand[i].n, u, dy, pal::MapLand());
+        const GeoPt* p = kLand[i].pts;
+        const int    n = kLand[i].n;
+        for (int a = 0, b = n - 1; a < n; b = a++) {
+            float x0, y0, x1, y1;
+            Project((float)p[b].lon, (float)p[b].lat, u, x0, y0);
+            Project((float)p[a].lon, (float)p[a].lat, u, x1, y1);
+            if (fabsf(x1 - x0) > screen_ * 0.45f) continue; // antimeridian wrap
+            g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::GreenDim());
+        }
+    }
+
+    // The track, flown portion bright and the rest dim -- and it is the SAME
+    // great circle the dot rides, so the dot cannot drift off it.
+    const float flown = TrackFraction();
+    float prevX = -1e9f, prevY = 0;
+    for (int i = 0; i <= 60; ++i) {
+        const float t = (float)i / 60.0f;
+        float x, y;
+        TrackPoint(t, x, y);
+        if (prevX > -1e8f && fabsf(x - prevX) < screen_ * 0.45f) {
+            g.drawLine((int)prevX, (int)prevY - dy, (int)x, (int)y - dy,
+                       t <= flown ? pal::Green() : pal::GreenDim());
+        }
+        prevX = x; prevY = y;
+    }
+
+    // Aim point.
+    float ax, ay;
+    Project(kAimLon, kAimLat, u, ax, ay);
+    g.drawCircle((int)ax, (int)ay - dy, (int)(5 * u), pal::Red());
+    g.drawFastHLine((int)ax - (int)(8 * u), (int)ay - dy, (int)(16 * u), pal::Red());
+    g.drawFastVLine((int)ax, (int)ay - (int)(8 * u) - dy, (int)(16 * u), pal::Red());
+}
+
 void Director::DrawMatchCut(LovyanGFX& g, int dy) const
 {
     if (beat_ != Beat::MatchCut && beat_ != Beat::Midcourse) return;
@@ -1246,34 +1839,22 @@ void Director::DrawMatchCut(LovyanGFX& g, int dy) const
     // function, at one size, in one colour, with no blink. A second dot-drawing
     // site is the failure mode the rule names, and the way to not have one is to
     // not have one.
-    const float p = BeatProgress();
-    const bool  mapSide = (beat_ == Beat::Midcourse) ? (p > 0.45f) : (p > 0.5f);
-
-    if (mapSide) {
-        // Minimal map: a graticule globe, the great-circle track, the aim point.
-        // NOT the product's map -- §7 puts full map rendering post-v1, and the
-        // look target's coastline data deliberately stays in the reference (see
-        // DEVIATION 3). The colours are its, so the cut lands on the right green.
-        const int c = screen_ / 2;
-        const int R = (int)(screen_ * 0.40f);
-        g.fillCircle(c, c - dy, R, pal::MapLand());
-        g.drawCircle(c, c - dy, R, pal::GreenDim());
-        for (int i = -2; i <= 2; ++i) {
-            g.drawEllipse(c, c - dy, R, (int)(R * fabsf(i * 0.35f) + 2), pal::MapGrid());
-        }
-        for (int i = 0; i <= 40; ++i) {
-            const float t = (float)i / 40.0f;
-            const int   x = (int)Lerp((float)(c - R * 0.7f), (float)(c + R * 0.6f), t);
-            const int   y = (int)(c + R * 0.35f - sinf(t * 3.1416f) * R * 0.55f);
-            g.drawPixel(x, y - dy, t < 0.5f ? pal::Green() : pal::GreenDim());
-        }
-        const int tx = (int)(c + R * 0.6f), ty = (int)(c + R * 0.35f);
-        g.drawCircle(tx, ty - dy, 5, pal::Red());
-        g.drawFastHLine(tx - 8, ty - dy, 16, pal::Red());
-        g.drawFastVLine(tx, ty - 8 - dy, 16, pal::Red());
-    }
-
-    // THE DOT. Same coordinates, same size, same colour, both sides of the cut.
+    //
+    // AND THE DOT MUST BE ON THE TRACK. The first version drew the map's track as
+    // a decorative arc in screen coordinates while the dot sat at vx_/vy_ --
+    // screen centre -- about 19 px off it. Two independent computations of "where
+    // the vehicle is", which is the same failure the match-cut rule exists to
+    // prevent, just on one side of the cut instead of across it.
+    //
+    // Now there is one: TrackPoint(). UpdateKinematics eases vx_/vy_ onto it
+    // during the shrink, so by the time the map opens the dot is already on the
+    // great circle, and DrawMap draws that same great circle.
+    //
+    // AND THE DOT ONLY EXISTS ONCE THE VEHICLE HAS BECOME IT. Drawn from the
+    // start of midcourse it was a red pip sitting inside a full-size RV for a
+    // third of the beat, which reads as a marker attached to the vehicle rather
+    // than as the vehicle seen from far enough away.
+    if (beat_ == Beat::Midcourse && BeatProgress() < kDotAt) return;
     g.fillCircle((int)vx_, (int)vy_ - dy, 2, pal::Red());
 }
 
@@ -1295,16 +1876,27 @@ void Director::Render(LovyanGFX& g, int yOffset)
         return;
     }
 
-    DrawSky(g, dy);
-    DrawEarthLimb(g, dy);
-
     if (beat_ == Beat::Midcourse || beat_ == Beat::MatchCut) {
-        DrawPenaids(g, dy);
-        DrawRvAndBus(g, dy);
+        // THE CUT. Before it, the vehicle over the limb; after it, the map. The
+        // limb does not survive the cut -- the camera is no longer beside the
+        // vehicle -- and drawing it under the map was what made the placeholder
+        // globe read as a sticker rather than as a change of view.
+        if (OnMapSide()) {
+            g.fillScreen(pal::Space());
+            DrawMap(g, dy);
+        } else {
+            DrawSky(g, dy);
+            DrawEarthLimb(g, dy);
+            DrawPenaids(g, dy);
+            DrawRvAndBus(g, dy);
+        }
         DrawMatchCut(g, dy);
         DrawCaption(g, dy);
         return;
     }
+
+    DrawSky(g, dy);
+    DrawEarthLimb(g, dy);
 
     DrawDebris(g, dy);
     DrawPlume(g, dy);
