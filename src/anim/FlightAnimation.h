@@ -179,7 +179,15 @@ private:
     void DrawPenaids(LovyanGFX& g, int dy) const;
     void DrawReentry(LovyanGFX& g, int dy) const;
     void DrawDetonation(LovyanGFX& g, int dy) const;
+    void DrawMap(LovyanGFX& g, int dy) const;
     void DrawMatchCut(LovyanGFX& g, int dy) const;
+
+    /** True once the cut has happened and the map owns the frame. */
+    bool  OnMapSide() const;
+    /** How far along the launch->aim great circle the vehicle is, 0..1. */
+    float TrackFraction() const;
+    /** Screen position of a point on the track. THE DOT COMES FROM HERE. */
+    void  TrackPoint(float f, float& x, float& y) const;
 
     int      screen_ = 240;
     TimeMode mode_   = TimeMode::Compressed;

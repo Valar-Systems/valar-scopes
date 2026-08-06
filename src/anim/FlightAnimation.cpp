@@ -406,6 +406,132 @@ const Segment kSegments[3] = {{14, 9}, {16, 10}, {22, 11}}; // stage 3, 2, 1
  */
 constexpr float kSubjectBoost = 2.0f;   // 14 px -> 28 px (1.9 mm -> 3.8 mm)
 
+// ---------------------------------------------------------------------------
+// THE WORLD MAP -- the far side of the match cut.
+//
+// #155 deferred this on the grounds that §7 puts full map rendering after v1, and
+// drew a graticule globe instead. That was wrong twice over: a featureless disc
+// does not read as the Earth, and the placeholder track had no relationship to
+// the dot, which is the one thing §11's match-cut rule is about.
+//
+// Coastlines, projection and the great-circle solution are the look target's,
+// ported verbatim. Equirectangular, lon -180..180 -> x 10..230, lat 72..-60 ->
+// y 30..210, in 240-space and scaled by u. Six landmasses, 126 points, ~500
+// bytes of flash. Antarctica is absent in the reference and stays absent -- at
+// this projection it is a smear along the bottom edge that the round face cuts
+// off anyway.
+// ---------------------------------------------------------------------------
+struct GeoPt { int16_t lon, lat; };
+
+const GeoPt kNorthAmerica[] = {
+    {-166,62},{-158,58},{-152,60},{-146,61},{-136,57},{-131,52},{-125,48},
+    {-124,42},{-120,34},{-115,30},{-110,24},{-105,20},{ -97,16},{ -92,15},
+    { -85,12},{ -81, 9},{ -79, 9},{ -77, 8},{ -81,25},{ -80,32},{ -75,36},
+    { -70,42},{ -66,45},{ -60,47},{ -55,52},{ -60,58},{ -68,60},{ -75,62},
+    { -85,66},{ -95,69},{-110,68},{-125,70},{-140,69},{-155,70},{-166,68},
+};
+const GeoPt kSouthAmerica[] = {
+    {-77,  8},{-79,  2},{-81, -5},{-76,-14},{-70,-18},{-70,-25},{-71,-32},
+    {-73,-40},{-74,-46},{-72,-52},{-69,-55},{-66,-55},{-63,-49},{-62,-41},
+    {-58,-34},{-48,-28},{-40,-22},{-35, -9},{-44, -3},{-50,  0},{-61,  6},
+    {-64, 10},{-72, 12},
+};
+const GeoPt kGreenland[] = {
+    {-52,60},{-58,66},{-52,72},{-40,72},{-32,68},{-40,62},
+};
+const GeoPt kEurasia[] = {
+    { -9,36},{ -9,43},{  2,51},{  8,57},{ 18,56},{ 30,60},{ 40,66},{ 60,69},
+    { 90,73},{110,73},{140,72},{160,70},{178,66},{170,60},{157,53},{142,54},
+    {135,44},{122,39},{122,31},{108,16},{100,10},{ 92,20},{ 80,12},{ 70,22},
+    { 57,24},{ 43,14},{ 34,28},{ 26,36},{ 10,38},{ -2,36},
+};
+const GeoPt kAfrica[] = {
+    { -6,35},{ 10,37},{ 20,33},{ 32,31},{ 43,12},{ 51,10},{ 40, -5},{ 35,-20},
+    { 26,-34},{ 18,-34},{ 12,-18},{  8,  4},{ -8,  5},{-17, 15},{-17, 21},
+    {-10,29},
+};
+const GeoPt kAustralia[] = {
+    {114,-22},{122,-18},{132,-12},{142,-11},{146,-19},{153,-27},{146,-39},
+    {135,-35},{124,-33},{114,-35},
+};
+struct Landmass { const GeoPt* pts; int n; };
+const Landmass kLand[] = {
+    {kNorthAmerica, (int)(sizeof(kNorthAmerica) / sizeof(GeoPt))},
+    {kSouthAmerica, (int)(sizeof(kSouthAmerica) / sizeof(GeoPt))},
+    {kGreenland,    (int)(sizeof(kGreenland)    / sizeof(GeoPt))},
+    {kEurasia,      (int)(sizeof(kEurasia)      / sizeof(GeoPt))},
+    {kAfrica,       (int)(sizeof(kAfrica)       / sizeof(GeoPt))},
+    {kAustralia,    (int)(sizeof(kAustralia)    / sizeof(GeoPt))},
+};
+constexpr int kLandCount = (int)(sizeof(kLand) / sizeof(kLand[0]));
+constexpr int kMaxPolyPts = 40; // largest landmass is North America at 35
+
+/* The look target's GOLF-07 scenario: F.E. Warren AFB to the South Pacific pole
+ * of inaccessibility. Open ocean, per §1.6's tone rule -- the aim point is never
+ * a populated place. */
+constexpr float kLaunchLon = -104.87f, kLaunchLat =  41.15f;
+constexpr float kAimLon    = -123.39f, kAimLat    = -48.87f;
+
+inline void Project(float lon, float lat, float u, float& x, float& y)
+{
+    x = ((lon + 180.0f) / 360.0f * 220.0f + 10.0f) * u;
+    y = ((72.0f - lat)  / 132.0f * 180.0f + 30.0f) * u;
+}
+
+/** Great-circle interpolation, launch -> aim. The track is a real one. */
+void GreatCircle(float f, float& lon, float& lat)
+{
+    const float d2r = 0.0174533f;
+    const float c1 = cosf(kLaunchLat * d2r), c2 = cosf(kAimLat * d2r);
+    const float v1[3] = {c1 * cosf(kLaunchLon * d2r), c1 * sinf(kLaunchLon * d2r), sinf(kLaunchLat * d2r)};
+    const float v2[3] = {c2 * cosf(kAimLon    * d2r), c2 * sinf(kAimLon    * d2r), sinf(kAimLat    * d2r)};
+    float dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+    if (dot >  1.0f) dot =  1.0f;
+    if (dot < -1.0f) dot = -1.0f;
+    const float ang = acosf(dot);
+    const float s   = sinf(ang);
+    float a = 1.0f - f, b = f;
+    if (s > 1e-5f) { a = sinf((1.0f - f) * ang) / s; b = sinf(f * ang) / s; }
+    const float v[3] = {v1[0] * a + v2[0] * b, v1[1] * a + v2[1] * b, v1[2] * a + v2[2] * b};
+    const float m = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    lon = atan2f(v[1], v[0]) / d2r;
+    lat = asinf(v[2] / (m > 1e-6f ? m : 1.0f)) / d2r;
+}
+
+/** Scanline fill of a projected polygon. No fillPolygon on this backend. */
+void FillGeo(LovyanGFX& g, const GeoPt* pts, int n, float u, int dy, uint32_t col)
+{
+    if (n < 3 || n > kMaxPolyPts) return;
+    float px[kMaxPolyPts], py[kMaxPolyPts];
+    float ymin = 1e9f, ymax = -1e9f;
+    for (int i = 0; i < n; ++i) {
+        Project((float)pts[i].lon, (float)pts[i].lat, u, px[i], py[i]);
+        if (py[i] < ymin) ymin = py[i];
+        if (py[i] > ymax) ymax = py[i];
+    }
+    for (int y = (int)ymin; y <= (int)ymax; ++y) {
+        float xs[kMaxPolyPts];
+        int   cnt = 0;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            const float y0 = py[j], y1 = py[i];
+            if ((y0 <= (float)y && y1 > (float)y) || (y1 <= (float)y && y0 > (float)y)) {
+                xs[cnt++] = px[j] + (((float)y - y0) / (y1 - y0)) * (px[i] - px[j]);
+                if (cnt >= kMaxPolyPts) break;
+            }
+        }
+        for (int a = 1; a < cnt; ++a) { // insertion sort; cnt is tiny
+            const float v = xs[a];
+            int b = a - 1;
+            while (b >= 0 && xs[b] > v) { xs[b + 1] = xs[b]; --b; }
+            xs[b + 1] = v;
+        }
+        for (int a = 0; a + 1 < cnt; a += 2) {
+            const int x0 = (int)xs[a], x1 = (int)xs[a + 1];
+            if (x1 > x0) g.drawFastHLine(x0, y - dy, x1 - x0, col);
+        }
+    }
+}
+
 inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 inline float Clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 inline float Smooth(float t) { return t * t * (3.0f - 2.0f * t); }
@@ -426,8 +552,24 @@ inline float Noise(uint32_t seed)
  */
 inline void Axis(float cx, float cy, float r, float along, float across, float& X, float& Y)
 {
-    X = cx + sinf(r) * along + cosf(r) * across;
-    Y = cy + cosf(r) * along - sinf(r) * across;
+    // SIGN OF THE ROTATION, and it was wrong until 2026-08-06.
+    //
+    // Positive r must pitch the nose DOWNRANGE -- toward +x -- because that is
+    // what the anchor table's angle column says ("+90 = nose along the horizon")
+    // and what the reference does (`ctx.rotate(ang)` with the nose at local -y
+    // sends the nose to +x for positive ang). This function had the sin terms
+    // the other way round, so every positive angle canted the nose to the LEFT
+    // while the vehicle drifted right.
+    //
+    // §11 on exactly this: "downrange velocity is conserved, so the RV releases
+    // in the direction of travel. Getting this backwards is the tell that an
+    // animation was drawn rather than reasoned." It was backwards. It showed up
+    // at REENTRY because that is the only beat whose screen motion is large
+    // enough to contradict the attitude out loud.
+    //
+    // Nose direction is (sin r, -cos r); the tail is the negative of that.
+    X = cx - sinf(r) * along + cosf(r) * across;
+    Y = cy + cosf(r) * along + sinf(r) * across;
 }
 
 /** A rotated rectangle, as two triangles. */
@@ -609,6 +751,19 @@ void Director::UpdateKinematics(uint32_t dtMs)
     vx_       = Lerp(a.x0, a.x1, p);
     vy_       = Lerp(a.y0, a.y1, p);
     angleDeg_ = Lerp(a.a0, a.a1, p);
+
+    // REENTRY POINTS WHERE IT IS GOING, and the attitude is COMPUTED FROM THE
+    // PATH rather than stated beside it. An attitude column and a position
+    // column are two independent places to write down "which way is the vehicle
+    // heading", and two places to disagree -- which they did, by 16-29 degrees.
+    // Derived, they cannot: edit the anchor's endpoints and the nose follows.
+    //
+    // This is the one beat with enough screen travel for the mismatch to read.
+    // The ascent deliberately keeps its attitude in the table, because there the
+    // vehicle barely moves and the limb does the work (see the anchors note).
+    if (beat_ == Beat::Reentry) {
+        angleDeg_ = atan2f(a.x1 - a.x0, -(a.y1 - a.y0)) * 57.29578f;
+    }
     altitude_ = Lerp(a.alt0, a.alt1, p);
     scale_    = Lerp(a.s0, a.s1, p);
 
@@ -620,14 +775,31 @@ void Director::UpdateKinematics(uint32_t dtMs)
     // is held off until just before DrawMatchCut flips to the map side at 0.45.
     if (beat_ == Beat::Midcourse) {
         scale_ = (p < 0.40f) ? 1.0f : Lerp(1.0f, 0.05f, Clamp01((p - 0.40f) / 0.05f));
+
+        // AND THE VEHICLE EASES ONTO THE GREAT CIRCLE WHILE IT SHRINKS. The map
+        // opens at p=0.45 with the dot already on the track, which is the only
+        // way §11's rule can hold: "the map opens with that same dot" is false
+        // the moment the two sides compute the position separately.
+        float tx, ty;
+        TrackPoint(TrackFraction(), tx, ty);
+        if (p < 0.40f) {
+            const float e = Smooth(Clamp01(p / 0.40f));
+            vx_ = Lerp(a.x0, tx, e);
+            vy_ = Lerp(a.y0, ty, e);
+        } else {
+            vx_ = tx; vy_ = ty;
+        }
+    } else if (beat_ == Beat::MatchCut) {
+        TrackPoint(TrackFraction(), vx_, vy_);
     }
 
     const float dt = (float)dtMs / 16.0f; // ~frames at 60 Hz, so motion is frame-rate independent
 
     if (stageLife_ > 0) {
-        // Receding ALONG the flight line: back down the velocity vector.
+        // Receding ALONG the flight line: back down the velocity vector, which
+        // is the tail direction (-sin r, +cos r). See the sign note in Axis().
         const float r = angleDeg_ * 0.01745f;
-        stageX_ += sinf(r) * 0.9f * dt;
+        stageX_ -= sinf(r) * 0.9f * dt;
         stageY_ += cosf(r) * 0.9f * dt;
         stageLife_ -= 0.012f * dt;
     }
@@ -644,7 +816,7 @@ void Director::UpdateKinematics(uint32_t dtMs)
         // direction of travel while the RV carries on -- the separation the
         // player reads is the gap opening between them.
         const float r = angleDeg_ * 0.01745f;
-        busX_ += sinf(r) * 0.22f * dt;
+        busX_ -= sinf(r) * 0.22f * dt;   // tail direction; see Axis()
         busY_ += cosf(r) * 0.22f * dt;
         rvX_ = vx_; rvY_ = vy_;
     }
@@ -819,13 +991,39 @@ void Director::DrawCaption(LovyanGFX& g, int dy) const
     // in the bottom fifth where a lower third belongs. Any caption added to
     // kCaptions longer than 27 characters breaks this and must be shortened.
     //
+    // AND IT IS HALOED, because no fixed row can be safe. The lower third sits
+    // over the Earth limb, and the limb's bright atmospheric rim (#9FD4E8)
+    // SWEEPS DOWN THROUGH THE FRAME as altitude rises -- from y~192 at liftoff
+    // to y~235 at the top of the ascent. Whatever row the caption occupies, the
+    // rim crosses it at some point in the climb, and paper-white text on a pale
+    // blue rim is unreadable. It is unreadable at T+0 today.
+    //
+    // Moving the caption cannot fix a band that moves. A scrim would cover the
+    // art the caption is describing. So: a one-pixel dark halo, which costs
+    // eight extra drawString calls and works over the rim, over the ocean, over
+    // space and over the fireball without hiding any of them.
+    const int y1 = (int)(192 * u) - dy;
+    const int y2 = (int)(204 * u) - dy;
+    const int cx = screen_ / 2;
+
+    // FOUR OFFSETS, NOT EIGHT. Eight measured at +2.8 ms on a two-line caption
+    // and pushed the detonation from 49.7 ms back over its 50 ms bar -- a
+    // legibility fix is not worth spending the sequence's tightest beat on.
+    // At a six-pixel font the diagonals are already covered by the two cardinals
+    // either side of them, so this is half the cost and the same picture.
+    static const int8_t kHalo[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+    g.setTextColor(lgfx::color888(0x06, 0x08, 0x0A));
+    for (int i = 0; i < 4; ++i) {
+        g.drawString(l1, cx + kHalo[i][0], y1 + kHalo[i][1]);
+        if (l2 && *l2) g.drawString(l2, cx + kHalo[i][0], y2 + kHalo[i][1]);
+    }
     // Paper for the headline, grey for the telemetry under it -- the preview's
     // hierarchy. See DEVIATION 1 for why IGNITION is not yellow here.
     g.setTextColor(pal::Paper());
-    g.drawString(l1, screen_ / 2, (int)(192 * u) - dy);
+    g.drawString(l1, cx, y1);
     if (l2 && *l2) {
         g.setTextColor(pal::Grey());
-        g.drawString(l2, screen_ / 2, (int)(204 * u) - dy);
+        g.drawString(l2, cx, y2);
     }
     g.setTextDatum(textdatum_t::top_left);
 }
@@ -1191,19 +1389,21 @@ void Director::DrawReentry(LovyanGFX& g, int dy) const
                       (int)(20 * u), (int)(7 * u), pal::CloudDeck());
     }
 
-    // Plasma sheath + trail. The RV is running nose-first down its own track, so
-    // the trail is drawn back up the flight line rather than straight up.
+    // Plasma sheath and trail, and BOTH ENDS WERE ON THE WRONG SIDE. The trail
+    // was drawn ahead of the vehicle and the sheath behind it -- an RV flying
+    // backwards down its own wake. The reference has it right: the ionised trail
+    // runs BACK along the flight line (positive along = tail) and the sheath is
+    // centred ON the vehicle, because a bow shock wraps the nose rather than
+    // following it.
     const float r  = angleDeg_ * 0.01745f;
     const float heat = Clamp01(p * 1.3f);
     float tx, ty;
-    Axis(vx_, vy_, r, -(18.0f + 38.0f * p) * u, 0, tx, ty);
+    Axis(vx_, vy_, r, (18.0f + 38.0f * p) * u, 0, tx, ty);
     g.drawLine((int)tx, (int)ty - dy, (int)vx_, (int)vy_ - dy, pal::Plasma());
 
     for (int i = 4; i >= 1; --i) {
         const float f = (float)i / 4.0f;
-        float ax, ay;
-        Axis(vx_, vy_, r, (6.0f + 8.0f * f) * u, 0, ax, ay);
-        g.fillCircle((int)ax, (int)ay - dy, (int)((2 + 7 * f * heat) * u),
+        g.fillCircle((int)vx_, (int)vy_ - dy, (int)((2 + 7 * f * heat) * u),
                      i == 1 ? pal::PlasmaCore() : pal::Plasma());
     }
     float x0, y0, x1, y1, x2, y2;
@@ -1345,6 +1545,83 @@ void Director::DrawDetonation(LovyanGFX& g, int dy) const
     }
 }
 
+bool Director::OnMapSide() const
+{
+    if (beat_ == Beat::Midcourse) return BeatProgress() > 0.45f;
+    return beat_ == Beat::MatchCut && BeatProgress() > 0.5f;
+}
+
+float Director::TrackFraction() const
+{
+    // Fraction of the flight flown, by the published clock: impact is T+1,896 s.
+    constexpr float kImpactMs = 1896000.0f;
+    return Clamp01((float)TPlusMs() / kImpactMs);
+}
+
+void Director::TrackPoint(float f, float& x, float& y) const
+{
+    float lon, lat;
+    GreatCircle(Clamp01(f), lon, lat);
+    Project(lon, lat, screen_ / 240.0f, x, y);
+}
+
+void Director::DrawMap(LovyanGFX& g, int dy) const
+{
+    const float u = screen_ / 240.0f;
+
+    // Graticule first, so land sits on top of it.
+    for (int lon = -180; lon <= 180; lon += 30) {
+        float x0, y0, x1, y1;
+        Project((float)lon,  72.0f, u, x0, y0);
+        Project((float)lon, -60.0f, u, x1, y1);
+        g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::MapGrid());
+    }
+    for (int lat = -40; lat <= 60; lat += 20) {
+        float x0, y0, x1, y1;
+        Project(-180.0f, (float)lat, u, x0, y0);
+        Project( 180.0f, (float)lat, u, x1, y1);
+        g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::MapGrid());
+    }
+
+    // Land: filled dark green, coastline stroked in the brighter green. The
+    // stroke is what makes a continent recognisable at this size -- the fill
+    // alone is barely above the ocean.
+    for (int i = 0; i < kLandCount; ++i) {
+        FillGeo(g, kLand[i].pts, kLand[i].n, u, dy, pal::MapLand());
+        const GeoPt* p = kLand[i].pts;
+        const int    n = kLand[i].n;
+        for (int a = 0, b = n - 1; a < n; b = a++) {
+            float x0, y0, x1, y1;
+            Project((float)p[b].lon, (float)p[b].lat, u, x0, y0);
+            Project((float)p[a].lon, (float)p[a].lat, u, x1, y1);
+            if (fabsf(x1 - x0) > screen_ * 0.45f) continue; // antimeridian wrap
+            g.drawLine((int)x0, (int)y0 - dy, (int)x1, (int)y1 - dy, pal::GreenDim());
+        }
+    }
+
+    // The track, flown portion bright and the rest dim -- and it is the SAME
+    // great circle the dot rides, so the dot cannot drift off it.
+    const float flown = TrackFraction();
+    float prevX = -1e9f, prevY = 0;
+    for (int i = 0; i <= 60; ++i) {
+        const float t = (float)i / 60.0f;
+        float x, y;
+        TrackPoint(t, x, y);
+        if (prevX > -1e8f && fabsf(x - prevX) < screen_ * 0.45f) {
+            g.drawLine((int)prevX, (int)prevY - dy, (int)x, (int)y - dy,
+                       t <= flown ? pal::Green() : pal::GreenDim());
+        }
+        prevX = x; prevY = y;
+    }
+
+    // Aim point.
+    float ax, ay;
+    Project(kAimLon, kAimLat, u, ax, ay);
+    g.drawCircle((int)ax, (int)ay - dy, (int)(5 * u), pal::Red());
+    g.drawFastHLine((int)ax - (int)(8 * u), (int)ay - dy, (int)(16 * u), pal::Red());
+    g.drawFastVLine((int)ax, (int)ay - (int)(8 * u) - dy, (int)(16 * u), pal::Red());
+}
+
 void Director::DrawMatchCut(LovyanGFX& g, int dy) const
 {
     if (beat_ != Beat::MatchCut && beat_ != Beat::Midcourse) return;
@@ -1359,34 +1636,16 @@ void Director::DrawMatchCut(LovyanGFX& g, int dy) const
     // function, at one size, in one colour, with no blink. A second dot-drawing
     // site is the failure mode the rule names, and the way to not have one is to
     // not have one.
-    const float p = BeatProgress();
-    const bool  mapSide = (beat_ == Beat::Midcourse) ? (p > 0.45f) : (p > 0.5f);
-
-    if (mapSide) {
-        // Minimal map: a graticule globe, the great-circle track, the aim point.
-        // NOT the product's map -- §7 puts full map rendering post-v1, and the
-        // look target's coastline data deliberately stays in the reference (see
-        // DEVIATION 3). The colours are its, so the cut lands on the right green.
-        const int c = screen_ / 2;
-        const int R = (int)(screen_ * 0.40f);
-        g.fillCircle(c, c - dy, R, pal::MapLand());
-        g.drawCircle(c, c - dy, R, pal::GreenDim());
-        for (int i = -2; i <= 2; ++i) {
-            g.drawEllipse(c, c - dy, R, (int)(R * fabsf(i * 0.35f) + 2), pal::MapGrid());
-        }
-        for (int i = 0; i <= 40; ++i) {
-            const float t = (float)i / 40.0f;
-            const int   x = (int)Lerp((float)(c - R * 0.7f), (float)(c + R * 0.6f), t);
-            const int   y = (int)(c + R * 0.35f - sinf(t * 3.1416f) * R * 0.55f);
-            g.drawPixel(x, y - dy, t < 0.5f ? pal::Green() : pal::GreenDim());
-        }
-        const int tx = (int)(c + R * 0.6f), ty = (int)(c + R * 0.35f);
-        g.drawCircle(tx, ty - dy, 5, pal::Red());
-        g.drawFastHLine(tx - 8, ty - dy, 16, pal::Red());
-        g.drawFastVLine(tx, ty - 8 - dy, 16, pal::Red());
-    }
-
-    // THE DOT. Same coordinates, same size, same colour, both sides of the cut.
+    //
+    // AND THE DOT MUST BE ON THE TRACK. The first version drew the map's track as
+    // a decorative arc in screen coordinates while the dot sat at vx_/vy_ --
+    // screen centre -- about 19 px off it. Two independent computations of "where
+    // the vehicle is", which is the same failure the match-cut rule exists to
+    // prevent, just on one side of the cut instead of across it.
+    //
+    // Now there is one: TrackPoint(). UpdateKinematics eases vx_/vy_ onto it
+    // during the shrink, so by the time the map opens the dot is already on the
+    // great circle, and DrawMap draws that same great circle.
     g.fillCircle((int)vx_, (int)vy_ - dy, 2, pal::Red());
 }
 
@@ -1408,16 +1667,27 @@ void Director::Render(LovyanGFX& g, int yOffset)
         return;
     }
 
-    DrawSky(g, dy);
-    DrawEarthLimb(g, dy);
-
     if (beat_ == Beat::Midcourse || beat_ == Beat::MatchCut) {
-        DrawPenaids(g, dy);
-        DrawRvAndBus(g, dy);
+        // THE CUT. Before it, the vehicle over the limb; after it, the map. The
+        // limb does not survive the cut -- the camera is no longer beside the
+        // vehicle -- and drawing it under the map was what made the placeholder
+        // globe read as a sticker rather than as a change of view.
+        if (OnMapSide()) {
+            g.fillScreen(pal::Space());
+            DrawMap(g, dy);
+        } else {
+            DrawSky(g, dy);
+            DrawEarthLimb(g, dy);
+            DrawPenaids(g, dy);
+            DrawRvAndBus(g, dy);
+        }
         DrawMatchCut(g, dy);
         DrawCaption(g, dy);
         return;
     }
+
+    DrawSky(g, dy);
+    DrawEarthLimb(g, dy);
 
     DrawDebris(g, dy);
     DrawPlume(g, dy);
