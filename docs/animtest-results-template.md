@@ -215,9 +215,11 @@ supposed to be the same picture, not merely the same idea.
 
 | | Preview | Glass | Match? |
 |---|---|---|---|
+| **Blast door slides sideways on its rails** to open the beat (*launch footage; in neither the NG animation nor the preview*) | — | | ☐ |
 | Vehicle is **fully buried** before first motion, then hot-launches | ✓ | | ☐ |
+| Fire is a **vertical jet out of the hole**, not a pool at grade | — | | ☐ |
+| The vehicle is **hidden inside the fire** and emerges from the **top** of it | — | | ☐ |
 | Smoke builds a **tall vertical column**, not a low bank (*NG video, not the preview*) | ✓ | | ☐ |
-| At T-0 the frame is **fireball + column and no vehicle at all** | ✓ | | ☐ |
 | Camera **shakes** at ignition and settles by ~2.2 s | ✓ | | ☐ |
 | The launch is **slow enough to watch** — ~4.9 s of visible transit | — | | ☐ |
 | Vehicle reads as **three olive stages with tan bands** | ✓ | | ☐ |

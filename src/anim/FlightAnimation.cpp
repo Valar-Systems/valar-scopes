@@ -158,7 +158,9 @@ inline uint32_t MapGrid() { return lgfx::color888(0x0E, 0x2A, 0x1C); }
 // ground shot and the only bright things in it are the flame and the smoke.
 inline uint32_t Ground()   { return lgfx::color888(0x22, 0x23, 0x1F); } // grade line
 inline uint32_t SiloMouth(){ return lgfx::color888(0x10, 0x11, 0x10); } // the hole
-inline uint32_t SiloEdge() { return lgfx::color888(0x3A, 0x3B, 0x36); } // its lip
+inline uint32_t SiloEdge() { return lgfx::color888(0x3A, 0x3B, 0x36); } // its lip and rails
+inline uint32_t Door()     { return lgfx::color888(0x5E, 0x60, 0x58); } // the blast closure
+inline uint32_t DoorLit()  { return lgfx::color888(0x8E, 0x90, 0x86); } // its lit top face
 // No SiloGlow: the fire at the pad is the PLUME palette (FlameOuter/Mid/Core),
 // because it is the same motor. A separate glow colour existed only to render
 // the look target's 26x4 px strip, and that strip is not what the video opens on.
@@ -481,6 +483,56 @@ constexpr float kPhaseS  = 7.0f;    // reference LIFTOFF phase length
 constexpr float kIgnS    = 0.9f;    // first motion
 constexpr float kGroundY = 208.0f;
 constexpr float kSiloHalfW = 14.0f;
+
+/**
+ * THE BLAST DOOR, and it is the first thing that happens.
+ *
+ * From launch footage (Vandenberg, night): the silo is capped by a massive
+ * concrete closure that SLIDES SIDEWAYS ON RAILS to uncover the hole, and it is
+ * still sitting there beside the opening for the rest of the launch. Neither the
+ * NG animation nor the preview has it -- both open on a hole that is simply
+ * already there -- and it is the single most recognisable piece of hardware on a
+ * missile field.
+ *
+ * It also fixes a real problem rather than only adding a detail: the beat's first
+ * half-second was a dark rectangle and a glow ramping up, with nothing moving.
+ * Now the beat opens on the one motion that says "this is a silo".
+ *
+ * Timed to finish before the fire starts, so the two do not compete: slide
+ * 0.10 -> 0.70, first light 0.55, ignition 0.90.
+ */
+constexpr float kDoorStartS = 0.10f;
+constexpr float kDoorEndS   = 0.70f;
+constexpr float kDoorHalfW  = 17.0f;   // overlaps the mouth on both sides when shut
+constexpr float kDoorSlide  = 34.0f;   // far enough to clear the mouth completely
+constexpr float kFireStartS = 0.55f;   // first light, as the door finishes
+
+/**
+ * THE FIRE IS A COLUMN OUT OF THE HOLE, NOT A DOME ON THE GROUND.
+ *
+ * Same footage: flame shoots STRAIGHT UP out of the silo, a vertical jet taller
+ * than it is wide, and the missile is still inside it -- in four consecutive
+ * frames of that launch the vehicle is not visible at all, only fire. It appears
+ * later, emerging from the TOP of the fireball. This was three stacked ellipses
+ * at grade, which is a pool of fire, not a jet.
+ *
+ * The column therefore has to be drawn AFTER the vehicle, so it hides it. That
+ * is the whole reason the moment reads: the vehicle is not a silhouette sliding
+ * out of a slot, it is something that comes out of the fire.
+ *
+ * Height is driven by two terms that pull opposite ways, which is what keeps it
+ * from swallowing the beat:
+ *
+ *   IGNITION ramps it up over 0.6 s -- the motor coming to pressure.
+ *   THE VEHICLE'S OWN HEIGHT collapses it, because once the motor is out of the
+ *   hole there is nothing left down there burning. Physical, not a timer, so it
+ *   automatically tracks any future change to the launch curve.
+ *
+ * The result: hidden through the emergence, out of the fire by ~3.2 pad-seconds,
+ * and 2.5 pad-seconds of clean climbing vehicle after that.
+ */
+constexpr float kFireMaxH   = 76.0f;   // 240-space, ~a third of the frame
+constexpr float kFireOutH   = 60.0f;   // vehicle height at which the column is spent
 
 /** Where the vehicle sits before the motor lights: fully below grade, plus 6 px. */
 constexpr float kPadBase0 = kGroundY + kStackLen + 6.0f;
@@ -1386,44 +1438,29 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
     g.fillRect(cx - mw, mt - dy, mw * 2, mh, pal::SiloMouth());
     g.drawRect(cx - mw, mt - dy, mw * 2, mh, pal::SiloEdge());
 
-    DrawSmoke(g, dy);
+    // ---- the blast door, on its rails -------------------------------------
+    //
+    // See kDoorStartS. The rails are drawn even before the door moves, because
+    // they are what makes the motion legible when it starts -- a slab that slides
+    // with nothing under it reads as a glitch, and two lines cost nothing.
+    // Eased rather than linear: this is a very heavy thing being winched.
+    {
+        const int rw = (int)((kDoorSlide + kDoorHalfW) * u);
+        g.drawFastHLine(cx, gy + (int)(3 * u) - dy, rw, pal::SiloEdge());
+        g.drawFastHLine(cx, gy + (int)(5 * u) - dy, rw, pal::SiloEdge());
 
-    // ---- the fire at the foot of the column -------------------------------
-    //
-    // THE T-0 FRAME OF THE NG VIDEO IS THIS, AND NOTHING ELSE. No vehicle -- it
-    // is still in the hole -- just a bright fireball at grade with the smoke
-    // column standing on it. The look target renders that moment as a 26x4 px
-    // strip of #ffb450, which is a glow in a slot rather than the thing the video
-    // opens on, and under a 49-puff column it is not visible at all.
-    //
-    // So it is a real fireball: three stacked ellipses, flickering, in the plume
-    // palette. Not the detonation ramps -- this is a motor burning, and reaching
-    // for Hood/Badger here would spend the one fire palette that means "warhead"
-    // on an engine. (Nor amber; see the palette note. Fire is not chrome.)
-    //
-    // DRAWN AFTER THE SMOKE, unlike the reference, because light from the silo
-    // illuminates the cloud rather than hiding behind it -- and BEFORE THE
-    // VEHICLE, which is the reference's rule and the reason the fire reads as
-    // coming from behind the emerging missile instead of painted onto it.
-    //
-    // It fades out as the vehicle climbs away rather than switching off at grade:
-    // the video still shows fire at the base of the column at T+3, well after the
-    // missile has cleared it.
-    if (ts > 0.35f) {
-        const float up = kGroundY - base;                 // tail height above grade
-        float a = fminf(1.0f, (ts - 0.35f) / 0.4f);       // the pre-ignition ramp
-        if (up > 40.0f) a *= fmaxf(0.0f, 1.0f - (up - 40.0f) / 50.0f);
-        if (a > 0.02f) {
-            const float fl = 0.85f + 0.15f * Noise(beatElapsedMs_ / 50u + 61u);
-            const int   fw = (int)(24 * u * fl);
-            g.fillEllipse(cx, gy - dy, fw, (int)(11 * u),
-                          Shade(pal::FlameOuter(), a * 0.80f));
-            g.fillEllipse(cx, gy - dy, (int)(fw * 0.62f), (int)(7 * u),
-                          Shade(pal::FlameMid(), a * 0.90f));
-            g.fillEllipse(cx, gy - (int)(1 * u) - dy, (int)(fw * 0.30f), (int)(4 * u),
-                          Shade(pal::FlameCore(), a));
-        }
+        const float slide = Smooth(Clamp01((ts - kDoorStartS) / (kDoorEndS - kDoorStartS)));
+        const int   dx    = (int)(kDoorSlide * slide * u);
+        const int   dw    = (int)(kDoorHalfW * u);
+        const int   dt    = gy - (int)(4 * u);
+        const int   dh    = (int)(8 * u) + 1;
+        g.fillRect(cx + dx - dw, dt - dy, dw * 2, dh, pal::Door());
+        // A lit top face, which is the only thing that separates a concrete slab
+        // from the ground it is sitting on at this size.
+        g.drawFastHLine(cx + dx - dw, dt - dy, dw * 2, pal::DoorLit());
     }
+
+    DrawSmoke(g, dy);
 
     // ---- the vehicle, CLIPPED AT GRADE -----------------------------------
     //
@@ -1437,6 +1474,56 @@ void Director::DrawLiftoff(LovyanGFX& g, int dy) const
     DrawPlume(g, dy);
     DrawVehicle(g, dy);
     g.clearClipRect();
+
+    // ---- the fire column, OVER THE VEHICLE --------------------------------
+    //
+    // See kFireMaxH. The ordering is the point: in the launch footage the missile
+    // is INSIDE the fire for four consecutive frames and only appears coming out
+    // of the top of it. Drawn under the vehicle -- which is where a glow belongs
+    // and where this sat until the footage arrived -- the emergence is a clean
+    // silhouette sliding out of a slot. Drawn over it, the vehicle comes out of
+    // the fire, which is the shot.
+    //
+    // Plume palette, not the detonation ramps: this is a motor, and spending
+    // Hood/Badger on an engine would cost the one fire palette that means
+    // warhead. (Nor amber -- see the palette note. Fire is not chrome.)
+    if (ts > kFireStartS) {
+        const float up  = kGroundY - base;   // how far the tail is above grade
+        const float ign = Clamp01((ts - kIgnS) / 0.6f);
+        const float out = Clamp01(up / kFireOutH);
+        const float fl  = 0.86f + 0.14f * Noise(beatElapsedMs_ / 45u + 61u);
+
+        // A small fire in the hole before the motor lights, growing to the full
+        // jet, then collapsing as the vehicle takes it with it.
+        float h = (18.0f + (kFireMaxH - 18.0f) * ign) * (1.0f - 0.78f * out) * fl;
+        float a = fminf(1.0f, (ts - kFireStartS) / 0.35f) * (1.0f - 0.55f * out);
+
+        if (h > 2.0f && a > 0.03f) {
+            h *= u;
+            // Three nested tapered jets. Narrowing with height rather than
+            // flaring: a rocket exhaust escaping a hole is a jet, and a shape
+            // that widens as it rises is a bonfire.
+            const struct { float wb, wt, l; uint32_t c; } jet[3] = {
+                {1.55f, 0.95f, 1.00f, pal::FlameOuter()},
+                {1.10f, 0.62f, 0.86f, pal::FlameMid()},
+                {0.62f, 0.30f, 0.66f, pal::FlameCore()},
+            };
+            for (int i = 0; i < 3; ++i) {
+                const int wb = (int)(kSiloHalfW * jet[i].wb * u);
+                const int wt = (int)(kSiloHalfW * jet[i].wt * u);
+                const int ty = gy - (int)(h * jet[i].l) - dy;
+                const int by = gy + (int)(2 * u) - dy;
+                const uint32_t c = Shade(jet[i].c, a);
+                g.fillTriangle(cx - wb, by, cx + wb, by, cx + wt, ty, c);
+                g.fillTriangle(cx - wb, by, cx + wt, ty, cx - wt, ty, c);
+            }
+            // The splash at grade -- the jet hitting the deflector and spreading.
+            g.fillEllipse(cx, gy - dy, (int)(kSiloHalfW * 1.9f * u * fl), (int)(6 * u),
+                          Shade(pal::FlameMid(), a * 0.85f));
+            g.fillEllipse(cx, gy - dy, (int)(kSiloHalfW * 1.0f * u * fl), (int)(4 * u),
+                          Shade(pal::FlameCore(), a));
+        }
+    }
 
     // ---- altimeter --------------------------------------------------------
     // Re-derived from the published mark, not the reference's own constant; see

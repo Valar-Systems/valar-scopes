@@ -500,6 +500,77 @@ the video still shows fire at the foot of the column at T+3.
 Net cost of all three: **35.6 → 36.9 ms**, +1.2 ms of compose, +0.9 ms of smoke.
 13.1 ms of headroom remains.
 
+---
+
+## Run 11 — the silo itself
+
+Nine stills from **real launch footage** (Vandenberg, night). Two elements in
+them are in *neither* the NG animation nor the preview, and one of the two is the
+first thing that happens in a launch.
+
+**1. The blast door.** The silo is capped by a massive concrete closure that
+**slides sideways on rails** to uncover the hole, and it is still sitting there
+beside the opening for the rest of the launch. Both existing sources open on a
+hole that is simply already there.
+
+This is not only a detail. The beat's first half-second was a dark rectangle and
+a glow ramping up, with **nothing moving** — the weakest part of the shot. It now
+opens on the one motion that says *silo*. Timed to finish before the fire starts
+so the two do not compete: slide 0.10 → 0.70, first light 0.55, ignition 0.90.
+Eased rather than linear, because it is a very heavy thing being winched. The
+rails are drawn from frame 0, before the door moves: a slab that slides with
+nothing under it reads as a glitch.
+
+**2. Fire shoots straight up out of the hole, with the missile still inside it.**
+Four consecutive frames of that footage show **no vehicle at all** — just a
+vertical jet of fire taller than it is wide standing on the ground. The vehicle
+appears later, **coming out of the top of the fireball**.
+
+Two changes fall out of that, and the second matters more:
+
+- The fire was three stacked ellipses at grade. That is a *pool*. It is now a
+  **tapered vertical jet**, narrowing with height — a bonfire widens as it rises,
+  an exhaust escaping a hole does not.
+- **It is drawn over the vehicle, not under it.** Under, which is where a glow
+  belongs and where this sat until the footage arrived, the emergence is a clean
+  silhouette sliding out of a slot. Over, the vehicle comes out of the fire.
+  That single ordering change is the shot.
+
+The column's height is driven by two terms pulling opposite ways, which is what
+stops it swallowing the beat: **ignition** ramps it up over 0.6 s, and **the
+vehicle's own height above grade** collapses it — once the motor is out of the
+hole there is nothing left down there burning. Physical rather than a timer, so
+it tracks any future change to the launch curve automatically. Net: hidden
+through the emergence, out of the fire by ~3.2 pad-seconds, 2.5 pad-seconds of
+clean climbing vehicle after.
+
+Palette is the **plume** ramp, not the detonation ramps. This is a motor, and
+spending Hood/Badger on an engine would cost the one fire palette that means
+*warhead*.
+
+### Measured
+
+| | Worst ms | Worst fps | Compose | Push | Smoke |
+|---|---|---|---|---|---|
+| LIFTOFF | **37.3** | 26.8 | 11.5 | 25.8 | 6.0 |
+
+**36.9 → 37.3 ms. The blast door and the fire column together cost 0.4 ms**, for
+the two most conspicuous absences in the beat. Both are triangle and rect fills
+in a frame whose cost is dominated by 49 filled circles of smoke, so they
+disappear into the noise. 12.7 ms of headroom remains and no lever has been spent
+on any of it.
+
+Running total for the beat, so the trend is visible in one place:
+
+| | Worst | Compose | Smoke | What changed |
+|---|---|---|---|---|
+| run 9 | 35.6 | 9.9 | 5.0 | first build — 33 puffs, 7 s beat |
+| run 10 | 36.9 | 11.1 | 5.9 | slower launch, smoke column, 49 puffs, 9 s beat |
+| run 11 | **37.3** | 11.5 | 6.0 | blast door, fire jet over the vehicle |
+
+`STAGE 1` still reports `smoke 0.0` throughout, so the per-frame zeroing is
+holding.
+
 ## Vehicle scale — reported, not tuned
 
 The pad is the reference because the pad is where the vehicle is largest, and the
