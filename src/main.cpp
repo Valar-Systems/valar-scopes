@@ -264,7 +264,7 @@ void setup()
   if (WiFiManagerHelpers::BootTouchToForget(tft, backbuffer)) {
     wm.resetSettings();
     WiFiManagerHelpers::ForgetFastAp(); // the pinned BSSID belongs to the old network
-    DrawSplash(tft, backbuffer, "WiFi cleared", "Restarting into setup...");
+    DrawSplash(tft, backbuffer, "Wi-Fi cleared", "Restarting into setup...");
     delay(1200);
     ESP.restart();
   }
@@ -285,7 +285,7 @@ void setup()
       // unit that came up before its router heal itself a few minutes later
       // instead of parking in setup mode until a human intervenes.
       Serial.println("[WiFi] no network and nobody at the portal -- restarting to retry saved credentials");
-      DrawSplash(tft, backbuffer, "No WiFi", "Retrying...");
+      DrawSplash(tft, backbuffer, "No Wi-Fi", "Retrying...");
       delay(1500);
       ESP.restart();
     }
@@ -302,7 +302,7 @@ void setup()
   // saved credentials, so it always arrives here. See PortalProvisioned().
   if (WiFiManagerHelpers::PortalProvisioned()) {
     Serial.println("[WiFi] provisioned via the portal -- restarting so the config server can bind :80");
-    DrawSplash(tft, backbuffer, "WiFi saved", "Starting up...");
+    DrawSplash(tft, backbuffer, "Wi-Fi saved", "Starting up...");
     delay(1200);
     ESP.restart();
   }
@@ -376,7 +376,7 @@ void loop()
   if (forgetWifi) {
     wm.resetSettings();
     WiFiManagerHelpers::ForgetFastAp(); // pinned BSSID belongs to the network we just forgot
-    DrawSplash(tft, backbuffer, "WiFi cleared", "Restarting into setup...");
+    DrawSplash(tft, backbuffer, "Wi-Fi cleared", "Restarting into setup...");
     delay(1000); // let the HTTP response flush, and let the user read the screen
     ESP.restart();
   }
@@ -409,7 +409,7 @@ void loop()
         Serial.println("[WiFi] link lost; watchdog armed (reboot in 10 min if it stays down)");
       } else if (millis() - wifiDownSinceMs >= WIFI_DOWN_REBOOT_MS) {
         Serial.println("[WiFi] down 10 min -- restarting to re-run the join/portal path");
-        DrawSplash(tft, backbuffer, "WiFi lost", "Restarting...");
+        DrawSplash(tft, backbuffer, "Wi-Fi lost", "Restarting...");
         delay(1500);
         ESP.restart();
       }

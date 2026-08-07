@@ -2654,14 +2654,14 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
             backbuffer.setTextColor(up ? lgfx::color888(0, 255, 0) : lgfx::color888(255, 176, 0));
             String ssid = up ? WiFi.SSID() : String();
             if (up && ssid.isEmpty()) ssid = "(unnamed)";
-            line(up ? ("WiFi " + ssid) : String("WiFi NOT CONNECTED"));
+            line(up ? ("Wi-Fi " + ssid) : String("Wi-Fi NOT CONNECTED"));
         }
 
         // The control itself is drawn UNCONDITIONALLY in its reserved row.
         const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
         backbuffer.setTextColor(armed ? lgfx::color888(255, 80, 80)
                                       : lgfx::color888(0, 200, 0));
-        centered(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset WiFi ]"), wifiRowTop);
+        centered(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset Wi-Fi ]"), wifiRowTop);
         // Tap target = the drawn row, padded to a fingertip. Derived from the same
         // constant the text uses, so the hit box cannot drift from the pixels.
         wifiRowY0 = wifiRowTop - 8;

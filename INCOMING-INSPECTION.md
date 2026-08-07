@@ -206,7 +206,7 @@ a customer who did not press hard enough.
 Fifty boards are about to take this path exactly once each. Run it last, on **every** board,
 after §6 passes.
 
-1. **Wipe WiFi the way a customer does.** Stats screen → double-tap `[ Reset WiFi ]`. The device
+1. **Wipe Wi-Fi the way a customer does.** Stats screen → double-tap `[ Reset Wi-Fi ]`. The device
    forgets the credentials and reboots into the config portal.
    *(Do not use the boot-hold for this — see step 4.)*
 
