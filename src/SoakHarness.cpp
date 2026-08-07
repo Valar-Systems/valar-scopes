@@ -40,6 +40,14 @@ namespace {
     bool     gatePassed = false;  // latched at the 24 h print; a regression after it prints once
     uint32_t warmupFreeHeap = 0; // free heap at warmup end; the outcome criterion is trend, not floor
 
+    // Top of the destructive chrome ([ Reset WiFi ]), refreshed from the manager
+    // every Tick. -1 until the Stats screen has been drawn once. See #164: a
+    // scripted double-tap landed in that row at 65 h, armed it, confirmed it
+    // 633 ms later and wiped the credentials -- ending the run and presenting as
+    // a spontaneous reset. ~68 double-taps happen in a multi-day soak and each
+    // has a small chance of landing there, so any long enough run ends itself.
+    int destructiveTopY = -1;
+
     unsigned long bursts = 0, presses = 0;
     uint32_t minLargest = UINT32_MAX;
 
@@ -99,6 +107,21 @@ namespace {
         presses++;
     }
 
+    // Keep a scripted tap out of the destructive row. Reflected upward rather than
+    // re-rolled: a re-roll would consume a different number of PRNG draws
+    // depending on where the first one landed, and these runs are seeded
+    // deterministically so they can be compared with each other.
+    //
+    // Taken from the DRAWN bounds via DestructiveRowTopY(), not a constant. A
+    // hardcoded "avoid the bottom 40 px" would drift the moment the Stats layout
+    // moves -- silently, and back into killing soaks.
+    int AvoidDestructive(int y)
+    {
+        if (destructiveTopY < 0) return y;
+        const int limit = destructiveTopY - 4;   // a fingertip clear of the row
+        return y >= limit ? limit - (y - limit) - 1 : y;
+    }
+
     void StartBurst(unsigned long now)
     {
         constexpr int C = SCREEN_SIZE / 2;
@@ -121,15 +144,17 @@ namespace {
         if (roll < 60) { // single tap somewhere plausible on the scope
             const float ang = (float)(Rand() % 628) / 100.0f;
             const int r = (int)RandIn(0, C - 16);
-            BeginPress(C + (int)(r * cosf(ang)), C + (int)(r * sinf(ang)),
-                       C + (int)(r * cosf(ang)), C + (int)(r * sinf(ang)),
+            const int py = AvoidDestructive(C + (int)(r * sinf(ang)));
+            BeginPress(C + (int)(r * cosf(ang)), py,
+                       C + (int)(r * cosf(ang)), py,
                        RandIn(70, 130), now);
         } else if (roll < 80) { // double-tap: open a card, then close/flip it
             pendingPresses = 1;
             const float ang = (float)(Rand() % 628) / 100.0f;
             const int r = (int)RandIn(0, C - 16);
-            BeginPress(C + (int)(r * cosf(ang)), C + (int)(r * sinf(ang)),
-                       C + (int)(r * cosf(ang)), C + (int)(r * sinf(ang)),
+            const int py = AvoidDestructive(C + (int)(r * sinf(ang)));
+            BeginPress(C + (int)(r * cosf(ang)), py,
+                       C + (int)(r * cosf(ang)), py,
                        RandIn(70, 130), now);
         } else { // swipe: mostly horizontal view cycling, sometimes vertical
             const int H = SCREEN_SIZE / 4;
@@ -168,6 +193,10 @@ void SoakHarness::Setup(AircraftManager& mgr)
 void SoakHarness::Tick(AircraftManager& mgr)
 {
     const unsigned long now = millis();
+
+    // Refreshed every tick from the drawn bounds, so the exclusion follows the
+    // layout instead of guessing at it (#164).
+    destructiveTopY = mgr.DestructiveRowTopY();
 
     if (!warmedUp && now - startMs >= WARMUP_MS) {
         warmedUp = true;
