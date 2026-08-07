@@ -36,9 +36,16 @@ inline void DrawCenteredScreen([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX
     }
   };
 
+  // Fall back to the panel if the sprite never allocated -- composing into a sprite that
+  // does not exist draws nothing at all, and these screens carry the Wi-Fi reset prompt and
+  // the "Update failed" message. Silence is the worst possible rendering of either.
   if constexpr (!variant::BANDED_RENDER) {
-    paint(fb);            // compose off-screen...
-    fb.pushSprite(0, 0);  // ...and land it in one blit: no flash
+    if (fb.getBuffer() != nullptr) {
+      paint(fb);            // compose off-screen...
+      fb.pushSprite(0, 0);  // ...and land it in one blit: no flash
+    } else {
+      paint(tft);
+    }
   } else {
     paint(tft);           // banded board: no full framebuffer to compose into
   }
