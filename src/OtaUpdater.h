@@ -19,6 +19,14 @@ constexpr int FW_VERSION = 5;
 // request bus so no background poll can be mid-handshake while the update allocates.
 void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http);
 
+// Which OTA slot is this image running from, and is it marked valid yet?
+//
+// Printed unprompted every boot, for the same reason BuildIdentity prints the env: after
+// an update the only way to know it actually took -- rather than the bootloader quietly
+// rolling back to the previous slot -- is for the device to say which half of the flash
+// it woke up in. `when` labels the call site ("boot", "post-update").
+void LogOtaSlot(const char* when);
+
 // The one-shot OTA memory report, rendered as the X-Blip-OTA-Mem header value:
 //
 //     <fwFrom>,<fwTo>,<preLargest>,<postLargest>,<result>
