@@ -1,7 +1,6 @@
 #include "ConfigurationWebServer.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include <lwip/sockets.h>   // plain-socket probe: did AsyncWebServer actually bind :80?
 #include <Preferences.h>
 #include <memory>             // shared_ptr: keeps the chunked logbook stream alive across fills
 #include "DeviceIdentity.h"
@@ -3053,45 +3052,7 @@ void ConfigurationWebServer::Initialise() {
     });
 #endif
 
-    // ------------------------------------------------------------------
-    // DID IT ACTUALLY BIND?
-    //
-    // AsyncWebServer::begin() returns void. When the listen socket cannot be
-    // claimed it logs one library-level line and carries on, so a device with a
-    // completely dead config page is byte-for-byte indistinguishable in our own
-    // output from a healthy one. That is how #166 survived: every first-run
-    // device came up refusing :80, and nothing we print said so.
-    //
-    // The probe is a plain socket bind on the same port. If we can bind :80
-    // ourselves then NOBODY is listening on it -- our server did not come up.
-    // Note this is checked AFTER begin() on purpose: before it, a free port only
-    // says the portal has let go, not that we took it.
-    //
-    // Deliberately does not try to fix anything. The known cause is handled at the
-    // source (WiFiManagerHelpers::PortalProvisioned -> restart); this exists so the
-    // NEXT cause is one line in a log instead of weeks of "it works on my bench".
-    {
-        bool listening = true;
-        const int probe = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (probe >= 0) {
-            struct sockaddr_in addr {};
-            addr.sin_family = AF_INET;
-            addr.sin_addr.s_addr = htonl(INADDR_ANY);
-            addr.sin_port = htons(80);
-            // bind() succeeding = the port was free = nothing is serving the page.
-            listening = (::bind(probe, (struct sockaddr*)&addr, sizeof(addr)) != 0);
-            ::close(probe);
-        }
-        serverListening = listening;
-        if (listening) {
-            Serial.printf("[web] config server listening on http://%s.local  (http://%s)\n",
-                          DeviceIdentity::Name().c_str(), WiFi.localIP().toString().c_str());
-        } else {
-            Serial.println("[web] ERROR: config server did NOT bind :80 -- the config page is "
-                           "UNREACHABLE this boot. Power-cycle to recover.");
-            Serial.println("[web] ERROR: most likely something else still holds the port (see #166).");
-        }
-    }
+    server.begin();
 }
 
 bool ConfigurationWebServer::ConsumeConfigChanged()
