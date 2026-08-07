@@ -27,6 +27,30 @@ are versioned and released **together** from a single commit, and each device se
 
 > Don't hand-upload assets — the workflow names them so they match what devices request.
 
+## Bench OTA testing — the pinned pre-release
+
+The download half of the OTA path is dead code on a normal boot (`latest <= current`), so it
+can only be exercised deliberately. `-DOTA_RELEASE_BASE` exists for this: point a bench build
+at a **pre-release** tag whose `version.txt` is higher than the build's `FW_VERSION`.
+
+Pre-releases never resolve through `releases/latest/download`, so the fleet cannot see the tag.
+Verified 2026-08-07 while a preflight tag was live: `latest/download/version.txt` read `4`
+throughout while the pinned tag read `6`. See `[env:blipscope-s3-128-otatest]` /
+`[env:blipscope-s3-128-otafault]`.
+
+> **Publishing ANY release — including a pre-release — triggers the build workflow, and it
+> OVERWRITES hand-uploaded assets.** This is not obvious and it silently invalidates a test.
+> Measured: a preflight tag created at 20:10 with a hand-built `version.txt` of `6` had every
+> asset replaced by CI between 20:14 and 20:15, `version.txt` becoming `5` (the tag commit's
+> `FW_VERSION`) and `firmware-s3-128.bin` becoming a CI-built v5. A test run before that window
+> updated correctly; one after it read `latest=5` and did nothing, which looks exactly like a
+> broken OTA path rather than a moved goalpost.
+>
+> So for a bench pre-release: create the tag, **wait for the workflow to finish**, then
+> `gh release upload <tag> version.txt firmware-<slug>.bin --clobber`. Re-uploading does not
+> re-trigger CI, so the assets stay put. Confirm by fetching the pinned `version.txt` over HTTP
+> immediately before the run — the device's answer is only as good as what the URL served.
+
 ## Adding a new SKU to releases
 
 A new SKU needs three entries that stay in sync:
