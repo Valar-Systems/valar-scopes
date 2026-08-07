@@ -262,7 +262,9 @@ after §6 passes.
 
    > There is currently **no serial line** that reports the bind outcome. The liveness check
    > added for #166 was reverted in #172 because the probe socket itself tore down the live
-   > listener. Until a safe replacement lands, `curl` is the only evidence. Do not skip it.
+   > listener. Until a safe replacement lands
+   > ([#181](https://github.com/Valar-Systems/valar-scopes/issues/181)), `curl` is the only
+   > evidence. Do not skip it.
 
 4. **Recovery gesture.** Power-cycle. Within ~3 s the screen shows **TOUCH & HOLD / to reset
    WiFi**. Touch it *then* — **not before** — and hold through the countdown:
