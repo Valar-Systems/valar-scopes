@@ -328,14 +328,46 @@ possible place to find out, and after board #1 it becomes the most expensive.
    | slot switches | `[ota-slot] boot running=app1 @0x660000 ... fw=<N+1>` |
    | **survives power loss** | power-cycle, then `running=app1 ... state=VALID` |
 
-   `state=VALID` is the load-bearing one. `PENDING_VERIFY` after a power cycle means the
-   bootloader may roll the board back to `app0`, which on a virgin board is a slot that was
-   never written — a failure mode that cannot occur on a bench unit and would not have been
-   visible in any test run before this one.
+   > **Do not wait for `PENDING_VERIFY` — you will never see it, and its absence is not a
+   > failure.** Rollback IS armed on these builds (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`),
+   > so the state genuinely passes `NEW → PENDING_VERIFY → VALID`. But arduino-esp32's
+   > `initArduino()` calls `esp_ota_mark_app_valid_cancel_rollback()` before `setup()` runs, and
+   > `LogOtaSlot("boot")` is inside `setup()`. The transition is real, resolved, and
+   > structurally unobservable from where we log it. **`VALID` on the first post-update boot is
+   > the correct and expected reading.**
+
+   > **This is a correctness gate, not a brick gate.** An earlier version of this section said
+   > `PENDING_VERIFY` risks "a rollback to `app0`, which on a virgin board is a slot that was
+   > never written". That is **backwards**: on a virgin board `app0` is the slot that *was*
+   > written, by the USB flash, and `app1` is the blank one. OTA writes the blank slot and boots
+   > it; if that image fails, rollback targets `app0` — the working factory image. **The
+   > brick-by-rollback scenario does not exist**, because the rollback target is always the
+   > previously-working slot by construction.
+   >
+   > What §8 actually proves is narrower and still worth a gate: that the download, the write,
+   > and the boot-partition switch all behave when the destination has **never been written**.
+   > That is the only state the fleet ships in and the only state this board can be tested from
+   > once.
 
 4. **Then reflash board #1 to production over USB** (`pio run -e blipscope-s3-128 -t upload`) so
    it rejoins the batch in the same state as the other 49 — `app0`, otadata reset, no pinned OTA
    base compiled in. Record the result on the batch sheet; the other 49 do **not** repeat §8.
+
+### Result — 2026-08-07, board #1, PASSED
+
+```
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5   <- virgin
+[ota] channel=s3-128 current=5 latest=6
+[ota-mem] pre-update free=236820 largest=135156 free8=236820 tlsOk=1
+[ota-mem] pct=0   free=176080 largest=118772 free8=176080  TRIAL tlsOk=1 rej=0
+[ota-mem] pct=100 free=180836 largest=118772 free8=180836  TRIAL tlsOk=1 rej=0
+[ota-slot] boot running=app1 @0x660000 state=VALID next=app0 fw=6       <- first boot
+[ota-slot] boot running=app1 @0x660000 state=VALID next=app0 fw=6       <- after power cycle
+```
+
+Note `largest=118772` unchanged across the whole transfer while `free8` moves — the plateau
+from #163, reproduced during the operation it most mattered for. Read `free8` and the trial
+result; `largest` is retained only so the plateau stays visible beside the number that tracks.
 
 ---
 
