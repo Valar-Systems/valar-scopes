@@ -1,0 +1,199 @@
+
+
+================ HEAP PROBE ================
+MALLOC_CAP_8BIT=0x004  MALLOC_CAP_INTERNAL=0x800  ota caps=0x804
+ENRICH_TLS_HEAP_FLOOR=16000, the failing OTA alloc was 16717 B
+
+--- PART 1: at boot, idle ---
+
+  DMA                                    278516     331472
+  SPIRAM                                8257524    8386096
+
+regions visible to INTERNAL but NOT to INTERNAL|8BIT:
+(if this list is non-empty, getMaxAllocHeap can report memory TLS cannot use)
+  At 0x3fcef958 len 1620 free 0 allocated 1228 min_free 0
+    largest_free_block 0 alloc_blocks 5 free_blocks 0 total_blocks 5
+  At 0x600fe000 len 8152 free 7760 allocated 0 min_free 7760
+    largest_free_block 7668 alloc_blocks 0 free_blocks 1 total_blocks 1
+  At 0x3fce9710 len 22308 free 11420 allocated 9868 min_free 11420
+    largest_free_block 11252 alloc_blocks 17 free_blocks 1 total_blocks 18
+  At 0x3fcf0000 len 32768 free 32020 allocated 0 min_free 32020
+    largest_free_block 31732 alloc_blocks 0 free_blocks 1 total_blocks 1
+  At 0x3fc9d3c0 len 312144 free 287816 allocated 21600 min_free 282548
+    largest_free_block 278516 alloc_blocks 59 free_blocks 5 total_blocks 64
+  Totals:
+    free 339016 allocated 32696 min_free 333748 largest_free_block 278516
+
+--- PART 2: reproduce the failing allocation ---
+heap_caps_calloc(1, 16717, 0x804) = OK
+
+--- PART 3: consume 8-bit internal DRAM, watch both numbers ---
+PROBE,step,heldKB,getMaxAllocHeap,largest8BIT,delta,gateSaysOk,tlsWouldFit
+PROBE,0,heldKB,0,getMaxAllocHeap,278516,largest8BIT,278516,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,1,heldKB,4,getMaxAllocHeap,278516,largest8BIT,278516,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,2,heldKB,8,getMaxAllocHeap,278516,largest8BIT,278516,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,3,heldKB,12,getMaxAllocHeap,278516,largest8BIT,278516,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,4,heldKB,16,getMaxAllocHeap,270324,largest8BIT,270324,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,5,heldKB,20,getMaxAllocHeap,270324,largest8BIT,270324,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,6,heldKB,24,getMaxAllocHeap,262132,largest8BIT,262132,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,7,heldKB,28,getMaxAllocHeap,262132,largest8BIT,262132,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,8,heldKB,32,getMaxAllocHeap,258036,largest8BIT,258036,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,9,heldKB,36,getMaxAllocHeap,253940,largest8BIT,253940,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,10,heldKB,40,getMaxAllocHeap,249844,largest8BIT,249844,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,11,heldKB,44,getMaxAllocHeap,245748,largest8BIT,245748,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,12,heldKB,48,getMaxAllocHeap,241652,largest8BIT,241652,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,13,heldKB,52,getMaxAllocHeap,237556,largest8BIT,237556,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,14,heldKB,56,getMaxAllocHeap,233460,largest8BIT,233460,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,15,heldKB,60,getMaxAllocHeap,229364,largest8BIT,229364,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,16,heldKB,64,getMaxAllocHeap,225268,largest8BIT,225268,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,17,heldKB,68,getMaxAllocHeap,221172,largest8BIT,221172,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,18,heldKB,72,getMaxAllocHeap,217076,largest8BIT,217076,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,19,heldKB,76,getMaxAllocHeap,212980,largest8BIT,212980,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,20,heldKB,80,getMaxAllocHeap,208884,largest8BIT,208884,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,21,heldKB,84,getMaxAllocHeap,204788,largest8BIT,204788,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,22,heldKB,88,getMaxAllocHeap,200692,largest8BIT,200692,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,23,heldKB,92,getMaxAllocHeap,196596,largest8BIT,196596,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,24,heldKB,96,getMaxAllocHeap,192500,largest8BIT,192500,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,25,heldKB,100,getMaxAllocHeap,188404,largest8BIT,188404,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,26,heldKB,104,getMaxAllocHeap,184308,largest8BIT,184308,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,27,heldKB,108,getMaxAllocHeap,180212,largest8BIT,180212,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,28,heldKB,112,getMaxAllocHeap,176116,largest8BIT,176116,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,29,heldKB,116,getMaxAllocHeap,172020,largest8BIT,172020,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,30,heldKB,120,getMaxAllocHeap,167924,largest8BIT,167924,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,31,heldKB,124,getMaxAllocHeap,163828,largest8BIT,163828,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,32,heldKB,128,getMaxAllocHeap,159732,largest8BIT,159732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,33,heldKB,132,getMaxAllocHeap,155636,largest8BIT,155636,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,34,heldKB,136,getMaxAllocHeap,147444,largest8BIT,147444,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,35,heldKB,140,getMaxAllocHeap,143348,largest8BIT,143348,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,36,heldKB,144,getMaxAllocHeap,139252,largest8BIT,139252,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,37,heldKB,148,getMaxAllocHeap,135156,largest8BIT,135156,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,38,heldKB,152,getMaxAllocHeap,131060,largest8BIT,131060,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,39,heldKB,156,getMaxAllocHeap,129012,largest8BIT,129012,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,40,heldKB,160,getMaxAllocHeap,124916,largest8BIT,124916,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,41,heldKB,164,getMaxAllocHeap,120820,largest8BIT,120820,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,42,heldKB,168,getMaxAllocHeap,116724,largest8BIT,116724,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,43,heldKB,172,getMaxAllocHeap,112628,largest8BIT,112628,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,44,heldKB,176,getMaxAllocHeap,108532,largest8BIT,108532,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,45,heldKB,180,getMaxAllocHeap,104436,largest8BIT,104436,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,46,heldKB,184,getMaxAllocHeap,100340,largest8BIT,100340,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,47,heldKB,188,getMaxAllocHeap,96244,largest8BIT,96244,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,48,heldKB,192,getMaxAllocHeap,92148,largest8BIT,92148,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,49,heldKB,196,getMaxAllocHeap,86004,largest8BIT,86004,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,50,heldKB,200,getMaxAllocHeap,81908,largest8BIT,81908,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,51,heldKB,204,getMaxAllocHeap,77812,largest8BIT,77812,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,52,heldKB,208,getMaxAllocHeap,73716,largest8BIT,73716,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,53,heldKB,212,getMaxAllocHeap,69620,largest8BIT,69620,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,54,heldKB,216,getMaxAllocHeap,65524,largest8BIT,65524,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,55,heldKB,220,getMaxAllocHeap,62452,largest8BIT,62452,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,56,heldKB,224,getMaxAllocHeap,58356,largest8BIT,58356,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,57,heldKB,228,getMaxAllocHeap,53236,largest8BIT,53236,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,58,heldKB,232,getMaxAllocHeap,49140,largest8BIT,49140,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,59,heldKB,236,getMaxAllocHeap,45044,largest8BIT,45044,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,60,heldKB,240,getMaxAllocHeap,40948,largest8BIT,40948,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,61,heldKB,244,getMaxAllocHeap,36852,largest8BIT,36852,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,62,heldKB,248,getMaxAllocHeap,32756,largest8BIT,32756,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,63,heldKB,252,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,64,heldKB,256,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+
+exhausted 8-bit internal DRAM after 64 bites (256 KB held)
+
+--- PART 3: with 8-bit internal DRAM exhausted ---
+mask                                   largest       free
+  INTERNAL          (getMaxAllocHeap)     31732      68168
+  INTERNAL|8BIT     (what TLS asks)       31732      68168
+  8BIT                                  8257524    8454264
+  DEFAULT                               8257524    8454264
+  INTERNAL|32BIT                          31732      68168
+  DMA                                     31732      60408
+  SPIRAM                                8257524    8386096
+
+>>> THE VERDICT IS THE LAST PROBE LINE ABOVE:
+>>>   gateSaysOk=1 while tlsWouldFit=0  ==  the gate is BLIND.
+>>>   both fall together                ==  the gate is FAIR.
+
+================ done, freed ================
+
+
+
+===== RUN 2 (exhaust to refusal) =====
+
+
+================ HEAP PROBE ================
+MALLOC_CAP_8BIT=0x004  MALLOC_CAP_INTERNAL=0x800  ota caps=0x804
+ENRICH_TLS_HEAP_FLOOR=16000, the failing OTA alloc was 16717 B
+
+--- PART 1: at boot, idle ---
+
+  DEFAULT                               8257524    8724528
+  INTERNAL|32BIT                         278516     338432
+  DMA                                    278516     330672
+  SPIRAM                                8257524    8386096
+
+regions visible to INTERNAL but NOT to INTERNAL|8BIT:
+(if this list is non-empty, getMaxAllocHeap can report memory TLS cannot use)
+  At 0x3fcef958 len 1620 free 0 allocated 1228 min_free 0
+    largest_free_block 0 alloc_blocks 5 free_blocks 0 total_blocks 5
+  At 0x600fe000 len 8152 free 7760 allocated 0 min_free 7760
+    largest_free_block 7668 alloc_blocks 0 free_blocks 1 total_blocks 1
+  At 0x3fce9710 len 22308 free 11420 allocated 9868 min_free 11420
+    largest_free_block 11252 alloc_blocks 17 free_blocks 1 total_blocks 18
+  At 0x3fcf0000 len 32768 free 32020 allocated 0 min_free 32020
+    largest_free_block 31732 alloc_blocks 0 free_blocks 1 total_blocks 1
+  At 0x3fc9d6e0 len 311344 free 287016 allocated 21600 min_free 281748
+    largest_free_block 278516 alloc_blocks 59 free_blocks 5 total_blocks 64
+  Totals:
+    free 338216 allocated 32696 min_free 332948 largest_free_block 278516
+
+--- PART 2: reproduce the failing allocation ---
+heap_caps_calloc(1, 16717, 0x804) = OK
+
+--- PART 3: consume 8-bit internal DRAM, watch both numbers ---
+PROBE,step,heldKB,getMaxAllocHeap,largest8BIT,delta,gateSaysOk,tlsWouldFit
+PROBE,0,heldKB,0,getMaxAllocHeap,278516,largest8BIT,278516,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,8,heldKB,32,getMaxAllocHeap,258036,largest8BIT,258036,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,16,heldKB,64,getMaxAllocHeap,225268,largest8BIT,225268,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,24,heldKB,96,getMaxAllocHeap,192500,largest8BIT,192500,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,32,heldKB,128,getMaxAllocHeap,155636,largest8BIT,155636,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,40,heldKB,160,getMaxAllocHeap,124916,largest8BIT,124916,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,48,heldKB,192,getMaxAllocHeap,90100,largest8BIT,90100,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,56,heldKB,224,getMaxAllocHeap,57332,largest8BIT,57332,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,61,heldKB,244,getMaxAllocHeap,35828,largest8BIT,35828,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,62,heldKB,248,getMaxAllocHeap,32244,largest8BIT,32244,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,63,heldKB,252,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,64,heldKB,256,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,65,heldKB,260,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,66,heldKB,264,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,67,heldKB,268,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,68,heldKB,272,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,69,heldKB,276,getMaxAllocHeap,31732,largest8BIT,31732,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,70,heldKB,280,getMaxAllocHeap,27636,largest8BIT,27636,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,71,heldKB,284,getMaxAllocHeap,22516,largest8BIT,22516,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,72,heldKB,288,getMaxAllocHeap,18420,largest8BIT,18420,delta,0,gateSaysOk,1,tlsWouldFit,1
+PROBE,73,heldKB,292,getMaxAllocHeap,14324,largest8BIT,14324,delta,0,gateSaysOk,0,tlsWouldFit,0
+PROBE,74,heldKB,296,getMaxAllocHeap,10228,largest8BIT,10228,delta,0,gateSaysOk,0,tlsWouldFit,0
+PROBE,75,heldKB,300,getMaxAllocHeap,7668,largest8BIT,7668,delta,0,gateSaysOk,0,tlsWouldFit,0
+PROBE,76,heldKB,304,getMaxAllocHeap,7668,largest8BIT,7668,delta,0,gateSaysOk,0,tlsWouldFit,0
+PROBE,77,heldKB,308,getMaxAllocHeap,3060,largest8BIT,3060,delta,0,gateSaysOk,0,tlsWouldFit,0
+
+malloc(4096, 0x804) REFUSED after 77 bites (308 KB held)
+
+*** getMaxAllocHeap()=3060 (floor >= ENRICH_TLS_HEAP_FLOOR=16000? no, gate would block)
+*** the OTA-sized alloc (16717 B, caps 0x804) = FAILED
+*** VERDICT: gate and allocator agree at this point
+
+--- PART 3: with 8-bit internal DRAM exhausted ---
+mask                                   largest       free
+  INTERNAL          (getMaxAllocHeap)      3060      11124
+  INTERNAL|8BIT     (what TLS asks)        3060      11124
+  8BIT                                  8257524    8397220
+  DEFAULT                               8257524    8397220
+  INTERNAL|32BIT                           3060      11124
+  DMA                                      2676       7976
+  SPIRAM                                8257524    8386096
+
+>>> THE VERDICT IS THE LAST PROBE LINE ABOVE:
+>>>   gateSaysOk=1 while tlsWouldFit=0  ==  the gate is BLIND.
+>>>   both fall together                ==  the gate is FAIR.
+
+================ done, freed ================
+
