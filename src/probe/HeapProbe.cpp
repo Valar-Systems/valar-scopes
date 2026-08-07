@@ -44,6 +44,10 @@
  *     pio run -e probe-s3-128-heap -t upload --upload-port COM119
  */
 
+// Guarded like TouchProbe.cpp: src/probe/ is inside the default `+<*>` source
+// filter, so without this every product build links a second setup()/loop().
+#ifdef PROBE_SKETCH
+
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 
@@ -171,3 +175,5 @@ void loop()
 {
     delay(10000);
 }
+
+#endif // PROBE_SKETCH

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <cmath>
 
+#include "HeapHealth.h"
 #include "AircraftManager.h"
 #include "TouchWatchdog.h"
 #include "Layout.h"
@@ -35,6 +36,8 @@ namespace {
     bool gatePrinted = false;
     bool warmedUp = false;
     uint32_t breachBase = 0; // BudgetBreachCount() at warmup end; gate counts the delta
+    uint32_t trialRejectBase = 0; // same idea for handshake refusals (boot transients out)
+    bool     gatePassed = false;  // latched at the 24 h print; a regression after it prints once
     uint32_t warmupFreeHeap = 0; // free heap at warmup end; the outcome criterion is trend, not floor
 
     unsigned long bursts = 0, presses = 0;
@@ -169,6 +172,7 @@ void SoakHarness::Tick(AircraftManager& mgr)
     if (!warmedUp && now - startMs >= WARMUP_MS) {
         warmedUp = true;
         breachBase = mgr.BudgetBreachCount();
+        trialRejectBase = heaphealth::TrialRejectionCount();
         warmupFreeHeap = ESP.getFreeHeap(); // trend baseline for the outcome criterion
         minLargest = UINT32_MAX; // steady-state floor only; boot transients excluded
         Serial.println("[soak] warmup complete; gate counters armed (boot transients excluded)");
@@ -220,15 +224,42 @@ void SoakHarness::Tick(AircraftManager& mgr)
                       warmedUp ? "" : " (warming up)");
     }
 
-    if (!gatePrinted && now - startMs >= GATE_AT_MS) {
-        gatePrinted = true;
+    // RE-SCORED CONTINUOUSLY, not once. The 2026-08-04 run passed at 24:00 with
+    // minLargest=25588 and then dropped to 18420 at 24:43 -- below the gate's own
+    // floor, 43 minutes after the only time it was ever measured. A gate that
+    // samples once and never looks again is not measuring what it claims to, so
+    // the criteria are evaluated every tick and the first regression AFTER a pass
+    // gets its own line. The 24 h print stays: it is the published milestone.
+    {
         const auto& wd = TouchWatchdog::GetStats();
-        const uint32_t gateBreaches = mgr.BudgetBreachCount() - breachBase;
+        const uint32_t gateBreaches = warmedUp ? mgr.BudgetBreachCount() - breachBase : 0;
         const bool okWedges  = wd.wedges <= 1;
         const bool okOutage  = wd.maxOutageMs <= 90000 && wd.rebootsRecommended == 0;
         const bool okBudget  = gateBreaches == 0;
-        const bool okHeap    = minLargest >= 20000;
+        // THE HEAP CRITERION IS NO LONGER A THRESHOLD ON largest. It was
+        // minLargest >= 20000, read off ESP.getMaxAllocHeap() -- the metric #163
+        // proved is pinned to an untouched reserve region and took five distinct
+        // values in 54 h. Re-scoring that number more often would only have
+        // sampled a constant faster. What the criterion always MEANT is "was there
+        // ever a moment a TLS handshake could not have been served", and the trial
+        // allocator answers exactly that, so: zero refusals post-warmup.
+        const bool okHeap = warmedUp
+            ? (heaphealth::TrialRejectionCount() - trialRejectBase) == 0
+            : true;
         const bool pass = okWedges && okOutage && okBudget && okHeap;
+
+        if (gatePrinted && gatePassed && !pass) {
+            gatePassed = false;   // latched: report the first regression, once
+            Serial.printf("[soak] !! GATE REGRESSED AFTER PASS at up=%02lu:%02lu:%02lu -- "
+                          "wedges=%d outage=%d budget=%d heap=%d (rejections=%lu)\n",
+                          (now - startMs) / 3600000UL, ((now - startMs) / 60000UL) % 60,
+                          ((now - startMs) / 1000UL) % 60,
+                          (int)okWedges, (int)okOutage, (int)okBudget, (int)okHeap,
+                          (unsigned long)(heaphealth::TrialRejectionCount() - trialRejectBase));
+        }
+        if (!gatePrinted && now - startMs >= GATE_AT_MS) {
+        gatePrinted = true;
+        gatePassed = pass;
         Serial.println("[soak] ==================================================");
         Serial.printf("[soak] 24 h GATE: %s\n", pass ? "PASS" : "FAIL");
         Serial.printf("[soak]   wedge incidence   %lu (<=1)          %s\n",
@@ -241,15 +272,19 @@ void SoakHarness::Tick(AircraftManager& mgr)
                       (unsigned long)wd.outageGt90s);
         Serial.printf("[soak]   budget breaches   %lu post-warmup (==0)   %s\n",
                       (unsigned long)gateBreaches, okBudget ? "ok" : "FAIL");
-        Serial.printf("[soak]   heap floor        minLargest=%u post-warmup (>=20000)  %s\n",
-                      (unsigned)minLargest, okHeap ? "ok" : "FAIL");
+        Serial.printf("[soak]   handshake refusals %lu post-warmup (==0)  %s\n",
+                      (unsigned long)(heaphealth::TrialRejectionCount() - trialRejectBase),
+                      okHeap ? "ok" : "FAIL");
+        Serial.printf("[soak]   heap floor        minLargest=%u (REPORT ONLY -- plateaued metric, see #163)\n",
+                      (unsigned)minLargest);
         Serial.printf("[soak]   outcome (report-only, criteria rewrite pending): heapTrend=%+ld B allocFails=%lu hardFetchFails=%lu\n",
                       (long)ESP.getFreeHeap() - (long)warmupFreeHeap,
                       (unsigned long)mgr.AllocFailureCount(),
                       (unsigned long)mgr.FetchHardFailCount());
         Serial.println("[soak]   display           uninterrupted (this line printing at 24 h proves no reboot)");
         Serial.println("[soak] ==================================================");
-        Serial.println("[soak] harness keeps running; longer is better data");
+        Serial.println("[soak] harness keeps running, and the gate keeps re-scoring");
+        }
     }
 }
 

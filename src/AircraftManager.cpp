@@ -41,6 +41,7 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 16000;
 
 #include <esp_heap_caps.h>
+#include "HeapHealth.h"
 
 namespace {
     // Outcome-based soak criteria (2026-07-10): count what actually fails instead of
@@ -50,6 +51,13 @@ namespace {
     uint32_t fetchHardFailures = 0; // statusCode <= 0: TLS/DNS/connect/timeout class
     void OnAllocFailed(size_t size, uint32_t caps, const char* fn)
     {
+        // A heap gate asking "would this fit?" is not a failure, and must not be
+        // logged as one -- otherwise the gate WORKING is indistinguishable from
+        // the failure it just prevented, and the soak's outcome counters fill up
+        // with its own successes. Task-scoped, so a genuine failure on another
+        // task inside the same few microseconds still counts (see HeapHealth.h).
+        if (heaphealth::InTrial())
+            return;
         allocFailures++;
         Serial.printf("[health] ALLOC FAILED: %u B (caps 0x%x) in %s (#%lu)\n",
                       (unsigned)size, (unsigned)caps, fn ? fn : "?", (unsigned long)allocFailures);
@@ -1307,6 +1315,15 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 
     const uint32_t heapFree = ESP.getFreeHeap();
     const uint32_t largest = ESP.getMaxAllocHeap();
+    // KEPT DELIBERATELY, AND NO LONGER TRUSTED. `largest` is the plateaued figure
+    // from #163 -- it is reported so the plateau can be watched in the field rather
+    // than lost, and sits next to the two numbers that actually move: `free8` (free
+    // 8-bit internal, which tracked continuously where largest did not) and `tlsOk`
+    // (a real trial allocation of a handshake-sized block, i.e. the answer to the
+    // only question the gates ever wanted). If largest is pinned while tlsOk flips
+    // to 0, that is the bug reproducing itself in the field.
+    const uint32_t free8 = heaphealth::FreeInternal8Bit();
+    const int      tlsOk = heaphealth::CanHandshake() ? 1 : 0;
     // allocFail + hardFail every report (not just soak builds): their trend
     // leading into a LOOP STALL disambiguates the two slowdown hypotheses --
     // climbing allocFail points at heap fragmentation (a big contiguous alloc
@@ -1335,9 +1352,10 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #else
     const unsigned apCount = (unsigned)AIRPORT_COUNT;
 #endif
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
-                  (unsigned)heapFree, (unsigned)largest,
+                  (unsigned)heapFree, (unsigned)largest, (unsigned)free8, tlsOk,
+                  (unsigned long)heaphealth::TrialRejectionCount(),
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
@@ -1699,10 +1717,12 @@ void AircraftManager::RunFetchTask()
 
         // Heap health check right after the decode -- the cycle's low point, the same
         // pressure TLS handshakes and the config web server fight for. Stay silent when
-        // healthy; warn only when the largest block falls to where enrichment starts
-        // getting throttled (ENRICH_TLS_HEAP_FLOOR) -- the early sign we're sliding back
-        // toward the TLS / config-page failures this all fixed.
-        if (const uint32_t largest = ESP.getMaxAllocHeap(); largest < ENRICH_TLS_HEAP_FLOOR)
+        // healthy; warn only when a handshake-sized block can no longer be served --
+        // the early sign we're sliding back toward the TLS / config-page failures this
+        // all fixed. This used to test largest < ENRICH_TLS_HEAP_FLOOR, which on this
+        // board never once became true in 54 h (#163); largest is still PRINTED so the
+        // plateau stays visible, but it no longer decides anything.
+        if (const uint32_t largest = ESP.getMaxAllocHeap(); !heaphealth::CanHandshake())
             Serial.printf("[fetch] LOW HEAP after %s: free=%u largest=%u aircraft=%u\n",
                           sourceName, (unsigned)ESP.getFreeHeap(), (unsigned)largest, (unsigned)res->aircraft.size());
 
@@ -3786,7 +3806,7 @@ void AircraftManager::ProcessDetailLookups()
 
     // same TLS-heap guard as the radar path: a handshake with too little contiguous
     // heap only fails and churns, so defer the detail lookups until heap recovers.
-    if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
+    if (!heaphealth::CanHandshake())
         return;
 
     // Same rule as the background sweep: the card stays receiver-only when the
@@ -4957,7 +4977,7 @@ void AircraftManager::ProcessMetadataLookups()
 
     // not enough contiguous heap for a TLS handshake -> don't even try. Attempting
     // it only fails ("BIGNUM alloc failed") and the churn starves the web server.
-    if (ESP.getMaxAllocHeap() < ENRICH_TLS_HEAP_FLOOR)
+    if (!heaphealth::CanHandshake())
         return;
 
     const unsigned long now = millis();
