@@ -19,12 +19,24 @@ private:
     // and restarts on the main task (WiFi/restart work off the async callback).
     volatile bool wifiResetRequested = false;
 
+    // Whether server.begin() actually took port 80 this boot. AsyncWebServer
+    // cannot tell us, so Initialise() probes for it -- see the comment there.
+    // False means the config page is unreachable until the device is restarted.
+    bool serverListening = false;
+
 public:
     ConfigurationWebServer() : server(80) {}
     ConfigurationWebServer(int port) : server(port) {}
 
     void Initialise();
     [[nodiscard]] const String GetStoredString(const char* key);
+
+    // False means the config page is UNREACHABLE for the rest of this boot --
+    // AsyncWebServer::begin() failed to take the port and has no way to say so.
+    // Exposed rather than left as a boot-time print because a symptom this
+    // invisible should be answerable at any moment, not only from a capture that
+    // happened to be attached at startup.
+    [[nodiscard]] bool IsListening() const { return serverListening; }
 
     // Returns true at most once per save, clearing the flag. Lets the main loop
     // reload settings in-place instead of rebooting the device.

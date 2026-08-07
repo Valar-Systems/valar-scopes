@@ -290,6 +290,22 @@ void setup()
     }
   }
 
+  // The portal FAILING already restarted, just above. The portal SUCCEEDING has
+  // to as well, and that asymmetry is the bug: WiFiManager's captive portal owns
+  // port 80, does not release it before ConfigurationWebServer::Initialise() calls
+  // server.begin(), and the bind fails with lwIP ERR_USE. AsyncWebServer cannot
+  // report that to its caller, so the device runs perfectly while refusing every
+  // connection to its own config page until someone power-cycles it.
+  //
+  // That is the FIRST-RUN path for every customer -- a factory-fresh unit has no
+  // saved credentials, so it always arrives here. See PortalProvisioned().
+  if (WiFiManagerHelpers::PortalProvisioned()) {
+    Serial.println("[WiFi] provisioned via the portal -- restarting so the config server can bind :80");
+    DrawSplash(tft, backbuffer, "WiFi saved", "Starting up...");
+    delay(1200);
+    ESP.restart();
+  }
+
   // Disable Wi-Fi modem-sleep. By default the radio sleeps between beacons and
   // wakes each DTIM to listen, pulsing the supply current at the beacon rate.
   // On this board that periodic load makes the decoupling caps near the ESP32-C3

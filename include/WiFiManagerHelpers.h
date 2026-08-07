@@ -10,6 +10,43 @@
 
 namespace WiFiManagerHelpers
 {
+    /**
+     * Did the captive portal hand us these credentials this boot?
+     *
+     * THE CONFIG PAGE DOES NOT COME UP AFTER THE PORTAL, and this is how setup()
+     * knows to restart instead of carrying on. Observed on a bench board and
+     * reproducible on any first-run device:
+     *
+     *     *wm:[2] config portal exiting
+     *     [WiFi] autoConnect() returned true (connected)
+     *     [124697][E][AsyncTCP.cpp:1517] begin(): bind error: -8
+     *
+     * lwIP -8 is ERR_USE. WiFiManager's portal serves the captive page from its
+     * own web server ON PORT 80, and closing the portal does not release the
+     * listening socket before ConfigurationWebServer::Initialise() reaches
+     * server.begin(). The bind fails, AsyncWebServer has no way to report that to
+     * its caller, and the device runs perfectly with port 80 refusing every
+     * connection until it is power-cycled.
+     *
+     * THE BLAST RADIUS IS EVERY NEW CUSTOMER. First setup has no saved
+     * credentials, so it ALWAYS goes through the portal -- which means a factory-
+     * fresh unit reaches its owner's network and then refuses the config page, on
+     * exactly the boot where they are most likely to go looking for it. It hid
+     * because the far more common path (boot with saved credentials, portal never
+     * starts, port 80 free) works correctly, and because a reboot silently fixes
+     * it. It was found here only because a stray double-tap wiped a soak board's
+     * WiFi and forced the portal path on a device someone then tried to reach.
+     *
+     * The restart is not a workaround for the socket alone -- setup() has already
+     * run WiFi bring-up, NTP and the OTA check by then, and re-running the whole
+     * boot on the network the user just chose is more predictable than patching
+     * one leaked descriptor. It also costs nothing anyone notices: it happens once,
+     * during a setup flow that already involves joining a hotspot and typing a
+     * password.
+     */
+    inline bool& PortalProvisionedFlag() { static bool provisioned = false; return provisioned; }
+    inline bool  PortalProvisioned()     { return PortalProvisionedFlag(); }
+
     // Per-device setup hotspot name, e.g. "Blipscope-A1B2C3", so multiple
     // boards in setup mode on the same network can be told apart.
     inline const String& WiFiManagerName() { return DeviceIdentity::Name(); }
@@ -231,9 +268,13 @@ namespace WiFiManagerHelpers
             Serial.println("[WiFi] no saved credentials: portal stays up indefinitely for first setup");
         }
 
-        // log the moment the portal hands new credentials to the radio
+        // log the moment the portal hands new credentials to the radio, AND record
+        // that the portal was used at all -- setup() has to restart afterwards, and
+        // this is the only reliable way to know the portal actually ran. See
+        // PortalProvisioned() for why the restart is not optional.
         wm.setSaveConfigCallback([]() {
             Serial.println("[WiFi] Portal saved credentials, attempting to connect...");
+            PortalProvisionedFlag() = true;
         });
 
         wm.setAPCallback([&tft, &backbuffer](WiFiManager* wifiManager) {
