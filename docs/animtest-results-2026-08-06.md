@@ -870,3 +870,116 @@ Nothing below is answerable from a log.
 - Caption at rows 36/48 — clipped on the round face? This is the tightest fit
   in the sequence.
 - ALT readout at y=224, below the grade line — legible, and not colliding?
+
+---
+
+## Run 14 — the fireball stopped being a sticker
+
+Prompted by a photograph and one sentence: *"the big white circle looks too fake
+for most of the screen."* The important thing about that note is that it was not
+a tuning complaint, and treating it as one would have wasted the session. The
+disc failed four ways at once and the arithmetic says so:
+
+| # | Fault | The evidence |
+|---|---|---|
+| 1 | Perfect circular edge | A fireball's boundary is where emission drops below visible, and it is torn |
+| 2 | No internal contrast | Warm white `FFFCEB` blended over warm white `kCapHot[0]` = `FFF9E3` → the whole 118 px plate spans `FFE8AD`..`FFFBE8`, ~25 points of luminance across 59 px of radius |
+| 3 | It covered the cloud | Drawn last and opaque, over the 46 billows that are the beat's most expensive art |
+| 4 | It outlived its subject | A `0.18` floor held it to T+8 s; a mushroom with a stem has no fireball left |
+
+Fault 2 also explains the pale-blue dot in the middle of every photo. It was not
+a highlight and not a bug — it was the one near-neutral stop in a field of cream,
+reading cold **by contrast**. Nothing was drawing blue.
+
+Replaced with concentric **rings of blobs**, which is the move that already fixed
+the silo fire, for the same reason: *a primitive drawn at this size reads as the
+primitive*. Seven overlapping circles per layer on a jittered ring, so the
+silhouette is torn and the radial ramp is real, running the blackbody sequence
+instead of cream over cream. Drawn **before** the cloud, so the billows rise
+through it and swallow it — which is both what the footage does and a free fix
+for fault 3. Nothing draws it after T+3.6 s.
+
+The core disc's job moved to a **per-puff colour selection** on the crown and cap
+(distance from the head's centre, plus a mottle). That costs nothing, where the
+disc cost ~20k px a frame to cover the billows it was meant to illuminate.
+
+### The double flash
+
+The flash now runs a bhangmeter curve: peak, dip, second and larger peak. The dip
+is the shock front going optically opaque and hiding the core until it outruns
+it, and it is the signature that identifies a detonation as nuclear — chemical
+explosions do not have it, and essentially no fiction draws it. Heavily
+time-dilated on purpose: the real first pulse peaks near 1 ms and would fall
+between two frames at ~22 fps. **The shape is the tell, not the timebase.**
+
+### The number
+
+| | compose worst | **beat worst** | vs the 50 ms bar |
+|---|---|---|---|
+| run 8 (old core disc) | 22.7 ms | 48.5 ms | 1.5 ms |
+| **run 14 (blob fireball)** | **22.2 ms** | **48.0 ms** | **2.0 ms** |
+
+239 frames, avg 45.5 ms / 22.0 fps, worst 48.0 ms / 20.8 fps, push floor 25.8 ms.
+Still the verdict beat — `FPS,VERDICT,COMP,worst_beat,DETONATION,worst_ms,48.0`.
+
+**The prediction was right in direction and nearly worthless in magnitude.** The
+argument in the commit was that the worst frame must get cheaper: the core disc
+is gone and the fireball is dead by T+3.6 s, before the cloud reaches full size,
+so the worst frame has strictly less in it. True — and it bought 0.5 ms, which is
+within shouting distance of the ~0.2 ms run-to-run variance. The lesson is the
+one this file keeps relearning: **the worst frame is set by the cloud, and every
+detonation lever that is not the cloud or the halo is noise.** Do not spend
+another session shaving the fireball.
+
+## Run 14b — the lower third never fit, and the check was wrong too
+
+`DrawCaption` evaluated the round face's chord at the **text row** instead of at
+the glyph's **last ink row**. Text is a band, not a line — eight rows in the
+built-in font — and below the equator the circle keeps closing through every one
+of them:
+
+| row | chord (R=120) | chord (R=116, rim allowance) |
+|---|---|---|
+| y=204 (the row that was checked) | 171 px | 166 px |
+| y=210 (where the ink actually ends) | 158 px | 150 px |
+| y=211 (where the halo ends) | 157 px | 148 px |
+
+The worst caption is 162 px of ink + 1 px of halo a side = **164 px**. It never
+fit. It was measured at the row where it looked like it did, and
+`MANEUVER TO WINDOW IN SPACE` lost both ends on glass for as long as the beat has
+existed.
+
+Rows go **192/204 → 182/194**, solved against the last ink row at an effective
+radius of 116 (a deliberate rim allowance, not a measurement). The pad block goes
+**36 → 40** for the mirror of the same reason: above the equator it binds at the
+*first* row, and 36 gave 160 px against the same 164 px worst case — it was
+already 4 px short before anyone looked at the bottom of the frame.
+
+`animtest-results-template.md` had copied the wrong check verbatim ("162 px into
+a 171 px chord"), so **the checklist would have kept passing a caption that is
+visibly clipped**. That is the more expensive half of this bug: a wrong number in
+a doc that exists to catch wrong numbers. Fixed, with the rule spelled out.
+
+Two standing facts added alongside the push floor, both earned the hard way:
+
+- **Separate by HUE, not by brightness within one hue.** Three failures on this
+  screen now — the flight track a step brighter than the coastlines, the rig HUD
+  in GREEN_DIM over green land, and then the grey that replaced it, which was
+  Y=125 against the coastlines' Y=129. The third is the instructive one: grey is
+  achromatic, so once its luminance matches the field it has *nothing left* to
+  separate with.
+- **Chrome over moving art needs a PLATE, not a halo.** A 1 px halo darkens the
+  ring around each glyph, which works on a flat ground and fails against a field
+  of 1 px strokes at the text's own brightness — the strokes resume on the far
+  side of the halo and read as part of the letterform. When the background can be
+  anything, stop hunting for a colour that survives every frame. There isn't one.
+
+### Still open (visual) — run 14
+
+- The double flash: two peaks ~0.45 s apart with a real dip between. If it reads
+  as one long flash, the dip is landing between frames — widen the trough, do not
+  brighten the peaks.
+- Captions at the new 182/194 on MIDCOURSE and TERMINAL, which is where they sit
+  furthest up the globe.
+- `T+45 - SECOND ROLL MANEUVER` and `PSRE PREPARED FOR OPERATION`, both 27 chars,
+  both now sitting *exactly* on the limit rather than comfortably inside it.
