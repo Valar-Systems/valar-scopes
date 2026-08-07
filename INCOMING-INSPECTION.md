@@ -125,6 +125,21 @@ wedge. Note them so field reports aren't misdiagnosed.
 > diagnosis should rest on it. Keep recording 0x60 — a batch that differs is still a supplier
 > conversation — just don't infer read behaviour from it.
 
+> **Read `0xFA`/`0xED` from a census AFTER the first RST pulse, not from the boot census.** The
+> probe prints several censuses and they legitimately disagree, because `tft.init()` has already
+> run `_check_init()` by the time the first one is taken. Measured on board #1, one run:
+>
+> | census | `0xFA` | `0xED` | what you are looking at |
+> |---|---|---|---|
+> | `@phase2-boot` | `0x20` | `0x14` (20) | the **driver's** values, just written |
+> | `@phase2-periodic` (after RST test 1) | `0x60` | `0x01` | the **factory** fingerprint |
+>
+> The RST pulse resets the chip to its factory config, and nothing re-runs `_check_init()`
+> afterwards, so every later census reads the real fingerprint. Judging §3 from the boot census
+> would flag a conforming board — the reference measurement quoted above (`0xFA=0x60 0xED=1`) is
+> itself a post-reset read. `0xFE`, `0xF9`, `0xFB` and `0xFC` are unaffected: they read the same
+> in every census, which is why this trap only bites the two registers the driver touches.
+
 The write experiment must show the register is **writable**:
 
 ```
@@ -148,8 +163,15 @@ by a 0-ohm link the schematic names `SOLDER_TERMINATION` (chip) vs `FEED_TERMINA
 
 **Required: `FEED_TERMINATION` (u.FL leg) + a YF0026-class FPC antenna fitted.**
 
-Verify visually that the link sits on the u.FL leg and the antenna is connected. Then confirm on
-serial at bench distance from the AP:
+> **This section runs in two halves, and the second one cannot happen here.** The probe from §1
+> does no networking at all, so there is no `[WiFi]` line on the console while §1–§5 are running.
+> Do the **visual** check now — link on the u.FL leg, antenna connected — and take the RSSI and
+> reason-204 evidence from the **§6 boot**, which is the first time production firmware brings up
+> the radio. Reading §4 as a single step in document order leaves an inspector waiting for output
+> that build cannot produce.
+
+Verify visually that the link sits on the u.FL leg and the antenna is connected. Then, on the §6
+boot, confirm on serial at bench distance from the AP:
 
 ```
 [WiFi] CONNECTED  IP=... RSSI=-62 dBm
@@ -202,15 +224,24 @@ A failure here means the pin map differs from [include/variants/s3_128.h](includ
 ## 6. Flash production firmware + final function check (100%)
 
 ```sh
-pio run -e blipscope-s3-128 -t upload
+pio run -e blipscope-s3-128 -t upload --upload-port COM<n>
 ```
+
+> **Always pin `--upload-port`.** A soak board is usually attached alongside the unit under
+> inspection, and PlatformIO's auto-detect has no idea which is which. The failure is silent and
+> expensive in exactly one direction: it reflashes the board carrying a multi-hour run.
 
 Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi associates with
 **zero reason-204**, and the OTA line reports the expected channel/version:
 
 ```
+[build] env=blipscope-s3-128 fw=v<N>
+[WiFi] CONNECTED  IP=...  RSSI=-<nn> dBm
 [ota] channel=s3-128 current=<N> latest=<N>
 ```
+
+**This boot is where §4's serial half gets recorded** — the RSSI reading and the zero-reason-204
+criterion. Watch it here; the probe build could not produce it.
 
 ---
 
