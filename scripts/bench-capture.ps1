@@ -86,6 +86,33 @@ function Write-Mark($sw, $text) {
     $sw.WriteLine("=== [capture] $text $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') pid=$PID ===")
 }
 
+# REDACT SECRETS AT WRITE TIME -- the control that would have prevented all of this.
+#
+# Shipping firmware ran WiFiManager at DEV level, which printed the Wi-Fi password
+# in the clear ("*wm:[4] Using Password: ..."). This recorder faithfully wrote it to
+# a ledger, and two of those ledgers were committed to a PUBLIC repo, where they sat
+# for weeks. The firmware no longer emits it -- but a capture script must not depend
+# on the device being well-behaved, because the whole job of this file is to record
+# whatever the device says, including from OLD images and sibling-edition builds that
+# still carry the old level.
+#
+# Redacts rather than drops, so the ledger still shows the line occurred. Also covers
+# the scan list, which is level 3 and geolocating: a set of co-visible SSIDs is what
+# Wi-Fi positioning databases index, and those SSIDs belong to the neighbours, who
+# did not consent to being in a public repo.
+function Protect-Line([string]$line) {
+    $line = $line -replace '(Using Password:\s*).*',        '${1}<redacted by bench-capture>'
+    $line = $line -replace '(password["'':=\s]+)\S+',       '${1}<redacted>'
+    # Three forms carry the neighbour list, and missing any one of them leaks the set:
+    #   *wm:[3] AP:  -51 <ssid>
+    #   *wm:[3] DUP AP: <ssid>
+    #   *wm:[4] <div>...data-ssid='<ssid>'><ssid></a>...   (the rendered picker row)
+    $line = $line -replace '(\*wm:\[\d\]\s+AP:\s+-?\d+\s+).*',  '${1}<ssid redacted>'
+    $line = $line -replace '(\*wm:\[\d\]\s+DUP AP:\s*).*',      '${1}<ssid redacted>'
+    $line = $line -replace '(\*wm:\[\d\]\s+)<div>.*',           '${1}<scan entry redacted>'
+    return $line
+}
+
 $sw = New-Object System.IO.StreamWriter($log, $true)
 $sw.AutoFlush = $true          # the whole point: never buffer the evidence
 Write-Mark $sw "started"
@@ -124,7 +151,7 @@ while ($true) {
         $sp.Open()
         Write-Mark $sw "attached port=$port"
         $failStreak = 0
-        while ($sp.IsOpen) { $sw.WriteLine($sp.ReadLine()) }
+        while ($sp.IsOpen) { $sw.WriteLine((Protect-Line $sp.ReadLine())) }
     } catch {
         $ran = [int]((Get-Date) - $t0).TotalSeconds
         # A read timeout means the DEVICE went quiet -- that is a finding, not a

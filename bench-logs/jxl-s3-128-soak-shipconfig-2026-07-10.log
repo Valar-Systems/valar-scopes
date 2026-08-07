@@ -24,27 +24,27 @@
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[3] WiFi Scan completed in 3818 ms
 *wm:[2] 13 networks found
-*wm:[3] DUP AP: Tony
-*wm:[3] DUP AP: Tony
-*wm:[3] DUP AP: CarriageHouse
-*wm:[3] DUP AP: CarriageHouse
-*wm:[3] DUP AP: Mochanet
-*wm:[3] AP:  -60 Tony
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='Tony'>Tony</a><div role='img' aria-label='80%' title='80%' class='q q-3 l '></div><div class='q h'>80%</div></div> 
-*wm:[3] AP:  -61 CarriageHouse
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='CarriageHouse'>CarriageHouse</a><div role='img' aria-label='78%' title='78%' class='q q-3 l '></div><div class='q h'>78%</div></div> 
-*wm:[3] AP:  -70 NETGEAR41
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='NETGEAR41'>NETGEAR41</a><div role='img' aria-label='60%' title='60%' class='q q-2 l '></div><div class='q h'>60%</div></div> 
-*wm:[3] AP:  -82 CirithUngol
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='CirithUngol'>CirithUngol</a><div role='img' aria-label='36%' title='36%' class='q q-2 l '></div><div class='q h'>36%</div></div> 
-*wm:[3] AP:  -84 Binkitchos-palace
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='Binkitchos-palace'>Binkitchos-palace</a><div role='img' aria-label='32%' title='32%' class='q q-1 l '></div><div class='q h'>32%</div></div> 
-*wm:[3] AP:  -84 Mochanet
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='Mochanet'>Mochanet</a><div role='img' aria-label='32%' title='32%' class='q q-1 l '></div><div class='q h'>32%</div></div> 
-*wm:[3] AP:  -85 TMOBILE-11FC
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='TMOBILE-11FC'>TMOBILE-11FC</a><div role='img' aria-label='30%' title='30%' class='q q-1 l '></div><div class='q h'>30%</div></div> 
-*wm:[3] AP:  -92 WIFI474BD4
-*wm:[4] <div><a href='#p' onclick='c(this)' data-ssid='WIFI474BD4'>WIFI474BD4</a><div role='img' aria-label='16%' title='16%' class='q q-1 l '></div><div class='q h'>16%</div></div> 
+*wm:[3] DUP AP: <ssid redacted>
+*wm:[3] DUP AP: <ssid redacted>
+*wm:[3] DUP AP: <ssid redacted>
+*wm:[3] DUP AP: <ssid redacted>
+*wm:[3] DUP AP: <ssid redacted>
+*wm:[3] AP:  -60 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -61 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -70 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -82 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -84 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -84 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -85 <ssid redacted>
+*wm:[4] <scan entry redacted>
+*wm:[3] AP:  -92 <ssid redacted>
+*wm:[4] <scan entry redacted>
 *wm:[4] [WIFI] reportStatus prev: WL_NO_SSID_AVAIL
 *wm:[4] [WIFI] reportStatus current: WL_DISCONNECTED
 *wm:[4] Sent config page 
@@ -58,7 +58,7 @@
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to NEW AP: Tony
-*wm:[4] Using Password: [REDACTED]
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -503,7 +503,7 @@
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: [REDACTED]
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -2763,7 +2763,7 @@
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: [REDACTED]
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -2836,7 +2836,7 @@
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: [REDACTED]
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -3013,7 +3013,7 @@
 *wm:[3] Connection result: WL_DISCONNECTED
 *wm:[2] Connect Wifi, ATTEMPT # 2 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: [REDACTED]
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
 [ 25630][E][STA.cpp:346] connect(): STA config failed
@@ -18796,7 +18796,7 @@ UserSideException: could not open port 'COM118': PermissionError(13, 'Access is 
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: spockntony
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -73367,7 +73367,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: spockntony
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -73548,7 +73548,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: spockntony
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -73710,7 +73710,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[3] Connection result: WL_CONNECTION_LOST
 *wm:[2] Connect Wifi, ATTEMPT # 2 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: spockntony
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
 E (19020) wifi:sta is connecting, cannot set config
@@ -77387,7 +77387,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: spockntony
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
@@ -77475,7 +77475,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password: spockntony
+*wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA

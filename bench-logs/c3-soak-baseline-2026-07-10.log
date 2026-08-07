@@ -3019,7 +3019,7 @@
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
 *wm:[2] Connecting to SAVED AP: Tony
-*wm:[4] Using Password:[REDACTED]
+*wm:[4] Using Password:<redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set

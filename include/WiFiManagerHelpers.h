@@ -287,9 +287,28 @@ namespace WiFiManagerHelpers
 
     static void ConfigureWiFiManager(WiFiManager& wm, LGFX& tft, LGFX_Sprite& backbuffer)
     {
-        // DEV level prints the SSID/password the portal actually received, plus the
-        // full connect flow -- lets us confirm the portal didn't mangle the credentials.
-        wm.setDebugOutput(true, WM_DEBUG_DEV);
+        // NOTIFY (WiFiManager's own default), never DEV. DEV level printed the
+        // customer's Wi-Fi password to serial in the clear on every provision and
+        // every saved-AP reconnect:
+        //
+        //     *wm:[4] Using Password: <the password, verbatim>
+        //
+        // so any Blipscope handed over a USB cable handed over the owner's home
+        // network with it. Level 3 is nearly as bad for a different reason: it
+        // prints the full scan list (`*wm:[3] AP:  -51 <ssid>`), and a set of
+        // co-visible SSIDs is what Wi-Fi geolocation databases index -- that is
+        // the neighbourhood, not just the network.
+        //
+        // We found this the way these things always get found: the strings were
+        // sitting in bench logs committed to a PUBLIC repo. CLAUDE.md already says
+        // a user secret is never read, committed, or logged; this is that rule
+        // applied to the secret the firmware itself was emitting.
+        //
+        // Nothing the inspection procedure reads lives above level 2. The connect
+        // flow, retry count, AP start, SUCCESS/FAILED and final IP are all [2],
+        // and INCOMING-INSPECTION.md's reason-204 gate reads our OWN
+        // `[WiFi] DISCONNECTED reason=N` line, not WiFiManager's.
+        wm.setDebugOutput(true, WM_DEBUG_NOTIFY);
         wm.setTitle("Blipscope - Setup WiFi");
         wm.setCustomHeadElement("<style>body{background:#111;color:#00ff00;font-family:monospace;} div:has(> a){background:#00ff00;} a:hover{color:#111;}</style>");
 
