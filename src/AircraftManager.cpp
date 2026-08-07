@@ -2452,7 +2452,27 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // needs when the device is off the network cannot be the first thing crowded
     // out by scoreboard rows.
     const int wifiRowTop = clockRow - lh - 2;
-    const int clockTop = wifiRowTop;   // the ceiling every optional block below obeys
+
+    // THE ADDRESS GETS THE SAME TREATMENT, for the same reason and after the same
+    // failure. The paragraph above describes a bug that was fixed for the Reset
+    // WiFi control and left in place for the line directly under it: the host name
+    // was drawn last in the flow, so a busy scope silently deleted it, and it was
+    // reported missing from a device whose only visible fault was that it had
+    // things to show. "Drawn last, and only as far as it fits" is exactly the
+    // policy that made the reset row vanish.
+    //
+    // It belongs next to the reset control on merit, not just for layout: both are
+    // what a customer needs when something has gone wrong. The reset row is how you
+    // get the device back on a network; this is how you reach it once it is on one.
+    // Neither can be the first thing crowded out by scoreboard rows.
+    //
+    // The name is reserved and the IP is not, because the name is the thing you
+    // type and the IP is the fallback for when mDNS does not resolve. That leaves
+    // the IP sitting ABOVE the name when there is room for it, which reads slightly
+    // out of order -- accepted deliberately, because the alternative is spending a
+    // second guaranteed row on the less useful of the two on a 240 px panel.
+    const int hostRowTop = wifiRowTop - lh;
+    const int clockTop = hostRowTop;   // the ceiling every optional block below obeys
 
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     // Space-guarded: a line that would reach the reserved row is dropped, so the
@@ -2648,19 +2668,20 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         wifiRowY1 = wifiRowTop + lh;
     }
 
-    // THIS DEVICE -- the config page is at http://<name>.local, so a user who forgot the name
-    // can swipe here to read it (the IP is an mDNS fallback). Drawn last, and only as far as it
-    // fits above the clock row, so it never collides on the small round C3 screen: the host line
-    // is the one you type, so it gets priority; the IP follows only when there's vertical room.
+    // THIS DEVICE -- the config page is at http://<name>.local, so a customer who
+    // forgot the name can read it here. The IP stays space-guarded as the mDNS
+    // fallback (Android and some Windows setups will not resolve .local).
     y += 6;
-    if (y + lh <= clockTop) {
-        backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-        line(DeviceIdentity::Name() + ".local");
-    }
     if (y + lh <= clockTop) {
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
         line(WiFi.localIP().toString());
     }
+
+    // RESERVED, not space-guarded -- see hostRowTop. Drawn unconditionally in its
+    // own row directly above the Reset WiFi control, so no amount of traffic can
+    // delete the one string that gets a customer to the config page.
+    backbuffer.setTextColor(lgfx::color888(0, 255, 0));
+    centered(DeviceIdentity::Name() + ".local", hostRowTop);
 }
 
 void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
