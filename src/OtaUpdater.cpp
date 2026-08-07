@@ -11,6 +11,10 @@
 #include <HTTPUpdate.h>
 #include <Preferences.h>
 #include <time.h>
+#include <esp_ota_ops.h>
+#include <WiFi.h>
+
+#include "HeapHealth.h"
 
 namespace {
 
@@ -131,6 +135,32 @@ void drawProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
 
 } // namespace
 
+void LogOtaSlot(const char* when)
+{
+    const esp_partition_t* run  = esp_ota_get_running_partition();
+    const esp_partition_t* next = esp_ota_get_next_update_partition(nullptr);
+    esp_ota_img_states_t st = ESP_OTA_IMG_UNDEFINED;
+    if (run) esp_ota_get_state_partition(run, &st);
+
+    // The state matters as much as the label. A freshly-flashed image sits in
+    // PENDING_VERIFY until it is marked valid; if it is still PENDING after a power
+    // cycle, the bootloader may roll back to the other slot -- which is exactly the
+    // "does it STAY there" question the partition change was never proved against.
+    const char* stateName =
+        st == ESP_OTA_IMG_NEW            ? "NEW"            :
+        st == ESP_OTA_IMG_PENDING_VERIFY ? "PENDING_VERIFY" :
+        st == ESP_OTA_IMG_VALID          ? "VALID"          :
+        st == ESP_OTA_IMG_INVALID        ? "INVALID"        :
+        st == ESP_OTA_IMG_ABORTED        ? "ABORTED"        : "UNDEFINED";
+
+    Serial.printf("[ota-slot] %s running=%s @0x%06x state=%s next=%s fw=%d\n",
+                  when,
+                  run  ? run->label  : "?", run ? (unsigned)run->address : 0u,
+                  stateName,
+                  next ? next->label : "?",
+                  FW_VERSION);
+}
+
 void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
 {
     // 1. read the latest published version, through the SHARED client.
@@ -190,8 +220,9 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
     // from the field (see TakeOtaMemReport) -- the same number in both, so the
     // fleet's report can be read against a bench capture directly.
     const uint32_t preLargest = ESP.getMaxAllocHeap();
-    Serial.printf("[ota-mem] pre-update free=%u largest=%u\n",
-                  ESP.getFreeHeap(), preLargest);
+    Serial.printf("[ota-mem] pre-update free=%u largest=%u free8=%u tlsOk=%d\n",
+                  ESP.getFreeHeap(), preLargest,
+                  heaphealth::FreeInternal8Bit(), (int)heaphealth::CanHandshake());
     NoteOtaAttempt(latest, preLargest);
     drawProgress(tft, fb, 0);
 
@@ -209,11 +240,41 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
         if (pct != lastPct) {
             lastPct = pct;
             drawProgress(tft, fb, pct);
-            // Heap sampled every 5% across download + OTA-partition writes:
-            // the memory evidence the gate's OTA-at-steady-state leg exists for.
+            // Heap sampled every 5% across download + OTA-partition writes: the memory
+            // evidence the gate's OTA-at-steady-state leg exists for. largest= is kept
+            // ALONGSIDE free8= rather than replaced, so the plateau stays visible in the
+            // same line that shows the number which actually tracks (see HeapHealth.h).
             if (pct % 5 == 0)
-                Serial.printf("[ota-mem] pct=%d free=%u largest=%u\n",
-                              pct, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+                Serial.printf("[ota-mem] pct=%d free=%u largest=%u free8=%u\n",
+                              pct, ESP.getFreeHeap(), ESP.getMaxAllocHeap(),
+                              heaphealth::FreeInternal8Bit());
+
+            // The trial allocation is deliberately SPARSE. It is not a free measurement:
+            // it asks for 16,717 contiguous bytes at the moment the heap is tightest, so
+            // sampling it every 5% would risk causing the failure it is here to observe.
+            // Every 20% gives five points across the transfer, which is enough to see a
+            // trend, at five transient allocations rather than twenty. A rejection here
+            // does NOT count as a hard failure -- OnAllocFailed is scoped out via
+            // heaphealth::InTrial() -- so the gate saying "no" stays distinguishable from
+            // the allocator actually failing.
+            if (pct % 20 == 0)
+                Serial.printf("[ota-mem] pct=%d TRIAL tlsOk=%d rej=%lu\n",
+                              pct, (int)heaphealth::CanHandshake(),
+                              (unsigned long)heaphealth::TrialRejectionCount());
+
+#ifdef OTA_FAULT_AT_PCT
+            // Bench-only fault injection (never compiled into a shipping env). Drops the
+            // link mid-transfer to exercise the failure path deliberately: httpUpdate must
+            // fail, NoteOtaFailed must record it, ReleaseBus() must run, and the device
+            // must come back to a working radar rather than wedging with the bus held.
+            // A partial OTA that bricks a unit is worse than one that never starts.
+            static bool faulted = false;
+            if (!faulted && pct >= OTA_FAULT_AT_PCT) {
+                faulted = true;
+                Serial.printf("[ota-fault] INJECTING link loss at pct=%d\n", pct);
+                WiFi.disconnect(false, false);
+            }
+#endif
         }
     });
 
