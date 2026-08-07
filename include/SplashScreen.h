@@ -122,9 +122,20 @@ inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite&
 
     };
 
+    // The buffer check is not paranoia. Composing means a sprite that failed to allocate
+    // produces NOTHING -- paint into an unallocated sprite, push nothing, black screen --
+    // where the old direct path would still have drawn the wordmark. A black screen on a
+    // healthy board is the single most expensive symptom this product has (see
+    // INCOMING-INSPECTION.md section 0), and the splash is the one thing that says "the
+    // SoC is alive" before anything else runs. So if the framebuffer is not there, say so
+    // on the panel directly rather than silently saying nothing.
     if constexpr (!variant::BANDED_RENDER) {
-        paint(fb);
-        fb.pushSprite(0, 0);
+        if (fb.getBuffer() != nullptr) {
+            paint(fb);
+            fb.pushSprite(0, 0);
+        } else {
+            paint(tft);
+        }
     } else {
         paint(tft);   // banded board: the backbuffer is a half-height band, not a frame
     }
