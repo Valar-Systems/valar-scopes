@@ -700,6 +700,24 @@ public:
     // the budgets (p95 <= 60 ms with sweep -- recalibrated 2026-07-10 from the
     // s3-128 soak's measured 51-53 sustained; largest block >= 20 KB) are broken.
     void RecordFrameUs(uint32_t frameUs);
+    /**
+     * Top of the DESTRUCTIVE chrome the soak harness must never tap.
+     *
+     * The 2026-08-04 run ended itself at 65 h: a scripted double-tap landed in the
+     * [ Reset WiFi ] row on the Stats screen, armed it, confirmed it 633 ms later,
+     * and wiped the credentials (#164). ~68 double-taps happen in a multi-day run
+     * and each has a small chance of landing there, so this was not bad luck --
+     * any long enough soak ends itself, and the failure presents as a spontaneous
+     * reset, which is how it was first reported.
+     *
+     * Returned from the DRAWN bounds rather than as a constant, for the same
+     * reason the hit box is: the reserved rows move with the panel and the layout,
+     * and a hardcoded "avoid the bottom 40 px" would drift silently -- back into
+     * killing soaks -- the moment the Stats screen changes. -1 before the Stats
+     * screen has been drawn once, which the caller treats as "no exclusion yet".
+     */
+    int DestructiveRowTopY() const { return wifiRowY0; }
+
     uint32_t BudgetBreachCount() const { return budgetBreaches; } // soak-gate criterion
     uint32_t AllocFailureCount() const;  // heap alloc-failure hook count (outcome-based soak criterion)
     uint32_t FetchHardFailCount() const; // fetches failing with statusCode <= 0 (TLS/DNS/connect/timeout class)
