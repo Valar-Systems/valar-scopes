@@ -51,10 +51,24 @@ namespace flight {
 // a motor lights, an attitude reverses). The published telemetry marks that
 // change nothing structural (T+19 Mach 1, T+39 Mach 3, T+45 second roll) are
 // carried by the caption track instead; see CurrentCaption(). That split is why
-// there are 16 beats and 20 captions.
+// there are 17 beats and 20 captions.
 // ---------------------------------------------------------------------------
 enum class Beat : uint8_t {
-    Ignition,      // T+0    -- first motion, the limb still flat
+    // THE ONLY BEAT SHOT FROM THE GROUND. A silo camera: fixed, side-on, the
+    // vehicle rising out of frame and the shot HOLDING on the smoke after it has
+    // gone. Everything from Stage1Burn onward is the chase cam.
+    //
+    // It is a beat rather than a camera split inside Stage1Burn for three
+    // reasons, and the first is the instrument: per-beat worst-case frame time is
+    // this rig's deliverable, and burying the sequence's most expensive new art
+    // (the smoke) inside a beat that also contains 50 s of cheap chase-cam would
+    // average its cost into invisibility -- which is exactly how the detonation's
+    // caption halo nearly hid. Second, tap/swipe/hold all operate on beats, so a
+    // split would make the most iconic moment in the sequence the least iterable.
+    // Third, §7's flight director may want liftoff separately gated, and
+    // expressing it as a beat now is cheaper than refactoring one out later.
+    Liftoff,       // T+0    -- silo, hot launch, ground camera
+    Stage1Burn,    // T+10   -- chase cam. First stage running, the limb still flat
     Stage1Sep,     // T+62   -- STAGING BEAT (burnout -> sep -> coast -> ignition)
     Stage2Burn,    // T+65   -- second stage running, limb sinking
     ShroudEject,   // T+121  -- clamshell halves. TWO SECONDS before stage 2 sep
@@ -111,8 +125,27 @@ public:
     /** Restart the whole sequence at T+0. */
     void Restart();
 
-    /** Jump to a beat's first frame. Clamped to the sequence. */
-    void Seek(Beat b);
+    /**
+     * Jump into a beat. `progress` is 0..1 through it, so a rig can land on a
+     * MOMENT rather than only on a boundary -- "the globe, 70% flown" is a thing
+     * you want to hold still and photograph, and it is not the first frame of
+     * any beat.
+     */
+    void Seek(Beat b, float progress = 0.0f);
+
+    /**
+     * Retarget the globe. Rig hook.
+     *
+     * The camera orientation is DERIVED from the launch/aim pair (see
+     * kGlobeTilt), so every scenario gets its own view of the Earth and its own
+     * arc -- which is exactly what makes a survey worth running: the projection
+     * has to hold up for whatever target the game eventually picks, not just for
+     * the one it was tuned against.
+     */
+    void SetScenario(float launchLon, float launchLat, float aimLon, float aimLat);
+
+    /** Great-circle range of the current scenario, km. */
+    float ScenarioRangeKm() const;
 
     /** Advance to the next/previous beat, wrapping at the ends. */
     void StepBeat(int delta);
@@ -143,6 +176,20 @@ public:
 
     Beat CurrentBeat() const { return beat_; }
     TimeMode Mode() const { return mode_; }
+
+#ifdef ANIM_PROFILE
+    /**
+     * Microseconds spent in the LIFTOFF smoke pass on the last Render().
+     *
+     * BENCH-ONLY, and behind a flag because the module's contract is that it
+     * holds no wall clock -- a product build must not call micros(). The smoke is
+     * the one genuinely new cost this beat introduces and the only draw the
+     * harness cannot isolate from outside (it is one call inside one frame), so
+     * the measurement has to come from in here or not at all. Its worst case is
+     * the number that decides whether the particle count stands.
+     */
+    uint32_t SmokeUs() const { return smokeUs_; }
+#endif
     /** 0..1 through the current beat. */
     float BeatProgress() const;
     /** Simulated T+ in ms -- the published mark, in BOTH modes (see .cpp). */
@@ -165,9 +212,27 @@ private:
     /** scale_, floored so the subject stays readable on glass. See the .cpp. */
     float SubjectScale() const;
 
+    /** Beat progress expressed in the look target's own LIFTOFF seconds (0..7). */
+    float PadSeconds() const;
+    /** Bottom of the vehicle body at pad time `ts`, in 240-space. The hot launch. */
+    static float PadBase(float ts);
+
     // ---- art helpers, one per locked beat element -------------------------
     void DrawSky(LovyanGFX& g, int dy) const;
     void DrawEarthLimb(LovyanGFX& g, int dy) const;
+    /** The ground camera: silo, glow, smoke, and the vehicle clipped at grade. */
+    void DrawLiftoff(LovyanGFX& g, int dy) const;
+    /**
+     * The ground smoke.
+     *
+     * CLOSED-FORM, not an integrated particle system: every puff is a pure
+     * function of (spawn index, beat elapsed), so there is no per-frame state to
+     * step and a replayed beat is identical frame for frame -- the same promise
+     * the rest of the module makes, kept without another array to keep in sync.
+     * It also bounds itself: the spawn window is fixed, so the cloud can never
+     * be more than kSmokeMax puffs however long the beat runs or how fast.
+     */
+    void DrawSmoke(LovyanGFX& g, int dy) const;
     void DrawCaption(LovyanGFX& g, int dy) const;
     void DrawVehicle(LovyanGFX& g, int dy) const;
     /**
@@ -211,7 +276,7 @@ private:
 
     int      screen_ = 240;
     TimeMode mode_   = TimeMode::Compressed;
-    Beat     beat_   = Beat::Ignition;
+    Beat     beat_   = Beat::Liftoff;
     uint32_t beatElapsedMs_ = 0;
     uint32_t seqElapsedMs_  = 0;
     bool     finished_ = false;
@@ -244,6 +309,34 @@ private:
     // stage 2 separates at T+123, so the halves are still in frame during the
     // next beat. 0 = gone.
     float shroudLife_ = 0;
+
+    /**
+     * DAYLIGHT, 1 at the pad and 0 at altitude -- and it is the answer to the one
+     * trap the ground camera sets.
+     *
+     * The look target draws its pad vehicle #e8e4d6 (white, sunlit) and its
+     * ascent vehicle olive. Across an instant cut a colour change on the same
+     * object does not read as a change of light; it reads as a DIFFERENT OBJECT,
+     * which would break the cut in the same way a size change would.
+     *
+     * So the pad vehicle is not a second colour scheme. It is the SAME airframe
+     * -- same three stage colours, same tan bands, drawn by the same DrawVehicle
+     * -- lifted toward daylight by this one scalar, which then fades out across
+     * the opening quarter of STAGE 1. The frame before the cut and the frame
+     * after it are the same object at the same size in the same paint, and only
+     * the exposure moves. That is also what a real cut from a pad camera to a
+     * high chase cam looks like, so the honest choice and the legible one agree.
+     */
+    float sunLift_ = 0;
+
+    // Camera shake, decaying over the first 2.2 pad-seconds. Held here rather
+    // than recomputed per draw so the ground furniture, the smoke and the vehicle
+    // cannot shake by different amounts in the same frame.
+    float shakeX_ = 0, shakeY_ = 0;
+
+#ifdef ANIM_PROFILE
+    mutable uint32_t smokeUs_ = 0;
+#endif
 };
 
 } // namespace flight

@@ -74,6 +74,61 @@ TimeMode mode = TimeMode::Compressed;
 
 bool paused = false;
 
+#ifdef ANIM_GLOBE_SURVEY
+// ---------------------------------------------------------------------------
+// GLOBE SURVEY. Not part of the sequence -- a separate mode that holds MIDCOURSE
+// at 70% (past the cut, so the globe owns the frame, and far enough along that
+// the track has a visible flown/unflown split) and walks a table of targets.
+//
+// It exists because the camera orientation is DERIVED from the launch/aim pair,
+// which means every scenario is a different view of the Earth and a differently
+// shaped arc. One target proves nothing: the tilt was chosen against GOLF-07,
+// and the question that matters is whether the projection still reads when the
+// game aims somewhere else.
+//
+// The scenarios are picked to break it if it can be broken -- near-meridional,
+// hard east-west, trans-polar, trans-Pacific, southern hemisphere, equatorial,
+// and a short one. Real sites and real aim points; the aim points stay open
+// ocean or bare ground per the tone rule, except where a city is named to make
+// the geometry legible on a photograph.
+// ---------------------------------------------------------------------------
+struct Scenario {
+    const char* name;
+    float launchLon, launchLat;
+    float aimLon, aimLat;
+};
+const Scenario kScenarios[] = {
+    {"GOLF-07",   -104.87f,  41.15f, -123.39f, -48.87f},  // the tuned case
+    {"POLAR",     -104.87f,  41.15f,   37.62f,  55.75f},  // hard east-west, high lat
+    {"TRANSPOLE", -101.30f,  48.42f,  116.40f,  39.90f},  // longest, over the top
+    {"PACIFIC",   -120.57f,  34.74f,  167.73f,   8.72f},  // Vandenberg->Kwajalein
+    {"ARCTIC",    -101.30f,  48.42f,   56.00f,  74.00f},  // straight over the pole
+    {"S-ATL",     -104.87f,  41.15f,  -15.00f, -35.00f},  // southeast quadrant
+    {"EQUATOR",    -52.77f,   5.24f,   75.00f, -25.00f},  // low latitude both ends
+    {"SHORT",     -111.18f,  47.51f, -170.00f,  45.00f},  // short arc, small bow
+};
+constexpr int kScenarioCount = (int)(sizeof(kScenarios) / sizeof(kScenarios[0]));
+constexpr unsigned long SURVEY_DWELL_MS = 4000;
+
+int           surveyIx = 0;
+unsigned long surveyAt = 0;
+
+void SurveyApply()
+{
+    const Scenario& s = kScenarios[surveyIx];
+    director.SetScenario(s.launchLon, s.launchLat, s.aimLon, s.aimLat);
+    // Re-seek so the dot lands on the NEW great circle. Without this the map
+    // redraws around a dot still sitting on the old one -- the exact "two
+    // opinions about where the vehicle is" bug the match-cut rule exists to
+    // prevent, reintroduced by a rig.
+    director.Seek(Beat::Midcourse, 0.70f);
+    Serial.printf("SURVEY,%d/%d,%s,launch,%.2f,%.2f,aim,%.2f,%.2f,range_km,%.0f\n",
+                  surveyIx + 1, kScenarioCount, s.name,
+                  s.launchLon, s.launchLat, s.aimLon, s.aimLat,
+                  director.ScenarioRangeKm());
+}
+#endif
+
 // ---------------------------------------------------------------------------
 // Per-beat frame timing. Worst case is the number that matters: an average
 // hides exactly the frame that drops, and a sequence that averages 40 fps while
@@ -86,6 +141,7 @@ struct BeatTiming {
     uint32_t worstAtMs = 0;   // when, so a one-off stall is distinguishable from a pattern
     uint32_t composeWorstUs = 0; // draw only, excluding the panel push
     uint32_t pushWorstUs = 0;    // the SPI push alone -- the floor art cannot beat
+    uint32_t smokeWorstUs = 0;   // LIFTOFF's smoke pass alone; 0 on every other beat
 };
 BeatTiming timings[(int)Beat::COUNT];
 bool summaryPrinted = false;
@@ -123,11 +179,16 @@ void LogBeatSummary(Beat b)
     const BeatTiming& t = timings[(int)b];
     if (t.frames == 0) return;
     const float avgMs = (t.sumUs / (float)t.frames) / 1000.0f;
+    // smoke_worst_ms is carried on EVERY row, not only LIFTOFF's, so the column
+    // is a constant width for the capture parser and the zeros are themselves the
+    // assertion that no other beat pays for it.
     Serial.printf("FPS,%s,%s,frames,%lu,avg_ms,%.1f,worst_ms,%.1f,worst_at_ms,%lu,"
-                  "compose_worst_ms,%.1f,push_worst_ms,%.1f,avg_fps,%.1f,worst_fps,%.1f\n",
+                  "compose_worst_ms,%.1f,push_worst_ms,%.1f,smoke_worst_ms,%.1f,"
+                  "avg_fps,%.1f,worst_fps,%.1f\n",
                   ModeName(), missileer::flight::BeatName(b), (unsigned long)t.frames, avgMs,
                   t.worstUs / 1000.0f, (unsigned long)t.worstAtMs,
                   t.composeWorstUs / 1000.0f, t.pushWorstUs / 1000.0f,
+                  t.smokeWorstUs / 1000.0f,
                   avgMs > 0 ? 1000.0f / avgMs : 0.0f,
                   t.worstUs > 0 ? 1000000.0f / t.worstUs : 0.0f);
 }
@@ -137,7 +198,7 @@ void PrintFullSummary()
     Serial.println("FPS,---- per-beat summary ----");
     for (int i = 0; i < (int)Beat::COUNT; ++i) LogBeatSummary((Beat)i);
     // The one line to copy into the results doc's verdict row.
-    uint32_t worst = 0; Beat worstBeat = Beat::Ignition;
+    uint32_t worst = 0; Beat worstBeat = Beat::Liftoff;
     for (int i = 0; i < (int)Beat::COUNT; ++i) {
         if (timings[i].worstUs > worst) { worst = timings[i].worstUs; worstBeat = (Beat)i; }
     }
@@ -181,9 +242,52 @@ void DrawHud(LovyanGFX& g)
     g.setTextDatum(textdatum_t::top_center);
 
     char buf[48];
-    g.setTextColor(lgfx::color888(0xC9, 0xA1, 0x5C)); // BRASS
-    g.drawString(missileer::flight::BeatName(director.CurrentBeat()),
-                 SCREEN / 2, (int)(16 * u));
+
+    // ON A PLATE, because a halo was not enough and could not have been.
+    //
+    // The globe now fills the whole face, so this chrome sits on coastlines, not
+    // on black. Two earlier attempts failed for the SAME underlying reason:
+    // GREEN_DIM collided with the land in hue, and the grey that replaced it
+    // collided with it in LUMINANCE -- grey 0x7A7D86 is Y=125, coastline green
+    // 0x2A9E62 is Y=129. Four points apart, and grey is achromatic, so it had no
+    // hue left to separate with either. It separated on nothing. Moving off green
+    // fixed half a problem and I recorded it as the whole one.
+    //
+    // A one-pixel halo cannot rescue that: it darkens the ring immediately around
+    // each glyph, which works against a flat ground but not against a field of
+    // 1 px strokes at the text's own brightness -- the strokes simply resume on
+    // the far side of the halo and read as part of the letterform.
+    //
+    // So the chrome brings its own ground. An opaque plate makes legibility
+    // independent of whatever the globe is doing underneath, which is the
+    // property a bench HUD actually needs: it must stay readable across eight
+    // scenarios and seventeen beats, and no colour choice can be verified against
+    // all of them. It costs a band of globe near the limb, where there is least to
+    // see. Brass stays gone (it read as yellow at 6 px, and amber means EXERCISE).
+    const uint32_t kHudName  = lgfx::color888(0xEC, 0xE7, 0xD6);  // PAPER, Y=231
+    const uint32_t kHudSub   = lgfx::color888(0xA8, 0xAB, 0xB2);  // Y=171, was 125
+    const uint32_t kHudPlate = lgfx::color888(0x06, 0x08, 0x0A);
+    auto hud = [&](const char* s, int row, uint32_t col) {
+        const int w = g.textWidth(s);
+        const int h = g.fontHeight();
+        g.fillRoundRect(SCREEN / 2 - w / 2 - 3, row - 2, w + 6, h + 3, 3, kHudPlate);
+        g.setTextColor(col);
+        g.drawString(s, SCREEN / 2, row);
+    };
+
+#ifdef ANIM_GLOBE_SURVEY
+    // THE PHOTOGRAPH HAS TO SAY WHICH ONE IT IS. Eight globes on a camera roll
+    // are eight unlabelled globes; the whole point of a survey is comparing them
+    // afterwards, and a beat name is the one thing that does not vary here.
+    hud(kScenarios[surveyIx].name, (int)(16 * u), kHudName);
+    snprintf(buf, sizeof(buf), "%d/%d  %.0f KM", surveyIx + 1, kScenarioCount,
+             director.ScenarioRangeKm());
+    hud(buf, (int)(28 * u), kHudSub);
+    g.setTextDatum(textdatum_t::top_left);
+    return;
+#endif
+
+    hud(missileer::flight::BeatName(director.CurrentBeat()), (int)(16 * u), kHudName);
 
     // Mode, beat position, and the TRUE T+ mark -- the number the art is judged
     // against even in compressed mode (see Director::TPlusMs).
@@ -191,12 +295,134 @@ void DrawHud(LovyanGFX& g)
     snprintf(buf, sizeof(buf), "%s%s %d/%d T+%lu:%02lu", ModeName(), paused ? " PAUSE" : "",
              (int)director.CurrentBeat() + 1, (int)Beat::COUNT,
              (unsigned long)(tp / 60000), (unsigned long)((tp / 1000) % 60));
-    g.setTextColor(paused ? lgfx::color888(0xFF, 0x3B, 0x30)    // RED
-                          : lgfx::color888(0x1D, 0x7A, 0x4A));  // GREEN_DIM
-    g.drawString(buf, SCREEN / 2, (int)(28 * u));
+    // Red when paused, because a paused rig that looks like a running one has
+    // wasted a bench session before. Grey otherwise -- it was GREEN_DIM, which is
+    // invisible over the globe during MIDCOURSE.
+    hud(buf, (int)(28 * u), paused ? lgfx::color888(0xFF, 0x3B, 0x30) : kHudSub);
 
     g.setTextDatum(textdatum_t::top_left);
 }
+
+#ifdef ANIM_PROFILE
+/**
+ * PRIMITIVE COSTS, measured once at boot.
+ *
+ * Exists because a projection change was proposed on the strength of an
+ * estimate, and the estimate rested on two numbers nobody had measured on this
+ * board: what a short drawLine costs, and what a full-screen PSRAM->PSRAM blit
+ * costs. Everything else in an orthographic-globe budget is arithmetic on top of
+ * those two, so guessing them wrong scales straight through to the answer.
+ *
+ * Deliberately crude -- it runs before the sequence starts, prints four CSV
+ * lines and never runs again. It is not a benchmark suite; it is the two
+ * constants a design decision needs.
+ */
+void BenchPrimitives(LGFX_Sprite& spr)
+{
+    if (!haveCanvas) return;
+
+    // Short strokes, which is what a decimated coastline is made of.
+    for (int len : {3, 8}) {
+        const uint32_t t0 = micros();
+        constexpr int kN = 2000;
+        for (int i = 0; i < kN; ++i) {
+            const int x = 20 + (i * 7) % (SCREEN - 40);
+            const int y = 20 + (i * 13) % (SCREEN - 40);
+            spr.drawLine(x, y, x + len, y + len, 0x1234u);
+        }
+        const uint32_t dt = micros() - t0;
+        Serial.printf("BENCH,drawLine,len,%d,calls,%d,total_us,%lu,per_call_ns,%lu\n",
+                      len, kN, (unsigned long)dt, (unsigned long)(dt * 1000UL / kN));
+    }
+
+    // fillScreen as a WRITE-RATE REFERENCE. Same 115 KB of destination, no
+    // source read. Any blit that comes out faster than this is not copying.
+    {
+        constexpr int kN = 20;
+        const uint32_t t0 = micros();
+        for (int i = 0; i < kN; ++i) spr.fillScreen((uint16_t)(0x0800u + i));
+        const uint32_t dt = micros() - t0;
+        Serial.printf("BENCH,fillScreen,%dx%d,per_call_us,%.1f\n",
+                      SCREEN, SCREEN, (dt / (float)kN));
+    }
+
+    // A second full-screen PSRAM sprite, blitted onto the first. This is the
+    // whole cost of a cached static map, and it does not scale with vertex
+    // count -- which is the entire argument for caching one.
+    //
+    // VERIFIED, NOT TIMED BLIND. The first version of this reported 6.2 us for
+    // 115 KB of PSRAM-to-PSRAM copy -- 18 GB/s, which is roughly 500x what the
+    // bus can do, so it was measuring a call that did nothing. The destination is
+    // now checked pixel by pixel afterwards and the check is printed: a blit that
+    // did not happen and a blit that did are otherwise indistinguishable from a
+    // timing number alone.
+    {
+        LGFX_Sprite cache(&tft);
+        cache.setPsram(true);
+        cache.setColorDepth(16);
+        if (cache.createSprite(SCREEN, SCREEN)) {
+            spr.fillScreen(0);
+            cache.fillScreen(cache.color888(0x20, 0xE0, 0x60));
+            // Read the reference back OUT of the source rather than assuming the
+            // literal survives colour conversion. The first version of this probe
+            // compared against a raw RGB565 constant and reported 0/225 on a blit
+            // that had plainly happened -- a probe that cries wolf is worse than
+            // no probe, because the next real failure gets waved through.
+            const uint32_t want = cache.readPixel(0, 0);
+            constexpr int kN = 20;
+            const uint32_t t0 = micros();
+            for (int i = 0; i < kN; ++i) cache.pushSprite(&spr, 0, 0);
+            const uint32_t dt = micros() - t0;
+            int hits = 0;
+            for (int y = 0; y < SCREEN; y += 17) {
+                for (int x = 0; x < SCREEN; x += 17) {
+                    if (spr.readPixel(x, y) == want) hits++;
+                }
+            }
+            const int probes = ((SCREEN + 16) / 17) * ((SCREEN + 16) / 17);
+            Serial.printf("BENCH,pushSprite,%dx%d,psram,per_call_us,%.1f,verified,%d/%d\n",
+                          SCREEN, SCREEN, (dt / (float)kN), hits, probes);
+            cache.deleteSprite();
+        } else {
+            Serial.println("BENCH,pushSprite,ALLOC_FAILED");
+        }
+    }
+
+    // The globe's inner loop, with no drawing at all: int16 unit vector -> 3x3
+    // rotate -> cull -> screen. This is the number the "no trig in the inner
+    // loop" design rests on.
+    {
+        static int16_t vx[512], vy[512], vz[512];
+        for (int i = 0; i < 512; ++i) {
+            const float a = i * 0.34f, b = i * 0.11f;
+            vx[i] = (int16_t)(cosf(b) * cosf(a) * 32767.0f);
+            vy[i] = (int16_t)(cosf(b) * sinf(a) * 32767.0f);
+            vz[i] = (int16_t)(sinf(b) * 32767.0f);
+        }
+        const float m[9] = {0.87f, -0.21f, 0.44f, 0.19f, 0.97f, 0.09f, -0.45f, 0.02f, 0.89f};
+        constexpr int kReps = 40;
+        volatile int sink = 0;
+        const uint32_t t0 = micros();
+        for (int r = 0; r < kReps; ++r) {
+            for (int i = 0; i < 512; ++i) {
+                const float x = vx[i] * (1.0f / 32767.0f);
+                const float y = vy[i] * (1.0f / 32767.0f);
+                const float z = vz[i] * (1.0f / 32767.0f);
+                const float rz = m[6] * x + m[7] * y + m[8] * z;
+                if (rz <= 0) continue;                       // far hemisphere
+                const float rx = m[0] * x + m[1] * y + m[2] * z;
+                const float ry = m[3] * x + m[4] * y + m[5] * z;
+                sink += (int)(120.0f + rx * 110.0f) + (int)(120.0f - ry * 110.0f);
+            }
+        }
+        const uint32_t dt = micros() - t0;
+        Serial.printf("BENCH,vertexXform,verts,%d,total_us,%lu,per_vert_ns,%lu,sink,%d\n",
+                      512 * kReps, (unsigned long)dt,
+                      (unsigned long)(dt * 1000UL / (512UL * kReps)), (int)sink);
+    }
+    spr.fillScreen(0);
+}
+#endif
 
 void HandleTouch()
 {
@@ -320,13 +546,57 @@ void setup()
                   (unsigned long)missileer::flight::SequenceDurationMs(mode), (int)Beat::COUNT);
     Serial.println("[anim] tap=pause/step  swipe=jump beat  long-hold=replay  long-hold TOP=time mode");
 
+#ifdef ANIM_PROFILE
+    BenchPrimitives(canvas);
+#endif
+
     director.Begin(SCREEN, mode);
     ResetTimings();
     lastFrameMs = millis();
+
+#ifdef ANIM_GLOBE_SURVEY
+    Serial.printf("[anim] GLOBE SURVEY -- %d targets, %lu ms each, tap to advance\n",
+                  kScenarioCount, (unsigned long)SURVEY_DWELL_MS);
+    surveyAt = millis();
+    SurveyApply();
+#endif
 }
 
 void loop()
 {
+#ifdef ANIM_GLOBE_SURVEY
+    // The survey does not advance the sequence at all -- it holds one frame per
+    // scenario, which is what makes the globes comparable between photographs.
+    // Tap steps to the next target immediately; the dwell timer does the rest.
+    {
+        int32_t tx = 0, ty = 0;
+        const bool down = tft.getTouch(&tx, &ty);
+        const unsigned long now = millis();
+        if ((down && !wasTouched) || now - surveyAt >= SURVEY_DWELL_MS) {
+            surveyIx = (surveyIx + 1) % kScenarioCount;
+            surveyAt = now;
+            SurveyApply();
+        }
+        wasTouched = down;
+
+        if (haveCanvas) {
+            const uint32_t t0 = micros();
+            director.Render(canvas, 0);
+            const uint32_t t1 = micros();
+            DrawHud(canvas);
+            canvas.pushSprite(0, 0);
+            const uint32_t t2 = micros();
+            static uint32_t frame = 0;
+            if ((frame++ % 30) == 0) {
+                Serial.printf("SURVEY,frame,%s,compose_us,%lu,total_us,%lu\n",
+                              kScenarios[surveyIx].name,
+                              (unsigned long)(t1 - t0), (unsigned long)(t2 - t0));
+            }
+        }
+        return;
+    }
+#endif
+
     HandleTouch();
 
     const unsigned long now = millis();
@@ -363,6 +633,15 @@ void loop()
         if (total > bt.worstUs) { bt.worstUs = total; bt.worstAtMs = now; }
         if (compose > bt.composeWorstUs) bt.composeWorstUs = compose;
         if (push > bt.pushWorstUs) bt.pushWorstUs = push;
+#ifdef ANIM_PROFILE
+        // THE SMOKE'S OWN WORST CASE, which is the number the particle count
+        // stands or falls on. A beat average would hide it completely: the cloud
+        // exists for about half of LIFTOFF and peaks for a fraction of that, so
+        // averaging it across the beat reports a system that is roughly free
+        // right up until the frame that drops.
+        const uint32_t smoke = director.SmokeUs();
+        if (smoke > bt.smokeWorstUs) bt.smokeWorstUs = smoke;
+#endif
 
         // Per-frame line, throttled. Every frame would be 40 lines/s of CSV and
         // the print itself would become the slowest thing in the loop --

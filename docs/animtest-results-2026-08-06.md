@@ -361,8 +361,625 @@ template.
 
 ---
 
+## Run 13 — the map became an orthographic globe
+
+The flat map was replaced by an **orthographic sphere**: fixed orientation,
+tilted 30° off the great-circle plane, Natural Earth 1:110m coastlines at
+1,306 vertices, no land fill.
+
+### Measured
+
+| | Worst ms | Worst fps | Compose | Push |
+|---|---|---|---|---|
+| MIDCOURSE | **37.5** | 26.7 | **11.7** | 25.8 |
+| MATCH CUT | 36.8 | 27.2 | 11.0 | 25.8 |
+
+**The whole globe costs +0.7 ms over the 126-point flat map it replaced.**
+MIDCOURSE compose 11.0 → 11.7; MATCH CUT 10.3 → 11.0. 12.5 ms of headroom
+remains and DETONATION is still the worst beat at 48.6.
+
+### The estimate was 5 ms high, and the reason is worth keeping
+
+Predicted ~7.9 ms for the globe against ~3–4 ms for the flat map; actual delta
++0.7 ms. The error was in the coastline term: I assumed ~2.5 px average segments
+and got ~1 px, because 0.5° of spherical tolerance on a 110 px radius decimates
+to almost exactly one pixel. **Since cost is per line-pixel, halving the segment
+length halves the cost** — the same fact that makes the graticule expensive makes
+a densely decimated coastline cheap. 1,306 vertices are nearly free; a dozen long
+lines are not.
+
+That is the useful shape of it: *vertex count is not the budget, stroke length
+is.* It is why 6 meridians + 3 parallels was the right cut and why the coastline
+data did not need thinning.
+
+### What the globe is for
+
+The flat map could not express the thing it was drawn for. The GOLF-07 track
+bowed **0.83 px** off a straight line — not a bug: a near-meridional great circle
+*is* straight under equirectangular. Same launch point to Beijing would have
+bowed 121 px. The projection was hiding the trajectory, not misdrawing it.
+
+On the sphere it reads as an arc, **but only if the view is tilted.** Centring on
+the arc's midpoint — the natural choice — puts the view direction *in* the
+great-circle plane and projects the arc to a straight line through the centre of
+the disc: the same failure, faithfully reproduced. Computed bow at φ=0 is exactly
+0.0 px.
+
+| φ | bow | endpoints from centre | r/R |
+|---|---|---|---|
+| 0° | 0.0 px | 45.7° | 0.72 |
+| 20° | 11.4 px | 49.0° | 0.75 |
+| **30°** | **16.6 px** | **52.8°** | **0.80** |
+| 45° | 23.5 px | 60.4° | 0.87 |
+
+φ is **derived from the trajectory** (`v = m·cos φ + n·sin φ`, for `m` the arc
+midpoint and `n` the great-circle normal), so it stays correct for whatever
+target the game picks rather than being tuned for GOLF-07.
+
+### Decisions, and what they rest on
+
+**Fixed camera, not following.** A following camera answers nothing — the dot is
+permanently centred, so there is no progress cue, and a world sliding under a
+static marker reads as *the world* moving. Fixed, with both endpoints visible and
+a dot crawling between them, answers "how far along am I" at a glance. §11's match
+cut needs it too: the map opens on the dot the ascent shrank to, and a centred dot
+has no payoff. And §7 hands this screen back to monitoring for 26 minutes — a
+rotating globe is a screensaver.
+
+Note this is *not* the caching argument. Caching was measured and rejected
+(6.24 ms/frame, 115 KB); the globe draws live either way.
+
+**No land fill.** Filling a continent on a sphere means clipping its polygon to
+the limb, and the scanline fill assumes straight projected edges, which is false
+here. The disc is filled once as ocean (a span fill, 28.6 ns/px) and coastlines
+are stroked over it.
+
+**6 meridians + 3 parallels.** The graticule's only job is to say *sphere*, and
+the limb circle plus the coastlines' own foreshortening already carry most of
+that. Nothing in a graticule answers "where" or "how far". At R=110, twelve
+meridians bunch into mush near the limb — 3.75 ms for clutter at the edges.
+
+**Stroke hierarchy**, dimmest to brightest and drawn in that order: ocean disc,
+graticule, coastlines, track and vehicle.
+
+### Two rules from the flat-map era deleted, both non-problems on a sphere
+
+Antarctica was dropped for spanning 360° of longitude, which a single-ring
+scanline fill on an equirectangular map cannot express — a globe has no seam and
+no fill, so it is just more coastline. The antimeridian guard went for the same
+reason. Ring count 44 → 84.
+
+Its lesson survives in the generator anyway: the first version tested **total**
+longitude span and rejected **Eurasia**, which runs Portugal to the Bering Strait
+across 197° without crossing anything. Only the step between *adjacent* vertices
+ever meant anything.
+
+---
+
 ## Raw captures
 
 `bench-logs/animtest-2026-08-06-{1144,1147,1150}.log` (runs 1–3, COMPRESSED) and
 `bench-logs/animtest-true-2026-08-06-*.log` (TRUE-TIME). Not committed — CSV
 volume; the tables above are the durable record.
+
+---
+
+# Run 9 — LIFTOFF, the ground camera (issue #156)
+
+`bench-logs/animtest-liftoff-2026-08-06-1417.log`, COMPRESSED, one full pass.
+`beats=17 sequence=99500ms`. The beat sheet gained `Beat::Liftoff` at the head
+and `Ignition` became `Stage1Burn` (T+10 → T+62, 62000 → 52000).
+
+## The number
+
+Shipping config, after the retune below. `beats=17 sequence=101500ms`.
+
+| | Worst ms | Worst fps | Compose worst | Push worst | **Smoke worst** |
+|---|---|---|---|---|---|
+| LIFTOFF | **36.9** | 27.1 | 11.1 | 25.8 | **5.9** |
+
+Against the 50 ms bar with a 25.8 ms push floor, compose has 24.2 ms and LIFTOFF
+spends **11.1 ms of it — 13.1 ms of headroom.** The smoke is 5.9 ms of that, so
+it is *half the beat's compose cost and one sixth of the frame*. **Nothing is
+cut.** All four levers (`kSmokeDtS`, `kSmokeRMax`, `kSmokeGrowth`, `kSmokeRise`)
+stay at their defaults and the cloud keeps its 49 puffs.
+
+The worst frame lands at **6,570 ms of a 9,000 ms beat** — 73 % through, just
+*before* the vehicle leaves frame at 81 %, with the column at full height and the
+vehicle still on top of it. That is the busiest the frame ever gets and it is
+where the worst frame belongs. Worth recording as a sanity check on the model:
+spawning stops at 4.55 pad-seconds, so peak fill is not peak *count* — it is the
+moment the surviving puffs are simultaneously numerous and at maximum radius.
+
+### First measurement, for the record
+
+Before the retune: **35.6 ms / 9.9 compose / 5.0 smoke** at 7,000 ms and 33
+puffs. The retune bought 4.9 s of visible launch for 1.2 ms of compose.
+
+## The regression check, which is the more important result
+
+Inserting a beat at position 0 and re-cutting the one after it is exactly the
+kind of edit that silently moves published marks. It did not move any:
+
+| Mark | Expected | Logged |
+|---|---|---|
+| STAGE 1 (chase cam opens) | T+10 | 10,026 |
+| STAGE 1 SEP | T+62 | 62,010 |
+| SHROUD | T+121 | 121,020 |
+| STAGE 2 SEP | T+123 | 123,000 |
+| STAGE 3 SEP | T+177 | 177,029 |
+| POST-BOOST | T+180 | 180,004 |
+| REENTRY | T+1806 | 1,806,067 |
+| DETONATION | T+1896 | 1,896,009 |
+
+And the sixteen pre-existing beats are **numerically unchanged** from run 7 —
+DETONATION still 48.6 / 22.8, MIDCOURSE still 36.8 / 11.0, MATCH CUT still
+36.1 / 10.3, REENTRY 35.0 vs 34.9. `STAGE 1` at 32.6 / 6.8 is bit-identical to
+what `IGNITION` measured before the rename and the ten-second trim, which is the
+cleanest possible evidence that the beat lost its first ten seconds and nothing
+else. Every row's `smoke_worst_ms` is 0.0 except LIFTOFF's.
+
+### …and one row of that was a lie the first time
+
+`STAGE 1` originally reported `smoke_worst_ms 1.9` — on a beat that draws no
+smoke. `smokeUs_` is written only by `DrawSmoke`, which only LIFTOFF calls, so on
+every other beat the reading was **stale**; the harness takes a per-beat max, and
+one stale sample surviving the beat boundary was enough to attribute LIFTOFF's
+cost to STAGE 1.
+
+The instructive part is that **it read 0.0 the first time and looked correct.**
+At 7,000 ms and a spawn window ending at 2.35 s the last puff died well before
+the beat did, so the final frames genuinely measured ~0. Lengthening the beat
+exposed it. `Render()` now zeroes the counter per frame, which is what makes
+"every other row is 0.0" an assertion instead of a coincidence.
+
+---
+
+## Run 10 — the retune: "liftoff is too fast and will easily be missed"
+
+Correct, and the arithmetic says why. At the look target's pace the vehicle
+cleared grade at 1.30 pad-seconds and was out of frame by 2.79 — **1.5 seconds of
+visible transit**, followed by 4.2 seconds of held empty pad. The worst of both:
+the event was over before it registered and the beat still felt long.
+
+Five stills from the **NG 2007 video itself** (not the preview) drove three
+changes. Where the two disagree the video wins — §11 names the video as its
+source, and a look target derived from a source does not overrule the source.
+That authority edge is now written into `docs/reference/README.md`; it had not
+come up before.
+
+**1. The launch is 3.3× slower on screen.** The 2.6 exponent is kept — it is the
+hot-launch character, the creep-then-gone that a linear rise never gives. Only
+the time scale moved, 1.35 → **0.534**, and it is *solved rather than dialled*:
+with the exponent fixed, the ratio between "clears grade" and "leaves frame" is
+fixed at 4.66 whatever the coefficient, so pinning the exit at 5.7 of the 7
+pad-seconds determines everything else.
+
+| coefficient | clears grade | leaves frame | visible | dead hold |
+|---|---|---|---|---|
+| 1.35 (preview) | 1.30 s | 2.79 s | 1.5 s | 4.2 s |
+| **0.534** | 1.91 s | 5.68 s | 3.8 s | 1.3 s |
+
+The beat also went **7,000 → 9,000 ms** against a true 10,000, so in wall clock
+the transit is **1.5 s → 4.9 s**. That is the same decision as the staging coast
+being 1 s in both columns: there is nothing in a ten-second launch to compress,
+and squeezing the one moment the ground camera exists to show is how it gets
+missed.
+
+Cost, recorded because it was cited as a virtue in run 9: the 60 ms coincidence
+is gone. At 1.35 the nose came through grade at T+1.86 against a LIFTOFF caption
+at T+1.80. It now emerges at T+2.73 — which is arguably *more* correct, since
+LIFTOFF is called at first motion (`kIgnS`, vehicle still in the hole), not when
+it clears the lip. The caption runs T+1.8→T+3.0, so it now spans the emergence
+instead of landing on it.
+
+**2. The smoke is a column, not a ground bank.** The preview rolls puffs outward
+at ±21 px/s and lifts them at 0–6, which hugs the pad. The video's T-0 frame is a
+**tall vertical column** reaching two thirds up the frame with a fireball at its
+foot and **no vehicle visible at all**; at T+3 the vehicle sits on *top* of that
+column. Rise now dominates drift (`kSmokeRise` 30 px/s vs the preview's 0–6), the
+outward term is halved to flare the foot, and the spawn window follows the slower
+ascent — the same `base > groundY - 90` condition, re-solved: 0.45→**4.55**
+pad-seconds. Spacing widened 0.06 → 0.085 to keep the count bounded: **49 puffs,
+ever**, up from 33.
+
+**3. The silo glow became a real fireball.** It was a 26×4 px strip of `#ffb450`
+— which is both why the smoke buried it and why it never read as the thing the
+video *opens* on. It is now three stacked flickering ellipses in the plume
+palette (not the detonation ramps: this is a motor, and spending Hood/Badger on
+an engine would cost the one fire palette that means *warhead*), drawn after the
+smoke because light from a silo illuminates a cloud rather than hiding behind it,
+and fading out as the vehicle climbs away rather than switching off at grade —
+the video still shows fire at the foot of the column at T+3.
+
+Net cost of all three: **35.6 → 36.9 ms**, +1.2 ms of compose, +0.9 ms of smoke.
+13.1 ms of headroom remains.
+
+---
+
+## Run 11 — the silo itself
+
+Nine stills from **real launch footage** (Vandenberg, night). Two elements in
+them are in *neither* the NG animation nor the preview, and one of the two is the
+first thing that happens in a launch.
+
+**1. The Launcher Closure Door.** Not "the blast door" — that is its name. A
+110-ton slab of reinforced concrete and steel, 3.5 ft thick, that **slides
+sideways on steel tracks** to uncover the hole. Both existing sources open on a
+hole that is simply already there.
+
+This is not only a detail. The beat's first half-second was a dark rectangle and
+a glow ramping up, with **nothing moving** — the weakest part of the shot. It now
+opens on the one motion that says *silo*. The rails are drawn from frame 0,
+before the door moves: a slab that slides with nothing under it reads as a
+glitch.
+
+Three things the real mechanism settled, none of which I would have guessed:
+
+- **The locking pin goes first.** A steel bolt withdraws, a pause, *then* 110
+  tons of concrete. Two-stage motion is what makes an opening read as a
+  **mechanism**; one continuous move reads as a drawer. Six pixels of steel, and
+  the cheapest characterful thing in the beat.
+- **Fast, but not instant.** A ballistic gas generator burning solid propellant
+  shoves it — violent, but it moves *"in seconds"*, not teleported. The first
+  build had it at 0.30 pad-seconds, a ten-frame blur; it now gets 0.42 of the 0.9
+  pad-seconds before ignition. Easing is **ease-out**, so it is at speed on the
+  first frame — smoothstep, which this started with, eases *in* as well, and a
+  110-ton lid that accelerates gently is a crank.
+- **Ignition follows the door, inside the tube.** The first-stage motor lights
+  once the closure has cleared the path, vehicle still fully below grade. `kIgnS`
+  at 0.90 against an emergence at 1.91 already did that; it is now the *reason*
+  rather than a coincidence.
+
+Recorded in the source so nobody "improves" it into a hinged flap: **sideways is
+the point.** A sliding lid shoves its way clear through the dirt and debris a
+near-miss dumps on the surface; a hinged one lifts into that debris and jams.
+
+Sizing is now **derived from the vehicle in the same frame** rather than guessed:
+`kSegments` gives stage 1 an 11 px body for a 5.5 ft airframe, so 1 px = 0.5 ft
+— 3.5 ft of slab is 7 px, and the ~21 ft closure is 42 px across. Both guesses
+were close; they carry now if the vehicle's width ever changes.
+
+---
+
+## Run 12 — the door was still far too fast, and why that needed a beat change
+
+**"The door needs to open much slower."** It was 0.42 pad-seconds — 0.54 s of wall
+clock for 110 tons — and it read as a panel snapping aside rather than a mass
+being shoved.
+
+The obvious fix was blocked. Ignition sat at 0.9 pad-seconds, the door has to
+finish before it, and the pin has to finish before *that* — so there was simply
+nowhere to put the time. Slowing the door meant moving ignition, and moving
+ignition inside a beat whose duration feeds `BeatTrueStartMs` moves **every
+published mark downstream**. Choose one: a door that opens in half a second, or
+stage 1 separating at T+66.
+
+### The distinction that unblocks it: T-minus is not T-plus
+
+**T+0 is first-stage ignition.** The locking pin and the closure door both move
+*before* it. That time is real, it takes wall clock, and it must not consume T+
+time — which is a thing the beat table had no way to express, because a beat's
+`trueMs` was assumed to be entirely T+.
+
+`BeatSpec` gains **`preRollMs`**: how much of a beat's true duration happens
+before T+0. Zero for all sixteen other beats.
+
+- `BeatTrueStartMs` subtracts it, so LIFTOFF contributes 10,000 ms to the start
+  of STAGE 1 despite lasting 14,000 — every mark downstream is untouched.
+- `TPlusMs` holds at T+0 through it, which is also just *correct*: the caption
+  during those seconds is `T-0 - STAGE 1 IGNITION`, and it should be. Running the
+  clock from the top of the beat would have put the whole caption track four
+  seconds early and had the altimeter reporting climb before there was any.
+
+LIFTOFF is now **T-4 → T+10**: `{14000, 11000, 4000}`.
+
+### What that bought
+
+The pad phase runs 8.75 pad-seconds with ignition at 2.50 — a 2:5 split, chosen
+so the 14,000/4,000 pre-roll comes out at a clean 10,000 ms of T+ time.
+
+| | before | after | wall clock |
+|---|---|---|---|
+| pin | 0.05 → 0.22 | 0.15 → 0.75 | 0.75 s |
+| **slab** | 0.24 → 0.66 (0.42) | **0.85 → 2.30 (1.45)** | **1.8 s bench, 2.3 s true** |
+| first light | 0.66 | 2.30 | |
+| ignition | 0.90 | 2.50 | |
+
+**3.5× slower.** The easing exponent also softened, 2.0 → 1.6: a square ease-out
+puts a third of the travel in the first fifth of the time, which over 1.8 s reads
+as a snap followed by a long drift — the fast part looked as quick as the old
+door and the rest looked like it was running out of gas.
+
+### Two things that had to move with it, and one that came back
+
+The launch coefficient is **re-solved, not left alone** — 0.534 → **0.478**,
+against the same fixed 4.66 ratio, so the vehicle still leaves frame at 7.84 of
+8.75 and the held ground shot before the cut is unchanged. Visible transit is now
+**5.3 s**.
+
+The smoke window moved with the launch curve rather than independently of it:
+0.45 → **2.05** (the reference's "half a second before ignition") and 4.55 →
+**6.58** (its `base > groundY - 90`, re-solved). Hand-tuning either after a
+timing change is how the smoke ends up starting before the door has opened.
+
+And the coincidence the last retune lost is **back for free**: the nose comes
+through grade at T+1.61 against the LIFTOFF caption at T+1.80. Not tuned — both
+are now anchored to ignition rather than to the top of a beat with a pre-roll in
+front of it, which is the whole point of the change.
+
+### Measured, full pass
+
+| | Worst ms | Worst fps | Compose | Push | Smoke |
+|---|---|---|---|---|---|
+| LIFTOFF | **36.8** | 27.2 | 11.0 | 25.8 | 5.5 |
+
+37.2 → **36.8**, i.e. slightly *cheaper*: `kSmokeDtS` widened 0.085 → 0.095 to
+hold the puff count at 48 across the longer spawn window, so there is one fewer
+disc spread over more frames. 13.2 ms of headroom.
+
+**And the marks held**, which is the result that actually mattered here — the
+beat's true duration went 10,000 → 14,000 ms and not one of them moved:
+
+| Mark | Expected | Logged |
+|---|---|---|
+| STAGE 1 (chase cam opens) | T+10 | **10,043** |
+| STAGE 1 SEP | T+62 | **62,013** |
+| SHROUD | T+121 | 121,001 |
+| STAGE 2 SEP | T+123 | 123,012 |
+| STAGE 3 SEP | T+177 | 177,013 |
+| POST-BOOST | T+180 | 180,091 |
+| REENTRY | T+1806 | 1,806,404 |
+| DETONATION | T+1896 | 1,896,005 |
+
+DETONATION unchanged at 48.6 / 22.8 and still the worst beat; STAGE 1 unchanged
+at 32.6 / 6.8; every non-LIFTOFF row still `smoke 0.0`.
+
+---
+
+Sequence: pin 0.15 → 0.75, slab 0.85 → 2.30, first light 2.30, ignition 2.50.
+
+**2. Fire shoots straight up out of the hole, with the missile still inside it.**
+Four consecutive frames of that footage show **no vehicle at all** — just a
+vertical jet of fire taller than it is wide standing on the ground. The vehicle
+appears later, **coming out of the top of the fireball**.
+
+Two changes fall out of that, and the second matters more:
+
+- The fire was three stacked ellipses at grade. That is a *pool*. It is now a
+  **tapered vertical jet**, narrowing with height — a bonfire widens as it rises,
+  an exhaust escaping a hole does not.
+- **It is drawn over the vehicle, not under it.** Under, which is where a glow
+  belongs and where this sat until the footage arrived, the emergence is a clean
+  silhouette sliding out of a slot. Over, the vehicle comes out of the fire.
+  That single ordering change is the shot.
+
+The column's height is driven by two terms pulling opposite ways, which is what
+stops it swallowing the beat: **ignition** ramps it up over 0.6 s, and **the
+vehicle's own height above grade** collapses it — once the motor is out of the
+hole there is nothing left down there burning. Physical rather than a timer, so
+it tracks any future change to the launch curve automatically. Net: hidden
+through the emergence, out of the fire by ~3.2 pad-seconds, 2.5 pad-seconds of
+clean climbing vehicle after.
+
+Palette is the **plume** ramp, not the detonation ramps. This is a motor, and
+spending Hood/Badger on an engine would cost the one fire palette that means
+*warhead*.
+
+### Measured
+
+| | Worst ms | Worst fps | Compose | Push | Smoke |
+|---|---|---|---|---|---|
+| LIFTOFF | **37.3** | 26.8 | 11.5 | 25.8 | 6.0 |
+
+**36.9 → 37.3 ms. The blast door and the fire column together cost 0.4 ms**, for
+the two most conspicuous absences in the beat. Both are triangle and rect fills
+in a frame whose cost is dominated by 49 filled circles of smoke, so they
+disappear into the noise. 12.7 ms of headroom remains and no lever has been spent
+on any of it.
+
+Running total for the beat, so the trend is visible in one place:
+
+| | Worst | Compose | Smoke | What changed |
+|---|---|---|---|---|
+| run 9 | 35.6 | 9.9 | 5.0 | first build — 33 puffs, 7 s beat |
+| run 10 | 36.9 | 11.1 | 5.9 | slower launch, smoke column, 49 puffs, 9 s beat |
+| run 11 | **37.3** | 11.5 | 6.0 | blast door, fire jet over the vehicle |
+
+`STAGE 1` still reports `smoke 0.0` throughout, so the per-frame zeroing is
+holding.
+
+## Vehicle scale — reported, not tuned
+
+The pad is the reference because the pad is where the vehicle is largest, and the
+chase cam opens on the **same 74 px** by construction. Measured off
+`kNoseAlong`→tail, 1 px = 0.135 mm:
+
+| State | px | mm | vs pad |
+|---|---|---|---|
+| Pad / full stack + bus + shroud | 74 | 10.0 | 1.00 |
+| After stage 1 | 52 | 7.0 | 0.70 |
+| After stage 2 (shroud gone, RV cone) | 40 | 5.4 | 0.54 |
+| After stage 3 (bus + cone), ×2 boost | 52 | 7.0 | 0.70 |
+| RV alone, ×2 boost | 36 | 4.9 | 0.49 |
+
+**Three of these five numbers were wrong in the earlier report** (31 / 17 / 14 px
+for the last three rows). Those were the *reference's* geometry, where the shroud
+and the RV are one 14 px cone. The rig gives the RV its own 18 px cone — the
+jettison is a real reveal, per §11's corrected Shroud row — so every state after
+the shroud goes is larger than the preview's. The instruction was to measure the
+rig; measuring the rig is what caught it.
+
+The boost's effect, stated against the pad rather than in the abstract: without
+it the last two rows are 0.35 and 0.24 of the pad silhouette for the five beats
+the RV is the subject of. With it, the post-stack vehicle is the same apparent
+size it was after the *first* separation, and nothing ever falls below half.
+
+## The two rulings, as built
+
+**Own beat, not a camera split.** `Beat::Liftoff`. The instrument argument
+decided it and the numbers vindicate it immediately: 9.9 ms of compose against
+STAGE 1's 6.8 ms is a 46 % difference that a merged beat would have reported as
+a single averaged figure, and the smoke's 5.0 ms would have been invisible inside
+a 56-second beat.
+
+**Cut on absence.** The ground camera holds from ~39 % to 100 % of the beat with
+no vehicle in it. What crosses the cut instead is the vehicle's identity:
+`sunLift_` lifts the *same* airframe colours toward daylight at the pad and fades
+that out over the opening quarter of STAGE 1, so the frame before the cut and the
+frame after it are one object at one size in one paint under changing light. The
+pad is not a second palette — `DrawVehicle` is called from both cameras.
+
+The caption block moves to rows 36/48 for this beat only, because on the ground
+camera the bottom of the frame is the ground: the grade line is at y=208 and the
+silo mouth spans 206–212. `T+10 - FIRST ROLL MANEUVER` is 156 px of ink into the
+171 px chord at y=36 — 7 px a side, and the tightest caption fit in the sequence.
+
+## Deviation 2 replaced
+
+The old #2 was "no silo / ground camera". Its replacement is the pad altimeter:
+the preview reads out `pow((t-IGN)*1.35,2.6)*30*38` ft, which reaches 273,000 ft
+at a phase its own caption track labels T+10 — and that track says T+19 is
+8,300 ft. The preview contradicts itself, and its own geometry says which half is
+wrong: it draws a 59.9 ft missile 66 px tall, so a pixel is 0.9 ft, not 38.
+
+The **motion curve is kept verbatim** (it is the look, and matching the published
+climb rate would have the vehicle crawl out of the silo for four seconds, which
+is wrong dramatically and physically). Only the **number** is re-derived, from
+the published mark and the preview's own exponent: `8,300 × (t/19)^2.6`. The
+standing rule inverted — the reference owns what and when, and a readout of a
+published quantity is neither.
+
+One thing fell out of the port for free and is worth recording because it was not
+tuned: the reference's launch curve puts the nose through grade at t = 1.30 s,
+which on this beat's mapping is **T+1.86**, and `kCaptions` has put the word
+LIFTOFF at **T+1.80** since before the beat existed. Sixty milliseconds apart,
+from two independent readings of the same published sequence.
+
+## Still open (visual) — the second photo set
+
+Nothing below is answerable from a log.
+
+- Does the vehicle read as **one object** across the cut, or as two? (the
+  `sunLift_` trap — the single most important thing to look at)
+- Can you catch the daylight fade happening in the first 25 % of STAGE 1?
+- Does the vehicle **emerge from a hole**, or slide up past a line? (the grade
+  clip)
+- Is the held ground shot alive with smoke to the cut, or does it go empty?
+- Camera shake at ignition — present, and settled by ~2.2 s?
+- Caption at rows 36/48 — clipped on the round face? This is the tightest fit
+  in the sequence.
+- ALT readout at y=224, below the grade line — legible, and not colliding?
+
+---
+
+## Run 14 — the fireball stopped being a sticker
+
+Prompted by a photograph and one sentence: *"the big white circle looks too fake
+for most of the screen."* The important thing about that note is that it was not
+a tuning complaint, and treating it as one would have wasted the session. The
+disc failed four ways at once and the arithmetic says so:
+
+| # | Fault | The evidence |
+|---|---|---|
+| 1 | Perfect circular edge | A fireball's boundary is where emission drops below visible, and it is torn |
+| 2 | No internal contrast | Warm white `FFFCEB` blended over warm white `kCapHot[0]` = `FFF9E3` → the whole 118 px plate spans `FFE8AD`..`FFFBE8`, ~25 points of luminance across 59 px of radius |
+| 3 | It covered the cloud | Drawn last and opaque, over the 46 billows that are the beat's most expensive art |
+| 4 | It outlived its subject | A `0.18` floor held it to T+8 s; a mushroom with a stem has no fireball left |
+
+Fault 2 also explains the pale-blue dot in the middle of every photo. It was not
+a highlight and not a bug — it was the one near-neutral stop in a field of cream,
+reading cold **by contrast**. Nothing was drawing blue.
+
+Replaced with concentric **rings of blobs**, which is the move that already fixed
+the silo fire, for the same reason: *a primitive drawn at this size reads as the
+primitive*. Seven overlapping circles per layer on a jittered ring, so the
+silhouette is torn and the radial ramp is real, running the blackbody sequence
+instead of cream over cream. Drawn **before** the cloud, so the billows rise
+through it and swallow it — which is both what the footage does and a free fix
+for fault 3. Nothing draws it after T+3.6 s.
+
+The core disc's job moved to a **per-puff colour selection** on the crown and cap
+(distance from the head's centre, plus a mottle). That costs nothing, where the
+disc cost ~20k px a frame to cover the billows it was meant to illuminate.
+
+### The double flash
+
+The flash now runs a bhangmeter curve: peak, dip, second and larger peak. The dip
+is the shock front going optically opaque and hiding the core until it outruns
+it, and it is the signature that identifies a detonation as nuclear — chemical
+explosions do not have it, and essentially no fiction draws it. Heavily
+time-dilated on purpose: the real first pulse peaks near 1 ms and would fall
+between two frames at ~22 fps. **The shape is the tell, not the timebase.**
+
+### The number
+
+| | compose worst | **beat worst** | vs the 50 ms bar |
+|---|---|---|---|
+| run 8 (old core disc) | 22.7 ms | 48.5 ms | 1.5 ms |
+| **run 14 (blob fireball)** | **22.2 ms** | **48.0 ms** | **2.0 ms** |
+
+239 frames, avg 45.5 ms / 22.0 fps, worst 48.0 ms / 20.8 fps, push floor 25.8 ms.
+Still the verdict beat — `FPS,VERDICT,COMP,worst_beat,DETONATION,worst_ms,48.0`.
+
+**The prediction was right in direction and nearly worthless in magnitude.** The
+argument in the commit was that the worst frame must get cheaper: the core disc
+is gone and the fireball is dead by T+3.6 s, before the cloud reaches full size,
+so the worst frame has strictly less in it. True — and it bought 0.5 ms, which is
+within shouting distance of the ~0.2 ms run-to-run variance. The lesson is the
+one this file keeps relearning: **the worst frame is set by the cloud, and every
+detonation lever that is not the cloud or the halo is noise.** Do not spend
+another session shaving the fireball.
+
+## Run 14b — the lower third never fit, and the check was wrong too
+
+`DrawCaption` evaluated the round face's chord at the **text row** instead of at
+the glyph's **last ink row**. Text is a band, not a line — eight rows in the
+built-in font — and below the equator the circle keeps closing through every one
+of them:
+
+| row | chord (R=120) | chord (R=116, rim allowance) |
+|---|---|---|
+| y=204 (the row that was checked) | 171 px | 166 px |
+| y=210 (where the ink actually ends) | 158 px | 150 px |
+| y=211 (where the halo ends) | 157 px | 148 px |
+
+The worst caption is 162 px of ink + 1 px of halo a side = **164 px**. It never
+fit. It was measured at the row where it looked like it did, and
+`MANEUVER TO WINDOW IN SPACE` lost both ends on glass for as long as the beat has
+existed.
+
+Rows go **192/204 → 182/194**, solved against the last ink row at an effective
+radius of 116 (a deliberate rim allowance, not a measurement). The pad block goes
+**36 → 40** for the mirror of the same reason: above the equator it binds at the
+*first* row, and 36 gave 160 px against the same 164 px worst case — it was
+already 4 px short before anyone looked at the bottom of the frame.
+
+`animtest-results-template.md` had copied the wrong check verbatim ("162 px into
+a 171 px chord"), so **the checklist would have kept passing a caption that is
+visibly clipped**. That is the more expensive half of this bug: a wrong number in
+a doc that exists to catch wrong numbers. Fixed, with the rule spelled out.
+
+Two standing facts added alongside the push floor, both earned the hard way:
+
+- **Separate by HUE, not by brightness within one hue.** Three failures on this
+  screen now — the flight track a step brighter than the coastlines, the rig HUD
+  in GREEN_DIM over green land, and then the grey that replaced it, which was
+  Y=125 against the coastlines' Y=129. The third is the instructive one: grey is
+  achromatic, so once its luminance matches the field it has *nothing left* to
+  separate with.
+- **Chrome over moving art needs a PLATE, not a halo.** A 1 px halo darkens the
+  ring around each glyph, which works on a flat ground and fails against a field
+  of 1 px strokes at the text's own brightness — the strokes resume on the far
+  side of the halo and read as part of the letterform. When the background can be
+  anything, stop hunting for a colour that survives every frame. There isn't one.
+
+### Still open (visual) — run 14
+
+- The double flash: two peaks ~0.45 s apart with a real dip between. If it reads
+  as one long flash, the dip is landing between frames — widen the trough, do not
+  brighten the peaks.
+- Captions at the new 182/194 on MIDCOURSE and TERMINAL, which is where they sit
+  furthest up the globe.
+- `T+45 - SECOND ROLL MANEUVER` and `PSRE PREPARED FOR OPERATION`, both 27 chars,
+  both now sitting *exactly* on the limit rather than comfortably inside it.

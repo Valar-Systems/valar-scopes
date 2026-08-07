@@ -12,6 +12,24 @@ docs/reference/*                →  the look. Wins where the spec is silent.
 firmware                        →  neither. If it disagrees with both, it is a bug.
 ```
 
+### "Wins where the spec is silent" — and the case that tested it
+
+The spec is not always silent in the way it looks. §11 opens by **naming its
+source**: the Northrop Grumman 2007 flight-sequence video. Where the preview and
+that video disagree, the spec is *not* silent — it has already pointed at the
+video, and a look target derived from a source does not overrule the source.
+
+Settled 2026-08-06 on the liftoff smoke. The preview rolls its puffs outward at
+±21 px/s and lifts them at 0–6, which builds a low bank hugging the pad. The
+video's T-0 frame is a **tall vertical column** with a fireball at its foot and
+no vehicle visible at all, and at T+3 the vehicle sits on top of that column.
+The firmware follows the video.
+
+The rule this is *not*: "go find better sources than the reference." The preview
+remains authoritative for every value the video cannot supply — hexes, beat
+lengths, projection, the Lambert solution. It is specifically about the case
+where the preview is a **derived reading** of something the spec already cites.
+
 The spec locks *direction* ("separations are axial", "the RV release is silent",
 "amber is EXERCISE and nothing else"). A look target locks *values* — the exact
 hexes, the published T+ marks, the shape of a mushroom cloud. Neither can
@@ -58,7 +76,7 @@ flight portion:
 | Phase | Where it lives now |
 |---|---|
 | IDLE · ARRIVAL · DECODE · COMMIT · COUNTDOWN · KEY · TCD | game UI — not yet built |
-| LIFTOFF (silo, ground camera) | **not implemented** — the largest gap; see below |
+| LIFTOFF (silo, ground camera) | `src/anim/FlightAnimation.*` — `Beat::Liftoff` |
 | ASCENT · FLIGHT · REENTRY · DETONATION | `src/anim/FlightAnimation.*` |
 | CREDITS | game UI — not yet built |
 

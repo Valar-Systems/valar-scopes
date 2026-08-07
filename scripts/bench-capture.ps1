@@ -22,6 +22,23 @@
 #
 # NOT committed to the repo on purpose (bench tooling, machine-specific port).
 
+# WHAT RESETS THIS BOARD, PRECISELY (corrected 2026-08-05).
+# `pio device monitor` RESETS IT ON EXIT -- miniterm drops DTR/RTS as it tears
+# down, and on this board that is a reset. Cost a 3 h 44 m soak on 2026-08-04,
+# when swapping a console for this recorder brought the board back up=00:00:00.
+#
+# THIS SCRIPT DOES NOT. Verified the same day on the second board: it attached
+# to a device that had been up 17.1 h and the uptime and in-RAM counters were
+# untouched. The DtrEnable/RtsEnable = $false below is what buys that, and it
+# holds on attach as well as during the session.
+#
+# So the rule is narrower than it first looked, and it is about the OTHER
+# client: never leave a pio monitor attached to anything whose uptime matters,
+# because ending it ends the run. Attaching or detaching THIS recorder mid-run
+# is safe. Prefer starting it first anyway -- not because attaching costs
+# anything, but because whatever happened before it attached has no per-event
+# detail, only whatever totals the firmware keeps in RAM.
+
 # FLASHING WHILE THIS RUNS: kill it and WAIT for the port to actually open before
 # invoking esptool. Killing the process returns immediately but Windows releases
 # the COM handle a beat later, so an upload fired straight afterwards fails in
@@ -34,19 +51,34 @@
 #     try { $sp = New-Object System.IO.Ports.SerialPort 'COM118',115200
 #           $sp.Open(); $sp.Close(); $sp.Dispose(); break } catch { Start-Sleep 2 } }
 #
+# Two boards now run at once (soak on one, bench harness on the other), so the
+# port and the ledger name are parameters and the pid file is per-label. The
+# single hardcoded COM118 + single capture.pid could only ever record one board,
+# and silently recorded the WRONG one the moment a second appeared.
+param(
+    [string]$Port  = 'COM118',
+    [string]$Label = 's3-128'
+)
+
 $stamp    = Get-Date -Format 'yyyy-MM-dd-HHmm'
-$log      = "c:\Github\Blipscope\bench-logs\s3-128-$stamp.log"
-$fallback = 'COM118'
+$log      = "c:\Github\Blipscope\bench-logs\$Label-$stamp.log"
+$fallback = $Port
 $baud     = 115200
 
-Set-Content -Path 'c:\Github\Blipscope\bench-logs\capture.pid' -Value $PID
+Set-Content -Path "c:\Github\Blipscope\bench-logs\capture-$Label.pid" -Value $PID
 
 # Auto-detect each attempt: an ESP32-S3's native USB re-enumerates after a
 # power-cycle and can come back on a different COM number.
 function Find-BoardPort {
     $ports = [System.IO.Ports.SerialPort]::GetPortNames()
     if ($ports -contains $fallback) { return $fallback }
-    if ($ports.Count -gt 0) { return $ports[0] }
+    # NO "just take the first port" ANY MORE. That fallback existed when one
+    # board was on the bench and re-enumeration after a power-cycle was the only
+    # way to lose it. With two boards attached it does something far worse than
+    # fail: it silently attaches this recorder to the OTHER board and writes a
+    # ledger that looks perfectly healthy under the wrong label. Waiting for the
+    # named port to come back is always recoverable; recording the wrong device
+    # is not, because nothing in the output says so.
     return $null
 }
 
