@@ -214,16 +214,29 @@ after §6 passes.
    bench SSID, enter the password, save. **Do not power-cycle the device by hand.** The whole
    point is the first boot *after* provisioning, and a customer does not reboot here.
 
-3. **The config page must answer on that first boot** — no power cycle in between:
+3. **The config page must answer on that first boot** — no power cycle in between. **Poll; do
+   not judge on one attempt:**
 
    ```sh
-   curl -s -o /dev/null -w '%{http_code} %{size_download}\n' http://<device-ip>/
+   for i in $(seq 1 20); do
+     curl -s -o /dev/null -w "$i: %{http_code} %{size_download}\n" --max-time 3 http://<device-ip>/
+     sleep 2
+   done
    ```
 
-   Expect **`200`** and ~50 KB. A refused connection is a **fail, not a retry** — that is #166
-   (AsyncWebServer lost the bind to the portal's listener, and `begin()` returns `void`, so
-   nothing said so). Re-flashing does not clear it; only a power cycle does, which is precisely
-   why it must be caught here and not by the customer.
+   Expect **`200`** and ~50 KB **within 30 s of the device reporting an IP**.
+
+   > **A refusal in the first ~20 s is normal and is NOT the bug.** The network stack answers
+   > well before `server.begin()` runs, so connections in that gap are actively refused.
+   > Measured on a healthy board: IP at boot, `ERR_CONNECTION_REFUSED` through ~13 s, first
+   > `200` at **~17.5 s uptime**. An earlier version of this step said "a refused connection is
+   > a fail, not a retry" — that would quarantine healthy batches, and it is also exactly what
+   > a customer sees if they type the address the moment setup finishes.
+
+   **A refusal that persists past 30 s is the failure.** That is #166: AsyncWebServer lost the
+   bind to the portal's listener, and `begin()` returns `void`, so nothing said so. Re-flashing
+   does not clear it; only a power cycle does — which is precisely why it must be caught here
+   and not by the customer.
 
    > There is currently **no serial line** that reports the bind outcome. The liveness check
    > added for #166 was reverted in #172 because the probe socket itself tore down the live
