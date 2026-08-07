@@ -429,6 +429,80 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
     return GetJsonImpl(url, doc, &filter, params, headers);
 }
 
+HttpResult HttpRequestManager::GetSecure(const String& url, const char* caCert,
+                                         const std::vector<std::pair<String, String>>& headers)
+{
+    HttpResult result{ false, 0, "", "" };
+
+    // begin(url, ca) hard-codes port 443 and expects the https protocol; a plain-http URL
+    // here would silently get no validation at all, which is the exact failure this method
+    // exists to prevent. Refuse it rather than quietly degrade.
+    if (!url.startsWith("https://")) {
+        result.errorMessage = "GetSecure requires an https:// URL";
+        return result;
+    }
+    if (caCert == nullptr) {
+        result.errorMessage = "GetSecure requires a CA chain";
+        return result;
+    }
+
+    xSemaphoreTake(mutex, portMAX_DELAY); // the same lock every other request takes
+    const unsigned long t0 = millis();
+
+    // Keep-alive OFF for a pinned request, for two reasons: a socket validated against
+    // these roots must not be inherited by a later unvalidated request to the same host,
+    // and end() only releases the TLS transport when the connection is not reusable -- so
+    // this is also what stops the version check leaving a live session behind it.
+    httpTls.setReuse(false);
+
+    if (!httpTls.begin(url, caCert)) {
+        httpTls.setReuse(true);
+        xSemaphoreGive(mutex);
+        result.errorMessage = "begin failed";
+        return result;
+    }
+
+    httpTls.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // GitHub redirects to its CDN
+    httpTls.setConnectTimeout(8000);
+    httpTls.setTimeout(8000);
+    for (const auto& header : headers) {
+        httpTls.addHeader(header.first, header.second);
+    }
+
+    const int responseCode = httpTls.GET();
+    result.statusCode = responseCode;
+
+    if (responseCode == HTTP_CODE_OK) {
+        result.success = true;
+        // ReadBodyYielding, not getString(): this can run on the loop task and getString()
+        // never yields, which is how a slow body starves the Task-WDT into a reboot.
+        result.response = ReadBodyYielding(httpTls);
+        result.bodyBytes = result.response.length();
+    }
+    else {
+        result.errorMessage = httpTls.errorToString(responseCode);
+        Serial.printf("[GetSecure] HTTP %d: %s\n", responseCode, result.errorMessage.c_str());
+    }
+
+    NoteTls(url, false); // reuse is off, so a pinned request always handshakes
+    httpTls.end();
+    httpTls.setReuse(true); // restore keep-alive for the feeds
+    result.requestMs = millis() - t0;
+
+    xSemaphoreGive(mutex);
+    return result;
+}
+
+void HttpRequestManager::ReleaseTlsLocked()
+{
+    // No lock taken -- see the header. Toggling reuse off is what makes end() take the
+    // branch that stops the socket and frees the transport; restoring it afterwards keeps
+    // the feeds' keep-alive behaviour unchanged.
+    httpTls.setReuse(false);
+    httpTls.end();
+    httpTls.setReuse(true);
+}
+
 HttpResult HttpRequestManager::Post(const String& url, const String& body, const std::vector<std::pair<String, String>>& headers)
 {
     HttpResult result{ false, 0, "", "" };

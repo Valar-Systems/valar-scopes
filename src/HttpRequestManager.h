@@ -85,6 +85,37 @@ public:
     // aircraft with many fields each) -- keeps the parsed document small on a tight heap.
     [[nodiscard]] HttpResult GetJson(const String& url, JsonDocument& doc, const JsonDocument& filter, const std::vector<std::pair<String, String>>& params = {}, const std::vector<std::pair<String, String>>& headers = {});
 
+    // GET over https validated against a PINNED root chain, on the SAME shared client.
+    //
+    // Every other request here goes through HTTPClient::begin(url). For an https URL that
+    // falls through to begin(url, nullptr) -> TLSTraits(nullptr) -> setInsecure(): the feeds
+    // are NOT certificate-validated. That is a defensible trade for data whose worst case is
+    // a wrong number on a screen. It is not defensible for the update channel, where a lie
+    // about the latest version silently pins a fleet on an old build, undetectably.
+    //
+    // begin(url, ca) installs TLSTraits(ca) and connect() applies it, via verify(), to the
+    // client this object ALREADY owns -- so a pinned request costs no additional TLS context.
+    // That is the point: the OTA check used to stand up its own WiFiClientSecure alongside
+    // this one, which is the one-client invariant the rest of the system is built on.
+    // Redirects keep the pin: setURL() preserves _transportTraits, so the CDN hop GitHub
+    // issues is validated against the same roots.
+    [[nodiscard]] HttpResult GetSecure(const String& url, const char* caCert,
+                                       const std::vector<std::pair<String, String>>& headers = {});
+
+    // Drop the shared https client's live TLS session. CALL WITH THE BUS HELD.
+    //
+    // HTTPClient::end() does not reliably do this. disconnect(false) only releases the
+    // transport when the socket is currently connected AND not marked reusable, and the
+    // feeds run keep-alive, so between polls this object holds a live mbedTLS session --
+    // context plus buffers, the largest contiguous allocation on the device. Anything that
+    // then wants its own TLS context is asking for a second one simultaneously.
+    //
+    // That is what the OTA download does, and it is the most likely reading of the soak's
+    // failed 16,717 B allocation. Takes no lock, because the caller must already hold the
+    // bus for the whole window it is protecting -- otherwise a background fetch re-opens a
+    // session in the gap between the release and the download.
+    void ReleaseTlsLocked();
+
     // Non-blocking access to the same request mutex, so an UNRELATED consumer can run
     // exclusively against a network request without blocking if one is in flight. The
     // touch poll uses this: a touch I2C transfer that overlaps a TLS handshake on the

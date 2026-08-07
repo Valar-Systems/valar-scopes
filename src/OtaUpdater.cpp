@@ -131,44 +131,57 @@ void drawProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
 
 } // namespace
 
-void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
+void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
 {
-    // 1. read the latest published version. Unlike the feeds, OTA validates the
-    // TLS chain against pinned roots (see OtaCerts.h): a spoofed binary is
-    // persistent code execution, not just bad data on a screen.
+    // 1. read the latest published version, through the SHARED client.
+    //
+    // This used to build its own WiFiClientSecure + HTTPClient, which stood a second TLS
+    // context up alongside the feed client's live keep-alive session. That violates the
+    // one-client invariant the rest of the system is built on, and it trades a working
+    // radar for a question whose answer is almost always "no". GetSecure keeps the pinned
+    // roots (a spoofed binary is persistent code execution, and a spoofed VERSION silently
+    // pins the fleet on an old build) while costing no extra context -- see its header.
     if (!WaitForClock()) {
         Serial.println("[ota] clock not synced; skipping update check");
         return;
     }
 
-    WiFiClientSecure verClient;
-    verClient.setCACert(OTA_ROOT_CAS);
-
-    HTTPClient http;
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // GitHub redirects to its CDN
-    http.setConnectTimeout(8000);
-    http.setTimeout(8000);
-
-    if (!http.begin(verClient, VERSION_URL)) {
-        Serial.println("[ota] version check: begin failed");
+    const HttpResult ver = http.GetSecure(VERSION_URL, OTA_ROOT_CAS);
+    if (!ver.success) {
+        Serial.printf("[ota] version check failed: HTTP %d %s\n",
+                      ver.statusCode, ver.errorMessage.c_str());
         return;
     }
 
-    const int code = http.GET();
-    if (code != HTTP_CODE_OK) {
-        Serial.printf("[ota] version check: HTTP %d\n", code);
-        http.end();
-        return;
-    }
-
-    const int latest = http.getString().toInt();
-    http.end();
+    const int latest = ver.response.toInt();
 
     Serial.printf("[ota] channel=%s%s current=%d latest=%d\n", FW_OTA_PREFIX, variant::SLUG, FW_VERSION, latest);
     if (latest <= FW_VERSION)
         return; // already up to date
 
-    // 2. download + flash the new image, showing a progress bar on the screen
+    // 2. download + flash the new image, showing a progress bar on the screen.
+    //
+    // httpUpdate needs a Client of its own, so this IS a second TLS context -- unavoidable,
+    // and acceptable because the radar is suspended behind a progress bar for the duration.
+    // What is not acceptable is it being the second SIMULTANEOUS one, which is what happens
+    // if a background feed poll is holding a keep-alive session when the download's
+    // handshake asks for its own large contiguous block. So: take the request bus for the
+    // whole download, then drop the shared session while nothing can re-open it.
+    //
+    // Blocking-with-timeout rather than a bare TryAcquireBus: an in-flight fetch is the
+    // common case, not an error. If the bus never frees, skip -- the daily re-check will
+    // try again, and a missed update beats a wedged one.
+    bool bus = false;
+    for (int i = 0; i < 100 && !bus; ++i) {
+        bus = http.TryAcquireBus();
+        if (!bus) delay(100);
+    }
+    if (!bus) {
+        Serial.println("[ota] request bus busy for 10 s; deferring update to the next check");
+        return;
+    }
+    http.ReleaseTlsLocked(); // free the feed session BEFORE the download asks for its own
+
     Serial.println("[ota] newer firmware available -- updating");
     // Memory evidence through the whole download+flash window (gate item: a
     // production-shaped OTA must complete at the steady-state heap operating
@@ -214,7 +227,9 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb)
         drawStatus(tft, fb, "Update failed");
         delay(2000);
     }
-    // HTTP_UPDATE_OK reboots automatically (rebootOnUpdate(true))
+    // HTTP_UPDATE_OK reboots automatically (rebootOnUpdate(true)), so this only runs on
+    // the failure and no-update paths -- the success path never needs the bus again.
+    http.ReleaseBus();
 }
 
 String TakeOtaMemReport()

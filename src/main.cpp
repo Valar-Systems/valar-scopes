@@ -337,7 +337,7 @@ void setup()
 
   // self-update from the latest GitHub release before normal startup; reboots
   // into the new firmware if one is newer than this build
-  MaybeUpdateFirmware(tft, backbuffer);
+  MaybeUpdateFirmware(tft, backbuffer, http);
 
   // begin background server for configuration
   configServer.Initialise();
@@ -422,7 +422,7 @@ void loop()
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
-    MaybeUpdateFirmware(tft, backbuffer);
+    MaybeUpdateFirmware(tft, backbuffer, http);
   }
 #endif
 
@@ -484,7 +484,7 @@ void loop()
   // OTA check now rather than waiting out the daily timer. Same code path as
   // the daily check; a same-or-older published release is simply a no-op.
   if (appManager.ConsumeOtaCheckRequest())
-    MaybeUpdateFirmware(tft, backbuffer);
+    MaybeUpdateFirmware(tft, backbuffer, http);
 #endif
 #endif
 }
