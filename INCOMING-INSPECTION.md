@@ -288,6 +288,57 @@ after §6 passes.
 
 ---
 
+## 8. Board #1 only — one OTA from a virgin second slot
+
+**Run this on the FIRST board of the batch, after §7, before the other 49 start.** It is the one
+check the pilot run cannot repeat later, because after this board takes an update it will never
+be in the starting state again.
+
+**Why board #1 and not the bench.** Every OTA test to date ran on a unit that already had a
+working image in the other slot — the bench board had been flashed both ways many times. A
+factory-fresh board has `app1` **blank**. The download path has no reason to care, and that is
+exactly the shape of assumption that has cost a week each time it turned out to be wrong: the
+CST816 "obviously" reports a held finger, `end()` "obviously" releases the TLS transport,
+`begin(url)` "obviously" validates a certificate. None of them did. This is the cheapest
+possible place to find out, and after board #1 it becomes the most expensive.
+
+1. **Confirm the starting state is genuinely virgin.** A USB flash writes `app0` and resets
+   otadata, so this is the state all 50 ship in:
+
+   ```
+   [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=<N>
+   ```
+
+   `next=app1` with nothing ever written there is the case under test. If this reads `app1`, the
+   board is not virgin — reflash over USB and start again.
+
+2. **Trigger one real update.** Build against the pinned pre-release harness (see
+   [RELEASING.md](RELEASING.md) — and **re-clobber the assets first**, the tag holds a mixed
+   matrix from CI):
+
+   ```sh
+   pio run -e blipscope-s3-128-otatest -t upload
+   ```
+
+3. **The same three checks, from the state the fleet is actually in:**
+
+   | check | expected |
+   |---|---|
+   | download completes | `[ota-mem] pct=100 ...`, no `Update failed` |
+   | slot switches | `[ota-slot] boot running=app1 @0x660000 ... fw=<N+1>` |
+   | **survives power loss** | power-cycle, then `running=app1 ... state=VALID` |
+
+   `state=VALID` is the load-bearing one. `PENDING_VERIFY` after a power cycle means the
+   bootloader may roll the board back to `app0`, which on a virgin board is a slot that was
+   never written — a failure mode that cannot occur on a bench unit and would not have been
+   visible in any test run before this one.
+
+4. **Then reflash board #1 to production over USB** (`pio run -e blipscope-s3-128 -t upload`) so
+   it rejoins the batch in the same state as the other 49 — `app0`, otadata reset, no pinned OTA
+   base compiled in. Record the result on the batch sheet; the other 49 do **not** repeat §8.
+
+---
+
 ## Batch acceptance summary
 
 A batch is **accepted** only when, across the sampled boards:
@@ -300,6 +351,9 @@ A batch is **accepted** only when, across the sampled boards:
 6. First-run per §7: portal provisioning completes, `curl http://<ip>/` returns **200** on the
    first boot after setup with no power cycle, and the boot touch-to-forget reaches
    `hold completed` with `misses=0` (100%)
+7. **Board #1 only** — §8: one OTA from a virgin `app1` completes, the slot switches, and the
+   new image is still `running=app1 state=VALID` after a power cycle. Board #1 does not rejoin
+   the batch until this passes; the other 49 do not repeat it
 
 Any quad mismatch, any unwritable/zero 0xFE, or any reason-204 storm ⇒ **quarantine the batch and
 open a supplier conversation**, quoting the measured values. Do not ship a partial batch on the

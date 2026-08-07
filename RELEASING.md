@@ -51,6 +51,21 @@ throughout while the pinned tag read `6`. See `[env:blipscope-s3-128-otatest]` /
 > re-trigger CI, so the assets stay put. Confirm by fetching the pinned `version.txt` over HTTP
 > immediately before the run — the device's answer is only as good as what the URL served.
 
+### The standing harness tag: `ota-preflight-v6`
+
+Kept deliberately rather than deleted — it is the harness every future OTA test runs against,
+and a pre-release carries no fleet exposure. **It is not a release and must never be treated as
+one.**
+
+Its assets are a **mixed matrix**: a full ten-SKU set of CI-built binaries at whatever
+`FW_VERSION` the tag's commit carried, plus whichever single SKU was hand-clobbered for the last
+test. So the `version.txt` sitting there right now is only meaningful next to the specific binary
+someone uploaded beside it.
+
+**Before each use: re-clobber `version.txt` and the one `firmware-<slug>.bin` you are testing,
+then re-read the URL over HTTP.** Never infer the tag's state from the last time it was used, and
+never promote it to a full release — doing so would publish a stale mixed matrix to the fleet.
+
 ## Adding a new SKU to releases
 
 A new SKU needs three entries that stay in sync:
