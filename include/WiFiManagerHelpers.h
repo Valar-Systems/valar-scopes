@@ -144,7 +144,7 @@ namespace WiFiManagerHelpers
         return false;
     }
 
-    // ---- boot-time hold-to-forget: the FALLBACK recovery path ----
+    // ---- boot-time touch-to-forget: the FALLBACK recovery path ----
     //
     // The on-screen Stats reset is the primary route and covers the normal stuck
     // case (wrong credentials: the device still boots and renders, the radar just
@@ -153,17 +153,30 @@ namespace WiFiManagerHelpers
     // wedge that never reaches the main loop. It is the touchscreen equivalent of
     // "hold the button while powering on", for an enclosure with no exposed button.
     //
-    // Shape: we only need to notice a finger that is ALREADY down at power-on
-    // (that is what the instruction tells the customer to do), so the detect
-    // window is short -- 1.2 s, the only cost added to an ordinary boot. Once a
-    // finger is seen we ask for a further 3 s of continuous contact, with
-    // on-screen feedback the whole time, so it can never fire silently and
-    // releasing is always a cancel.
+    // Shape: the customer is PROMPTED to touch, and must arrive AFTER boot. That
+    // is not a UX preference, it is forced by the hardware.
+    //
+    // This used to watch for a finger that was ALREADY down at power-on, which
+    // could never work and never did (#173). The CST816 calibrates its no-touch
+    // baseline coming out of reset, and LovyanGFX's Touch_CST816S::init() pulses
+    // TP_RST inside tft.init() -- which runs immediately before this. So a finger
+    // held through power-on is calibrated INTO the baseline by our own init and
+    // reported as absent until it lifts. Measured on a conforming board: contact
+    // detected instantly and held solid for 12 s, then one TP_RST pulse, then
+    // ZERO touches for the next 48 s with the thumb still on the glass; lifted
+    // and re-tapped, every tap seen. Neither a longer settle nor a direct
+    // register poll helps -- the chip genuinely believes nothing is there.
+    //
+    // A finger arriving after init, by contrast, is detected on the first poll and
+    // reported indefinitely with no decay, so the confirm stage below is sound as
+    // written and is unchanged. Hence: prompt for ~3 s, then confirm as before.
+    // The 3 s is the whole added cost of an ordinary boot, and unlike the old
+    // 1.2 s it buys a window a customer can actually use.
     //
     // Returns true if the user held it through. Caller does the resetSettings().
-    inline bool BootHoldToForget(LGFX& tft, LGFX_Sprite& backbuffer)
+    inline bool BootTouchToForget(LGFX& tft, LGFX_Sprite& backbuffer)
     {
-        constexpr uint32_t DETECT_MS = 1200; // watch for an already-present finger
+        constexpr uint32_t PROMPT_MS = 3000; // prompted window for a touch to ARRIVE
         constexpr uint32_t HOLD_MS   = 3000; // then require this much unbroken contact
 
         // Is the touch controller actually up this early? tft.init() brings it up
@@ -177,29 +190,78 @@ namespace WiFiManagerHelpers
         uint32_t polls = 0;
         bool sawTouch = false;
 
-        const uint32_t detectUntil = millis() + DETECT_MS;
-        while ((int32_t)(millis() - detectUntil) < 0) {
+        const uint32_t promptUntil = millis() + PROMPT_MS;
+        uint32_t lastShown = UINT32_MAX;
+        while ((int32_t)(millis() - promptUntil) < 0) {
             ++polls;
             if (tft.getTouch(&x, &y)) { sawTouch = true; break; }
+
+            // The prompt IS the feature. A silent window is unusable by anyone who
+            // was not already told it exists, and an unusable recovery path is the
+            // thing that made #173 invisible for as long as it was.
+            const uint32_t left = (promptUntil - millis() + 999) / 1000;
+            if (left != lastShown) {
+                lastShown = left;
+                DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
+                                   lgfx::color888(255, 176, 0), "TOUCH & HOLD",
+                                   "to reset WiFi",
+                                   ("Starting in " + String((int)left) + "...").c_str());
+            }
             delay(20);
         }
         Serial.printf("[wifi-reset] boot touch window: driver=%d polls=%lu touched=%d\n",
                       (int)haveDriver, (unsigned long)polls, (int)sawTouch);
 
-        if (!sawTouch || !tft.getTouch(&x, &y))
-            return false; // nothing held -- the overwhelmingly common path
+        if (!sawTouch)
+            return false; // nobody touched -- the overwhelmingly common path
 
+        // NOTE: deliberately no second getTouch() re-check here. The old code had
+        // one, which was harmless when the finger was assumed to be resting but
+        // would now race a quick tap. The confirm loop below already requires
+        // continuous contact, so a tap-and-release simply falls through to the
+        // CANCELLED branch -- which is the correct, and safe, outcome.
         Serial.println("[wifi-reset] boot touch detected; hold to confirm");
+
+        // A release must be SUSTAINED to count. The CST816 intermittently reads 0
+        // mid-touch when polled between its report pulses -- that is the documented
+        // phantom-release behaviour the INT gating exists to mask, and the variant
+        // header calls it out in as many words. This loop polls at 30 ms, which is
+        // above the driver's 10 ms INT-gated rate limiter, so it is precisely the
+        // blind-polling case that produces those zeros. Exiting on the FIRST zero
+        // therefore cancels a gesture the customer is still performing, which is
+        // exactly what the first acceptance run recorded: touch detected, then
+        // "released early", twice, with a finger on the glass both times.
+        //
+        // The gap counters are logged on cancel so this stays measurable rather
+        // than assumed -- a cancel with longestGap=0 is a genuine release, one with
+        // a large gap is the chip dropping samples and wants a longer RELEASE_MS.
+        constexpr uint32_t RELEASE_MS = 250;
+
         const uint32_t holdStart = millis();
-        uint32_t lastShown = UINT32_MAX;
-        while (tft.getTouch(&x, &y)) {
+        uint32_t lastSeen   = holdStart;
+        uint32_t misses     = 0;
+        uint32_t longestGap = 0;
+        lastShown = UINT32_MAX; // reused from the prompt countdown above
+
+        for (;;) {
+            if (tft.getTouch(&x, &y)) {
+                const uint32_t gap = millis() - lastSeen;
+                if (gap > longestGap) longestGap = gap;
+                lastSeen = millis();
+            } else {
+                ++misses;
+                if (millis() - lastSeen >= RELEASE_MS) break; // really let go
+            }
+
             const uint32_t held = millis() - holdStart;
             if (held >= HOLD_MS) {
                 DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
                                    lgfx::color888(255, 176, 0),
                                    "WIFI RESET", "Forgetting network...", "Release now");
                 delay(1200);
-                Serial.println("[wifi-reset] hold completed -- clearing credentials");
+                Serial.printf("[wifi-reset] hold completed -- clearing credentials"
+                              " (misses=%lu longestGap=%lums)\n",
+                              (unsigned long)misses, (unsigned long)longestGap);
                 return true;
             }
             // Count down out loud. Silent detection would be worse than none: the
@@ -214,7 +276,9 @@ namespace WiFiManagerHelpers
             }
             delay(30);
         }
-        Serial.println("[wifi-reset] released early -- cancelled");
+        Serial.printf("[wifi-reset] released early -- cancelled"
+                      " (misses=%lu longestGap=%lums)\n",
+                      (unsigned long)misses, (unsigned long)longestGap);
         DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
                            "CANCELLED", "WiFi settings kept", "");
         delay(900);
