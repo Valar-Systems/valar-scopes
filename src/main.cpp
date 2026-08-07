@@ -257,10 +257,11 @@ void setup()
 
   WiFiManagerHelpers::ConfigureWiFiManager(wm, tft, backbuffer);
 
-  // Hold-to-forget, checked BEFORE any join attempt so it works even when the
-  // saved credentials would hang the boot. Costs 1.2 s on an ordinary boot; see
-  // BootHoldToForget for why the window is that shape.
-  if (WiFiManagerHelpers::BootHoldToForget(tft, backbuffer)) {
+  // Touch-to-forget, checked BEFORE any join attempt so it works even when the
+  // saved credentials would hang the boot. Costs 3 s on an ordinary boot; see
+  // BootTouchToForget for why the window is that shape (the touch has to ARRIVE
+  // after tft.init(), because tft.init() erases one that was already there).
+  if (WiFiManagerHelpers::BootTouchToForget(tft, backbuffer)) {
     wm.resetSettings();
     WiFiManagerHelpers::ForgetFastAp(); // the pinned BSSID belongs to the old network
     DrawSplash(tft, backbuffer, "WiFi cleared", "Restarting into setup...");

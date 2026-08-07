@@ -79,13 +79,29 @@ write/readback experiment:
 |---|---|---|---|
 | `0xFE` | `DisAutoSleep` | **1** | **REJECT/QUARANTINE** — batch reverts to C3-style sleep |
 | `0xF9` | `AutoSleepTime` | 2 (s) | Informational — sleep *is* armed under 0xFE; this is why 0xFE matters |
-| `0xFA` | `IrqCtl` | **0x60** | Flag — `EnTouch\|EnChange`; registers are only valid at INT pulses. This config **proves the INT-gating requirement**; a different value invalidates our touch read strategy |
+| `0xFA` | `IrqCtl` | **0x60** | Flag — factory `EnTouch\|EnChange`. A batch fingerprint, **not** the operating value (see below) |
 | `0xFB` | `AutoReset` | 50 (s) | Informational — chip self-reset on gestureless touch |
 | `0xFC` | `LongPressTime` | 60 (s) | Informational — chip self-reset on long press |
 
 `0xFB`/`0xFC` are **custom values, not datasheet defaults**. They matter for forensics: a
 chip-initiated self-reset presents as a ~450 ms register blank, which is easy to misread as a
 wedge. Note them so field reports aren't misdiagnosed.
+
+> **`0xFA` is a fingerprint, not the running config.** An earlier version of this table said the
+> factory `0x60` "proves the INT-gating requirement" and that "registers are only valid at INT
+> pulses". Both are wrong, and that wording caused a misdiagnosis in #173. Two corrections,
+> measured on a conforming board (`chip id=0xB6 proj=0x02 fw=0x02  0xFA=0x60 0xED=1 0xFE=0x01`):
+>
+> 1. **The firmware overwrites it.** LovyanGFX's `Touch_CST816S::_check_init()` writes
+>    `0xFA=0x20` (change-only) and `0xED=20` on every touch init. The device never runs on 0x60.
+> 2. **The registers are readable at any time.** `Touch_CSTxxx.cpp` consults the INT level only
+>    inside `if (diff_msec < 10 && _wait_cycle)` — a rate limiter, not a gate. Any poll spaced
+>    ≥10 ms apart does a full I2C read regardless of INT.
+>
+> INT gating is still the right read strategy at frame cadence (it is what fixed the phantom-
+> release double-tap), but "no INT edge ⇒ no reading" is not a property of this chip, and no
+> diagnosis should rest on it. Keep recording 0x60 — a batch that differs is still a supplier
+> conversation — just don't infer read behaviour from it.
 
 The write experiment must show the register is **writable**:
 
@@ -176,6 +192,67 @@ Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi 
 
 ---
 
+## 7. First-run acceptance — the path every board takes exactly once (100%)
+
+Sections 1–6 all inspect a board that is **already provisioned**. The customer's first five
+minutes are a different code path, and it is the only one no log can verify after the fact: by
+the time a device checks in, it has already survived it. Two bugs shipped into that path in one
+week ([#166](https://github.com/Valar-Systems/valar-scopes/issues/166),
+[#173](https://github.com/Valar-Systems/valar-scopes/issues/173)) and **both were found by
+accident**, when something wiped WiFi unintentionally. Neither announced itself: a dead `:80`
+looks identical to a healthy one, and a recovery gesture that cannot fire logs the same line as
+a customer who did not press hard enough.
+
+Fifty boards are about to take this path exactly once each. Run it last, on **every** board,
+after §6 passes.
+
+1. **Wipe WiFi the way a customer does.** Stats screen → double-tap `[ Reset WiFi ]`. The device
+   forgets the credentials and reboots into the config portal.
+   *(Do not use the boot-hold for this — see step 4.)*
+
+2. **Provision through the portal.** Join the `Blipscope-XXXXXX` AP from a phone, choose the
+   bench SSID, enter the password, save. **Do not power-cycle the device by hand.** The whole
+   point is the first boot *after* provisioning, and a customer does not reboot here.
+
+3. **The config page must answer on that first boot** — no power cycle in between:
+
+   ```sh
+   curl -s -o /dev/null -w '%{http_code} %{size_download}\n' http://<device-ip>/
+   ```
+
+   Expect **`200`** and ~50 KB. A refused connection is a **fail, not a retry** — that is #166
+   (AsyncWebServer lost the bind to the portal's listener, and `begin()` returns `void`, so
+   nothing said so). Re-flashing does not clear it; only a power cycle does, which is precisely
+   why it must be caught here and not by the customer.
+
+   > There is currently **no serial line** that reports the bind outcome. The liveness check
+   > added for #166 was reverted in #172 because the probe socket itself tore down the live
+   > listener. Until a safe replacement lands, `curl` is the only evidence. Do not skip it.
+
+4. **Recovery gesture.** Power-cycle. Within ~3 s the screen shows **TOUCH & HOLD / to reset
+   WiFi**. Touch it *then* — **not before** — and hold through the countdown:
+
+   ```
+   [wifi-reset] boot touch window: driver=1 polls=56 touched=1
+   [wifi-reset] boot touch detected; hold to confirm
+   [wifi-reset] hold completed -- clearing credentials (misses=0 longestGap=56ms)
+   ```
+
+   > **The touch has to ARRIVE after the prompt, and this is not a UX preference.** A finger
+   > already on the glass at power-on is calibrated into the CST816's no-touch baseline by the
+   > TP_RST pulse inside `tft.init()`, and is then reported as absent until it lifts — measured:
+   > 12 s of solid contact, one reset, then zero touches for 48 s with the thumb still down
+   > ([#173](https://github.com/Valar-Systems/valar-scopes/issues/173)). **No board will ever
+   > pass a "hold from power-on" test.** If one fails *this* step with the touch arriving
+   > correctly, that is a genuine board fault.
+
+   `misses` counts polls that saw no contact during the hold; expect **0**. A non-zero `misses`
+   with a large `longestGap` means that batch's touch IC drops samples mid-contact — record it,
+   that is the phantom-release class the C3 had (see §3). The gesture tolerates gaps under
+   250 ms, so it will still pass; the number is the early warning, not the failure.
+
+---
+
 ## Batch acceptance summary
 
 A batch is **accepted** only when, across the sampled boards:
@@ -185,6 +262,9 @@ A batch is **accepted** only when, across the sampled boards:
 3. `IrqCtl` 0xFA = **0x60** (100%)
 4. RF = `FEED_TERMINATION` + YF0026-class antenna, **zero reason-204** (100%)
 5. Touch INT/RST behave per §5 (first 5, then spot-check)
+6. First-run per §7: portal provisioning completes, `curl http://<ip>/` returns **200** on the
+   first boot after setup with no power cycle, and the boot touch-to-forget reaches
+   `hold completed` with `misses=0` (100%)
 
 Any quad mismatch, any unwritable/zero 0xFE, or any reason-204 storm ⇒ **quarantine the batch and
 open a supplier conversation**, quoting the measured values. Do not ship a partial batch on the
