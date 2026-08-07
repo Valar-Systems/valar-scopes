@@ -887,6 +887,51 @@ constexpr float kGlobeR = 119.0f;
  * 30 deg is clearly bowed with the endpoints at 80% of the radius, where
  * foreshortening is still mild. DERIVED FROM THE TRAJECTORY rather than dialled
  * in, so it stays correct for whatever target the game picks later.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS A CONSTANT AND NOT A FUNCTION OF ARC LENGTH (settled 2026-08-06)
+ *
+ * The eight-scenario survey made the obvious objection: at a fixed 30 deg, SHORT
+ * (4,421 km) reads as a straight line while EQUATOR (14,039 km) has a generous
+ * curve. That is real -- the bow spans 3.5 px to 32.6 px across the survey --
+ * and the obvious fix is to scale phi with the range. Do not. It cannot work,
+ * and the geometry says so in closed form.
+ *
+ * Project along v = m*cos(phi) + n*sin(phi), where m is the arc midpoint and n
+ * the great-circle normal, so m . n = 0 and n . v = sin(phi). Parametrise the
+ * circle as p(t) = m*cos t + w*sin t with w = n x m. Then w . v = 0, so w lies
+ * entirely in the image plane, and the projected track is
+ *
+ *     e = R * sin(phi) * cos t          (e = m*sin(phi) - n*cos(phi))
+ *     w = R * sin t
+ *
+ * -- an ellipse of semi-axes R*sin(phi) by R. The endpoints t = +/- theta/2
+ * share an e, so the chord is straight and
+ *
+ *     BOW  =  R * sin(phi) * (1 - cos(theta/2))
+ *
+ * The two terms SEPARATE: phi scales the bow, the range fixes the rest. So phi
+ * is a real lever -- it just has a ceiling, because sin(phi) <= 1:
+ *
+ *              range    theta    bow@30    max bow (phi=90)
+ *     SHORT     4,421    39.8     3.5 px     7.1 px
+ *     ARCTIC    6,295    56.6     7.1 px    14.2 px
+ *     GOLF-07  10,173    91.5    18.0 px    36.0 px
+ *     EQUATOR  14,039   126.3    32.6 px    65.2 px
+ *
+ * The two scenarios that need help are exactly the two the ceiling binds on: no
+ * tilt reaches even 16 px on SHORT. And phi buys bow by pushing the arc midpoint
+ * out to sin(phi)*R from the disc centre, so the tilt that would nearly double
+ * SHORT's bow is phi=90, where the track rides the limb and stops reading as a
+ * path over a sphere at all.
+ *
+ * The decisive reason is simpler than the ceiling, though. A 4,421 km great
+ * circle subtends 40 deg of the Earth, and over 40 deg the Earth genuinely is
+ * nearly flat at 119 px. SHORT looks straight because it IS straight. This is
+ * the one graphic whose whole job is to be the real geometry, and dialling in a
+ * curve the trajectory does not have would be a lie told in the only place the
+ * screen makes a factual claim.
+ * ---------------------------------------------------------------------------
  */
 constexpr float kGlobeTilt = 30.0f;
 
