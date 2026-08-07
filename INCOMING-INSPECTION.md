@@ -19,7 +19,7 @@ Both are caught below. **Run this before the boards go anywhere near production 
 
 ---
 
-## 0. Before you start — two gotchas that look like dead boards
+## 0. Before you start — three gotchas that look like faults
 
 - **The left-side POWER LATCH button must be LONG-PRESSED to power the SoC.** USB alone does
   *not* boot it. A flashing red LED is the charger reporting "no battery" — **that is normal**,
@@ -27,6 +27,28 @@ Both are caught below. **Run this before the boards go anywhere near production 
 - **`esptool` STUB bulk-reads die on this board's USB-JTAG** ("Packet content transfer stopped")
   at any baud. Use `--no-stub` for `read_flash`. Stub **writes** are fine and fast — normal
   flashing needs no workaround.
+- **On a DATA USB cable, the board reboots itself ~2 s into every power-on.** You will see the
+  splash, the boot prompt counting `3, 2, 1`, a white flash, and the whole boot start over. It
+  looks exactly like a crash or a brownout. **It is neither**, and the boot ROM says so:
+
+  ```
+  rst:0x15 (USB_UART_CHIP_RESET)
+  ```
+
+  That code means the USB-Serial/JTAG peripheral was told to reset **by the host** — firmware
+  cannot produce it. Any program that opens the port shortly after the device re-enumerates
+  triggers it: a serial capture reattaching, an IDE's serial monitor, Windows' own enumerator.
+  It happens on roughly half of power cycles because it depends on whether the open lands
+  inside the boot window.
+
+  > **Judge boot behaviour on a POWER-ONLY USB cable or a wall charger, with no computer
+  > attached.** Verified: identical board, identical image — resets on a data cable, boots
+  > clean every time on power-only. Customers are always in the power-only case, so this
+  > artifact never reaches them.
+
+  If a board reboots during boot on **power-only**, that *is* a fault — capture the serial
+  output on a data cable and look for `Brownout detector was triggered` or a `Guru Meditation`
+  backtrace, which are the codes that mean something real.
 
 Serial is 115200. Each board takes ~3 min.
 
@@ -206,7 +228,7 @@ a customer who did not press hard enough.
 Fifty boards are about to take this path exactly once each. Run it last, on **every** board,
 after §6 passes.
 
-1. **Wipe WiFi the way a customer does.** Stats screen → double-tap `[ Reset WiFi ]`. The device
+1. **Wipe Wi-Fi the way a customer does.** Stats screen → double-tap `[ Reset Wi-Fi ]`. The device
    forgets the credentials and reboots into the config portal.
    *(Do not use the boot-hold for this — see step 4.)*
 
@@ -214,16 +236,29 @@ after §6 passes.
    bench SSID, enter the password, save. **Do not power-cycle the device by hand.** The whole
    point is the first boot *after* provisioning, and a customer does not reboot here.
 
-3. **The config page must answer on that first boot** — no power cycle in between:
+3. **The config page must answer on that first boot** — no power cycle in between. **Poll; do
+   not judge on one attempt:**
 
    ```sh
-   curl -s -o /dev/null -w '%{http_code} %{size_download}\n' http://<device-ip>/
+   for i in $(seq 1 20); do
+     curl -s -o /dev/null -w "$i: %{http_code} %{size_download}\n" --max-time 3 http://<device-ip>/
+     sleep 2
+   done
    ```
 
-   Expect **`200`** and ~50 KB. A refused connection is a **fail, not a retry** — that is #166
-   (AsyncWebServer lost the bind to the portal's listener, and `begin()` returns `void`, so
-   nothing said so). Re-flashing does not clear it; only a power cycle does, which is precisely
-   why it must be caught here and not by the customer.
+   Expect **`200`** and ~50 KB **within 30 s of the device reporting an IP**.
+
+   > **A refusal in the first ~20 s is normal and is NOT the bug.** The network stack answers
+   > well before `server.begin()` runs, so connections in that gap are actively refused.
+   > Measured on a healthy board: IP at boot, `ERR_CONNECTION_REFUSED` through ~13 s, first
+   > `200` at **~17.5 s uptime**. An earlier version of this step said "a refused connection is
+   > a fail, not a retry" — that would quarantine healthy batches, and it is also exactly what
+   > a customer sees if they type the address the moment setup finishes.
+
+   **A refusal that persists past 30 s is the failure.** That is #166: AsyncWebServer lost the
+   bind to the portal's listener, and `begin()` returns `void`, so nothing said so. Re-flashing
+   does not clear it; only a power cycle does — which is precisely why it must be caught here
+   and not by the customer.
 
    > There is currently **no serial line** that reports the bind outcome. The liveness check
    > added for #166 was reverted in #172 because the probe socket itself tore down the live

@@ -2483,6 +2483,34 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         y += lh;
     };
 
+    // Ellipsise a string that will not fit the round face at row `yTop`.
+    //
+    // Every other row here is bounded by construction -- callsigns, ICAO hexes, formatted
+    // numbers -- so only user-supplied text needs this. A round screen has no margin to
+    // absorb an overrun: there is no edge to clip against, the glyphs simply run off the
+    // glass, and a 32-character SSID is both legal and not rare.
+    //
+    // Width is the chord, measured at whichever edge of the glyph band sits FARTHER from
+    // the centre line: the text occupies yTop..yTop+lh, and the narrower end is the one
+    // that decides whether it fits.
+    auto fitted = [&](const String& s, int yTop) -> String {
+        const float r  = (float)SCREEN_SIZE_DIV_2;
+        const int   d0 = yTop - SCREEN_SIZE_DIV_2;
+        const int   d1 = yTop + lh - SCREEN_SIZE_DIV_2;
+        const float dy = (float)((d0 < 0 ? -d0 : d0) > (d1 < 0 ? -d1 : d1)
+                                     ? (d0 < 0 ? -d0 : d0)
+                                     : (d1 < 0 ? -d1 : d1));
+        if (dy >= r) return String();
+        const int avail = (int)(2.0f * sqrtf(r * r - dy * dy)) - 8; // inset off the bezel
+        if (avail <= 0) return String();
+        if ((int)backbuffer.textWidth(s) <= avail) return s;
+
+        String out = s;
+        while (out.length() > 1 && (int)backbuffer.textWidth(out + "...") > avail)
+            out.remove(out.length() - 1);
+        return out + "...";
+    };
+
     line(String(count) + " aircraft");
     if (count > 0) {
         line("High " + label(highIcao) + " " + String(lroundf(maxAlt * METRES_TO_FEET)) + "ft");
@@ -2654,14 +2682,16 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
             backbuffer.setTextColor(up ? lgfx::color888(0, 255, 0) : lgfx::color888(255, 176, 0));
             String ssid = up ? WiFi.SSID() : String();
             if (up && ssid.isEmpty()) ssid = "(unnamed)";
-            line(up ? ("WiFi " + ssid) : String("WiFi NOT CONNECTED"));
+            // The SSID is the only string on this screen the customer chose, so it is the
+            // only one that can be any length at all -- fit it to the chord at its row.
+            line(up ? fitted("Wi-Fi " + ssid, y) : String("Wi-Fi NOT CONNECTED"));
         }
 
         // The control itself is drawn UNCONDITIONALLY in its reserved row.
         const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
         backbuffer.setTextColor(armed ? lgfx::color888(255, 80, 80)
                                       : lgfx::color888(0, 200, 0));
-        centered(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset WiFi ]"), wifiRowTop);
+        centered(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset Wi-Fi ]"), wifiRowTop);
         // Tap target = the drawn row, padded to a fingertip. Derived from the same
         // constant the text uses, so the hit box cannot drift from the pixels.
         wifiRowY0 = wifiRowTop - 8;

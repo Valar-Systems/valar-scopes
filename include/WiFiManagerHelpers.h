@@ -204,8 +204,8 @@ namespace WiFiManagerHelpers
                 lastShown = left;
                 DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
                                    lgfx::color888(255, 176, 0), "TOUCH & HOLD",
-                                   "to reset WiFi",
-                                   ("Starting in " + String((int)left) + "...").c_str());
+                                   "to reset Wi-Fi",
+                                   ("Booting in " + String((int)left) + "...").c_str());
             }
             delay(20);
         }
@@ -257,7 +257,7 @@ namespace WiFiManagerHelpers
             if (held >= HOLD_MS) {
                 DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
                                    lgfx::color888(255, 176, 0),
-                                   "WIFI RESET", "Forgetting network...", "Release now");
+                                   "WI-FI RESET", "Forgetting network...", "Release now");
                 delay(1200);
                 Serial.printf("[wifi-reset] hold completed -- clearing credentials"
                               " (misses=%lu longestGap=%lums)\n",
@@ -271,7 +271,7 @@ namespace WiFiManagerHelpers
                 lastShown = left;
                 DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
                                    lgfx::color888(255, 176, 0), "KEEP HOLDING",
-                                   ("Reset WiFi in " + String((int)left) + "...").c_str(),
+                                   ("Reset Wi-Fi in " + String((int)left) + "...").c_str(),
                                    "Release to cancel");
             }
             delay(30);
@@ -280,7 +280,7 @@ namespace WiFiManagerHelpers
                       " (misses=%lu longestGap=%lums)\n",
                       (unsigned long)misses, (unsigned long)longestGap);
         DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
-                           "CANCELLED", "WiFi settings kept", "");
+                           "CANCELLED", "Wi-Fi settings kept", "");
         delay(900);
         return false;
     }
@@ -345,7 +345,7 @@ namespace WiFiManagerHelpers
             // Composed through the backbuffer so it renders on the SPD2010 (direct per-glyph writes
             // don't); direct on every other SKU. See BootScreen.h.
             DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
-                               "- SETUP -", "Connect to this WiFi hotspot:", WiFiManagerName().c_str());
+                               "- SETUP -", "Connect to this Wi-Fi hotspot:", WiFiManagerName().c_str());
             }
         );
     }

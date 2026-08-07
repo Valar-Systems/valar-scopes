@@ -63,15 +63,19 @@ constexpr int GAP_LINE    = 6;   // between status lines
 // Call with no status for the very first paint, then re-call with status text as boot
 // progresses -- the wordmark lands in the same place every time, so only the lines
 // underneath appear to change.
+// Composed off-screen and landed in one blit wherever a full framebuffer exists, for the
+// same reason DrawCenteredScreen is (see BootScreen.h): drawing direct means fillScreen()
+// clears to black and the glyphs arrive a beat later, so every repaint is a black flash.
+//
+// This used to be SPD2010-only, on the reasoning that everywhere else the splash is drawn
+// once and a single flash is invisible. That reasoning was exactly as true of
+// DrawCenteredScreen -- right up until it was put on a once-per-second countdown, where it
+// became a strobe that read as a fault and cost a real acceptance run. The splash is
+// explicitly documented above as re-callable as boot progresses, so it is one call site
+// away from the same failure. Fixed here rather than rediscovered there.
 inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite& fb,
                        const char* s0 = nullptr, const char* s1 = nullptr, const char* s2 = nullptr)
 {
-#if defined(BLIPSCOPE_PANEL_SPD2010)
-    auto& g = fb;   // compose into the sprite, push even-aligned below (see BootScreen.h)
-#else
-    auto& g = tft;  // direct to the panel
-#endif
-
     using namespace splash;
 
     const int lines = (s0 ? 1 : 0) + (s1 ? 1 : 0) + (s2 ? 1 : 0);
@@ -82,41 +86,55 @@ inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite&
     if (lines > 0)
         blockH += GAP_STATUS + lines * STATUS_H + (lines - 1) * GAP_LINE;
 
-    int y = SCREEN_SIZE_DIV_2 - blockH / 2;
+    const int yTop = SCREEN_SIZE_DIV_2 - blockH / 2;
 
-    g.fillScreen(lgfx::color888(0, 0, 0));
+    auto paint = [&](auto& g) {
+        int y = yTop;
 
-    // Wordmark, full brightness. drawCenterString takes the TOP of the text.
-    g.setTextColor(lgfx::color888(255, 255, 255));
-    g.setTextSize(WORDMARK_SCALE);
-    g.drawCenterString("VALAR SYSTEMS", SCREEN_SIZE_DIV_2, y);
-    y += WORDMARK_H + GAP_VERSION;
+        g.fillScreen(lgfx::color888(0, 0, 0));
 
-    // Version, dimmer -- present for support, subordinate to the brand. Single source of
-    // truth: the same FW_VERSION int the OTA gate compares against, so what the screen
-    // says can never drift from what the updater believes.
-    char version[8];
-    snprintf(version, sizeof(version), "v%d", FW_VERSION);
-    g.setTextSize(STATUS_SCALE);
-    g.setTextColor(lgfx::color888(120, 120, 120));
-    g.drawCenterString(version, SCREEN_SIZE_DIV_2, y);
-    y += STATUS_H;
+        // Wordmark, full brightness. drawCenterString takes the TOP of the text.
+        g.setTextColor(lgfx::color888(255, 255, 255));
+        g.setTextSize(WORDMARK_SCALE);
+        g.drawCenterString("VALAR SYSTEMS", SCREEN_SIZE_DIV_2, y);
+        y += WORDMARK_H + GAP_VERSION;
 
-    // Status lines, in the same green the boot screens have always used.
-    if (lines > 0) {
-        y += GAP_STATUS;
-        g.setTextColor(lgfx::color888(0, 255, 0));
-        for (const char* s : { s0, s1, s2 }) {
-            if (!s) continue;
-            g.drawCenterString(s, SCREEN_SIZE_DIV_2, y);
-            y += STATUS_H + GAP_LINE;
+        // Version, dimmer -- present for support, subordinate to the brand. Single source of
+        // truth: the same FW_VERSION int the OTA gate compares against, so what the screen
+        // says can never drift from what the updater believes.
+        char version[8];
+        snprintf(version, sizeof(version), "v%d", FW_VERSION);
+        g.setTextSize(STATUS_SCALE);
+        g.setTextColor(lgfx::color888(120, 120, 120));
+        g.drawCenterString(version, SCREEN_SIZE_DIV_2, y);
+        y += STATUS_H;
+
+        // Status lines, in the same green the boot screens have always used.
+        if (lines > 0) {
+            y += GAP_STATUS;
+            g.setTextColor(lgfx::color888(0, 255, 0));
+            for (const char* s : { s0, s1, s2 }) {
+                if (!s) continue;
+                g.drawCenterString(s, SCREEN_SIZE_DIV_2, y);
+                y += STATUS_H + GAP_LINE;
+            }
         }
+
+    };
+
+    if constexpr (!variant::BANDED_RENDER) {
+        paint(fb);
+        fb.pushSprite(0, 0);
+    } else {
+        paint(tft);   // banded board: the backbuffer is a half-height band, not a frame
     }
 
-    g.setTextSize(1); // leave the text state as every other boot screen expects it
-
-#if defined(BLIPSCOPE_PANEL_SPD2010)
-    fb.pushSprite(0, 0);
-#endif
+    // Leave the text state as every other boot screen expects it -- on BOTH surfaces.
+    // This used to be a single call on whichever object was being drawn to, which was
+    // also the object every other boot screen used. That is no longer true: composing
+    // means the scale is left on the sprite while some callers still draw to the panel,
+    // so restoring only one of them would leak WORDMARK_SCALE into the next screen.
+    tft.setTextSize(1);
+    fb.setTextSize(1);
     board::DisplayFlush(tft); // RGB panels: make it visible (no-op on SPI SKUs)
 }
