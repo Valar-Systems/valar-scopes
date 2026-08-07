@@ -19,7 +19,7 @@ Both are caught below. **Run this before the boards go anywhere near production 
 
 ---
 
-## 0. Before you start — two gotchas that look like dead boards
+## 0. Before you start — three gotchas that look like faults
 
 - **The left-side POWER LATCH button must be LONG-PRESSED to power the SoC.** USB alone does
   *not* boot it. A flashing red LED is the charger reporting "no battery" — **that is normal**,
@@ -27,6 +27,28 @@ Both are caught below. **Run this before the boards go anywhere near production 
 - **`esptool` STUB bulk-reads die on this board's USB-JTAG** ("Packet content transfer stopped")
   at any baud. Use `--no-stub` for `read_flash`. Stub **writes** are fine and fast — normal
   flashing needs no workaround.
+- **On a DATA USB cable, the board reboots itself ~2 s into every power-on.** You will see the
+  splash, the boot prompt counting `3, 2, 1`, a white flash, and the whole boot start over. It
+  looks exactly like a crash or a brownout. **It is neither**, and the boot ROM says so:
+
+  ```
+  rst:0x15 (USB_UART_CHIP_RESET)
+  ```
+
+  That code means the USB-Serial/JTAG peripheral was told to reset **by the host** — firmware
+  cannot produce it. Any program that opens the port shortly after the device re-enumerates
+  triggers it: a serial capture reattaching, an IDE's serial monitor, Windows' own enumerator.
+  It happens on roughly half of power cycles because it depends on whether the open lands
+  inside the boot window.
+
+  > **Judge boot behaviour on a POWER-ONLY USB cable or a wall charger, with no computer
+  > attached.** Verified: identical board, identical image — resets on a data cable, boots
+  > clean every time on power-only. Customers are always in the power-only case, so this
+  > artifact never reaches them.
+
+  If a board reboots during boot on **power-only**, that *is* a fault — capture the serial
+  output on a data cable and look for `Brownout detector was triggered` or a `Guru Meditation`
+  backtrace, which are the codes that mean something real.
 
 Serial is 115200. Each board takes ~3 min.
 

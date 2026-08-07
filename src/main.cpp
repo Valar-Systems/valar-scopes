@@ -198,12 +198,13 @@ void setup()
   DrawSplash(tft, backbuffer, "BISECTION HARNESS", "networking OFF");
   delay(1500);
 #else
-  // establish WiFi connection. Composed through the backbuffer so it renders on the SPD2010 (which
-  // can't take direct per-glyph writes); a no-op-different path on every other SKU. See BootScreen.h.
-  // Status renders BENEATH the wordmark, which stays exactly where it was first painted
-  // -- so this reads as a line changing under a fixed brand mark, not as the splash
-  // being replaced by a different screen. DrawSplash flushes for RGB panels itself.
-  DrawSplash(tft, backbuffer, "Connecting to WiFi...");
+  // NOTE: the "Connecting to Wi-Fi..." status is NOT painted here -- it now sits after the
+  // touch-to-forget window, immediately before the join actually starts. It used to be here,
+  // which was fine while the boot window sampled silently for 1.2 s and this line stayed up
+  // underneath it. Once that window grew an on-screen prompt, this paint was overwritten a
+  // few milliseconds later: a green flash between the wordmark and TOUCH & HOLD, and for the
+  // three seconds that followed the device claimed to be connecting while it was doing
+  // nothing of the kind. Status lines say what is happening now, or they are decoration.
 
 #if defined(BLIPSCOPE_PANEL_SPD2010)
   // Critical ordering for the 1.46B: the Wi-Fi radio must NOT come up in the first seconds after
@@ -211,6 +212,10 @@ void setup()
   // until a cold reboot -- a power/clock stabilisation issue, bisected on hardware (WiFi at ~7 s
   // still fails; ~10 s is reliable). Hold the boot screen here so the rails settle before the radio
   // inrush; the radar renders normally afterwards.
+  //
+  // This hold gets its own status rather than inheriting the connect line it used to sit under:
+  // nine seconds is far too long to spend claiming to connect before the join has been asked for.
+  DrawSplash(tft, backbuffer, "Starting up...");
   delay(9000);
 #endif
 
@@ -268,6 +273,14 @@ void setup()
     delay(1200);
     ESP.restart();
   }
+
+  // NOW say we are connecting, because from the next line on we are. Composed through the
+  // backbuffer so it renders on the SPD2010 (which can't take direct per-glyph writes); a
+  // no-op-different path on every other SKU. See BootScreen.h. Status renders BENEATH the
+  // wordmark, which stays exactly where it was first painted -- so this reads as a line
+  // changing under a fixed brand mark, not as the splash being replaced by a different
+  // screen. DrawSplash flushes for RGB panels itself.
+  DrawSplash(tft, backbuffer, "Connecting to Wi-Fi...");
 
   // Aim straight at the last known-good AP before doing this the slow way. On a
   // mesh SSID that turns a multi-scan, multi-minute join into a ~1-2 s one; it

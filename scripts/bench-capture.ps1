@@ -96,10 +96,28 @@ while ($true) {
     if (-not $port) { $failStreak++; Start-Sleep -Seconds ([Math]::Min(5 * $failStreak, 30)); continue }
 
     $sp = New-Object System.IO.Ports.SerialPort $port, $baud
-    # Leave the handshake lines alone: on this board asserting DTR/RTS resets it,
-    # and a capture that reboots the thing it is measuring is worse than none.
-    $sp.DtrEnable = $false
-    $sp.RtsEnable = $false
+    # ASSERT BOTH handshake lines. This is the opposite of what this line used to do,
+    # and the old comment ("asserting DTR/RTS resets it") was simply wrong -- it was
+    # written from the classic CP2102 auto-reset circuit and never checked against this
+    # board, which is native USB-Serial/JTAG.
+    #
+    # Measured on COM119 (s3-128), 9 s of listening per combination, twice each -- set
+    # before Open() and set after it, same result both ways:
+    #
+    #     DTR=true  RTS=true   -> no reset
+    #     DTR=false RTS=false  -> RESET (ESP-ROM:esp32s3-... every time)
+    #
+    # So the previous setting reset the board on EVERY reattach. Because the script
+    # reattaches whenever USB re-enumerates -- i.e. after every power cycle, which is
+    # exactly when someone is watching the boot -- it rebooted the device mid-boot on
+    # roughly half of observed loads and presented as a firmware fault. It cost three
+    # separate measurements in one day: a thumb test, a first-run acceptance run, and a
+    # splash observation.
+    #
+    # A capture that reboots the thing it is measuring is worse than none. That part of
+    # the old comment was right; the code under it was not.
+    $sp.DtrEnable = $true
+    $sp.RtsEnable = $true
     $sp.ReadTimeout = 60000     # a quiet board still reports [health] every 30 s
     $t0 = Get-Date
     try {
