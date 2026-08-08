@@ -27,17 +27,40 @@
 # down, and on this board that is a reset. Cost a 3 h 44 m soak on 2026-08-04,
 # when swapping a console for this recorder brought the board back up=00:00:00.
 #
-# THIS SCRIPT DOES NOT. Verified the same day on the second board: it attached
-# to a device that had been up 17.1 h and the uptime and in-RAM counters were
-# untouched. The DtrEnable/RtsEnable = $false below is what buys that, and it
-# holds on attach as well as during the session.
+# THIS SCRIPT DOES NOT RESET A RUNNING BOARD. Verified on the second board: it
+# attached to a device that had been up 17.1 h and the uptime and in-RAM counters
+# were untouched. The DtrEnable/RtsEnable settings below are what buy that.
 #
-# So the rule is narrower than it first looked, and it is about the OTHER
-# client: never leave a pio monitor attached to anything whose uptime matters,
-# because ending it ends the run. Attaching or detaching THIS recorder mid-run
-# is safe. Prefer starting it first anyway -- not because attaching costs
-# anything, but because whatever happened before it attached has no per-event
-# detail, only whatever totals the firmware keeps in RAM.
+# BUT IT DOES RESET ONE ACROSS A POWER CYCLE, and an earlier version of this
+# comment claimed otherwise (corrected 2026-08-07). The A/B behind that claim was
+# run against an ALREADY-ENUMERATED port. It does not generalise to reopening
+# during the boot window after the device re-enumerates -- which is precisely when
+# anybody is watching a boot. Measured twice in one ledger, same shape both times:
+#
+#     === [capture] detached ... "The port 'COM119' does not exist."   <- power cycle
+#     === [capture] attached port=COM119 19:59:01                      <- we reopen
+#     [build] env=blipscope-s3-128 fw=v5                               <- booting
+#     rst:0x15 (USB_UART_CHIP_RESET)                                   <- WE DID THAT
+#     [build] env=blipscope-s3-128 fw=v5                               <- boot restarts
+#
+# rst:0x15 means the USB-Serial/JTAG peripheral was reset BY THE HOST. Firmware
+# cannot produce that code, so it is never a device fault -- see INCOMING-
+# INSPECTION.md section 0. No DTR/RTS combination avoids it; the trigger is the
+# open() itself landing inside the boot window.
+#
+# CONSEQUENCE FOR SECTION 7 STEP 4, which is the only procedure that requires a
+# power cycle: the first countdown after a power cycle WILL be interrupted and
+# restart. That is us, not the board. Do the touch-and-hold on the SECOND
+# countdown. It is worth keeping the recorder attached anyway -- an unrecorded
+# pass is scrollback, and section 7 exists precisely because no log can verify
+# that path after the fact.
+#
+# So the rule about the OTHER client still stands: never leave a pio monitor
+# attached to anything whose uptime matters, because ending it ends the run.
+# Attaching or detaching THIS recorder mid-run is safe. Prefer starting it first
+# anyway -- not because attaching costs anything, but because whatever happened
+# before it attached has no per-event detail, only whatever totals the firmware
+# keeps in RAM.
 
 # FLASHING WHILE THIS RUNS: kill it and WAIT for the port to actually open before
 # invoking esptool. Killing the process returns immediately but Windows releases

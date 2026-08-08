@@ -259,6 +259,17 @@ a customer who did not press hard enough.
 Fifty boards are about to take this path exactly once each. Run it last, on **every** board,
 after §6 passes.
 
+**Record it.** Start a ledger before step 1 so the pass is evidence rather than scrollback:
+
+```powershell
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass',`
+  '-File','c:\Github\Blipscope\scripts\bench-capture.ps1','-Port','COM<n>','-Label','board-<NN>'
+```
+
+A section whose whole premise is "no log can verify this afterwards" should not then be verified by
+someone remembering they watched it. The recorder redacts credentials at write time, so the ledgers
+are safe to keep.
+
 1. **Wipe Wi-Fi the way a customer does.** Stats screen → double-tap `[ Reset Wi-Fi ]`. The device
    forgets the credentials and reboots into the config portal.
    *(Do not use the boot-hold for this — see step 4.)*
@@ -305,6 +316,14 @@ after §6 passes.
    [wifi-reset] boot touch detected; hold to confirm
    [wifi-reset] hold completed -- clearing credentials (misses=0 longestGap=56ms)
    ```
+
+   > **If a serial recorder is attached, the FIRST countdown after the power cycle will be
+   > interrupted and start over. Do the gesture on the second one.** That white flash is the
+   > recorder reopening the port inside the boot window, not a board fault, and the ROM says so
+   > in the ledger: `rst:0x15 (USB_UART_CHIP_RESET)` — a code firmware cannot produce (§0). No
+   > DTR/RTS setting avoids it; the trigger is the `open()` itself. Keep the recorder attached
+   > anyway: an unrecorded pass is scrollback, and this is the one section that exists *because*
+   > no log can verify the path afterwards.
 
    > **The touch has to ARRIVE after the prompt, and this is not a UX preference.** A finger
    > already on the glass at power-on is calibrated into the CST816's no-touch baseline by the
