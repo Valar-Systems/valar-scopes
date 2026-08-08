@@ -1,6 +1,31 @@
 #!/usr/bin/env bash
 # smoke-prod.sh -- post-deploy smoke test for the Blipscope proxy.
 #
+# IF IT IS NOT IN THIS SCRIPT, NOBODY IS CHECKING IT IN PRODUCTION.
+#
+# The unit suite runs in-process against miniflare, and CI's --check gates prove
+# fonts/ and pages/ agree with their generated modules. Neither one ever resolves
+# scopes.valarsystems.com. This script is the ONLY thing that touches the real
+# deployment, so a surface absent from here has no production coverage at all --
+# not weak coverage, none.
+#
+# That gap has now been demonstrated twice, both found by hand rather than by a
+# test, and both silent:
+#
+#   1. The self-hosted webfonts. test/leaderboard.test.ts asserts all three serve
+#      with the right type and magic bytes -- in miniflare. Had the embed lost a
+#      font in the deployed Worker, every visitor's browser would have quietly
+#      fallen back to system type and the page would still have looked fine to
+#      anyone who had not seen the real one.
+#   2. The edition-namespaced move (#142). /leaderboard became
+#      /blipscope/leaderboard with a 301 behind it. Nothing here requested either
+#      path, so neither the new page nor the redirect keeping old bookmarks alive
+#      was ever confirmed against production.
+#
+# So: when a public surface ships, add it here in the same PR. The checks below
+# assert more than a status code on purpose -- a 200 that serves the WRONG thing
+# is exactly the failure a status-only probe cannot see.
+#
 # The device key is read from your environment and is NEVER printed, logged, or
 # echoed by this script; only the header name appears in output. Run it yourself:
 #
@@ -52,6 +77,83 @@ skip() {
   skipped=$((skipped+1))
 }
 
+# asset <name> <expected-content-type-prefix> <url>
+#
+# Status + Content-Type + non-empty body, and deliberately NOT `hit`: a woff2
+# body is binary and must never be dumped to a terminal. All three assertions
+# earn their place, because a font has three separate silent failure modes --
+# a 404 (page falls back to system type), a wrong Content-Type (some browsers
+# refuse to apply the face), and a zero-length or truncated body (the embed
+# dropped it). Any one of them looks perfectly normal to a visitor who has
+# never seen the page rendered correctly.
+#
+# The type match is a PREFIX so "text/html" accepts "text/html; charset=utf-8".
+asset() {
+  local name="$1" want_type="$2" url="$3"
+  local out status ctype bytes ok_type
+  out="$(curl -s -o /dev/null --max-time 25 -w '%{http_code}|%{content_type}|%{size_download}' "$url")"
+  status="${out%%|*}"; out="${out#*|}"
+  ctype="${out%%|*}"; bytes="${out##*|}"
+  case "$ctype" in "$want_type"*) ok_type=1 ;; *) ok_type=0 ;; esac
+  printf '\n===== %s =====\n' "$name"
+  printf 'expect HTTP 200 / %s* / >0 bytes\n' "$want_type"
+  printf 'got    HTTP %s / %s / %s bytes\n' "$status" "$ctype" "$bytes"
+  if [ "$status" = "200" ] && [ "$ok_type" = "1" ] && [ "${bytes:-0}" -gt 0 ] 2>/dev/null; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+
+# contains <name> <expected-status> <marker> <url>
+#
+# Status AND a marker string the body must contain. A page that 200s while
+# serving the wrong content -- a stale embed, an error page with a cheerful
+# status, another edition's surface -- is invisible to a status-only probe,
+# which is the whole reason this helper exists. Pick markers that ONLY the
+# correct response can have.
+contains() {
+  local name="$1" want="$2" marker="$3" url="$4"
+  local body status ok_marker
+  body="$(curl -s -w $'\n%{http_code}' --max-time 25 "$url")"
+  status="${body##*$'\n'}"
+  body="${body%$'\n'*}"
+  case "$body" in *"$marker"*) ok_marker=1 ;; *) ok_marker=0 ;; esac
+  printf '\n===== %s =====\n' "$name"
+  printf 'expect HTTP %s and body containing: %s\n' "$want" "$marker"
+  printf 'got    HTTP %s, marker %s\n' "$status" "$([ "$ok_marker" = 1 ] && echo present || echo MISSING)"
+  if [ "$status" = "$want" ] && [ "$ok_marker" = "1" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    # Only on failure, and capped: enough to see what came back instead without
+    # burying the summary under a full page of HTML.
+    printf -- '--- first 400 bytes of body ---\n%.400s\n' "$body"
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+
+# redirects_to <name> <expected-location> <url>
+#
+# Asserts the 301 itself, NOT the destination -- curl is told not to follow.
+# The redirect is the compatibility layer for bookmarks and printed links made
+# before #142; if it quietly disappeared, every check that requests the CURRENT
+# path would still pass while old links died. That is precisely the failure this
+# script existed to catch and did not.
+redirects_to() {
+  local name="$1" want_loc="$2" url="$3"
+  local out status loc
+  out="$(curl -s -o /dev/null --max-time 25 -w '%{http_code}|%{redirect_url}' "$url")"
+  status="${out%%|*}"; loc="${out#*|}"
+  printf '\n===== %s =====\n' "$name"
+  printf 'expect HTTP 301 -> %s\n' "$want_loc"
+  printf 'got    HTTP %s -> %s\n' "$status" "${loc:-<none>}"
+  if [ "$status" = "301" ] && [ "$loc" = "$want_loc" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+
 echo "smoke-prod against $BASE  (key sent as X-Blip-Key; value never printed)"
 
 # 1. public health
@@ -100,10 +202,57 @@ else
   skip "/v1/photo" "no live hex available, so the pointer could not be resolved. /v1/photo went UNTESTED."
 fi
 
+# 5. THE PUBLIC WEB SURFACE. Everything below is unauthenticated -- it needs no
+#    key and is what a customer's browser actually loads. None of it was checked
+#    here before; see the two silent failures named in the header.
+
 # Public, so it works regardless of auth -- proves the photo library rendered at
 # ingest. Deliberately its OWN check rather than a stand-in for /v1/photo: passing
 # this while /v1/photo was skipped must not read as "the photo path works".
-hit "/credits (public; photo library rendered)" 200 "$BASE/credits"
+#
+# Also a LICENCE OBLIGATION, not a nicety: the stock photos are CC-BY, and the
+# attribution they require is this page. If it stops serving, the photos on every
+# device in the field are being used out of compliance.
+contains "/credits (public; photo library + CC-BY attribution)" 200 "Blipscope credits" "$BASE/credits"
+
+# The self-hosted webfonts. Requested BY PATH rather than scraped out of the page
+# so this still fails loudly if the page stops asking for them (which would mean
+# the page changed, not that the fonts are fine).
+for font in inter mono grotesk; do
+  asset "/fonts/$font.woff2 (self-hosted webfont)" "font/woff2" "$BASE/fonts/$font.woff2"
+done
+
+# The leaderboard page and its JSON, at the CURRENT edition-namespaced paths.
+# Markers: the page's <title>, and the scoring version in the JSON -- a board
+# served with the wrong scoring model is a correctness bug the status hides.
+contains "/blipscope/leaderboard (page)" 200 "Blipscope Spotting Leaderboard" \
+  "$BASE/blipscope/leaderboard"
+contains "/blipscope/leaderboard.json (data)" 200 '"scoring":"claims-v2"' \
+  "$BASE/blipscope/leaderboard.json"
+
+# The deprecated path must keep 301ing to the namespaced one. Retire this check
+# only when the redirect itself is retired -- see "When the aliases can be
+# deleted" in docs/web-url-convention.md.
+redirects_to "/leaderboard -> /blipscope/leaderboard (301 kept alive)" \
+  "$BASE/blipscope/leaderboard" "$BASE/leaderboard"
+
+# The edition hub and the Blipscope support page. The root answered 404 with a
+# JSON error object until these shipped, so anyone who trimmed a path -- or
+# followed the store's redirect -- landed on a machine error.
+contains "/ (edition hub)" 200 "Valar Scopes" "$BASE/"
+contains "/blipscope/support (support page)" 200 "Blipscope Support" "$BASE/blipscope/support"
+
+# The support page is where the STORE sends buyers, so it is the one page whose
+# absence a customer notices before we do. Checked as its own line rather than
+# folded into the check above: the destination of an external redirect we do not
+# control deserves to fail by name.
+contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
+  "$BASE/blipscope/support"
+
+# Missileer's support page ships in valar-eam-feed, not here. Add a check when it
+# lands -- and add the link on the hub in the same change, which test/pages.test.ts
+# currently asserts is absent so the two cannot drift apart.
+skip "/missileer/support" "not built yet -- it ships in valar-eam-feed (see src/missileer.ts). Add this check and the hub link together."
 
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"

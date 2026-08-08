@@ -10,6 +10,7 @@ import {
   handleProfile,
 } from "./leaderboard";
 import { FONTS } from "./fonts.generated";
+import { indexHtml, supportHtml } from "./pages.generated";
 import { record, recordOtaMem, setDeviceAttribution, type RequestMetric } from "./metrics";
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
@@ -94,6 +95,22 @@ function apiEndpoint(pathname: string): { suffix: string; legacy: boolean } | nu
   return null;
 }
 
+// A page with no data in it: the markup IS the response. Encoded once per call
+// rather than held as bytes because these are served rarely (a human arriving,
+// not a fleet polling), and max-age=300 matches the leaderboard page -- markup
+// changes on deploys, so five minutes is the cost of being wrong.
+function staticPage(html: string): Response {
+  const bytes = new TextEncoder().encode(html);
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": String(bytes.byteLength),
+      "Cache-Control": "public, max-age=300",
+    },
+  });
+}
+
 // 301, not 302: the move is permanent, and a permanent redirect is what gets
 // bookmarks and search results rewritten instead of re-followed forever.
 function movedTo(url: URL, newPath: string): Response {
@@ -127,6 +144,18 @@ async function route(
   // Public photo-attribution page (a browser follows the config page's link; no
   // device key). Rendered from the manifest the ingest script publishes to KV.
   if (url.pathname === "/credits") return handleCredits(env);
+
+  // The root is the EDITION HUB, not a Blipscope page -- this domain serves more
+  // than one product, and a customer who trims the path off a link must not land
+  // on the wrong edition's support. It was an unrouted 404 until now; see
+  // docs/web-url-convention.md, which reserved it for exactly this.
+  if (url.pathname === "/") return staticPage(indexHtml);
+
+  // Blipscope support. Edition-namespaced like every other page, so Missileer's
+  // equivalent can sit at /missileer/support without colliding -- though that one
+  // ships in valar-eam-feed, because the isMissileerPath branch above hands the
+  // whole /missileer/* prefix to the origin before this Worker sees it.
+  if (url.pathname === `${PAGE_PREFIX}/support`) return staticPage(supportHtml);
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).
