@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valar Scopes</title>
+<meta name="description" content="Desk instruments built on one open firmware. Live surfaces for each edition.">
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/inter.woff2) format('woff2')}
+  @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/mono.woff2) format('woff2')}
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500 700;
+    font-display:swap;src:url(/fonts/grotesk.woff2) format('woff2')}
+  :root{
+    --bg:#101215; --panel:#171a1e; --panel-2:#1c2025; --edge:#2a2f36;
+    --ink:#eceef1; --ink-2:#a8aeb7; --ink-3:#6f7680;
+    --live:#3ddc84; --amber:#e0a33a; --gold:#d9b45a; --nardo:#8f949b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;
+       font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:0 22px}
+  a{color:var(--live);text-decoration:none;border-bottom:1px solid rgba(61,220,132,.3)}
+  a:hover{border-bottom-color:var(--live)}
+  a:focus-visible{outline:2px solid var(--live);outline-offset:3px;border-radius:2px}
+
+  /* ---------- masthead ---------- */
+  header{padding:52px 0 26px;text-align:center}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;
+           text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:36px;font-weight:700;
+     letter-spacing:.01em;line-height:1.08}
+  .rule{font-size:15px;color:var(--ink-2);max-width:48ch;margin:14px auto 0}
+
+  /* ---------- edition cards ---------- */
+  .editions{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:34px 0 30px}
+  @media (max-width:620px){.editions{grid-template-columns:1fr}}
+  .ed{background:var(--panel);border:1px solid var(--edge);border-radius:8px;
+      padding:20px 19px;display:flex;flex-direction:column}
+  .ed .tag{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;
+           text-transform:uppercase;color:var(--live);margin-bottom:9px}
+  .ed h2{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;
+         margin-bottom:7px;letter-spacing:.01em}
+  .ed p{font-size:14px;color:var(--ink-2);line-height:1.5;flex:1}
+  .ed .links{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+  .ed .links a{background:var(--panel-2);border:1px solid var(--edge);border-radius:5px;
+               padding:6px 11px;font-size:13px;color:var(--ink-2);font-weight:500}
+  .ed .links a:hover{color:var(--ink);border-color:var(--nardo)}
+  .ed .links a.primary{background:var(--live);border-color:var(--live);color:var(--bg);font-weight:600}
+  .ed .links a.primary:hover{background:#4ee895;border-color:#4ee895}
+
+  /* ---------- more / footer ---------- */
+  .more{background:var(--panel);border:1px solid var(--edge);border-radius:8px;
+        padding:17px 19px;margin-bottom:30px}
+  .more h3{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin-bottom:6px}
+  .more p{font-size:13.5px;color:var(--ink-2);line-height:1.5}
+  footer{border-top:1px solid var(--edge);padding:20px 0 44px;text-align:center;
+         font-size:13px;color:var(--ink-3)}
+  footer a{color:var(--ink-3);border-bottom-color:rgba(111,118,128,.35)}
+  footer a:hover{color:var(--ink-2);border-bottom-color:var(--ink-3)}
+  footer .sep{margin:0 9px;color:var(--edge)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Valar Systems</div>
+    <h1>Valar Scopes</h1>
+    <p class="rule">Small desk instruments built from one open firmware. Each edition
+       watches something different and shows it on a round screen.</p>
+  </header>
+
+  <!--
+    ONLY editions with a live surface ON THIS DOMAIN belong here. Blipscope is
+    served by this Worker; Missileer is reverse-proxied to valar-eam-feed (see
+    src/missileer.ts). Every other edition is firmware with no web surface, so it
+    is covered by the "More editions" block below rather than given a card whose
+    links would 404. When an edition gains a surface here, give it a card and add
+    its paths to KNOWN_ROUTES in src/metrics.ts.
+  -->
+  <div class="editions">
+
+    <section class="ed">
+      <div class="tag">Aviation</div>
+      <h2>Blipscope</h2>
+      <p>A desk flight radar. Live aircraft around you, with type, airline, route
+         and a photo when you tap one.</p>
+      <div class="links">
+        <a class="primary" href="/blipscope/support">Support</a>
+        <a href="/blipscope/leaderboard">Leaderboard</a>
+      </div>
+    </section>
+
+    <section class="ed">
+      <div class="tag">EAM Monitor</div>
+      <h2>Missileer</h2>
+      <p>An HFGCS Emergency Action Message monitor — live traffic, codewords and
+         the standing alert tempo.</p>
+      <!--
+        No Support link yet, deliberately. /missileer/* is proxied to
+        valar-eam-feed, so /missileer/support has to ship in THAT repo; linking it
+        from here first would point at a 404 the origin generates. Add the link in
+        the same change that publishes the page.
+      -->
+      <div class="links">
+        <a href="/missileer/leaderboard">Leaderboard</a>
+        <a href="https://github.com/Valar-Systems/valar-scopes/wiki/Missileer">Guide</a>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="more">
+    <h3>More editions</h3>
+    <p>Orbitscope (space), Quakescope (earthquakes), Quillscope (birding),
+       Reelscope (fishing), Claudescope (Claude usage) and Speedscope (speed radar)
+       run on the same hardware. They have no web surface here — each one is
+       documented on the
+       <a href="https://github.com/Valar-Systems/valar-scopes/wiki">Valar Scopes wiki</a>.</p>
+  </div>
+
+  <footer>
+    <a href="https://valarsystems.com/products/blipscope">Order a kit</a>
+    <span class="sep">·</span>
+    <a href="https://github.com/Valar-Systems/valar-scopes">Source</a>
+    <span class="sep">·</span>
+    <a href="/credits">Photo credits</a>
+  </footer>
+
+</div>
+</body>
+</html>

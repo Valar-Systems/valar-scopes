@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blipscope Support</title>
+<meta name="description" content="Setup, troubleshooting and help for Blipscope — the desk flight radar.">
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/inter.woff2) format('woff2')}
+  @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/mono.woff2) format('woff2')}
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500 700;
+    font-display:swap;src:url(/fonts/grotesk.woff2) format('woff2')}
+  :root{
+    --bg:#101215; --panel:#171a1e; --panel-2:#1c2025; --edge:#2a2f36;
+    --ink:#eceef1; --ink-2:#a8aeb7; --ink-3:#6f7680;
+    --live:#3ddc84; --amber:#e0a33a; --gold:#d9b45a; --nardo:#8f949b; --alert:#ff4030;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;
+       font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:0 22px}
+  a{color:var(--live);text-decoration:none;border-bottom:1px solid rgba(61,220,132,.3)}
+  a:hover{border-bottom-color:var(--live)}
+  a:focus-visible{outline:2px solid var(--live);outline-offset:3px;border-radius:2px}
+  code{font-family:'JetBrains Mono',monospace;font-size:.88em;background:var(--panel-2);
+       border:1px solid var(--edge);border-radius:4px;padding:1px 5px;color:var(--ink)}
+
+  /* ---------- masthead ---------- */
+  header{padding:52px 0 24px;text-align:center}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;
+           text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+  .eyebrow a{color:var(--ink-3);border:none}
+  .eyebrow a:hover{color:var(--ink-2)}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:36px;font-weight:700;
+     letter-spacing:.01em;line-height:1.08}
+  .rule{font-size:15px;color:var(--ink-2);max-width:48ch;margin:14px auto 0}
+
+  /* ---------- jump nav ---------- */
+  nav.jump{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;
+           margin:26px 0 8px;padding-bottom:26px;border-bottom:1px solid var(--edge)}
+  nav.jump a{background:var(--panel);border:1px solid var(--edge);border-radius:5px;
+             padding:6px 12px;font-size:13px;color:var(--ink-2);font-weight:500}
+  nav.jump a:hover{color:var(--ink);border-color:var(--nardo)}
+
+  /* ---------- sections ---------- */
+  section.blk{padding:32px 0 4px;border-bottom:1px solid var(--edge)}
+  section.blk:last-of-type{border-bottom:none}
+  h2{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;
+     margin-bottom:14px;letter-spacing:.01em;scroll-margin-top:18px}
+  h3{font-family:'Inter',sans-serif;font-size:15.5px;font-weight:600;
+     margin:20px 0 5px;color:var(--ink)}
+  p{font-size:14.5px;color:var(--ink-2);margin-bottom:11px}
+  p b{color:var(--ink);font-weight:600}
+  ol,ul{margin:0 0 13px 20px}
+  li{font-size:14.5px;color:var(--ink-2);margin-bottom:6px}
+  li b{color:var(--ink);font-weight:600}
+
+  /* A problem and its fix, kept visually paired so the page scans. */
+  .fix{background:var(--panel);border:1px solid var(--edge);border-left:2px solid var(--amber);
+       border-radius:0 6px 6px 0;padding:14px 16px;margin:0 0 11px}
+  .fix .q{font-weight:600;color:var(--ink);font-size:14.5px;margin-bottom:5px}
+  .fix p{font-size:14px;margin-bottom:0}
+  .fix p + p{margin-top:8px}
+  .fix ol,.fix ul{margin:8px 0 0 20px}
+  .fix li{font-size:14px;margin-bottom:5px}
+
+  /* The staleness ladder. Three rows because the device has three states, and
+     the whole point is that they mean different things. */
+  .ladder{display:grid;grid-template-columns:auto 1fr;gap:1px;background:var(--edge);
+          border:1px solid var(--edge);border-radius:6px;overflow:hidden;margin:14px 0}
+  .ladder .tag,.ladder .what{background:var(--panel);padding:11px 14px}
+  .ladder .tag{font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;
+               white-space:nowrap;letter-spacing:.04em}
+  .ladder .what{font-size:13.5px;color:var(--ink-2);line-height:1.45}
+  .ladder .what b{color:var(--ink);font-weight:600}
+  .t-amber{color:var(--amber)} .t-red{color:var(--alert)} .t-grey{color:var(--nardo)}
+  @media (max-width:560px){
+    .ladder{grid-template-columns:1fr}
+    .ladder .tag{padding-bottom:0;background:var(--panel)}
+  }
+
+  .note{background:var(--panel-2);border:1px solid var(--edge);border-radius:6px;
+        padding:14px 16px;margin:14px 0}
+  .note p{font-size:13.5px;margin-bottom:0}
+  .note p + p{margin-top:8px}
+
+  /* Visually demoted: this section is not for the person who bought a finished
+     device, and it should not compete with the sections that are. */
+  section.builder{opacity:.92}
+  section.builder h2{font-size:19px}
+  section.builder .lede{font-family:'JetBrains Mono',monospace;font-size:11px;
+       letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px}
+
+  footer{border-top:1px solid var(--edge);padding:22px 0 46px;text-align:center;
+         font-size:13px;color:var(--ink-3);margin-top:34px}
+  footer a{color:var(--ink-3);border-bottom-color:rgba(111,118,128,.35)}
+  footer a:hover{color:var(--ink-2);border-bottom-color:var(--ink-3)}
+  footer .sep{margin:0 9px;color:var(--edge)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow"><a href="/">Valar Scopes</a> — Aviation</div>
+    <h1>Blipscope Support</h1>
+    <p class="rule">Setting it up, and what to try when something looks wrong.</p>
+  </header>
+
+  <nav class="jump">
+    <a href="#setup">Setup</a>
+    <a href="#problems">Troubleshooting</a>
+    <a href="#data">Flight data</a>
+    <a href="#updates">Updates</a>
+    <a href="#privacy">Privacy</a>
+    <a href="#help">Still stuck</a>
+  </nav>
+
+  <section class="blk">
+    <h2 id="setup">Setting it up</h2>
+    <p>Your Blipscope arrives assembled and already running. It needs two things
+       from you: your Wi-Fi, and where you are.</p>
+
+    <h3>First boot</h3>
+    <ol>
+      <li>Plug it in over USB-C. It broadcasts its own Wi-Fi hotspot, named
+          something like <code>Blipscope-A1B2C3</code> — <b>the exact name is shown
+          on the screen</b>.</li>
+      <li>Connect to that hotspot from a phone or laptop. A configuration page
+          should open automatically; if it doesn't, open a browser.</li>
+      <li>Enter your Wi-Fi name and password, then save. The device restarts and
+          joins your network.</li>
+    </ol>
+
+    <h3>The config page</h3>
+    <p>Once it is on your network, the config page is reachable from any device on
+       the same network at the address shown on screen —
+       <code>http://&lt;device-name&gt;.local</code>, for example
+       <code>http://blipscope-a1b2c3.local</code>. It stays available whenever the
+       device is on Wi-Fi, so you can change settings any time.</p>
+
+    <h3>Setting your location</h3>
+    <p>This is the one setting that matters most: it is the centre of your radar,
+       and until it is right the scope is watching the wrong patch of sky.</p>
+    <ol>
+      <li>Go to <a href="https://www.gps-coordinates.org">gps-coordinates.org</a>
+          and search your address.</li>
+      <li>Copy the <b>latitude</b> and <b>longitude</b> it gives you.</li>
+      <li>Paste them into <b>Location</b> on the config page and save.</li>
+    </ol>
+    <p>Then set <b>Radar radius</b> — how far out the scope reaches. It is capped at
+       about 222 km / 138 mi to stay inside the data rate limits.</p>
+  </section>
+
+  <section class="blk">
+    <h2 id="problems">Troubleshooting</h2>
+
+    <div class="fix">
+      <div class="q">The setup hotspot never appears</div>
+      <p>Give it a moment — it is not instant. If it still hasn't shown up after
+         about 30 seconds, leave your phone's Wi-Fi settings screen and go back
+         into it to force a refresh. Devices cache the network list more
+         aggressively than you would expect.</p>
+    </div>
+
+    <div class="fix">
+      <div class="q">I can't reach <code>http://&lt;device-name&gt;.local</code></div>
+      <p>That address relies on mDNS, which some networks and some Android
+         versions don't resolve. Check the screen — the device shows its address
+         once it has joined — and try the numeric IP from your router's client
+         list instead. A guest network or client isolation will also block it:
+         your phone and the device must be on the <b>same</b> network segment.</p>
+    </div>
+
+    <div class="fix">
+      <div class="q">The radar looks empty, or the aircraft aren't moving</div>
+      <p><b>Check your location first.</b> A blank or mistyped
+         latitude/longitude points the scope at empty sky, and that looks exactly
+         like a broken feed. See <a href="#setup">Setting your location</a>.</p>
+      <p>If the location is right, <b>read the banner at the top of the radar</b>.
+         Blipscope tells you when the picture has stopped being live rather than
+         letting you believe a stale one:</p>
+      <div class="ladder">
+        <div class="tag t-amber">STALE DATA</div>
+        <div class="what">A few updates missed. Routine on any source — it clears
+          itself and needs nothing from you.</div>
+        <div class="tag t-amber">STALE 3m</div>
+        <div class="what">Over a minute old, now counting. <b>The sweep stops</b>
+          — no rotating beam means what you are looking at is not current.</div>
+        <div class="tag t-red">NO DATA — 12m</div>
+        <div class="what">Nothing has arrived for ten minutes. Contacts turn
+          <b class="t-grey">dim grey</b> and freeze where they last were. They are
+          no longer a picture of anything.</div>
+      </div>
+      <p>All three clear themselves the moment data arrives — the scope snaps back
+         to colour and the sweep restarts. If it stays red, the device has lost
+         its internet connection; power-cycle it, and check your network is up.</p>
+      <p>And sometimes the sky really is empty. With no banner and a running sweep,
+         you are seeing everything there is — which at night, or away from the
+         airways, can genuinely be nothing.</p>
+    </div>
+
+    <div class="fix">
+      <div class="q">I need to move it to a different Wi-Fi network</div>
+      <p>Two ways, depending on whether you can still reach the screen's menus.</p>
+      <p><b>From the Stats screen.</b> Swipe to Stats and double-tap
+         <code>[ Reset Wi-Fi ]</code>. The first tap arms it and the second
+         confirms, so a stray touch can't wipe your network.</p>
+      <p><b>At boot, if the screen isn't cooperating.</b> Unplug it, plug it back
+         in, then <b>TOUCH &amp; HOLD for three seconds</b> — the screen prompts you
+         during a short window as it starts. Keep holding until it reads
+         <b>WI-FI RESET</b>. Letting go early cancels and keeps your settings.</p>
+      <p>Either way the device forgets the network and restarts into its own setup
+         hotspot, exactly as it did out of the box.</p>
+    </div>
+
+    <div class="fix">
+      <div class="q">The screen is blank or stuck</div>
+      <p>Unplug it, wait a few seconds, and plug it back in. Try a different USB-C
+         power supply and cable while you are there — some USB-C cables carry power
+         only, and a weak supply can brown out a device that looks fully dead.</p>
+      <p>If it stays blank through a power-cycle on known-good power, that is
+         hardware. Email us — see <a href="#help">Still stuck</a>.</p>
+    </div>
+
+    <div class="fix">
+      <div class="q">Touch doesn't respond, or responds in the wrong place</div>
+      <p>Power-cycle it first. If touch is consistently offset rather than dead,
+         that is worth reporting — include your model and firmware version, both
+         shown on the config page.</p>
+    </div>
+
+    <div class="fix">
+      <div class="q">Detail cards show a type code but no name or photo</div>
+      <p>Not everything is in the database. Aircraft whose type is reported
+         unconfirmed, and rarer types generally, can come back without a name or
+         photo — the position is still correct. If a <b>common</b> airliner shows
+         nothing at all, that is a bug worth reporting.</p>
+    </div>
+  </section>
+
+  <section class="blk">
+    <h2 id="data">Where your flight data comes from</h2>
+
+    <h3>Blipscope Cloud — on by default, nothing to set up</h3>
+    <p>Your device ships pointed at <b>Blipscope Cloud</b>, and for almost everyone
+       that is the whole story. There is no account to make, no key to paste and
+       nothing to renew.</p>
+    <p>Behind it we aggregate the community ADS-B networks —
+       <a href="https://adsb.fi">adsb.fi</a> and
+       <a href="https://adsb.lol">adsb.lol</a> — through our own relay, so your
+       device makes one request to us instead of competing for a public feed. We
+       sponsor adsb.lol because the data is theirs and volunteers pay for it.</p>
+
+    <h3>Your own ADS-B receiver — the best version of this</h3>
+    <p>If you run a receiver — dump1090-fa, readsb, PiAware, tar1090 or an ADS-B
+       Exchange feeder — point Blipscope at it. This is not a fallback; it is
+       better than anything we can send you. Positions come off your own antenna
+       with <b>no rate limits</b>, refreshing about once a second, so the radar is
+       smoother and genuinely live rather than a picture that updates.</p>
+    <p>It is also the strongest privacy position available: the radar never talks
+       to us at all. See <a href="#privacy">Privacy</a>.</p>
+
+    <h3>Your own OpenSky account — advanced</h3>
+    <p>You can point the device at your own
+       <a href="https://opensky-network.org">OpenSky Network</a> account instead of
+       Blipscope Cloud. Most people have no reason to: it is slower than both
+       options above and needs credentials. It exists for people who already have an
+       OpenSky account and would rather use it.</p>
+    <p>OpenSky moved to OAuth2 in 2026, so you need a <b>client ID</b> and <b>client
+       secret</b> rather than your username and password. Create an API client on
+       your OpenSky <b>Account</b> page; the secret is <b>not</b> displayed there —
+       it arrives in a downloaded <code>credentials.json</code> you open in any text
+       editor. Paste both into the config page.</p>
+    <div class="note">
+      <p>Treat <code>credentials.json</code> like a password. If you lose the
+         secret, use <b>Reset Credential</b> on your OpenSky account page to issue a
+         new one — which invalidates the old.</p>
+    </div>
+  </section>
+
+  <section class="blk">
+    <h2 id="updates">Firmware updates</h2>
+    <p>Your device updates itself. New firmware is picked up and installed on its
+       own, and each model only ever downloads the build made for it — there is
+       nothing for you to do, and nothing to plug into a computer.</p>
+    <p>Your current firmware version is shown on the config page. If you are
+       reporting a problem, include it.</p>
+  </section>
+
+  <section class="blk">
+    <h2 id="privacy">Privacy</h2>
+    <p><b>Blipscope does not track how you use it.</b> Nothing reports which screen
+       you look at, how often you tap, how long it is watched, or which aircraft you
+       open. That is a permanent decision, not a feature we haven't got to yet.</p>
+    <p>What a cloud device does send is operational: that it checked in, its model and
+       firmware version, and — after a firmware update — whether the update worked and
+       how much free memory it had. No location, no configuration, no serial number,
+       no list of aircraft you watched.</p>
+    <p>Run it against your own receiver and the radar never talks to us at all. The
+       <a href="/blipscope/leaderboard">spotting leaderboard</a> is separate, opt-in,
+       and off until you turn it on. The full detail, including exactly what the
+       leaderboard submits, is in the
+       <a href="https://github.com/Valar-Systems/valar-scopes#privacy--telemetry">Privacy
+       &amp; telemetry</a> section of the README.</p>
+  </section>
+
+  <section class="blk">
+    <h2 id="help">Still stuck</h2>
+    <p>Email <a href="mailto:support@valarsystems.com">support@valarsystems.com</a>
+       — a real person reads it.</p>
+    <p>The <a href="https://github.com/Valar-Systems/valar-scopes/wiki">Valar Scopes
+       wiki</a> has a deeper walkthrough of every screen and setting, and anything
+       that looks like a bug can go straight to
+       <a href="https://github.com/Valar-Systems/valar-scopes/issues">GitHub
+       issues</a>.</p>
+    <p>Whichever route, include your <b>model</b> and <b>firmware version</b> — both
+       are on the config page — and what the screen actually shows. That turns most
+       reports into a one-round-trip fix.</p>
+  </section>
+
+  <section class="blk builder">
+    <div class="lede">For tinkerers</div>
+    <h2 id="building">Building it yourself</h2>
+    <p>Nothing below is needed to use a Blipscope you bought — it updates itself,
+       and opening it is not part of owning one. This is here because the firmware
+       is open source and some people would rather build their own.</p>
+    <p>Install <a href="https://code.visualstudio.com/">VS Code</a> with the
+       PlatformIO extension, open
+       <a href="https://github.com/Valar-Systems/valar-scopes">the repository</a>,
+       connect a board over USB-C and hit upload. If a board doesn't reboot into new
+       firmware by itself, hold <b>BOOT</b>, press <b>RESET</b> once, then release
+       <b>BOOT</b> — those buttons are on the bare board, not on an assembled unit.</p>
+    <p>The <a href="https://github.com/Valar-Systems/valar-scopes/wiki">wiki</a> covers
+       assembly, the build variants and the per-edition guides.</p>
+  </section>
+
+  <footer>
+    <a href="/">All editions</a>
+    <span class="sep">·</span>
+    <a href="/blipscope/leaderboard">Leaderboard</a>
+    <span class="sep">·</span>
+    <a href="https://valarsystems.com/products/blipscope">Order a kit</a>
+    <span class="sep">·</span>
+    <a href="/credits">Photo credits</a>
+  </footer>
+
+</div>
+</body>
+</html>

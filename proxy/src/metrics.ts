@@ -67,6 +67,11 @@ export function setDeviceAttribution(
 // game service's route table in the other repo. Nothing at runtime reads it
 // from outside this module.
 export const KNOWN_ROUTES = new Set([
+  // Cross-edition pages. "/" is the hub, so it belongs to no edition and is not
+  // namespaced -- and it needs listing for the same reason as everything else:
+  // unlisted paths bucket to "/other", and the root is where a Shopify buyer who
+  // trims the path lands, which is traffic worth being able to see.
+  "/",
   // Edition-namespaced (current)
   "/api/v1/blipscope/blips",
   "/api/v1/blipscope/config",
@@ -74,6 +79,7 @@ export const KNOWN_ROUTES = new Set([
   "/api/v1/blipscope/leaderboard",
   "/blipscope/leaderboard",
   "/blipscope/leaderboard.json",
+  "/blipscope/support",
   // DEPRECATED aliases + redirects (retire when these read zero -- see above)
   "/v1/blips",
   "/v1/config",

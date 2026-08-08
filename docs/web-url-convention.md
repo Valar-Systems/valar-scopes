@@ -19,7 +19,16 @@ prefix is the thing a route rule can dispatch on later: `/blipscope/*` to this
 Worker, `/missileer/*` to the EAM one. Without it, one domain cannot serve two
 Workers without a shared router that has to know about every edition.
 
-`/` is deliberately unrouted. It becomes a hub page listing the editions.
+`/` is the **edition hub** — a page listing the editions, belonging to none of
+them. It was unrouted (a JSON 404) until 2026-08-07; the store's redirect now
+points at `/blipscope/support` directly, so a buyer lands on their own product's
+support rather than on a menu, and the hub catches everyone who arrives by
+trimming a path instead.
+
+Support is a **per-edition** surface, not a shared one: `/blipscope/support`
+here, `/missileer/support` in valar-eam-feed. Serving one product's support at
+`/` would mean the other product's owners landing on the wrong page, which is
+the whole reason the root is a hub.
 
 Infrastructure endpoints are **not** edition-scoped, because they describe the
 deployment rather than a product: `/healthz`, `/credits`, `/fonts/*`.
@@ -57,6 +66,13 @@ no second route table to drift.
 | `/blipscope/leaderboard` | `/leaderboard` | 301 |
 | `/blipscope/leaderboard.json` | `/leaderboard.json` | 301 |
 | `/blipscope/leaderboard/<id>` | `/leaderboard/<id>` | 301 |
+| `/blipscope/support` | — | new 2026-08-07; no legacy path |
+| `/` (edition hub) | — | new 2026-08-07; not edition-scoped |
+
+Both new pages are authored in `proxy/pages/*.html` and embedded by
+`scripts/embed-pages.mjs`. `test/pages.test.ts` fetches **every same-origin link
+on them for real**, so a page can no longer advertise a path that does not
+resolve — the gap that let the 301 move above go unnoticed in production.
 
 ### APIs
 

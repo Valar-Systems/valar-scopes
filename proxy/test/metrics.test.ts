@@ -159,13 +159,20 @@ describe("routeTemplate", () => {
     for (const p of [
       "/v1/blips", "/v1/config", "/v1/airports", "/v1/leaderboard",
       "/healthz", "/credits", "/leaderboard", "/leaderboard.json",
+      // "/" was an unrecognised path -- an unrouted 404 -- until the edition hub
+      // shipped there. It is a real page now, and the root is where store traffic
+      // lands, so bucketing it to "/other" would hide the arrivals we most want
+      // to see.
+      "/", "/blipscope/support",
     ]) {
       expect(routeTemplate(p)).toBe(p);
     }
   });
 
   it("buckets anything unrecognised, so a 404 sweep cannot mint index values", () => {
-    for (const p of ["/", "/wp-login.php", "/.env", "/v1/", "/v1/blips/extra", "/" + "x".repeat(4000)]) {
+    // Deliberately no "/" here any more: it is a routed page. The scanner bait
+    // below still carries the point of the test.
+    for (const p of ["/wp-login.php", "/.env", "/v1/", "/v1/blips/extra", "/" + "x".repeat(4000)]) {
       expect(routeTemplate(p)).toBe("/other");
     }
   });
