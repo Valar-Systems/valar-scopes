@@ -81,19 +81,20 @@ UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
 # experiment path and is deliberately NOT used here -- staging must run the same TTL
 # production will, or the soak validates a config we aren't shipping.
 UPSTREAM_ADSB_FI_ENABLED = "true"
-# FRESHNESS A/B IN PROGRESS -- staging is currently on the 50 s TTL path.
-# The relay serves the SAME adsb.fi upstream at three tile TTLs, differing in
-# nothing else, so switching this pair is a one-variable experiment:
-#   /fi     8 s -- production-like, what the cutover soak should watch
-#   /fi25  25 s -- what a raised rate limit (2 IPs, or a commercial tier) buys back
-#   /fi50  50 s -- what ONE IP forces at 50-unit pilot scale
-# Flip with `wrangler deploy --env staging` after editing, or edit the var in the
-# Cloudflare dashboard for an instant change with no deploy.
-UPSTREAM_ADSB_FI_BASE = "https://relay-a.valarsystems.com/fi50"
-UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi50"
-# N >= 2 x TTL + 25 s. 125 s satisfies ALL THREE paths above (50/25/8 s), so the
-# A/B never needs this flipped in step with the base URL -- one variable moves.
-BLIPS_FEED_MAX_AGE_MS = "125000"
+# FRESHNESS A/B ENDED 2026-08-08 -- staging is back on /fi, the path production runs.
+# The relay still serves the SAME adsb.fi upstream at three tile TTLs, so the
+# experiment can be re-run by moving this pair alone:
+#   /fi     8 s -- THE SHIPPING CONFIG, and what staging must therefore soak
+#   /fi25  25 s -- what two sanctioned IPs would buy at 50-board scale
+#   /fi50  50 s -- what ONE IP would force; rejected on staleness
+# STAGING MUST RUN THE PATH PRODUCTION RUNS. While this sat on /fi50 the only Worker
+# traffic either relay saw was a 50 s-TTL soak, so the pre-pilot numbers described a
+# config we were not shipping -- and production's own /fi path saw no Worker traffic at
+# all. Re-point this in the same change as any production TTL move, never separately.
+UPSTREAM_ADSB_FI_BASE = "https://relay-a.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
+# Unset on purpose, exactly as in production: both envs take the 45 s default so they
+# cannot drift apart. If the relay TTL moves, raise this in BOTH blocks first.
 # airplanes.live is PROHIBITED by operator (written refusal) and hardcoded off in
 # code -- this var is a dead no-op. See "Upstream licensing posture" in README.md.
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
@@ -198,6 +199,15 @@ UPSTREAM_ADSB_FI_BASE   = "https://relay-a.valarsystems.com/fi"
 UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 ROUTE_ADSBDB_ENABLED = "true"
+# BLIPS_FEED_MAX_AGE_MS is deliberately UNSET here: the 45 s default (see
+# DEFAULT_FEED_MAX_AGE_MS in upstreams/chain.ts) is correct for the relay's current
+# 8 s tile TTL under the rule N >= 2 x TTL + 25 s.
+#
+# IT MOVES WITH THE RELAY TTL, IN THIS ORDER: raise this var FIRST, deploy, then raise
+# CACHE_TTL on the boxes. Backwards and every fetch looks degraded, so the chain walks
+# all feeds on every request. The 50-board sizing wants a 30 s TTL (-> 85000 here), but
+# that is blocked on the device stale-ladder fix -- see the long note on CACHE_TTL in
+# relay/setup-relay.sh for why the two constraints do not currently both fit.
 
 # Runaway kill switch, NOT a performance target. CPU time excludes time waiting on
 # I/O, so the real work here is JSON parse + nearest-N sort on the blips path;

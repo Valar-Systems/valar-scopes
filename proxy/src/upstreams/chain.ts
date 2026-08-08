@@ -41,18 +41,14 @@ export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, adsbFiB
 // dedupe everyone's problem forever; the failover chain keeps each response traceable to
 // exactly one operator.
 //
-// Per-operation priority: each source leads with relay-a and fails over to relay-b.
-// The two relays are a good-citizen PRIMARY + FAILOVER pair, NOT a load-split to defeat
-// adsb.lol's per-IP limit -- collapsed, gentle traffic through one IP with the other
-// as hot standby. (An earlier build sharded hex onto relay-b to halve per-IP load; that
-// was the wrong fix. The right fix is not hammering adsb.lol at all -- KV-authoritative
-// enrichment + negative caching + watchlist-only background, see enrich.ts and the
-// relay's /v2/hex hold-down. Scaling headroom via an IP farm is an explicit non-goal.)
-// relay-b is the terminal feed, which the breaker never skips (see the loops below), so
-// a relay-a outage fails over rather than blanking the fleet. The trailing feeds are
-// inert (airplanes.live prohibited + dark, adsb.fi licence-blocked), so `ordered()`
-// filters them; with the relay URLs unset (dev/test) each chain collapses to a single
-// direct-adsb.lol feed -- unchanged legacy behaviour.
+// Per-operation priority: each source is a relay PAIR, and which half of the pair
+// leads is decided per cache key by partitionOrder() below. The loser of that draw
+// is the failover leg. relay-b (or relay-a, on a key that hashes the other way) is
+// the terminal feed, which the breaker never skips (see the loops below), so a
+// single-relay outage fails over rather than blanking the fleet. The trailing feeds
+// are inert (airplanes.live prohibited + dark), so `ordered()` filters them; with the
+// relay URLs unset (dev/test) each chain collapses to a single direct feed --
+// unchanged legacy behaviour.
 //
 // adsb_lol_b stays TERMINAL (last), which is load-bearing: the breaker may never skip
 // the terminal feed, so the one leg the chain can always fall back to is the one with
@@ -60,6 +56,98 @@ export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, adsbFiB
 // mid-array but is hardcoded dark, so `ordered()` always filters it out.
 const POINT_ORDER: UpstreamAircraftFeed[] = [adsbFi, adsbFiB, airplanesLive, adsbLol, adsbLolB];
 const HEX_ORDER: UpstreamAircraftFeed[] = [adsbFi, adsbFiB, airplanesLive, adsbLol, adsbLolB];
+
+// ---- tile partitioning across the relay pair ---------------------------------
+// REVERSES A PRIOR DECISION, deliberately and with a different reason -- recorded
+// here so it does not read as drift.
+//
+// WHAT WAS REJECTED BEFORE (commit a10dc30, 2026-07-22): sharding ENRICHMENT (hex)
+// onto relay-b to halve our per-IP rate against adsb.lol. That was correctly called
+// the wrong fix, because the load itself was the bug -- a hex retry storm against a
+// hostile, un-cacheable per-IP limit. The right fix was to stop generating it
+// (KV-authoritative enrichment + negative caching + the relay's /v2/hex hold-down),
+// and it worked: hex is now ~0.6 upstream fetches/min fleet-wide.
+//
+// WHY THIS IS NOT THAT: three things changed.
+//   1. The primary is adsb.fi, whose operator has SANCTIONED polling from both our
+//      IPs in writing ("feel free to continue polling from your two locations").
+//      Spreading load is now the arrangement we were granted, not a limit we are
+//      routing around.
+//   2. POSITION load is irreducible in a way hex never was. A live picture cannot be
+//      cached long -- the fetch rate is (distinct hot tiles) / CACHE_TTL by
+//      construction, and no amount of being well-behaved lowers it. At the 8 s TTL
+//      that is ~8 hot tiles per IP; the 50-board pilot needs ~50.
+//   3. Concentration was measurably costing us. Over 24 h on 2026-08-07, relay-a
+//      took 43 x HTTP 429 from adsb.fi and relay-b took ZERO, while relay-b carried
+//      0.4 % of Worker traffic. adsb.fi counts 429s toward the same limit, so the
+//      idle IP was not merely wasted -- the loaded one was digging a hole.
+//
+// WHAT THIS IS NOT: round-robin. Alternating relays PER REQUEST would put every tile
+// in both relay caches, so each relay refreshes every tile independently: total
+// upstream fetches DOUBLE and the per-IP rate does not fall at all. That is not a
+// theory -- the fi-bench poller ran on both boxes against the same tile and spent
+// 12,728 upstream fetches for one tile's worth of freshness, exactly 2x. Partitioning
+// on the cache key is what makes the capacity real: the key picks the relay, so no
+// key is ever fetched twice and the two IPs actually add.
+//
+// The pairs, primary-first. A swap only ever happens WITHIN a pair, never across one,
+// so source priority (adsb.fi before adsb.lol) is untouched -- and so is the rule that
+// the terminal feed carries the irrevocable ODbL licence, since both halves of the
+// adsb.lol pair are adsb.lol.
+const RELAY_PAIRS: [UpstreamAircraftFeed, UpstreamAircraftFeed][] = [
+  [adsbFi, adsbFiB],
+  [adsbLol, adsbLolB],
+];
+
+// FNV-1a plus a murmur3 finalizer. Needs to be STABLE ACROSS COLOS AND DEPLOYS, not
+// cryptographic: Workers in different PoPs must route the same key to the same relay,
+// or the key lands in both relay caches and we pay the fetch twice -- the exact
+// duplication this exists to avoid. Nothing here may ever depend on request-local
+// state (colo, time, isolate).
+//
+// THE FINALIZER IS NOT DECORATION -- without it this function is broken for the one
+// use it has. Bare FNV-1a cannot be used with `% 2`: the step is `h = (h ^ c) * prime`
+// with an ODD prime, and multiplying mod 2^32 by an odd number preserves bit 0, so the
+// low bit degenerates to `1 XOR (XOR of the low bits of every input character)`. Tile
+// keys are digits and punctuation, so that made the relay choice a parity check on the
+// coordinate digits: '2'/'4'/'6' all share a low bit, and the two radius buckets of a
+// tile ("...,24" vs "...,46") could NEVER split. Aggregate balance still looked like a
+// clean 50/50, which is exactly why this needed catching by construction rather than
+// by eyeballing a distribution. fmix32 avalanches the whole word so bit 0 depends on
+// every input bit.
+export function partitionHash(key: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+// Even hash -> the default order (relay-a leads). Odd -> relay-b leads and relay-a is
+// the failover. Positions in the array are preserved, so the inert middle feed and the
+// terminal slot keep their meaning.
+export function partitionOrder(
+  order: UpstreamAircraftFeed[],
+  key: string,
+): UpstreamAircraftFeed[] {
+  if (partitionHash(key) % 2 === 0) return order;
+  const out = [...order];
+  for (const [a, b] of RELAY_PAIRS) {
+    const ia = out.indexOf(a);
+    const ib = out.indexOf(b);
+    if (ia >= 0 && ib >= 0) {
+      out[ia] = b;
+      out[ib] = a;
+    }
+  }
+  return out;
+}
 
 // Optional per-env priority override: UPSTREAM_FEED_ORDER = "adsb_lol,adsb_lol_b".
 // THE ROLLBACK KNOB. The default order below is the shipping decision; this exists so
@@ -87,8 +175,18 @@ function applyOrderOverride(
   return [...front, ...order.filter((f) => !front.includes(f))];
 }
 
-function ordered(env: Env, order: UpstreamAircraftFeed[]): UpstreamAircraftFeed[] {
-  return applyOrderOverride(env, order, env.UPSTREAM_FEED_ORDER).filter((f) => f.enabled(env));
+// partitionKey picks which half of each relay pair leads (see partitionOrder). The
+// override is applied AFTER partitioning on purpose: pinning a feed in
+// UPSTREAM_FEED_ORDER hoists it to the front for every key, which is precisely the
+// 2 a.m. behaviour wanted -- naming a relay turns partitioning off for that source
+// without a deploy. An unset key (no partitioning) is the legacy order.
+function ordered(
+  env: Env,
+  order: UpstreamAircraftFeed[],
+  partitionKey?: string,
+): UpstreamAircraftFeed[] {
+  const base = partitionKey ? partitionOrder(order, partitionKey) : order;
+  return applyOrderOverride(env, base, env.UPSTREAM_FEED_ORDER).filter((f) => f.enabled(env));
 }
 
 export function enabledFeeds(env: Env): UpstreamAircraftFeed[] {
@@ -227,7 +325,11 @@ export async function fetchPointChain(
   lonQ: string,
   distNm: number,
 ): Promise<PointResult | null> {
-  const feeds = ordered(env, POINT_ORDER);
+  // The partition key is exactly the relay's cache key for this fetch
+  // (lat/lon/dist -> one nginx cache entry), so a key can never be resident on both
+  // relays at once. Keying on anything coarser (the tile alone) would let two radius
+  // buckets of the same tile disagree about which relay owns them.
+  const feeds = ordered(env, POINT_ORDER, `${latQ},${lonQ},${distNm}`);
   const maxAgeMs = intEnv(env.BLIPS_FEED_MAX_AGE_MS, DEFAULT_FEED_MAX_AGE_MS);
   // Freshest degraded answer seen so far. A stale picture still beats no picture, so
   // we never DISCARD one -- we only decline to stop walking the chain on it. This
@@ -291,7 +393,11 @@ export interface HexResult {
 }
 
 export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | null> {
-  const feeds = ordered(env, HEX_ORDER);
+  // Hex is the relay's cache key here, and hex volume is small (~0.6 upstream
+  // fetches/min fleet-wide after the KV-authoritative rework). Partitioning it is not
+  // about rate -- it is about BURST: hex is the path that actually took 429s, because
+  // a card open fires a lookup with no tile cadence smoothing it.
+  const feeds = ordered(env, HEX_ORDER, hex);
   for (let i = 0; i < feeds.length; i++) {
     const feed = feeds[i];
     // Same rule as the point chain: never let the breaker skip the terminal feed
