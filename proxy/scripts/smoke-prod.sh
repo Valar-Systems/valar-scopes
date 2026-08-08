@@ -202,6 +202,83 @@ else
     -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX"
 fi
 
+# 2b. THE UPSTREAM CHAIN: is the served picture fresh, and are both relays serving?
+#
+# WHY THIS EXISTS. The freshness failover -- the chain declining to stop on a relay
+# that answers HTTP 200 carrying a stale picture -- is covered by three tests in
+# test/blips.test.ts and had never fired in production as of 2026-08-08. Those tests
+# run in miniflare against a mock. Nothing here ever touched the mechanism against the
+# real deployment, and it is a mechanism that ONLY matters when something is already
+# wrong, which is the worst kind of thing to find broken at the moment you need it.
+#
+# WHAT THIS ACTUALLY ASSERTS, deliberately narrower than "failover works":
+#   1. Every probed tile comes back with a picture inside the degraded threshold. The
+#      original bug was relay-a returning a stale 200 and the chain stopping there; if
+#      that regresses, the age crosses the line here and this fails.
+#   2. More than one relay id appears across the probes. Tile partitioning puts BOTH
+#      relays in the normal serving path, so a dead or misconfigured relay-b stops
+#      being invisible -- under the failover-only chain relay-b served 0.4 % of Worker
+#      traffic and could have been down for weeks with no symptom at all.
+#
+# WHAT IT DOES NOT ASSERT: that a stale relay actually triggers a failover. Forcing
+# that in production means deliberately degrading a live relay, which is not worth it.
+# This is the strongest honest check that breaks nothing -- do not let it be read as
+# proof the failover fires.
+#
+# The age ceiling is 90 s: comfortably above the 45 s degraded threshold (so a healthy
+# fetch never trips it) and far below the 600 s SWR ceiling. A tile served as X-Cache
+# STALE can legitimately be older than 90 s, so X-Cache is printed on every line --
+# check it before treating a single breach as an upstream fault.
+MAX_AGE_S="${MAX_AGE_S:-90}"
+# Spread over real metros, which is both where aircraft are and where the pilot boards
+# will be. Several tiles, because ONE tile only ever exercises ONE relay under
+# partitioning -- a single probe could pass with the other relay dead.
+CHAIN_TILES="47.40,8.55 51.47,-0.45 40.64,-73.78 33.94,-118.41 35.55,139.78 -33.94,151.18"
+CHAIN_UPSTREAMS=""
+chain_fail=0
+chain_n=0
+printf '\n===== upstream chain (freshness + both relays serving) =====\n'
+printf 'expect: every tile fresh within %ss, and >1 distinct relay across the probes\n' "$MAX_AGE_S"
+for t in $CHAIN_TILES; do
+  tlat="${t%%,*}"; tlon="${t##*,}"
+  hdrs="$(mktemp)"; body="$(curl -s -D "$hdrs" --max-time 25 \
+    -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=1")"
+  st="$(awk 'NR==1{print $2}' "$hdrs")"
+  up="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-upstream"{print $2}')"
+  ch="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-cache"{print $2}')"
+  rm -f "$hdrs"
+  # Picture timestamp: {"v":1,"t":<epoch seconds>,...}. Its absence is itself a fault.
+  pt="$(printf '%s' "$body" | grep -oE '"t":[0-9]+' | head -1 | cut -d: -f2)"
+  chain_n=$((chain_n+1))
+  if [ "$st" != "200" ] || [ -z "$pt" ]; then
+    printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=?     FAIL\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}"
+    chain_fail=$((chain_fail+1)); continue
+  fi
+  age=$(( $(date -u +%s) - pt ))
+  if [ "$age" -gt "$MAX_AGE_S" ] || [ "$age" -lt 0 ]; then
+    printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=%-4ss FAIL (stale)\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}" "$age"
+    chain_fail=$((chain_fail+1))
+  else
+    printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=%-4ss ok\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}" "$age"
+  fi
+  case " $CHAIN_UPSTREAMS " in *" ${up:-none} "*) ;; *) CHAIN_UPSTREAMS="$CHAIN_UPSTREAMS ${up:-none}" ;; esac
+done
+# shellcheck disable=SC2086
+CHAIN_DISTINCT="$(printf '%s\n' $CHAIN_UPSTREAMS | grep -c .)"
+printf 'relays seen across %d tiles:%s (%s distinct)\n' "$chain_n" "$CHAIN_UPSTREAMS" "$CHAIN_DISTINCT"
+if [ "$chain_fail" -gt 0 ]; then
+  printf 'RESULT: FAIL -- %d of %d tiles were stale or errored.\n' "$chain_fail" "$chain_n"
+  fail=$((fail+1))
+elif [ "${CHAIN_DISTINCT:-0}" -lt 2 ]; then
+  printf 'RESULT: FAIL -- only one relay answered. Either its partner is down (check the\n'
+  printf '        other relay directly) or partitioning is off (check UPSTREAM_FEED_ORDER).\n'
+  printf '        Serving is FINE right now -- this is the failover leg being unproven.\n'
+  fail=$((fail+1))
+else
+  printf 'RESULT: PASS\n'
+  pass=$((pass+1))
+fi
+
 # 3. config for every model slug the firmware can send (variant::SLUG values).
 #    Note s3-128 / s3-175-amoled have no MODEL_DEFAULTS row -- they resolve to the
 #    BASE config, which is correct, not a miss.

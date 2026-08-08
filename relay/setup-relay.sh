@@ -27,16 +27,39 @@
 set -euo pipefail
 
 # ---- tunables ---------------------------------------------------------------
-# THE scaling knob. adsb.lol upstream fetch rate ~= (distinct hot tiles) / CACHE_TTL,
+# THE scaling knob. Upstream fetch rate ~= (distinct hot tiles) / CACHE_TTL,
 # independent of device count (the fleet collapses to one fetch per tile per TTL).
-# 8s: the device flags "stale" past staleFactor(3) x poll interval = 15s on an ACTIVE
-# (5s) poll, so the data it receives must stay well under 15s old. TTL is the floor on
-# how fresh a tile can be; 8s keeps a rural tile (small body, ~4s foreground fetch)
-# refreshing fast enough that the device sees ~10-15s-old data. It is NOT a pile-up
-# risk: refresh is foreground + proxy_cache_lock, so a busy tile whose fetch (~16s)
-# exceeds the TTL just refreshes at its fetch rate (one at a time) while use_stale
-# serves the rest -- the TTL is a floor, the throttle is the real ceiling. Lower for
-# freshness; raise only if a soak shows adsb.lol 429ing at our fetch rate.
+# It is NOT a pile-up risk: refresh is foreground + proxy_cache_lock, so a busy tile
+# whose fetch exceeds the TTL just refreshes at its fetch rate (one at a time) while
+# use_stale serves the rest -- the TTL is a floor, the throttle is the real ceiling.
+#
+# !! THIS KNOB IS PINCHED BETWEEN TWO CONSTRAINTS THAT DO NOT BOTH FIT AT 50 BOARDS !!
+#
+#   RATE (pushes UP):   adsb.fi is 1 req/s per IP, 4xx/429 counted. 50 scattered
+#                       boards are ~50 distinct 0.05-deg tiles. 50/TTL must stay under
+#                       the two-IP budget of 2 req/s, so TTL >= 25s; 30s leaves ~17%
+#                       headroom. (Two IPs only count if BOTH carry traffic -- see
+#                       partitionOrder in proxy/src/upstreams/chain.ts. Under pure
+#                       failover the budget is one IP and TTL would have to be 50s.)
+#
+#   STALENESS (pushes DOWN): the device flags amber past staleFactor(3) x THE CURRENT
+#                       POLL INTERVAL, and the age it measures INCLUDES the server-side
+#                       lag (AircraftManager::IsDataStale, dataLagAtMergeMs, which is
+#                       derived from the picture timestamp we serve). On an ACTIVE 5s
+#                       poll that threshold is 15s -- not the 45s idle figure. So 8s was
+#                       not a freshness preference, it was the largest TTL that keeps an
+#                       ACTIVE device under its own amber line (8s TTL + ~1s fetch + up
+#                       to 5s since merge ~= 14s, just inside 15s).
+#
+# 30s SATISFIES THE RATE CONSTRAINT AND BREAKS THE STALENESS ONE: an active device
+# would sit on amber almost continuously. Raising this to 30s is therefore COUPLED to
+# fixing the stale rule -- either raise cloudCfg.staleFactor (served from
+# proxy/src/config.ts, no firmware release) or, better, give the rule an absolute floor
+# so a fast poll stops being a hair trigger. DO NOT raise this alone.
+#
+# Related, and already true at 8s: the s3-146 and s3-21 SKUs poll ACTIVE at 2s, so
+# their amber line is 6s -- below today's 8s TTL. Those boards can already flag stale
+# while someone is watching them.
 CACHE_TTL="${CACHE_TTL:-8s}"
 
 # Tile TTL for the /fi50 experiment path only (see the location block below).

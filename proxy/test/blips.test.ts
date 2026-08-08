@@ -222,6 +222,12 @@ describe("/v1/blips", () => {
   const B = "https://relay-b.test";
   const tile = (lat: number) => `/v2/lat/${lat}.00/lon/50.00/dist/24`;
 
+  // TILE CHOICE IS LOAD-BEARING IN THIS BLOCK. Which relay LEADS is now decided per
+  // cache key (see partitionOrder in chain.ts), so a test about freshness has to pick
+  // a tile whose leader it means to talk about, or it silently starts testing the
+  // other direction. Every tile below hashes to relay-a leading, which keeps these
+  // reading as "primary -> secondary" exactly as they did before partitioning; the
+  // relay-b-leads direction gets its own tests in the partitioning block.
   it("stops at the primary when its picture is fresh -- the secondary is never called", async () => {
     // No relay-b interceptor is registered, so assertNoPendingInterceptors is not
     // what proves this; disableNetConnect is -- any call to B would throw.
@@ -247,10 +253,10 @@ describe("/v1/blips", () => {
   it("serves the FRESHEST stale picture when every feed is degraded", async () => {
     // Non-regression: a degraded feed is never discarded, only deprioritized. Every
     // request that used to get data must still get data.
-    fetchMock.get(A).intercept({ path: tile(72) }).reply(200, pointBody([makeAc({ hex: "aa0003", lat: 72, lon: 50 })], FIXTURE_NOW_MS - 600_000));
-    fetchMock.get(B).intercept({ path: tile(72) }).reply(200, pointBody([makeAc({ hex: "bb0003", lat: 72, lon: 50 })], FIXTURE_NOW_MS - 120_000));
+    fetchMock.get(A).intercept({ path: tile(68) }).reply(200, pointBody([makeAc({ hex: "aa0003", lat: 68, lon: 50 })], FIXTURE_NOW_MS - 600_000));
+    fetchMock.get(B).intercept({ path: tile(68) }).reply(200, pointBody([makeAc({ hex: "bb0003", lat: 68, lon: 50 })], FIXTURE_NOW_MS - 120_000));
 
-    const res = await call(apiRequest("/v1/blips?lat=72&lon=50&r=40"), RELAY);
+    const res = await call(apiRequest("/v1/blips?lat=68&lon=50&r=40"), RELAY);
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Upstream")).toBe("adsb_lol_b"); // 2 min beats 10 min
     expect(((await res.json()) as { a: unknown[][] }).a[0]?.[0]).toBe("bb0003");
@@ -259,9 +265,9 @@ describe("/v1/blips", () => {
   it("does not fail over for staleness within the threshold", async () => {
     // 20 s old is normal (relay TTL + a slow throttled upstream fetch), not degraded.
     // Failing over here would flap on every busy tile and double our upstream load.
-    fetchMock.get(A).intercept({ path: tile(73) }).reply(200, pointBody([makeAc({ hex: "aa0004", lat: 73, lon: 50 })], FIXTURE_NOW_MS - 20_000));
+    fetchMock.get(A).intercept({ path: tile(72) }).reply(200, pointBody([makeAc({ hex: "aa0004", lat: 72, lon: 50 })], FIXTURE_NOW_MS - 20_000));
 
-    const res = await call(apiRequest("/v1/blips?lat=73&lon=50&r=40"), RELAY);
+    const res = await call(apiRequest("/v1/blips?lat=72&lon=50&r=40"), RELAY);
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
   });
@@ -270,9 +276,9 @@ describe("/v1/blips", () => {
     // Raising the relay CACHE_TTL (as the adsb.fi 1 req/s budget requires) makes
     // legitimately-old pictures normal, so N has to move with it or the chain walks
     // every feed on every request.
-    fetchMock.get(A).intercept({ path: tile(74) }).reply(200, pointBody([makeAc({ hex: "aa0005", lat: 74, lon: 50 })], FIXTURE_NOW_MS - 90_000));
+    fetchMock.get(A).intercept({ path: tile(69) }).reply(200, pointBody([makeAc({ hex: "aa0005", lat: 69, lon: 50 })], FIXTURE_NOW_MS - 90_000));
 
-    const res = await call(apiRequest("/v1/blips?lat=74&lon=50&r=40"), {
+    const res = await call(apiRequest("/v1/blips?lat=69&lon=50&r=40"), {
       ...RELAY,
       BLIPS_FEED_MAX_AGE_MS: "120000",
     });
@@ -328,6 +334,8 @@ describe("/v1/blips", () => {
       UPSTREAM_ADSB_LOL_BASE_B: RB,
       RELAY_KEY: "test-relay-key",
     };
+    // 55/55 is a tile that partitions to relay-a leading, so this stays a test of
+    // "primary errors -> secondary answers" rather than accidentally starting at B.
     fetchMock.get(RA).intercept({ path: "/v2/lat/55.00/lon/55.00/dist/24" }).replyWithError(new Error("relay-a down"));
     fetchMock
       .get(RB)
@@ -344,5 +352,108 @@ describe("/v1/blips", () => {
     expect((await call(apiRequest("/v1/blips?lat=999&lon=8&r=40"))).status).toBe(400);
     expect((await call(apiRequest("/v1/blips?lat=47&lon=8&r=nope"))).status).toBe(400);
     expect((await call(apiRequest("/v1/blips?lon=8&r=40"))).status).toBe(400);
+  });
+
+  // ---- tile partitioning across the relay pair -------------------------------
+  // The point of these is the SECOND relay being in the NORMAL path, not just the
+  // failure path. Under pure failover relay-b was only ever exercised when something
+  // was already wrong, which is the worst time to discover it is broken.
+  describe("relay partitioning", () => {
+    it("leads with relay-b on a tile that partitions to it, with relay-a healthy", async () => {
+      // 74/50 hashes to relay-b leading.
+      //
+      // RELAY-A IS DELIBERATELY HEALTHY HERE. The obvious version of this test omits
+      // the relay-a interceptor and asserts X-Upstream is adsb_lol_b -- and it passes
+      // whether or not partitioning works, because with partitioning off the chain
+      // tries relay-a, fails to match, and FAILS OVER to relay-b anyway. It asserts
+      // the destination while the failover quietly supplies it. Verified by disabling
+      // partitionOrder: that version still passed.
+      // Giving relay-a a good answer removes the escape route -- if the chain ever
+      // consults relay-a first it will stop there, X-Upstream becomes adsb_lol and
+      // the picture is aa1001.
+      fetchMock.get(A).intercept({ path: tile(74) }).reply(200, pointBody([makeAc({ hex: "aa1001", lat: 74, lon: 50 })]));
+      fetchMock.get(B).intercept({ path: tile(74) }).reply(200, pointBody([makeAc({ hex: "bb1001", lat: 74, lon: 50 })]));
+
+      const res = await call(apiRequest("/v1/blips?lat=74&lon=50&r=40"), RELAY);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Upstream")).toBe("adsb_lol_b");
+      expect(((await res.json()) as { a: unknown[][] }).a[0]?.[0]).toBe("bb1001");
+
+      // relay-a's interceptor being UNCONSUMED is the result under test, so assert it
+      // directly rather than leaving it to be inferred. Checked before the retiring
+      // fetch below so a regression fails here, cleanly, instead of as a confusing
+      // net-connect error in this test and a cascade through the rest of the file.
+      expect(fetchMock.pendingInterceptors().length).toBe(1);
+      // Retire it, so the global assertNoPendingInterceptors stays a real check for
+      // every other test rather than tripping on this one's evidence.
+      await fetch(`${A}${tile(74)}`);
+    });
+
+    it("fails over B -> A, so the partition never costs availability", async () => {
+      // A B-leading tile whose leader is down. The failover has to work in BOTH
+      // directions now; before partitioning only A -> B was ever exercised.
+      fetchMock.get(B).intercept({ path: tile(75) }).replyWithError(new Error("relay-b down"));
+      fetchMock.get(A).intercept({ path: tile(75) }).reply(200, pointBody([makeAc({ hex: "aa1002", lat: 75, lon: 50 })]));
+
+      const res = await call(apiRequest("/v1/blips?lat=75&lon=50&r=40"), RELAY);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+    });
+
+    it("sends the same key to the same relay every time", async () => {
+      // STABILITY IS THE WHOLE POINT. If the choice varied by colo, isolate or clock,
+      // the key would end up resident in both relay caches and we would pay the
+      // upstream fetch twice -- the duplication this design exists to avoid. Two
+      // requests, one interceptor: the second must be a cache HIT on the same relay,
+      // and assertNoPendingInterceptors proves no second upstream call happened.
+      fetchMock.get(B).intercept({ path: tile(76) }).reply(200, pointBody([makeAc({ hex: "bb1003", lat: 76, lon: 50 })]));
+
+      const first = await call(apiRequest("/v1/blips?lat=76&lon=50&r=40"), RELAY);
+      expect(first.headers.get("X-Upstream")).toBe("adsb_lol_b");
+      const second = await call(apiRequest("/v1/blips?lat=76.01&lon=50.01&r=40"), RELAY);
+      expect(second.headers.get("X-Cache")).toBe("HIT");
+      expect(second.headers.get("X-Upstream")).toBe("adsb_lol_b");
+    });
+
+    it("splits the two radius buckets of one tile independently", async () => {
+      // The partition key is the RELAY's cache key (lat/lon/dist), not the tile alone,
+      // so two buckets of the same tile are separate cache entries and may land on
+      // different relays. This is also the case that caught a broken hash: with bare
+      // FNV-1a and `% 2`, "...,24" and "...,46" could never disagree, because the low
+      // bit only saw a XOR of the input characters' low bits. If this test ever starts
+      // passing trivially, check partitionHash still has its finalizer.
+      const bucket40 = "/v2/lat/62.00/lon/50.00/dist/24"; // r=40 -> dist 24 -> relay-a
+      const bucket80 = "/v2/lat/62.00/lon/50.00/dist/46"; // r=80 -> dist 46 -> relay-b
+      fetchMock.get(A).intercept({ path: bucket40 }).reply(200, pointBody([]));
+      fetchMock.get(B).intercept({ path: bucket80 }).reply(200, pointBody([]));
+
+      expect((await call(apiRequest("/v1/blips?lat=62&lon=50&r=40"), RELAY)).headers.get("X-Upstream")).toBe("adsb_lol");
+      expect((await call(apiRequest("/v1/blips?lat=62&lon=50&r=80"), RELAY)).headers.get("X-Upstream")).toBe("adsb_lol_b");
+    });
+
+    it("UPSTREAM_FEED_ORDER still overrides the partition -- the rollback knob", async () => {
+      // 77/50 leads with relay-b. Pinning adsb_lol hoists relay-a to the front for
+      // every key, which is how partitioning gets switched off at 2 a.m. from the
+      // dashboard with no deploy.
+      fetchMock.get(A).intercept({ path: tile(77) }).reply(200, pointBody([makeAc({ hex: "aa1004", lat: 77, lon: 50 })]));
+
+      const res = await call(apiRequest("/v1/blips?lat=77&lon=50&r=40"), {
+        ...RELAY,
+        UPSTREAM_FEED_ORDER: "adsb_lol",
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+    });
+
+    it("is inert when only one relay is configured", async () => {
+      // Dev/test and any single-relay env: the B feed is disabled, so the swap is
+      // filtered away and the chain collapses to the legacy single-feed order. 78/50
+      // would lead with relay-b if a relay-b were configured.
+      fetchMock.get(LOL).intercept({ path: tile(78) }).reply(200, pointBody([makeAc({ hex: "cc1005", lat: 78, lon: 50 })]));
+
+      const res = await call(apiRequest("/v1/blips?lat=78&lon=50&r=40"));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Upstream")).toBe("adsb_lol");
+    });
   });
 });

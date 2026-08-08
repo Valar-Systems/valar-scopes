@@ -47,10 +47,12 @@ describe("/v1/enrich/{hex}", () => {
   });
 
   it("routes enrichment through relay-a, failing over to relay-b", async () => {
-    // Both operations use the same good-citizen order: relay-a primary -> relay-b
-    // failover (no load-splitting to defeat the per-IP limit). relay-a is tried FIRST
-    // here -- its failure is consumed and the chain falls over to relay-b (terminal,
-    // so the breaker never skips it), which carries the X-Relay-Key the nginx checks.
+    // Which relay LEADS is decided per hex now (partitionOrder in chain.ts), so this
+    // test pins a hex that partitions to relay-a in order to stay a test of
+    // "primary fails -> secondary answers". e30005 leads with relay-a; its failure is
+    // consumed and the chain falls over to relay-b (terminal, so the breaker never
+    // skips it), which carries the X-Relay-Key the nginx checks. The relay-b-leading
+    // direction is covered by the next test.
     const RA = "https://relay-a.valarsystems.com";
     const RB = "https://relay-b.valarsystems.com";
     const relayEnv = {
@@ -58,17 +60,49 @@ describe("/v1/enrich/{hex}", () => {
       UPSTREAM_ADSB_LOL_BASE_B: RB,
       RELAY_KEY: "test-relay-key",
     };
-    fetchMock.get(RA).intercept({ path: "/v2/hex/e30001" }).replyWithError(new Error("relay-a down"));
+    fetchMock.get(RA).intercept({ path: "/v2/hex/e30005" }).replyWithError(new Error("relay-a down"));
     fetchMock
       .get(RB)
-      .intercept({ path: "/v2/hex/e30001", headers: { "x-relay-key": "test-relay-key" } })
-      .reply(200, hexBody([{ hex: "e30001", r: "N737XX", t: "B738" }]));
+      .intercept({ path: "/v2/hex/e30005", headers: { "x-relay-key": "test-relay-key" } })
+      .reply(200, hexBody([{ hex: "e30005", r: "N737XX", t: "B738" }]));
 
-    const res = await call(apiRequest("/v1/enrich/e30001"), relayEnv);
+    const res = await call(apiRequest("/v1/enrich/e30005"), relayEnv);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { r: string; tn: string };
     expect(body.r).toBe("N737XX");
     expect(body.tn).toBe("Boeing 737-800"); // relay-b's data, reached via failover
+  });
+
+  it("partitions hex lookups across the relay pair, not just tiles", async () => {
+    // Hex volume is small, but it is the path that actually takes 429s: a card open
+    // fires a lookup with no tile cadence to smooth it, so the BURST is what matters.
+    // e30001 partitions to relay-b.
+    //
+    // RELAY-A IS HEALTHY HERE, for the same reason as the tile version of this test in
+    // blips.test.ts: omitting its interceptor makes the test pass with partitioning
+    // disabled, because the chain would try relay-a, miss, and fail over to relay-b
+    // anyway -- asserting the destination while the failover supplies it.
+    const RA = "https://relay-a.valarsystems.com";
+    const RB = "https://relay-b.valarsystems.com";
+    const relayEnv = {
+      UPSTREAM_ADSB_LOL_BASE: RA,
+      UPSTREAM_ADSB_LOL_BASE_B: RB,
+      RELAY_KEY: "test-relay-key",
+    };
+    fetchMock.get(RA).intercept({ path: "/v2/hex/e30001" }).reply(200, hexBody([{ hex: "e30001", r: "NOPE", t: "B738" }]));
+    fetchMock
+      .get(RB)
+      .intercept({ path: "/v2/hex/e30001", headers: { "x-relay-key": "test-relay-key" } })
+      .reply(200, hexBody([{ hex: "e30001", r: "N747XX", t: "B744" }]));
+
+    const res = await call(apiRequest("/v1/enrich/e30001"), relayEnv);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { r: string }).r).toBe("N747XX"); // relay-b's, not relay-a's
+
+    // relay-a never consulted -- the actual assertion. See the tile version for why
+    // this is checked before the interceptor is retired.
+    expect(fetchMock.pendingInterceptors().length).toBe(1);
+    await fetch(`${RA}/v2/hex/e30001`);
   });
 
   it("holds a hex down fleet-wide after a failed lookup, instead of re-firing it", async () => {
