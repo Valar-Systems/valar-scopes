@@ -104,6 +104,35 @@ describe("page links do not rot", () => {
   }
 });
 
+describe("a trimmed or slash-suffixed URL still lands somewhere", () => {
+  // These are the ways a printed URL actually gets mistyped. /blipscope/support
+  // is the destination of a QR code that cannot be reprinted, so the cost of a
+  // JSON 404 here is not symmetric with the cost of one extra redirect.
+  it.each([
+    ["/blipscope/support/", "/blipscope/support"],
+    ["/blipscope/leaderboard/", "/blipscope/leaderboard"],
+    ["/credits/", "/credits"],
+    // Trimming one surface off the end of a page path.
+    ["/blipscope", "/"],
+  ])("%s redirects to %s", async (from, to) => {
+    const res = await call(new Request(`https://proxy.test${from}`));
+    expect(res.status).toBe(301);
+    expect(new URL(res.headers.get("Location") as string).pathname).toBe(to);
+  });
+
+  it("never redirects an API path, however it is spelled", async () => {
+    // A 301 on an API path would break deployed firmware -- HTTPClient is not
+    // guaranteed to follow one, and on the leaderboard POST following it would
+    // mean re-sending the body. The slash normaliser above must never reach here.
+    for (const p of ["/v1/blips/", "/api/v1/blipscope/blips/", "/v1/leaderboard/"]) {
+      const res = await call(new Request(`https://proxy.test${p}`, {
+        headers: { "X-Blip-Key": "test-key" },
+      }));
+      expect(res.status, `${p} must not redirect`).not.toBe(301);
+    }
+  });
+});
+
 describe("the hub belongs to no single edition", () => {
   // The root is shared. A Blipscope-only root would mean a Missileer owner who
   // trimmed the path landed on another product's support page -- which is the

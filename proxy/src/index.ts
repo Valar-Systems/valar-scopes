@@ -140,6 +140,26 @@ async function route(
   // POSTs exactly as the new one does.
   const isLeaderboardSubmit = api?.suffix === "leaderboard" && request.method === "POST";
   if (request.method !== "GET" && !isLeaderboardSubmit) return errorResponse(405, "method_not_allowed");
+
+  // Trailing-slash normalisation, PAGES ONLY. A URL that is printed, typed, or
+  // pasted into someone else's redirect field picks up a trailing slash easily,
+  // and "/blipscope/support/" answering a JSON error object is a bad way to find
+  // that out -- particularly on a path that is going onto a QR code nobody can
+  // reprint. One 301 costs a round trip; the 404 costs the customer.
+  //
+  // APIs are exempt STRUCTURALLY rather than by remembering to exclude them: a
+  // redirect on an API path would break deployed firmware (see the pages/APIs
+  // asymmetry above), and `api` is already computed, so the guard cannot drift
+  // out of step with what counts as an API.
+  if (api === null && url.pathname.length > 1 && url.pathname.endsWith("/")) {
+    return movedTo(url, url.pathname.replace(/\/+$/, "") || "/");
+  }
+
+  // An edition root with no page of its own. Someone who trims a surface off the
+  // end of "/blipscope/support" lands here, and the hub is what they were
+  // reaching for -- the same reasoning that put a page at "/" at all.
+  if (url.pathname === PAGE_PREFIX) return movedTo(url, "/");
+
   if (url.pathname === "/healthz") return handleHealth(env);
   // Public photo-attribution page (a browser follows the config page's link; no
   // device key). Rendered from the manifest the ingest script publishes to KV.
