@@ -380,7 +380,31 @@ R"(                        <option value="cloud" %DATASRC_CLOUD%>Blipscope Cloud
                         <option value="opensky" %DATASRC_OPENSKY%>OpenSky Network (your own account)</option>
 )"
 #else
-R"(                        <option value="opensky" %DATASRC_OPENSKY%>OpenSky Network (cloud)</option>
+// The cloud option is still LISTED here, disabled, and it leads so the list does
+// not reshuffle between builds. Omitting it entirely was the old behaviour and it
+// made the most consequential fact about a binary invisible: the page simply did
+// not mention the cloud, so a no-cloud build looked like a normal one that had
+// been configured for OpenSky. On 2026-08-07 two bench boards sat on anonymous
+// OpenSky for hours and the staleness was chased through the proxy, the relay
+// TTLs and mDNS before anyone read the build stamp.
+//
+// Disabled rather than selectable, because a control that cannot do what it says
+// is worse than an absent one -- picking "cloud" here would save a value this
+// firmware ignores (AircraftManager has no useCloudSource to set), and the page
+// would then assert something false to the next person debugging it.
+//
+// Never `selected`: a select whose selected option is disabled submits
+// unpredictably. If NVS holds "cloud", OpenSky renders selected, which is exactly
+// what the firmware is doing -- the disabled row explains why.
+//
+// This does NOT violate rule 4 of scripts/check-config-form.py ("nothing inside
+// the form is disabled"). That rule exists because a disabled INPUT/SELECT is
+// dropped from FormData and silently turns a whole-form POST into a partial one.
+// A disabled <option> removes no field: the <select> still submits, it just
+// cannot submit this value. The checker scans <input|select|textarea> only, so
+// this is outside its rule by construction as well as by intent.
+R"(                        <option value="cloud" disabled>Blipscope Cloud &mdash; not in this firmware build</option>
+                        <option value="opensky" %DATASRC_OPENSKY%>OpenSky Network (cloud)</option>
 )"
 #endif
 R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B receiver</option>

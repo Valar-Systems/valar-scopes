@@ -108,6 +108,32 @@ def check(html: str, label: str, rendered: bool) -> list[str]:
                 f"a whole-form POST into a partial one. Dim with opacity instead."
             )
 
+    # 5. the cloud source is always NAMED, even in a build that cannot serve it.
+    #
+    # Source mode only, and deliberately so: a rendered page comes from exactly one
+    # branch of the #ifdef, so a correct cloud build has no disabled option and
+    # asserting it there would fail on a healthy device. In source mode BOTH
+    # branches are in the text, which makes this precisely a check that the #else
+    # branch still names the cloud.
+    #
+    # Why it earns a rule: omitting the option was the old behaviour, and it made
+    # the most consequential property a binary has invisible on the one page a user
+    # reads. A no-cloud build then looks identical to a cloud build someone
+    # configured for OpenSky. See the block comment at the data-source select.
+    if not rendered:
+        sel = re.search(
+            r"""<select[^>]*\bname\s*=\s*['"]data-source['"].*?</select>""",
+            inside, re.I | re.S,
+        )
+        if sel and not re.search(
+            r"""<option[^>]*value\s*=\s*['"]cloud['"][^>]*\bdisabled\b""", sel.group(0), re.I
+        ):
+            problems.append(
+                "the data-source select has no DISABLED cloud option. The no-cloud "
+                "branch must still list Blipscope Cloud and say it is absent, or a "
+                "build without the feed is indistinguishable from one set to OpenSky."
+            )
+
     if rendered:
         left = re.findall(r"%[A-Z0-9_]+%", body)
         if left:
@@ -168,17 +194,38 @@ SELFTEST = [
         '<form id="settings"><input type="hidden" name="cfg-form" value="1"></form>',
         'not id="cfg"',
     ),
+    (
+        "data-source select that never names the cloud",
+        '<form id="cfg"><input type="hidden" name="cfg-form" value="1">'
+        '<select name="data-source"><option value="opensky">OpenSky Network (cloud)</option>'
+        '<option value="local">My own ADS-B receiver</option></select></form>',
+        "no DISABLED cloud option",
+    ),
 ]
 
 # And one that must PASS: a hidden section is legal and must not be flagged,
 # because CSS visibility does not remove a field from FormData. If this ever
 # starts failing, the checker has become stricter than the rule.
-SELFTEST_OK = (
-    "hidden section still submits",
-    '<form id="cfg"><input type="hidden" name="cfg-form" value="1">'
-    '<section style="display:none"><input name="mqtt-host"></section>'
-    '<section><input name="lat"></section></form>',
-)
+SELFTEST_OK = [
+    (
+        "hidden section still submits",
+        '<form id="cfg"><input type="hidden" name="cfg-form" value="1">'
+        '<section style="display:none"><input name="mqtt-host"></section>'
+        '<section><input name="lat"></section></form>',
+    ),
+    # Rule 5 must not collide with rule 4: a disabled <option> is legal and is the
+    # whole point of the no-cloud branch. Rule 4 only scans <input|select|textarea>
+    # because only those shrink a POST -- if that ever widens to any tag, this case
+    # fails and says so, instead of the two rules quietly contradicting each other.
+    (
+        "a disabled OPTION is legal (it removes no field from FormData)",
+        '<form id="cfg"><input type="hidden" name="cfg-form" value="1">'
+        '<select name="data-source">'
+        '<option value="cloud" disabled>Blipscope Cloud &mdash; not in this firmware build</option>'
+        '<option value="opensky" selected>OpenSky Network (cloud)</option>'
+        '<option value="local">My own ADS-B receiver</option></select></form>',
+    ),
+]
 
 
 def selftest() -> int:
@@ -190,12 +237,12 @@ def selftest() -> int:
         if not hit:
             bad += 1
             print(f"        expected a problem containing {expect!r}, got: {problems}")
-    label, html = SELFTEST_OK
-    problems = check(html, label, rendered=False)
-    print(f"{'ok  ' if not problems else 'FAIL'}  allows: {label}")
-    if problems:
-        bad += 1
-        print(f"        expected no problems, got: {problems}")
+    for label, html in SELFTEST_OK:
+        problems = check(html, label, rendered=False)
+        print(f"{'ok  ' if not problems else 'FAIL'}  allows: {label}")
+        if problems:
+            bad += 1
+            print(f"        expected no problems, got: {problems}")
     print()
     print("self-test PASSED" if not bad else f"self-test FAILED ({bad} case(s))")
     return 1 if bad else 0
