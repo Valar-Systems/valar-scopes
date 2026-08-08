@@ -19,6 +19,15 @@ name = "blipscope-proxy"
 main = "src/index.ts"
 compatibility_date = "2025-12-01"
 
+# Build identifier surfaced on /healthz. This default is what `wrangler dev` and
+# the test runner see; scripts/deploy.sh overrides it with the real commit SHA at
+# deploy time (--define). The nested quotes are required -- the value is
+# substituted into the bundle verbatim, so it has to be a JS string literal.
+#
+# A deployment reporting "dev" therefore did NOT come from the deploy script, and
+# that is the point: it is the one state that cannot be explained away later.
+define = { BUILD_COMMIT = "\"dev\"" }
+
 # Pin the account explicitly. Without this wrangler calls /memberships to work out
 # which account to target, which needs a User->User Details->Read permission the CI
 # token deliberately does NOT have -- that token is scoped to Workers KV Storage:
@@ -55,6 +64,13 @@ workers_dev = false
 routes = [
   { pattern = "scopes-staging.valarsystems.com", custom_domain = true }
 ]
+
+# NOT INHERITED from the top level -- `define` behaves like the bindings above, so
+# an env that omits it ships a bundle where BUILD_COMMIT is an undeclared
+# identifier and /healthz throws ReferenceError. Caught by a --dry-run grep, which
+# is the only reason it is written down here.
+[env.staging.define]
+BUILD_COMMIT = "\"dev\""
 
 [env.staging.vars]
 # Missileer origin -- the valar-eam-feed Render service that /missileer/* and
@@ -162,6 +178,11 @@ routes = [
 # CUTOVER (do AFTER staging verify -- see README verification sequence):
 #   1. npx wrangler secret put RELAY_KEY --env production
 #   2. npx wrangler deploy --env production   <- this deploy IS the cutover
+# See the staging note: `define` is not inherited, and omitting it here would ship
+# a production bundle whose /healthz throws.
+[env.production.define]
+BUILD_COMMIT = "\"dev\""
+
 [env.production.vars]
 # Missileer origin -- valar-eam-feed on Render. See src/missileer.ts for why the
 # Worker proxies rather than routes, and valar-eam-feed/docs/missileer-routing.md

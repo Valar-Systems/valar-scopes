@@ -159,6 +159,30 @@ echo "smoke-prod against $BASE  (key sent as X-Blip-Key; value never printed)"
 # 1. public health
 hit "/healthz" 200 "$BASE/healthz"
 
+# The build stamp, which is the answer to "what commit is this actually running?".
+# A DEPLOYED Worker reporting "dev" means someone ran `wrangler deploy` by hand
+# instead of scripts/deploy.sh, bypassing the dirty-tree and unpushed-commit
+# guards -- so the running code may correspond to no commit at all. That is the
+# one thing about a deployment that cannot be reconstructed after the fact, which
+# is why it is checked here rather than trusted.
+COMMIT="$(printf '%s' "${LAST_BODY:-}" | grep -oE '"commit":"[^"]*"' | cut -d'"' -f4)"
+printf '\n===== /healthz build stamp =====\n'
+printf 'commit reported: %s\n' "${COMMIT:-<absent>}"
+if [ -n "$COMMIT" ] && [ "$COMMIT" != "dev" ]; then
+  case "$COMMIT" in
+    *-dirty)
+      printf 'RESULT: FAIL -- deployed from a DIRTY tree (ALLOW_DIRTY=1). This bundle\n'
+      printf '        contains changes that are in no commit and no PR.\n'
+      fail=$((fail+1)) ;;
+    *)
+      printf 'RESULT: PASS\n'; pass=$((pass+1)) ;;
+  esac
+else
+  printf 'RESULT: FAIL -- expected a commit SHA from scripts/deploy.sh.\n'
+  printf '        "dev" or absent means a hand-run `wrangler deploy` bypassed the guards.\n'
+  fail=$((fail+1))
+fi
+
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
   -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
