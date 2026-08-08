@@ -16,9 +16,9 @@
     "ingest:airports": "tsx scripts/ingest-airports.ts",
     "derive-device-key": "tsx scripts/derive-device-key.ts",
     "dashboard": "tsx scripts/photo-dashboard.ts",
-    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:staging": "bash scripts/deploy.sh staging",
     "tail:staging": "wrangler tail --env staging",
-    "deploy:production": "wrangler deploy --env production",
+    "deploy:production": "bash scripts/deploy.sh production",
     "tail:production": "wrangler tail --env production",
     "ingest:typenames": "tsx scripts/ingest-typenames.ts"
   },

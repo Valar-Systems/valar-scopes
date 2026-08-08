@@ -56,8 +56,19 @@ async function authenticate(
   return idx >= 0 ? { bucket: `key:${idx}`, deviceAuthed: false } : null;
 }
 
+// Substituted at bundle time by scripts/deploy.sh (--define). Defaults to "dev"
+// via the `define` block in wrangler.toml, which is what dev and the test runner
+// see. Declared rather than imported because esbuild replaces the identifier
+// textually -- there is no module to import from.
+declare const BUILD_COMMIT: string;
+
 function handleHealth(env: Env): Response {
-  return jsonResponse({ ok: true, upstreams: feedHealth(env) });
+  // The commit is here because "what is production actually running?" was, for a
+  // long time, only answerable by correlating deploy timestamps against git log
+  // and hoping the working tree had been clean. It is a public build identifier,
+  // not a secret: the repo it names is public, and being able to ask a running
+  // Worker what it is beats inferring it after something has already gone wrong.
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
