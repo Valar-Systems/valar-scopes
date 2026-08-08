@@ -55,6 +55,25 @@ jobs:
       - name: ICAO country table is sorted, non-overlapping, and resolves correctly
         run: node scripts/check_icao_country.mjs
 
+  # The env named in the matrix below IS the product: whatever it builds becomes
+  # firmware-<slug>.bin, which is what every device on that SKU downloads on its next
+  # OTA. That link had no check and it broke silently -- the cloud feed lived in a
+  # sibling -prodburn env CI never built, so the pilot boards would have updated
+  # themselves into a build that never contacts the proxy. A non-cloud image does not
+  # error; it goes quiet, which reads as an idle device rather than a fault.
+  # --selftest first, same reasoning as the two checks above.
+  release-envs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the checker catches each violation
+        run: node scripts/check_release_envs.mjs --selftest
+      - name: Every radar SKU in the matrix builds a production cloud image
+        run: node scripts/check_release_envs.mjs
+
   build:
     runs-on: ubuntu-latest
     strategy:
