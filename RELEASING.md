@@ -66,6 +66,73 @@ someone uploaded beside it.
 then re-read the URL over HTTP.** Never infer the tag's state from the last time it was used, and
 never promote it to a full release — doing so would publish a stale mixed matrix to the fleet.
 
+## Board #1: the OTA rehearsal that gates a flash run
+
+**Nothing else flashes until this passes.** One board, one OTA, from a virgin slot.
+
+It exists because of a near-miss on 2026-08-08. The cloud feed lived in a
+`blipscope-s3-128-prodburn` env; boards were to be flashed from it, but CI builds
+`blipscope-s3-128`, so `firmware-s3-128.bin` — the asset those boards download on their
+first update — had the feed compiled out. All 50 units would have quietly stopped using
+Blipscope Cloud, one update in. Three things hid it, and the rehearsal is built around
+all three:
+
+- a non-cloud image does not error, it just never contacts the proxy;
+- the `-otatest` env extended the same non-cloud base, so the old rehearsal would have
+  passed while proving nothing about the shipping image;
+- the version number still increments, so "the OTA worked" was true and useless.
+
+`scripts/check_release_envs.mjs` now fails CI on that config mistake. This rehearsal
+covers what a static check cannot: that the binary a real device actually pulled and
+booted is a working cloud radar.
+
+### The three assertions
+
+A pass needs **all three**. The version bump alone is explicitly not enough — trusting
+it is what let this through.
+
+1. **It updated.** `FW_VERSION` on the serial banner is the new number.
+2. **It came back a CLOUD image.** The board reaches the proxy after the update. This is
+   the assertion that catches a wrong-image OTA, and it is decisive precisely because a
+   non-cloud build makes *no* request at all — absence is the failure signal, so there
+   is nothing to misread.
+3. **It is actually serving aircraft.** The radar draws blips from the cloud, not a
+   cached last-good picture and not an empty screen.
+
+### Running it
+
+```sh
+# Board #1 only. Erase first -- a virgin slot is the point: an OTA onto a board already
+# carrying the new image proves nothing.
+pio run -e blipscope-s3-128 -t erase
+pio run -e blipscope-s3-128-otatest -t upload -t monitor
+```
+
+The flash env is `-otatest`, which now inherits the cloud flags from
+`blipscope-s3-128`; that inheritance is the fix, and it is what makes assertions 2 and 3
+meaningful at all. See the pinned pre-release section above for preparing the tag.
+
+After the device takes the update and reboots, ask the proxy whether it came back:
+
+```sh
+# Substitute the board's device id. The window must START after the update landed.
+npx wrangler analytics-engine sql --env production <<'SQL'
+SELECT blob6 AS fw, blob1 AS route, SUM(double4) AS requests, MAX(timestamp) AS last_seen
+FROM blipscope_proxy
+WHERE timestamp > NOW() - INTERVAL '15' MINUTE AND blob5 = '<device-id>'
+GROUP BY fw, route ORDER BY last_seen DESC
+SQL
+```
+
+- **PASS** — rows with `fw` = the NEW version and `route` = `/api/v1/blipscope/blips`,
+  with `last_seen` advancing when you re-run it.
+- **FAIL** — no rows at all, or rows only at the OLD `fw`. That is the wrong-image OTA:
+  the board is alive and updated but is no longer a cloud device. Stop the flash run.
+
+Then on the board itself: the radar shows aircraft, and the serial `[health]` line
+reports the cloud source with a non-zero fetch count. A board that updated but sits
+empty with the stale tag amber is a **fail** even if the query returned rows.
+
 ## Adding a new SKU to releases
 
 A new SKU needs three entries that stay in sync:
