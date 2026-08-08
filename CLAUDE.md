@@ -101,6 +101,31 @@ These apply to the **C3 Kit** SKU (retired 2026-06-29, provisionally revived ben
 - The C3 SKU is single-core (no true parallelism); treat anything touching the I2C/SPI buses or the heap as timing-sensitive. Put per-variant behaviour behind `variant::` capability flags, not `#ifdef`s scattered through the logic.
 - `credentials.json` (OpenSky client secret) is a user secret — never read, commit, or log it.
 
+## Standing practice: read the artifact, not the config
+
+**For anything that gates what ships, verify the built thing — not the source that was supposed to
+produce it.** Build systems have asymmetries that are invisible in the file and obvious in the
+output, and every instance here has been silent rather than loud. One example reads as a fluke, so
+the list is the point:
+
+- **`-U`/`-D` in [platformio.ini](platformio.ini):** PlatformIO puts `-U` in `CCFLAGS` and `-D` in
+  `CPPDEFINES`, so an undefine beats a *later* redefine whatever order the file shows. A bench env
+  built with **no backend URL at all**, and compiled clean. Invisible in the ini; one `grep` on the ELF.
+- **The shipping env vs the CI matrix:** the cloud feed lived in an env CI never built, so every
+  released radar binary had it compiled out. The ini looked entirely deliberate.
+- **A wrong-SKU flash** presents exactly like a dead panel — healthy boot, `tft.init=1`, black
+  screen. Nothing in the source says which board an image was for.
+- **`embed-pages.mjs --check` / `embed-fonts.mjs --check`** exist because editing `pages/*.html`
+  and forgetting to regenerate leaves every test passing against the old markup.
+
+So: `grep` the ELF for the string that proves a flag took, diff the generated module against its
+source, read the `[build] env=` banner off the board rather than trusting which command you ran.
+When a check *can* assert on the built output instead of the input, it should — the input is a
+statement of intent, and intent is the thing that was already wrong.
+
+Corollary, same root cause: **when a check protects a property, confirm the check's own
+environment has that property** — see [RELEASING.md](RELEASING.md).
+
 ## Non-goal: behavioural telemetry (settled 2026-08-02)
 
 **Never propose or add screen-usage, interaction, or engagement telemetry.** Which screen a customer looks at, how often they tap, how long the device is watched, which aircraft they open — none of it is collected, and the gap is deliberate rather than unfinished. It would be easy to add (the device already makes a request counters could ride on), which is exactly why this is written down. The reasoning: it is behavioural data from a device in someone's home; at this fleet size asking ten owners beats instrumenting all of them; and *"Blipscope doesn't track how you use it"* is only true while it stays entirely true. It is a **published commitment** in [README.md](README.md)'s Privacy & telemetry section, not an internal preference.
