@@ -40,7 +40,12 @@ describe("the sampling correction", () => {
     await fleetRows(base, 24);
     const sql = seen[0] as string;
     for (const col of ["errors", "cards", "enriches", "stale_served"]) {
-      expect(sql).toMatch(new RegExp(`SUM\\(IF\\([^)]*, double4, 0\\)\\) AS ${col}`));
+      // `[^)]*` for the predicate would be wrong: since #142 the endpoint columns
+      // match BOTH path families with an IN list, whose own closing paren the
+      // negated class cannot cross. Match lazily up to the weighted-sum tail
+      // instead -- what this test is about is `double4` (the sampling weight)
+      // rather than the shape of the predicate in front of it.
+      expect(sql).toMatch(new RegExp(`SUM\\(IF\\(.*?, double4, 0\\)\\) AS ${col}`));
     }
   });
 });
@@ -52,13 +57,27 @@ describe("query construction", () => {
     expect(seen[0]).toContain("blob5 != ''");
   });
 
-  it("counts a card open as a /v1/photo request, matching the templated route", async () => {
+  it("counts a card open across BOTH path families, not just the current one", async () => {
     const seen = captureSql();
     await fleetRows(base, 24);
-    // Must be the TEMPLATE, not a prefix match on a raw path -- the device
-    // Worker collapses /v1/photo/<key> before the point is written.
-    expect(seen[0]).toContain("blob1 = '/v1/photo'");
-    expect(seen[0]).toContain("blob1 = '/v1/enrich'");
+    const sql = seen[0] as string;
+    // Two separate properties, and the second is the one #142 added.
+    //
+    // 1. TEMPLATES, not prefix matches on raw paths -- the device Worker collapses
+    //    /v1/photo/<key> to its template before the point is written.
+    // 2. BOTH the namespaced and the legacy template. Analytics Engine points are
+    //    retained rather than rewritten, so any window spanning the #142 cutover
+    //    holds both shapes by design, and a device on old firmware keeps producing
+    //    the legacy one long afterwards. Matching only the current path reads 0
+    //    for cards and enriches -- which looks exactly like a fleet that stopped
+    //    fetching photos rather than a query that stopped matching.
+    //
+    // This test previously asserted the single-path form and had been failing on
+    // main since the #142 merge: the query was corrected, the test was not.
+    for (const surface of ["photo", "enrich"]) {
+      expect(sql, `${surface}: namespaced template`).toContain(`'/api/v1/blipscope/${surface}'`);
+      expect(sql, `${surface}: legacy template`).toContain(`'/v1/${surface}'`);
+    }
   });
 
   it("reads the OTA device from blob4, where recordOtaMem appends it", async () => {
