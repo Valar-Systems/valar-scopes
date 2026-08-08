@@ -53,6 +53,13 @@ pass=0
 fail=0
 
 # hit <name> <expected-status> <curl args...>
+#
+# CALLERS MUST NOT PASS -w / --write-out. This composes its own to append the
+# status code, and curl lets the LAST one win -- so a caller's --write-out
+# silently replaces it, `status` parses as whatever that emitted, and the check
+# can then never pass. That is not hypothetical: it is what made the /v1/photo
+# check below fail against a photo the Worker was serving correctly.
+# For "is this asset served properly", use `asset` instead; it is built for it.
 hit() {
   local name="$1" want="$2"; shift 2
   local body status
@@ -89,9 +96,12 @@ skip() {
 #
 # The type match is a PREFIX so "text/html" accepts "text/html; charset=utf-8".
 asset() {
-  local name="$1" want_type="$2" url="$3"
+  local name="$1" want_type="$2" url="$3"; shift 3
   local out status ctype bytes ok_type
-  out="$(curl -s -o /dev/null --max-time 25 -w '%{http_code}|%{content_type}|%{size_download}' "$url")"
+  # Trailing "$@" carries caller extras (an auth header, say). Safe here in a way
+  # it is not for `hit`: the -w below is the LAST one on the line, so nothing a
+  # caller passes can displace it.
+  out="$(curl -s -o /dev/null --max-time 25 "$@" -w '%{http_code}|%{content_type}|%{size_download}' "$url")"
   status="${out%%|*}"; out="${out#*|}"
   ctype="${out%%|*}"; bytes="${out##*|}"
   case "$ctype" in "$want_type"*) ok_type=1 ;; *) ok_type=0 ;; esac
@@ -295,8 +305,13 @@ if [ -n "${HEX:-}" ]; then
   P="$(curl -s --max-time 25 -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4)"
 fi
 if [ -n "$P" ]; then
-  hit "/v1/photo (via enrich pointer $P)" 200 \
-    -H "X-Blip-Key: $KEY" "$BASE$P" --output /dev/null --write-out '%{content_type} %{size_download} bytes'
+  # `asset`, not `hit`: the body is a JPEG and must not reach a terminal, and the
+  # old call passed --write-out to hit() to suppress it -- which overrode hit's own
+  # -w and left `status` holding "image/jpeg 1249 bytes". It could never equal 200,
+  # so this check reported FAIL for a photo the Worker was serving perfectly. It
+  # had never actually run before 2026-08-08 (no live hex, so it always SKIPPED),
+  # which is how a check that cannot pass survived this long.
+  asset "/v1/photo (via enrich pointer $P)" "image/" "$BASE$P" -H "X-Blip-Key: $KEY"
 elif [ -n "${HEX:-}" ]; then
   skip "/v1/photo" "live hex $HEX resolved no photo pointer (that type has no stock photo). Not a failure -- but /v1/photo went untested."
 else
