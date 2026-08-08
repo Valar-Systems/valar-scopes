@@ -43,6 +43,12 @@ struct Config {
     unsigned long pollNightMs  = 60000;  // while the solar clock says night
     unsigned long idleAfterMs  = 600000; // touch-to-idle window
     int staleFactor = 3;                 // stale indicator past staleFactor * interval
+    // Absolute floor under that threshold, in ms. staleFactor x interval alone ties
+    // "is this data stale" to HOW OFTEN WE ASK, which is the wrong variable: the
+    // freshness we can actually get is set by the SERVER's tile TTL, and polling
+    // faster cannot improve it. Without a floor a fast poll is a hair trigger --
+    // see IsDataStale() for the arithmetic and the live case it already breaks.
+    unsigned long minStaleMs = 45000;
     int minFw = 0;                       // newer than FW_VERSION -> trigger the OTA check
     int rev = 0;                         // config revision, logged for fleet ops
     enum class Enrich : uint8_t { Off, Watchlist, Full };

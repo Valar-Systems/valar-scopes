@@ -12,6 +12,19 @@ export interface ModelConfig {
   pollNightMs: number; // wired to the device's solar-dim state; the fleet's biggest cost lever
   idleAfterMs: number;
   staleFactor: number; // device shows the stale indicator past staleFactor * interval
+  // ...but never sooner than this. The floor is what stops a fast poll from being a
+  // hair trigger: staleFactor x interval measures how often the DEVICE asks, while the
+  // freshness on offer is set by OUR tile TTL. At the 2 s active cadence s3-146/s3-21
+  // ship with, staleFactor alone demands data 6 s old against a tile TTL that has never
+  // been under 8 s -- those boards can sit amber on a healthy feed. See
+  // AircraftManager::IsDataStale for the full arithmetic.
+  //
+  // KEEP THIS ABOVE THE RELAY TILE TTL + LAG. Worst case at a 30 s TTL is ~39 s
+  // (30 TTL + ~1 relay fetch + 3 Worker fresh window + one poll interval). 45 s clears
+  // it, and is exactly the current idle-tier threshold (3 x 15 s), so nothing else
+  // moves. Tunable from KV (`cfg:fleet`) with no deploy and no OTA if a soak at 30 s
+  // shows it flapping.
+  minStaleMs: number;
   enrich: EnrichLevel;
 }
 
@@ -25,6 +38,7 @@ const BASE: ModelConfig = {
   pollNightMs: 60000,
   idleAfterMs: 600000,
   staleFactor: 3,
+  minStaleMs: 45000,
   enrich: "full",
 };
 
@@ -73,6 +87,7 @@ export async function handleConfig(request: Request, env: Env): Promise<Response
     pollNightMs: resolved.pollNightMs,
     idleAfterMs: resolved.idleAfterMs,
     staleFactor: resolved.staleFactor,
+    minStaleMs: resolved.minStaleMs,
     upstreamState: upstreamOverallState(enabledFeeds(env).map((f) => f.id)),
   });
 }

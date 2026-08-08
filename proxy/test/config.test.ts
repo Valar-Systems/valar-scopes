@@ -12,6 +12,7 @@ interface ConfigBody {
   pollNightMs: number;
   idleAfterMs: number;
   staleFactor: number;
+  minStaleMs: number;
   upstreamState: string;
 }
 
@@ -33,6 +34,7 @@ describe("/v1/config", () => {
     expect(c.pollNightMs).toBe(60000);
     expect(c.idleAfterMs).toBe(600000);
     expect(c.staleFactor).toBe(3);
+    expect(c.minStaleMs).toBe(45000);
     expect(c.upstreamState).toBe("ok");
   });
 
@@ -49,6 +51,52 @@ describe("/v1/config", () => {
     const c = await getConfig("c3-128");
     expect(c.pollActiveMs).toBe(5000);
     expect(c.enrich).toBe("watchlist");
+  });
+
+  // ---- the stale-ladder floor ------------------------------------------------
+  // These pin the REASON for minStaleMs, not just its presence. The device takes
+  // max(staleFactor x poll, minStaleMs); when that arithmetic stops making sense the
+  // symptom is a fleet showing amber on a healthy feed, which nothing else catches.
+  it("floors the stale threshold above what a fast poll would demand", async () => {
+    // THE LIVE BUG THIS FIXES, independent of any TTL change: at 2 s active polling,
+    // staleFactor alone demands a picture younger than 6 s, while the relay tile TTL
+    // has never been below 8 s. Both the 1.46" and 2.1" boards ship at that cadence,
+    // so they can flag stale while someone is watching a perfectly healthy feed.
+    for (const model of ["s3-146", "s3-21"]) {
+      const c = await getConfig(model);
+      const withoutFloor = c.staleFactor * c.pollActiveMs;
+      expect(withoutFloor).toBeLessThan(8000); // below the tile TTL -- the bug
+      expect(c.minStaleMs).toBeGreaterThan(withoutFloor); // ...and the floor binds
+    }
+  });
+
+  it("leaves the idle and night tiers exactly where they were", async () => {
+    // 45 s was not picked freehand: it IS the current idle-tier threshold
+    // (staleFactor 3 x the 15 s idle poll), so the floor changes nothing at idle and
+    // nothing at night, and only stops the fast tiers being stricter than the data can
+    // possibly be. If the idle cadence ever moves, this fails loudly rather than
+    // letting the floor silently start binding somewhere new.
+    const c = await getConfig();
+    expect(c.staleFactor * c.pollIdleMs).toBe(c.minStaleMs); // idle: unchanged
+    expect(c.staleFactor * c.pollNightMs).toBeGreaterThan(c.minStaleMs); // night: unchanged
+  });
+
+  it("clears the relay tile TTL the pilot needs, with the lag stacked on top", async () => {
+    // Worst-case HEALTHY age at the 30 s tile TTL the 50-board adsb.fi budget wants:
+    // 30 (TTL) + ~1 (relay -> upstream fetch) + 3 (the Worker's fresh window) + one
+    // poll interval since the device's own merge. The floor has to clear that, or the
+    // TTL rise buys rate headroom at the price of a permanently amber fleet.
+    const c = await getConfig();
+    const worstCaseHealthyMs = 30_000 + 1_000 + 3_000 + c.pollActiveMs;
+    expect(c.minStaleMs).toBeGreaterThan(worstCaseHealthyMs);
+  });
+
+  it("is retunable from KV, so a soak can move it without an OTA", async () => {
+    // The point of shipping it as fleet config: if 30 s flaps in the soak, the fix is
+    // a `wrangler kv key put`, not a firmware release to 50 boards.
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ defaults: { minStaleMs: 60000 } }));
+    expect((await getConfig()).minStaleMs).toBe(60000);
+    await env.ENRICH_KV.delete("cfg:fleet");
   });
 
   it("applies KV fleet overrides: defaults < model", async () => {

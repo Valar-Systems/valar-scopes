@@ -202,6 +202,7 @@ bool ParseConfig(JsonDocument& doc, Config& out)
     if (doc["pollNightMs"].is<unsigned long>())  c.pollNightMs  = doc["pollNightMs"].as<unsigned long>();
     if (doc["idleAfterMs"].is<unsigned long>())  c.idleAfterMs  = doc["idleAfterMs"].as<unsigned long>();
     if (doc["staleFactor"].is<int>())            c.staleFactor  = doc["staleFactor"].as<int>();
+    if (doc["minStaleMs"].is<unsigned long>())   c.minStaleMs   = doc["minStaleMs"].as<unsigned long>();
     if (doc["rev"].is<int>())                    c.rev          = doc["rev"].as<int>();
 
     // minFw is an integer FW_VERSION encoded as a string ("5"); toInt()'s 0 on
@@ -220,6 +221,11 @@ bool ParseConfig(JsonDocument& doc, Config& out)
     if (c.pollNightMs < c.pollIdleMs) c.pollNightMs = c.pollIdleMs;
     if (c.idleAfterMs < 10000) c.idleAfterMs = 10000;
     if (c.staleFactor < 1) c.staleFactor = 1;
+    // minStaleMs is only ever a FLOOR, so 0 is a legal "disable it" value and needs no
+    // clamp at the bottom. The cap stops a fat-fingered fleet config from suppressing
+    // the indicator outright: past 10 min the device would sit green through an outage
+    // long enough that the aircraft on screen are fiction.
+    if (c.minStaleMs > 600000UL) c.minStaleMs = 600000UL;
 
     out = c;
     return true;
