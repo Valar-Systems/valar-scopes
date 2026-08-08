@@ -19,11 +19,32 @@ private:
     // and restarts on the main task (WiFi/restart work off the async callback).
     volatile bool wifiResetRequested = false;
 
+    // Which port we asked for, kept so the liveness check can look for OUR listener
+    // rather than assuming 80.
+    const uint16_t listenPort;
+
+    // Result of the post-begin() liveness check. Kept rather than only printed: a
+    // symptom this invisible should be answerable at any moment, not only from a
+    // capture that happened to be attached at boot.
+    bool listening = false;
+
 public:
-    ConfigurationWebServer() : server(80) {}
-    ConfigurationWebServer(int port) : server(port) {}
+    ConfigurationWebServer() : server(80), listenPort(80) {}
+    ConfigurationWebServer(int port) : server(port), listenPort((uint16_t)port) {}
 
     void Initialise();
+
+    // Did the config server actually claim its port this boot?
+    //
+    // AsyncWebServer::begin() returns void. When it cannot take the listen socket it
+    // emits one library-level line and carries on, so a device whose config page
+    // refuses every connection is byte-for-byte identical, in OUR output, to a healthy
+    // one -- which is why #166 shipped into every first-run unit unannounced.
+    //
+    // This does NOT try to repair anything. The known cause is handled at the source
+    // (WiFiManagerHelpers restarts after portal provisioning); this exists so the NEXT
+    // cause costs one line in a capture instead of weeks of "works on my bench".
+    [[nodiscard]] bool IsListening() const { return listening; }
     [[nodiscard]] const String GetStoredString(const char* key);
 
     // Returns true at most once per save, clearing the flag. Lets the main loop

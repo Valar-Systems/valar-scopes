@@ -1,6 +1,8 @@
 #include "ConfigurationWebServer.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <lwip/tcpip.h>            // LOCK_TCPIP_CORE / UNLOCK_TCPIP_CORE
+#include <lwip/priv/tcp_priv.h>    // tcp_listen_pcbs -- the LISTEN pcb list itself
 #include <Preferences.h>
 #include <memory>             // shared_ptr: keeps the chunked logbook stream alive across fills
 #include "DeviceIdentity.h"
@@ -1840,6 +1842,42 @@ static bool HostAllowed(AsyncWebServerRequest* request)
     return true;
 }
 
+namespace {
+
+// Is anything listening on `port`? Answered by READING lwIP's own LISTEN list.
+//
+// THE PREVIOUS ATTEMPT AT THIS SHIPPED A DEAD CONFIG PAGE TO EVERY BOARD (#172).
+// It probed by binding a plain BSD socket to the same port, reasoning "if I can bind
+// it, nobody is listening". AsyncTCP does not use the socket layer -- it binds a RAW
+// lwIP PCB -- so the two do not conflict the way they would on a normal host. The
+// bind succeeded ALONGSIDE the live listener, the probe concluded nothing was there,
+// and close() then tore the real listener down. A false negative that manufactured
+// its own evidence.
+//
+// So this touches no socket at all. tcp_listen_pcbs is the list AsyncTCP's own
+// listener is registered in, which makes it the actual question rather than a proxy
+// for it, and walking it cannot disturb what it observes.
+//
+// The list belongs to the tcpip thread, so the walk holds the core lock. That is real
+// here: CONFIG_LWIP_TCPIP_CORE_LOCKING=1 in this SDK, so LOCK_TCPIP_CORE() is a mutex
+// and not a no-op. Without it we would be reading a list another task may be splicing.
+bool AnyListenerOnPort(uint16_t port)
+{
+    bool found = false;
+    LOCK_TCPIP_CORE();
+    for (const struct tcp_pcb_listen* pcb = tcp_listen_pcbs.listen_pcbs;
+         pcb != nullptr; pcb = pcb->next) {
+        if (pcb->local_port == port) {
+            found = true;
+            break;
+        }
+    }
+    UNLOCK_TCPIP_CORE();
+    return found;
+}
+
+} // namespace
+
 void ConfigurationWebServer::Initialise() {
     // Create the "config" NVS namespace up front. Opening read-write creates it if
     // missing, so the read-only reads here, in AircraftManager, and every frame in
@@ -3053,6 +3091,18 @@ void ConfigurationWebServer::Initialise() {
 #endif
 
     server.begin();
+
+    // PROVE THE BIND. Checked AFTER begin() on purpose -- before it, a free port only
+    // tells you the portal has let go, not that we took it.
+    listening = AnyListenerOnPort(listenPort);
+    if (listening) {
+        Serial.printf("[web] config server listening on :%u (http://%s.local)\n",
+                      (unsigned)listenPort, DeviceIdentity::Name().c_str());
+    } else {
+        Serial.printf("[web] ERROR: config server did NOT bind :%u -- the config page is "
+                      "UNREACHABLE this boot. Power-cycle to recover.\n",
+                      (unsigned)listenPort);
+    }
 }
 
 bool ConfigurationWebServer::ConsumeConfigChanged()
