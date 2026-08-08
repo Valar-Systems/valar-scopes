@@ -223,6 +223,10 @@ A failure here means the pin map differs from [include/variants/s3_128.h](includ
 
 ## 6. Flash production firmware + final function check (100%)
 
+**The env is `blipscope-s3-128`. There is no other one.** Not a `-prodburn` (deleted), not
+`-cloud` or `-soak` (staging-only bench envs). Flashing one of those ships the wrong backend or
+none at all, and the board looks perfectly healthy either way.
+
 ```sh
 pio run -e blipscope-s3-128 -t upload --upload-port COM<n>
 ```
@@ -230,6 +234,18 @@ pio run -e blipscope-s3-128 -t upload --upload-port COM<n>
 > **Always pin `--upload-port`.** A soak board is usually attached alongside the unit under
 > inspection, and PlatformIO's auto-detect has no idea which is which. The failure is silent and
 > expensive in exactly one direction: it reflashes the board carrying a multi-hour run.
+
+> **Flash from a checkout of `main`, and verify the built image — not the command.** This names
+> an env, not a commit: it builds whatever the working tree holds. On 2026-08-08 this checkout sat
+> on an unrelated feature branch while two shipping fixes were merged, so the identical command
+> would have produced a board with no cloud feed and no stale-ladder floor, and nothing about the
+> flash, the boot, or the radar would have looked wrong.
+>
+> ```sh
+> git log --oneline -1                                        # on main, and current
+> grep -ac 'scopes\.valarsystems\.com'  .pio/build/blipscope-s3-128/firmware.elf   # >= 1
+> grep -ac 'scopes-staging'             .pio/build/blipscope-s3-128/firmware.elf   # 0
+> ```
 
 Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi associates with
 **zero reason-204**, and the OTA line reports the expected channel/version:

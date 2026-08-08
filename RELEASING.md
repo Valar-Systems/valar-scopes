@@ -86,6 +86,17 @@ all three:
 covers what a static check cannot: that the binary a real device actually pulled and
 booted is a working cloud radar.
 
+> **When a check protects a property, verify the check's own environment has that
+> property.** `-otatest` extended the non-cloud base, so the OTA safety net had a hole
+> shaped exactly like the bug it existed to catch — it would have reported a clean pass
+> while exercising an image that was not the one shipping. A test inherits its
+> environment from somewhere, and that somewhere is rarely re-read once it works.
+>
+> The general form, worth applying to every gate in this file: **ask what the check
+> would do if the defect were present.** If the answer is "pass", the check is
+> decoration. `--selftest` on the CI checkers exists for the same reason — prove it can
+> fail before trusting that it passed.
+
 ### The three assertions
 
 A pass needs **all three**. The version bump alone is explicitly not enough — trusting
