@@ -26,9 +26,10 @@ support rather than on a menu, and the hub catches everyone who arrives by
 trimming a path instead.
 
 Support is a **per-edition** surface, not a shared one: `/blipscope/support`
-here, `/missileer/support` in valar-eam-feed. Serving one product's support at
-`/` would mean the other product's owners landing on the wrong page, which is
-the whole reason the root is a hub.
+here, and `/missileer/support` in valar-eam-feed *if and when* Missileer needs
+one — it is still in development and has no support page today. Serving one
+product's support at `/` would mean the other product's owners landing on the
+wrong page, which is the whole reason the root is a hub.
 
 Infrastructure endpoints are **not** edition-scoped, because they describe the
 deployment rather than a product: `/healthz`, `/credits`, `/fonts/*`.
