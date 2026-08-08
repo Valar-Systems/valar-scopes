@@ -42,25 +42,30 @@ set -euo pipefail
 #                       partitionOrder in proxy/src/upstreams/chain.ts. Under pure
 #                       failover the budget is one IP and TTL would have to be 50s.)
 #
-#   STALENESS (pushes DOWN): the device flags amber past staleFactor(3) x THE CURRENT
-#                       POLL INTERVAL, and the age it measures INCLUDES the server-side
-#                       lag (AircraftManager::IsDataStale, dataLagAtMergeMs, which is
-#                       derived from the picture timestamp we serve). On an ACTIVE 5s
-#                       poll that threshold is 15s -- not the 45s idle figure. So 8s was
-#                       not a freshness preference, it was the largest TTL that keeps an
-#                       ACTIVE device under its own amber line (8s TTL + ~1s fetch + up
-#                       to 5s since merge ~= 14s, just inside 15s).
+#   STALENESS (pushes DOWN): the device flags amber past its stale threshold, and the
+#                       age it measures INCLUDES the server-side lag
+#                       (AircraftManager::IsDataStale, dataLagAtMergeMs, derived from
+#                       the picture timestamp we serve). That threshold USED to be
+#                       staleFactor(3) x the current poll interval and nothing else --
+#                       15s on an active 5s poll, and only 6s on the 2s-polling
+#                       s3-146/s3-21. So 8s was never a freshness preference: it was
+#                       the largest TTL that kept an active device inside its own amber
+#                       line, and it was ALREADY too slow for the 2s SKUs.
 #
-# 30s SATISFIES THE RATE CONSTRAINT AND BREAKS THE STALENESS ONE: an active device
-# would sit on amber almost continuously. Raising this to 30s is therefore COUPLED to
-# fixing the stale rule -- either raise cloudCfg.staleFactor (served from
-# proxy/src/config.ts, no firmware release) or, better, give the rule an absolute floor
-# so a fast poll stops being a hair trigger. DO NOT raise this alone.
+# RESOLVED 2026-08-08. IsDataStale now takes max(staleFactor x poll, minStaleMs), with
+# minStaleMs served as fleet config and defaulting to 45s, so the threshold no longer
+# tracks how often the device asks -- which was measuring the wrong thing, since polling
+# faster cannot make the server's tile any newer. 45s clears the worst-case healthy age
+# at a 30s TTL (30 + ~1 relay fetch + 3 Worker fresh window + one poll interval ~= 39s)
+# and is exactly the old idle-tier threshold, so idle and night are untouched.
 #
-# Related, and already true at 8s: the s3-146 and s3-21 SKUs poll ACTIVE at 2s, so
-# their amber line is 6s -- below today's 8s TTL. Those boards can already flag stale
-# while someone is watching them.
-CACHE_TTL="${CACHE_TTL:-8s}"
+# ORDER OF OPERATIONS -- backwards shows the whole fleet amber:
+#   1. devices run firmware with the floor, AND the Worker serves minStaleMs
+#   2. raise BLIPS_FEED_MAX_AGE_MS to 85000 (N >= 2 x TTL + 25s) and deploy
+#   3. only then raise this to 30s and re-run setup-relay.sh on BOTH boxes
+# A device on older firmware ignores minStaleMs and keeps the 15s active threshold, so
+# it reads amber at a 30s TTL. That is an upgrade gate, not a surprise.
+CACHE_TTL="${CACHE_TTL:-30s}"
 
 # Tile TTL for the /fi50 experiment path only (see the location block below).
 # The Worker's BLIPS_FEED_MAX_AGE_MS must satisfy N >= 2 x this + 25s, or every

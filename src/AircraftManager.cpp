@@ -1197,17 +1197,47 @@ unsigned long AircraftManager::CurrentPollIntervalMs() const
     return fetchInterval;
 }
 
+// The amber "stale" tag. ageMs is the age of the PICTURE, not of our last request:
+// dataLagAtMergeMs carries how old the server's snapshot already was when we merged
+// it (see MergeSnapshot), so the server's tile TTL lands in here directly.
+//
+// THE THRESHOLD HAS A FLOOR, and the floor is the point of this function.
+// staleFactor x interval alone measures the wrong thing -- it ties "is this data
+// stale" to how often WE ASK, when the freshness actually available is set by the
+// SERVER's tile TTL. Polling twice as fast does not make the data newer; it only
+// makes the threshold half as forgiving. That is backwards, and it already bites:
+//
+//   SKU              active poll   3 x interval   server tile TTL
+//   s3-128 (default)      5 s          15 s             8 s        ok, barely
+//   s3-146 / s3-21        2 s           6 s             8 s        ALWAYS AMBER
+//
+// The 1.46" and 2.1" boards demand data fresher than the cloud has ever served, so
+// they can sit on amber while someone is watching a perfectly healthy feed. The floor
+// fixes that on its own, independently of any TTL change.
+//
+// It is also what lets the tile TTL rise to 30 s for the 50-board pilot (the adsb.fi
+// per-IP budget needs it -- see relay/setup-relay.sh). Worst-case HEALTHY age at a
+// 30 s TTL: 30 (tile TTL) + ~1 (relay fetch) + 3 (the Worker's fresh window) + up to
+// one poll interval since our own merge ~= 39 s. minStaleMs defaults to 45 s, which
+// clears that and is EXACTLY today's idle-tier threshold (3 x 15 s) -- so the floor
+// introduces no new number anywhere: idle (45 s) and night (180 s) are unchanged,
+// and only the fast tiers stop being stricter than the data can possibly be.
 bool AircraftManager::IsDataStale() const
 {
     if (lastGoodDataMs == 0)
         return false; // nothing merged yet: that's "starting up", not "stale"
-#ifdef FEATURE_CLOUD_FEED
-    const int staleFactor = useCloudSource ? cloudCfg.staleFactor : 3;
-#else
-    const int staleFactor = 3;
-#endif
     const unsigned long ageMs = (millis() - lastGoodDataMs) + dataLagAtMergeMs;
-    return ageMs > (unsigned long)staleFactor * CurrentPollIntervalMs();
+    unsigned long thresholdMs = 3UL * CurrentPollIntervalMs();
+#ifdef FEATURE_CLOUD_FEED
+    if (useCloudSource) {
+        thresholdMs = (unsigned long)cloudCfg.staleFactor * CurrentPollIntervalMs();
+        // Cloud only. A local dump1090/readsb feed is on the LAN with no tile cache in
+        // front of it, so its data really is as fresh as the poll -- flooring that to
+        // 45 s would hide a genuinely dead local feed for 45 s in exchange for nothing.
+        if (thresholdMs < cloudCfg.minStaleMs) thresholdMs = cloudCfg.minStaleMs;
+    }
+#endif
+    return ageMs > thresholdMs;
 }
 
 unsigned long AircraftManager::DataAgeMs() const
