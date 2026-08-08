@@ -249,10 +249,16 @@ contains "/blipscope/support (support page)" 200 "Blipscope Support" "$BASE/blip
 contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
   "$BASE/blipscope/support"
 
-# Missileer's support page ships in valar-eam-feed, not here. Add a check when it
-# lands -- and add the link on the hub in the same change, which test/pages.test.ts
-# currently asserts is absent so the two cannot drift apart.
-skip "/missileer/support" "not built yet -- it ships in valar-eam-feed (see src/missileer.ts). Add this check and the hub link together."
+# NO /missileer/support CHECK, and deliberately not a skip() either. Missileer is
+# still in development and does not need a support page yet, so there is nothing
+# here that went unverified -- counting it as SKIPPED would inflate the skip tally
+# and dilute the summary's "skipped checks did NOT run" warning, which has to keep
+# meaning "something we should have checked, and didn't".
+#
+# When that page ships it lands in valar-eam-feed (this Worker proxies the whole
+# /missileer/* prefix to that origin), and the check belongs here in the same
+# change as the hub link -- which test/pages.test.ts asserts is currently absent,
+# so the page and the link cannot drift apart.
 
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
