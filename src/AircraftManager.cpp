@@ -2610,9 +2610,17 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         // behind an opt-in AND a returned standing. The gap is local, always
         // available, and it is the number that makes somebody want to tap -- so it
         // must not be hidden behind a cloud feature the owner may never enable.
-        line(String(logbook.ClaimedTypeCount()) + "/" + String(logbook.TypeCount()) + " types claimed");
-        line(String(logbook.ClaimedOperatorCount()) + "/" + String(logbook.OperatorCount()) + " airlines  " +
-             String(logbook.ClaimedCountryCount()) + "/" + String(logbook.CountryCount()) + " countries");
+        // CLAIMED COUNTS ONLY, no denominator. "75/220" invited the reading that
+        // 220 is how many types there are; it is how many this device has stored,
+        // and once a store hits its cap it is the cap rather than a truth about
+        // the sky. A number that changes meaning when a limit is reached should
+        // not be shown as a total on a face with no room to explain it. The gap
+        // worth closing still exists and is still shown -- on the Collection page,
+        // where the unclaimed entries are visible as chips you can actually go
+        // and get, and where there is room to label the second number "seen".
+        line(String(logbook.ClaimedTypeCount()) + " types claimed");
+        line(String(logbook.ClaimedOperatorCount()) + " operators  " +
+             String(logbook.ClaimedCountryCount()) + " countries");
         line(String(logbook.Contacts()) + " contacts seen");
 
         // lifetime record holders, one compact line: highest / fastest / closest ever

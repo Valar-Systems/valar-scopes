@@ -186,7 +186,21 @@ private:
     static constexpr size_t MAX_OPERATORS = 120;
     static constexpr size_t MAX_COUNTRIES = 64;
     static constexpr size_t MAX_AIRPORTS  = 300; // codes are <=4 chars
-    static constexpr size_t MAX_OP_LEN    = 24;  // truncate long airline names
+    // CHANGING EITHER OF THESE ORPHANS EXISTING CLAIMS, and that is not obvious
+    // from the fact that they look like display widths. The truncated name IS the
+    // map key and IS what gets persisted, so widening the cut re-spells every
+    // entry: "AIR WISCONSIN AIRLINES L" and "AIR WISCONSIN AIRLINES LLC" are two
+    // different keys, the old one keeps the claim, and the aircraft that once
+    // claimed it now enters as a new unclaimed entry under the new spelling. On a
+    // store that is already at capacity the new spelling cannot even be inserted.
+    //
+    // So a widening is a MIGRATION, not a constant bump: it needs a pass that
+    // re-keys the existing store and carries each claimDay across. Worth doing --
+    // the current 24 produces "CSC DELAWARE TRUST CO TR" — but not by editing the
+    // number. The Collection page marks a name cut at these lengths with an
+    // ellipsis (ConfigurationWebServer.cpp) so a clipped name at least reads as
+    // clipped; keep the two in step by hand.
+    static constexpr size_t MAX_OP_LEN    = 24;  // truncate long operator/owner names
     static constexpr size_t MAX_CN_LEN    = 32;  // truncate long country names
     // v4 raised this from 3800 because every record grew a claim-day field, and
     // the two big stores no longer fit under the old ceiling:
