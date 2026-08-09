@@ -93,6 +93,25 @@ sheet. Generate the whole batch as cards in a grid, look at the grid, then
 accept. It takes a minute for a batch of twenty and it is the only step that
 inspects the thing customers actually see.
 
+> **The general rule, of which this is one instance: a check operates on the
+> artifact that ships, never on a description of it.**
+>
+> It is the same rule as reading the ELF instead of [platformio.ini](platformio.ini)
+> to prove a build flag took, and as running `ls` on a downloaded release asset
+> before grepping it — a missing file greps as a clean negative. See the standing
+> practice in [CLAUDE.md](CLAUDE.md); this playbook's version of it is the contact
+> sheet. A title, a licence tag and a pixel count are all descriptions. The card
+> is the artifact.
+>
+> The tell is always the same: the check passes while the defect is present,
+> because the check never touched the defective thing.
+
+**Short type names pull non-aviation results.** Searching `Sling 2` returns baby
+slings, weapon slings and Iron Age sling bullets alongside the aeroplane, and
+`U21` returns under-21 football. Worse, a search for one variant is dominated by
+its more common sibling — every unfiltered `Sling 2` result was a Sling **4**.
+Exclude the sibling explicitly (`-"Sling 4"`) and require the aircraft word.
+
 ## Starter type list
 
 Keys are ICAO type designators — **verify each against the Worker's existing
