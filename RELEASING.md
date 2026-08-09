@@ -97,6 +97,24 @@ booted is a working cloud radar.
 > decoration. `--selftest` on the CI checkers exists for the same reason — prove it can
 > fail before trusting that it passed.
 
+> **Rehearse from a board that is genuinely BEHIND the release under test.** A board
+> flashed from the very release being rehearsed sits at `FW_VERSION == version.txt`.
+> Equal is not greater, so the OTA never fires — and then every assertion below passes
+> anyway: the banner reads the new number because it was *flashed* with it, the board is
+> a cloud image because it was flashed as one, and it draws aircraft for the same reason.
+> Three green ticks, and not one byte was downloaded. The rehearsal is structurally
+> incapable of failing, which makes it worse than no rehearsal: it manufactures
+> confidence.
+>
+> So pick a device at the PREVIOUS version — a bench board is ideal — and confirm before
+> starting that `releases/latest/download/version.txt` is strictly greater than what the
+> board reports. If they are equal, you are about to test nothing.
+>
+> This is the same defect as the `-otatest` one above wearing different clothes, and it
+> is the sixth occurrence on this project of a check that could only ever pass. The
+> pattern is now common enough to assume rather than discover: **when you build a check,
+> the first thing to establish is what would make it fail.**
+
 ### The three assertions
 
 A pass needs **all three**. The version bump alone is explicitly not enough — trusting
