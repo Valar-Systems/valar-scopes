@@ -182,6 +182,33 @@ const PRIORITY: Record<string, string> = {
   R66: "Robinson R66 helicopter",
   B06: "Bell 206 JetRanger",
   S76: "Sikorsky S-76 helicopter",
+  // --- batch 3: measured against a real sky, not guessed (2026-08-09) ---
+  // Ranked by SIGHTINGS on the Bend bench board, cross-referencing its 220-type
+  // logbook against the live /credits manifest: 60% of types seen had a photo,
+  // but 88% of sightings did -- the library covers the common traffic and misses
+  // the GA long tail, which is disproportionately what somebody taps.
+  //
+  // Sling 4 was the ninth most-seen type at that location with no photo at all.
+  // The generic `${target} aircraft` fallback is useless for these: "SLG4
+  // aircraft" finds nothing, because the designator is not the name. That is the
+  // whole reason they belong here rather than being passed as bare arguments.
+  SLG4: "Sling 4 aircraft",              // x589 -- The Airplane Factory Sling
+  C152: "Cessna 152 in flight",          // x331
+  SLG2: "Sling 2 aircraft",              // x196
+  AT8T: "Air Tractor AT-802 aircraft",   // x57
+  C150: "Cessna 150 in flight",          // x50
+  P06T: "Tecnam P2006T aircraft",        // x49
+  U21: "Beechcraft U-21 Ute aircraft",   // x44
+  PA44: "Piper PA-44 Seminole aircraft", // x38
+  RV6: "Van's Aircraft RV-6",            // x29
+  CRUZ: "CSA SportCruiser aircraft",     // x26 -- PiperSport / SportCruiser
+  CH7A: "Bellanca Citabria aircraft",    // x25 -- Champion 7 series
+  BE76: "Beechcraft Duchess aircraft",   // x17
+  AC90: "Rockwell Turbo Commander 690",  // x16
+  P46T: "Piper Malibu Meridian aircraft",// x16
+  PA24: "Piper PA-24 Comanche aircraft", // x16
+  G280: "Gulfstream G280 aircraft",      // x15
+  AS32: "Eurocopter AS332 Super Puma",   // x14
 };
 
 interface Page {
