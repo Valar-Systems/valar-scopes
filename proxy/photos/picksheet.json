@@ -1553,5 +1553,16 @@
    0.5
   ],
   "zoom": 1.25
+ },
+ {
+  "target": "SLG2",
+  "kind": "type",
+  "layer": "auto",
+  "title": "File:Airplane Factory Sling 2 ‘OO-SON’ (34209337312).jpg",
+  "focus": [
+   0.54,
+   0.62
+  ],
+  "zoom": 1.05
  }
 ]
