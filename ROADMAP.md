@@ -418,8 +418,9 @@ README privacy section documents exactly this before launch. Storage: KV rows
 
 ### Anti-cheat (v1: honor system + caps)
 
-Counts must be monotonic; growth-rate caps (a real sky produces < ~40 new types/day);
-type codes validated against the known-designator set; **verified tier** for
+Counts must be monotonic; growth-rate caps (**≥150 new types/day is implausible** — see
+the calibration note below); type codes validated against the known-designator set;
+**verified tier** for
 cloud-feed devices (the Worker can sanity-check claimed type growth against traffic it
 actually served that device); outliers shadow-flagged for review, not auto-banned.
 Per-device keys remain the real fix and the leaderboard is what eventually justifies
@@ -429,6 +430,29 @@ shared `BLIP_KEYS`, gated on `DEVICE_KEY_SECRET` so the live fleet is untouched;
 `npm run derive-device-key` mints them at manufacture; device-authed requests get their
 own rate-limit bucket. Staged follow-ups: the firmware storing/sending its per-device
 key, and keying the leaderboard "verified" tier off `deviceAuthed`.
+
+How a device we did **not** flash gets a key — Turnstile-in-the-browser, why open
+enrollment is rejected, and the open question that gates the abuse controls — is
+[docs/device-enrollment.md](docs/device-enrollment.md) (planned, not built; DIY buyers
+get an emailed key until then).
+
+#### Calibration note: the new-types-per-day threshold (2026-08-08)
+
+The old figure here was **< ~40 new types/day**, and it was an assumption. A bench board
+in Bend, OR — an honest device under a GA-heavy sky — logged **113, 38, 30, 39** new
+types on its first four days. Days 2–4 sit *on* the old threshold. It would have flagged
+a real customer, which is the worst way for a plausibility check to be wrong: it burns
+trust on the honest and teaches you to ignore it.
+
+Raised to **150/day**, and the headroom is doing real work, because the measurement is
+**censored**. `MAX_TYPES` is 220, and the board hit it on day 4 — so 39/day is a lower
+bound on the rate at the moment observation stopped, not a peak. The curve was also not
+decaying (38 → 30 → 39), so there is no basis for extrapolating a ceiling from it.
+
+An uncensored rate is now being collected: the `[logbook] REFUSED since boot:` counter
+(PR #198) records first-time entries the caps turn away, which is the growth a saturated
+store otherwise hides. **Revisit this number once that data exists** — it is measured,
+but measured against one location and one truncated week.
 
 ### Sequencing
 
