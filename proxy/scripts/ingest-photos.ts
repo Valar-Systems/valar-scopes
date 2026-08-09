@@ -22,6 +22,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cropRect, type Framing } from "../src/framing";
 import {
   MANIFEST_KEY,
   deriveBlobKey,
@@ -97,6 +98,28 @@ function wranglerPut(env: string, key: string, opts: { value?: string; path?: st
   execWithRetry(parts.join(" "), `put ${key}`);
 }
 
+// The source region to take for one entry, honouring its framing judgement.
+// Kept next to the resize it feeds so the two cannot drift; the geometry itself
+// is in src/framing.ts, where vitest can reach it without sharp.
+//
+// `place` is 0.5 for the rectangle (nothing is drawn over it) and lower for the
+// square, where text lands on the lower third and the aeroplane must sit above it.
+async function extractFor(
+  sharp: typeof import("sharp"),
+  src: Buffer,
+  outW: number,
+  outH: number,
+  e: { focus?: [number, number]; zoom?: number; target: string },
+  place?: number,
+) {
+  const meta = await sharp(src).metadata();
+  const w = meta.width ?? 0;
+  const h = meta.height ?? 0;
+  if (!w || !h) throw new Error(`${e.target}: source has no dimensions`);
+  const framing: Framing = { focus: e.focus, zoom: e.zoom, place };
+  return cropRect(w, h, outW, outH, framing);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const manifestPath = join(args.photosDir, "manifest.json");
@@ -124,12 +147,17 @@ async function main(): Promise<void> {
   // --- resize + content-address + upload + pointer flip ---
   const tmp = mkdtempSync(join(tmpdir(), "blip-photo-"));
   let sharp: typeof import("sharp") | undefined;
-  if (!args.dryRun) {
-    try {
-      sharp = (await import("sharp")).default as unknown as typeof import("sharp");
-    } catch {
-      throw new Error("sharp is required for uploads: npm i -D sharp");
-    }
+  // --dry-run STILL RESIZES. It used to skip sharp entirely, which made the one
+  // mode you would reach for before a real ingest the one mode that never
+  // exercised the image pipeline -- the crop, the extract geometry and the
+  // baseline-JPEG assertion were all unreachable, so a regression in any of them
+  // would sail through a clean dry run and surface on a device. The docstring
+  // already claimed "everything but the KV writes"; now that is true.
+  try {
+    sharp = (await import("sharp")).default as unknown as typeof import("sharp");
+  } catch {
+    if (!args.dryRun) throw new Error("sharp is required for uploads: npm i -D sharp");
+    console.warn("note: sharp not installed -- dry run will NOT exercise the resize/crop path");
   }
 
   for (const e of entries) {
@@ -143,8 +171,17 @@ async function main(): Promise<void> {
     // (overriding `progressive: false`), and the on-device decoder (TJpgDec via
     // LovyanGFX drawJpg) cannot decode progressive -- the failure is a silent
     // "No photo available" after a successful 200 (found the hard way on the bench).
+    //
+    // THE OUTPUT SIZE IS FIXED AT PHOTO_W x PHOTO_H AND MUST STAY THERE. The
+    // firmware calls drawJpg with maxWidth/maxHeight equal to its 150x100 sprite,
+    // and those arguments CLIP rather than scale -- so an image any larger would
+    // render as its own top-left corner on every device in the field, silently and
+    // on the first card the owner opened. The full-bleed 240x240 variant therefore
+    // ships as a SEPARATE artifact behind --square, not as a change to this one.
+    // See src/framing.ts.
     const jpeg = sharp
       ? await sharp(src)
+          .extract(await extractFor(sharp, src, PHOTO_W, PHOTO_H, e))
           .resize(PHOTO_W, PHOTO_H, { fit: "cover" })
           .jpeg({ progressive: false, quality: 82 })
           .toBuffer()

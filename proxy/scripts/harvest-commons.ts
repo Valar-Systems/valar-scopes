@@ -11,7 +11,9 @@
  *   npm run harvest -- --dry-run     # fetch + validate + report; no files touched
  *   npm run harvest                  # download images, merge manifest.json
  *
- * Pick sheet (photos/picksheet.json): [{ target, kind, layer, title, autoPicked? }]
+ * Pick sheet (photos/picksheet.json): [{ target, kind, layer, title, autoPicked?,
+ * focus?, zoom? }] -- the last two are the framing judgement made when the pick
+ * was accepted (see src/framing.ts); absent means centre with no zoom.
  * where `title` is the exact Commons page title ("File:....jpg").
  *
  * Extra guard for the mil-tier layer (the playbook's credit-line test): a PD
@@ -32,6 +34,10 @@ interface Pick {
   layer: "mil-tier" | "auto";
   title: string; // exact Commons "File:..." title
   autoPicked?: boolean;
+  // Framing judgement made when the pick was accepted, carried through to the
+  // manifest so ingest can apply it. Absent = centre, no zoom.
+  focus?: [number, number];
+  zoom?: number;
 }
 
 interface ImageInfo {
@@ -132,6 +138,8 @@ async function main(): Promise<void> {
       license: licenseRaw,
       layer: pick.layer,
       autoPicked: pick.autoPicked ?? false,
+      ...(pick.focus ? { focus: pick.focus } : {}),
+      ...(pick.zoom !== undefined ? { zoom: pick.zoom } : {}),
       file: `src/${pick.target.toLowerCase()}.jpg`,
     };
     const cls = classifyLicense(licenseRaw);
