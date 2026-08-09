@@ -20,6 +20,12 @@ export interface ManifestEntry {
   file?: string; // local source image the ingest script resizes (input only)
   changesNoted?: string; // required for CC-BY-SA: how the image was modified ("resized for device display")
   blobKey?: string; // ingest-filled: the content-addressed KV key the pointer points at
+  // Per-photo framing, both optional and both defaulting to the safe value
+  // (centre, no push). See src/framing.ts for why a single global setting
+  // cannot work: a stock photo is composed for a rectangle, and every frame
+  // puts the aeroplane somewhere different.
+  focus?: [number, number];
+  zoom?: number;
 }
 
 // License classification, normalized from the raw token. NC/ND are rejected in
