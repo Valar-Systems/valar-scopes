@@ -3672,7 +3672,7 @@ void AircraftManager::SeedLogbookFromTracked()
             // Without it the gold NEW badge would not appear until the contact
             // happened to be re-enriched, and the owner would be looking at a
             // scope full of claimable aircraft that do not say so.
-            t.claimable = !logbook.IsTypeClaimed(t.typeCode);
+            t.claimable = logbook.IsTypeClaimable(t.typeCode);
         }
         if (!t.operatorName.isEmpty() && logbook.NoteOperator(t.operatorName)) ++seededOps;
         if (logbook.NoteAirport(t.routeOrigin)) ++seededPorts;
@@ -4149,7 +4149,7 @@ void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed:
         // first sighting. That is what lets a type seen months ago still be worth
         // tapping today, and what makes the badge disappear the instant it is
         // claimed on any aircraft of that type.
-        tracked.claimable = !tracked.typeCode.isEmpty() && !logbook.IsTypeClaimed(tracked.typeCode);
+        tracked.claimable = !tracked.typeCode.isEmpty() && logbook.IsTypeClaimable(tracked.typeCode);
         // route endpoints feed the airports-seen lifelist; they are claimed as
         // riders when the card is opened, never on their own
         logbook.NoteAirport(tracked.routeOrigin);
@@ -4259,7 +4259,7 @@ void AircraftManager::ConsumeEnrichResults()
                     if (logbookEnabled) {
                         logbook.NoteType(t.typeCode);
                         logbook.NoteOperator(t.operatorName);
-                        t.claimable = !t.typeCode.isEmpty() && !logbook.IsTypeClaimed(t.typeCode);
+                        t.claimable = !t.typeCode.isEmpty() && logbook.IsTypeClaimable(t.typeCode);
                     }
                 } else {
                     // transient network failure: allow a later retry, but not before

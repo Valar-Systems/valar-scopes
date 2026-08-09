@@ -179,6 +179,28 @@ void Logbook::saveRecord(const char* key, const Record& r)
     prefs.putString(key, r.callsign + FIELD + String(r.value, 1) + FIELD + String(r.day));
 }
 
+// ---- capacity ---------------------------------------------------------------
+// A full store is not a benign "we stopped counting", and it used to be entirely
+// silent. Silence made it look like a scoring bug: Note*() refuses to insert, so
+// the entry is ABSENT -- and absent read as "unclaimed" to the badge predicate
+// but as "reject" to Claim*(). The owner got a gold NEW ring on an aircraft that
+// could never be claimed, on every contact of every new type, forever.
+// IsTypeClaimable() removes the lie; this makes the CAUSE visible instead of
+// leaving it to be inferred from a store size that happens to equal its cap.
+//
+// Observed on a bench board 2026-08-08: 220/220 types, 120/120 airlines,
+// 300/300 airports after one week under a GA-heavy sky.
+void Logbook::noteFull(Store s, const char* what, size_t cap)
+{
+    if (rejected[s] < 0xFFFF) ++rejected[s];
+    if (!warnedFull[s]) {
+        warnedFull[s] = true;
+        Serial.printf("[logbook] AT CAPACITY: %s full at %u. First-time entries are no "
+                      "longer recorded, and what is not recorded cannot be claimed.\n",
+                      what, (unsigned)cap);
+    }
+}
+
 bool Logbook::NoteType(const String& typeCode)
 {
     String t = typeCode;
@@ -192,8 +214,10 @@ bool Logbook::NoteType(const String& typeCode)
         dirty = true;
         return false; // known type: counted, not a fresh catch
     }
-    if (types.size() >= MAX_TYPES)
+    if (types.size() >= MAX_TYPES) {
+        noteFull(StTypes, "types", MAX_TYPES);
         return false; // at capacity: don't claim a new catch we can't store
+    }
     types[t] = TypeStat{ TodayEpochDay(), 1 };
     dirty = true;
     return true;
@@ -233,8 +257,10 @@ bool Logbook::NoteOperator(const String& operatorName)
         return false;
     if (operators.count(op))
         return false;
-    if (operators.size() >= MAX_OPERATORS)
+    if (operators.size() >= MAX_OPERATORS) {
+        noteFull(StOperators, "airlines/owners", MAX_OPERATORS);
         return false;
+    }
     operators[op] = SeenStat{ TodayEpochDay(), 0 };
     dirty = true;
     return true;
@@ -247,8 +273,10 @@ bool Logbook::NoteCountry(const String& country)
         return false;
     if (countries.count(c))
         return false;
-    if (countries.size() >= MAX_COUNTRIES)
+    if (countries.size() >= MAX_COUNTRIES) {
+        noteFull(StCountries, "countries", MAX_COUNTRIES);
         return false;
+    }
     countries[c] = SeenStat{ TodayEpochDay(), 0 };
     dirty = true;
     return true;
@@ -261,8 +289,10 @@ bool Logbook::NoteAirport(const String& airportCode)
         return false;
     if (airports.count(a))
         return false;
-    if (airports.size() >= MAX_AIRPORTS)
+    if (airports.size() >= MAX_AIRPORTS) {
+        noteFull(StAirports, "airports", MAX_AIRPORTS);
         return false;
+    }
     airports[a] = SeenStat{ TodayEpochDay(), 0 };
     dirty = true;
     return true;
@@ -280,6 +310,29 @@ bool Logbook::IsTypeClaimed(const String& typeCode) const
     t.trim();
     const auto it = types.find(t);
     return it != types.end() && it->second.claimDay != 0;
+}
+
+// THE BADGE PREDICATE, and the reason it is not simply !IsTypeClaimed().
+//
+// The two questions differ only on a type that is ABSENT from the book, and they
+// used to answer it opposite ways: IsTypeClaimed() says "not claimed" (so the
+// badge said claimable), while ClaimType() below refuses to claim something never
+// seen. Below capacity that disagreement is unreachable, because every call site
+// runs NoteType() first and the insert always succeeds. AT capacity NoteType()
+// inserts nothing, so every new type is absent and the disagreement is the only
+// outcome: a permanent gold NEW ring on an aircraft whose claim silently fails,
+// with no toast and no latch, on every reopen forever. Observed on a bench board
+// with 220/220 types, tapping an LJ31 (2026-08-08).
+//
+// Asking one question instead of two makes the two answers unable to differ. An
+// unrecordable type now simply carries no badge -- the collection stops growing,
+// which it had already done, but it stops advertising that it hasn't.
+bool Logbook::IsTypeClaimable(const String& typeCode) const
+{
+    String t = typeCode;
+    t.trim();
+    const auto it = types.find(t);
+    return it != types.end() && it->second.claimDay == 0;
 }
 
 bool Logbook::ClaimType(const String& typeCode)
@@ -609,4 +662,17 @@ void Logbook::MaybePersist()
                   (unsigned)(typesBlob.length() + opsBlob.length() +
                              countriesBlob.length() + airportsBlob.length()),
                   (unsigned)freeLeft);
+    // A second line ONLY when something was refused, so a healthy device's log is
+    // unchanged. These counts are since boot, and they are the input to any
+    // decision about the caps: store sizes pinned at their cap say a store filled,
+    // never how fast, so the growth rate cannot be recovered from them afterwards.
+    if (rejected[StTypes] || rejected[StOperators] || rejected[StCountries] || rejected[StAirports])
+        Serial.printf("[logbook] REFUSED since boot: %u types, %u airlines/owners, %u countries, "
+                      "%u airports  (stores %u/%u, %u/%u, %u/%u, %u/%u)\n",
+                      (unsigned)rejected[StTypes], (unsigned)rejected[StOperators],
+                      (unsigned)rejected[StCountries], (unsigned)rejected[StAirports],
+                      (unsigned)types.size(), (unsigned)MAX_TYPES,
+                      (unsigned)operators.size(), (unsigned)MAX_OPERATORS,
+                      (unsigned)countries.size(), (unsigned)MAX_COUNTRIES,
+                      (unsigned)airports.size(), (unsigned)MAX_AIRPORTS);
 }

@@ -77,6 +77,10 @@ public:
     // one appears. Claim* returns true only on the transition, so the caller can
     // show a confirmation exactly once.
     bool IsTypeClaimed(const String& typeCode) const;
+    // The badge predicate. NOT !IsTypeClaimed(): that answers "absent" with
+    // "claimable" while ClaimType() answers it with "reject", and once a store is
+    // full every new type IS absent. See the capacity note in the .cpp.
+    bool IsTypeClaimable(const String& typeCode) const;
     bool ClaimType(const String& typeCode);
     bool ClaimOperator(const String& operatorName);
     bool ClaimCountry(const String& country);
@@ -150,6 +154,15 @@ private:
     // Claimed tallies, maintained incrementally. Counting them on demand would
     // walk four maps on every Stats frame and every leaderboard submit.
     uint16_t claimedTypes = 0, claimedOperators = 0, claimedCountries = 0, claimedAirports = 0;
+    // First-time entries REFUSED because a store was full, saturating. These are
+    // the only measurement of how fast a sky actually fills a store: a saturated
+    // count tells you that it filled, never how fast it was filling, so a cap can
+    // never be sized from a device that already hit one. Reported on the persist
+    // line, and only when non-zero.
+    enum Store : uint8_t { StTypes = 0, StOperators, StCountries, StAirports, StCount };
+    uint16_t rejected[StCount] = {0, 0, 0, 0};
+    bool warnedFull[StCount] = {false, false, false, false};
+    void noteFull(Store s, const char* what, size_t cap);
     uint32_t contacts = 0;
     Record recHigh, recFast, recNear;
     bool dirty = false;
