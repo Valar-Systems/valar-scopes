@@ -295,7 +295,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     <div id="col"><span class="hint">Loading your collection&hellip;</span></div>
                     <div class="hint mt">
                         Seeing an aircraft is your antenna's doing. Claiming it is yours &mdash; open a
-                        contact's card on the device and one tap claims its type, airline, country and
+                        contact's card on the device and one tap claims its type, operator, country and
                         route airports at once. Only claims score.
                         <a href="/logbook.json?download=1">Download a copy</a> of everything below.
                     </div>
@@ -813,10 +813,21 @@ R"(
                     '<div style="flex-grow:' + claimed + ';background:#ffd200"></div>' +
                     '<div style="flex-grow:' + rest + '"></div></div>';
             };
-            const section = function (title, items, keyName, claimedN) {
+            // truncAt: the store-time length cap for this category's key, or 0 for
+            // categories that are never truncated (codes). Kept in step with
+            // Logbook.h's MAX_OP_LEN / MAX_CN_LEN by hand -- the page is a C++ raw
+            // string literal, so the constants cannot be interpolated in, and the
+            // percent sign the template processor would need is already claimed.
+            const section = function (title, items, keyName, claimedN, truncAt) {
                 if (!items || !items.length) return '';
+                // "N claimed of M seen", never a bare "N of M". M is how many
+                // entries this device has STORED, which stops being a fact about
+                // the sky the moment a store hits its cap -- and three of the four
+                // caps are reachable in a week under a busy sky. Labelling the
+                // second number is the difference between a comparison of two
+                // counts (true) and a progress bar toward a total (not).
                 let h = '<div style="margin:.9rem 0 .2rem"><b>' + esc(title) + '</b> ' +
-                    '<span class="hint">' + claimedN + ' of ' + items.length + ' claimed</span></div>';
+                    '<span class="hint">' + claimedN + ' claimed of ' + items.length + ' seen</span></div>';
                 h += bar(claimedN, items.length);
                 const sorted = items.slice().sort(function (a, b) {
                     if (a.claimed !== b.claimed) return a.claimed ? -1 : 1;
@@ -827,7 +838,25 @@ R"(
                     const when = it.claimed ? ('claimed ' + (it.claimedOn || 'date unknown'))
                         : ('seen ' + (it.first || 'date unknown') + ' - not claimed yet');
                     const n = it.count ? (' x' + it.count) : '';
-                    h += chip(it[keyName] + n, it.claimed, when);
+                    // MARK A TRUNCATED NAME. Names are cut to MAX_OP_LEN /
+                    // MAX_CN_LEN at STORE time, so the full text is already gone
+                    // by the time it reaches here -- "CSC DELAWARE TRUST CO TR" is
+                    // genuinely all the device has. An ellipsis is the honest
+                    // option left: the reader can see the name is clipped instead
+                    // of being shown a wrong one as if it were complete.
+                    //
+                    // Length-equals-cap is a heuristic, so a name that happens to
+                    // be exactly cap characters gets a spurious ellipsis. That is
+                    // a strictly smaller error than the current one, and it is
+                    // cosmetic in a way the current one is not.
+                    //
+                    // WIDENING the cap is the real fix and is deliberately not
+                    // done here: the stored name IS the map key, so changing the
+                    // cut length re-spells every entry and orphans the claims
+                    // filed under the old spelling. See Logbook.h.
+                    let name = String(it[keyName]);
+                    if (truncAt && name.length >= truncAt) name += '…';
+                    h += chip(name + n, it.claimed, when);
                 }
                 return h + '</div>';
             };
@@ -837,11 +866,19 @@ R"(
                 fetch('/logbook.json').then(function (r) { return r.json(); }).then(function (d) {
                     const c = d.counts || {}, k = d.claimed || {};
                     let h = '<div class="hint">Seeing an aircraft is your antenna. Claiming it is you &mdash; ' +
-                        'open a contact\'s card on the device to claim its type, airline, country and airports at once.</div>';
-                    h += section('Types', d.types, 'code', k.types || 0);
-                    h += section('Airlines', d.airlines, 'name', k.airlines || 0);
-                    h += section('Countries', d.countries, 'name', k.countries || 0);
-                    h += section('Airports', d.airports, 'code', k.airports || 0);
+                        'open a contact\'s card on the device to claim its type, operator, country and airports at once.</div>';
+                    h += section('Types', d.types, 'code', k.types || 0, 0);
+                    // "Operators", not "Airlines". adsbdb returns the REGISTERED
+                    // OWNER, and outside airline traffic that is a person or a
+                    // single-airframe LLC -- a real board's list reads ANDREW
+                    // KLEMISH, BORKOSKI BRIAN, 84 ALPHA KILO LLC. Calling that
+                    // "Airlines" was the least honest label on the page. The JSON
+                    // key stays `airlines`: it is the wire field the leaderboard
+                    // submit sends, so renaming it is a Worker change, not a copy
+                    // change.
+                    h += section('Operators', d.airlines, 'name', k.airlines || 0, 24); // MAX_OP_LEN
+                    h += section('Countries', d.countries, 'name', k.countries || 0, 32); // MAX_CN_LEN
+                    h += section('Airports', d.airports, 'code', k.airports || 0, 0);
                     const rec = d.records || {};
                     const bits = [];
                     if (rec.high) bits.push('Highest ' + esc(rec.high.callsign) + ' ' + rec.high.value + ' ' + esc(rec.high.unit));
