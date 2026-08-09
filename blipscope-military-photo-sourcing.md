@@ -44,6 +44,55 @@ imagery edges toward implied endorsement — keep marketing art separate.
 - Consistency beats individual brilliance: an all-air-to-air library reads as a
   designed product; a mix of ramp shots and air-to-air reads as scraped
 
+### It has to survive a SQUARE crop (2026-08-09)
+
+The detail card is going full-bleed on a round panel, so the sprite is no longer
+a 150 px landscape rectangle — it is a 240×240 disc. A landscape photo loses its
+sides to that crop, and the criteria above were written for the rectangle.
+
+Two fields go on the picksheet, both optional and both defaulting to the safe
+value: **`focus`** (subject centre as `[x, y]` in 0–1, default `[0.5, 0.5]`) and
+**`zoom`** (default `1.0`). They exist because a stock photo is composed for a
+rectangle: apron, sky and runway are most of the pixels, and a centre crop
+faithfully preserves a composition that is wrong for a 130 px disc.
+
+> **A photo that cannot be framed usefully gets REPLACED, not cropped harder.**
+>
+> This is a curation standard, and it sits here next to the licence rules
+> deliberately — it is the one that erodes during a bulk harvest. Cropping harder
+> always *works* in the sense that it produces an image; it just produces one the
+> owner cannot identify. Measured on a real batch: a global zoom tuned to one
+> photo made two of three test aircraft unrecognisable, and a third could not be
+> saved at any setting because the aeroplane sat low and wide in the frame. That
+> third one is not a cropping problem to solve, it is a photo to drop.
+>
+> The test is one question, asked at the pick: **at 240 px, can you tell what
+> aircraft this is?** If the answer needs a zoom setting that throws away the
+> wings, find another photo. There are usually several.
+
+A `zoom` above ~1.4 is a smell rather than an error — it usually means the
+aircraft is small in the frame, which is the ≥70%-of-width criterion above
+failing quietly.
+
+### Render the card before accepting a pick — the title is not the photograph
+
+**A pick is not vetted until you have looked at it rendered as a 240 px card.**
+Reading the Commons title, the licence and the dimensions tells you nothing about
+whether the image shows an aeroplane.
+
+Measured on the first batch to use this process: **4 of 17 picks that had passed
+a title-and-licence review failed the moment they were rendered.** One
+(`CRUZ`) was captioned *"University Flying Club (VH-EZT) CSA PiperSport at
+Jandakot Airport"* — accurate, correctly licensed, right aircraft, and the
+photograph is of its **instrument panel**. Another (`C150`) was a close-up of a
+fuselage side. Two more had the aircraft too small or upstaged by a larger jet
+behind it.
+
+None of that is visible in metadata, and all of it is obvious in one contact
+sheet. Generate the whole batch as cards in a grid, look at the grid, then
+accept. It takes a minute for a batch of twenty and it is the only step that
+inspects the thing customers actually see.
+
 ## Starter type list
 
 Keys are ICAO type designators — **verify each against the Worker's existing
