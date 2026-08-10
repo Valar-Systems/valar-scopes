@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { FULLBLEED_MIN_FW, resolvePhoto, squareSizeFor } from "../src/photos";
-import { pointerKey } from "../src/photolicense";
+import { FULLBLEED_MIN_FW, isValidPhotoKey, resolvePhoto, squareSizeFor } from "../src/photos";
+import { deriveBlobKey, pointerKey } from "../src/photolicense";
 
 // The full-bleed gate (issue #209). Firmware up to FW 6 draws the photo into a
 // fixed 150x100 slot and its drawJpg call passes no scale, so maxWidth/maxHeight
@@ -90,6 +90,47 @@ describe("resolvePhoto variant selection", () => {
   it("still returns null when the library has neither variant", async () => {
     expect(await resolvePhoto(env, "ffffff", "ZZZZ", 240)).toBeNull();
     expect(await resolvePhoto(env, "ffffff", "ZZZZ", null)).toBeNull();
+  });
+});
+
+describe("the keys the ingest actually derives are servable", () => {
+  // THIS IS THE TEST THAT WAS MISSING, and its absence shipped a bug to
+  // production KV. Every fixture above is a hand-written key of the correct
+  // shape -- a DESCRIPTION of what the ingest emits. The ingest was emitting
+  // `photo:C182-s240-<hash>` (size suffixed into the target segment), which
+  // BLOB_KEY_RE rejects because the target must be alphanumeric. resolvePhoto
+  // therefore discarded every square pointer and fell back to the rectangle,
+  // silently, with a 200 on the wire and nothing in any log.
+  //
+  // So this asserts on deriveBlobKey's real output rather than on a key shaped
+  // the way we believe it should be. Same rule as the photo playbook's contact
+  // sheet: the check operates on the artifact, never on a description of it.
+  it("round-trips deriveBlobKey through isValidPhotoKey", async () => {
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+    for (const target of ["C182", "B738", "E75L", "A320", "H60", "a1b2c3", "U2"]) {
+      const key = await deriveBlobKey(target, bytes);
+      expect(isValidPhotoKey(key), `${target} -> ${key}`).toBe(true);
+    }
+  });
+
+  it("rejects the suffixed shape the ingest briefly emitted", () => {
+    // The literal key read back out of production KV on 2026-08-10. Pinned so the
+    // failure is documented rather than only fixed: if someone reintroduces a
+    // suffix in the blob key, this says what breaks and how quietly.
+    expect(isValidPhotoKey("photo:C182-s240-ea58fa97")).toBe(false);
+    expect(isValidPhotoKey("photo:B738-s240-13da843b")).toBe(false);
+    // ...while the shape it should have been stays servable.
+    expect(isValidPhotoKey("photo:C182-ea58fa97")).toBe(true);
+  });
+
+  it("gives the same type's three panel sizes three distinct servable keys", async () => {
+    // Content-addressing alone separates them -- which is why no size suffix is
+    // needed in the blob key, and why adding one broke serving for no gain.
+    const keys = await Promise.all(
+      [240, 412, 480].map((n) => deriveBlobKey("C182", new Uint8Array([n & 0xff, n >> 8, 9, 9]))),
+    );
+    expect(new Set(keys).size).toBe(3);
+    for (const k of keys) expect(isValidPhotoKey(k), k).toBe(true);
   });
 });
 

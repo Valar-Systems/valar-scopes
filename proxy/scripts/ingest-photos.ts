@@ -259,7 +259,19 @@ async function main(): Promise<void> {
     // so a half-finished ingest degrades to "some devices still get rectangles",
     // never to a dangling pointer or a clipped card.
     for (const s of squares) {
-      const sKey = await deriveBlobKey(`${e.target}-s${s.size}`, new Uint8Array(s.buf));
+      // The TARGET, not `${target}-s${size}`. Blob keys are validated on serve by
+      // BLOB_KEY_RE (photo:<target>-<hash8>, target alphanumeric), and a size
+      // suffix puts a second dash in the target segment -- which the regex
+      // rejects, so resolvePhoto drops the square and falls back to the rectangle
+      // SILENTLY, with a 200 on the wire and nothing in any log. Caught only by
+      // reading a key the ingest had actually written; the unit tests passed
+      // because their fixtures were hand-written keys of the right shape rather
+      // than keys this code produces.
+      //
+      // No suffix is needed anyway: the blobs are content-addressed, so three
+      // sizes of one type hash to three different keys on their own, and the
+      // POINTER key already carries the size.
+      const sKey = await deriveBlobKey(e.target, new Uint8Array(s.buf));
       const sPath = join(tmp, `${sKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
       writeFileSync(sPath, s.buf);
       wranglerPut(args.env, sKey, { path: sPath });
