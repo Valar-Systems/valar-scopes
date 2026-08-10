@@ -18,9 +18,26 @@
 #include "SoakHarness.h" // sparse human-scale gesture script (soak builds only)
 #endif
 
-// adsbdb thumbnails (airport-data.com) are a standard 150x100
-constexpr int PHOTO_W = 150;
-constexpr int PHOTO_H = 100;
+// The detail card's photo is FULL BLEED: the sprite is the whole round panel, so
+// it is the panel's size on every SKU rather than a fixed 150x100 slot.
+//
+// The server decides which artifact a device receives -- the enrich response
+// carries the photo PATH (`p`), so the Worker picks the square variant for
+// firmware new enough to draw it and the legacy 150x100 for everything else.
+// That gate is not cosmetic: our drawJpg call site passes no scale, so maxWidth/
+// maxHeight CLIP rather than shrink, and a square blob reaching old firmware
+// would render as its own top-left corner.
+//
+constexpr int PHOTO_W = SCREEN_SIZE;
+constexpr int PHOTO_H = SCREEN_SIZE;
+
+// Where the two surviving lines sit on the full-bleed page. Kept next to each
+// other because the scrim's ramp is solved against them: the band reaches full
+// strength at 0.80 of height (y=192 on a 240 panel) and the first glyph must
+// land below that, or the contrast measurement in #209 does not describe the
+// pixels the text is actually on.
+constexpr int FULLBLEED_TITLE_Y = SCREEN_SIZE - 46; // callsign, size 2
+constexpr int FULLBLEED_HINT_Y  = SCREEN_SIZE - 22; // "tap: details", size 1
 
 // Display-unit conversions. The feeds are normalised to OpenSky's SI internally
 // (metres, m/s); aviation/US convention shows altitude in feet and ground speed
@@ -4370,12 +4387,31 @@ void AircraftManager::ConsumeEnrichResults()
                     if (photoSprite.getBuffer() == nullptr) {
                         // PSRAM boards keep the photo off the scarce internal heap (where WiFi/TLS
                         // and the JPEG decoder also live), so decoding a card doesn't fragment it.
-                        if constexpr (!variant::BANDED_RENDER)
+                        // Depth must MATCH the backbuffer's (see main.cpp): a
+                        // 16bpp photo pushed into an 8bpp backbuffer is quantized
+                        // straight back to RGB332, so moving one without the other
+                        // buys nothing and looks identical.
+                        if constexpr (!variant::BANDED_RENDER) {
                             photoSprite.setPsram(true);
-                        photoSprite.setColorDepth(8);
+                            photoSprite.setColorDepth(16);
+                        } else {
+                            photoSprite.setColorDepth(8);
+                        }
                         photoSprite.createSprite(PHOTO_W, PHOTO_H);
                     }
                     photoSprite.fillScreen(lgfx::color888(0, 0, 0));
+                    // Plain top-left draw. A middle_center datum was tried here as
+                    // "cheap insurance" for an unexpectedly small image and BROKE
+                    // THE CORRECT CASE on hardware: with (x,y) at the sprite centre
+                    // the image landed at (120,120) and only its top-left corner
+                    // fell inside the sprite -- a mostly-blank card with a fragment
+                    // in the bottom-right, while drawJpg still returned true and
+                    // hasPhoto still read 1, so nothing logged a fault.
+                    //
+                    // The artifact is emitted at exactly this size, so there is
+                    // nothing to centre; a mismatched one leaves black margins,
+                    // which is obvious rather than silent. Insurance that can
+                    // break the case it is insuring is not insurance.
                     photoReady = photoSprite.drawJpg((const uint8_t*)res->photoBytes.c_str(),
                                                      res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
                     // A failed decode after a successful fetch must be LOUD: a progressive
@@ -4846,10 +4882,6 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     const Aircraft& s = tracked.state;
     constexpr int cx = SCREEN_SIZE_DIV_2;
 
-    backbuffer.fillScreen(lgfx::color888(0, 0, 0));
-    // frame ring to match the round display
-    backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
-
     auto centered = [&](const String& str, int yy) {
         const int x = cx - static_cast<int>(backbuffer.textWidth(str)) / 2;
         backbuffer.drawString(str, x, yy);
@@ -4863,31 +4895,93 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         title.toUpperCase();
     }
 
-    // The photo slot at the top of the card holds the real photo when one decoded, a generic
-    // aircraft silhouette when adsbdb has none, or a "Loading..." note while it's still resolving --
-    // so a photo-less card reads as designed, not broken. Only the explicit data page (tapped over
-    // from a real photo) drops the slot for the full-height text layout. Photo page 0 keeps the
-    // tighter text set; the silhouette/data pages show full telemetry (gated on showPhoto below).
+    // Three layouts, not two:
+    //   showPhoto  -- page 0 with a decoded photo: FULL BLEED (below, returns early)
+    //   !hasPhoto  -- no photo at all: the slot layout, silhouette or "Loading...",
+    //                 with full telemetry beneath it
+    //   otherwise  -- the data page, tapped over from a full-bleed photo
     const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
     const bool showPhoto = hasPhoto && detailPage == 0;
     const bool photoSettled = photoIcao == selectedIcao && photoResolved; // we now know there's no photo
-    const bool useSlot = showPhoto || !hasPhoto;                          // slot unless flipped to data page
+    const bool useSlot = !hasPhoto;                                       // silhouette / loading layout
 
+    // ---- FULL-BLEED PHOTO PAGE ---------------------------------------------
+    // The photo fills the disc and the only text over it is the callsign.
+    //
+    // WHY ONLY THE CALLSIGN. Every row of text over the photo costs a row of
+    // aircraft, and the scrim has to be tall enough to cover the lowest line --
+    // so four lines of text is what made the old scrim a tall arc rather than a
+    // band. The photo already answers the fields that describe the CATEGORY
+    // (type, operator, and largely the route); the callsign is the one thing it
+    // cannot tell you. Those fields are not lost: they are on the data page,
+    // which this card has always had (detailPage 1, one tap away, hint below).
+    //
+    // The callsign specifically, rather than any other single field:
+    //   - it identifies THIS airframe, not its category
+    //   - it is what a person says out loud ("SKW6042 is overhead")
+    //   - it is the only field that is ALWAYS present. Type, operator and route
+    //     all wait on enrichment; the position feed carries the callsign, so any
+    //     other choice leaves the primary line empty on a fresh tap.
+    //
+    // Measured, not assumed: the band ramp (0.66-0.80 of height, baked at ingest
+    // by proxy/src/framing.ts) holds >= 8.1:1 against the card green on every
+    // photo in the hostile set, three of which contain a pure-white pixel in
+    // these rows. See issue #209 for the table.
     int y;
     backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-    if (useSlot) {
-        if (showPhoto) {
-            // blit onto the band sprite directly, shifting Y by the band top like BandCanvas does
-            photoSprite.pushSprite(&backbuffer.sprite(), cx - PHOTO_W / 2, 30 - backbuffer.offsetY());
-            if (tracked.photoRepresentative) {
-                // Cloud stock photo is a generic type shot, not this exact
-                // airframe -- label it honestly (a per-hex override stays
-                // uncaptioned). Overlaid on the lower edge of the image.
-                backbuffer.setTextSize(1);
-                backbuffer.setTextColor(lgfx::color888(0, 230, 0));
-                centered("representative photo", 30 + PHOTO_H - 12);
+    if (showPhoto) {
+        // No fillScreen: the photo covers every pixel of the disc, which is what
+        // pays for the larger blit (BlitProbe: fillScreen 240x240 = 1.653 ms of
+        // the 2.652 ms the bigger sprite costs).
+        photoSprite.pushSprite(&backbuffer.sprite(), 0, -backbuffer.offsetY());
+        backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
+
+        // Badges ride at the TOP of the disc on their own filled pill rather than
+        // in the scrim. They are intermittent and high-salience, and putting them
+        // in the band would force the band taller for text most cards never show
+        // -- which is the whole cost this layout exists to avoid.
+        int badgeY = 18;
+        auto badge = [&](const String& text, uint32_t fg) {
+            backbuffer.setTextSize(1);
+            const int w = static_cast<int>(backbuffer.textWidth(text));
+            const int h = backbuffer.fontHeight();
+            backbuffer.fillRoundRect(cx - w / 2 - 6, badgeY - 3, w + 12, h + 6, 3,
+                                     lgfx::color888(0, 0, 0));
+            backbuffer.setTextColor(fg);
+            centered(text, badgeY);
+            badgeY += h + 9;
+        };
+        if (const SpecialAircraft::Class sc = SpecialClassOf(tracked); sc != SpecialAircraft::Class::None) {
+            const char* label = "";
+            switch (sc) {
+                case SpecialAircraft::Class::Military:   label = "MILITARY";   break;
+                case SpecialAircraft::Class::Special:    label = "SPECIAL";    break;
+                case SpecialAircraft::Class::Helicopter: label = "HELICOPTER"; break;
+                default: break;
             }
-        } else if (photoSettled) {
+            badge(label, SpecialColor(sc));
+        }
+        // The claim is a MOMENT, not a field -- opening the card is what earns it,
+        // so it stays on the page the owner is looking at when it fires.
+        if (logbookEnabled && tracked.claimFired)
+            badge("CLAIMED #" + String((int)logbook.ClaimedTypeCount()), lgfx::color888(255, 215, 0));
+        else if (logbookEnabled && tracked.claimable)
+            badge("NEW", lgfx::color888(255, 215, 0));
+
+        backbuffer.setTextSize(2);
+        backbuffer.setTextColor(lgfx::color888(86, 235, 60));
+        centered(title, FULLBLEED_TITLE_Y);
+        backbuffer.setTextSize(1);
+        backbuffer.setTextColor(lgfx::color888(0, 150, 0));
+        centered("tap: details", FULLBLEED_HINT_Y);
+        return; // nothing else belongs over the photograph
+    }
+
+    backbuffer.fillScreen(lgfx::color888(0, 0, 0));
+    // frame ring to match the round display
+    backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
+    if (useSlot) {
+        if (photoSettled) {
             DrawAircraftSilhouette(backbuffer, cx, 76, tracked);
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(0, 120, 0));
@@ -4905,6 +4999,17 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         backbuffer.setTextSize(2);
         centered(title, 36);
         y = 70;
+        if (tracked.photoRepresentative) {
+            // Provenance for the stock library: this is a generic shot of the TYPE,
+            // not this airframe (a per-hex override is uncaptioned). It moved here
+            // from the photo page with the other category-descriptive fields --
+            // it describes where the picture came from, which is the same kind of
+            // fact as "Type:" and belongs beside it.
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(lgfx::color888(0, 130, 0));
+            centered("representative photo", 58);
+            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        }
     }
 
     backbuffer.setTextSize(1);

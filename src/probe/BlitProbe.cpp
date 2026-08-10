@@ -336,6 +336,76 @@ void setup()
     void* small = heap_caps_malloc(4300, kTlsCaps); // top of the measured 2,520-4,265 range
     if (small) { memset(small, 0xAB, 4300); heapLine("sprite + 4.3 KB payload"); heap_caps_free(small); }
 
+    // ---- part 4: 8bpp vs 16bpp -----------------------------------------------
+    // WHY THIS MATTERS MORE THAN ANYTHING ABOVE. 8bpp in LovyanGFX is RGB332:
+    // 8 levels of red, 8 of green, FOUR of blue. 256 colours total. A photograph
+    // of an aeroplane against sky is close to the worst case for that palette --
+    // skies band, blues posterize, and everything picks up a cast. The depth was
+    // chosen when the backbuffer had to live in the C3's internal heap; on a
+    // PSRAM board it is buying nothing.
+    //
+    // Both buffers have to move together: pushing a 16bpp photo into an 8bpp
+    // backbuffer just quantizes it straight back down.
+    //
+    // The panel push is the interesting number. At 8bpp it is 23.2 ms, and the
+    // SPI clock (40 MHz) says 115,200 bytes of RGB565 takes 23.04 ms -- so the
+    // transfer is ALREADY 16-bit on the wire and the 8bpp buffer is being
+    // converted on the fly. If that holds, 16bpp costs PSRAM and blit bandwidth
+    // but nothing at all on the panel push, which is 78-86% of the frame.
+    Serial.println("\n[blit] --- 16bpp (RGB565) vs 8bpp (RGB332) -----------------");
+    {
+        LGFX_Sprite bb16(&tft), photo16(&tft);
+        bb16.setPsram(true);    bb16.setColorDepth(16);
+        photo16.setPsram(true); photo16.setColorDepth(16);
+        const bool ok16 = bb16.createSprite(SCREEN_SIZE, BAND_H) != nullptr &&
+                          photo16.createSprite(kFullW, kFullH) != nullptr;
+        Serial.printf("[blit] 16bpp buffers %s (backbuffer %d B + photo %d B)\n",
+                      ok16 ? "ok" : "ALLOC FAILED",
+                      SCREEN_SIZE * BAND_H * 2, kFullW * kFullH * 2);
+        if (ok16) {
+            paint(photo16, kFullW, kFullH);
+            heapLine("both 16bpp buffers live");
+
+            report("16bpp fillScreen 240x240", measure([&] {
+                bb16.fillScreen(lgfx::color888(0, 0, 0));
+            }));
+            report("16bpp blit 240x240", measure([&] {
+                photo16.pushSprite(&bb16, 0, 0);
+            }));
+            report("16bpp backbuffer -> panel", measure([&] {
+                bb16.pushSprite(0, 0);
+            }));
+            report("16bpp FULLBLEED + panel push", measure([&] {
+                photo16.pushSprite(&bb16, 0, 0);
+                bb16.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
+                drawCardText(bb16);
+                bb16.pushSprite(0, 0);
+            }));
+            // The radar screen is the frame that actually sets the budget (p95
+            // ~40 ms at 8bpp with 40 contacts), and it is DRAW-bound rather than
+            // blit-bound, so it is the one at risk from a deeper buffer. Stand in
+            // for it with a comparable pile of primitives at both depths.
+            auto radarish = [&](LGFX_Sprite& b) {
+                b.fillScreen(lgfx::color888(0, 0, 0));
+                for (int r = 30; r <= 110; r += 20)
+                    b.drawCircle(cx, cx, r, lgfx::color888(0, 90, 0));
+                for (int i = 0; i < 40; ++i) {
+                    const int x = 20 + (i * 37) % 200, y = 20 + (i * 61) % 200;
+                    b.fillTriangle(x, y - 4, x - 3, y + 4, x + 3, y + 4, lgfx::color888(0, 255, 0));
+                    b.drawLine(x, y, x - 6, y + 6, lgfx::color888(0, 120, 0));
+                }
+                for (int i = 0; i < 41; ++i)
+                    b.fillRect(15 + (i * 29) % 210, 15 + (i * 47) % 210, 3, 3, lgfx::color888(0, 160, 0));
+            };
+            report(" 8bpp radar-ish + panel push", measure([&] {
+                radarish(backbuffer); backbuffer.pushSprite(0, 0);
+            }));
+            report("16bpp radar-ish + panel push", measure([&] {
+                radarish(bb16); bb16.pushSprite(0, 0);
+            }));
+        }
+    }
+
     Serial.println("\n[blit] === done. The verdict is FULLBLEED vs TODAY on the two");
     Serial.println("[blit] === '+ panel push' rows -- that pair is the real frame.");
 }

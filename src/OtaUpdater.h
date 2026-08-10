@@ -6,7 +6,15 @@
 
 // Compiled firmware version. Bump this for every release and publish a matching
 // version.txt so devices running an older build update themselves.
-constexpr int FW_VERSION = 6;
+//
+// 7 IS ALSO A PROTOCOL BOUNDARY, not just a release number. The proxy decides
+// which photo artifact a device may be served from this exact value
+// (FULLBLEED_MIN_FW in proxy/src/photos.ts): >= 7 gets the full-bleed square,
+// anything older gets the legacy 150x100 rectangle, because firmware up to 6
+// clips rather than scales and would render a square as its own top-left corner.
+// Moving this number below 7, or shipping a build that reports 7 without the
+// full-bleed card in it, hands those devices a broken photo.
+constexpr int FW_VERSION = 7;
 
 // Check GitHub Releases for a newer firmware and self-update if one is published.
 // Blocking; on success the device flashes the new image and reboots into it. The

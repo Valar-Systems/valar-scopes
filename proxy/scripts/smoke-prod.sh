@@ -318,6 +318,101 @@ else
   skip "/v1/photo" "no live hex available, so the pointer could not be resolved. /v1/photo went UNTESTED."
 fi
 
+# 4b. THE FULL-BLEED PHOTO GATE (#209). The proxy hands a device a photo PATH and
+#     the device fetches whatever it is given, so the choice of artifact is made
+#     here and nowhere else. Firmware up to FW 6 draws into a fixed 150x100 slot
+#     with a drawJpg call that CLIPS rather than scales: hand one of those a 240
+#     square and it renders the top-left corner of the image, on every card, with
+#     a 200 on the wire and nothing in any log.
+#
+#     Status is therefore useless as a check here -- both variants 200 -- and so
+#     is the blob key, which is opaque. This asserts the DIMENSIONS OF THE PIXELS
+#     ACTUALLY SERVED, because the only difference that matters is invisible in
+#     every other signal. Both directions are pinned: new firmware must get 240,
+#     and old firmware must STILL get 150x100, which is the half that protects
+#     every device already in the field.
+#
+#     Observed on the bench 2026-08-10, and the reason this check exists: square
+#     blobs were being written under keys the serving validator rejected, so the
+#     proxy silently fell back to rectangles for everyone. Nothing failed. It just
+#     quietly did not work.
+
+# jpeg_dims <file> -- "WxH" from the first SOF marker, or "unknown". Pure bash +
+# od so the script keeps its only dependency on curl. Scans a bounded prefix:
+# the SOF sits within the first few hundred bytes of a baseline JPEG, and walking
+# 12 KB of hex a byte at a time in bash is slow enough to notice.
+jpeg_dims() {
+  local hex i m len
+  hex="$(od -An -v -tx1 "$1" 2>/dev/null | tr -d ' \n')"
+  len=${#hex}
+  [ "$len" -gt 4000 ] && len=4000
+  for (( i=0; i<len-18; i+=2 )); do
+    if [ "${hex:$i:2}" = "ff" ]; then
+      m="${hex:$((i+2)):2}"
+      case "$m" in
+        c0|c1|c2)
+          printf '%dx%d' $((16#${hex:$((i+14)):4})) $((16#${hex:$((i+10)):4}))
+          return ;;
+      esac
+    fi
+  done
+  printf 'unknown'
+}
+
+# variant_photo <fw> <model> -- the photo path the proxy hands that device, or "".
+variant_photo() {
+  curl -s --max-time 25 -H "X-Blip-Key: $KEY" \
+    -H "X-Blip-FW: $1" -H "X-Blip-Model: $2" \
+    "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4
+}
+
+if [ -n "${HEX:-}" ]; then
+  P_OLD="$(variant_photo 6 s3-128)"
+  P_NEW="$(variant_photo 7 s3-128)"
+  printf '\n===== /v1/enrich photo variant gate (FW 6 vs FW 7) =====\n'
+  printf 'FW 6 -> %s\n' "${P_OLD:-<none>}"
+  printf 'FW 7 -> %s\n' "${P_NEW:-<none>}"
+
+  if [ -z "$P_OLD" ]; then
+    skip "photo variant gate" "live hex $HEX has no stock photo at all, so neither variant could be compared."
+  else
+    TMP_OLD="$(mktemp)"; TMP_NEW="$(mktemp)"
+    curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_OLD" "$BASE$P_OLD"
+    D_OLD="$(jpeg_dims "$TMP_OLD")"
+    printf 'FW 6 pixels: %s (must be 150x100 -- this is what the field runs)\n' "$D_OLD"
+
+    if [ "$D_OLD" = "150x100" ]; then
+      printf 'RESULT: PASS\n'; pass=$((pass+1))
+    else
+      printf 'RESULT: FAIL -- fielded firmware would clip this to its top-left corner\n'; fail=$((fail+1))
+    fi
+
+    # A missing square is a legitimate state mid-ingest: the proxy serves NO photo
+    # rather than a rectangle it cannot place, and the card shows its silhouette.
+    # Report it as SKIPPED, never as PASS -- "the gate did nothing" and "the gate
+    # worked" must not print the same word.
+    if [ -z "$P_NEW" ]; then
+      skip "photo variant gate (FW 7 square)" "no square ingested for this type yet; proxy correctly served no photo rather than a rectangle. The FW 7 half went UNTESTED."
+    else
+      curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_NEW" "$BASE$P_NEW"
+      D_NEW="$(jpeg_dims "$TMP_NEW")"
+      printf 'FW 7 pixels: %s (must be square, and NOT the same blob as FW 6)\n' "$D_NEW"
+      case "$D_NEW" in
+        240x240|412x412|480x480) sq=1 ;;
+        *) sq=0 ;;
+      esac
+      if [ "$sq" = "1" ] && [ "$P_NEW" != "$P_OLD" ]; then
+        printf 'RESULT: PASS\n'; pass=$((pass+1))
+      else
+        printf 'RESULT: FAIL -- full-bleed firmware is not being served a square\n'; fail=$((fail+1))
+      fi
+    fi
+    rm -f "$TMP_OLD" "$TMP_NEW"
+  fi
+else
+  skip "photo variant gate" "no live hex available. The FW-gated photo variant went UNTESTED in production."
+fi
+
 # 5. THE PUBLIC WEB SURFACE. Everything below is unauthenticated -- it needs no
 #    key and is what a customer's browser actually loads. None of it was checked
 #    here before; see the two silent failures named in the header.

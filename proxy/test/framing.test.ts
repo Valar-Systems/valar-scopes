@@ -81,21 +81,46 @@ describe("scrimAlpha", () => {
   });
 
   it("reaches full strength BEFORE the first text row", () => {
-    // The card draws its first line at y=140 of 240. If the ramp were still
-    // climbing there, the top line would sit on a lighter background than the
-    // contrast target assumes -- the guarantee is only worth anything if it
-    // holds where the text actually is.
-    expect(scrimAlpha(140, 240)).toBeCloseTo(SCRIM_PEAK, 5);
+    // The full-bleed card draws its first glyph at FULLBLEED_TITLE_Y =
+    // SCREEN_SIZE - 46, i.e. y=194 of 240 (src/AircraftManager.cpp). If the ramp
+    // were still climbing there, the callsign would sit on a lighter background
+    // than the contrast target assumes -- the guarantee is only worth anything if
+    // it holds where the text actually is.
+    //
+    // This test is the coupling between the two files. It failed when the ramp
+    // moved for the one-line layout and had to be re-derived rather than nudged,
+    // which is the point: the constant is solved against the layout, not chosen.
+    expect(scrimAlpha(194, 240)).toBeCloseTo(SCRIM_PEAK, 5);
+    // ...and the last row any glyph occupies (the "tap: details" hint) too.
+    expect(scrimAlpha(226, 240)).toBeCloseTo(SCRIM_PEAK, 5);
   });
 
-  it("holds the contrast target against a pure-white photo", () => {
+  it("leaves the upper two thirds of the photograph completely untouched", () => {
+    // The reason the one-line layout exists. Anything above the ramp must be
+    // exactly zero -- not "nearly zero" -- or the aeroplane is being dimmed for
+    // text that is not there.
+    for (const y of [0, 60, 120, 157]) expect(scrimAlpha(y, 240)).toBe(0);
+    expect(scrimAlpha(158, 240)).toBe(0); // 0.66 * 240, the last clear row
+    expect(scrimAlpha(159, 240)).toBeGreaterThan(0);
+  });
+
+  it("holds the contrast target against a pure-white photo, on every text row", () => {
     // The whole reason PEAK is what it is. sRGB white behind alpha `a` composites
     // to (1-a); relative luminance of that must be <= 0.098 for 4.5:1 against the
     // card's green (luminance 0.617).
-    const srgb = 1 - scrimAlpha(160, 240);
-    const lum = srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
-    const ratio = (0.617 + 0.05) / (lum + 0.05);
-    expect(ratio).toBeGreaterThanOrEqual(4.5);
+    //
+    // Swept across the WHOLE text band rather than sampled at one row. The single
+    // sample this replaced was taken at y=160 -- correct while the four-line
+    // layout put text there, and silently meaningless the moment the ramp moved,
+    // because y=160 is now two rows into the ramp and carries no glyphs. It
+    // failed when the geometry changed, which is the only reason the new numbers
+    // were derived instead of assumed.
+    for (let y = 194; y <= 226; y++) {
+      const srgb = 1 - scrimAlpha(y, 240);
+      const lum = srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+      const ratio = (0.617 + 0.05) / (lum + 0.05);
+      expect(ratio, `row ${y}`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 

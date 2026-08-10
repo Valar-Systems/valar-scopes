@@ -175,8 +175,18 @@ export async function deriveBlobKey(target: string, bytes: ArrayBuffer | Uint8Ar
 
 // Pointer keys: one small entry per hex/type records the current blob key. The
 // enrich join resolves per-hex first (an override IS that airframe), then type.
-export function pointerKey(kind: "type" | "hex", target: string): string {
-  return kind === "hex" ? `pptr:h:${target}` : `pptr:t:${target}`;
+//
+// `size` selects the FULL-BLEED square variant for a panel of that many pixels
+// (issue #209). Omitting it yields the LEGACY key, unchanged and unsuffixed --
+// and that is load-bearing, not stylistic: every device shipped up to FW 6 draws
+// a 150x100 photo into a fixed slot, and its drawJpg call site passes no scale,
+// so maxWidth/maxHeight clip rather than shrink. A square blob reaching one of
+// those devices renders as its own top-left corner. Keeping the legacy key at
+// its original name means the old pointer keeps resolving to the old artifact
+// even if every square variant is missing, mis-uploaded, or half-deployed.
+export function pointerKey(kind: "type" | "hex", target: string, size?: number): string {
+  const base = kind === "hex" ? `pptr:h:${target}` : `pptr:t:${target}`;
+  return size === undefined ? base : `${base}:s${size}`;
 }
 
 // The public manifest KV key the credits page renders from (public credit rows
