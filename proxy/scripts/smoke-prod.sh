@@ -202,6 +202,15 @@ hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
 # Distinguish the two very different reasons we might not have one -- conflating
 # them once made a 401 read as "the sky is empty", which is exactly backwards.
 HEX=""
+# Capture the WHOLE candidate list here, while $LAST_BODY is still the blips
+# response. Section 4b needs several hexes, not one, and by the time it runs
+# $LAST_BODY has been overwritten several times over -- most recently by a JPEG.
+# Re-parsing it down there silently yielded zero candidates and reported the gate
+# as "no live hex available at all" on a sky holding fourteen aircraft.
+HEX_CANDIDATES=""
+if [ "$LAST_STATUS" = "200" ]; then
+  HEX_CANDIDATES="$(printf '%s' "$LAST_BODY" | grep -oE '\["[0-9a-f~]{6}"' | tr -d '["' | head -12)"
+fi
 if [ "$LAST_STATUS" != "200" ]; then
   skip "/v1/enrich" "/v1/blips returned $LAST_STATUS, so there is no hex to enrich. Fix that FIRST -- this check did not run and is not passing."
 elif ! HEX="$(printf '%s' "$LAST_BODY" | grep -oE '\["[0-9a-f~]{6}"' | head -1 | tr -d '["')" || [ -z "$HEX" ]; then
@@ -359,58 +368,90 @@ jpeg_dims() {
   printf 'unknown'
 }
 
-# variant_photo <fw> <model> -- the photo path the proxy hands that device, or "".
+# variant_photo <hex> <fw> <model> -- the photo path the proxy hands that device,
+# or "". The hex is a PARAMETER and not the ambient $HEX: the caller below probes
+# several candidates, and `VAR=x somefunc` leaks or restores VAR depending on
+# whether bash is in POSIX mode, so relying on it would make this gate's target
+# depend on how the script was invoked.
 variant_photo() {
   curl -s --max-time 25 -H "X-Blip-Key: $KEY" \
-    -H "X-Blip-FW: $1" -H "X-Blip-Model: $2" \
-    "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4
+    -H "X-Blip-FW: $2" -H "X-Blip-Model: $3" \
+    "$BASE/v1/enrich/$1" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4
 }
 
-if [ -n "${HEX:-}" ]; then
-  P_OLD="$(variant_photo 6 s3-128)"
-  P_NEW="$(variant_photo 7 s3-128)"
-  printf '\n===== /v1/enrich photo variant gate (FW 6 vs FW 7) =====\n'
+# WHICH hex this gate runs against is not a detail. It used to take the single
+# first row of the blips response, so whether the most important check in this
+# file executed at all was decided by which aircraft happened to be closest to
+# Bend -- and a typeless airframe, an SH36 or a C152 all resolve no photo. A
+# survey of 14 live hexes on 2026-08-10 found 3 of them in that state, so the
+# gate was skipping roughly a fifth of runs for a reason that had nothing to do
+# with the thing it tests.
+#
+# So it SEARCHES the response instead of accepting its first row: walk the live
+# hexes until one resolves a photo. Still real traffic through the real path --
+# no synthetic fixture that could drift away from what devices actually ask for
+# -- but coverage no longer depends on the order aircraft happen to be in.
+GATE_HEX=""; P_OLD=""; P_NEW=""; TRIED=0
+for CAND in $HEX_CANDIDATES; do
+  TRIED=$((TRIED+1))
+  CAND_P="$(variant_photo "$CAND" 6 s3-128)"
+  if [ -n "$CAND_P" ]; then
+    GATE_HEX="$CAND"
+    P_OLD="$CAND_P"
+    P_NEW="$(variant_photo "$CAND" 7 s3-128)"
+    break
+  fi
+done
+
+printf '\n===== /v1/enrich photo variant gate (FW 6 vs FW 7) =====\n'
+if [ -z "$GATE_HEX" ]; then
+  if [ "$TRIED" = "0" ]; then
+    skip "photo variant gate" "no live hex available at all. The FW-gated photo variant went UNTESTED in production."
+  else
+    # Distinct from "no traffic", and worth its own wording: aircraft WERE overhead
+    # and not one of them resolved a photo. With 213 types in the library that is
+    # improbable enough to be worth looking at, but it is not provably a fault --
+    # a quiet field can legitimately hold nothing but unphotographed types -- so it
+    # reports as skipped with the count, not as a pass and not as a failure.
+    skip "photo variant gate" "tried all $TRIED live hexes and none resolved a photo. Not provably a fault, but with 213 types ingested it is worth checking the library rather than assuming a quiet sky."
+  fi
+else
+  printf 'gate hex: %s (row %d of the live response -- the first with a photo)\n' "$GATE_HEX" "$TRIED"
   printf 'FW 6 -> %s\n' "${P_OLD:-<none>}"
   printf 'FW 7 -> %s\n' "${P_NEW:-<none>}"
 
-  if [ -z "$P_OLD" ]; then
-    skip "photo variant gate" "live hex $HEX has no stock photo at all, so neither variant could be compared."
-  else
-    TMP_OLD="$(mktemp)"; TMP_NEW="$(mktemp)"
-    curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_OLD" "$BASE$P_OLD"
-    D_OLD="$(jpeg_dims "$TMP_OLD")"
-    printf 'FW 6 pixels: %s (must be 150x100 -- this is what the field runs)\n' "$D_OLD"
+  TMP_OLD="$(mktemp)"; TMP_NEW="$(mktemp)"
+  curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_OLD" "$BASE$P_OLD"
+  D_OLD="$(jpeg_dims "$TMP_OLD")"
+  printf 'FW 6 pixels: %s (must be 150x100 -- this is what the field runs)\n' "$D_OLD"
 
-    if [ "$D_OLD" = "150x100" ]; then
+  if [ "$D_OLD" = "150x100" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    printf 'RESULT: FAIL -- fielded firmware would clip this to its top-left corner\n'; fail=$((fail+1))
+  fi
+
+  # A missing square is a legitimate state mid-ingest: the proxy serves NO photo
+  # rather than a rectangle it cannot place, and the card shows its silhouette.
+  # Report it as SKIPPED, never as PASS -- "the gate did nothing" and "the gate
+  # worked" must not print the same word.
+  if [ -z "$P_NEW" ]; then
+    skip "photo variant gate (FW 7 square)" "no square ingested for this type yet; proxy correctly served no photo rather than a rectangle. The FW 7 half went UNTESTED."
+  else
+    curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_NEW" "$BASE$P_NEW"
+    D_NEW="$(jpeg_dims "$TMP_NEW")"
+    printf 'FW 7 pixels: %s (must be square, and NOT the same blob as FW 6)\n' "$D_NEW"
+    case "$D_NEW" in
+      240x240|412x412|480x480) sq=1 ;;
+      *) sq=0 ;;
+    esac
+    if [ "$sq" = "1" ] && [ "$P_NEW" != "$P_OLD" ]; then
       printf 'RESULT: PASS\n'; pass=$((pass+1))
     else
-      printf 'RESULT: FAIL -- fielded firmware would clip this to its top-left corner\n'; fail=$((fail+1))
+      printf 'RESULT: FAIL -- full-bleed firmware is not being served a square\n'; fail=$((fail+1))
     fi
-
-    # A missing square is a legitimate state mid-ingest: the proxy serves NO photo
-    # rather than a rectangle it cannot place, and the card shows its silhouette.
-    # Report it as SKIPPED, never as PASS -- "the gate did nothing" and "the gate
-    # worked" must not print the same word.
-    if [ -z "$P_NEW" ]; then
-      skip "photo variant gate (FW 7 square)" "no square ingested for this type yet; proxy correctly served no photo rather than a rectangle. The FW 7 half went UNTESTED."
-    else
-      curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_NEW" "$BASE$P_NEW"
-      D_NEW="$(jpeg_dims "$TMP_NEW")"
-      printf 'FW 7 pixels: %s (must be square, and NOT the same blob as FW 6)\n' "$D_NEW"
-      case "$D_NEW" in
-        240x240|412x412|480x480) sq=1 ;;
-        *) sq=0 ;;
-      esac
-      if [ "$sq" = "1" ] && [ "$P_NEW" != "$P_OLD" ]; then
-        printf 'RESULT: PASS\n'; pass=$((pass+1))
-      else
-        printf 'RESULT: FAIL -- full-bleed firmware is not being served a square\n'; fail=$((fail+1))
-      fi
-    fi
-    rm -f "$TMP_OLD" "$TMP_NEW"
   fi
-else
-  skip "photo variant gate" "no live hex available. The FW-gated photo variant went UNTESTED in production."
+  rm -f "$TMP_OLD" "$TMP_NEW"
 fi
 
 # 5. THE PUBLIC WEB SURFACE. Everything below is unauthenticated -- it needs no
