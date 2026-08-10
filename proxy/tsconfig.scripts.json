@@ -1,0 +1,25 @@
+// Typecheck for proxy/scripts/ -- the ingest tools, the harvest tool,
+// derive-device-key, check_release_envs. See issue #208.
+//
+// WHY A SECOND CONFIG AND NOT A WIDER `include`. The base tsconfig carries only
+// Workers types, because that is what src/ and test/ are. Adding scripts/**/*.ts
+// to it fails wholesale on 20+ errors: scripts/ is NODE code, so node:fs,
+// node:path, node:crypto, process and Buffer are all unresolvable there. The
+// exclusion was a real constraint rather than an oversight -- but a whole
+// directory of shipping tooling with no type coverage was not the intended
+// trade, and `npx tsc --noEmit` passing while never having looked at the file
+// you just edited is exactly the class of check this project keeps getting
+// bitten by.
+//
+// src/ is included because scripts/ imports from it (photolicense, photos), so
+// those modules have to resolve. They get checked here under NODE types rather
+// than Workers types, which is harmless: skipLibCheck is on, and src/ is
+// independently checked properly by the base config in the `typecheck` script.
+// Both run in CI.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "@cloudflare/workers-types"]
+  },
+  "include": ["scripts/**/*.ts", "src/**/*.ts"]
+}
