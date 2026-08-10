@@ -77,9 +77,45 @@ private:
     // get squeezed. armedUntil implements the confirming tap: first tap arms and
     // says so, second tap within the window commits, and it disarms itself.
     int  wifiRowY0 = -1, wifiRowY1 = -1;
-    unsigned long wifiResetArmedUntilMs = 0;
     bool wifiResetRequested = false;
-    static constexpr unsigned long WIFI_RESET_ARM_MS = 6000;
+
+    // RESET WI-FI IS A HOLD, NOT A TAP.
+    //
+    // This was two taps inside a 6 s window, and its own comment said why -- "one
+    // tap is how a customer loses their network by brushing the screen while
+    // dusting it". It did not defend that: any two contacts confirmed, and a bench
+    // board lost its network to two taps 633 ms apart (#165).
+    //
+    // The first fix was a set of rules about what an accident looks like -- a
+    // minimum gap, cancel on an off-row tap, cancel on a swipe. Each defensible,
+    // and all of them the same KIND of thing as the rule that just failed: a guess
+    // about the shape of a burst. A hold is not a guess. A cloth dragged over a
+    // capacitive panel produces brief contacts scattered around; it cannot produce
+    // two seconds of sustained contact on one row. The accident is excluded by
+    // physics rather than by heuristic, and the three rules collapse into one.
+    //
+    // It also matches the boot-time reset (WiFiManagerHelpers.h), which has always
+    // been a hold with a countdown -- so the same destructive action is now the
+    // same gesture wherever the customer meets it, and both are cancelled the same
+    // way: let go.
+    unsigned long wifiHoldStartMs = 0;  // when the qualifying contact began
+    unsigned long wifiHoldSeenMs  = 0;  // last poll that saw contact (phantom-release grace)
+    bool wifiHoldActive = false;        // a hold on the row is in progress
+    bool wifiHoldFired  = false;        // completed; swallow the release so it is not also a tap
+    static constexpr unsigned long WIFI_HOLD_MS = 2000;
+    // The CST816 intermittently reports "not touched" MID-TOUCH when polled between
+    // its report pulses -- documented in the variant header, and the reason the boot
+    // path requires a SUSTAINED release. Without this grace a phantom sample would
+    // silently restart the hold and the countdown would never finish, which reads to
+    // the customer as the control being broken.
+    static constexpr unsigned long WIFI_HOLD_GRACE_MS = 150;
+    // Drift allowed before the stroke is a swipe rather than a hold. Same threshold
+    // the gesture classifier uses, so a hold cannot be a swipe and vice versa.
+    static constexpr int WIFI_HOLD_MOVE_MAX = 40;
+
+    /** 0 when not holding, else 0..1 progress toward the reset -- drives the countdown. */
+    float WifiHoldProgress() const;
+    void  UpdateWifiHold(bool touched, int32_t tx, int32_t ty);
 
     bool inDetail = false;     // detail card shown over the current screen
     String selectedIcao = "";  // aircraft shown in the detail card
