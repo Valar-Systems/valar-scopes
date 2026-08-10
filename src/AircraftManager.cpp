@@ -3733,21 +3733,45 @@ void AircraftManager::HandleTap(int tx, int ty)
     if ((long)(millis() - tapSuppressUntilMs) < 0)
         return;
 
-    // Stats screen: the "Reset WiFi" row. Two taps, because one tap is how a
+    // Stats screen: the "Reset Wi-Fi" row. Two taps, because one tap is how a
     // customer loses their network by brushing the screen while dusting it. The
     // row only responds where it was actually drawn this frame (wifiRowY0/Y1),
     // and the arm expires on its own so a half-finished reset never lingers.
+    //
+    // The confirming tap must LOOK DELIBERATE, not merely be second (#165). A
+    // cloth over a capacitive panel produces a burst of contacts scattered across
+    // it; a person confirming produces exactly two, both on this row, with a
+    // pause between them while they read the prompt. Anything else disarms.
+    const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
     if (screen == Screen::Stats && wifiRowY0 >= 0 && ty >= wifiRowY0 && ty <= wifiRowY1) {
-        if ((long)(millis() - wifiResetArmedUntilMs) < 0) {
-            Serial.println("[wifi-reset] confirmed from the Stats screen");
+        if (armed) {
+            const unsigned long gap = millis() - wifiResetArmedAtMs;
+            if (gap < WIFI_RESET_MIN_GAP_MS) {
+                // Too fast to be a read-and-confirm. DISARM rather than re-arm:
+                // re-arming would let a wipe hold the control open indefinitely,
+                // one contact at a time, until one happened to land past the gap.
+                Serial.printf("[wifi-reset] second tap after only %lums -- too fast to be"
+                              " deliberate; DISARMED\n", gap);
+                wifiResetArmedUntilMs = 0;
+                return;
+            }
+            Serial.printf("[wifi-reset] confirmed from the Stats screen (gap=%lums)\n", gap);
             wifiResetRequested = true;   // main.cpp does the reset + restart
             wifiResetArmedUntilMs = 0;
         } else {
             Serial.println("[wifi-reset] armed -- tap again to confirm");
             wifiResetArmedUntilMs = millis() + WIFI_RESET_ARM_MS;
+            wifiResetArmedAtMs = millis();
         }
         return;
     }
+
+    // Armed, but this tap landed somewhere else entirely. A person about to
+    // confirm a destructive action does not tap the far side of the screen first;
+    // a cloth crosses the whole panel. Treat any stray contact as the accident
+    // this guard is named for and cancel.
+    if (armed)
+        DisarmWifiReset("a tap landed off the row while armed");
 
     if (screen == Screen::Radar) {
         // Pick the contact under the finger. Markers are tiny (~3 px) and a fingertip lands a
@@ -3842,9 +3866,28 @@ void AircraftManager::HandleSwipe(Swipe swipe)
         return;
     }
 
-    // horizontal swipe cycles the top-level screens (left = next, right = prev)
-    if (swipe == Swipe::Left)  screen = (Screen)(((int)screen + 1) % 3);
-    if (swipe == Swipe::Right) screen = (Screen)(((int)screen + 2) % 3);
+    // horizontal swipe cycles the top-level screens (left = next, right = prev).
+    //
+    // Changing screen abandons a half-finished Wi-Fi reset. The control is not
+    // drawn anywhere but Stats, so an arm that survived a swipe would be live and
+    // invisible -- and a cloth dragged over the panel reads as a swipe at least
+    // as readily as it reads as a tap.
+    if (swipe == Swipe::Left) {
+        screen = (Screen)(((int)screen + 1) % 3);
+        DisarmWifiReset("the screen was swiped away");
+    }
+    if (swipe == Swipe::Right) {
+        screen = (Screen)(((int)screen + 2) % 3);
+        DisarmWifiReset("the screen was swiped away");
+    }
+}
+
+void AircraftManager::DisarmWifiReset(const char* why)
+{
+    if ((long)(millis() - wifiResetArmedUntilMs) >= 0)
+        return; // not armed; nothing to say
+    Serial.printf("[wifi-reset] DISARMED -- %s\n", why);
+    wifiResetArmedUntilMs = 0;
 }
 
 void AircraftManager::ProcessDetailLookups()

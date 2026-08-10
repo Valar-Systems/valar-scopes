@@ -78,8 +78,33 @@ private:
     // says so, second tap within the window commits, and it disarms itself.
     int  wifiRowY0 = -1, wifiRowY1 = -1;
     unsigned long wifiResetArmedUntilMs = 0;
+    unsigned long wifiResetArmedAtMs = 0;
     bool wifiResetRequested = false;
     static constexpr unsigned long WIFI_RESET_ARM_MS = 6000;
+    // The confirming tap must be no SOONER than this after the arming one.
+    //
+    // The guard above was written against "a customer brushes the screen while
+    // dusting it", and for a while it did not defend that at all: any two contacts
+    // inside the 6 s window confirmed, so a bench board lost its network to two
+    // taps 633 ms apart (#165). A cloth dragged over a capacitive panel is not one
+    // accidental contact -- it is a BURST of them, which is precisely the shape
+    // this originally let through.
+    //
+    // A minimum gap alone does not fix it either: a wipe lasts a second or two, so
+    // some contact in the burst eventually lands past any short floor. What
+    // actually separates intent from accident is the SHAPE of the contacts, not
+    // their timing alone -- someone confirming produces exactly two taps, both on
+    // this row. So the arming is cancelled by anything that does not look like
+    // that: a second tap too soon, or any tap elsewhere on the panel, or leaving
+    // the screen. See HandleTap.
+    //
+    // 1000 ms: comfortably above the 633 ms accident and above the inter-contact
+    // spacing of a wipe, comfortably below read-decide-tap on a prompt the device
+    // only shows once it is armed.
+    static constexpr unsigned long WIFI_RESET_MIN_GAP_MS = 1000;
+    // Cancel an armed reset, saying which guard fired. Silent cancellation would
+    // be indistinguishable from a missed tap by anyone reading a bench log.
+    void DisarmWifiReset(const char* why);
 
     bool inDetail = false;     // detail card shown over the current screen
     String selectedIcao = "";  // aircraft shown in the detail card
