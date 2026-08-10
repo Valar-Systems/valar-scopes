@@ -170,23 +170,44 @@ async function main(): Promise<void> {
 
   // --- resize + content-address + upload + pointer flip ---
   const tmp = mkdtempSync(join(tmpdir(), "blip-photo-"));
-  let sharp: typeof import("sharp") | undefined;
+  // Not optional. Every branch below used to be guarded on `sharp &&`, with a
+  // `Buffer.from(src)` fallback that hashed the SOURCE file -- which is precisely
+  // what let a sharp-less dry run print 213 plausible lines and prove nothing.
+  let sharp: typeof import("sharp");
   // --dry-run STILL RESIZES. It used to skip sharp entirely, which made the one
   // mode you would reach for before a real ingest the one mode that never
   // exercised the image pipeline -- the crop, the extract geometry and the
   // baseline-JPEG assertion were all unreachable, so a regression in any of them
   // would sail through a clean dry run and surface on a device. The docstring
   // already claimed "everything but the KV writes"; now that is true.
+  //
+  // AND IT REFUSES TO RUN WITHOUT SHARP (#207). This used to print one
+  // console.warn and carry on, which put the bug back one layer out: sharp is an
+  // optional dependency, so ABSENT IS THE DEFAULT STATE OF A FRESH CHECKOUT, and
+  // a single warning scrolls past 213 lines of per-row output and is gone. The
+  // mode was then proving nothing again, with the operator holding a clean run
+  // and no signal they had lost their only pre-flight check.
+  //
+  // A dry run that cannot exercise the pipeline is a FAILED dry run, not a
+  // partial one. --check is the mode that deliberately tests only the licence
+  // gate, so nothing is lost by making this one honest.
   try {
     sharp = (await import("sharp")).default as unknown as typeof import("sharp");
   } catch {
-    if (!args.dryRun) throw new Error("sharp is required for uploads: npm i -D sharp");
-    console.warn("note: sharp not installed -- dry run will NOT exercise the resize/crop path");
+    throw new Error(
+      "sharp is required and is not installed: npm i -D sharp\n" +
+        (args.dryRun
+          ? "  --dry-run exercises the resize/crop path on purpose -- without sharp it would\n" +
+            "  check nothing but the licence gate, which is what --check already does."
+          : "  an upload run cannot produce the artifacts without it."),
+    );
   }
 
+  let resized = 0, squaresMade = 0, noSource = 0;
   for (const e of entries) {
     if (!e.file) {
       console.warn(`skip ${e.kind}:${e.target}: no source file`);
+      noSource++;
       continue;
     }
     const src = readFileSync(join(args.photosDir, e.file));
@@ -203,13 +224,11 @@ async function main(): Promise<void> {
     // on the first card the owner opened. The full-bleed 240x240 variant therefore
     // ships as a SEPARATE artifact behind --square, not as a change to this one.
     // See src/framing.ts.
-    const jpeg = sharp
-      ? await sharp(src)
-          .extract(await extractFor(sharp, src, PHOTO_W, PHOTO_H, e))
-          .resize(PHOTO_W, PHOTO_H, { fit: "cover" })
-          .jpeg({ progressive: false, quality: 82 })
-          .toBuffer()
-      : Buffer.from(src); // --dry-run: hash the source so keys are stable-ish for logging
+    const jpeg = await sharp(src)
+      .extract(await extractFor(sharp, src, PHOTO_W, PHOTO_H, e))
+      .resize(PHOTO_W, PHOTO_H, { fit: "cover" })
+      .jpeg({ progressive: false, quality: 82 })
+      .toBuffer();
 
     // The full-bleed square variants: one per panel size, cover-cropped to 1:1
     // with the subject lifted clear of the callsign band, and the graded scrim
@@ -218,7 +237,7 @@ async function main(): Promise<void> {
     // property of renderer code -- and the device cannot cheaply alpha-blend a
     // gradient over a JPEG it has just decoded into an 8bpp sprite anyway.
     const squares: { size: number; buf: Buffer }[] = [];
-    if (sharp && args.square) {
+    if (args.square) {
       for (const size of SQUARE_SIZES) {
         const rect = await extractFor(sharp, src, size, size, e, SQUARE_PLACE);
         const scrim = Buffer.from(scrimRGBA(size, size));
@@ -237,10 +256,12 @@ async function main(): Promise<void> {
     // Hard assertion: refuse to upload anything but a baseline JPEG (SOF0/SOF1).
     // SOF2 = progressive = undecodable on-device; guard here so no encoder-option
     // drift can ever ship a poison blob again.
-    if (sharp && !isBaselineJpeg(jpeg)) {
+    if (!isBaselineJpeg(jpeg)) {
       throw new Error(`${e.kind}:${e.target}: encoded JPEG is not baseline (progressive?); aborting`);
     }
 
+    resized++;
+    squaresMade += squares.length;
     const blobKey = await deriveBlobKey(e.target, new Uint8Array(jpeg));
     e.blobKey = blobKey;
     const ptr = pointerKey(e.kind, e.target);
@@ -278,6 +299,17 @@ async function main(): Promise<void> {
       wranglerPut(args.env, pointerKey(e.kind, e.target, s.size), { value: sKey });
     }
   }
+
+  // A LAST LINE THAT STATES WHAT ACTUALLY HAPPENED (#207). The per-row output is
+  // 213 lines long, so anything important said at the top is gone by the end. The
+  // counts are what a reader would otherwise have to reconstruct by scrolling --
+  // and "0 resized" is the shape of every silent-skip bug this script has had.
+  console.log(
+    `summary: ${resized} resized, ${squaresMade} square variant(s), ` +
+      `${noSource} row(s) with no source file` +
+      (args.square ? "" : "  [--no-square: square variants were NOT built]") +
+      (args.dryRun ? "  [--dry-run: nothing was written to KV]" : ""),
+  );
 
   // --- publish the public manifest (drop local file paths) + credits page ---
   const publicManifest: ManifestEntry[] = entries.map(({ file, ...rest }) => rest);

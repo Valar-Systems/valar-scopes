@@ -60,4 +60,17 @@ jobs:
 
       - run: npm run typecheck
 
+      # `npm run typecheck` covers src/ and test/ ONLY. Everything in proxy/scripts/
+      # -- the ingest tools, the harvest tool, derive-device-key, check_release_envs
+      # -- was unchecked until 2026-08-10, and `npx tsc --noEmit` would report
+      # success against a file it had never opened (issue #208). It is a separate
+      # config because scripts/ is Node and src/ is Workers; see tsconfig.scripts.json.
+      #
+      # Wiring it up immediately found two duplicate object keys in
+      # suggest-commons.ts, where a later refined search query silently discarded
+      # an earlier one.
+      - name: Typecheck scripts/ (Node, separate config -- see #208)
+        if: matrix.worker == 'proxy'
+        run: npm run typecheck:scripts
+
       - run: npm test

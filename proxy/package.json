@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
     "ingest": "tsx scripts/ingest-photos.ts",
     "ingest:check": "tsx scripts/ingest-photos.ts --check",
     "harvest": "tsx scripts/harvest-commons.ts",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
     "@cloudflare/workers-types": "^4.20250906.0",
+    "@types/node": "^26.2.0",
     "fflate": "^0.8.2",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
