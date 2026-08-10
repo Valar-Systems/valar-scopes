@@ -2,10 +2,11 @@
 
 // Blipscope Kit S3 -- "jxl" ESP32-S3R8 + 1.28" round GC9A01 LCD + CST816 capacitive touch.
 //
-// Candidate replacement for the retired C3 Kit: same panel/touch family on a dual-core
-// S3R8 with PSRAM (plus PCF85063 RTC, QMI8658 IMU, spk/mic, TF, 2x WS2812, 5 buttons --
-// none of which this scaffold integrates yet; the board exists first to A/B the CST816
-// wedge against the C3 under the same watchdog ledger).
+// THE DEFAULT SKU and the pilot fleet's board: dual-core S3R8 with PSRAM (plus PCF85063
+// RTC, QMI8658 IMU, spk/mic, TF, 2x WS2812, 5 buttons -- none of which this variant
+// integrates yet). It began as the candidate replacement for the ESP32-C3 Kit, which was
+// deleted from the tree on 2026-08-09; the touch watchdog below outlived that comparison
+// and is kept for a production reason of its own (see TOUCH_WATCHDOG).
 //
 // PIN MAP STATUS: 100% VERIFIED -- hardware-derived (JTAG dump of the stock demo, probe
 // sweep + phase-2 hunt/pulse tests) AND cross-confirmed against the vendor doc pack
@@ -27,8 +28,9 @@
 //   DOA was revision-specific). TP_INT / TP_RST not yet identified (probe phase 2: watch
 //   candidate pins for edges during touch / targeted low-pulse tests); -1 until then, so
 //   the watchdog's hard rung is inert on this board for now.
-//   DISPLAY STILL UNVERIFIED: GC9A01 SPI pins below remain Waveshare-family guesses;
-//   sources: supplier schematic (requested) or a GPIO-matrix dump of the stock demo.
+//   (The display pins were the open item at the time of that inspection. They were
+//   closed the same day by the JTAG dump of the stock demo described above, and
+//   confirmed by firmware trial -- see PIN MAP STATUS at the top.)
 
 // ---- driver selection (consumed by LGFX.h) ----
 #define BLIPSCOPE_PANEL_GC9A01 1
@@ -77,19 +79,18 @@ namespace variant {
     // Screen geometry (round; square bounding box).
     constexpr int SCREEN_SIZE = 240;
 
-    // Capabilities: dual-core S3R8 + 8 MB PSRAM relaxes every C3 constraint.
+    // Capabilities: dual-core S3R8 + 8 MB PSRAM.
     constexpr bool BANDED_RENDER = false; // PSRAM: full framebuffer
-    constexpr bool ENRICH_ALWAYS = true;  // heap headroom for TLS enrichment always-on
     constexpr bool HAS_AUDIO     = false; // speaker exists on-board; integration deferred
     constexpr bool HAS_IMU       = false; // QMI8658 exists on-board; integration deferred
-    constexpr bool SERIALIZE_TOUCH_BUS = false; // dual-core: touch and TLS never share a core,
-                                                // so the C3's overlap wedge shouldn't exist --
-                                                // running WITHOUT the mutex gate is itself half
-                                                // of the A/B (chip family vs platform concurrency)
-    constexpr bool TOUCH_WATCHDOG = true;       // unlike the other S3 SKUs: this board exists to
-                                                // A/B the CST816 wedge against the C3, so the
-                                                // supervisor + its ledger run here with the same
-                                                // probe cadence (side-by-side [health]/[soak] lines)
+    constexpr bool TOUCH_WATCHDOG = true;       // ON here and off on every other S3 SKU. It was
+                                                // armed to A/B the CST816 wedge against the C3;
+                                                // that comparison ended with the C3, but the
+                                                // supervisor stays for a PRODUCTION reason:
+                                                // MaintainNoSleep re-arms the touch IC's
+                                                // DisAutoSleep (0xFE) after a silent chip-internal
+                                                // reset, which this batch's CST816 does. See
+                                                // INCOMING-INSPECTION.md.
 
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
     constexpr char SLUG[] = "s3-128";

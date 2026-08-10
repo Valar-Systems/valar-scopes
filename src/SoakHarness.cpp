@@ -178,7 +178,7 @@ void SoakHarness::Setup(AircraftManager& mgr)
     ScheduleNextBurst(startMs);
     phaseEndMs = startMs + 120000; // first burst ~2 min in, after the first fetches settle
 
-    // Arm the standing probe explicitly (as the bisect harness does). Without this the
+    // Arm the standing probe explicitly. Without this the
     // watchdog's default fires its first probe on the first loop iteration, before the
     // system settles; SetProbeIntervalMs defers it a few seconds past Initialise.
     TouchWatchdog::SetProbeIntervalMs(10000);

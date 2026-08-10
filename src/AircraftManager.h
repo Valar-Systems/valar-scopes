@@ -22,16 +22,6 @@
 class AircraftManager
 {
 private:
-    // Networking-off bisection builds (-DBISECT_TEST): compile-time kill switch for
-    // every path that would reach the network (task spawns, fetch/enrich requests,
-    // ntfy alerts), so the render/touch pipeline runs unmodified while no WiFi, no
-    // background task, and no socket exists. See src/BisectHarness.h.
-#ifdef BISECT_TEST
-    static constexpr bool kNoNet = true;
-#else
-    static constexpr bool kNoNet = false;
-#endif
-
     double lat = 0.0;
     double lon = 0.0;
     double radLat = 0.2; // latitude half-span of the scan box, in degrees
@@ -595,8 +585,9 @@ private:
 
     void HandleTouch();             // poll the touch panel, classify tap vs swipe
     // Gesture classification for one touch sample (press/drag/release -> tap or
-    // 4-way swipe). Split from the hardware poll so the bisection storm can drive
-    // the exact production pipeline with synthetic samples.
+    // 4-way swipe). Split from the hardware poll so a harness (the SOAK_TEST
+    // gesture script) can drive the exact production pipeline with synthetic
+    // samples rather than a parallel copy of the classifier.
     void ProcessTouchSample(bool touched, int32_t tx, int32_t ty);
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal
     void HandleSwipe(Swipe swipe);  // route a swipe to navigation / pin
@@ -733,14 +724,4 @@ public:
     }
 #endif
 
-#ifdef BISECT_TEST
-    // Bisection-harness hooks (src/BisectHarness.cpp). The harness owns the fleet
-    // ground truth and the gesture storm; these let it drive the production paths
-    // without adding mutation surfaces: injection goes through the real fetch-result
-    // queue and merge, and aimed taps use the real screen projection.
-    void BisectApplyTestConfig();                          // deterministic bench config (overrides NVS)
-    bool BisectInjectFleet(std::vector<Aircraft>&& fleet); // false = result queue busy (e.g. card open); drop the frame
-    bool BisectCardOpen() const { return DetailCardOpen(); } // kept for the harness's existing call sites
-    std::pair<int, int> BisectProject(float la, float lo) const { return ProjectCoordinateToScreen(la, lo); }
-#endif
 };

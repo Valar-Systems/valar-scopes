@@ -1,7 +1,8 @@
 // Board support for the Blipscope Pro 2.1 (Waveshare ESP32-S3-Touch-LCD-2.1).
 //
 // The whole file is gated on the variant so it compiles to nothing for every other SKU
-// (the call sites use board:: no-ops from Board.h / variant::BoardPreInit() from c3_128.h).
+// (the call sites use board:: no-ops from Board.h / the inline variant::BoardPreInit()
+// that every other variant header defines as {}).
 //
 // What's here, and why it can't just live in the variant header:
 //   - variant::BoardPreInit(): the TCA9554 IO-expander bring-up that MUST run before

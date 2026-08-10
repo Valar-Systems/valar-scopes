@@ -70,9 +70,6 @@ namespace BuildIdentity {
 #ifdef SOAK_TEST
         add("soak");
 #endif
-#ifdef BISECT_TEST
-        add("bisect");
-#endif
         return s;
     }
 

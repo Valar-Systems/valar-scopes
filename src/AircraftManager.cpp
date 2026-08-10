@@ -14,9 +14,6 @@
 #include "Board.h"
 #include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
 #include "TouchWatchdog.h" // CST816 supervisor; inert unless variant::TOUCH_WATCHDOG
-#ifdef BISECT_TEST
-#include "BisectHarness.h" // synthetic gesture-storm source (bisection builds only)
-#endif
 #ifdef SOAK_TEST
 #include "SoakHarness.h" // sparse human-scale gesture script (soak builds only)
 #endif
@@ -31,14 +28,18 @@ constexpr int PHOTO_H = 100;
 constexpr float METRES_TO_FEET = 3.28084f;
 constexpr float MS_TO_KNOTS    = 1.94384f;
 
-// Critical-heap floor below which we don't even start an enrichment HTTPS lookup -- a
-// last-ditch guard, not a routine throttle. The post-banding/streaming build runs with
-// only ~24-28 KB largest free block yet the OpenSky fetch (same mbedTLS path) handshakes
-// fine there, so the gate-time largest-block reading is a poor predictor of handshake
-// success; keep this well below normal operation so enrichment behaves like the (ungated)
-// OpenSky fetch -- attempt the handshake and let the 30 s failure backoff handle a miss.
-// Also the threshold for the [fetch] low-heap warning. Raising it starves enrichment off.
-constexpr uint32_t ENRICH_TLS_HEAP_FLOOR = 16000;
+// There is deliberately NO numeric heap floor here any more. ENRICH_TLS_HEAP_FLOOR
+// (16000) used to gate every enrichment HTTPS lookup by comparing it against
+// ESP.getMaxAllocHeap(); issue #163 and src/probe/HeapProbe.cpp proved on hardware
+// that the comparison could not work -- getMaxAllocHeap() is a max ACROSS REGIONS
+// and latches onto reserves nothing allocates from, so over a 54 h soak it took
+// five distinct values in 6,466 samples and the gate never fired once, including
+// at the two moments an allocation genuinely failed.
+//
+// The replacement is not a better constant, because no constant answers the
+// question: ask the allocator. heaphealth::CanHandshake() trial-allocates the real
+// size and believes the result. If you came here looking for the heap gate, that
+// is it -- see src/HeapHealth.h.
 
 #include <esp_heap_caps.h>
 #include "HeapHealth.h"
@@ -743,8 +744,7 @@ void AircraftManager::Initialise()
     mc.user = configServer.GetStoredString("mqtt-user");
     mc.pass = configServer.GetStoredString("mqtt-pass");
     mc.statusTopic = mqttBase + "/status";
-    if constexpr (!kNoNet)
-        mqtt.Begin(mc); // spawns the publisher task once; reconfigures it thereafter
+    mqtt.Begin(mc); // spawns the publisher task once; reconfigures it thereafter
     lastMqttState = millis() - 5000; // publish a first snapshot promptly once connected
 
     // data source: Blipscope Cloud (the proxy; default on cloud builds), the
@@ -828,11 +828,9 @@ void AircraftManager::Initialise()
         constexpr int TOKEN_BUFFER = 3;
         int dailyRequestBudget = ANONYMOUS_TOKENS_PER_DAY - TOKEN_BUFFER; // non-authed tokens minus buffer
 
-        if constexpr (!kNoNet) {
-            const String token = authHandler.GetValidToken(configServer.GetStoredString("opensky-id"), configServer.GetStoredString("opensky-secret"));
-            if (!token.isEmpty())
-                dailyRequestBudget = AUTHED_TOKENS_PER_DAY - TOKEN_BUFFER; // authed tokens minus buffer
-        }
+        const String token = authHandler.GetValidToken(configServer.GetStoredString("opensky-id"), configServer.GetStoredString("opensky-secret"));
+        if (!token.isEmpty())
+            dailyRequestBudget = AUTHED_TOKENS_PER_DAY - TOKEN_BUFFER; // authed tokens minus buffer
 
         fetchInterval = MS_PER_DAY / dailyRequestBudget;
     }
@@ -1512,10 +1510,6 @@ void AircraftManager::StartFetchTask()
         heap_caps_register_failed_alloc_callback(OnAllocFailed);
     }
 
-    if constexpr (kNoNet)
-        return; // bisection: the loop-side queues exist (BisectInjectFleet feeds the
-                // result queue through the real merge) but the task never runs
-
     // 12 KB stack: the HTTPS handshake (mbedTLS) is the stack-hungry part, plus the
     // JSON decode. The Arduino loop task ran the same workload in 8 KB, so this has
     // headroom. Priority 1 (same as the loop); it spends almost all its life blocked
@@ -1749,7 +1743,7 @@ void AircraftManager::RunFetchTask()
         // pressure TLS handshakes and the config web server fight for. Stay silent when
         // healthy; warn only when a handshake-sized block can no longer be served --
         // the early sign we're sliding back toward the TLS / config-page failures this
-        // all fixed. This used to test largest < ENRICH_TLS_HEAP_FLOOR, which on this
+        // all fixed. This used to test largest against a fixed floor, which on this
         // board never once became true in 54 h (#163); largest is still PRINTED so the
         // plateau stays visible, but it no longer decides anything.
         if (const uint32_t largest = ESP.getMaxAllocHeap(); !heaphealth::CanHandshake())
@@ -1776,9 +1770,6 @@ void AircraftManager::RunFetchTask()
 
 void AircraftManager::RequestFetch()
 {
-    if constexpr (kNoNet)
-        return; // bisection: the harness injects the picture; nothing is ever fetched
-
     FetchRequest* req = new FetchRequest();
     req->lat = lat; req->lon = lon; req->radLat = radLat; req->radLon = radLon;
     req->local = useLocalSource;
@@ -3553,56 +3544,20 @@ void AircraftManager::HandleTouch()
     int32_t tx = 0, ty = 0;
     bool touched;
 
-    if constexpr (variant::SERIALIZE_TOUCH_BUS) {
-        // Single-core (C3): serialize touch I2C with network TLS via the shared HTTP request
-        // lock. A touch I2C transfer that overlaps a TLS handshake wedges the CST816 off the
-        // bus -- the v4 regression (touch worked in v2, which had no concurrent network task).
-        // The HTTP client holds this mutex for the full duration of every GET/POST on any task,
-        // so taking it here guarantees no I2C transfer runs concurrently with a request.
-        //
-        // We gate this way ONLY on the radar view. While a detail card is open the radar isn't
-        // shown, the card's own enrichment (metadata/route/photo) holds the bus for several
-        // seconds, and gating would make the close tap wait that whole time (up to ~30 s when a
-        // lookup times out). So on the card view we poll every loop regardless -- closing stays
-        // instant. The brief overlap risk there is acceptable: the card view has no sweep to
-        // protect, the enrichment is bounded and one-shot, and the controller wakes on the next
-        // touch. The earlier fetchInFlight/enrichInFlight flags did NOT work for this -- they
-        // don't actually span the on-task TLS window; the mutex does.
-        const bool gateOnBus = !inDetail;
-        const bool gotBus = http.TryAcquireBus();
-        if (gateOnBus && !gotBus)
-            return; // radar view: a request is mid-flight, skip this poll to avoid the wedge
+    // Dual-core (S3): touch sits on its own I2C bus and the network runs over WiFi on a
+    // separate core, so there is no touch/TLS wedge to prevent. Gating the poll on the HTTP
+    // mutex here would silently drop taps whenever always-on enrichment held the bus -- which
+    // it does constantly -- so a blip tap could take many tries to land. Poll every loop.
+    //
+    // The retired single-core C3 DID gate this on http.TryAcquireBus(), on the radar view
+    // only, because an overlapping touch I2C transfer wedged the CST816 off the bus until
+    // reboot (PR #8 / commit 56a3df2). Removed 2026-08-09 with the board. Do not reinstate it
+    // on an S3 as a precaution -- see the cost above, and TouchPoll.h for the same note.
+    touched = tft.getTouch(&tx, &ty);
+    if constexpr (variant::TOUCH_WATCHDOG)
+        TouchWatchdog::OnPoll(tft, touched, true); // no bus serialization on these boards
 
-        touched = tft.getTouch(&tx, &ty);
-
-        // Touch supervisor: any I2C it issues (probe / recovery re-init) must stay
-        // serialized against TLS exactly like the poll above, so it may only act
-        // while we hold the bus. On the card view (polling bus-less) it just notes
-        // state and defers its probe to the next held window.
-        if constexpr (variant::TOUCH_WATCHDOG)
-            TouchWatchdog::OnPoll(tft, touched, gotBus);
-
-        if (gotBus)
-            http.ReleaseBus();
-    } else {
-        // Dual-core (S3): touch sits on its own I2C bus and the network runs over WiFi on a
-        // separate core, so there is no touch/TLS wedge to prevent. Gating the poll on the HTTP
-        // mutex here would silently drop taps whenever always-on enrichment held the bus -- which
-        // it does constantly -- so a blip tap could take many tries to land. Poll every loop.
-        touched = tft.getTouch(&tx, &ty);
-        if constexpr (variant::TOUCH_WATCHDOG)
-            TouchWatchdog::OnPoll(tft, touched, true); // no bus serialization on these boards
-    }
-
-#ifdef BISECT_TEST
-    // Bisection storm: the hardware poll above ran for real (bus traffic + watchdog
-    // feed -- nobody physically touches the bench unit), and gesture classification
-    // consumes the synthetic stream instead, driving the same pipeline below.
-    (void)tx; (void)ty;
-    bool sTouched; int sx, sy;
-    BisectHarness::NextTouchSample(sTouched, sx, sy);
-    ProcessTouchSample(sTouched, sx, sy);
-#elif defined(SOAK_TEST)
+#ifdef SOAK_TEST
     // Realistic-duty soak: the sparse gesture script drives classification only
     // while one of its gestures is in flight; between bursts real touches pass
     // through unchanged (so a human poke at the bench still behaves normally).
@@ -3696,12 +3651,32 @@ void AircraftManager::ExitDetail()
 {
     inDetail = false;
     detailPage = 0;
-    // Reclaim the ~15 KB photo sprite. Holding it allocated is what tips the heap
-    // below what an adsbdb/photo TLS handshake needs (see ENRICH_TLS_HEAP_FLOOR);
-    // it's lazily recreated the next time a photo decodes. Clear photoIcao so the
-    // photo is re-fetched if the same aircraft is opened again.
-    if (photoSprite.getBuffer() != nullptr)
-        photoSprite.deleteSprite();
+    // RETAIN the photo sprite on PSRAM boards; free it only where it is actually
+    // contended. The original reasoning -- "holding it allocated is what tips the
+    // heap below what an adsbdb/photo TLS handshake needs" -- is a C3 statement:
+    // true on a banded, PSRAM-less board where the sprite lives in the same scarce
+    // internal heap mbedTLS draws from, and FALSE on every shipping SKU, where
+    // setPsram(true) at the allocation site puts it in PSRAM that a handshake can
+    // never allocate from. Measured 2026-08-09 on the bench s3-128: creating the
+    // backbuffer plus a 150x100 and a 240x240 photo sprite moved psram_free by
+    // 73,532 B and left the internal heap untouched.
+    //
+    // So on S3 the free bought nothing and cost a malloc/free of the sprite on
+    // every single card open/close. That is small today (15,000 B) and stops being
+    // small under the full-bleed round card (issue #209), where it becomes a
+    // 57,600 B PSRAM alloc/free per tap.
+    //
+    // Retention is safe because the buffer is never READ without the two flags
+    // below agreeing: `hasPhoto` is `photoReady && photoIcao == selectedIcao &&
+    // <buffer>`, and both of those are cleared here. With the sprite retained the
+    // third conjunct is merely always-true after the first decode, not a second
+    // opinion that can disagree with the first two. The fillScreen before drawJpg
+    // at the allocation site stays load-bearing for a NEW reason: it now clears
+    // the PREVIOUS aircraft's pixels rather than uninitialised memory.
+    if constexpr (variant::BANDED_RENDER) {
+        if (photoSprite.getBuffer() != nullptr)
+            photoSprite.deleteSprite();
+    }
     photoReady = false;
     photoResolved = false;
     photoIcao = "";
@@ -3857,18 +3832,6 @@ void AircraftManager::HandleSwipe(Swipe swipe)
 
 void AircraftManager::ProcessDetailLookups()
 {
-    if constexpr (kNoNet) {
-        // Bisection: no enrichment exists. Resolve the card's photo state right away
-        // (silhouette, exactly like cloud mode) so it renders its final layout under
-        // the storm instead of a perpetual "Loading photo...".
-        if (inDetail && photoIcao != selectedIcao) {
-            photoIcao = selectedIcao;
-            photoReady = false;
-            photoResolved = true;
-        }
-        return;
-    }
-
     if (!inDetail)
         return;
 
@@ -4008,9 +3971,6 @@ void AircraftManager::StartEnrichTask()
         enrichRequestQueue = xQueueCreate(1, sizeof(EnrichRequest*));
         enrichResultQueue  = xQueueCreate(1, sizeof(EnrichResult*));
     }
-
-    if constexpr (kNoNet)
-        return; // bisection: no enrichment task; every request path is gated off too
 
     // Same workload class as the fetch task (HTTPS GET + small JSON decode, plus a
     // ~10 KB photo body carried back in the result), so the same 12 KB stack and
@@ -4400,8 +4360,10 @@ void AircraftManager::ConsumeEnrichResults()
         case EnrichKind::Photo:
             // decode here, on the loop, so the photo sprite is only ever touched by
             // one task. Only apply it if this photo is still wanted: ExitDetail()
-            // clears photoIcao (and frees the sprite) when the card closes, so a
-            // late-arriving result must not re-allocate the ~15 KB sprite behind it.
+            // clears photoIcao when the card closes, so a late-arriving result must
+            // not paint the closed card's aeroplane into the sprite -- where the
+            // next card would inherit it, since the sprite is now retained rather
+            // than freed on PSRAM boards (see ExitDetail).
             if (photoIcao == res->icao24) {
                 photoResolved = true; // this aircraft's photo attempt is done (decoded below, or not)
                 if (res->photoFetched && res->photoBytes.length() > 0) {
@@ -4467,9 +4429,6 @@ bool AircraftManager::IsOverhead(const TrackedAircraft& tracked) const
 
 void AircraftManager::ProcessAlerts()
 {
-    if constexpr (kNoNet)
-        return; // bisection: no sockets, no alerts
-
     if (ntfyTopic.isEmpty())
         return;
     const bool flyoverEnabled = !watchlist.empty() || alertMilitary;
@@ -5034,9 +4993,6 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
 
 void AircraftManager::ProcessMetadataLookups()
 {
-    if constexpr (kNoNet)
-        return; // bisection: no enrichment task, no lookups
-
     // Local receiver: do no background enrichment unless the CHOSEN source is
     // actually usable. "Off" obviously sends nothing. But "Cloud" with no URL or
     // key must ALSO send nothing -- it must never fall through to the adsbdb path
@@ -5153,59 +5109,3 @@ void AircraftManager::ProcessMetadataLookups()
 #endif
     RequestMetadata(*bestIcao);
 }
-#ifdef BISECT_TEST
-// ---- bisection-harness hooks (the harness itself is src/BisectHarness.cpp) ----
-
-void AircraftManager::BisectApplyTestConfig()
-{
-    // Deterministic bench config, overriding whatever this device's NVS holds, so
-    // every harness run tests the same thing. Maximum render load: every radar
-    // adornment on, sweep + paint-and-fade on, full brightness, no auto-dim (there
-    // is no NTP to drive the solar clock anyway).
-    lat = 47.6;
-    lon = -122.3; // fixed test home; the value is arbitrary, the determinism isn't
-    constexpr double KM_PER_DEGREE = 111.0;
-    constexpr double RANGE_KM = 100.0;
-    radLat = RANGE_KM / KM_PER_DEGREE;
-    radLon = RANGE_KM / (KM_PER_DEGREE * std::cos(radians(lat)));
-    rangeRadiusDisplay = RANGE_KM;
-    rangeUnit = "km";
-
-    displayInfoText = displayTriangles = displayTrails = true;
-    displayAltColor = displayHighlight = true;
-    displaySweep = displayFade = true; // the sweep-render load under test
-    showMilitary = showHelicopters = showSpecial = true;
-    showOverhead = true;               // pulsing LOOK-UP rings on the near contacts = extra draw
-    overheadKm = 8.0;
-    alertMilitary = alertOverhead = false;
-    watchlist.clear();
-    ntfyTopic = "";
-    logbookEnabled = false;
-    mqttEnabled = false;
-    metadataNeeded = false;
-    useLocalSource = false;
-
-    autoDim = false;
-    configuredBrightness = 255;
-    currentBrightness = 255;
-    tft.setBrightness(255);
-
-    fetchInterval = 0x7FFFFFFF; // belt + braces: RequestFetch is kNoNet-gated anyway
-    lastFetch = millis();
-}
-
-bool AircraftManager::BisectInjectFleet(std::vector<Aircraft>&& fleet)
-{
-    if (fetchResultQueue == nullptr)
-        return false;
-
-    FetchResult* res = new FetchResult();
-    res->ok = true;
-    res->aircraft = std::move(fleet);
-    if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE) {
-        delete res; // a result is already pending (an open card pauses merging); drop this frame
-        return false;
-    }
-    return true;
-}
-#endif // BISECT_TEST
