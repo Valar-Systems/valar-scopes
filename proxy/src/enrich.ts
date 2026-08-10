@@ -4,7 +4,7 @@ import { SCHEMA_V } from "./schema";
 import { fetchAircraftMetaAdsbdb, fetchHexChain, fetchRoute } from "./upstreams/chain";
 import { militaryCallsignOperator, militaryOperator } from "./military";
 import { TYPE_NAMES } from "./typenames";
-import { resolvePhoto } from "./photos";
+import { resolvePhoto, squareSizeFor } from "./photos";
 import { errorResponse, intEnv, jsonResponse } from "./util";
 
 // Cold-lookup serve deadline, same philosophy as the blips one: under a 429
@@ -250,7 +250,14 @@ export async function handleEnrich(
   // resolved type). Two fast KV reads worst case; a cold meta miss (no type yet)
   // still resolves a per-hex override, and the card's warm re-request picks up
   // the type shot. Absent library -> no `p`/`pk` fields (append-only schema).
-  const photo = await resolvePhoto(env, hex, acT);
+  //
+  // The variant is decided HERE, from the request's own headers, rather than by
+  // the device asking for a size. The device just fetches the path it is handed,
+  // so a firmware that cannot draw a square can never be handed one -- see
+  // squareSizeFor(), which defaults to the legacy rectangle for anything it does
+  // not positively recognise.
+  const square = squareSizeFor(request.headers.get("X-Blip-FW"), request.headers.get("X-Blip-Model"));
+  const photo = await resolvePhoto(env, hex, acT, square);
 
   // Military floor, applied at serve time so cached pre-floor entries get it
   // too: when the operator resolved empty, fill from (most-specific first)

@@ -88,14 +88,28 @@ export function cropRect(
 // at or below 0.098 -- which a pure-white pixel only reaches at alpha >= 0.654.
 // PEAK sits above that so the guarantee survives a blown highlight.
 //
-// Verified against the three most hostile photos in the live library (chosen by
-// ranking every one of them on luminance in the rows the text occupies, not by
-// eye): peak luminance under the text drops from 0.90-1.00 to 0.030-0.034, i.e.
-// 7.9-8.3:1 measured on the WORST SINGLE PIXEL. A mean would have passed on the
-// one photo with a white fuselage crossing the callsign, which is precisely the
-// aircraft that would have found this in the field.
-export const SCRIM_RAMP_START = 0.40; // fraction of height where darkening begins
-export const SCRIM_RAMP_END = 0.575; // where it reaches full strength
+// Verified against the most hostile photos in the live library (chosen by ranking
+// every one of them on luminance in the rows the text occupies, not by eye): peak
+// luminance under the text drops from 0.62-1.00 to 0.022-0.032, i.e. >= 8.1:1
+// measured on the WORST SINGLE PIXEL, inside the disc. A mean would have passed on
+// the one photo with a white fuselage crossing the callsign, which is precisely
+// the aircraft that would have found this in the field.
+//
+// THE RAMP IS SOLVED AGAINST THE CARD'S TEXT, so it moved when the text did. It
+// began at 0.40 when the full-bleed page carried four lines (callsign, type,
+// operator, registration, telemetry) reaching up to y=140 of 240. That page now
+// carries ONE line: the photo already answers type/operator/route, which are on
+// the data page, and the callsign is the only thing a photograph cannot tell you.
+// One line means the darkening starts at 0.66 instead of 0.40 -- 163 unobstructed
+// rows of aeroplane instead of 96, a 70% gain, at identical worst-case contrast.
+//
+// If the card's text layout changes again, THESE NUMBERS ARE PART OF THAT CHANGE.
+// A shorter ramp reaching full strength at a different height over a different
+// region of the photograph is a different measurement, and inheriting the old
+// one describes pixels the text is no longer on. FULLBLEED_TITLE_Y in
+// src/AircraftManager.cpp is the first row that must be fully covered.
+export const SCRIM_RAMP_START = 0.66; // fraction of height where darkening begins
+export const SCRIM_RAMP_END = 0.80; // full strength by y=192 of 240; text starts at 194
 export const SCRIM_PEAK = 0.8; // maximum alpha
 
 /** Scrim alpha (0..1) for output row `y` of `h`. Smoothstep, so there is no seam. */

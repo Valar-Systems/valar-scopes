@@ -22,7 +22,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cropRect, type Framing } from "../src/framing";
+import { cropRect, scrimRGBA, type Framing } from "../src/framing";
 import {
   MANIFEST_KEY,
   deriveBlobKey,
@@ -33,26 +33,50 @@ import {
   type ManifestEntry,
 } from "../src/photolicense";
 
-// Device sprite dims -- keep in sync with PHOTO_W / PHOTO_H in
-// src/AircraftManager.cpp. Baseline (non-progressive) JPEG only: the on-device
-// decoder (LovyanGFX drawJpg) will not decode progressive.
+// LEGACY slot dims. Every device shipped up to FW 6 draws a 150x100 photo into a
+// fixed slot, and its drawJpg call site passes no scale -- maxWidth/maxHeight
+// CLIP rather than shrink -- so anything larger renders as its own top-left
+// corner. This variant must keep existing, unchanged, for as long as one of those
+// devices is in the field. Baseline (non-progressive) JPEG only: the on-device
+// decoder (LovyanGFX drawJpg via TJpgDec) cannot decode progressive.
 const PHOTO_W = 150;
 const PHOTO_H = 100;
+
+// SQUARE (full-bleed) dims, one per distinct panel size across the SKUs. The
+// card became the whole disc in FW 7 (issue #209), so the artifact is the panel:
+// 240 = Kit S3 / the retired C3 form factor, 412 = the 1.46B, 480 = the Pro 2.1.
+//
+// Emitted per size rather than emitted once and scaled on-device. drawJpg CAN
+// scale (the float scale_x/scale_y overload; the jpeg_div_t one is deprecated),
+// so this is a choice: upscaling a 240 artifact to 480 throws away exactly the
+// detail a bigger panel exists to show, and the crop aspect is identical across
+// sizes so there is nothing else to gain by sharing one.
+const SQUARE_SIZES = [240, 412, 480] as const;
+
+// Where the subject sits vertically in the square. Below 0.5 lifts it, keeping
+// the aeroplane clear of the callsign band along the bottom.
+const SQUARE_PLACE = 0.38;
 
 interface Args {
   env?: string;
   dryRun: boolean;
   checkOnly: boolean;
   photosDir: string;
+  square: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, checkOnly: false, photosDir: "photos" };
+  const a: Args = { dryRun: false, checkOnly: false, photosDir: "photos", square: true };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--env") a.env = argv[++i];
     else if (v === "--dry-run") a.dryRun = true;
     else if (v === "--check") a.checkOnly = true;
+    // Default ON. The square variants are what FW >= 7 draws, so a run that
+    // quietly skipped them would leave new firmware falling back to rectangles
+    // with nothing reporting it -- the flag exists to turn them OFF for a fast
+    // legacy-only re-run, not to opt in to the current product.
+    else if (v === "--no-square") a.square = false;
     else if (v === "--photos-dir") a.photosDir = argv[++i] ?? a.photosDir;
     else throw new Error(`unknown argument: ${v}`);
   }
@@ -187,6 +211,29 @@ async function main(): Promise<void> {
           .toBuffer()
       : Buffer.from(src); // --dry-run: hash the source so keys are stable-ish for logging
 
+    // The full-bleed square variants: one per panel size, cover-cropped to 1:1
+    // with the subject lifted clear of the callsign band, and the graded scrim
+    // COMPOSITED IN AT INGEST rather than drawn on-device. Baking it is what lets
+    // the contrast guarantee be a measurement on a real artifact instead of a
+    // property of renderer code -- and the device cannot cheaply alpha-blend a
+    // gradient over a JPEG it has just decoded into an 8bpp sprite anyway.
+    const squares: { size: number; buf: Buffer }[] = [];
+    if (sharp && args.square) {
+      for (const size of SQUARE_SIZES) {
+        const rect = await extractFor(sharp, src, size, size, e, SQUARE_PLACE);
+        const scrim = Buffer.from(scrimRGBA(size, size));
+        const buf = await sharp(src)
+          .extract(rect)
+          .resize(size, size, { fit: "cover" })
+          .composite([{ input: scrim, raw: { width: size, height: size, channels: 4 }, blend: "over" }])
+          .jpeg({ progressive: false, quality: 82 })
+          .toBuffer();
+        if (!isBaselineJpeg(buf))
+          throw new Error(`${e.kind}:${e.target}: square ${size} is not baseline JPEG; aborting`);
+        squares.push({ size, buf });
+      }
+    }
+
     // Hard assertion: refuse to upload anything but a baseline JPEG (SOF0/SOF1).
     // SOF2 = progressive = undecodable on-device; guard here so no encoder-option
     // drift can ever ship a poison blob again.
@@ -197,13 +244,27 @@ async function main(): Promise<void> {
     const blobKey = await deriveBlobKey(e.target, new Uint8Array(jpeg));
     e.blobKey = blobKey;
     const ptr = pointerKey(e.kind, e.target);
-    console.log(`${e.kind}:${e.target} -> ${blobKey} (${jpeg.length} B)`);
+    const sq = squares.map((s) => `${s.size}:${s.buf.length}B`).join(" ");
+    console.log(`${e.kind}:${e.target} -> ${blobKey} (${jpeg.length} B)${sq ? `  square ${sq}` : ""}`);
 
     if (args.dryRun || !args.env) continue;
     const blobPath = join(tmp, `${blobKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
     writeFileSync(blobPath, jpeg);
     wranglerPut(args.env, blobKey, { path: blobPath }); // immutable blob
     wranglerPut(args.env, ptr, { value: blobKey }); // pointer flip
+
+    // Square variants LAST, and each blob strictly before its pointer. A run
+    // interrupted anywhere leaves the legacy pointer already flipped and correct,
+    // and a square pointer that exists always resolves to a blob that exists --
+    // so a half-finished ingest degrades to "some devices still get rectangles",
+    // never to a dangling pointer or a clipped card.
+    for (const s of squares) {
+      const sKey = await deriveBlobKey(`${e.target}-s${s.size}`, new Uint8Array(s.buf));
+      const sPath = join(tmp, `${sKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
+      writeFileSync(sPath, s.buf);
+      wranglerPut(args.env, sKey, { path: sPath });
+      wranglerPut(args.env, pointerKey(e.kind, e.target, s.size), { value: sKey });
+    }
   }
 
   // --- publish the public manifest (drop local file paths) + credits page ---
