@@ -143,9 +143,30 @@ void setup()
   // The full-frame backbuffer only fits on boards with PSRAM (480x480x8bpp ~= 230 KB); banded
   // SKUs keep it in internal RAM so a TLS handshake still has contiguous heap. setPsram() must
   // precede createSprite().
-  if constexpr (!variant::BANDED_RENDER)
+  // COLOUR DEPTH. 16bpp (RGB565) on PSRAM boards, 8bpp only where the buffer has
+  // to live in internal RAM.
+  //
+  // 8bpp in LovyanGFX is RGB332: 8 levels of red, 8 of green, FOUR of blue --
+  // 256 colours. That is close to the worst possible palette for the one thing
+  // this display does most, which is show a photograph of an aeroplane against
+  // sky: blues posterize, gradients band, and everything takes on a cast. The
+  // depth was chosen when the backbuffer had to fit the C3's internal heap; on a
+  // PSRAM board it was buying nothing and costing the picture.
+  //
+  // Measured on the bench s3-128 (src/probe/BlitProbe.cpp) before changing it:
+  //   panel push       23.242 -> 25.728 ms   (+11%, NOT +100% -- the SPI wire is
+  //                                           already RGB565, so 8bpp was paying
+  //                                           a per-frame conversion instead)
+  //   240x240 blit      5.369 ->  6.228 ms   (+16%; 16bpp is a straight copy)
+  //   full card frame  29.838 -> 33.214 ms   (+11%, against a 60 ms budget)
+  //   PSRAM            +115,200 B total      (1.4% of free)
+  //   internal heap    unchanged, tlsOk unchanged
+  if constexpr (!variant::BANDED_RENDER) {
     backbuffer.setPsram(true);
-  backbuffer.setColorDepth(8);
+    backbuffer.setColorDepth(16);
+  } else {
+    backbuffer.setColorDepth(8);
+  }
   void* spriteBuf = backbuffer.createSprite(SCREEN_SIZE, BAND_H);
 
   // FIRST PIXELS EVER DRAWN. Everything above this point is panel/bus bring-up, so this

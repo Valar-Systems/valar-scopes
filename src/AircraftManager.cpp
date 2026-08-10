@@ -4387,9 +4387,16 @@ void AircraftManager::ConsumeEnrichResults()
                     if (photoSprite.getBuffer() == nullptr) {
                         // PSRAM boards keep the photo off the scarce internal heap (where WiFi/TLS
                         // and the JPEG decoder also live), so decoding a card doesn't fragment it.
-                        if constexpr (!variant::BANDED_RENDER)
+                        // Depth must MATCH the backbuffer's (see main.cpp): a
+                        // 16bpp photo pushed into an 8bpp backbuffer is quantized
+                        // straight back to RGB332, so moving one without the other
+                        // buys nothing and looks identical.
+                        if constexpr (!variant::BANDED_RENDER) {
                             photoSprite.setPsram(true);
-                        photoSprite.setColorDepth(8);
+                            photoSprite.setColorDepth(16);
+                        } else {
+                            photoSprite.setColorDepth(8);
+                        }
                         photoSprite.createSprite(PHOTO_W, PHOTO_H);
                     }
                     photoSprite.fillScreen(lgfx::color888(0, 0, 0));
