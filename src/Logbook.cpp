@@ -193,7 +193,7 @@ void Logbook::reportCapacity()
     constexpr size_t kGcReservedEntries = 126; // one 4 KB page
     // A blob's payload costs one 32-byte entry per 32 bytes. The four stores are
     // the only part of this that scales with the sky a device is pointed at.
-    constexpr size_t kStoresWorstCase = (4 * MAX_BLOB + 31) / 32;
+    constexpr size_t kStoresWorstCase = (MAX_BLOB_TOTAL + 31) / 32;
 
     const size_t overhead = kNonLogbookEntries + kGcReservedEntries;
     const size_t budget = st.total_entries > overhead ? st.total_entries - overhead : 0;
@@ -234,25 +234,130 @@ void Logbook::saveRecord(const char* key, const Record& r)
 }
 
 // ---- capacity ---------------------------------------------------------------
-// A full store is not a benign "we stopped counting", and it used to be entirely
-// silent. Silence made it look like a scoring bug: Note*() refuses to insert, so
-// the entry is ABSENT -- and absent read as "unclaimed" to the badge predicate
-// but as "reject" to Claim*(). The owner got a gold NEW ring on an aircraft that
-// could never be claimed, on every contact of every new type, forever.
-// IsTypeClaimable() removes the lie; this makes the CAUSE visible instead of
-// leaving it to be inferred from a store size that happens to equal its cap.
+// A full store used to be a cliff, and a silent one. Note*() refused to insert,
+// so the entry was ABSENT -- and absent read as "unclaimed" to the badge
+// predicate but as "reject" to Claim*(). The owner got a gold NEW ring on an
+// aircraft that could never be claimed, on every contact of every new type,
+// forever. IsTypeClaimable() removed the lie by asking one question instead of
+// two; noteFull() made the cause visible instead of leaving it to be inferred
+// from a store size that happens to equal its cap.
 //
-// Observed on a bench board 2026-08-08: 220/220 types, 120/120 airlines,
-// 300/300 airports after one week under a GA-heavy sky.
+// Both of those were repairs to the SYMPTOM. The cause was that the caps were
+// reachable at all: 220/220 types, 120/120 airlines, 300/300 airports after ONE
+// WEEK under a GA-heavy sky (bench, 2026-08-08). v5 raises them against a
+// measured budget AND makes the boundary a slope instead of a cliff -- a full
+// store now forgets its least valuable unclaimed entry rather than refusing to
+// grow.
+//
+// So this warning now means something much narrower than it used to, and it is
+// worth being precise about it: reaching it means every single entry in the
+// store is CLAIMED. That is not a storage failure, it is a customer who has
+// collected everything, and refusing is the only honest answer -- the
+// alternative is deleting a trophy to make room for a duplicate of one.
 void Logbook::noteFull(Store s, const char* what, size_t cap)
 {
     if (rejected[s] < 0xFFFF) ++rejected[s];
     if (!warnedFull[s]) {
         warnedFull[s] = true;
-        Serial.printf("[logbook] AT CAPACITY: %s full at %u. First-time entries are no "
-                      "longer recorded, and what is not recorded cannot be claimed.\n",
+        Serial.printf("[logbook] AT CAPACITY: %s full at %u and EVERY entry is claimed, so "
+                      "nothing can be evicted. First-time entries are no longer recorded.\n",
                       what, (unsigned)cap);
     }
+}
+
+// ---- eviction ---------------------------------------------------------------
+// The rule, and it is the whole design: A CLAIM IS NEVER EVICTABLE.
+//
+// The two things in the book are not equivalent. "Seen" is produced by the sky
+// and costs the owner nothing; a claim is the one thing they did on purpose, by
+// noticing an aircraft and tapping it. Evicting a claim to make room for
+// something a feed happened to mention would spend the only irreplaceable half
+// of the record to store the replaceable half. So eviction only ever considers
+// unclaimed entries, and when there are none it refuses (see noteFull above).
+//
+// Among unclaimed entries, "least valuable" is deliberately not "oldest". Oldest
+// alone would evict the rarity you saw once in March to make room for the
+// fiftieth Cessna of the afternoon, which inverts what a lifelist is for. For
+// types the ordering is count first: seen-once beats seen-often, and firstDay
+// breaks the tie toward forgetting the more recent one (an old single sighting
+// is more interesting than a new one). The seen-only stores carry no count, so
+// they fall back to oldest-first.
+bool Logbook::evictOneType()
+{
+    auto victim = types.end();
+    for (auto it = types.begin(); it != types.end(); ++it) {
+        if (it->second.claimDay != 0)
+            continue; // claimed: not a candidate, ever
+        if (victim == types.end() ||
+            it->second.count > victim->second.count ||
+            (it->second.count == victim->second.count &&
+             it->second.firstDay > victim->second.firstDay))
+            victim = it;
+    }
+    if (victim == types.end())
+        return false; // everything is claimed
+    if (evicted[StTypes] < 0xFFFF) ++evicted[StTypes];
+    types.erase(victim);
+    return true;
+}
+
+// The seen-only stores carry no count, so the only signal is age -- and the
+// choice goes the same way as the tie-break above: forget the MOST RECENT
+// unclaimed entry, not the oldest.
+//
+// Oldest-first is the reflex, and it is wrong here. It turns a lifelist into a
+// rolling window of the last 250 airlines and quietly deletes the beginning of
+// the record, which is the part a collection is actually about. Keeping the
+// earliest costs one honest consequence, stated here so it isn't discovered as a
+// bug: once the store is full its newest slot becomes a revolving door -- each
+// new airline evicts the previous new one -- while everything earlier is frozen.
+// "Your first 250, plus whoever just flew over" is a defensible book. "Your most
+// recent 250" is not.
+bool Logbook::evictOneSeen(std::map<String, SeenStat>& store, Store which)
+{
+    auto victim = store.end();
+    for (auto it = store.begin(); it != store.end(); ++it) {
+        if (it->second.claimDay != 0)
+            continue;
+        if (victim == store.end() || it->second.firstDay > victim->second.firstDay)
+            victim = it;
+    }
+    if (victim == store.end())
+        return false;
+    if (evicted[which] < 0xFFFF) ++evicted[which];
+    store.erase(victim);
+    return true;
+}
+
+// ---- the v4 -> v5 operator migration ----------------------------------------
+// MAX_OP_LEN widened 24 -> 40, and the truncated name IS the key, so every long
+// airline would otherwise re-enter under a new spelling as unclaimed -- the
+// customer's claim stranded on a key nothing will ever look up again.
+//
+// It cannot be fixed by a pass at startup: "AIR WISCONSIN AIRLINES L" is all the
+// v4 store kept, and the full name is not recoverable from it. The information
+// only comes back when an aircraft supplies it. So the migration runs there, at
+// the moment the long spelling first arrives, and hands the old entry's firstDay
+// and claimDay to the new key.
+//
+// Only a key of EXACTLY the old cut is a candidate. A shorter name was never
+// truncated, so it is a real name that merely happens to be a prefix -- and
+// adopting that would merge two genuinely different operators.
+bool Logbook::adoptTruncatedOperator(const String& fullName)
+{
+    if (fullName.length() <= OLD_MAX_OP_LEN)
+        return false; // this name was never truncated by the old cut
+    const String oldKey = fullName.substring(0, OLD_MAX_OP_LEN);
+    auto old = operators.find(oldKey);
+    if (old == operators.end())
+        return false;
+    operators[fullName] = old->second; // firstDay AND claimDay carry across
+    operators.erase(old);
+    dirty = true;
+    Serial.printf("[logbook] migrated operator '%s' -> '%s' (claim %s)\n",
+                  oldKey.c_str(), fullName.c_str(),
+                  operators[fullName].claimDay != 0 ? "carried" : "none");
+    return true;
 }
 
 bool Logbook::NoteType(const String& typeCode)
@@ -268,9 +373,9 @@ bool Logbook::NoteType(const String& typeCode)
         dirty = true;
         return false; // known type: counted, not a fresh catch
     }
-    if (types.size() >= MAX_TYPES) {
+    if (types.size() >= MAX_TYPES && !evictOneType()) {
         noteFull(StTypes, "types", MAX_TYPES);
-        return false; // at capacity: don't claim a new catch we can't store
+        return false; // full AND all claimed: don't claim a new catch we can't store
     }
     types[t] = TypeStat{ TodayEpochDay(), 1 };
     dirty = true;
@@ -311,7 +416,12 @@ bool Logbook::NoteOperator(const String& operatorName)
         return false;
     if (operators.count(op))
         return false;
-    if (operators.size() >= MAX_OPERATORS) {
+    // Before treating this as a new airline, check whether it is an old one under
+    // its v4 truncated spelling. Adopting returns the entry to the book WITH its
+    // claim, and it is not a fresh catch -- the customer already had it.
+    if (adoptTruncatedOperator(op))
+        return false;
+    if (operators.size() >= MAX_OPERATORS && !evictOneSeen(operators, StOperators)) {
         noteFull(StOperators, "airlines/owners", MAX_OPERATORS);
         return false;
     }
@@ -327,7 +437,7 @@ bool Logbook::NoteCountry(const String& country)
         return false;
     if (countries.count(c))
         return false;
-    if (countries.size() >= MAX_COUNTRIES) {
+    if (countries.size() >= MAX_COUNTRIES && !evictOneSeen(countries, StCountries)) {
         noteFull(StCountries, "countries", MAX_COUNTRIES);
         return false;
     }
@@ -343,7 +453,7 @@ bool Logbook::NoteAirport(const String& airportCode)
         return false;
     if (airports.count(a))
         return false;
-    if (airports.size() >= MAX_AIRPORTS) {
+    if (airports.size() >= MAX_AIRPORTS && !evictOneSeen(airports, StAirports)) {
         noteFull(StAirports, "airports", MAX_AIRPORTS);
         return false;
     }
@@ -357,6 +467,19 @@ bool Logbook::NoteAirport(const String& airportCode)
 // already in the book. Claiming something unseen is silently ignored rather than
 // inserted: the seen list is the evidence the aircraft was really overhead, and a
 // claim that could create its own evidence would make the two numbers meaningless.
+//
+// v5 gave that principle a second half, and the two are the same idea read from
+// opposite ends. A claim cannot come into existence without a sighting to stand
+// on -- and, now that the book evicts, a claim cannot be taken away by one
+// either. Eviction only ever removes unclaimed entries (see evictOneType /
+// evictOneSeen above), so the sky can add to what a customer owns and can never
+// subtract from it.
+//
+// That asymmetry is what makes the claimed count worth anything. "Seen" is
+// produced by whatever happened to fly past and is replaceable; a claim is the
+// one thing the owner did deliberately, and it is the half the device promises
+// to keep. A cap that could delete a claim to store another sighting would be
+// spending the irreplaceable half to hold the replaceable one.
 
 bool Logbook::IsTypeClaimed(const String& typeCode) const
 {
@@ -647,27 +770,37 @@ void Logbook::MaybePersist()
 
     // Serialize each store, honoring the MAX_BLOB safety ceiling (the per-store
     // caps keep us short of it; legacy over-cap lists truncate at the tail).
+    // The ceilings are per-store now, and they are a safety net rather than a
+    // working limit: the count caps bind first, so a break here means a record got
+    // longer than its worst case was believed to be. Say so instead of truncating
+    // in silence -- tail-truncation drops the alphabetically-last entries, which
+    // come back as unclaimed NEW and read as a scoring bug.
+    size_t clipped = 0;
     String typesBlob;
     for (const auto& [code, st] : types) {
         const String rec = code + FIELD + String(st.firstDay) + FIELD + String(st.count)
                          + FIELD + String(st.claimDay);
-        if (typesBlob.length() + rec.length() + 1 > MAX_BLOB) break;
+        if (typesBlob.length() + rec.length() + 1 > MAX_BLOB_TYPES) { ++clipped; break; }
         if (!typesBlob.isEmpty()) typesBlob += SEP;
         typesBlob += rec;
     }
-    const auto seenBlob = [](const std::map<String, SeenStat>& src) {
+    const auto seenBlob = [&clipped](const std::map<String, SeenStat>& src, size_t ceiling) {
         String blob;
         for (const auto& [name, st] : src) {
             const String rec = name + FIELD + String(st.firstDay) + FIELD + String(st.claimDay);
-            if (blob.length() + rec.length() + 1 > MAX_BLOB) break;
+            if (blob.length() + rec.length() + 1 > ceiling) { ++clipped; break; }
             if (!blob.isEmpty()) blob += SEP;
             blob += rec;
         }
         return blob;
     };
-    const String opsBlob       = seenBlob(operators);
-    const String countriesBlob = seenBlob(countries);
-    const String airportsBlob  = seenBlob(airports);
+    const String opsBlob       = seenBlob(operators, MAX_BLOB_OPERATORS);
+    const String countriesBlob = seenBlob(countries, MAX_BLOB_COUNTRIES);
+    const String airportsBlob  = seenBlob(airports, MAX_BLOB_AIRPORTS);
+    if (clipped)
+        Serial.printf("[logbook] BUG: %u store(s) hit the byte ceiling before the count cap. "
+                      "Entries were dropped from the tail. A record is longer than "
+                      "Logbook.h's worst case assumes.\n", (unsigned)clipped);
 
     if (!prefs.begin("logbook", false)) {
         Serial.println("[logbook] PERSIST FAILED: cannot open the NVS namespace");
@@ -729,4 +862,14 @@ void Logbook::MaybePersist()
                       (unsigned)operators.size(), (unsigned)MAX_OPERATORS,
                       (unsigned)countries.size(), (unsigned)MAX_COUNTRIES,
                       (unsigned)airports.size(), (unsigned)MAX_AIRPORTS);
+    // And a third ONLY when something was forgotten. Kept separate from REFUSED on
+    // purpose: these are the two different things a full store can do, and a single
+    // combined number would make "the book is growing and shedding its dullest
+    // entries" indistinguishable from "the book has stopped". The first is the
+    // design working; the second means every entry is claimed.
+    if (evicted[StTypes] || evicted[StOperators] || evicted[StCountries] || evicted[StAirports])
+        Serial.printf("[logbook] EVICTED since boot: %u types, %u airlines/owners, %u countries, "
+                      "%u airports (unclaimed only -- a claim is never evictable)\n",
+                      (unsigned)evicted[StTypes], (unsigned)evicted[StOperators],
+                      (unsigned)evicted[StCountries], (unsigned)evicted[StAirports]);
 }
