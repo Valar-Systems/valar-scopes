@@ -64,13 +64,17 @@ describe("resolvePhoto variant selection", () => {
     expect(ref?.key).toBe("photo:E75L-5240fee0");
   });
 
-  it("falls back to the rectangle when the square has not been ingested yet", async () => {
-    // A new pick, an interrupted ingest, a half-deployed environment. The card
-    // shows a rectangle rather than no photo -- the square library is a layer
-    // over the old one, never a replacement that can strand a card.
+  it("gives a full-bleed device NOTHING rather than a rectangle it cannot place", async () => {
+    // A new pick, an interrupted ingest, a half-deployed environment. The
+    // tempting answer is "serve the rectangle, some photo beats no photo" -- and
+    // it is wrong: the full-bleed card has no slot, so a 150x100 blob in a 240
+    // disc is misplaced wherever it lands. Observed on the bench 2026-08-10 as a
+    // fragment in the corner of an otherwise blank card, with hasPhoto=1 and no
+    // error logged anywhere. null puts the card into its DESIGNED no-photo state.
     await env.ENRICH_KV.put(pointerKey("type", "PA24"), "photo:PA24-0badcafe");
-    const ref = await resolvePhoto(env, HEX, "PA24", 240);
-    expect(ref?.key).toBe("photo:PA24-0badcafe");
+    expect(await resolvePhoto(env, HEX, "PA24", 240)).toBeNull();
+    // ...and the same library still serves that rectangle to old firmware.
+    expect((await resolvePhoto(env, HEX, "PA24", null))?.key).toBe("photo:PA24-0badcafe");
   });
 
   it("does not let one device's panel size read another's pointer", async () => {

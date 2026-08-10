@@ -28,9 +28,6 @@
 // maxHeight CLIP rather than shrink, and a square blob reaching old firmware
 // would render as its own top-left corner.
 //
-// Drawn with a middle_center datum so a smaller-than-expected image (an old
-// pointer, a staging mismatch) lands centred instead of jammed into a corner --
-// degraded, but obviously a photo rather than obviously a bug.
 constexpr int PHOTO_W = SCREEN_SIZE;
 constexpr int PHOTO_H = SCREEN_SIZE;
 
@@ -4396,12 +4393,20 @@ void AircraftManager::ConsumeEnrichResults()
                         photoSprite.createSprite(PHOTO_W, PHOTO_H);
                     }
                     photoSprite.fillScreen(lgfx::color888(0, 0, 0));
-                    // middle_center datum: see the PHOTO_W note. A correctly-sized
-                    // square fills the sprite exactly; anything smaller centres.
+                    // Plain top-left draw. A middle_center datum was tried here as
+                    // "cheap insurance" for an unexpectedly small image and BROKE
+                    // THE CORRECT CASE on hardware: with (x,y) at the sprite centre
+                    // the image landed at (120,120) and only its top-left corner
+                    // fell inside the sprite -- a mostly-blank card with a fragment
+                    // in the bottom-right, while drawJpg still returned true and
+                    // hasPhoto still read 1, so nothing logged a fault.
+                    //
+                    // The artifact is emitted at exactly this size, so there is
+                    // nothing to centre; a mismatched one leaves black margins,
+                    // which is obvious rather than silent. Insurance that can
+                    // break the case it is insuring is not insurance.
                     photoReady = photoSprite.drawJpg((const uint8_t*)res->photoBytes.c_str(),
-                                                     res->photoBytes.length(),
-                                                     PHOTO_W / 2, PHOTO_H / 2, PHOTO_W, PHOTO_H,
-                                                     0, 0, 1.0f, 0.0f, lgfx::datum_t::middle_center);
+                                                     res->photoBytes.length(), 0, 0, PHOTO_W, PHOTO_H);
                     // A failed decode after a successful fetch must be LOUD: a progressive
                     // JPEG (undecodable by TJpgDec), a truncated body, or an HTML error page
                     // all land here, and silently showing the silhouette hides the bug

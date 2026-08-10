@@ -89,19 +89,23 @@ export async function resolvePhoto(
   type: string,
   square: number | null = null,
 ): Promise<PhotoRef | null> {
-  // Try the square variant first when the caller has established the device can
-  // draw it, but ALWAYS fall through to the legacy pointer on a miss. A type
-  // whose square variant has not been ingested yet (a new pick, an interrupted
-  // run, a half-deployed environment) shows the rectangle rather than no photo:
-  // the square library is an upgrade layered over the old one, never a
-  // replacement that can strand a card.
+  // A full-bleed device gets a square or it gets NOTHING -- never the rectangle.
+  //
+  // Falling back to the legacy 150x100 looks like the safe, generous choice and
+  // is not: the full-bleed card has no slot to put it in, so a 150x100 image in a
+  // 240 disc is wrong wherever it lands (top-left leaves an L of black, centred
+  // leaves a border the ring cuts through). Returning null instead puts the card
+  // into "No photo available", which is a DESIGNED state with a silhouette --
+  // honest, and visibly a gap rather than visibly a bug. Observed on the bench
+  // 2026-08-10: a legacy blob reaching a full-bleed card renders as a fragment
+  // with hasPhoto=1 and no error anywhere.
+  //
+  // Old firmware is unaffected -- square is null for it, and it reads only the
+  // legacy pointer, exactly as before.
   const read = async (kind: "type" | "hex", target: string): Promise<string | null> => {
-    if (square !== null) {
-      const sq = await env.ENRICH_KV.get(pointerKey(kind, target, square));
-      if (sq && isValidPhotoKey(sq)) return sq;
-    }
-    const legacy = await env.ENRICH_KV.get(pointerKey(kind, target));
-    return legacy && isValidPhotoKey(legacy) ? legacy : null;
+    const k = square !== null ? pointerKey(kind, target, square) : pointerKey(kind, target);
+    const v = await env.ENRICH_KV.get(k);
+    return v && isValidPhotoKey(v) ? v : null;
   };
 
   const hexPtr = await read("hex", hex);
