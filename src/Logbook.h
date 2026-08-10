@@ -220,6 +220,11 @@ private:
     // The remaining ~930 entries are margin for config, the records, and NVS's own
     // churn. Raising these again means re-reading the boot line first.
     //
+    // Two numbers live here and they are NOT the same: the caps need ~1277 entries,
+    // while the byte ceilings below permit 1375. The boot line reports the ceiling
+    // total, because that is the bound that cannot be exceeded, and it says
+    // "ceilings" rather than "caps" so the two can be told apart on sight.
+    //
     // OPERATORS IS CAPPED BY A SECOND CONSTRAINT, not by the NVS budget. JsonStream
     // loads ONE WHOLE STORE at a time (see below), so the largest store is also the
     // largest contiguous allocation /logbook.json can ask for -- on a board where a

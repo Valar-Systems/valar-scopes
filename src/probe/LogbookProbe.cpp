@@ -17,6 +17,12 @@
 
 #include "../Logbook.h"
 
+// Guarded like every other probe (BlitProbe, HeapProbe, TouchProbe...): this TU
+// defines its own setup()/loop(), and src/probe/ is NOT excluded by the shipping
+// envs' build_src_filter, so without the guard it links into the radar build and
+// the image fails on duplicate symbols. Only the probe envs define PROBE_SKETCH.
+#ifdef PROBE_SKETCH
+
 namespace {
 
 int checks = 0, failures = 0;
@@ -230,3 +236,5 @@ void loop()
     delay(10000);
     RunAll();
 }
+
+#endif // PROBE_SKETCH

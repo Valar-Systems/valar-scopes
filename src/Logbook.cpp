@@ -198,7 +198,14 @@ void Logbook::reportCapacity()
     const size_t overhead = kNonLogbookEntries + kGcReservedEntries;
     const size_t budget = st.total_entries > overhead ? st.total_entries - overhead : 0;
 
-    Serial.printf("[logbook] NVS %u/%u entries used (%u free); logbook budget ~%u, caps want %u\n",
+    // "ceilings" and not "caps" on purpose: this is MAX_BLOB_TOTAL, the most the
+    // four stores can occupy, which is a slightly larger number than the count caps
+    // actually need (they need ~1277 of these 1375). The ceiling is the right
+    // number for a capacity check -- it is the bound that cannot be exceeded -- but
+    // calling it "caps" would put two different figures under one name, and the
+    // next person would reconcile them against Logbook.h and find a discrepancy
+    // that isn't one.
+    Serial.printf("[logbook] NVS %u/%u entries used (%u free); logbook budget ~%u, ceilings need %u\n",
                   (unsigned)st.used_entries, (unsigned)st.total_entries,
                   (unsigned)st.free_entries, (unsigned)budget, (unsigned)kStoresWorstCase);
 
@@ -208,7 +215,7 @@ void Logbook::reportCapacity()
     // about which number is wrong. Entries are what NVS actually rations.
     if (kStoresWorstCase > budget)
         Serial.printf("[logbook] WARNING: this partition cannot hold a full logbook. %u total entries "
-                      "leaves ~%u for stores; the caps need %u. Writes will start failing with "
+                      "leaves ~%u for stores; the ceilings need %u. Writes will start failing with "
                       "NOT_ENOUGH_SPACE once the sky fills them -- see partitions-s3-16mb-bignvs.csv.\n",
                       (unsigned)st.total_entries, (unsigned)budget, (unsigned)kStoresWorstCase);
 }
