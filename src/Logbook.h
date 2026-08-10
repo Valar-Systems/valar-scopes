@@ -122,8 +122,18 @@ public:
     // at full caps the document is ~25 KB, which would want a single contiguous
     // block on a device whose largest free block was measured at 36-44 KB with
     // TLS also wanting one. This walks the stores one at a time instead, so the
-    // biggest allocation alive at once is a single serialized store (<=MAX_BLOB,
-    // ~5 KB) plus a small carry buffer -- independent of how big the logbook gets.
+    // biggest allocation alive at once is a single serialized store plus a small
+    // carry buffer -- independent of how big the LOGBOOK gets, but NOT independent
+    // of how big one STORE gets.
+    //
+    // That distinction stopped being academic in v5. This said "<=MAX_BLOB, ~5 KB"
+    // when there was one shared 5200-byte ceiling; the caps are now much larger and
+    // the ceiling is per-store, so the real bound is max(MAX_BLOB_*) = 12 KB. It is
+    // the reason those ceilings are 12 KB rather than whatever the NVS entry budget
+    // would have allowed: this allocation and a TLS handshake's ~16.7 KB have to be
+    // able to coexist. heaphealth::CanHandshake() will defer enrichment rather than
+    // fail if they briefly cannot, so the worst case is a few seconds of deferred
+    // enrichment while an owner reads their collection.
     //
     // Usage: construct, then call Read() until it returns 0.
     class JsonStream {
@@ -163,6 +173,11 @@ private:
     uint16_t rejected[StCount] = {0, 0, 0, 0};
     bool warnedFull[StCount] = {false, false, false, false};
     void noteFull(Store s, const char* what, size_t cap);
+    // Entries EVICTED to make room, per store. Distinct from `rejected`: an
+    // eviction means the book kept growing and forgot something unclaimed, a
+    // rejection means it could not grow at all. Conflating them would hide which
+    // of the two a device is doing.
+    uint16_t evicted[StCount] = {0, 0, 0, 0};
     uint32_t contacts = 0;
     Record recHigh, recFast, recNear;
     bool dirty = false;
@@ -182,10 +197,44 @@ private:
     // operators "NAME|day" is <=31 B (120 x 31 = 3720). v2 lowered the caps from
     // 400/140 -- existing over-cap lists still load and persist (MAX_BLOB is the
     // hard ceiling); they just can't grow further.
-    static constexpr size_t MAX_TYPES     = 220;
-    static constexpr size_t MAX_OPERATORS = 120;
-    static constexpr size_t MAX_COUNTRIES = 64;
-    static constexpr size_t MAX_AIRPORTS  = 300; // codes are <=4 chars
+    // v5 (2026-08-10) raised all four, sized against a MEASURED budget rather than
+    // a guess. The bench s3-128 reports 320 of 2646 NVS entries used with an empty
+    // logbook; subtracting that and the page NVS reserves for garbage collection
+    // leaves ~2204 entries, ~70 KB. See reportCapacity() in Logbook.cpp, which
+    // prints the figure on every boot so this can be checked rather than believed.
+    //
+    // The old caps were not a storage decision, they were an unexamined one, and
+    // the sky settled it: 220/220 types, 120/120 airlines, 300/300 airports after
+    // ONE WEEK under a GA-heavy sky (bench, 2026-08-08). A lifelist that fills in a
+    // week is not a lifelist.
+    //
+    // Worst case at these caps, against the per-store ceilings below:
+    //
+    //   types      500 x 22 B = 11,000
+    //   operators  220 x 52 B = 11,440   (52 = MAX_OP_LEN 40 + day + claimDay)
+    //   countries  200 x 44 B =  8,800
+    //   airports   600 x 16 B =  9,600
+    //                           ------
+    //                           40,840 B = ~1277 entries, 58% of budget
+    //
+    // The remaining ~930 entries are margin for config, the records, and NVS's own
+    // churn. Raising these again means re-reading the boot line first.
+    //
+    // Two numbers live here and they are NOT the same: the caps need ~1277 entries,
+    // while the byte ceilings below permit 1375. The boot line reports the ceiling
+    // total, because that is the bound that cannot be exceeded, and it says
+    // "ceilings" rather than "caps" so the two can be told apart on sight.
+    //
+    // OPERATORS IS CAPPED BY A SECOND CONSTRAINT, not by the NVS budget. JsonStream
+    // loads ONE WHOLE STORE at a time (see below), so the largest store is also the
+    // largest contiguous allocation /logbook.json can ask for -- on a board where a
+    // TLS handshake needs ~16.7 KB contiguous of its own. That is what holds the
+    // per-store ceilings at 12 KB and operators at 220 rather than the ~250 the
+    // entry budget alone would allow.
+    static constexpr size_t MAX_TYPES     = 500;
+    static constexpr size_t MAX_OPERATORS = 220;
+    static constexpr size_t MAX_COUNTRIES = 200; // there are ~195 countries
+    static constexpr size_t MAX_AIRPORTS  = 600; // codes are <=4 chars
     // CHANGING EITHER OF THESE ORPHANS EXISTING CLAIMS, and that is not obvious
     // from the fact that they look like display widths. The truncated name IS the
     // map key and IS what gets persisted, so widening the cut re-spells every
@@ -200,8 +249,17 @@ private:
     // number. The Collection page marks a name cut at these lengths with an
     // ellipsis (ConfigurationWebServer.cpp) so a clipped name at least reads as
     // clipped; keep the two in step by hand.
-    static constexpr size_t MAX_OP_LEN    = 24;  // truncate long operator/owner names
-    static constexpr size_t MAX_CN_LEN    = 32;  // truncate long country names
+    //
+    // v5 (2026-08-10) did the widening, 24 -> 40, WITH the migration the paragraph
+    // above demands -- see adoptTruncatedOperator() in Logbook.cpp. The migration
+    // cannot be a startup pass, because the full name is exactly what the old store
+    // did not keep: "AIR WISCONSIN AIRLINES L" cannot be expanded from itself. So
+    // it runs lazily instead, at the moment an aircraft supplies the long spelling,
+    // and carries firstDay + claimDay across then. An airline that never flies over
+    // again keeps its old truncated entry and its claim; nothing is dropped.
+    static constexpr size_t MAX_OP_LEN     = 40; // truncate long operator/owner names
+    static constexpr size_t OLD_MAX_OP_LEN = 24; // the v4 cut, for the lazy migration
+    static constexpr size_t MAX_CN_LEN     = 32; // truncate long country names
     // v4 raised this from 3800 because every record grew a claim-day field, and
     // the two big stores no longer fit under the old ceiling:
     //
@@ -214,18 +272,40 @@ private:
     // types -- and they would come back as unclaimed NEW on the next boot, so the
     // loss would look like a scoring bug rather than a storage one.
     //
-    // Affordable now: the SKU moved to an 84 KB / 2646-entry NVS
-    // (partitions-s3-16mb-bignvs.csv). Worst case here is ~17 KB of stores against
-    // ~10 KB for wifi/phy/config, so ~1/3 of the partition at full caps. Blobs are
-    // chunked across pages by NVS, so this needs the space, not contiguity.
-    // Watch `NVS entries free` on the [logbook] persist line before raising again.
-    static constexpr size_t MAX_BLOB      = 5200; // hard ceiling per serialized store
+    // Affordable now: blipscope-s3-128 has an 84 KB / 2646-entry NVS
+    // (partitions-s3-16mb-bignvs.csv). Note "blipscope-s3-128", not "the SKU" --
+    // this said "the SKU moved to" until 2026-08-10, which was true of exactly one
+    // and read as if it meant the fleet. reportCapacity() now checks the partition
+    // the board actually booted with, so this paragraph can no longer be the only
+    // thing standing between the caps and a partition that cannot hold them.
+    //
+    // v5 splits the single ceiling into one per store. The point is the ORDER the
+    // two limits bind in: the count caps above must always bind FIRST, so eviction
+    // handles a full store gracefully, and these byte ceilings are a pure safety
+    // net that never fires in normal operation. Tail-truncation drops the
+    // alphabetically-last entries silently, which is why it must stay unreachable
+    // -- each ceiling sits comfortably above cap x worst-case record.
+    static constexpr size_t MAX_BLOB_TYPES     = 12000; // cap needs 11,000
+    static constexpr size_t MAX_BLOB_OPERATORS = 12000; // cap needs 11,440
+    static constexpr size_t MAX_BLOB_COUNTRIES =  9500; // cap needs  8,800
+    static constexpr size_t MAX_BLOB_AIRPORTS  = 10500; // cap needs  9,600
+    static constexpr size_t MAX_BLOB_TOTAL     = MAX_BLOB_TYPES + MAX_BLOB_OPERATORS
+                                               + MAX_BLOB_COUNTRIES + MAX_BLOB_AIRPORTS;
     static constexpr unsigned long PERSIST_INTERVAL_MS = 10UL * 60UL * 1000UL; // 10 min
 
     // Report the running partition's real capacity against what the caps want,
     // and warn when this SKU's partition table cannot hold them. See the
     // definition -- the NVS size varies 4x across shipping SKUs.
     void reportCapacity();
+
+    // Make room in a full store by forgetting its least valuable UNCLAIMED entry.
+    // Returns false when every entry is claimed, which is the one case that must
+    // still refuse. See the definitions for why a claim is never evictable.
+    bool evictOneType();
+    bool evictOneSeen(std::map<String, SeenStat>& store, Store which);
+    // Lazily re-key a v4 entry truncated at OLD_MAX_OP_LEN onto its full spelling,
+    // carrying firstDay and claimDay across. Returns true if it adopted one.
+    bool adoptTruncatedOperator(const String& fullName);
 
     static void loadRecord(Preferences& p, const char* key, Record& out);
     void saveRecord(const char* key, const Record& r);

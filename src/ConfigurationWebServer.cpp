@@ -821,11 +821,13 @@ R"(
             const section = function (title, items, keyName, claimedN, truncAt) {
                 if (!items || !items.length) return '';
                 // "N claimed of M seen", never a bare "N of M". M is how many
-                // entries this device has STORED, which stops being a fact about
-                // the sky the moment a store hits its cap -- and three of the four
-                // caps are reachable in a week under a busy sky. Labelling the
-                // second number is the difference between a comparison of two
-                // counts (true) and a progress bar toward a total (not).
+                // entries this device has STORED, which is not the same as what
+                // flew over. v5 raised the caps (three of four were reachable in a
+                // WEEK) and made a full store evict its dullest unclaimed entry
+                // instead of refusing, so M can now go DOWN as well as up while the
+                // sky keeps delivering. Labelling the second number is the
+                // difference between a comparison of two counts (true) and a
+                // progress bar toward a total (not).
                 let h = '<div style="margin:.9rem 0 .2rem"><b>' + esc(title) + '</b> ' +
                     '<span class="hint">' + claimedN + ' claimed of ' + items.length + ' seen</span></div>';
                 h += bar(claimedN, items.length);
@@ -850,10 +852,13 @@ R"(
                     // a strictly smaller error than the current one, and it is
                     // cosmetic in a way the current one is not.
                     //
-                    // WIDENING the cap is the real fix and is deliberately not
-                    // done here: the stored name IS the map key, so changing the
-                    // cut length re-spells every entry and orphans the claims
-                    // filed under the old spelling. See Logbook.h.
+                    // The widening this used to defer -- "the stored name IS the
+                    // map key, so changing the cut re-spells every entry and
+                    // orphans the claims filed under the old spelling" -- was done
+                    // in v5, 24 -> 40, with the lazy re-keying migration that makes
+                    // it safe (adoptTruncatedOperator in Logbook.cpp). The ellipsis
+                    // stays, because 40 still clips some registered owners; it just
+                    // fires far less often now.
                     let name = String(it[keyName]);
                     if (truncAt && name.length >= truncAt) name += '…';
                     h += chip(name + n, it.claimed, when);
@@ -876,7 +881,7 @@ R"(
                     // key stays `airlines`: it is the wire field the leaderboard
                     // submit sends, so renaming it is a Worker change, not a copy
                     // change.
-                    h += section('Operators', d.airlines, 'name', k.airlines || 0, 24); // MAX_OP_LEN
+                    h += section('Operators', d.airlines, 'name', k.airlines || 0, 40); // MAX_OP_LEN
                     h += section('Countries', d.countries, 'name', k.countries || 0, 32); // MAX_CN_LEN
                     h += section('Airports', d.airports, 'code', k.airports || 0, 0);
                     const rec = d.records || {};
