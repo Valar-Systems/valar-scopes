@@ -264,6 +264,19 @@ For a product whose emotional hook is plane-spotting, **history is the retention
   config `radar-up` sets the compass bearing at the top of the screen (0 = north-up), so
   the radar matches the view out the user's window.
 - "Aircraft of the day" / notable-catch summary card (gamification, pairs with Logbook v2).
+- **Trophy cabinet** (2026-08-10) — gamify the plane collection: the owner *earns trophies
+  for accomplishing things*, rather than only watching four counters go up. Sits naturally
+  on the logbook, which as of v5 has the storage to support it (raised caps, eviction that
+  never spends a claim, and `claimDay` on every entry — so "when" is already recorded and
+  a trophy can be awarded retroactively from existing data).
+
+  **Which trophies, and how they are implemented, are both undecided and are NOT being
+  designed yet.** Recorded here so the idea isn't lost, not as a spec. The open questions
+  worth capturing while they're fresh: whether a trophy is derived on demand from the
+  stores (cheap, no migration, always consistent) or persisted as its own award record
+  (survives eviction, costs NVS entries and a schema); whether trophies are per-device or
+  tied to the leaderboard account; and whether any of them can be earned by a device that
+  simply runs longer, which would make them a measure of uptime rather than of spotting.
 - Multi-location profiles (home/work) — probably niche; revisit on demand.
 - 1.75" AMOLED premium SKU (466×466 + mic) — **SCAFFOLD SHIPPED 2026-07-17, BENCH-ONLY:**
   variant header (`include/variants/s3_175_amoled.h`), LGFX.h CO5300/FT5x06 blocks (both
