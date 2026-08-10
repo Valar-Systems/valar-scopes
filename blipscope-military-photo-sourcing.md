@@ -112,6 +112,56 @@ slings, weapon slings and Iron Age sling bullets alongside the aeroplane, and
 its more common sibling — every unfiltered `Sling 2` result was a Sling **4**.
 Exclude the sibling explicitly (`-"Sling 4"`) and require the aircraft word.
 
+### Measured 2026-08-10: what the square crop actually costs, and which lever fixes what
+
+The framing above was reasoned about. These are measurements across the whole
+234-photo library, and two of them invert the intuition.
+
+**A centre cover-crop discards about half of an airliner.** 3:2 source into a 1:1
+target keeps 67% of the width, and the missing third is nose and tail. Measured:
+**49% of a 777 survived, 53% of a 737-9.** A customer saw a fuselage section,
+which identifies nothing. Fixed by `subjectCrop()` in `proxy/src/framing.ts`:
+crop to the subject, then **grow vertically into the sky** until the box is square
+enough (sky is free space, so it is spent before aeroplane), and only narrow --
+clipping a wingtip -- once the sky runs out. The fill cap is **35%**, chosen by
+rendering the entire library at 30/35/40 and picking against the set rather than
+against the two photos that motivated the change.
+
+**The blurred fill is a BETTER text bed than the photograph was.** The leftover
+space is filled with a blurred, darkened copy of the same crop. The expectation
+was that this would cost some legibility and need the scrim re-tuned. It did the
+opposite. Same worst-single-pixel method, same hostile set, glyphs composited
+after so text cannot flatter its own background:
+
+| framing | worst pixel | contrast (target 4.5:1) |
+|---|---|---|
+| centre cover-crop (before) | 0.032 | 8.1:1 |
+| subject crop, 35% cap | 0.017 | **12.0:1** |
+
+Worst case across the hostile six under the new framing is **9.0:1**. Framing
+improved legibility instead of costing it, which is worth stating plainly because
+the reflex on seeing "we now composite a blurred band under the callsign" is to
+assume the guarantee weakened and go looking for what broke.
+
+**A soft photo is NOT a cap problem, and reaching for the cap will not help.**
+This is the trap this section exists to prevent. The cap decides how much
+aeroplane you trade for a square frame. "The aircraft is small in a big sky" is a
+different quantity: once the crop is tight around a small subject, filling the
+panel means UPSCALING, and the failure is softness, not size. No cap value
+touches it.
+
+Measured: median subject width **1275 px**; worst is B350 at **512 px**, which
+still only needs 0.94x for the 480 panel. **Zero of 234 photos would be upscaled
+at any panel size.** The lever, if it ever binds, is `THUMB_W = 1200` in
+`proxy/scripts/harvest-commons.ts` -- a *download* setting. Commons originals run
+4-8k wide, so there is 4-6x of headroom sitting unused.
+
+**Related check:** `proxy/scripts/audit-photo-subject.ts` ranks the library by how
+much of the square the aeroplane occupies. Its first version ranked on encoded
+size and luminance stddev, which measure a flat BACKGROUND rather than a small
+SUBJECT -- six of its eight worst hits were good photos and it missed the two
+genuinely bad ones. Rendering the results is what caught that.
+
 ## Starter type list
 
 Keys are ICAO type designators — **verify each against the Worker's existing

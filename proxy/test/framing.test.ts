@@ -6,6 +6,7 @@ import {
   SCRIM_PEAK,
   SCRIM_RAMP_END,
   SCRIM_RAMP_START,
+  subjectCrop,
 } from "../src/framing";
 
 describe("cropRect", () => {
@@ -139,5 +140,60 @@ describe("scrimRGBA", () => {
     }
     expect(buf[3]).toBe(0); // top row untouched
     expect(buf[(h - 1) * w * 4 + 3]).toBe(Math.round(255 * SCRIM_PEAK));
+  });
+});
+
+describe("subjectCrop", () => {
+  // A wide aeroplane on a tall frame: there is sky to spend, so the crop must
+  // grow VERTICALLY and keep every pixel of the aeroplane. This is the whole
+  // rule -- sky is free space, aeroplane is not.
+  it("grows into the sky rather than clipping, when there is sky to take", () => {
+    const box = { x0: 0.1, x1: 0.9, y0: 0.45, y1: 0.55 }; // wide and thin
+    const r = subjectCrop(box, 1000, 1000, 0.35);
+    // full subject width survives (0.8 of 1000, plus 2x6% padding)
+    expect(r.width).toBeGreaterThanOrEqual(800);
+    // and the box was squared up by taking sky, not by narrowing
+    expect(r.height / r.width).toBeGreaterThanOrEqual(1 - 0.35 - 0.02);
+  });
+
+  it("only clips once the sky has run out", () => {
+    // A letterbox source: no vertical room at all, so the cap can only be met
+    // by narrowing -- and it should, rather than emitting a 70%-filled square.
+    const box = { x0: 0.05, x1: 0.95, y0: 0.0, y1: 1.0 };
+    const r = subjectCrop(box, 2000, 200, 0.35);
+    expect(r.height).toBe(200); // took every row available
+    expect(r.width).toBeLessThan(1800); // and then, only then, narrowed
+    expect(r.height / r.width).toBeGreaterThanOrEqual(1 - 0.35 - 0.02);
+  });
+
+  it("honours a tighter cap by growing further", () => {
+    const box = { x0: 0.2, x1: 0.8, y0: 0.45, y1: 0.55 };
+    const loose = subjectCrop(box, 1000, 1000, 0.4);
+    const tight = subjectCrop(box, 1000, 1000, 0.2);
+    expect(tight.height).toBeGreaterThan(loose.height);
+  });
+
+  // Bounds are not a formality here: an out-of-range extract throws inside sharp
+  // mid-ingest, which would abort a run partway through its KV writes.
+  it("never leaves the source bounds, even for a box against the edge", () => {
+    for (const box of [
+      { x0: 0, x1: 1, y0: 0, y1: 1 },
+      { x0: 0.98, x1: 1, y0: 0.98, y1: 1 },
+      { x0: 0, x1: 0.02, y0: 0, y1: 0.02 },
+    ]) {
+      const r = subjectCrop(box, 640, 480, 0.35);
+      expect(r.left).toBeGreaterThanOrEqual(0);
+      expect(r.top).toBeGreaterThanOrEqual(0);
+      expect(r.left + r.width).toBeLessThanOrEqual(640);
+      expect(r.top + r.height).toBeLessThanOrEqual(480);
+      expect(r.width).toBeGreaterThan(0);
+      expect(r.height).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps a subject that is already square essentially untouched", () => {
+    const box = { x0: 0.3, x1: 0.7, y0: 0.3, y1: 0.7 };
+    const r = subjectCrop(box, 1000, 1000, 0.35);
+    expect(Math.abs(r.width - r.height)).toBeLessThan(0.1 * r.width);
   });
 });
