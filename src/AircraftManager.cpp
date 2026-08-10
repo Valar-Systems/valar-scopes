@@ -2734,10 +2734,21 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         }
 
         // The control itself is drawn UNCONDITIONALLY in its reserved row.
-        const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
-        backbuffer.setTextColor(armed ? lgfx::color888(255, 80, 80)
-                                      : lgfx::color888(0, 200, 0));
-        centered(armed ? String("TAP AGAIN TO CONFIRM") : String("[ Reset Wi-Fi ]"), wifiRowTop);
+        //
+        // Counting down OUT LOUD is not decoration. Silent detection would be
+        // worse than none: the customer has to know both that it is working and
+        // that letting go cancels, and a destructive action they cannot see
+        // progressing is one they cannot abort. Same wording as the boot-time
+        // reset, because it is the same gesture doing the same thing.
+        const float prog = WifiHoldProgress();
+        if (prog > 0.0f) {
+            const int left = (int)((WIFI_HOLD_MS - (millis() - wifiHoldStartMs)) / 1000) + 1;
+            backbuffer.setTextColor(lgfx::color888(255, 80, 80));
+            centered("KEEP HOLDING " + String(left), wifiRowTop);
+        } else {
+            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+            centered(String("[ Hold to reset Wi-Fi ]"), wifiRowTop);
+        }
         // Tap target = the drawn row, padded to a fingertip. Derived from the same
         // constant the text uses, so the hit box cannot drift from the pixels.
         wifiRowY0 = wifiRowTop - 8;
@@ -3596,11 +3607,19 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         if (!wasTouched) {
             touchStartX = tx; touchStartY = ty; // press edge
             touchPressMs = now;
+            wifiHoldFired = false; // a new contact may start a fresh hold
             Serial.printf("[touch] %lu press (%d,%d) inDetail=%d\n", now, (int)tx, (int)ty, (int)inDetail);
         }
         touchLastX = tx;
         touchLastY = ty;
-    } else if (wasTouched) {
+    }
+
+    // Before the tap/swipe classifier: a hold is a property of the contact WHILE
+    // it is happening, and by release it is already over. Also runs on the
+    // not-touched samples, which is where the release grace is measured.
+    UpdateWifiHold(touched, tx, ty);
+
+    if (!touched && wasTouched) {
         // release: classify the stroke as a tap or a 4-way swipe from its delta
         const int dx = touchLastX - touchStartX;
         const int dy = touchLastY - touchStartY;
@@ -3612,7 +3631,13 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
                       now - touchPressMs,
                       (adx < SWIPE_MIN && ady < SWIPE_MIN) ? "TAP" : "SWIPE");
 
-        if (adx < SWIPE_MIN && ady < SWIPE_MIN)
+        if (wifiHoldFired) {
+            // The Wi-Fi reset already fired on this contact. Its release is not
+            // also a tap -- otherwise the same press would reset the network AND
+            // activate whatever the row happens to sit on next frame.
+            wifiHoldFired = false;
+        }
+        else if (adx < SWIPE_MIN && ady < SWIPE_MIN)
             HandleTap(touchStartX, touchStartY);
         else if (adx >= ady)
             HandleSwipe(dx > 0 ? Swipe::Right : Swipe::Left);
@@ -3733,45 +3758,14 @@ void AircraftManager::HandleTap(int tx, int ty)
     if ((long)(millis() - tapSuppressUntilMs) < 0)
         return;
 
-    // Stats screen: the "Reset Wi-Fi" row. Two taps, because one tap is how a
-    // customer loses their network by brushing the screen while dusting it. The
-    // row only responds where it was actually drawn this frame (wifiRowY0/Y1),
-    // and the arm expires on its own so a half-finished reset never lingers.
-    //
-    // The confirming tap must LOOK DELIBERATE, not merely be second (#165). A
-    // cloth over a capacitive panel produces a burst of contacts scattered across
-    // it; a person confirming produces exactly two, both on this row, with a
-    // pause between them while they read the prompt. Anything else disarms.
-    const bool armed = (long)(millis() - wifiResetArmedUntilMs) < 0;
+    // Stats screen: a TAP on the "Reset Wi-Fi" row does nothing at all -- the
+    // control is a hold (see UpdateWifiHold and the note in the header). Swallowed
+    // here rather than falling through, so a brush over the row cannot be
+    // reinterpreted as some other screen's gesture.
     if (screen == Screen::Stats && wifiRowY0 >= 0 && ty >= wifiRowY0 && ty <= wifiRowY1) {
-        if (armed) {
-            const unsigned long gap = millis() - wifiResetArmedAtMs;
-            if (gap < WIFI_RESET_MIN_GAP_MS) {
-                // Too fast to be a read-and-confirm. DISARM rather than re-arm:
-                // re-arming would let a wipe hold the control open indefinitely,
-                // one contact at a time, until one happened to land past the gap.
-                Serial.printf("[wifi-reset] second tap after only %lums -- too fast to be"
-                              " deliberate; DISARMED\n", gap);
-                wifiResetArmedUntilMs = 0;
-                return;
-            }
-            Serial.printf("[wifi-reset] confirmed from the Stats screen (gap=%lums)\n", gap);
-            wifiResetRequested = true;   // main.cpp does the reset + restart
-            wifiResetArmedUntilMs = 0;
-        } else {
-            Serial.println("[wifi-reset] armed -- tap again to confirm");
-            wifiResetArmedUntilMs = millis() + WIFI_RESET_ARM_MS;
-            wifiResetArmedAtMs = millis();
-        }
+        Serial.println("[wifi-reset] tap on the row ignored -- hold to reset");
         return;
     }
-
-    // Armed, but this tap landed somewhere else entirely. A person about to
-    // confirm a destructive action does not tap the far side of the screen first;
-    // a cloth crosses the whole panel. Treat any stray contact as the accident
-    // this guard is named for and cancel.
-    if (armed)
-        DisarmWifiReset("a tap landed off the row while armed");
 
     if (screen == Screen::Radar) {
         // Pick the contact under the finger. Markers are tiny (~3 px) and a fingertip lands a
@@ -3872,22 +3866,66 @@ void AircraftManager::HandleSwipe(Swipe swipe)
     // drawn anywhere but Stats, so an arm that survived a swipe would be live and
     // invisible -- and a cloth dragged over the panel reads as a swipe at least
     // as readily as it reads as a tap.
-    if (swipe == Swipe::Left) {
-        screen = (Screen)(((int)screen + 1) % 3);
-        DisarmWifiReset("the screen was swiped away");
-    }
-    if (swipe == Swipe::Right) {
-        screen = (Screen)(((int)screen + 2) % 3);
-        DisarmWifiReset("the screen was swiped away");
-    }
+    if (swipe == Swipe::Left)  screen = (Screen)(((int)screen + 1) % 3);
+    if (swipe == Swipe::Right) screen = (Screen)(((int)screen + 2) % 3);
 }
 
-void AircraftManager::DisarmWifiReset(const char* why)
+float AircraftManager::WifiHoldProgress() const
 {
-    if ((long)(millis() - wifiResetArmedUntilMs) >= 0)
-        return; // not armed; nothing to say
-    Serial.printf("[wifi-reset] DISARMED -- %s\n", why);
-    wifiResetArmedUntilMs = 0;
+    if (!wifiHoldActive) return 0.0f;
+    const unsigned long held = millis() - wifiHoldStartMs;
+    if (held >= WIFI_HOLD_MS) return 1.0f;
+    return (float)held / (float)WIFI_HOLD_MS;
+}
+
+// Track a sustained press on the Stats screen's Reset Wi-Fi row. Runs on every
+// touch sample, BEFORE the tap/swipe classifier, because a hold is a property of
+// the contact while it is happening -- by release it is already over.
+void AircraftManager::UpdateWifiHold(bool touched, int32_t tx, int32_t ty)
+{
+    const unsigned long now = millis();
+
+    if (!touched) {
+        // Grace, not an immediate cancel: the CST816 drops samples mid-touch. A
+        // real release is a gap this long, which a finger lifting always produces
+        // and a dropped sample never does.
+        if (wifiHoldActive && (now - wifiHoldSeenMs) >= WIFI_HOLD_GRACE_MS) {
+            const unsigned long held = wifiHoldSeenMs - wifiHoldStartMs;
+            Serial.printf("[wifi-reset] hold released after %lums of %lu -- cancelled\n",
+                          held, (unsigned long)WIFI_HOLD_MS);
+            wifiHoldActive = false;
+        }
+        return;
+    }
+
+    const bool onRow = screen == Screen::Stats && !inDetail &&
+                       wifiRowY0 >= 0 && ty >= wifiRowY0 && ty <= wifiRowY1;
+
+    if (!wifiHoldActive) {
+        if (!onRow || wifiHoldFired) return;   // nothing to start (or already spent)
+        wifiHoldActive = true;
+        wifiHoldStartMs = now;
+        wifiHoldSeenMs  = now;
+        Serial.println("[wifi-reset] hold started -- keep holding to reset, release to cancel");
+        return;
+    }
+
+    // Drifting off the row, or wandering far enough to be a swipe, is not a hold.
+    if (!onRow || abs((int)tx - touchStartX) > WIFI_HOLD_MOVE_MAX ||
+                  abs((int)ty - touchStartY) > WIFI_HOLD_MOVE_MAX) {
+        Serial.println("[wifi-reset] contact moved off the row -- hold cancelled");
+        wifiHoldActive = false;
+        return;
+    }
+
+    wifiHoldSeenMs = now;
+    if (now - wifiHoldStartMs >= WIFI_HOLD_MS) {
+        Serial.printf("[wifi-reset] hold completed (%lums) -- clearing credentials\n",
+                      now - wifiHoldStartMs);
+        wifiResetRequested = true; // main.cpp does the reset + restart
+        wifiHoldActive = false;
+        wifiHoldFired  = true;     // swallow the release so it is not also a tap
+    }
 }
 
 void AircraftManager::ProcessDetailLookups()
