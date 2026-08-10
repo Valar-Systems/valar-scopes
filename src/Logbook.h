@@ -222,6 +222,11 @@ private:
     static constexpr size_t MAX_BLOB      = 5200; // hard ceiling per serialized store
     static constexpr unsigned long PERSIST_INTERVAL_MS = 10UL * 60UL * 1000UL; // 10 min
 
+    // Report the running partition's real capacity against what the caps want,
+    // and warn when this SKU's partition table cannot hold them. See the
+    // definition -- the NVS size varies 4x across shipping SKUs.
+    void reportCapacity();
+
     static void loadRecord(Preferences& p, const char* key, Record& out);
     void saveRecord(const char* key, const Record& r);
     // True when the offered value beats the stored one (bigger wins unless
