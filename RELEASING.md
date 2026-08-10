@@ -162,6 +162,60 @@ Then on the board itself: the radar shows aircraft, and the serial `[health]` li
 reports the cloud source with a non-zero fetch count. A board that updated but sits
 empty with the stale tag amber is a **fail** even if the query returned rows.
 
+## Board #1, second leg: the FIRST-RUN rehearsal that gates a flash run
+
+**Also mandatory, and for the same reason as the OTA leg: nobody has ever deliberately
+done it.** One board, one captive-portal provisioning, performed by a human.
+
+Two bugs surfaced in one week (#164, #166) and *neither was found by testing*. #166 — the
+config page never binds `:80` after portal setup, on every first-run device — was found
+only because #164 fired, and #164 fired only because a multi-day soak ran long enough for
+a random double-tap to reset the board's Wi-Fi by accident. See #171.
+
+The reason it has no coverage is structural, and it will not fix itself:
+
+> Every bench board, every soak and every CI build exercises the **saved-credentials**
+> boot. The portal boot happens **once per board and then never again** — so the more a
+> board gets used, the less it resembles a customer's first five minutes with it. A fifty
+> unit run means fifty devices each taking that path exactly once, at someone's house,
+> with no serial capture attached and nobody watching the log. It is simultaneously the
+> boot most likely to fail and the one least likely to be observed failing.
+
+### Running it
+
+1. **Force the portal.** Use the boot **TOUCH & HOLD** to forget Wi-Fi.
+   **Do NOT `-t erase` for this leg** — a full NVS wipe also destroys the logbook and the
+   leaderboard claim, which is a different test and destroys the state this one needs.
+2. **Provision exactly as a customer does.** Join the `Blipscope-XXXXXX` hotspot from a
+   phone and submit credentials through the portal page. Not over USB, not by writing NVS.
+3. **Read the device name OFF THE STATS SCREEN**, not off the flashing host. The name is
+   MAC-suffixed and unguessable, and a customer who cannot read it from the glass cannot
+   reach the config page at all — that is precisely why #166 presented as "the address is
+   missing" rather than "the server is dead".
+4. **Assert on the FIRST boot after setup, with NO power cycle.** The power cycle is what
+   hides the bug: a reboot takes the saved-credentials path, which always worked.
+
+### The three assertions
+
+| | check | catches |
+|---|---|---|
+| 1 | `GET http://<name>.local/` returns 200 with the real config page | #166 |
+| 2 | `GET http://<ip>/` returns 200 | proves it is the SERVER, not mDNS |
+| 3 | boot log has `[web] config server listening`, and **not** `[web] ERROR: config server did NOT bind :80` | the direct signal |
+
+Assertion 2 is not redundant. If only `.local` is checked, an mDNS failure and a dead
+server look identical, and the two have completely different fixes.
+
+**Not automated, deliberately.** Driving the hotspot join from CI needs a second radio and
+real credentials, and the value here is a human doing what a customer does. The failure
+mode being defended against is "nobody ever tried it", not "somebody tried it carelessly".
+A checklist item a person signs off is the whole point.
+
+> **Any boot path that runs once per device deserves an explicit test, precisely because
+> normal use never repeats it.** On this product that is currently: first Wi-Fi
+> provisioning (this leg), first OTA (the leg above), and the first leaderboard claim —
+> which still has none.
+
 ## Adding a new SKU to releases
 
 A new SKU needs three entries that stay in sync:
