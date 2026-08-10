@@ -40,6 +40,12 @@
  *      handshake -- and ENRICH_TLS_HEAP_FLOOR (16000, three call sites in
  *      AircraftManager) is guarding enrichment with a number that cannot move.
  *
+ * OUTCOME (2026-08-07): reproduced. The gate said PROCEED while the allocation
+ * failed. ENRICH_TLS_HEAP_FLOOR and its call sites are gone (deleted 2026-08-09);
+ * heaphealth::CanHandshake() replaced them. The constant is mirrored below only so
+ * this probe still reproduces the original finding -- it no longer exists in the
+ * firmware, so do not go looking for it there.
+ *
  * Build/flash (COM118 IS THE SOAK BOARD -- do not touch it):
  *     pio run -e probe-s3-128-heap -t upload --upload-port COM119
  */

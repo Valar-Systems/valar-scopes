@@ -1,7 +1,7 @@
 #pragma once
 
-// Realistic-duty soak harness (-DSOAK_TEST; env blipscope-kit-c3-128-soak) -- the
-// C3 launch gate. Unlike the bisection storm, NOTHING is faked but the fingers:
+// Realistic-duty soak harness (-DSOAK_TEST; env blipscope-s3-128-soak). NOTHING
+// is faked but the fingers:
 // networking is fully on (cloud mode against staging, real blip traffic, real
 // TLS), and a sparse human-scale gesture script plays short tap bursts every
 // 5-15 minutes (~150 presses/day). Real touches pass through between bursts.
@@ -20,9 +20,6 @@
 
 #ifdef SOAK_TEST
 
-#ifdef BISECT_TEST
-#error "SOAK_TEST and BISECT_TEST are mutually exclusive harnesses"
-#endif
 #if defined(FEATURE_EAM) || defined(FEATURE_SPACE) || defined(FEATURE_SEISMIC) || \
     defined(FEATURE_BIRDING) || defined(FEATURE_FISHING) || defined(FEATURE_CLAUDESCOPE) || \
     defined(FEATURE_SPEED)

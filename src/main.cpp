@@ -42,11 +42,8 @@
 #include "models/TrackedAircraft.h"
 #endif
 
-#ifdef BISECT_TEST
-#include "BisectHarness.h" // networking-off wedge-bisection harness (C3 revival program)
-#endif
 #ifdef SOAK_TEST
-#include "SoakHarness.h" // realistic-duty 24 h launch-gate soak (C3 revival program)
+#include "SoakHarness.h" // realistic-duty 24 h soak
 #endif
 
 LGFX tft;
@@ -190,18 +187,6 @@ void setup()
   }
 #endif
 
-#ifdef BISECT_TEST
-  // Wedge-bisection harness build: NO networking of any kind -- no WiFi join, no NTP,
-  // no OTA, no config web server. The hypothesis under test is "sweep-render load
-  // alone wedges the CST816"; the network half stays out of the experiment entirely.
-  // See src/BisectHarness.h for the harness and the verdict semantics.
-  // Renders beneath the persistent wordmark, same as the normal boot path -- the
-  // harness build is still a Valar device and should look like one. (Pre-merge this
-  // called HoldSplash(splashDrawnAtMs); the wordmark now persists on its own, so
-  // there is no minimum to enforce and no timestamp to keep alive.)
-  DrawSplash(tft, backbuffer, "BISECTION HARNESS", "networking OFF");
-  delay(1500);
-#else
   // NOTE: the "Connecting to Wi-Fi..." status is NOT painted here -- it now sits after the
   // touch-to-forget window, immediately before the join actually starts. It used to be here,
   // which was fine while the boot window sampled silently for 1.2 s and this line stayed up
@@ -358,15 +343,10 @@ void setup()
 
   // begin background server for configuration
   configServer.Initialise();
-#endif // BISECT_TEST
 
   // initialise the active app (radar or EAM monitor)
   appManager.Initialise();
 
-#ifdef BISECT_TEST
-  // Deterministic test config + synthetic fleet + the watchdog's bench probe.
-  BisectHarness::Setup(appManager);
-#endif
 #ifdef SOAK_TEST
   // Arm the human-scale gesture script; the normal bring-up above (WiFi, NTP,
   // config server, real cloud fetching) is exactly what the soak exercises.
@@ -398,7 +378,6 @@ void loop()
     ESP.restart();
   }
 
-#ifndef BISECT_TEST
   // RUNTIME WIFI WATCHDOG. Losing the network after boot recovered nowhere: the
   // IDF's auto-reconnect retries forever, setup() has already returned, and the
   // loop never looked at WiFi.status() -- so a password changed while the device
@@ -432,16 +411,13 @@ void loop()
       }
     }
   }
-#endif
 
-#ifndef BISECT_TEST
   // re-check for firmware updates once a day for always-on devices
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
     MaybeUpdateFirmware(tft, backbuffer, http);
   }
-#endif
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
   // loop task, so all AircraftManager state changes stay on a single task
@@ -449,10 +425,6 @@ void loop()
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
 
-#ifdef BISECT_TEST
-  // fleet re-injection + storm scheduling + the 30 s stats / 2 h verdict cadence
-  BisectHarness::Tick(appManager);
-#endif
 #ifdef SOAK_TEST
   // burst scheduling + the 60 s stats line + the 24 h gate verdict
   SoakHarness::Tick(appManager);

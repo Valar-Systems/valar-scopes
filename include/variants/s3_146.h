@@ -53,12 +53,8 @@ namespace variant {
 
     // Capabilities.
     constexpr bool BANDED_RENDER = false; // dual-core + PSRAM: render the whole frame at once
-    constexpr bool ENRICH_ALWAYS = true;  // ample heap: never skip the adsbdb TLS enrichment
     constexpr bool HAS_AUDIO     = true;  // PCM5101 I2S speaker (chirp = short I2S tone)
     constexpr bool HAS_IMU       = true;  // QMI8658 6-axis accel/gyro on the shared I2C bus
-    constexpr bool SERIALIZE_TOUCH_BUS = false; // dual-core: touch (its own I2C) and network (WiFi) run
-                                                // on separate cores -- no wedge, so don't gate touch on
-                                                // the HTTP mutex (gating drops taps under always-on enrich)
     constexpr bool TOUCH_WATCHDOG = false;      // SPD2010 touch has shown no bus wedge; the CST816
                                                 // supervisor (src/TouchWatchdog.h) stays off
 

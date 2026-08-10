@@ -79,11 +79,8 @@ namespace variant {
 
     // Capabilities.
     constexpr bool BANDED_RENDER = false; // dual-core + PSRAM: render the whole frame at once
-    constexpr bool ENRICH_ALWAYS = true;  // ample heap: never skip the adsbdb TLS enrichment
     constexpr bool HAS_AUDIO     = true;  // active buzzer on TCA9554 EXIO8
     constexpr bool HAS_IMU       = true;  // QMI8658 6-axis accel/gyro on the shared I2C bus
-    constexpr bool SERIALIZE_TOUCH_BUS = false; // dual-core: touch and network run on separate cores --
-                                                // no touch/TLS wedge, so don't gate touch on the HTTP mutex
     constexpr bool TOUCH_WATCHDOG = false;      // the CST820 (CST816-compatible) has shown no wedge on the
                                                 // dual-core S3; the supervisor compiles here but stays off
 

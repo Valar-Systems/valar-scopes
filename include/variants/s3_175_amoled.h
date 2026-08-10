@@ -58,10 +58,8 @@ namespace variant {
 
     // Capabilities.
     constexpr bool BANDED_RENDER = false; // dual-core + PSRAM: render the whole frame at once
-    constexpr bool ENRICH_ALWAYS = true;  // ample heap: never skip the adsbdb TLS enrichment
     constexpr bool HAS_AUDIO     = true;  // I2S path (chirp = short I2S tone), plus the premium mic
     constexpr bool HAS_IMU       = true;  // QMI8658 6-axis on the shared I2C bus
-    constexpr bool SERIALIZE_TOUCH_BUS = false; // dual-core: touch and network on separate cores
     constexpr bool TOUCH_WATCHDOG = false;      // FT3168 has shown no bus wedge (CST816 supervisor off)
 
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
