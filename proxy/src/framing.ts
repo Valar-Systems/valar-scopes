@@ -138,3 +138,72 @@ export function scrimRGBA(w: number, h: number): Uint8Array {
   }
   return out;
 }
+
+// ---- subject-aware square framing (2026-08-10) -------------------------------
+//
+// A 3:2 photograph cover-cropped to 1:1 keeps 67% of its width, and on an
+// airliner that missing third is the nose and the tail. Measured across the
+// library: today's crop keeps 49% of a 777 and 53% of a 737-9. A customer looking
+// at a card sees a fuselage section, which identifies nothing.
+//
+// The fix is not "fit the whole frame" -- that shrinks a 777 from 23% of the disc
+// to 12% and turns 58% of it into filler, trading a legible half-aeroplane for an
+// illegible whole one. It is to crop to the SUBJECT and then spend sky:
+//
+//   1. crop tight to the subject's bounding box (+ a small margin)
+//   2. GROW VERTICALLY into the sky until the box is square enough that the
+//      leftover fill is within MAX_FILL. Sky is free space -- spending it costs
+//      nothing, so it is spent first.
+//   3. only when the sky runs out, narrow horizontally and accept clipping a
+//      wingtip.
+//
+// The remainder is filled with a blurred, darkened copy of the same crop, so the
+// disc is never empty and the card never letterboxes.
+export const SQUARE_MAX_FILL = 0.35;
+
+/** Normalised subject bounding box, all values 0..1 of the source dimensions. */
+export interface SubjectBox {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+/**
+ * The source rectangle to take for a square variant, given the subject's box.
+ *
+ * Pure geometry so vitest can reach it without sharp -- detection needs pixels
+ * and lives in the ingest; this decides what to do with the answer.
+ */
+export function subjectCrop(
+  box: SubjectBox,
+  srcW: number,
+  srcH: number,
+  maxFill: number = SQUARE_MAX_FILL,
+  pad = 0.06,
+): { left: number; top: number; width: number; height: number } {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  let left = clamp(Math.round((box.x0 - pad) * srcW), 0, srcW - 1);
+  const right = clamp(Math.round((box.x1 + pad) * srcW), left + 1, srcW);
+  let top = clamp(Math.round((box.y0 - pad) * srcH), 0, srcH - 1);
+  let bottom = clamp(Math.round((box.y1 + pad) * srcH), top + 1, srcH);
+  let w = Math.max(16, right - left);
+  let h = Math.max(16, bottom - top);
+
+  // 2. grow into the sky
+  const wantH = Math.round(w * (1 - maxFill));
+  if (h < wantH) {
+    const grow = Math.min(wantH - h, srcH - h);
+    top = clamp(top - Math.round(grow / 2), 0, srcH - h - grow >= 0 ? srcH - h - grow : 0);
+    bottom = Math.min(srcH, top + h + grow);
+    h = bottom - top;
+  }
+  // 3. only now clip
+  if (h / w < 1 - maxFill) {
+    const maxW = Math.round(h / (1 - maxFill));
+    const cx = left + w / 2;
+    left = clamp(Math.round(cx - maxW / 2), 0, Math.max(0, srcW - 1));
+    w = Math.min(maxW, srcW - left);
+  }
+  return { left, top, width: Math.max(1, w), height: Math.max(1, h) };
+}

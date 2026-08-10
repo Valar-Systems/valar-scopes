@@ -23,17 +23,6 @@
     "file": "src/r22.jpg"
   },
   {
-    "target": "C172",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Cessna_172_(4484280219).jpg",
-    "author": "Babak Farrokhi from Tehran, IRAN",
-    "credit": "Cessna 172 (4484280219)",
-    "license": "CC BY 2.0",
-    "layer": "auto",
-    "autoPicked": true,
-    "file": "src/c172.jpg"
-  },
-  {
     "target": "P28R",
     "kind": "type",
     "source": "https://commons.wikimedia.org/wiki/File:Piper_PA-28R-200_Cherokee_Arrow_II_D-ENLB_(25988118168).jpg",
@@ -109,17 +98,6 @@
     "layer": "mil-tier",
     "autoPicked": false,
     "file": "src/a10.jpg"
-  },
-  {
-    "target": "B52",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:B-52_Stratofortress_takes_off_for_conditioning_flight_(9680889).jpg",
-    "author": "U.S. Air Force photo by Airman 1st Class Addison Bolt",
-    "credit": "B-52 Stratofortress takes off for conditioning flight (9680889)",
-    "license": "Public domain",
-    "layer": "mil-tier",
-    "autoPicked": false,
-    "file": "src/b52.jpg"
   },
   {
     "target": "C30J",
@@ -616,18 +594,6 @@
     "changesNoted": "resized and crop-fitted for device display"
   },
   {
-    "target": "C208",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:4R-EXO_Cessna_208_Caravan_EX.jpg",
-    "author": "Madhusahan Wijewardhana",
-    "credit": "4R-EXO Cessna 208 Caravan EX",
-    "license": "CC BY-SA 4.0",
-    "layer": "auto",
-    "autoPicked": false,
-    "file": "src/c208.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
-  },
-  {
     "target": "R44",
     "kind": "type",
     "source": "https://commons.wikimedia.org/wiki/File:Robinson_R44_RA-04306_in_flight._(8405228493).jpg",
@@ -881,17 +847,6 @@
     "file": "src/r135.jpg"
   },
   {
-    "target": "U2",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:U-2,_Flight_of_the_Dragon_Lady_DVIDS266633.jpg",
-    "author": "Master Sgt. Jenifer Calhoun",
-    "credit": "U-2, Flight of the Dragon Lady DVIDS266633",
-    "license": "Public domain",
-    "layer": "mil-tier",
-    "autoPicked": false,
-    "file": "src/u2.jpg"
-  },
-  {
     "target": "K46",
     "kind": "type",
     "source": "https://commons.wikimedia.org/wiki/File:Aerial_refueling_testing_with_a_KC-46_Pegasus_and_an_E-4B_Nightwatch_in_the_skies_over_Southern_California,_April_4,_2022.jpg",
@@ -1051,17 +1006,6 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/e195.jpg"
-  },
-  {
-    "target": "E290",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Embraer_190-E2_Helvetic_Airways_podchodzi_do_l%C4%85dowania_na_lotnisku_Pozna%C5%84_%C5%81awica_Airport_-_maj_2026.jpg",
-    "author": "Koefbac",
-    "credit": "Embraer 190-E2 Helvetic Airways podchodzi do lądowania na lotnisku Poznań Ławica Airport - maj 2026",
-    "license": "CC0",
-    "layer": "auto",
-    "autoPicked": true,
-    "file": "src/e290.jpg"
   },
   {
     "target": "AT76",
@@ -1473,18 +1417,6 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/b734.jpg"
-  },
-  {
-    "target": "B735",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:CSA_Czech_Airlines_Boeing_737-500_Landing_at_Schiphol_Airport_in_2009.jpg",
-    "author": "Robbie Klinkenberg",
-    "credit": "CSA Czech Airlines Boeing 737-500 Landing at Schiphol Airport in 2009",
-    "license": "CC BY-SA 4.0",
-    "layer": "auto",
-    "autoPicked": true,
-    "file": "src/b735.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "B773",
@@ -2435,5 +2367,388 @@
     "layer": "auto",
     "autoPicked": false,
     "file": "src/c140.jpg"
+  },
+  {
+    "target": "C170",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:G-MDAY_Cessna_170B_(9686629942).jpg",
+    "author": "Aeroprints.com",
+    "credit": "G-MDAY Cessna 170B (9686629942)",
+    "license": "CC BY-SA 3.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.51,
+      0.55
+    ],
+    "zoom": 1.11,
+    "file": "src/c170.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "SLG4",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:The_Airplane_Factory_(TAF)_Sling_4_%E2%80%98ZU-AST%E2%80%99_(16927197646).jpg",
+    "author": "Alan Wilson from Stilton, Peterborough, Cambs, UK",
+    "credit": "The Airplane Factory (TAF) Sling 4 ‘ZU-AST’ (16927197646)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.5,
+      0.54
+    ],
+    "zoom": 1,
+    "file": "src/slg4.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C152",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna_152_N49990_(2709772218).jpg",
+    "author": "Eddie Maloney from North Las Vegas, USA",
+    "credit": "Cessna 152 N49990 (2709772218)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.48,
+      0.5
+    ],
+    "zoom": 1.45,
+    "file": "src/c152.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "AT8T",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Kennedy_Aviation_(VH-XAV)_Air_Tractor_AT-802_taxiing_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Kennedy Aviation (VH-XAV) Air Tractor AT-802 taxiing at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.53,
+      0.5
+    ],
+    "zoom": 1.15,
+    "file": "src/at8t.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "U21",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Beechcraft_King_Air_U-21_Ute_(52464779014).jpg",
+    "author": "Eric Friedebach",
+    "credit": "Beechcraft King Air U-21 Ute (52464779014)",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.48,
+      0.58
+    ],
+    "zoom": 1.04,
+    "file": "src/u21.jpg"
+  },
+  {
+    "target": "PA44",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Australian_Airline_Pilot_Academy_(VH-XEL)_Piper_PA-44-180_Seminole_taxiing_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Australian Airline Pilot Academy (VH-XEL) Piper PA-44-180 Seminole taxiing at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.44,
+      0.39
+    ],
+    "zoom": 1.12,
+    "file": "src/pa44.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "RV6",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Van%27s_RV-6_(VH-MUM)_taxiing_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Van's RV-6 (VH-MUM) taxiing at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.52,
+      0.63
+    ],
+    "zoom": 1.04,
+    "file": "src/rv6.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "CH7A",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Bellanca.citabria.arp.jpg",
+    "author": "Arpingstone",
+    "credit": "Bellanca.citabria.arp",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.5,
+      0.63
+    ],
+    "zoom": 1.02,
+    "file": "src/ch7a.jpg"
+  },
+  {
+    "target": "AA5",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Grumman_Aviation_AA-5_Traveler_(G-BAJN)_at_Cotswold_Airport_England_arp.jpg",
+    "author": "Myself (Adrian Pingstone).",
+    "credit": "Grumman Aviation AA-5 Traveler (G-BAJN) at Cotswold Airport England arp",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.5,
+      0.45
+    ],
+    "zoom": 1.08,
+    "file": "src/aa5.jpg"
+  },
+  {
+    "target": "BE76",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Goair_Products_(VH-DVF)_Beechcraft_76_Duchess_taxiing_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Goair Products (VH-DVF) Beechcraft 76 Duchess taxiing at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.52,
+      0.31
+    ],
+    "zoom": 1.11,
+    "file": "src/be76.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "P46T",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Piper_PA-46-500TP_Malibu_Meridian_taxiing.jpg",
+    "author": "bomberpilot",
+    "credit": "Piper PA-46-500TP Malibu Meridian taxiing",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.49,
+      0.62
+    ],
+    "zoom": 1.1,
+    "file": "src/p46t.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "PA18",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Piper_PA-18_Super_Cub_L%C3%B6chgau_2012.JPG",
+    "author": "Felix König",
+    "credit": "Piper PA-18 Super Cub Löchgau 2012",
+    "license": "CC BY 3.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.51,
+      0.53
+    ],
+    "zoom": 1.17,
+    "file": "src/pa18.jpg"
+  },
+  {
+    "target": "G280",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Gulfstream_G280_N280GD_PAS_2013_01.jpg",
+    "author": "Julian Herzog (Website)",
+    "credit": "Gulfstream G280 N280GD PAS 2013 01",
+    "license": "CC BY 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.5,
+      0.5
+    ],
+    "zoom": 1.25,
+    "file": "src/g280.jpg"
+  },
+  {
+    "target": "SLG2",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Airplane_Factory_Sling_2_%E2%80%98OO-SON%E2%80%99_(34209337312).jpg",
+    "author": "Alan Wilson from Stilton, Peterborough, Cambs, UK",
+    "credit": "Airplane Factory Sling 2 ‘OO-SON’ (34209337312)",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "focus": [
+      0.54,
+      0.62
+    ],
+    "zoom": 1.05,
+    "file": "src/slg2.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "CRUZ",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:University_Flying_Club_(VH-EZT)_CSA_(Czech_Sport_Aircraft)_PiperSport_at_Jandakot_Airport.jpg",
+    "author": "Ken Hodge from Darwin, Australia",
+    "credit": "University Flying Club (VH-EZT) CSA (Czech Sport Aircraft) PiperSport at Jandakot Airport",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/cruz.jpg"
+  },
+  {
+    "target": "C150",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna_150_(3480584573).jpg",
+    "author": "~Pawsitive~Candie_N",
+    "credit": "Cessna 150 (3480584573)",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c150.jpg"
+  },
+  {
+    "target": "P06T",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Soar_Aviation_(VH-OWW)_Tecnam_P2006T_taxiing_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Soar Aviation (VH-OWW) Tecnam P2006T taxiing at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/p06t.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "AC90",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Aero_Commander_(4119580191).jpg",
+    "author": "Pacific Southwest Region 5",
+    "credit": "Aero Commander (4119580191)",
+    "license": "Public domain",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/ac90.jpg"
+  },
+  {
+    "target": "C441",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Airspeed_Aviation_(VH-EQU)_Cessna_441_Conquest_II_taxiing_at_Sydney_Airport_(2).jpg",
+    "author": "Bidgee",
+    "credit": "Airspeed Aviation (VH-EQU) Cessna 441 Conquest II taxiing at Sydney Airport (2)",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c441.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "U2",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:TU-2S_Dragon_Lady_returns_to_life_(8310083).jpg",
+    "author": "U.S. Air Force 412TW by Lindsey Iniguez",
+    "credit": "TU-2S Dragon Lady returns to life (8310083)",
+    "license": "Public domain",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/u2.jpg"
+  },
+  {
+    "target": "C208",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna_208_Caravan_(N399TT,_cn_20800099)_(3-18-2023).jpg",
+    "author": "ZLEA",
+    "credit": "Cessna 208 Caravan (N399TT, cn 20800099) (3-18-2023)",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/c208.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "E290",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:HB-AZD_Swiss_E190-E2.jpg",
+    "author": "jounigripen",
+    "credit": "HB-AZD Swiss E190-E2",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/e290.jpg"
+  },
+  {
+    "target": "C172",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:HFA_Cessna_172_Training_Aircraft.jpg",
+    "author": "Steve42467",
+    "credit": "HFA Cessna 172 Training Aircraft",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c172.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "B735",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:381ac_-_Tunisair_Boeing_737-5H3,_TS-IOH@BSL,08.10.2005_-_Flickr_-_Aero_Icarus.jpg",
+    "author": "Aero Icarus from Zürich, Switzerland",
+    "credit": "381ac - Tunisair Boeing 737-5H3, TS-IOH@BSL,08.10.2005 - Flickr - Aero Icarus",
+    "license": "CC BY-SA 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/b735.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "PA24",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Pa24-N5760P-071126-01-16.jpg",
+    "author": "Alan Radecki Akradecki",
+    "credit": "Pa24-N5760P-071126-01-16",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/pa24.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "B212",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:2017-08-24_Air_Greenland_Bell_212_helicopter_(OY-HCY)_)_at_Kulusuk_Airport_(KUS),_Eastern_Greenland.jpg",
+    "author": "Gordon Leggett",
+    "credit": "2017-08-24 Air Greenland Bell 212 helicopter (OY-HCY) ) at Kulusuk Airport (KUS), Eastern Greenland",
+    "license": "CC BY-SA 4.0",
+    "layer": "auto",
+    "autoPicked": false,
+    "file": "src/b212.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "B52",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:B-52_Stratofortress_at_Airpower_2022_(52339591834).jpg",
+    "author": "FlorianEnnemoser",
+    "credit": "B-52 Stratofortress at Airpower 2022 (52339591834)",
+    "license": "CC BY 2.0",
+    "layer": "mil-tier",
+    "autoPicked": false,
+    "file": "src/b52.jpg"
   }
 ]

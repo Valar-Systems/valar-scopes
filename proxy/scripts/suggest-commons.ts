@@ -207,6 +207,7 @@ const PRIORITY: Record<string, string> = {
   PA24: "Piper PA-24 Comanche aircraft", // x16
   G280: "Gulfstream G280 aircraft",      // x15
   AS32: "Eurocopter AS332 Super Puma",   // x14
+  C441: "Cessna 441 Conquest II",        // requested 2026-08-10
 };
 
 interface Page {

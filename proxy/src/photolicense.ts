@@ -20,6 +20,12 @@ export interface ManifestEntry {
   file?: string; // local source image the ingest script resizes (input only)
   changesNoted?: string; // required for CC-BY-SA: how the image was modified ("resized for device display")
   blobKey?: string; // ingest-filled: the content-addressed KV key the pointer points at
+  // ingest-filled: the square variants' content-addressed keys, by panel size
+  // ("240" | "412" | "480"). Recorded so a later run can tell whether a row's
+  // artifacts are already published and skip re-uploading identical bytes --
+  // the rectangle key alone cannot answer that, because adding square variants
+  // to an existing row leaves it unchanged.
+  squareKeys?: Record<string, string>;
   // Per-photo framing, both optional and both defaulting to the safe value
   // (centre, no push). See src/framing.ts for why a single global setting
   // cannot work: a stock photo is composed for a rectangle, and every frame

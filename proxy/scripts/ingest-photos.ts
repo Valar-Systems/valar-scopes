@@ -22,7 +22,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cropRect, scrimRGBA, type Framing } from "../src/framing";
+import { cropRect, scrimRGBA, subjectCrop, type Framing, type SubjectBox } from "../src/framing";
 import {
   MANIFEST_KEY,
   deriveBlobKey,
@@ -63,10 +63,11 @@ interface Args {
   checkOnly: boolean;
   photosDir: string;
   square: boolean;
+  force: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, checkOnly: false, photosDir: "photos", square: true };
+  const a: Args = { dryRun: false, checkOnly: false, photosDir: "photos", square: true, force: false };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--env") a.env = argv[++i];
@@ -77,6 +78,11 @@ function parseArgs(argv: string[]): Args {
     // with nothing reporting it -- the flag exists to turn them OFF for a fast
     // legacy-only re-run, not to opt in to the current product.
     else if (v === "--no-square") a.square = false;
+    // Re-upload every row even when KV already holds the identical key. The skip
+    // is a claim about what is in KV, inferred from the published manifest; this
+    // is how you act when you suspect that claim is wrong (a partial run, a
+    // hand-edited key, a namespace restored from elsewhere).
+    else if (v === "--force") a.force = true;
     else if (v === "--photos-dir") a.photosDir = argv[++i] ?? a.photosDir;
     else throw new Error(`unknown argument: ${v}`);
   }
@@ -120,6 +126,105 @@ function wranglerPut(env: string, key: string, opts: { value?: string; path?: st
   if (opts.path !== undefined) parts.push("--path", q(opts.path));
   parts.push("--binding=ENRICH_KV", `--env=${env}`, "--remote");
   execWithRetry(parts.join(" "), `put ${key}`);
+}
+
+// The manifest already published to KV, or null when there is none / it cannot be
+// read. Used to skip rows whose artifacts are already correct.
+//
+// WHY THIS EXISTS. Every run rewrote all four artifacts for all 233 rows -- ~940
+// KV writes, roughly twenty minutes -- to re-upload bytes that had not changed.
+// Blobs are CONTENT-ADDRESSED, so an unchanged photo produces byte-identical keys
+// and the writes are provably no-ops. The cost was not just time: it made every
+// framing experiment a twenty-minute commitment, which is the kind of friction
+// that stops experiments happening at all.
+//
+// KV is the comparison source rather than a local state file on purpose. A side
+// file records what THIS machine believes it uploaded; KV records what is
+// actually being served, and those diverge the moment anyone ingests from
+// somewhere else. When it cannot be read the answer is to upload everything --
+// the expensive direction is the safe one.
+function fetchPublishedManifest(env: string): ManifestEntry[] | null {
+  try {
+    const out = execSync(
+      `npx wrangler kv key get ${q(MANIFEST_KEY)} --binding=ENRICH_KV --env=${env} --remote --text`,
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 },
+    );
+    const start = out.indexOf("[");
+    if (start < 0) return null;
+    const parsed: unknown = JSON.parse(out.slice(start));
+    return Array.isArray(parsed) ? (parsed as ManifestEntry[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+// True when every artifact this row would write is already in KV under exactly
+// the key we are about to write. Compares the SQUARE keys too, not just the
+// rectangle -- a run that added square variants to an existing row changes no
+// rectangle key at all, so comparing only that would skip the very rows the
+// square rollout needed to write.
+function alreadyPublished(
+  prior: ManifestEntry | undefined,
+  blobKey: string,
+  squareKeys: Record<string, string>,
+): boolean {
+  if (!prior || prior.blobKey !== blobKey) return false;
+  const had = prior.squareKeys ?? {};
+  const want = Object.keys(squareKeys);
+  if (want.length !== Object.keys(had).length) return false;
+  return want.every((k) => had[k] === squareKeys[k]);
+}
+
+// Where the aeroplane is, as a normalised box.
+//
+// The background is estimated PER ROW, from the outer pixels at each end of that
+// row. Per row because sky is a vertical gradient: one global background colour
+// scores the top of the frame as subject and reports 40% on a picture that is
+// nothing but sky. Rows and columns carrying only a trickle of hits are dropped,
+// so the box tracks the aeroplane rather than every non-sky pixel -- haze, a
+// distant treeline, a watermark.
+//
+// Detection is deliberately dumb and local: no model, no network, nothing to
+// version. It is checked by rendering the whole library and looking, which is
+// how the fill cap was chosen.
+const DETECT_W = 240;   // detection resolution -- the box is normalised, so this need not be large
+const DETECT_EDGE = 6;  // pixels sampled at each end of a row for the background
+const DETECT_DIST = 42; // RGB distance beyond which a pixel counts as subject
+async function detectSubjectBox(
+  sharp: typeof import("sharp"),
+  src: Buffer,
+): Promise<SubjectBox> {
+  const { data, info } = await sharp(src)
+    .resize(DETECT_W, null, { fit: "inside" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width: w, height: h, channels: c } = info;
+  const med = (xs: number[]) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+  const col = new Array<number>(w).fill(0);
+  const row = new Array<number>(h).fill(0);
+  for (let y = 0; y < h; y++) {
+    const rs: number[] = [], gs: number[] = [], bs: number[] = [];
+    for (let k = 0; k < DETECT_EDGE; k++) {
+      for (const x of [k, w - 1 - k]) {
+        const i = (y * w + x) * c;
+        rs.push(data[i] ?? 0); gs.push(data[i + 1] ?? 0); bs.push(data[i + 2] ?? 0);
+      }
+    }
+    const br = med(rs), bg = med(gs), bb = med(bs);
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * c;
+      const dr = (data[i] ?? 0) - br, dg = (data[i + 1] ?? 0) - bg, db = (data[i + 2] ?? 0) - bb;
+      if (Math.sqrt(dr * dr + dg * dg + db * db) > DETECT_DIST) { col[x]!++; row[y]!++; }
+    }
+  }
+  const tC = Math.max(2, h * 0.02), tR = Math.max(2, w * 0.02);
+  let x0 = 0, x1 = w - 1, y0 = 0, y1 = h - 1;
+  while (x0 < x1 && (col[x0] ?? 0) < tC) x0++;
+  while (x1 > x0 && (col[x1] ?? 0) < tC) x1--;
+  while (y0 < y1 && (row[y0] ?? 0) < tR) y0++;
+  while (y1 > y0 && (row[y1] ?? 0) < tR) y1--;
+  return { x0: x0 / w, x1: x1 / w, y0: y0 / h, y1: y1 / h };
 }
 
 // The source region to take for one entry, honouring its framing judgement.
@@ -203,7 +308,22 @@ async function main(): Promise<void> {
     );
   }
 
-  let resized = 0, squaresMade = 0, noSource = 0;
+  // What KV already holds, fetched once. A single round trip buys the right to
+  // skip up to ~940 of them.
+  const priorByTarget = new Map<string, ManifestEntry>();
+  if (!args.dryRun && args.env && !args.force) {
+    const prior = fetchPublishedManifest(args.env);
+    if (prior) {
+      for (const p of prior) priorByTarget.set(`${p.kind}:${p.target}`, p);
+      console.log(`published manifest read: ${prior.length} rows already in ${args.env}`);
+    } else {
+      // Say so. A silent fall-through to "upload everything" is the same shape as
+      // a silent skip, just expensive instead of wrong.
+      console.log(`could not read the published manifest -- uploading every row`);
+    }
+  }
+
+  let resized = 0, squaresMade = 0, noSource = 0, skipped = 0;
   for (const e of entries) {
     if (!e.file) {
       console.warn(`skip ${e.kind}:${e.target}: no source file`);
@@ -238,13 +358,39 @@ async function main(): Promise<void> {
     // gradient over a JPEG it has just decoded into an 8bpp sprite anyway.
     const squares: { size: number; buf: Buffer }[] = [];
     if (args.square) {
+      // Detect once per photo; the box does not depend on the panel size.
+      // A hand-placed `focus`/`zoom` still wins -- an operator who has looked at
+      // the picture beats a heuristic that has not.
+      const box = e.focus || e.zoom ? null : await detectSubjectBox(sharp, src);
+      const meta = await sharp(src).metadata();
+      const rect = box
+        ? subjectCrop(box, meta.width ?? 1, meta.height ?? 1)
+        : await extractFor(sharp, src, 1, 1, e, SQUARE_PLACE);
+
       for (const size of SQUARE_SIZES) {
-        const rect = await extractFor(sharp, src, size, size, e, SQUARE_PLACE);
         const scrim = Buffer.from(scrimRGBA(size, size));
-        const buf = await sharp(src)
-          .extract(rect)
+        const crop = await sharp(src).extract(rect).toBuffer();
+        // Fit the WHOLE crop inside the square, then fill the remainder with a
+        // blurred, darkened cover of the same crop. Never letterboxed, never
+        // clipped beyond what subjectCrop already decided to give up -- and the
+        // fill measured BETTER for text contrast than the photograph it replaced
+        // (9.0:1 worst case against a 4.5:1 target; see the sourcing playbook).
+        const fitted = await sharp(crop).resize(size, size, { fit: "inside" }).toBuffer();
+        const fm = await sharp(fitted).metadata();
+        const bg = await sharp(crop)
           .resize(size, size, { fit: "cover" })
-          .composite([{ input: scrim, raw: { width: size, height: size, channels: 4 }, blend: "over" }])
+          .blur(Math.max(4, Math.round(size / 13)))
+          .modulate({ brightness: 0.5 })
+          .toBuffer();
+        const buf = await sharp(bg)
+          .composite([
+            {
+              input: fitted,
+              left: Math.round((size - (fm.width ?? size)) / 2),
+              top: Math.round((size - (fm.height ?? size)) / 2),
+            },
+            { input: scrim, raw: { width: size, height: size, channels: 4 }, blend: "over" },
+          ])
           .jpeg({ progressive: false, quality: 82 })
           .toBuffer();
         if (!isBaselineJpeg(buf))
@@ -265,10 +411,34 @@ async function main(): Promise<void> {
     const blobKey = await deriveBlobKey(e.target, new Uint8Array(jpeg));
     e.blobKey = blobKey;
     const ptr = pointerKey(e.kind, e.target);
+
+    // Every key this row would write, derived BEFORE any upload decision. Hashing
+    // is free next to a KV round trip, and the skip check needs the square keys as
+    // much as the rectangle's.
+    const squareKeys: Record<string, string> = {};
+    const squareBufs: { size: number; key: string; buf: Buffer }[] = [];
+    for (const s of squares) {
+      const sKey = await deriveBlobKey(e.target, new Uint8Array(s.buf));
+      squareKeys[String(s.size)] = sKey;
+      squareBufs.push({ size: s.size, key: sKey, buf: s.buf });
+    }
+    e.squareKeys = squareKeys;
+
     const sq = squares.map((s) => `${s.size}:${s.buf.length}B`).join(" ");
+    if (args.dryRun || !args.env) {
+      console.log(`${e.kind}:${e.target} -> ${blobKey} (${jpeg.length} B)${sq ? `  square ${sq}` : ""}`);
+      continue;
+    }
+
+    // ALREADY THERE: nothing to do. Content-addressed keys make this provable
+    // rather than a guess -- identical keys mean identical bytes, so the writes
+    // would be no-ops. The row still goes into the republished manifest.
+    if (alreadyPublished(priorByTarget.get(`${e.kind}:${e.target}`), blobKey, squareKeys)) {
+      skipped++;
+      continue;
+    }
     console.log(`${e.kind}:${e.target} -> ${blobKey} (${jpeg.length} B)${sq ? `  square ${sq}` : ""}`);
 
-    if (args.dryRun || !args.env) continue;
     const blobPath = join(tmp, `${blobKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
     writeFileSync(blobPath, jpeg);
     wranglerPut(args.env, blobKey, { path: blobPath }); // immutable blob
@@ -279,7 +449,7 @@ async function main(): Promise<void> {
     // and a square pointer that exists always resolves to a blob that exists --
     // so a half-finished ingest degrades to "some devices still get rectangles",
     // never to a dangling pointer or a clipped card.
-    for (const s of squares) {
+    for (const s of squareBufs) {
       // The TARGET, not `${target}-s${size}`. Blob keys are validated on serve by
       // BLOB_KEY_RE (photo:<target>-<hash8>, target alphanumeric), and a size
       // suffix puts a second dash in the target segment -- which the regex
@@ -292,11 +462,10 @@ async function main(): Promise<void> {
       // No suffix is needed anyway: the blobs are content-addressed, so three
       // sizes of one type hash to three different keys on their own, and the
       // POINTER key already carries the size.
-      const sKey = await deriveBlobKey(e.target, new Uint8Array(s.buf));
-      const sPath = join(tmp, `${sKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
+      const sPath = join(tmp, `${s.key.replace(/[^a-z0-9]/gi, "_")}.jpg`);
       writeFileSync(sPath, s.buf);
-      wranglerPut(args.env, sKey, { path: sPath });
-      wranglerPut(args.env, pointerKey(e.kind, e.target, s.size), { value: sKey });
+      wranglerPut(args.env, s.key, { path: sPath });
+      wranglerPut(args.env, pointerKey(e.kind, e.target, s.size), { value: s.key });
     }
   }
 
@@ -307,7 +476,9 @@ async function main(): Promise<void> {
   console.log(
     `summary: ${resized} resized, ${squaresMade} square variant(s), ` +
       `${noSource} row(s) with no source file` +
+      (skipped ? `, ${skipped} unchanged and SKIPPED (${skipped * 4} KV writes avoided)` : "") +
       (args.square ? "" : "  [--no-square: square variants were NOT built]") +
+      (args.force ? "  [--force: skip check bypassed]" : "") +
       (args.dryRun ? "  [--dry-run: nothing was written to KV]" : ""),
   );
 
