@@ -1,5 +1,7 @@
 #include "Logbook.h"
 
+#include <nvs.h>
+
 #include <cstring>
 #include <ctime>
 #include <memory>
@@ -157,6 +159,58 @@ void Logbook::Begin()
                   (unsigned)operators.size(), (unsigned)claimedOperators,
                   (unsigned)countries.size(), (unsigned)claimedCountries,
                   (unsigned)contacts);
+    reportCapacity();
+}
+
+// How much room this board actually has, checked against what the caps want.
+//
+// The NVS size is a per-env partition table, not a property of the code, and the
+// shipping radar SKUs differ by 4x: blipscope-s3-128 gets 84 KB / 2646 entries
+// (partitions-s3-16mb-bignvs.csv), while blipscope-s3-146 and blipscope-pro-s3-21
+// take the stock default_16MB.csv and get 20 KB / 630 -- the same 20 KB that
+// CSV's own header documents as unable to hold this application. The caps in
+// Logbook.h were sized for the big table and say so; nothing in the source can
+// see which table a board actually booted with.
+//
+// So the fit is checked here, against the running partition, on every boot --
+// not at the moment a write finally fails ten minutes into a customer's evening.
+// Reading the artifact rather than the config is the standing practice in
+// CLAUDE.md, and a per-env partition table is exactly the asymmetry it is about.
+void Logbook::reportCapacity()
+{
+    nvs_stats_t st{};
+    if (nvs_get_stats(nullptr, &st) != ESP_OK) {
+        Serial.println("[logbook] NVS stats unavailable -- capacity UNCHECKED");
+        return;
+    }
+
+    // Measured on the bench s3-128, 2026-07-31, by reading the partition back off
+    // the board and parsing it: config 149 + nvs.net80211 97 + phy 66 + wifi-fast
+    // 4 = 316 entries are spoken for before the logbook stores a single aircraft.
+    // NVS also permanently reserves one page for garbage collection and can never
+    // spend it.
+    constexpr size_t kNonLogbookEntries = 316;
+    constexpr size_t kGcReservedEntries = 126; // one 4 KB page
+    // A blob's payload costs one 32-byte entry per 32 bytes. The four stores are
+    // the only part of this that scales with the sky a device is pointed at.
+    constexpr size_t kStoresWorstCase = (4 * MAX_BLOB + 31) / 32;
+
+    const size_t overhead = kNonLogbookEntries + kGcReservedEntries;
+    const size_t budget = st.total_entries > overhead ? st.total_entries - overhead : 0;
+
+    Serial.printf("[logbook] NVS %u/%u entries used (%u free); logbook budget ~%u, caps want %u\n",
+                  (unsigned)st.used_entries, (unsigned)st.total_entries,
+                  (unsigned)st.free_entries, (unsigned)budget, (unsigned)kStoresWorstCase);
+
+    // Everything here is counted in ENTRIES, never bytes. An entry is 32 B but a
+    // 4 KB page only holds 126 of them (the rest is page header and state bitmap),
+    // so entries*32 renders a 20 KB partition as "19 KB" and invites an argument
+    // about which number is wrong. Entries are what NVS actually rations.
+    if (kStoresWorstCase > budget)
+        Serial.printf("[logbook] WARNING: this partition cannot hold a full logbook. %u total entries "
+                      "leaves ~%u for stores; the caps need %u. Writes will start failing with "
+                      "NOT_ENOUGH_SPACE once the sky fills them -- see partitions-s3-16mb-bignvs.csv.\n",
+                      (unsigned)st.total_entries, (unsigned)budget, (unsigned)kStoresWorstCase);
 }
 
 void Logbook::loadRecord(Preferences& p, const char* key, Record& out)
