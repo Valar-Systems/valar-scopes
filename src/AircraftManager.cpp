@@ -5052,9 +5052,28 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         backbuffer.setTextSize(2);
         backbuffer.setTextColor(lgfx::color888(86, 235, 60));
         centered(title, FULLBLEED_TITLE_Y);
+        // THE HINT LINE GIVES WAY TO PROVENANCE WHEN THERE IS ANY DOUBT WHOSE
+        // AIRCRAFT THIS IS.
+        //
+        // The full-bleed card is callsign-only because the photograph already
+        // says everything the category fields did. That holds for a Cessna. It
+        // does NOT hold for an airliner, because every airliner stock photo is a
+        // real aircraft in a real operator's scheme -- so ASA713 drew a United
+        // 737-9 with nothing on screen to say the picture was of the TYPE. The
+        // caption that used to prevent that moved to the data page with the other
+        // category-descriptive fields, and this is where the confusion happens.
+        //
+        // Read a livery and you read IDENTITY, not category. That is the one
+        // field the photo cannot replace, whatever else it replaces.
+        //
+        // It costs no pixels: this line is drawn either way, and "tap: details"
+        // is the most redundant text on the card -- every other screen teaches
+        // the tap, and a customer learns it once. A per-airframe photo (pk:"hex")
+        // IS that aircraft, so it keeps the hint and stays uncaptioned.
         backbuffer.setTextSize(1);
         backbuffer.setTextColor(lgfx::color888(0, 150, 0));
-        centered("tap: details", FULLBLEED_HINT_Y);
+        centered(tracked.photoRepresentative ? "representative photo" : "tap: details",
+                 FULLBLEED_HINT_Y);
         return; // nothing else belongs over the photograph
     }
 
