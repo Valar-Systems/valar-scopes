@@ -119,6 +119,13 @@ export const TYPE_NAMES: Record<string, string> = {
   P46T: "Piper Malibu Meridian",
   BE9L: "Beechcraft King Air 90", BE30: "Beechcraft Super King Air 300",
   TBM7: "Daher TBM 700", DHC2: "De Havilland DHC-2 Beaver",
+  // K100 was already answering correctly in production from a `tn:K100` KV key,
+  // which is the no-deploy path this table's header offers. Promoted anyway: a
+  // name that exists ONLY in KV is one namespace rebuild away from vanishing,
+  // and the compiled table is the thing that survives that. The KV key still
+  // takes precedence while it exists, so this changes nothing today and is the
+  // floor if it ever goes. Seen on the bench s3-128 (a95520, US DOI Kodiak).
+  K100: "Daher Kodiak 100",
   E45X: "Embraer ERJ-145XR", G280: "Gulfstream G280", GA6C: "Gulfstream G600",
   AT8T: "Air Tractor AT-802", AT5T: "Air Tractor AT-504",
   SLG4: "Sling 4",
