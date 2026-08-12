@@ -13,6 +13,18 @@ export interface RequestMetric {
   // this is only ever populated on the device-key path.
   dev?: string;
   fw?: string; // X-Blip-FW, digits only, same authentication rule as `dev`
+  /**
+   * Which credential authenticated this request: "device" (per-device HMAC key)
+   * or "shared" (the BLIP_KEYS list). Undefined when no auth ran.
+   *
+   * Emitted as the X-Blip-Auth response header rather than only stored, because
+   * the question it answers — "is this board on its own key yet?" — has to be
+   * answerable at the bench while BOTH credentials still work. It is not written
+   * to the dataset: `dev` already carries the same distinction there (it is
+   * populated only on the device path), and adding a blob would shift the
+   * positional indices existing queries depend on.
+   */
+  authPath?: "device" | "shared";
 }
 
 // Device attribution for a metric, applied ONLY once a request has proven it

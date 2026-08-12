@@ -15,6 +15,12 @@ export interface Env {
   // Secrets.
   BLIP_KEYS?: string;        // comma-separated accepted (shared) device keys (rotation = old+new)
   DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys (additive; shared keys still work)
+  TURNSTILE_SITEKEY?: string;    // PUBLIC. Rendered into the enrol page; empty renders the page's
+                                 // "cannot verify" state, which is the same state a blocked
+                                 // network produces and is therefore already handled.
+  TURNSTILE_SECRET_KEY?: string; // Turnstile siteverify secret. WITHOUT IT /enroll refuses to mint
+                                 // (503 not_configured) rather than minting unverified -- an
+                                 // unverified key is indistinguishable from one an attacker asked for.
   ADSB_LOL_API_KEY?: string; // optional feeder key, once adsb.lol issues them
   RELAY_KEY?: string;        // X-Relay-Key: authenticates the Worker to our egress relay (see relay/)
 

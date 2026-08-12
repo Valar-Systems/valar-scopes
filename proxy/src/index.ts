@@ -3,6 +3,8 @@ import { handleAirports } from "./airports";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
+import { handleEnroll } from "./enroll";
+import { enrollHtml } from "./enrollpage";
 import {
   handleLeaderboardJson,
   handleLeaderboardPage,
@@ -150,7 +152,14 @@ async function route(
   // other route is GET. Keyed off the normalized suffix so the legacy path
   // POSTs exactly as the new one does.
   const isLeaderboardSubmit = api?.suffix === "leaderboard" && request.method === "POST";
-  if (request.method !== "GET" && !isLeaderboardSubmit) return errorResponse(405, "method_not_allowed");
+  // Enrollment POSTs too, and it is NOT an `api` route: it sits above the auth
+  // gate on purpose, because a board with no key yet is the caller it exists
+  // for. Listed here rather than moved above this line so that every method
+  // exception in the Worker stays visible in one place.
+  const isEnrollSubmit = url.pathname === `${PAGE_PREFIX}/enroll` && request.method === "POST";
+  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit) {
+    return errorResponse(405, "method_not_allowed");
+  }
 
   // Trailing-slash normalisation, PAGES ONLY. A URL that is printed, typed, or
   // pasted into someone else's redirect field picks up a trailing slash easily,
@@ -187,6 +196,19 @@ async function route(
   // ships in valar-eam-feed, because the isMissileerPath branch above hands the
   // whole /missileer/* prefix to the origin before this Worker sees it.
   if (url.pathname === `${PAGE_PREFIX}/support`) return staticPage(supportHtml);
+
+  // Device enrollment. The PAGE is public (it has to be — a customer on a phone
+  // reaches it directly); the ENDPOINT mints nothing without a verified solve.
+  // Both sit above the auth gate below, because a board with no key yet is
+  // exactly the caller they exist for.
+  // ONE path, dispatched on METHOD. Written as two sequential `if`s on the same
+  // pathname first, which made the POST branch unreachable — the GET matched
+  // every time and enrollment would have been a page that never minted.
+  if (url.pathname === `${PAGE_PREFIX}/enroll`) {
+    return request.method === "POST"
+      ? handleEnroll(request, env)
+      : staticPage(enrollHtml(env.TURNSTILE_SITEKEY ?? ""));
+  }
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).
@@ -237,6 +259,17 @@ async function route(
   // Attribute the metric to the device only now that its key has been verified;
   // see setDeviceAttribution() for why unauthenticated headers are never stored.
   setDeviceAttribution(meta, request, auth.deviceAuthed);
+  // WHICH CREDENTIAL WAS ACCEPTED — echoed to the device, not merely recorded.
+  //
+  // While BOTH the shared key and per-device keys are valid, "the board still
+  // works" cannot distinguish them: an enrolled device could be authenticating
+  // on the old shared key and nothing would say so until removal broke it. That
+  // is a check that cannot fail. This makes the answer observable at the device,
+  // live, during a watched bench run — see docs/device-enrollment.md.
+  //
+  // Taken from the SAME field that gates attribution rather than recomputed, so
+  // the header and the dataset cannot drift apart.
+  meta.authPath = auth.deviceAuthed ? "device" : "shared";
   const keyLimited = await limitByKey(env, auth.bucket);
   if (keyLimited) return keyLimited;
 
@@ -282,6 +315,13 @@ export default {
     meta.status = response.status;
     meta.ms = Date.now() - started;
     record(env, meta);
+    // Surface the accepted credential to the caller. Only ever set on requests
+    // that actually authenticated, so its ABSENCE is meaningful too: no header
+    // means no auth happened (a page, a 401, a health check).
+    if (meta.authPath) {
+      response = new Response(response.body, response);
+      response.headers.set("X-Blip-Auth", meta.authPath);
+    }
     return response;
   },
 } satisfies ExportedHandler<Env>;
