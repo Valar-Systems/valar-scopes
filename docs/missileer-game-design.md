@@ -71,15 +71,24 @@ explicitly a guess from unclassified sources — the right provenance posture).
 - **Precision metric**: deviation from T, scored and displayed in **tenths of a second**.
   Commander scored on |key − T|, deputy on hold coverage of the window. Crew score = combined.
 
-  > **Amended 2026-08-05, on measurement.** This said "milliseconds", provisionally, pending
-  > §13 task 1. The bench answer is a **75.7 ms** clock floor (worst NTP correction, 6 syncs /
-  > 17 h) against a 43 ms input floor, so `max(clock, input)` ≈ 76 ms and the finest honest
-  > bucket is 0.1 s. §13's rule — display the smallest bucket the measured floor supports —
-  > is what executes here. See [gametest-results-2026-08-05.md](gametest-results-2026-08-05.md).
+  > **Amended 2026-08-05, on measurement. RE-AMENDED 2026-08-11 — see §13 A.3.** This said
+  > "milliseconds", provisionally, pending §13 task 1.
   >
-  > 1. **Single-execution deviation: 0.1 s buckets.** The board says so plainly and footnotes
-  >    the 75.7 ms clock floor as the reason. The honesty is on-brand; a spec-sheet caveat is
-  >    period-correct.
+  > ~~*The bench answer is a 75.7 ms clock floor (worst NTP correction, 6 syncs / 17 h) against
+  > a 43 ms input floor, so `max(clock, input)` ≈ 76 ms and the finest honest bucket is 0.1 s.*~~
+  > **SUPERSEDED.** The 75.7 ms figure came from a session contaminated by the harness freeze; a
+  > cleaner, longer one measured **198.5 ms** worst. The clock floor is **199 ms** and the bucket
+  > **0.2 s**. Evidence: `test/fixtures/ntp-corrections-2026-08.json` (valar-eam-feed).
+  >
+  > §13's rule — display the smallest bucket the measured floor supports — is what executes
+  > here, and it is the rule that moved the number, not a new rule.
+  > See [gametest-results-2026-08-05.md](gametest-results-2026-08-05.md).
+  >
+  > 1. **Single-execution deviation: 0.2 s buckets.** The board says so plainly and footnotes
+  >    the 199 ms clock floor as the reason. The honesty is on-brand; a spec-sheet caveat is
+  >    period-correct. At 0.1 s the device was sorting players by margins smaller than its own
+  >    error — two sorties a bucket apart were not measurably different and the display said
+  >    they were. That is ranking noise, not scoring.
   > 2. **Aggregates may display finer.** Quantization error averages down, so a monthly average
   >    over N launches has effective precision ~0.1/√N s: the proficiency-cycle ladder may show
   >    hundredths on season averages while single launches show tenths. Stated on the board as
@@ -860,9 +869,27 @@ URL convention (/{edition}/{surface}, Blipscope 301).
    snaps demand an instant decision by design.
 2. **Missed execution consumes the sortie?** — proposed: **yes**. Ack is optional; don't
    commit what you can't execute. Makes commitment dramatic.
-3. ~~**NTP sync vs ms scoring**~~ — **CLOSED 2026-08-05.** Measured at **75.7 ms** (worst
-   correction, 6 syncs / 17 h) — above the ±10–50 ms this anticipated. Granularity set to
-   0.1 s per the amendment above. Input floor (43 ms) is not binding.
+3. **NTP sync vs ms scoring** — **REOPENED 2026-08-11.** Partly re-closed; one defect remains.
+
+   - ~~*CLOSED 2026-08-05. Measured at 75.7 ms (worst correction, 6 syncs / 17 h) — above the
+     ±10–50 ms this anticipated. Granularity set to 0.1 s per the amendment above. Input floor
+     (43 ms) is not binding.*~~ **SUPERSEDED.** Retained because a wrong number somebody acted
+     on is part of the record.
+   - **The clock premise was wrong — now closed.** 75.7 ms came from 5 corrections over 17.1 h
+     in a session whose `poll_max_ms` was 20042 (the TX-ring freeze). A cleaner, longer session
+     — same board, same statistic, same 3 h cadence, `poll_max_ms` 45 — recorded 8 corrections
+     with a worst of **198.5 ms**, and *seven of the eight exceed 75.7*. It was not a floor; it
+     was a small sample's lucky low. Clock floor is now **199 ms** and the deviation bucket
+     **0.2 s**. Evidence is committed at `test/fixtures/ntp-corrections-2026-08.json` in
+     valar-eam-feed — do not restate the numbers in prose here, where they can drift.
+   - **The arm comparison was never re-measured — STILL OPEN.** Arms B and C ran exactly once,
+     on the *broken* build (session 2026-08-05 0734, before `4c504f2` fixed the swipe/arm
+     unreachability). That is evidence about a build we deliberately replaced. The 26.8 h
+     corrected session ran arm A only (`B runs 0`, `C runs 0`) because cycling the arm needs a
+     tap above y=50 and none of its 14 touch samples landed there. **A.3 does not close on the
+     clock alone.** A forced-arm bench path now exists (`-DGAMETEST_FORCE_ARM`, serial a/b/c) so
+     B and C can be driven deterministically; runs from it log `forced,1` and must be reported
+     as forced — fine for measuring the arm, not fine for measuring how often a user reaches it.
 4. **Feed latency fairness** — proposed: message arriving with **<2 min to T** is
    non-scorable for that device (no commitment offered; no penalty, no temptation).
 5. **State authority** — proposed: server-authoritative votes/launches/records; devices

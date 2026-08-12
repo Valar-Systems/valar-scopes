@@ -27,7 +27,25 @@ Board: _____________ (MAC / COM)  ·  Date: _____________  ·  Firmware: `gamete
 
 ## 1. HOLD TEST — deputy switch-hold
 
-Run **≥20 holds per arm**. A run is *clean* when it reaches 10 s with zero dropouts.
+Run **≥10 holds per arm** — the harness's own on-glass denominator is
+`RUNS_PER_ARM = 10` ([gametest_main.cpp](../src/gametest_main.cpp)). This asked for 20,
+so arm B "stopping early" at 10 was the harness working as designed and the
+template disagreeing with it. A run is *clean* when it reaches 10 s with zero dropouts.
+
+> **FORCE THE ARM. Do not wait to tap it.** Arms B and C have never been measured
+> on the corrected build: the 26.8 h session of 2026-08-05 0855 logged `B runs 0`,
+> `C runs 0` because cycling needs a tap in the top 50 px and not one of its 14
+> touch samples landed there. Build with the arm pinned, and switch over serial:
+>
+> ```sh
+> PLATFORMIO_BUILD_FLAGS="-DGAMETEST_FORCE_ARM -DGAMETEST_ARM=1" \
+>   pio run -e gametest-s3-128 -t upload --upload-port COM119 -t monitor
+> # then: send 'a', 'b' or 'c' over serial to switch arms live
+> ```
+>
+> Runs from that build log `forced,1` on the `REG,arm,…` line. **Report them as
+> forced** — a forced arm is fine for measuring the arm, and is not fine for
+> measuring how often a user reaches it.
 
 > **The A/B is inverted on this board — read this before recording anything.**
 > The brief assumed "product config" = auto-sleep ON. This board is a CST816**D**,
@@ -38,9 +56,17 @@ Run **≥20 holds per arm**. A run is *clean* when it reaches 10 s with zero dro
 > `AutoSleepTime` (`0xF9`) sits at 2 s underneath, so a 10 s hold against a 2 s
 > timer is the collision worth measuring.
 >
-> Long-press on the HOLD screen flips the arm. Every flip logs a `REG,arm,…` line
-> with `honoured,0|1` — **if `honoured` is 0 the chip refused the write and that
-> arm's numbers describe an unknown state.** Record it as void, not as a result.
+> ~~Long-press on the HOLD screen flips the arm.~~ **Wrong, and it was wrong when
+> written** — this template last changed at 13:33 on 2026-08-04 and the fix that
+> settled the mechanism landed at 14:09 the same day. A long-press cannot be the
+> arm control: on the HOLD screen every press starts a hold run by definition, so
+> "press and hold to change arm" and "press and hold to test" are the same
+> gesture. It is a **tap on the arm chip** in the top band — or, preferably, the
+> forced-arm build above.
+>
+> Every arm change logs a `REG,arm,…` line with `honoured,0|1` — **if `honoured`
+> is 0 the chip refused the write and that arm's numbers describe an unknown
+> state.** Record it as void, not as a result.
 
 | Arm | `0xFE` | Source | Runs | Clean | **Clean %** | Dropouts | Longest (ms) |
 |---|---|---|---|---|---|---|---|
@@ -95,7 +121,22 @@ auto-sleep**, and the fix is a driver/IRQ change rather than a register write.
 
 ## 3. NTP TEST
 
-Leave running **≥30 min**; longer is better.
+~~Leave running **≥30 min**; longer is better.~~ **A 30-minute run produces NOTHING.**
+Corrections arrive on a **3-hour** cadence (measured: sync timestamps 10,800,000 ms
+apart in both sessions), and the first drift figure needs a *second* sync — so 30
+minutes yields zero corrections and the harness correctly reports `-1`, UNMEASURED.
+This instruction could never have produced the number the table below asks for.
+
+**Leave running ≥24 h**, which is ~8 corrections. And note what 8 is worth: the
+published floor is the **max** of the observed |adjustment|, because a quantile over
+8 points interpolates between the top two values and returns a number with no
+sampling basis. Record the sample count next to the figure, always.
+
+⚠️ **The worst correction is a running maximum and has not converged.** The firmware
+now raises `*** CLOCK FLOOR EXCEEDED ***` when a live correction exceeds the published
+floor (199 ms). Re-rule trigger: **three alarms, or any single correction above 250 ms** —
+at that point extend `test/fixtures/ntp-corrections-2026-08.json` in valar-eam-feed and
+re-open the A.3 ruling.
 
 | Measure | Value |
 |---|---|
