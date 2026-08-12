@@ -118,16 +118,48 @@ wipes the only copy, falls back to an empty `-fac`, and the device is
 unauthenticated with no way back. Write it into `-fac` and the repair keeps
 working exactly as documented, for enrolled and factory devices alike.
 
-## Open question — deliberately not answered here
+## ~~Open question~~ ANSWERED 2026-08-12 — and the answer changes what "tight" means
 
 **What is a self-enrolled key actually worth to an abuser?**
 
-This is the number that decides whether the minimum abuse controls are adequate
+~~*This is the number that decides whether the minimum abuse controls are adequate
 or whether a harder gate is mandatory, and it is not knowable from the code. It
 depends on upstream economics: `adsb.lol` positions is a real per-IP rate limit
 we are already working around, so "how many free rate-limit buckets does it take
-to hurt us" has a concrete answer — we just don't have it yet.
+to hurt us" has a concrete answer — we just don't have it yet. Revisit when there
+is real fleet traffic to measure against.*~~
 
-Revisit when there is real fleet traffic to measure against. **Do not resolve it
-by guessing**; a guessed threshold here would be indistinguishable from a
-measured one in six months, and would be quoted as though it had been measured.
+**The premise was wrong, not just unmeasured.** It assumed the thing at risk was
+*capacity* — a quota that a farm of self-enrolled keys could exhaust. Samuli
+granted sponsored access with **leeway rather than a hard ceiling**, so there is
+no quota to exhaust. What a farm of keys would actually do is make us the source
+of the traffic he sees.
+
+**So the gate protects a RELATIONSHIP, not a rate limit.** That is a different
+engineering brief, and it resolves the question in a direction no traffic
+measurement would have reached:
+
+- **A threshold was never the deliverable.** There is no number of keys that is
+  "safe" and one more that is not. The failure is qualitative and social, and it
+  arrives as a conversation rather than as a 429.
+- **The gate must be REAL, not proportionate.** With a quota you can argue that a
+  cheap check is adequate because the loss is bounded and recoverable. Here it
+  is neither, so: **server-side siteverify, always. A client-only check is not a
+  weaker version of this design, it is a different design that does not work** —
+  the browser can be skipped entirely, and an unverified token is decoration.
+- **Volume must be OBSERVED, not inferred.** Log enrollment volume so abuse is
+  something we *see* rather than something we deduce afterwards from someone
+  else's complaint. This is the part a rate limit would have given us for free
+  and leeway does not: with no ceiling to hit, nothing else will ever tell us.
+  Enrollments per day, per IP, per ASN, and the siteverify hostname.
+
+**Do not reopen this as a rate-limit question.** The next person to look will
+reasonably ask "how many keys can we afford to leak" and will find no number,
+because the question does not have one. The cost is measured in a relationship
+with the operator whose data the whole cloud feed depends on, and the correct
+posture toward that is not a threshold — it is a working gate and an honest log.
+
+Note that this cuts the other way too: **it is not an argument for a harder gate
+than Turnstile.** An order-code gate protects the relationship no better than a
+working challenge does, and it costs the customer a step. What matters is that
+the challenge is genuinely verified and that we can see the volume.
