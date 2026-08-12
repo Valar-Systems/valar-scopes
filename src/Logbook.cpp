@@ -198,6 +198,40 @@ void Logbook::reportCapacity()
     const size_t overhead = kNonLogbookEntries + kGcReservedEntries;
     const size_t budget = st.total_entries > overhead ? st.total_entries - overhead : 0;
 
+    /* -----------------------------------------------------------------------
+     * DID THIS EDITION BOOT ON THE PARTITION TABLE IT WAS BUILT FOR?
+     *
+     * The table is a per-env setting, so two editions for the SAME board can
+     * disagree: blipscope-s3-128 uses partitions-s3-16mb-bignvs.csv (84 KB NVS)
+     * while every *-s3-146 env takes the stock default_16MB.csv (20 KB). Today
+     * that is survivable because no other edition has an s3-128 env -- but the
+     * day someone adds `missileer-s3-128` with the stock table, the NVS
+     * PARTITION MOVES. Everything in it becomes unreachable at once: the
+     * logbook, the location, the WiFi credentials, and the enrolled device key.
+     *
+     * It would present as "my Blipscope forgot everything", pointing at the
+     * feature the customer last touched and never at a line in an .ini. That is
+     * the worst possible shape for a fault, so it is checked at boot on the
+     * RUNNING partition rather than left to be discovered.
+     *
+     * Guarded on the total, not the offset: nvs_get_stats() reports what the
+     * running table actually granted, which is the artifact. A build flag
+     * asserting what the ini INTENDED would restate the thing that is wrong.
+     * -------------------------------------------------------------------- */
+#ifdef BLIPSCOPE_EXPECT_BIG_NVS
+    constexpr size_t kExpectedMinEntries = 2000; // bignvs grants ~2646
+#else
+    constexpr size_t kExpectedMinEntries = 400;  // stock default_16MB grants ~630
+#endif
+    if (st.total_entries < kExpectedMinEntries) {
+        Serial.printf(
+            "[logbook] *** WRONG PARTITION TABLE *** this build expects at least %u NVS entries "
+            "and the running partition has %u. The board booted a table this edition was not "
+            "built for -- check board_build.partitions for this env in platformio.ini. Stored "
+            "data (logbook, location, WiFi, device key) may be unreachable rather than lost.\n",
+            (unsigned)kExpectedMinEntries, (unsigned)st.total_entries);
+    }
+
     // "ceilings" and not "caps" on purpose: this is MAX_BLOB_TOTAL, the most the
     // four stores can occupy, which is a slightly larger number than the count caps
     // actually need (they need ~1277 of these 1375). The ceiling is the right
