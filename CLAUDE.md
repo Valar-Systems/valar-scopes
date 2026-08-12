@@ -179,6 +179,23 @@ success one — never only the latter. It is this repo's recurring rule — a ch
 must be able to detect its own failure — applied to the shell: output you have
 pre-trimmed to the passing shape cannot show you anything else.
 
+**The shape of it, which is the part worth remembering:** a filter is written
+against the output you EXPECT, so it is blindest exactly when the command fails.
+The rule alone did not hold — it was breached twice more in the same session it
+was written. So the procedure, not the principle:
+
+1. **Run a diagnostic command bare the first time.** No `grep`, no `head`, no
+   `2>/dev/null`.
+2. **Send stderr to its own file** (`2>err.log`) rather than merging or
+   discarding it. Cloudflare's `wrangler` puts a 401 on stderr and a cheerful
+   "would you like to report this?" on stdout, so a stdout-only read of a failed
+   command looks like a parse problem rather than an auth problem.
+3. **Only add a filter once you have seen the raw output** and know both what
+   success and failure look like.
+
+The cost is a few lines of scrollback. The cost of the alternative was reporting
+a secret as set when it was not.
+
 ## Non-goal: behavioural telemetry (settled 2026-08-02)
 
 **Never propose or add screen-usage, interaction, or engagement telemetry.** Which screen a customer looks at, how often they tap, how long the device is watched, which aircraft they open — none of it is collected, and the gap is deliberate rather than unfinished. It would be easy to add (the device already makes a request counters could ride on), which is exactly why this is written down. The reasoning: it is behavioural data from a device in someone's home; at this fleet size asking ten owners beats instrumenting all of them; and *"Blipscope doesn't track how you use it"* is only true while it stays entirely true. It is a **published commitment** in [README.md](README.md)'s Privacy & telemetry section, not an internal preference.
