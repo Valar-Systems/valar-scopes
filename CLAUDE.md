@@ -136,6 +136,49 @@ statement of intent, and intent is the thing that was already wrong.
 Corollary, same root cause: **when a check protects a property, confirm the check's own
 environment has that property** — see [RELEASING.md](RELEASING.md).
 
+## Standing practice: take a check's input from the *other* side of the contract
+
+**A test that requests the path the test chose will pass against a feature that is
+dead.** Device enrollment shipped with the firmware popup opening
+`scopes.valarsystems.com/enroll` while the Worker routed only
+`/blipscope/enroll`. It was a 404 — the whole feature — sitting behind sixteen
+passing tests, because every one of them asked for the URL *the tests* had
+picked. Neither side was wrong internally. The contract between them was simply
+never exercised, and nothing about a green suite says which of those two things
+it proved.
+
+The fix is not "add a test for the other path" — that is the same assumption
+typed a second time, and it goes stale the same way. It is to **derive the
+check's input from the other side**:
+[smoke-prod.sh](proxy/scripts/smoke-prod.sh) greps the enrol URLs out of
+[ConfigurationWebServer.cpp](src/ConfigurationWebServer.cpp) and fetches each one
+against the live Worker, so what gets requested is the firmware's own string.
+Change either side and the check follows.
+
+When the other side is in this repo, **read it**. When it is not, transcribe it
+and say so out loud — [test/missileer-routes.test.ts](proxy/test/missileer-routes.test.ts)
+pins another repo's route table and its header states exactly which failures that
+can and cannot catch. A transcription is the weaker form and should never be
+mistaken for the strong one.
+
+Same family as the entry above: the input is a statement of intent, and here
+*both* sides stated it, separately.
+
+## Standing practice: never filter the output of a command you are testing for failure
+
+Twice in one week a `grep`/`tail` on a command's output hid the failure it was
+run to detect. The clearest instance: `wrangler secret put` was piped through a
+filter, the Cloudflare `Authentication error [code: 10000]` was dropped, and what
+survived was the whoami banner — which reads exactly like success. The secret was
+never set, and it was about to be reported as done.
+
+The mechanism is general. A filter is written against the output you *expect*,
+so it is at its least reliable in precisely the case you are running the command
+to detect. Pipe it whole, or grep for the failure token **as well as** the
+success one — never only the latter. It is this repo's recurring rule — a check
+must be able to detect its own failure — applied to the shell: output you have
+pre-trimmed to the passing shape cannot show you anything else.
+
 ## Non-goal: behavioural telemetry (settled 2026-08-02)
 
 **Never propose or add screen-usage, interaction, or engagement telemetry.** Which screen a customer looks at, how often they tap, how long the device is watched, which aircraft they open — none of it is collected, and the gap is deliberate rather than unfinished. It would be easy to add (the device already makes a request counters could ride on), which is exactly why this is written down. The reasoning: it is behavioural data from a device in someone's home; at this fleet size asking ten owners beats instrumenting all of them; and *"Blipscope doesn't track how you use it"* is only true while it stays entirely true. It is a **published commitment** in [README.md](README.md)'s Privacy & telemetry section, not an internal preference.
