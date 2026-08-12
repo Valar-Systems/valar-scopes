@@ -30,8 +30,17 @@
 # echoed by this script; only the header name appears in output. Run it yourself:
 #
 #   export BLIP_KEY='...'                 # your prod device key (not stored here)
+#   export BLIP_DEVICE='<bench device id>' # REQUIRED once BLIP_KEYS is removed
 #   ./scripts/smoke-prod.sh               # defaults to production
 #   BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh
+#
+# BLIP_DEVICE is optional while the shared key still works and mandatory after
+# it goes -- see the AUTH block below. The run announces which credential it
+# expects and asserts it before any check that depends on it.
+#
+# NOTE ON ENVIRONMENTS: staging has its OWN BLIP_KEYS/DEVICE_KEY_SECRET, so a
+# production key answers 401 there. That presents as seven unrelated failures
+# and is a credential mismatch, not a staging defect.
 #
 # Prints PASS/FAIL per check plus the raw response body for eyeballing.
 
@@ -48,6 +57,29 @@ if [ -z "$KEY" ]; then
   echo "BLIP_KEY is not set. export BLIP_KEY='<your prod key>' and re-run." >&2
   exit 2
 fi
+
+# ---- WHICH CREDENTIAL THIS SCRIPT AUTHENTICATES WITH ------------------------
+#
+# When the shared BLIP_KEYS list is removed, a bare X-Blip-Key stops being a
+# credential at all: the only accepted form is a per-device key PLUS the
+# X-Blip-Device id it was minted for. This script is the only thing checking
+# production, so it must survive that change rather than discover it.
+#
+# BLIP_DEVICE is therefore optional TODAY and required AFTER removal. Set it and
+# every authed call below carries the id; leave it unset and the requests are
+# byte-identical to what they were. The header is harmless on the shared path --
+# a shared key fails the 64-hex device-key shape and falls through to the list.
+#
+# ONE ARRAY, used at every authed call site, so a header cannot be added to some
+# requests and forgotten on others -- which is how you get a script that proves
+# the device path works on the two endpoints someone remembered.
+DEVICE="${BLIP_DEVICE:-}"
+AUTH=(-H "X-Blip-Key: $KEY")
+[ -n "$DEVICE" ] && AUTH+=(-H "X-Blip-Device: $DEVICE")
+
+# What the auth path is EXPECTED to be, asserted below rather than assumed.
+# Defaults from whether an id was supplied; override to pin it explicitly.
+EXPECT_AUTH="${BLIP_EXPECT_AUTH:-$([ -n "$DEVICE" ] && echo device || echo shared)}"
 
 pass=0
 fail=0
@@ -165,9 +197,40 @@ redirects_to() {
 }
 
 echo "smoke-prod against $BASE  (key sent as X-Blip-Key; value never printed)"
+echo "auth: expecting X-Blip-Auth: $EXPECT_AUTH${DEVICE:+  (device id supplied)}"
 
 # 1. public health
 hit "/healthz" 200 "$BASE/healthz"
+
+# WHICH CREDENTIAL THIS SCRIPT IS RUNNING ON, asserted before anything that
+# depends on it.
+#
+# The corollary in CLAUDE.md: when a check protects a property, confirm the
+# check's own environment has that property. After BLIP_KEYS is removed, every
+# check below is meant to be exercising the per-device path -- and if this script
+# were somehow still authenticating on a shared credential, all of them would
+# pass while proving nothing about the only auth path that will exist. That is
+# the failure mode this script exists to not have.
+#
+# Run FIRST because everything downstream is downstream of it: a wrong answer
+# here makes the rest of the run uninterpretable rather than merely wrong.
+auth_path_check() {
+  local got
+  got="$(curl -s -o /dev/null -D- --max-time 25 "${AUTH[@]}" "$BASE/v1/config" \
+         | tr -d '\r' | grep -i '^x-blip-auth:' | cut -d' ' -f2)"
+  printf '\n===== auth path (X-Blip-Auth) =====\n'
+  printf 'expect %s, got %s\n' "$EXPECT_AUTH" "${got:-<no header>}"
+  if [ "$got" = "$EXPECT_AUTH" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    if [ -z "$got" ]; then
+      printf 'NOTE: no header at all means auth never ran -- a 401, or a Worker\n'
+      printf '      predating the X-Blip-Auth change.\n'
+    fi
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+auth_path_check
 
 # The build stamp, which is the answer to "what commit is this actually running?".
 # A DEPLOYED Worker reporting "dev" means someone ran `wrangler deploy` by hand
@@ -195,7 +258,7 @@ fi
 
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
-  -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
+  "${AUTH[@]}" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
 
 # Pull a live hex out of that response: rows are
 # [hex, cs, lat, lon, alt, gs, track, vrate, category, age].
@@ -218,7 +281,7 @@ elif ! HEX="$(printf '%s' "$LAST_BODY" | grep -oE '\["[0-9a-f~]{6}"' | head -1 |
   skip "/v1/enrich" "/v1/blips returned 200 with zero aircraft -- a genuinely empty tile right now, not a proxy fault. Re-run when there is traffic over Bend."
 else
   hit "/v1/enrich/$HEX (live hex from the blips response)" 200 \
-    -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX"
+    "${AUTH[@]}" "$BASE/v1/enrich/$HEX"
 fi
 
 # 2b. THE UPSTREAM CHAIN: is the served picture fresh, and are both relays serving?
@@ -261,7 +324,7 @@ printf 'expect: every tile fresh within %ss, and >1 distinct relay across the pr
 for t in $CHAIN_TILES; do
   tlat="${t%%,*}"; tlon="${t##*,}"
   hdrs="$(mktemp)"; body="$(curl -s -D "$hdrs" --max-time 25 \
-    -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=1")"
+    "${AUTH[@]}" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=1")"
   st="$(awk 'NR==1{print $2}' "$hdrs")"
   up="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-upstream"{print $2}')"
   ch="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-cache"{print $2}')"
@@ -303,7 +366,7 @@ fi
 #    BASE config, which is correct, not a miss.
 for slug in s3-146 s3-21 s3-128 c3-128 s3-175-amoled; do
   hit "/v1/config (model=$slug)" 200 \
-    -H "X-Blip-Key: $KEY" -H "X-Blip-Model: $slug" "$BASE/v1/config"
+    "${AUTH[@]}" -H "X-Blip-Model: $slug" "$BASE/v1/config"
 done
 
 # 4. a seeded type photo. The photo key is only discoverable through an enrich
@@ -311,7 +374,7 @@ done
 #    does: enrich a live hex, read `p`, then GET it.
 P=""
 if [ -n "${HEX:-}" ]; then
-  P="$(curl -s --max-time 25 -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4)"
+  P="$(curl -s --max-time 25 "${AUTH[@]}" "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4)"
 fi
 if [ -n "$P" ]; then
   # `asset`, not `hit`: the body is a JPEG and must not reach a terminal, and the
@@ -320,7 +383,7 @@ if [ -n "$P" ]; then
   # so this check reported FAIL for a photo the Worker was serving perfectly. It
   # had never actually run before 2026-08-08 (no live hex, so it always SKIPPED),
   # which is how a check that cannot pass survived this long.
-  asset "/v1/photo (via enrich pointer $P)" "image/" "$BASE$P" -H "X-Blip-Key: $KEY"
+  asset "/v1/photo (via enrich pointer $P)" "image/" "$BASE$P" "${AUTH[@]}"
 elif [ -n "${HEX:-}" ]; then
   skip "/v1/photo" "live hex $HEX resolved no photo pointer (that type has no stock photo). Not a failure -- but /v1/photo went untested."
 else
@@ -374,7 +437,7 @@ jpeg_dims() {
 # whether bash is in POSIX mode, so relying on it would make this gate's target
 # depend on how the script was invoked.
 variant_photo() {
-  curl -s --max-time 25 -H "X-Blip-Key: $KEY" \
+  curl -s --max-time 25 "${AUTH[@]}" \
     -H "X-Blip-FW: $2" -H "X-Blip-Model: $3" \
     "$BASE/v1/enrich/$1" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4
 }
@@ -421,7 +484,7 @@ else
   printf 'FW 7 -> %s\n' "${P_NEW:-<none>}"
 
   TMP_OLD="$(mktemp)"; TMP_NEW="$(mktemp)"
-  curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_OLD" "$BASE$P_OLD"
+  curl -s --max-time 25 "${AUTH[@]}" -o "$TMP_OLD" "$BASE$P_OLD"
   D_OLD="$(jpeg_dims "$TMP_OLD")"
   printf 'FW 6 pixels: %s (must be 150x100 -- this is what the field runs)\n' "$D_OLD"
 
@@ -438,7 +501,7 @@ else
   if [ -z "$P_NEW" ]; then
     skip "photo variant gate (FW 7 square)" "no square ingested for this type yet; proxy correctly served no photo rather than a rectangle. The FW 7 half went UNTESTED."
   else
-    curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_NEW" "$BASE$P_NEW"
+    curl -s --max-time 25 "${AUTH[@]}" -o "$TMP_NEW" "$BASE$P_NEW"
     D_NEW="$(jpeg_dims "$TMP_NEW")"
     printf 'FW 7 pixels: %s (must be square, and NOT the same blob as FW 6)\n' "$D_NEW"
     case "$D_NEW" in
