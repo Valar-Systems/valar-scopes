@@ -73,6 +73,21 @@ routes = [
 BUILD_COMMIT = "\"dev\""
 
 [env.staging.vars]
+# Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
+#
+# A VAR, NOT A SECRET, and the distinction is not cosmetic: the sitekey is
+# rendered into the page's HTML, so it is public by construction. Putting it in
+# the reviewed diff means the value that gates enrolment on this environment is
+# something a person can look at, next to the domain it is scoped to.
+#
+# SEPARATE WIDGETS PER ENVIRONMENT, each with its own secret. One widget across
+# both would make a token solved on staging verifiable at production, because
+# handleEnroll records solve.hostname and deliberately does not enforce it.
+# Widget: blipscope-enroll-staging, domains ["scopes-staging.valarsystems.com"].
+# Pairs with the TURNSTILE_SECRET_KEY secret on this env; without that secret the
+# endpoint answers 503 not_configured and mints nothing.
+TURNSTILE_SITEKEY = "0x4AAAAAAEOTguN4gjbUcmlJ"
+
 # Missileer origin -- the valar-eam-feed Render service that /missileer/* and
 # /api/v1/missileer/* are proxied to (see src/missileer.ts).
 #
@@ -187,6 +202,12 @@ routes = [
 BUILD_COMMIT = "\"dev\""
 
 [env.production.vars]
+# Turnstile sitekey for the device-enrolment page. Public by construction (it is
+# rendered into the page HTML) -- see the staging block above for why this is a
+# var and why the two environments have SEPARATE widgets rather than one.
+# Widget: blipscope-enroll-production, domains ["scopes.valarsystems.com"].
+TURNSTILE_SITEKEY = "0x4AAAAAAEOTkOwCSqYha96b"
+
 # Missileer origin -- valar-eam-feed on Render. See src/missileer.ts for why the
 # Worker proxies rather than routes, and valar-eam-feed/docs/missileer-routing.md
 # for the alternatives that were rejected.
