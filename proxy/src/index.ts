@@ -209,6 +209,22 @@ async function route(
       ? handleEnroll(request, env)
       : staticPage(enrollHtml(env.TURNSTILE_SITEKEY ?? ""));
   }
+  // THE SHORT URL, and it is not a nicety. The device's fallback text tells a
+  // customer with no internet on that machine to TYPE this on their phone, next
+  // to an 8-hex id — every character is one they can get wrong, so the typed
+  // form stays "/enroll" and lands here.
+  //
+  // This route was missing when enrollment first landed, while the firmware
+  // popup pointed at it: the whole feature was one 404 with sixteen passing
+  // tests behind it, because every test requested the prefixed path. The
+  // firmware now opens the canonical path directly (no redirect in the machine
+  // path), and this serves the human one.
+  //
+  // GET only, by falling out of the method gate above rather than by a check
+  // here: `isEnrollSubmit` matches the prefixed path alone, so a POST to this
+  // one is already a 405 and can never be answered with a redirect the browser
+  // would have to re-send a body to follow.
+  if (url.pathname === "/enroll") return movedTo(url, `${PAGE_PREFIX}/enroll`);
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).

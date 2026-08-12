@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:test";
 import { deriveDeviceKey } from "../src/deviceauth";
 import { REVOKED_KEY, resetRevocationCache } from "../src/revocation";
+import { routeTemplate } from "../src/metrics";
 import { call, testEnv, TEST_KEY } from "./helpers";
 
 /* ===========================================================================
@@ -253,5 +254,67 @@ describe("which credential was accepted is observable", () => {
     );
     expect(res.status).toBe(401);
     expect(res.headers.get("X-Blip-Auth")).toBeNull();
+  });
+});
+
+/* ===========================================================================
+ * REACHABILITY — the property the sixteen tests above could not see.
+ *
+ * Every one of them requests "/blipscope/enroll" directly. The firmware opened
+ * "scopes.valarsystems.com/enroll", which this Worker did not route at all: the
+ * feature was a 404 behind a full passing suite, because the tests and the
+ * firmware disagreed about the URL and only one of them was being asked.
+ *
+ * WHAT THIS BLOCK CAN AND CANNOT DO. It pins both paths from the Worker's side,
+ * so neither can be dropped silently. It CANNOT read the URL the firmware
+ * actually ships -- these tests run inside workerd with no filesystem, so the
+ * C++ string is not visible here. That half is checked where it can be checked
+ * against the real artifact: scripts/smoke-prod.sh greps the enrol URLs out of
+ * src/ConfigurationWebServer.cpp and fetches each one against the live Worker.
+ * ======================================================================== */
+describe("enrollment is reachable at the URLs that are actually used", () => {
+  it("serves the page at the canonical path the firmware popup opens", async () => {
+    const res = await call(
+      new Request(`https://proxy.test/blipscope/enroll?id=${DEVICE_ID}`),
+      enrollEnv({ TURNSTILE_SITEKEY: "0xTESTSITEKEY" }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    // The sitekey reaching the markup is the only thing that proves the binding
+    // is wired end to end; an empty one renders the "cannot verify" state, which
+    // looks like a blocked network rather than a missing secret.
+    expect(html).toContain('data-sitekey="0xTESTSITEKEY"');
+  });
+
+  it("301s the short typed URL to the canonical one, query intact", async () => {
+    const res = await call(new Request(`https://proxy.test/enroll?id=${DEVICE_ID}`), enrollEnv());
+    expect(res.status).toBe(301);
+    // The id MUST survive: the fallback tells a customer to type this URL with
+    // their device id on the end, and a redirect that dropped it would land them
+    // on the "no device id in this link" state having done nothing wrong.
+    expect(res.headers.get("Location")).toBe(
+      `https://proxy.test/blipscope/enroll?id=${DEVICE_ID}`,
+    );
+  });
+
+  it("does NOT redirect a POST to the short URL — a body must never be re-sent", async () => {
+    const res = await call(
+      new Request("https://proxy.test/enroll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: DEVICE_ID, token: "t" }),
+      }),
+      enrollEnv(),
+    );
+    expect(res.status).toBe(405);
+  });
+
+  it("counts both paths as themselves in metrics, not as /other", () => {
+    // Enrollment volume IS the abuse detection, so these must not bucket into
+    // the same group as every 404 an internet scanner produces.
+    expect(routeTemplate("/blipscope/enroll")).toBe("/blipscope/enroll");
+    expect(routeTemplate("/enroll")).toBe("/enroll");
+    expect(routeTemplate("/enrollment")).toBe("/other"); // control: /other still exists
   });
 });

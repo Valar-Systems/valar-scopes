@@ -92,6 +92,13 @@ export const KNOWN_ROUTES = new Set([
   "/blipscope/leaderboard",
   "/blipscope/leaderboard.json",
   "/blipscope/support",
+  // Enrollment: the page, its POST (same path), and the short typed URL that
+  // 301s to it. Listed for a sharper reason than the others -- enrollment VOLUME
+  // is the abuse detection (see enroll.ts), so letting these bucket to "/other"
+  // would hide a mint storm inside 404 noise, which is the one thing the design
+  // says it is watching for.
+  "/blipscope/enroll",
+  "/enroll",
   // DEPRECATED aliases + redirects (retire when these read zero -- see above)
   "/v1/blips",
   "/v1/config",

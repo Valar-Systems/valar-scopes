@@ -512,6 +512,95 @@ contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
 # change as the hub link -- which test/pages.test.ts asserts is currently absent,
 # so the page and the link cannot drift apart.
 
+# ---- device enrollment (docs/device-enrollment.md) --------------------------
+#
+# WHY THE URLS ARE EXTRACTED FROM THE FIRMWARE AND NOT TYPED HERE. Enrollment
+# first shipped with the device popup opening scopes.valarsystems.com/enroll
+# while the Worker routed only /blipscope/enroll -- a 404 sitting behind sixteen
+# passing tests, because every test requested the path the tests had picked.
+# Transcribing the URL into this file would reproduce that mistake exactly one
+# layer further out. So this reads the strings out of the firmware source and
+# fetches each one: the artifact, not the intent.
+#
+# Redirects are FOLLOWED here, unlike the leaderboard check above, because the
+# question is "does what the device tells a customer to type reach the page" --
+# a question about the whole hop chain. The 301 itself is pinned in
+# proxy/test/enroll.test.ts.
+CFG_SRC="$(git rev-parse --show-toplevel 2>/dev/null)/src/ConfigurationWebServer.cpp"
+if [ -r "$CFG_SRC" ]; then
+  ENROLL_PATHS="$(grep -oE 'scopes\.valarsystems\.com/[A-Za-z0-9/_.-]*' "$CFG_SRC" \
+                  | sed 's|^scopes\.valarsystems\.com||' | sort -u)"
+  if [ -z "$ENROLL_PATHS" ]; then
+    printf '\n===== enrol URLs found in firmware =====\n'
+    printf 'expect at least one scopes.valarsystems.com/... in %s\n' "${CFG_SRC##*/}"
+    printf 'got    none -- either the config page stopped offering enrollment,\n'
+    printf '       or this pattern stopped matching it. Both are worth knowing.\n'
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+  for p in $ENROLL_PATHS; do
+    body="$(curl -sL -w $'\n%{http_code}' --max-time 25 "$BASE$p?id=a1b2c3d4e5f6a7b8")"
+    status="${body##*$'\n'}"; body="${body%$'\n'*}"
+    printf '\n===== firmware enrol URL %s (followed) =====\n' "$p"
+    printf 'expect HTTP 200 and the enrol page\n'
+    case "$body" in
+      *"Verify your device"*) marker=1 ;;
+      *) marker=0 ;;
+    esac
+    printf 'got    HTTP %s, page marker %s\n' "$status" \
+      "$([ "$marker" = 1 ] && echo present || echo MISSING)"
+    if [ "$status" = "200" ] && [ "$marker" = "1" ]; then
+      printf 'RESULT: PASS\n'; pass=$((pass+1))
+    else
+      printf -- '--- first 400 bytes ---\n%.400s\n' "$body"
+      printf 'RESULT: FAIL\n'; fail=$((fail+1))
+    fi
+  done
+else
+  printf '\n===== firmware enrol URLs =====\nRESULT: SKIP (no checkout: %s)\n' "$CFG_SRC"
+  skipped=$((skipped+1))
+fi
+
+# THE SITEKEY REACHED THE MARKUP. An unset TURNSTILE_SITEKEY renders the page in
+# its "cannot verify" state, which is indistinguishable from a blocked network --
+# so without this check a deployment missing the binding looks like a customer
+# ISP problem. Turnstile sitekeys start "0x"; an empty attribute cannot match.
+contains "enrol page carries a real sitekey (TURNSTILE_SITEKEY is bound)" 200 \
+  'data-sitekey="0x' "$BASE/blipscope/enroll?id=a1b2c3d4e5f6a7b8"
+
+# NO SOLVE, NO KEY -- asserted against production, with a token that cannot pass.
+#
+# This is also the only thing that proves BOTH secrets are actually on the
+# deployment: handleEnroll answers 503 not_configured when DEVICE_KEY_SECRET or
+# TURNSTILE_SECRET_KEY is missing, so a 403 here means the endpoint got as far as
+# asking Cloudflare and was told no. A 503 would mean the gate is not running at
+# all, which is exactly the state that looks fine until someone tries to enroll.
+enroll_post() {
+  local name="$1" want="$2" marker="$3" payload="$4"
+  local body status ok
+  body="$(curl -s -w $'\n%{http_code}' --max-time 25 -X POST \
+          -H 'content-type: application/json' -d "$payload" "$BASE/blipscope/enroll")"
+  status="${body##*$'\n'}"; body="${body%$'\n'*}"
+  case "$body" in *"$marker"*) ok=1 ;; *) ok=0 ;; esac
+  printf '\n===== %s =====\n' "$name"
+  printf 'expect HTTP %s containing %s\n' "$want" "$marker"
+  printf 'got    HTTP %s / %s\n' "$status" "$body"
+  # A key in the body is the one outcome that must never happen here, whatever
+  # the status says -- checked separately so a 200 with a key can never be read
+  # as a passing status code.
+  case "$body" in
+    *'"key"'*) printf 'FATAL: a key was returned without a solve.\n'; ok=0 ;;
+  esac
+  if [ "$status" = "$want" ] && [ "$ok" = "1" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+enroll_post "enroll POST, unsolved token -> 403 (both secrets bound, gate live)" \
+  403 '"unverified"' '{"id":"a1b2c3d4e5f6a7b8","token":"not-a-real-solve"}'
+enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)" \
+  400 '"bad_request"' '{"id":"../../etc","token":"not-a-real-solve"}'
+
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
 if [ "$skipped" -gt 0 ]; then

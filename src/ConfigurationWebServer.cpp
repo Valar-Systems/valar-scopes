@@ -246,7 +246,10 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
        Every failure here (popup blocked, network blocked, window closed) lands on \
        the same paste fallback rather than a dead end. */ \
     R"(document.addEventListener('click',function(e){if(!e.target||e.target.id!=='bpVerify')return;)" \
-    R"(window.open('https://scopes.valarsystems.com/enroll?id='+encodeURIComponent(window.BP_DEVID),'bpEnroll','width=520,height=640')});)" \
+    /* CANONICAL path, not the short one the fallback text prints: the popup is \
+       machine-driven and has no reason to spend a redirect hop it could fail on. \
+       The short /enroll is a 301 for the human who types it. */ \
+    R"(window.open('https://scopes.valarsystems.com/blipscope/enroll?id='+encodeURIComponent(window.BP_DEVID),'bpEnroll','width=520,height=640')});)" \
     /* Validate the VALUE, not the sender. A key must be 64 hex and is handed \
        straight back to this device, which checks it names THIS board before \
        storing it -- so a page that lies about its origin gains nothing. */ \

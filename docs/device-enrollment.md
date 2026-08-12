@@ -31,6 +31,20 @@ So the solve happens on an origin we own — `scopes.valarsystems.com/enroll` �
 and the key comes back to the device page by `postMessage`, which crosses
 HTTPS → HTTP because no resource is loaded, only a message.
 
+**Two URLs, on purpose.** The canonical page is `/blipscope/enroll`, per the
+edition-namespacing convention, and that is what the popup opens: the machine
+path spends no redirect hop it could fail on. The short `/enroll` is a 301 to it,
+and exists because the device's own fallback text asks a customer to *type* that
+URL on a phone next to an 8-hex id — every character is one they can get wrong.
+
+This was found the hard way. Enrollment first shipped with the popup pointing at
+`/enroll` and the Worker routing only `/blipscope/enroll`: the entire feature was
+a 404, behind sixteen passing tests, because every test requested the path the
+tests had chosen. Two checks close that gap, and neither is a transcription of
+the other side's intent — `proxy/test/enroll.test.ts` pins both paths from the
+Worker's side, and `proxy/scripts/smoke-prod.sh` greps the URLs out of
+`src/ConfigurationWebServer.cpp` and fetches each one against the live Worker.
+
 **THE POPUP IS A CONVENIENCE, NOT A SECURITY BOUNDARY.** The enrol page is an
 ordinary HTTPS page and works perfectly well opened directly on a phone; that is
 the documented path for a LAN that cannot reach Cloudflare, and it is the primary
