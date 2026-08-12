@@ -303,6 +303,9 @@ private:
     // still refuse. See the definitions for why a claim is never evictable.
     bool evictOneType();
     bool evictOneSeen(std::map<String, SeenStat>& store, Store which);
+    // Fold an entry banked under "<base>, CO-OWNER" onto its base key, carrying
+    // firstDay and claimDay. One operator's own aliases, never distinct entries.
+    bool adoptCommaVariant(const String& base);
     // Lazily re-key a v4 entry truncated at OLD_MAX_OP_LEN onto its full spelling,
     // carrying firstDay and claimDay across. Returns true if it adopted one.
     bool adoptTruncatedOperator(const String& fullName);

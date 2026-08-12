@@ -165,6 +165,47 @@ void TestOperatorMigration()
     Check(lb2.OperatorCount() == 2, "two distinct operators, not one merged");
 }
 
+// ---- 4b. co-owner strings collapse to one operator --------------------------
+//
+// The FAA registered-owner field appends co-owners after a comma, giving ONE
+// operator a different string per airframe. That was the operators store's
+// growth mechanism: NetJets held 4 slots on one bench board and 11 on the other.
+//
+// WHAT THIS CANNOT REACH, said out loud rather than left to be assumed: the
+// adoptCommaVariant() fold, which re-keys an entry banked under the OLD long
+// spelling onto its base name. Operators() is a const accessor and normOperator
+// now truncates on the way in, so there is no way from this probe to create the
+// legacy state the fold exists for. It is verified on the bench instead, by the
+// "[logbook] folded operator '<long>' -> '<base>' (claim carried)" line -- both
+// bench boards carry exactly one claimed comma entry, which is the case that
+// would otherwise present as a claimed entry beside an unclaimed duplicate.
+void TestOperatorCoOwnerCollapse()
+{
+    Serial.println("[probe] operators: co-owner lists are one operator, not many");
+    Logbook lb;
+
+    Check(lb.NoteOperator("NETJETS SALES INC, AIR SERRA LLC"), "first airframe is a fresh catch");
+    Check(!lb.NoteOperator("NETJETS SALES INC, AJAX II LLC"), "a different co-owner list is not a new operator");
+    Check(!lb.NoteOperator("NETJETS SALES INC, BVMW LLC, CLINE CH"), "nor a third");
+    Check(!lb.NoteOperator("NETJETS SALES INC"), "nor the bare base name");
+    Check(lb.OperatorCount() == 1, "four airframes, one operator");
+    Check(lb.Operators().count("NETJETS SALES INC") == 1, "banked under the base name");
+
+    // The claim path shares normOperator, so a claim made from a card showing
+    // the full registry string must find the entry the sighting created. This is
+    // the failure the shared-normaliser comment in Logbook.cpp warns about.
+    Check(lb.ClaimOperator("NETJETS SALES INC, ALLY FINANCIAL INC"), "a claim on a co-owner spelling lands");
+    Check(lb.ClaimedOperatorCount() == 1, "on the one entry, not a second");
+
+    // CONTROL: the comma cut must not merge genuinely different operators. These
+    // share no base name, so they stay two.
+    Logbook lb2;
+    Check(lb2.NoteOperator("HORIZON AIR INDUSTRIES INC"), "no comma, stored whole");
+    Check(lb2.NoteOperator("HORIZON AIR LLC"), "a different operator");
+    Check(lb2.OperatorCount() == 2, "two operators, not merged");
+    Check(lb2.Operators().count("HORIZON AIR INDUSTRIES INC") == 1, "long name kept in full");
+}
+
 // ---- 5. seen-store eviction keeps the beginning of the record ---------------
 void TestSeenEvictionKeepsEarliest()
 {
@@ -215,6 +256,8 @@ void RunAll()
     TestAllClaimedRefuses();
     Serial.flush();
     TestOperatorMigration();
+    Serial.flush();
+    TestOperatorCoOwnerCollapse();
     Serial.flush();
     TestSeenEvictionKeepsEarliest();
     Serial.flush();

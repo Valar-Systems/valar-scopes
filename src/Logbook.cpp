@@ -401,6 +401,59 @@ bool Logbook::adoptTruncatedOperator(const String& fullName)
     return true;
 }
 
+// ---- the co-owner variant migration ----------------------------------------
+// Sibling of adoptTruncatedOperator above, for the OTHER way a stored key can
+// stop being the key a sighting now produces: normOperator truncates at the
+// first comma, so an entry banked as "SMITH KEVIN, SMITH JOHANNA" is no longer
+// reachable from the aircraft that created it.
+//
+// Left alone, the visible symptom is not a lost claim -- the old entry stays in
+// the book, still claimed -- but a DUPLICATE PAIR: the claimed long spelling and
+// a fresh unclaimed short one, for the same operator, with nothing on the page
+// to explain why. Both bench boards had exactly one claimed comma entry, so this
+// is a small case that would have looked like a bug on the two devices most
+// likely to be looked at.
+//
+// Adopting hands firstDay and claimDay to the base key, exactly as the v4
+// migration does. It is a MERGE OF ONE OPERATOR'S OWN ALIASES, never a deletion
+// of something distinct -- which is why it stays inside "delete nothing".
+//
+// Deliberately adopts AT MOST ONE variant, preferring a claimed one:
+//   - the base key already existing wins outright (checked by the caller), so
+//     NetJets' eleven variants do not fight over a slot that is already taken;
+//   - remaining variants are left in the book rather than swept up, because
+//     folding eleven entries into one WOULD be a deletion of entries a customer
+//     can see, and that decision is not this function's to make.
+bool Logbook::adoptCommaVariant(const String& base)
+{
+    const String prefix = base + ",";
+    auto victim = operators.end();
+    for (auto it = operators.begin(); it != operators.end(); ++it) {
+        if (!it->first.startsWith(prefix))
+            continue;
+        if (victim == operators.end()) { victim = it; continue; }
+        // A claimed variant wins: the claim is the irreplaceable half, and
+        // carrying it is the entire reason this runs at all. Among equals, the
+        // earliest sighting -- the same "keep the beginning of the record"
+        // instinct as evictOneSeen, for the same reason.
+        const bool itClaimed  = it->second.claimDay != 0;
+        const bool vicClaimed = victim->second.claimDay != 0;
+        if (itClaimed && !vicClaimed)
+            victim = it;
+        else if (itClaimed == vicClaimed && it->second.firstDay < victim->second.firstDay)
+            victim = it;
+    }
+    if (victim == operators.end())
+        return false;
+    operators[base] = victim->second; // firstDay AND claimDay carry across
+    Serial.printf("[logbook] folded operator '%s' -> '%s' (claim %s)\n",
+                  victim->first.c_str(), base.c_str(),
+                  victim->second.claimDay != 0 ? "carried" : "none");
+    operators.erase(victim);
+    dirty = true;
+    return true;
+}
+
 bool Logbook::NoteType(const String& typeCode)
 {
     String t = typeCode;
@@ -426,9 +479,32 @@ bool Logbook::NoteType(const String& typeCode)
 namespace {
 // Normalisers, shared by the Note (seen) and Claim paths so a claim can never
 // miss its own entry because the two spelled the key differently.
+// TRUNCATE AT THE FIRST COMMA, and this is the whole bound on the store.
+//
+// adsbdb returns the FAA registry's registered-owner field, which appends
+// co-owners after a comma: "NETJETS SALES INC, AIR SERRA LLC, BVMW LLC". That is
+// a different string PER AIRFRAME, so one operator becomes one entry per tail --
+// NetJets alone held 4 slots on one bench board and 11 on the other, and Flexjet
+// another 3 and 2. That is the growth mechanism, and it is not a policy question
+// about who deserves to be in the book: it is one operator wearing eleven names.
+//
+// Measured on the two bench boards (2026-08-12, from their own exports): 120 ->
+// 115 and 220 -> 209 entries, with every removal a duplicate of an operator
+// already present under its base name.
+//
+// The primary registrant is the part before the comma, so the base name is both
+// the shortest and the most correct key. It also does most of the work the
+// widened MAX_OP_LEN was doing -- these composites are exactly the names that
+// ran past 24 characters.
+//
+// Applied HERE rather than at the call site because this normaliser is shared by
+// the Note (seen) and Claim paths, and a claim that spelled its key differently
+// from the sighting would never find its own entry.
 String normOperator(const String& raw, size_t maxLen)
 {
     String s = raw;
+    const int comma = s.indexOf(',');
+    if (comma >= 0) s = s.substring(0, comma);
     s.trim();
     if (s.length() > maxLen) s = s.substring(0, maxLen);
     return s;
@@ -461,6 +537,13 @@ bool Logbook::NoteOperator(const String& operatorName)
     // its v4 truncated spelling. Adopting returns the entry to the book WITH its
     // claim, and it is not a fresh catch -- the customer already had it.
     if (adoptTruncatedOperator(op))
+        return false;
+    // Then the co-owner form: an entry banked under "<op>, SOMEONE ELSE" before
+    // normOperator started cutting at the comma. Ordered AFTER the v4 adoption
+    // because the two cannot both apply -- v4 keys are exactly 24 chars and this
+    // one matches on a comma boundary -- and because a v4 key is the older and
+    // more fragile of the two.
+    if (adoptCommaVariant(op))
         return false;
     if (operators.size() >= MAX_OPERATORS && !evictOneSeen(operators, StOperators)) {
         noteFull(StOperators, "airlines/owners", MAX_OPERATORS);

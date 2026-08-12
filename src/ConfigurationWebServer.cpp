@@ -470,16 +470,40 @@ R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B re
 R"(
                 <div id="cloud-fields" class="stack">
                     <label class="field">
-                        <span>Cloud server:</span>
-                        <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
-                    </label>
-                    <label class="field">
                         <span>Access key:</span>
                         <input name="cloud-key" type="password" autocomplete="off" value='%CLOUD_KEY%' placeholder="access key" class="grow">
                     </label>
+                    <!-- CLOUD SERVER LIVES BEHIND A DISCLOSURE, and the rule is worth
+                         keeping: an OVERRIDE OF A WORKING DEFAULT goes in the drawer;
+                         a field CONDITIONALLY REQUIRED by the selector above does not.
+                         That is why opensky-id/secret and local-url stay out in the
+                         open -- pick that source and you must fill them in -- while
+                         this one, which nobody on the default path ever touches, does
+                         not sit between the source selector and the Access key box the
+                         enrolment checklist points at by name ("paste the key into
+                         Access key below").
+                         "Advanced" was rejected as the label: it is a category that
+                         accretes anything nobody wants to place, and within two
+                         releases it is a junk drawer. Naming what the control DOES
+                         keeps the boundary decidable.
+                         details.auto auto-opens when any field inside holds a value
+                         (see the page script), so a self-hoster or a board pointed at
+                         staging still finds it open on arrival -- the usual objection
+                         to hiding a set field does not apply. -->
+                    <details class="auto">
+                        <summary>Point this device at a different server</summary>
+                        <label class="field">
+                            <span>Cloud server:</span>
+                            <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
+                        </label>
+                        <span class="hint">
+                            For self-hosting, or for pointing this board at a staging server.
+                            Leave blank to use the built-in default.
+                        </span>
+                    </details>
                     <span class="hint">
-                        Managed Blipscope feed &mdash; no account needed. Leave the server blank to use the
-                        built-in default. Your access key is set during assembly: leave it as it is, and if
+                        Managed Blipscope feed &mdash; no account needed.
+                        Your access key is set during assembly: leave it as it is, and if
                         it ever gets changed by mistake, clear the box and save to restore it.
                         Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
                         and <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>.
