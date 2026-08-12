@@ -55,14 +55,25 @@ void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
     if (m.frequencyKhz) header += String(m.frequencyKhz) + " kHz";
     const String ago = TimeAgo(m.heardAtEpoch);
     if (ago.length()) header += (header.length() ? "  -  " : "") + ago;
-    header += (header.length() ? "  -  " : "") + (String(m.charCount) + " ch");
+    // "340+ ch" ON A PARTIAL COPY, and the trailing + is doing real work.
+    //
+    // The length is the one number on this screen a reader can trust, which is
+    // exactly why it must not overstate. The backend flags a copy whose character
+    // count cannot be accounted for by the length of audio it came from; those
+    // characters are a FLOOR, not a total, and rendering a bare "340 ch" asserts a
+    // complete message we do not have. Same rule the public archive follows.
+    header += (header.length() ? "  -  " : "")
+              + (String(m.charCount) + (m.partial ? "+ ch" : " ch"));
     CenterText(c, header, (int)(SCREEN_SIZE * 0.12), palette.dim);
 
     // NEW pulse (blink) just under the header.
     if ((long)(newPulseUntilMs - millis()) > 0 && ((millis() / 250) % 2 == 0))
         CenterText(c, "NEW", (int)(SCREEN_SIZE * 0.20), palette.accent);
-    // malformed copy badge.
-    if (m.malformed)
+    // Copy-quality badges. PARTIAL WINS when both are set: "we are missing some
+    // of this" is the more actionable of the two, and the line only fits one.
+    if (m.partial)
+        CenterText(c, "partial copy", SCREEN_SIZE - 26, palette.accent);
+    else if (m.malformed)
         CenterText(c, "+/- copy?", SCREEN_SIZE - 26, palette.faint);
 
     const int bodyTop = (int)(SCREEN_SIZE * 0.28);

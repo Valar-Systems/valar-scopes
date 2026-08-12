@@ -165,6 +165,24 @@ unsigned long busFailRuns = 0;
 // wrong floor and would set the leaderboard bucket an order of magnitude coarse.
 unsigned long keyPollGapMaxMs = 0, keyPollSumMs = 0, keyPollCount = 0;
 
+// ---------------------------------------------------------------------------
+// THE PUBLISHED CLOCK FLOOR, mirrored here so the harness can notice when the
+// world exceeds it.
+//
+// 199 ms = ceil(198.504), the worst correction in the 26.8 h session of
+// 2026-08-05 0855. It is the authority for `scoring.clockFloorMs` in
+// valar-eam-feed (src/game/config.ts), whose evidence is committed at
+// test/fixtures/ntp-corrections-2026-08.json.
+//
+// MIRRORED, NOT SHARED, and that is a real seam: this is a bench harness with
+// no network config, and the server value is an env-overridable runtime
+// constant. If one moves and the other does not, the alarm fires at the wrong
+// threshold. The fixture is the tie-breaker in that argument — it is the thing
+// both numbers are supposed to describe.
+static constexpr int CLOCK_FLOOR_MS  = 199;
+static constexpr int CLOCK_RERULE_MS = 250;
+unsigned long clockAlarms = 0;
+
 bool holdActive = false;
 unsigned long holdStartMs = 0, holdContactMs = 0;
 unsigned long lastDownMs = 0, lastUpMs = 0;
@@ -393,6 +411,41 @@ void DrawNtp()
 }
 
 // ---- arm switching ---------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * FORCED ARM SELECTION — bench only, behind a build flag.
+ *
+ * WHY THIS EXISTS. The arm cycles on a tap inside the top 50 px. Across the
+ * 26.8 h corrected session of 2026-08-05 0855, every one of the 14 driver-
+ * touched samples landed at y >= 77 and `TOUCH,screen` was 0 — so arms B and C
+ * logged `runs,0` and the whole A/B/C comparison was never re-measured on the
+ * fixed instrument. Waiting for a tap that organic use produced ZERO of in 26.8
+ * hours is an unbounded wait, not a slow one.
+ *
+ * A COMMAND, NOT A UI AFFORDANCE, and the distinction is the point: making the
+ * banner easier to hit would change what the harness measures about reachability
+ * while pretending to change only convenience. This path cannot be reached by a
+ * finger at all.
+ *
+ * FORCED RUNS ARE MARKED AS FORCED in the ledger (`forced,1`). A forced arm is
+ * fine for measuring THE ARM; it would not be fine for measuring how often a
+ * user reaches it, and the flag is what stops a later reader conflating the two.
+ *
+ *   pio run -e gametest-s3-128 -t upload \
+ *     --build-flag="-DGAMETEST_FORCE_ARM" --build-flag="-DGAMETEST_ARM=1"
+ *
+ * GAMETEST_ARM: 0=A, 1=B, 2=C. With the flag set, serial 'a'/'b'/'c' also
+ * switches live, so one flash covers all three arms.
+ * ------------------------------------------------------------------------- */
+#ifdef GAMETEST_FORCE_ARM
+static constexpr bool ARM_FORCED = true;
+#  ifndef GAMETEST_ARM
+#    define GAMETEST_ARM 0
+#  endif
+static_assert(GAMETEST_ARM >= 0 && GAMETEST_ARM < 3, "GAMETEST_ARM must be 0 (A), 1 (B) or 2 (C)");
+#else
+static constexpr bool ARM_FORCED = false;
+#endif
+
 void ApplyArm()
 {
     // Write, read back, and REPORT. Never assume the write landed: on the C3's
@@ -403,10 +456,11 @@ void ApplyArm()
     const int pre = ReadReg(REG_DISAUTOSLEEP);
     const bool wrote = WriteReg(REG_DISAUTOSLEEP, want);
     const int back = ReadReg(REG_DISAUTOSLEEP);
-    Serial.printf("REG,arm,%s,pre,%d,write,%s,readback,%d,intended,%u,honoured,%d\n",
+    Serial.printf("REG,arm,%s,pre,%d,write,%s,readback,%d,intended,%u,honoured,%d,forced,%d\n",
                   ArmName(arm),
                   pre, wrote ? "ok" : "NACK", back, want,
-                  (back == (int)want) ? 1 : 0);
+                  (back == (int)want) ? 1 : 0,
+                  ARM_FORCED ? 1 : 0);
     if (back != (int)want)
         Serial.println("REG,WARNING,arm not honoured -- treat this arm's numbers as UNKNOWN state");
 }
@@ -613,7 +667,13 @@ void setup()
                   ReadReg(REG_DISAUTOSLEEP), ReadReg(REG_AUTOSLEEPTIME), ReadReg(REG_IRQCTL));
     Serial.println("REG,note,0xFE=1 means auto-sleep DISABLED (this board's factory state)");
 
+#ifdef GAMETEST_FORCE_ARM
+    arm = (Arm)GAMETEST_ARM;
+    Serial.printf("REG,note,FORCED ARM BUILD -- arm pinned to %s at boot, serial a/b/c switches. "
+                  "Runs from this build are FORCED and must be reported as such.\n", ArmName(arm));
+#else
     arm = Arm::FactoryNoSleep;
+#endif
     ApplyArm();
 
     // WiFi from stored credentials (the board has joined before). NTP only; no
@@ -785,11 +845,67 @@ void loop()
             if (labs(lastAdjustUs) > labs(worstAdjustUs)) worstAdjustUs = lastAdjustUs;
             Serial.printf("NTP,sync,%lu,n,%lu,adjust_us,%ld,worst_us,%ld,uncertainty_ms,%ld\n",
                           now, syncCount, lastAdjustUs, worstAdjustUs, UncertaintyMs());
+
+            // ---- THE ALARM ----
+            //
+            // A FIELD IS NOT A REPORT. This session printed `uncertainty_ms,198`
+            // in every heartbeat for 26 hours while the design doc asserted
+            // 75.7 ms and §13 A.3 sat closed on it. The log and the doc
+            // disagreed continuously, in the open, and neither complained --
+            // the number was present and simply never read. So the condition
+            // now announces itself, in the register of *** RECEIVER SILENT ***.
+            //
+            // Deliberately NOT an assertion or a failure: the CI guard asserts
+            // the build is consistent with the evidence we hold (deterministic,
+            // never goes red on its own), while this reports that the world has
+            // outrun that evidence (observational). Conflating them gives a red
+            // build caused by weather.
+            //
+            // RE-RULE TRIGGER, recorded here so it is not argued later: three
+            // alarms, or any single correction above 250 ms. At that point
+            // extend test/fixtures/ntp-corrections-2026-08.json in the
+            // valar-eam-feed repo and re-open the ruling.
+            const long adjustMs = labs(lastAdjustUs) / 1000;
+            if (adjustMs > CLOCK_FLOOR_MS) {
+                clockAlarms++;
+                Serial.printf("\n*** CLOCK FLOOR EXCEEDED *** correction %ld ms > published floor "
+                              "%d ms (alarm %lu of 3 before re-rule)\n",
+                              adjustMs, CLOCK_FLOOR_MS, clockAlarms);
+                if (adjustMs > CLOCK_RERULE_MS)
+                    Serial.printf("*** SINGLE-SAMPLE RE-RULE TRIGGER *** %ld ms exceeds %d ms — "
+                                  "re-open the A.3 ruling on this reading alone\n",
+                                  adjustMs, CLOCK_RERULE_MS);
+                Serial.printf("NTP,alarm,%lu,adjust_ms,%ld,floor_ms,%d,alarms,%lu\n",
+                              now, adjustMs, CLOCK_FLOOR_MS, clockAlarms);
+            }
         }
         lastSyncEpochUs = nowUs;
         lastSyncMillis = now;
         needsRepaint = true;
     }
+
+#ifdef GAMETEST_FORCE_ARM
+    // ---- serial arm switch, so one flash covers all three arms ----
+    while (Serial.available()) {
+        const int ch = Serial.read();
+        int want = -1;
+        if (ch == 'a' || ch == 'A') want = 0;
+        else if (ch == 'b' || ch == 'B') want = 1;
+        else if (ch == 'c' || ch == 'C') want = 2;
+        if (want >= 0 && (Arm)want != arm) {
+            // Abandon any run in flight: a hold that started under one arm and
+            // ended under another belongs to neither, and silently attributing
+            // it to the second is how a clean-looking number stops being true.
+            if (holdActive) {
+                Serial.println("HOLD,run_void,reason,arm_switched_mid_run");
+                holdActive = false;
+            }
+            arm = (Arm)want;
+            ApplyArm();
+            needsRepaint = true;
+        }
+    }
+#endif
 
     // ---- periodic heartbeat so a long NTP soak has a trail ----
     static unsigned long lastBeat = 0;

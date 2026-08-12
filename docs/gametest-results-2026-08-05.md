@@ -14,10 +14,23 @@ scoring granularity is `max(clock, input)`.
 
 | # | Question | Verdict |
 |---|---|---|
-| 1 | Hold-gesture dropout | **VIABLE** — with a ≥100 ms rejoin window, driver source. §8's two-person rule survives. |
+| 1 | Hold-gesture dropout | **VIABLE** — ≥100 ms rejoin window, driver source. ⚠️ Arms B/C ran only on the pre-`4c504f2` build; **not re-measured**. |
 | 2 | Multitouch | **SINGLE-POINT**, measured. Closed by design anyway; stray contact needs no filter. |
-| 3 | NTP uncertainty | **75.7 ms** — forces ~0.1 s scoring buckets, not milliseconds. |
-| 4 | Key-window input floor | **avg 3 ms, max 43 ms** over 31 728 samples. Not the binding constraint. |
+| 3 | NTP uncertainty | ~~75.7 ms~~ → **198.5 ms** (superseded 2026-08-11, §3) — forces **0.2 s** buckets. |
+| 4 | Key-window input floor | **avg 3 ms, max 43 ms.** Not binding — and arm-C-gated, so unre-measured too. |
+
+> ⚠️ **Two caveats that apply to this whole document, added 2026-08-11.**
+>
+> 1. **Every arm-comparison figure here comes from the 0734 session, on the build `4c504f2`
+>    replaced.** In that build the arm-cycle branch sat behind a broken swipe test and was
+>    unreachable; the fix landed at 14:09 that day. The corrected 26.8 h session ran **arm A
+>    only**. So rows 1 and 4 describe an instrument we deliberately retired. §13 A.3 stays open
+>    on exactly this.
+> 2. **Some counts here are intermediate snapshots, not final.** This doc was committed at
+>    08:45 while the session ran to 08:53. Where it says `C runs 10 / dropouts 27` the final
+>    ledger reads `20 / 66`; `31 728` keywindow samples finally read `62 675`; "all 48 dropouts"
+>    is 87 `HOLD,dropout` lines plus 4 visible only in the histogram (`hist_ge100,4`,
+>    `longest_ms,4044` — which also contradicts §13's "every dropout ≤56 ms").
 
 ---
 
@@ -123,17 +136,38 @@ contact begins on the first attempt.
 
 ---
 
-## 3. NTP uncertainty — 75.7 ms
+## 3. NTP uncertainty — ~~75.7 ms~~ **SUPERSEDED: 198.5 ms**
+
+> **SUPERSEDED 2026-08-11.** The number below is the one §13 A.3 was closed on, and it is wrong.
+> Kept because a wrong number somebody acted on is part of the record; struck rather than
+> deleted so the reasoning that followed from it is still legible.
+>
+> A **cleaner, longer** session — `gametest-2026-08-05-0855.log`, 26.8 h, same board, same
+> statistic, same 3 h cadence, `poll_max_ms` **45** rather than 20042 — recorded **8** individual
+> corrections with a worst of **198,504 µs = 198.5 ms**. Seven of the eight exceed 75.7; only
+> n=4 (51.3 ms) falls below. This session's own heartbeat printed `uncertainty_ms,198` for 26
+> hours while this document asserted 75.7, and nothing complained — which is now its own ledger
+> entry, and the reason the harness raises a `*** CLOCK FLOOR EXCEEDED ***` alarm instead of
+> merely printing a field.
+>
+> The 5 corrections behind 75.7 do not exist in any log: that window was the freeze, so only the
+> running max survived. It was not a floor, it was a small sample's lucky low.
+>
+> **Clock floor is 199 ms; the deviation bucket is 0.2 s.** The evidence is committed at
+> `test/fixtures/ntp-corrections-2026-08.json` in valar-eam-feed — the eight readings live there,
+> not in this prose, so they cannot drift.
 
 ```
 NTP,beat,...,syncs,6,worst_us,75686,uncertainty_ms,20042,poll_avg_ms,8,poll_max_ms,20042
 ```
 
-`worst_us,75686` = **75.7 ms**, the largest correction NTP applied across 6 syncs over 17 h.
-That is the honest figure: it is exactly the error a device carries into a deviation score.
+~~`worst_us,75686` = **75.7 ms**, the largest correction NTP applied across 6 syncs over 17 h.
+That is the honest figure: it is exactly the error a device carries into a deviation score.~~
 
 **Discard `uncertainty_ms,20042`.** That figure is `max(drift, poll floor)` and the poll floor
-was contaminated by the harness freeze below. The real floor is `max(75.7 ms, 43 ms)` = **75.7 ms**.
+was contaminated by the harness freeze below. ~~The real floor is `max(75.7 ms, 43 ms)` = **75.7 ms**.~~
+The real floor is `max(198.5 ms, 43 ms)` = **198.5 ms**, and the input floor is even less binding
+than it was.
 
 Two syncs are required before any uncertainty exists at all; a lone sync reports `-1`
 (UNMEASURED), because an earlier session read `syncs,1 worst_us,0 uncertainty_ms,6036` and
@@ -152,9 +186,27 @@ will actually run in, not the idle loop. Input is **not** the binding constraint
 
 ---
 
-## 5. Scoring granularity — amended 2026-08-05
+## 5. Scoring granularity — amended 2026-08-05, ~~0.1 s~~ **RE-AMENDED 2026-08-11 to 0.2 s**
 
-`max(75.7 ms clock, 43 ms input)` = ~76 ms, so the finest honest bucket is **0.1 s**. Design §4's
+> **The rule did not change; the measurement did.** `max(clock, input)` is still the formula and
+> §13's "display the smallest bucket the measured floor supports" is still what executes. With the
+> clock at **198.5 ms** rather than 75.7, that arithmetic gives `max(198.5, 43)` = 198.5 ms and the
+> finest honest bucket is **0.2 s**, not 0.1 s.
+>
+> Everything below is retained as written, with the superseded figures struck. Read `0.1 s` as
+> `0.2 s` and `75.7 ms` as `199 ms` throughout. The live constants are `scoring.bucketS` and
+> `scoring.clockFloorMs` in valar-eam-feed `src/game/config.ts`; the evidence is
+> `test/fixtures/ntp-corrections-2026-08.json` there.
+>
+> Two consequences of the wider bucket, neither of them a loss:
+> - The SHACK zone (|dev| ≤ one bucket) now sits almost exactly on the clock floor, so the device
+>   calls a direct hit precisely where it cannot tell the difference — which is what a direct hit
+>   ought to mean, and was **not** true at 0.1 s.
+> - `metresPerBucket` doubled with it (100 → 200) to hold the design's "300 ms late ≈ 300 m off"
+>   anchor. Widening the bucket alone would have halved the miss slope and quietly made every miss
+>   in the game half as bad.
+
+~~`max(75.7 ms clock, 43 ms input)` = ~76 ms, so the finest honest bucket is **0.1 s**.~~ Design §4's
 "milliseconds" was provisional pending this measurement; §13's rule (display the smallest bucket
 the measured floor supports) is what executes. Ruling:
 

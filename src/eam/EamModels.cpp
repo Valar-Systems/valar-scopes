@@ -61,6 +61,7 @@ bool ParseMsg(JsonObjectConst o, Msg& out)
     out.callsign = o["callsign"].as<String>();
     out.codeword = o["codeword"].as<String>();
     out.malformed = o["malformed"].is<bool>() ? o["malformed"].as<bool>() : false;
+    out.partial = o["partial"].is<bool>() ? o["partial"].as<bool>() : false;
     return true;
 }
 

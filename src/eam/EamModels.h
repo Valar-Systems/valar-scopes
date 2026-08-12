@@ -33,6 +33,17 @@ struct Msg {
     String callsign;
     String codeword;                 // Skyking codeword (optional)
     bool malformed = false;          // "± copy?" -- a questionable copy
+    // THE COPY IS SHORTER THAN THE AUDIO CAN ACCOUNT FOR. Set by the backend when
+    // char_count over the transmission's duration falls below a measured floor.
+    //
+    // Distinct from `malformed`, and the two must not be merged. `malformed` means
+    // the copy we hold looks wrong; `partial` means the copy we hold looks FINE and
+    // is incomplete -- a fluent, correctly-grouped EAM with groups silently missing.
+    // That is the dangerous ASR failure, because nothing else in the chain can tell.
+    //
+    // Absent means "not incomplete", never "not checked": the backend only sets it
+    // when a duration was reported.
+    bool partial = false;
 };
 
 // --------------------------------------------------------------------------------- tempo
