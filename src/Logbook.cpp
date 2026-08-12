@@ -153,6 +153,15 @@ void Logbook::Begin()
     loadRecord(prefs, "rec-near", recNear);
     prefs.end();
 
+    // BEFORE the summary line, so what it prints is the book as it now stands
+    // rather than a count that is already stale by one statement. Idempotent: it
+    // leaves no comma keys behind, so every later boot folds zero and says
+    // nothing.
+    const uint16_t foldedOps = foldCommaVariants();
+    if (foldedOps)
+        Serial.printf("[logbook] folded %u co-owner spelling(s); operators now %u\n",
+                      (unsigned)foldedOps, (unsigned)operators.size());
+
     lastPersist = millis();
     Serial.printf("[logbook] loaded %u types (%u claimed), %u airlines (%u), %u countries (%u), %u contacts\n",
                   (unsigned)types.size(), (unsigned)claimedTypes,
@@ -399,6 +408,74 @@ bool Logbook::adoptTruncatedOperator(const String& fullName)
                   oldKey.c_str(), fullName.c_str(),
                   operators[fullName].claimDay != 0 ? "carried" : "none");
     return true;
+}
+
+// ---- the one-time co-owner fold, at load -----------------------------------
+//
+// adoptCommaVariant() below handles a variant that a LIVE SIGHTING reaches. This
+// handles the rest: entries already banked under "<base>, CO-OWNER" that may not
+// fly over again for weeks, and which until then hold slots in a store that is
+// refusing new entries because it is full.
+//
+// That is the difference between the two, and it is why this exists at all.
+// Truncating at the comma stops the store GROWING; only this reopens one that
+// has already closed. On the bench: .55 sat at 220/220 with eleven NetJets and
+// two Flexjet variants among them, so its newest slot had become a revolving
+// door -- each new operator evicting the previous one. Folding returns twelve
+// slots and the store starts recording again.
+//
+// NOT A DELETION, which is the line this had to stay inside: every entry removed
+// is another spelling of an operator that remains in the book. Nothing a customer
+// collected stops being there; a list that said "NETJETS SALES INC" eleven times
+// with different tails appended now says it once.
+//
+// Merge rules:
+//   firstDay -- the EARLIEST wins. The collection is a record of when you first
+//               saw an operator, and folding must not move that date later.
+//   claimDay -- the EARLIEST non-zero wins, and a claim can never be lost to a
+//               merge: if any spelling was claimed, the survivor is claimed.
+//
+// claimedOperators is RECOMPUTED rather than adjusted by deltas. It is an
+// incrementally-maintained counter and two claimed spellings collapsing into one
+// makes the delta arithmetic a place to be wrong silently; a full recount is
+// O(n) once at boot and cannot drift.
+uint16_t Logbook::foldCommaVariants()
+{
+    uint16_t folded = 0;
+    for (auto it = operators.begin(); it != operators.end(); ) {
+        const int c = it->first.indexOf(',');
+        if (c < 0) { ++it; continue; }
+        String base = it->first.substring(0, c);
+        base.trim();
+        if (base.isEmpty()) { ++it; continue; }
+
+        const SeenStat src = it->second;
+        const String was = it->first;
+        // std::map::erase returns the next iterator and invalidates only the
+        // erased one; a later insert leaves every other iterator valid, so `it`
+        // stays good across both operations.
+        it = operators.erase(it);
+
+        auto b = operators.find(base);
+        if (b == operators.end()) {
+            operators[base] = src;
+        } else {
+            if (src.firstDay != 0 && (b->second.firstDay == 0 || src.firstDay < b->second.firstDay))
+                b->second.firstDay = src.firstDay;
+            if (src.claimDay != 0 && (b->second.claimDay == 0 || src.claimDay < b->second.claimDay))
+                b->second.claimDay = src.claimDay;
+        }
+        Serial.printf("[logbook] folded '%s' -> '%s'%s\n", was.c_str(), base.c_str(),
+                      src.claimDay != 0 ? " (claim carried)" : "");
+        ++folded;
+    }
+    if (folded) {
+        claimedOperators = 0;
+        for (const auto& kv : operators)
+            if (kv.second.claimDay != 0) ++claimedOperators;
+        dirty = true;
+    }
+    return folded;
 }
 
 // ---- the co-owner variant migration ----------------------------------------

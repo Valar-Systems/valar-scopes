@@ -21,6 +21,14 @@ const UA = "BlipscopePhotoHarvest/1.0 (+daniel@valarsystems.com)";
 // target -> Commons search query. Queries are tight so the type name lands in the
 // title; the scorer below still filters out interiors/cockpits/models/wrecks.
 const PRIORITY: Record<string, string> = {
+  // --- GA turboprop ---
+  // K100 has no photo in the library at ALL (not a missing square variant --
+  // production returns no pointer at FW 6 or FW 7), and no base type to alias
+  // to, so it is a sourcing job rather than a data-entry one. Seen on the bench
+  // s3-128 as a US Dept of the Interior aircraft. "Quest" is included because
+  // the type was Quest Kodiak before Daher acquired it and most Commons files
+  // are filed under the old name.
+  K100: "Quest Kodiak 100 aircraft",
   // --- airline (highest desk-radar traffic) ---
   E175: "Embraer E175 airline",
   B712: "Boeing 717 airline",
