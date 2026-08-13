@@ -164,6 +164,45 @@ mistaken for the strong one.
 Same family as the entry above: the input is a statement of intent, and here
 *both* sides stated it, separately.
 
+## Standing practice: watch for the fix whose failure mimics the bug
+
+Some mistakes announce themselves. The ones that keep costing us time here are
+the ones where **being wrong looks exactly like the problem you were fixing** —
+so the evidence that the fix is broken reads as evidence that it hasn't finished
+working yet.
+
+Three instances, and the shape is the point:
+
+- **A wrong exclusion range.** The non-ICAO table
+  ([icaoalloc.ts](proxy/src/icaoalloc.ts) / [SpecialAircraft.cpp](src/SpecialAircraft.cpp))
+  exists to stop enriching addresses that can never resolve. A range wrongly
+  *included* blanks a **real** aircraft — which is precisely the symptom of the
+  enrichment bug the table was added to cure. The first draft listed five
+  registry-empty regions and blanked `f40001`; it read as a data gap, not a code
+  defect.
+- **A test that requests the path the test chose.** Sixteen passing tests around
+  an enrolment endpoint that 404'd, because a green suite looks the same whether
+  it proved the contract or only its own assumption.
+- **A rehearsal that couldn't fail.** A check whose environment lacked the
+  property it was checking passes for the same reason a correct system does.
+
+What they share: **the failing and the passing state produce the same
+observation.** No amount of staring at that observation separates them.
+
+The move is always the same — find a control whose result differs between the
+two worlds, and run it *before* believing the result:
+
+- an exclusion list gets a **positive** case that must still resolve (real
+  aircraft, named in the test, from the blocks nearest the exclusion)
+- a contract check derives its input from the **other side**
+- a rehearsal is made to fail on purpose once, and observed failing
+
+Corollary for exclusion lists specifically, since they recur: the two error
+directions are not symmetric. Missing an entry costs one pointless request —
+the status quo. A wrong entry silently removes something real. So an exclusion
+earns its place by **positive evidence that it was observed**, never by absence
+from a snapshot. When in doubt, leave it out.
+
 ## Standing practice: never measure the sky through the anonymous endpoint
 
 The relays exist because the upstreams throttle us by IP

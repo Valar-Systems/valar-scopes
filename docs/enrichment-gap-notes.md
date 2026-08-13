@@ -120,6 +120,32 @@ total). If a hand-curated overlay is ever built, that is its input — not the
    today's numbers an overlay would be built to serve a backlog that is ~half
    phantom and ~a third a two-line caching fix.
 
+## The exclusion range that almost shipped, and why it is a category
+
+The first draft of the non-ICAO table listed **five** regions, all of them with
+zero registered airframes in the Mictronics histogram. It broke 27 tests: the
+enrich suite uses `f40001` as a fixture, which sits inside the `0xea0000` range.
+
+Worth recording beyond the code comment, because the *shape* generalises: **a
+wrong exclusion range produces the identical symptom to the bug being fixed.**
+This table exists to stop enriching addresses that can never resolve. An address
+wrongly excluded is a real aircraft with a blank card — which is exactly what the
+30-day-typeless-cache defect above looks like. Had it shipped, the evidence that
+the fix was broken would have read as evidence the fix hadn't finished draining
+yet, and the natural response (wait longer) is the one that never resolves it.
+
+That is the same shape as two failures already recorded in CLAUDE.md — a test
+that requests the path the test itself chose, and a rehearsal whose environment
+couldn't produce the failure it was rehearsing. In all three, **the broken and
+the working state produce the same observation**, so no amount of looking at that
+observation tells them apart. It is now written up there as a standing practice.
+
+The specific lesson for exclusion lists: the two error directions are not
+symmetric. A missing entry costs one pointless lookup — the status quo. A wrong
+entry silently removes something real. So an entry earns its place by **positive
+evidence it was observed in live traffic**, never by absence from a registry
+snapshot. Only `0x230000-0x2fffff` ships, and it covers 100% of what was seen.
+
 ## Why there is no callsign -> aircraft lookup
 
 This question recurs ("can't we just look the callsign up?"), so: **a callsign is
