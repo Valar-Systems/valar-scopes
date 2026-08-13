@@ -124,10 +124,22 @@ See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + out
   adsb.fi **cannot be a production upstream** without a written commercial grant. Their
   public rate limit (**1 req/s per IP**) is also below fleet need, so the ask is *two*
   things, not one. adsb.fi is a bench-measurement source only until that lands.
-- **BLIP_KEYS drift.** The staging *and* production `BLIP_KEYS` secrets got out of sync with
-  `Cloudflare keys.txt`, causing confusing 401s (a valid-looking key rejected). Reconcile:
-  document the actual deployed key per env and tidy the keys file. Cloudflare secrets are
-  write-only, so the file must be the source of truth.
+- ~~**BLIP_KEYS drift.**~~ **RESOLVED 2026-08-13 by deleting the secret.** The shared key
+  is gone from production; per-device keys (`HMAC(DEVICE_KEY_SECRET, deviceId)` presented
+  with `X-Blip-Device`) are the only auth path. Verified before removal: zero successful
+  device requests in the preceding 6 h had used anything else. See
+  [docs/device-enrollment.md](docs/device-enrollment.md).
+- **PILOT BLOCKER — a rejected credential is invisible and unrecoverable.** Found while
+  removing `BLIP_KEYS`. The device has **no handler for a sustained cloud 401**:
+  `FetchResult.authFailed` is set for OpenSky only, and `AircraftManager.cpp` explicitly
+  comments that "a cloud 401 is a key mismatch — retrying can't fix it". So a board whose
+  key stops working goes quiet with **no on-screen indication and no config-page
+  indication**, and the only recovery is a hand re-verify nobody knows to perform.
+
+  The consequence is bigger than one board: **we currently have no way to rotate fleet
+  credentials.** A leaked `DEVICE_KEY_SECRET` would mean asking every customer to
+  re-verify by hand, and most won't. That makes the rotation lever theoretical, which is
+  the same as not having it. Scope in "Credential recovery" under Tier 1.
 - **Flash the photo-null fix** (PR #94, [[ghost-tap-stale-deadreckon]] sibling) to the bench
   and fold into the `v5` OTA — the bench still runs the ghost-tap build.
 
@@ -145,6 +157,52 @@ already covers every SKU, and `FW_VERSION` is already at 5.
 ## Tier 1 — Quick wins ("alerts & polish" release)
 
 Small diffs, immediate perceived value. Ship together as one minor release.
+
+0. **Credential recovery — a rejected key must be visible and re-fixable** *(PILOT
+   BLOCKER, scoped 2026-08-13, NOT YET BUILT)*. Without this the credential-rotation
+   lever is theoretical: see the launch-blocker entry above.
+
+   **The good news first: the recovery ACTION already exists.** The Verify button, the
+   Turnstile popup, the `?id=` paste fallback and the `/enroll-key` landing endpoint all
+   ship today, and enrollment is idempotent — a re-verify re-derives and overwrites
+   `cloud-key-fac`. Nothing new is needed to *fix* a board. What is missing is the
+   **condition that offers them**, which is why this is smaller than it looks.
+
+   Three pieces:
+
+   1. **Detect, with a debounce.** `FetchResult` gains a cloud-specific
+      `authRejected` (set only on **401/403 from the cloud feed** — never a network
+      error, a 503 "warming", or a captive portal, all of which already land in the same
+      branch at `AircraftManager.cpp:~1707` and must NOT latch). Latch only when BOTH a
+      consecutive-failure count **and** an elapsed-time floor are crossed (suggest 5
+      consecutive *and* ≥15 min); any 2xx clears it instantly. Requiring both matters: a
+      count alone is burned through in seconds at the fast post-touch poll cadence, and a
+      timer alone latches on one blip that happens to straddle it.
+   2. **Surface it in the config page** — cheap. `enrolled` (from `cloud-key-fac`) already
+      drives the verify checklist; this makes the state **three-way** instead of two:
+      never-enrolled / enrolled-OK / enrolled-but-rejected. The third reuses the existing
+      Verify step with different copy. A never-enrolled board must NOT say
+      "re-verify" — that is the whole reason it is three states and not a boolean.
+   3. **Surface it on screen** — the real cost, because **there is no message/banner
+      facility at all** (searched: no `ShowMessage`, no status overlay, no centered-string
+      helper). Needs a design call on a 240 px round panel and a new drawing path. Gate on
+      `FEATURE_CLOUD_FEED`; OpenSky-BYO and local-receiver devices are unaffected.
+
+   **Cost:** (1) and (2) are small and contained — a field, a counter, one condition and
+   some copy. (3) is the majority of the work and the only part needing a design decision.
+   Worth splitting: (1)+(2) alone already turn "silently dead" into "the config page tells
+   you and offers the fix", which is most of the value.
+
+   **Failure modes to guard, since a false latch is worse than none:**
+   - *Transient blip latches.* Mitigated by 401/403-only + both thresholds + instant clear.
+   - *Fleet-wide latch during a deliberate rotation.* This is the DESIRED behaviour — but
+     it means every customer sees the message at once, so the copy must be neutral
+     ("this device needs re-verifying"), never accusatory or alarming.
+   - *A revoked board latches permanently.* The device cannot distinguish revoked from
+     stale-key (both are 401), so it must not claim to. "Needs re-verifying" is true in
+     both cases; a revoked board then fails re-verification and the enrol page can say why.
+   - *The banner becoming permanent furniture* on a device that legitimately cannot
+     recover — decide up front whether it dims/collapses after N days, and mind burn-in.
 
 1. **Visual alert system for military + emergency contacts** — **IMPLEMENTED
    2026-07-16** (`UpdateVisualAlerts`/`DrawVisualAlert` in `AircraftManager.cpp`;
