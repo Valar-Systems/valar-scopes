@@ -22,40 +22,39 @@ import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 
-// Authenticate a request. Tries the per-device key path first (only active when
-// DEVICE_KEY_SECRET is set and the request carries X-Blip-Device), then falls
-// back to the shared BLIP_KEYS list -- so the live fleet, which sends only a
-// shared key, is entirely unaffected. Returns a rate-limit bucket id and whether
-// the caller is device-authed (trustworthy enough for the leaderboard's verified
-// tier), or null when rejected. The bucket is never the key itself.
-async function authenticate(
-  env: Env,
-  request: Request,
-): Promise<{ bucket: string; deviceAuthed: boolean } | null> {
+// Authenticate a request. Per-device keys are now the ONLY way in: an
+// HMAC-derived key that is only valid when presented with the X-Blip-Device id
+// it was derived for. Returns a rate-limit bucket id, or null when rejected.
+// The bucket is never the key itself.
+//
+// The shared BLIP_KEYS list was removed 2026-08-13, after every board on the
+// fleet had enrolled and the analytics showed zero successful device requests
+// still arriving on it. Its problem was structural rather than cryptographic:
+// one secret held by every device means a single leak revokes the whole fleet,
+// and a request proved only that SOMEONE held the key -- never which device --
+// so rate limiting bucketed by key index and attribution was impossible. Both
+// of those are now per-identity.
+//
+// There is deliberately no fallback. A fallback is what makes a credential
+// migration untestable: while both paths work, every check passes whichever one
+// the caller happens to be exercising, which is why the cutover was verified by
+// showing a SHARED response before an enrolled one rather than the reverse.
+async function authenticate(env: Env, request: Request): Promise<{ bucket: string } | null> {
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
 
   const deviceId = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
+  if (!deviceId) return null;
 
-  // Revocation is checked BEFORE any key path, so a revoked device cannot slip
-  // through by presenting a still-valid SHARED key -- revocation is by identity,
-  // not by which credential happened to be offered. isRevoked fails OPEN on a KV
-  // error (see revocation.ts): a storage blip must never take the fleet down to
-  // enforce a list that is almost always empty.
-  if (deviceId && (await isRevoked(env, deviceId))) return null;
+  // Revocation is checked BEFORE the key path, so a revoked device is refused
+  // even while its derived key remains cryptographically valid -- revocation is
+  // by identity, and with the shared path gone, identity is all there is.
+  // isRevoked fails OPEN on a KV error (see revocation.ts): a storage blip must
+  // never take the fleet down to enforce a list that is almost always empty.
+  if (await isRevoked(env, deviceId)) return null;
 
-  // Per-device path: HMAC-derived key keyed to the X-Blip-Device id.
-  if (deviceId && (await verifyDeviceKey(env, deviceId, provided))) {
-    return { bucket: `dev:${deviceId}`, deviceAuthed: true };
-  }
-
-  // Shared-key path (unchanged): the index -- never the key -- is the bucket.
-  const keys = (env.BLIP_KEYS ?? "")
-    .split(",")
-    .map((k) => k.trim())
-    .filter((k) => k.length > 0);
-  const idx = keys.indexOf(provided);
-  return idx >= 0 ? { bucket: `key:${idx}`, deviceAuthed: false } : null;
+  if (await verifyDeviceKey(env, deviceId, provided)) return { bucket: `dev:${deviceId}` };
+  return null;
 }
 
 // Substituted at bundle time by scripts/deploy.sh (--define). Defaults to "dev"
@@ -274,18 +273,18 @@ async function route(
   if (auth === null) return errorResponse(401, "unauthorized");
   // Attribute the metric to the device only now that its key has been verified;
   // see setDeviceAttribution() for why unauthenticated headers are never stored.
-  setDeviceAttribution(meta, request, auth.deviceAuthed);
+  setDeviceAttribution(meta, request);
   // WHICH CREDENTIAL WAS ACCEPTED — echoed to the device, not merely recorded.
   //
-  // While BOTH the shared key and per-device keys are valid, "the board still
-  // works" cannot distinguish them: an enrolled device could be authenticating
-  // on the old shared key and nothing would say so until removal broke it. That
-  // is a check that cannot fail. This makes the answer observable at the device,
-  // live, during a watched bench run — see docs/device-enrollment.md.
-  //
-  // Taken from the SAME field that gates attribution rather than recomputed, so
-  // the header and the dataset cannot drift apart.
-  meta.authPath = auth.deviceAuthed ? "device" : "shared";
+  // Now always "device": reaching here at all means the per-device path passed,
+  // since it is the only path. KEPT ANYWAY, and not because removing it is hard.
+  // Its job was to make a credential migration observable at the bench, and it
+  // did that; the next migration will want the same affordance, and a header
+  // that has always been present is cheaper to keep than to reintroduce. It also
+  // keeps the device-visible contract stable across this deploy: firmware and
+  // smoke-prod.sh both assert on it TODAY, and smoke-prod asserting "expect
+  // device, got device" is the check that proves the shared path is gone.
+  meta.authPath = "device";
   const keyLimited = await limitByKey(env, auth.bucket);
   if (keyLimited) return keyLimited;
 

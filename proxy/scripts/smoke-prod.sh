@@ -30,15 +30,16 @@
 # echoed by this script; only the header name appears in output. Run it yourself:
 #
 #   export BLIP_KEY='...'                 # your prod device key (not stored here)
-#   export BLIP_DEVICE='<bench device id>' # REQUIRED once BLIP_KEYS is removed
+#   export BLIP_DEVICE='<bench device id>' # REQUIRED -- the only auth path
 #   ./scripts/smoke-prod.sh               # defaults to production
 #   BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh
 #
-# BLIP_DEVICE is optional while the shared key still works and mandatory after
-# it goes -- see the AUTH block below. The run announces which credential it
-# expects and asserts it before any check that depends on it.
+# BLIP_DEVICE is MANDATORY since the shared BLIP_KEYS list was removed
+# (2026-08-13): a bare X-Blip-Key is no longer a credential. See the AUTH block
+# below. The run announces which credential it expects and asserts it before any
+# check that depends on it.
 #
-# NOTE ON ENVIRONMENTS: staging has its OWN BLIP_KEYS/DEVICE_KEY_SECRET, so a
+# NOTE ON ENVIRONMENTS: staging has its OWN DEVICE_KEY_SECRET, so a
 # production key answers 401 there. That presents as seven unrelated failures
 # and is a credential mismatch, not a staging defect.
 #
@@ -60,26 +61,33 @@ fi
 
 # ---- WHICH CREDENTIAL THIS SCRIPT AUTHENTICATES WITH ------------------------
 #
-# When the shared BLIP_KEYS list is removed, a bare X-Blip-Key stops being a
-# credential at all: the only accepted form is a per-device key PLUS the
+# The shared BLIP_KEYS list was removed 2026-08-13, so a bare X-Blip-Key is no
+# longer a credential at all: the only accepted form is a per-device key PLUS the
 # X-Blip-Device id it was minted for. This script is the only thing checking
-# production, so it must survive that change rather than discover it.
+# production, so it was made to survive that change rather than discover it.
 #
-# BLIP_DEVICE is therefore optional TODAY and required AFTER removal. Set it and
-# every authed call below carries the id; leave it unset and the requests are
-# byte-identical to what they were. The header is harmless on the shared path --
-# a shared key fails the 64-hex device-key shape and falls through to the list.
+# BLIP_DEVICE is therefore REQUIRED. Set it and
+# every authed call below carries the id.
 #
 # ONE ARRAY, used at every authed call site, so a header cannot be added to some
 # requests and forgotten on others -- which is how you get a script that proves
 # the device path works on the two endpoints someone remembered.
 DEVICE="${BLIP_DEVICE:-}"
-AUTH=(-H "X-Blip-Key: $KEY")
-[ -n "$DEVICE" ] && AUTH+=(-H "X-Blip-Device: $DEVICE")
+if [ -z "$DEVICE" ]; then
+  # Refuse rather than run. Without the id every authed check below 401s, and a
+  # wall of failures reads as "production is down" when it means "you forgot an
+  # environment variable" -- the most expensive way to learn that.
+  echo "BLIP_DEVICE is not set, and since BLIP_KEYS was removed a bare key is not" >&2
+  echo "a credential. export BLIP_DEVICE='<your bench device id>' and re-run." >&2
+  exit 2
+fi
+AUTH=(-H "X-Blip-Key: $KEY" -H "X-Blip-Device: $DEVICE")
 
 # What the auth path is EXPECTED to be, asserted below rather than assumed.
-# Defaults from whether an id was supplied; override to pin it explicitly.
-EXPECT_AUTH="${BLIP_EXPECT_AUTH:-$([ -n "$DEVICE" ] && echo device || echo shared)}"
+# Only "device" is reachable now; the variable survives so the assertion stays
+# an assertion rather than becoming a hardcoded string nobody re-reads, and so
+# the next credential migration has somewhere to express itself.
+EXPECT_AUTH="${BLIP_EXPECT_AUTH:-device}"
 
 pass=0
 fail=0
@@ -206,10 +214,10 @@ hit "/healthz" 200 "$BASE/healthz"
 # depends on it.
 #
 # The corollary in CLAUDE.md: when a check protects a property, confirm the
-# check's own environment has that property. After BLIP_KEYS is removed, every
+# check's own environment has that property. With BLIP_KEYS gone, every
 # check below is meant to be exercising the per-device path -- and if this script
 # were somehow still authenticating on a shared credential, all of them would
-# pass while proving nothing about the only auth path that will exist. That is
+# pass while proving nothing about the only auth path that now exists. That is
 # the failure mode this script exists to not have.
 #
 # Run FIRST because everything downstream is downstream of it: a wrong answer

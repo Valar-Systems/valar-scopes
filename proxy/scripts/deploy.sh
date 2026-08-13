@@ -90,6 +90,40 @@ printf '  commit  %s  (%s)\n' "$SHA" "$BRANCH"
 printf '  subject %s\n\n' "$(git log -1 --format=%s)"
 
 cd "$ROOT/proxy" || exit 1
+
+# ---- 3b. DEVICE_KEY_SECRET must exist in the target environment -------------
+# Since the shared BLIP_KEYS list was removed (2026-08-13), per-device keys are
+# the only way in -- and verifyDeviceKey() returns false when the secret is
+# unset. So a missing secret does not degrade the fleet, it REFUSES it: every
+# device 401s until someone notices. Checked here, against the environment being
+# deployed to, because the two environments hold separate secrets and the failure
+# is total rather than partial.
+#
+# Run bare and inspected whole, per CLAUDE.md: `wrangler secret list` puts auth
+# failures on stderr and a cheerful body on stdout, so a filtered read of a
+# failed call looks like "secret absent" when it actually means "not logged in".
+# An error is therefore reported as an error, never as a missing secret.
+SECRET_ERR="$(mktemp)"
+SECRET_OUT="$(npx wrangler secret list --env "$ENVIRONMENT" 2>"$SECRET_ERR")"
+SECRET_RC=$?
+if [ $SECRET_RC -ne 0 ]; then
+  echo "FATAL: could not list secrets for $ENVIRONMENT (wrangler exit $SECRET_RC)." >&2
+  echo "  This is NOT the same as the secret being absent -- fix the error and re-run." >&2
+  sed 's/^/  /' "$SECRET_ERR" >&2
+  rm -f "$SECRET_ERR"
+  exit 1
+fi
+rm -f "$SECRET_ERR"
+if ! printf '%s' "$SECRET_OUT" | grep -q 'DEVICE_KEY_SECRET'; then
+  echo "FATAL: DEVICE_KEY_SECRET is not set on $ENVIRONMENT." >&2
+  echo "  Per-device keys are the only auth path, so deploying now 401s the whole fleet." >&2
+  echo "  Set it first:  npx wrangler secret put DEVICE_KEY_SECRET --env $ENVIRONMENT" >&2
+  echo "  Secrets present:" >&2
+  printf '%s\n' "$SECRET_OUT" | sed 's/^/    /' >&2
+  exit 1
+fi
+printf '  secrets  DEVICE_KEY_SECRET present on %s\n\n' "$ENVIRONMENT"
+
 npx wrangler deploy --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
 
 # ---- 4. prove it, rather than assuming the upload implies it ----------------

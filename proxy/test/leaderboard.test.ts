@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rarityMultiplier } from "../src/leaderboard";
-import { call, TEST_KEY } from "./helpers";
+import { AUTH_HEADERS, call, TEST_KEY } from "./helpers";
 
 // Capture the structured console lines the submit path emits, so a diagnostic
 // that is supposed to fire can be shown firing rather than assumed to.
@@ -32,7 +32,7 @@ const PAGE = "/blipscope";
 function submit(body: unknown, headers: Record<string, string> = {}, path = `${API}/leaderboard`): Request {
   return new Request(`https://proxy.test${path}`, {
     method: "POST",
-    headers: { "X-Blip-Key": TEST_KEY, "Content-Type": "application/json", ...headers },
+    headers: { ...AUTH_HEADERS, "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -328,7 +328,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     const legacy = ["/v1/blips", "/v1/config", "/v1/airports", "/v1/enrich/abc123", "/v1/photo/whatever"];
     for (const p of legacy) {
       const res = await call(new Request(`https://proxy.test${p}`, {
-        headers: { "X-Blip-Key": TEST_KEY },
+        headers: { ...AUTH_HEADERS },
         redirect: "manual",
       }));
       expect([301, 302, 307, 308], `${p} must not redirect`).not.toContain(res.status);
@@ -358,7 +358,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     for (const p of [`${API}/blips`, "/v1/blips"]) {
       const res = await call(new Request(`https://proxy.test${p}`, {
         method: "POST",
-        headers: { "X-Blip-Key": TEST_KEY },
+        headers: { ...AUTH_HEADERS },
         body: "{}",
       }));
       expect(res.status, `${p} POST`).toBe(405);
@@ -367,7 +367,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
 
   it("404s an unknown endpoint on both families, and anything outside them", async () => {
     for (const p of [`${API}/nope`, "/v1/nope"]) {
-      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { ...AUTH_HEADERS } }));
       expect(res.status, p).toBe(404);
     }
     // Not a Blipscope API prefix -> never routed into a Blipscope handler.
@@ -375,7 +375,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     // MISSILEER_ORIGIN is unset) rather than falling through to 404. The claim
     // under test is unchanged and is about which handler ran, not which number
     // came back.
-    const stray = await call(new Request("https://proxy.test/api/v1/missileer/blips", { headers: { "X-Blip-Key": TEST_KEY } }));
+    const stray = await call(new Request("https://proxy.test/api/v1/missileer/blips", { headers: { ...AUTH_HEADERS } }));
     expect(stray.status).not.toBe(200);
   });
 
@@ -391,7 +391,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     // wildcard, so an unclaimed namespace routes nowhere.
     const unclaimed = ["/api/v1/orbitscope/config", "/api/v1/quakescope/airports"];
     for (const p of unclaimed) {
-      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { ...AUTH_HEADERS } }));
       expect(res.status, `${p} must not route`).toBe(404);
     }
 
@@ -410,7 +410,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
       "/api/v1/missileer/config",
     ];
     for (const p of missileer) {
-      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { ...AUTH_HEADERS } }));
       expect(res.status, `${p} must reach the Missileer branch, not Blipscope`).toBe(503);
     }
   });
@@ -423,7 +423,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     // pins the contract that reaching the branch is not the same as forwarding
     // the caller's credentials.
     const res = await call(new Request("https://proxy.test/api/v1/missileer/config", {
-      headers: { "X-Blip-Key": TEST_KEY },
+      headers: { ...AUTH_HEADERS },
     }));
     expect(res.status).toBe(503);
     const body = (await res.json()) as any;
@@ -439,7 +439,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
       "/blipscope/blips", // page namespace, not the API one
     ];
     for (const p of nearMiss) {
-      const res = await call(new Request(`https://proxy.test${p}`, { headers: { "X-Blip-Key": TEST_KEY } }));
+      const res = await call(new Request(`https://proxy.test${p}`, { headers: { ...AUTH_HEADERS } }));
       expect(res.status, `${p} must not route`).toBe(404);
     }
   });
@@ -451,7 +451,7 @@ describe("legacy URL compatibility (docs/web-url-convention.md)", () => {
     const body = { id: ID_A, name: "Foreign", claimed: { airlines: 9 }, claimedTypes: ["A320", "B738"] };
     const res = await call(new Request("https://proxy.test/api/v1/missileer/leaderboard", {
       method: "POST",
-      headers: { "X-Blip-Key": TEST_KEY, "Content-Type": "application/json" },
+      headers: { ...AUTH_HEADERS, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }));
     expect(res.status).not.toBe(200);

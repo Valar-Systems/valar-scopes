@@ -13,8 +13,11 @@ export interface Env {
   RL_KEY?: RateLimit;
 
   // Secrets.
-  BLIP_KEYS?: string;        // comma-separated accepted (shared) device keys (rotation = old+new)
-  DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys (additive; shared keys still work)
+  // NOTE: BLIP_KEYS (the shared fleet key) was removed 2026-08-13. Deliberately
+  // NOT left here as an optional field: a declared-but-unread binding is how a
+  // secret gets quietly re-set later and silently does nothing, and TypeScript
+  // will now reject any code that reaches for it.
+  DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys -- now the ONLY way in
   TURNSTILE_SITEKEY?: string;    // PUBLIC. Rendered into the enrol page; empty renders the page's
                                  // "cannot verify" state, which is the same state a blocked
                                  // network produces and is therefore already handled.

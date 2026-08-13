@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RateLimit } from "../src/types";
-import { apiRequest, call } from "./helpers";
+import { AUTH_HEADERS, TEST_KEY, apiRequest, call } from "./helpers";
 
 const deny: RateLimit = { limit: async () => ({ success: false }) };
 const allow: RateLimit = { limit: async () => ({ success: true }) };
@@ -14,9 +14,39 @@ describe("auth", () => {
     expect((await call(wrongKey)).status).toBe(401);
   });
 
-  it("accepts any key from the comma-separated rotation list", async () => {
-    const res = await call(apiRequest("/v1/config"), { BLIP_KEYS: "old-key, test-key" });
-    expect(res.status).toBe(200);
+  // The shared BLIP_KEYS list was removed 2026-08-13. These pin the ways a
+  // caller might still expect it to work, because "no code path exists" is not
+  // something the other tests can show -- they all authenticate correctly and
+  // would pass just the same if a fallback were quietly reintroduced.
+  it("refuses a key with NO device id, even a well-formed one", async () => {
+    // Deliberately NOT AUTH_HEADERS: the absence of X-Blip-Device is the whole
+    // subject of this test, so the pair must be taken apart by hand here.
+    const noDevice = new Request("https://proxy.test/v1/config", {
+      headers: { "X-Blip-Key": TEST_KEY },
+    });
+    expect((await call(noDevice)).status).toBe(401);
+  });
+
+  it("ignores a BLIP_KEYS binding entirely if one is ever set again", async () => {
+    // Belt and braces: the field is gone from Env, so this is cast in
+    // deliberately. If someone re-adds the binding and a fallback with it, this
+    // fails -- which is the only way that regression announces itself.
+    const sharedOnly = new Request("https://proxy.test/v1/config", {
+      headers: { "X-Blip-Key": "old-shared-key" },
+    });
+    const res = await call(sharedOnly, { BLIP_KEYS: "old-shared-key, another" } as never);
+    expect(res.status).toBe(401);
+  });
+
+  it("refuses a valid key presented with the WRONG device id", async () => {
+    const mismatched = apiRequest("/v1/config", { "X-Blip-Device": "ffffffffffffffff" });
+    expect((await call(mismatched)).status).toBe(401);
+  });
+
+  // Negative control for all three: the correct pair must still be accepted, or
+  // "everything 401s" would satisfy every assertion above.
+  it("accepts the correct device id + derived key pair", async () => {
+    expect((await call(apiRequest("/v1/config"))).status).toBe(200);
   });
 
   it("leaves /healthz public", async () => {

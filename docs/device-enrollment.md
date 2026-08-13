@@ -225,7 +225,7 @@ What this work actually achieves:
 
 > **We ended server-side acceptance of any non-per-device credential.**
 
-After `BLIP_KEYS` is removed, the only thing that authenticates is
+`BLIP_KEYS` was removed on **2026-08-13**. The only thing that authenticates is
 `HMAC(DEVICE_KEY_SECRET, deviceId)` presented with its matching `X-Blip-Device`.
 That key is per-board, individually revocable, and attributable in the dataset. A
 key leaked by any route — a screenshot, a shared bench build, a pasted value in a
@@ -236,16 +236,19 @@ Neither is secret, and neither gets them data.
 
 ## Confirming WHICH credential a board is using
 
-While both the shared key and per-device keys are valid, **"the board still
-works" cannot distinguish them.** An enrolled board could be authenticating on
-the old shared key and nothing would say so until removal broke it. That is a
-check that cannot fail, so there is now a discriminator:
+**Historical note, kept because it is the reason the cutover was verifiable at
+all.** While both the shared key and per-device keys were valid, *"the board
+still works"* could not distinguish them: an enrolled board could have been
+authenticating on the old shared key and nothing would have said so until removal
+broke it. That is a check that cannot fail. So a discriminator was added *before*
+the removal, and the bench was required to observe a **`shared`** response before
+an **enrolled** one — a check only ever seen passing proves nothing.
 
-- **`X-Blip-Auth: device`** on every response to a per-device-authenticated
-  request; **`X-Blip-Auth: shared`** on the shared-key path; **absent** when no
-  auth ran, so absence is meaningful too.
-- It is derived from the same field that gates metric attribution, so the header
-  and the dataset cannot drift apart.
+- **`X-Blip-Auth: device`** on every response to an authenticated request;
+  **absent** when no auth ran, so absence is meaningful too.
+- `shared` is no longer reachable — there is no credential that produces it. The
+  header stays because the next credential migration will want the same
+  affordance, and because smoke-prod.sh asserts on it today.
 
 Two ways to read it, and the bench should use the first:
 
@@ -255,15 +258,19 @@ curl -sS -D- -o/dev/null https://scopes.valarsystems.com/api/v1/blipscope/config
   -H "X-Blip-Key: <the board's key>" -H "X-Blip-Device: <its device id>" | grep -i x-blip-auth
 ```
 
-- **In the dataset:** `m.dev` (blob5) is populated **only** on the device path —
-  `setDeviceAttribution()` returns early when `deviceAuthed` is false. So a board
-  whose device id appears in `blob5` authenticated per-device; traffic with an
-  empty `blob5` is shared-key. This is structural, not conventional: the shared
-  path cannot populate that field.
+- **In the dataset:** `m.dev` (blob5) is populated only past authentication, so a
+  board whose device id appears in `blob5` authenticated per-device. Traffic with
+  an empty `blob5` is now either a public page or a rejected request.
 
-**Do not remove `BLIP_KEYS` until both bench boards report `device`.** The whole
-point of the sequencing is that the net comes away only after the replacement is
-observed holding.
+**How the removal actually went (2026-08-13).** The order was: bench both boards
+to `device`, mint a bench identity, confirm smoke-prod green asserting *expect
+device, got device* — and only then take the shared list away. Before deleting
+the secret, the analytics were checked for any successful device request still
+arriving without device auth: **zero in the preceding six hours**, and the only
+non-device models in the window (`s3-21`, `s3-175-amoled`, `c3-128`) were all
+last seen within one second of each other, which is smoke-prod iterating model
+strings for the photo-variant gate rather than real hardware. The net came away
+only after the replacement was observed holding.
 
 ## Reflashing, editions, and what is actually lost
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deriveDeviceKey, verifyDeviceKey } from "../src/deviceauth";
-import { apiRequest, call, TEST_KEY } from "./helpers";
+import { apiRequest, call, TEST_DEVICE, TEST_DEVICE_SECRET, TEST_KEY } from "./helpers";
 
 const SECRET = "test-device-secret";
 const DEVICE_ID = "a1b2c3d4e5f6a7b8";
@@ -26,7 +26,7 @@ describe("deviceauth", () => {
   });
 });
 
-describe("per-device key auth (additive)", () => {
+describe("per-device key auth (the only path since 2026-08-13)", () => {
   it("authenticates a device-key request when the secret is configured", async () => {
     const key = await deriveDeviceKey(SECRET, DEVICE_ID);
     const req = apiRequest("/v1/config", { "X-Blip-Key": key, "X-Blip-Device": DEVICE_ID, "X-Blip-Model": "s3-146" });
@@ -40,12 +40,18 @@ describe("per-device key auth (additive)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("still accepts the shared key (live fleet unaffected)", async () => {
-    // Default env has BLIP_KEYS=test-key and no DEVICE_KEY_SECRET.
-    const res = await call(apiRequest("/v1/config", { "X-Blip-Model": "s3-146" }));
-    expect(res.status).toBe(200);
-    // And the shared key still works even when the device-key path is enabled.
-    const res2 = await call(apiRequest("/v1/config", { "X-Blip-Key": TEST_KEY }), { DEVICE_KEY_SECRET: SECRET });
-    expect(res2.status).toBe(200);
+  // The helper's fixture key is a REAL digest, not a placeholder. Pin it against
+  // a fresh derivation: if the two ever drift, every suite 401s at once and the
+  // symptom reads as "auth is broken" rather than "the fixture is stale".
+  it("the shared test fixture key really is the derivation of its device id", async () => {
+    expect(TEST_KEY).toBe(await deriveDeviceKey(TEST_DEVICE_SECRET, TEST_DEVICE));
+  });
+
+  // With the shared list gone, an unset DEVICE_KEY_SECRET no longer degrades to
+  // shared keys -- it refuses everyone. Deploy-blocking, and checked in
+  // scripts/deploy.sh; pinned here so the behaviour is stated, not assumed.
+  it("refuses everything when DEVICE_KEY_SECRET is unset (fails CLOSED)", async () => {
+    const res = await call(apiRequest("/v1/config"), { DEVICE_KEY_SECRET: undefined });
+    expect(res.status).toBe(401);
   });
 });

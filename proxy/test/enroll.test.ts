@@ -3,7 +3,7 @@ import { env } from "cloudflare:test";
 import { deriveDeviceKey } from "../src/deviceauth";
 import { REVOKED_KEY, resetRevocationCache } from "../src/revocation";
 import { routeTemplate } from "../src/metrics";
-import { call, testEnv, TEST_KEY } from "./helpers";
+import { AUTH_HEADERS, call, testEnv, TEST_KEY } from "./helpers";
 
 /* ===========================================================================
  * ENROLLMENT — the three properties that must hold, each asserted rather than
@@ -235,14 +235,21 @@ describe("which credential was accepted is observable", () => {
     expect(res.headers.get("X-Blip-Auth")).toBe("device");
   });
 
-  it("reports shared auth on the shared key — the case the bench must NOT see", async () => {
+  // This used to assert X-Blip-Auth: "shared" — the case the bench had to see
+  // BEFORE the enrolled one, so that a passing check proved something. With the
+  // shared list removed there is no longer a credential that can produce it, and
+  // the header's remaining job is to keep saying "device" out loud. Replaced
+  // rather than deleted, because the reason it existed is the reason the cutover
+  // was verifiable at all.
+  it("cannot report shared auth any more — there is no credential that produces it", async () => {
     const res = await call(
       new Request("https://proxy.test/api/v1/blipscope/config", {
-        headers: { "X-Blip-Key": TEST_KEY },
+        headers: { "X-Blip-Key": "old-shared-key" }, // what the fleet used to send
       }),
       enrollEnv(),
     );
-    expect(res.headers.get("X-Blip-Auth")).toBe("shared");
+    expect(res.status).toBe(401);
+    expect(res.headers.get("X-Blip-Auth")).toBeNull();
   });
 
   it("sends no header when nothing authenticated, so absence is meaningful", async () => {

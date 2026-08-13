@@ -32,12 +32,17 @@ OUT="${OUT:-upstream-watch-$(date +%Y%m%d-%H%M%S).log}"
 
 [ -n "$KEY" ] || { echo "BLIP_KEY not set. export BLIP_KEY='<prod key>'" >&2; exit 2; }
 
-# Same rule as smoke-prod.sh: once BLIP_KEYS is removed a bare X-Blip-Key is not
-# a credential at all, so the device id has to travel with it. Optional today,
-# required then; the header is inert on the shared path, so setting it early
-# costs nothing and means this probe does not go dark at the changeover.
-AUTH=(-H "X-Blip-Key: $KEY")
-[ -n "${BLIP_DEVICE:-}" ] && AUTH+=(-H "X-Blip-Device: $BLIP_DEVICE")
+# Same rule as smoke-prod.sh: with BLIP_KEYS removed (2026-08-13) a bare
+# X-Blip-Key is not a credential at all, so the device id has to travel with it.
+# Refused up front rather than discovered: this probe runs unattended for hours,
+# so a missing id would otherwise produce a log full of 401s that looks exactly
+# like a genuine outage -- the single most misleading output this script could
+# produce, since detecting outages is the entire job.
+[ -n "${BLIP_DEVICE:-}" ] || {
+  echo "BLIP_DEVICE not set. export BLIP_DEVICE='<device id>' (a bare key is not a credential)" >&2
+  exit 2
+}
+AUTH=(-H "X-Blip-Key: $KEY" -H "X-Blip-Device: $BLIP_DEVICE")
 
 fresh=0; stale=0; warm=0; down=0; other=0; n=0
 worst_start=""; worst_len=0; cur_start=""; cur_len=0

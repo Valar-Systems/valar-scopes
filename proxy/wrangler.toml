@@ -8,7 +8,7 @@
 #   npx wrangler deploy --env staging
 #
 # Secrets (per environment, never in this file):
-#   npx wrangler secret put BLIP_KEYS --env staging          # comma-separated device keys
+#   npx wrangler secret put DEVICE_KEY_SECRET --env staging # HMAC secret; the ONLY auth path
 #   npx wrangler secret put RELAY_KEY --env staging          # X-Relay-Key -> our egress relay (see relay/)
 #   npx wrangler secret put ADSB_LOL_API_KEY --env staging   # optional, if adsb.lol ever issues feeder keys
 #
@@ -174,8 +174,9 @@ simple = { limit = 6000, period = 60 }
 # "Going to production"):
 #   1. Create the prod KV namespace and paste its id below (replace the
 #      REPLACE_ME placeholder): npx wrangler kv namespace create ENRICH_KV --env production
-#   2. Set the secrets: npx wrangler secret put BLIP_KEYS --env production
-#      (and DEVICE_KEY_SECRET if using per-device keys).
+#   2. Set the secrets: npx wrangler secret put DEVICE_KEY_SECRET --env production
+#      REQUIRED -- per-device keys are the only auth path since 2026-08-13, so a
+#      missing secret 401s the whole fleet. scripts/deploy.sh refuses without it.
 #   3. Add scopes.valarsystems.com as a custom domain (route below; the zone must
 #      be on this Cloudflare account).
 # The RL binding namespace_ids (2101/2102) are distinct from staging's so the
