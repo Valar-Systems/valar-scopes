@@ -10,6 +10,94 @@ The review's core finding: the firmware architecture is sound, and the cheap val
 
 ---
 
+## Open work, consolidated 2026-08-13
+
+Everything outstanding across sessions, in one place, so the tracker is the tree's
+state and not anyone's memory of a conversation. **Verified against the tree**, which
+moved four items straight to done — see "Already done" at the bottom.
+
+Grouped by what blocks what. Within a group, order is priority.
+
+### A. Blocking / in flight
+
+| # | Item | State |
+|---|---|---|
+| A1 | Deploy `c046e4b` + `1c76d4a` + `d513aa2` (auth removal + enrich fixes) | **committed, NOT deployed** — waiting on the shared-key 401 confirmation |
+| A2 | Rotate `DEVICE_KEY_SECRET` + re-enroll both boards + re-derive the bench identity | pending — do it AFTER A1, see the sequencing note |
+| A3 | **Cloud 401 handler** — Tier 1 item 0 below | **PILOT BLOCKER**, scoped, not built |
+| A4 | Re-measure the type-gap list with non-ICAO excluded | pending A1; drains over hours, not instantly |
+| A5 | Update the operator environment: `BLIP_KEY` still holds the **dead 48-char shared key** and `BLIP_DEVICE` is unset at user level | **breaks `smoke-prod.sh` and `watch-upstream.sh` on next run** — both now refuse without it |
+
+**A2's sequencing.** Rotating invalidates both bench boards, the `beefbeefbeefbeef`
+identity and the operator `BLIP_KEY` *simultaneously*. Doing it before A1 confirms means
+two candidate causes for any failure, which is the thing this whole sequence has been
+arranged to avoid. And with A3 unbuilt, the boards go silent until hand-re-verified —
+fine for two on a bench, which is exactly why it is cheap now and never again.
+
+### B. Photos
+
+| # | Item | State |
+|---|---|---|
+| B1 | **Orientation reject class** — into the picksheet criteria, `validateEntry`, and the `suggest-commons` scorer. Definition: the long axis points substantially at or away from the camera, so the wings foreshorten and the silhouette is unreadable. Three-quarter fine; head-on and tail-on out. `>=70% of frame width` passes a nose-on shot, which is how one got in | not built |
+| B2 | Audit the 234 for orientation — batched, offenders named, count and list in one pass. **Requires looking at each image**; it cannot be inferred from metadata and an attempt to do so is what produced a false vetting sheet once already | not started |
+| B3 | **Livery caption** — see the correction below; this is NOT the cheap win it looks like | blocked on a design call |
+| B4 | CC BY-SA **ShareAlike** notice on the credits page, before a fifth BY-SA image lands | not built — attribution and `changesNoted` are already correct; only the SA clause is missing |
+| B5 | K100 — VH-ICZ picked and eyeballed, needs ingesting | blocked on KV write permission |
+| B6 | KV coverage delta: types with **no square** (re-ingest, mechanical) reported separately from types with **no photo at all** (sourcing) | blocked on KV read permission |
+
+### C. Logbook / collection
+
+| # | Item | State |
+|---|---|---|
+| C1 | Reflash both bench boards — **onto `f745f1f` or later, not `9cf0855`** (the device-id row and the non-ICAO skip landed after the fold) | pending |
+| C2 | Caps and eviction sizing, now that operator names are the measured cost driver rather than the stores that look biggest | not started |
+| C3 | Logbook **restore** — `/logbook.json` export ships; restore does not | not built |
+| C4 | Trophy-cabinet Collection UI — recency not denominator, newest-first, milestone bar only, intro rewritten. Same commit rewrites the `Logbook.cpp` claiming-principle comment explaining why the invariant inverts | not started |
+
+### D. Round card
+
+| # | Item | State |
+|---|---|---|
+| D1 | Full-bleed 240x240 build — blit measurement first | server side ships (`FULLBLEED_MIN_FW = 7`, `squareSizeFor`); the firmware-side build is the open part |
+| D2 | 240x240 photo variant behind its flag, until the firmware can scale rather than clip | deferred |
+
+### E. Deferred / ideas
+
+E1 callsign-intent features (medevac first: substring match, quiet indicator, excluded
+from scoring), then emergency squawks, military callsign blocks, registration prefix ->
+country, track-geometry behaviours, rarity as memory, curated seasonal lists.
+E2 Turnstile enrollment for DIY buyers — built; the open question is what a self-enrolled
+key is worth to an abuser. Revisit with real fleet traffic.
+E3 the 88 resident hexes, if the enrichment overlay is ever revisited (see
+[docs/enrichment-gap-notes.md](docs/enrichment-gap-notes.md) — do NOT build it off the
+1,994).
+E4 #131 config-page frame spike, filed and unprioritised.
+
+### Already done — carried on lists but true in the tree
+
+Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:
+
+- **C3 retirement, bucket A** — no C3 variant header (`include/variants/` is
+  `Variant.h` + four `s3_*`), no C3 envs in `platformio.ini`, no bisect harness (only a
+  bench log survives). `SERIALIZE_TOUCH_BUS` exists solely in a historical comment.
+- **`ENRICH_TLS_HEAP_FLOOR` and its call sites** — gone. The only survivors are
+  historical comments and `probe/HeapProbe.cpp`, which *deliberately* mirrors the
+  constant to demonstrate why it never fired.
+- **CLAUDE.md's "three hard constraints"** — already rewritten as "Memory, networking and
+  touch — what is actually true now", stating which two were false and why the third is
+  kept on a dead rationale.
+- **`ExitDetail` sprite fix** — the photo sprite is retained on PSRAM boards, with the
+  measurement recorded inline (`AircraftManager.cpp:~3696`).
+- **Military table parity** — enforced since `d513aa2`; `check_range_parity.mjs` parses
+  both real sources and CI runs it with a five-mode selftest.
+- **`BLIP_KEYS`** — code path removed (`c046e4b`) and the production secret deleted
+  2026-08-13. The shared key 401s; both bench boards kept authenticating.
+
+`BANDED_RENDER` is deliberately NOT on the deletion list: no SKU sets it, but it is
+already `if constexpr` everywhere and is kept as the hook for a future PSRAM-less board.
+
+---
+
 ## Release readiness (assessed 2026-07-17) — HELD
 
 A large batch has merged to `main` since the last release (`FW_VERSION = 4`): visual
