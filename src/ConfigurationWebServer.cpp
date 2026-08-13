@@ -214,12 +214,21 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
        cloud feed both come back empty, so BP_ENROLLED is '' rather than '0' and \
        step 2 never renders -- the checklist degrades to the location banner it \
        replaced. */ \
-    R"(window.BP_DEVID='%DEVICE_ID%';window.BP_ENROLLED='%ENROLLED%';)" \
+    R"(window.BP_DEVID='%DEVICE_ID%';window.BP_ENROLLED='%ENROLLED%';window.BP_REFUSED='%REFUSED%';)" \
     R"(var stNeedLoc=(shLa&&shLo&&(!String(shLa.value).trim()||!String(shLo.value).trim()));)" \
-    R"(var stNeedKey=(window.BP_ENROLLED==='0');)" \
+    /* A REFUSED board takes the same path as an unverified one, which is why \
+       re-enrollment costs nothing to offer: the Verify button, the Turnstile \
+       popup, the ?id= paste fallback and the /enroll-key landing all already \
+       render off stNeedKey. Only the CONDITION was missing, never the action. */ \
+    R"(var stRefused=(window.BP_REFUSED==='1');)" \
+    R"(var stNeedKey=(window.BP_ENROLLED==='0')||stRefused;)" \
     R"(if(stNeedLoc||stNeedKey){var stB=document.createElement('div');)" \
     R"(stB.style.cssText='background:#4a0000;color:#ffd9d9;border:1px solid #ff4d4d;border-radius:6px;padding:12px 14px;margin:10px 0';)" \
-    R"(var stH=document.createElement('div');stH.textContent='Two steps and your radar is live.';)" \
+    /* A refused board is not a new board, and must not be greeted as one. It was \
+       working; something server-side stopped accepting its key -- most likely a \
+       credential rotation nobody here did anything to cause. The heading says what \
+       happened without blaming the owner. */ \
+    R"(var stH=document.createElement('div');stH.textContent=stRefused?'This device needs re-verifying.':'Two steps and your radar is live.';)" \
     R"(stH.style.cssText='font-weight:bold;margin-bottom:8px';stB.appendChild(stH);)" \
     R"(function stStep(n,t,b,done){var d=document.createElement('div');d.style.cssText='margin:7px 0;line-height:1.45';)" \
     /* ASCII on purpose: this page is served without an explicit charset, so a \
@@ -229,7 +238,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(if(!done){d.appendChild(document.createTextNode(' '+b))}else{d.style.color='#9fe6a0'})" \
     R"(stB.appendChild(d);return d})" \
     R"(stStep(1,'Set your location.','The radar draws the sky around you. Until it has a location, the screen stays empty.',!stNeedLoc);)" \
-    R"(var stK=stStep(2,'Verify this device.','Verification is how a self-flashed board gets aircraft data. Without it the screen stays empty even with a location set. One click, once per board. It also puts you on the leaderboard under your own standing.',!stNeedKey);)" \
+    R"(var stK=stStep(2,stRefused?'Re-verify this device.':'Verify this device.',stRefused?'The server is no longer accepting this device key, so the screen has stopped filling. One click restores it. Nothing else on this page needs changing, and your logbook is untouched.':'Verification is how a self-flashed board gets aircraft data. Without it the screen stays empty even with a location set. One click, once per board. It also puts you on the leaderboard under your own standing.',!stNeedKey);)" \
     R"(if(stNeedKey){var stW=document.createElement('div');stW.style.cssText='margin-top:8px';)" \
     R"(var stBtn=document.createElement('button');stBtn.type='button';stBtn.id='bpVerify';)" \
     R"(stBtn.textContent='Verify this device';)" \
@@ -2120,6 +2129,15 @@ void ConfigurationWebServer::Initialise() {
         // is exactly the state this feature exists to move a board OUT of, and
         // counting it as enrolled would hide the thing we want to see.
         const bool enrolled = prefs.getString("cloud-key-fac", "").length() > 0;
+        // THREE STATES, NOT TWO. never-enrolled / enrolled-and-working /
+        // enrolled-but-REFUSED. The third is new (2026-08-13) and is the whole
+        // point of the credential-recovery work: before it, a board whose key
+        // stopped being accepted looked identical to a healthy one here, and the
+        // owner's only symptom was a screen that had quietly stopped filling.
+        //
+        // A never-enrolled board must NOT be told to "re-verify" -- it has nothing
+        // to re-do -- which is exactly why this is not a boolean.
+        const bool refused = needsReverify;
         const String deviceIdCfg = DeviceIdentity::LeaderboardId();
 #else
         const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky");
@@ -2475,7 +2493,7 @@ void ConfigurationWebServer::Initialise() {
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
             [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
-             , cloudUrlCfg, cloudKeyCfg, enrolled, deviceIdCfg
+             , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
             ]
             (const String& var) -> String {
@@ -2489,6 +2507,7 @@ void ConfigurationWebServer::Initialise() {
 #ifdef FEATURE_CLOUD_FEED
                 if (var == "DEVICE_ID")      return deviceIdCfg;
                 if (var == "ENROLLED")       return enrolled ? "1" : "0";
+                if (var == "REFUSED")        return refused ? "1" : "0";
                 // cloud is the default: anything that isn't an explicit opensky/local
                 // choice (including the never-saved empty) selects it.
                 if (var == "DATASRC_CLOUD")   return (dataSource == "opensky" || dataSource == "local") ? "" : "selected";

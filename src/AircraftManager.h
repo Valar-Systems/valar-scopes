@@ -444,6 +444,22 @@ private:
     unsigned long lastGoodDataMs = 0;   // millis() at merge; 0 = no data yet
     unsigned long dataLagAtMergeMs = 0; // (device epoch - snapshot t) * 1000 at merge
 
+#ifdef FEATURE_CLOUD_FEED
+    // CREDENTIAL REJECTION -- a cloud 401/403 that has persisted, which is the one
+    // failure the device cannot wait out. Everything else in the stale ladder
+    // recovers on its own; this recovers only when a human re-verifies the board,
+    // so it has to say so rather than presenting as a long outage.
+    //
+    // Kept in RAM ONLY, deliberately. A persisted latch that was wrong would
+    // survive a reboot and need a manual clear, and the failure mode of "the
+    // device insists it needs re-verifying when it does not" is worse than
+    // re-detecting after a restart -- the rejection reappears within minutes if
+    // it is real. See DEBOUNCE in the .cpp for why both thresholds exist.
+    uint8_t cloudAuthFailStreak = 0;      // consecutive 401/403 cloud fetches
+    unsigned long cloudAuthFirstFailMs = 0; // millis() of the streak's first failure
+    bool cloudAuthLatched = false;        // both thresholds crossed: surface it
+#endif
+
     // Background OpenSky states fetch. The HTTPS GET + JSON decode used to run
     // inline on the loop and stall it for a second or two each cycle; since touch
     // is only polled once per loop, a tap on a plane during that stall was missed.
@@ -587,6 +603,20 @@ public:
     // exactly the lie this ladder is closing. Cheap, too: suppressing it SAVES
     // the per-frame sweep render rather than adding work.
     bool SweepSuppressed() const { return CurrentStaleStage() >= StaleStage::Aging; }
+
+#ifdef FEATURE_CLOUD_FEED
+    // True once a cloud 401/403 has persisted past BOTH debounce thresholds: the
+    // board's key is being refused and only a re-verify fixes it.
+    //
+    // Read by the config web server as well as the radar, so the page and the
+    // screen cannot disagree about whether this board needs attention -- they are
+    // the same bit, not two evaluations of the same idea.
+    bool NeedsReverify() const { return cloudAuthLatched; }
+#else
+    // Non-cloud builds (OpenSky BYO, local receiver) have no credential the
+    // server can refuse, so this is structurally false rather than merely unset.
+    bool NeedsReverify() const { return false; }
+#endif
 
 private:
 

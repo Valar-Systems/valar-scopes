@@ -137,6 +137,7 @@ struct FetchResult {
     bool authFailed = false;         // OpenSky said 401/403: the token needs a refetch
     std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
 #ifdef FEATURE_CLOUD_FEED
+    bool cloudAuthRejected = false;  // the PROXY said 401/403: this board's key is refused
     long dataEpoch = 0;              // cloud blips snapshot time t (0 = not cloud)
     CloudFeed::Config config;        // CloudConfig kind only
     std::vector<CloudFeed::CloudAirport> airports; // Airports kind only
@@ -1290,12 +1291,35 @@ AircraftManager::StaleStage AircraftManager::CurrentStaleStage() const
 // render path allocation-free (this runs every frame while degraded).
 void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
 {
+    char buf[24];
+    uint32_t colour;
+
+#ifdef FEATURE_CLOUD_FEED
+    // CREDENTIAL REJECTION OUTRANKS STALENESS, and shares this one banner slot
+    // rather than adding a second.
+    //
+    // The reason is not screen space, it is accuracy. When the key is refused the
+    // data IS stale -- as a CONSEQUENCE. Showing "STALE 2h" would be true and
+    // useless: it points the owner at their network, their router, their wifi,
+    // anywhere except the one thing that fixes it. The most specific true statement
+    // available is the one to show.
+    if (NeedsReverify()) {
+        colour = lgfx::color888(255, 64, 48);
+        // Deliberately not "unauthorized", "rejected" or "invalid key": a fleet-wide
+        // credential rotation lights this on every board at once, and the owner did
+        // nothing wrong. It names the ACTION, not a fault.
+        snprintf(buf, sizeof(buf), "NEEDS VERIFY");
+        backbuffer.setTextSize(1);
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, 14);
+        return;
+    }
+#endif
+
     const StaleStage stage = CurrentStaleStage();
     if (stage == StaleStage::Live)
         return;
 
-    char buf[24];
-    uint32_t colour;
     const unsigned long ageS = DataAgeMs() / 1000UL;
 
     switch (stage) {
@@ -1704,7 +1728,20 @@ void AircraftManager::RunFetchTask()
             // flag it so the loop drops the cache and the next cycle re-auths.
             // (OpenSky only: a cloud 401 is a key mismatch -- retrying can't fix it,
             // and it must not invalidate the unrelated OpenSky token cache.)
-            res->authFailed = isOpenSky && (result.statusCode == 401 || result.statusCode == 403);
+            const bool rejected = (result.statusCode == 401 || result.statusCode == 403);
+            res->authFailed = isOpenSky && rejected;
+#ifdef FEATURE_CLOUD_FEED
+            // The cloud counterpart, and it is a DIFFERENT KIND of problem: retrying
+            // cannot fix it, so unlike every other failure in this branch it will not
+            // clear on its own. Recorded here and debounced on the loop task.
+            //
+            // ONLY 401/403. Not !result.success (a network drop), not 5xx, not the
+            // proxy's fast 503 "warming" -- all of those land in this same branch and
+            // all of them recover by themselves. Latching on any of them would put a
+            // "needs re-verifying" message on a board that needs nothing, which is
+            // worse than saying nothing at all.
+            if (req->cloud) res->cloudAuthRejected = rejected;
+#endif
         }
 #ifdef FEATURE_CLOUD_FEED
         else if (req->cloud) {
@@ -1940,6 +1977,55 @@ void AircraftManager::ConsumeFetchResult()
     // instead of 401-ing until the local 29-min timer happens to lapse.
     if (res->authFailed)
         authHandler.Invalidate();
+
+#ifdef FEATURE_CLOUD_FEED
+    // DEBOUNCE for the credential-rejection latch, and BOTH thresholds are
+    // load-bearing. Either one alone is wrong in a way that reaches a customer:
+    //
+    //   count alone -- at the 5 s active cadence five consecutive failures is
+    //                  twenty-five seconds, which a redeploy or a brief edge blip
+    //                  can produce. The board would announce it needs re-verifying
+    //                  and then silently be fine, teaching the owner to ignore it.
+    //   time alone  -- a single 401 that happens to straddle the window latches,
+    //                  and a lone spurious rejection is exactly what a rolling
+    //                  deploy looks like from the device.
+    //
+    // Requiring both means the key has been refused repeatedly AND for long enough
+    // that no transient explains it. A single success clears everything: recovery
+    // must be instant and unconditional, because the fix (a re-verify) is only
+    // observable to the customer through this indicator going away.
+    if (res->kind == FetchKind::Feed && useCloudSource) {
+        constexpr uint8_t   REVERIFY_MIN_STREAK = 5;
+        constexpr unsigned long REVERIFY_MIN_MS = 15UL * 60UL * 1000UL; // 15 min
+
+        if (res->cloudAuthRejected) {
+            const unsigned long now = millis();
+            if (cloudAuthFailStreak == 0) cloudAuthFirstFailMs = now;
+            if (cloudAuthFailStreak < 255) cloudAuthFailStreak++;
+            const bool longEnough = (now - cloudAuthFirstFailMs) >= REVERIFY_MIN_MS;
+            if (!cloudAuthLatched && cloudAuthFailStreak >= REVERIFY_MIN_STREAK && longEnough) {
+                cloudAuthLatched = true;
+                Serial.printf("[cloud] KEY REFUSED for %lus over %u fetches -- this board "
+                              "needs re-verifying\n",
+                              (now - cloudAuthFirstFailMs) / 1000UL, (unsigned)cloudAuthFailStreak);
+            }
+        } else if (res->ok) {
+            // Any good fetch is proof the credential works. Clear unconditionally,
+            // including the latch -- a re-verified board must return to normal
+            // without a reboot, since "reboot it" is not an instruction we want to
+            // be giving a customer who has just fixed the actual problem.
+            if (cloudAuthLatched)
+                Serial.println("[cloud] key accepted again -- clearing the re-verify state");
+            cloudAuthFailStreak = 0;
+            cloudAuthFirstFailMs = 0;
+            cloudAuthLatched = false;
+        }
+        // NOTE the gap: a failure that is NOT a 401/403 (network drop, 503 warming,
+        // parse failure) neither advances nor clears the streak. It is not evidence
+        // either way, and treating it as a clear would let one lucky reconnect reset
+        // a genuinely refused board back to silence.
+    }
+#endif
 
     if (res->ok) {
         const unsigned long now = millis();
