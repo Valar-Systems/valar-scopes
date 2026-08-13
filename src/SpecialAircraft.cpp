@@ -61,6 +61,21 @@ constexpr const char* SPECIAL_CALLSIGNS[] = {
 
 constexpr int HELI_CATEGORY = 8; // OpenSky emitter category: rotorcraft
 
+// Unallocated regions of the ICAO 24-bit space: addresses here are TIS-B /
+// ADS-R surveillance track IDs, not airframes, so no registry can ever name
+// them. MUST STAY IDENTICAL to the proxy's src/icaoalloc.ts.
+//
+// Exactly one range, deliberately. It covers every non-ICAO address observed in
+// 30 days of production data (912 hexes in 2Bxxxx, 71 in 29xxxx). Four other
+// regions are equally empty in the aircraft registry, but "empty in a registry
+// snapshot" is not proof a block is unallocated, and a wrong entry here does not
+// fail loudly -- it silently blanks a REAL aircraft, which looks exactly like
+// the bug this exists to fix. A range earns its place by being seen in live
+// traffic. See docs/enrichment-gap-notes.md.
+constexpr Range NON_ICAO_RANGES[] = {
+    { 0x230000, 0x2FFFFF }, // 13 consecutive /16s with no registered airframe
+};
+
 } // namespace
 
 namespace SpecialAircraft {
@@ -90,6 +105,37 @@ bool IsMilitary(const String& hex)
         return false;
 
     return IsMilitary(static_cast<uint32_t>(std::strtoul(p, nullptr, 16)));
+}
+
+bool IsNonIcaoAddress(uint32_t a)
+{
+    for (const Range& r : NON_ICAO_RANGES) {
+        if (a < r.lo) return false;
+        if (a <= r.hi) return true;
+    }
+    return false;
+}
+
+bool IsNonIcaoAddress(const String& hex)
+{
+    if (hex.isEmpty())
+        return false;
+
+    const char* p = hex.c_str();
+    while (*p && std::isspace(static_cast<unsigned char>(*p)))
+        ++p;
+
+    // NOTE the difference from IsMilitary above, which SKIPS a leading '~' as
+    // noise. Here the '~' is the answer: a local receiver writes it precisely to
+    // mark an address as non-ICAO, so it is the strongest signal available and
+    // must not be parsed past.
+    if (*p == '~')
+        return true;
+
+    if (!std::isxdigit(static_cast<unsigned char>(*p)))
+        return false;
+
+    return IsNonIcaoAddress(static_cast<uint32_t>(std::strtoul(p, nullptr, 16)));
 }
 
 bool IsSpecialCallsign(const String& callsign)

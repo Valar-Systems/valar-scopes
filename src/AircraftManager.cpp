@@ -3981,6 +3981,17 @@ void AircraftManager::ProcessDetailLookups()
         if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
             if (millis() < tracked.metadataRetryAfter)
                 return;
+            // A non-ICAO address is a TIS-B/ADS-R track ID, not an airframe: no
+            // registry holds a record, so this GET is certain to return blank.
+            // Settle it offline instead of spending a TLS handshake and a round
+            // trip on the tight path to learn nothing. These were ~44% of the
+            // fleet's failed type lookups when measured (2026-08-12), so this is
+            // real traffic removed, not a micro-optimisation. The card shows
+            // exactly what it would have shown anyway.
+            if (SpecialAircraft::IsNonIcaoAddress(selectedIcao)) {
+                ApplyEnrichment(tracked, CloudFeed::Enrichment{});
+                return;
+            }
             // The LRU keeps the last few enrichments across aircraft eviction, so
             // re-inspecting a contact that flapped out of range is instant and
             // network-free. On a hit, fall through to the photo step below.

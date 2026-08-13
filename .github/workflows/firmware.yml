@@ -55,6 +55,24 @@ jobs:
       - name: ICAO country table is sorted, non-overlapping, and resolves correctly
         run: node scripts/check_icao_country.mjs
 
+  # The non-ICAO table lives in BOTH the firmware and the Worker on purpose (the
+  # device uses it to skip a request; the Worker still has to answer the fleet in
+  # the field). Two copies of one fact is precisely the arrangement that shipped a
+  # dead enrolment URL behind sixteen passing tests, so the pair is checked against
+  # each other rather than each against itself. Drift is silent in both directions,
+  # and in one of them it blanks real aircraft.
+  nonicao-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the checker catches drift in either direction
+        run: node scripts/check_nonicao_parity.mjs --selftest
+      - name: Firmware and proxy agree on the non-ICAO ranges
+        run: node scripts/check_nonicao_parity.mjs
+
   # The env named in the matrix below IS the product: whatever it builds becomes
   # firmware-<slug>.bin, which is what every device on that SKU downloads on its next
   # OTA. That link had no check and it broke silently -- the cloud feed lived in a
