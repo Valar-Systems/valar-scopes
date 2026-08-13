@@ -469,6 +469,34 @@ R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B re
 // shared "licensed under ODbL 1.0" clause would misattribute adsb.fi's terms.
 R"(
                 <div id="cloud-fields" class="stack">
+                    <!-- DEVICE ID, ALWAYS VISIBLE AND ALWAYS SELECTABLE.
+                         It was reachable only inside the not-yet-verified checklist,
+                         interpolated into one sentence of red helper text -- so it
+                         vanished the moment a board enrolled, and was easy to miss
+                         before that. Both states leave a customer stuck:
+                           - on a Turnstile-blocked network the paste fallback needs
+                             the id to build the ?id= URL by hand, and being told to
+                             read it out of a sentence that is no longer on screen is
+                             not a fallback;
+                           - revocation and support are BY ID, so "which board is
+                             this?" has to be answerable without a serial console.
+                         readonly, not disabled: disabled inputs are skipped by form
+                         submission AND are not selectable in some browsers, and being
+                         able to COPY this is the entire point. It carries no name
+                         attribute, so it is never posted back -- the id is derived
+                         from the efuse MAC on the device and is not settable.
+                         NOTE the single quotes on onclick, which are load-bearing:
+                         this markup lives inside a C++ raw string literal, so a close
+                         paren followed immediately by a double quote terminates that
+                         literal early -- anywhere in the block, including inside a
+                         comment like this one. Writing onclick with double quotes ends
+                         the string mid-attribute, and the compiler then reports a
+                         missing terminating character against an unrelated comment
+                         sixty lines further down, a long way from the actual edit. -->
+                    <label class="field">
+                        <span>Device ID:</span>
+                        <input type="text" readonly value='%DEVICE_ID%' class="grow" onclick='this.select()'>
+                    </label>
                     <label class="field">
                         <span>Access key:</span>
                         <input name="cloud-key" type="password" autocomplete="off" value='%CLOUD_KEY%' placeholder="access key" class="grow">
