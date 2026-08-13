@@ -164,6 +164,28 @@ mistaken for the strong one.
 Same family as the entry above: the input is a statement of intent, and here
 *both* sides stated it, separately.
 
+## Standing practice: never measure the sky through the anonymous endpoint
+
+The relays exist because the upstreams throttle us by IP
+([blipscope-egress-relay](docs/), and the adsb.lol per-IP notes). A workstation
+`curl` to `api.adsb.lol` does not go through them — so it is throttled, and
+**the throttled response is not an error.** It is a clean `200` with
+`"msg": "No error"` and an empty `ac:[]`.
+
+That reads exactly like "nothing is flying there", which is how it was used to
+conclude a hex was not airborne. The control that caught it: our own `/v1/blips`
+had returned five aircraft over Heathrow seconds earlier, and asking adsb.lol
+anonymously for three of those same hexes returned `ac:[]` for all three. The
+measurement was of the throttle, not the sky.
+
+So: **query traffic through our own Worker**, which uses the relays and the key.
+Direct anonymous upstream calls are for asking *"does this endpoint have a record
+for X"* where a negative is stated rather than implied — adsbdb's
+`{"response":"unknown aircraft"}` is a real answer and safe to trust; an empty
+array is not. Same family as the two entries above and the one below: an empty
+result that cannot distinguish "no data" from "not allowed to see it" is a check
+that cannot detect its own failure.
+
 ## Standing practice: never filter the output of a command you are testing for failure
 
 Twice in one week a `grep`/`tail` on a command's output hid the failure it was
