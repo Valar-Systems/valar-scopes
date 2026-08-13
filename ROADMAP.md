@@ -185,24 +185,105 @@ either way and can be queried retroactively within Analytics Engine retention.
 
 **Production feed findings (2026-07-18 bench session) — LAUNCH BLOCKERS:**
 See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + outreach drafts.
-- **The feed problem is sourcing, not code.** adsb.lol shared-egress **429**s the Worker's
-  Cloudflare outbound IPs (other CF tenants' traffic on the shared per-colo IP, not our
-  volume), worst on the high-volume `/point`. **Corrected 2026-07-18:** the "adsb.lol
-  feeder key" is NOT an actionable fix — per adsb.lol's docs the key is *future* ("in the
-  future you will require an API key… by feeding"), not issued yet, and their feeder API
-  (`re-api`) is **IP-locked** to the feeding station, so a Cloudflare Worker can't use it.
-- **Shipped mitigation:** airplanes.live is now **primary for positions** (adsb.lol 429s
-  that endpoint hardest), adsb.lol stays primary for per-hex type; this ended the
-  `DATA STALE` churn on the bench. But it rides on airplanes.live's goodwill —
-- **THE launch gate is commercial permission or a paid feed:** email airplanes.live +
-  adsb.fi for commercial-use OK (drafts in FEED-SOURCING.md; adsb.fi currently 403s our
-  Worker), and/or price a paid commercial API (ADSBexchange/RapidAPI, FlightAware AeroAPI)
-  as the SLA-backed fallback — a few ¢/device/month, baked into pricing. Offer-to-feed
-  email to adsb.lol sent for when their key program lands.
-- **Production failover is temporarily ENABLED** (`adsb.fi` + `airplanes.live` = `"true"`,
-  owner-approved for the private bench soak; see the `REVISIT` comment in
-  [wrangler.toml](proxy/wrangler.toml)). **Must revert to `"false"` before customer
-  launch** unless commercial permission clears — it diverges from the documented posture.
+- ### FEED SOURCING AT LAUNCH: TWO PERMITTED SOURCES, AND THE BINDING CONSTRAINT IS A RATE LIMIT, NOT A LICENCE
+
+  **The authoritative version of this lives in
+  [proxy/README.md](proxy/README.md#upstream-licensing-posture) and
+  [relay/setup-relay.sh](relay/setup-relay.sh); this is the summary.** Both were ahead of
+  this file, and a tracker that lags the artifact on the thing you read it for is worse
+  than none — so on flash day, trust those two.
+
+  - **adsb.fi — PRIMARY, permitted commercially in writing.** Samuli granted commercial
+    use *including caching* on **2026-08-05** ("If you can keep usage within the Open Data
+    API rate limit, I am happy to let you use it for your mentioned purpose, including the
+    caching system"), where the stated purpose was a paid hardware product, and separately
+    confirmed polling from both relay IPs. **The permission is conditional on the rate
+    limit and on nothing else.** There is no flip to make and it is not a launch blocker.
+    *(This entry twice said the opposite — first that adsb.fi 403s us, then that its terms
+    forbade commercial use. Both were readings of the PUBLISHED TERMS rather than of our
+    correspondence. Corrected 2026-08-13.)*
+  - **adsb.lol — FALLBACK, ODbL 1.0.** Demoted on operational grounds, not licensing:
+    68% 429 in the same soak where adsb.fi returned 0%. Kept precisely because ODbL is
+    **a right no operator can revoke**, which is worth more behind us than in front, and
+    `adsb_lol_b` is deliberately the terminal feed the breaker may never skip. Sponsored
+    at **$50/mo unconditionally, regardless of chain position.**
+  - **airplanes.live — PROHIBITED.** Written operator refusal, 2026-07-22. Hardcoded
+    `enabled: () => false`; no env flip can revive it. Off the table, not undecided.
+
+  So at launch there are **two permitted sources with a real failover between them**, and
+  the licence question is answered. What remains is arithmetic.
+
+  #### The rate model, and the one number that could still bite
+
+  The constraint is **adsb.fi's 1 req/s per IP, with 4xx/429 responses counting toward
+  it** — so a re-firing failure digs the hole deeper rather than merely failing. Upstream
+  rate is **(distinct hot tiles) / `CACHE_TTL`**, *independent of device count*: the fleet
+  collapses to one fetch per tile per TTL, so ten boards in one city cost what one does.
+
+  **Measured now** (Analytics Engine, 2026-08-13, ~2 active boards) — Worker-level cache
+  MISS, which is an **upper bound** since the relay collapses further:
+
+  | | fleet-wide | per device |
+  |---|---|---|
+  | average | 0.050 req/s (181 req/h) | ~0.025 req/s |
+  | busiest single minute in 30 d | 0.38 req/s (23 fetches) | ~0.19 req/s |
+
+  **Projected at 50 boards** — and the linear ×25 is the WRONG model; tiles are:
+  50 scattered boards ≈ 50 distinct 0.05° tiles ÷ 30 s TTL = **1.67 req/s**, against a
+  two-IP budget of 2 req/s. **~17% headroom.** That is the sizing `CACHE_TTL=30s` was
+  chosen for (resolved 2026-08-08, see the pinched-knob analysis in `setup-relay.sh`).
+
+  **The condition to watch, stated plainly: the 2 req/s budget requires BOTH relay IPs to
+  be carrying traffic.** That holds under `partitionOrder`'s hash split, but under *pure
+  failover* — every request landing on relay-a — the budget collapses to 1 req/s and
+  50 tiles / 30 s = 1.67 req/s is **67% OVER the limit**, on a source where overages
+  count toward the limit and earn an IP restriction. Mitigation is a TTL raise to 50 s,
+  which is why the knob is documented as pinched rather than tuned.
+
+  **Therefore, before the pilot: measure the per-relay split under real fleet traffic**
+  (`relay/measure.mjs`), and confirm relay-b is carrying its share rather than idling as
+  a hot spare. That is the only part of the sourcing picture still capable of biting, and
+  it is a measurement, not a negotiation.
+
+  **What degradation costs the customer (measured over 30 d, 2026-07-14 → 08-13):**
+
+  | | |
+  |---|---|
+  | `/blips` requests | ~76,000 |
+  | served `STALE` | 3,320 (4.4%) — **normal**, this is stale-while-revalidate doing its job |
+  | fast `503` ("warming") | 235 (0.31%) |
+  | hours with any degradation | 201 of ~720 (28%) — but almost all of it is routine STALE |
+  | hours that were a real **outage** | **1** — 2026-07-22 04:00 UTC, 111 of 137 requests 503 |
+
+  **What a customer sees, and it is honest.** The device does not freeze a false picture
+  or go blank; it escalates a three-stage ladder (`DrawStaleIndicator` /
+  `CurrentStaleStage` in [AircraftManager.cpp](src/AircraftManager.cpp)):
+
+  1. **`STALE DATA`** — quiet amber, deliberately no number. A few missed polls is routine
+     on every source and does not deserve a countdown.
+  2. **`STALE 12m` / `STALE 2h`** past 75 s — it earns a number, because "how long has this
+     been wrong?" is the question someone actually has.
+  3. **`NO DATA — 3h`** in red at the dead-reckoning cap (`MAX_DR_SECONDS`, bound to that
+     constant rather than copied from it). That is the moment the sky freezes in place, so
+     it is the moment the display stops implying the picture means anything.
+
+  **Verdict: the ladder covers it.** A single outage hour in 30 days presents as amber
+  "STALE DATA" and self-clears; it does not read as broken. With two permitted sources
+  the residual exposure is a **simultaneous** failure of both — or, more plausibly, an
+  adsb.fi IP restriction earned by exceeding the rate limit, which is the scenario the
+  relay-split measurement above exists to prevent. In that case the chain falls to
+  adsb.lol, whose measured 429 rate in the same soak was 68%, and the fleet would sit
+  amber-to-red until the restriction lifted.
+
+- **The 429 problem, for context.** adsb.lol shared-egress **429**s Cloudflare's outbound
+  IPs (other tenants' traffic on the shared per-colo IP, not our volume), worst on the
+  high-volume `/point`. Solved operationally by the dedicated-IP relays, not by a key: per
+  adsb.lol's docs the API key is *future*, and their feeder API (`re-api`) is **IP-locked**
+  to the feeding station, so a Worker cannot use it.
+- **The open ask is a second source, and it is commercial, not technical.** Price a paid
+  API (ADSBexchange/RapidAPI, FlightAware AeroAPI) as the SLA-backed fallback — a few
+  ¢/device/month, baked into pricing — and/or obtain a written commercial grant from
+  adsb.fi. Drafts in FEED-SOURCING.md.
 - ~~**adsb.fi failover returns HTTP 403**~~ **RESOLVED 2026-07-29 — and superseded by a
   licensing blocker.** The 403 was the Cloudflare shared egress, not a header/key
   requirement: both relay IPs (`67.205.155.80`, `104.238.156.243`) get **HTTP 200** with
