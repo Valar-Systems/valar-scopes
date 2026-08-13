@@ -240,10 +240,43 @@ See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + out
   count toward the limit and earn an IP restriction. Mitigation is a TTL raise to 50 s,
   which is why the knob is documented as pinched rather than tuned.
 
-  **Therefore, before the pilot: measure the per-relay split under real fleet traffic**
-  (`relay/measure.mjs`), and confirm relay-b is carrying its share rather than idling as
-  a hot spare. That is the only part of the sourcing picture still capable of biting, and
-  it is a measurement, not a negotiation.
+  **Split CONFIRMED 2026-08-13: relay-b 53%, relay-a 47%** over 24 h (Analytics Engine
+  `blob3`, the leg the Worker actually dialled), with **zero** adsb.lol requests — no
+  failover events at all. Both sanctioned IPs are live, so the 2 req/s budget is real and
+  the 17% worst-case headroom stands.
+
+  #### DECISION 2026-08-13: no commercial tier for the pilot. BUY AT ~60 UNITS.
+
+  adsb.fi's commercial tier is **€1,500/year**. At 50 units that is $2.72/device/year
+  against a $49 product; at 600 units it is $0.23 and obviously worth it. The pilot is
+  inside the sanctioned free limit honestly — 42% of it in the realistic case, 83% in the
+  pessimistic — so buying now would be paying for capacity we would sit on.
+
+  **THE TRIGGER IS UNIT COUNT, NOT A USAGE READING, AND THAT IS THE WHOLE POINT.**
+  Anyone who later checks a dashboard, sees low utilisation, and concludes there is room
+  will have measured the wrong variable. Load does **not** scale with devices or with
+  requests — it scales with **distinct hot tiles**, because every device inside one
+  0.05° tile collapses to a single upstream fetch per TTL. Two bench boards in the same
+  house added **zero** upstream load while doubling request volume; fifty boards in fifty
+  towns add fifty tiles. So usage can look flat right up until the unit that crosses the
+  line, and it crosses on geography, not traffic.
+
+  The ceiling is arithmetic: `2 IPs x 1 req/s x 30 s TTL` = **60 simultaneously-hot
+  tiles**. Worst case (one tile per unit, all awake) that binds at **60 units**;
+  with metro clustering and diurnal spread, ~85-90. **Plan the purchase at 60** — the
+  worst case is the one to plan against, because 4xx/429 responses count toward the limit,
+  so an overshoot compounds into an IP restriction instead of degrading gracefully.
+
+  Levers if the number needs moving before then, cheapest first: both relays (already
+  banked — that is why we are at 83% and not 167%), then `CACHE_TTL` 30 s -> 45 s (linear,
+  60 -> 90 tiles, but it is NOT a one-line change — see the order of operations in
+  `setup-relay.sh`; backwards shows the whole fleet amber), then tile coarsening 0.05° ->
+  0.1° (quarters the tile count, costs upstream bandwidth and edge relevance as the radius
+  margin grows from 4 km to ~8 km).
+
+  Still to do: `relay/measure.mjs` on both boxes for the adsb.fi-FACING figure. The split
+  above is the Worker's view, one layer above the relay's nginx cache, so it answers
+  "are both IPs live" but overstates the upstream rate.
 
   **What degradation costs the customer (measured over 30 d, 2026-07-14 → 08-13):**
 
