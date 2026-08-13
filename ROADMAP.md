@@ -23,16 +23,27 @@ Grouped by what blocks what. Within a group, order is priority.
 | # | Item | State |
 |---|---|---|
 | A1 | Deploy `c046e4b` + `1c76d4a` + `d513aa2` (auth removal + enrich fixes) | **committed, NOT deployed** — waiting on the shared-key 401 confirmation |
-| A2 | Rotate `DEVICE_KEY_SECRET` + re-enroll both boards + re-derive the bench identity | pending — do it AFTER A1, see the sequencing note |
-| A3 | **Cloud 401 handler** — Tier 1 item 0 below | **PILOT BLOCKER**, scoped, not built |
+| A2 | Rotate `DEVICE_KEY_SECRET` + re-enroll both boards + re-derive the bench identity | pending — **procedure written: [docs/bench-key-rotation.md](docs/bench-key-rotation.md)**. Run it after v7, see the sequencing note |
+| A3 | **Cloud 401 handler** | **built** — `4391170`. Code complete on 6 envs; **bench proof outstanding**, folded into A2 (same doc, steps marked **[A3]**) |
 | A4 | Re-measure the type-gap list with non-ICAO excluded | pending A1; drains over hours, not instantly |
-| A5 | Update the operator environment: `BLIP_KEY` still holds the **dead 48-char shared key** and `BLIP_DEVICE` is unset at user level | **breaks `smoke-prod.sh` and `watch-upstream.sh` on next run** — both now refuse without it |
+| A5 | Update the operator environment: `BLIP_KEY` still holds the **dead 48-char shared key** and `BLIP_DEVICE` is unset at user level | **breaks `smoke-prod.sh` and `watch-upstream.sh` on next run** — both now refuse without it. Closed by A2 §8, which mints the replacement |
 
-**A2's sequencing.** Rotating invalidates both bench boards, the `beefbeefbeefbeef`
-identity and the operator `BLIP_KEY` *simultaneously*. Doing it before A1 confirms means
-two candidate causes for any failure, which is the thing this whole sequence has been
-arranged to avoid. And with A3 unbuilt, the boards go silent until hand-re-verified —
-fine for two on a bench, which is exactly why it is cheap now and never again.
+**A2's sequencing, and why A3's proof rides on it.** Rotating invalidates both bench
+boards, the `beefbeefbeefbeef` identity and the operator `BLIP_KEY` *simultaneously*.
+Doing it before A1 confirms means two candidate causes for any failure, which is the
+thing this whole sequence has been arranged to avoid.
+
+It must also come **after v7 is cut and verified**: a rotation and a release fail
+identically from the outside — the board stops showing live data — and the natural
+response to the ambiguity is a reflash, which destroys the evidence for whichever it
+actually was. Serialise them and each has a clean control. (Same family as
+"[watch for the fix whose failure mimics the bug](CLAUDE.md)".)
+
+A rotation is also the **only** way to produce a real sustained server-side 401 on a real
+board, so it is A3's bench proof rather than an obstacle to it: one run exercises
+detection, both debounce gates, the banner's priority over the stale ladder, the config
+page's third state, one-action re-verification, and in-place recovery. Testing A3
+separately would test it twice and the cheaper test would be the less faithful one.
 
 ### B. Photos
 
