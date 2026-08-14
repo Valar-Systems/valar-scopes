@@ -39,6 +39,38 @@ constexpr int PHOTO_H = SCREEN_SIZE;
 constexpr int FULLBLEED_TITLE_Y = SCREEN_SIZE - 46; // callsign, size 2
 constexpr int FULLBLEED_HINT_Y  = SCREEN_SIZE - 22; // "tap: details", size 1
 
+// The longest of two captions that survives the round bezel at FULLBLEED_HINT_Y.
+//
+// THE ROW THAT DECIDES IS THE LOWEST ONE, NOT THE FIRST. A disc narrows across
+// the height of a glyph, so a string can begin comfortably inside the circle and
+// lose its first and last characters where it ends. Measured on the s3-128:
+// "representative photo" is 120 px at size 1; the chord at the caption's top row
+// (y=218) is 138 px and at its bottom row (y=226) only 112 px. It fit where it
+// started and was clipped where it finished -- which is why it read as a font or
+// centring problem rather than a geometry one.
+//
+// MEASURED, NOT SHORTENED FOR EVERYBODY. The 412 and 480 panels have room for the
+// full phrase; picking the short string globally would spend their geometry on the
+// 240's problem. Same rule as everywhere else here -- no hardcoded 240, ask
+// Layout.h (see the multi-SKU section of CLAUDE.md).
+//
+// Only the caption is chosen this way. Text is NOT truncated to fit: a caption
+// clipped by software looks identical to one clipped by the bezel, and the whole
+// point is to stop producing that.
+static const char* CaptionForDisc(BandCanvas& canvas, const char* preferred, const char* fallback)
+{
+    // Match the ring the card actually draws -- centre (cx-1, cx-1), radius
+    // SCREEN_SIZE_DIV_2-1 -- rather than the panel square. Clearing the panel is
+    // not the test; clearing the circle someone is looking through is.
+    const int r  = SCREEN_SIZE_DIV_2 - 1;
+    const int dy = (FULLBLEED_HINT_Y + canvas.fontHeight() - 1) - (SCREEN_SIZE_DIV_2 - 1);
+    if (dy >= r)
+        return fallback; // the row is off the disc entirely; nothing fits
+    const int half   = (int)sqrtf((float)(r * r - dy * dy));
+    const int usable = 2 * half - 4; // a couple of px so glyphs don't sit on the ring
+    return ((int)canvas.textWidth(preferred) <= usable) ? preferred : fallback;
+}
+
 // Display-unit conversions. The feeds are normalised to OpenSky's SI internally
 // (metres, m/s); aviation/US convention shows altitude in feet and ground speed
 // in knots, so convert at each on-screen/notification site that shows telemetry.
@@ -5169,7 +5201,9 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         // IS that aircraft, so it keeps the hint and stays uncaptioned.
         backbuffer.setTextSize(1);
         backbuffer.setTextColor(lgfx::color888(0, 150, 0));
-        centered(tracked.photoRepresentative ? "representative photo" : "tap: details",
+        centered(CaptionForDisc(backbuffer,
+                                tracked.photoRepresentative ? "representative photo" : "tap: details",
+                                tracked.photoRepresentative ? "stock photo" : "tap: details"),
                  FULLBLEED_HINT_Y);
         return; // nothing else belongs over the photograph
     }
