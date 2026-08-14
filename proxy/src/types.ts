@@ -30,7 +30,7 @@ export interface Env {
   // Vars.
   UPSTREAM_ADSB_LOL_BASE?: string;          // relay-a base URL; unset -> api.adsb.lol direct (dev/test)
   UPSTREAM_ADSB_LOL_BASE_B?: string;        // relay-b base URL; unset -> the secondary feed is disabled
-  UPSTREAM_ADSB_FI_ENABLED?: string;        // LICENCE-BLOCKED: non-commercial terms, no redistribution right (adsb_fi.ts)
+  UPSTREAM_ADSB_FI_ENABLED?: string;        // "true" in staging + production: adsb.fi is the chain PRIMARY (adsb_fi.ts)
   UPSTREAM_ADSB_FI_BASE?: string;           // adsb.fi via relay-a (/fi prefix); unset -> opendata.adsb.fi direct (dev/test)
   UPSTREAM_ADSB_FI_BASE_B?: string;         // adsb.fi via relay-b; unset -> the secondary feed is disabled
   UPSTREAM_FEED_ORDER?: string;             // ROLLBACK KNOB, e.g. "adsb_lol,adsb_lol_b" -- moves those feeds to

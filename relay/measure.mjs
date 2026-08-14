@@ -18,7 +18,11 @@ const args = process.argv.slice(2);
 const hoursIdx = args.indexOf("--hours");
 const windowH = hoursIdx >= 0 ? Number(args[hoursIdx + 1]) : null;
 
-const LINE = /^(\S+) cache=(\S+) status=(\d+) ustatus=(\S+) rt=(\S+) .*uri="([^"]*)"/;
+// src= is OPTIONAL in this pattern on purpose. It is present in the shipping
+// log_format, but a stricter regex would silently DROP any line lacking it --
+// turning a format change into quietly smaller totals rather than an error, in
+// the one tool whose entire job is reporting totals accurately.
+const LINE = /^(\S+) cache=(\S+) status=(\d+) ustatus=(\S+) rt=(\S+) (?:src=(\S+) )?uri="([^"]*)"/;
 
 async function readStdin() {
   const chunks = [];
@@ -27,11 +31,26 @@ async function readStdin() {
 }
 
 // Which upstream a line hit. The relay serves adsb.lol at the root and adsb.fi
-// under /fi (bench measurement only -- licence-blocked, see relay/fi-bench.sh),
-// so the path prefix is an exact upstream discriminator with no log-format change.
+// under /fi, so the path prefix is an exact upstream discriminator with no
+// log-format change. BOTH are serving paths: since 2026-07-31 adsb.fi is the
+// chain PRIMARY and adsb.lol the licensed fallback (see upstreams/chain.ts).
 function upstreamOf(uri) {
   return uri.startsWith("/fi/") ? "adsb.fi" : "adsb.lol";
 }
+
+// WHO made the request, which is NOT the same question as which upstream it hit.
+//
+// fi-bench.sh polls the relay from the box itself (`--resolve localhost:443:
+// 127.0.0.1`), so its traffic is indistinguishable from the Worker's by URI --
+// same prefix, same tile, same cadence -- and it consumes the SAME per-IP budget
+// upstream. Before this split the report added the two together and called the
+// total "what the upstream actually sees", which is true but useless for the one
+// thing the number is used for: telling an upstream operator what OUR PRODUCT
+// costs them. A synthetic poller inflating that figure would have been invisible.
+//
+// remote_addr separates them exactly: loopback = on-box bench, anything else =
+// the Worker's Cloudflare egress.
+const isOnBox = (src) => src === "127.0.0.1" || src === "::1" || src === "-";
 
 function classify(uri) {
   const u = uri.startsWith("/fi/") ? uri.slice(3) : uri;
@@ -50,7 +69,10 @@ for (const line of (await readStdin()).split("\n")) {
   if (!m) continue;
   const t = Date.parse(m[1]);
   if (Number.isNaN(t)) continue;
-  rows.push({ t, cache: m[2], status: m[3], ustatus: m[4], cls: classify(m[6]), up: upstreamOf(m[6]) });
+  rows.push({
+    t, cache: m[2], status: m[3], ustatus: m[4],
+    cls: classify(m[7]), up: upstreamOf(m[7]), onBox: isOnBox(m[6]),
+  });
 }
 if (!rows.length) {
   console.log("no parseable relay-log lines on stdin");
@@ -70,12 +92,25 @@ function report(cls, up) {
   const cacheDist = {};
   for (const x of r) cacheDist[x.cache] = (cacheDist[x.cache] || 0) + 1;
   const cd = Object.entries(cacheDist).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(" ");
-  return [
+  const bench = fetches.filter((x) => x.onBox).length;
+  const lines = [
     `  ${cls.toUpperCase()}  (${r.length} requests)`,
     `    upstream fetches : ${fetches.length}  (${perHour(fetches.length, spanSec)}/h)   <- what the upstream actually sees`,
+  ];
+  // Only printed when there IS on-box traffic, so a clean run stays terse -- but
+  // when it is not clean the breakdown is unmissable, because the whole-figure
+  // line above is the one that gets quoted to an upstream operator.
+  if (bench) {
+    lines.push(
+      `      of which BENCH : ${bench}  (${perHour(bench, spanSec)}/h)  <- fi-bench.sh on this box, NOT the product`,
+      `      of which WORKER: ${fetches.length - bench}  (${perHour(fetches.length - bench, spanSec)}/h)  <- quote THIS one`,
+    );
+  }
+  lines.push(
     `    429 on fetches   : ${u429}  (${pct(u429, fetches.length)})`,
     `    X-Cache          : ${cd}`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 // Longest degraded run for positions: consecutive /v2/lat requests served STALE because
@@ -105,15 +140,32 @@ function longestDegraded(up) {
 console.log(`\n=== relay measurement: ${win.length} requests over ${(spanSec / 3600).toFixed(1)}h ` +
   `(${new Date(win[0].t).toISOString()} .. ${new Date(newest).toISOString()}) ===`);
 
-// Split the report per upstream when both are present (the adsb.fi bench runs
-// alongside live adsb.lol traffic on the same box), so the two are directly
+// Said once, loudly, at the top -- not only inside whichever workload happens to
+// carry it. fi-bench.sh predates adsb.fi becoming the chain primary; with the
+// real thing now serving through the same path, leaving the poller running just
+// spends the per-IP budget twice and taints the figure we report upstream.
+const benchTotal = win.filter((x) => x.onBox).length;
+if (benchTotal) {
+  console.log(`\n  !! ${benchTotal} of these requests came from ON THIS BOX (fi-bench.sh), not from the`);
+  console.log(`     Worker. adsb.fi is the chain PRIMARY now, so the bench poller is redundant load on`);
+  console.log(`     the same 1 req/s per-IP budget:  systemctl disable --now blipscope-fi-bench`);
+}
+
+// Split the report per upstream when both are present, so the two are directly
 // comparable on identical relay tuning. One upstream -> the original flat report.
 const upstreams = [...new Set(win.map((x) => x.up))].sort();
 for (const up of upstreams) {
   const deg = longestDegraded(up);
   if (upstreams.length > 1) {
     const n = win.filter((x) => x.up === up).length;
-    const tag = up === "adsb.fi" ? "  [bench only -- licence-blocked, not a serving path]" : "";
+    // Both are serving paths. adsb.fi leads on written commercial permission
+    // (2026-08-05, conditional on the rate limit and nothing else) plus ~19x the
+    // rate headroom; adsb.lol stays as the ODbL-licensed fallback and is the
+    // only source carrying routes. See ROADMAP "adsb.fi -- PRIMARY" for why this
+    // said the opposite twice, and upstreams/chain.ts for the order itself.
+    const tag = up === "adsb.fi"
+      ? "  [chain PRIMARY -- positions + hex]"
+      : "  [licensed fallback + the only route source]";
     console.log(`\n--------- upstream: ${up}  (${n} requests) ---------${tag}`);
   } else {
     console.log("");

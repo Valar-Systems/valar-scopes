@@ -328,15 +328,24 @@ See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + out
   API (ADSBexchange/RapidAPI, FlightAware AeroAPI) as the SLA-backed fallback — a few
   ¢/device/month, baked into pricing — and/or obtain a written commercial grant from
   adsb.fi. Drafts in FEED-SOURCING.md.
-- ~~**adsb.fi failover returns HTTP 403**~~ **RESOLVED 2026-07-29 — and superseded by a
-  licensing blocker.** The 403 was the Cloudflare shared egress, not a header/key
-  requirement: both relay IPs (`67.205.155.80`, `104.238.156.243`) get **HTTP 200** with
-  no allowlisting needed, and adsb.fi granted testing permission. But their published
-  terms are **"personal, non-commercial use only … you may not license, sell, rent, or
-  lease any part of the data or the service"** — no ODbL-style redistribution right, so
-  adsb.fi **cannot be a production upstream** without a written commercial grant. Their
-  public rate limit (**1 req/s per IP**) is also below fleet need, so the ask is *two*
-  things, not one. adsb.fi is a bench-measurement source only until that lands.
+- ~~**adsb.fi failover returns HTTP 403**~~ ~~**superseded by a licensing blocker**~~
+  **FULLY RESOLVED — adsb.fi is the chain PRIMARY.** Both claims in this entry were
+  wrong, in sequence, and both by the same mechanism:
+  - The **403** was Cloudflare's shared egress, not an adsb.fi block. Both relay IPs
+    (`67.205.155.80`, `104.238.156.243`) get **HTTP 200** unauthenticated. *(Resolved
+    2026-07-29.)*
+  - The **licence blocker** was a reading of adsb.fi's *published terms* while a written
+    grant to us already existed in the thread. Samuli granted commercial use *including
+    caching* on **2026-08-05**, conditional on the rate limit and nothing else. See the
+    authoritative entry above.
+  - The **"1 req/s is below fleet need"** figure was never measured against. It has been
+    now: **170 and 167 upstream position fetches/hour** on relay-a and relay-b — **4.7 %
+    and 4.6 %** of the limit, zero 429s, zero degraded runs *(measured 2026-08-13)*. Load
+    scales with distinct hot tiles, not devices, so this is not a per-device figure.
+
+  Both wrong readings came from a public page rather than from our own correspondence,
+  and the rate-limit claim came from arithmetic nobody ran. The pattern is the entry, not
+  the conclusion.
 - ~~**BLIP_KEYS drift.**~~ **RESOLVED 2026-08-13 by deleting the secret.** The shared key
   is gone from production; per-device keys (`HMAC(DEVICE_KEY_SECRET, deviceId)` presented
   with `X-Blip-Device`) are the only auth path. Verified before removal: zero successful

@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
 #
-# adsb.fi bench poller -- runs ON a relay box, under adsb.fi's TESTING grant.
+# adsb.fi bench poller -- runs ON a relay box.
 #
-# WHY THIS EXISTS INSTEAD OF A CHAIN CHANGE
-#   adsb.fi is licence-blocked for production (personal/non-commercial terms, no
-#   redistribution right -- see proxy/src/upstreams/adsb_fi.ts), so it is NOT in
-#   any serving path and the Worker keeps UPSTREAM_ADSB_FI_ENABLED = "false".
-#   That means a chain-order test would never exercise it. This poller drives the
-#   relay's /fi upstream directly, so we get 24 h of comparable numbers WITHOUT
-#   touching what devices are served. Its traffic lands in the same
-#   /var/log/nginx/relay.log that relay/measure.mjs already parses.
+# OBSOLETE SINCE 2026-07-31. DO NOT INSTALL. Stop it where it still runs:
+#   systemctl disable --now blipscope-fi-bench
+#
+# WHY IT EXISTED
+#   adsb.fi was then out of the serving chain, so no chain-order test exercised
+#   it and there was no live traffic to measure. This poller drove the relay's
+#   /fi upstream directly to get 24 h of comparable numbers WITHOUT touching what
+#   devices were served. Its traffic lands in the same /var/log/nginx/relay.log
+#   that relay/measure.mjs parses.
+#
+# WHY IT MUST NOT KEEP RUNNING
+#   adsb.fi is now the chain PRIMARY: that same path carries live customer
+#   traffic, so the thing this measured is measuring itself. Worse, it is
+#   ACTIVELY HARMFUL in two ways. It spends the same 1 req/s per-IP budget our
+#   written permission is conditional on, for nothing. And its requests are
+#   indistinguishable from the Worker's by URI -- same prefix, same tile, same
+#   cadence -- so it silently inflates the figure we report to the operator whose
+#   goodwill the permission rests on. measure.mjs now separates the two by
+#   remote_addr (this polls via localhost) and prints a warning when it sees any.
 #
 # WHAT IT MIRRORS
 #   The same tile and radius as the adsb.lol soak (Bend 44.10/-121.30 dist 89 NM)
@@ -41,7 +52,7 @@ if [ "${1:-}" = "--install" ]; then
   install -m755 "$0" "$SELF"
   cat > "$UNIT" <<EOF
 [Unit]
-Description=Blipscope adsb.fi bench poller (measurement only; licence-blocked source)
+Description=Blipscope adsb.fi bench poller (OBSOLETE -- adsb.fi is the chain primary; do not enable)
 After=network-online.target nginx.service
 
 [Service]

@@ -40,7 +40,7 @@ account_id = "48822e896bb10c45aa6bfe139bcff3d1"
 [vars]
 # NB: no UPSTREAM_ADSB_LOL_BASE here -- top-level config is what tests/dev use, and
 # they must fall back to api.adsb.lol direct. The relay URLs live per-env below.
-UPSTREAM_ADSB_FI_ENABLED = "false"        # flip to "true" once commercial permission clears
+UPSTREAM_ADSB_FI_ENABLED = "false"        # dev/test only -- staging + production below set "true" (adsb.fi is the chain primary)
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false" # DEAD no-op: airplanes.live is prohibited by operator (hardcoded off)
 ROUTE_ADSBDB_ENABLED = "true"             # route fallback; "false" once adsb.lol routeset recovers
 

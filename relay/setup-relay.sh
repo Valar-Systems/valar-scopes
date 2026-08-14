@@ -7,9 +7,9 @@
 #   - installs nginx (apt) + unattended-upgrades
 #   - writes the caching relay vhost: proxy_cache + cache_lock, use_stale on
 #     error/timeout/429, TTL a clearly-marked tunable (CACHE_TTL, starts 6s)
-#   - serves TWO upstreams: adsb.lol at the root (the shipping source) and
-#     adsb.fi under /fi (bench measurement only -- licence-blocked, see below),
-#     each in its own cache zone but under identical TTL/hold-down policy
+#   - serves TWO upstreams, BOTH shipping: adsb.fi under /fi (the chain primary
+#     for positions + hex) and adsb.lol at the root (licensed fallback, and the
+#     only route source), each in its own cache zone under identical policy
 #   - X-Relay-Key gate: 403 unless the caller presents the key, read from a
 #     ROOT-ONLY file (never in this script or in git)
 #   - installs the Cloudflare Origin certificate for TLS (443)
@@ -80,9 +80,10 @@ RELAY_KEY_FILE="/etc/nginx/relay.key"
 KEY_MAP="/etc/nginx/conf.d/00-relay-key.conf"
 SITE="/etc/nginx/sites-available/relay"
 CACHE_DIR="/var/cache/nginx/adsblol"
-# Second upstream, served under the /fi path prefix: adsb.fi. BENCH MEASUREMENT
-# ONLY -- their terms are personal/non-commercial with no redistribution right, so
-# the Worker ships with this source disabled (see proxy/src/upstreams/adsb_fi.ts).
+# Second upstream, served under the /fi path prefix: adsb.fi -- the chain PRIMARY
+# for positions and hex since 2026-07-31, permitted commercially in writing
+# (2026-08-05) conditional on the 1 req/s per-IP limit and nothing else. This is a
+# LIVE SERVING PATH (see proxy/src/upstreams/adsb_fi.ts).
 # Its own cache zone so the two upstreams can be sized, inspected and dropped
 # independently -- deleting adsb.fi must never cost us a warm adsb.lol tile.
 CACHE_DIR_FI="/var/cache/nginx/adsbfi"
@@ -238,14 +239,25 @@ NGINX
 
 # ---- relay vhost ------------------------------------------------------------
 log "writing relay vhost (tile TTL=$CACHE_TTL + 429 hold-down 15s, hex TTL=24h + 429 hold-down 60s)"
-log "  upstreams: / -> api.adsb.lol (shipping) | /fi -> opendata.adsb.fi (bench only)"
+log "  upstreams: /fi -> opendata.adsb.fi (chain primary) | / -> api.adsb.lol (fallback + routes)"
 cat > "$SITE" <<'NGINX'
 proxy_cache_path /var/cache/nginx/adsblol levels=1:2 keys_zone=adsblol:10m
                  max_size=100m inactive=2h use_temp_path=off;
-# adsb.fi (bench measurement only, served under /fi). Smaller: it caches one
-# comparison tile, not the fleet's working set.
-proxy_cache_path /var/cache/nginx/adsbfi levels=1:2 keys_zone=adsbfi:5m
-                 max_size=50m inactive=2h use_temp_path=off;
+# adsb.fi, served under /fi -- the chain PRIMARY.
+#
+# SIZED THE SAME AS THE ROOT ZONE, and not because they carry equal traffic today.
+# Either one can be carrying ALL of it: adsb.fi serves the fleet's working set
+# normally, and adsb.lol takes the whole load the moment the chain fails over --
+# which is the exact moment a too-small zone would start evicting warm tiles and
+# multiplying upstream fetches, on the source we have just fallen back to.
+#
+# This was 5m/50m ("one comparison tile, not the fleet's working set"), sized when
+# /fi was a bench path. That sizing outlived the role by two weeks: correct for
+# what it was, quietly wrong for the primary, and invisible at bench scale because
+# a handful of tiles never approaches 50 MB. It would have surfaced as unexplained
+# upstream-fetch growth somewhere in the pilot ramp.
+proxy_cache_path /var/cache/nginx/adsbfi levels=1:2 keys_zone=adsbfi:10m
+                 max_size=100m inactive=2h use_temp_path=off;
 
 # Log adsb.lol's OWN status (ustatus) + our cache status, so the soak measures the
 # one honest unknown -- the real per-IP 429 rate -- from these logs:
@@ -316,17 +328,19 @@ server {
         proxy_cache_valid 429 15s;
     }
 
-    # ---- adsb.fi under /fi (BENCH MEASUREMENT ONLY -- licence-blocked) -------
+    # ---- adsb.fi under /fi -- THE CHAIN PRIMARY, live customer traffic -------
     # Deliberately identical TTL/hold-down policy to the adsb.lol blocks above,
-    # so the 24 h comparison measures the UPSTREAM and not our own tuning. Longer
+    # which began as a way to make the 24 h comparison measure the UPSTREAM and
+    # not our tuning, and is now simply the shipping policy for both. Longer
     # prefixes win in nginx, so /fi/v2/hex/ takes the metadata policy and
     # everything else under /fi takes the live-positions policy.
     #
-    # Nothing in the shipping product points at these: the Worker keeps
-    # UPSTREAM_ADSB_FI_ENABLED = "false" in every env. They exist to be polled by
-    # the bench harness under adsb.fi's TESTING grant, at ~1 req/15 s per relay --
-    # well inside their 1 req/s public limit. Do NOT wire them into a serving path
-    # without a written commercial grant.
+    # THE HOLD-DOWN IS LOAD-BEARING HERE IN A WAY IT IS NOT AT THE ROOT. Our
+    # permission from adsb.fi (in writing, 2026-08-05) is conditional on staying
+    # inside their 1 req/s per-IP limit and on nothing else -- and 4xx/429s count
+    # toward that limit. So re-firing a 429 does not merely waste a request, it
+    # spends the budget the permission depends on. Do not shorten proxy_cache_valid
+    # 429 here without re-reading that grant.
     location ^~ /fi/v2/hex/ {
         include /etc/nginx/snippets/relay-upstream-fi.conf;
         proxy_cache_valid 200 24h;

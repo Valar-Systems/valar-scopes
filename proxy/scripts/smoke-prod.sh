@@ -264,6 +264,44 @@ else
   fail=$((fail+1))
 fi
 
+# WHICH UPSTREAMS PRODUCTION ACTUALLY HAS ON, read off the live Worker.
+#
+# This exists because the unit test that looks like it covers this cannot. It
+# builds an Env by hand, so it asserts the code DEFAULTS -- and its old name,
+# "ships with adsb.lol as the only enabled position source", stayed green while
+# becoming false, because production enables adsb.fi through wrangler.toml and no
+# hand-built env can see that. Input from the test's own side of the contract.
+#
+# /healthz reports feedHealth(env) from the deployed bindings, so this is the
+# other side: the running Worker's own answer, not a restatement of intent.
+#
+# The assertion is deliberately two-sided. "adsb_fi present" alone would also
+# pass if every feed were listed as enabled; "airplanes_live absent" alone would
+# pass on a Worker with no upstreams at all. Together they pin the actual posture:
+# the primary is on, and the operator-PROHIBITED source is not.
+#
+# Its OWN fetch rather than a reuse of $LAST_BODY. Reusing it is what made the
+# hex-candidate gate report "no live hex available" on a sky holding fourteen
+# aircraft (see section 4b), and this check would fail the same silent way: an
+# overwritten body yields no match, which is indistinguishable here from a
+# genuinely wrong upstream posture. One extra request buys an unambiguous read.
+printf '\n===== /healthz upstream posture =====\n'
+HEALTH_BODY="$(curl -s --max-time 15 "$BASE/healthz")"
+UPSTREAMS="$(printf '%s' "$HEALTH_BODY" | grep -oE '"upstreams":\[.*\]')"
+FI_ON="$(printf '%s' "$UPSTREAMS" | grep -oE '"id":"adsb_fi","enabled":(true|false)' | head -1)"
+AL_ON="$(printf '%s' "$UPSTREAMS" | grep -oE '"id":"airplanes_live","enabled":(true|false)' | head -1)"
+printf 'adsb_fi        : %s   (expect enabled -- the chain primary)\n' "${FI_ON:-<absent>}"
+printf 'airplanes_live : %s   (expect NOT enabled -- prohibited by operator)\n' "${AL_ON:-<absent>}"
+if [ "$FI_ON" = '"id":"adsb_fi","enabled":true' ] \
+   && [ "$AL_ON" = '"id":"airplanes_live","enabled":false' ]; then
+  printf 'RESULT: PASS\n'; pass=$((pass+1))
+else
+  printf 'RESULT: FAIL -- production is not running the upstream posture we think it is.\n'
+  printf '        adsb.fi off means positions fall back to adsb.lol, which 429s us hard.\n'
+  printf '        airplanes_live on would be a written-refusal breach. Check wrangler.toml.\n'
+  fail=$((fail+1))
+fi
+
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
   "${AUTH[@]}" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
