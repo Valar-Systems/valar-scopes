@@ -53,14 +53,23 @@ separately would test it twice and the cheaper test would be the less faithful o
 | B2 | Audit the 234 for orientation — batched, offenders named, count and list in one pass. **Requires looking at each image**; it cannot be inferred from metadata and an attempt to do so is what produced a false vetting sheet once already | not started |
 | B3 | **Livery caption** — see the correction below; this is NOT the cheap win it looks like | blocked on a design call |
 | B4 | CC BY-SA **ShareAlike** notice on the credits page, before a fifth BY-SA image lands | not built — attribution and `changesNoted` are already correct; only the SA clause is missing |
-| B5 | **Photo sourcing list** — K100 (VH-ICZ picked and eyeballed) and **B505** (Bell 505: no photo, no picksheet entry, no alias — a real gap, found 2026-08-14) | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
+| B5 | **Photo sourcing list** — K100 (VH-ICZ picked and eyeballed), **B505** (Bell 505), **PA23** (Piper Apache/Aztec). Each: no photo, no picksheet entry, no alias. All three found 2026-08-14 | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
 | B6 | KV coverage delta: types with **no square** (re-ingest, mechanical) reported separately from types with **no photo at all** (sourcing) | **delivered 2026-08-14** — `verify-release.sh`'s square probe reports exactly those two as distinct outcomes (FAIL vs WARN), and `ingest-photos.ts --dry-run` now prints CHANGED vs already-current per row |
 
-> **B505 gets a photograph, not an alias.** The alias table's rule is that
-> turbo/retract/engine variants qualify and different airframes do not. The 505 is a
-> different fuselage from the 206/407, so aliasing it would be stretching the rule to
-> fill a slot — and a library whose rule bends to fill slots stops meaning anything.
-> It shows the silhouette until a real photo lands, which is honest.
+> **These get photographs, not aliases.** The alias table's rule is that
+> turbo/retract/engine variants qualify and different airframes do not. Both candidates
+> sit near a tempting neighbour and neither qualifies: the Bell 505 is a different
+> fuselage from the 206/407, and the PA-23 is a different airframe from the PA-31 and
+> PA-34 that *are* in the library — "another Piper light twin" is a category, not a
+> variant. Aliasing either would be stretching the rule to fill a slot, and a library
+> whose rule bends to fill slots stops meaning anything. They show the silhouette until
+> a real photo lands, which is honest.
+>
+> **How these are being found matters.** All three surfaced from someone looking at a
+> screen, not from a query — the coverage question ("which types have no photo at all?")
+> is answerable mechanically against the manifest and nobody was asking it. Worth a
+> one-off sweep against a live type-frequency sample rather than waiting for the next
+> aircraft to fly past a bench board.
 
 ### C. Logbook / collection
 
