@@ -292,6 +292,27 @@ run that control fired and said *"cannot distinguish a missing library from a
 probe that cannot read KV"* — which is the true statement — instead of the false
 and much more exciting one.
 
+**The two fixes compound, and that is the point of pairing them.** They answer
+different questions and each is nearly useless alone:
+
+| | answers | without it |
+|---|---|---|
+| anchor control | *is this result trustworthy at all?* | a broken probe reports a fleet-wide emergency with total confidence |
+| stderr to a file | *why is it broken?* | you know not to trust it, and nothing else — so you bisect |
+
+Measured on the third catch (a transient Cloudflare **401** during a KV probe,
+API rate-limiting in the wake of ~1,900 ingest writes): the anchor said *don't
+believe this run*, and the captured stderr said **`401: Unauthorized`**. Cause
+established in one second, retry succeeded, finding re-established properly.
+The two previous catches had the anchor but not the capture, and each cost a
+round of guessing at a silent empty string — the same symptom, three different
+causes (wrong directory, stdout-vs-exit-status, expired auth), and only the
+third one was legible on sight.
+
+So: **a guard that can tell you a result is untrustworthy should also be able to
+tell you why.** Refusing to answer is the correct behaviour and is still a dead
+end if the reason was thrown away.
+
 **So the standing requirement, not a suggestion:** any probe that reports absence
 must first prove it can observe presence. A negative result from an unvalidated
 probe is not evidence, and "everything is missing" is the single most likely
