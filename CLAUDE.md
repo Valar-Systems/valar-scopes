@@ -257,6 +257,58 @@ was written. So the procedure, not the principle:
 The cost is a few lines of scrollback. The cost of the alternative was reporting
 a secret as set when it was not.
 
+### Worked example: the rule, written down, then broken twice in one hour
+
+The principle above was already in this file when
+[verify-release.sh](scripts/verify-release.sh)'s square-photo gate was written —
+a check whose entire job is to stop a release from removing photographs from
+every device in the fleet. It shipped with **two** failures of exactly this rule.
+Both are recorded because knowing the rule demonstrably does not prevent it.
+
+**1. It read stdout instead of the exit status, so it passed on absence.**
+The probe asked KV for a pointer key and treated *non-empty stdout* as "the key
+exists". On a **missing** key `wrangler kv key get` exits 1 and prints a cheerful
+`Would you like to report this error to Cloudflare?` **on stdout**. So a
+deliberately made-up aircraft type came back `PASS`. The gate against blanking
+every card in the fleet would have passed against a completely empty library.
+
+> A stdout-only read does not merely fail to detect the problem — **it reports
+> the problem as success**, because the failure output is chatty and lands on the
+> stream being read as the answer.
+
+The fix is both halves, and neither alone is enough: **check the exit status**,
+and **validate the shape of what came back** — using the consumer's own rule
+(here `isValidPhotoKey`/`BLOB_KEY_RE`, so a value the probe rejects is a value
+the device would reject).
+
+**2. It ran from the wrong directory, so it reported "absent" for everything.**
+`npx wrangler` was invoked from the repo root, where there is no `wrangler.toml`.
+Every lookup returned nothing, which the probe read as "no squares published" —
+a fleet-wide emergency, reported with total confidence, caused by a `cd`.
+
+**What saved it was the anchor control, and only that.** Before believing any
+result, the probe requires a key it *knows* exists to resolve. On its first real
+run that control fired and said *"cannot distinguish a missing library from a
+probe that cannot read KV"* — which is the true statement — instead of the false
+and much more exciting one.
+
+**So the standing requirement, not a suggestion:** any probe that reports absence
+must first prove it can observe presence. A negative result from an unvalidated
+probe is not evidence, and "everything is missing" is the single most likely
+shape of a broken probe. Both failures above produce it, and neither is visible
+in the code by reading it — only by running the control.
+
+Corollary for a gate with more than two outcomes: keep **"the thing is missing"**
+and **"the thing was never there"** distinct. The square probe reports a type
+with a rectangle but no square as `FAIL` (a release would propagate the gap) and
+a type absent from the library entirely as `WARN` (nothing regresses). Collapsing
+them into one "not found" is what makes a gate either cry wolf or stay silent.
+
+Finally: once the system is healthy the failing branch may become **unreachable**
+— after a full publish, no real type sits in the "rectangle but no square" state.
+A gate that cannot be made to fail is a gate nobody can check. Leave a seam that
+forces it (`PROBE_PANEL=999`), and use it.
+
 ## Non-goal: behavioural telemetry (settled 2026-08-02)
 
 **Never propose or add screen-usage, interaction, or engagement telemetry.** Which screen a customer looks at, how often they tap, how long the device is watched, which aircraft they open — none of it is collected, and the gap is deliberate rather than unfinished. It would be easy to add (the device already makes a request counters could ride on), which is exactly why this is written down. The reasoning: it is behavioural data from a device in someone's home; at this fleet size asking ten owners beats instrumenting all of them; and *"Blipscope doesn't track how you use it"* is only true while it stays entirely true. It is a **published commitment** in [README.md](README.md)'s Privacy & telemetry section, not an internal preference.
