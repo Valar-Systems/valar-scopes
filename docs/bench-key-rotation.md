@@ -314,7 +314,8 @@ Set both at Windows user level (`HKCU:\Environment`), using the key you minted i
 ./proxy/scripts/smoke-prod.sh
 ```
 
-- ☐ **29/29 green**, auth path asserted as `device`
+- ☐ **All green**, auth path asserted as `device`. Expect **30** checks, not the 29
+  you saw last run — `77cf18f` added the `/healthz` upstream-posture check.
 
 ---
 
