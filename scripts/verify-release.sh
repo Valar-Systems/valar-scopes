@@ -167,10 +167,21 @@ fi
 PHOTOS_TS="proxy/src/photos.ts"
 MIN_FW="$(grep -oE 'FULLBLEED_MIN_FW[[:space:]]*=[[:space:]]*[0-9]+' "$PHOTOS_TS" 2>/dev/null | grep -oE '[0-9]+$')"
 PANEL="$(grep -oE "\"$PILOT_SLUG\"[[:space:]]*:[[:space:]]*[0-9]+" "$PHOTOS_TS" 2>/dev/null | grep -oE '[0-9]+$')"
+PANEL="${PROBE_PANEL:-$PANEL}"
 # Types to probe. The FIRST one is the ANCHOR and must be a type the library is
 # known to carry -- it proves the probe mechanism works before any other result is
 # believed. The rest are ordinary coverage probes.
 PROBE_TYPES="${PROBE_TYPES:-B738 B505}"
+
+# PROBE_PANEL overrides the derived panel size, and exists ONLY so the FAIL branch
+# below can be reached on demand: once the library is fully published there is no
+# real type left in the "has a rectangle, has no square" state, so the branch that
+# blocks the release becomes unprovable exactly when everything is healthy.
+#
+#   PROBE_PANEL=999 ./scripts/verify-release.sh <tag>     # must FAIL on B738
+#
+# Prove it can fail before trusting that it passed -- the standing rule in
+# RELEASING.md, applied to the newest gate in this file.
 
 printf '\n--- square photo library (pilot SKU %s) ---\n' "$PILOT_SLUG"
 if [ -z "$MIN_FW" ] || [ -z "$PANEL" ]; then
@@ -181,8 +192,40 @@ else
   # Read the pointer the DEVICE path reads (photolicense.ts pointerKey), not the
   # manifest's blob keys -- the manifest can list a square whose pointer was never
   # written, and it is the pointer that decides what a card shows.
+  # FROM proxy/, because that is where wrangler.toml lives. Run from the repo root
+  # -- which is where this script is invoked -- wrangler finds no config, fails,
+  # and prints nothing on stdout. Every probe below then reads "empty", which is
+  # indistinguishable from "this key does not exist". Caught on the first real run
+  # by the anchor control below, which is the only reason it is not still here.
+  #
+  # STDERR TO A FILE, NOT TO /dev/null. It was discarded, so the actual message
+  # ("Missing entry-point... no wrangler.toml") was gone and the symptom was a
+  # silent empty string -- the exact trade CLAUDE.md's "never filter the output of
+  # a command you are testing for failure" is about. It is surfaced on failure below.
+  KV_ERR="$(mktemp)"
+  # EXIT CODE FIRST, THEN THE SHAPE. Neither is optional, and reading stdout alone
+  # is actively wrong here.
+  #
+  # On a MISSING key `wrangler kv key get` exits 1 and prints a cheerful "Would you
+  # like to report this error to Cloudflare?" ON STDOUT. So a non-empty-stdout test
+  # -- which is what this was -- reports a key that does not exist as PRESENT. This
+  # check passed for a made-up type (ZZZZ) while the square library was still half
+  # written: the gate against blanking every card in the fleet would itself have
+  # passed against an empty library. Decoration, in the one place this repo has
+  # written down twice that decoration is the failure mode.
+  #
+  # The shape test is the Worker's OWN rule, not a second opinion: resolvePhoto()
+  # accepts a pointer only if isValidPhotoKey() does (BLOB_KEY_RE in photos.ts), so
+  # a value this rejects is a value the device would reject. Anything else -- an
+  # error page, a prompt, a truncated read -- fails both tests.
   kvget() {
-    npx wrangler kv key get "$1" --binding=ENRICH_KV --env=production --remote --text 2>/dev/null
+    local out rc
+    out="$( ( cd proxy && npx wrangler kv key get "$1" \
+                --binding=ENRICH_KV --env=production --remote --text ) 2>>"$KV_ERR" )"
+    rc=$?
+    [ "$rc" -ne 0 ] && return 0
+    printf '%s' "$out" | tr -d '[:space:]' \
+      | grep -E '^photo:[~0-9A-Za-z]{2,8}-[0-9a-f]{8}$' || true
   }
   # ESTABLISH THAT THE PROBE WORKS BEFORE BELIEVING ANY RESULT FROM IT. The anchor
   # type's LEGACY pointer must resolve; if it does not, the probe is broken -- bad
@@ -196,6 +239,10 @@ else
     echo "        Cannot distinguish 'no squares published' from 'this check cannot read KV'."
     echo "        Check wrangler auth + KV read permission, then re-run. Treat every square"
     echo "        result as UNKNOWN -- not as a pass and not as a fail."
+    if [ -s "$KV_ERR" ]; then
+      echo "        --- wrangler stderr (the reason, not a guess) ---"
+      sed 's/^/        /' "$KV_ERR" | grep -viE '^\s*$|WARNING|unsafe|Processing wrangler' | tail -8
+    fi
   else
     for T in $PROBE_TYPES; do
       SQ_PTR="$(kvget "pptr:t:$T:s$PANEL" | tr -d '[:space:]')"
