@@ -16,7 +16,53 @@ are versioned and released **together** from a single commit, and each device se
 
 ## Cutting a release
 
+> ### ⛔ HARD GATE — the photo square library must be published BEFORE any release that raises `FW_VERSION` to `FULLBLEED_MIN_FW` (7) or above
+>
+> **Publishing such a release against an unpublished square library removes photographs
+> from every card on every device in the fleet, by OTA, in one action.** It is the
+> second member of the same family as the launch checklist in
+> [ROADMAP.md](ROADMAP.md): not a recovery, a recall — except this one arrives *because*
+> the update succeeded.
+>
+> **The mechanism.** [`squareSizeFor()`](proxy/src/photos.ts) reads `X-Blip-FW`. At FW ≥ 7
+> with a known model it returns a panel size, and `resolvePhoto()` then reads
+> **square-specific pointer keys** — and deliberately **returns null rather than falling
+> back to the legacy 150×100 rectangle**, because a rectangle in a full-bleed disc is
+> wrong wherever it lands. If the square pointers do not exist in KV, every lookup misses
+> and every card shows "No photo available".
+>
+> **Why it will not announce itself.** Every part of this is behaving correctly. The
+> firmware is right, the gate is right, the null-instead-of-rectangle choice is right, and
+> "No photo available" is a *designed* state with a silhouette. There is no error, no 5xx,
+> no log line, and nothing in CI to fail — the artifacts live in KV, which no build
+> touches. The only signal is a customer saying the pictures went away.
+>
+> **This was live on 2026-08-14:** production held 233 manifest rows and **zero** square
+> variants. The full-bleed work had shipped in firmware and the artifacts behind it had
+> never been published. It was found by chance, from one bench photograph, four days
+> after the framing work landed and hours before v7 was to be cut.
+>
+> **The gate, in order:**
+>
+> ```sh
+> # 1. What would change? Must read the published manifest -- if it prints
+> #    "could not read the published manifest", STOP: the count that follows is
+> #    a comparison against nothing and is the same number in both worlds.
+> cd proxy && npx tsx scripts/ingest-photos.ts --dry-run --env production
+>
+> # 2. Publish. Content-addressed, so unchanged rows are provable no-ops.
+> npx tsx scripts/ingest-photos.ts --env production
+>
+> # 3. Prove a square pointer actually resolves, from outside the ingest.
+> ./scripts/verify-release.sh <tag>        # includes the square-key probe
+> ```
+>
+> Devices below FW 7 are unaffected at every step: they read the legacy pointer, exactly
+> as before. So the ingest is safe to run at any time and there is never a reason to
+> defer it past a release.
+
 1. **Bump the version:** edit `FW_VERSION` in `src/OtaUpdater.h` (one number, all SKUs).
+   If this takes the number to 7 or above, the gate directly above applies.
 2. Commit + merge to `main`.
 3. **Create a GitHub Release** with a tag (e.g. `v5`). Publishing it triggers
    [.github/workflows/firmware.yml](.github/workflows/firmware.yml), which:

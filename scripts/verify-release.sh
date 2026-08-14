@@ -147,6 +147,84 @@ else
   bad "could not download firmware-$PILOT_SLUG.bin -- cannot verify the artifact"
 fi
 
+# ---- 6. THE SQUARE LIBRARY: would a FW>=7 device get a photograph at all? ---
+#
+# The failure this exists to catch removes photographs from every card in the
+# fleet, by OTA, in one action -- and every component behaves correctly while it
+# happens. resolvePhoto() sends a full-bleed device to square-only pointer keys
+# and deliberately returns null rather than falling back to the legacy rectangle;
+# with no squares published, every lookup misses and every card reads "No photo
+# available", which is a DESIGNED state. No error, no 5xx, no failing build --
+# the artifacts live in KV, which no CI job touches.
+#
+# Found live on 2026-08-14: production held 233 manifest rows and zero squares,
+# four days after the framing work shipped and hours before v7 was to be cut.
+#
+# BOTH INPUTS COME FROM THE OTHER SIDE OF THE CONTRACT. The FW threshold and the
+# pilot's panel size are read out of proxy/src/photos.ts, and the key format out
+# of photolicense.ts, so a change to any of them moves this check with it rather
+# than leaving it asserting a number someone typed here once.
+PHOTOS_TS="proxy/src/photos.ts"
+MIN_FW="$(grep -oE 'FULLBLEED_MIN_FW[[:space:]]*=[[:space:]]*[0-9]+' "$PHOTOS_TS" 2>/dev/null | grep -oE '[0-9]+$')"
+PANEL="$(grep -oE "\"$PILOT_SLUG\"[[:space:]]*:[[:space:]]*[0-9]+" "$PHOTOS_TS" 2>/dev/null | grep -oE '[0-9]+$')"
+# Types to probe. The FIRST one is the ANCHOR and must be a type the library is
+# known to carry -- it proves the probe mechanism works before any other result is
+# believed. The rest are ordinary coverage probes.
+PROBE_TYPES="${PROBE_TYPES:-B738 B505}"
+
+printf '\n--- square photo library (pilot SKU %s) ---\n' "$PILOT_SLUG"
+if [ -z "$MIN_FW" ] || [ -z "$PANEL" ]; then
+  note "could not read FULLBLEED_MIN_FW / $PILOT_SLUG panel size from $PHOTOS_TS -- square check SKIPPED"
+elif [ "$SRC_FW" -lt "$MIN_FW" ]; then
+  ok "tree FW $SRC_FW is below FULLBLEED_MIN_FW $MIN_FW -- devices stay on the legacy rectangle, gate N/A"
+else
+  # Read the pointer the DEVICE path reads (photolicense.ts pointerKey), not the
+  # manifest's blob keys -- the manifest can list a square whose pointer was never
+  # written, and it is the pointer that decides what a card shows.
+  kvget() {
+    npx wrangler kv key get "$1" --binding=ENRICH_KV --env=production --remote --text 2>/dev/null
+  }
+  # ESTABLISH THAT THE PROBE WORKS BEFORE BELIEVING ANY RESULT FROM IT. The anchor
+  # type's LEGACY pointer must resolve; if it does not, the probe is broken -- bad
+  # key format, wrong namespace, no credentials, a broken wrangler -- and every
+  # "missing" below is indistinguishable from a real gap. That is the exact shape
+  # this file already guards against with the binary-grep control string above.
+  ANCHOR="$(printf '%s' "$PROBE_TYPES" | awk '{print $1}')"
+  ANCHOR_LEG="$(kvget "pptr:t:$ANCHOR" | tr -d '[:space:]')"
+  if [ -z "$ANCHOR_LEG" ]; then
+    note "PROBE BROKEN: anchor legacy pointer pptr:t:$ANCHOR is empty."
+    echo "        Cannot distinguish 'no squares published' from 'this check cannot read KV'."
+    echo "        Check wrangler auth + KV read permission, then re-run. Treat every square"
+    echo "        result as UNKNOWN -- not as a pass and not as a fail."
+  else
+    for T in $PROBE_TYPES; do
+      SQ_PTR="$(kvget "pptr:t:$T:s$PANEL" | tr -d '[:space:]')"
+      LEG_PTR="$(kvget "pptr:t:$T" | tr -d '[:space:]')"
+      if [ -n "$SQ_PTR" ]; then
+        ok "$T: square pointer pptr:t:$T:s$PANEL resolves"
+      elif [ -z "$LEG_PTR" ]; then
+        # THIRD OUTCOME, and it must not be conflated with the second. This type is
+        # not in the photo library in any form, so there is no square to be missing
+        # -- a coverage gap in the library, not a release blocker, and a release
+        # would not make anything worse for it. B505 is here for exactly this
+        # reason: it has no photo, no alias, and nothing to regress.
+        note "$T: NOT IN THE LIBRARY at all (no square, no rectangle, no alias)."
+        echo "        A coverage gap, not a release blocker -- this type shows the silhouette"
+        echo "        today and would keep showing it. Fix by adding a photo to the picksheet"
+        echo "        or a TYPE_PHOTO_ALIAS entry in proxy/src/photos.ts."
+      else
+        bad "$T: NO SQUARE at ${PANEL}px, but the legacy pointer IS present."
+        echo "        The anchor control passed, so this is a real gap, not a broken probe."
+        echo "        Releasing FW $SRC_FW (>= $MIN_FW) NOW WOULD BLANK THIS CARD FLEET-WIDE."
+        echo "        resolvePhoto() sends full-bleed devices to square keys only and will not"
+        echo "        fall back to the rectangle. Publish first:"
+        echo "          cd proxy && npx tsx scripts/ingest-photos.ts --env production"
+        echo "        See the HARD GATE at the top of RELEASING.md 'Cutting a release'."
+      fi
+    done
+  fi
+fi
+
 printf '\n=== %d passed, %d failed, %d warnings ===\n' "$pass" "$fail" "$warn"
 if [ "$fail" -gt 0 ]; then
   printf '\033[31mDO NOT START A FLASH RUN.\033[0m\n\n'
