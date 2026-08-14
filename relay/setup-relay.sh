@@ -65,6 +65,23 @@ set -euo pipefail
 #   3. only then raise this to 30s and re-run setup-relay.sh on BOTH boxes
 # A device on older firmware ignores minStaleMs and keeps the 15s active threshold, so
 # it reads amber at a 30s TTL. That is an upgrade gate, not a surprise.
+#
+# !! THE DEFAULT BELOW IS STEP 3'S TARGET, NOT WHAT THE BOXES RUN. !!
+#
+# Both relays are on 8s and step 3 is gated on the firmware floor actually reaching
+# the boards, not merely existing in the tree. So a BARE re-run of this script -- for
+# any reason, a cache-size change, a key rotation, anything -- silently performs step
+# 3 early, out of the order written directly above, and every device still on older
+# firmware goes amber.
+#
+# PASS IT EXPLICITLY when re-running for something else:
+#     sudo CACHE_TTL=8s bash setup-relay.sh
+#
+# And read the live value first rather than trusting this file, since the whole point
+# is that they differ:
+#     ssh root@<relay> "nginx -T 2>/dev/null | grep -A2 'location \^~ /fi/'"
+#
+# (Verified 2026-08-13: both boxes serve `proxy_cache_valid 200 8s` on /fi.)
 CACHE_TTL="${CACHE_TTL:-30s}"
 
 # Tile TTL for the /fi50 experiment path only (see the location block below).
