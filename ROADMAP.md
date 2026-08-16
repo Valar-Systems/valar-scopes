@@ -25,7 +25,7 @@ Grouped by what blocks what. Within a group, order is priority.
 | A1 | Deploy `c046e4b` + `1c76d4a` + `d513aa2` (auth removal + enrich fixes) | **committed, NOT deployed** — waiting on the shared-key 401 confirmation |
 | A2 | Rotate `DEVICE_KEY_SECRET` + re-enroll both boards + re-derive the bench identity | pending — **procedure written: [docs/bench-key-rotation.md](docs/bench-key-rotation.md)**. Run it after v7, see the sequencing note |
 | A3 | **Cloud 401 handler** | **built** — `4391170`. Code complete on 6 envs; **bench proof outstanding**, folded into A2 (same doc, steps marked **[A3]**) |
-| A4 | Re-measure the type-gap list with non-ICAO excluded | pending A1; drains over hours, not instantly |
+| A4 | Re-measure the type-gap list with non-ICAO excluded | **done 2026-08-16** — [docs/enrichment-type-gap-2026-08-16.md](docs/enrichment-type-gap-2026-08-16.md). The skip cut it ~30x: 534-855 lookups/day before, 19-27 after. What remains is ~10 hexes/day, 85% US civil / 15% US military, nothing foreign, nothing phantom |
 | A5 | Update the operator environment: `BLIP_KEY` still holds the **dead 48-char shared key** and `BLIP_DEVICE` is unset at user level | **breaks `smoke-prod.sh` and `watch-upstream.sh` on next run** — both now refuse without it. Closed by A2 §8, which mints the replacement |
 
 **A2's sequencing, and why A3's proof rides on it.** Rotating invalidates both bench
@@ -53,7 +53,7 @@ separately would test it twice and the cheaper test would be the less faithful o
 | B2 | Audit the 234 for orientation — batched, offenders named, count and list in one pass. **Requires looking at each image**; it cannot be inferred from metadata and an attempt to do so is what produced a false vetting sheet once already | not started |
 | B3 | **Livery caption** — see the correction below; this is NOT the cheap win it looks like | blocked on a design call |
 | B4 | CC BY-SA **ShareAlike** notice on the credits page, before a fifth BY-SA image lands | not built — attribution and `changesNoted` are already correct; only the SA clause is missing |
-| B5 | **Photo sourcing list** — K100 (VH-ICZ picked and eyeballed), **B505** (Bell 505), **PA23** (Piper Apache/Aztec). Each: no photo, no picksheet entry, no alias. All three found 2026-08-14 | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
+| B5 | **Photo sourcing list** — K100 (VH-ICZ picked and eyeballed), **B505** (Bell 505), **PA23** (Piper Apache/Aztec), **AS21** (#49), **C414** (#82). Each: no photo, no picksheet entry, no alias. K100 was PUBLISHED 2026-08-16 with RV9/C180/T210; the rest are below the stop line the coverage curve drew and are recorded rather than queued | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
 | B6 | KV coverage delta: types with **no square** (re-ingest, mechanical) reported separately from types with **no photo at all** (sourcing) | **delivered 2026-08-14** — `verify-release.sh`'s square probe reports exactly those two as distinct outcomes (FAIL vs WARN), and `ingest-photos.ts --dry-run` now prints CHANGED vs already-current per row |
 
 > **These get photographs, not aliases.** The alias table's rule is that
