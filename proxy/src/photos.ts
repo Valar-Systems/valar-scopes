@@ -45,6 +45,8 @@ const TYPE_PHOTO_ALIAS: Record<string, string> = {
 };
 
 // WHY C185 QUALIFIES AND B505/PA23 DO NOT -- the rule is hulls, not neighbours.
+// The rule itself lives in blipscope-military-photo-sourcing.md ("Aliasing a
+// type: justify it by the HULL, never by the photograph"); this is its instance.
 //
 // The 185 is a structurally strengthened 180 with a bigger engine and a taller
 // fin, on the same fuselage: the TBM7/TBM8 relationship above, not the "another

@@ -91,6 +91,8 @@ separately would test it twice and the cheaper test would be the less faithful o
 >    type has no good options yet" and go to a manual Commons search; do not ingest the
 >    consolation prize because it was the only thing on the sheet. B1 is unbuilt, so
 >    nothing automated catches a nose-on shot — the human look is the only gate there is.
+>    **Now a standing rule in the sourcing playbook** rather than only an incident note
+>    here — see [blipscope-military-photo-sourcing.md](blipscope-military-photo-sourcing.md).
 > 2. **A publish is not a draft.** The reject-after-publish path costs a KV deletion the
 >    ingest script cannot do (it publishes from the manifest; it does not prune), so
 >    removing a row locally leaves the fleet serving it. Eyes on the contact sheet
