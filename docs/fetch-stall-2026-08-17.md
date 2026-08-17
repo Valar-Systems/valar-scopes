@@ -85,4 +85,22 @@ staging absent, traces compiled in, harness absent).
   sky size the variable rather than board identity.
 - Whether the heap fragmentation and the stall are the same defect. They appeared on the
   same board on the same afternoon, which is exactly the coincidence that invites merging
-  two bugs into one wrong story. Treated as separate until something links them.
+  two bugs into one wrong story. Treated as separate until something links them —
+  see [heap-fragmentation-2026-08-17.md](heap-fragmentation-2026-08-17.md).
+
+## Run log
+
+**2026-08-17, 12 minutes idle on `-DFETCH_TRACE`, production backend — NO STALL.**
+
+A clean negative, recorded because the baseline is what the next occurrence gets compared
+against. ~140 request/response pairs, **every `req` matched by a `done`**, all
+`ok=1 http=200`, 66–1075 ms. Across every `[soak-state]` line: `reqQ=0 resQ=0 inFlight=0
+task=2`, and `fetchAge` never exceeded 5 s. None of A / A′ / B / C fired.
+
+One 15 s gap at 11:58:44 is **not** a stall: `touchIdle` crosses 600 s there and the poll
+interval changes 5 s → 15 s exactly as `idleAfter=600s` specifies.
+
+So the instrumentation is proven to emit what it should, and the fetch pipeline is proven
+healthy when it is not stalling. 12 minutes is a thin window against something that
+historically ran 22 minutes and then did not recur for six weeks; the board stays on this
+image.
