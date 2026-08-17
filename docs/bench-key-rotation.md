@@ -345,6 +345,37 @@ fault in those variables. Witnesses 1 and 3 are derived from outside the firmwar
 arithmetic — the screen from a *different* constant, the log from your machine's clock.
 If 2 disagrees with 1 or 3, **believe 1 and 3.**
 
+### Witness 0 — `rej`, which rules out the confound the other three cannot
+
+Read `rej=` off any `[health]` line **at baseline and again at the latch**. It counts
+handshakes refused by `heaphealth::CanHandshake()` — a board whose largest contiguous
+block is too small to start TLS.
+
+**This matters because a heap-starved board walks the SAME ladder in the SAME colours.**
+`STALE DATA` → `STALE Nm` → `NO DATA - 10m` is driven by "no fresh data", and a refused
+handshake produces no fresh data just as surely as a 401 does. Banner order, the latch
+line and the wall clock all agree with each other in both worlds, because all three are
+downstream of the same silence.
+
+The traces differ at the source, and that is the whole value:
+
+| Observation | Cause |
+|---|---|
+| banner + `HTTP 401` lines + **`rej` unchanged** | ✅ the key — this is the run you wanted |
+| banner + **no 401 lines** + **`rej` climbing** | ❌ heap — the rotation is not what you are looking at |
+
+A refused handshake never reaches the server, so it has no HTTP status; a 401 by
+definition does. `rej` is therefore independent of everything the debounce reasons about.
+
+☐ `rej` at baseline: ____  ☐ `rej` at the latch: ____ (must be **equal**)
+
+> Observed on the bench 2026-08-17, before T₀ and while writing this: `.55` fell from
+> `largest=39924` to `16372` over four minutes, logged `DATA STALE` with `tls=` frozen
+> across a 30 s window, and recovered on its own to a stable 23540. Had that happened
+> *during* the wait it would have produced a textbook-looking latch with no 401 behind
+> it. The heap number is not the instrument — `rej` is, because it is a count of
+> refusals rather than a level to interpret.
+
 ### At the latch — confirm all three surfaces, both boards
 
 - ☐ Board #1 serial: `KEY REFUSED` line, numbers checked against the table above
