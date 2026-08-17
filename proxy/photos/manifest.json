@@ -2785,17 +2785,5 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/c180.jpg"
-  },
-  {
-    "target": "T210",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Cessna_T210G_Turbo_Centurion_AN1084127.jpg",
-    "author": "Pedro Aragão",
-    "credit": "Cessna T210G Turbo Centurion AN1084127",
-    "license": "CC BY-SA 3.0",
-    "layer": "auto",
-    "autoPicked": true,
-    "file": "src/t210.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
   }
 ]

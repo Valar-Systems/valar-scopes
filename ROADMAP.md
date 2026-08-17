@@ -53,7 +53,7 @@ separately would test it twice and the cheaper test would be the less faithful o
 | B2 | Audit the 234 for orientation — batched, offenders named, count and list in one pass. **Requires looking at each image**; it cannot be inferred from metadata and an attempt to do so is what produced a false vetting sheet once already | not started |
 | B3 | **Livery caption** — see the correction below; this is NOT the cheap win it looks like | blocked on a design call |
 | B4 | CC BY-SA **ShareAlike** notice on the credits page, before a fifth BY-SA image lands | not built — attribution and `changesNoted` are already correct; only the SA clause is missing |
-| B5 | **Photo sourcing list** — K100 (VH-ICZ picked and eyeballed), **B505** (Bell 505), **PA23** (Piper Apache/Aztec), **AS21** (#49), **C414** (#82). Each: no photo, no picksheet entry, no alias. K100 was PUBLISHED 2026-08-16 with RV9/C180/T210; the rest are below the stop line the coverage curve drew and are recorded rather than queued | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
+| B5 | **Photo sourcing list** — **B505** (Bell 505), **PA23** (Piper Apache/Aztec), **AS21** (#49), **C414** (#82), **T210** (#4 — see below). Each: no photo, no picksheet entry, no alias. K100/RV9/C180 were PUBLISHED 2026-08-16; the rest are below the stop line the coverage curve drew and are recorded rather than queued | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
 | B6 | KV coverage delta: types with **no square** (re-ingest, mechanical) reported separately from types with **no photo at all** (sourcing) | **delivered 2026-08-14** — `verify-release.sh`'s square probe reports exactly those two as distinct outcomes (FAIL vs WARN), and `ingest-photos.ts --dry-run` now prints CHANGED vs already-current per row |
 
 > **These get photographs, not aliases.** The alias table's rule is that
@@ -70,6 +70,36 @@ separately would test it twice and the cheaper test would be the less faithful o
 > is answerable mechanically against the manifest and nobody was asking it. Worth a
 > one-off sweep against a live type-frequency sample rather than waiting for the next
 > aircraft to fly past a bench board.
+>
+> **T210 is here having been rejected AFTER publication (2026-08-17), which is the part
+> to learn from.** It was ingested on 2026-08-16 in the batch of four and the reject
+> landed the next day, so the local manifest row, the picksheet row and `src/t210.jpg`
+> are gone but **four production pointers were already live** and had to be deleted
+> separately. The pick failed on **two things together**: ~30° nose-on foreshortening
+> *and* the smallest source in the batch at 1050×705, which leaves no margin for the
+> 480 px square on the 2.1" panel. Either alone might have passed; together it is
+> borderline on the pilot SKU and poor on the largest. At 4.4% of the remaining gap —
+> under 0.1% of sightings — leaving the silhouette costs nothing, and **the playbook rule
+> is replace, not crop harder.**
+>
+> Two standing consequences:
+>
+> 1. **Do not ingest the only candidate an automated search returns just because it is
+>    the only one.** `suggest-commons` returning exactly one result is not a
+>    recommendation, it is an empty search with a consolation prize. B1 is unbuilt, so
+>    nothing automated catches a nose-on shot — the human look is the only gate there is.
+> 2. **A publish is not a draft.** The reject-after-publish path costs a KV deletion the
+>    ingest script cannot do (it publishes from the manifest; it does not prune), so
+>    removing a row locally leaves the fleet serving it. Eyes on the contact sheet
+>    *before* the ingest, not after.
+>
+> **C185 (#13, 20 lookups) is a live alias candidate and the rule may genuinely permit
+> it** — unlike B505/PA23 above. The C185 Skywagon is a strengthened C180 with a bigger
+> engine and taller tail, sharing the fuselage; that is the same relationship as
+> `TBM7: "TBM8"` ("share a hull") already in `TYPE_PHOTO_ALIAS`, not the "another light
+> twin" category error. Now that C180 is published this is one line and no sourcing.
+> **Needs a human look at the C180 image against a C185 before it goes in** — the whole
+> point of the rule is that it does not bend to fill slots.
 
 ### C. Logbook / collection
 
