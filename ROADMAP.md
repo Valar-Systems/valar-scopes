@@ -855,3 +855,84 @@ Everything above except the scoring-radius normalization landed as one feature:
   starved the TLS heap; PR #100 settled on 40). The safe implementation is a server-side
   count from already-served traffic (verified devices) rather than a wider device-side ring.
   Rarity weighting already does most of the radius equalizing meanwhile.
+
+---
+
+## Concept: corroborated user identifications for unresolved aircraft
+
+**Design, not work. Nothing to build now** — see the trigger at the bottom.
+
+**The problem it solves.** US military airframes rotate their Mode-S hex codes. The
+milspotting community re-identifies them within days; Mictronics ships a packaged export
+that lags. So a rotated hex resolves to the military floor's generic operator and nothing
+else. `AE67CC` (a P-8 transiting the WA/OR corridor at FL290) and `AE6861` are both this.
+ADSBX shows a **type** for `AE67CC` and **no registration**, which is exactly consistent
+with the mechanism: community-curated type, tail not yet matched.
+[Per-hex overrides](docs/per-hex-overrides.md) fix these one at a time. This is the
+version that scales.
+
+**The idea.** Our customers are the people who would know. Someone watching a P-8 transit
+weekly, with a receiver and a Blipscope, is often the same person identifying it on a
+forum. Let them submit an identification for an unresolved aircraft, and publish it once
+**independent** users corroborate it.
+
+### Design constraints, in order of how load-bearing they are
+
+1. **Corroboration, never single-source.** One person's guess propagating to the fleet is
+   worse than a blank field. The military floor already asserts only what the allocation
+   proves; this must not weaken that.
+2. **Independence matters more than count.** N users agreeing is weak evidence if they all
+   read the same forum post — and for military hexes that is likely, because the community
+   converges fast. Geographic spread is a usable proxy: three submissions from three metros
+   beats three from one. **Decide what N is, and what independence means, before building
+   anything.**
+3. **A contested hex falls back; it does not pick a winner.** Two users, two different
+   types → publish neither. Silhouette plus the floor's generic operator. Same rule as
+   everything else here: say less rather than say wrong.
+4. **Type only, never registration.** Same rule as the floor. A wrong tail number on a
+   military aircraft is a worse failure than an empty field — and ADSBX does not have one
+   either, so we would be inventing rather than lagging.
+5. **No accounts.** We deliberately have none. Anonymous submission makes independence
+   harder to establish. The device id already exists and already backs the leaderboard, so
+   it is the obvious identity — but that is a **decision to make, not to inherit**, and it
+   ties an identification to a board rather than a person.
+6. **Review before publish while the fleet is small.** At 50 devices each one can be
+   approved by hand; that does not scale to 600. **Corroboration is what replaces the
+   reviewer**, so the threshold has to be trustworthy *before* the review step goes away.
+
+### Do the cheap version first
+
+A "report a wrong or missing aircraft" link on the config page, opening a pre-filled
+email: hex, the type as we resolved it, device id, nothing else. **Zero infrastructure,
+and it measures the volume before we build for it.** If the pilot surfaces five hexes,
+corroboration is a platform for a spreadsheet. If it surfaces fifty, the week is obviously
+worth spending.
+
+### Trigger to build
+
+Per-hex overrides becoming a **recurring chore rather than an occasional one**, or the
+pilot surfacing enough unresolved recurring hexes that manual curation stops being an
+afternoon.
+
+### Related and unbuilt
+
+- The **curated overlay**, deferred 2026-08-16 — military was 0.9% of gap hexes, all
+  inside one contiguous allocation window. See also `E3` above.
+- **Per-hex overrides**, whose current state is the argument for this concept rather than
+  a list of pending work. As of 2026-08-17 the five that were queued resolve into three
+  different categories, and only one of them was actionable:
+
+  | hex | days seen | state |
+  |---|---|---|
+  | `ae67cc` | 3 | **overridden** — `{"t":"P8"}`, from ADSBX community curation |
+  | `a71203` | **1** | **dropped** — one-off; all 15 lookups inside a 16-minute window |
+  | `a815d6` | 6 | **blocked on data** |
+  | `a590d8` | 5 | **blocked on data** |
+  | `a7419f` | 3 | **blocked on data** |
+
+  The three blocked ones are the sharpest argument for this concept. They **recur**, and
+  they are US **civil** addresses — so the military floor gives them nothing at all and
+  they render genuinely blank, not merely degraded. `adsbdb` returns `unknown aircraft`
+  for all three. There is no database left to ask and no override that can honestly be
+  written. **A customer who watches one of them fly over every week is the only remaining
+  source of that identification.**
