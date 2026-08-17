@@ -14,7 +14,7 @@ written as a standing procedure with the one-time A3 assertions marked **[A3]**.
 
 ---
 
-## 0. Preconditions — do not start until all four are true
+## 0. Preconditions — do not start until all five are true
 
 | | Precondition | Why |
 |---|---|---|
@@ -167,6 +167,29 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 - ☐ Old key → **401**
 - ☐ New key → **200**
+
+### Set `BLIP_KEY` from this mint NOW, not at §8
+
+`smoke-prod.sh` is the only thing that checks production, and until `BLIP_KEY` holds a
+valid device key it is not merely failing — it is **unavailable**. Leaving that to §8
+means the whole bench runs with no way to ask production a question, and if anything
+looks wrong at §4 or §5 the first diagnostic you would reach for is the one you have not
+restored yet.
+
+You have the key in your hand right now. Set both at Windows user level
+(`HKCU:\Environment`) and open a **new** shell for the rest of the run — a running
+session will not see the change, which is the other reason not to do this mid-bench with
+two serial monitors already attached:
+
+- ☐ `BLIP_KEY` = the key you just minted
+- ☐ `BLIP_DEVICE` = `beefbeefbeefbeef`
+- ☐ New shell opened; `smoke-prod.sh` available from here on
+
+> **This composes with the drain caveat below rather than fighting it.** If the mint
+> landed on a draining isolate, `BLIP_KEY` is now an old-secret key — and the re-test at
+> the latch is already scheduled to catch exactly that. So the one check you were going
+> to run anyway now doubles as the check on `BLIP_KEY` itself. If it flips to 401,
+> re-mint and re-set both here and in the shell.
 
 **Both must hold.** Old-401 alone could mean the Worker is broken; new-200 alone could
 mean nothing changed. Together they say precisely one thing: the secret in front of
@@ -382,14 +405,13 @@ Same as §5. Confirm the same three surfaces clear. Both boards are now on the n
 
 ## 8. Restore the smoke identity and re-prove production (this closes A5)
 
-`smoke-prod.sh` is the only thing that checks production, and it refuses to run without
-both variables — so a stale `BLIP_KEY` is not a silent failure, but it is a blocked one.
+**Both variables were set back in §3**, so this step is the confirmation, not the first
+opportunity. If you skipped ahead, go and do §3's "Set `BLIP_KEY` from this mint NOW"
+block before reading on — `smoke-prod.sh` refuses to run without both, and a stale
+`BLIP_KEY` is a blocked run rather than a failing one.
 
-Set both at Windows user level (`HKCU:\Environment`), using the key you minted in §3:
-
-- ☐ `BLIP_KEY` = the **new** `beefbeefbeefbeef` key
-- ☐ `BLIP_DEVICE` = `beefbeefbeefbeef`
-- ☐ Open a **new** shell (the running session will not see the change)
+- ☐ `BLIP_KEY` / `BLIP_DEVICE` still hold the §3 values (re-minted if the latch re-test
+  came back 401)
 
 ```sh
 ./proxy/scripts/smoke-prod.sh
@@ -397,6 +419,12 @@ Set both at Windows user level (`HKCU:\Environment`), using the key you minted i
 
 - ☐ **All green**, auth path asserted as `device`. Expect **30** checks, not the 29
   you saw last run — `77cf18f` added the `/healthz` upstream-posture check.
+
+> **Why this is a confirmation and not a restoration.** Setting the variables here would
+> mean the entire bench — the latch, both recoveries, the control board — ran with no way
+> to ask production a question. The one tool that checks prod would have been unavailable
+> for precisely the window in which you most want it, and its first run would land after
+> every interesting state had already been cleared.
 
 ---
 
