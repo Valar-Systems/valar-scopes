@@ -367,7 +367,25 @@ The traces differ at the source, and that is the whole value:
 A refused handshake never reaches the server, so it has no HTTP status; a 401 by
 definition does. `rej` is therefore independent of everything the debounce reasons about.
 
+**Read `tlsOk` beside it — same line, and it is the more direct of the two.** `rej` is
+cumulative, `tlsOk` is the gate's answer *at that instant*: `1` = a handshake-sized block
+was available, `0` = it is refusing right now. A single `tlsOk=0` during the wait means
+the banner you are watching has a heap explanation available, whatever the key is doing.
+
 ☐ `rej` at baseline: ____  ☐ `rej` at the latch: ____ (must be **equal**)
+☐ `tlsOk=1` on **every** health line through the wait (any `0` invalidates the run)
+
+> Verified in the source rather than inferred from a log, because this was written into
+> the procedure on one afternoon's observation: `rej` is `heaphealth::TrialRejectionCount()`
+> and that counter has exactly ONE increment site, inside `CanAllocate`, reached only via
+> `CanHandshake()` at a single size. Nothing else can move it.
+>
+> One consequence worth knowing: [AircraftManager.cpp:1427](src/AircraftManager.cpp#L1427)
+> trials the allocator *to print `tlsOk` on the health line itself*, so `rej` also ticks
+> from the reporting rather than only from dropped fetches. It is therefore a
+> regularly-sampled measure of heap tightness, not a count of lost requests — which for
+> this purpose is stronger, since it samples on a timer instead of only when a fetch
+> happened to be due.
 
 > Observed on the bench 2026-08-17, before T₀ and while writing this: `.55` fell from
 > `largest=39924` to `16372` over four minutes, logged `DATA STALE` with `tls=` frozen
