@@ -107,22 +107,33 @@ Measured from the relay logs + fleet-side `X-Cache`:
 Fail any → tune `CACHE_TTL` up (fewer upstream calls) or coarsen tiles before
 adding a third relay IP. The design degrades by a knob, not off a cliff.
 
-## Second upstream: adsb.fi under `/fi` (bench measurement only)
+## Primary upstream: adsb.fi under `/fi`
 
-Each relay also proxies **adsb.fi** under a `/fi` path prefix (`/fi/v3/lat/...` →
+Each relay proxies **adsb.fi** under a `/fi` path prefix (`/fi/v3/lat/...` →
 `opendata.adsb.fi/api/v3/lat/...`), in its own cache zone but under **identical**
 TTL and 429 hold-down policy, so a comparison measures the upstream rather than
 our tuning.
 
-**This is not a serving path.** adsb.fi granted permission to *test*, but their
-terms are "personal, non-commercial use only … you may not license, sell, rent, or
-lease any part of the data or the service" — no ODbL-style redistribution right,
-which is exactly what this relay does. The Worker therefore ships with
-`UPSTREAM_ADSB_FI_ENABLED = "false"` in every env. **Do not wire `/fi` into a
-serving path without a written commercial grant** (see the reply draft in
-[proxy/FEED-SOURCING.md](../proxy/FEED-SOURCING.md)).
+**This is the serving path for positions and hex.** Since 2026-07-31 adsb.fi is
+the chain primary and adsb.lol the licensed fallback; staging and production both
+set `UPSTREAM_ADSB_FI_ENABLED = "true"`.
 
-Because it is out of the chain, a chain-order test would never exercise it. The
+**Permitted commercially, in writing (2026-08-05):** use for a paid hardware
+product "including the caching system", conditional on staying inside the Open
+Data API rate limit **and nothing else**. So the live constraint on this path is
+the **1 req/s per IP** budget — and 4xx/429s count toward it, which is why never
+re-firing a 429 is mandatory here rather than merely polite.
+
+> This section twice said the opposite — first that adsb.fi 403s us (it was
+> Cloudflare's shared egress), then that its terms forbade redistribution (a
+> reading of their published page while a written grant to us already existed).
+> Both were readings of a public page instead of our own correspondence. The
+> published terms are the default; the thread is the licence.
+
+`fi-bench.sh` below **predates this** and is now redundant: it polls the same
+path from the box itself, spending the same per-IP budget to measure a source
+that is already carrying live traffic. Stop it where it is still installed —
+`measure.mjs` flags on-box traffic in its report. The
 comparison instead comes from `fi-bench.sh`, a poller that runs on each box and
 drives `/fi` directly — same tile, same radius, same ~15 s cadence as the adsb.lol
 soak, so `measure.mjs` reports both upstreams side by side from one log:

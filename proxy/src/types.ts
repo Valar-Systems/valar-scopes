@@ -13,15 +13,24 @@ export interface Env {
   RL_KEY?: RateLimit;
 
   // Secrets.
-  BLIP_KEYS?: string;        // comma-separated accepted (shared) device keys (rotation = old+new)
-  DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys (additive; shared keys still work)
+  // NOTE: BLIP_KEYS (the shared fleet key) was removed 2026-08-13. Deliberately
+  // NOT left here as an optional field: a declared-but-unread binding is how a
+  // secret gets quietly re-set later and silently does nothing, and TypeScript
+  // will now reject any code that reaches for it.
+  DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys -- now the ONLY way in
+  TURNSTILE_SITEKEY?: string;    // PUBLIC. Rendered into the enrol page; empty renders the page's
+                                 // "cannot verify" state, which is the same state a blocked
+                                 // network produces and is therefore already handled.
+  TURNSTILE_SECRET_KEY?: string; // Turnstile siteverify secret. WITHOUT IT /enroll refuses to mint
+                                 // (503 not_configured) rather than minting unverified -- an
+                                 // unverified key is indistinguishable from one an attacker asked for.
   ADSB_LOL_API_KEY?: string; // optional feeder key, once adsb.lol issues them
   RELAY_KEY?: string;        // X-Relay-Key: authenticates the Worker to our egress relay (see relay/)
 
   // Vars.
   UPSTREAM_ADSB_LOL_BASE?: string;          // relay-a base URL; unset -> api.adsb.lol direct (dev/test)
   UPSTREAM_ADSB_LOL_BASE_B?: string;        // relay-b base URL; unset -> the secondary feed is disabled
-  UPSTREAM_ADSB_FI_ENABLED?: string;        // LICENCE-BLOCKED: non-commercial terms, no redistribution right (adsb_fi.ts)
+  UPSTREAM_ADSB_FI_ENABLED?: string;        // "true" in staging + production: adsb.fi is the chain PRIMARY (adsb_fi.ts)
   UPSTREAM_ADSB_FI_BASE?: string;           // adsb.fi via relay-a (/fi prefix); unset -> opendata.adsb.fi direct (dev/test)
   UPSTREAM_ADSB_FI_BASE_B?: string;         // adsb.fi via relay-b; unset -> the secondary feed is disabled
   UPSTREAM_FEED_ORDER?: string;             // ROLLBACK KNOB, e.g. "adsb_lol,adsb_lol_b" -- moves those feeds to

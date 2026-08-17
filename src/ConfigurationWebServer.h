@@ -19,6 +19,17 @@ private:
     // and restarts on the main task (WiFi/restart work off the async callback).
     volatile bool wifiResetRequested = false;
 
+    // PUBLISHED BY THE LOOP, READ BY THE PAGE -- the reverse direction of
+    // configChanged above, and for the same reason: the page renders on the
+    // async_tcp task and must never reach into AircraftManager, which the loop
+    // task owns. One bool crossing the boundary is the whole interface.
+    //
+    // Same bit the radar's banner draws from, not a second evaluation of the same
+    // idea, so the screen and the page cannot disagree about whether this board
+    // needs attention -- which is exactly the kind of drift a customer reports as
+    // "it says one thing here and another there" and nobody can reproduce.
+    volatile bool needsReverify = false;
+
     // Which port we asked for, kept so the liveness check can look for OUR listener
     // rather than assuming 80.
     const uint16_t listenPort;
@@ -53,4 +64,9 @@ public:
 
     // Returns true once after the Reset WiFi button is used.
     bool ConsumeWifiReset();
+
+    // Publish the loop task's credential state for the page to render. Called
+    // every loop; a plain store, no consume -- this is a LEVEL, not an event, and
+    // it must be able to go back down the moment a re-verify succeeds.
+    void SetNeedsReverify(bool v) { needsReverify = v; }
 };

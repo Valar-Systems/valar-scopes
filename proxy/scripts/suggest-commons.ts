@@ -21,6 +21,28 @@ const UA = "BlipscopePhotoHarvest/1.0 (+daniel@valarsystems.com)";
 // target -> Commons search query. Queries are tight so the type name lands in the
 // title; the scorer below still filters out interiors/cockpits/models/wrecks.
 const PRIORITY: Record<string, string> = {
+  // --- GA turboprop ---
+  // K100 has no photo in the library at ALL (not a missing square variant --
+  // production returns no pointer at FW 6 or FW 7), and no base type to alias
+  // to, so it is a sourcing job rather than a data-entry one. Seen on the bench
+  // s3-128 as a US Dept of the Interior aircraft. "Quest" is included because
+  // the type was Quest Kodiak before Daher acquired it and most Commons files
+  // are filed under the old name.
+  K100: "Quest Kodiak 100 aircraft",
+  // --- the rest of the 2026-08-14 coverage sweep's head (docs/photo-coverage-2026-08-14.md).
+  // These three plus K100 are ~34% of the ENTIRE remaining photo gap; everything
+  // below them is worth under 1.5% of sightings combined, which is why the list
+  // stops here rather than continuing down the tail.
+  //
+  // "Vans" without the apostrophe: Commons titles are inconsistent about it and the
+  // search tokenises it away, but a literal ' in the query hurts more than it helps.
+  RV9: "Vans RV-9 aircraft",
+  // "Skywagon" pins the taildragger 180 rather than matching "180 hp" prose in any
+  // Cessna caption.
+  C180: "Cessna 180 Skywagon",
+  // The turbocharged 210. Most Commons files say "Cessna 210 Centurion" even for a
+  // T210, so this query deliberately reaches both -- the pick still has to be a T.
+  T210: "Cessna T210 Centurion",
   // --- airline (highest desk-radar traffic) ---
   E175: "Embraer E175 airline",
   B712: "Boeing 717 airline",

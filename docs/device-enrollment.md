@@ -2,15 +2,57 @@
 
 How a device that was **not** flashed by us gets a per-device cloud key.
 
-**Status: planned, not built (decided 2026-08-08).** This is for kit and DIY
-buyers, who do not exist yet. Nothing on the pilot path depends on it, and it
-does not touch the assembled-board burn procedure — [`scripts/provision-device.py`](../scripts/provision-device.py)
-already makes that unattended (MAC over USB → id → key → NVS image → flash →
-verify against production → log to `provisioned.csv`).
+**Status: BUILT 2026-08-12** (decided 2026-08-08, architecture revised 2026-08-12).
+Pending only the Turnstile widget itself, which needs a Cloudflare API token
+scoped `Account.Turnstile:Edit`, and a bench pass on the two boards.
 
-**What happens until then:** DIY buyers get a key emailed with their order.
-Manual, fine at this volume, and it yields a customer↔key mapping that
-`provisioned.csv` — which only knows boards we flashed — structurally cannot.
+It does not touch the assembled-board burn procedure —
+[`scripts/provision-device.py`](../scripts/provision-device.py) already makes
+that unattended (MAC over USB → id → key → NVS image → flash → verify against
+production → log to `provisioned.csv`) and a factory-flashed unit never sees the
+enrollment step at all.
+
+**What changed on 2026-08-12, and why the in-page widget below was abandoned:**
+
+The original plan put the Turnstile widget on the device's own settings page.
+That cannot work, and the reason is worth keeping because it is not obvious:
+
+- The device serves that page over mDNS at `http://<device-name>.local`, and the
+  device name is **user-settable**. The hostname is therefore unknowable in
+  advance and different on every board.
+- Turnstile validates the hostname a token was solved on, and Cloudflare's own
+  guidance is explicit: *"Do not allow local hostnames in production."* An
+  allow-list that must accept `radar-desk.local` or a bare LAN IP is the shape of
+  validation rather than validation.
+- Given that the gate protects a relationship (below), a nominal check is worse
+  than an honest absence of one.
+
+So the solve happens on an origin we own — `scopes.valarsystems.com/enroll` —
+and the key comes back to the device page by `postMessage`, which crosses
+HTTPS → HTTP because no resource is loaded, only a message.
+
+**Two URLs, on purpose.** The canonical page is `/blipscope/enroll`, per the
+edition-namespacing convention, and that is what the popup opens: the machine
+path spends no redirect hop it could fail on. The short `/enroll` is a 301 to it,
+and exists because the device's own fallback text asks a customer to *type* that
+URL on a phone next to an 8-hex id — every character is one they can get wrong.
+
+This was found the hard way. Enrollment first shipped with the popup pointing at
+`/enroll` and the Worker routing only `/blipscope/enroll`: the entire feature was
+a 404, behind sixteen passing tests, because every test requested the path the
+tests had chosen. Two checks close that gap, and neither is a transcription of
+the other side's intent — `proxy/test/enroll.test.ts` pins both paths from the
+Worker's side, and `proxy/scripts/smoke-prod.sh` greps the URLs out of
+`src/ConfigurationWebServer.cpp` and fetches each one against the live Worker.
+
+**THE POPUP IS A CONVENIENCE, NOT A SECURITY BOUNDARY.** The enrol page is an
+ordinary HTTPS page and works perfectly well opened directly on a phone; that is
+the documented path for a LAN that cannot reach Cloudflare, and it is the primary
+fallback rather than a degraded one. The gate is the **solve**, not the transport.
+Moving the browser does not remove it. The honest residual: this makes scripted
+bulk enrollment marginally easier than a device-bound flow would — but a
+device-bound flow was never available (see the hostname problem), and the
+detection is the volume log, not the popup.
 
 ## Background: what already exists
 
@@ -118,16 +160,162 @@ wipes the only copy, falls back to an empty `-fac`, and the device is
 unauthenticated with no way back. Write it into `-fac` and the repair keeps
 working exactly as documented, for enrolled and factory devices alike.
 
-## Open question — deliberately not answered here
+## ~~Open question~~ ANSWERED 2026-08-12 — and the answer changes what "tight" means
 
 **What is a self-enrolled key actually worth to an abuser?**
 
-This is the number that decides whether the minimum abuse controls are adequate
+~~*This is the number that decides whether the minimum abuse controls are adequate
 or whether a harder gate is mandatory, and it is not knowable from the code. It
 depends on upstream economics: `adsb.lol` positions is a real per-IP rate limit
 we are already working around, so "how many free rate-limit buckets does it take
-to hurt us" has a concrete answer — we just don't have it yet.
+to hurt us" has a concrete answer — we just don't have it yet. Revisit when there
+is real fleet traffic to measure against.*~~
 
-Revisit when there is real fleet traffic to measure against. **Do not resolve it
-by guessing**; a guessed threshold here would be indistinguishable from a
-measured one in six months, and would be quoted as though it had been measured.
+**The premise was wrong, not just unmeasured.** It assumed the thing at risk was
+*capacity* — a quota that a farm of self-enrolled keys could exhaust. Samuli
+granted sponsored access with **leeway rather than a hard ceiling**, so there is
+no quota to exhaust. What a farm of keys would actually do is make us the source
+of the traffic he sees.
+
+**So the gate protects a RELATIONSHIP, not a rate limit.** That is a different
+engineering brief, and it resolves the question in a direction no traffic
+measurement would have reached:
+
+- **A threshold was never the deliverable.** There is no number of keys that is
+  "safe" and one more that is not. The failure is qualitative and social, and it
+  arrives as a conversation rather than as a 429.
+- **The gate must be REAL, not proportionate.** With a quota you can argue that a
+  cheap check is adequate because the loss is bounded and recoverable. Here it
+  is neither, so: **server-side siteverify, always. A client-only check is not a
+  weaker version of this design, it is a different design that does not work** —
+  the browser can be skipped entirely, and an unverified token is decoration.
+- **Volume must be OBSERVED, not inferred.** Log enrollment volume so abuse is
+  something we *see* rather than something we deduce afterwards from someone
+  else's complaint. This is the part a rate limit would have given us for free
+  and leeway does not: with no ceiling to hit, nothing else will ever tell us.
+  Enrollments per day, per IP, per ASN, and the siteverify hostname.
+
+**Do not reopen this as a rate-limit question.** The next person to look will
+reasonably ask "how many keys can we afford to leak" and will find no number,
+because the question does not have one. The cost is measured in a relationship
+with the operator whose data the whole cloud feed depends on, and the correct
+posture toward that is not a threshold — it is a working gate and an honest log.
+
+Note that this cuts the other way too: **it is not an argument for a harder gate
+than Turnstile.** An order-code gate protects the relationship no better than a
+working challenge does, and it costs the customer a step. What matters is that
+the challenge is genuinely verified and that we can see the volume.
+
+---
+
+# What shipped (2026-08-12)
+
+## The security payoff, stated precisely
+
+It is tempting to record this as *"we removed the shared key from the firmware"*.
+**That would be recording something that never happened.** Verified against the
+built artifact rather than the ini: `[cloud] prod` injects only
+`FEATURE_CLOUD_FEED` and `CLOUD_FEED_BASE`, no env defines `CLOUD_FEED_KEY`, it
+falls back to `""` in `src/CloudFeed.h`, and the shipped
+`blipscope-s3-146` image contains no key string. (The one occurrence in
+`platformio.ini` is a comment showing how to add one locally.) A public firmware
+image has always yielded no credential.
+
+What this work actually achieves:
+
+> **We ended server-side acceptance of any non-per-device credential.**
+
+`BLIP_KEYS` was removed on **2026-08-13**. The only thing that authenticates is
+`HMAC(DEVICE_KEY_SECRET, deviceId)` presented with its matching `X-Blip-Device`.
+That key is per-board, individually revocable, and attributable in the dataset. A
+key leaked by any route — a screenshot, a shared bench build, a pasted value in a
+support thread — stops being useful to anyone but the board it names.
+
+An attacker holding a public image gets the base URL and the header names.
+Neither is secret, and neither gets them data.
+
+## Confirming WHICH credential a board is using
+
+**Historical note, kept because it is the reason the cutover was verifiable at
+all.** While both the shared key and per-device keys were valid, *"the board
+still works"* could not distinguish them: an enrolled board could have been
+authenticating on the old shared key and nothing would have said so until removal
+broke it. That is a check that cannot fail. So a discriminator was added *before*
+the removal, and the bench was required to observe a **`shared`** response before
+an **enrolled** one — a check only ever seen passing proves nothing.
+
+- **`X-Blip-Auth: device`** on every response to an authenticated request;
+  **absent** when no auth ran, so absence is meaningful too.
+- `shared` is no longer reachable — there is no credential that produces it. The
+  header stays because the next credential migration will want the same
+  affordance, and because smoke-prod.sh asserts on it today.
+
+Two ways to read it, and the bench should use the first:
+
+```sh
+# LIVE, from anything that can reach the proxy as the device does.
+curl -sS -D- -o/dev/null https://scopes.valarsystems.com/api/v1/blipscope/config \
+  -H "X-Blip-Key: <the board's key>" -H "X-Blip-Device: <its device id>" | grep -i x-blip-auth
+```
+
+- **In the dataset:** `m.dev` (blob5) is populated only past authentication, so a
+  board whose device id appears in `blob5` authenticated per-device. Traffic with
+  an empty `blob5` is now either a public page or a rejected request.
+
+**How the removal actually went (2026-08-13).** The order was: bench both boards
+to `device`, mint a bench identity, confirm smoke-prod green asserting *expect
+device, got device* — and only then take the shared list away. Before deleting
+the secret, the analytics were checked for any successful device request still
+arriving without device auth: **zero in the preceding six hours**, and the only
+non-device models in the window (`s3-21`, `s3-175-amoled`, `c3-128`) were all
+last seen within one second of each other, which is smoke-prod iterating model
+strings for the photo-variant gate rather than real hardware. The net came away
+only after the replacement was observed holding.
+
+## Reflashing, editions, and what is actually lost
+
+- **The device id survives everything.** `SHA-256(efuse MAC ‖ LEADERBOARD_SALT)[:8]`
+  — read from efuse, not NVS, and the salt is uniform across all editions (no env
+  overrides it). Same board, same id, same key, forever.
+- **Enrollment is idempotent.** Re-enrolling re-derives; it cannot issue a
+  different key. A reflashed board gets `200 already_enrolled` and the ledger logs
+  the repeat rather than blocking it.
+- **Revocation survives a reflash**, and is asserted rather than argued —
+  `proxy/test/enroll.test.ts` checks refusal at enrollment *and* at the auth
+  boundary, with a control proving the same id authenticates when not revoked.
+- **Editions do not share a key, because only one edition has one.** `cloud-key`
+  appears in four files, all radar; nothing under `src/eam/` references a key, a
+  device id, or the proxy. Cross-edition auth is *absent* rather than intended or
+  accidental. The key identifies a **board, not a firmware**, and the edition slug
+  enters the derivation nowhere — deliberately, since putting it in would mean
+  re-enrolling on every edition switch and would break revocation.
+- **The mDNS hostname DOES change with the edition.** `DeviceIdentity::Name()`
+  embeds the product name, so `Blipscope-A1B2C3.local` becomes
+  `Missileer-A1B2C3.local` after a reflash. The bookmark breaks, and nobody would
+  connect that to a firmware switch. Say so in the DIY docs.
+- **What a full erase actually costs.** Leaderboard standing is server-side under
+  `lb:dev:<id>` and survives — and counts are monotonic (`mono()` takes
+  `Math.max`), so a freshly wiped board submitting zeros **cannot** ratchet the row
+  down. The real loss is the local `logbook` NVS namespace: the on-device lifelist
+  and seen history. The framing that matters to a customer:
+
+  > *Reflashing keeps your leaderboard standing. A full erase loses the on-device
+  > logbook — download it first.*
+
+  Export exists (`/logbook.json?download=1`); restore is the gap, and it is cheap.
+
+## The partition-table trap
+
+Partition tables are per-env. Every `*-s3-146` edition uses `default_16MB.csv`, so
+NVS stays put across an edition switch and nothing is lost. `blipscope-s3-128`
+uses `partitions-s3-16mb-bignvs.csv` and today has no sibling edition — but adding
+`missileer-s3-128` with the stock table would **relocate the NVS partition**,
+making the logbook, location, WiFi credentials and enrolled key all unreachable at
+once. It would present as *"my Blipscope forgot everything"*, pointing at whatever
+the customer last touched and never at a line in an `.ini`.
+
+Guarded now rather than when someone adds that env: `Logbook::reportCapacity()`
+checks the entry count the **running** partition granted against what the build
+expects (`-DBLIPSCOPE_EXPECT_BIG_NVS`), and says so loudly. Guarded on the
+artifact, not the intent — a flag asserting what the ini meant would restate the
+thing that is wrong.

@@ -30,8 +30,18 @@
 # echoed by this script; only the header name appears in output. Run it yourself:
 #
 #   export BLIP_KEY='...'                 # your prod device key (not stored here)
+#   export BLIP_DEVICE='<bench device id>' # REQUIRED -- the only auth path
 #   ./scripts/smoke-prod.sh               # defaults to production
 #   BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh
+#
+# BLIP_DEVICE is MANDATORY since the shared BLIP_KEYS list was removed
+# (2026-08-13): a bare X-Blip-Key is no longer a credential. See the AUTH block
+# below. The run announces which credential it expects and asserts it before any
+# check that depends on it.
+#
+# NOTE ON ENVIRONMENTS: staging has its OWN DEVICE_KEY_SECRET, so a
+# production key answers 401 there. That presents as seven unrelated failures
+# and is a credential mismatch, not a staging defect.
 #
 # Prints PASS/FAIL per check plus the raw response body for eyeballing.
 
@@ -48,6 +58,36 @@ if [ -z "$KEY" ]; then
   echo "BLIP_KEY is not set. export BLIP_KEY='<your prod key>' and re-run." >&2
   exit 2
 fi
+
+# ---- WHICH CREDENTIAL THIS SCRIPT AUTHENTICATES WITH ------------------------
+#
+# The shared BLIP_KEYS list was removed 2026-08-13, so a bare X-Blip-Key is no
+# longer a credential at all: the only accepted form is a per-device key PLUS the
+# X-Blip-Device id it was minted for. This script is the only thing checking
+# production, so it was made to survive that change rather than discover it.
+#
+# BLIP_DEVICE is therefore REQUIRED. Set it and
+# every authed call below carries the id.
+#
+# ONE ARRAY, used at every authed call site, so a header cannot be added to some
+# requests and forgotten on others -- which is how you get a script that proves
+# the device path works on the two endpoints someone remembered.
+DEVICE="${BLIP_DEVICE:-}"
+if [ -z "$DEVICE" ]; then
+  # Refuse rather than run. Without the id every authed check below 401s, and a
+  # wall of failures reads as "production is down" when it means "you forgot an
+  # environment variable" -- the most expensive way to learn that.
+  echo "BLIP_DEVICE is not set, and since BLIP_KEYS was removed a bare key is not" >&2
+  echo "a credential. export BLIP_DEVICE='<your bench device id>' and re-run." >&2
+  exit 2
+fi
+AUTH=(-H "X-Blip-Key: $KEY" -H "X-Blip-Device: $DEVICE")
+
+# What the auth path is EXPECTED to be, asserted below rather than assumed.
+# Only "device" is reachable now; the variable survives so the assertion stays
+# an assertion rather than becoming a hardcoded string nobody re-reads, and so
+# the next credential migration has somewhere to express itself.
+EXPECT_AUTH="${BLIP_EXPECT_AUTH:-device}"
 
 pass=0
 fail=0
@@ -165,9 +205,40 @@ redirects_to() {
 }
 
 echo "smoke-prod against $BASE  (key sent as X-Blip-Key; value never printed)"
+echo "auth: expecting X-Blip-Auth: $EXPECT_AUTH${DEVICE:+  (device id supplied)}"
 
 # 1. public health
 hit "/healthz" 200 "$BASE/healthz"
+
+# WHICH CREDENTIAL THIS SCRIPT IS RUNNING ON, asserted before anything that
+# depends on it.
+#
+# The corollary in CLAUDE.md: when a check protects a property, confirm the
+# check's own environment has that property. With BLIP_KEYS gone, every
+# check below is meant to be exercising the per-device path -- and if this script
+# were somehow still authenticating on a shared credential, all of them would
+# pass while proving nothing about the only auth path that now exists. That is
+# the failure mode this script exists to not have.
+#
+# Run FIRST because everything downstream is downstream of it: a wrong answer
+# here makes the rest of the run uninterpretable rather than merely wrong.
+auth_path_check() {
+  local got
+  got="$(curl -s -o /dev/null -D- --max-time 25 "${AUTH[@]}" "$BASE/v1/config" \
+         | tr -d '\r' | grep -i '^x-blip-auth:' | cut -d' ' -f2)"
+  printf '\n===== auth path (X-Blip-Auth) =====\n'
+  printf 'expect %s, got %s\n' "$EXPECT_AUTH" "${got:-<no header>}"
+  if [ "$got" = "$EXPECT_AUTH" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    if [ -z "$got" ]; then
+      printf 'NOTE: no header at all means auth never ran -- a 401, or a Worker\n'
+      printf '      predating the X-Blip-Auth change.\n'
+    fi
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+auth_path_check
 
 # The build stamp, which is the answer to "what commit is this actually running?".
 # A DEPLOYED Worker reporting "dev" means someone ran `wrangler deploy` by hand
@@ -193,9 +264,47 @@ else
   fail=$((fail+1))
 fi
 
+# WHICH UPSTREAMS PRODUCTION ACTUALLY HAS ON, read off the live Worker.
+#
+# This exists because the unit test that looks like it covers this cannot. It
+# builds an Env by hand, so it asserts the code DEFAULTS -- and its old name,
+# "ships with adsb.lol as the only enabled position source", stayed green while
+# becoming false, because production enables adsb.fi through wrangler.toml and no
+# hand-built env can see that. Input from the test's own side of the contract.
+#
+# /healthz reports feedHealth(env) from the deployed bindings, so this is the
+# other side: the running Worker's own answer, not a restatement of intent.
+#
+# The assertion is deliberately two-sided. "adsb_fi present" alone would also
+# pass if every feed were listed as enabled; "airplanes_live absent" alone would
+# pass on a Worker with no upstreams at all. Together they pin the actual posture:
+# the primary is on, and the operator-PROHIBITED source is not.
+#
+# Its OWN fetch rather than a reuse of $LAST_BODY. Reusing it is what made the
+# hex-candidate gate report "no live hex available" on a sky holding fourteen
+# aircraft (see section 4b), and this check would fail the same silent way: an
+# overwritten body yields no match, which is indistinguishable here from a
+# genuinely wrong upstream posture. One extra request buys an unambiguous read.
+printf '\n===== /healthz upstream posture =====\n'
+HEALTH_BODY="$(curl -s --max-time 15 "$BASE/healthz")"
+UPSTREAMS="$(printf '%s' "$HEALTH_BODY" | grep -oE '"upstreams":\[.*\]')"
+FI_ON="$(printf '%s' "$UPSTREAMS" | grep -oE '"id":"adsb_fi","enabled":(true|false)' | head -1)"
+AL_ON="$(printf '%s' "$UPSTREAMS" | grep -oE '"id":"airplanes_live","enabled":(true|false)' | head -1)"
+printf 'adsb_fi        : %s   (expect enabled -- the chain primary)\n' "${FI_ON:-<absent>}"
+printf 'airplanes_live : %s   (expect NOT enabled -- prohibited by operator)\n' "${AL_ON:-<absent>}"
+if [ "$FI_ON" = '"id":"adsb_fi","enabled":true' ] \
+   && [ "$AL_ON" = '"id":"airplanes_live","enabled":false' ]; then
+  printf 'RESULT: PASS\n'; pass=$((pass+1))
+else
+  printf 'RESULT: FAIL -- production is not running the upstream posture we think it is.\n'
+  printf '        adsb.fi off means positions fall back to adsb.lol, which 429s us hard.\n'
+  printf '        airplanes_live on would be a written-refusal breach. Check wrangler.toml.\n'
+  fail=$((fail+1))
+fi
+
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
-  -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
+  "${AUTH[@]}" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
 
 # Pull a live hex out of that response: rows are
 # [hex, cs, lat, lon, alt, gs, track, vrate, category, age].
@@ -218,7 +327,7 @@ elif ! HEX="$(printf '%s' "$LAST_BODY" | grep -oE '\["[0-9a-f~]{6}"' | head -1 |
   skip "/v1/enrich" "/v1/blips returned 200 with zero aircraft -- a genuinely empty tile right now, not a proxy fault. Re-run when there is traffic over Bend."
 else
   hit "/v1/enrich/$HEX (live hex from the blips response)" 200 \
-    -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX"
+    "${AUTH[@]}" "$BASE/v1/enrich/$HEX"
 fi
 
 # 2b. THE UPSTREAM CHAIN: is the served picture fresh, and are both relays serving?
@@ -261,7 +370,7 @@ printf 'expect: every tile fresh within %ss, and >1 distinct relay across the pr
 for t in $CHAIN_TILES; do
   tlat="${t%%,*}"; tlon="${t##*,}"
   hdrs="$(mktemp)"; body="$(curl -s -D "$hdrs" --max-time 25 \
-    -H "X-Blip-Key: $KEY" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=1")"
+    "${AUTH[@]}" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=1")"
   st="$(awk 'NR==1{print $2}' "$hdrs")"
   up="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-upstream"{print $2}')"
   ch="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-cache"{print $2}')"
@@ -303,7 +412,7 @@ fi
 #    BASE config, which is correct, not a miss.
 for slug in s3-146 s3-21 s3-128 c3-128 s3-175-amoled; do
   hit "/v1/config (model=$slug)" 200 \
-    -H "X-Blip-Key: $KEY" -H "X-Blip-Model: $slug" "$BASE/v1/config"
+    "${AUTH[@]}" -H "X-Blip-Model: $slug" "$BASE/v1/config"
 done
 
 # 4. a seeded type photo. The photo key is only discoverable through an enrich
@@ -311,7 +420,7 @@ done
 #    does: enrich a live hex, read `p`, then GET it.
 P=""
 if [ -n "${HEX:-}" ]; then
-  P="$(curl -s --max-time 25 -H "X-Blip-Key: $KEY" "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4)"
+  P="$(curl -s --max-time 25 "${AUTH[@]}" "$BASE/v1/enrich/$HEX" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4)"
 fi
 if [ -n "$P" ]; then
   # `asset`, not `hit`: the body is a JPEG and must not reach a terminal, and the
@@ -320,7 +429,7 @@ if [ -n "$P" ]; then
   # so this check reported FAIL for a photo the Worker was serving perfectly. It
   # had never actually run before 2026-08-08 (no live hex, so it always SKIPPED),
   # which is how a check that cannot pass survived this long.
-  asset "/v1/photo (via enrich pointer $P)" "image/" "$BASE$P" -H "X-Blip-Key: $KEY"
+  asset "/v1/photo (via enrich pointer $P)" "image/" "$BASE$P" "${AUTH[@]}"
 elif [ -n "${HEX:-}" ]; then
   skip "/v1/photo" "live hex $HEX resolved no photo pointer (that type has no stock photo). Not a failure -- but /v1/photo went untested."
 else
@@ -374,7 +483,7 @@ jpeg_dims() {
 # whether bash is in POSIX mode, so relying on it would make this gate's target
 # depend on how the script was invoked.
 variant_photo() {
-  curl -s --max-time 25 -H "X-Blip-Key: $KEY" \
+  curl -s --max-time 25 "${AUTH[@]}" \
     -H "X-Blip-FW: $2" -H "X-Blip-Model: $3" \
     "$BASE/v1/enrich/$1" | grep -oE '"p":"[^"]+"' | head -1 | cut -d'"' -f4
 }
@@ -421,7 +530,7 @@ else
   printf 'FW 7 -> %s\n' "${P_NEW:-<none>}"
 
   TMP_OLD="$(mktemp)"; TMP_NEW="$(mktemp)"
-  curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_OLD" "$BASE$P_OLD"
+  curl -s --max-time 25 "${AUTH[@]}" -o "$TMP_OLD" "$BASE$P_OLD"
   D_OLD="$(jpeg_dims "$TMP_OLD")"
   printf 'FW 6 pixels: %s (must be 150x100 -- this is what the field runs)\n' "$D_OLD"
 
@@ -438,7 +547,7 @@ else
   if [ -z "$P_NEW" ]; then
     skip "photo variant gate (FW 7 square)" "no square ingested for this type yet; proxy correctly served no photo rather than a rectangle. The FW 7 half went UNTESTED."
   else
-    curl -s --max-time 25 -H "X-Blip-Key: $KEY" -o "$TMP_NEW" "$BASE$P_NEW"
+    curl -s --max-time 25 "${AUTH[@]}" -o "$TMP_NEW" "$BASE$P_NEW"
     D_NEW="$(jpeg_dims "$TMP_NEW")"
     printf 'FW 7 pixels: %s (must be square, and NOT the same blob as FW 6)\n' "$D_NEW"
     case "$D_NEW" in
@@ -511,6 +620,95 @@ contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
 # /missileer/* prefix to that origin), and the check belongs here in the same
 # change as the hub link -- which test/pages.test.ts asserts is currently absent,
 # so the page and the link cannot drift apart.
+
+# ---- device enrollment (docs/device-enrollment.md) --------------------------
+#
+# WHY THE URLS ARE EXTRACTED FROM THE FIRMWARE AND NOT TYPED HERE. Enrollment
+# first shipped with the device popup opening scopes.valarsystems.com/enroll
+# while the Worker routed only /blipscope/enroll -- a 404 sitting behind sixteen
+# passing tests, because every test requested the path the tests had picked.
+# Transcribing the URL into this file would reproduce that mistake exactly one
+# layer further out. So this reads the strings out of the firmware source and
+# fetches each one: the artifact, not the intent.
+#
+# Redirects are FOLLOWED here, unlike the leaderboard check above, because the
+# question is "does what the device tells a customer to type reach the page" --
+# a question about the whole hop chain. The 301 itself is pinned in
+# proxy/test/enroll.test.ts.
+CFG_SRC="$(git rev-parse --show-toplevel 2>/dev/null)/src/ConfigurationWebServer.cpp"
+if [ -r "$CFG_SRC" ]; then
+  ENROLL_PATHS="$(grep -oE 'scopes\.valarsystems\.com/[A-Za-z0-9/_.-]*' "$CFG_SRC" \
+                  | sed 's|^scopes\.valarsystems\.com||' | sort -u)"
+  if [ -z "$ENROLL_PATHS" ]; then
+    printf '\n===== enrol URLs found in firmware =====\n'
+    printf 'expect at least one scopes.valarsystems.com/... in %s\n' "${CFG_SRC##*/}"
+    printf 'got    none -- either the config page stopped offering enrollment,\n'
+    printf '       or this pattern stopped matching it. Both are worth knowing.\n'
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+  for p in $ENROLL_PATHS; do
+    body="$(curl -sL -w $'\n%{http_code}' --max-time 25 "$BASE$p?id=a1b2c3d4e5f6a7b8")"
+    status="${body##*$'\n'}"; body="${body%$'\n'*}"
+    printf '\n===== firmware enrol URL %s (followed) =====\n' "$p"
+    printf 'expect HTTP 200 and the enrol page\n'
+    case "$body" in
+      *"Verify your device"*) marker=1 ;;
+      *) marker=0 ;;
+    esac
+    printf 'got    HTTP %s, page marker %s\n' "$status" \
+      "$([ "$marker" = 1 ] && echo present || echo MISSING)"
+    if [ "$status" = "200" ] && [ "$marker" = "1" ]; then
+      printf 'RESULT: PASS\n'; pass=$((pass+1))
+    else
+      printf -- '--- first 400 bytes ---\n%.400s\n' "$body"
+      printf 'RESULT: FAIL\n'; fail=$((fail+1))
+    fi
+  done
+else
+  printf '\n===== firmware enrol URLs =====\nRESULT: SKIP (no checkout: %s)\n' "$CFG_SRC"
+  skipped=$((skipped+1))
+fi
+
+# THE SITEKEY REACHED THE MARKUP. An unset TURNSTILE_SITEKEY renders the page in
+# its "cannot verify" state, which is indistinguishable from a blocked network --
+# so without this check a deployment missing the binding looks like a customer
+# ISP problem. Turnstile sitekeys start "0x"; an empty attribute cannot match.
+contains "enrol page carries a real sitekey (TURNSTILE_SITEKEY is bound)" 200 \
+  'data-sitekey="0x' "$BASE/blipscope/enroll?id=a1b2c3d4e5f6a7b8"
+
+# NO SOLVE, NO KEY -- asserted against production, with a token that cannot pass.
+#
+# This is also the only thing that proves BOTH secrets are actually on the
+# deployment: handleEnroll answers 503 not_configured when DEVICE_KEY_SECRET or
+# TURNSTILE_SECRET_KEY is missing, so a 403 here means the endpoint got as far as
+# asking Cloudflare and was told no. A 503 would mean the gate is not running at
+# all, which is exactly the state that looks fine until someone tries to enroll.
+enroll_post() {
+  local name="$1" want="$2" marker="$3" payload="$4"
+  local body status ok
+  body="$(curl -s -w $'\n%{http_code}' --max-time 25 -X POST \
+          -H 'content-type: application/json' -d "$payload" "$BASE/blipscope/enroll")"
+  status="${body##*$'\n'}"; body="${body%$'\n'*}"
+  case "$body" in *"$marker"*) ok=1 ;; *) ok=0 ;; esac
+  printf '\n===== %s =====\n' "$name"
+  printf 'expect HTTP %s containing %s\n' "$want" "$marker"
+  printf 'got    HTTP %s / %s\n' "$status" "$body"
+  # A key in the body is the one outcome that must never happen here, whatever
+  # the status says -- checked separately so a 200 with a key can never be read
+  # as a passing status code.
+  case "$body" in
+    *'"key"'*) printf 'FATAL: a key was returned without a solve.\n'; ok=0 ;;
+  esac
+  if [ "$status" = "$want" ] && [ "$ok" = "1" ]; then
+    printf 'RESULT: PASS\n'; pass=$((pass+1))
+  else
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+}
+enroll_post "enroll POST, unsolved token -> 403 (both secrets bound, gate live)" \
+  403 '"unverified"' '{"id":"a1b2c3d4e5f6a7b8","token":"not-a-real-solve"}'
+enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)" \
+  400 '"bad_request"' '{"id":"../../etc","token":"not-a-real-solve"}'
 
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"

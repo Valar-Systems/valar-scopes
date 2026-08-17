@@ -13,6 +13,19 @@ export interface RequestMetric {
   // this is only ever populated on the device-key path.
   dev?: string;
   fw?: string; // X-Blip-FW, digits only, same authentication rule as `dev`
+  /**
+   * Which credential authenticated this request. Undefined when no auth ran.
+   *
+   * "shared" (the BLIP_KEYS list) was retired 2026-08-13 and the union keeps it
+   * only so the value stays self-describing rather than becoming a constant
+   * nobody can read. Emitted as the X-Blip-Auth response header rather than only
+   * stored, because the question it answered — "is this board on its own key
+   * yet?" — had to be answerable at the bench while BOTH credentials worked, and
+   * the next credential migration will want the same affordance. It is not
+   * written to the dataset: `dev` already carries the distinction there, and
+   * adding a blob would shift the positional indices existing queries depend on.
+   */
+  authPath?: "device" | "shared";
 }
 
 // Device attribution for a metric, applied ONLY once a request has proven it
@@ -22,20 +35,20 @@ export interface RequestMetric {
 // device-supplied strings on an unauthenticated edge. If we recorded them before
 // the key check, anyone could write arbitrary device ids into the dataset --
 // which would not break serving, but would quietly make the fleet view a
-// fiction, and a fleet view you cannot trust is worse than none. On the shared
-// BLIP_KEYS path the caller has not proven WHICH device it is, so `dev` stays
-// empty there too; those requests aggregate as "unattributed" rather than being
-// guessed at.
+// fiction, and a fleet view you cannot trust is worse than none.
+//
+// CALL THIS ONLY PAST AUTHENTICATE. It used to take a `deviceAuthed` flag and
+// return early when false, because the shared BLIP_KEYS path proved someone held
+// a key but never WHICH device. That path was removed 2026-08-13, so every
+// caller reaching here has proven its identity and the flag would be constant --
+// exactly the kind of parameter that reads like a switch while being wired to
+// nothing. The precondition moved into this comment rather than into a
+// permanently-true argument.
 //
 // Shapes are re-checked here rather than assumed from deviceauth.ts, because
 // this is the boundary where the value stops being a credential and becomes
 // stored data.
-export function setDeviceAttribution(
-  m: RequestMetric,
-  request: Request,
-  deviceAuthed: boolean,
-): void {
-  if (!deviceAuthed) return;
+export function setDeviceAttribution(m: RequestMetric, request: Request): void {
   const id = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
   if (/^[0-9a-f]{8,32}$/.test(id)) m.dev = id;
   const fw = (request.headers.get("X-Blip-FW") ?? "").trim();
@@ -80,6 +93,13 @@ export const KNOWN_ROUTES = new Set([
   "/blipscope/leaderboard",
   "/blipscope/leaderboard.json",
   "/blipscope/support",
+  // Enrollment: the page, its POST (same path), and the short typed URL that
+  // 301s to it. Listed for a sharper reason than the others -- enrollment VOLUME
+  // is the abuse detection (see enroll.ts), so letting these bucket to "/other"
+  // would hide a mint storm inside 404 noise, which is the one thing the design
+  // says it is watching for.
+  "/blipscope/enroll",
+  "/enroll",
   // DEPRECATED aliases + redirects (retire when these read zero -- see above)
   "/v1/blips",
   "/v1/config",

@@ -10,6 +10,157 @@ The review's core finding: the firmware architecture is sound, and the cheap val
 
 ---
 
+## Open work, consolidated 2026-08-13
+
+Everything outstanding across sessions, in one place, so the tracker is the tree's
+state and not anyone's memory of a conversation. **Verified against the tree**, which
+moved four items straight to done — see "Already done" at the bottom.
+
+Grouped by what blocks what. Within a group, order is priority.
+
+### A. Blocking / in flight
+
+| # | Item | State |
+|---|---|---|
+| A1 | Deploy `c046e4b` + `1c76d4a` + `d513aa2` (auth removal + enrich fixes) | **committed, NOT deployed** — waiting on the shared-key 401 confirmation |
+| A2 | Rotate `DEVICE_KEY_SECRET` + re-enroll both boards + re-derive the bench identity | pending — **procedure written: [docs/bench-key-rotation.md](docs/bench-key-rotation.md)**. Run it after v7, see the sequencing note |
+| A3 | **Cloud 401 handler** | **built** — `4391170`. Code complete on 6 envs; **bench proof outstanding**, folded into A2 (same doc, steps marked **[A3]**) |
+| A4 | Re-measure the type-gap list with non-ICAO excluded | **done 2026-08-16** — [docs/enrichment-type-gap-2026-08-16.md](docs/enrichment-type-gap-2026-08-16.md). The skip cut it ~30x: 534-855 lookups/day before, 19-27 after. What remains is ~10 hexes/day, 85% US civil / 15% US military, nothing foreign, nothing phantom |
+| A5 | Update the operator environment: `BLIP_KEY` still holds the **dead 48-char shared key** and `BLIP_DEVICE` is unset at user level | **breaks `smoke-prod.sh` and `watch-upstream.sh` on next run** — both now refuse without it. Closed by A2 §8, which mints the replacement |
+
+**A2's sequencing, and why A3's proof rides on it.** Rotating invalidates both bench
+boards, the `beefbeefbeefbeef` identity and the operator `BLIP_KEY` *simultaneously*.
+Doing it before A1 confirms means two candidate causes for any failure, which is the
+thing this whole sequence has been arranged to avoid.
+
+It must also come **after v7 is cut and verified**: a rotation and a release fail
+identically from the outside — the board stops showing live data — and the natural
+response to the ambiguity is a reflash, which destroys the evidence for whichever it
+actually was. Serialise them and each has a clean control. (Same family as
+"[watch for the fix whose failure mimics the bug](CLAUDE.md)".)
+
+A rotation is also the **only** way to produce a real sustained server-side 401 on a real
+board, so it is A3's bench proof rather than an obstacle to it: one run exercises
+detection, both debounce gates, the banner's priority over the stale ladder, the config
+page's third state, one-action re-verification, and in-place recovery. Testing A3
+separately would test it twice and the cheaper test would be the less faithful one.
+
+### B. Photos
+
+| # | Item | State |
+|---|---|---|
+| B1 | **Orientation reject class** — into the picksheet criteria, `validateEntry`, and the `suggest-commons` scorer. Definition: the long axis points substantially at or away from the camera, so the wings foreshorten and the silhouette is unreadable. Three-quarter fine; head-on and tail-on out. `>=70% of frame width` passes a nose-on shot, which is how one got in | not built |
+| B2 | Audit the 234 for orientation — batched, offenders named, count and list in one pass. **Requires looking at each image**; it cannot be inferred from metadata and an attempt to do so is what produced a false vetting sheet once already | not started |
+| B3 | **Livery caption** — see the correction below; this is NOT the cheap win it looks like | blocked on a design call |
+| B4 | CC BY-SA **ShareAlike** notice on the credits page, before a fifth BY-SA image lands | not built — attribution and `changesNoted` are already correct; only the SA clause is missing |
+| B5 | **Photo sourcing list** — **B505** (Bell 505), **PA23** (Piper Apache/Aztec), **AS21** (#49), **C414** (#82), **T210** (#4 — see below). Each: no photo, no picksheet entry, no alias. K100/RV9/C180 were PUBLISHED 2026-08-16; the rest are below the stop line the coverage curve drew and are recorded rather than queued | **unblocked** — KV write confirmed working 2026-08-14 by a full production ingest |
+| B6 | KV coverage delta: types with **no square** (re-ingest, mechanical) reported separately from types with **no photo at all** (sourcing) | **delivered 2026-08-14** — `verify-release.sh`'s square probe reports exactly those two as distinct outcomes (FAIL vs WARN), and `ingest-photos.ts --dry-run` now prints CHANGED vs already-current per row |
+
+> **These get photographs, not aliases.** The alias table's rule is that
+> turbo/retract/engine variants qualify and different airframes do not. Both candidates
+> sit near a tempting neighbour and neither qualifies: the Bell 505 is a different
+> fuselage from the 206/407, and the PA-23 is a different airframe from the PA-31 and
+> PA-34 that *are* in the library — "another Piper light twin" is a category, not a
+> variant. Aliasing either would be stretching the rule to fill a slot, and a library
+> whose rule bends to fill slots stops meaning anything. They show the silhouette until
+> a real photo lands, which is honest.
+>
+> **How these are being found matters.** All three surfaced from someone looking at a
+> screen, not from a query — the coverage question ("which types have no photo at all?")
+> is answerable mechanically against the manifest and nobody was asking it. Worth a
+> one-off sweep against a live type-frequency sample rather than waiting for the next
+> aircraft to fly past a bench board.
+>
+> **T210 is here having been rejected AFTER publication (2026-08-17), which is the part
+> to learn from.** It was ingested on 2026-08-16 in the batch of four and the reject
+> landed the next day, so the local manifest row, the picksheet row and `src/t210.jpg`
+> are gone but **four production pointers were already live** and had to be deleted
+> separately. The pick failed on **two things together**: ~30° nose-on foreshortening
+> *and* the smallest source in the batch at 1050×705, which leaves no margin for the
+> 480 px square on the 2.1" panel. Either alone might have passed; together it is
+> borderline on the pilot SKU and poor on the largest. At 4.4% of the remaining gap —
+> under 0.1% of sightings — leaving the silhouette costs nothing, and **the playbook rule
+> is replace, not crop harder.**
+>
+> Two standing consequences:
+>
+> 1. **A search returning exactly one candidate is a WARNING, not a recommendation.**
+>    `suggest-commons` handing back a single result is an *empty search with a
+>    consolation prize* — the sole survivor of a filter, presented in the same shape as a
+>    winner, and the shape is what gets acted on. Read a result count of one as "this
+>    type has no good options yet" and go to a manual Commons search; do not ingest the
+>    consolation prize because it was the only thing on the sheet. B1 is unbuilt, so
+>    nothing automated catches a nose-on shot — the human look is the only gate there is.
+>    **Now a standing rule in the sourcing playbook** rather than only an incident note
+>    here — see [blipscope-military-photo-sourcing.md](blipscope-military-photo-sourcing.md).
+> 2. **A publish is not a draft.** The reject-after-publish path costs a KV deletion the
+>    ingest script cannot do (it publishes from the manifest; it does not prune), so
+>    removing a row locally leaves the fleet serving it. Eyes on the contact sheet
+>    *before* the ingest, not after.
+>
+> **C185 (#13, 20 lookups) — APPLIED 2026-08-17 as an alias to C180**, having been looked
+> at first. The rule permitted it where it refused B505/PA23 because it distinguishes
+> hulls rather than refusing everything: the 185 is a strengthened 180 on the same
+> fuselage, the `TBM7: "TBM8"` relationship. One line, no sourcing, and it clears #13 off
+> the gap list. The published 240 px square was judged **in the disc** rather than as a
+> flat square or a source file, and the reservation is recorded in `photos.ts` beside the
+> entry: the tail is the feature that would contradict the alias and the angle hides it,
+> so this is a *"you cannot tell"* pass. **Re-check the alias if C180 is ever re-picked**
+> — a more identifiable C180 is a worse stand-in for the 185.
+
+### C. Logbook / collection
+
+| # | Item | State |
+|---|---|---|
+| C1 | Reflash both bench boards — **onto `f745f1f` or later, not `9cf0855`** (the device-id row and the non-ICAO skip landed after the fold) | pending |
+| C2 | Caps and eviction sizing, now that operator names are the measured cost driver rather than the stores that look biggest | not started |
+| C3 | Logbook **restore** — `/logbook.json` export ships; restore does not | not built |
+| C4 | Trophy-cabinet Collection UI — recency not denominator, newest-first, milestone bar only, intro rewritten. Same commit rewrites the `Logbook.cpp` claiming-principle comment explaining why the invariant inverts | not started |
+
+### D. Round card
+
+| # | Item | State |
+|---|---|---|
+| D1 | Full-bleed 240x240 build — blit measurement first | server side ships (`FULLBLEED_MIN_FW = 7`, `squareSizeFor`); the firmware-side build is the open part |
+| D2 | 240x240 photo variant behind its flag, until the firmware can scale rather than clip | deferred |
+
+### E. Deferred / ideas
+
+E1 callsign-intent features (medevac first: substring match, quiet indicator, excluded
+from scoring), then emergency squawks, military callsign blocks, registration prefix ->
+country, track-geometry behaviours, rarity as memory, curated seasonal lists.
+E2 Turnstile enrollment for DIY buyers — built; the open question is what a self-enrolled
+key is worth to an abuser. Revisit with real fleet traffic.
+E3 the 88 resident hexes, if the enrichment overlay is ever revisited (see
+[docs/enrichment-gap-notes.md](docs/enrichment-gap-notes.md) — do NOT build it off the
+1,994).
+E4 #131 config-page frame spike, filed and unprioritised.
+
+### Already done — carried on lists but true in the tree
+
+Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:
+
+- **C3 retirement, bucket A** — no C3 variant header (`include/variants/` is
+  `Variant.h` + four `s3_*`), no C3 envs in `platformio.ini`, no bisect harness (only a
+  bench log survives). `SERIALIZE_TOUCH_BUS` exists solely in a historical comment.
+- **`ENRICH_TLS_HEAP_FLOOR` and its call sites** — gone. The only survivors are
+  historical comments and `probe/HeapProbe.cpp`, which *deliberately* mirrors the
+  constant to demonstrate why it never fired.
+- **CLAUDE.md's "three hard constraints"** — already rewritten as "Memory, networking and
+  touch — what is actually true now", stating which two were false and why the third is
+  kept on a dead rationale.
+- **`ExitDetail` sprite fix** — the photo sprite is retained on PSRAM boards, with the
+  measurement recorded inline (`AircraftManager.cpp:~3696`).
+- **Military table parity** — enforced since `d513aa2`; `check_range_parity.mjs` parses
+  both real sources and CI runs it with a five-mode selftest.
+- **`BLIP_KEYS`** — code path removed (`c046e4b`) and the production secret deleted
+  2026-08-13. The shared key 401s; both bench boards kept authenticating.
+
+`BANDED_RENDER` is deliberately NOT on the deletion list: no SKU sets it, but it is
+already `if constexpr` everywhere and is kept as the hook for a future PSRAM-less board.
+
+---
+
 ## Release readiness (assessed 2026-07-17) — HELD
 
 A large batch has merged to `main` since the last release (`FW_VERSION = 4`): visual
@@ -97,37 +248,172 @@ either way and can be queried retroactively within Analytics Engine retention.
 
 **Production feed findings (2026-07-18 bench session) — LAUNCH BLOCKERS:**
 See [proxy/FEED-SOURCING.md](proxy/FEED-SOURCING.md) for the full analysis + outreach drafts.
-- **The feed problem is sourcing, not code.** adsb.lol shared-egress **429**s the Worker's
-  Cloudflare outbound IPs (other CF tenants' traffic on the shared per-colo IP, not our
-  volume), worst on the high-volume `/point`. **Corrected 2026-07-18:** the "adsb.lol
-  feeder key" is NOT an actionable fix — per adsb.lol's docs the key is *future* ("in the
-  future you will require an API key… by feeding"), not issued yet, and their feeder API
-  (`re-api`) is **IP-locked** to the feeding station, so a Cloudflare Worker can't use it.
-- **Shipped mitigation:** airplanes.live is now **primary for positions** (adsb.lol 429s
-  that endpoint hardest), adsb.lol stays primary for per-hex type; this ended the
-  `DATA STALE` churn on the bench. But it rides on airplanes.live's goodwill —
-- **THE launch gate is commercial permission or a paid feed:** email airplanes.live +
-  adsb.fi for commercial-use OK (drafts in FEED-SOURCING.md; adsb.fi currently 403s our
-  Worker), and/or price a paid commercial API (ADSBexchange/RapidAPI, FlightAware AeroAPI)
-  as the SLA-backed fallback — a few ¢/device/month, baked into pricing. Offer-to-feed
-  email to adsb.lol sent for when their key program lands.
-- **Production failover is temporarily ENABLED** (`adsb.fi` + `airplanes.live` = `"true"`,
-  owner-approved for the private bench soak; see the `REVISIT` comment in
-  [wrangler.toml](proxy/wrangler.toml)). **Must revert to `"false"` before customer
-  launch** unless commercial permission clears — it diverges from the documented posture.
-- ~~**adsb.fi failover returns HTTP 403**~~ **RESOLVED 2026-07-29 — and superseded by a
-  licensing blocker.** The 403 was the Cloudflare shared egress, not a header/key
-  requirement: both relay IPs (`67.205.155.80`, `104.238.156.243`) get **HTTP 200** with
-  no allowlisting needed, and adsb.fi granted testing permission. But their published
-  terms are **"personal, non-commercial use only … you may not license, sell, rent, or
-  lease any part of the data or the service"** — no ODbL-style redistribution right, so
-  adsb.fi **cannot be a production upstream** without a written commercial grant. Their
-  public rate limit (**1 req/s per IP**) is also below fleet need, so the ask is *two*
-  things, not one. adsb.fi is a bench-measurement source only until that lands.
-- **BLIP_KEYS drift.** The staging *and* production `BLIP_KEYS` secrets got out of sync with
-  `Cloudflare keys.txt`, causing confusing 401s (a valid-looking key rejected). Reconcile:
-  document the actual deployed key per env and tidy the keys file. Cloudflare secrets are
-  write-only, so the file must be the source of truth.
+- ### FEED SOURCING AT LAUNCH: TWO PERMITTED SOURCES, AND THE BINDING CONSTRAINT IS A RATE LIMIT, NOT A LICENCE
+
+  **The authoritative version of this lives in
+  [proxy/README.md](proxy/README.md#upstream-licensing-posture) and
+  [relay/setup-relay.sh](relay/setup-relay.sh); this is the summary.** Both were ahead of
+  this file, and a tracker that lags the artifact on the thing you read it for is worse
+  than none — so on flash day, trust those two.
+
+  - **adsb.fi — PRIMARY, permitted commercially in writing.** Samuli granted commercial
+    use *including caching* on **2026-08-05** ("If you can keep usage within the Open Data
+    API rate limit, I am happy to let you use it for your mentioned purpose, including the
+    caching system"), where the stated purpose was a paid hardware product, and separately
+    confirmed polling from both relay IPs. **The permission is conditional on the rate
+    limit and on nothing else.** There is no flip to make and it is not a launch blocker.
+    *(This entry twice said the opposite — first that adsb.fi 403s us, then that its terms
+    forbade commercial use. Both were readings of the PUBLISHED TERMS rather than of our
+    correspondence. Corrected 2026-08-13.)*
+  - **adsb.lol — FALLBACK, ODbL 1.0.** Demoted on operational grounds, not licensing:
+    68% 429 in the same soak where adsb.fi returned 0%. Kept precisely because ODbL is
+    **a right no operator can revoke**, which is worth more behind us than in front, and
+    `adsb_lol_b` is deliberately the terminal feed the breaker may never skip. Sponsored
+    at **$50/mo unconditionally, regardless of chain position.**
+  - **airplanes.live — PROHIBITED.** Written operator refusal, 2026-07-22. Hardcoded
+    `enabled: () => false`; no env flip can revive it. Off the table, not undecided.
+
+  So at launch there are **two permitted sources with a real failover between them**, and
+  the licence question is answered. What remains is arithmetic.
+
+  #### The rate model, and the one number that could still bite
+
+  The constraint is **adsb.fi's 1 req/s per IP, with 4xx/429 responses counting toward
+  it** — so a re-firing failure digs the hole deeper rather than merely failing. Upstream
+  rate is **(distinct hot tiles) / `CACHE_TTL`**, *independent of device count*: the fleet
+  collapses to one fetch per tile per TTL, so ten boards in one city cost what one does.
+
+  **Measured now** (Analytics Engine, 2026-08-13, ~2 active boards) — Worker-level cache
+  MISS, which is an **upper bound** since the relay collapses further:
+
+  | | fleet-wide | per device |
+  |---|---|---|
+  | average | 0.050 req/s (181 req/h) | ~0.025 req/s |
+  | busiest single minute in 30 d | 0.38 req/s (23 fetches) | ~0.19 req/s |
+
+  **Projected at 50 boards** — and the linear ×25 is the WRONG model; tiles are:
+  50 scattered boards ≈ 50 distinct 0.05° tiles ÷ 30 s TTL = **1.67 req/s**, against a
+  two-IP budget of 2 req/s. **~17% headroom.** That is the sizing `CACHE_TTL=30s` was
+  chosen for (resolved 2026-08-08, see the pinched-knob analysis in `setup-relay.sh`).
+
+  **The condition to watch, stated plainly: the 2 req/s budget requires BOTH relay IPs to
+  be carrying traffic.** That holds under `partitionOrder`'s hash split, but under *pure
+  failover* — every request landing on relay-a — the budget collapses to 1 req/s and
+  50 tiles / 30 s = 1.67 req/s is **67% OVER the limit**, on a source where overages
+  count toward the limit and earn an IP restriction. Mitigation is a TTL raise to 50 s,
+  which is why the knob is documented as pinched rather than tuned.
+
+  **Split CONFIRMED 2026-08-13: relay-b 53%, relay-a 47%** over 24 h (Analytics Engine
+  `blob3`, the leg the Worker actually dialled), with **zero** adsb.lol requests — no
+  failover events at all. Both sanctioned IPs are live, so the 2 req/s budget is real and
+  the 17% worst-case headroom stands.
+
+  #### DECISION 2026-08-13: no commercial tier for the pilot. BUY AT ~60 UNITS.
+
+  adsb.fi's commercial tier is **€1,500/year**. At 50 units that is $2.72/device/year
+  against a $49 product; at 600 units it is $0.23 and obviously worth it. The pilot is
+  inside the sanctioned free limit honestly — 42% of it in the realistic case, 83% in the
+  pessimistic — so buying now would be paying for capacity we would sit on.
+
+  **THE TRIGGER IS UNIT COUNT, NOT A USAGE READING, AND THAT IS THE WHOLE POINT.**
+  Anyone who later checks a dashboard, sees low utilisation, and concludes there is room
+  will have measured the wrong variable. Load does **not** scale with devices or with
+  requests — it scales with **distinct hot tiles**, because every device inside one
+  0.05° tile collapses to a single upstream fetch per TTL. Two bench boards in the same
+  house added **zero** upstream load while doubling request volume; fifty boards in fifty
+  towns add fifty tiles. So usage can look flat right up until the unit that crosses the
+  line, and it crosses on geography, not traffic.
+
+  The ceiling is arithmetic: `2 IPs x 1 req/s x 30 s TTL` = **60 simultaneously-hot
+  tiles**. Worst case (one tile per unit, all awake) that binds at **60 units**;
+  with metro clustering and diurnal spread, ~85-90. **Plan the purchase at 60** — the
+  worst case is the one to plan against, because 4xx/429 responses count toward the limit,
+  so an overshoot compounds into an IP restriction instead of degrading gracefully.
+
+  Levers if the number needs moving before then, cheapest first: both relays (already
+  banked — that is why we are at 83% and not 167%), then `CACHE_TTL` 30 s -> 45 s (linear,
+  60 -> 90 tiles, but it is NOT a one-line change — see the order of operations in
+  `setup-relay.sh`; backwards shows the whole fleet amber), then tile coarsening 0.05° ->
+  0.1° (quarters the tile count, costs upstream bandwidth and edge relevance as the radius
+  margin grows from 4 km to ~8 km).
+
+  Still to do: `relay/measure.mjs` on both boxes for the adsb.fi-FACING figure. The split
+  above is the Worker's view, one layer above the relay's nginx cache, so it answers
+  "are both IPs live" but overstates the upstream rate.
+
+  **What degradation costs the customer (measured over 30 d, 2026-07-14 → 08-13):**
+
+  | | |
+  |---|---|
+  | `/blips` requests | ~76,000 |
+  | served `STALE` | 3,320 (4.4%) — **normal**, this is stale-while-revalidate doing its job |
+  | fast `503` ("warming") | 235 (0.31%) |
+  | hours with any degradation | 201 of ~720 (28%) — but almost all of it is routine STALE |
+  | hours that were a real **outage** | **1** — 2026-07-22 04:00 UTC, 111 of 137 requests 503 |
+
+  **What a customer sees, and it is honest.** The device does not freeze a false picture
+  or go blank; it escalates a three-stage ladder (`DrawStaleIndicator` /
+  `CurrentStaleStage` in [AircraftManager.cpp](src/AircraftManager.cpp)):
+
+  1. **`STALE DATA`** — quiet amber, deliberately no number. A few missed polls is routine
+     on every source and does not deserve a countdown.
+  2. **`STALE 12m` / `STALE 2h`** past 75 s — it earns a number, because "how long has this
+     been wrong?" is the question someone actually has.
+  3. **`NO DATA — 3h`** in red at the dead-reckoning cap (`MAX_DR_SECONDS`, bound to that
+     constant rather than copied from it). That is the moment the sky freezes in place, so
+     it is the moment the display stops implying the picture means anything.
+
+  **Verdict: the ladder covers it.** A single outage hour in 30 days presents as amber
+  "STALE DATA" and self-clears; it does not read as broken. With two permitted sources
+  the residual exposure is a **simultaneous** failure of both — or, more plausibly, an
+  adsb.fi IP restriction earned by exceeding the rate limit, which is the scenario the
+  relay-split measurement above exists to prevent. In that case the chain falls to
+  adsb.lol, whose measured 429 rate in the same soak was 68%, and the fleet would sit
+  amber-to-red until the restriction lifted.
+
+- **The 429 problem, for context.** adsb.lol shared-egress **429**s Cloudflare's outbound
+  IPs (other tenants' traffic on the shared per-colo IP, not our volume), worst on the
+  high-volume `/point`. Solved operationally by the dedicated-IP relays, not by a key: per
+  adsb.lol's docs the API key is *future*, and their feeder API (`re-api`) is **IP-locked**
+  to the feeding station, so a Worker cannot use it.
+- **The open ask is a second source, and it is commercial, not technical.** Price a paid
+  API (ADSBexchange/RapidAPI, FlightAware AeroAPI) as the SLA-backed fallback — a few
+  ¢/device/month, baked into pricing — and/or obtain a written commercial grant from
+  adsb.fi. Drafts in FEED-SOURCING.md.
+- ~~**adsb.fi failover returns HTTP 403**~~ ~~**superseded by a licensing blocker**~~
+  **FULLY RESOLVED — adsb.fi is the chain PRIMARY.** Both claims in this entry were
+  wrong, in sequence, and both by the same mechanism:
+  - The **403** was Cloudflare's shared egress, not an adsb.fi block. Both relay IPs
+    (`67.205.155.80`, `104.238.156.243`) get **HTTP 200** unauthenticated. *(Resolved
+    2026-07-29.)*
+  - The **licence blocker** was a reading of adsb.fi's *published terms* while a written
+    grant to us already existed in the thread. Samuli granted commercial use *including
+    caching* on **2026-08-05**, conditional on the rate limit and nothing else. See the
+    authoritative entry above.
+  - The **"1 req/s is below fleet need"** figure was never measured against. It has been
+    now: **170 and 167 upstream position fetches/hour** on relay-a and relay-b — **4.7 %
+    and 4.6 %** of the limit, zero 429s, zero degraded runs *(measured 2026-08-13)*. Load
+    scales with distinct hot tiles, not devices, so this is not a per-device figure.
+
+  Both wrong readings came from a public page rather than from our own correspondence,
+  and the rate-limit claim came from arithmetic nobody ran. The pattern is the entry, not
+  the conclusion.
+- ~~**BLIP_KEYS drift.**~~ **RESOLVED 2026-08-13 by deleting the secret.** The shared key
+  is gone from production; per-device keys (`HMAC(DEVICE_KEY_SECRET, deviceId)` presented
+  with `X-Blip-Device`) are the only auth path. Verified before removal: zero successful
+  device requests in the preceding 6 h had used anything else. See
+  [docs/device-enrollment.md](docs/device-enrollment.md).
+- **PILOT BLOCKER — a rejected credential is invisible and unrecoverable.** Found while
+  removing `BLIP_KEYS`. The device has **no handler for a sustained cloud 401**:
+  `FetchResult.authFailed` is set for OpenSky only, and `AircraftManager.cpp` explicitly
+  comments that "a cloud 401 is a key mismatch — retrying can't fix it". So a board whose
+  key stops working goes quiet with **no on-screen indication and no config-page
+  indication**, and the only recovery is a hand re-verify nobody knows to perform.
+
+  The consequence is bigger than one board: **we currently have no way to rotate fleet
+  credentials.** A leaked `DEVICE_KEY_SECRET` would mean asking every customer to
+  re-verify by hand, and most won't. That makes the rotation lever theoretical, which is
+  the same as not having it. Scope in "Credential recovery" under Tier 1.
 - **Flash the photo-null fix** (PR #94, [[ghost-tap-stale-deadreckon]] sibling) to the bench
   and fold into the `v5` OTA — the bench still runs the ghost-tap build.
 
@@ -145,6 +431,52 @@ already covers every SKU, and `FW_VERSION` is already at 5.
 ## Tier 1 — Quick wins ("alerts & polish" release)
 
 Small diffs, immediate perceived value. Ship together as one minor release.
+
+0. **Credential recovery — a rejected key must be visible and re-fixable** *(PILOT
+   BLOCKER, scoped 2026-08-13, NOT YET BUILT)*. Without this the credential-rotation
+   lever is theoretical: see the launch-blocker entry above.
+
+   **The good news first: the recovery ACTION already exists.** The Verify button, the
+   Turnstile popup, the `?id=` paste fallback and the `/enroll-key` landing endpoint all
+   ship today, and enrollment is idempotent — a re-verify re-derives and overwrites
+   `cloud-key-fac`. Nothing new is needed to *fix* a board. What is missing is the
+   **condition that offers them**, which is why this is smaller than it looks.
+
+   Three pieces:
+
+   1. **Detect, with a debounce.** `FetchResult` gains a cloud-specific
+      `authRejected` (set only on **401/403 from the cloud feed** — never a network
+      error, a 503 "warming", or a captive portal, all of which already land in the same
+      branch at `AircraftManager.cpp:~1707` and must NOT latch). Latch only when BOTH a
+      consecutive-failure count **and** an elapsed-time floor are crossed (suggest 5
+      consecutive *and* ≥15 min); any 2xx clears it instantly. Requiring both matters: a
+      count alone is burned through in seconds at the fast post-touch poll cadence, and a
+      timer alone latches on one blip that happens to straddle it.
+   2. **Surface it in the config page** — cheap. `enrolled` (from `cloud-key-fac`) already
+      drives the verify checklist; this makes the state **three-way** instead of two:
+      never-enrolled / enrolled-OK / enrolled-but-rejected. The third reuses the existing
+      Verify step with different copy. A never-enrolled board must NOT say
+      "re-verify" — that is the whole reason it is three states and not a boolean.
+   3. **Surface it on screen** — the real cost, because **there is no message/banner
+      facility at all** (searched: no `ShowMessage`, no status overlay, no centered-string
+      helper). Needs a design call on a 240 px round panel and a new drawing path. Gate on
+      `FEATURE_CLOUD_FEED`; OpenSky-BYO and local-receiver devices are unaffected.
+
+   **Cost:** (1) and (2) are small and contained — a field, a counter, one condition and
+   some copy. (3) is the majority of the work and the only part needing a design decision.
+   Worth splitting: (1)+(2) alone already turn "silently dead" into "the config page tells
+   you and offers the fix", which is most of the value.
+
+   **Failure modes to guard, since a false latch is worse than none:**
+   - *Transient blip latches.* Mitigated by 401/403-only + both thresholds + instant clear.
+   - *Fleet-wide latch during a deliberate rotation.* This is the DESIRED behaviour — but
+     it means every customer sees the message at once, so the copy must be neutral
+     ("this device needs re-verifying"), never accusatory or alarming.
+   - *A revoked board latches permanently.* The device cannot distinguish revoked from
+     stale-key (both are 401), so it must not claim to. "Needs re-verifying" is true in
+     both cases; a revoked board then fails re-verification and the enrol page can say why.
+   - *The banner becoming permanent furniture* on a device that legitimately cannot
+     recover — decide up front whether it dims/collapses after N days, and mind burn-in.
 
 1. **Visual alert system for military + emergency contacts** — **IMPLEMENTED
    2026-07-16** (`UpdateVisualAlerts`/`DrawVisualAlert` in `AircraftManager.cpp`;

@@ -39,6 +39,38 @@ constexpr int PHOTO_H = SCREEN_SIZE;
 constexpr int FULLBLEED_TITLE_Y = SCREEN_SIZE - 46; // callsign, size 2
 constexpr int FULLBLEED_HINT_Y  = SCREEN_SIZE - 22; // "tap: details", size 1
 
+// The longest of two captions that survives the round bezel at FULLBLEED_HINT_Y.
+//
+// THE ROW THAT DECIDES IS THE LOWEST ONE, NOT THE FIRST. A disc narrows across
+// the height of a glyph, so a string can begin comfortably inside the circle and
+// lose its first and last characters where it ends. Measured on the s3-128:
+// "representative photo" is 120 px at size 1; the chord at the caption's top row
+// (y=218) is 138 px and at its bottom row (y=226) only 112 px. It fit where it
+// started and was clipped where it finished -- which is why it read as a font or
+// centring problem rather than a geometry one.
+//
+// MEASURED, NOT SHORTENED FOR EVERYBODY. The 412 and 480 panels have room for the
+// full phrase; picking the short string globally would spend their geometry on the
+// 240's problem. Same rule as everywhere else here -- no hardcoded 240, ask
+// Layout.h (see the multi-SKU section of CLAUDE.md).
+//
+// Only the caption is chosen this way. Text is NOT truncated to fit: a caption
+// clipped by software looks identical to one clipped by the bezel, and the whole
+// point is to stop producing that.
+static const char* CaptionForDisc(BandCanvas& canvas, const char* preferred, const char* fallback)
+{
+    // Match the ring the card actually draws -- centre (cx-1, cx-1), radius
+    // SCREEN_SIZE_DIV_2-1 -- rather than the panel square. Clearing the panel is
+    // not the test; clearing the circle someone is looking through is.
+    const int r  = SCREEN_SIZE_DIV_2 - 1;
+    const int dy = (FULLBLEED_HINT_Y + canvas.fontHeight() - 1) - (SCREEN_SIZE_DIV_2 - 1);
+    if (dy >= r)
+        return fallback; // the row is off the disc entirely; nothing fits
+    const int half   = (int)sqrtf((float)(r * r - dy * dy));
+    const int usable = 2 * half - 4; // a couple of px so glyphs don't sit on the ring
+    return ((int)canvas.textWidth(preferred) <= usable) ? preferred : fallback;
+}
+
 // Display-unit conversions. The feeds are normalised to OpenSky's SI internally
 // (metres, m/s); aviation/US convention shows altitude in feet and ground speed
 // in knots, so convert at each on-screen/notification site that shows telemetry.
@@ -137,6 +169,7 @@ struct FetchResult {
     bool authFailed = false;         // OpenSky said 401/403: the token needs a refetch
     std::vector<Aircraft> aircraft;  // parsed state vectors (empty unless ok)
 #ifdef FEATURE_CLOUD_FEED
+    bool cloudAuthRejected = false;  // the PROXY said 401/403: this board's key is refused
     long dataEpoch = 0;              // cloud blips snapshot time t (0 = not cloud)
     CloudFeed::Config config;        // CloudConfig kind only
     std::vector<CloudFeed::CloudAirport> airports; // Airports kind only
@@ -1290,12 +1323,35 @@ AircraftManager::StaleStage AircraftManager::CurrentStaleStage() const
 // render path allocation-free (this runs every frame while degraded).
 void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
 {
+    char buf[24];
+    uint32_t colour;
+
+#ifdef FEATURE_CLOUD_FEED
+    // CREDENTIAL REJECTION OUTRANKS STALENESS, and shares this one banner slot
+    // rather than adding a second.
+    //
+    // The reason is not screen space, it is accuracy. When the key is refused the
+    // data IS stale -- as a CONSEQUENCE. Showing "STALE 2h" would be true and
+    // useless: it points the owner at their network, their router, their wifi,
+    // anywhere except the one thing that fixes it. The most specific true statement
+    // available is the one to show.
+    if (NeedsReverify()) {
+        colour = lgfx::color888(255, 64, 48);
+        // Deliberately not "unauthorized", "rejected" or "invalid key": a fleet-wide
+        // credential rotation lights this on every board at once, and the owner did
+        // nothing wrong. It names the ACTION, not a fault.
+        snprintf(buf, sizeof(buf), "NEEDS VERIFY");
+        backbuffer.setTextSize(1);
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, 14);
+        return;
+    }
+#endif
+
     const StaleStage stage = CurrentStaleStage();
     if (stage == StaleStage::Live)
         return;
 
-    char buf[24];
-    uint32_t colour;
     const unsigned long ageS = DataAgeMs() / 1000UL;
 
     switch (stage) {
@@ -1704,7 +1760,20 @@ void AircraftManager::RunFetchTask()
             // flag it so the loop drops the cache and the next cycle re-auths.
             // (OpenSky only: a cloud 401 is a key mismatch -- retrying can't fix it,
             // and it must not invalidate the unrelated OpenSky token cache.)
-            res->authFailed = isOpenSky && (result.statusCode == 401 || result.statusCode == 403);
+            const bool rejected = (result.statusCode == 401 || result.statusCode == 403);
+            res->authFailed = isOpenSky && rejected;
+#ifdef FEATURE_CLOUD_FEED
+            // The cloud counterpart, and it is a DIFFERENT KIND of problem: retrying
+            // cannot fix it, so unlike every other failure in this branch it will not
+            // clear on its own. Recorded here and debounced on the loop task.
+            //
+            // ONLY 401/403. Not !result.success (a network drop), not 5xx, not the
+            // proxy's fast 503 "warming" -- all of those land in this same branch and
+            // all of them recover by themselves. Latching on any of them would put a
+            // "needs re-verifying" message on a board that needs nothing, which is
+            // worse than saying nothing at all.
+            if (req->cloud) res->cloudAuthRejected = rejected;
+#endif
         }
 #ifdef FEATURE_CLOUD_FEED
         else if (req->cloud) {
@@ -1940,6 +2009,55 @@ void AircraftManager::ConsumeFetchResult()
     // instead of 401-ing until the local 29-min timer happens to lapse.
     if (res->authFailed)
         authHandler.Invalidate();
+
+#ifdef FEATURE_CLOUD_FEED
+    // DEBOUNCE for the credential-rejection latch, and BOTH thresholds are
+    // load-bearing. Either one alone is wrong in a way that reaches a customer:
+    //
+    //   count alone -- at the 5 s active cadence five consecutive failures is
+    //                  twenty-five seconds, which a redeploy or a brief edge blip
+    //                  can produce. The board would announce it needs re-verifying
+    //                  and then silently be fine, teaching the owner to ignore it.
+    //   time alone  -- a single 401 that happens to straddle the window latches,
+    //                  and a lone spurious rejection is exactly what a rolling
+    //                  deploy looks like from the device.
+    //
+    // Requiring both means the key has been refused repeatedly AND for long enough
+    // that no transient explains it. A single success clears everything: recovery
+    // must be instant and unconditional, because the fix (a re-verify) is only
+    // observable to the customer through this indicator going away.
+    if (res->kind == FetchKind::Feed && useCloudSource) {
+        constexpr uint8_t   REVERIFY_MIN_STREAK = 5;
+        constexpr unsigned long REVERIFY_MIN_MS = 15UL * 60UL * 1000UL; // 15 min
+
+        if (res->cloudAuthRejected) {
+            const unsigned long now = millis();
+            if (cloudAuthFailStreak == 0) cloudAuthFirstFailMs = now;
+            if (cloudAuthFailStreak < 255) cloudAuthFailStreak++;
+            const bool longEnough = (now - cloudAuthFirstFailMs) >= REVERIFY_MIN_MS;
+            if (!cloudAuthLatched && cloudAuthFailStreak >= REVERIFY_MIN_STREAK && longEnough) {
+                cloudAuthLatched = true;
+                Serial.printf("[cloud] KEY REFUSED for %lus over %u fetches -- this board "
+                              "needs re-verifying\n",
+                              (now - cloudAuthFirstFailMs) / 1000UL, (unsigned)cloudAuthFailStreak);
+            }
+        } else if (res->ok) {
+            // Any good fetch is proof the credential works. Clear unconditionally,
+            // including the latch -- a re-verified board must return to normal
+            // without a reboot, since "reboot it" is not an instruction we want to
+            // be giving a customer who has just fixed the actual problem.
+            if (cloudAuthLatched)
+                Serial.println("[cloud] key accepted again -- clearing the re-verify state");
+            cloudAuthFailStreak = 0;
+            cloudAuthFirstFailMs = 0;
+            cloudAuthLatched = false;
+        }
+        // NOTE the gap: a failure that is NOT a 401/403 (network drop, 503 warming,
+        // parse failure) neither advances nor clears the streak. It is not evidence
+        // either way, and treating it as a clear would let one lucky reconnect reset
+        // a genuinely refused board back to silence.
+    }
+#endif
 
     if (res->ok) {
         const unsigned long now = millis();
@@ -3981,6 +4099,17 @@ void AircraftManager::ProcessDetailLookups()
         if (tracked.metadataState == TrackedAircraft::MetadataState::NotFetched) {
             if (millis() < tracked.metadataRetryAfter)
                 return;
+            // A non-ICAO address is a TIS-B/ADS-R track ID, not an airframe: no
+            // registry holds a record, so this GET is certain to return blank.
+            // Settle it offline instead of spending a TLS handshake and a round
+            // trip on the tight path to learn nothing. These were ~44% of the
+            // fleet's failed type lookups when measured (2026-08-12), so this is
+            // real traffic removed, not a micro-optimisation. The card shows
+            // exactly what it would have shown anyway.
+            if (SpecialAircraft::IsNonIcaoAddress(selectedIcao)) {
+                ApplyEnrichment(tracked, CloudFeed::Enrichment{});
+                return;
+            }
             // The LRU keeps the last few enrichments across aircraft eviction, so
             // re-inspecting a contact that flapped out of range is instant and
             // network-free. On a hit, fall through to the photo step below.
@@ -5072,7 +5201,9 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         // IS that aircraft, so it keeps the hint and stays uncaptioned.
         backbuffer.setTextSize(1);
         backbuffer.setTextColor(lgfx::color888(0, 150, 0));
-        centered(tracked.photoRepresentative ? "representative photo" : "tap: details",
+        centered(CaptionForDisc(backbuffer,
+                                tracked.photoRepresentative ? "representative photo" : "tap: details",
+                                tracked.photoRepresentative ? "stock photo" : "tap: details"),
                  FULLBLEED_HINT_Y);
         return; // nothing else belongs over the photograph
     }

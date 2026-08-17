@@ -19,14 +19,34 @@ import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed }
 export const FEEDS: UpstreamAircraftFeed[] = [adsbLol, adsbLolB, adsbFi, adsbFiB, airplanesLive];
 
 // ---- SHIPPING ORDER (2026-07-30): adsb.fi primary, adsb.lol licensed fallback ----
-// Reordered on the owner's decision once adsb.fi granted caching/redistribution
-// permission IN WRITING. The reasoning, recorded so it isn't re-litigated:
 //
-//   adsb.fi leads on operational grounds -- written permission, ~19x the rate headroom
-//   (3600 req/h/IP vs the ~190/h where adsb.lol starts 429ing us), better throughput
-//   (~90 KB/s vs the ~12 KB/s anonymous cap), and an operator who answers email.
+// THE ORDER OF EVENTS, stated plainly because an earlier version of this comment
+// said "reordered once adsb.fi granted permission IN WRITING" and that is not what
+// happened. It reverses the sequence, and the reversal flatters us:
+//
+//   2026-07-30  The long-standing "adsb.fi 403s us" was found to be Cloudflare's
+//               shared per-colo egress, not adsb.fi policy -- both relay IPs answer
+//               200 unauthenticated. The reorder went in THAT DAY, on those
+//               operational grounds. (Landed 2026-07-31, commit 8ad96e0.)
+//   2026-08-05  Samuli's written grant arrived: commercial use for a paid hardware
+//               product "including the caching system", conditional on the Open Data
+//               API rate limit and nothing else.
+//
+// So for six days the fleet's PRIMARY position source was one we had not yet asked.
+// Their published terms at the time read as non-commercial, no-redistribution. That
+// was a real exposure, it is closed now, and it is written here rather than left to
+// be reconstructed from commit dates by someone who needs the answer quickly.
+//
+// The reasoning for the order itself, recorded so it isn't re-litigated:
+//
+//   adsb.fi leads on operational grounds -- ~19x the rate headroom (3600 req/h/IP vs
+//   the ~190/h where adsb.lol starts 429ing us), better throughput (~90 KB/s vs the
+//   ~12 KB/s anonymous cap), and an operator who answers email. The written grant
+//   confirms the choice; it did not prompt it.
 //   Measured over a 21.3 h two-relay soak: adsb.fi returned 0 % 429 across 10,037
 //   position fetches; adsb.lol ran 68 % 429 with a 720 s unbroken degraded run.
+//   Live rate as of 2026-08-13: 170 and 167 upstream position fetches/h on relay-a
+//   and relay-b -- 4.7 % and 4.6 % of the 1 req/s limit the permission rests on.
 //
 //   adsb.lol stays in the chain because its ODbL 1.0 grant is a right no operator can
 //   revoke -- that is worth more as a fallback than as a primary. Its maintainer is

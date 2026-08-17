@@ -3,14 +3,17 @@ import { adsbFi, adsbFiB } from "../src/upstreams/adsb_fi";
 import { FEEDS, enabledFeeds } from "../src/upstreams/chain";
 import type { Env } from "../src/types";
 
-// Guards on the adsb.fi adapter. It ships DISABLED (its terms are personal /
-// non-commercial with no redistribution right -- see adsb_fi.ts), so it is never
-// exercised by the request-path tests; without these, a latent break in a feed
-// that only wakes up during an incident would go unnoticed until the incident.
+// Guards on the adsb.fi adapter -- the chain PRIMARY in staging and production
+// since 2026-07-31 (see adsb_fi.ts). The request-path tests build their own env
+// objects and so exercise the DEFAULTS, not the deployed vars; these pin the
+// adapter's own shape, which is the part a URL or header change would break.
 const env = (over: Partial<Env> = {}): Env => ({ ...over }) as Env;
 
 describe("adsb.fi upstream adapter", () => {
-  it("is disabled unless explicitly enabled -- the licence blocker is the default", () => {
+  // Behaviour unchanged and deliberately so: an upstream that reaches a third
+  // party must not enable itself from an unset variable. What changed is the
+  // REASON -- this is hygiene now, not a licence hold.
+  it("is off unless explicitly enabled -- no third-party upstream self-enables", () => {
     expect(adsbFi.enabled(env())).toBe(false);
     expect(adsbFi.enabled(env({ UPSTREAM_ADSB_FI_ENABLED: "false" }))).toBe(false);
     expect(adsbFi.enabled(env({ UPSTREAM_ADSB_FI_ENABLED: "true" }))).toBe(true);
@@ -58,9 +61,17 @@ describe("adsb.fi upstream adapter", () => {
 });
 
 describe("upstream chain posture", () => {
-  it("ships with adsb.lol as the only enabled position source", () => {
-    // The licensed source leads and is the ONLY one on. If this ever fails,
-    // something enabled a feed we have no redistribution right to.
+  // NOTE WHAT THIS CAN AND CANNOT SEE. It builds an Env by hand, so it asserts
+  // the CODE DEFAULTS -- not what production runs. Production sets
+  // UPSTREAM_ADSB_FI_ENABLED = "true" in wrangler.toml and adsb.fi is the chain
+  // primary there, which this test neither knows nor could fail over. Its old
+  // name ("ships with adsb.lol as the only enabled position source") therefore
+  // became false while it kept passing: the input came from the test's own side
+  // of the contract, which is this repo's recurring way of proving nothing.
+  //
+  // The artifact-side check is in scripts/smoke-prod.sh, which reads the enabled
+  // set off the LIVE /healthz. This one is now scoped honestly to the default.
+  it("enables no third-party position source from an empty env", () => {
     expect(enabledFeeds(env({ UPSTREAM_ADSB_LOL_BASE: "https://relay-a" })).map((f) => f.id)).toEqual([
       "adsb_lol",
     ]);

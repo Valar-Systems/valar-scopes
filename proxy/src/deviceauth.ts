@@ -1,10 +1,9 @@
 import type { Env } from "./types";
 
-// Per-device API keys (ROADMAP: "the real fix ... proxy v1 deferred"). This is
-// the ADDITIVE, non-breaking foundation: the shared BLIP_KEYS path is untouched
-// and always accepted, so the live fleet keeps authenticating exactly as before.
-// The device-key path only activates when DEVICE_KEY_SECRET is configured AND a
-// request presents an X-Blip-Device id, so it can be rolled out gradually.
+// Per-device API keys -- since 2026-08-13 the ONLY way in. This landed first as
+// an additive path alongside the shared BLIP_KEYS list so it could be rolled out
+// gradually; that list was removed once every board had enrolled and the
+// analytics showed no successful device request still arriving on it.
 //
 // A device key is HMAC-SHA256(DEVICE_KEY_SECRET, deviceId), hex. The server
 // holds ONE secret and recomputes the expected key per request -- no key
@@ -45,7 +44,11 @@ export async function deriveDeviceKey(secret: string, deviceId: string): Promise
 
 // Validate a presented (deviceId, key) pair against DEVICE_KEY_SECRET. Returns
 // false (never throws) when the secret isn't configured, the id is malformed, or
-// the key doesn't match -- callers then fall back to the shared-key path.
+// the key doesn't match. There is no longer anything to fall back TO, so a false
+// here is a 401 -- which also means an unset DEVICE_KEY_SECRET now refuses the
+// entire fleet rather than quietly degrading to shared keys. That is the
+// intended failure direction (closed, and loudly), but it makes the secret's
+// presence a deploy-blocking precondition: see scripts/deploy.sh.
 export async function verifyDeviceKey(env: Env, deviceId: string, presentedKey: string): Promise<boolean> {
   const secret = env.DEVICE_KEY_SECRET;
   if (!secret || !deviceId || !presentedKey) return false;

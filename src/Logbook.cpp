@@ -153,6 +153,15 @@ void Logbook::Begin()
     loadRecord(prefs, "rec-near", recNear);
     prefs.end();
 
+    // BEFORE the summary line, so what it prints is the book as it now stands
+    // rather than a count that is already stale by one statement. Idempotent: it
+    // leaves no comma keys behind, so every later boot folds zero and says
+    // nothing.
+    const uint16_t foldedOps = foldCommaVariants();
+    if (foldedOps)
+        Serial.printf("[logbook] folded %u co-owner spelling(s); operators now %u\n",
+                      (unsigned)foldedOps, (unsigned)operators.size());
+
     lastPersist = millis();
     Serial.printf("[logbook] loaded %u types (%u claimed), %u airlines (%u), %u countries (%u), %u contacts\n",
                   (unsigned)types.size(), (unsigned)claimedTypes,
@@ -197,6 +206,40 @@ void Logbook::reportCapacity()
 
     const size_t overhead = kNonLogbookEntries + kGcReservedEntries;
     const size_t budget = st.total_entries > overhead ? st.total_entries - overhead : 0;
+
+    /* -----------------------------------------------------------------------
+     * DID THIS EDITION BOOT ON THE PARTITION TABLE IT WAS BUILT FOR?
+     *
+     * The table is a per-env setting, so two editions for the SAME board can
+     * disagree: blipscope-s3-128 uses partitions-s3-16mb-bignvs.csv (84 KB NVS)
+     * while every *-s3-146 env takes the stock default_16MB.csv (20 KB). Today
+     * that is survivable because no other edition has an s3-128 env -- but the
+     * day someone adds `missileer-s3-128` with the stock table, the NVS
+     * PARTITION MOVES. Everything in it becomes unreachable at once: the
+     * logbook, the location, the WiFi credentials, and the enrolled device key.
+     *
+     * It would present as "my Blipscope forgot everything", pointing at the
+     * feature the customer last touched and never at a line in an .ini. That is
+     * the worst possible shape for a fault, so it is checked at boot on the
+     * RUNNING partition rather than left to be discovered.
+     *
+     * Guarded on the total, not the offset: nvs_get_stats() reports what the
+     * running table actually granted, which is the artifact. A build flag
+     * asserting what the ini INTENDED would restate the thing that is wrong.
+     * -------------------------------------------------------------------- */
+#ifdef BLIPSCOPE_EXPECT_BIG_NVS
+    constexpr size_t kExpectedMinEntries = 2000; // bignvs grants ~2646
+#else
+    constexpr size_t kExpectedMinEntries = 400;  // stock default_16MB grants ~630
+#endif
+    if (st.total_entries < kExpectedMinEntries) {
+        Serial.printf(
+            "[logbook] *** WRONG PARTITION TABLE *** this build expects at least %u NVS entries "
+            "and the running partition has %u. The board booted a table this edition was not "
+            "built for -- check board_build.partitions for this env in platformio.ini. Stored "
+            "data (logbook, location, WiFi, device key) may be unreachable rather than lost.\n",
+            (unsigned)kExpectedMinEntries, (unsigned)st.total_entries);
+    }
 
     // "ceilings" and not "caps" on purpose: this is MAX_BLOB_TOTAL, the most the
     // four stores can occupy, which is a slightly larger number than the count caps
@@ -367,6 +410,127 @@ bool Logbook::adoptTruncatedOperator(const String& fullName)
     return true;
 }
 
+// ---- the one-time co-owner fold, at load -----------------------------------
+//
+// adoptCommaVariant() below handles a variant that a LIVE SIGHTING reaches. This
+// handles the rest: entries already banked under "<base>, CO-OWNER" that may not
+// fly over again for weeks, and which until then hold slots in a store that is
+// refusing new entries because it is full.
+//
+// That is the difference between the two, and it is why this exists at all.
+// Truncating at the comma stops the store GROWING; only this reopens one that
+// has already closed. On the bench: .55 sat at 220/220 with eleven NetJets and
+// two Flexjet variants among them, so its newest slot had become a revolving
+// door -- each new operator evicting the previous one. Folding returns twelve
+// slots and the store starts recording again.
+//
+// NOT A DELETION, which is the line this had to stay inside: every entry removed
+// is another spelling of an operator that remains in the book. Nothing a customer
+// collected stops being there; a list that said "NETJETS SALES INC" eleven times
+// with different tails appended now says it once.
+//
+// Merge rules:
+//   firstDay -- the EARLIEST wins. The collection is a record of when you first
+//               saw an operator, and folding must not move that date later.
+//   claimDay -- the EARLIEST non-zero wins, and a claim can never be lost to a
+//               merge: if any spelling was claimed, the survivor is claimed.
+//
+// claimedOperators is RECOMPUTED rather than adjusted by deltas. It is an
+// incrementally-maintained counter and two claimed spellings collapsing into one
+// makes the delta arithmetic a place to be wrong silently; a full recount is
+// O(n) once at boot and cannot drift.
+uint16_t Logbook::foldCommaVariants()
+{
+    uint16_t folded = 0;
+    for (auto it = operators.begin(); it != operators.end(); ) {
+        const int c = it->first.indexOf(',');
+        if (c < 0) { ++it; continue; }
+        String base = it->first.substring(0, c);
+        base.trim();
+        if (base.isEmpty()) { ++it; continue; }
+
+        const SeenStat src = it->second;
+        const String was = it->first;
+        // std::map::erase returns the next iterator and invalidates only the
+        // erased one; a later insert leaves every other iterator valid, so `it`
+        // stays good across both operations.
+        it = operators.erase(it);
+
+        auto b = operators.find(base);
+        if (b == operators.end()) {
+            operators[base] = src;
+        } else {
+            if (src.firstDay != 0 && (b->second.firstDay == 0 || src.firstDay < b->second.firstDay))
+                b->second.firstDay = src.firstDay;
+            if (src.claimDay != 0 && (b->second.claimDay == 0 || src.claimDay < b->second.claimDay))
+                b->second.claimDay = src.claimDay;
+        }
+        Serial.printf("[logbook] folded '%s' -> '%s'%s\n", was.c_str(), base.c_str(),
+                      src.claimDay != 0 ? " (claim carried)" : "");
+        ++folded;
+    }
+    if (folded) {
+        claimedOperators = 0;
+        for (const auto& kv : operators)
+            if (kv.second.claimDay != 0) ++claimedOperators;
+        dirty = true;
+    }
+    return folded;
+}
+
+// ---- the co-owner variant migration ----------------------------------------
+// Sibling of adoptTruncatedOperator above, for the OTHER way a stored key can
+// stop being the key a sighting now produces: normOperator truncates at the
+// first comma, so an entry banked as "SMITH KEVIN, SMITH JOHANNA" is no longer
+// reachable from the aircraft that created it.
+//
+// Left alone, the visible symptom is not a lost claim -- the old entry stays in
+// the book, still claimed -- but a DUPLICATE PAIR: the claimed long spelling and
+// a fresh unclaimed short one, for the same operator, with nothing on the page
+// to explain why. Both bench boards had exactly one claimed comma entry, so this
+// is a small case that would have looked like a bug on the two devices most
+// likely to be looked at.
+//
+// Adopting hands firstDay and claimDay to the base key, exactly as the v4
+// migration does. It is a MERGE OF ONE OPERATOR'S OWN ALIASES, never a deletion
+// of something distinct -- which is why it stays inside "delete nothing".
+//
+// Deliberately adopts AT MOST ONE variant, preferring a claimed one:
+//   - the base key already existing wins outright (checked by the caller), so
+//     NetJets' eleven variants do not fight over a slot that is already taken;
+//   - remaining variants are left in the book rather than swept up, because
+//     folding eleven entries into one WOULD be a deletion of entries a customer
+//     can see, and that decision is not this function's to make.
+bool Logbook::adoptCommaVariant(const String& base)
+{
+    const String prefix = base + ",";
+    auto victim = operators.end();
+    for (auto it = operators.begin(); it != operators.end(); ++it) {
+        if (!it->first.startsWith(prefix))
+            continue;
+        if (victim == operators.end()) { victim = it; continue; }
+        // A claimed variant wins: the claim is the irreplaceable half, and
+        // carrying it is the entire reason this runs at all. Among equals, the
+        // earliest sighting -- the same "keep the beginning of the record"
+        // instinct as evictOneSeen, for the same reason.
+        const bool itClaimed  = it->second.claimDay != 0;
+        const bool vicClaimed = victim->second.claimDay != 0;
+        if (itClaimed && !vicClaimed)
+            victim = it;
+        else if (itClaimed == vicClaimed && it->second.firstDay < victim->second.firstDay)
+            victim = it;
+    }
+    if (victim == operators.end())
+        return false;
+    operators[base] = victim->second; // firstDay AND claimDay carry across
+    Serial.printf("[logbook] folded operator '%s' -> '%s' (claim %s)\n",
+                  victim->first.c_str(), base.c_str(),
+                  victim->second.claimDay != 0 ? "carried" : "none");
+    operators.erase(victim);
+    dirty = true;
+    return true;
+}
+
 bool Logbook::NoteType(const String& typeCode)
 {
     String t = typeCode;
@@ -392,9 +556,32 @@ bool Logbook::NoteType(const String& typeCode)
 namespace {
 // Normalisers, shared by the Note (seen) and Claim paths so a claim can never
 // miss its own entry because the two spelled the key differently.
+// TRUNCATE AT THE FIRST COMMA, and this is the whole bound on the store.
+//
+// adsbdb returns the FAA registry's registered-owner field, which appends
+// co-owners after a comma: "NETJETS SALES INC, AIR SERRA LLC, BVMW LLC". That is
+// a different string PER AIRFRAME, so one operator becomes one entry per tail --
+// NetJets alone held 4 slots on one bench board and 11 on the other, and Flexjet
+// another 3 and 2. That is the growth mechanism, and it is not a policy question
+// about who deserves to be in the book: it is one operator wearing eleven names.
+//
+// Measured on the two bench boards (2026-08-12, from their own exports): 120 ->
+// 115 and 220 -> 209 entries, with every removal a duplicate of an operator
+// already present under its base name.
+//
+// The primary registrant is the part before the comma, so the base name is both
+// the shortest and the most correct key. It also does most of the work the
+// widened MAX_OP_LEN was doing -- these composites are exactly the names that
+// ran past 24 characters.
+//
+// Applied HERE rather than at the call site because this normaliser is shared by
+// the Note (seen) and Claim paths, and a claim that spelled its key differently
+// from the sighting would never find its own entry.
 String normOperator(const String& raw, size_t maxLen)
 {
     String s = raw;
+    const int comma = s.indexOf(',');
+    if (comma >= 0) s = s.substring(0, comma);
     s.trim();
     if (s.length() > maxLen) s = s.substring(0, maxLen);
     return s;
@@ -427,6 +614,13 @@ bool Logbook::NoteOperator(const String& operatorName)
     // its v4 truncated spelling. Adopting returns the entry to the book WITH its
     // claim, and it is not a fresh catch -- the customer already had it.
     if (adoptTruncatedOperator(op))
+        return false;
+    // Then the co-owner form: an entry banked under "<op>, SOMEONE ELSE" before
+    // normOperator started cutting at the comma. Ordered AFTER the v4 adoption
+    // because the two cannot both apply -- v4 keys are exactly 24 chars and this
+    // one matches on a comma boundary -- and because a v4 key is the older and
+    // more fragile of the two.
+    if (adoptCommaVariant(op))
         return false;
     if (operators.size() >= MAX_OPERATORS && !evictOneSeen(operators, StOperators)) {
         noteFull(StOperators, "airlines/owners", MAX_OPERATORS);

@@ -41,7 +41,31 @@ const TYPE_PHOTO_ALIAS: Record<string, string> = {
   BE9L: "BE20", BE30: "B350",                       // King Air 90 / Super King Air 300
   TBM7: "TBM8",                                     // TBM 700/850 share a hull
   P28R: "P28A", P32R: "PA32",                       // Arrow / Saratoga-Lance
+  C185: "C180",                                     // Skywagon -- see below
 };
+
+// WHY C185 QUALIFIES AND B505/PA23 DO NOT -- the rule is hulls, not neighbours.
+// The rule itself lives in blipscope-military-photo-sourcing.md ("Aliasing a
+// type: justify it by the HULL, never by the photograph"); this is its instance.
+//
+// The 185 is a structurally strengthened 180 with a bigger engine and a taller
+// fin, on the same fuselage: the TBM7/TBM8 relationship above, not the "another
+// Piper light twin" category error that got PA23 refused. Aliasing on
+// resemblance rather than shared airframe is how the table stops meaning
+// anything, so the distinction is load-bearing, not pedantry.
+//
+// EYEBALLED AT 240px IN THE DISC BEFORE IT LANDED, against the published square
+// (photo:C180-2e567c3e), not the source file -- read the artifact. It is a
+// three-quarter-rear shot of a red-and-white high-wing taildragger on pavement,
+// wings unforeshortened, in colour and on wheels.
+//
+// Recorded honestly: this is a "you cannot tell" pass, not a "it looks right"
+// one. The tail is the feature that most distinguishes a 185, and it is angled
+// away and small in frame -- so the differentiator is HIDDEN rather than
+// matching. That still passes, because the claim the card makes is "a
+// representative Skywagon" and the hull genuinely is shared; but if this photo
+// is ever re-picked to a tail-on or side view, RE-CHECK THIS ALIAS. A pick that
+// makes the C180 more identifiable makes it a worse stand-in for the 185.
 
 // ---------------------------------------------------------------------------
 // Which photo variant a device may be sent.

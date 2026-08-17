@@ -19,7 +19,7 @@
  * (lazily imported) and an authenticated `wrangler`.
  */
 import { execSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cropRect, scrimRGBA, subjectCrop, type Framing, type SubjectBox } from "../src/framing";
@@ -64,10 +64,15 @@ interface Args {
   photosDir: string;
   square: boolean;
   force: boolean;
+  /** --dry-run only: write the first N changed rows' squares here to be looked at. */
+  sampleOut?: string;
+  sampleCount: number;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, checkOnly: false, photosDir: "photos", square: true, force: false };
+  const a: Args = {
+    dryRun: false, checkOnly: false, photosDir: "photos", square: true, force: false, sampleCount: 3,
+  };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--env") a.env = argv[++i];
@@ -78,6 +83,13 @@ function parseArgs(argv: string[]): Args {
     // with nothing reporting it -- the flag exists to turn them OFF for a fast
     // legacy-only re-run, not to opt in to the current product.
     else if (v === "--no-square") a.square = false;
+    // --sample-out <dir> [--sample-count N]: on a dry run, write out the squares
+    // the real run WOULD publish. Looking at three of them costs nothing and is
+    // the only check that sees what a customer sees; every other assertion here
+    // is about bytes, keys and counts, none of which can tell you the framing is
+    // wrong. Deliberately dry-run only -- an upload run's output is the artifact.
+    else if (v === "--sample-out") a.sampleOut = argv[++i];
+    else if (v === "--sample-count") a.sampleCount = Number(argv[++i]) || 3;
     // Re-upload every row even when KV already holds the identical key. The skip
     // is a claim about what is in KV, inferred from the published manifest; this
     // is how you act when you suspect that claim is wrong (a partial run, a
@@ -153,7 +165,17 @@ function fetchPublishedManifest(env: string): ManifestEntry[] | null {
     if (start < 0) return null;
     const parsed: unknown = JSON.parse(out.slice(start));
     return Array.isArray(parsed) ? (parsed as ManifestEntry[]) : null;
-  } catch {
+  } catch (err) {
+    // SAY WHY. This returned a bare null, and the caller then printed "could not
+    // read the published manifest" -- which is true, uninformative, and identical
+    // for a missing key, an expired token, a wrangler crash and a JSON parse
+    // failure. Those want four different responses, and the run continues in a
+    // mode ("upload every row") that looks like a decision rather than a
+    // fallback, so nothing downstream reveals which one happened.
+    const e = err as { message?: string; status?: number; stderr?: string };
+    console.warn(`  manifest read failed: ${e.message ?? String(err)}`);
+    if (e.status !== undefined) console.warn(`  wrangler exit status: ${e.status}`);
+    if (e.stderr) console.warn(`  wrangler stderr: ${String(e.stderr).slice(0, 800)}`);
     return null;
   }
 }
@@ -310,8 +332,20 @@ async function main(): Promise<void> {
 
   // What KV already holds, fetched once. A single round trip buys the right to
   // skip up to ~940 of them.
+  //
+  // FETCHED ON --dry-run TOO, since 2026-08-14. It previously was not, and that
+  // made the mode unable to answer the only question it gets run to answer.
+  // Without the prior manifest every row compares against nothing, so a dry run
+  // printed all 234 rows whether the library was completely stale or perfectly
+  // current -- the same output in both worlds, which is not a measurement.
+  //
+  // It is the same defect the comment above about sharp describes ("a dry run
+  // that cannot exercise the pipeline is a FAILED dry run"), one step further
+  // along: the pipeline ran, and then its result was compared to nothing.
+  //
+  // Read-only, so it costs one KV GET and changes nothing.
   const priorByTarget = new Map<string, ManifestEntry>();
-  if (!args.dryRun && args.env && !args.force) {
+  if (args.env && !args.force) {
     const prior = fetchPublishedManifest(args.env);
     if (prior) {
       for (const p of prior) priorByTarget.set(`${p.kind}:${p.target}`, p);
@@ -323,7 +357,7 @@ async function main(): Promise<void> {
     }
   }
 
-  let resized = 0, squaresMade = 0, noSource = 0, skipped = 0;
+  let resized = 0, squaresMade = 0, noSource = 0, skipped = 0, changed = 0, sampled = 0;
   for (const e of entries) {
     if (!e.file) {
       console.warn(`skip ${e.kind}:${e.target}: no source file`);
@@ -426,7 +460,28 @@ async function main(): Promise<void> {
 
     const sq = squares.map((s) => `${s.size}:${s.buf.length}B`).join(" ");
     if (args.dryRun || !args.env) {
-      console.log(`${e.kind}:${e.target} -> ${blobKey} (${jpeg.length} B)${sq ? `  square ${sq}` : ""}`);
+      // Say which of the two things this row is. The count of CHANGED rows is
+      // the number the operator is deciding on -- "would a real run rewrite the
+      // library, or is it already current?" -- so it must be distinguishable
+      // here and not only in an upload run that has already happened.
+      const unchanged = alreadyPublished(priorByTarget.get(`${e.kind}:${e.target}`), blobKey, squareKeys);
+      if (unchanged) skipped++;
+      else changed++;
+      // Optional: write the artifacts this run WOULD publish, so they can be
+      // looked at before the library is rewritten. The real pipeline's bytes,
+      // not a reimplementation of it -- a sample generated by separate code
+      // proves the separate code works.
+      if (args.sampleOut && !unchanged && sampled < args.sampleCount) {
+        mkdirSync(args.sampleOut, { recursive: true });
+        for (const s of squares) {
+          writeFileSync(join(args.sampleOut, `${e.kind}-${e.target}-${s.size}.jpg`), s.buf);
+        }
+        sampled++;
+      }
+      console.log(
+        `${unchanged ? "same   " : "CHANGED"} ${e.kind}:${e.target} -> ${blobKey} ` +
+          `(${jpeg.length} B)${sq ? `  square ${sq}` : ""}`,
+      );
       continue;
     }
 
@@ -476,7 +531,9 @@ async function main(): Promise<void> {
   console.log(
     `summary: ${resized} resized, ${squaresMade} square variant(s), ` +
       `${noSource} row(s) with no source file` +
-      (skipped ? `, ${skipped} unchanged and SKIPPED (${skipped * 4} KV writes avoided)` : "") +
+      (args.dryRun ? `, ${changed} CHANGED vs the published manifest, ${skipped} already current` : "") +
+      (!args.dryRun && skipped ? `, ${skipped} unchanged and SKIPPED (${skipped * 4} KV writes avoided)` : "") +
+      (args.sampleOut ? `, ${sampled} sample row(s) written to ${args.sampleOut}` : "") +
       (args.square ? "" : "  [--no-square: square variants were NOT built]") +
       (args.force ? "  [--force: skip check bypassed]" : "") +
       (args.dryRun ? "  [--dry-run: nothing was written to KV]" : ""),

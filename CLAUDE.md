@@ -136,6 +136,200 @@ statement of intent, and intent is the thing that was already wrong.
 Corollary, same root cause: **when a check protects a property, confirm the check's own
 environment has that property** — see [RELEASING.md](RELEASING.md).
 
+## Standing practice: take a check's input from the *other* side of the contract
+
+**A test that requests the path the test chose will pass against a feature that is
+dead.** Device enrollment shipped with the firmware popup opening
+`scopes.valarsystems.com/enroll` while the Worker routed only
+`/blipscope/enroll`. It was a 404 — the whole feature — sitting behind sixteen
+passing tests, because every one of them asked for the URL *the tests* had
+picked. Neither side was wrong internally. The contract between them was simply
+never exercised, and nothing about a green suite says which of those two things
+it proved.
+
+The fix is not "add a test for the other path" — that is the same assumption
+typed a second time, and it goes stale the same way. It is to **derive the
+check's input from the other side**:
+[smoke-prod.sh](proxy/scripts/smoke-prod.sh) greps the enrol URLs out of
+[ConfigurationWebServer.cpp](src/ConfigurationWebServer.cpp) and fetches each one
+against the live Worker, so what gets requested is the firmware's own string.
+Change either side and the check follows.
+
+When the other side is in this repo, **read it**. When it is not, transcribe it
+and say so out loud — [test/missileer-routes.test.ts](proxy/test/missileer-routes.test.ts)
+pins another repo's route table and its header states exactly which failures that
+can and cannot catch. A transcription is the weaker form and should never be
+mistaken for the strong one.
+
+Same family as the entry above: the input is a statement of intent, and here
+*both* sides stated it, separately.
+
+## Standing practice: watch for the fix whose failure mimics the bug
+
+Some mistakes announce themselves. The ones that keep costing us time here are
+the ones where **being wrong looks exactly like the problem you were fixing** —
+so the evidence that the fix is broken reads as evidence that it hasn't finished
+working yet.
+
+Three instances, and the shape is the point:
+
+- **A wrong exclusion range.** The non-ICAO table
+  ([icaoalloc.ts](proxy/src/icaoalloc.ts) / [SpecialAircraft.cpp](src/SpecialAircraft.cpp))
+  exists to stop enriching addresses that can never resolve. A range wrongly
+  *included* blanks a **real** aircraft — which is precisely the symptom of the
+  enrichment bug the table was added to cure. The first draft listed five
+  registry-empty regions and blanked `f40001`; it read as a data gap, not a code
+  defect.
+- **A test that requests the path the test chose.** Sixteen passing tests around
+  an enrolment endpoint that 404'd, because a green suite looks the same whether
+  it proved the contract or only its own assumption.
+- **A rehearsal that couldn't fail.** A check whose environment lacked the
+  property it was checking passes for the same reason a correct system does.
+
+What they share: **the failing and the passing state produce the same
+observation.** No amount of staring at that observation separates them.
+
+The move is always the same — find a control whose result differs between the
+two worlds, and run it *before* believing the result:
+
+- an exclusion list gets a **positive** case that must still resolve (real
+  aircraft, named in the test, from the blocks nearest the exclusion)
+- a contract check derives its input from the **other side**
+- a rehearsal is made to fail on purpose once, and observed failing
+
+Corollary for exclusion lists specifically, since they recur: the two error
+directions are not symmetric. Missing an entry costs one pointless request —
+the status quo. A wrong entry silently removes something real. So an exclusion
+earns its place by **positive evidence that it was observed**, never by absence
+from a snapshot. When in doubt, leave it out.
+
+## Standing practice: never measure the sky through the anonymous endpoint
+
+The relays exist because the upstreams throttle us by IP
+([blipscope-egress-relay](docs/), and the adsb.lol per-IP notes). A workstation
+`curl` to `api.adsb.lol` does not go through them — so it is throttled, and
+**the throttled response is not an error.** It is a clean `200` with
+`"msg": "No error"` and an empty `ac:[]`.
+
+That reads exactly like "nothing is flying there", which is how it was used to
+conclude a hex was not airborne. The control that caught it: our own `/v1/blips`
+had returned five aircraft over Heathrow seconds earlier, and asking adsb.lol
+anonymously for three of those same hexes returned `ac:[]` for all three. The
+measurement was of the throttle, not the sky.
+
+So: **query traffic through our own Worker**, which uses the relays and the key.
+Direct anonymous upstream calls are for asking *"does this endpoint have a record
+for X"* where a negative is stated rather than implied — adsbdb's
+`{"response":"unknown aircraft"}` is a real answer and safe to trust; an empty
+array is not. Same family as the two entries above and the one below: an empty
+result that cannot distinguish "no data" from "not allowed to see it" is a check
+that cannot detect its own failure.
+
+## Standing practice: never filter the output of a command you are testing for failure
+
+Twice in one week a `grep`/`tail` on a command's output hid the failure it was
+run to detect. The clearest instance: `wrangler secret put` was piped through a
+filter, the Cloudflare `Authentication error [code: 10000]` was dropped, and what
+survived was the whoami banner — which reads exactly like success. The secret was
+never set, and it was about to be reported as done.
+
+The mechanism is general. A filter is written against the output you *expect*,
+so it is at its least reliable in precisely the case you are running the command
+to detect. Pipe it whole, or grep for the failure token **as well as** the
+success one — never only the latter. It is this repo's recurring rule — a check
+must be able to detect its own failure — applied to the shell: output you have
+pre-trimmed to the passing shape cannot show you anything else.
+
+**The shape of it, which is the part worth remembering:** a filter is written
+against the output you EXPECT, so it is blindest exactly when the command fails.
+The rule alone did not hold — it was breached twice more in the same session it
+was written. So the procedure, not the principle:
+
+1. **Run a diagnostic command bare the first time.** No `grep`, no `head`, no
+   `2>/dev/null`.
+2. **Send stderr to its own file** (`2>err.log`) rather than merging or
+   discarding it. Cloudflare's `wrangler` puts a 401 on stderr and a cheerful
+   "would you like to report this?" on stdout, so a stdout-only read of a failed
+   command looks like a parse problem rather than an auth problem.
+3. **Only add a filter once you have seen the raw output** and know both what
+   success and failure look like.
+
+The cost is a few lines of scrollback. The cost of the alternative was reporting
+a secret as set when it was not.
+
+### Worked example: the rule, written down, then broken twice in one hour
+
+The principle above was already in this file when
+[verify-release.sh](scripts/verify-release.sh)'s square-photo gate was written —
+a check whose entire job is to stop a release from removing photographs from
+every device in the fleet. It shipped with **two** failures of exactly this rule.
+Both are recorded because knowing the rule demonstrably does not prevent it.
+
+**1. It read stdout instead of the exit status, so it passed on absence.**
+The probe asked KV for a pointer key and treated *non-empty stdout* as "the key
+exists". On a **missing** key `wrangler kv key get` exits 1 and prints a cheerful
+`Would you like to report this error to Cloudflare?` **on stdout**. So a
+deliberately made-up aircraft type came back `PASS`. The gate against blanking
+every card in the fleet would have passed against a completely empty library.
+
+> A stdout-only read does not merely fail to detect the problem — **it reports
+> the problem as success**, because the failure output is chatty and lands on the
+> stream being read as the answer.
+
+The fix is both halves, and neither alone is enough: **check the exit status**,
+and **validate the shape of what came back** — using the consumer's own rule
+(here `isValidPhotoKey`/`BLOB_KEY_RE`, so a value the probe rejects is a value
+the device would reject).
+
+**2. It ran from the wrong directory, so it reported "absent" for everything.**
+`npx wrangler` was invoked from the repo root, where there is no `wrangler.toml`.
+Every lookup returned nothing, which the probe read as "no squares published" —
+a fleet-wide emergency, reported with total confidence, caused by a `cd`.
+
+**What saved it was the anchor control, and only that.** Before believing any
+result, the probe requires a key it *knows* exists to resolve. On its first real
+run that control fired and said *"cannot distinguish a missing library from a
+probe that cannot read KV"* — which is the true statement — instead of the false
+and much more exciting one.
+
+**The two fixes compound, and that is the point of pairing them.** They answer
+different questions and each is nearly useless alone:
+
+| | answers | without it |
+|---|---|---|
+| anchor control | *is this result trustworthy at all?* | a broken probe reports a fleet-wide emergency with total confidence |
+| stderr to a file | *why is it broken?* | you know not to trust it, and nothing else — so you bisect |
+
+Measured on the third catch (a transient Cloudflare **401** during a KV probe,
+API rate-limiting in the wake of ~1,900 ingest writes): the anchor said *don't
+believe this run*, and the captured stderr said **`401: Unauthorized`**. Cause
+established in one second, retry succeeded, finding re-established properly.
+The two previous catches had the anchor but not the capture, and each cost a
+round of guessing at a silent empty string — the same symptom, three different
+causes (wrong directory, stdout-vs-exit-status, expired auth), and only the
+third one was legible on sight.
+
+So: **a guard that can tell you a result is untrustworthy should also be able to
+tell you why.** Refusing to answer is the correct behaviour and is still a dead
+end if the reason was thrown away.
+
+**So the standing requirement, not a suggestion:** any probe that reports absence
+must first prove it can observe presence. A negative result from an unvalidated
+probe is not evidence, and "everything is missing" is the single most likely
+shape of a broken probe. Both failures above produce it, and neither is visible
+in the code by reading it — only by running the control.
+
+Corollary for a gate with more than two outcomes: keep **"the thing is missing"**
+and **"the thing was never there"** distinct. The square probe reports a type
+with a rectangle but no square as `FAIL` (a release would propagate the gap) and
+a type absent from the library entirely as `WARN` (nothing regresses). Collapsing
+them into one "not found" is what makes a gate either cry wolf or stay silent.
+
+Finally: once the system is healthy the failing branch may become **unreachable**
+— after a full publish, no real type sits in the "rectangle but no square" state.
+A gate that cannot be made to fail is a gate nobody can check. Leave a seam that
+forces it (`PROBE_PANEL=999`), and use it.
+
 ## Non-goal: behavioural telemetry (settled 2026-08-02)
 
 **Never propose or add screen-usage, interaction, or engagement telemetry.** Which screen a customer looks at, how often they tap, how long the device is watched, which aircraft they open — none of it is collected, and the gap is deliberate rather than unfinished. It would be easy to add (the device already makes a request counters could ride on), which is exactly why this is written down. The reasoning: it is behavioural data from a device in someone's home; at this fleet size asking ten owners beats instrumenting all of them; and *"Blipscope doesn't track how you use it"* is only true while it stays entirely true. It is a **published commitment** in [README.md](README.md)'s Privacy & telemetry section, not an internal preference.

@@ -95,6 +95,44 @@ describe("resolvePhoto variant selection", () => {
     expect(await resolvePhoto(env, "ffffff", "ZZZZ", 240)).toBeNull();
     expect(await resolvePhoto(env, "ffffff", "ZZZZ", null)).toBeNull();
   });
+
+  // AN ALIAS MUST CARRY THE PANEL SIZE, or it is a full-bleed gap wearing a fix.
+  //
+  // The alias fallback runs through the same `read` closure as the exact hit, so
+  // it inherits `square` -- but that is an implementation detail one refactor
+  // away from resolving the aliased type against the LEGACY pointer and handing
+  // a full-bleed device a rectangle-or-nothing. Both halves of that are silent:
+  // the rectangle renders as a fragment (see above), and the nothing renders as
+  // a designed no-photo state on a type the library demonstrably covers.
+  //
+  // C185 -> C180 is the live instance (applied 2026-08-17), so it is the fixture.
+  it("resolves an ALIASED type to the square, not the rectangle", async () => {
+    await env.ENRICH_KV.put(pointerKey("type", "C180"), "photo:C180-413a88c5");
+    await env.ENRICH_KV.put(pointerKey("type", "C180", 240), "photo:C180-2e567c3e");
+    await env.ENRICH_KV.put(pointerKey("type", "C180", 480), "photo:C180-48048048");
+
+    // A full-bleed device asking for the variant gets the base type's SQUARE...
+    expect((await resolvePhoto(env, HEX, "C185", 240))?.key).toBe("photo:C180-2e567c3e");
+    expect((await resolvePhoto(env, HEX, "C185", 480))?.key).toBe("photo:C180-48048048");
+    // ...and old firmware still gets the base type's rectangle.
+    expect((await resolvePhoto(env, HEX, "C185", null))?.key).toBe("photo:C180-413a88c5");
+
+    // Captioned as representative, never as this exact airframe.
+    expect((await resolvePhoto(env, HEX, "C185", 240))?.kind).toBe("type");
+  });
+
+  // THE NEGATIVE CONTROL, without which the test above passes against a table
+  // that aliases everything to everything. A type NOT in TYPE_PHOTO_ALIAS must
+  // still miss even when a plausible neighbour is sitting right there in KV --
+  // this is the B505/PA23 rule ("different hulls do not alias") asserted rather
+  // than trusted, and it is the direction that silently blanks nothing and
+  // silently mislabels instead.
+  it("does NOT alias a type merely because a neighbour exists", async () => {
+    await env.ENRICH_KV.put(pointerKey("type", "C180", 240), "photo:C180-2e567c3e");
+    // C182 is a real library type and a close relative; C180 must not stand in.
+    expect(await resolvePhoto(env, HEX, "B505", 240)).toBeNull();
+    expect(await resolvePhoto(env, HEX, "PA23", 240)).toBeNull();
+  });
 });
 
 describe("the keys the ingest actually derives are servable", () => {

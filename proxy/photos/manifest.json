@@ -2750,5 +2750,40 @@
     "layer": "mil-tier",
     "autoPicked": false,
     "file": "src/b52.jpg"
+  },
+  {
+    "target": "K100",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Kenway_%26_Clark_Allfarm_(VH-ICZ)_Quest_Kodiak_100_taxiing_at_Wagga_Wagga_Airport.jpg",
+    "author": "Bidgee",
+    "credit": "Kenway & Clark Allfarm (VH-ICZ) Quest Kodiak 100 taxiing at Wagga Wagga Airport",
+    "license": "CC BY-SA 3.0 au",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/k100.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "RV9",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Vans_RV-9_N6179P.jpg",
+    "author": "TimothyMN at English Wikipedia",
+    "credit": "Vans RV-9 N6179P",
+    "license": "CC BY-SA 3.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/rv9.jpg",
+    "changesNoted": "resized and crop-fitted for device display"
+  },
+  {
+    "target": "C180",
+    "kind": "type",
+    "source": "https://commons.wikimedia.org/wiki/File:Cessna_180_(3033819308).jpg",
+    "author": "Rennett Stowe from USA",
+    "credit": "Cessna 180 (3033819308)",
+    "license": "CC BY 2.0",
+    "layer": "auto",
+    "autoPicked": true,
+    "file": "src/c180.jpg"
   }
 ]

@@ -2,20 +2,26 @@ import type { Env } from "../types";
 import { relayHeaders } from "./adsb_lol";
 import { USER_AGENT, type UpstreamAircraftFeed } from "./types";
 
-// adsb.fi -- BENCH-MEASUREMENT SOURCE ONLY. Ships DISABLED in every env and is
-// NOT a reserve option; see "Upstream licensing posture" in README.md.
+// adsb.fi -- THE CHAIN PRIMARY for positions and hex since 2026-07-31. Enabled in
+// staging and production; see "Upstream licensing posture" in README.md and the
+// SHIPPING ORDER block in chain.ts.
 //
-// WHY IT CANNOT SHIP (2026-07-29): adsb.fi granted permission to TEST, but their
-// published terms are "personal, non-commercial use only. You may not license,
-// sell, rent, or lease any part of the data or the service." There is no
-// ODbL-style cache-and-redistribute right -- which is exactly what our
-// relay + SWR + KV architecture does. Enabling this flag without a WRITTEN
-// commercial grant would breach those terms. A testing grant is not that grant.
+// PERMITTED COMMERCIALLY, IN WRITING (2026-08-05). Samuli granted use for our
+// stated purpose -- a paid hardware product -- "including the caching system",
+// conditional on staying within the Open Data API rate limit AND NOTHING ELSE.
+// So the operative constraint on this source is the 1 req/s per-IP budget below,
+// not a licence question.
 //
-// The old "adsb.fi 403s us" was never adsb.fi policy: it was Cloudflare's shared
-// per-colo egress. Both relay IPs get HTTP 200 unauthenticated (no allowlist
-// involved), and faster than adsb.lol -- ~90 KB/s vs the ~12 KB/s anon cap. The
-// licence is the only blocker, so this adapter is kept CORRECT and ready.
+// THIS COMMENT SAID THE OPPOSITE TWICE, and both times for the same reason, which
+// is why the correction is recorded rather than just applied:
+//   1. "adsb.fi 403s us" -- not adsb.fi policy at all. It was Cloudflare's shared
+//      per-colo egress. Both relay IPs get HTTP 200 unauthenticated.
+//   2. "personal, non-commercial use only ... no redistribution right" -- a
+//      reading of their PUBLISHED TERMS while a written grant to us specifically
+//      already existed in the thread. The published terms are the default; our
+//      correspondence is the licence.
+// Both readings were of a public page rather than of our own correspondence. If
+// this looks wrong again, read the thread before the terms.
 //
 // Reached through OUR relays under the /fi prefix (the relay rewrites /fi/* ->
 // opendata.adsb.fi/api/*), so adsb.fi sees one stable dedicated IP per relay and
@@ -31,8 +37,11 @@ const baseB = (env: Env): string => env.UPSTREAM_ADSB_FI_BASE_B || "";
 
 // One adapter shape, two instances (relay-a / relay-b) differing only by base URL
 // and id -- same pattern as adsb_lol.ts, so each gets its own circuit breaker.
-// BOTH gate on UPSTREAM_ADSB_FI_ENABLED: the licence blocker applies to the data,
-// not to a particular relay, so there is exactly one switch for the whole source.
+// BOTH gate on UPSTREAM_ADSB_FI_ENABLED: a source is a source regardless of which
+// relay carries it, so there is exactly one switch for the whole thing. It stays
+// default-OFF (dev/test fall back to the direct URL) -- not because of any licence
+// doubt, but because an upstream that reaches a third party should never turn
+// itself on from an unset variable.
 function makeFeed(id: string, base: (env: Env) => string): UpstreamAircraftFeed {
   return {
     id,

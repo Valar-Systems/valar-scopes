@@ -83,22 +83,39 @@ describe("setDeviceAttribution", () => {
 
   it("attributes a device-authed request", () => {
     const m = blank();
-    setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": "5" }), true);
+    setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": "5" }));
     expect(m.dev).toBe("2aeea64cb4b760b8");
     expect(m.fw).toBe("5");
   });
 
-  it("attributes NOTHING on the shared-key path, where identity is unproven", () => {
+  // This used to pass `false` for the shared-key path, where a caller had proven
+  // it held A key but never WHICH device. That path is gone (2026-08-13) and so
+  // is the flag -- a permanently-true argument reads like a switch while being
+  // wired to nothing, which is a shape this repo has been bitten by before.
+  //
+  // The guarantee did not disappear, it moved: setDeviceAttribution is called
+  // only after authenticate() has returned non-null, and authenticate() now
+  // requires a device id whose derived key matches. An unauthenticated request
+  // 401s before reaching here, so there is no longer a way in with an unproven
+  // identity. That is asserted end-to-end in auth.test.ts ("refuses a key with
+  // NO device id" / "refuses a valid key presented with the WRONG device id"),
+  // which is the right level for it -- a unit test here could only re-state the
+  // precondition it was given.
+  it("attributes purely from the headers, the caller having already proven identity", () => {
     const m = blank();
-    setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": "5" }), false);
-    expect(m.dev).toBeUndefined();
-    expect(m.fw).toBeUndefined();
+    setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": "5" }));
+    expect(m.dev).toBe("2aeea64cb4b760b8");
+    // No headers at all -> nothing invented, even past auth.
+    const m2 = blank();
+    setDeviceAttribution(m2, req({}));
+    expect(m2.dev).toBeUndefined();
+    expect(m2.fw).toBeUndefined();
   });
 
   it("drops a malformed id rather than storing it", () => {
     for (const bad of ["", "  ", "ZZZZ", "2aeea6", "../../etc", "2aeea64cb4b760b8x".repeat(4)]) {
       const m = blank();
-      setDeviceAttribution(m, req({ "X-Blip-Device": bad }), true);
+      setDeviceAttribution(m, req({ "X-Blip-Device": bad }));
       expect(m.dev).toBeUndefined();
     }
   });
@@ -106,7 +123,7 @@ describe("setDeviceAttribution", () => {
   it("drops a malformed firmware version rather than storing it", () => {
     for (const bad of ["", "v5", "5.1", "-1", "1234567", "'; DROP"]) {
       const m = blank();
-      setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": bad }), true);
+      setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": bad }));
       expect(m.dev).toBe("2aeea64cb4b760b8");
       expect(m.fw).toBeUndefined();
     }
@@ -114,7 +131,7 @@ describe("setDeviceAttribution", () => {
 
   it("normalises case so one device is one row", () => {
     const m = blank();
-    setDeviceAttribution(m, req({ "X-Blip-Device": " 2AEEA64CB4B760B8 " }), true);
+    setDeviceAttribution(m, req({ "X-Blip-Device": " 2AEEA64CB4B760B8 " }));
     expect(m.dev).toBe("2aeea64cb4b760b8");
   });
 });

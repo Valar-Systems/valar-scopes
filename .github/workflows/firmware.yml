@@ -55,6 +55,28 @@ jobs:
       - name: ICAO country table is sorted, non-overlapping, and resolves correctly
         run: node scripts/check_icao_country.mjs
 
+  # Two range tables live in BOTH the firmware and the Worker on purpose:
+  # MIL_RANGES (the device tags MIL offline; the Worker fills a truthful generic
+  # operator) and NON_ICAO_RANGES (the device skips a request; the Worker still
+  # answers the fleet in the field). Two copies of one fact is precisely the
+  # arrangement that shipped a dead enrolment URL behind sixteen passing tests,
+  # so each pair is checked against the OTHER rather than against itself.
+  #
+  # Drift is silent both ways, and self-camouflaging one way: a range wrongly in
+  # the firmware's non-ICAO table blanks a real aircraft, which is the exact
+  # symptom of the enrichment bug that table was added to cure.
+  range-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the checker catches drift in either direction
+        run: node scripts/check_range_parity.mjs --selftest
+      - name: Firmware and proxy agree on the military and non-ICAO ranges
+        run: node scripts/check_range_parity.mjs
+
   # The env named in the matrix below IS the product: whatever it builds becomes
   # firmware-<slug>.bin, which is what every device on that SKU downloads on its next
   # OTA. That link had no check and it broke silently -- the cloud feed lived in a

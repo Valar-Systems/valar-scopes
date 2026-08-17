@@ -303,6 +303,14 @@ private:
     // still refuse. See the definitions for why a claim is never evictable.
     bool evictOneType();
     bool evictOneSeen(std::map<String, SeenStat>& store, Store which);
+    // One-time pass at load: fold EVERY entry banked under "<base>, CO-OWNER"
+    // onto its base key. Returns how many were folded. Reopens a store that has
+    // already filled, which truncation alone cannot do. Recomputes
+    // claimedOperators rather than adjusting it.
+    uint16_t foldCommaVariants();
+    // Fold an entry banked under "<base>, CO-OWNER" onto its base key, carrying
+    // firstDay and claimDay. One operator's own aliases, never distinct entries.
+    bool adoptCommaVariant(const String& base);
     // Lazily re-key a v4 entry truncated at OLD_MAX_OP_LEN onto its full spelling,
     // carrying firstDay and claimDay across. Returns true if it adopted one.
     bool adoptTruncatedOperator(const String& fullName);

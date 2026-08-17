@@ -70,6 +70,14 @@ ClaudescopeManager appManager(configServer, authHandler, http, tft);
 SpeedManager appManager(configServer, authHandler, http, tft);
 #else
 AircraftManager appManager(configServer, authHandler, http, tft);
+// The Aviation radar is the #else fallthrough, so "which edition is this?" has no
+// positive symbol -- every other edition has one and the radar is defined by the
+// absence of all of them. Anything below that needs a RADAR-ONLY member of
+// appManager must therefore key on this marker rather than on a
+// !defined(A) && !defined(B) && ... chain, which silently rots: a new edition
+// added above would satisfy the chain and only fail at the call site, which is
+// exactly how this was found (EamManager has no NeedsReverify).
+#define BLIPSCOPE_RADAR_EDITION 1
 #endif
 
 void setup()
@@ -445,6 +453,15 @@ void loop()
   // rather than racing the async web-server callback.
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
+
+  // Publish the credential state across the task boundary, so the config page
+  // renders the same bit the radar's banner draws from. A plain store on the
+  // loop task, read on async_tcp -- the page must never reach into appManager.
+  // Radar-only: the sibling editions authenticate to their own backends (or to
+  // nothing) and have no equivalent state, so they do not carry the member.
+#ifdef BLIPSCOPE_RADAR_EDITION
+  configServer.SetNeedsReverify(appManager.NeedsReverify());
+#endif
 
 #ifdef SOAK_TEST
   // burst scheduling + the 60 s stats line + the 24 h gate verdict

@@ -639,18 +639,50 @@ gap only, so one unknown airframe is counted once rather than three times:
 This is the point: the backlog stops being guesswork and becomes a list ranked by
 what the fleet actually looks at. Rank the photo gaps with:
 
+```sh
+CLOUDFLARE_API_TOKEN=... npm run photo-gaps            # 7 days, production
+npm run photo-gaps -- --days 30 --gap name --limit 60  # cheapest wins instead
+```
+
+The token needs **Account Analytics Read** and **Workers KV Read**.
+
+> ### ⚠ Do not rank straight off the SQL — it is wrong in a way that looks right
+>
+> `recordEnrichGap` fires **at request time**, so this dataset is a log of *past
+> states*. A type with no photo on Tuesday is still in it on Friday with a photo
+> published in between, and nothing in the row says which.
+>
+> Measured 2026-08-14, the day the square variants were published: **34% of the raw
+> list by lookups was already fixed**, and the raw ranking put **C152 first** — a
+> type that had had a photograph the whole time. Sourcing off it starts by
+> acquiring a photo we already own.
+>
+> `npm run photo-gaps` exists because that re-validation cannot be a footnote next
+> to the query: it re-checks every candidate against the **published manifest** and
+> `TYPE_PHOTO_ALIAS`, drops the ones already covered, and **refuses to print a
+> ranking at all** if it cannot read the manifest — an unvalidated list is
+> indistinguishable from a valid one, which is exactly how it gets acted on.
+>
+> It also prints **where to stop**: `N types cover 50% of the remaining gap, M cover
+> 90%`. A bare ranked list implies the whole list is work. On 2026-08-14 the entire
+> remaining gap was 2.7% of sightings — see
+> [docs/photo-coverage-2026-08-14.md](../docs/photo-coverage-2026-08-14.md).
+
+The underlying query, for reference or for a one-off against a different dimension
+— note there is deliberately **no `LIMIT`** in the script, because a cumulative
+percentage computed against a truncated denominator reads as a far steeper curve
+than the real one:
+
 ```sql
 SELECT blob3 AS type, SUM(_sample_interval) AS lookups
 FROM blipscope_proxy
 WHERE blob1 = 'enrich_gap' AND blob2 = 'photo'
   AND timestamp > NOW() - INTERVAL '7' DAY
-GROUP BY type ORDER BY lookups DESC LIMIT 25
+GROUP BY type ORDER BY lookups DESC
 ```
 
-Swap `blob2` for `'name'` (cheapest wins) or `'type'` and read `blob4` for the
-hex. Run it against the Analytics Engine SQL API with an account API token that
-has Analytics Read. Grepping Workers Logs for `"evt":"enrich_gap"` works too for
-a live spot-check on one device.
+Swap `blob2` for `'name'` or `'type'` and read `blob4` for the hex. Grepping
+Workers Logs for `"evt":"enrich_gap"` works for a live spot-check on one device.
 
 - **Analytics Engine** (`blipscope_proxy[_staging]`): blobs `[route, cache,
   upstream, model, dev, fw]`, doubles `[status, ms, upstreamMs, weight]`, index

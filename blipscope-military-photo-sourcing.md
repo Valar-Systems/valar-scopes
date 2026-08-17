@@ -112,6 +112,86 @@ slings, weapon slings and Iron Age sling bullets alongside the aeroplane, and
 its more common sibling — every unfiltered `Sling 2` result was a Sling **4**.
 Exclude the sibling explicitly (`-"Sling 4"`) and require the aircraft word.
 
+**A search returning exactly one candidate is a warning, not a recommendation.**
+It is an *empty search with a consolation prize* — the sole survivor of a filter,
+handed back in the same shape as a winner, and the shape is what gets acted on.
+Read a count of one as "this type has no good options yet" and go to a manual
+Commons search. `T210` was ingested as the only result the automated search
+returned and rejected the next day, by which point it was live in production.
+
+### Aliasing a type: justify it by the HULL, never by the photograph
+
+An alias ([`TYPE_PHOTO_ALIAS`](proxy/src/photos.ts)) points a type with no photo
+at one that has one. It is the cheapest entry in this playbook — one line, no
+sourcing — which is exactly why it needs a rule that does not bend to fill slots.
+
+**Two justifications look identical once written down, and only one of them
+survives contact with a re-pick:**
+
+| | The claim | Survives a photo change? |
+|---|---|---|
+| ✅ **Hull** | "the C185 is a strengthened C180 on the same fuselage" | **yes** — it is about the airframes |
+| ❌ **Photograph** | "the C180 photo reads as a C185" | **no** — it is about one JPEG |
+
+The second is the trap, because it is *true when you write it* and stops being
+true without anyone touching the alias. Worse, it inverts: **a better photograph
+makes a photograph-justified alias worse.** Re-pick the C180 to a crisp side-on
+shot where the fin is unmistakable and it becomes a more identifiable C180 — and
+therefore a poorer stand-in for the 185. Nothing about that change will look like
+it touched an alias.
+
+So the order is fixed, and the first question is not about any image:
+
+1. **Ask the hull question first. Yes or no.** Same airframe, with variant
+   differences (engine, gear, tanks, avionics, span)? If **no**, stop — no
+   photograph can rescue it, and looking at one will only tempt you.
+2. **Only then look at the render**, at panel size, in the disc, against the
+   *published* artifact rather than the source file.
+3. **Record which kind of pass it was** (below), beside the entry.
+
+#### "It looks right" vs "you cannot tell" — write down which one you got
+
+Both are acceptable outcomes at step 2. They are not the same evidence and they
+decay differently:
+
+- **"It looks right"** — the distinguishing features are *visible and they match*.
+  Nothing further to note.
+- **"You cannot tell"** — the distinguishing feature is *hidden* by angle, scale
+  or crop. C185→C180 is this: the tail is what most separates a 185, and the
+  three-quarter-rear shot angles it away at 240 px.
+
+A "you cannot tell" pass is **only ever valid on top of a hull claim that already
+holds by itself.** On its own it is an argument from the limits of the render —
+"the picture is too small to contradict me" — which is not evidence about
+aeroplanes at all, and which the next, better photograph revokes. When you get
+one, name the hidden feature in the comment so whoever re-picks the base type
+knows the alias depends on it.
+
+Recorded honestly, an alias comment says which claim carries it and what would
+invalidate it. Recorded carelessly, both read as "checked it, looks fine."
+
+#### Why this is worth the ceremony for a one-line change
+
+A wrong alias does not blank a card. It draws a **confident, well-composed photo
+of the wrong aeroplane**, captioned "representative photo", and nothing anywhere
+logs a complaint — the same self-camouflaging shape as the entries in
+[CLAUDE.md](CLAUDE.md). The failure direction that blanks things gets reported;
+this one gets believed.
+
+Worked examples, all three live:
+
+- **C185 → C180 — accepted.** Strengthened 180, shared fuselage. Hull claim
+  holds; render was a "you cannot tell" pass, noted as such.
+- **B505 → B206/B407 — refused.** The Bell 505 is a different fuselage. "Another
+  Bell single" is a category, not a variant.
+- **PA23 → PA31/PA34 — refused.** Different airframe. "Another Piper light twin"
+  is the same category error in a second family — which is what makes it a
+  category error rather than a near miss.
+
+The refusals are the load-bearing half. A table that accepts C185 *and* B505 is
+not applying a rule, it is filling slots, and at that point the alias mechanism
+stops carrying any information about what the customer is looking at.
+
 ### Measured 2026-08-10: what the square crop actually costs, and which lever fixes what
 
 The framing above was reasoned about. These are measurements across the whole

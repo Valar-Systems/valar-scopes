@@ -203,12 +203,70 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(if(pr){e.preventDefault();shLa.value=bpF(pr[0]);shLo.value=bpF(pr[1]);bpEcho();return})" \
     R"(var one=bpOne(t,f[1]);if(isFinite(one)){e.preventDefault();f[0].value=bpF(one);bpEcho()}})});)" \
     R"(bpEcho()})" \
-    R"(if(shLa&&shLo&&(!String(shLa.value).trim()||!String(shLo.value).trim())){var shB=document.createElement('div');)" \
-    R"(shB.textContent='Set your location below. Until you do, the screen will stay empty.';)" \
-    R"(shB.style.cssText='background:#4a0000;color:#ffb3b3;border:1px solid #ff4d4d;border-radius:6px;padding:10px;margin:10px 0;font-weight:bold';)" \
-    R"(var shF=document.getElementById('cfg');shF.parentNode.insertBefore(shB,shF);)" \
-    R"([shLa,shLo].forEach(function(i){i.style.outline='2px solid #ff4d4d';i.style.background='#4a0000';)" \
-    R"(i.addEventListener('input',function(){i.style.outline='';i.style.background='';if(String(shLa.value).trim()&&String(shLo.value).trim())shB.remove()})})})" \
+    /* SETUP CHECKLIST -- ONE block, never two competing banners. \
+       Both steps state the SAME consequence ("the screen stays empty"), because \
+       both cause it. A customer who verifies but forgets their location must be \
+       able to work out which half is missing from the page rather than from \
+       support, and two separate red boxes would each read as the only problem. \
+       A completed step collapses to a tick instead of vanishing, so the list \
+       still reads as a list of two. */ \
+    /* Substituted by the RADAR page's processor only. On an edition without the \
+       cloud feed both come back empty, so BP_ENROLLED is '' rather than '0' and \
+       step 2 never renders -- the checklist degrades to the location banner it \
+       replaced. */ \
+    R"(window.BP_DEVID='%DEVICE_ID%';window.BP_ENROLLED='%ENROLLED%';window.BP_REFUSED='%REFUSED%';)" \
+    R"(var stNeedLoc=(shLa&&shLo&&(!String(shLa.value).trim()||!String(shLo.value).trim()));)" \
+    /* A REFUSED board takes the same path as an unverified one, which is why \
+       re-enrollment costs nothing to offer: the Verify button, the Turnstile \
+       popup, the ?id= paste fallback and the /enroll-key landing all already \
+       render off stNeedKey. Only the CONDITION was missing, never the action. */ \
+    R"(var stRefused=(window.BP_REFUSED==='1');)" \
+    R"(var stNeedKey=(window.BP_ENROLLED==='0')||stRefused;)" \
+    R"(if(stNeedLoc||stNeedKey){var stB=document.createElement('div');)" \
+    R"(stB.style.cssText='background:#4a0000;color:#ffd9d9;border:1px solid #ff4d4d;border-radius:6px;padding:12px 14px;margin:10px 0';)" \
+    /* A refused board is not a new board, and must not be greeted as one. It was \
+       working; something server-side stopped accepting its key -- most likely a \
+       credential rotation nobody here did anything to cause. The heading says what \
+       happened without blaming the owner. */ \
+    R"(var stH=document.createElement('div');stH.textContent=stRefused?'This device needs re-verifying.':'Two steps and your radar is live.';)" \
+    R"(stH.style.cssText='font-weight:bold;margin-bottom:8px';stB.appendChild(stH);)" \
+    R"(function stStep(n,t,b,done){var d=document.createElement('div');d.style.cssText='margin:7px 0;line-height:1.45';)" \
+    /* ASCII on purpose: this page is served without an explicit charset, so a \
+       multi-byte glyph would be a coin-flip between a tick and mojibake on the \
+       one screen a customer reads when something is already wrong. */ \
+    R"(var s=document.createElement('b');s.textContent=(done?'DONE - ':n+'. ')+t;d.appendChild(s);)" \
+    R"(if(!done){d.appendChild(document.createTextNode(' '+b))}else{d.style.color='#9fe6a0'})" \
+    R"(stB.appendChild(d);return d})" \
+    R"(stStep(1,'Set your location.','The radar draws the sky around you. Until it has a location, the screen stays empty.',!stNeedLoc);)" \
+    R"(var stK=stStep(2,stRefused?'Re-verify this device.':'Verify this device.',stRefused?'The server is no longer accepting this device key, so the screen has stopped filling. One click restores it. Nothing else on this page needs changing, and your logbook is untouched.':'Verification is how a self-flashed board gets aircraft data. Without it the screen stays empty even with a location set. One click, once per board. It also puts you on the leaderboard under your own standing.',!stNeedKey);)" \
+    R"(if(stNeedKey){var stW=document.createElement('div');stW.style.cssText='margin-top:8px';)" \
+    R"(var stBtn=document.createElement('button');stBtn.type='button';stBtn.id='bpVerify';)" \
+    R"(stBtn.textContent='Verify this device';)" \
+    R"(stBtn.style.cssText='font:inherit;padding:7px 14px;border:0;border-radius:5px;background:#1f6feb;color:#fff;cursor:pointer';)" \
+    R"(var stAlt=document.createElement('div');stAlt.style.cssText='font-size:12px;color:#ffbdbd;margin-top:7px';)" \
+    R"(stAlt.textContent='No internet on this machine? Open scopes.valarsystems.com/enroll?id='+window.BP_DEVID+' on your phone, then paste the key into Access key below.';)" \
+    R"(stW.appendChild(stBtn);stW.appendChild(stAlt);stK.appendChild(stW)})" \
+    R"(var shF=document.getElementById('cfg');shF.parentNode.insertBefore(stB,shF);)" \
+    R"(if(stNeedLoc){[shLa,shLo].forEach(function(i){i.style.outline='2px solid #ff4d4d';i.style.background='#4a0000';)" \
+    R"(i.addEventListener('input',function(){i.style.outline='';i.style.background=''})})}})" \
+    /* THE POPUP IS A CONVENIENCE, NOT A BOUNDARY. It carries the device id so the \
+       hosted page can mint for this board, and the key returns by postMessage -- \
+       which crosses HTTPS -> HTTP because no resource is loaded, only a message. \
+       Every failure here (popup blocked, network blocked, window closed) lands on \
+       the same paste fallback rather than a dead end. */ \
+    R"(document.addEventListener('click',function(e){if(!e.target||e.target.id!=='bpVerify')return;)" \
+    /* CANONICAL path, not the short one the fallback text prints: the popup is \
+       machine-driven and has no reason to spend a redirect hop it could fail on. \
+       The short /enroll is a 301 for the human who types it. */ \
+    R"(window.open('https://scopes.valarsystems.com/blipscope/enroll?id='+encodeURIComponent(window.BP_DEVID),'bpEnroll','width=520,height=640')});)" \
+    /* Validate the VALUE, not the sender. A key must be 64 hex and is handed \
+       straight back to this device, which checks it names THIS board before \
+       storing it -- so a page that lies about its origin gains nothing. */ \
+    R"(window.addEventListener('message',function(e){var d=e.data;)" \
+    R"(if(!d||d.type!=='blipscope-enroll'||!/^[0-9a-f]{64}$/.test(String(d.key||'')))return;)" \
+    R"(var fd=new FormData();fd.append('key',d.key);fd.append('id',d.id||'');)" \
+    R"(fetch('/enroll-key',{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){)" \
+    R"(if(r.ok){location.reload()}else{r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
     R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"
@@ -420,17 +478,69 @@ R"(                        <option value="local" %DATASRC_LOCAL%>My own ADS-B re
 // shared "licensed under ODbL 1.0" clause would misattribute adsb.fi's terms.
 R"(
                 <div id="cloud-fields" class="stack">
+                    <!-- DEVICE ID, ALWAYS VISIBLE AND ALWAYS SELECTABLE.
+                         It was reachable only inside the not-yet-verified checklist,
+                         interpolated into one sentence of red helper text -- so it
+                         vanished the moment a board enrolled, and was easy to miss
+                         before that. Both states leave a customer stuck:
+                           - on a Turnstile-blocked network the paste fallback needs
+                             the id to build the ?id= URL by hand, and being told to
+                             read it out of a sentence that is no longer on screen is
+                             not a fallback;
+                           - revocation and support are BY ID, so "which board is
+                             this?" has to be answerable without a serial console.
+                         readonly, not disabled: disabled inputs are skipped by form
+                         submission AND are not selectable in some browsers, and being
+                         able to COPY this is the entire point. It carries no name
+                         attribute, so it is never posted back -- the id is derived
+                         from the efuse MAC on the device and is not settable.
+                         NOTE the single quotes on onclick, which are load-bearing:
+                         this markup lives inside a C++ raw string literal, so a close
+                         paren followed immediately by a double quote terminates that
+                         literal early -- anywhere in the block, including inside a
+                         comment like this one. Writing onclick with double quotes ends
+                         the string mid-attribute, and the compiler then reports a
+                         missing terminating character against an unrelated comment
+                         sixty lines further down, a long way from the actual edit. -->
                     <label class="field">
-                        <span>Cloud server:</span>
-                        <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
+                        <span>Device ID:</span>
+                        <input type="text" readonly value='%DEVICE_ID%' class="grow" onclick='this.select()'>
                     </label>
                     <label class="field">
                         <span>Access key:</span>
                         <input name="cloud-key" type="password" autocomplete="off" value='%CLOUD_KEY%' placeholder="access key" class="grow">
                     </label>
+                    <!-- CLOUD SERVER LIVES BEHIND A DISCLOSURE, and the rule is worth
+                         keeping: an OVERRIDE OF A WORKING DEFAULT goes in the drawer;
+                         a field CONDITIONALLY REQUIRED by the selector above does not.
+                         That is why opensky-id/secret and local-url stay out in the
+                         open -- pick that source and you must fill them in -- while
+                         this one, which nobody on the default path ever touches, does
+                         not sit between the source selector and the Access key box the
+                         enrolment checklist points at by name ("paste the key into
+                         Access key below").
+                         "Advanced" was rejected as the label: it is a category that
+                         accretes anything nobody wants to place, and within two
+                         releases it is a junk drawer. Naming what the control DOES
+                         keeps the boundary decidable.
+                         details.auto auto-opens when any field inside holds a value
+                         (see the page script), so a self-hoster or a board pointed at
+                         staging still finds it open on arrival -- the usual objection
+                         to hiding a set field does not apply. -->
+                    <details class="auto">
+                        <summary>Point this device at a different server</summary>
+                        <label class="field">
+                            <span>Cloud server:</span>
+                            <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
+                        </label>
+                        <span class="hint">
+                            For self-hosting, or for pointing this board at a staging server.
+                            Leave blank to use the built-in default.
+                        </span>
+                    </details>
                     <span class="hint">
-                        Managed Blipscope feed &mdash; no account needed. Leave the server blank to use the
-                        built-in default. Your access key is set during assembly: leave it as it is, and if
+                        Managed Blipscope feed &mdash; no account needed.
+                        Your access key is set during assembly: leave it as it is, and if
                         it ever gets changed by mistake, clear the box and save to restore it.
                         Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
                         and <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>.
@@ -2012,6 +2122,23 @@ void ConfigurationWebServer::Initialise() {
         const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "cloud") : "cloud");
         const String cloudUrlCfg = HtmlEscape(prefs.isKey("cloud-url") ? prefs.getString("cloud-url", "") : "");
         String cloudKeyCfg = HtmlEscape(prefs.getString("cloud-key", ""));
+        // ENROLLED means "this board holds a device key it did not have to be
+        // told", i.e. the factory slot is populated -- by provision-device.py on
+        // an assembled unit, or by /enroll-key on a self-flashed one. The
+        // editable override is deliberately NOT consulted: a pasted shared key
+        // is exactly the state this feature exists to move a board OUT of, and
+        // counting it as enrolled would hide the thing we want to see.
+        const bool enrolled = prefs.getString("cloud-key-fac", "").length() > 0;
+        // THREE STATES, NOT TWO. never-enrolled / enrolled-and-working /
+        // enrolled-but-REFUSED. The third is new (2026-08-13) and is the whole
+        // point of the credential-recovery work: before it, a board whose key
+        // stopped being accepted looked identical to a healthy one here, and the
+        // owner's only symptom was a screen that had quietly stopped filling.
+        //
+        // A never-enrolled board must NOT be told to "re-verify" -- it has nothing
+        // to re-do -- which is exactly why this is not a boolean.
+        const bool refused = needsReverify;
+        const String deviceIdCfg = DeviceIdentity::LeaderboardId();
 #else
         const String dataSource = HtmlEscape(prefs.isKey("data-source") ? prefs.getString("data-source", "opensky") : "opensky");
 #endif
@@ -2366,7 +2493,7 @@ void ConfigurationWebServer::Initialise() {
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
             [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
-             , cloudUrlCfg, cloudKeyCfg
+             , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
             ]
             (const String& var) -> String {
@@ -2378,6 +2505,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "OPENSKY_ID")     return openskyClientId;
                 if (var == "OPENSKY_SECRET") return openskySecret;
 #ifdef FEATURE_CLOUD_FEED
+                if (var == "DEVICE_ID")      return deviceIdCfg;
+                if (var == "ENROLLED")       return enrolled ? "1" : "0";
+                if (var == "REFUSED")        return refused ? "1" : "0";
                 // cloud is the default: anything that isn't an explicit opensky/local
                 // choice (including the never-saved empty) selects it.
                 if (var == "DATASRC_CLOUD")   return (dataSource == "opensky" || dataSource == "local") ? "" : "selected";
@@ -3098,6 +3228,80 @@ void ConfigurationWebServer::Initialise() {
 
     // Forget WiFi credentials and reboot into the WiFiManager setup portal. The
     // response is sent first; the restart is deferred a moment so it can flush.
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+    /* -----------------------------------------------------------------------
+     * ENROLLMENT KEY LANDING — the only path that may write "cloud-key-fac".
+     *
+     * A DEDICATED ROUTE RATHER THAN A FIELD ON /save, and the reason matters.
+     * "cloud-key-fac" is the read-only factory identity: never rendered, never
+     * writable from the settings form, which is precisely what makes "clear the
+     * Access key box and save" the documented REPAIR for a mangled key rather
+     * than an unrecoverable act. Adding it to the general form would put the one
+     * value a customer cannot recover behind the one button they press when
+     * confused. So enrollment lands here, where the only thing that can be
+     * written is a well-formed key for THIS board.
+     *
+     * Three guards, none of them ceremony:
+     *   - the CSRF header, same as every other POST;
+     *   - the key must be exactly 64 lowercase hex (an HMAC-SHA256 digest), so
+     *     no error page, JSON blob or truncated paste can land in the slot;
+     *   - the id must be OUR id. A customer with two boards open in two tabs
+     *     will otherwise paste board A's key into board B, and the failure is
+     *     silent -- the key is valid, just not for this device, and the board
+     *     simply never authenticates.
+     *
+     * The device cannot verify the key itself (that needs the fleet secret it
+     * deliberately does not hold), so this is not authentication -- it is the
+     * set of mistakes worth catching at the point of paste.
+     * -------------------------------------------------------------------- */
+    server.on("/enroll-key", HTTP_POST, [&](AsyncWebServerRequest* request) {
+        if (RejectCrossOrigin(request)) return;
+
+        const auto* keyParam = request->getParam("key", true);
+        const auto* idParam  = request->getParam("id", true);
+        String key = keyParam ? keyParam->value() : String();
+        String id  = idParam ? idParam->value() : String();
+        key.trim();
+        id.trim();
+        id.toLowerCase();
+
+        bool wellFormed = key.length() == 64;
+        for (size_t i = 0; wellFormed && i < key.length(); ++i) {
+            const char c = key[i];
+            wellFormed = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+        }
+        if (!wellFormed) {
+            Serial.println("[enroll] rejected: key is not 64 lowercase hex");
+            request->send(400, "text/plain", "that does not look like a device key");
+            return;
+        }
+        if (id.length() && id != DeviceIdentity::LeaderboardId()) {
+            Serial.printf("[enroll] rejected: key is for %s, this board is %s\n",
+                          id.c_str(), DeviceIdentity::LeaderboardId().c_str());
+            request->send(409, "text/plain", "that key belongs to a different device");
+            return;
+        }
+
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.putString("cloud-key-fac", key);
+        // Clear any stale override so the freshly enrolled identity is what the
+        // device actually uses. Without this a board carrying an old pasted key
+        // in "cloud-key" would enrol successfully and keep authenticating with
+        // the wrong credential -- which is the exact confusion this whole
+        // feature exists to end, reproduced one layer down.
+        prefs.putString("cloud-key", "");
+        prefs.end();
+        // Same mechanism as /save: raise the flag and let loop() re-read on the
+        // main task. No reboot -- AircraftManager re-reads the key when it
+        // re-initialises, and rebooting from an async callback to pick up a
+        // value NVS has already committed would be theatre with a failure mode.
+        Serial.println("[enroll] device key stored");
+        configChanged = true;
+        request->send(200, "text/plain", "verified");
+    });
+#endif
+
     server.on("/reset-wifi", HTTP_POST, [&](AsyncWebServerRequest* request) {
         if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
         Serial.println("[POST] Clearing WiFi credentials and restarting...");

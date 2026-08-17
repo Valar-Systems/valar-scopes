@@ -8,7 +8,7 @@
 #   npx wrangler deploy --env staging
 #
 # Secrets (per environment, never in this file):
-#   npx wrangler secret put BLIP_KEYS --env staging          # comma-separated device keys
+#   npx wrangler secret put DEVICE_KEY_SECRET --env staging # HMAC secret; the ONLY auth path
 #   npx wrangler secret put RELAY_KEY --env staging          # X-Relay-Key -> our egress relay (see relay/)
 #   npx wrangler secret put ADSB_LOL_API_KEY --env staging   # optional, if adsb.lol ever issues feeder keys
 #
@@ -40,7 +40,7 @@ account_id = "48822e896bb10c45aa6bfe139bcff3d1"
 [vars]
 # NB: no UPSTREAM_ADSB_LOL_BASE here -- top-level config is what tests/dev use, and
 # they must fall back to api.adsb.lol direct. The relay URLs live per-env below.
-UPSTREAM_ADSB_FI_ENABLED = "false"        # flip to "true" once commercial permission clears
+UPSTREAM_ADSB_FI_ENABLED = "false"        # dev/test only -- staging + production below set "true" (adsb.fi is the chain primary)
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false" # DEAD no-op: airplanes.live is prohibited by operator (hardcoded off)
 ROUTE_ADSBDB_ENABLED = "true"             # route fallback; "false" once adsb.lol routeset recovers
 
@@ -73,6 +73,21 @@ routes = [
 BUILD_COMMIT = "\"dev\""
 
 [env.staging.vars]
+# Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
+#
+# A VAR, NOT A SECRET, and the distinction is not cosmetic: the sitekey is
+# rendered into the page's HTML, so it is public by construction. Putting it in
+# the reviewed diff means the value that gates enrolment on this environment is
+# something a person can look at, next to the domain it is scoped to.
+#
+# SEPARATE WIDGETS PER ENVIRONMENT, each with its own secret. One widget across
+# both would make a token solved on staging verifiable at production, because
+# handleEnroll records solve.hostname and deliberately does not enforce it.
+# Widget: blipscope-enroll-staging, domains ["scopes-staging.valarsystems.com"].
+# Pairs with the TURNSTILE_SECRET_KEY secret on this env; without that secret the
+# endpoint answers 503 not_configured and mints nothing.
+TURNSTILE_SITEKEY = "0x4AAAAAAEOTguN4gjbUcmlJ"
+
 # Missileer origin -- the valar-eam-feed Render service that /missileer/* and
 # /api/v1/missileer/* are proxied to (see src/missileer.ts).
 #
@@ -159,8 +174,9 @@ simple = { limit = 6000, period = 60 }
 # "Going to production"):
 #   1. Create the prod KV namespace and paste its id below (replace the
 #      REPLACE_ME placeholder): npx wrangler kv namespace create ENRICH_KV --env production
-#   2. Set the secrets: npx wrangler secret put BLIP_KEYS --env production
-#      (and DEVICE_KEY_SECRET if using per-device keys).
+#   2. Set the secrets: npx wrangler secret put DEVICE_KEY_SECRET --env production
+#      REQUIRED -- per-device keys are the only auth path since 2026-08-13, so a
+#      missing secret 401s the whole fleet. scripts/deploy.sh refuses without it.
 #   3. Add scopes.valarsystems.com as a custom domain (route below; the zone must
 #      be on this Cloudflare account).
 # The RL binding namespace_ids (2101/2102) are distinct from staging's so the
@@ -187,6 +203,12 @@ routes = [
 BUILD_COMMIT = "\"dev\""
 
 [env.production.vars]
+# Turnstile sitekey for the device-enrolment page. Public by construction (it is
+# rendered into the page HTML) -- see the staging block above for why this is a
+# var and why the two environments have SEPARATE widgets rather than one.
+# Widget: blipscope-enroll-production, domains ["scopes.valarsystems.com"].
+TURNSTILE_SITEKEY = "0x4AAAAAAEOTkOwCSqYha96b"
+
 # Missileer origin -- valar-eam-feed on Render. See src/missileer.ts for why the
 # Worker proxies rather than routes, and valar-eam-feed/docs/missileer-routing.md
 # for the alternatives that were rejected.

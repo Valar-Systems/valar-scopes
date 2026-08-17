@@ -28,6 +28,23 @@ bool IsMilitary(uint32_t icaoAddr);
 // '~' (local-receiver TIS-B addresses) and whitespace; false if unparseable.
 bool IsMilitary(const String& icao24Hex);
 
+// Non-ICAO address: the hex sits in an unallocated region of the ICAO 24-bit
+// space, so it is a TIS-B / ADS-R surveillance track ID rather than an airframe
+// identity. No registry holds a record for one, so enriching it is guaranteed
+// to come back blank -- a TLS handshake and an HTTPS round trip spent to learn
+// nothing, on the tight path, for a card that stays empty either way.
+//
+// Worth having on the device rather than only server-side: the request that is
+// never made costs no heap, no socket and no upstream call. Measured 2026-08-12,
+// these were ~44% of the fleet's failed type lookups. Tolerates the leading '~'
+// a local receiver puts on exactly these addresses.
+//
+// Kept IDENTICAL to the proxy's src/icaoalloc.ts, the same way the military
+// table above mirrors the proxy's src/military.ts -- see docs/enrichment-gap-notes.md
+// for how the range was derived and why only one range is listed.
+bool IsNonIcaoAddress(uint32_t icaoAddr);
+bool IsNonIcaoAddress(const String& icao24Hex);
+
 // Special: the trimmed, upper-cased callsign begins with a known distinctive
 // prefix (rescue / medical / police / agency / manufacturer test flights).
 bool IsSpecialCallsign(const String& callsign);

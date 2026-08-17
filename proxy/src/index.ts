@@ -3,6 +3,8 @@ import { handleAirports } from "./airports";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
+import { handleEnroll } from "./enroll";
+import { enrollHtml } from "./enrollpage";
 import {
   handleLeaderboardJson,
   handleLeaderboardPage,
@@ -20,40 +22,39 @@ import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 
-// Authenticate a request. Tries the per-device key path first (only active when
-// DEVICE_KEY_SECRET is set and the request carries X-Blip-Device), then falls
-// back to the shared BLIP_KEYS list -- so the live fleet, which sends only a
-// shared key, is entirely unaffected. Returns a rate-limit bucket id and whether
-// the caller is device-authed (trustworthy enough for the leaderboard's verified
-// tier), or null when rejected. The bucket is never the key itself.
-async function authenticate(
-  env: Env,
-  request: Request,
-): Promise<{ bucket: string; deviceAuthed: boolean } | null> {
+// Authenticate a request. Per-device keys are now the ONLY way in: an
+// HMAC-derived key that is only valid when presented with the X-Blip-Device id
+// it was derived for. Returns a rate-limit bucket id, or null when rejected.
+// The bucket is never the key itself.
+//
+// The shared BLIP_KEYS list was removed 2026-08-13, after every board on the
+// fleet had enrolled and the analytics showed zero successful device requests
+// still arriving on it. Its problem was structural rather than cryptographic:
+// one secret held by every device means a single leak revokes the whole fleet,
+// and a request proved only that SOMEONE held the key -- never which device --
+// so rate limiting bucketed by key index and attribution was impossible. Both
+// of those are now per-identity.
+//
+// There is deliberately no fallback. A fallback is what makes a credential
+// migration untestable: while both paths work, every check passes whichever one
+// the caller happens to be exercising, which is why the cutover was verified by
+// showing a SHARED response before an enrolled one rather than the reverse.
+async function authenticate(env: Env, request: Request): Promise<{ bucket: string } | null> {
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
 
   const deviceId = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
+  if (!deviceId) return null;
 
-  // Revocation is checked BEFORE any key path, so a revoked device cannot slip
-  // through by presenting a still-valid SHARED key -- revocation is by identity,
-  // not by which credential happened to be offered. isRevoked fails OPEN on a KV
-  // error (see revocation.ts): a storage blip must never take the fleet down to
-  // enforce a list that is almost always empty.
-  if (deviceId && (await isRevoked(env, deviceId))) return null;
+  // Revocation is checked BEFORE the key path, so a revoked device is refused
+  // even while its derived key remains cryptographically valid -- revocation is
+  // by identity, and with the shared path gone, identity is all there is.
+  // isRevoked fails OPEN on a KV error (see revocation.ts): a storage blip must
+  // never take the fleet down to enforce a list that is almost always empty.
+  if (await isRevoked(env, deviceId)) return null;
 
-  // Per-device path: HMAC-derived key keyed to the X-Blip-Device id.
-  if (deviceId && (await verifyDeviceKey(env, deviceId, provided))) {
-    return { bucket: `dev:${deviceId}`, deviceAuthed: true };
-  }
-
-  // Shared-key path (unchanged): the index -- never the key -- is the bucket.
-  const keys = (env.BLIP_KEYS ?? "")
-    .split(",")
-    .map((k) => k.trim())
-    .filter((k) => k.length > 0);
-  const idx = keys.indexOf(provided);
-  return idx >= 0 ? { bucket: `key:${idx}`, deviceAuthed: false } : null;
+  if (await verifyDeviceKey(env, deviceId, provided)) return { bucket: `dev:${deviceId}` };
+  return null;
 }
 
 // Substituted at bundle time by scripts/deploy.sh (--define). Defaults to "dev"
@@ -150,7 +151,14 @@ async function route(
   // other route is GET. Keyed off the normalized suffix so the legacy path
   // POSTs exactly as the new one does.
   const isLeaderboardSubmit = api?.suffix === "leaderboard" && request.method === "POST";
-  if (request.method !== "GET" && !isLeaderboardSubmit) return errorResponse(405, "method_not_allowed");
+  // Enrollment POSTs too, and it is NOT an `api` route: it sits above the auth
+  // gate on purpose, because a board with no key yet is the caller it exists
+  // for. Listed here rather than moved above this line so that every method
+  // exception in the Worker stays visible in one place.
+  const isEnrollSubmit = url.pathname === `${PAGE_PREFIX}/enroll` && request.method === "POST";
+  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit) {
+    return errorResponse(405, "method_not_allowed");
+  }
 
   // Trailing-slash normalisation, PAGES ONLY. A URL that is printed, typed, or
   // pasted into someone else's redirect field picks up a trailing slash easily,
@@ -187,6 +195,35 @@ async function route(
   // ships in valar-eam-feed, because the isMissileerPath branch above hands the
   // whole /missileer/* prefix to the origin before this Worker sees it.
   if (url.pathname === `${PAGE_PREFIX}/support`) return staticPage(supportHtml);
+
+  // Device enrollment. The PAGE is public (it has to be — a customer on a phone
+  // reaches it directly); the ENDPOINT mints nothing without a verified solve.
+  // Both sit above the auth gate below, because a board with no key yet is
+  // exactly the caller they exist for.
+  // ONE path, dispatched on METHOD. Written as two sequential `if`s on the same
+  // pathname first, which made the POST branch unreachable — the GET matched
+  // every time and enrollment would have been a page that never minted.
+  if (url.pathname === `${PAGE_PREFIX}/enroll`) {
+    return request.method === "POST"
+      ? handleEnroll(request, env)
+      : staticPage(enrollHtml(env.TURNSTILE_SITEKEY ?? ""));
+  }
+  // THE SHORT URL, and it is not a nicety. The device's fallback text tells a
+  // customer with no internet on that machine to TYPE this on their phone, next
+  // to an 8-hex id — every character is one they can get wrong, so the typed
+  // form stays "/enroll" and lands here.
+  //
+  // This route was missing when enrollment first landed, while the firmware
+  // popup pointed at it: the whole feature was one 404 with sixteen passing
+  // tests behind it, because every test requested the prefixed path. The
+  // firmware now opens the canonical path directly (no redirect in the machine
+  // path), and this serves the human one.
+  //
+  // GET only, by falling out of the method gate above rather than by a check
+  // here: `isEnrollSubmit` matches the prefixed path alone, so a POST to this
+  // one is already a 405 and can never be answered with a redirect the browser
+  // would have to re-send a body to follow.
+  if (url.pathname === "/enroll") return movedTo(url, `${PAGE_PREFIX}/enroll`);
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).
@@ -236,7 +273,18 @@ async function route(
   if (auth === null) return errorResponse(401, "unauthorized");
   // Attribute the metric to the device only now that its key has been verified;
   // see setDeviceAttribution() for why unauthenticated headers are never stored.
-  setDeviceAttribution(meta, request, auth.deviceAuthed);
+  setDeviceAttribution(meta, request);
+  // WHICH CREDENTIAL WAS ACCEPTED — echoed to the device, not merely recorded.
+  //
+  // Now always "device": reaching here at all means the per-device path passed,
+  // since it is the only path. KEPT ANYWAY, and not because removing it is hard.
+  // Its job was to make a credential migration observable at the bench, and it
+  // did that; the next migration will want the same affordance, and a header
+  // that has always been present is cheaper to keep than to reintroduce. It also
+  // keeps the device-visible contract stable across this deploy: firmware and
+  // smoke-prod.sh both assert on it TODAY, and smoke-prod asserting "expect
+  // device, got device" is the check that proves the shared path is gone.
+  meta.authPath = "device";
   const keyLimited = await limitByKey(env, auth.bucket);
   if (keyLimited) return keyLimited;
 
@@ -282,6 +330,13 @@ export default {
     meta.status = response.status;
     meta.ms = Date.now() - started;
     record(env, meta);
+    // Surface the accepted credential to the caller. Only ever set on requests
+    // that actually authenticated, so its ABSENCE is meaningful too: no header
+    // means no auth happened (a page, a 401, a health check).
+    if (meta.authPath) {
+      response = new Response(response.body, response);
+      response.headers.set("X-Blip-Auth", meta.authPath);
+    }
     return response;
   },
 } satisfies ExportedHandler<Env>;

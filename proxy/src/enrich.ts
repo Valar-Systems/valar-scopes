@@ -2,6 +2,7 @@ import type { Env } from "./types";
 import { recordEnrichGap, type RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
 import { fetchAircraftMetaAdsbdb, fetchHexChain, fetchRoute } from "./upstreams/chain";
+import { isNonIcaoAddress } from "./icaoalloc";
 import { militaryCallsignOperator, militaryOperator } from "./military";
 import { TYPE_NAMES } from "./typenames";
 import { resolvePhoto, squareSizeFor } from "./photos";
@@ -38,7 +39,21 @@ interface AcMeta {
   tn: string; // friendly type name
   op: string; // operator / registered owner
   mil?: boolean; // upstream dbFlags bit 0 (military); absent on entries cached before it existed
+  v?: number; // AC_META_V of the rule that wrote it; absent on pre-2026-08-12 entries
 }
+
+// Bumped when the RULE that decides an entry's TTL changes, so entries written
+// under an older rule can be told apart from ones written under this one.
+//
+// v2 (2026-08-12): a missing TYPE now forces the short TTL -- see the hasContent
+// comment in resolveMeta. Needed because a KV expirationTtl is fixed at write
+// time and a cache HIT returns without rewriting, so changing the rule does
+// NOTHING to entries already in KV: they sit out their original 30 days. Rather
+// than purge (which needs KV write credentials nobody should need for a code
+// change, and fixes only today's entries), a type-less entry from an older rule
+// is treated as a MISS once and re-resolved. It then carries this stamp and
+// obeys the new TTL, so the legacy population drains itself in one pass.
+const AC_META_V = 2;
 
 interface RouteEntry {
   o: string;
@@ -96,10 +111,39 @@ async function buildMeta(env: Env, raw: unknown): Promise<AcMeta> {
   return { found: true, r: reg, t: type, tn, op, mil };
 }
 
+// One re-resolve for entries written before AC_META_V, so the legacy population
+// heals itself instead of needing a purge. Deliberately NARROW -- three exclusions,
+// each load-bearing:
+//
+//   entry has a type      -> the valuable case; never re-fetch it. Without this,
+//                            a deploy would invalidate every good entry at once.
+//   entry has found=false -> the AC_FAIL_TTL_S hold-down marker written during a
+//                            429 storm. Re-resolving THAT would defeat the very
+//                            mechanism that stops the fleet amplifying an outage.
+//   entry is already v2    -> written under the new rule; it carries the 1 d TTL
+//                            and will churn on its own. Re-resolving would loop.
+//
+// So the target is exactly: found, no type, pre-v2 -- the reg-only entries that
+// took a 30 d TTL under the old rule and never re-attempted the type backfill.
+function staleUnderNewRule(e: AcMeta): boolean {
+  return !e.t && e.found && (e.v ?? 0) < AC_META_V;
+}
+
+// How long an ac:<hex> entry is allowed to live. Its own named function because
+// this rule is the whole of the 2026-08-12 defect and needs to be assertable on
+// its own -- a KV expirationTtl cannot be read back, so a test that went through
+// KV could only ever check the entry's CONTENT and would pass with the TTL
+// wrong, which is exactly how the original slipped through.
+export function acTtlSeconds(m: Pick<AcMeta, "found" | "t">): number {
+  return m.found && m.t ? AC_TTL_S : AC_NEG_TTL_S;
+}
+
+export const __ttlConstantsForTests = { AC_TTL_S, AC_NEG_TTL_S } as const;
+
 // Aircraft metadata: KV, else one upstream hex lookup, then KV for next time.
 async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<AcMeta | null> {
   const cached = await env.ENRICH_KV.get<AcMeta>(`ac:${hex}`, "json");
-  if (cached) {
+  if (cached && !staleUnderNewRule(cached)) {
     meta.cache = "HIT";
     return cached;
   }
@@ -141,9 +185,18 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   // live position with an all-empty DB record, and 30 d of cached emptiness
   // kept a later-appearing record blank for a month. An empty meta is a
   // negative answer whatever `found` says -- give it the 1 d TTL.
-  const hasContent = !!(built.r || built.t || built.tn || built.op);
+  //
+  // The TYPE specifically decides this, not "any field at all". A registration
+  // used to count as content, so an entry that resolved a reg but no type took
+  // the full 30 d and never re-attempted the backfill above -- which is how
+  // SkyWest E175s and Alaska MAX 8/9 were served typeless 20-111 times each
+  // while adsbdb had E75L/B38M all along (measured 2026-08-12). Type is the
+  // field that unlocks the friendly name AND the type photo, so an entry
+  // missing it is incomplete however much else resolved, and belongs on the
+  // short TTL where tomorrow's request tries again.
+  built.v = AC_META_V;
   await env.ENRICH_KV.put(`ac:${hex}`, JSON.stringify(built), {
-    expirationTtl: built.found && hasContent ? AC_TTL_S : AC_NEG_TTL_S,
+    expirationTtl: acTtlSeconds(built),
   });
   return built;
 }
@@ -187,6 +240,17 @@ export async function handleEnrich(
   const hex = hexRaw.toLowerCase();
   // 6 hex digits, optionally readsb's "~" prefix for non-ICAO (TIS-B) addresses.
   if (!/^~?[0-9a-f]{6}$/.test(hex)) return errorResponse(400, "bad_hex");
+
+  // Non-ICAO address: a TIS-B/ADS-R track ID, not an airframe. No registry can
+  // ever answer for one, so serve the empty body immediately -- no upstream
+  // fetch, no KV read or write, and NOT counted as an enrichment gap (it is not
+  // a gap; there is nothing to find). Firmware from this release skips the
+  // request entirely via the mirrored table in SpecialAircraft.cpp; this branch
+  // is what protects the fleet already in the field, which will keep asking.
+  if (isNonIcaoAddress(hex)) {
+    meta.cache = "SKIP";
+    return jsonResponse({ v: SCHEMA_V, r: "", t: "", tn: "", op: "", o: "", d: "" });
+  }
 
   const url = new URL(request.url);
   const csRaw = (url.searchParams.get("cs") ?? "").trim().toUpperCase();
