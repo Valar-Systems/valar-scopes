@@ -84,22 +84,27 @@ separately would test it twice and the cheaper test would be the less faithful o
 >
 > Two standing consequences:
 >
-> 1. **Do not ingest the only candidate an automated search returns just because it is
->    the only one.** `suggest-commons` returning exactly one result is not a
->    recommendation, it is an empty search with a consolation prize. B1 is unbuilt, so
+> 1. **A search returning exactly one candidate is a WARNING, not a recommendation.**
+>    `suggest-commons` handing back a single result is an *empty search with a
+>    consolation prize* — the sole survivor of a filter, presented in the same shape as a
+>    winner, and the shape is what gets acted on. Read a result count of one as "this
+>    type has no good options yet" and go to a manual Commons search; do not ingest the
+>    consolation prize because it was the only thing on the sheet. B1 is unbuilt, so
 >    nothing automated catches a nose-on shot — the human look is the only gate there is.
 > 2. **A publish is not a draft.** The reject-after-publish path costs a KV deletion the
 >    ingest script cannot do (it publishes from the manifest; it does not prune), so
 >    removing a row locally leaves the fleet serving it. Eyes on the contact sheet
 >    *before* the ingest, not after.
 >
-> **C185 (#13, 20 lookups) is a live alias candidate and the rule may genuinely permit
-> it** — unlike B505/PA23 above. The C185 Skywagon is a strengthened C180 with a bigger
-> engine and taller tail, sharing the fuselage; that is the same relationship as
-> `TBM7: "TBM8"` ("share a hull") already in `TYPE_PHOTO_ALIAS`, not the "another light
-> twin" category error. Now that C180 is published this is one line and no sourcing.
-> **Needs a human look at the C180 image against a C185 before it goes in** — the whole
-> point of the rule is that it does not bend to fill slots.
+> **C185 (#13, 20 lookups) — APPLIED 2026-08-17 as an alias to C180**, having been looked
+> at first. The rule permitted it where it refused B505/PA23 because it distinguishes
+> hulls rather than refusing everything: the 185 is a strengthened 180 on the same
+> fuselage, the `TBM7: "TBM8"` relationship. One line, no sourcing, and it clears #13 off
+> the gap list. The published 240 px square was judged **in the disc** rather than as a
+> flat square or a source file, and the reservation is recorded in `photos.ts` beside the
+> entry: the tail is the feature that would contradict the alias and the angle hides it,
+> so this is a *"you cannot tell"* pass. **Re-check the alias if C180 is ever re-picked**
+> — a more identifiable C180 is a worse stand-in for the 185.
 
 ### C. Logbook / collection
 
