@@ -1461,12 +1461,19 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
 
-#ifdef SOAK_TEST
+#if defined(SOAK_TEST) || defined(FETCH_TRACE)
     // Fetch-pipeline state for the soak record. Added for the 2026-07-09 stall
     // (fetches silent 22 min, loop healthy, task never dequeued): these fields
     // adjudicate loop-side (inFlight/inDetail gate) vs task-side (taskState with
     // a non-empty reqQ = blocked despite queued work) on the next occurrence.
     // taskState: 0=Running 1=Ready 2=Blocked 3=Suspended 4=Deleted.
+    //
+    // ALSO REACHABLE VIA FETCH_TRACE, which is SOAK_TEST's instrumentation WITHOUT
+    // its gesture harness. SOAK_TEST arms SoakHarness (synthetic taps, :3706), so
+    // using it to investigate an IDLE board would inject the very variable under
+    // test -- the 2026-08-17 fragmentation was first misattributed to tapping, and
+    // the flag that would have "observed" it also taps. FETCH_TRACE changes no
+    // behaviour: it only opens the three printfs here, at :1611 and at :1844.
     Serial.printf("[soak-state] inFlight=%d inDetail=%d screen=%d reqQ=%u resQ=%u fetchAge=%lus touchIdle=%lus enrich=%d task=%d allocFail=%lu hardFail=%lu\n",
                   (int)fetchInFlight, (int)inDetail, (int)screen,
                   fetchRequestQueue ? (unsigned)uxQueueMessagesWaiting(fetchRequestQueue) : 0,
@@ -1608,7 +1615,7 @@ void AircraftManager::RunFetchTask()
         if (xQueueReceive(fetchRequestQueue, &req, portMAX_DELAY) != pdTRUE || req == nullptr)
             continue;
 
-#ifdef SOAK_TEST
+#if defined(SOAK_TEST) || defined(FETCH_TRACE)
         // Soak diagnostics: bracket every request so a silently-stuck task is
         // localizable from the log (took-the-request vs finished-the-request).
         const unsigned long soakReqStartMs = millis();
@@ -1841,7 +1848,7 @@ void AircraftManager::RunFetchTask()
         if (!result.success && result.statusCode <= 0)
             fetchHardFailures++; // hard network class; an upstream 503 is not counted
 
-#ifdef SOAK_TEST
+#if defined(SOAK_TEST) || defined(FETCH_TRACE)
         Serial.printf("[fetch] task: done ok=%d http=%d reuse=%d in %lums\n",
                       (int)res->ok, result.statusCode, (int)result.reusedConnection,
                       millis() - soakReqStartMs);

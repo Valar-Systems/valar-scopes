@@ -191,6 +191,47 @@ two serial monitors already attached:
 > to run anyway now doubles as the check on `BLIP_KEY` itself. If it flips to 401,
 > re-mint and re-set both here and in the shell.
 
+#### Not part of the rotation: any authenticated production check you owe
+
+`BLIP_KEY` becoming valid here is the *first moment* several unrelated checks are
+possible at all, so this is where they get run rather than being remembered later. They
+are listed as a reminder, not as rotation steps — none of them can fail the rotation.
+
+Current standing item: **the C185→C180 photo alias** (`7064a7e`, live since `6393905`).
+It is code rather than data, so `/healthz` confirms only that the right commit deployed —
+nothing checks that the alias resolves, and a broken one does not error. It silently
+returns no photo on a type the library covers.
+
+**Run it anchored, C180 beside C185.** The three outcomes are distinguishable only in
+pairs, which is the whole point:
+
+| C180 | C185 | Means |
+|---|---|---|
+| resolves | resolves | ✅ alias works |
+| resolves | **no `p`** | ❌ **the alias** — the library is fine, the mapping is not |
+| **no `p`** | no `p` | ⚠️ upstream/auth — **wrong layer, stop debugging the alias** |
+
+Without the C180 arm, the second and third rows produce the same observation and the
+alias takes the blame for whichever it actually was.
+
+```sh
+# as a FULL-BLEED device, since the square path is what the alias could break
+H=(-H "X-Blip-Key: $BLIP_KEY" -H "X-Blip-Device: $BLIP_DEVICE"
+   -H 'X-Blip-FW: 7' -H 'X-Blip-Model: s3-128')
+curl -s "${H[@]}" "https://scopes.valarsystems.com/v1/enrich/<c185-hex>"
+curl -s "${H[@]}" "https://scopes.valarsystems.com/v1/enrich/<c180-hex>"   # the anchor
+```
+
+Both should return `"p":"/v1/photo/photo:C180-…"` with `"pk":"type"` — the C185 arm
+pointing at a **C180** key is the proof the alias fired, into the square rather than the
+rectangle.
+
+> **If no C185 is airborne, the check did not run.** Say so. An empty search is not a
+> pass, and the honest state is "two tests and an unverified production path" — which is
+> a fine thing to ship, and a bad thing to believe you confirmed. Same family as the
+> anonymous-upstream entry in [CLAUDE.md](CLAUDE.md): a result that cannot distinguish
+> "no data" from "not looked" is not evidence.
+
 **Both must hold.** Old-401 alone could mean the Worker is broken; new-200 alone could
 mean nothing changed. Together they say precisely one thing: the secret in front of
 production is the new one. Only now does a board's silence mean something.
@@ -303,6 +344,62 @@ Witness 2 shares its variables with the gate it is reporting on, so it cannot ca
 fault in those variables. Witnesses 1 and 3 are derived from outside the firmware's
 arithmetic — the screen from a *different* constant, the log from your machine's clock.
 If 2 disagrees with 1 or 3, **believe 1 and 3.**
+
+### Witness 0 — the `tls` counter, which rules out the confound the other three cannot
+
+Read `tls=H/R` off the `[health]` line **at baseline and at every check during the wait.**
+`H` counts TLS handshakes, `R` reuses. **If neither number moves between two health lines,
+the board issued no HTTP request at all in that interval** — and a board making no
+requests walks the stale ladder for reasons that have nothing to do with the key.
+
+| serial during the wait | `tls=H/R` | Meaning |
+|---|---|---|
+| `HTTP 401` lines arriving | **climbing** | ✅ **the key.** Requests are reaching the server and being refused. The run you wanted. |
+| **no 401 lines** | **frozen** | ❌ **the fetch path stopped.** Not the key, and not heap. A known open defect — see below. |
+| no 401 lines | climbing, but `rej` up / `tlsOk=0` | heap pressure: enrichment deferred, cards go blank. **No banner should come from this** — positions are not gated. |
+
+A 401 is by definition a *reply*, so it cannot occur without a request. That makes the
+request counter independent of everything the debounce reasons about — the property the
+other three witnesses lack, since banner order, the latch line and the wall clock are all
+downstream of the same silence and therefore agree with each other in every world.
+
+☐ `tls` at baseline: ____ / ____   ☐ at the latch: ____ / ____ (**must have moved**)
+☐ `rej` at baseline: ____  ☐ at the latch: ____ (context, not a veto — see the correction)
+
+> #### This section named a different witness, and the code contradicted it
+>
+> It first named `rej`, on the reasoning that *"a heap-starved board walks the same ladder
+> in the same colours"*. **That is false.** `CanHandshake()` has exactly two gate call
+> sites — [:4077](src/AircraftManager.cpp#L4077) (detail card) and
+> [:5361](src/AircraftManager.cpp#L5361) (background enrichment sweep) — and **neither
+> gates the position fetch**; [:1835](src/AircraftManager.cpp#L1835) only prints a warning.
+> Heap pressure blanks cards and never touches the stale ladder.
+>
+> The observation that prompted the section survives, and gets **worse** under the
+> correction. On 2026-08-17 board `.55` logged `DATA STALE` with `tls=2/115` **identical
+> across a 30 s interval**, while `tlsOk=1` and `rej=0` — the heap gate healthy and never
+> once fired. It was written up as heap twice. It was not heap: **the fetch path stopped
+> by itself.**
+>
+> That is the shape of the **2026-07-09 stall** — *"fetches silent 22 min, loop healthy,
+> task never dequeued"* — closed 2026-07-21 as not-reproduced and **never root-caused**,
+> with its `[soak-state]` telemetry deliberately left in the tree to catch a recurrence.
+> It caught one. Investigation open: `-DFETCH_TRACE` +
+> [scripts/check-fetchtrace.sh](scripts/check-fetchtrace.sh).
+>
+> **Until that is root-caused, a stale ladder with a frozen `tls` counter is a known open
+> defect and NOT evidence about the key.** Seeing it during a rotation makes the run
+> inconclusive: capture the log and stop, rather than reading the banner in either
+> direction.
+>
+> `rej` is still worth recording (it is `heaphealth::TrialRejectionCount()`, one increment
+> site inside `CanAllocate`, reached only via `CanHandshake()` — nothing else can move it),
+> but as context on enrichment health, never as a verdict on the banner.
+>
+> The general lesson, since this is now the second entry in this file to earn one: **the
+> instrument was right and the explanation beside it was wrong**, which is the more
+> dangerous of the two. A wrong number invites checking. A wrong *reason* gets reasoned
+> from — at 11pm, by someone who was not here when it was written.
 
 ### At the latch — confirm all three surfaces, both boards
 
