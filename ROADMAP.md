@@ -209,6 +209,26 @@ need several tries and a card slow to dismiss. Not being able to prove that is w
 `allocFail` / `hardFail` telemetry added during the hunt stays in, so a recurrence will be
 caught with evidence rather than anecdote.
 
+> **That decision paid off on 2026-08-17, and this is the entry to point at when someone
+> asks whether leaving instrumentation behind is worth the noise.** Board `.55` logged
+> `DATA STALE` with the `tls=` counter **identical across a 30 s interval** — no
+> handshakes, no reuses, no HTTP of any kind — while `tlsOk=1` and `rej=0` said the heap
+> gate was healthy and had never fired. That is the **2026-07-09** shape recorded beside
+> this hunt: *"fetches silent 22 min, loop healthy, task never dequeued."*
+>
+> **We have a second sighting instead of a second mystery**, and it arrived with numbers
+> attached rather than as "the radar seemed stuck earlier". The counters that made it
+> legible were left in for exactly this and cost nothing in between.
+>
+> One thing the recurrence exposes that the original hunt did not: the deepest fields —
+> `[soak-state]` and the took-request/finished-request bracket, the ones that adjudicate
+> *never enqueued* vs *enqueued and never dequeued* vs *dequeued and never completed* —
+> sat behind `-DSOAK_TEST`, which also arms `SoakHarness`'s **synthetic taps**. So the
+> instrument that answers the question also perturbs the board, and could not be pointed
+> at an idle one. Hence `-DFETCH_TRACE` (`d9fbd66`): the same printfs, no harness, on the
+> shipping backend. **Instrumentation left behind should be reachable without also
+> enabling behaviour** — that is the refinement this second sighting bought.
+
 **Production backend stood up 2026-07-17.** `scopes.valarsystems.com` is live: Worker
 deployed, `[env.production]` KV namespace created + wired, `BLIP_KEYS` secret set, all
 three datasets ingested (68 photos, ~17k mil airframes, ~9.4k airport tiles), and the
