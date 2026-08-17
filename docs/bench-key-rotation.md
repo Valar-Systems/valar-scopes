@@ -191,6 +191,47 @@ two serial monitors already attached:
 > to run anyway now doubles as the check on `BLIP_KEY` itself. If it flips to 401,
 > re-mint and re-set both here and in the shell.
 
+#### Not part of the rotation: any authenticated production check you owe
+
+`BLIP_KEY` becoming valid here is the *first moment* several unrelated checks are
+possible at all, so this is where they get run rather than being remembered later. They
+are listed as a reminder, not as rotation steps — none of them can fail the rotation.
+
+Current standing item: **the C185→C180 photo alias** (`7064a7e`, live since `6393905`).
+It is code rather than data, so `/healthz` confirms only that the right commit deployed —
+nothing checks that the alias resolves, and a broken one does not error. It silently
+returns no photo on a type the library covers.
+
+**Run it anchored, C180 beside C185.** The three outcomes are distinguishable only in
+pairs, which is the whole point:
+
+| C180 | C185 | Means |
+|---|---|---|
+| resolves | resolves | ✅ alias works |
+| resolves | **no `p`** | ❌ **the alias** — the library is fine, the mapping is not |
+| **no `p`** | no `p` | ⚠️ upstream/auth — **wrong layer, stop debugging the alias** |
+
+Without the C180 arm, the second and third rows produce the same observation and the
+alias takes the blame for whichever it actually was.
+
+```sh
+# as a FULL-BLEED device, since the square path is what the alias could break
+H=(-H "X-Blip-Key: $BLIP_KEY" -H "X-Blip-Device: $BLIP_DEVICE"
+   -H 'X-Blip-FW: 7' -H 'X-Blip-Model: s3-128')
+curl -s "${H[@]}" "https://scopes.valarsystems.com/v1/enrich/<c185-hex>"
+curl -s "${H[@]}" "https://scopes.valarsystems.com/v1/enrich/<c180-hex>"   # the anchor
+```
+
+Both should return `"p":"/v1/photo/photo:C180-…"` with `"pk":"type"` — the C185 arm
+pointing at a **C180** key is the proof the alias fired, into the square rather than the
+rectangle.
+
+> **If no C185 is airborne, the check did not run.** Say so. An empty search is not a
+> pass, and the honest state is "two tests and an unverified production path" — which is
+> a fine thing to ship, and a bad thing to believe you confirmed. Same family as the
+> anonymous-upstream entry in [CLAUDE.md](CLAUDE.md): a result that cannot distinguish
+> "no data" from "not looked" is not evidence.
+
 **Both must hold.** Old-401 alone could mean the Worker is broken; new-200 alone could
 mean nothing changed. Together they say precisely one thing: the secret in front of
 production is the new one. Only now does a board's silence mean something.
