@@ -22,6 +22,28 @@ written as a standing procedure with the one-time A3 assertions marked **[A3]**.
 | ☐ | `A1` is deployed (`c046e4b` + `1c76d4a` + `d513aa2`) and `/healthz` reports it | Rotating on top of an undeployed tree means two variables. |
 | ☐ | Both boards are on the current firmware and **currently authenticating** | Step 1 baselines this. A board that is already broken proves nothing. |
 | ☐ | You have ~40 minutes and both boards on serial | The debounce is 15 min by design; recovery adds ~10. |
+| ☐ | **A camera to hand** | See below. The screen states are the deliverable and they are not reproducible. |
+
+### Photograph the screen at every stage
+
+This is the first — and, if it goes well, the only — time the full credential-recovery
+path runs on real hardware with someone watching. Every board that ever shows
+`NEEDS VERIFY` after this is a customer's, unwatched.
+
+So the photo record is not documentation of the run, it **is** part of the result. Four
+shots, all of the screen itself (a phone photo, not a screenshot — there isn't one):
+
+| | Stage | What it has to show |
+|---|---|---|
+| 📷 1 | §1 baseline | a live picture, **no banner** — the state we claim to be leaving |
+| 📷 2 | §4 mid-ladder | an **amber** `STALE Nm`, ideally two shots as the count climbs |
+| 📷 3 | §4 at the latch | `NEEDS VERIFY`, **and the red `NO DATA` shot immediately before it** |
+| 📷 4 | §5 after recovery | banner **gone**, live picture back |
+
+Shot 3 is the pair that matters — see the banner-order witness in §4. One photo of
+`NEEDS VERIFY` on its own proves the firmware can draw those pixels and nothing else.
+
+☐ Both boards in shot 3, so the control state is on the record too.
 
 ### Why the release must land first
 
@@ -153,6 +175,37 @@ production is the new one. Only now does a board's silence mean something.
 > If old→401 but new→401 too: the secret took but is not what you think it is. Stop and
 > re-run `secret put` before touching the boards.
 
+### The mint is exposed to the drain too — re-test this key at the latch
+
+§4 describes edge isolates draining after a secret change, and frames it as something
+that happens to the *boards*. It happens to **this mint as well**, and that is easier to
+miss because the symptom arrives much later.
+
+`handleEnroll` reads `DEVICE_KEY_SECRET` per request and derives fresh
+([enroll.ts:163](proxy/src/enroll.ts#L163)) — it caches nothing, and the ledger row it
+writes deliberately does not contain the key. So there is no stale *key* anywhere. But an
+enrol request that lands on a **draining isolate** is served by the old binding, and
+returns a perfectly well-formed 64-hex key derived from the **old** secret. Nothing about
+the value says which one it is.
+
+**The two checks above do not fully rule this out.** Old→401 proves *an* auth request hit
+a new isolate; new→200 proves *some* isolate accepted the new key. They need not be the
+same isolate, so a stale-minted key validated by a stale isolate scores both ticks.
+
+The fix costs one command at a moment you are already sitting watching serial. **Re-run
+the new-key curl at the latch** (§4, T₀ + ~15 min — the drain is long over):
+
+- ☐ New key → **200** again, at the latch
+
+A key minted on a draining isolate begins returning 401 once the drain completes; a good
+one is unchanged. If it flipped to 401, the key is old-secret — re-mint it (the enrol page
+again) and re-run both curls. Nothing about the boards is affected and A3 is not
+invalidated; you simply had a bad `BLIP_KEY` for §8.
+
+> **The boards are not exposed to this.** §5/§7 mint at T₀ + 15 min at the earliest,
+> long past the drain. The customer recovery path this exercise exists to prove is
+> clear of it — only the smoke identity, minted at T₀, sits inside the window.
+
 ---
 
 ## 4. Watch the debounce actually debounce
@@ -235,6 +288,34 @@ If 2 disagrees with 1 or 3, **believe 1 and 3.**
 - ☐ Board #1 config page: reloads to the "needs re-verifying" state, **Verify button present**
 - ☐ Board #2: all three, same
 - ☐ Neither board rebooted (no boot banner in the serial log)
+- ☐ New key → **200** again (the drain re-test from §3)
+
+### Record what the banner REPLACED, not that it appeared
+
+**The prior banner is the debounce's proof. The new one is not.** `NEEDS VERIFY` looks
+identical whether the firmware waited 900 s or 25 s — a correct latch and the exact
+regression the thresholds exist to prevent produce the *same photograph*. Only the state
+it displaced separates them, and that state is gone the moment it is overwritten.
+
+So this is the one observation in the run that cannot be recovered afterwards. The serial
+log persists, the config page persists, the screen re-reads at any time — the previous
+banner exists for as long as you are looking at it and then never again.
+
+Write down all three, per board, at the moment it flips:
+
+```
+board #1   banner before the latch : NO DATA - 10m        colour: RED
+           banner after            : NEEDS VERIFY         colour: RED
+           wall-clock of the flip  : ..:..:..
+```
+
+- ☐ Prior banner **text** recorded (not just "the red one")
+- ☐ Prior banner **colour** recorded — this is witness 1 and it is a colour comparison
+- ☐ 📷 both shots (see §0): the red `NO DATA` *and* the `NEEDS VERIFY` that replaced it
+
+> A results note reading *"NEEDS VERIFY appeared at 15 min"* has recorded the one part of
+> this that was never in question. Amber → `NEEDS VERIFY` is a **failing** run, and it
+> also appears, and at whatever time it appears that sentence describes it equally well.
 
 ---
 
@@ -326,14 +407,21 @@ Append to this file, or to the PR that carries the run:
 ```
 ROTATION <date>
   T0 (secret put)            ..:..
+  §3 old key → 401           y/n     §3 new key → 200  y/n
   drain resets observed      0 / 1 / 2 …
   first 401 of final run     ..:..   (board #1)
   KEY REFUSED line           ..:..   → firmware said "for ___s over ___ fetches"
   wall-clock delta           ___ s   (witness 3; must be ≥900 and match the above)
-  banner it replaced         NO DATA / STALE  ← must be NO DATA (witness 1)
+
+  BANNER BEFORE THE LATCH    ______________  colour: RED / AMBER   ← witness 1
+  banner after               NEEDS VERIFY    colour: RED
+    (AMBER before = FAILING RUN. Stop, capture, do not re-verify.)
+
+  new key re-tested at latch → 200 / 401     (401 = old-secret mint, re-mint for §8)
   board #1 recovered at      ..:..   no reboot: y/n
   board #2 still refused at  ..:..   y/n
-  smoke-prod                 __/29
+  smoke-prod                 __/30
+  photos 1-4 filed           y/n
 ```
 
 ---
