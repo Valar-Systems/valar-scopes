@@ -186,6 +186,10 @@ static void TheWindow() {
     m.Step(Event::PlayerKeyTurn, t - 3 * S);
     CHECK(m.Get().phase == Phase::Aborted, "an early key turn was treated as an execution");
     CHECK(m.Get().deviation_us == -3000000, "the early turn was not recorded as -3 s");
+    // A control that silently discarded the early turn's measurement failed
+    // nothing until this line existed: the device would show the drill dead
+    // with no record of the thing the player is certain they did.
+    CHECK(m.Get().executed, "the early key turn was swallowed rather than recorded");
     CHECK(std::strstr(m.Get().note, "before the window") != nullptr,
           "the early turn is not explained");
   }
@@ -278,6 +282,19 @@ static void RenderableValues() {
     last = m.Get().progress_permille;
   }
   CHECK(m.Get().phase == Phase::Authenticate, "the print never finished on ticks alone");
+
+  CASE("the countdown never reads a wrapped value, even armed late");
+  {
+    // THE FRAME BETWEEN. Arming after T runs `Remaining(t, now)` with now > t
+    // before the phase changes, and unsigned underflow there reads ~584,000
+    // years -- which renders as a plausible number rather than as an error.
+    // A control that removed the saturation failed nothing until this case
+    // existed, because every other path overwrites the value before it is read.
+    DrillMachine late = ArmedAt(10 * S, 10 * S + 500000);
+    late.Step(Event::Tick, 10 * S + 500000);
+    CHECK(late.Get().until_window_us == 0,
+          "the countdown wrapped instead of saturating when armed after T");
+  }
 
   CASE("the countdown saturates rather than wrapping");
   // Unsigned underflow would read ~584,000 years, which renders as a plausible

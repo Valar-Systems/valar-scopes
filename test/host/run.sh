@@ -100,13 +100,26 @@ if "$CXX" $FLAGS $INCLUDES \
   echo "      is no longer isolated. That is D1's whole guarantee."
   fail=1
 else
-  # And confirm it failed for the RIGHT REASON. A typo in the filename would
-  # also 'fail to compile', and would report as the gate working -- a refusal
-  # for the wrong reason is indistinguishable from success (ledger 29).
-  if grep -qi "Arduino.h" "$OUT/no_arduino.log"; then
-    echo "ok   the gate fires: Arduino.h is unreachable from the pure build"
+  # AND CONFIRM IT FAILED FOR THE RIGHT REASON -- which took two attempts, and
+  # the first one is worth writing down because it is this project's signature
+  # mistake sitting inside the gate that exists to prevent it.
+  #
+  # The first version grepped the log for "Arduino.h". Running the control for
+  # this control -- widening INCLUDES to reach the real Arduino core -- the
+  # build still failed, but on `freertos/FreeRTOS.h` two levels deeper, and the
+  # log's first line reads "In file included from .../Arduino.h:33". The grep
+  # matched. The gate printed "ok". Arduino.h was fully reachable.
+  #
+  # A refusal for the wrong reason is indistinguishable from success (ledger
+  # 29), and here the wrong reason was the header being FOUND. So the check is
+  # now for the specific not-found diagnostic, and it is anchored to the header
+  # name so a deeper failure cannot satisfy it.
+  if grep -qE "(fatal error|error):[[:space:]]*Arduino\.h:[[:space:]]*No such file" \
+       "$OUT/no_arduino.log"; then
+    echo "ok   the gate fires: Arduino.h is NOT FOUND from the pure build"
   else
-    echo "FAIL: the gate refused, but not because of Arduino.h. Read:"
+    echo "FAIL: the compile refused, but not because Arduino.h was unreachable."
+    echo "      A deeper failure means the header WAS found and the TU is not isolated."
     cat "$OUT/no_arduino.log"
     fail=1
   fi
