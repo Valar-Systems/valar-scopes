@@ -16,7 +16,18 @@ the trip back to a radar build.
 
 ---
 
-## Station 1 — gesture capture (~15 min) · unblocks **D3**
+## Station 1 — gesture capture (~15 min) · unblocks **D3 and the crew layer**
+
+> **This station gates more than it looks like it does.** §13 B frames the 10 s
+> hold as the gate on the *deputy's* switches, so it has been treated as a
+> crew-layer question. But §3 step 4 makes the **commander's** input a
+> press-drag arc **with a hold** — so if static touches drop, the **solo**
+> key-turn is affected too, and it would have to become *motion-sustained*
+> rather than *hold-sustained*.
+>
+> D3's recognizer spec therefore **waits on this capture** rather than assuming
+> a hold is available. Do not write the recognizer against an imagined hold.
+
 
 ```sh
 pio run -e probe-s3-128-gesture -t upload
@@ -79,7 +90,24 @@ variable under test.
 
 ---
 
+## STOP AND REPORT — this one is the answer, not a bad run
+
+**If strokes die at ~5 s, including the 10 s hold: the run is GOOD and the
+result is important. Stop and report before continuing.**
+
+The TouchWatchdog is deliberately off at station 1, so nothing re-arms the
+chip's `DisAutoSleep`. A hold that ends on its own is the panel telling you it
+cannot sustain a static touch — which is §13 B's answer arriving, and by the
+note above it reaches the solo key-turn as well as the deputy's switches.
+
+Do **not** re-flash and try again. Keep the capture, note how long each hold
+survived, and say so. Everything downstream of a hold changes on this number.
+
+---
+
 ## What a bad run looks like
+
+*(Everything below means **redo the capture**. The line above does not.)*
 
 **A dead instrument produces confident numbers, and that has cost this project a
 week once already** (the 75.7 ms clock floor came from a contaminated session,
@@ -90,7 +118,6 @@ was ruled on, and was wrong). Redo rather than ship any of these:
 | **all** | the provenance block says `elf_sha256 UNAVAILABLE` or `variant UNSET` | the capture cannot be tied to a build or a board; it is unusable as a fixture |
 | **all** | you filled the `<fill in>` lines with a guess | an invented ambient is worse than a blank |
 | **1** | **no** `state=1` rows at all, or `x,y` never change while you are touching | the touch IC is wedged. Re-flash and start over — do **not** record it as "the panel does not respond" |
-| **1** | every stroke ends within ~5 s including the 10 s hold | the chip auto-slept. The watchdog is deliberately off here; this is a **finding**, not a bad run — keep it and say so |
 | **1** | `dt_us` is consistently >20,000 on every row | the bus is running slow and the sample rate is the probe's, not the panel's. Check nothing else is flashing |
 | **1** | fewer than ~8 strokes, or no `# stroke N ended` markers | the corpus cannot be segmented; D3 would infer boundaries from gaps, which is the defect it must treat separately |
 | **2** | the panel stays black for the whole run | the log will still look perfect. Re-flash; suspect a wrong-SKU image |
@@ -115,4 +142,9 @@ Commit the captures under `bench-logs/` and open one PR. The two that become
 - `blit-*.log` → the budget D5 is designed against
 
 Then the software queue unblocks: **D3** (recognizer), **D4** (render), **D5**
-(animation), and §13 B's crew-layer question gets its answer either way.
+(animation), and §13 B's question gets its answer either way.
+
+**Report the hold durations explicitly**, even when they are fine. D3's spec
+branches on them: a panel that sustains a static touch gets a hold-based
+recognizer; one that does not gets a motion-sustained one, and that is a
+different design rather than a tuned threshold.

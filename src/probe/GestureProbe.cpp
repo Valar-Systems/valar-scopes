@@ -38,6 +38,17 @@
  *              Recorded rather than filtered on, so a drag that LEAVES the band
  *              is in the corpus -- that is one of D3's required cases.
  *
+ * WHAT THIS CAPTURE GATES, which is more than it looks like.
+ *
+ * §13 B frames the 10 s hold as the gate on the DEPUTY's switches, so it has
+ * been read as a crew-layer question. It is not only that. §3 step 4 makes the
+ * COMMANDER's input a press-drag arc WITH A HOLD -- so if this panel drops
+ * static touches, the SOLO key-turn is affected too, and D3's recognizer has to
+ * become motion-sustained rather than hold-sustained. That is a different
+ * design, not a tuned threshold.
+ *
+ * So D3's spec waits on this corpus rather than assuming a hold is available.
+ *
  * THE SAMPLE GAP IS A FIRST-CLASS MEASUREMENT, not noise to be cleaned up.
  * §13's open question is whether this panel can hold a finger for 10 s, and the
  * failure mode the corrected gametest is measuring is a hold that DROPS a

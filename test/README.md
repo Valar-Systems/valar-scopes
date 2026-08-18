@@ -62,6 +62,12 @@ place — which it did, once, before the code told them apart.
 ## What the host rig guards
 
 1. **The tests** for each pure translation unit.
+1b. **The same TU, compiled for the board**, with the xtensa cross-compiler and
+   the same narrow include path. In the *same gate* on purpose: the host suite
+   proves the logic and not that the code compiles for the device, and for one
+   commit the header claimed otherwise while the suite was green. Split across
+   two places, the cheaper number becomes the whole answer. A missing
+   cross-compiler is reported as the rig being **incomplete**, never skipped.
 2. **The purity gate.** `src/game/` compiles with `-I src/game` and nothing
    else. `host/no_arduino.cpp` includes `<Arduino.h>` and **must fail**; a
    success is reported as the failure it is.
@@ -83,10 +89,16 @@ Adding a TU: add its `.cpp` to the build line in `host/run.sh` and a
   matched. It now requires the specific *not-found* diagnostic.
 - **The symbol scan matched its own comments**, and `micros` inside
   `microseconds`, reporting a correct file as impure.
+- **The host suite was green while the device build failed.** `DrillMachine.h`
+  was missing `<stddef.h>`; MinGW pulls `size_t` in transitively and xtensa
+  does not. Nothing was broken about the rig — it proved what it covers. The
+  header's claim was wider than the rig, which is the inverse of the other two
+  and is why the cross-compile now runs in the same command.
 - **A binary that would not launch** (exit 127, missing MinGW DLLs) was reported
   as a failing test. Binaries are now linked static and the rig separates its
   own breakage from a real failure.
 
-All three are the same lesson as
+All four are the same lesson as
 [`valar-eam-feed/docs/verification-ledger.md`](https://github.com/Valar-Systems/valar-eam-feed/blob/main/docs/verification-ledger.md):
-**run the control before believing the result.**
+**run the control before believing the result** — and the fourth adds: *check
+that what you claim about the result is no wider than what the control covered.*
