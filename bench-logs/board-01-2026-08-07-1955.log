@@ -1,0 +1,920 @@
+=== [capture] started 2026-08-07 19:55:08 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 19:55:08 pid=124664 ===
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292376
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  76 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 19:56:08 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 19:56:13 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+=== [capture] detached after 20s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The I/O operation has been aborted because of either a thread exit or an application request.
+" 2026-08-07 19:56:33 pid=124664 ===
+=== [capture] detached after 0s: MethodInvocationException -- Exception calling "Open" with "0" argument(s): "The port 'COM119' does not exist." 2026-08-07 19:56:38 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 19:56:43 pid=124664 ===
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292376
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037abd6
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x10cc
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x30c0
+entry 0x403c88b8
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292376
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+[  3326][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:AutoConnect: FAILED for  124 ms
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:14 networks found
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:Connecting to NEW AP: Tony
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-52 dBm
+*wm:Connect to new AP [SUCCESS] 
+*wm:Got IP Address: 
+*wm:192.168.86.55 
+[WiFi] Portal saved credentials, attempting to connect...
+*wm:config portal exiting 
+[WiFi] autoConnect() returned true (connected)
+[WiFi] provisioned via the portal -- restarting so the config server can bind :80
+[WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037abd6
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x10cc
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x30c0
+entry 0x403c88b8
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292376
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+[  3327][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:Connecting to SAVED AP: Tony
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-50 dBm
+*wm:AutoConnect: SUCCESS 
+*wm:STA IP Address: 192.168.86.55
+[WiFi] autoConnect() returned true (connected)
+[WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
+[ota] channel=s3-128 current=5 latest=4
+[GET] Handling request to config web server...
+[GET] heap free=125216 largest-block=75764
+[ 18811][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 18819][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 18827][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 18835][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 18842][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 18850][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 18858][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 18866][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 18874][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 18881][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 18889][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 18897][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 18905][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 18913][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 18922][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 18930][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 18938][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 18946][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 18953][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 18961][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 18970][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 18978][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 18986][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 18994][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 19002][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 19011][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 19019][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 19031][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 19039][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 19048][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 19057][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 19065][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[dim] brightness -> 51 (night)
+[GET] Handling request to config web server...
+[GET] heap free=130428 largest-block=71668
+[ 21467][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 21475][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 21483][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 21491][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 21499][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 21506][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 21514][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 21522][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 21530][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 21538][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 21545][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 21553][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 21561][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 21570][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 21578][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 21586][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 21594][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 21602][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 21609][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 21617][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 21626][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 21633][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 21641][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 21649][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 21657][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 21666][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 21674][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 21686][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 21694][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 21703][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 21712][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 21720][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=130352 largest-block=71668
+[ 23995][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 24003][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 24010][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 24018][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 24026][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 24034][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 24042][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 24050][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 24058][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 24065][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 24073][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 24081][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 24089][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 24097][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 24106][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 24113][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 24122][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 24129][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 24137][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 24145][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 24153][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 24161][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 24169][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 24176][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 24184][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 24193][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 24201][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 24213][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 24221][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 24231][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 24239][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 24247][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=130096 largest-block=71668
+[ 26526][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 26533][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 26541][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 26549][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 26557][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 26565][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 26573][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 26581][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 26588][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 26596][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 26604][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 26612][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 26620][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 26628][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 26636][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 26644][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 26652][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 26660][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 26668][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 26675][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 26684][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 26692][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 26699][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 26707][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 26715][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 26724][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 26732][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 26744][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 26752][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 26762][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 26770][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 26778][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=129840 largest-block=71668
+[ 29171][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 29179][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 29187][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 29195][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 29203][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 29210][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 29218][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 29226][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 29234][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 29242][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 29249][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 29257][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 29265][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 29273][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 29282][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 29290][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 29298][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 29306][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 29313][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 29321][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 29330][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 29337][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 29345][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 29353][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 29361][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 29370][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 29378][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 29390][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 29398][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 29407][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 29416][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 29423][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[health] frame avg=33.4ms p95=33.3ms max=303.7ms  n=0 ap=329  heap free=132280 largest=71668 free8=132280 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/0  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[GET] Handling request to config web server...
+[GET] heap free=129316 largest-block=71668
+[ 31693][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 31700][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 31708][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 31716][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 31724][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 31732][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 31740][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 31747][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 31755][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 31763][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 31771][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 31778][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 31786][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 31794][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 31803][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 31811][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 31820][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 31827][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 31835][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 31842][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 31851][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 31859][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 31866][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 31874][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 31882][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 31891][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 31899][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 31911][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 31919][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 31929][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 31937][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 31945][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=128220 largest-block=71668
+[ 34207][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 34214][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 34222][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 34230][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 34238][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 34246][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 34254][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 34261][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 34269][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 34277][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 34285][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 34293][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 34301][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 34309][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 34318][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 34325][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 34334][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 34341][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 34349][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 34357][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 34365][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 34373][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 34381][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 34388][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 34396][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 34405][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 34413][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 34425][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 34433][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 34443][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 34451][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 34459][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=127964 largest-block=71668
+[ 36742][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 36750][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 36758][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 36766][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 36773][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 36781][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 36789][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 36797][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 36805][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 36813][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 36820][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 36828][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 36836][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 36844][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 36853][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 36861][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 36869][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 36877][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 36884][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 36892][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 36900][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 36908][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 36916][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 36924][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 36932][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 36941][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 36948][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 36961][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 36968][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 36978][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 36986][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 36994][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=127708 largest-block=71668
+[ 39484][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 39491][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 39499][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 39507][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 39515][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 39523][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 39531][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 39538][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 39546][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 39554][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 39562][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 39570][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 39578][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 39586][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 39594][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 39602][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 39611][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 39618][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 39626][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 39633][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 39642][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 39649][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 39657][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 39665][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 39673][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 39682][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 39690][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 39702][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 39710][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 39720][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 39728][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 39736][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=129984 largest-block=71668
+[ 42084][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 42092][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 42100][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 42107][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 42115][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 42123][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 42131][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 42139][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 42146][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 42154][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 42162][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 42170][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 42178][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 42186][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 42194][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 42202][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 42210][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 42218][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 42226][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 42233][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 42242][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 42250][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 42257][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 42265][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 42273][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 42282][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 42290][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 42303][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 42310][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 42320][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 42328][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 42336][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=128028 largest-block=71668
+[ 44719][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 44727][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 44734][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 44742][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 44750][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 44758][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 44766][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 44773][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 44781][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 44789][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 44797][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 44805][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 44813][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 44821][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 44829][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 44837][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 44845][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 44853][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 44861][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 44868][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 44877][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 44884][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 44892][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 44900][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 44908][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 44917][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 44925][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 44937][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 44945][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 44954][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 44963][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 44970][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=126936 largest-block=71668
+[ 47416][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 47424][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 47431][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 47439][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 47447][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 47455][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 47463][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 47470][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 47478][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 47486][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 47494][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 47501][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 47509][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 47517][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 47526][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 47534][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 47542][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 47550][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 47558][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 47565][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 47574][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 47582][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 47589][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 47597][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 47605][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 47614][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 47622][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 47634][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 47642][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 47652][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 47660][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 47668][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=127516 largest-block=71668
+[ 49951][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 49959][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 49966][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 49974][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 49982][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 49990][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 49998][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 50005][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 50013][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 50021][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 50029][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 50037][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 50045][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 50053][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 50062][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 50070][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 50078][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 50086][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 50093][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 50101][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 50109][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 50117][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 50125][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 50133][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 50141][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 50149][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 50157][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 50170][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 50177][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 50187][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 50195][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 50203][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=127260 largest-block=71668
+[ 52477][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 52485][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 52493][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 52501][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 52508][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 52516][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 52524][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 52532][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 52540][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 52547][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 52555][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 52563][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 52571][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 52579][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 52588][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 52596][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 52604][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 52612][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 52619][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 52627][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 52635][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 52643][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 52651][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 52658][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 52667][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 52675][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 52683][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 52696][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 52703][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 52713][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 52721][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 52729][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=126160 largest-block=71668
+[ 55176][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+[ 55184][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+[ 55192][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+[ 55200][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+[ 55208][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+[ 55215][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+[ 55223][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+[ 55231][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+[ 55239][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+[ 55247][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+[ 55254][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+[ 55262][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+[ 55270][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+[ 55278][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+[ 55287][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+[ 55295][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[ 55303][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+[ 55311][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+[ 55318][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+[ 55326][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+[ 55335][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+[ 55342][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+[ 55350][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+[ 55358][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+[ 55366][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[ 55375][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+[ 55382][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+[ 55395][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+[ 55403][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+[ 55412][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+[ 55420][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+[ 55428][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+[perf] 2026-08-08T02:58:32Z polls=1 busy=1%(fetch=1% enrich=0%) parse=0ms/poll bytes=0/poll ac=0/0 lag=avg0ms,max0ms gapMax=0ms episodes=0 cache=H0/S0/M0 enrichReqs=0
+[health] frame avg=28.9ms p95=29.5ms max=307.4ms  n=0 ap=329  heap free=129444 largest=71668 free8=129444 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/0  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+=== [capture] detached after 128s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The I/O operation has been aborted because of either a thread exit or an application request.
+" 2026-08-07 19:58:51 pid=124664 ===
+=== [capture] detached after 0s: MethodInvocationException -- Exception calling "Open" with "0" argument(s): "The port 'COM119' does not exist." 2026-08-07 19:58:56 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 19:59:01 pid=124664 ===
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292228
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037abd6
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x10cc
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x30c0
+entry 0x403c88b8
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292228
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=47 touched=1
+[wifi-reset] boot touch detected; hold to confirm
+[wifi-reset] hold completed -- clearing credentials (misses=0 longestGap=56ms)
+*wm:resetSettings 
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:SETTINGS ERASED 
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037abd6
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x10cc
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x30c0
+entry 0x403c88b8
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292228
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+[  3327][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:AutoConnect: FAILED for  63 ms
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 72s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:00:13 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:00:18 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292228
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  64 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:01:18 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:01:23 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292228
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  128 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:02:23 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:02:28 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292080
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  65 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:03:28 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:03:33 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292080
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  75 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:04:33 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:04:38 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292080
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  119 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:05:38 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:05:43 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=291964
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  75 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:06:43 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:06:48 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292080
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  128 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 
+=== [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:07:48 pid=124664 ===
+=== [capture] attached port=COM119 2026-08-07 20:07:53 pid=124664 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=291964
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 2 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 3 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 4 of 5
+*wm:No wifi saved, skipping 
+*wm:Connect Wifi, ATTEMPT # 5 of 5
+*wm:No wifi saved, skipping 
+*wm:AutoConnect: FAILED for  74 ms
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-31D918
+*wm:AP IP address: 192.168.4.1
+*wm:Starting Web Portal 

@@ -1,0 +1,63 @@
+=== [capture] started 2026-08-07 20:20:27 pid=184256 ===
+=== [capture] attached port=COM118 2026-08-07 20:20:27 pid=184256 ===
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=290240
+*wm:v2.0.17  D:2
+[WiFi] no saved credentials: portal stays up indefinitely for first setup
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-57 dBm
+[WiFi] fast join OK in 1649 ms
+[WiFi] pinned AP ch=1 RSSI=-57 dBm for the next boot
+[ota] channel=s3-128 current=5 latest=4
+[web] config server listening on :80 (http://Blipscope-326E20.local)
+[logbook] loaded 220 types (75 claimed), 120 airlines (9), 38 countries (3), 17561 contacts
+[adsbdb] a9fd11 -> type=R44 operator=Leading Edge Flight Academy reg=N7425T
+[adsbdb] a7de30 -> type=C152 operator=Hillsboro Aero Academy LLC reg=N606GS
+[adsbdb] a214de -> type=E75L operator=American Eagle reg=N233NN
+[health] frame avg=30.8ms p95=31.3ms max=34.0ms  n=7 ap=329  heap free=85548 largest=39924 free8=85548 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=3/2  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[adsbdb] a4fe6e -> type=C72R operator=Hillsboro Aero Academy LLC reg=N4203P
+[adsbdb] acaec5 -> unknown aircraft
+[adsbdb] a9db89 -> type=C172 operator=Leading Edge Aviation reg=N734ST
+[adsbdb] a526e6 -> type=B739 operator=Alaska Airlines reg=N431AS
+[GET] Handling request to config web server...
+[GET] heap free=81524 largest-block=35828
+[ 54593][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=81940 largest-block=37876
+[ 57068][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=80852 largest-block=35828
+[ 59402][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[perf] 2026-08-08T03:21:26Z polls=1 busy=6%(fetch=1% enrich=4%) parse=3ms/poll bytes=0/poll ac=7/7 lag=avg0ms,max0ms gapMax=0ms episodes=0 cache=H0/S0/M0 enrichReqs=7
+[health] frame avg=32.5ms p95=35.6ms max=114.4ms  n=7 ap=329  heap free=84128 largest=39924 free8=84128 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=3/6  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+[GET] Handling request to config web server...
+[GET] heap free=80596 largest-block=35828
+[ 61723][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=81152 largest-block=37876
+[ 64092][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=80896 largest-block=37876
+[ 66462][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=79820 largest-block=35828
+[ 68856][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=80536 largest-block=35828
+[ 71260][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=80132 largest-block=35828
+[ 73636][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=79876 largest-block=35828
+[ 76007][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+[health] frame avg=30.4ms p95=31.5ms max=114.7ms  n=7 ap=329  heap free=82340 largest=38900 free8=82340 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=3/6  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0
