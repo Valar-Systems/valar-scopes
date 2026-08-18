@@ -69,10 +69,14 @@ if ! "$CXX" $FLAGS $INCLUDES \
   cat "$OUT/build.log"
   exit 2
 fi
+# `set +e` and NOT a matching `set -e` afterwards: this script never had
+# errexit, and turning it on here silently killed the run at the first `grep`
+# that found nothing -- which is the NORMAL case for the forbidden-symbol scan.
+# The script then exited 1 having printed no reason, i.e. it read as "a test
+# failed", which is precisely the confusion this block was added to remove.
 set +e
 "$OUT/test_drill_machine.exe"
 rc=$?
-set -e
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   # A BINARY THAT WILL NOT LAUNCH IS NOT A FAILING TEST, and reporting it as
   # one sends the reader to the wrong place. 127 is the missing-DLL case; a
