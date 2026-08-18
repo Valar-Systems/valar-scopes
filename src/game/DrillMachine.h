@@ -125,6 +125,20 @@ struct Config {
   uint32_t terminal_us = 30000000u;
   /// How long the paper strip takes to print. Cosmetic; not a published rule.
   uint32_t print_us = 1200000u;
+
+  /// The scoring bucket, in microseconds. ZERO MEANS UNKNOWN, and unknown is
+  /// not zero-the-number -- it is "the server has not told us yet".
+  ///
+  /// NO DEFAULT, unlike `window_us` above, and the asymmetry is the point.
+  /// The 2 s window is a §12 PUBLISHED constant: part of the fiction, and it
+  /// cannot move without a design change. The bucket is an OPERATIONAL knob
+  /// with a `GAME_SCORE_BUCKET_S` env override on the server, so a default
+  /// baked here would be a second copy that drifts the first time it is tuned
+  /// -- and it would drift into a plausible number rather than an error.
+  ///
+  /// A device that has not fetched /config has no figure to show. Saying so is
+  /// the honest screen; guessing 0.2 is how the two sides stop agreeing.
+  uint32_t bucket_us = 0;
 };
 
 /// Everything a renderer needs, and nothing it would have to compute.

@@ -27,6 +27,7 @@
 #include "../eam/EamTheme.h"
 #include "BandCanvas.h"
 #include "DrillMachine.h"
+#include "GameFormat.h"
 
 namespace game {
 
@@ -36,7 +37,17 @@ namespace game {
 /// The palette is PASSED IN, not chosen here. Rail 4 locks it, and the app owns
 /// which of the two it is running -- a renderer that picked its own would be a
 /// second place the colours are decided.
-void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, uint64_t nowUs);
+/// `cfg` is here because the DISPLAY UNIT is a served rule, not a local choice.
+///
+/// The first version of this file rendered the deviation in tenths, with a
+/// comment above it citing the 0.2 s bucket -- so the same sortie read `0.3 s`
+/// on the device and `0.4` on the leaderboard. Nothing was wrong with either
+/// number in isolation, which is why it survived review: it is the contract
+/// between them that was never exercised. The bucket now arrives from the
+/// server through Config, and test/host/test_game_format.cpp grades the result
+/// against strings the server itself produced.
+void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, const Config& cfg,
+               uint64_t nowUs);
 
 }  // namespace game
 
