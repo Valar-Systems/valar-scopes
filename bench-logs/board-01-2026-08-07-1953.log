@@ -1,0 +1,75 @@
+=== [capture] started 2026-08-07 19:53:36 pid=191780 ===
+=== [capture] attached port=COM119 2026-08-07 19:53:36 pid=191780 ===
+ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=292376
+*wm:[2] [SYS] WM version:  v2.0.17 D:4
+*wm:[2] [SYS] Arduino version:  3.3.9
+*wm:[2] [SYS] ESP SDK version:  v5.5.4
+*wm:[2] [SYS] Free heap:        292328
+*wm:[2] [SYS] Chip ID: 828993680
+*wm:[2] [SYS] Chip Model: ESP32-S3
+*wm:[2] [SYS] Chip Cores: 2
+*wm:[2] [SYS] Chip Rev: 2
+*wm:[2] v2.0.17  D:4
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+*wm:[2] AutoConnect 
+*wm:[3] Setting Hostnames:  Blipscope-31D918
+*wm:[3] Setting WiFi hostname 
+*wm:[3] ESP32 event handler enabled 
+*wm:[3] Connecting as wifi client... 
+*wm:[4] STA static IP:
+*wm:[3] setSTAConfig static ip not set, skipping 
+*wm:[2] Connect Wifi, ATTEMPT # 1 of 5
+*wm:[2] No wifi saved, skipping 
+*wm:[3] Connection result: WL_NO_SSID_AVAIL
+*wm:[2] Connect Wifi, ATTEMPT # 2 of 5
+*wm:[2] No wifi saved, skipping 
+*wm:[3] Connection result: WL_NO_SSID_AVAIL
+*wm:[2] Connect Wifi, ATTEMPT # 3 of 5
+*wm:[2] No wifi saved, skipping 
+*wm:[3] Connection result: WL_NO_SSID_AVAIL
+*wm:[2] Connect Wifi, ATTEMPT # 4 of 5
+*wm:[2] No wifi saved, skipping 
+*wm:[3] Connection result: WL_NO_SSID_AVAIL
+*wm:[2] Connect Wifi, ATTEMPT #[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+ 5 of 5
+*wm:[2] No wifi saved, skipping 
+*wm:[3] Connection result: WL_NO_SSID_AVAIL
+*wm:[4] lastconxresult: WL_NO_SSID_AVAIL
+*wm:[2] AutoConnect: FAILED for  66 ms
+*wm:[3] Starting Config Portal 
+*wm:[4] WiFi station disconnect 
+*wm:[4] WiFi_enableSTA enable
+*wm:[3] Disabling STA 
+*wm:[3] Enabling AP 
+*wm:[2] StartAP with SSID:  Blipscope-31D918
+*wm:[3] AP has anonymous access! 
+*wm:[2] SoftAP Configuration 
+*wm:[2] -------------------- 
+*wm:[2] ssid:             Blipscope-31D918
+*wm:[2] password:         
+*wm:[2] ssid_len:         16
+*wm:[2] channel:          1
+*wm:[2] authmode:        
+*wm:[2] ssid_hidden:     
+*wm:[2] max_connection:   4
+*wm:[2] country:          01 ??
+*wm:[2] beacon_interval:  100(ms)
+*wm:[2] -------------------- 
+*wm:[2] AP IP address: 192.168.4.1
+*wm:[3] setting softAP Hostname: Blipscope-31D918
+*wm:[4] hostname: AP:  Blipscope-31D918
+*wm:[3] [CB] _apcallback calling 
+*wm:[4] setupConfigPortal 
+*wm:[2] Starting Web Portal 
+*wm:[3] HTTP server started 
+*wm:[4] setupDNSD 
+*wm:[4] dns server started with ip:  192.168.4.1
+*wm:[3] Config Portal Running, blocking, waiting for clients... 
+*wm:[3] Portal Timeout In 180 seconds
+*wm:[3] Portal Timeout In 153 seconds

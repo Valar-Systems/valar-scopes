@@ -1,0 +1,29 @@
+=== [capture] started 2026-08-07 20:23:00 pid=197964 ===
+=== [capture] attached port=COM118 2026-08-07 20:23:00 pid=197964 ===
+
+[build] env=blipscope-s3-128 fw=v5 features=no-cloud
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=5
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8326252 heap_free=290240
+*wm:v2.0.17  D:2
+[WiFi] no saved credentials: portal stays up indefinitely for first setup
+[wifi-reset] boot touch window: driver=1 polls=147 touched=0
+[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-58 dBm
+[WiFi] fast join OK in 1750 ms
+[WiFi] pinned AP ch=1 RSSI=-58 dBm for the next boot
+[ota] channel=s3-128 current=5 latest=4
+[web] CONTROL: :80 -> 1, :8080 -> 0, :81 -> 0
+[web] config server listening on :80 (http://Blipscope-326E20.local)
+[logbook] loaded 220 types (75 claimed), 120 airlines (9), 38 countries (3), 17561 contacts
+[adsbdb] a9fd11 -> type=R44 operator=Leading Edge Flight Academy reg=N7425T
+[dim] brightness -> 51 (night)
+[adsbdb] a214de -> type=E75L operator=American Eagle reg=N233NN
+[adsbdb] acaec5 -> unknown aircraft
+[health] frame avg=30.2ms p95=30.8ms max=32.5ms  n=3 ap=329  heap free=90084 largest=42996 free8=90084 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=3/2  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[perf] 2026-08-08T03:24:00Z polls=1 busy=4%(fetch=1% enrich=3%) parse=1ms/poll bytes=0/poll ac=3/3 lag=avg0ms,max0ms gapMax=0ms episodes=0 cache=H0/S0/M0 enrichReqs=3
+[health] frame avg=30.2ms p95=30.8ms max=31.9ms  n=3 ap=329  heap free=89808 largest=42996 free8=89808 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=3/2  interval=217632ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
