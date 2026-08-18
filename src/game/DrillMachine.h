@@ -9,8 +9,14 @@
 //
 // So: no LVGL, no BandCanvas, no Arduino.h, no ESP-IDF. No millis(), no Serial,
 // no String, no heap. Time arrives as a parameter. The only includes are
-// <stdint.h> and <stddef.h>, and test/host/no-arduino.cpp exists to make the
+// <stdint.h> and <stddef.h>, and test/host/no_arduino.cpp exists to make the
 // build FAIL if that ever stops being true.
+//
+// BOTH of them, explicitly. <stddef.h> was missing for one commit: MinGW pulls
+// size_t in through <stdint.h> transitively and the xtensa toolchain does not,
+// so the host rig was green and the device build failed. The host rig proves
+// the logic; it does not prove the TU compiles for the board, and nothing
+// should read it as doing so.
 //
 // Inputs are (event, monotonic_us). Outputs are a phase plus the plain values a
 // renderer would draw. A renderer consumes State and holds nothing.
@@ -51,6 +57,7 @@
 #ifndef BLIPSCOPE_GAME_DRILLMACHINE_H
 #define BLIPSCOPE_GAME_DRILLMACHINE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace game {

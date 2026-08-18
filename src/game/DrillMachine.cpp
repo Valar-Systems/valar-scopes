@@ -185,11 +185,27 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
     case Phase::Committed:
       // §3 step 5 — the fleet may second or inhibit. The device waits; nothing
       // here animates, because nothing has been decided.
+      //
+      // ---------------------------------------------------------------------
+      // THIS PARK IS A RULING, NOT AN UNFINISHED BRANCH.
+      //
+      // Recorded in valar-eam-feed/docs/standing-rulings.md under Device,
+      // because a park reads as a gap and the obvious next edit is to fill it
+      // in with a timer.
+      //
+      // §3 step 6's published 30-second terminal countdown begins when the
+      // launch vote RESOLVES — seconded, inhibited, or the dead-man timer
+      // expiring. That resolution is the SERVER's to report. A device that
+      // starts its own countdown is manufacturing a detonation result it does
+      // not have, on a product whose entire tone posture rests on never doing
+      // that. It would also be a second implementation of an outcome the
+      // server already owns, which is how the deviation curve would drift if
+      // it were duplicated here.
+      //
+      // So the honest state is: committed, and waiting. D7 wires the
+      // resolution in and Phase::Terminal is entered from it.
+      // ---------------------------------------------------------------------
       if (ev == Event::Tick) {
-        // Terminal begins when the vote resolves. In the solo path there is no
-        // second crew, so the dead-man timer expiring is what proceeds — and
-        // that resolution is the SERVER's to report. Until it is wired (D7),
-        // the drill parks here rather than inventing an outcome.
         st_.until_impact_us = 0;
       }
       return;
