@@ -54,92 +54,29 @@
 #include "LGFX.h"
 #include "Layout.h"
 #include "ProbeProvenance.h"
+#include "BandCanvas.h"
+#include "game/DrawDrill.h"
 #include "game/DrillMachine.h"
 
 namespace {
 
 LGFX tft;
 
-/// The screen-state recorder. Fixed buffers, no heap: this runs in a draw path.
-class ScreenState {
- public:
-  static void Begin(uint32_t frame, const char* phase) {
-    len_ = 0;
-    Serial.printf("%u,%s", (unsigned)frame, phase);
-  }
-  static void Text(const char* id, const char* value) {
-    Serial.printf(",text:%s=%s", id, value);
-  }
-  static void Num(const char* id, long value) {
-    Serial.printf(",num:%s=%ld", id, value);
-  }
-  static void Rect(const char* id, int x, int y, int w, int h) {
-    Serial.printf(",rect:%s=%d,%d,%d,%d", id, x, y, w, h);
-  }
-  static void Arc(const char* id, int deg) {
-    Serial.printf(",arc:%s=%d", id, deg);
-  }
-  static void Flag(const char* id, bool on) {
-    Serial.printf(",flag:%s=%d", id, on ? 1 : 0);
-  }
-  static void End() { Serial.println(); }
-
- private:
-  static size_t len_;
-};
-size_t ScreenState::len_ = 0;
-
-const char* PhaseName(game::Phase p) {
-  switch (p) {
-    case game::Phase::Idle: return "idle";
-    case game::Phase::Offered: return "offered";
-    case game::Phase::Printing: return "printing";
-    case game::Phase::Authenticate: return "authenticate";
-    case game::Phase::WarPlan: return "warplan";
-    case game::Phase::Enable: return "enable";
-    case game::Phase::Armed: return "armed";
-    case game::Phase::Window: return "window";
-    case game::Phase::Committed: return "committed";
-    case game::Phase::Terminal: return "terminal";
-    case game::Phase::Complete: return "complete";
-    case game::Phase::Aborted: return "aborted";
-  }
-  return "?";
-}
-
-/// A stand-in for D4's DrawDrill, deliberately minimal.
+/// The real renderer, on a real backbuffer.
 ///
-/// It exists so this probe can be landed and exercised BEFORE D4 -- the
-/// runbook's whole purpose is that the bench session does not wait on the
-/// software queue. When DrawDrill lands it replaces this body and the log
-/// format does not move, so the fixture captured today still grades it.
+/// THE STAND-IN IS GONE. This probe shipped with a minimal DrawAndLog so it
+/// could be landed and flashed before D4 existed -- the bench session must not
+/// wait on the software queue. D4 landed, the log format did not move, and the
+/// probe now drives the SAME function the device draws with. A fixture captured
+/// against a stand-in would have graded the stand-in.
+LGFX_Sprite g_back(&tft);
+uint64_t g_now = 0;
+
 void DrawAndLog(uint32_t frame, const game::State& st) {
-  const int c = SCREEN_SIZE / 2;
-  ScreenState::Begin(frame, PhaseName(st.phase));
-
-  tft.fillScreen(TFT_BLACK);                      ScreenState::Rect("bg", 0, 0, SCREEN_SIZE, SCREEN_SIZE);
-
-  // EXERCISE marking, on every frame, in every phase. Tone rail, absolute.
-  tft.setTextDatum(middle_center);
-  tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-  tft.drawString("EXERCISE", c, 18);              ScreenState::Text("exercise", "EXERCISE");
-
-  if (st.phase == game::Phase::Armed) {
-    const long secs = (long)(st.until_window_us / 1000000ull);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(String(secs).c_str(), c, c);   ScreenState::Num("countdown_s", secs);
-  }
-  if (st.phase == game::Phase::Window) {
-    tft.drawCircle(c, c, c - 6, TFT_GREEN);       ScreenState::Arc("window_ring", 360);
-  }
-  if (st.phase == game::Phase::Printing) {
-    ScreenState::Num("print_permille", st.progress_permille);
-  }
-  ScreenState::Flag("committed", st.committed);
-  ScreenState::Flag("executed", st.executed);
-  if (st.executed) ScreenState::Num("deviation_us", (long)st.deviation_us);
-  if (st.note[0] != '\0') ScreenState::Text("note", st.note);
-  ScreenState::End();
+  (void)frame;  // DrawDrill carries its own log sequence.
+  BandCanvas c(g_back, 0);
+  game::DrawDrill(c, eam::PaletteGreen(), st, g_now);
+  g_back.pushSprite(0, 0);
 }
 
 /// One scripted drill, driven at a fixed frame cadence with a key turn at a
@@ -164,6 +101,7 @@ void RunScript(const char* label, int64_t key_offset_us, bool key_at_all) {
     if (frame == 50) m.Step(game::Event::PlayerConfirmWarPlan, now);
     if (frame == 55) m.Step(game::Event::PlayerEnable, now);
     m.Step(game::Event::Tick, now);
+    g_now = now;
     if (key_at_all && !keyed && (int64_t)now >= (int64_t)T + key_offset_us) {
       m.Step(game::Event::PlayerKeyTurn, now);
       keyed = true;
@@ -190,7 +128,14 @@ void setup() {
   variant::BoardPreInit();
   tft.init();
   tft.setRotation(0);
-  tft.setTextDatum(middle_center);
+  // A PSRAM backbuffer, exactly as the app uses: a frame log captured against a
+  // sprite in internal RAM would be a fixture about a machine we do not ship.
+  g_back.setPsram(true);
+  g_back.setColorDepth(16);
+  if (!g_back.createSprite(SCREEN_SIZE, SCREEN_SIZE)) {
+    Serial.println("# FATAL: backbuffer alloc failed -- this run is not evidence");
+    return;
+  }
 
   RunScript("clean execution", 300000, true);
   RunScript("perfect execution", 0, true);
