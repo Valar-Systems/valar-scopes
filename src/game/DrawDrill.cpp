@@ -211,6 +211,12 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
 
     case Phase::Committed:
       Centre(c, "EXECUTION LOGGED", kC - 14, palette.accent);    SS_TEXT("body", "EXECUTION LOGGED");
+      // THE COMMENT THAT USED TO BE HERE claimed this rendered "in the 0.2 s
+      // bucket §13 A.3 ruled", directly above `st.deviation_us / 100000`, which
+      // is tenths. Every sentence in it was true and it was not a description
+      // of the line beneath it. Ledger 38 — a compliance claim in the one
+      // position a reader trusts most.
+      //
       // THE DEVIATION IS DISPLAYED, NOT SCORED. The server owns the curve; this
       // is the raw offset the device measured, quantized into the SERVED bucket
       // so the figure here is the figure the leaderboard shows for the same

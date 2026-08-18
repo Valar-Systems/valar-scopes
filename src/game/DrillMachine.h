@@ -42,11 +42,23 @@
 // one before the arm runs land would be writing against a measurement that does
 // not exist.
 //
-// RAIL 3 — THE DEVICE DOES NOT INVENT SCORING. There is no bucketS,
-// metresPerBucket, shackFloorM, maxMissM or clockFloorMs here, and no deviation
-// curve. The machine records WHEN the key turned relative to T and reports the
-// signed offset in microseconds. Scoring happens on the server. Two
+// RAIL 3 — THE DEVICE DOES NOT INVENT SCORING, OR ITS PRESENTATION. There is no
+// bucketS, metresPerBucket, shackFloorM, maxMissM or clockFloorMs here, and no
+// deviation curve. The machine records WHEN the key turned relative to T and
+// reports the signed offset in microseconds. Scoring happens on the server. Two
 // implementations of the deviation curve is how the fiction drifts.
+//
+// EXTENDED after the renderer shipped a second implementation of the
+// QUANTIZATION while obeying the constants perfectly. There was no `0.2`
+// anywhere in it; it divided by 100000 and produced tenths, so one sortie read
+// `+0.3 s` here and `0.4` on the leaderboard. Rounding direction, bucket width
+// and decimal places are not constants, so sharing constants cannot detect a
+// disagreement about any of them.
+//
+// A shared constant proves the two sides agree about a NUMBER. Only a shared
+// OUTPUT proves they agree about what to do with it — which is why the figure
+// is graded against strings the server itself produced (src/game/GameFormat.h,
+// test/fixtures/). See valar-eam-feed docs/verification-ledger.md entry 38.
 //
 // The 2-second cooperative window IS a published constant (§12, Nuclear
 // Companion) — but it is passed in through Config rather than baked here, so
