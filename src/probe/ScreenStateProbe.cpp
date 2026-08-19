@@ -88,10 +88,27 @@ LGFX tft;
 LGFX_Sprite g_back(&tft);
 uint64_t g_now = 0;
 
+/// The config the scripted drills run under.
+///
+/// The bucket is set to what /config serves TODAY, and is written here rather
+/// than left at its zero default because a capture in which every deviation
+/// renders "TIMING RECORDED" would exercise the wrong branch and produce a
+/// fixture that says nothing about the figure. It is a probe-local stand-in for
+/// a fetch, and the value is stamped into the provenance block so a reader can
+/// tell it apart from a served one.
+game::Config g_cfg = [] {
+  game::Config c;
+  c.bucket_us = 200000u;  // 0.2 s, per test/fixtures/game-config.json
+  return c;
+}();
+
 void DrawAndLog(uint32_t frame, const game::State& st) {
   (void)frame;  // DrawDrill carries its own log sequence.
   BandCanvas c(g_back, 0);
-  game::DrawDrill(c, eam::PaletteGreen(), st, g_now);
+  // The bucket comes from the machine's Config exactly as it will on a real
+  // device -- the probe must not hand the renderer a value the firmware would
+  // not have, or the capture stops describing the shipping path.
+  game::DrawDrill(c, eam::PaletteGreen(), st, g_cfg, g_now);
   g_back.pushSprite(0, 0);
 }
 
@@ -103,7 +120,7 @@ void RunScript(const char* label, int64_t key_offset_us, bool key_at_all) {
                 label, key_at_all ? "" : "NOT PRESSED, ", (long long)key_offset_us);
   Serial.println("frame,phase,fields...");
 
-  game::DrillMachine m;
+  game::DrillMachine m(g_cfg);
   const uint64_t T = 5000000ull;  // 5 s in, so the countdown is visible
   m.SetT(T);
 

@@ -36,6 +36,9 @@
 namespace game {
 namespace {
 
+using game::DeviationSense;
+using game::Sense;
+
 constexpr int kC = SCREEN_SIZE_DIV_2;
 
 const char* PhaseName(Phase p) {
@@ -54,6 +57,16 @@ const char* PhaseName(Phase p) {
     case Phase::Aborted:      return "aborted";
   }
   return "?";
+}
+
+/// EARLY / LATE / ON TIME, beside the figure rather than inside it.
+const char* SenseWord(int64_t deviationUs) {
+  switch (DeviationSense(deviationUs)) {
+    case Sense::Early: return "EARLY";
+    case Sense::Late:  return "LATE";
+    case Sense::Exact: return "ON TIME";
+  }
+  return "";
 }
 
 /// Centred text. BandCanvas exposes textWidth but not setTextDatum, so the
@@ -130,7 +143,8 @@ void DrawBezel(BandCanvas& c, const eam::Palette& palette, const State& st) {
 
 }  // namespace
 
-void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, uint64_t nowUs) {
+void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, const Config& cfg,
+               uint64_t nowUs) {
   static uint32_t frame = 0;  // LOG SEQUENCE ONLY. Never read by any draw call.
   SS_BEGIN(frame++, PhaseName(st.phase));
 
@@ -197,15 +211,35 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, uint
 
     case Phase::Committed:
       Centre(c, "EXECUTION LOGGED", kC - 14, palette.accent);    SS_TEXT("body", "EXECUTION LOGGED");
-      // THE DEVIATION IS DISPLAYED, NOT SCORED. The server owns the curve and
-      // the bucket (rail 3); this shows the raw offset the device measured, in
-      // the 0.2 s bucket §13 A.3 ruled -- so a reader is told what was measured
-      // rather than what it was worth.
+      // THE COMMENT THAT USED TO BE HERE claimed this rendered "in the 0.2 s
+      // bucket §13 A.3 ruled", directly above `st.deviation_us / 100000`, which
+      // is tenths. Every sentence in it was true and it was not a description
+      // of the line beneath it. Ledger 38 — a compliance claim in the one
+      // position a reader trusts most.
+      //
+      // THE DEVIATION IS DISPLAYED, NOT SCORED. The server owns the curve; this
+      // is the raw offset the device measured, quantized into the SERVED bucket
+      // so the figure here is the figure the leaderboard shows for the same
+      // sortie. game::FormatDeviation is graded against the server's own
+      // formatter output -- see test/fixtures/game_config_fixture.h.
+      //
+      // The MAGNITUDE and the DIRECTION are separate on purpose: the server
+      // renders a magnitude, so a sign inside the number would be a
+      // disagreement dressed as a formatting preference, and dropping early-vs-
+      // late would throw away something the player earned.
       if (st.executed) {
-        const long tenths = (long)(st.deviation_us / 100000);
-        char buf[24];
-        snprintf(buf, sizeof(buf), "%+ld.%ld s", tenths / 10, (tenths < 0 ? -tenths : tenths) % 10);
-        Centre(c, buf, kC + 6, palette.dim);                     SS_NUM("deviation_us", (long)st.deviation_us);
+        char figure[game::kDeviationTextMax];
+        if (FormatDeviation(st.deviation_us, cfg.bucket_us, figure, sizeof(figure))) {
+          char line[40];
+          snprintf(line, sizeof(line), "%s %s s", SenseWord(st.deviation_us), figure);
+          Centre(c, line, kC + 6, palette.dim);                  SS_TEXT("deviation", line);
+        } else {
+          // NO SERVED BUCKET, SO NO NUMBER. Inventing one here is how the two
+          // sides quietly stop agreeing; §13 A.3's floor is the server's to
+          // publish, and an unconfigured device has not been told it yet.
+          Centre(c, "TIMING RECORDED", kC + 6, palette.dim);      SS_TEXT("deviation", "unbucketed");
+        }
+        SS_NUM("deviation_us", (long)st.deviation_us);
       }
       // §3 step 6 waits on the server's resolution and this screen says so
       // rather than starting a countdown. See the ruling in DrillMachine.cpp.
