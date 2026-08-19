@@ -146,8 +146,32 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(st.textContent='saving...';st.style.color='';st.style.fontWeight='';)" \
     R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){)" \
     R"(st.textContent=t;var w=/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
+    /* Only on a CLEAN save. A response containing MISSING means the device \
+       rejected something, and ticking off a step the device did not accept would \
+       be the checklist lying in the other direction. Null-guarded because this \
+       script is shared by every edition and only the radar page defines it. */ \
+    R"(if(!w&&window.bpSetupDone)window.bpSetupDone();)" \
     R"(if(miss.length){miss[0].scrollIntoView({block:'center'});miss[0].focus()}}).catch(function(){st.textContent='save failed - device unreachable'})});)" \
     R"(document.getElementById('resetwifi').addEventListener('click',function(){if(!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.'))return;fetch('/reset-wifi',{method:'POST',headers:{'X-Blipscope':'1'}}).then(function(r){return r.text()}).then(function(t){document.getElementById('result').textContent=t})});)" \
+    /* Factory reset. EVERY LOOKUP IS NULL-GUARDED: this script is shared by every \
+       edition's page and only the radar page carries the factory block, so an \
+       unguarded getElementById here would throw and take the SAVE handler above \
+       down with it on six other products. */ \
+    R"(var fO=document.getElementById('factoryopen'),fP=document.getElementById('factorypanel'),)" \
+    R"(fW=document.getElementById('factoryword'),fG=document.getElementById('factorygo'),)" \
+    R"(fC=document.getElementById('factorycancel');)" \
+    R"(if(fO&&fP&&fW&&fG&&fC){)" \
+    R"(fO.addEventListener('click',function(){fP.style.display='block';fO.style.display='none';fW.focus()});)" \
+    R"(fC.addEventListener('click',function(){fP.style.display='none';fO.style.display='';fW.value='';fG.disabled=true});)" \
+    /* The typed word gates the BUTTON, not the request -- the device checks it \
+       again. Exact match, uppercase only: a case-insensitive compare would let \
+       "reset" through, and this is the one control where making it easier is the \
+       wrong direction. */ \
+    R"(fW.addEventListener('input',function(){fG.disabled=(fW.value!=='RESET')});)" \
+    R"(fG.addEventListener('click',function(){if(fW.value!=='RESET')return;)" \
+    R"(var b=new FormData();b.append('confirm','RESET');)" \
+    R"(fetch('/factory-reset',{method:'POST',headers:{'X-Blipscope':'1'},body:b}).then(function(r){return r.text()}).then(function(t){document.getElementById('result').textContent=t});)" \
+    R"(})})" \
     R"(var shBr=document.querySelector('input[name=brightness]'),shBv=document.getElementById('brival');)" \
     R"(if(shBr&&shBv){var shSync=function(){shBv.textContent=shBr.value};shBr.addEventListener('input',shSync);shSync()})" \
     R"(var shLa=document.querySelector('input[name=latitude]'),shLo=document.querySelector('input[name=longitude]');)" \
@@ -222,7 +246,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
        render off stNeedKey. Only the CONDITION was missing, never the action. */ \
     R"(var stRefused=(window.BP_REFUSED==='1');)" \
     R"(var stNeedKey=(window.BP_ENROLLED==='0')||stRefused;)" \
-    R"(if(stNeedLoc||stNeedKey){var stB=document.createElement('div');)" \
+    R"(if(stNeedLoc||stNeedKey){var stB=document.createElement('div');stB.id='bpBanner';)" \
     R"(stB.style.cssText='background:#4a0000;color:#ffd9d9;border:1px solid #ff4d4d;border-radius:6px;padding:12px 14px;margin:10px 0';)" \
     /* A refused board is not a new board, and must not be greeted as one. It was \
        working; something server-side stopped accepting its key -- most likely a \
@@ -237,7 +261,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(var s=document.createElement('b');s.textContent=(done?'DONE - ':n+'. ')+t;d.appendChild(s);)" \
     R"(if(!done){d.appendChild(document.createTextNode(' '+b))}else{d.style.color='#9fe6a0'})" \
     R"(stB.appendChild(d);return d})" \
-    R"(stStep(1,'Set your location.','The radar draws the sky around you. Until it has a location, the screen stays empty.',!stNeedLoc);)" \
+    R"(var stS1=stStep(1,'Set your location.','The radar draws the sky around you. Until it has a location, the screen stays empty.',!stNeedLoc);stS1.id='bpStep1';)" \
     R"(var stK=stStep(2,stRefused?'Re-verify this device.':'Verify this device.',stRefused?'The server is no longer accepting this device key, so the screen has stopped filling. One click restores it. Nothing else on this page needs changing, and your logbook is untouched.':'Verification is how a self-flashed board gets aircraft data. Without it the screen stays empty even with a location set. One click, once per board. It also puts you on the leaderboard under your own standing.',!stNeedKey);)" \
     R"(if(stNeedKey){var stW=document.createElement('div');stW.style.cssText='margin-top:8px';)" \
     R"(var stBtn=document.createElement('button');stBtn.type='button';stBtn.id='bpVerify';)" \
@@ -247,6 +271,28 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(stAlt.textContent='No internet on this machine? Open scopes.valarsystems.com/enroll?id='+window.BP_DEVID+' on your phone, then paste the key into Access key below.';)" \
     R"(stW.appendChild(stBtn);stW.appendChild(stAlt);stK.appendChild(stW)})" \
     R"(var shF=document.getElementById('cfg');shF.parentNode.insertBefore(stB,shF);)" \
+    /* THE CHECKLIST IS BUILT ONCE, AT LOAD, AND SAVING IS AN ASYNC FETCH -- so \
+       nothing re-evaluated it and a customer who had just entered their location \
+       still read "1. Set your location" until they refreshed. The page was \
+       telling them the step was outstanding immediately after they completed it, \
+       which on the one screen somebody reads when setup is not working is the \
+       worst possible place to be wrong. \
+       \
+       Re-checked from the LIVE input values rather than from a flag set at save \
+       time: the inputs are what the customer sees, so reading them is the only \
+       version that cannot disagree with the screen. */ \
+    R"(window.bpSetupDone=function(){var b=document.getElementById('bpBanner');if(!b)return;)" \
+    R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]');)" \
+    R"(if(!la||!lo||!String(la.value).trim()||!String(lo.value).trim())return;)" \
+    /* The location is set. If verification was the only other outstanding step \
+       and it is done too, the whole block goes -- an empty checklist is not a \
+       checklist. Otherwise step 1 collapses to a tick and step 2 stays, which is \
+       the same "still reads as a list of two" rule the block was built on. */ \
+    R"(if(!((window.BP_ENROLLED==='0')||(window.BP_REFUSED==='1'))){b.parentNode.removeChild(b);return})" \
+    R"(var s1=document.getElementById('bpStep1');if(!s1)return;)" \
+    R"(while(s1.firstChild)s1.removeChild(s1.firstChild);)" \
+    R"(var d=document.createElement('b');d.textContent='DONE - Set your location.';)" \
+    R"(s1.appendChild(d);s1.style.color='#9fe6a0'};)" \
     R"(if(stNeedLoc){[shLa,shLo].forEach(function(i){i.style.outline='2px solid #ff4d4d';i.style.background='#4a0000';)" \
     R"(i.addEventListener('input',function(){i.style.outline='';i.style.background=''})})}})" \
     /* THE POPUP IS A CONVENIENCE, NOT A BOUNDARY. It carries the device id so the \
@@ -822,6 +868,43 @@ R"(
                         portal. Your location, settings and spotting logbook are kept.
                     </div>
                     <div class="mt"><button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button></div>
+
+                    <!-- ------------------------------------------------------------------
+                         FACTORY RESET, VISUALLY SEPARATED FROM THE ONE ABOVE.
+
+                         The rule and the divider are load-bearing. These two controls have
+                         similar names and wildly different consequences, and a customer
+                         scanning for "the reset button" will find whichever is nearer. So
+                         the destructive one is below a line, in its own block, and cannot
+                         be pressed at all until a word has been typed.
+
+                         The export link is inside the confirmation panel rather than beside
+                         it: it is only shown to somebody who has already opened the thing
+                         that will delete the logbook, which is the exact moment the offer
+                         to save a copy is worth anything.
+                         ------------------------------------------------------------------ -->
+                    <hr class="mt" style="border:0;border-top:1px solid #333;margin:18px 0">
+                    <div class="hint">
+                        <b style="color:#ff4d4d">Factory reset</b> erases everything this device
+                        knows about you &mdash; your spotting logbook, location and radius,
+                        leaderboard opt-in and display name, and the WiFi network. It restarts
+                        into setup mode. This cannot be undone.
+                    </div>
+                    <div class="mt"><button type="button" id="factoryopen" class="btn-danger">Factory reset&hellip;</button></div>
+                    <div id="factorypanel" class="mt" style="display:none;border:1px solid #ff4d4d;border-radius:6px;padding:12px">
+                        <div class="hint">
+                            <b>Save your logbook first.</b>
+                            <a href="/logbook.json?download=1">Download a copy</a> &mdash; once this
+                            device is erased there is no other copy of it.
+                        </div>
+                        <div class="hint mt">Type <b>RESET</b> to enable the button:</div>
+                        <input type="text" id="factoryword" autocomplete="off" autocapitalize="characters"
+                               spellcheck="false" placeholder="RESET" style="max-width:10em">
+                        <div class="mt">
+                            <button type="button" id="factorygo" class="btn-danger" disabled>Erase everything</button>
+                            <button type="button" id="factorycancel">Cancel</button>
+                        </div>
+                    </div>
                 </div>
 
                 </div><!-- /content -->
@@ -3306,7 +3389,36 @@ void ConfigurationWebServer::Initialise() {
         if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
         Serial.println("[POST] Clearing WiFi credentials and restarting...");
         request->send(200, "text/html", "WiFi cleared - restarting into setup mode. Reconnect to the device's setup network.");
-        wifiResetRequested = true;
+        RequestReset(factoryreset::Tier::Wifi);
+        }
+    );
+
+    /* -----------------------------------------------------------------------
+     * FACTORY RESET -- a separate route, and a separate confirmation.
+     *
+     * NOT a parameter on /reset-wifi. The two tiers differ by everything the
+     * customer cares about, and sharing an endpoint would mean one typo in a
+     * query string is the difference between "forget my wifi" and "erase my
+     * logbook". Separate paths cannot be confused for each other by accident.
+     *
+     * The typed word is checked HERE as well as in the page. The page's gate is
+     * what makes the button hard to press by mistake; this one is what makes a
+     * stray POST -- a replayed request, a curl from history, a bookmarklet --
+     * not a wipe. Neither substitutes for the other.
+     * --------------------------------------------------------------------- */
+    server.on("/factory-reset", HTTP_POST, [&](AsyncWebServerRequest* request) {
+        if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
+        const AsyncWebParameter* confirm = request->getParam("confirm", true);
+        if (confirm == nullptr || confirm->value() != "RESET") {
+            Serial.println("[POST] factory reset REFUSED -- confirmation word absent or wrong");
+            request->send(400, "text/plain",
+                          "Confirmation required: type RESET to confirm. Nothing was erased.");
+            return;
+        }
+        Serial.println("[POST] Factory reset confirmed -- erasing and restarting...");
+        request->send(200, "text/html",
+                      "Factory reset - restarting into setup mode. Reconnect to the device's setup network.");
+        RequestReset(factoryreset::Tier::Factory);
         }
     );
 
@@ -3383,12 +3495,19 @@ bool ConfigurationWebServer::ConsumeConfigChanged()
     return true;
 }
 
-bool ConfigurationWebServer::ConsumeWifiReset()
+factoryreset::Tier ConfigurationWebServer::ConsumeResetTier()
 {
-    if (!wifiResetRequested)
-        return false;
-    wifiResetRequested = false;
-    return true;
+    const factoryreset::Tier t = (factoryreset::Tier)resetTierRequested;
+    resetTierRequested = 0;
+    return t;
+}
+
+void ConfigurationWebServer::RequestReset(factoryreset::Tier tier)
+{
+    // Larger wins. Two requests cannot realistically overlap here, but reading
+    // the flag as "at least this much" costs nothing and removes the one
+    // ordering in which a factory reset is downgraded to a wifi reset.
+    resetTierRequested = (uint8_t)factoryreset::Larger((factoryreset::Tier)resetTierRequested, tier);
 }
 
 const String ConfigurationWebServer::GetStoredString(const char* key)

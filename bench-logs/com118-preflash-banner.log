@@ -1,0 +1,36 @@
+﻿ESP-ROM:esp32s3-20210327
+
+[build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291860
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-57 dBm
+[WiFi] fast join OK in 1650 ms
+[WiFi] pinned AP ch=1 RSSI=-57 dBm for the next boot
+[ota] channel=s3-128 current=7 latest=7
+[web] config server listening on :80 (http://Blipscope-326E20.local)
+[logbook] loaded 290 types (145 claimed), 220 airlines (30), 41 countries (5), 31727 contacts
+[logbook] NVS 833/2646 entries used (1813 free); logbook budget ~2204, ceilings need 1375
+[cloud] no key override; using the factory-provisioned key
+[source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+[cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+[cloud] airports: 25 within 48 km
+[touch] 27925 press (233,80) inDetail=0
+[touch] 28003 release start=(233,80) end=(233,80) d=(0,0) held=78ms -> TAP
+[alert] 28003 visual alert dismissed by tap
+[health] frame avg=39.1ms p95=40.6ms max=46.1ms  n=27 ap=25  heap free=50004 largest=31732 free8=50004 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/8  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=3/0 maxOutage=0ms rebootRec=0
+[leaderboard] submit away after 0 ms (worst 0 ms)
+[leaderboard] rank #1/1, 1827 pts
+[health] frame avg=38.8ms p95=39.4ms max=48.0ms  n=24 ap=25  heap free=51404 largest=31732 free8=51404 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/20  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=6/0 maxOutage=0ms rebootRec=0
+[perf] 2026-08-19T20:10:55Z polls=10 busy=13%(fetch=1% enrich=11%) parse=7ms/poll bytes=1515/poll ac=26/26 lag=avg7100ms,max12000ms gapMax=5043ms episodes=0 cache=H0/S9/M1 enrichReqs=10
+[health] frame avg=39.5ms p95=40.4ms max=46.9ms  n=23 ap=25  heap free=52056 largest=31732 free8=52056 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/32  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=9/0 maxOutage=0ms rebootRec=0
+[health] frame avg=40.2ms p95=40.9ms max=47.3ms  n=23 ap=25  heap free=51316 largest=31732 free8=51316 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/44  interval=5000ms

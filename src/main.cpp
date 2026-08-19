@@ -10,6 +10,7 @@
 #include "Board.h"
 #include "BuildIdentity.h"
 #include "DeviceIdentity.h"
+#include "FactoryReset.h"
 #include "HeapHealth.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
@@ -285,9 +286,16 @@ void setup()
   // saved credentials would hang the boot. Costs 3 s on an ordinary boot; see
   // BootTouchToForget for why the window is that shape (the touch has to ARRIVE
   // after tft.init(), because tft.init() erases one that was already there).
+  //
+  // STILL A PRESS-AND-HOLD, AND SCHEDULED FOR REMOVAL. The CST816D may report
+  // no change interrupt under a static contact, which is what COM119 is
+  // currently measuring; this gesture is on the wrong side of that. It stays
+  // ONLY because it is presently the sole recovery path when touch works but
+  // the network is unreachable, and deleting it before the five-power-cycle
+  // failsafe is proven on hardware would leave that gap open. Removal is gated
+  // on that evidence, not on the replacement merely being written.
   if (WiFiManagerHelpers::BootTouchToForget(tft, backbuffer)) {
-    wm.resetSettings();
-    WiFiManagerHelpers::ForgetFastAp(); // the pinned BSSID belongs to the old network
+    factoryreset::Perform(factoryreset::Tier::Wifi, [&wm]() { wm.resetSettings(); });
     DrawSplash(tft, backbuffer, "Wi-Fi cleared", "Restarting into setup...");
     delay(1200);
     ESP.restart();
@@ -415,17 +423,22 @@ void loop()
   const uint32_t frameStartUs = micros();
 #endif
 
-  // Forget WiFi credentials and reboot into the setup portal when requested --
-  // from the config web page, or from the on-screen Stats reset (radar builds),
+  // Perform a requested reset and reboot into the setup portal -- from the
+  // config web page, or from the on-screen Stats reset menu (radar builds),
   // which is the path that still works when the device is off the network.
-  bool forgetWifi = configServer.ConsumeWifiReset();
+  //
+  // BOTH SOURCES ARE CONSUMED, then the larger tier wins. Short-circuiting on
+  // the first would leave the other's request latched to fire on the next pass,
+  // which after a reboot means a second, unrequested reset.
+  factoryreset::Tier tier = configServer.ConsumeResetTier();
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
-  forgetWifi = forgetWifi || appManager.ConsumeWifiReset();
+  tier = factoryreset::Larger(tier, appManager.ConsumeResetTier());
 #endif
-  if (forgetWifi) {
-    wm.resetSettings();
-    WiFiManagerHelpers::ForgetFastAp(); // pinned BSSID belongs to the network we just forgot
-    DrawSplash(tft, backbuffer, "Wi-Fi cleared", "Restarting into setup...");
+  if (tier != factoryreset::Tier::None) {
+    factoryreset::Perform(tier, [&wm]() { wm.resetSettings(); });
+    DrawSplash(tft, backbuffer,
+               tier == factoryreset::Tier::Factory ? "Factory reset" : "Wi-Fi cleared",
+               "Restarting into setup...");
     delay(1000); // let the HTTP response flush, and let the user read the screen
     ESP.restart();
   }

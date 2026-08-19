@@ -1,0 +1,72 @@
+﻿13:18:49 
+13:18:49 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+13:18:49 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+13:18:49 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+13:18:49 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=292124
+13:18:49 *wm:v2.0.17  D:2
+13:18:49 [WiFi] credentials saved: portal will time out after 180 s and retry them
+13:18:49 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+13:18:49 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+13:18:49 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+13:18:49 [WiFi] Associated with "Tony", waiting for IP...
+13:18:49 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-56 dBm
+13:18:49 [WiFi] fast join OK in 1750 ms
+13:18:49 [WiFi] pinned AP ch=1 RSSI=-56 dBm for the next boot
+13:18:49 [ota] channel=s3-128 current=7 latest=7
+13:18:49 [web] config server listening on :80 (http://Blipscope-326E20.local)
+13:18:49 [logbook] loaded 290 types (145 claimed), 220 airlines (30), 41 countries (5), 31727 contacts
+13:18:49 [logbook] NVS 833/2646 entries used (1813 free); logbook budget ~2204, ceilings need 1375
+13:18:49 [cloud] no key override; using the factory-provisioned key
+13:18:49 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+13:18:49 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+13:18:49 [cloud] airports: 25 within 48 km
+13:19:01 [health] frame avg=38.5ms p95=39.9ms max=42.9ms  n=19 ap=25  heap free=58432 largest=31732 free8=58432 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/8  interval=5000ms
+13:19:01 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+13:19:01 [leaderboard] submit away after 0 ms (worst 0 ms)
+13:19:03 [leaderboard] rank #1/1, 1827 pts
+13:19:30 [health] frame avg=39.2ms p95=40.1ms max=45.8ms  n=19 ap=25  heap free=57152 largest=31732 free8=57152 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/20  interval=5000ms
+13:19:31 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+13:19:31 [perf] 2026-08-19T20:19:32Z polls=10 busy=11%(fetch=1% enrich=10%) parse=4ms/poll bytes=1091/poll ac=18/18 lag=avg6500ms,max10000ms gapMax=5025ms episodes=0 cache=H0/S9/M1 enrichReqs=10
+13:19:43 [POST] Factory reset confirmed -- erasing and restarting...
+13:19:45 *wm:resetSettings 
+13:19:45 [POST] factory reset REFUSED -- confirmation word absent or wrong
+13:19:45 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+13:19:45 *wm:SETTINGS ERASED 
+13:19:45 [reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac
+13:19:45 [reset] NOTE leaderboard id is MAC-derived and unchanged; the server row is not released by this reset
+13:19:45 ESP-ROM:esp32s3-20210327
+13:19:46 Build:Mar 27 2021
+13:19:46 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+13:19:46 Saved PC:0x4037abd6
+13:19:46 SPIWP:0xee
+13:19:46 mode:DIO, clock div:1
+13:19:46 load:0x3fce2820,len:0x10cc
+13:19:46 load:0x403c8700,len:0xc2c
+13:19:46 load:0x403cb700,len:0x30c0
+13:19:46 entry 0x403c88b8
+13:19:46 
+13:19:47 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+13:19:47 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+13:19:47 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+13:19:47 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293752
+13:19:47 *wm:v2.0.17  D:2
+13:19:47 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+13:19:47 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+13:19:49 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+13:19:50 [  3389][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+13:19:50 *wm:AutoConnect 
+13:19:50 *wm:Connect Wifi, ATTEMPT # 1 of 5
+13:19:50 *wm:No wifi saved, skipping 
+13:19:50 *wm:Connect Wifi, ATTEMPT # 2 of 5
+13:19:50 *wm:No wifi saved, skipping 
+13:19:50 *wm:Connect Wifi, ATTEMPT # 3 of 5
+13:19:50 *wm:No wifi saved, skipping 
+13:19:50 *wm:Connect Wifi, ATTEMPT # 4 of 5
+13:19:50 *wm:No wifi saved, skipping 
+13:19:50 *wm:Connect Wifi, ATTEMPT # 5 of 5
+13:19:50 *wm:No wifi saved, skipping 
+13:19:50 *wm:[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+13:19:50 AutoConnect: FAILED for  20 ms
+13:19:50 *wm:StartAP with SSID:  Blipscope-326E20
+13:19:50 *wm:AP IP address: 192.168.4.1
+13:19:51 *wm:Starting Web Portal 
