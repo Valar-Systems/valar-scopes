@@ -49,6 +49,22 @@
  * Runbook: docs/bench-runbook-device-game.md, station 2.
  */
 
+// PROBE_SKETCH GUARD -- NOT OPTIONAL, AND NOT STYLE.
+//
+// This file defines setup() and loop(). Its env selects it with a
+// build_src_filter, but a filter is what puts a file IN a build; nothing keeps
+// it out of the others. The radar env's filter is `+<*>` plus a list of
+// exclusions, and `src/probe/` is not on that list -- so without this guard the
+// TU lands in every product build and the link dies on duplicate setup()/loop().
+//
+// Every other probe in this directory has carried this guard since the
+// directory existed. These two shipped without it and broke the default SKU's
+// link for the whole of PR #228, which nobody saw because D6 and D4 were each
+// verified by building THEIR OWN env. The shipping env was never built.
+// CLAUDE.md lists that exact asymmetry -- "the shipping env vs the CI matrix" --
+// as a known way this project breaks things silently. It did it again.
+#ifdef PROBE_SKETCH
+
 #include <Arduino.h>
 
 #include "LGFX.h"
@@ -148,3 +164,5 @@ void setup() {
 void loop() {
   delay(1000);
 }
+
+#endif // PROBE_SKETCH
