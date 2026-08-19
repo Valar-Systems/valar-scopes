@@ -65,6 +65,8 @@ interface RouteEntry {
 // Consulted at serve time only when the live DB record resolved empty, so it
 // can never fight fresher upstream data; no TTL (each ingest run overwrites).
 interface MilEntry {
+  /** Operator, from plane-alert-db or a hand override; Mictronics has none. */
+  op?: string;
   r?: string; // registration / serial
   t?: string; // ICAO type designator
   tn?: string; // friendly type name (the export's description)
@@ -292,12 +294,36 @@ export async function handleEnrich(
   let acR = acMeta?.r ?? "";
   let acT = acMeta?.t ?? "";
   let acTn = acMeta?.tn ?? "";
+  let acOpSide = "";
   if (!acR && !acT) {
-    const mil = await env.ENRICH_KV.get<MilEntry>(`mil:${hex}`, "json");
-    if (mil) {
-      acR = str(mil.r);
-      acT = normType(mil.t);
-      acTn = str(mil.tn) || (acT ? (TYPE_NAMES[acT] ?? "") : "");
+    // THREE SIDE TABLES, MOST AUTHORITATIVE FIRST. The order is expressed HERE,
+    // in the read path, and deliberately not by which loader ran last:
+    //
+    //   ovr:  hand-written per-hex overrides. Highest precedence because a human
+    //         decided it, and because it is the seam a tactical-code table would
+    //         grow out of (see the AE6842 note in scripts/README or the commit).
+    //   pa:   plane-alert-db (ODbL), curated military. PRIMARY for US military --
+    //         it has 217 P-8s in the AE block and carries the OPERATOR, where
+    //         Mictronics is a civil-registry aggregation and US military airframes
+    //         are not in civil registries by design.
+    //   mil:  Mictronics (ODC-By). Primary for everything else, which is most of
+    //         the world's military aviation.
+    //
+    // Two loaders writing one key and relying on "run this one second" works
+    // exactly until someone re-runs the other, and then silently reverts with
+    // nothing to see in either script.
+    const side =
+      (await env.ENRICH_KV.get<MilEntry>(`ovr:${hex}`, "json")) ??
+      (await env.ENRICH_KV.get<MilEntry>(`pa:${hex}`, "json")) ??
+      (await env.ENRICH_KV.get<MilEntry>(`mil:${hex}`, "json"));
+    if (side) {
+      acR = str(side.r);
+      acT = normType(side.t);
+      acTn = str(side.tn) || (acT ? (TYPE_NAMES[acT] ?? "") : "");
+      // plane-alert-db carries an operator; Mictronics has no column for one.
+      // Held aside rather than written straight into `op`, so the floor below
+      // still runs in the right order when this is empty.
+      acOpSide = str((side as { op?: string }).op);
     }
   }
 
@@ -330,7 +356,15 @@ export async function handleEnrich(
   // dbFlags as the catch-all generic. Never guesses types or registrations.
   let op = acMeta?.op ?? "";
   if (!op) {
-    op = militaryCallsignOperator(cs) || militaryOperator(hex) || (acMeta?.mil ? "Military" : "");
+    // A CURATED operator outranks every floor below it: "United States Navy" from
+    // plane-alert-db is a fact somebody recorded about this airframe, where
+    // militaryOperator() only knows what the ADDRESS BLOCK proves ("US military").
+    // Both are truthful; this one is more specific, so it goes first.
+    op =
+      acOpSide ||
+      militaryCallsignOperator(cs) ||
+      militaryOperator(hex) ||
+      (acMeta?.mil ? "Military" : "");
   }
 
   // Report the ROOT gap only (a missing type makes name/photo unanswerable), so a
