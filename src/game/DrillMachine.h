@@ -42,11 +42,23 @@
 // one before the arm runs land would be writing against a measurement that does
 // not exist.
 //
-// RAIL 3 — THE DEVICE DOES NOT INVENT SCORING. There is no bucketS,
-// metresPerBucket, shackFloorM, maxMissM or clockFloorMs here, and no deviation
-// curve. The machine records WHEN the key turned relative to T and reports the
-// signed offset in microseconds. Scoring happens on the server. Two
+// RAIL 3 — THE DEVICE DOES NOT INVENT SCORING, OR ITS PRESENTATION. There is no
+// bucketS, metresPerBucket, shackFloorM, maxMissM or clockFloorMs here, and no
+// deviation curve. The machine records WHEN the key turned relative to T and
+// reports the signed offset in microseconds. Scoring happens on the server. Two
 // implementations of the deviation curve is how the fiction drifts.
+//
+// EXTENDED after the renderer shipped a second implementation of the
+// QUANTIZATION while obeying the constants perfectly. There was no `0.2`
+// anywhere in it; it divided by 100000 and produced tenths, so one sortie read
+// `+0.3 s` here and `0.4` on the leaderboard. Rounding direction, bucket width
+// and decimal places are not constants, so sharing constants cannot detect a
+// disagreement about any of them.
+//
+// A shared constant proves the two sides agree about a NUMBER. Only a shared
+// OUTPUT proves they agree about what to do with it — which is why the figure
+// is graded against strings the server itself produced (src/game/GameFormat.h,
+// test/fixtures/). See valar-eam-feed docs/verification-ledger.md entry 38.
 //
 // The 2-second cooperative window IS a published constant (§12, Nuclear
 // Companion) — but it is passed in through Config rather than baked here, so
@@ -125,6 +137,20 @@ struct Config {
   uint32_t terminal_us = 30000000u;
   /// How long the paper strip takes to print. Cosmetic; not a published rule.
   uint32_t print_us = 1200000u;
+
+  /// The scoring bucket, in microseconds. ZERO MEANS UNKNOWN, and unknown is
+  /// not zero-the-number -- it is "the server has not told us yet".
+  ///
+  /// NO DEFAULT, unlike `window_us` above, and the asymmetry is the point.
+  /// The 2 s window is a §12 PUBLISHED constant: part of the fiction, and it
+  /// cannot move without a design change. The bucket is an OPERATIONAL knob
+  /// with a `GAME_SCORE_BUCKET_S` env override on the server, so a default
+  /// baked here would be a second copy that drifts the first time it is tuned
+  /// -- and it would drift into a plausible number rather than an error.
+  ///
+  /// A device that has not fetched /config has no figure to show. Saying so is
+  /// the honest screen; guessing 0.2 is how the two sides stop agreeing.
+  uint32_t bucket_us = 0;
 };
 
 /// Everything a renderer needs, and nothing it would have to compute.
