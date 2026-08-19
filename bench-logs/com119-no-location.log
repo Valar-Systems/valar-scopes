@@ -1,0 +1,39 @@
+﻿
+[build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293308
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:Connecting to SAVED AP: Tony
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+*wm:AutoConnect: SUCCESS 
+*wm:STA IP Address: 192.168.86.55
+[WiFi] autoConnect() returned true (connected)
+[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-46 dBm
+[WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
+[ota] channel=s3-128 current=7 latest=7
+[web] config server listening on :80 (http://Blipscope-31D918.local)
+[cloud] no key override; using the factory-provisioned key
+[source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+[cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+[cloud] airports: 41 within 100 km
+[POST] Handling form submission to config web server...
+[POST] saved, but location incomplete (lat=unset lon=unset)
+[config] no location set -- the radar screen will prompt for it
+[cloud] no key override; using the factory-provisioned key
+[source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+[dim] brightness -> 51 (night)
+[cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+[cloud] airports: 0 within 100 km
+[health] frame avg=39.6ms p95=48.4ms max=130.7ms  n=40 ap=329  heap free=95056 largest=51188 free8=95056 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/7  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[perf] 2026-08-19T19:54:39Z polls=10 busy=2%(fetch=2% enrich=0%) parse=3ms/poll bytes=713/poll ac=12/12 lag=avg6400ms,max11000ms gapMax=5060ms episodes=0 cache=H0/S8/M2 enrichReqs=0
+[health] frame avg=33.6ms p95=34.3ms max=38.2ms  n=0 ap=329  heap free=138448 largest=88052 free8=138448 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/13  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+[POST] Handling form submission to config web server...

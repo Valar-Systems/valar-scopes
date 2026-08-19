@@ -598,8 +598,18 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 void AircraftManager::Initialise()
 {
     // get centre point + radius
-    lat = configServer.GetStoredString("latitude").toDouble();
-    lon = configServer.GetStoredString("longitude").toDouble();
+    const String latStr = configServer.GetStoredString("latitude");
+    const String lonStr = configServer.GetStoredString("longitude");
+    lat = latStr.toDouble();
+    lon = lonStr.toDouble();
+    // Read from the STRINGS, before parsing collapses "unset" into 0.0 -- see the
+    // note on hasLocation in the header. A factory-fresh or factory-reset device
+    // lands here with both empty, and the radar has nothing to centre on.
+    hasLocation = latStr.length() > 0 && lonStr.length() > 0;
+    // Said out loud, because "the screen is asking me to set a location" is a
+    // support conversation and this is the line that answers it in one look.
+    if (!hasLocation)
+        Serial.println("[config] no location set -- the radar screen will prompt for it");
 
     // "radius" is stored as a real-world distance (km or mi). Convert it into
     // separate latitude/longitude degree spans: 1 deg latitude is ~111 km
@@ -2262,10 +2272,19 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         case Screen::Stats: DrawStats(backbuffer); break;
         case Screen::Radar:
         default:
+            // NO LOCATION -> say so, ahead of everything else. A radar centred on
+            // nowhere draws an empty scope that looks exactly like "no aircraft
+            // nearby", and a customer cannot tell the difference between a device
+            // that is working and one that has never been told where it is.
+            //
+            // First thing in the chain deliberately: this state outranks the night
+            // clock, because a clock on an unconfigured device is a device that
+            // looks finished and is not.
+            if (!hasLocation) DrawNoLocation(backbuffer);
             // at solar night with an empty sky, the radar face becomes a clock
             // (opt-in) -- the device stays useful instead of showing a dead scope
-            if (NightClockActive()) DrawNightClock(backbuffer);
-            else                    DrawRadar(backbuffer, firstPass);
+            else if (NightClockActive()) DrawNightClock(backbuffer);
+            else                         DrawRadar(backbuffer, firstPass);
             break;
     }
     DrawScreenIndicator(backbuffer);
@@ -2940,6 +2959,55 @@ bool AircraftManager::NightClockActive() const
         if (!t.state.onGround)
             return false; // traffic in range: the radar always wins
     return true;
+}
+
+// The unconfigured state, made legible.
+//
+// WHAT A CUSTOMER SEES WITHOUT THIS: a correct, empty radar. The sweep turns,
+// the rings are drawn, nothing ever appears -- which is indistinguishable from a
+// quiet sky, and stays that way forever. This is the state a factory-fresh unit
+// and a just-factory-reset unit are both in, so it is the first screen a
+// customer meets and the one that has to tell them what to do next.
+//
+// It gives the ADDRESS rather than an instruction to "open the config page",
+// because the address is the part they cannot guess. Both forms are shown: the
+// .local name for anything that resolves mDNS, and the raw IP for Android and
+// the Windows setups that do not.
+void AircraftManager::DrawNoLocation(BandCanvas& backbuffer) const
+{
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    const int lh = SCREEN_SIZE / 16;
+
+    backbuffer.setTextSize(1);
+    auto centered = [&](const String& t, int y, uint32_t colour) {
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(t, cx - (int)backbuffer.textWidth(t) / 2, y);
+    };
+
+    const uint32_t amber = lgfx::color888(255, 176, 0);
+    const uint32_t green = lgfx::color888(0, 200, 0);
+    const uint32_t dim   = lgfx::color888(140, 140, 140);
+
+    // A ring, so the screen still reads as a scope rather than as an error page.
+    // The device is not broken and should not look it.
+    backbuffer.drawCircle(cx, cx, SCREEN_SIZE_DIV_2 - 6, lgfx::color888(0, 60, 0));
+    backbuffer.drawCircle(cx, cx, SCREEN_SIZE_DIV_2 / 2, lgfx::color888(0, 40, 0));
+
+    int y = SCREEN_SIZE / 2 - lh * 2;
+    centered("SET YOUR LOCATION", y, amber);
+    y += lh + lh / 2;
+    centered("Open the config page:", y, dim);
+    y += lh;
+
+    // The name is the stable address and comes first. The IP is the fallback and
+    // is only shown once there is one -- printing "0.0.0.0" would be worse than
+    // printing nothing, because it looks like an address and is not.
+    centered(DeviceIdentity::Name() + ".local", y, green);
+    const IPAddress ip = WiFi.localIP();
+    if (WiFi.status() == WL_CONNECTED && ip[0] != 0) {
+        y += lh;
+        centered(ip.toString(), y, green);
+    }
 }
 
 void AircraftManager::DrawNightClock(BandCanvas& backbuffer) const

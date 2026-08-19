@@ -25,6 +25,22 @@ class AircraftManager
 private:
     double lat = 0.0;
     double lon = 0.0;
+
+    /// Whether a location was ever CONFIGURED, which is not the same question as
+    /// whether `lat`/`lon` are zero.
+    ///
+    /// 0.0, 0.0 is a real place (the Gulf of Guinea), so "the parsed value is 0"
+    /// cannot mean "unset" -- and `String("").toDouble()` is 0.0, so the two
+    /// states are indistinguishable after parsing. The only honest source is the
+    /// stored STRING being empty, which is what Initialise() reads.
+    ///
+    /// Same class of mistake as inferring "no credentials" from an uninitialised
+    /// struct: do not read an unset value out of a parsed default.
+    bool hasLocation = false;
+
+    /// Full-screen "tell the customer what to do" state, drawn in place of the
+    /// radar when no location has been set.
+    void DrawNoLocation(BandCanvas& backbuffer) const;
     double radLat = 0.2; // latitude half-span of the scan box, in degrees
     double radLon = 0.2; // longitude half-span of the scan box, in degrees
     double rangeRadiusDisplay = 0.0; // outer ring distance in the user's unit, for range labels
