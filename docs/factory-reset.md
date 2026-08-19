@@ -89,6 +89,17 @@ Authentication is the open question: the device proves identity today only by
 sending `X-Blip-Device`, which is the id itself — so an endpoint keyed on that
 alone lets anyone who learns an id delete that row. It needs the device key.
 
+### Before you go looking for `reset-leaderboard.mjs` — it is gone on purpose
+
+There was a `scripts/reset-leaderboard.mjs`. It was a **one-shot migration tool**
+for the KV move and was **deleted after use, by policy** — delete-after-use, not
+an oversight, and not a thing to reconstruct.
+
+**A device-release endpoint has never existed.** That is the parked design
+question above, not a regression and not something that was lost with the
+script. Recorded here so a future session finds this paragraph instead of
+"rediscovering the gap" and re-litigating it.
+
 **Releasing identity is a separate operation from factory reset** and is
 deliberately not wired to it. A board changing hands needs its cloud identity and
 its leaderboard row released together; doing half of it — clearing the cloud key
