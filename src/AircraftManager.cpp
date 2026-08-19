@@ -598,8 +598,18 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 void AircraftManager::Initialise()
 {
     // get centre point + radius
-    lat = configServer.GetStoredString("latitude").toDouble();
-    lon = configServer.GetStoredString("longitude").toDouble();
+    const String latStr = configServer.GetStoredString("latitude");
+    const String lonStr = configServer.GetStoredString("longitude");
+    lat = latStr.toDouble();
+    lon = lonStr.toDouble();
+    // Read from the STRINGS, before parsing collapses "unset" into 0.0 -- see the
+    // note on hasLocation in the header. A factory-fresh or factory-reset device
+    // lands here with both empty, and the radar has nothing to centre on.
+    hasLocation = latStr.length() > 0 && lonStr.length() > 0;
+    // Said out loud, because "the screen is asking me to set a location" is a
+    // support conversation and this is the line that answers it in one look.
+    if (!hasLocation)
+        Serial.println("[config] no location set -- the radar screen will prompt for it");
 
     // "radius" is stored as a real-world distance (km or mi). Convert it into
     // separate latitude/longitude degree spans: 1 deg latitude is ~111 km
@@ -2247,15 +2257,34 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         ExitDetail(); // selected aircraft left the feed (idempotent across band passes)
     }
 
+    // The reset menu overlays everything, including the detail card check above
+    // -- it is opened from Stats and nothing else may cover it. Drawn before the
+    // screen switch so an early return keeps the menu the only thing on glass:
+    // a destructive confirmation competing with a radar sweep for the customer's
+    // attention is a confirmation they will misread.
+    if (resetMenu != ResetMenu::Closed) {
+        DrawResetMenu(backbuffer);
+        return;
+    }
+
     switch (screen) {
         case Screen::List:  DrawList(backbuffer);  break;
         case Screen::Stats: DrawStats(backbuffer); break;
         case Screen::Radar:
         default:
+            // NO LOCATION -> say so, ahead of everything else. A radar centred on
+            // nowhere draws an empty scope that looks exactly like "no aircraft
+            // nearby", and a customer cannot tell the difference between a device
+            // that is working and one that has never been told where it is.
+            //
+            // First thing in the chain deliberately: this state outranks the night
+            // clock, because a clock on an unconfigured device is a device that
+            // looks finished and is not.
+            if (!hasLocation) DrawNoLocation(backbuffer);
             // at solar night with an empty sky, the radar face becomes a clock
             // (opt-in) -- the device stays useful instead of showing a dead scope
-            if (NightClockActive()) DrawNightClock(backbuffer);
-            else                    DrawRadar(backbuffer, firstPass);
+            else if (NightClockActive()) DrawNightClock(backbuffer);
+            else                         DrawRadar(backbuffer, firstPass);
             break;
     }
     DrawScreenIndicator(backbuffer);
@@ -2865,19 +2894,16 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         // that letting go cancels, and a destructive action they cannot see
         // progressing is one they cannot abort. Same wording as the boot-time
         // reset, because it is the same gesture doing the same thing.
-        const float prog = WifiHoldProgress();
-        if (prog > 0.0f) {
-            const int left = (int)((WIFI_HOLD_MS - (millis() - wifiHoldStartMs)) / 1000) + 1;
-            backbuffer.setTextColor(lgfx::color888(255, 80, 80));
-            centered("KEEP HOLDING " + String(left), wifiRowTop);
-        } else {
-            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-            centered(String("[ Hold to reset Wi-Fi ]"), wifiRowTop);
-        }
+        // A TAP, and it opens a menu rather than doing anything. Nothing
+        // destructive happens on this screen at all now -- which is what makes a
+        // single stray contact here harmless (#165's accident lands on a menu
+        // with a large Cancel, not on a wipe).
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        centered(String("[ Reset ]"), wifiRowTop);
         // Tap target = the drawn row, padded to a fingertip. Derived from the same
         // constant the text uses, so the hit box cannot drift from the pixels.
-        wifiRowY0 = wifiRowTop - 8;
-        wifiRowY1 = wifiRowTop + lh;
+        resetRowY0 = wifiRowTop - 8;
+        resetRowY1 = wifiRowTop + lh;
     }
 
     // THIS DEVICE -- the config page is at http://<name>.local, so a customer who
@@ -2933,6 +2959,55 @@ bool AircraftManager::NightClockActive() const
         if (!t.state.onGround)
             return false; // traffic in range: the radar always wins
     return true;
+}
+
+// The unconfigured state, made legible.
+//
+// WHAT A CUSTOMER SEES WITHOUT THIS: a correct, empty radar. The sweep turns,
+// the rings are drawn, nothing ever appears -- which is indistinguishable from a
+// quiet sky, and stays that way forever. This is the state a factory-fresh unit
+// and a just-factory-reset unit are both in, so it is the first screen a
+// customer meets and the one that has to tell them what to do next.
+//
+// It gives the ADDRESS rather than an instruction to "open the config page",
+// because the address is the part they cannot guess. Both forms are shown: the
+// .local name for anything that resolves mDNS, and the raw IP for Android and
+// the Windows setups that do not.
+void AircraftManager::DrawNoLocation(BandCanvas& backbuffer) const
+{
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    const int lh = SCREEN_SIZE / 16;
+
+    backbuffer.setTextSize(1);
+    auto centered = [&](const String& t, int y, uint32_t colour) {
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(t, cx - (int)backbuffer.textWidth(t) / 2, y);
+    };
+
+    const uint32_t amber = lgfx::color888(255, 176, 0);
+    const uint32_t green = lgfx::color888(0, 200, 0);
+    const uint32_t dim   = lgfx::color888(140, 140, 140);
+
+    // A ring, so the screen still reads as a scope rather than as an error page.
+    // The device is not broken and should not look it.
+    backbuffer.drawCircle(cx, cx, SCREEN_SIZE_DIV_2 - 6, lgfx::color888(0, 60, 0));
+    backbuffer.drawCircle(cx, cx, SCREEN_SIZE_DIV_2 / 2, lgfx::color888(0, 40, 0));
+
+    int y = SCREEN_SIZE / 2 - lh * 2;
+    centered("SET YOUR LOCATION", y, amber);
+    y += lh + lh / 2;
+    centered("Open the config page:", y, dim);
+    y += lh;
+
+    // The name is the stable address and comes first. The IP is the fallback and
+    // is only shown once there is one -- printing "0.0.0.0" would be worse than
+    // printing nothing, because it looks like an address and is not.
+    centered(DeviceIdentity::Name() + ".local", y, green);
+    const IPAddress ip = WiFi.localIP();
+    if (WiFi.status() == WL_CONNECTED && ip[0] != 0) {
+        y += lh;
+        centered(ip.toString(), y, green);
+    }
 }
 
 void AircraftManager::DrawNightClock(BandCanvas& backbuffer) const
@@ -3732,7 +3807,6 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         if (!wasTouched) {
             touchStartX = tx; touchStartY = ty; // press edge
             touchPressMs = now;
-            wifiHoldFired = false; // a new contact may start a fresh hold
             Serial.printf("[touch] %lu press (%d,%d) inDetail=%d\n", now, (int)tx, (int)ty, (int)inDetail);
         }
         touchLastX = tx;
@@ -3742,7 +3816,7 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
     // Before the tap/swipe classifier: a hold is a property of the contact WHILE
     // it is happening, and by release it is already over. Also runs on the
     // not-touched samples, which is where the release grace is measured.
-    UpdateWifiHold(touched, tx, ty);
+
 
     if (!touched && wasTouched) {
         // release: classify the stroke as a tap or a 4-way swipe from its delta
@@ -3756,13 +3830,7 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
                       now - touchPressMs,
                       (adx < SWIPE_MIN && ady < SWIPE_MIN) ? "TAP" : "SWIPE");
 
-        if (wifiHoldFired) {
-            // The Wi-Fi reset already fired on this contact. Its release is not
-            // also a tap -- otherwise the same press would reset the network AND
-            // activate whatever the row happens to sit on next frame.
-            wifiHoldFired = false;
-        }
-        else if (adx < SWIPE_MIN && ady < SWIPE_MIN)
+        if (adx < SWIPE_MIN && ady < SWIPE_MIN)
             HandleTap(touchStartX, touchStartY);
         else if (adx >= ady)
             HandleSwipe(dx > 0 ? Swipe::Right : Swipe::Left);
@@ -3856,6 +3924,12 @@ void AircraftManager::ExitDetail()
 
 void AircraftManager::HandleTap(int tx, int ty)
 {
+    // The reset menu takes every tap while it is open, before anything else can
+    // claim one. It is drawn over the whole screen, so any other handler acting
+    // here would be acting on pixels the customer cannot see.
+    if (HandleResetMenuTap(tx, ty))
+        return;
+
     // Tap the alert ring (or anywhere during a full-screen flash burst) to dismiss
     // the current military/emergency episode. It re-arms once every alerting contact
     // has left the screen, so this quiets a lingering ring without disabling the
@@ -3883,12 +3957,13 @@ void AircraftManager::HandleTap(int tx, int ty)
     if ((long)(millis() - tapSuppressUntilMs) < 0)
         return;
 
-    // Stats screen: a TAP on the "Reset Wi-Fi" row does nothing at all -- the
-    // control is a hold (see UpdateWifiHold and the note in the header). Swallowed
-    // here rather than falling through, so a brush over the row cannot be
-    // reinterpreted as some other screen's gesture.
-    if (screen == Screen::Stats && wifiRowY0 >= 0 && ty >= wifiRowY0 && ty <= wifiRowY1) {
-        Serial.println("[wifi-reset] tap on the row ignored -- hold to reset");
+    // Stats screen: a tap on the "Reset" row OPENS THE MENU. It is not itself
+    // destructive -- see the header note; that is the whole point of the menu
+    // existing. Swallowed here rather than falling through, so the tap cannot
+    // also be reinterpreted as some other screen's gesture.
+    if (screen == Screen::Stats && resetRowY0 >= 0 && ty >= resetRowY0 && ty <= resetRowY1) {
+        Serial.println("[reset] menu opened from the Stats row");
+        resetMenu = ResetMenu::Choosing;
         return;
     }
 
@@ -3987,70 +4062,159 @@ void AircraftManager::HandleSwipe(Swipe swipe)
 
     // horizontal swipe cycles the top-level screens (left = next, right = prev).
     //
-    // Changing screen abandons a half-finished Wi-Fi reset. The control is not
-    // drawn anywhere but Stats, so an arm that survived a swipe would be live and
-    // invisible -- and a cloth dragged over the panel reads as a swipe at least
-    // as readily as it reads as a tap.
+    // A swipe while the reset menu is open CLOSES IT and changes nothing else.
+    // The menu covers the screen, so cycling underneath it would leave a
+    // destructive confirmation sitting over a screen it does not belong to --
+    // and a cloth dragged over the panel reads as a swipe at least as readily as
+    // it reads as a tap.
+    if (resetMenu != ResetMenu::Closed) {
+        Serial.println("[reset] menu dismissed by a swipe");
+        CloseResetMenu();
+        return;
+    }
     if (swipe == Swipe::Left)  screen = (Screen)(((int)screen + 1) % 3);
     if (swipe == Swipe::Right) screen = (Screen)(((int)screen + 2) % 3);
 }
 
-float AircraftManager::WifiHoldProgress() const
+void AircraftManager::CloseResetMenu()
 {
-    if (!wifiHoldActive) return 0.0f;
-    const unsigned long held = millis() - wifiHoldStartMs;
-    if (held >= WIFI_HOLD_MS) return 1.0f;
-    return (float)held / (float)WIFI_HOLD_MS;
+    resetMenu = ResetMenu::Closed;
+    // Bounds cleared with the state. A hit box left behind by a screen that is
+    // no longer drawn is a tap target the customer cannot see, which is the one
+    // failure mode a "the pixels and the hit test agree" rule exists to stop.
+    resetOptWifiY0 = resetOptWifiY1 = -1;
+    resetOptFactoryY0 = resetOptFactoryY1 = -1;
+    resetConfirmY0 = resetConfirmY1 = -1;
+    resetCancelY0 = resetCancelY1 = -1;
 }
 
-// Track a sustained press on the Stats screen's Reset Wi-Fi row. Runs on every
-// touch sample, BEFORE the tap/swipe classifier, because a hold is a property of
-// the contact while it is happening -- by release it is already over.
-void AircraftManager::UpdateWifiHold(bool touched, int32_t tx, int32_t ty)
+// The reset menu. Two screens, both drawn here, both entirely made of taps.
+//
+// GEOMETRY COMES FROM SCREEN_SIZE, never a literal. This runs on a 240 round,
+// a 412 round and a 480 square, and the confirm target must be a deliberate aim
+// on all three -- a hit box sized for one of them is a mis-tap on another.
+void AircraftManager::DrawResetMenu(BandCanvas& backbuffer)
 {
-    const unsigned long now = millis();
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    const int lh = 14;
 
-    if (!touched) {
-        // Grace, not an immediate cancel: the CST816 drops samples mid-touch. A
-        // real release is a gap this long, which a finger lifting always produces
-        // and a dropped sample never does.
-        if (wifiHoldActive && (now - wifiHoldSeenMs) >= WIFI_HOLD_GRACE_MS) {
-            const unsigned long held = wifiHoldSeenMs - wifiHoldStartMs;
-            Serial.printf("[wifi-reset] hold released after %lums of %lu -- cancelled\n",
-                          held, (unsigned long)WIFI_HOLD_MS);
-            wifiHoldActive = false;
+    backbuffer.fillScreen(lgfx::color888(0, 0, 0));
+    backbuffer.setTextSize(1);
+    auto centered = [&](const String& t, int y, uint32_t colour) {
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(t, cx - (int)backbuffer.textWidth(t) / 2, y);
+    };
+
+    // A boxed, centred row. Returns the vertical bounds so the caller records the
+    // hit box from the SAME numbers that drew it.
+    auto rowBox = [&](const String& t, int top, int height, uint32_t colour, int halfWidth,
+                      int& y0, int& y1) {
+        backbuffer.drawRoundRect(cx - halfWidth, top, halfWidth * 2, height, 4, colour);
+        centered(t, top + (height - 8) / 2, colour);
+        y0 = top;
+        y1 = top + height;
+    };
+
+    const uint32_t green = lgfx::color888(0, 200, 0);
+    const uint32_t amber = lgfx::color888(255, 176, 0);
+    const uint32_t red   = lgfx::color888(255, 80, 80);
+    const uint32_t grey  = lgfx::color888(150, 150, 150);
+
+    // Cancel is the LARGEST target and sits lowest, nearest the thumb. Sized off
+    // the screen so it stays the biggest thing on the panel at every SKU.
+    const int cancelH = SCREEN_SIZE / 7;
+    const int cancelHalfW = SCREEN_SIZE * 5 / 16;
+    const int cancelTop = SCREEN_SIZE - cancelH - SCREEN_SIZE / 12;
+
+    // Option and confirm targets are deliberately SMALLER and higher up. The
+    // asymmetry is the safety mechanism: backing out is the easy gesture and
+    // destroying data is the one that takes aim.
+    const int optH = SCREEN_SIZE / 10;
+    const int optHalfW = SCREEN_SIZE * 4 / 16;
+
+    if (resetMenu == ResetMenu::Choosing) {
+        centered("RESET", SCREEN_SIZE / 5, grey);
+
+        int top = SCREEN_SIZE / 5 + lh + 6;
+        rowBox("Reset Wi-Fi", top, optH, green, optHalfW, resetOptWifiY0, resetOptWifiY1);
+
+        top += optH + 8;
+        rowBox("Factory Reset", top, optH, red, optHalfW, resetOptFactoryY0, resetOptFactoryY1);
+
+        resetConfirmY0 = resetConfirmY1 = -1;  // no confirm target on this screen
+        rowBox("CANCEL", cancelTop, cancelH, grey, cancelHalfW, resetCancelY0, resetCancelY1);
+        return;
+    }
+
+    const bool factory = (resetMenu == ResetMenu::ConfirmFactory);
+
+    // WHAT IT CLEARS, ON GLASS, BEFORE THE CONFIRM. A customer cannot consent to
+    // a description they were never shown, and "Factory Reset" is a label rather
+    // than a description -- the logbook is the thing they would actually miss.
+    centered(factory ? "FACTORY RESET" : "RESET WI-FI", SCREEN_SIZE / 5, factory ? red : amber);
+    int y = SCREEN_SIZE / 5 + lh + 4;
+    if (factory) {
+        centered("Erases logbook,", y, grey);            y += lh;
+        centered("location, leaderboard", y, grey);      y += lh;
+        centered("name and Wi-Fi.", y, grey);            y += lh + 2;
+        centered("Cannot be undone.", y, red);
+    } else {
+        centered("Forgets this network.", y, grey);      y += lh;
+        centered("Logbook and settings", y, grey);       y += lh;
+        centered("are kept.", y, grey);
+    }
+
+    resetOptWifiY0 = resetOptWifiY1 = -1;
+    resetOptFactoryY0 = resetOptFactoryY1 = -1;
+    rowBox(factory ? "ERASE" : "CONFIRM", cancelTop - optH - 10, optH, factory ? red : amber,
+           optHalfW, resetConfirmY0, resetConfirmY1);
+    rowBox("CANCEL", cancelTop, cancelH, grey, cancelHalfW, resetCancelY0, resetCancelY1);
+}
+
+// Returns true when the tap belonged to the menu, which is every tap while it is
+// open -- a tap on nothing is swallowed rather than falling through to whatever
+// screen sits underneath, because that screen is not the one being looked at.
+bool AircraftManager::HandleResetMenuTap(int tx, int ty)
+{
+    if (resetMenu == ResetMenu::Closed)
+        return false;
+    (void)tx;  // every target spans the usable width; the row is what identifies it
+
+    // CANCEL FIRST, so that if two boxes ever overlapped after a layout change the
+    // non-destructive one would win the ambiguity.
+    if (resetCancelY0 >= 0 && ty >= resetCancelY0 && ty <= resetCancelY1) {
+        Serial.println("[reset] cancelled");
+        CloseResetMenu();
+        return true;
+    }
+
+    if (resetMenu == ResetMenu::Choosing) {
+        if (resetOptWifiY0 >= 0 && ty >= resetOptWifiY0 && ty <= resetOptWifiY1) {
+            Serial.println("[reset] tier=wifi selected -- confirm or cancel");
+            resetMenu = ResetMenu::ConfirmWifi;
+            return true;
         }
-        return;
+        if (resetOptFactoryY0 >= 0 && ty >= resetOptFactoryY0 && ty <= resetOptFactoryY1) {
+            Serial.println("[reset] tier=factory selected -- confirm or cancel");
+            resetMenu = ResetMenu::ConfirmFactory;
+            return true;
+        }
+        return true;  // tapped the background; stay put
     }
 
-    const bool onRow = screen == Screen::Stats && !inDetail &&
-                       wifiRowY0 >= 0 && ty >= wifiRowY0 && ty <= wifiRowY1;
-
-    if (!wifiHoldActive) {
-        if (!onRow || wifiHoldFired) return;   // nothing to start (or already spent)
-        wifiHoldActive = true;
-        wifiHoldStartMs = now;
-        wifiHoldSeenMs  = now;
-        Serial.println("[wifi-reset] hold started -- keep holding to reset, release to cancel");
-        return;
+    if (resetConfirmY0 >= 0 && ty >= resetConfirmY0 && ty <= resetConfirmY1) {
+        const factoryreset::Tier tier = (resetMenu == ResetMenu::ConfirmFactory)
+                                            ? factoryreset::Tier::Factory
+                                            : factoryreset::Tier::Wifi;
+        Serial.printf("[reset] confirmed on device tier=%s\n", factoryreset::TierName(tier));
+        // REQUEST ONLY. main.cpp performs it on the loop task and reboots -- the
+        // same rule the web page follows, so there is exactly one place that
+        // touches NVS for a reset.
+        resetTierRequested = (uint8_t)factoryreset::Larger((factoryreset::Tier)resetTierRequested, tier);
+        CloseResetMenu();
+        return true;
     }
-
-    // Drifting off the row, or wandering far enough to be a swipe, is not a hold.
-    if (!onRow || abs((int)tx - touchStartX) > WIFI_HOLD_MOVE_MAX ||
-                  abs((int)ty - touchStartY) > WIFI_HOLD_MOVE_MAX) {
-        Serial.println("[wifi-reset] contact moved off the row -- hold cancelled");
-        wifiHoldActive = false;
-        return;
-    }
-
-    wifiHoldSeenMs = now;
-    if (now - wifiHoldStartMs >= WIFI_HOLD_MS) {
-        Serial.printf("[wifi-reset] hold completed (%lums) -- clearing credentials\n",
-                      now - wifiHoldStartMs);
-        wifiResetRequested = true; // main.cpp does the reset + restart
-        wifiHoldActive = false;
-        wifiHoldFired  = true;     // swallow the release so it is not also a tap
-    }
+    return true;
 }
 
 void AircraftManager::ProcessDetailLookups()

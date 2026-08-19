@@ -1,0 +1,16 @@
+[web] config server listening on :80 (http://Blipscope-31D918.local)
+[logbook] loaded 263 types (27 claimed), 220 airlines (14), 24 countries (2), 13378 contacts
+[logbook] NVS 779/2646 entries used (1867 free); logbook budget ~2204, ceilings need 1375
+[cloud] no key override; using the factory-provisioned key
+[source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+[cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+[cloud] airports: 41 within 100 km
+[health] frame avg=35.8ms p95=36.2ms max=39.5ms  n=40 ap=41  heap free=42928 largest=31732 free8=42928 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/8  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[leaderboard] submit away after 0 ms (worst 0 ms)
+[leaderboard] rank #2/2, 434 pts
+[health] frame avg=37.1ms p95=38.0ms max=43.5ms  n=41 ap=41  heap free=39892 largest=29684 free8=39892 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/20  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+[perf] 2026-08-19T19:38:25Z polls=10 busy=11%(fetch=1% enrich=9%) parse=11ms/poll bytes=2311/poll ac=40/40 lag=avg7000ms,max11000ms gapMax=5045ms episodes=0 cache=H0/S9/M1 enrichReqs=10
+[health] frame avg=38.4ms p95=39.4ms max=42.7ms  n=40 ap=41  heap free=39816 largest=27636 free8=39816 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/32  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0

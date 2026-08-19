@@ -1,0 +1,25 @@
+11:12:21 
+11:12:21 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+11:12:21 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+11:12:21 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+11:12:21 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291984
+11:12:21 *wm:v2.0.17  D:2
+11:12:21 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+11:12:21 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+11:12:21 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+11:12:21 *wm:AutoConnect 
+11:12:21 *wm:Connect Wifi, ATTEMPT # 1 of 5
+11:12:21 *wm:No wifi saved, skipping 
+11:12:21 *wm:Connect Wifi, ATTEMPT # 2 of 5
+11:12:21 *wm:No wifi saved, skipping 
+11:12:21 *wm:Connect Wifi, ATTEMPT # 3 of 5
+11:12:21 *wm:No wifi saved, skipping 
+11:12:21 *wm:Connect Wifi, ATTEMPT # 4 of 5
+11:12:21 *wm:No wifi saved, skipping 
+11:12:21 *wm:Connect Wifi, ATTEMPT # 5 of 5
+11:12:21 *wm:No wifi saved, skipping 
+11:12:21 *wm:AutoConnect: FAILED for  20 ms
+11:12:21 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+11:12:21 *wm:StartAP with SSID:  Blipscope-31D918
+11:12:21 *wm:AP IP address: 192.168.4.1
+11:12:21 *wm:Starting Web Portal 
