@@ -69,10 +69,14 @@ if ! "$CXX" $FLAGS $INCLUDES \
   cat "$OUT/build.log"
   exit 2
 fi
+# `set +e` and NOT a matching `set -e` afterwards: this script never had
+# errexit, and turning it on here silently killed the run at the first `grep`
+# that found nothing -- which is the NORMAL case for the forbidden-symbol scan.
+# The script then exited 1 having printed no reason, i.e. it read as "a test
+# failed", which is precisely the confusion this block was added to remove.
 set +e
 "$OUT/test_drill_machine.exe"
 rc=$?
-set -e
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   # A BINARY THAT WILL NOT LAUNCH IS NOT A FAILING TEST, and reporting it as
   # one sends the reader to the wrong place. 127 is the missing-DLL case; a
@@ -82,6 +86,50 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 elif [ "$rc" -ne 0 ]; then
   fail=1
+fi
+
+# --- 1b. THE SAME TU, COMPILED FOR THE BOARD ---------------------------------
+#
+# RULED after <stddef.h>. The host suite proves the LOGIC; it does not prove the
+# TU compiles for the device, and for one commit the header claimed it did.
+# MinGW pulls size_t in through <stdint.h> transitively and the xtensa toolchain
+# does not -- so the host rig was green, the header said the TU was portable,
+# and the device build failed.
+#
+# That is a different failure from every other entry in the ledger: the check
+# was working and passing for exactly what it covers, while its own description
+# claimed more. A correct instrument with an inflated scope.
+#
+# THE FIX IS THAT THE TWO CLAIMS ARE MADE TOGETHER. Compiled here, in the same
+# gate, on the same command: they cannot drift. Compiled separately -- host in
+# one place, device in CI -- the host number eventually gets reported as the
+# whole answer, which is precisely what happened.
+#
+# Compile-only (-c). Linking would need the ESP-IDF sysroot and a startup file,
+# which is the coupling this rig exists to avoid; what is being asserted is that
+# the source is valid for the target's toolchain and headers, and -c asserts
+# exactly that and nothing it cannot back up.
+echo
+echo "== the same TU, for the board =="
+XCXX="$(ls "$HOME"/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++.exe 2>/dev/null | head -1)"
+if [ -z "$XCXX" ] || [ ! -x "$XCXX" ]; then
+  # NOT SKIPPED SILENTLY. A missing cross-compiler means this run proves the
+  # host half only -- which is the exact claim that was overstated -- so it is
+  # reported as the rig being incomplete rather than passed over.
+  echo "FAIL: no xtensa toolchain found. This run can only prove the HOST half,"
+  echo "      and reporting it as a pass is the mistake this section exists for."
+  echo "      Get it with:  pio run -e blipscope-s3-128"
+  fail=1
+else
+  echo "cross:    $XCXX"
+  if "$XCXX" $FLAGS $INCLUDES -c "$ROOT/src/game/DrillMachine.cpp" \
+       -o "$OUT/DrillMachine.target.o" 2>"$OUT/target.log"; then
+    echo "ok   the pure TU compiles for the ESP32-S3 with the same narrow includes"
+  else
+    echo "FAIL: the pure TU does NOT compile for the board:"
+    cat "$OUT/target.log"
+    fail=1
+  fi
 fi
 
 # --- 2. the purity gate, and the control that proves it can fire -------------
