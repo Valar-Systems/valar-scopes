@@ -10,6 +10,7 @@
 #include "Board.h"
 #include "BuildIdentity.h"
 #include "DeviceIdentity.h"
+#include "HeapHealth.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
 #include "HttpRequestManager.h"
@@ -375,6 +376,28 @@ void setup()
 
   // initialise the active app (radar or EAM monitor)
   appManager.Initialise();
+
+  // Claim the reserved TLS handshake block (heap fix 4).
+  //
+  // TAKEN HERE, AT THE END OF setup(), AND THE PLACEMENT IS THE WHOLE TRICK.
+  // Earlier would be a bigger, more contiguous heap to carve from -- and would
+  // also mean competing with WiFi/TLS/display bring-up, which are the largest
+  // allocations this device ever makes. Starving boot to protect a handshake
+  // would trade an intermittent blank card for a device that does not come up.
+  //
+  // By this line every one-time allocation has been made and the heap is as
+  // whole as it will ever be again. Everything after this point is the churn
+  // that docs/heap-fragmentation-2026-08-17.md measured eroding ~10 KB of
+  // contiguous headroom in 12 idle minutes -- so this is the last moment the
+  // block is cheap.
+  //
+  // A failure here is not fatal and not logged as an error: the device simply
+  // runs as it does today, and the health line's ball=0 says so.
+  heaphealth::ReserveHandshakeBallast();
+  Serial.printf("[heap] handshake ballast %s (%u B); free8=%u\n",
+                heaphealth::BallastHeld() ? "reserved" : "UNAVAILABLE",
+                (unsigned)heaphealth::TLS_HANDSHAKE_BYTES,
+                (unsigned)heaphealth::FreeInternal8Bit());
 
 #ifdef SOAK_TEST
   // Arm the human-scale gesture script; the normal bring-up above (WiFi, NTP,
