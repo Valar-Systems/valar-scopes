@@ -1,0 +1,61 @@
+12:28:15 
+12:28:15 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+12:28:15 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+12:28:15 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+12:28:15 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291836
+12:28:15 *wm:v2.0.17  D:2
+12:28:15 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+12:28:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:15 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+12:28:15 *wm:AutoConnect 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 1 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 2 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 3 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 4 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 5 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:AutoConnect: FAILED for [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:15  20 ms
+12:28:15 *wm:StartAP with SSID:  Blipscope-31D918
+12:28:15 *wm:AP IP address: 192.168.4.1
+12:28:15 *wm:Starting Web Portal 
+12:28:15 ESP-ROM:esp32s3-20210327
+12:28:15 Build:Mar 27 2021
+12:28:15 rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+12:28:15 Saved PC:0x4037abd6
+12:28:15 SPIWP:0xee
+12:28:15 mode:DIO, clock div:1
+12:28:15 load:0x3fce2820,len:0x10cc
+12:28:15 load:0x403c8700,len:0xc2c
+12:28:15 load:0x403cb700,len:0x30c0
+12:28:15 entry 0x403c88b8
+12:28:15 
+12:28:16 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+12:28:16 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+12:28:16 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+12:28:16 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291836
+12:28:16 *wm:v2.0.17  D:2
+12:28:16 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+12:28:16 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:18 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+12:28:19 [  3419][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+12:28:19 *wm:AutoConnect 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 1 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 2 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 3 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 4 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 5 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:AutoConnect: FAILED for  [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:19 20 ms
+12:28:19 *wm:StartAP with SSID:  Blipscope-31D918
+12:28:19 *wm:AP IP address: 192.168.4.1
+12:28:20 *wm:Starting Web Portal 
