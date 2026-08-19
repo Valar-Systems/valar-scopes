@@ -1,144 +1,61 @@
-11:52:00 [health] frame avg=38.8ms p95=39.1ms max=45.7ms  n=40 ap=41  heap free=39480 largest=26612 free8=39480 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/30  interval=5000ms
-11:52:00 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0
-11:52:24 [perf] 2026-08-19T18:52:26Z polls=12 busy=15%(fetch=1% enrich=14%) parse=8ms/poll bytes=2299/poll ac=40/40 lag=avg8333ms,max15000ms gapMax=6509ms episodes=0 cache=H1/S11/M0 enrichReqs=12
-11:52:25 [health] frame avg=39.9ms p95=40.5ms max=46.3ms  n=42 ap=41  heap free=36280 largest=24564 free8=36280 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/42  interval=5000ms
-11:52:25 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=11/0 maxOutage=0ms rebootRec=0
-11:52:53 [health] frame avg=40.4ms p95=41.1ms max=47.4ms  n=41 ap=41  heap free=36292 largest=24564 free8=36292 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/54  interval=5000ms
-11:52:55 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=14/0 maxOutage=0ms rebootRec=0
-11:53:23 [perf] 2026-08-19T18:53:26Z polls=12 busy=15%(fetch=1% enrich=13%) parse=8ms/poll bytes=2298/poll ac=40/40 lag=avg8833ms,max15000ms gapMax=6438ms episodes=0 cache=H1/S11/M0 enrichReqs=12
-11:53:25 [health] frame avg=40.6ms p95=41.1ms max=47.7ms  n=40 ap=41  heap free=36564 largest=23540 free8=36564 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/66  interval=5000ms
-11:53:25 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=17/0 maxOutage=0ms rebootRec=0
-11:53:53 [health] frame avg=41.3ms p95=41.6ms max=47.7ms  n=40 ap=41  heap free=35928 largest=23540 free8=35928 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/78  interval=5000ms
-11:53:55 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=20/0 maxOutage=0ms rebootRec=0
-11:54:24 [perf] 2026-08-19T18:54:26Z polls=11 busy=17%(fetch=1% enrich=15%) parse=8ms/poll bytes=2296/poll ac=40/40 lag=avg7818ms,max11000ms gapMax=6863ms episodes=0 cache=H0/S11/M0 enrichReqs=11
-11:54:25 [health] frame avg=41.5ms p95=41.9ms max=47.2ms  n=41 ap=41  heap free=32448 largest=22516 free8=32448 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/89  interval=5000ms
-11:54:25 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=23/0 maxOutage=0ms rebootRec=0
-11:54:33 [fetch] LOW HEAP after Blipscope Cloud: free=28532 largest=13300 aircraft=40
-11:54:48 [fetch] LOW HEAP after Blipscope Cloud: free=27080 largest=16372 aircraft=40
-11:54:52 [fetch] LOW HEAP after Blipscope Cloud: free=27080 largest=16372 aircraft=40
-11:54:55 [health] frame avg=41.4ms p95=41.9ms max=50.9ms  n=40 ap=41  heap free=35080 largest=22516 free8=35080 tlsOk=1 rej=3  allocFail=0 hardFail=0  tls=2/100  interval=5000ms
-11:54:55 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=26/0 maxOutage=0ms rebootRec=0
-11:54:57 [fetch] LOW HEAP after Blipscope Cloud: free=28348 largest=15348 aircraft=40
-11:55:24 [perf] 2026-08-19T18:55:26Z polls=13 busy=11%(fetch=1% enrich=10%) parse=8ms/poll bytes=2298/poll ac=40/40 lag=avg8461ms,max13000ms gapMax=7769ms episodes=0 cache=H1/S12/M0 enrichReqs=6
-11:55:25 [health] frame avg=41.6ms p95=42.4ms max=49.9ms  n=41 ap=41  heap free=33988 largest=22516 free8=33988 tlsOk=1 rej=4  allocFail=0 hardFail=0  tls=2/107  interval=5000ms
-11:55:25 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=29/0 maxOutage=0ms rebootRec=0
-11:55:27 [fetch] LOW HEAP after Blipscope Cloud: free=27224 largest=16372 aircraft=40
-11:55:38 [fetch] LOW HEAP after Blipscope Cloud: free=27168 largest=16372 aircraft=40
-11:55:54 [health] frame avg=41.5ms p95=42.3ms max=50.0ms  n=41 ap=41  heap free=33932 largest=22516 free8=33932 tlsOk=1 rej=6  allocFail=0 hardFail=0  tls=2/115  interval=5000ms
-11:55:55 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=32/0 maxOutage=0ms rebootRec=0
-11:55:57 [fetch] LOW HEAP after Blipscope Cloud: free=27168 largest=16372 aircraft=40
-11:56:07 [fetch] LOW HEAP after Blipscope Cloud: free=26076 largest=15860 aircraft=40
-11:56:25 [perf] 2026-08-19T18:56:26Z polls=12 busy=5%(fetch=1% enrich=3%) parse=8ms/poll bytes=2307/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5060ms episodes=0 cache=H0/S12/M0 enrichReqs=4
-11:56:25 [health] frame avg=41.6ms p95=42.3ms max=49.1ms  n=40 ap=41  heap free=35168 largest=21492 free8=35168 tlsOk=1 rej=8  allocFail=0 hardFail=0  tls=2/123  interval=5000ms
-11:56:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=35/0 maxOutage=0ms rebootRec=0
-11:56:48 [fetch] LOW HEAP after Blipscope Cloud: free=27160 largest=16372 aircraft=40
-11:56:55 [health] frame avg=42.0ms p95=43.5ms max=49.9ms  n=41 ap=41  heap free=33732 largest=21492 free8=33732 tlsOk=1 rej=9  allocFail=0 hardFail=0  tls=2/130  interval=5000ms
-11:56:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=38/0 maxOutage=0ms rebootRec=0
-11:56:58 [fetch] LOW HEAP after Blipscope Cloud: free=26968 largest=16372 aircraft=40
-11:57:17 [fetch] LOW HEAP after Blipscope Cloud: free=26936 largest=16372 aircraft=40
-11:57:25 [perf] 2026-08-19T18:57:26Z polls=12 busy=5%(fetch=1% enrich=3%) parse=8ms/poll bytes=2312/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5043ms episodes=0 cache=H0/S12/M0 enrichReqs=2
-11:57:25 [health] frame avg=41.9ms p95=42.4ms max=49.4ms  n=40 ap=41  heap free=34968 largest=21492 free8=34968 tlsOk=1 rej=11  allocFail=0 hardFail=0  tls=2/137  interval=5000ms
-11:57:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=41/0 maxOutage=0ms rebootRec=0
-11:57:28 [fetch] LOW HEAP after Blipscope Cloud: free=28204 largest=12788 aircraft=40
-11:57:37 [fetch] LOW HEAP after Blipscope Cloud: free=26984 largest=16372 aircraft=40
-11:57:55 [health] frame avg=42.1ms p95=43.4ms max=53.1ms  n=41 ap=41  heap free=33732 largest=21492 free8=33732 tlsOk=1 rej=13  allocFail=0 hardFail=0  tls=2/145  interval=5000ms
-11:57:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=44/0 maxOutage=0ms rebootRec=0
-11:57:58 [fetch] LOW HEAP after Blipscope Cloud: free=26968 largest=16372 aircraft=40
-11:58:07 [fetch] LOW HEAP after Blipscope Cloud: free=28204 largest=15348 aircraft=40
-11:58:17 [fetch] LOW HEAP after Blipscope Cloud: free=25684 largest=15348 aircraft=40
-11:58:23 [fetch] LOW HEAP after Blipscope Cloud: free=25716 largest=15348 aircraft=40
-11:58:24 [perf] 2026-08-19T18:58:26Z polls=12 busy=3%(fetch=1% enrich=2%) parse=8ms/poll bytes=2315/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5044ms episodes=0 cache=H0/S12/M0 enrichReqs=4
-11:58:25 [health] frame avg=42.2ms p95=42.9ms max=49.8ms  n=42 ap=41  heap free=32544 largest=19444 free8=32544 tlsOk=1 rej=17  allocFail=0 hardFail=0  tls=2/153  interval=5000ms
-11:58:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-11:58:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=47/0 maxOutage=0ms rebootRec=0
-11:58:28 [fetch] LOW HEAP after Blipscope Cloud: free=25876 largest=13300 aircraft=40
-11:58:37 [fetch] LOW HEAP after Blipscope Cloud: free=26964 largest=16372 aircraft=40
-11:58:47 [fetch] LOW HEAP after Blipscope Cloud: free=26964 largest=16372 aircraft=40
-11:58:55 [health] frame avg=41.9ms p95=43.3ms max=50.4ms  n=41 ap=41  heap free=32540 largest=19444 free8=32540 tlsOk=1 rej=20  allocFail=0 hardFail=0  tls=2/162  interval=5000ms
-11:58:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-11:58:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=50/0 maxOutage=0ms rebootRec=0
-11:58:58 [fetch] LOW HEAP after Blipscope Cloud: free=26964 largest=9204 aircraft=40
-11:59:07 [fetch] LOW HEAP after Blipscope Cloud: free=27028 largest=14324 aircraft=40
-11:59:17 [fetch] LOW HEAP after Blipscope Cloud: free=26964 largest=16372 aircraft=40
-11:59:25 [perf] 2026-08-19T18:59:26Z polls=12 busy=14%(fetch=1% enrich=12%) parse=8ms/poll bytes=2311/poll ac=40/40 lag=avg7666ms,max12000ms gapMax=5042ms episodes=0 cache=H0/S12/M0 enrichReqs=5
-11:59:25 [health] frame avg=42.0ms p95=42.7ms max=51.3ms  n=41 ap=41  heap free=33744 largest=19444 free8=33744 tlsOk=1 rej=24  allocFail=0 hardFail=0  tls=2/170  interval=5000ms
-11:59:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-11:59:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=53/0 maxOutage=0ms rebootRec=0
-11:59:28 [fetch] LOW HEAP after Blipscope Cloud: free=27012 largest=16372 aircraft=40
-11:59:55 [health] frame avg=41.9ms p95=42.7ms max=50.4ms  n=41 ap=41  heap free=32652 largest=19444 free8=32652 tlsOk=1 rej=26  allocFail=0 hardFail=0  tls=2/177  interval=5000ms
-11:59:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-11:59:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=56/0 maxOutage=0ms rebootRec=0
-11:59:58 [fetch] LOW HEAP after Blipscope Cloud: free=27012 largest=16372 aircraft=40
-12:00:03 [fetch] LOW HEAP after Blipscope Cloud: free=28328 largest=15348 aircraft=40
-12:00:08 [fetch] LOW HEAP after Blipscope Cloud: free=27060 largest=16372 aircraft=40
-12:00:24 [perf] 2026-08-19T19:00:26Z polls=12 busy=6%(fetch=1% enrich=4%) parse=8ms/poll bytes=2318/poll ac=40/40 lag=avg7500ms,max10000ms gapMax=5040ms episodes=0 cache=H0/S12/M0 enrichReqs=3
-12:00:25 [health] frame avg=41.9ms p95=42.8ms max=50.4ms  n=41 ap=41  heap free=33744 largest=19444 free8=33744 tlsOk=1 rej=30  allocFail=0 hardFail=0  tls=2/185  interval=5000ms
-12:00:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:00:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=59/0 maxOutage=0ms rebootRec=0
-12:00:28 [fetch] LOW HEAP after Blipscope Cloud: free=26980 largest=16372 aircraft=40
-12:00:40 [logbook] persisted (27/262 types claimed, 220 airlines, 24 countries, 13343 contacts; 13932 B blobs, 1866 NVS entries free)
-12:00:42 [logbook] EVICTED since boot: 0 types, 18 airlines/owners, 0 countries, 0 airports (unclaimed only -- a claim is never evictable)
-12:00:54 [health] frame avg=42.9ms p95=44.3ms max=369.4ms  n=42 ap=41  heap free=31536 largest=19444 free8=31536 tlsOk=1 rej=31  allocFail=0 hardFail=0  tls=2/190  interval=15000ms
-12:00:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:00:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=62/0 maxOutage=0ms rebootRec=0
-12:01:10 [fetch] LOW HEAP after Blipscope Cloud: free=25644 largest=15348 aircraft=40
-12:01:24 [perf] 2026-08-19T19:01:26Z polls=6 busy=7%(fetch=2% enrich=4%) parse=8ms/poll bytes=2324/poll ac=40/40 lag=avg4833ms,max10000ms gapMax=15423ms episodes=0 cache=H0/S3/M3 enrichReqs=2
-12:01:25 [health] frame avg=42.6ms p95=43.7ms max=49.0ms  n=41 ap=41  heap free=32560 largest=19444 free8=32560 tlsOk=1 rej=32  allocFail=0 hardFail=0  tls=2/194  interval=15000ms
-12:01:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:01:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=65/0 maxOutage=0ms rebootRec=0
-12:01:40 [fetch] LOW HEAP after Blipscope Cloud: free=26852 largest=16372 aircraft=40
-12:01:54 [fetch] LOW HEAP after Blipscope Cloud: free=26884 largest=16372 aircraft=40
-12:01:55 [health] frame avg=42.5ms p95=43.0ms max=48.4ms  n=41 ap=41  heap free=33812 largest=19444 free8=33812 tlsOk=1 rej=34  allocFail=0 hardFail=0  tls=2/198  interval=15000ms
-12:01:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:01:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=68/0 maxOutage=0ms rebootRec=0
-12:02:10 [fetch] LOW HEAP after Blipscope Cloud: free=27076 largest=16372 aircraft=40
-12:02:24 [fetch] LOW HEAP after Blipscope Cloud: free=27108 largest=16372 aircraft=40
-12:02:25 [perf] 2026-08-19T19:02:26Z polls=4 busy=8%(fetch=3% enrich=4%) parse=8ms/poll bytes=2311/poll ac=40/40 lag=avg1500ms,max2000ms gapMax=15332ms episodes=0 cache=H0/S0/M4 enrichReqs=5
-12:02:25 [health] frame avg=42.4ms p95=43.2ms max=48.1ms  n=42 ap=41  heap free=31708 largest=19444 free8=31708 tlsOk=1 rej=37  allocFail=0 hardFail=0  tls=2/203  interval=15000ms
-12:02:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:02:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=71/0 maxOutage=0ms rebootRec=0
-12:02:40 [fetch] LOW HEAP after Blipscope Cloud: free=25872 largest=15348 aircraft=40
-12:02:54 [fetch] LOW HEAP after Blipscope Cloud: free=27188 largest=16372 aircraft=40
-12:02:55 [health] frame avg=42.3ms p95=42.8ms max=49.9ms  n=41 ap=41  heap free=33860 largest=19444 free8=33860 tlsOk=1 rej=42  allocFail=0 hardFail=0  tls=2/206  interval=15000ms
-12:02:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:02:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=74/0 maxOutage=0ms rebootRec=0
-12:03:10 [fetch] LOW HEAP after Blipscope Cloud: free=27188 largest=16372 aircraft=40
-12:03:24 [fetch] LOW HEAP after Blipscope Cloud: free=27316 largest=16372 aircraft=40
-12:03:25 [perf] 2026-08-19T19:03:26Z polls=4 busy=7%(fetch=2% enrich=4%) parse=9ms/poll bytes=2302/poll ac=40/40 lag=avg1500ms,max2000ms gapMax=15038ms episodes=0 cache=H0/S0/M4 enrichReqs=3
-12:03:25 [health] frame avg=42.5ms p95=43.7ms max=50.4ms  n=42 ap=41  heap free=31692 largest=19444 free8=31692 tlsOk=1 rej=44  allocFail=0 hardFail=0  tls=2/210  interval=15000ms
-12:03:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:03:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=77/0 maxOutage=0ms rebootRec=0
-12:03:40 [fetch] LOW HEAP after Blipscope Cloud: free=25968 largest=15348 aircraft=40
-12:03:54 [fetch] LOW HEAP after Blipscope Cloud: free=27512 largest=16372 aircraft=40
-12:03:55 [health] frame avg=42.4ms p95=43.1ms max=49.8ms  n=41 ap=41  heap free=34212 largest=19444 free8=34212 tlsOk=1 rej=47  allocFail=0 hardFail=0  tls=2/214  interval=15000ms
-12:03:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:03:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=80/0 maxOutage=0ms rebootRec=0
-12:04:10 [fetch] LOW HEAP after Blipscope Cloud: free=27512 largest=16372 aircraft=40
-12:04:24 [perf] 2026-08-19T19:04:26Z polls=4 busy=6%(fetch=2% enrich=3%) parse=10ms/poll bytes=2312/poll ac=40/40 lag=avg1500ms,max2000ms gapMax=15183ms episodes=0 cache=H0/S0/M4 enrichReqs=5
-12:04:25 [health] frame avg=42.4ms p95=42.9ms max=51.3ms  n=41 ap=41  heap free=34212 largest=19444 free8=34212 tlsOk=1 rej=50  allocFail=0 hardFail=0  tls=2/218  interval=15000ms
-12:04:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:04:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=83/0 maxOutage=0ms rebootRec=0
-12:04:40 [fetch] LOW HEAP after Blipscope Cloud: free=27544 largest=16372 aircraft=40
-12:04:54 [fetch] LOW HEAP after Blipscope Cloud: free=26372 largest=15860 aircraft=40
-12:04:55 [health] frame avg=42.5ms p95=43.1ms max=49.3ms  n=40 ap=41  heap free=35320 largest=19444 free8=35320 tlsOk=1 rej=52  allocFail=0 hardFail=0  tls=2/222  interval=15000ms
-12:04:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:04:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=86/0 maxOutage=0ms rebootRec=0
-12:05:24 [fetch] LOW HEAP after Blipscope Cloud: free=27496 largest=16372 aircraft=40
-12:05:25 [perf] 2026-08-19T19:05:26Z polls=4 busy=7%(fetch=3% enrich=3%) parse=8ms/poll bytes=2307/poll ac=40/40 lag=avg1000ms,max2000ms gapMax=15196ms episodes=0 cache=H0/S0/M4 enrichReqs=2
-12:05:26 [health] frame avg=42.5ms p95=42.9ms max=46.8ms  n=42 ap=41  heap free=33072 largest=19444 free8=33072 tlsOk=1 rej=56  allocFail=0 hardFail=0  tls=2/224  interval=15000ms
-12:05:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:05:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=89/0 maxOutage=0ms rebootRec=0
-12:05:40 [fetch] LOW HEAP after Blipscope Cloud: free=26340 largest=15860 aircraft=40
-12:05:54 [health] frame avg=42.6ms p95=42.9ms max=50.4ms  n=40 ap=41  heap free=35448 largest=19444 free8=35448 tlsOk=1 rej=58  allocFail=0 hardFail=0  tls=2/226  interval=15000ms
-12:05:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:05:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=92/0 maxOutage=0ms rebootRec=0
-12:06:24 [fetch] LOW HEAP after Blipscope Cloud: free=27560 largest=16372 aircraft=40
-12:06:26 [perf] 2026-08-19T19:06:26Z polls=3 busy=4%(fetch=1% enrich=2%) parse=8ms/poll bytes=2315/poll ac=40/40 lag=avg666ms,max1000ms gapMax=14985ms episodes=0 cache=H0/S0/M3 enrichReqs=1
-12:06:26 [health] frame avg=42.8ms p95=44.5ms max=49.1ms  n=41 ap=41  heap free=33236 largest=19444 free8=33236 tlsOk=1 rej=59  allocFail=0 hardFail=0  tls=2/230  interval=15000ms
-12:06:26 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:06:26 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=95/0 maxOutage=0ms rebootRec=0
-12:06:40 [fetch] LOW HEAP after Blipscope Cloud: free=27524 largest=16372 aircraft=40
-12:06:55 [fetch] LOW HEAP after Blipscope Cloud: free=24924 largest=14324 aircraft=40
-12:06:56 [health] frame avg=43.1ms p95=43.9ms max=52.4ms  n=41 ap=41  heap free=33048 largest=19444 free8=33048 tlsOk=1 rej=64  allocFail=0 hardFail=0  tls=2/235  interval=15000ms
-12:06:56 [health] BUDGET BROKEN: largest block 19444 < 20000
-12:06:56 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=98/0 maxOutage=0ms rebootRec=0
+12:28:15 
+12:28:15 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+12:28:15 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+12:28:15 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+12:28:15 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291836
+12:28:15 *wm:v2.0.17  D:2
+12:28:15 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+12:28:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:15 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+12:28:15 *wm:AutoConnect 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 1 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 2 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 3 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 4 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:Connect Wifi, ATTEMPT # 5 of 5
+12:28:15 *wm:No wifi saved, skipping 
+12:28:15 *wm:AutoConnect: FAILED for [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:15  20 ms
+12:28:15 *wm:StartAP with SSID:  Blipscope-31D918
+12:28:15 *wm:AP IP address: 192.168.4.1
+12:28:15 *wm:Starting Web Portal 
+12:28:15 ESP-ROM:esp32s3-20210327
+12:28:15 Build:Mar 27 2021
+12:28:15 rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+12:28:15 Saved PC:0x4037abd6
+12:28:15 SPIWP:0xee
+12:28:15 mode:DIO, clock div:1
+12:28:15 load:0x3fce2820,len:0x10cc
+12:28:15 load:0x403c8700,len:0xc2c
+12:28:15 load:0x403cb700,len:0x30c0
+12:28:15 entry 0x403c88b8
+12:28:15 
+12:28:16 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+12:28:16 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+12:28:16 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+12:28:16 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291836
+12:28:16 *wm:v2.0.17  D:2
+12:28:16 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+12:28:16 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:18 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+12:28:19 [  3419][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+12:28:19 *wm:AutoConnect 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 1 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 2 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 3 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 4 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:Connect Wifi, ATTEMPT # 5 of 5
+12:28:19 *wm:No wifi saved, skipping 
+12:28:19 *wm:AutoConnect: FAILED for  [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:19 20 ms
+12:28:19 *wm:StartAP with SSID:  Blipscope-31D918
+12:28:19 *wm:AP IP address: 192.168.4.1
+12:28:20 *wm:Starting Web Portal 
