@@ -323,6 +323,50 @@ namespace WiFiManagerHelpers
         wm.setConnectRetries(5);
         wm.setConnectTimeout(15); // seconds per attempt; polls through transient reason-2 disconnects
 
+        // ---------------------------------------------------------------
+        // WHY WE DO NOT ASK WiFiManager WHETHER CREDENTIALS EXIST.
+        //
+        // wm.getWiFiIsSaved() -> WiFi_hasAutoConnect() -> WiFi_SSID(true), which
+        // in WiFiManager 2.0.17 is:
+        //
+        //     wifi_config_t conf;                       // NOT initialised
+        //     esp_wifi_get_config(WIFI_IF_STA, &conf);  // result DISCARDED
+        //     return String(conf.sta.ssid);
+        //
+        // Called before the WiFi driver is started, esp_wifi_get_config()
+        // returns ESP_ERR_WIFI_NOT_INIT and never writes `conf` -- so the SSID
+        // is read out of uninitialised stack, and garbage is usually non-empty.
+        // The predicate is not stale, it is UNDEFINED, and on this board it read
+        // "true" on a device whose credentials had just been erased.
+        //
+        // The consequence was a 3-minute reboot loop on exactly the boards that
+        // must never have one: 180 s portal timeout -> autoConnect() false ->
+        // main.cpp reboots "to retry saved credentials" that do not exist ->
+        // portal -> repeat. A customer still scanning for the hotspot on their
+        // phone watches it disappear every three minutes.
+        //
+        // It has nothing to do with whether credentials ever existed, so a
+        // FACTORY-FRESH board hits it too -- first power-on, every unit.
+        //
+        // So we read the config ourselves: struct zeroed, return value checked,
+        // and the driver brought up first so the answer is real rather than
+        // merely safe. WiFi.mode() is idempotent and autoConnect() sets the mode
+        // it wants moments later; bringing it up here is what makes the question
+        // answerable at all.
+        // ---------------------------------------------------------------
+        const auto haveSavedCredentials = []() -> bool {
+            WiFi.mode(WIFI_STA);  // esp_wifi_get_config() cannot answer before this
+            wifi_config_t conf{};
+            if (esp_wifi_get_config(WIFI_IF_STA, &conf) != ESP_OK) {
+                // Cannot prove credentials exist -> behave as if there are none.
+                // That errs toward a rock-steady setup portal, which is the
+                // failure direction a customer can actually recover from.
+                Serial.println("[WiFi] STA config unreadable; treating as unprovisioned");
+                return false;
+            }
+            return conf.sta.ssid[0] != '\0';
+        };
+
         // THE PORTAL MUST GIVE UP -- BUT ONLY WHEN THERE IS SOMETHING TO RETRY.
         //
         // Default is 0 = block in the portal forever, which loses a device to the
@@ -342,7 +386,7 @@ namespace WiFiManagerHelpers
         // is connected to the setup hotspot (WiFiManager checks
         // WiFi_softap_num_stations()), so a customer typing their password is never
         // cut off mid-setup even on the timed path.
-        if (wm.getWiFiIsSaved()) {
+        if (haveSavedCredentials()) {
             wm.setConfigPortalTimeout(180);
             wm.setAPClientCheck(true);
             Serial.println("[WiFi] credentials saved: portal will time out after 180 s and retry them");

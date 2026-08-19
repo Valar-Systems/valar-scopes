@@ -1,0 +1,35 @@
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+
+[build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291984
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+*wm:AutoConnect 
+*wm:Connect Wifi, ATTEMPT # 1 of 5
+*wm:Connecting to SAVED AP: Tony
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-46 dBm
+*wm:AutoConnect: SUCCESS 
+*wm:STA IP Address: 192.168.86.55
+[WiFi] autoConnect() returned true (connected)
+[WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
+[ota] channel=s3-128 current=7 latest=7
+[web] config server listening on :80 (http://Blipscope-31D918.local)
+[logbook] loaded 260 types (27 claimed), 220 airlines (14), 24 countries (2), 13264 contacts
+[logbook] NVS 778/2646 entries used (1868 free); logbook budget ~2204, ceilings need 1375
+[cloud] no key override; using the factory-provisioned key
+[source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+[cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+[cloud] airports: 41 within 100 km
+[health] frame avg=35.8ms p95=36.4ms max=39.4ms  n=40 ap=41  heap free=42616 largest=30708 free8=42616 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/6  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[leaderboard] submit away after 0 ms (worst 0 ms)
+[leaderboard] rank #2/2, 434 pts
+[health] frame avg=37.4ms p95=37.8ms max=43.6ms  n=40 ap=41  heap free=40296 largest=28660 free8=40296 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/18  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+[perf] 2026-08-19T18:51:26Z polls=9 busy=11%(fetch=1% enrich=9%) parse=10ms/poll bytes=2304/poll ac=40/40 lag=avg7777ms,max11000ms gapMax=5476ms episodes=0 cache=H0/S8/M1 enrichReqs=9

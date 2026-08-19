@@ -136,6 +136,37 @@ statement of intent, and intent is the thing that was already wrong.
 Corollary, same root cause: **when a check protects a property, confirm the check's own
 environment has that property** — see [RELEASING.md](RELEASING.md).
 
+## Standing practice: a local build is not a CI result
+
+**A PR is not landable until `gh pr checks` is green. A local build of the env
+you happened to touch is not evidence about any other env.**
+
+PR #228 added two probe TUs that define `setup()`/`loop()` without the
+`#ifdef PROBE_SKETCH` guard every other file in `src/probe/` carries. That
+broke the link of **every product build**. CI caught it immediately and
+correctly: all ten matrix envs went red, on four consecutive runs, and stayed
+red for 24 hours.
+
+Nobody looked. The PR was opened and reported as finished on the strength of a
+local `pio run -e probe-s3-128-screenstate`, which succeeded — because that env
+is exactly the one place the missing guard does no harm. **The check existed,
+fired, and was ignored**, so "add a check" was never the fix and adding one
+would have changed nothing.
+
+The break was eventually found by building the shipping env by hand for an
+unrelated reason. That is luck, not process.
+
+So: **read the check status before saying a PR is ready.** `gh pr checks <n>`
+is one command and it is the difference between "it compiles for me" and "it
+compiles". This is the same rule as *read the artifact, not the config*, aimed
+one level up — the local build is the statement of intent, and CI is the
+artifact.
+
+Corollary, and a repo setting rather than a code change: the firmware matrix
+should be **required for merge** in branch protection. Requiring it cannot make
+anyone read it, but it does stop a red PR from being merged by someone who
+did not.
+
 ## Standing practice: take a check's input from the *other* side of the contract
 
 **A test that requests the path the test chose will pass against a feature that is

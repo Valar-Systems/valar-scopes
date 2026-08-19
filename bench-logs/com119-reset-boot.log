@@ -1,0 +1,29 @@
+
+[build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=292280
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal will time out after 180 s and retry them
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-56 dBm
+[WiFi] fast join OK in 1650 ms
+[WiFi] pinned AP ch=1 RSSI=-56 dBm for the next boot
+[ota] channel=s3-128 current=7 latest=7
+[web] config server listening on :80 (http://Blipscope-31D918.local)
+[logbook] loaded 258 types (27 claimed), 220 airlines (14), 24 countries (2), 13137 contacts
+[logbook] NVS 776/2646 entries used (1870 free); logbook budget ~2204, ceilings need 1375
+[cloud] no key override; using the factory-provisioned key
+[source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+[cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+[cloud] airports: 41 within 100 km
+[health] frame avg=36.0ms p95=36.5ms max=40.7ms  n=40 ap=41  heap free=43148 largest=31732 free8=43148 tlsOk=1 rej=0  allocFail=0 hardFail=0  tls=2/8  interval=5000ms
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+[leaderboard] submit away after 0 ms (worst 0 ms)
+[leaderboard] rank #2/2, 434 pts
+[fetch] LOW HEAP after Blipscope Cloud: free=33812 largest=16372 aircraft=40
+[fetch] LOW HEAP after Blipscope Cloud: free=33504 largest=16372 aircraft=40
+[perf] 2026-08-19T17:22:12Z polls=10 busy=12%(fetch=1% enrich=10%) parse=11ms/poll bytes=2294/poll ac=40/40 lag=avg6500ms,max10000ms gapMax=5067ms episodes=0 cache=H0/S9/M1 enrichReqs=10
