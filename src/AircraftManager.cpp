@@ -1453,13 +1453,22 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #else
     const unsigned apCount = (unsigned)AIRPORT_COUNT;
 #endif
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
                   (unsigned)heapFree, (unsigned)largest, (unsigned)free8, tlsOk,
                   (unsigned long)heaphealth::TrialRejectionCount(),
+                  heaphealth::BallastHeld() ? 1 : 0,
+                  (unsigned long)heaphealth::BallastReacquireFailures(),
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
+
+    // Opportunistic re-take of the handshake ballast (fix 4). Deliberately on the
+    // health line's slow cadence rather than in the loop: while a TLS session is
+    // live the block is legitimately gone, and hammering the allocator to be told
+    // so is the exact waste fix 1 just removed from the gate. A failure here is
+    // the normal state, not an error -- it is counted, not logged.
+    heaphealth::ReserveHandshakeBallast();
 
 #if defined(SOAK_TEST) || defined(FETCH_TRACE)
     // Fetch-pipeline state for the soak record. Added for the 2026-07-09 stall
@@ -4081,7 +4090,13 @@ void AircraftManager::ProcessDetailLookups()
 
     // same TLS-heap guard as the radar path: a handshake with too little contiguous
     // heap only fails and churns, so defer the detail lookups until heap recovers.
-    if (!heaphealth::CanHandshake())
+    //
+    // THROTTLED because this function is reached once per loop iteration. At a
+    // 41-43 ms frame that is ~23 trial allocations a second, every one of them
+    // failing, for as long as the sky stays busy -- measured on COM119. The
+    // throttled form can only ever be MORE restrictive, so deferral behaviour is
+    // unchanged; what goes away is 22 of every 23 pointless allocator walks.
+    if (!heaphealth::CanHandshakeThrottled())
         return;
 
     // Same rule as the background sweep: the card stays receiver-only when the
@@ -5365,7 +5380,12 @@ void AircraftManager::ProcessMetadataLookups()
 
     // not enough contiguous heap for a TLS handshake -> don't even try. Attempting
     // it only fails ("BIGNUM alloc failed") and the churn starves the web server.
-    if (!heaphealth::CanHandshake())
+    //
+    // Throttled for the same reason as the detail-card gate, though this path is
+    // already paced by METADATA_LOOKUP_INTERVAL below -- the gate sits ABOVE that
+    // pacing, so it was still being asked every loop even though it could only
+    // act every 5 s.
+    if (!heaphealth::CanHandshakeThrottled())
         return;
 
     const unsigned long now = millis();

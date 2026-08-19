@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HTTPClient.h>
+#include "HeapHealth.h"
 #include <ArduinoJson.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -145,6 +146,23 @@ private:
     // Call with the mutex held, after reusedConnection is known.
     void NoteTls(const String& url, bool reused) {
         if (url.startsWith("http://")) return; // plain http: no TLS context at all
-        if (reused) ++tlsReuses; else ++tlsHandshakes;
+        if (reused) { ++tlsReuses; return; }
+        ++tlsHandshakes;
+        // A FRESH HANDSHAKE IS ABOUT TO RUN -- hand back the reserved block now.
+        //
+        // This is the one moment fix 4 exists for. The reservation was taken at
+        // boot, while the heap was still whole, precisely so that a contiguous
+        // TLS_HANDSHAKE_BYTES exists HERE, after hours of fragmentation have made
+        // one hard to come by.
+        //
+        // Hooked into NoteTls rather than each call site because this is already
+        // the place that knows a handshake (not a reuse) is imminent, is already
+        // called under the mutex, and already excludes plain http. A second
+        // predicate for the same question is a second thing to keep in agreement.
+        //
+        // Releasing more often than necessary is harmless -- the re-take is
+        // opportunistic. Releasing too LATE is not, which is why this sits before
+        // the GET rather than after it.
+        heaphealth::ReleaseBallastForHandshake();
     }
 };
