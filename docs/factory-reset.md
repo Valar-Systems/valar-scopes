@@ -136,6 +136,20 @@ while its old score still sits on the public board.
    the only recovery path if touch is dead and Wi-Fi is unreachable, and there is
    no physical button on this hardware. **Scheduled, not dropped.**
 
+   **HEALTHY MEANS UPTIME, NOT CONNECTIVITY — and that is a hard requirement,
+   not a preference.** A board sitting unprovisioned in its setup portal is
+   healthy: it is doing exactly what it should. Define "healthy" as "joined a
+   network" and a device waiting to be configured never clears its counter, so
+   any reboot loop accumulates straight into a spurious factory reset — wiping a
+   customer's device because they had not set it up yet.
+
+   This is not hypothetical. A real reboot loop on exactly that path was found
+   and fixed the same day this feature was written
+   ([`wifi-portal-reboot-loop-2026-08-19.md`](wifi-portal-reboot-loop-2026-08-19.md)):
+   every unprovisioned board rebooted every 180 s. That loop would not have
+   tripped a 10 s counter — but only because its period happened to be long. A
+   shorter one would have, and the failsafe would have looked like the bug.
+
    Until it lands, `BootTouchToForget` (touch-and-hold at power-on, Wi-Fi only)
    **stays** — it is presently the sole recovery path when touch works and the
    network does not. Its removal is gated on the failsafe being *proven on
