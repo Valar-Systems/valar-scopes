@@ -2,6 +2,8 @@
 
 #include <ESPAsyncWebServer.h>
 
+#include "FactoryReset.h"
+
 class ConfigurationWebServer {
 private:
     AsyncWebServer server;
@@ -17,7 +19,13 @@ private:
 
     // Raised when the Reset WiFi button is used; loop() forgets the credentials
     // and restarts on the main task (WiFi/restart work off the async callback).
-    volatile bool wifiResetRequested = false;
+    /// The largest reset the web page has asked for, not yet performed.
+    ///
+    /// A TIER RATHER THAN A BOOL because there are two of them now, and because
+    /// the async web task must not do NVS writes -- it records the request and
+    /// the loop task performs it. Stored as the underlying integer so it stays
+    /// trivially `volatile`-safe across the two tasks.
+    volatile uint8_t resetTierRequested = 0;
 
     // PUBLISHED BY THE LOOP, READ BY THE PAGE -- the reverse direction of
     // configChanged above, and for the same reason: the page renders on the
@@ -63,7 +71,12 @@ public:
     bool ConsumeConfigChanged();
 
     // Returns true once after the Reset WiFi button is used.
-    bool ConsumeWifiReset();
+    /// The largest reset requested since the last call, and clears it.
+    /// Called from the loop task; main.cpp performs and reboots.
+    factoryreset::Tier ConsumeResetTier();
+
+    /// Record a request. Safe from the async web task -- it only sets a flag.
+    void RequestReset(factoryreset::Tier tier);
 
     // Publish the loop task's credential state for the page to render. Called
     // every loop; a plain store, no consume -- this is a LEVEL, not an event, and

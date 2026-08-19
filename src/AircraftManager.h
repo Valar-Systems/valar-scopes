@@ -14,6 +14,7 @@
 #include "AircraftInfoFields.h"
 #include "SpecialAircraft.h"
 #include "Logbook.h"
+#include "FactoryReset.h"
 #include "MqttPublisher.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
@@ -70,52 +71,72 @@ private:
     enum class Screen { Radar, List, Stats };
     Screen screen = Screen::Radar;
 
-    // Stats-screen "Reset WiFi" control. The row's drawn bounds are recorded each
-    // frame rather than computed twice, because the Stats layout is dynamic (rows
-    // are dropped as they run out of room above the clock) -- a hardcoded hit box
-    // would drift out of alignment on the smaller panels exactly where the rows
-    // get squeezed. armedUntil implements the confirming tap: first tap arms and
-    // says so, second tap within the window commits, and it disarms itself.
-    int  wifiRowY0 = -1, wifiRowY1 = -1;
-    bool wifiResetRequested = false;
+    // Stats-screen "Reset" row -- the entry point to the reset menu below. Its
+    // drawn bounds are recorded each frame rather than computed twice, because
+    // the Stats layout is dynamic (rows are dropped as they run out of room
+    // above the clock) -- a hardcoded hit box would drift out of alignment on
+    // the smaller panels exactly where the rows get squeezed.
+    int  resetRowY0 = -1, resetRowY1 = -1;   // the Stats "Reset" row, as drawn
+    /// Largest reset the on-screen menu has asked for, not yet performed.
+    /// Consumed by main.cpp on the loop task -- see FactoryReset.h.
+    uint8_t resetTierRequested = 0;
 
-    // RESET WI-FI IS A HOLD, NOT A TAP.
+    // ---------------------------------------------------------------------
+    // THE HISTORY, KEPT BECAUSE THE NEW DESIGN HAS TO ANSWER IT.
     //
-    // This was two taps inside a 6 s window, and its own comment said why -- "one
-    // tap is how a customer loses their network by brushing the screen while
-    // dusting it". It did not defend that: any two contacts confirmed, and a bench
-    // board lost its network to two taps 633 ms apart (#165).
+    // This control was two taps in a 6 s window. A bench board lost its network
+    // to two taps 633 ms apart (#165) -- a cloth dragged over the panel. The fix
+    // was to make it a HOLD, on the reasoning that a cloth cannot produce two
+    // seconds of sustained contact on one row: the accident excluded by physics
+    // rather than by heuristic. That reasoning was sound and is why the hold
+    // stood.
     //
-    // The first fix was a set of rules about what an accident looks like -- a
-    // minimum gap, cancel on an off-row tap, cancel on a swipe. Each defensible,
-    // and all of them the same KIND of thing as the rule that just failed: a guess
-    // about the shape of a burst. A hold is not a guess. A cloth dragged over a
-    // capacitive panel produces brief contacts scattered around; it cannot produce
-    // two seconds of sustained contact on one row. The accident is excluded by
-    // physics rather than by heuristic, and the three rules collapse into one.
+    // It is superseded by a fact about the hardware, not by a change of mind.
+    // The CST816D may report no change interrupt under a static contact, so the
+    // panel can fail to see the very gesture the design depends on -- and a hold
+    // that is not seen is indistinguishable, to the customer, from a device that
+    // has stopped responding.
     //
-    // It also matches the boot-time reset (WiFiManagerHelpers.h), which has always
-    // been a hold with a countdown -- so the same destructive action is now the
-    // same gesture wherever the customer meets it, and both are cancelled the same
-    // way: let go.
-    unsigned long wifiHoldStartMs = 0;  // when the qualifying contact began
-    unsigned long wifiHoldSeenMs  = 0;  // last poll that saw contact (phantom-release grace)
-    bool wifiHoldActive = false;        // a hold on the row is in progress
-    bool wifiHoldFired  = false;        // completed; swallow the release so it is not also a tap
-    static constexpr unsigned long WIFI_HOLD_MS = 2000;
-    // The CST816 intermittently reports "not touched" MID-TOUCH when polled between
-    // its report pulses -- documented in the variant header, and the reason the boot
-    // path requires a SUSTAINED release. Without this grace a phantom sample would
-    // silently restart the hold and the countdown would never finish, which reads to
-    // the customer as the control being broken.
-    static constexpr unsigned long WIFI_HOLD_GRACE_MS = 150;
-    // Drift allowed before the stroke is a swipe rather than a hold. Same threshold
-    // the gesture classifier uses, so a hold cannot be a swipe and vice versa.
-    static constexpr int WIFI_HOLD_MOVE_MAX = 40;
+    // SO #165 HAS TO BE ANSWERED AGAIN, DIFFERENTLY. A tap opens a MENU, which
+    // is not destructive; the cloth now reaches a screen listing two options and
+    // a large Cancel. Reaching a wipe from there takes a tap on a specific small
+    // target and then a second tap on another specific small target, with the
+    // biggest target on both screens being the one that backs out. The accident
+    // is excluded by requiring aim, twice -- not by requiring duration.
+    //
+    // THE RESET MENU -- DISCRETE TAPS, AND NEVER A PRESS-AND-HOLD.
+    //
+    // This row used to be "[ Hold to reset Wi-Fi ]" and the gesture was a 2 s
+    // hold with a countdown. It is gone, and not for tidiness: the CST816D may
+    // report NO change interrupt under a static contact, so a held finger can
+    // register as nothing at all. A destructive control whose gesture the panel
+    // may silently fail to see is a control that appears broken to the customer
+    // who needs it most -- the one whose device has already gone wrong.
+    //
+    // COM119 is measuring that behaviour now (docs/bench-runbook-device-game.md
+    // station 1). The measurement decides what a HOLD may be used for; it does
+    // not need to land before a reset can stop depending on one, because a tap
+    // is already known to work -- every other control on the device is one.
+    //
+    // Two taps to act, never one: choose a tier, then confirm it. Cancel is the
+    // larger target and sits nearer the bottom of the screen, so the cheap
+    // mistake (cancelling) is the easy one to make and the expensive mistake
+    // (confirming) takes deliberate aim.
+    enum class ResetMenu : uint8_t { Closed = 0, Choosing, ConfirmWifi, ConfirmFactory };
+    ResetMenu resetMenu = ResetMenu::Closed;
 
-    /** 0 when not holding, else 0..1 progress toward the reset -- drives the countdown. */
-    float WifiHoldProgress() const;
-    void  UpdateWifiHold(bool touched, int32_t tx, int32_t ty);
+    // Hit boxes, recorded by the draw that produced them. -1 = not drawn this
+    // frame and therefore not tappable -- the pixels and the hit test agree by
+    // construction, which is the same rule the Stats reset row already followed.
+    int resetOptWifiY0 = -1, resetOptWifiY1 = -1;
+    int resetOptFactoryY0 = -1, resetOptFactoryY1 = -1;
+    int resetConfirmY0 = -1, resetConfirmY1 = -1;
+    int resetCancelY0 = -1, resetCancelY1 = -1;
+
+    void DrawResetMenu(BandCanvas& backbuffer);
+    /// Returns true when the tap was consumed by the menu.
+    bool HandleResetMenuTap(int tx, int ty);
+    void CloseResetMenu();
 
     bool inDetail = false;     // detail card shown over the current screen
     String selectedIcao = "";  // aircraft shown in the detail card
@@ -740,7 +761,12 @@ public:
     // the config web page is not (that page needs the network the device has lost).
     // Lives on the Stats screen, never the radar face, and needs a second
     // confirming tap.
-    bool ConsumeWifiReset() { const bool r = wifiResetRequested; wifiResetRequested = false; return r; }
+    factoryreset::Tier ConsumeResetTier()
+    {
+        const factoryreset::Tier t = (factoryreset::Tier)resetTierRequested;
+        resetTierRequested = 0;
+        return t;
+    }
     // Night clock mode: at solar night with an empty sky (and NTP synced), the radar
     // screen shows a big seven-segment clock instead of a dead scope. main.cpp also
     // consults this to suppress the sweep beam under the clock face.
@@ -773,7 +799,7 @@ public:
      * killing soaks -- the moment the Stats screen changes. -1 before the Stats
      * screen has been drawn once, which the caller treats as "no exclusion yet".
      */
-    int DestructiveRowTopY() const { return wifiRowY0; }
+    int DestructiveRowTopY() const { return resetRowY0; }
 
     uint32_t BudgetBreachCount() const { return budgetBreaches; } // soak-gate criterion
     uint32_t AllocFailureCount() const;  // heap alloc-failure hook count (outcome-based soak criterion)
