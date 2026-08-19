@@ -594,6 +594,9 @@ R"(
                         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
                         Military airframe data from the <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics aircraft database</a>,
                         licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>.
+                        Curated military airframe data from <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>,
+                        licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
+                        Aircraft photographs from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>.
                         %CREDITS_LINK%
                     </span>
                 </div>
@@ -1186,7 +1189,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     <label class="field">
                         <span>Source:</span>
                         <select id="abncp-source" name="abncp-source" class="grow">
-                            <option value="backend" %ABNCP_BACKEND%>adsb.lol &mdash; via Valar feed (no setup)</option>
+                            <option value="backend" %ABNCP_BACKEND%>Valar feed &mdash; aggregated (no setup)</option>
                             <option value="opensky" %ABNCP_OPENSKY%>OpenSky &mdash; your account</option>
                         </select>
                     </label>
