@@ -10,7 +10,15 @@
 // app is source-agnostic. Two implementations, user-selectable in web config:
 //
 //   1. BackendAbncpProvider (DEFAULT, no setup) -- GET {base}/status/abncp, already normalized
-//      by the Valar feed (sourced from adsb.lol upstream). The firmware just relays it.
+//      by the Valar feed. The firmware just relays it.
+//
+//      DELIBERATELY NOT NAMING AN UPSTREAM. This used to say "sourced from adsb.lol
+//      upstream", which stopped being true on 2026-07-31 when adsb.fi became the chain
+//      primary and adsb.lol the terminal ODbL fallback. The backend fails over BETWEEN
+//      them per request, so no single name is correct for any given response -- and the
+//      firmware cannot know which one served it. A label that names one upstream is
+//      therefore wrong most of the time and unverifiable the rest of it. Attribution for
+//      both lives where it can be kept accurate: the config page and /credits.
 //   2. OpenSkyAbncpProvider (bring-your-own-account) -- queries OpenSky DIRECTLY from the device
 //      with the USER's own OAuth credentials, filtered to an ICAO24 watchlist. It MUST NOT route
 //      through the Valar backend, and there is NEVER a shared/baked-in OpenSky key: with blank
@@ -27,7 +35,7 @@ public:
     // Poll cadence in ms. Never set below 60 s for OpenSky (their fair-use guidance).
     virtual uint32_t IntervalMs() const = 0;
 
-    // Human label for the about/diagnostics ("adsb.lol via Valar feed", "OpenSky (your account)").
+    // Human label for the about/diagnostics ("Valar feed", "OpenSky (your account)").
     virtual const char* Name() const = 0;
 
     // Non-null when the provider can't poll and the ABNCP screen should say so (and nothing is
@@ -38,13 +46,16 @@ public:
     virtual bool BuildRequest(EamFetchRequest& req) const = 0;
 };
 
-// ------------------------------------------------------------------ adsb.lol via Valar feed
+// ------------------------------------------------------------------------- via the Valar feed
 class BackendAbncpProvider : public AbncpProvider {
 public:
     explicit BackendAbncpProvider(String baseUrl) : base(std::move(baseUrl)) {}
 
     uint32_t IntervalMs() const override { return 60000; } // ~60 s
-    const char* Name() const override { return "adsb.lol via Valar feed"; }
+    // Shown in about/diagnostics. Names the SOURCE THE DEVICE TALKS TO, which is the
+    // only thing it can state truthfully -- see the header note on why naming an
+    // upstream here was wrong.
+    const char* Name() const override { return "Valar feed"; }
 
     bool BuildRequest(EamFetchRequest& req) const override
     {
