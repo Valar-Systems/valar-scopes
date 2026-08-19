@@ -409,6 +409,49 @@ describe("military enrichment deepening", () => {
     expect(((await res.json()) as { op: string }).op).toBe("United States Air Force");
   });
 
+  it("prefers ovr: over pa: over mil:, and a curated operator over the block floor", async () => {
+    // PRECEDENCE IS THE THING UNDER TEST, and it is a read-path property rather
+    // than a run-order one -- so all three side tables are written FIRST, with
+    // conflicting values, and only the read decides. If someone later collapses
+    // them onto one key and relies on loader order, this fails.
+    await env.ENRICH_KV.put("mil:ae6842", JSON.stringify({ r: "MICTRONICS", t: "C17", tn: "Wrong" }));
+    await env.ENRICH_KV.put(
+      "pa:ae6842",
+      JSON.stringify({ t: "P8", tn: "Boeing P-8A Poseidon", op: "United States Navy" }),
+    );
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae6842" }).reply(200, hexBody([{ hex: "ae6842" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae6842"), { ROUTE_ADSBDB_ENABLED: "false" });
+    const body = (await res.json()) as { r: string; t: string; tn: string; op: string };
+    expect(body.t).toBe("P8");                       // plane-alert beats Mictronics
+    expect(body.tn).toBe("Boeing P-8A Poseidon");
+    // The CURATED operator must beat militaryOperator()'s block floor, which
+    // would otherwise answer the truthful-but-vaguer "US military" for this hex.
+    expect(body.op).toBe("United States Navy");
+    expect(body.r).toBe("");                         // no registration carried, none invented
+  });
+
+  it("a hand override (ovr:) beats the curated table", async () => {
+    await env.ENRICH_KV.put("pa:ae6847", JSON.stringify({ t: "P8", op: "United States Navy" }));
+    await env.ENRICH_KV.put("ovr:ae6847", JSON.stringify({ t: "P8", tn: "Boeing P-8A Poseidon", op: "US Navy" }));
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae6847" }).reply(200, hexBody([{ hex: "ae6847" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae6847"), { ROUTE_ADSBDB_ENABLED: "false" });
+    expect(((await res.json()) as { op: string }).op).toBe("US Navy");
+  });
+
+  it("NEGATIVE CONTROL: with no side-table row, the block floor answers and nothing is guessed", async () => {
+    // The control that makes the two tests above mean anything. If this hex
+    // resolved a type or a specific operator with every side table empty, those
+    // assertions would pass whether or not the tables were consulted at all.
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae6848" }).reply(200, hexBody([{ hex: "ae6848" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae6848"), { ROUTE_ADSBDB_ENABLED: "false" });
+    const body = (await res.json()) as { t: string; op: string };
+    expect(body.op).toBe("US military"); // the address-block floor, not a side table
+    expect(body.t).toBe("");             // no side table means no type
+  });
+
   it("labels dbFlags-military hexes outside the block table", async () => {
     // 0x3c6444 is a German civil-range hex; dbFlags bit 0 marks it military.
     fetchMock
