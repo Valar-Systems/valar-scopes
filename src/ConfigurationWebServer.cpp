@@ -146,6 +146,11 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(st.textContent='saving...';st.style.color='';st.style.fontWeight='';)" \
     R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){)" \
     R"(st.textContent=t;var w=/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
+    /* Only on a CLEAN save. A response containing MISSING means the device \
+       rejected something, and ticking off a step the device did not accept would \
+       be the checklist lying in the other direction. Null-guarded because this \
+       script is shared by every edition and only the radar page defines it. */ \
+    R"(if(!w&&window.bpSetupDone)window.bpSetupDone();)" \
     R"(if(miss.length){miss[0].scrollIntoView({block:'center'});miss[0].focus()}}).catch(function(){st.textContent='save failed - device unreachable'})});)" \
     R"(document.getElementById('resetwifi').addEventListener('click',function(){if(!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.'))return;fetch('/reset-wifi',{method:'POST',headers:{'X-Blipscope':'1'}}).then(function(r){return r.text()}).then(function(t){document.getElementById('result').textContent=t})});)" \
     /* Factory reset. EVERY LOOKUP IS NULL-GUARDED: this script is shared by every \
@@ -241,7 +246,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
        render off stNeedKey. Only the CONDITION was missing, never the action. */ \
     R"(var stRefused=(window.BP_REFUSED==='1');)" \
     R"(var stNeedKey=(window.BP_ENROLLED==='0')||stRefused;)" \
-    R"(if(stNeedLoc||stNeedKey){var stB=document.createElement('div');)" \
+    R"(if(stNeedLoc||stNeedKey){var stB=document.createElement('div');stB.id='bpBanner';)" \
     R"(stB.style.cssText='background:#4a0000;color:#ffd9d9;border:1px solid #ff4d4d;border-radius:6px;padding:12px 14px;margin:10px 0';)" \
     /* A refused board is not a new board, and must not be greeted as one. It was \
        working; something server-side stopped accepting its key -- most likely a \
@@ -256,7 +261,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(var s=document.createElement('b');s.textContent=(done?'DONE - ':n+'. ')+t;d.appendChild(s);)" \
     R"(if(!done){d.appendChild(document.createTextNode(' '+b))}else{d.style.color='#9fe6a0'})" \
     R"(stB.appendChild(d);return d})" \
-    R"(stStep(1,'Set your location.','The radar draws the sky around you. Until it has a location, the screen stays empty.',!stNeedLoc);)" \
+    R"(var stS1=stStep(1,'Set your location.','The radar draws the sky around you. Until it has a location, the screen stays empty.',!stNeedLoc);stS1.id='bpStep1';)" \
     R"(var stK=stStep(2,stRefused?'Re-verify this device.':'Verify this device.',stRefused?'The server is no longer accepting this device key, so the screen has stopped filling. One click restores it. Nothing else on this page needs changing, and your logbook is untouched.':'Verification is how a self-flashed board gets aircraft data. Without it the screen stays empty even with a location set. One click, once per board. It also puts you on the leaderboard under your own standing.',!stNeedKey);)" \
     R"(if(stNeedKey){var stW=document.createElement('div');stW.style.cssText='margin-top:8px';)" \
     R"(var stBtn=document.createElement('button');stBtn.type='button';stBtn.id='bpVerify';)" \
@@ -266,6 +271,28 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(stAlt.textContent='No internet on this machine? Open scopes.valarsystems.com/enroll?id='+window.BP_DEVID+' on your phone, then paste the key into Access key below.';)" \
     R"(stW.appendChild(stBtn);stW.appendChild(stAlt);stK.appendChild(stW)})" \
     R"(var shF=document.getElementById('cfg');shF.parentNode.insertBefore(stB,shF);)" \
+    /* THE CHECKLIST IS BUILT ONCE, AT LOAD, AND SAVING IS AN ASYNC FETCH -- so \
+       nothing re-evaluated it and a customer who had just entered their location \
+       still read "1. Set your location" until they refreshed. The page was \
+       telling them the step was outstanding immediately after they completed it, \
+       which on the one screen somebody reads when setup is not working is the \
+       worst possible place to be wrong. \
+       \
+       Re-checked from the LIVE input values rather than from a flag set at save \
+       time: the inputs are what the customer sees, so reading them is the only \
+       version that cannot disagree with the screen. */ \
+    R"(window.bpSetupDone=function(){var b=document.getElementById('bpBanner');if(!b)return;)" \
+    R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]');)" \
+    R"(if(!la||!lo||!String(la.value).trim()||!String(lo.value).trim())return;)" \
+    /* The location is set. If verification was the only other outstanding step \
+       and it is done too, the whole block goes -- an empty checklist is not a \
+       checklist. Otherwise step 1 collapses to a tick and step 2 stays, which is \
+       the same "still reads as a list of two" rule the block was built on. */ \
+    R"(if(!((window.BP_ENROLLED==='0')||(window.BP_REFUSED==='1'))){b.parentNode.removeChild(b);return})" \
+    R"(var s1=document.getElementById('bpStep1');if(!s1)return;)" \
+    R"(while(s1.firstChild)s1.removeChild(s1.firstChild);)" \
+    R"(var d=document.createElement('b');d.textContent='DONE - Set your location.';)" \
+    R"(s1.appendChild(d);s1.style.color='#9fe6a0'};)" \
     R"(if(stNeedLoc){[shLa,shLo].forEach(function(i){i.style.outline='2px solid #ff4d4d';i.style.background='#4a0000';)" \
     R"(i.addEventListener('input',function(){i.style.outline='';i.style.background=''})})}})" \
     /* THE POPUP IS A CONVENIENCE, NOT A BOUNDARY. It carries the device id so the \
