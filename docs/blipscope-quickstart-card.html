@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blipscope — Quick Start Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#15171a;
+    --ink-soft:#4a4f57;
+    --ink-faint:#878d96;
+    --rule:#d9dade;
+    --paper:#ffffff;
+    --chassis:#1c1e21;
+    --amber:#c8811a;
+    --live:#1f7a4d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#8d9096;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
+       padding:24px;display:flex;flex-direction:column;align-items:center;gap:20px}
+
+  .card{
+    width:4in;height:6in;background:var(--paper);position:relative;overflow:hidden;
+    padding:0.34in 0.32in 0.3in;display:flex;flex-direction:column;
+  }
+  @media print{
+    body{background:#fff;padding:0;gap:0}
+    .card{page-break-after:always}
+    .screen-only{display:none}
+  }
+
+  /* ---------- FRONT ---------- */
+  .masthead{border-bottom:1.5px solid var(--chassis);padding-bottom:9px;margin-bottom:14px}
+  .wordmark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:25px;
+            letter-spacing:.12em;line-height:1;color:var(--chassis)}
+  .tagline{font-size:8.4px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--ink-faint);margin-top:6px;font-weight:500}
+
+  .lede{font-size:11px;color:var(--ink-soft);line-height:1.5;margin-bottom:15px}
+
+  .step{display:grid;grid-template-columns:22px 1fr;gap:9px;margin-bottom:13px}
+  .num{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;
+       color:var(--paper);background:var(--chassis);height:18px;width:18px;
+       display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .step h3{font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:700;
+           letter-spacing:.005em;margin-bottom:3px}
+  .step p{font-size:10.2px;line-height:1.48;color:var(--ink-soft)}
+  .step p + p{margin-top:4px}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:9.6px;color:var(--ink);
+        background:#f1f2f4;padding:1px 4px;white-space:nowrap}
+  strong{font-weight:600;color:var(--ink)}
+
+  .payoff{margin-top:auto;border-top:1px solid var(--rule);padding-top:11px}
+  .payoff p{font-family:'Space Grotesk',sans-serif;font-size:11.5px;font-weight:500;
+            color:var(--live);letter-spacing:.01em}
+  .nameplate{margin-top:9px;font-size:8.6px;color:var(--ink-faint);line-height:1.7}
+  .nameplate .fill{display:inline-block;border-bottom:1px solid var(--rule);
+                   width:1.5in;margin-left:5px}
+
+  /* ---------- BACK ---------- */
+  .b-head{font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;
+          letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+          padding-bottom:5px;border-bottom:1px solid var(--rule);margin-bottom:11px}
+  .b-sec{margin-bottom:15px}
+  .b-sec p{font-size:10.2px;line-height:1.5;color:var(--ink-soft)}
+  .b-sec p + p{margin-top:7px}
+
+  .status{display:flex;flex-direction:column;gap:5px;margin:9px 0}
+  .chip{display:flex;align-items:center;gap:7px;font-size:9.2px;color:var(--ink-soft)}
+  .dot{width:7px;height:7px;flex:none;border-radius:50%}
+  .dot.live{background:var(--live)}
+  .dot.amber{background:var(--amber)}
+  .dot.dead{background:#9aa0a8}
+  .chip b{font-family:'JetBrains Mono',monospace;font-weight:500;font-size:8.6px;
+          color:var(--ink);letter-spacing:.02em}
+
+  .fix{margin-bottom:10px}
+  .fix h4{font-size:10.2px;font-weight:600;color:var(--ink);margin-bottom:2px}
+  .fix p{font-size:9.7px;line-height:1.47;color:var(--ink-soft)}
+
+  .foot{margin-top:auto;border-top:1.5px solid var(--chassis);padding-top:10px}
+  .foot-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .foot .links{font-size:9.6px;line-height:1.6;color:var(--ink)}
+  .foot .links span{color:var(--ink-faint)}
+  .foot .note{font-size:8.4px;line-height:1.5;color:var(--ink-faint);margin-top:9px}
+  .foot .origin{font-family:'Space Grotesk',sans-serif;font-size:8.4px;font-weight:500;
+                letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-top:8px}
+
+  .qr-slot{width:0.78in;height:0.78in;flex:none;
+           border:1px dashed var(--rule);display:flex;align-items:center;
+           justify-content:center;text-align:center;font-size:6.4px;line-height:1.3;
+           color:var(--ink-faint);letter-spacing:.04em}
+  .label{font-family:'JetBrains Mono',monospace;font-size:9px;color:#fff;
+         background:rgba(0,0,0,.35);padding:2px 8px;letter-spacing:.1em}
+</style>
+</head>
+<body>
+
+<div class="screen-only label">FRONT</div>
+
+<!-- ============ FRONT ============ -->
+<div class="card" data-document-role="page" data-label="Front">
+  <div class="masthead">
+    <div class="wordmark">BLIPSCOPE</div>
+    <div class="tagline">Live aircraft radar for your desk</div>
+  </div>
+
+  <p class="lede">Setting up takes about three minutes.</p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div>
+      <h3>Plug it in</h3>
+      <p>Use the included cable and any USB power adapter or computer port. The screen lights up in about three seconds.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div>
+      <h3>Join its Wi-Fi</h3>
+      <p>The screen shows a hotspot name like <span class="mono">Blipscope-326E20</span>. Connect to it from your phone or laptop. <strong>There is no password.</strong></p>
+      <p>A setup page opens. Choose your home Wi-Fi and enter your password.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div>
+      <h3>Tell it where you are</h3>
+      <p>The screen now shows an address like <span class="mono">blipscope-326e20.local</span>. Open it in a browser on the same Wi-Fi.</p>
+      <p>Go to <strong>gps-coordinates.org</strong>, enter your address, and copy the latitude and longitude. Paste them into the <strong>Latitude</strong> box — both boxes fill in. Click <strong>Save</strong>.</p>
+    </div>
+  </div>
+
+  <div class="payoff">
+    <p>Aircraft appear within seconds.</p>
+    <div class="nameplate">Your device’s name <span class="fill"></span></div>
+  </div>
+</div>
+
+<div class="screen-only label">BACK</div>
+
+<!-- ============ BACK ============ -->
+<div class="card" data-document-role="page" data-label="Back">
+  <div class="b-sec">
+    <div class="b-head">Using it</div>
+    <p><strong>Tap an aircraft</strong> for its registration, type, operator and route.</p>
+    <p><strong>Swipe left</strong> for the aircraft list, again for stats and settings.</p>
+  </div>
+
+  <div class="b-sec">
+    <div class="b-head">What the screen tells you</div>
+    <p>If updates stop arriving, Blipscope says so rather than showing a frozen picture:</p>
+    <div class="status">
+      <div class="chip"><span class="dot live"></span><span>Sweeping — data is current</span></div>
+      <div class="chip"><span class="dot amber"></span><span><b>STALE 2m</b> waiting on new data</span></div>
+      <div class="chip"><span class="dot dead"></span><span><b>NO DATA</b> aircraft greyed out</span></div>
+    </div>
+    <p>It catches up on its own the moment data returns.</p>
+  </div>
+
+  <div class="b-sec">
+    <div class="b-head">If something’s wrong</div>
+
+    <div class="fix">
+      <h4>Nothing on screen after saving</h4>
+      <p>Location is probably still empty. Open the device’s address and check that Latitude and Longitude have numbers in them.</p>
+    </div>
+
+    <div class="fix">
+      <h4>Changed your Wi-Fi, or moved house</h4>
+      <p>Swipe left twice to Stats, tap <strong>[ Reset Wi-Fi ]</strong>, then tap again to confirm.</p>
+    </div>
+
+    <div class="fix">
+      <h4>Stuck on setup, or can’t reach it</h4>
+      <p>Unplug it and plug it back in. The screen shows <span class="mono">TOUCH &amp; HOLD</span> for three seconds — touch it and keep holding until it says <span class="mono">WI-FI RESET</span>. Then start again at step 2.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-row">
+      <div>
+        <div class="links">
+          valarsystems.com/blipscope<br>
+          <span>Questions</span> support@valarsystems.com
+        </div>
+        <div class="origin">Valar Systems · Bend, Oregon</div>
+      </div>
+      <div class="qr-slot">QR<br>valarsystems.com<br>/blipscope</div>
+    </div>
+    <p class="note">Aircraft data comes from volunteer-run community networks that we help fund. Run your own receiver and your Blipscope gets faster — details at the link above.</p>
+  </div>
+</div>
+
+</body>
+</html>
