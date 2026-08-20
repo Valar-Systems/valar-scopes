@@ -92,8 +92,24 @@ String fmtRoute(const TrackedAircraft& t) {
 // fixed layout so existing devices look unchanged until the user opts into more.
 const AircraftInfoFieldDef AIRCRAFT_INFO_FIELDS[] = {
     { "info-callsign", "Callsign",        true,  false, fmtCallsign },
-    { "info-type",     "Aircraft type",   false, true,  fmtType },
-    { "info-operator", "Operator",        false, true,  fmtOperator },
+    // TYPE AND OPERATOR SHIP ON. The store copy promises both on the card, so a
+    // factory-fresh device must show them without the customer first discovering
+    // a toggle. This is the `defaultOn` column, and it is load-bearing beyond the
+    // two lines it draws:
+    //
+    // `metadataNeeded` (AircraftManager::Initialise) is true only when some
+    // enabled field NEEDS A LOOKUP -- and every needsLookup field used to default
+    // off, so a factory-fresh board set it false and ProcessMetadataLookups()
+    // returned immediately, forever. Measured on COM119 after a factory reset:
+    // enrichReqs=0 on every [perf] line at ac=40/40, with rej=0. Not the heap
+    // gate refusing enrichment; enrichment never being attempted at all.
+    //
+    // The economy itself was right -- do not spend network calls on fields nobody
+    // is shown. What was wrong is that the fields justifying the spend were the
+    // ones shipped off, so the default configuration bought its economy by
+    // disabling the product.
+    { "info-type",     "Aircraft type",   true,  true,  fmtType },
+    { "info-operator", "Operator",        true,  true,  fmtOperator },
     { "info-reg",      "Registration",    false, true,  fmtReg },
     { "info-route",    "Route",           false, true,  fmtRoute },
     { "info-icao",     "ICAO address",    false, false, fmtIcao },

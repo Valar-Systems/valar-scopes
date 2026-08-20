@@ -4,6 +4,40 @@
 from — and initially confused with — the [fetch stall](fetch-stall-2026-08-17.md). Treated
 as separate until something links them.
 
+## ANNOTATION 2026-08-19 — why this could not be reproduced, and how it becomes reproducible
+
+**The starved state did not reproduce on COM119**, which is why heap fixes 1 and 4 (PR #234,
+merged) shipped **measured only by the compiler**. COM119 under the same nominal load —
+`ac=40/40`, 41 airports — reported a completely healthy heap:
+
+```
+n=41 ap=41  heap free=92060 largest=44020 free8=92060 tlsOk=1 rej=0  tls=2/889
+```
+
+`largest=44020` against a 20,000 budget, and **zero** trial rejections where `.55` produced 23
+a second.
+
+**The reason is now known, and it is not that the defect went away.** COM119 had been factory
+reset that morning. Every `needsLookup` info field shipped `defaultOn=false`, so a
+factory-fresh board set `metadataNeeded=false`, `ProcessMetadataLookups()` returned at its
+first gate, and **enrichment never ran at all** — `enrichReqs=0` on every `[perf]` line. A
+board doing no enrichment cannot starve its heap on enrichment, and cannot exercise either
+fix.
+
+So the two boards were never comparable: `.55` was enriching and COM119 was not. The 23/s
+figure is not in doubt — it is simply not a thing COM119 could have produced in that state.
+
+**This is the first chance at a real before/after.** `info-type` and `info-operator` now ship
+`defaultOn=true`, which makes `metadataNeeded` true out of the box — the state **every shipped
+unit will be in**, and the honest bench control this defect has never had. The soak to run:
+
+1. a board on the new defaults, untouched, 40-aircraft sky, `[health]` captured
+2. `rej`/s under a reproduced starvation — `.55` said ~23/s; fix 1 should give ~1/s
+3. `ball=1` from boot, dropping to 0 only across a live TLS session
+4. `largest` holding its floor rather than eroding ~10 KB in 12 minutes
+
+Until that runs, **fixes 1 and 4 are in main and unproven**, and this document stays open.
+
 ## The finding that makes this a defect rather than a curiosity
 
 ```
