@@ -761,6 +761,10 @@ public:
     ~AircraftManager() = default;
 
     void Initialise();
+
+    /// Flush a dirty logbook because the Collection page was fetched. Called on
+    /// the loop task; rate-limited and dirty-only inside the logbook.
+    void FlushLogbookForFetch() { if (logbookEnabled) logbook.MaybePersistForFetch(); }
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }

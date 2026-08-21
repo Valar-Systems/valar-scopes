@@ -156,6 +156,17 @@ public:
 
     void MaybePersist(); // flush to NVS when dirty and the debounce has elapsed
 
+    /**
+     * Flush now, ignoring the debounce. For moments where not writing LOSES data
+     * rather than delaying it -- switching the logbook off, which otherwise
+     * strands every unflushed change in RAM (MaybePersist() is gated on the same
+     * flag that was just cleared).
+     */
+    void PersistNow();
+
+    /** Flush because the Collection page is being read. Dirty-only, rate-limited. */
+    void MaybePersistForFetch();
+
 private:
     std::map<String, TypeStat> types;      // type code -> first seen + count + claim
     std::map<String, SeenStat> operators;  // airline -> first seen + claim
@@ -181,8 +192,27 @@ private:
     uint32_t contacts = 0;
     Record recHigh, recFast, recNear;
     bool dirty = false;
+    // Begin() loads NVS ONCE and this flag is what makes it idempotent.
+    //
+    // THE INVARIANT THAT DEPENDS ON IT, written down because it was violated:
+    // while the device is running, RAM IS AUTHORITATIVE and NVS is its durable
+    // mirror. Re-entering Begin() must NOT reload, or a reload would clobber
+    // live entries with an older snapshot.
+    //
+    // That is only safe while every path OUT of logging flushes first. Disabling
+    // the logbook did not, so RAM and NVS could diverge and stay diverged for the
+    // rest of the session -- re-enabling never reloaded, and nothing ever wrote.
+    // PersistNow() on the disable edge (AircraftManager::Initialise) is what
+    // closes that hole; do not remove one without the other.
     bool started = false;
     unsigned long lastPersist = 0;
+    unsigned long lastFetchPersist = 0;
+    /** Minimum gap between FETCH-triggered writes. A refreshable page is an
+     *  unbounded write trigger, and flash wear is a product-lifetime budget. */
+    static constexpr unsigned long FETCH_PERSIST_MIN_MS = 30UL * 1000UL;
+
+    /** The single writer. All three public entry points funnel here. */
+    void persist();
 
     Preferences prefs;
 
