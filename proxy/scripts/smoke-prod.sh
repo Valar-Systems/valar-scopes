@@ -383,8 +383,30 @@ for t in $CHAIN_TILES; do
     chain_fail=$((chain_fail+1)); continue
   fi
   age=$(( $(date -u +%s) - pt ))
-  if [ "$age" -gt "$MAX_AGE_S" ] || [ "$age" -lt 0 ]; then
+  # A SMALL NEGATIVE AGE IS CLOCK SKEW, NOT A DEFECT. `age` subtracts the
+  # upstream's own timestamp from THIS workstation's clock, and those are two
+  # independent NTP-disciplined machines -- so a tile fetched the instant it was
+  # produced can legitimately land a second or two in the "future".
+  #
+  # Observed 2026-08-20 on the first run after six days dark: six fresh MISS
+  # tiles came back 0,0,1,1,1,-1. The -1 failed, and the run reported the only
+  # production check we have as broken over a one-second difference between
+  # adsb.fi's clock and this laptop's.
+  #
+  # That is the muted-alarm failure mode: a check that fires for a reason
+  # unrelated to what it watches gets ignored, and then it watches nothing. The
+  # tolerance is deliberately SMALL -- a large negative still fails, because a
+  # timestamp far in the future is a real signal (a bogus upstream `now`, or a
+  # feed replaying old data with a forward-stamped clock).
+  SKEW_TOLERANCE_S=5
+  if [ "$age" -gt "$MAX_AGE_S" ]; then
     printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=%-4ss FAIL (stale)\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}" "$age"
+    chain_fail=$((chain_fail+1))
+  elif [ "$age" -lt "-$SKEW_TOLERANCE_S" ]; then
+    # Named separately because "stale" is the WRONG WORD for a future timestamp,
+    # and reading it cost real time: it sends you looking for an old tile when
+    # the condition is the opposite one.
+    printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=%-4ss FAIL (timestamp in the future, beyond %ss skew tolerance)\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}" "$age" "$SKEW_TOLERANCE_S"
     chain_fail=$((chain_fail+1))
   else
     printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=%-4ss ok\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}" "$age"
