@@ -289,6 +289,55 @@ array is not. Same family as the two entries above and the one below: an empty
 result that cannot distinguish "no data" from "not allowed to see it" is a check
 that cannot detect its own failure.
 
+## Standing practice: a cross-language port of Worker math must pin its rounding
+
+**When Worker logic is reimplemented in another language, the arithmetic that
+looks most obviously identical is the part that silently diverges.** Not the
+algorithm — the primitives underneath it.
+
+The instance: Skyscope transcribes the wire schema's request quantization from
+[proxy/src/schema.ts](proxy/src/schema.ts) into Python. `Math.round` and
+Python's `round()` read as the same function and are not. JavaScript rounds
+halves **away from zero for positives** (`Math.round(1028.5) === 1029`); Python
+rounds halves **to even** (`round(1028.5) == 1028`). So a Skyscope station and a
+Blipscope device at identical coordinates landed on *different cache tiles*
+whenever the tile index fell exactly on `.5`.
+
+The consequence there was mild — a cache miss, not wrong data — and that is
+precisely why it is worth writing down. It was found by a unit test disagreeing
+with a hand-computed expectation, and nothing about the port would ever have
+surfaced it: both implementations are correct in their own language, both pass
+their own tests, and the divergence only exists at the boundary.
+
+**The class, which is what to watch for.** Any of these differ across
+JS/Python/C++ and all of them appear in this Worker's math:
+
+- **half-way rounding** — `Math.round` (half up) vs Python `round` (half to
+  even) vs C++ `std::round` (half away from zero);
+- **integer division and modulo of negatives** — `-7 / 2 | 0` truncates toward
+  zero in JS, `-7 // 2` floors in Python; `%` follows the sign of the *dividend*
+  in JS and C++ and of the *divisor* in Python, which matters for every
+  `((x % 360) + 360) % 360` normalisation;
+- **float-to-string** — JS `toFixed` vs Python `%.2f` disagree on ties, and the
+  tile key is a *string*;
+- **integer width** — JS bitwise ops coerce to int32; Python integers do not
+  overflow.
+
+**So the rule: a port of Worker math pins its rounding semantics explicitly and
+proves it with a cross-implementation test.** In practice that means a named
+helper rather than the language's built-in (Skyscope has `schema.js_round`,
+which is `floor(x + 0.5)` and is documented as being JS's semantics, not
+Python's), plus a test asserting the *disagreement* — `js_round(1028.5) == 1029`
+**and** `round(1028.5) == 1028` — so the reason the helper exists cannot be
+optimised away by someone who reasonably assumes the built-in would do.
+
+Same family as the transcription entry above: the strong form of the check
+derives its input from the other side ([tools/check_schema_sync.py in
+Skyscope](https://github.com/Valar-Systems/skyscope) parses this repo's
+`schema.ts` directly). But a schema diff compares *constants*, and this class of
+defect lives in the *operations* — so the two checks are complementary and
+neither substitutes for the other.
+
 ## Standing practice: never filter the output of a command you are testing for failure
 
 Twice in one week a `grep`/`tail` on a command's output hid the failure it was
