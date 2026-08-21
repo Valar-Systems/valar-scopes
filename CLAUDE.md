@@ -136,6 +136,37 @@ statement of intent, and intent is the thing that was already wrong.
 Corollary, same root cause: **when a check protects a property, confirm the check's own
 environment has that property** — see [RELEASING.md](RELEASING.md).
 
+## Standing practice: a green signal is about process; the artifact is elsewhere
+
+**CI green does not mean deployed. MERGED does not mean in main. `/healthz` and the
+tree are the artifacts.** Three separate incidents in one week, all the same shape:
+
+- **`MERGED` ≠ in main.** PR #233 was opened against a branch that was then
+  squash-merged, so it merged into a dead end. GitHub was not wrong — the merge
+  happened. 26 files and ~15,200 lines were absent from main for hours while the
+  badge read MERGED. `git ls-tree origin/main src/FactoryReset.cpp` was empty, and
+  that was the only thing that said so.
+- **CI green ≠ deployed.** `workers.yml` typechecks and tests the Workers; it has no
+  deploy step. A green run on main was read as "the change is live", and production
+  sat **20 commits behind** for three days while the code it needed was in main.
+  `curl /healthz` reports the commit actually running, and it disagreed.
+- **A merged PR's data can outrun its code.** 9,837 `pa:` rows and an `ovr:` override
+  were written to production KV while the Worker that reads them was undeployed. The
+  rows were live and unread, and the licence obligation they carried went unmet.
+
+The tell is always the same: a signal that describes *process* being read as a fact
+about *the running system*. The counter is one command, and it is never the badge:
+
+| question | the artifact |
+|---|---|
+| is it in main? | `git ls-tree origin/main -- <path>` |
+| is it deployed? | `curl .../healthz` → the stamped commit |
+| is it on the board? | the `[build] env=` banner on serial |
+| did the flag take? | `grep` the ELF |
+
+Same family as everything below, one level up: the input is a statement of intent,
+and a green check is a statement that the intent was processed.
+
 ## Standing practice: take a check's input from the *other* side of the contract
 
 **A test that requests the path the test chose will pass against a feature that is
