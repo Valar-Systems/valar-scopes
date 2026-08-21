@@ -961,14 +961,79 @@ size_t Logbook::JsonStream::Read(uint8_t* out, size_t maxLen)
     return n;
 }
 
+// Three entry points, three different gates, ONE writer (persist(), below).
+//
+// They exist because "when may we write flash?" has three different right
+// answers, and collapsing them is what produced a Collection page that showed
+// an empty book on a device that was actively logging.
+
 void Logbook::MaybePersist()
 {
     if (!dirty)
         return;
     const unsigned long now = millis();
-    if (now - lastPersist < PERSIST_INTERVAL_MS)
-        return;
 
+    // FIRST WRITE AFTER BOOT IS IMMEDIATE, and this is the bug fix rather than a
+    // tuning choice. lastPersist starts at 0, so `now - 0 < PERSIST_INTERVAL_MS`
+    // held for the whole first TEN MINUTES of uptime -- and /logbook.json is
+    // served from NVS (JsonStream::Produce reads the store, not the live maps,
+    // because it runs on the async task and reading the maps would race the loop
+    // task that writes them).
+    //
+    // So a factory-fresh device logged and claimed happily in RAM while its
+    // Collection page read an empty namespace and said "Nothing logged yet".
+    // Observed on COM119 2026-08-21: 24 types and 9 claims in RAM, {} on the page.
+    //
+    // One extra write per boot, worst case, and only when something was actually
+    // logged. The debounce then resumes for the rest of the session, so the flash
+    // wear budget is unchanged in steady state.
+    const bool neverPersisted = (lastPersist == 0);
+    if (!neverPersisted && now - lastPersist < PERSIST_INTERVAL_MS)
+        return;
+    persist();
+}
+
+/**
+ * Flush now, whatever the debounce says. For the moments where NOT writing
+ * loses data rather than merely delaying it -- today that is the logbook being
+ * switched OFF, which used to strand every unflushed change in RAM forever
+ * because MaybePersist() is gated on the same flag that was just cleared.
+ */
+void Logbook::PersistNow()
+{
+    if (!dirty)
+        return;
+    persist();
+}
+
+/**
+ * Flush because someone is READING the Collection page.
+ *
+ * Rate-limited independently of the main debounce and never unconditional:
+ * flash wear is a product-lifetime budget, and a page a customer can refresh is
+ * an unbounded write trigger. Dirty-only, so an idle book costs nothing however
+ * often it is fetched.
+ *
+ * HONEST LIMIT: this cannot help the request that triggered it. The handler runs
+ * on the async task and the write must happen on the loop task, so the flush
+ * lands a frame or two later and it is the NEXT read that sees it. The
+ * first-write-after-boot rule above is what fixes the first-run case; this keeps
+ * a long-running device's page from being up to ten minutes stale.
+ */
+void Logbook::MaybePersistForFetch()
+{
+    if (!dirty)
+        return;
+    const unsigned long now = millis();
+    if (lastFetchPersist != 0 && now - lastFetchPersist < FETCH_PERSIST_MIN_MS)
+        return;
+    lastFetchPersist = now;
+    persist();
+}
+
+void Logbook::persist()
+{
+    const unsigned long now = millis();
     // Serialize each store, honoring the MAX_BLOB safety ceiling (the per-store
     // caps keep us short of it; legacy over-cap lists truncate at the tail).
     // The ceilings are per-store now, and they are a safety net rather than a

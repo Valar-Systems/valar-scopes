@@ -136,6 +136,39 @@ statement of intent, and intent is the thing that was already wrong.
 Corollary, same root cause: **when a check protects a property, confirm the check's own
 environment has that property** — see [RELEASING.md](RELEASING.md).
 
+## Standing practice: a default only reaches keys that were never saved
+
+**Changing a `defaultOn` in firmware reaches factory-fresh devices and nobody
+else.** The config page posts the WHOLE form, and an unchecked box is simply
+absent from the body — so `SaveToggle()` writes an explicit `"false"` for it. From
+that moment the key has a value, and no future default can reach it:
+
+```cpp
+infoFieldEnabled[i] = stored.isEmpty() ? defaultOn : (stored == "true");
+```
+
+The first time a customer saves *anything*, the defaults in force that day are
+frozen into their NVS as explicit values. And they must save something — setting
+a location is a whole-form save, and a device without one shows an empty radar.
+
+So #238 (aircraft type + operator ship on) could not reach a single configured
+device. It looked like a one-line fix and was inert everywhere it mattered.
+
+**The rule: any change to a `defaultOn` needs a migration alongside it**, or it
+ships to nobody who already owns the product. See
+[include/ConfigMigration.h](include/ConfigMigration.h) — it DELETES the key
+rather than forcing a value, because deleting says *"you never made a choice
+about this"*, which is the truth when the old default was off.
+
+Two corollaries worth carrying:
+
+- **A stored value and a firmware default are different kinds of thing.** Reading
+  a toggle tells you what the device will do; it does not tell you whether anyone
+  ever decided it.
+- **The same shape appears wherever a UI writes a full snapshot.** Any
+  "save everything" form freezes every default it renders, including ones the
+  customer never looked at.
+
 ## Standing practice: a green signal is about process; the artifact is elsewhere
 
 **CI green does not mean deployed. MERGED does not mean in main. `/healthz` and the

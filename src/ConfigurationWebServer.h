@@ -17,6 +17,13 @@ private:
     // (different FreeRTOS task), so it raises this flag and lets loop() reload.
     volatile bool configChanged = false;
 
+    // Same crossing, opposite trigger: raised when /logbook.json is READ, so the
+    // loop task can flush a dirty logbook and the NEXT read is current. The page
+    // is served from NVS (JsonStream reads the store, not the live maps), so
+    // without this a long-running device's Collection could sit up to ten
+    // minutes behind what the radar had already logged.
+    volatile bool logbookFlushRequested = false;
+
     // Raised when the Reset WiFi button is used; loop() forgets the credentials
     // and restarts on the main task (WiFi/restart work off the async callback).
     /// The largest reset the web page has asked for, not yet performed.
@@ -52,6 +59,16 @@ public:
     ConfigurationWebServer(int port) : server(port), listenPort((uint16_t)port) {}
 
     void Initialise();
+
+    /**
+     * Set when /logbook.json is fetched; consumed on the LOOP task.
+     *
+     * The handler runs on async_tcp and the logbook is written by the loop task,
+     * so the flush cannot happen inline -- crossing that boundary is the race the
+     * NVS-backed page exists to avoid in the first place. A flag is the whole
+     * mechanism: the fetch asks, the loop decides (dirty-only, rate-limited).
+     */
+    bool ConsumeLogbookFlushRequest();
 
     // Did the config server actually claim its port this boot?
     //

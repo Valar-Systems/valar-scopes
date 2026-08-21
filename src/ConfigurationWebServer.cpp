@@ -1088,8 +1088,19 @@ R"(
                     if (bits.length) h += '<div style="margin:.9rem 0 .2rem"><b>Records</b></div><div class="hint">' + bits.join('<br>') + '</div>';
                     h += '<div class="hint" style="margin-top:.9rem">' + (d.contacts || 0) + ' contacts seen in total.</div>';
                     if (!d.types || !d.types.length) {
-                        h = '<span class="hint">Nothing logged yet. Turn on the spotting logbook above, ' +
-                            'and give the device a while to see some traffic.</span>';
+                        /* NEVER TELL SOMEONE TO ENABLE WHAT IS ALREADY ENABLED.
+                           This used to print "Turn on the spotting logbook above"
+                           unconditionally -- including while the box was ticked,
+                           the logbook was running, and claims were landing. It
+                           sent a customer round a checkbox they had already set,
+                           which is the worst possible instruction on the one page
+                           people read when something is not working.
+                           The empty state has two causes and they need different
+                           sentences: not switched on yet, or on and still filling. */
+                        const lbOn = document.querySelector('input[name=logbook]');
+                        h = (lbOn && lbOn.checked)
+                            ? '<span class="hint">Logbook is on &mdash; aircraft appear here as you spot them.</span>'
+                            : '<span class="hint">Turn on the spotting logbook below to start a collection.</span>';
                     }
                     col.innerHTML = h;
                 }).catch(function () {
@@ -3441,7 +3452,12 @@ void ConfigurationWebServer::Initialise() {
     // The stream owns an open read-only Preferences handle, so it is kept in a
     // shared_ptr the lambda captures by value: ESPAsyncWebServer calls the filler
     // repeatedly and then drops it, which is exactly when the handle should close.
-    server.on("/logbook.json", HTTP_GET, [](AsyncWebServerRequest* request) {
+    server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        // Ask the loop task to flush a dirty logbook. It cannot help THIS
+        // response -- the stream below is already reading NVS on this task -- but
+        // it makes the next read current. Dirty-only and rate-limited on the
+        // logbook side; this end just raises the flag.
+        logbookFlushRequested = true;
         auto stream = std::make_shared<Logbook::JsonStream>();
         AsyncWebServerResponse* r = request->beginChunkedResponse(
             "application/json",
@@ -3495,6 +3511,14 @@ bool ConfigurationWebServer::ConsumeConfigChanged()
     if (!configChanged)
         return false;
     configChanged = false;
+    return true;
+}
+
+bool ConfigurationWebServer::ConsumeLogbookFlushRequest()
+{
+    if (!logbookFlushRequested)
+        return false;
+    logbookFlushRequested = false;
     return true;
 }
 

@@ -748,6 +748,23 @@ void AircraftManager::Initialise()
         metadataNeeded = true;
         logbook.Begin(); // idempotent: only the first call loads from NVS
     }
+    // WHAT THE TOGGLE MEANS, decided and written down because today it silently
+    // meant the other thing.
+    //
+    // It means STOP COLLECTING. It does not, and must not, mean "stop saving
+    // what you already collected" -- but that is exactly what it did: the only
+    // writer is gated on this same flag, so unchecking the box stranded every
+    // change made since the last flush, permanently. With the 10-minute debounce
+    // that could be a whole session's spotting, and the customer's own Collection
+    // page would then show a book that had gone backwards.
+    //
+    // So the disable EDGE flushes before logging stops. The customer keeps what
+    // they collected; only new collecting ceases, which is what the checkbox
+    // says on the page.
+    if (logbookWasEnabled && !logbookEnabled) {
+        Serial.println("[logbook] disabled -- flushing before logging stops");
+        logbook.PersistNow();
+    }
 
 #ifdef FEATURE_CLOUD_FEED
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook

@@ -11,6 +11,7 @@
 #include "BuildIdentity.h"
 #include "DeviceIdentity.h"
 #include "FactoryReset.h"
+#include "ConfigMigration.h"
 #include "HeapHealth.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
@@ -382,6 +383,12 @@ void setup()
   // begin background server for configuration
   configServer.Initialise();
 
+  // One-shot config migrations, BEFORE anything reads settings. Ordering is
+  // load-bearing: run this after Initialise() and the app spends its first
+  // session on the pre-migration values, which for #238 is exactly the session a
+  // customer would be looking at while wondering why the OTA changed nothing.
+  configmigration::Apply();
+
   // initialise the active app (radar or EAM monitor)
   appManager.Initialise();
 
@@ -489,6 +496,16 @@ void loop()
   // rather than racing the async web-server callback.
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
+
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+  // Somebody opened the Collection page. Flush a dirty logbook HERE, on the loop
+  // task that owns it, so the next read is current -- the page is served from
+  // NVS and would otherwise lag the live book by up to the persist debounce.
+  // Dirty-only and rate-limited inside MaybePersistForFetch(); this is just the
+  // task hand-off.
+  if (configServer.ConsumeLogbookFlushRequest())
+    appManager.FlushLogbookForFetch();
+#endif
 
   // Publish the credential state across the task boundary, so the config page
   // renders the same bit the radar's banner draws from. A plain store on the
