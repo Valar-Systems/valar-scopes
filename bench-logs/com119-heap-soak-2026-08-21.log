@@ -1,0 +1,668 @@
+# capture started 2026-08-21T10:44:02-07:00
+10:44:02 [perf] 2026-08-21T17:26:28Z polls=12 busy=25%(fetch=1% enrich=23%) parse=9ms/poll bytes=2319/poll ac=40/40 lag=avg7500ms,max10000ms gapMax=5172ms episodes=0 cache=H0/S12/M0 enrichReqs=12
+10:44:02 [health] frame avg=42.0ms p95=43.6ms max=47.5ms  n=41 ap=41  heap free=68472 largest=31732 free8=68472 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/41  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=10/0 maxOutage=0ms rebootRec=0
+10:44:02 [health] frame avg=42.5ms p95=43.7ms max=48.8ms  n=40 ap=41  heap free=72228 largest=31732 free8=72228 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/52  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=13/0 maxOutage=0ms rebootRec=0
+10:44:02 [perf] 2026-08-21T17:27:28Z polls=12 busy=26%(fetch=1% enrich=25%) parse=8ms/poll bytes=2307/poll ac=40/40 lag=avg7583ms,max11000ms gapMax=5224ms episodes=0 cache=H0/S12/M0 enrichReqs=12
+10:44:02 [health] frame avg=42.9ms p95=44.3ms max=49.4ms  n=41 ap=41  heap free=70112 largest=31732 free8=70112 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/64  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=16/0 maxOutage=0ms rebootRec=0
+10:44:02 [health] frame avg=43.2ms p95=44.1ms max=52.3ms  n=41 ap=41  heap free=69192 largest=31732 free8=69192 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/76  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=19/0 maxOutage=0ms rebootRec=0
+10:44:02 [perf] 2026-08-21T17:28:28Z polls=12 busy=27%(fetch=2% enrich=25%) parse=8ms/poll bytes=2300/poll ac=40/40 lag=avg8416ms,max11000ms gapMax=5187ms episodes=0 cache=H0/S12/M0 enrichReqs=12
+10:44:02 [health] frame avg=43.4ms p95=44.6ms max=51.5ms  n=40 ap=41  heap free=69772 largest=31732 free8=69772 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/88  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=22/0 maxOutage=0ms rebootRec=0
+10:44:02 [health] frame avg=43.9ms p95=45.7ms max=50.5ms  n=41 ap=41  heap free=67960 largest=31732 free8=67960 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/100  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=25/0 maxOutage=0ms rebootRec=0
+10:44:02 [perf] 2026-08-21T17:29:28Z polls=12 busy=12%(fetch=2% enrich=9%) parse=8ms/poll bytes=2299/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5106ms episodes=0 cache=H0/S12/M0 enrichReqs=9
+10:44:02 [health] frame avg=43.8ms p95=45.1ms max=49.6ms  n=41 ap=41  heap free=67576 largest=31732 free8=67576 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/109  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=28/0 maxOutage=0ms rebootRec=0
+10:44:02 [health] frame avg=43.9ms p95=45.3ms max=51.0ms  n=41 ap=41  heap free=67584 largest=31732 free8=67584 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/116  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=31/0 maxOutage=0ms rebootRec=0
+10:44:02 [perf] 2026-08-21T17:30:28Z polls=12 busy=8%(fetch=1% enrich=7%) parse=7ms/poll bytes=2304/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5127ms episodes=0 cache=H0/S12/M0 enrichReqs=3
+10:44:02 [health] frame avg=43.7ms p95=44.7ms max=51.9ms  n=41 ap=41  heap free=67632 largest=31732 free8=67632 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/124  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=34/0 maxOutage=0ms rebootRec=0
+10:44:02 [health] frame avg=43.3ms p95=44.2ms max=51.4ms  n=40 ap=41  heap free=68868 largest=31732 free8=68868 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/131  interval=5000ms
+10:44:02 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=37/0 maxOutage=0ms rebootRec=0
+10:44:02 [perf] 2026-08-21T17:31:28Z polls=12 busy=7%(fetch=2% enrich=5%) parse=8ms/poll bytes=2299/poll ac=40/40 lag=avg8083ms,max12000ms gapMax=5211ms episodes=0 cache=H0/S12/M0 enrichReqs=4
+10:44:02 [health] frame avg=43.5ms p95=44.9ms max=51.6ms  n=41 ap=41  heap free=67824 largest=31732 free8=67824 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/140  interval=5000ms
+10:44:02 [touch] 995311 press (111,115) inDetail=0
+10:44:26 [perf] 2026-08-21T17:44:28Z polls=12 busy=6%(fetch=2% enrich=4%) parse=8ms/poll bytes=2323/poll ac=40/40 lag=avg7500ms,max10000ms gapMax=5209ms episodes=0 cache=H0/S12/M0 enrichReqs=3
+10:44:28 [health] frame avg=43.5ms p95=44.6ms max=51.6ms  n=40 ap=41  heap free=68772 largest=31732 free8=68772 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/291  interval=5000ms
+10:44:28 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=121/0 maxOutage=0ms rebootRec=0
+10:44:56 [health] frame avg=43.5ms p95=45.2ms max=51.3ms  n=40 ap=41  heap free=69000 largest=31732 free8=69000 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/303  interval=5000ms
+10:44:58 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=124/0 maxOutage=0ms rebootRec=0
+10:45:26 [perf] 2026-08-21T17:45:28Z polls=12 busy=10%(fetch=1% enrich=8%) parse=8ms/poll bytes=2322/poll ac=40/40 lag=avg7500ms,max10000ms gapMax=5263ms episodes=0 cache=H0/S12/M0 enrichReqs=8
+10:45:28 [health] frame avg=43.3ms p95=44.1ms max=53.0ms  n=40 ap=41  heap free=68968 largest=31732 free8=68968 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/311  interval=5000ms
+10:45:28 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=127/0 maxOutage=0ms rebootRec=0
+10:45:56 [health] frame avg=43.3ms p95=44.4ms max=52.1ms  n=40 ap=41  heap free=69080 largest=31732 free8=69080 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/319  interval=5000ms
+10:45:58 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=130/0 maxOutage=0ms rebootRec=0
+10:46:26 [perf] 2026-08-21T17:46:28Z polls=12 busy=6%(fetch=1% enrich=4%) parse=8ms/poll bytes=2315/poll ac=40/40 lag=avg7500ms,max10000ms gapMax=5049ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+10:46:28 [health] frame avg=43.5ms p95=44.7ms max=52.0ms  n=40 ap=41  heap free=69080 largest=31732 free8=69080 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/325  interval=5000ms
+10:46:28 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=133/0 maxOutage=0ms rebootRec=0
+10:46:56 [health] frame avg=43.3ms p95=44.2ms max=53.4ms  n=40 ap=41  heap free=68824 largest=31732 free8=68824 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/333  interval=5000ms
+10:46:58 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=136/0 maxOutage=0ms rebootRec=0
+10:47:10 [GET] Handling request to config web server...
+10:47:14 [GET] heap free=60004 largest-block=31732
+10:47:14 [1366754][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:47:14 [1366793][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+10:47:22 [POST] Handling form submission to config web server...
+10:47:23 [logbook] loaded 0 types (0 claimed), 0 airlines (0), 0 countries (0), 0 contacts
+10:47:23 [logbook] NVS 323/2646 entries used (2323 free); logbook budget ~2204, ceilings need 1375
+10:47:23 [logbook] seeded from 41 contact(s) already tracked: 19 types, 22 airlines, 2 countries, 22 airports
+10:47:23 [cloud] no key override; using the factory-provisioned key
+10:47:23 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+10:47:23 [leaderboard] submit away after 0 ms (worst 0 ms)
+10:47:23 [leaderboard] rank #2/2, 0 pts
+10:47:25 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+10:47:25 [cloud] airports: 60 within 161 km
+10:47:26 [perf] 2026-08-21T17:47:28Z polls=12 busy=11%(fetch=1% enrich=10%) parse=8ms/poll bytes=2319/poll ac=40/40 lag=avg7750ms,max12000ms gapMax=6383ms episodes=0 cache=H0/S12/M0 enrichReqs=8
+10:47:28 [health] frame avg=55.0ms p95=60.9ms max=166.3ms  n=40 ap=60  heap free=63544 largest=31732 free8=63544 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/346  interval=5000ms
+10:47:28 [health] BUDGET BROKEN: frame p95 60.9ms > 60ms
+10:47:28 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=139/0 maxOutage=0ms rebootRec=0
+10:47:36 [touch] 1389863 press (58,149) inDetail=0
+10:47:37 [touch] 1389975 release start=(58,149) end=(58,149) d=(0,0) held=112ms -> TAP
+10:47:37 [claim] B738 claimed (1/20 types)
+10:47:37 [touch] 1391038 press (142,142) inDetail=1
+10:47:38 [touch] 1391076 release start=(142,142) end=(142,142) d=(0,0) held=38ms -> TAP
+10:47:38 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:47:38 [touch] 1391472 press (151,134) inDetail=1
+10:47:39 [touch] 1391508 release start=(151,134) end=(151,134) d=(0,0) held=36ms -> TAP
+10:47:39 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:47:39 [touch] 1394034 press (121,122) inDetail=0
+10:47:41 [touch] 1394091 release start=(121,122) end=(121,122) d=(0,0) held=57ms -> TAP
+10:47:41 [claim] C150 claimed (2/20 types)
+10:47:41 [touch] 1395265 press (159,122) inDetail=1
+10:47:43 [touch] 1395302 release start=(159,122) end=(159,122) d=(0,0) held=37ms -> TAP
+10:47:43 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:47:43 [touch] 1395695 press (160,123) inDetail=1
+10:47:43 [touch] 1395766 release start=(160,123) end=(160,123) d=(0,0) held=71ms -> TAP
+10:47:43 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:47:43 [touch] 1396552 press (153,100) inDetail=0
+10:47:44 [touch] 1396666 release start=(153,100) end=(153,100) d=(0,0) held=114ms -> TAP
+10:47:44 [claim] C152 claimed (3/20 types)
+10:47:44 [touch] 1397725 press (164,110) inDetail=1
+10:47:45 [touch] 1397800 release start=(164,110) end=(164,110) d=(0,0) held=75ms -> TAP
+10:47:45 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:47:45 [touch] 1399696 press (170,112) inDetail=1
+10:47:47 [touch] 1399768 release start=(170,112) end=(170,112) d=(0,0) held=72ms -> TAP
+10:47:47 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:47:47 [touch] 1401213 press (158,93) inDetail=0
+10:47:48 [touch] 1401325 release start=(158,93) end=(158,93) d=(0,0) held=112ms -> TAP
+10:47:49 [touch] 1402137 press (172,118) inDetail=1
+10:47:49 [touch] 1402212 release start=(172,118) end=(172,118) d=(0,0) held=75ms -> TAP
+10:47:49 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:47:49 [touch] 1402569 press (174,119) inDetail=1
+10:47:50 [touch] 1402607 release start=(174,119) end=(174,119) d=(0,0) held=38ms -> TAP
+10:47:50 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:47:54 [touch] 1408167 press (158,101) inDetail=0
+10:47:55 [touch] 1408228 release start=(158,101) end=(158,101) d=(0,0) held=61ms -> TAP
+10:47:56 [claim] C172 claimed (4/21 types)
+10:47:56 [touch] 1409482 press (174,126) inDetail=1
+10:47:57 [touch] 1409556 release start=(174,126) end=(174,126) d=(0,0) held=74ms -> TAP
+10:47:57 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:47:57 [touch] 1410132 press (168,127) inDetail=1
+10:47:57 [touch] 1410168 release start=(168,127) end=(168,127) d=(0,0) held=36ms -> TAP
+10:47:57 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:47:57 [health] frame avg=48.3ms p95=57.8ms max=76.2ms  n=40 ap=60  heap free=63276 largest=31732 free8=63276 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/358  interval=5000ms
+10:47:58 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=157/0 maxOutage=0ms rebootRec=0
+10:48:10 [GET] Handling request to config web server...
+10:48:12 [GET] heap free=58340 largest-block=31732
+10:48:12 [1424631][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:48:16 [POST] Handling form submission to config web server...
+10:48:20 [cloud] no key override; using the factory-provisioned key
+10:48:20 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+10:48:20 [leaderboard] submit away after 0 ms (worst 0 ms)
+10:48:20 [leaderboard] rank #2/2, 84 pts
+10:48:22 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+10:48:22 [cloud] airports: 60 within 161 km
+10:48:26 [perf] 2026-08-21T17:48:28Z polls=12 busy=11%(fetch=1% enrich=9%) parse=8ms/poll bytes=2308/poll ac=40/40 lag=avg7666ms,max12000ms gapMax=6474ms episodes=0 cache=H0/S12/M0 enrichReqs=9
+10:48:28 [GET] Handling request to config web server...
+10:48:28 [GET] heap free=56400 largest-block=31732
+10:48:28 [1440842][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:48:28 [health] frame avg=56.9ms p95=59.9ms max=153.5ms  n=41 ap=60  heap free=46972 largest=31732 free8=46972 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/368  interval=5000ms
+10:48:28 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=160/0 maxOutage=0ms rebootRec=0
+10:48:28 [GET] Handling request to config web server...
+10:48:29 [GET] heap free=56144 largest-block=31732
+10:48:29 [1442114][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:48:33 [POST] Handling form submission to config web server...
+10:48:34 [cloud] no key override; using the factory-provisioned key
+10:48:35 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+10:48:35 [leaderboard] submit away after 0 ms (worst 0 ms)
+10:48:35 [leaderboard] rank #2/2, 84 pts
+10:48:36 [POST] Handling form submission to config web server...
+10:48:36 [cloud] no key override; using the factory-provisioned key
+10:48:36 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+10:48:36 [leaderboard] submit away after 0 ms (worst 0 ms)
+10:48:36 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+10:48:36 [leaderboard] rank #2/2, 84 pts
+10:48:37 [GET] Handling request to config web server...
+10:48:37 [GET] heap free=53764 largest-block=31732
+10:48:37 [1450201][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:48:37 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+10:48:38 [cloud] airports: 60 within 161 km
+10:48:58 [health] frame avg=55.6ms p95=58.3ms max=157.9ms  n=40 ap=60  heap free=62072 largest=31732 free8=62072 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/379  interval=5000ms
+10:48:58 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=163/0 maxOutage=0ms rebootRec=0
+10:49:02 [GET] Handling request to config web server...
+10:49:03 [GET] heap free=57136 largest-block=31732
+10:49:03 [1475715][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:49:03 [GET] Handling request to config web server...
+10:49:04 [GET] heap free=56888 largest-block=31732
+10:49:04 [1476623][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:49:04 [GET] Handling request to config web server...
+10:49:05 [GET] heap free=56304 largest-block=31732
+10:49:05 [1477715][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:49:25 [perf] 2026-08-21T17:49:28Z polls=11 busy=13%(fetch=2% enrich=11%) parse=8ms/poll bytes=2313/poll ac=40/40 lag=avg7363ms,max10000ms gapMax=5481ms episodes=0 cache=H0/S11/M0 enrichReqs=6
+10:49:28 [health] frame avg=55.5ms p95=56.7ms max=162.6ms  n=40 ap=60  heap free=61540 largest=31732 free8=61540 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/387  interval=5000ms
+10:49:28 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=166/0 maxOutage=0ms rebootRec=0
+10:49:40 [touch] 1516916 press (133,118) inDetail=0
+10:49:44 [touch] 1516972 release start=(133,118) end=(133,118) d=(0,0) held=56ms -> TAP
+10:49:44 [touch] 1517996 press (155,127) inDetail=1
+10:49:45 [touch] 1518034 release start=(155,127) end=(155,127) d=(0,0) held=38ms -> TAP
+10:49:45 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:49:45 [touch] 1518498 press (156,117) inDetail=1
+10:49:46 [touch] 1518534 release start=(156,117) end=(156,117) d=(0,0) held=36ms -> TAP
+10:49:46 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:49:46 [touch] 1519534 press (116,83) inDetail=0
+10:49:47 [touch] 1519645 release start=(116,83) end=(116,83) d=(0,0) held=111ms -> TAP
+10:49:47 [touch] 1520593 press (134,93) inDetail=1
+10:49:48 [touch] 1520667 release start=(134,93) end=(134,93) d=(0,0) held=74ms -> TAP
+10:49:48 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:49:48 [touch] 1520918 press (132,99) inDetail=1
+10:49:48 [touch] 1520990 release start=(132,99) end=(132,99) d=(0,0) held=72ms -> TAP
+10:49:48 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:49:48 [touch] 1521837 press (113,81) inDetail=0
+10:49:49 [touch] 1521892 release start=(113,81) end=(113,81) d=(0,0) held=55ms -> TAP
+10:49:49 [claim] B38M claimed (5/23 types)
+10:49:49 [touch] 1522916 press (151,107) inDetail=1
+10:49:50 [touch] 1522991 release start=(151,107) end=(151,107) d=(0,0) held=75ms -> TAP
+10:49:50 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:49:50 [touch] 1523634 press (155,109) inDetail=1
+10:49:51 [touch] 1523670 release start=(155,109) end=(155,109) d=(0,0) held=36ms -> TAP
+10:49:51 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:49:55 [POST] Handling form submission to config web server...
+10:49:57 [cloud] no key override; using the factory-provisioned key
+10:49:57 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+10:49:57 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+10:49:57 [cloud] airports: 60 within 161 km
+10:49:57 [health] frame avg=56.5ms p95=59.3ms max=152.7ms  n=41 ap=60  heap free=60100 largest=31732 free8=60100 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/399  interval=5000ms
+10:49:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=178/0 maxOutage=0ms rebootRec=0
+10:49:59 [POST] Handling form submission to config web server...
+10:50:00 [logbook] seeded from 41 contact(s) already tracked: 0 types, 0 airlines, 0 countries, 0 airports
+10:50:00 [cloud] no key override; using the factory-provisioned key
+10:50:00 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+10:50:00 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+10:50:01 [cloud] airports: 60 within 161 km
+10:50:01 [GET] Handling request to config web server...
+10:50:03 [GET] heap free=55308 largest-block=31732
+10:50:03 [1535731][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:50:11 [touch] 1546817 press (82,75) inDetail=0
+10:50:14 [touch] 1546871 release start=(82,75) end=(82,75) d=(0,0) held=54ms -> TAP
+10:50:14 [claim] E75L claimed (6/24 types)
+10:50:14 [touch] 1548745 press (117,131) inDetail=1
+10:50:16 [touch] 1548820 release start=(117,131) end=(117,131) d=(0,0) held=75ms -> TAP
+10:50:16 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:50:16 [touch] 1549979 press (132,117) inDetail=1
+10:50:17 [touch] 1550052 release start=(132,117) end=(132,117) d=(0,0) held=73ms -> TAP
+10:50:17 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:50:17 [touch] 1551930 press (111,62) inDetail=0
+10:50:19 [touch] 1551986 release start=(111,62) end=(111,62) d=(0,0) held=56ms -> TAP
+10:50:19 [claim] PA44 claimed (7/24 types)
+10:50:19 [touch] 1552975 press (135,87) inDetail=1
+10:50:20 [touch] 1553049 release start=(135,87) end=(135,87) d=(0,0) held=74ms -> TAP
+10:50:20 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:50:20 [touch] 1553409 press (142,94) inDetail=1
+10:50:21 [touch] 1553445 release start=(142,94) end=(142,94) d=(0,0) held=36ms -> TAP
+10:50:21 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:50:21 [touch] 1554443 press (106,49) inDetail=0
+10:50:22 [touch] 1554499 release start=(106,49) end=(106,49) d=(0,0) held=56ms -> TAP
+10:50:22 [claim] CL35 claimed (8/24 types)
+10:50:22 [touch] 1555307 press (131,73) inDetail=1
+10:50:23 [touch] 1555345 release start=(131,73) end=(131,73) d=(0,0) held=38ms -> TAP
+10:50:23 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:50:23 [touch] 1555672 press (140,83) inDetail=1
+10:50:23 [touch] 1555745 release start=(140,83) end=(140,83) d=(0,0) held=73ms -> TAP
+10:50:23 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:50:23 [touch] 1557344 press (127,118) inDetail=0
+10:50:25 [touch] 1557398 release start=(127,118) end=(127,118) d=(0,0) held=54ms -> TAP
+10:50:25 [touch] 1558278 press (139,126) inDetail=1
+10:50:26 [touch] 1558352 release start=(139,126) end=(139,126) d=(0,0) held=74ms -> TAP
+10:50:26 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:50:26 [touch] 1558782 press (138,114) inDetail=1
+10:50:26 [touch] 1558818 release start=(138,114) end=(138,114) d=(0,0) held=36ms -> TAP
+10:50:26 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:50:26 [touch] 1559803 press (116,122) inDetail=0
+10:50:27 [touch] 1559858 release start=(116,122) end=(116,122) d=(0,0) held=55ms -> TAP
+10:50:27 [perf] 2026-08-21T17:50:28Z polls=12 busy=10%(fetch=2% enrich=8%) parse=8ms/poll bytes=2305/poll ac=40/40 lag=avg8666ms,max14000ms gapMax=6593ms episodes=0 cache=H0/S12/M0 enrichReqs=10
+10:50:28 [touch] 1560736 press (135,116) inDetail=1
+10:50:28 [touch] 1560811 release start=(135,116) end=(135,116) d=(0,0) held=75ms -> TAP
+10:50:28 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:50:28 [touch] 1561207 press (156,118) inDetail=1
+10:50:28 [health] frame avg=44.0ms p95=55.2ms max=156.3ms  n=40 ap=60  heap free=61692 largest=31732 free8=61692 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/412  interval=5000ms
+10:50:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=195/0 maxOutage=0ms rebootRec=0
+10:50:29 [touch] 1561245 release start=(156,118) end=(156,118) d=(0,0) held=38ms -> TAP
+10:50:29 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:50:29 [touch] 1562307 press (158,218) inDetail=0
+10:50:30 [touch] 1562418 release start=(158,218) end=(158,218) d=(0,0) held=111ms -> TAP
+10:50:30 [claim] BE9L claimed (9/24 types)
+10:50:30 [touch] 1563408 press (146,155) inDetail=1
+10:50:31 [touch] 1563445 release start=(146,155) end=(146,155) d=(0,0) held=37ms -> TAP
+10:50:31 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+10:50:31 [touch] 1564054 press (151,148) inDetail=1
+10:50:31 [touch] 1564126 release start=(151,148) end=(151,148) d=(0,0) held=72ms -> TAP
+10:50:31 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+10:50:55 [health] frame avg=54.5ms p95=55.8ms max=72.8ms  n=40 ap=60  heap free=61756 largest=31732 free8=61756 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/421  interval=5000ms
+10:50:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=202/0 maxOutage=0ms rebootRec=0
+10:51:27 [perf] 2026-08-21T17:51:28Z polls=12 busy=6%(fetch=2% enrich=4%) parse=8ms/poll bytes=2306/poll ac=40/40 lag=avg7583ms,max11000ms gapMax=5501ms episodes=0 cache=H0/S12/M0 enrichReqs=4
+10:51:28 [health] frame avg=54.7ms p95=56.3ms max=64.8ms  n=40 ap=60  heap free=62464 largest=31732 free8=62464 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/428  interval=5000ms
+10:51:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=205/0 maxOutage=0ms rebootRec=0
+10:51:29 [GET] Handling request to config web server...
+10:51:31 [GET] heap free=57396 largest-block=31732
+10:51:31 [1623949][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:51:31 [GET] Handling request to config web server...
+10:51:34 [GET] heap free=57300 largest-block=31732
+10:51:34 [1626377][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:51:46 [GET] Handling request to config web server...
+10:51:48 [GET] heap free=56472 largest-block=31732
+10:51:48 [1640631][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:51:48 [GET] Handling request to config web server...
+10:51:49 [GET] heap free=53076 largest-block=31732
+10:51:49 [1641828][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:51:49 [GET] Handling request to config web server...
+10:51:51 [GET] heap free=54984 largest-block=31732
+10:51:51 [1643257][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:51:59 [health] frame avg=54.9ms p95=56.9ms max=155.1ms  n=40 ap=60  heap free=60932 largest=31732 free8=60932 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/437  interval=5000ms
+10:51:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=208/0 maxOutage=0ms rebootRec=0
+10:52:27 [perf] 2026-08-21T17:52:28Z polls=12 busy=10%(fetch=2% enrich=8%) parse=8ms/poll bytes=2302/poll ac=40/40 lag=avg8250ms,max11000ms gapMax=5127ms episodes=0 cache=H0/S12/M0 enrichReqs=5
+10:52:28 [health] frame avg=55.1ms p95=57.0ms max=64.3ms  n=40 ap=60  heap free=61356 largest=31732 free8=61356 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/445  interval=5000ms
+10:52:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=211/0 maxOutage=0ms rebootRec=0
+10:52:57 [health] frame avg=54.8ms p95=55.8ms max=66.4ms  n=40 ap=60  heap free=61452 largest=31732 free8=61452 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/455  interval=5000ms
+10:52:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=214/0 maxOutage=0ms rebootRec=0
+10:53:27 [perf] 2026-08-21T17:53:28Z polls=12 busy=7%(fetch=2% enrich=5%) parse=9ms/poll bytes=2306/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5206ms episodes=0 cache=H0/S12/M0 enrichReqs=6
+10:53:28 [health] frame avg=54.6ms p95=56.1ms max=63.6ms  n=40 ap=60  heap free=61452 largest=31732 free8=61452 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/463  interval=5000ms
+10:53:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=217/0 maxOutage=0ms rebootRec=0
+10:53:29 [GET] Handling request to config web server...
+10:53:29 [GET] heap free=56220 largest-block=31732
+10:53:29 [1741934][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:53:45 [GET] Handling request to config web server...
+10:53:46 [GET] heap free=56760 largest-block=31732
+10:53:46 [1758693][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+10:53:58 [health] frame avg=55.3ms p95=56.8ms max=151.6ms  n=40 ap=60  heap free=61800 largest=31732 free8=61800 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/471  interval=5000ms
+10:53:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=220/0 maxOutage=0ms rebootRec=0
+10:54:27 [perf] 2026-08-21T17:54:28Z polls=12 busy=10%(fetch=2% enrich=8%) parse=9ms/poll bytes=2327/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5187ms episodes=0 cache=H0/S12/M0 enrichReqs=6
+10:54:28 [health] frame avg=55.8ms p95=57.1ms max=67.2ms  n=40 ap=60  heap free=61332 largest=31732 free8=61332 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/481  interval=5000ms
+10:54:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=223/0 maxOutage=0ms rebootRec=0
+10:54:57 [health] frame avg=55.9ms p95=57.9ms max=64.7ms  n=40 ap=60  heap free=61260 largest=31732 free8=61260 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/489  interval=5000ms
+10:54:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=226/0 maxOutage=0ms rebootRec=0
+10:55:27 [perf] 2026-08-21T17:55:28Z polls=12 busy=8%(fetch=2% enrich=6%) parse=8ms/poll bytes=2311/poll ac=40/40 lag=avg8333ms,max12000ms gapMax=5262ms episodes=0 cache=H0/S12/M0 enrichReqs=4
+10:55:28 [health] frame avg=55.9ms p95=57.4ms max=63.8ms  n=40 ap=60  heap free=60892 largest=31732 free8=60892 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/497  interval=5000ms
+10:55:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=229/0 maxOutage=0ms rebootRec=0
+10:55:57 [health] frame avg=56.2ms p95=57.4ms max=67.7ms  n=40 ap=60  heap free=61540 largest=31732 free8=61540 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/505  interval=5000ms
+10:55:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=232/0 maxOutage=0ms rebootRec=0
+10:56:27 [perf] 2026-08-21T17:56:28Z polls=12 busy=8%(fetch=2% enrich=5%) parse=9ms/poll bytes=2321/poll ac=40/40 lag=avg7500ms,max10000ms gapMax=5210ms episodes=0 cache=H0/S12/M0 enrichReqs=4
+10:56:28 [health] frame avg=57.1ms p95=59.5ms max=66.5ms  n=40 ap=60  heap free=61356 largest=31732 free8=61356 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/513  interval=5000ms
+10:56:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=235/0 maxOutage=0ms rebootRec=0
+10:56:57 [health] frame avg=56.6ms p95=58.5ms max=65.6ms  n=40 ap=60  heap free=61628 largest=31732 free8=61628 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/522  interval=5000ms
+10:56:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=238/0 maxOutage=0ms rebootRec=0
+10:57:23 [logbook] persisted (9/31 types claimed, 35 airlines, 2 countries, 131 contacts; 1944 B blobs, 2244 NVS entries free)
+10:57:27 [perf] 2026-08-21T17:57:28Z polls=12 busy=8%(fetch=2% enrich=5%) parse=8ms/poll bytes=2308/poll ac=40/40 lag=avg7666ms,max11000ms gapMax=5266ms episodes=0 cache=H0/S12/M0 enrichReqs=5
+10:57:28 [health] frame avg=56.3ms p95=58.1ms max=78.5ms  n=40 ap=60  heap free=61424 largest=31732 free8=61424 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/530  interval=5000ms
+10:57:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=241/0 maxOutage=0ms rebootRec=0
+10:57:57 [health] frame avg=56.2ms p95=57.2ms max=65.9ms  n=40 ap=60  heap free=61220 largest=31732 free8=61220 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/537  interval=5000ms
+10:57:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=244/0 maxOutage=0ms rebootRec=0
+10:58:27 [perf] 2026-08-21T17:58:28Z polls=12 busy=5%(fetch=2% enrich=2%) parse=8ms/poll bytes=2306/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5136ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+10:58:28 [health] frame avg=56.7ms p95=58.4ms max=66.6ms  n=40 ap=60  heap free=61172 largest=31732 free8=61172 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/544  interval=5000ms
+10:58:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=247/0 maxOutage=0ms rebootRec=0
+10:58:57 [health] frame avg=56.7ms p95=58.8ms max=65.9ms  n=40 ap=60  heap free=61180 largest=31732 free8=61180 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/551  interval=5000ms
+10:58:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=250/0 maxOutage=0ms rebootRec=0
+10:59:27 [perf] 2026-08-21T17:59:28Z polls=12 busy=10%(fetch=2% enrich=8%) parse=8ms/poll bytes=2309/poll ac=40/40 lag=avg8500ms,max11000ms gapMax=5179ms episodes=0 cache=H0/S12/M0 enrichReqs=4
+10:59:28 [health] frame avg=56.0ms p95=58.0ms max=65.7ms  n=40 ap=60  heap free=61300 largest=31732 free8=61300 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/560  interval=5000ms
+10:59:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=253/0 maxOutage=0ms rebootRec=0
+10:59:57 [health] frame avg=56.2ms p95=57.4ms max=66.5ms  n=40 ap=60  heap free=61252 largest=31732 free8=61252 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/568  interval=5000ms
+10:59:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=256/0 maxOutage=0ms rebootRec=0
+11:00:27 [perf] 2026-08-21T18:00:28Z polls=12 busy=5%(fetch=2% enrich=3%) parse=8ms/poll bytes=2308/poll ac=40/40 lag=avg8583ms,max12000ms gapMax=5171ms episodes=0 cache=H0/S12/M0 enrichReqs=4
+11:00:28 [health] frame avg=55.5ms p95=56.9ms max=65.9ms  n=40 ap=60  heap free=61316 largest=31732 free8=61316 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/576  interval=5000ms
+11:00:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=259/0 maxOutage=0ms rebootRec=0
+11:00:57 [health] frame avg=57.6ms p95=59.4ms max=63.5ms  n=42 ap=60  heap free=58528 largest=31732 free8=58528 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/579  interval=15000ms
+11:00:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=262/0 maxOutage=0ms rebootRec=0
+11:01:27 [perf] 2026-08-21T18:01:28Z polls=4 busy=8%(fetch=2% enrich=5%) parse=8ms/poll bytes=2303/poll ac=40/40 lag=avg1000ms,max2000ms gapMax=15177ms episodes=0 cache=H0/S0/M4 enrichReqs=2
+11:01:28 [health] frame avg=56.8ms p95=57.9ms max=64.9ms  n=40 ap=60  heap free=61256 largest=31732 free8=61256 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/582  interval=15000ms
+11:01:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=265/0 maxOutage=0ms rebootRec=0
+11:01:57 [health] frame avg=56.4ms p95=57.8ms max=64.1ms  n=41 ap=60  heap free=60048 largest=31732 free8=60048 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/586  interval=15000ms
+11:01:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=268/0 maxOutage=0ms rebootRec=0
+11:02:27 [perf] 2026-08-21T18:02:28Z polls=4 busy=6%(fetch=2% enrich=3%) parse=8ms/poll bytes=2299/poll ac=40/40 lag=avg500ms,max1000ms gapMax=15184ms episodes=0 cache=H0/S0/M4 enrichReqs=2
+11:02:28 [health] frame avg=57.4ms p95=59.8ms max=63.4ms  n=43 ap=60  heap free=58056 largest=31732 free8=58056 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/589  interval=15000ms
+11:02:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=271/0 maxOutage=0ms rebootRec=0
+11:02:57 [health] frame avg=56.7ms p95=58.4ms max=64.9ms  n=41 ap=60  heap free=59836 largest=31732 free8=59836 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/597  interval=15000ms
+11:02:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=274/0 maxOutage=0ms rebootRec=0
+11:03:27 [perf] 2026-08-21T18:03:28Z polls=4 busy=11%(fetch=3% enrich=8%) parse=8ms/poll bytes=2302/poll ac=40/40 lag=avg500ms,max1000ms gapMax=15183ms episodes=0 cache=H0/S0/M4 enrichReqs=8
+11:03:28 [health] frame avg=56.9ms p95=58.1ms max=65.6ms  n=41 ap=60  heap free=59668 largest=31732 free8=59668 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/601  interval=15000ms
+11:03:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=277/0 maxOutage=0ms rebootRec=0
+11:03:57 [health] frame avg=57.8ms p95=60.7ms max=64.0ms  n=43 ap=60  heap free=56104 largest=31732 free8=56104 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/605  interval=15000ms
+11:03:59 [health] BUDGET BROKEN: frame p95 60.7ms > 60ms
+11:03:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=280/0 maxOutage=0ms rebootRec=0
+11:04:27 [perf] 2026-08-21T18:04:29Z polls=4 busy=14%(fetch=3% enrich=11%) parse=7ms/poll bytes=2295/poll ac=40/40 lag=avg500ms,max1000ms gapMax=15091ms episodes=0 cache=H0/S0/M4 enrichReqs=7
+11:04:28 [health] frame avg=59.4ms p95=61.6ms max=66.6ms  n=43 ap=60  heap free=56924 largest=31732 free8=56924 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/612  interval=15000ms
+11:04:29 [health] BUDGET BROKEN: frame p95 61.6ms > 60ms
+11:04:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=283/0 maxOutage=0ms rebootRec=0
+11:04:57 [health] frame avg=59.3ms p95=60.7ms max=65.4ms  n=42 ap=60  heap free=57812 largest=31732 free8=57812 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/617  interval=15000ms
+11:04:59 [health] BUDGET BROKEN: frame p95 60.7ms > 60ms
+11:04:59 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=286/0 maxOutage=0ms rebootRec=0
+11:05:19 [GET] Handling request to config web server...
+11:05:21 [GET] heap free=53456 largest-block=31732
+11:05:21 [2453942][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+11:05:25 [perf] 2026-08-21T18:05:29Z polls=4 busy=10%(fetch=2% enrich=7%) parse=8ms/poll bytes=2305/poll ac=40/40 lag=avg500ms,max1000ms gapMax=15282ms episodes=0 cache=H0/S0/M4 enrichReqs=6
+11:05:28 [health] frame avg=60.2ms p95=62.1ms max=152.7ms  n=43 ap=60  heap free=55612 largest=31732 free8=55612 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/622  interval=15000ms
+11:05:29 [health] BUDGET BROKEN: frame p95 62.1ms > 60ms
+11:05:29 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=289/0 maxOutage=0ms rebootRec=0
+11:05:50 [touch] 2482864 press (86,41) inDetail=0
+11:05:50 [touch] 2482989 release start=(86,41) end=(86,41) d=(0,0) held=125ms -> TAP
+11:05:50 [claim] C17 claimed (10/36 types)
+11:05:50 [touch] 2485153 press (147,129) inDetail=1
+11:05:52 [touch] 2485193 release start=(147,129) end=(147,129) d=(0,0) held=40ms -> TAP
+11:05:52 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:05:52 [touch] 2485646 press (138,114) inDetail=1
+11:05:53 [touch] 2485722 release start=(138,114) end=(138,114) d=(0,0) held=76ms -> TAP
+11:05:53 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:05:53 [touch] 2486634 press (118,62) inDetail=0
+11:05:54 [touch] 2486692 release start=(118,62) end=(118,62) d=(0,0) held=58ms -> TAP
+11:05:54 [touch] 2487799 press (148,110) inDetail=1
+11:05:55 [touch] 2487838 release start=(148,110) end=(148,110) d=(0,0) held=39ms -> TAP
+11:05:55 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:05:55 [touch] 2488214 press (153,109) inDetail=1
+11:05:55 [touch] 2488289 release start=(153,109) end=(153,109) d=(0,0) held=75ms -> TAP
+11:05:56 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:05:56 [touch] 2489158 press (57,23) inDetail=0
+11:05:56 [touch] 2489272 release start=(57,23) end=(57,23) d=(0,0) held=114ms -> TAP
+11:05:57 [alert] 2489273 visual alert dismissed by tap
+11:05:57 [touch] 2489935 press (80,42) inDetail=0
+11:05:57 [touch] 2489990 release start=(80,42) end=(80,42) d=(0,0) held=55ms -> TAP
+11:05:57 [touch] 2490698 press (122,75) inDetail=1
+11:05:58 [touch] 2490736 release start=(122,75) end=(122,75) d=(0,0) held=38ms -> TAP
+11:05:58 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:05:58 [touch] 2490991 press (140,75) inDetail=1
+11:05:58 [touch] 2491027 release start=(140,75) end=(140,75) d=(0,0) held=36ms -> TAP
+11:05:58 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:05:58 [touch] 2491852 press (106,29) inDetail=0
+11:05:59 [touch] 2491907 release start=(106,29) end=(106,29) d=(0,0) held=55ms -> TAP
+11:05:59 [health] frame avg=45.4ms p95=57.4ms max=77.6ms  n=40 ap=60  heap free=55912 largest=31732 free8=55912 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/632  interval=5000ms
+11:06:00 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=303/0 maxOutage=0ms rebootRec=0
+11:06:00 [touch] 2492862 press (160,103) inDetail=1
+11:06:00 [touch] 2492899 release start=(160,103) end=(160,103) d=(0,0) held=37ms -> TAP
+11:06:00 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:00 [touch] 2493258 press (163,108) inDetail=1
+11:06:01 [touch] 2493330 release start=(163,108) end=(163,108) d=(0,0) held=72ms -> TAP
+11:06:01 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:01 [touch] 2494510 press (95,32) inDetail=0
+11:06:02 [touch] 2494565 release start=(95,32) end=(95,32) d=(0,0) held=55ms -> TAP
+11:06:02 [touch] 2495601 press (145,112) inDetail=1
+11:06:03 [touch] 2495638 release start=(145,112) end=(145,112) d=(0,0) held=37ms -> TAP
+11:06:03 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:03 [touch] 2496177 press (161,105) inDetail=1
+11:06:03 [touch] 2496213 release start=(161,105) end=(161,105) d=(0,0) held=36ms -> TAP
+11:06:03 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:03 [touch] 2497268 press (121,69) inDetail=0
+11:06:05 [touch] 2497323 release start=(121,69) end=(121,69) d=(0,0) held=55ms -> TAP
+11:06:05 [touch] 2498178 press (145,125) inDetail=1
+11:06:05 [touch] 2498215 release start=(145,125) end=(145,125) d=(0,0) held=37ms -> TAP
+11:06:05 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:05 [touch] 2498719 press (156,122) inDetail=1
+11:06:06 [touch] 2498755 release start=(156,122) end=(156,122) d=(0,0) held=36ms -> TAP
+11:06:06 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:06 [touch] 2499712 press (49,83) inDetail=0
+11:06:07 [touch] 2499768 release start=(49,83) end=(49,83) d=(0,0) held=56ms -> TAP
+11:06:07 [claim] CL60 claimed (11/36 types)
+11:06:07 [touch] 2501476 press (148,129) inDetail=1
+11:06:09 [touch] 2501513 release start=(148,129) end=(148,129) d=(0,0) held=37ms -> TAP
+11:06:09 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:09 [touch] 2502026 press (143,116) inDetail=1
+11:06:09 [touch] 2502063 release start=(143,116) end=(143,116) d=(0,0) held=37ms -> TAP
+11:06:09 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:09 [touch] 2503320 press (27,76) inDetail=0
+11:06:11 [touch] 2503375 release start=(27,76) end=(27,76) d=(0,0) held=55ms -> TAP
+11:06:11 [touch] 2504379 press (143,114) inDetail=1
+11:06:12 [touch] 2504417 release start=(143,114) end=(143,114) d=(0,0) held=38ms -> TAP
+11:06:12 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:12 [touch] 2505331 press (117,150) inDetail=1
+11:06:13 [touch] 2505367 release start=(117,150) end=(117,150) d=(0,0) held=36ms -> TAP
+11:06:13 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:13 [touch] 2506376 press (42,77) inDetail=0
+11:06:14 [touch] 2506432 release start=(42,77) end=(42,77) d=(0,0) held=56ms -> TAP
+11:06:14 [claim] GLF4 claimed (12/36 types)
+11:06:14 [touch] 2507651 press (136,130) inDetail=1
+11:06:15 [touch] 2507689 release start=(136,130) end=(136,130) d=(0,0) held=38ms -> TAP
+11:06:15 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:15 [touch] 2509093 press (161,125) inDetail=1
+11:06:16 [touch] 2509130 release start=(161,125) end=(161,125) d=(0,0) held=37ms -> TAP
+11:06:16 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:16 [touch] 2510521 press (33,127) inDetail=0
+11:06:18 [touch] 2510578 release start=(33,127) end=(33,127) d=(0,0) held=57ms -> TAP
+11:06:18 [claim] P28A claimed (13/36 types)
+11:06:18 [touch] 2511725 press (162,129) inDetail=1
+11:06:19 [touch] 2511800 release start=(162,129) end=(162,129) d=(0,0) held=75ms -> TAP
+11:06:19 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:06:19 [touch] 2512197 press (159,127) inDetail=1
+11:06:19 [touch] 2512234 release start=(159,127) end=(159,127) d=(0,0) held=37ms -> TAP
+11:06:20 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:06:28 [perf] 2026-08-21T18:06:29Z polls=9 busy=10%(fetch=2% enrich=7%) parse=8ms/poll bytes=2304/poll ac=40/40 lag=avg8444ms,max14000ms gapMax=15102ms episodes=0 cache=H0/S8/M1 enrichReqs=15
+11:06:28 [health] frame avg=55.9ms p95=57.8ms max=77.6ms  n=40 ap=60  heap free=59372 largest=31732 free8=59372 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/645  interval=5000ms
+11:06:30 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=326/0 maxOutage=0ms rebootRec=0
+11:06:58 [health] frame avg=56.1ms p95=58.0ms max=66.2ms  n=40 ap=60  heap free=59276 largest=31732 free8=59276 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/653  interval=5000ms
+11:07:00 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=329/0 maxOutage=0ms rebootRec=0
+11:07:16 [touch] 2569874 press (79,144) inDetail=0
+11:07:17 [touch] 2569930 release start=(79,144) end=(79,144) d=(0,0) held=56ms -> TAP
+11:07:17 [claim] C68A claimed (14/36 types)
+11:07:17 [touch] 2571261 press (115,150) inDetail=1
+11:07:19 [touch] 2571337 release start=(115,150) end=(115,150) d=(0,0) held=76ms -> TAP
+11:07:19 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:19 [touch] 2572511 press (124,123) inDetail=1
+11:07:20 [touch] 2572584 release start=(124,123) end=(124,123) d=(0,0) held=73ms -> TAP
+11:07:20 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:20 [touch] 2574117 press (90,134) inDetail=0
+11:07:21 [touch] 2574176 release start=(90,134) end=(90,134) d=(0,0) held=59ms -> TAP
+11:07:21 [touch] 2574807 press (112,142) inDetail=1
+11:07:22 [touch] 2574844 release start=(112,142) end=(112,142) d=(0,0) held=37ms -> TAP
+11:07:22 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:22 [touch] 2575430 press (128,130) inDetail=1
+11:07:23 [touch] 2575467 release start=(128,130) end=(128,130) d=(0,0) held=37ms -> TAP
+11:07:23 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:23 [logbook] persisted (14/36 types claimed, 42 airlines, 2 countries, 179 contacts; 2386 B blobs, 2229 NVS entries free)
+11:07:23 [touch] 2576556 press (99,144) inDetail=0
+11:07:24 [touch] 2576615 release start=(99,144) end=(99,144) d=(0,0) held=59ms -> TAP
+11:07:24 [touch] 2577692 press (141,147) inDetail=1
+11:07:25 [touch] 2577730 release start=(141,147) end=(141,147) d=(0,0) held=38ms -> TAP
+11:07:25 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:25 [touch] 2578236 press (150,147) inDetail=1
+11:07:26 [touch] 2578272 release start=(150,147) end=(150,147) d=(0,0) held=36ms -> TAP
+11:07:26 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:26 [touch] 2580619 press (95,144) inDetail=0
+11:07:28 [touch] 2580732 release start=(95,144) end=(95,143) d=(0,-1) held=113ms -> TAP
+11:07:28 [claim] BE33 claimed (15/36 types)
+11:07:28 [perf] 2026-08-21T18:07:29Z polls=11 busy=8%(fetch=1% enrich=6%) parse=8ms/poll bytes=2304/poll ac=40/40 lag=avg7727ms,max12000ms gapMax=6823ms episodes=0 cache=H0/S11/M0 enrichReqs=6
+11:07:28 [touch] 2581831 press (138,147) inDetail=1
+11:07:29 [touch] 2581906 release start=(138,147) end=(138,146) d=(0,-1) held=75ms -> TAP
+11:07:29 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:29 [health] frame avg=44.1ms p95=57.5ms max=132.9ms  n=41 ap=60  heap free=58712 largest=31732 free8=58712 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/663  interval=5000ms
+11:07:30 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=343/0 maxOutage=0ms rebootRec=0
+11:07:30 [touch] 2582339 press (142,147) inDetail=1
+11:07:30 [touch] 2582375 release start=(142,147) end=(142,147) d=(0,0) held=36ms -> TAP
+11:07:30 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:30 [touch] 2583513 press (96,148) inDetail=0
+11:07:31 [touch] 2583569 release start=(96,148) end=(96,148) d=(0,0) held=56ms -> TAP
+11:07:31 [touch] 2584200 press (127,148) inDetail=1
+11:07:31 [touch] 2584238 release start=(127,148) end=(127,148) d=(0,0) held=38ms -> TAP
+11:07:32 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:32 [touch] 2584567 press (147,138) inDetail=1
+11:07:32 [touch] 2584605 release start=(147,138) end=(147,138) d=(0,0) held=38ms -> TAP
+11:07:32 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:32 [touch] 2587852 press (98,145) inDetail=0
+11:07:35 [touch] 2587908 release start=(98,145) end=(98,145) d=(0,0) held=56ms -> TAP
+11:07:35 [touch] 2588801 press (138,151) inDetail=1
+11:07:36 [touch] 2588876 release start=(138,151) end=(138,151) d=(0,0) held=75ms -> TAP
+11:07:36 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:36 [touch] 2590790 press (159,140) inDetail=1
+11:07:38 [touch] 2590826 release start=(159,140) end=(159,140) d=(0,0) held=36ms -> TAP
+11:07:38 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:38 [touch] 2592078 press (93,148) inDetail=0
+11:07:39 [touch] 2592192 release start=(93,148) end=(93,148) d=(0,0) held=114ms -> TAP
+11:07:39 [claim] B739 claimed (16/36 types)
+11:07:39 [touch] 2593118 press (155,132) inDetail=1
+11:07:40 [touch] 2593156 release start=(155,132) end=(155,132) d=(0,0) held=38ms -> TAP
+11:07:40 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:40 [touch] 2593515 press (150,145) inDetail=1
+11:07:41 [touch] 2593587 release start=(150,145) end=(150,144) d=(0,-1) held=72ms -> TAP
+11:07:41 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:41 [touch] 2596132 press (76,82) inDetail=0
+11:07:43 [touch] 2596189 release start=(76,82) end=(76,82) d=(0,0) held=57ms -> TAP
+11:07:43 [claim] BCS3 claimed (17/36 types)
+11:07:43 [touch] 2596847 press (107,105) inDetail=1
+11:07:44 [touch] 2596922 release start=(107,105) end=(107,105) d=(0,0) held=75ms -> TAP
+11:07:44 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:44 [touch] 2597137 press (112,108) inDetail=1
+11:07:44 [touch] 2597209 release start=(112,108) end=(112,108) d=(0,0) held=72ms -> TAP
+11:07:44 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:44 [touch] 2597873 press (52,78) inDetail=0
+11:07:45 [touch] 2597928 release start=(52,78) end=(52,78) d=(0,0) held=55ms -> TAP
+11:07:45 [claim] B39M claimed (18/36 types)
+11:07:45 [touch] 2598662 press (106,110) inDetail=1
+11:07:46 [touch] 2598737 release start=(106,110) end=(106,110) d=(0,0) held=75ms -> TAP
+11:07:46 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:46 [touch] 2598845 press (107,109) inDetail=1
+11:07:46 [touch] 2598882 release start=(107,109) end=(107,109) d=(0,0) held=37ms -> TAP
+11:07:46 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:46 [touch] 2599782 press (26,94) inDetail=0
+11:07:47 [touch] 2599838 release start=(26,94) end=(26,94) d=(0,0) held=56ms -> TAP
+11:07:47 [claim] PC24 claimed (19/36 types)
+11:07:47 [touch] 2600571 press (116,116) inDetail=1
+11:07:48 [touch] 2600609 release start=(116,116) end=(116,116) d=(0,0) held=38ms -> TAP
+11:07:48 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:48 [touch] 2600753 press (119,115) inDetail=1
+11:07:48 [touch] 2600789 release start=(119,115) end=(119,115) d=(0,0) held=36ms -> TAP
+11:07:48 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:48 [touch] 2601592 press (31,94) inDetail=0
+11:07:49 [touch] 2601649 release start=(31,94) end=(31,94) d=(0,0) held=57ms -> TAP
+11:07:49 [touch] 2602351 press (124,120) inDetail=1
+11:07:50 [touch] 2602389 release start=(124,120) end=(124,120) d=(0,0) held=38ms -> TAP
+11:07:50 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:50 [touch] 2602605 press (130,118) inDetail=1
+11:07:50 [touch] 2602677 release start=(130,118) end=(130,118) d=(0,0) held=72ms -> TAP
+11:07:50 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:50 [touch] 2603399 press (31,87) inDetail=0
+11:07:51 [touch] 2603456 release start=(31,87) end=(31,87) d=(0,0) held=57ms -> TAP
+11:07:51 [touch] 2604157 press (143,119) inDetail=1
+11:07:51 [touch] 2604194 release start=(143,119) end=(143,119) d=(0,0) held=37ms -> TAP
+11:07:51 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:51 [touch] 2604339 press (138,115) inDetail=1
+11:07:52 [touch] 2604375 release start=(138,115) end=(138,115) d=(0,0) held=36ms -> TAP
+11:07:52 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:52 [touch] 2605607 press (45,80) inDetail=0
+11:07:53 [touch] 2605663 release start=(45,80) end=(45,80) d=(0,0) held=56ms -> TAP
+11:07:53 [claim] RV12 claimed (20/36 types)
+11:07:53 [touch] 2607121 press (159,106) inDetail=1
+11:07:54 [touch] 2607157 release start=(159,106) end=(159,106) d=(0,0) held=36ms -> TAP
+11:07:54 [touch] tap-in-detail hasPhoto=0 page=0 -> CLOSE
+11:07:54 [touch] 2607449 press (160,105) inDetail=0
+11:07:55 [touch] 2607504 release start=(160,105) end=(160,105) d=(0,0) held=55ms -> TAP
+11:07:55 [touch] 2608595 press (126,108) inDetail=0
+11:07:56 [touch] 2608650 release start=(126,108) end=(126,108) d=(0,0) held=55ms -> TAP
+11:07:56 [claim] EC45 claimed (21/36 types)
+11:07:56 [touch] 2609792 press (148,116) inDetail=1
+11:07:57 [touch] 2609867 release start=(148,116) end=(148,116) d=(0,0) held=75ms -> TAP
+11:07:57 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:07:57 [touch] 2611013 press (146,117) inDetail=1
+11:07:58 [touch] 2611085 release start=(146,117) end=(146,117) d=(0,0) held=72ms -> TAP
+11:07:58 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:07:58 [health] frame avg=43.8ms p95=55.7ms max=77.5ms  n=40 ap=60  heap free=59028 largest=31732 free8=59028 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/678  interval=5000ms
+11:08:00 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=377/0 maxOutage=0ms rebootRec=0
+11:08:28 [perf] 2026-08-21T18:08:29Z polls=11 busy=12%(fetch=1% enrich=10%) parse=8ms/poll bytes=2305/poll ac=40/40 lag=avg9181ms,max14000ms gapMax=7551ms episodes=0 cache=H0/S11/M0 enrichReqs=15
+11:08:28 [health] frame avg=55.7ms p95=57.4ms max=63.8ms  n=40 ap=60  heap free=59780 largest=31732 free8=59780 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/688  interval=5000ms
+11:08:30 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=380/0 maxOutage=0ms rebootRec=0
+11:08:58 [health] frame avg=56.1ms p95=58.2ms max=65.3ms  n=41 ap=60  heap free=58496 largest=31732 free8=58496 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/697  interval=5000ms
+11:09:00 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=383/0 maxOutage=0ms rebootRec=0
+11:09:04 [GET] Handling request to config web server...
+11:09:07 [GET] heap free=54868 largest-block=31732
+11:09:07 [2680016][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+11:09:11 [POST] Handling form submission to config web server...
+11:09:15 [cloud] no key override; using the factory-provisioned key
+11:09:15 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+11:09:15 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+11:09:15 [cloud] airports: 60 within 161 km
+11:09:16 [touch] 2691525 press (143,112) inDetail=0
+11:09:19 [touch] 2691619 release start=(143,112) end=(143,112) d=(0,0) held=94ms -> TAP
+11:09:19 [touch] 2692538 press (146,119) inDetail=1
+11:09:20 [touch] 2692576 release start=(146,119) end=(146,119) d=(0,0) held=38ms -> TAP
+11:09:20 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:20 [touch] 2692684 press (147,122) inDetail=1
+11:09:20 [touch] 2692757 release start=(147,122) end=(147,122) d=(0,0) held=73ms -> TAP
+11:09:20 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:20 [touch] 2693643 press (133,107) inDetail=0
+11:09:21 [touch] 2693736 release start=(133,107) end=(133,107) d=(0,0) held=93ms -> TAP
+11:09:21 [touch] 2694547 press (143,130) inDetail=1
+11:09:22 [touch] 2694622 release start=(143,130) end=(143,130) d=(0,0) held=75ms -> TAP
+11:09:22 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:22 [touch] 2694731 press (141,134) inDetail=1
+11:09:22 [touch] 2694767 release start=(141,134) end=(141,134) d=(0,0) held=36ms -> TAP
+11:09:22 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:22 [touch] 2695456 press (131,111) inDetail=0
+11:09:23 [touch] 2695502 release start=(131,111) end=(131,111) d=(0,0) held=46ms -> TAP
+11:09:23 [touch] 2696169 press (149,136) inDetail=1
+11:09:23 [touch] 2696207 release start=(149,136) end=(149,136) d=(0,0) held=38ms -> TAP
+11:09:23 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:23 [touch] 2696316 press (150,145) inDetail=1
+11:09:24 [touch] 2696352 release start=(150,145) end=(150,145) d=(0,0) held=36ms -> TAP
+11:09:24 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:24 [touch] 2696960 press (128,115) inDetail=0
+11:09:24 [touch] 2697007 release start=(128,115) end=(128,115) d=(0,0) held=47ms -> TAP
+11:09:24 [touch] 2697821 press (134,132) inDetail=1
+11:09:25 [touch] 2697892 release start=(134,132) end=(134,131) d=(0,-1) held=71ms -> TAP
+11:09:25 [touch] tap-in-detail hasPhoto=0 page=0 -> CLOSE
+11:09:25 [touch] 2698257 press (151,127) inDetail=0
+11:09:26 [touch] 2698309 release start=(151,127) end=(151,127) d=(0,0) held=52ms -> TAP
+11:09:26 [touch] 2698755 press (143,134) inDetail=1
+11:09:26 [touch] 2698792 release start=(143,134) end=(143,134) d=(0,0) held=37ms -> TAP
+11:09:26 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:26 [touch] 2699262 press (114,122) inDetail=1
+11:09:27 [touch] 2699298 release start=(114,122) end=(114,122) d=(0,0) held=36ms -> TAP
+11:09:27 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:27 [touch] 2700444 press (24,127) inDetail=0
+11:09:28 [touch] 2700535 release start=(24,127) end=(24,127) d=(0,0) held=91ms -> TAP
+11:09:28 [perf] 2026-08-21T18:09:29Z polls=13 busy=9%(fetch=2% enrich=7%) parse=9ms/poll bytes=2299/poll ac=40/40 lag=avg8230ms,max13000ms gapMax=5889ms episodes=0 cache=H1/S12/M0 enrichReqs=9
+11:09:28 [touch] 2701759 press (28,128) inDetail=1
+11:09:29 [touch] 2701834 release start=(28,128) end=(28,128) d=(0,0) held=75ms -> TAP
+11:09:29 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:29 [health] frame avg=39.6ms p95=46.3ms max=163.2ms  n=40 ap=60  heap free=59700 largest=31732 free8=59700 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/712  interval=5000ms
+11:09:30 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=402/0 maxOutage=0ms rebootRec=0
+11:09:30 [touch] 2702412 press (114,118) inDetail=1
+11:09:30 [touch] 2702449 release start=(114,118) end=(114,118) d=(0,0) held=37ms -> TAP
+11:09:30 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:30 [touch] 2703589 press (22,129) inDetail=0
+11:09:31 [touch] 2703638 release start=(22,129) end=(22,129) d=(0,0) held=49ms -> TAP
+11:09:31 [claim] M20P claimed (22/37 types)
+11:09:31 [touch] 2704784 press (136,144) inDetail=1
+11:09:32 [touch] 2704821 release start=(136,144) end=(136,144) d=(0,0) held=37ms -> TAP
+11:09:32 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:32 [touch] 2705251 press (136,147) inDetail=1
+11:09:33 [touch] 2705287 release start=(136,147) end=(136,147) d=(0,0) held=36ms -> TAP
+11:09:33 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:33 [touch] 2707608 press (62,106) inDetail=0
+11:09:35 [touch] 2707653 release start=(62,106) end=(62,106) d=(0,0) held=45ms -> TAP
+11:09:35 [claim] B737 claimed (23/37 types)
+11:09:35 [touch] 2709924 press (145,131) inDetail=1
+11:09:37 [touch] 2709961 release start=(145,131) end=(145,131) d=(0,0) held=37ms -> TAP
+11:09:37 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:37 [touch] 2712865 press (135,121) inDetail=1
+11:09:40 [touch] 2712937 release start=(135,121) end=(135,121) d=(0,0) held=72ms -> TAP
+11:09:40 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:09:40 [touch] 2714512 press (80,77) inDetail=0
+11:09:42 [touch] 2714604 release start=(80,77) end=(80,77) d=(0,0) held=92ms -> TAP
+11:09:42 [touch] 2715749 press (142,117) inDetail=1
+11:09:43 [touch] 2715824 release start=(142,117) end=(142,117) d=(0,0) held=75ms -> TAP
+11:09:43 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+11:09:43 [touch] 2716259 press (125,138) inDetail=1
+11:09:44 [touch] 2716295 release start=(125,138) end=(125,138) d=(0,0) held=36ms -> TAP
+11:09:44 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+11:10:00 [health] frame avg=45.8ms p95=47.2ms max=76.6ms  n=41 ap=60  heap free=58208 largest=31732 free8=58208 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/723  interval=5000ms
+11:10:00 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=415/0 maxOutage=0ms rebootRec=0
+11:10:28 [perf] 2026-08-21T18:10:29Z polls=11 busy=16%(fetch=1% enrich=14%) parse=7ms/poll bytes=2297/poll ac=40/40 lag=avg8545ms,max15000ms gapMax=9448ms episodes=0 cache=H0/S11/M0 enrichReqs=10
+11:10:28 [health] frame avg=45.8ms p95=46.7ms max=51.7ms  n=40 ap=60  heap free=58748 largest=31732 free8=58748 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/733  interval=5000ms
+11:10:30 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=418/0 maxOutage=0ms rebootRec=0

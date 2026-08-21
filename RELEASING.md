@@ -61,6 +61,32 @@ are versioned and released **together** from a single commit, and each device se
 > as before. So the ingest is safe to run at any time and there is never a reason to
 > defer it past a release.
 
+0. **Run THE FRESH-BOOT ACCEPTANCE on a real board** — `./scripts/fresh-boot-acceptance.sh <PORT>`.
+
+   **Required from v8 on. It is step zero because it is the only check that
+   exercises what a new owner actually meets**, and because everything it covers
+   was found by a customer rather than by us.
+
+   It is a guided procedure, not an automated test — the physical steps (tap the
+   glass, pull the power) cannot be driven from a script, and it says so instead
+   of pretending. What is automated is the evidence: one continuous serial
+   capture, asserted at the end against lines the firmware already prints.
+
+   The sequence, in order, because several assertions depend on the order:
+   factory reset → join Wi-Fi and set a location → claim an aircraft → open
+   Collection **within a minute** → toggle the logbook off (what you claimed must
+   survive) → **pull the power** → reboot.
+
+   The last one is the one that matters most: after a real power cut the book
+   must come back non-empty. That is the difference between a collection and a
+   session.
+
+   Why it exists: on 2026-08-21 a device that was actively logging showed an
+   empty Collection page telling the owner to turn on a logbook that was already
+   on. `/logbook.json` is served from NVS, and NVS was not written for the first
+   ten minutes of uptime — so a factory-fresh unit was invisible to its own page
+   for exactly as long as a new owner would be staring at it.
+
 1. **Bump the version:** edit `FW_VERSION` in `src/OtaUpdater.h` (one number, all SKUs).
    If this takes the number to 7 or above, the gate directly above applies.
 2. Commit + merge to `main`.
