@@ -3,7 +3,7 @@ import { recordEnrichGap, type RequestMetric } from "./metrics";
 import { SCHEMA_V } from "./schema";
 import { fetchAircraftMetaAdsbdb, fetchHexChain, fetchRoute } from "./upstreams/chain";
 import { isNonIcaoAddress } from "./icaoalloc";
-import { militaryCallsignOperator, militaryOperator } from "./military";
+import { canonicalOperator, militaryCallsignOperator, militaryOperator } from "./military";
 import { TYPE_NAMES } from "./typenames";
 import { resolvePhoto, squareSizeFor } from "./photos";
 import { errorResponse, intEnv, jsonResponse } from "./util";
@@ -295,7 +295,29 @@ export async function handleEnrich(
   let acT = acMeta?.t ?? "";
   let acTn = acMeta?.tn ?? "";
   let acOpSide = "";
-  if (!acR && !acT) {
+  // TWO INDEPENDENT NEEDS, AND THEY MUST NOT SHARE ONE GATE.
+  //
+  // This block used to run only when the live record resolved NEITHER a
+  // registration NOR a type, which is right for identity and WRONG for the
+  // operator -- and the difference is not academic. Measured against production
+  // on 2026-08-20: ae222c is a US Navy P-8 that adsb.fi's own DB knows, so it
+  // arrived with r=167951 and t=P8, the gate was false, `pa:ae222c` was never
+  // read, and its curated op ("United States Navy") was unreachable. The card
+  // fell back to the address-block floor and said "US military".
+  //
+  // So the curated operator was systematically missing for exactly the hexes the
+  // upstream already knew -- which is backwards, because operator is the field
+  // plane-alert-db uniquely supplies and the upstream leaves empty.
+  //
+  // The military hint bounds the cost. These are military tables, so consulting
+  // them for an operator is only worth up to three KV reads when the hex is
+  // plausibly military at all; ordinary civil traffic with a blank operator does
+  // not pay for a lookup that is certain to miss. militaryOperator() is an
+  // in-memory range scan, so the hint itself is free.
+  const needIdentity = !acR && !acT;
+  const looksMilitary = Boolean(acMeta?.mil) || militaryOperator(hex) !== "";
+  const needOperator = !(acMeta?.op ?? "") && looksMilitary;
+  if (needIdentity || needOperator) {
     // THREE SIDE TABLES, MOST AUTHORITATIVE FIRST. The order is expressed HERE,
     // in the read path, and deliberately not by which loader ran last:
     //
@@ -317,13 +339,18 @@ export async function handleEnrich(
       (await env.ENRICH_KV.get<MilEntry>(`pa:${hex}`, "json")) ??
       (await env.ENRICH_KV.get<MilEntry>(`mil:${hex}`, "json"));
     if (side) {
-      acR = str(side.r);
-      acT = normType(side.t);
-      acTn = str(side.tn) || (acT ? (TYPE_NAMES[acT] ?? "") : "");
+      // Identity only when the live record had none -- a curated row must never
+      // overwrite a registration or type the upstream actually resolved.
+      if (needIdentity) {
+        acR = str(side.r);
+        acT = normType(side.t);
+        acTn = str(side.tn) || (acT ? (TYPE_NAMES[acT] ?? "") : "");
+      }
       // plane-alert-db carries an operator; Mictronics has no column for one.
       // Held aside rather than written straight into `op`, so the floor below
       // still runs in the right order when this is empty.
-      acOpSide = str((side as { op?: string }).op);
+      // Taken whenever the row has one, independent of the identity gate above.
+      acOpSide = canonicalOperator(str((side as { op?: string }).op));
     }
   }
 
