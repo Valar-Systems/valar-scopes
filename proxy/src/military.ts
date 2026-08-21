@@ -114,3 +114,46 @@ export function militaryOperator(hexRaw: string): string {
   }
   return "";
 }
+
+// ---------------------------------------------------------------------------
+// Canonical operator spelling, applied at SERVE time.
+//
+// THE SOURCES DISAGREE WITH THEMSELVES, not just with each other. Measured in
+// plane-alert-mil.csv on 2026-08-20: "United States Marine Corps" appears 271
+// times and "US Marine Corps" 235 times -- the same operator, two spellings, one
+// file. "United States Army" 941 vs "US Army" 67. USAF is abbreviated where the
+// others are spelled out.
+//
+// So this is not a cosmetic preference imposed on clean data; it is reconciling
+// data that is already inconsistent. Two identical airframes would otherwise
+// show different operator text on the same card depending which row was written
+// when.
+//
+// SERVE TIME, NOT INGEST TIME, deliberately: the loaders stay faithful
+// transcriptions of their upstreams, so a re-run cannot quietly relabel anything
+// and the rows still say what plane-alert-db says. The presentation choice lives
+// where presentation is decided, and changing it is a deploy rather than a
+// 9,837-row rewrite.
+//
+// The "US <Service>" shape is the house style and it is also the one that fits:
+// the detail card is 240 px wide, and "United States Marine Corps" does not.
+// Non-US operators are left exactly as written -- "Royal Australian Air Force"
+// is long because that is its name, and shortening other countries' services to
+// taste is not this table's job.
+const OPERATOR_CANONICAL: Record<string, string> = {
+  usaf: "US Air Force",
+  "united states air force": "US Air Force",
+  usn: "US Navy",
+  "united states navy": "US Navy",
+  "united states army": "US Army",
+  usmc: "US Marine Corps",
+  "united states marine corps": "US Marine Corps",
+  uscg: "US Coast Guard",
+  "united states coast guard": "US Coast Guard",
+};
+
+/** Canonical spelling for an operator; unknown values pass through trimmed. */
+export function canonicalOperator(op: string): string {
+  const t = op.trim();
+  return OPERATOR_CANONICAL[t.toLowerCase()] ?? t;
+}

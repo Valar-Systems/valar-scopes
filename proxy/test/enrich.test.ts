@@ -427,7 +427,11 @@ describe("military enrichment deepening", () => {
     expect(body.tn).toBe("Boeing P-8A Poseidon");
     // The CURATED operator must beat militaryOperator()'s block floor, which
     // would otherwise answer the truthful-but-vaguer "US military" for this hex.
-    expect(body.op).toBe("United States Navy");
+    //
+    // Asserted in its CANONICAL form: the stored row says "United States Navy"
+    // and the serve path normalises it, so this pins BOTH behaviours at once --
+    // that the curated value wins, and that it is spelled the one house way.
+    expect(body.op).toBe("US Navy");
     expect(body.r).toBe("");                         // no registration carried, none invented
   });
 
@@ -438,6 +442,50 @@ describe("military enrichment deepening", () => {
 
     const res = await call(apiRequest("/v1/enrich/ae6847"), { ROUTE_ADSBDB_ENABLED: "false" });
     expect(((await res.json()) as { op: string }).op).toBe("US Navy");
+  });
+
+  it("ae222c: an upstream-known reg/type AND a curated operator coexist", async () => {
+    // THE CASE THE OLD GATE MISSED, pinned by the hex it was found on. ae222c is
+    // a US Navy P-8 that the upstream DB knows, so it arrives WITH a registration
+    // and a type -- which used to skip the side-table read entirely and lose the
+    // curated operator to the address-block floor ("US military").
+    //
+    // Both halves are asserted together on purpose: the identity must come from
+    // the UPSTREAM (a curated row must not overwrite a resolved registration) and
+    // the operator must come from the SIDE TABLE, in one response.
+    await env.ENRICH_KV.put(
+      "pa:ae222c",
+      JSON.stringify({ r: "SHOULD-NOT-WIN", t: "C17", op: "United States Navy" }),
+    );
+    fetchMock
+      .get(LOL)
+      .intercept({ path: "/v2/hex/ae222c" })
+      .reply(200, hexBody([{ hex: "ae222c", r: "167951", t: "P8" }]));
+
+    const res = await call(apiRequest("/v1/enrich/ae222c"), { ROUTE_ADSBDB_ENABLED: "false" });
+    const body = (await res.json()) as { r: string; t: string; op: string };
+    expect(body.r).toBe("167951");   // upstream identity wins...
+    expect(body.t).toBe("P8");
+    expect(body.op).toBe("US Navy"); // ...and the curated operator still lands, canonicalised
+  });
+
+  it("canonicalises operator spelling, which the source is inconsistent about", async () => {
+    // plane-alert-mil.csv contains BOTH "United States Marine Corps" (271 rows)
+    // and "US Marine Corps" (235). Two identical airframes would otherwise print
+    // different operator text depending which row was written when.
+    await env.ENRICH_KV.put("pa:ae2233", JSON.stringify({ t: "F18", op: "United States Marine Corps" }));
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/ae2233" }).reply(200, hexBody([{ hex: "ae2233" }]));
+    const res = await call(apiRequest("/v1/enrich/ae2233"), { ROUTE_ADSBDB_ENABLED: "false" });
+    expect(((await res.json()) as { op: string }).op).toBe("US Marine Corps");
+  });
+
+  it("leaves non-US operators exactly as written", async () => {
+    // The canonical table reconciles spellings the SOURCE disagrees with itself
+    // about. It is not a licence to shorten other countries' service names.
+    await env.ENRICH_KV.put("pa:43c918", JSON.stringify({ t: "P8", op: "Royal Air Force" }));
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/43c918" }).reply(200, hexBody([{ hex: "43c918" }]));
+    const res = await call(apiRequest("/v1/enrich/43c918"), { ROUTE_ADSBDB_ENABLED: "false" });
+    expect(((await res.json()) as { op: string }).op).toBe("Royal Air Force");
   });
 
   it("NEGATIVE CONTROL: with no side-table row, the block floor answers and nothing is guessed", async () => {
