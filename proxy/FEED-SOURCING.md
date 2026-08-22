@@ -5,6 +5,34 @@ is the product's default. **Local mode** (device → the user's own dump1090/rea
 is rock-solid but requires a ~$40–100 receiver most buyers won't set up, so the
 cloud path has to work on its own.
 
+> ## RESOLVED 2026-08-21 — the adsb.fi terms are settled, in writing
+>
+> **The licensing question this document was written around is closed.** Samuli
+> (adsb.fi) confirmed in writing on **2026-08-21** that the **$50/month sponsorship
+> covers redistributing the feed to our customers' devices** — which is exactly what
+> the relay + SWR + KV architecture does, and exactly the thing the drafts below were
+> written to ask for.
+>
+> **Two dates, and keep both.** This sits on top of, and does not replace, the earlier
+> grant: on **2026-08-05** Samuli granted commercial use *including caching*,
+> conditional on staying inside the Open Data API rate limit and on nothing else. They
+> answer different questions, and the difference is load-bearing if the sponsorship
+> ever lapses — the 2026-08-05 grant is free and rate-conditional, while the
+> 2026-08-21 confirmation ties redistribution to money changing hands. Neither one
+> alone is the whole permission.
+>
+> **What remains open is arithmetic, not licence.** adsb.fi's public limit is
+> **1 req/s per IP** and that is still the binding scale constraint — see the rate
+> model in [proxy/README.md](README.md#upstream-licensing-posture) and the 600-unit
+> paths below.
+>
+> Everything below that describes the terms as pending, informal, non-commercial, or
+> a testing-only grant is **historical record, kept on purpose.** This entry has been
+> wrong in *both* directions already — first "adsb.fi 403s us" (it was Cloudflare's
+> shared egress), then "their terms forbid commercial use" (a reading of the published
+> terms while a written grant sat in the inbox). The published terms are the default;
+> **the thread is the licence.**
+
 ## The core constraint (verified 2026-07-18)
 
 - **adsb.lol keyless is rate-limited for us.** Our Worker egresses from Cloudflare's
@@ -31,6 +59,13 @@ cloud path has to work on its own.
 - **Failover feeds are enabled on production** for the bench soak (owner-approved).
 
 ## What's needed (business) — the real launch gate
+
+> **SUPERSEDED 2026-08-21 — this gate is closed.** adsb.fi is the chain primary under a
+> written commercial grant plus the sponsorship confirmation above, and adsb.lol is a
+> licensed (ODbL 1.0) fallback. Two permitted sources with a real failover between them;
+> airplanes.live is prohibited by written operator refusal and is not an option. The
+> survey below is kept for the pricing analysis, which is still the reference for what a
+> paid per-request API would cost if the community feeds ever stop covering us.
 
 A feed that is free **and** unlimited **and** reliable **and** commercially licensed
 likely doesn't exist. Options, in order of effort:
@@ -180,11 +215,20 @@ so it is not shippable on its own even though the table says it "fits".
 
 ## Draft: adsb.fi reply (redistribution → commercial → rate limit)
 
-**Status 2026-07-29:** testing permission granted; the old HTTP 403 turned out to be
-Cloudflare's shared egress, not an adsb.fi block — both relay IPs get 200 unauthenticated.
-**The blocker is now purely licensing.** Their published terms are "personal,
-non-commercial use only … you may not license, sell, rent, or lease any part of the data
-or the service", with no ODbL-style redistribution right.
+**Status 2026-08-21: SENT AND ANSWERED — all three asks resolved in our favour.** Ask (1)
+redistribution: granted, and re-confirmed 2026-08-21 as covered by the $50/month
+sponsorship. Ask (2) commercial use: granted 2026-08-05 ("I am happy to let you use it for
+your mentioned purpose, including the caching system"), where the stated purpose was a paid
+hardware product. Ask (3) rate limit: **not raised** — 1 req/s per IP still stands, and it
+is now the only adsb.fi constraint we have. **The draft below is kept verbatim as the
+record of what was actually asked**, since the answer only means what the question meant.
+
+*Original framing, 2026-07-29, left in place because it is what the email was written
+against:* testing permission granted; the old HTTP 403 turned out to be Cloudflare's shared
+egress, not an adsb.fi block — both relay IPs get 200 unauthenticated. **The blocker is now
+purely licensing.** Their published terms are "personal, non-commercial use only … you may
+not license, sell, rent, or lease any part of the data or the service", with no ODbL-style
+redistribution right.
 
 The three asks are deliberately ordered: **redistribution first**, because our entire
 relay/SWR/KV architecture is a redistribution system — if the answer to (1) is no, then
