@@ -1,0 +1,528 @@
+20:24:16 [capture] attached to COM119
+20:24:52 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:53 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:54 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:54 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:55 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:56 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:56 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:57 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:58 [capture] port dropped (MethodInvocationException) -- reconnecting
+20:24:59 [capture] attached to COM119
+20:24:59 
+20:24:59 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+20:24:59 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+20:24:59 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+20:24:59 ESP-ROM:esp32s3-20210327
+20:24:59 Build:Mar 27 2021
+20:24:59 rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+20:24:59 Saved PC:0x4037abd6
+20:24:59 SPIWP:0xee
+20:24:59 mode:DIO, clock div:1
+20:24:59 load:0x3fce2820,len:0x10cc
+20:24:59 load:0x403c8700,len:0xc2c
+20:24:59 load:0x403cb700,len:0x30c0
+20:24:59 entry 0x403c88b8
+20:24:59 
+20:24:59 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+20:24:59 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+20:24:59 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+20:24:59 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293564
+20:24:59 *wm:v2.0.17  D:2
+20:24:59 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+20:24:59 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:24:59 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+20:25:02 [  3409][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+20:25:02 *wm:AutoConnect 
+20:25:02 *wm:Connect Wifi, ATTEMPT # 1 of 5
+20:25:02 *wm:No wifi saved, skipping 
+20:25:02 *wm:Connect Wifi, ATTEMPT # 2 of 5
+20:25:02 *wm:No wifi saved, skipping 
+20:25:02 *wm:Connect Wifi, ATTEMPT # 3 of 5
+20:25:02 *wm:No wifi saved, skipping 
+20:25:02 *wm:Connect Wifi, ATTEMPT # 4 of 5
+20:25:02 *wm:No wifi saved, skipping 
+20:25:02 *wm:Connect Wifi, ATTEMPT # 5 of 5
+20:25:02 *wm:No wifi saved, skipping 
+20:25:02 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:25:02 *wm:AutoConnect: FAILED for  20 ms
+20:25:02 *wm:StartAP with SSID:  Blipscope-31D918
+20:25:02 *wm:AP IP address: 192.168.4.1
+20:25:03 *wm:Starting Web Portal 
+20:44:13 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:44:15 *wm:17 networks found
+20:44:31 *wm:Connect Wifi, ATTEMPT # 1 of 5
+20:44:31 *wm:Connecting to NEW AP: Tony
+20:44:31 [WiFi] Associated with "Tony", waiting for IP...
+20:44:32 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-50 dBm
+20:44:33 *wm:Connect to new AP [SUCCESS] 
+20:44:33 *wm:Got IP Address: 
+20:44:33 *wm:192.168.86.32 
+20:44:33 [WiFi] Portal saved credentials, attempting to connect...
+20:44:33 *wm:config portal exiting 
+20:44:34 [WiFi] autoConnect() returned true (connected)
+20:44:34 [WiFi] provisioned via the portal -- restarting so the config server can bind :80
+20:44:34 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+20:44:35 ESP-ROM:esp32s3-20210327
+20:44:35 Build:Mar 27 2021
+20:44:35 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+20:44:35 Saved PC:0x4037abd6
+20:44:35 SPIWP:0xee
+20:44:35 mode:DIO, clock div:1
+20:44:35 load:0x3fce2820,len:0x10cc
+20:44:35 load:0x403c8700,len:0xc2c
+20:44:35 load:0x403cb700,len:0x30c0
+20:44:35 entry 0x403c88b8
+20:44:35 
+20:44:35 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+20:44:35 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+20:44:35 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+20:44:35 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293712
+20:44:36 *wm:v2.0.17  D:2
+20:44:36 [WiFi] credentials saved: portal will time out after 180 s and retry them
+20:44:36 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:44:36 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+20:44:39 [  3406][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+20:44:39 *wm:AutoConnect 
+20:44:39 *wm:Connect Wifi, ATTEMPT # 1 of 5
+20:44:39 *wm:Connecting to SAVED AP: Tony
+20:44:39 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:44:39 [WiFi] Associated with "Tony", waiting for IP...
+20:44:39 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-50 dBm
+20:44:41 *wm:AutoConnect: SUCCESS 
+20:44:41 *wm:STA IP Address: 192.168.86.32
+20:44:41 [WiFi] autoConnect() returned true (connected)
+20:44:41 [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
+20:44:49 [ota] channel=s3-128 current=7 latest=7
+20:44:52 [web] config server listening on :80 (http://Blipscope-31D918.local)
+20:44:52 [cfg-migrate] rev 0 -> 2: cleared info-type=0 info-operator=0 (defaults now apply)
+20:44:52 [config] no location set -- the radar screen will prompt for it
+20:44:52 [cloud] no key override; using the factory-provisioned key
+20:44:52 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:44:52 [heap] handshake ballast reserved (16717 B); free8=163960
+20:44:52 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:44:53 [cloud] airports: 0 within 100 km
+20:44:53 [dim] brightness -> 51 (night)
+20:45:03 [health] frame avg=33.6ms p95=34.5ms max=36.7ms  n=0 ap=329  heap free=139168 largest=88052 free8=139168 tlsOk=1 rej=0 ball=0/0  allocFail=0 hardFail=0  tls=2/4  interval=5000ms
+20:45:05 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+20:45:33 [health] frame avg=33.6ms p95=34.0ms max=36.0ms  n=0 ap=329  heap free=122004 largest=71668 free8=122004 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/10  interval=5000ms
+20:45:35 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+20:45:35 [perf] 2026-08-23T03:45:36Z polls=9 busy=1%(fetch=1% enrich=0%) parse=0ms/poll bytes=35/poll ac=0/0 lag=avg6666ms,max10000ms gapMax=5066ms episodes=0 cache=H0/S8/M1 enrichReqs=0
+20:46:03 [health] frame avg=33.6ms p95=34.1ms max=36.3ms  n=0 ap=329  heap free=122004 largest=71668 free8=122004 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/16  interval=5000ms
+20:46:05 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0
+20:46:13 [touch] 100452 press (184,150) inDetail=0
+20:46:16 [touch] 100551 release start=(184,150) end=(64,153) d=(-120,3) held=99ms -> SWIPE
+20:46:16 [touch] 101124 press (192,144) inDetail=0
+20:46:16 [touch] 101215 release start=(192,144) end=(52,147) d=(-140,3) held=91ms -> SWIPE
+20:46:16 [touch] 103046 press (116,192) inDetail=0
+20:46:18 [touch] 103109 release start=(116,192) end=(116,192) d=(0,0) held=63ms -> TAP
+20:46:18 [reset] menu opened from the Stats row
+20:46:30 [touch] 117648 press (137,118) inDetail=0
+20:46:33 [touch] 117749 release start=(137,118) end=(137,118) d=(0,0) held=101ms -> TAP
+20:46:33 [reset] tier=factory selected -- confirm or cancel
+20:46:33 [touch] 118743 press (122,157) inDetail=0
+20:46:34 [touch] 118846 release start=(122,157) end=(122,157) d=(0,0) held=103ms -> TAP
+20:46:34 [reset] confirmed on device tier=factory
+20:46:34 *wm:resetSettings 
+20:46:34 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+20:46:35 *wm:SETTINGS ERASED 
+20:46:35 [reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac
+20:46:35 [reset] NOTE leaderboard id is MAC-derived and unchanged; the server row is not released by this reset
+20:46:35 ESP-ROM:esp32s3-20210327
+20:46:36 Build:Mar 27 2021
+20:46:36 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+20:46:36 Saved PC:0x4037abd6
+20:46:36 SPIWP:0xee
+20:46:36 mode:DIO, clock div:1
+20:46:36 load:0x3fce2820,len:0x10cc
+20:46:36 load:0x403c8700,len:0xc2c
+20:46:36 load:0x403cb700,len:0x30c0
+20:46:36 entry 0x403c88b8
+20:46:36 
+20:46:36 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+20:46:36 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+20:46:36 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+20:46:36 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293712
+20:46:36 *wm:v2.0.17  D:2
+20:46:36 [WiFi] no saved credentials: portal stays up indefinitely for first setup
+20:46:36 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:46:36 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+20:46:39 [  3395][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+20:46:39 *wm:AutoConnect 
+20:46:39 *wm:Connect Wifi, ATTEMPT # 1 of 5
+20:46:40 *wm:No wifi saved, skipping 
+20:46:40 *wm:Connect Wifi, ATTEMPT # 2 of 5
+20:46:40 *wm:No wifi saved, skipping 
+20:46:40 *wm:Connect Wifi, ATTEMPT # 3 of 5
+20:46:40 *wm:No wifi saved, skipping 
+20:46:40 *wm:Connect Wifi, ATTEMPT # 4 of 5
+20:46:40 *wm:No wifi saved, skipping 
+20:46:40 *wm:Connect Wifi, ATTEMPT # 5 of 5
+20:46:40 *wm:No wifi saved, skipping 
+20:46:40 *wm:AutoConnect: FAILED for  20 ms
+20:46:40 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:46:40 *wm:StartAP with SSID:  Blipscope-31D918
+20:46:40 *wm:AP IP address: 192.168.4.1
+20:46:40 *wm:Starting Web Portal 
+20:49:48 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:49:49 *wm:18 networks found
+20:50:05 *wm:Connect Wifi, ATTEMPT # 1 of 5
+20:50:07 *wm:Connecting to NEW AP: Tony
+20:50:07 [WiFi] DISCONNECTED  reason=4 (ASSOC_EXPIRE)
+20:50:08 [WiFi] Associated with "Tony", waiting for IP...
+20:50:08 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-52 dBm
+20:50:09 *wm:Connect to new AP [SUCCESS] 
+20:50:09 *wm:Got IP Address: 
+20:50:09 *wm:192.168.86.32 
+20:50:09 [WiFi] Portal saved credentials, attempting to connect...
+20:50:09 *wm:config portal exiting 
+20:50:10 [WiFi] autoConnect() returned true (connected)
+20:50:10 [WiFi] provisioned via the portal -- restarting so the config server can bind :80
+20:50:10 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+20:50:11 ESP-ROM:esp32s3-20210327
+20:50:11 Build:Mar 27 2021
+20:50:11 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+20:50:11 Saved PC:0x4037abd6
+20:50:11 SPIWP:0xee
+20:50:11 mode:DIO, clock div:1
+20:50:11 load:0x3fce2820,len:0x10cc
+20:50:12 load:0x403c8700,len:0xc2c
+20:50:12 load:0x403cb700,len:0x30c0
+20:50:12 entry 0x403c88b8
+20:50:12 
+20:50:12 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+20:50:12 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+20:50:12 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+20:50:12 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293712
+20:50:12 *wm:v2.0.17  D:2
+20:50:12 [WiFi] credentials saved: portal will time out after 180 s and retry them
+20:50:12 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:50:12 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+20:50:15 [  3397][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+20:50:15 *wm:AutoConnect 
+20:50:15 *wm:Connect Wifi, ATTEMPT # 1 of 5
+20:50:15 *wm:Connecting to SAVED AP: Tony
+20:50:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:50:15 [WiFi] Associated with "Tony", waiting for IP...
+20:50:16 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-52 dBm
+20:50:18 *wm:AutoConnect: SUCCESS 
+20:50:18 *wm:STA IP Address: 192.168.86.32
+20:50:18 [WiFi] autoConnect() returned true (connected)
+20:50:18 [WiFi] pinned AP ch=1 RSSI=-52 dBm for the next boot
+20:50:22 [ota] channel=s3-128 current=7 latest=7
+20:50:26 [web] config server listening on :80 (http://Blipscope-31D918.local)
+20:50:26 [cfg-migrate] rev 0 -> 2: cleared info-type=0 info-operator=0 (defaults now apply)
+20:50:26 [config] no location set -- the radar screen will prompt for it
+20:50:26 [cloud] no key override; using the factory-provisioned key
+20:50:26 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:50:26 [heap] handshake ballast reserved (16717 B); free8=163924
+20:50:30 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:50:30 [cloud] airports: 0 within 100 km
+20:50:30 [dim] brightness -> 51 (night)
+20:50:40 [health] frame avg=33.6ms p95=34.0ms max=37.2ms  n=0 ap=329  heap free=139112 largest=90100 free8=139112 tlsOk=1 rej=0 ball=0/0  allocFail=0 hardFail=0  tls=2/4  interval=5000ms
+20:50:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+20:51:02 [GET] Handling request to config web server...
+20:51:03 [GET] heap free=117528 largest-block=71668
+20:51:03 [ 50701][E][Preferences.cpp:506] getString(): nvs_get_str len fail: latitude NOT_FOUND
+20:51:03 [ 50709][E][Preferences.cpp:506] getString(): nvs_get_str len fail: longitude NOT_FOUND
+20:51:03 [ 50716][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-name NOT_FOUND
+20:51:03 [ 50724][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lat NOT_FOUND
+20:51:03 [ 50732][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc0-lon NOT_FOUND
+20:51:03 [ 50740][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-name NOT_FOUND
+20:51:03 [ 50748][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lat NOT_FOUND
+20:51:03 [ 50756][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc1-lon NOT_FOUND
+20:51:03 [ 50763][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-name NOT_FOUND
+20:51:03 [ 50771][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lat NOT_FOUND
+20:51:03 [ 50779][E][Preferences.cpp:506] getString(): nvs_get_str len fail: loc2-lon NOT_FOUND
+20:51:03 [ 50787][E][Preferences.cpp:506] getString(): nvs_get_str len fail: radius NOT_FOUND
+20:51:03 [ 50795][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-id NOT_FOUND
+20:51:03 [ 50803][E][Preferences.cpp:506] getString(): nvs_get_str len fail: opensky-secret NOT_FOUND
+20:51:03 [ 50813][E][Preferences.cpp:506] getString(): nvs_get_str len fail: cloud-key NOT_FOUND
+20:51:03 [ 50821][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-url NOT_FOUND
+20:51:03 [ 50829][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+20:51:03 [ 50837][E][Preferences.cpp:506] getString(): nvs_get_str len fail: scanline NOT_FOUND
+20:51:03 [ 50845][E][Preferences.cpp:506] getString(): nvs_get_str len fail: fade NOT_FOUND
+20:51:03 [ 50853][E][Preferences.cpp:506] getString(): nvs_get_str len fail: infotext NOT_FOUND
+20:51:03 [ 50860][E][Preferences.cpp:506] getString(): nvs_get_str len fail: triangle NOT_FOUND
+20:51:03 [ 50869][E][Preferences.cpp:506] getString(): nvs_get_str len fail: trail NOT_FOUND
+20:51:03 [ 50877][E][Preferences.cpp:506] getString(): nvs_get_str len fail: altcolor NOT_FOUND
+20:51:03 [ 50885][E][Preferences.cpp:506] getString(): nvs_get_str len fail: highlight NOT_FOUND
+20:51:03 [ 50893][E][Preferences.cpp:506] getString(): nvs_get_str len fail: autodim NOT_FOUND
+20:51:03 [ 50902][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+20:51:03 [ 50911][E][Preferences.cpp:506] getString(): nvs_get_str len fail: watchlist NOT_FOUND
+20:51:03 [ 50919][E][Preferences.cpp:506] getString(): nvs_get_str len fail: ntfy-topic NOT_FOUND
+20:51:03 [ 50935][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-name NOT_FOUND
+20:51:03 [ 50943][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+20:51:03 [ 50954][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-host NOT_FOUND
+20:51:03 [ 50963][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-user NOT_FOUND
+20:51:03 [ 50971][E][Preferences.cpp:506] getString(): nvs_get_str len fail: mqtt-pass NOT_FOUND
+20:51:11 [perf] 2026-08-23T03:51:13Z polls=9 busy=1%(fetch=1% enrich=0%) parse=0ms/poll bytes=35/poll ac=0/0 lag=avg7666ms,max11000ms gapMax=5031ms episodes=0 cache=H0/S8/M1 enrichReqs=0
+20:51:12 [health] frame avg=33.6ms p95=34.0ms max=330.8ms  n=0 ap=329  heap free=121532 largest=71668 free8=121532 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/10  interval=5000ms
+20:51:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+20:51:40 [POST] Handling form submission to config web server...
+20:51:42 [health] frame avg=34.2ms p95=34.0ms max=116.0ms  n=0 ap=329  heap free=113012 largest=63476 free8=113012 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/16  interval=5000ms
+20:51:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0
+20:51:42 [cloud] no key override; using the factory-provisioned key
+20:51:42 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:51:42 [dim] brightness -> 51 (night)
+20:51:42 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:51:42 [cloud] airports: 41 within 100 km
+20:52:11 [perf] 2026-08-23T03:52:13Z polls=12 busy=9%(fetch=1% enrich=7%) parse=3ms/poll bytes=706/poll ac=11/11 lag=avg7250ms,max11000ms gapMax=5062ms episodes=0 cache=H0/S11/M1 enrichReqs=6
+20:52:12 [health] frame avg=38.1ms p95=39.2ms max=129.3ms  n=24 ap=41  heap free=91540 largest=44020 free8=91540 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/30  interval=5000ms
+20:52:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=11/0 maxOutage=0ms rebootRec=0
+20:52:16 [POST] Handling form submission to config web server...
+20:52:18 [logbook] loaded 0 types (0 claimed), 0 airlines (0), 0 countries (0), 0 contacts
+20:52:18 [logbook] NVS 323/2646 entries used (2323 free); logbook budget ~2204, ceilings need 1375
+20:52:18 [logbook] seeded from 24 contact(s) already tracked: 6 types, 5 airlines, 1 countries, 2 airports
+20:52:18 [cloud] no key override; using the factory-provisioned key
+20:52:18 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:52:18 [dim] brightness -> 51 (night)
+20:52:18 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:52:19 [cloud] airports: 41 within 100 km
+20:52:35 [POST] Handling form submission to config web server...
+20:52:38 [cloud] no key override; using the factory-provisioned key
+20:52:38 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:52:38 [dim] brightness -> 51 (night)
+20:52:38 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:52:38 [cloud] airports: 41 within 100 km
+20:52:38 [health] frame avg=42.1ms p95=43.0ms max=141.2ms  n=23 ap=41  heap free=89572 largest=41972 free8=89572 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/45  interval=5000ms
+20:52:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=14/0 maxOutage=0ms rebootRec=0
+20:53:10 [perf] 2026-08-23T03:53:13Z polls=12 busy=18%(fetch=1% enrich=16%) parse=5ms/poll bytes=1363/poll ac=23/23 lag=avg8166ms,max11000ms gapMax=5939ms episodes=0 cache=H0/S12/M0 enrichReqs=11
+20:53:12 [health] frame avg=43.3ms p95=45.0ms max=49.4ms  n=23 ap=41  heap free=88288 largest=41972 free8=88288 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/57  interval=5000ms
+20:53:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=17/0 maxOutage=0ms rebootRec=0
+20:53:12 [touch] 183994 press (67,148) inDetail=0
+20:53:16 [touch] 184042 release start=(67,148) end=(67,148) d=(0,0) held=48ms -> TAP
+20:53:16 [claim] B738 claimed (1/12 types)
+20:53:16 [touch] 185208 press (141,153) inDetail=1
+20:53:17 [touch] 185246 release start=(141,153) end=(141,153) d=(0,0) held=38ms -> TAP
+20:53:17 [touch] tap-in-detail hasPhoto=1 page=0 -> flip-to-data
+20:53:29 [touch] 200304 press (122,117) inDetail=1
+20:53:32 [touch] 200377 release start=(122,117) end=(122,117) d=(0,0) held=73ms -> TAP
+20:53:32 [touch] tap-in-detail hasPhoto=1 page=1 -> CLOSE
+20:53:40 [GET] Handling request to config web server...
+20:53:41 [GET] heap free=86132 largest-block=35828
+20:53:41 [208736][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+20:53:41 [208775][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+20:53:41 [logbook] persisted (1/12 types claimed, 10 airlines, 1 countries, 25 contacts; 680 B blobs, 2285 NVS entries free)
+20:53:41 [health] frame avg=43.9ms p95=48.2ms max=142.0ms  n=20 ap=41  heap free=90772 largest=40948 free8=90772 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/64  interval=5000ms
+20:53:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=23/0 maxOutage=0ms rebootRec=0
+20:53:42 [GET] Handling request to config web server...
+20:53:43 [GET] heap free=85856 largest-block=38900
+20:53:43 [211077][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+20:53:43 [211115][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+20:54:11 [perf] 2026-08-23T03:54:13Z polls=9 busy=5%(fetch=1% enrich=4%) parse=4ms/poll bytes=1148/poll ac=19/19 lag=avg7666ms,max11000ms gapMax=19086ms episodes=0 cache=H0/S8/M1 enrichReqs=5
+20:54:12 [health] frame avg=42.2ms p95=42.8ms max=149.7ms  n=18 ap=41  heap free=92840 largest=40948 free8=92840 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/71  interval=5000ms
+20:54:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=26/0 maxOutage=0ms rebootRec=0
+20:54:36 [POST] Handling form submission to config web server...
+20:54:36 [logbook] disabled -- flushing before logging stops
+20:54:37 [logbook] persisted (1/12 types claimed, 11 airlines, 1 countries, 25 contacts; 719 B blobs, 2284 NVS entries free)
+20:54:37 [cloud] no key override; using the factory-provisioned key
+20:54:37 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:54:37 [dim] brightness -> 51 (night)
+20:54:37 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:54:37 [cloud] airports: 41 within 100 km
+20:54:37 [GET] Handling request to config web server...
+20:54:39 [GET] heap free=89020 largest-block=38900
+20:54:39 [267139][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+20:54:39 [267178][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+20:54:39 [GET] Handling request to config web server...
+20:54:41 [GET] heap free=88780 largest-block=38900
+20:54:41 [268852][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+20:54:41 [268890][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+20:54:41 [health] frame avg=45.3ms p95=52.2ms max=200.3ms  n=17 ap=41  heap free=93180 largest=40948 free8=93180 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/79  interval=5000ms
+20:54:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=29/0 maxOutage=0ms rebootRec=0
+20:55:10 [perf] 2026-08-23T03:55:13Z polls=12 busy=2%(fetch=1% enrich=1%) parse=3ms/poll bytes=1034/poll ac=17/17 lag=avg7750ms,max11000ms gapMax=5117ms episodes=0 cache=H0/S12/M0 enrichReqs=1
+20:55:12 [health] frame avg=41.8ms p95=42.8ms max=46.0ms  n=18 ap=41  heap free=91944 largest=40948 free8=91944 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/86  interval=5000ms
+20:55:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=32/0 maxOutage=0ms rebootRec=0
+20:55:40 [health] frame avg=43.0ms p95=44.6ms max=47.5ms  n=21 ap=41  heap free=88424 largest=39924 free8=88424 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/95  interval=5000ms
+20:55:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=35/0 maxOutage=0ms rebootRec=0
+20:56:10 [perf] 2026-08-23T03:56:13Z polls=12 busy=7%(fetch=1% enrich=5%) parse=3ms/poll bytes=1170/poll ac=19/19 lag=avg8416ms,max11000ms gapMax=5348ms episodes=0 cache=H0/S12/M0 enrichReqs=3
+20:56:12 [health] frame avg=42.5ms p95=43.1ms max=47.7ms  n=20 ap=41  heap free=89964 largest=39924 free8=89964 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/101  interval=5000ms
+20:56:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=38/0 maxOutage=0ms rebootRec=0
+20:56:40 [health] frame avg=42.5ms p95=43.5ms max=47.7ms  n=20 ap=41  heap free=90732 largest=39924 free8=90732 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/107  interval=5000ms
+20:56:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=41/0 maxOutage=0ms rebootRec=0
+20:57:10 [perf] 2026-08-23T03:57:13Z polls=12 busy=1%(fetch=1% enrich=0%) parse=4ms/poll bytes=1178/poll ac=20/20 lag=avg7500ms,max10000ms gapMax=5166ms episodes=0 cache=H0/S12/M0 enrichReqs=0
+20:57:12 [health] frame avg=42.6ms p95=43.5ms max=47.9ms  n=20 ap=41  heap free=90732 largest=39924 free8=90732 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/113  interval=5000ms
+20:57:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=44/0 maxOutage=0ms rebootRec=0
+20:57:40 [health] frame avg=42.7ms p95=43.8ms max=48.2ms  n=21 ap=41  heap free=89448 largest=39924 free8=89448 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/120  interval=5000ms
+20:57:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=47/0 maxOutage=0ms rebootRec=0
+20:58:10 [perf] 2026-08-23T03:58:13Z polls=12 busy=2%(fetch=1% enrich=0%) parse=4ms/poll bytes=1212/poll ac=20/20 lag=avg7500ms,max10000ms gapMax=5151ms episodes=0 cache=H0/S12/M0 enrichReqs=1
+20:58:12 [health] frame avg=42.8ms p95=43.8ms max=48.9ms  n=21 ap=41  heap free=89448 largest=39924 free8=89448 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/126  interval=5000ms
+20:58:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=50/0 maxOutage=0ms rebootRec=0
+20:58:40 [health] frame avg=43.0ms p95=44.3ms max=49.6ms  n=22 ap=41  heap free=88260 largest=38900 free8=88260 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/133  interval=5000ms
+20:58:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=53/0 maxOutage=0ms rebootRec=0
+20:59:10 [perf] 2026-08-23T03:59:13Z polls=12 busy=3%(fetch=1% enrich=1%) parse=4ms/poll bytes=1218/poll ac=20/20 lag=avg7500ms,max10000ms gapMax=5166ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+20:59:12 [health] frame avg=42.3ms p95=43.5ms max=49.2ms  n=21 ap=41  heap free=89608 largest=38900 free8=89608 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/140  interval=5000ms
+20:59:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=56/0 maxOutage=0ms rebootRec=0
+20:59:40 [health] frame avg=42.4ms p95=43.3ms max=48.6ms  n=21 ap=41  heap free=89660 largest=38900 free8=89660 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/147  interval=5000ms
+20:59:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=59/0 maxOutage=0ms rebootRec=0
+21:00:10 [perf] 2026-08-23T04:00:13Z polls=12 busy=2%(fetch=1% enrich=1%) parse=4ms/poll bytes=1245/poll ac=21/21 lag=avg8250ms,max11000ms gapMax=5099ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+21:00:12 [health] frame avg=42.5ms p95=43.7ms max=48.2ms  n=22 ap=41  heap free=88468 largest=38900 free8=88468 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/154  interval=5000ms
+21:00:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=62/0 maxOutage=0ms rebootRec=0
+21:00:40 [health] frame avg=42.6ms p95=43.6ms max=48.7ms  n=22 ap=41  heap free=88468 largest=38900 free8=88468 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/160  interval=5000ms
+21:00:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=65/0 maxOutage=0ms rebootRec=0
+21:01:10 [perf] 2026-08-23T04:01:13Z polls=12 busy=1%(fetch=1% enrich=0%) parse=4ms/poll bytes=1270/poll ac=21/21 lag=avg8500ms,max11000ms gapMax=5141ms episodes=0 cache=H0/S12/M0 enrichReqs=0
+21:01:12 [health] frame avg=42.3ms p95=43.0ms max=48.4ms  n=21 ap=41  heap free=89752 largest=38900 free8=89752 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/166  interval=5000ms
+21:01:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=68/0 maxOutage=0ms rebootRec=0
+21:01:40 [health] frame avg=42.8ms p95=43.5ms max=48.8ms  n=22 ap=41  heap free=88428 largest=38900 free8=88428 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/173  interval=5000ms
+21:01:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=71/0 maxOutage=0ms rebootRec=0
+21:02:10 [perf] 2026-08-23T04:02:13Z polls=12 busy=2%(fetch=1% enrich=0%) parse=4ms/poll bytes=1232/poll ac=20/20 lag=avg8500ms,max11000ms gapMax=5155ms episodes=0 cache=H0/S12/M0 enrichReqs=1
+21:02:12 [health] frame avg=42.1ms p95=43.0ms max=48.6ms  n=20 ap=41  heap free=90988 largest=38900 free8=90988 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/179  interval=5000ms
+21:02:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=74/0 maxOutage=0ms rebootRec=0
+21:02:40 [health] frame avg=42.3ms p95=43.3ms max=48.0ms  n=20 ap=41  heap free=90940 largest=38900 free8=90940 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/186  interval=5000ms
+21:02:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=77/0 maxOutage=0ms rebootRec=0
+21:02:58 [GET] Handling request to config web server...
+21:03:02 [GET] heap free=85764 largest-block=35828
+21:03:02 [770604][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+21:03:02 [770642][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+21:03:10 [perf] 2026-08-23T04:03:13Z polls=12 busy=5%(fetch=1% enrich=3%) parse=4ms/poll bytes=1156/poll ac=19/19 lag=avg8500ms,max11000ms gapMax=5135ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+21:03:12 [health] frame avg=41.5ms p95=42.2ms max=148.4ms  n=19 ap=41  heap free=91976 largest=38900 free8=91976 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/193  interval=5000ms
+21:03:12 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=80/0 maxOutage=0ms rebootRec=0
+21:03:40 [health] frame avg=41.1ms p95=41.8ms max=46.9ms  n=18 ap=41  heap free=93260 largest=38900 free8=93260 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/199  interval=5000ms
+21:03:42 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=83/0 maxOutage=0ms rebootRec=0
+21:03:48 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:49 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:50 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:50 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:51 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:52 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:53 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:53 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:54 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:55 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:55 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:56 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:57 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:58 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:58 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:03:59 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:00 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:00 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:01 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:02 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:02 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:03 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:04 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:05 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:05 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:06 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:07 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:07 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:08 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:09 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:10 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:10 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:11 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:12 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:12 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:13 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:14 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:14 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:15 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:16 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:17 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:17 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:18 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:19 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:19 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:20 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:21 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:22 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:22 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:23 [capture] port dropped (MethodInvocationException) -- reconnecting
+21:04:34 [capture] attached to COM119
+21:04:34 
+21:04:34 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+21:04:34 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+21:04:34 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+21:04:34 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293120
+21:04:34 *wm:v2.0.17  D:2
+21:04:34 [WiFi] credentials saved: portal will time out after 180 s and retry them
+21:04:34 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+21:04:34 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+21:04:34 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+21:04:34 [WiFi] Associated with "Tony", waiting for IP...
+21:04:34 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-58 dBm
+21:04:34 [WiFi] fast join OK in 1651 ms
+21:04:34 [WiFi] pinned AP ch=1 RSSI=-58 dBm for the next boot
+21:04:34 ESP-ROM:esp32s3-20210327
+21:04:34 Build:Mar 27 2021
+21:04:34 rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+21:04:34 Saved PC:0x4037abd6
+21:04:34 SPIWP:0xee
+21:04:34 mode:DIO, clock div:1
+21:04:34 load:0x3fce2820,len:0x10cc
+21:04:34 load:0x403c8700,len:0xc2c
+21:04:34 load:0x403cb700,len:0x30c0
+21:04:34 entry 0x403c88b8
+21:04:34 
+21:04:34 [build] env=blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+21:04:34 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+21:04:34 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+21:04:34 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293268
+21:04:34 *wm:v2.0.17  D:2
+21:04:34 [WiFi] credentials saved: portal will time out after 180 s and retry them
+21:04:34 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+21:04:34 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+21:04:37 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+21:04:37 [WiFi] DISCONNECTED  reason=4 (ASSOC_EXPIRE)
+21:04:39 [WiFi] Associated with "Tony", waiting for IP...
+21:04:39 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-59 dBm
+21:04:40 [WiFi] fast join OK in 2700 ms
+21:04:40 [WiFi] pinned AP ch=1 RSSI=-59 dBm for the next boot
+21:04:52 [ota] channel=s3-128 current=7 latest=7
+21:04:52 [web] config server listening on :80 (http://Blipscope-31D918.local)
+21:04:52 [cloud] no key override; using the factory-provisioned key
+21:04:53 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+21:04:53 [heap] handshake ballast reserved (16717 B); free8=163512
+21:04:53 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+21:04:54 [cloud] airports: 41 within 100 km
+21:04:54 [dim] brightness -> 51 (night)
+21:05:02 [health] frame avg=36.7ms p95=37.4ms max=39.9ms  n=21 ap=41  heap free=113912 largest=65524 free8=113912 tlsOk=1 rej=0 ball=0/0  allocFail=0 hardFail=0  tls=2/6  interval=5000ms
+21:05:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+21:05:32 [perf] 2026-08-23T04:05:35Z polls=8 busy=9%(fetch=1% enrich=8%) parse=5ms/poll bytes=1229/poll ac=21/21 lag=avg7250ms,max11000ms gapMax=5061ms episodes=0 cache=H0/S7/M1 enrichReqs=8
+21:05:34 [health] frame avg=38.9ms p95=40.1ms max=42.0ms  n=21 ap=41  heap free=95012 largest=50164 free8=95012 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/18  interval=5000ms
+21:05:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+21:06:02 [health] frame avg=40.6ms p95=42.1ms max=45.1ms  n=22 ap=41  heap free=91904 largest=50164 free8=91904 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/30  interval=5000ms
+21:06:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0
+21:06:32 [perf] 2026-08-23T04:06:35Z polls=12 busy=13%(fetch=1% enrich=11%) parse=4ms/poll bytes=1276/poll ac=21/21 lag=avg8500ms,max11000ms gapMax=5140ms episodes=0 cache=H0/S12/M0 enrichReqs=12
+21:06:34 [health] frame avg=42.2ms p95=43.3ms max=46.2ms  n=22 ap=41  heap free=92020 largest=50164 free8=92020 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/41  interval=5000ms
+21:06:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=11/0 maxOutage=0ms rebootRec=0
+21:07:02 [health] frame avg=42.9ms p95=44.0ms max=48.2ms  n=22 ap=41  heap free=91812 largest=50164 free8=91812 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/49  interval=5000ms
+21:07:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=14/0 maxOutage=0ms rebootRec=0
+21:07:32 [perf] 2026-08-23T04:07:35Z polls=12 busy=2%(fetch=1% enrich=1%) parse=4ms/poll bytes=1283/poll ac=21/21 lag=avg8083ms,max11000ms gapMax=5189ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+21:07:34 [health] frame avg=42.8ms p95=43.8ms max=48.3ms  n=22 ap=41  heap free=91812 largest=50164 free8=91812 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/55  interval=5000ms
+21:07:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=17/0 maxOutage=0ms rebootRec=0
+21:08:02 [health] frame avg=43.0ms p95=44.5ms max=47.9ms  n=24 ap=41  heap free=89436 largest=48116 free8=89436 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/66  interval=5000ms
+21:08:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=20/0 maxOutage=0ms rebootRec=0
+21:08:32 [perf] 2026-08-23T04:08:35Z polls=12 busy=10%(fetch=1% enrich=8%) parse=4ms/poll bytes=1335/poll ac=22/22 lag=avg7500ms,max10000ms gapMax=5134ms episodes=0 cache=H0/S12/M0 enrichReqs=6
+21:08:34 [health] frame avg=42.3ms p95=43.8ms max=47.7ms  n=23 ap=41  heap free=90816 largest=48116 free8=90816 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/73  interval=5000ms
+21:08:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=23/0 maxOutage=0ms rebootRec=0
+21:08:54 [GET] Handling request to config web server...
+21:08:58 [GET] heap free=85868 largest-block=42996
+21:08:58 [263812][E][Preferences.cpp:506] getString(): nvs_get_str len fail: local-details NOT_FOUND
+21:08:58 [263851][E][Preferences.cpp:506] getString(): nvs_get_str len fail: lb-standing NOT_FOUND
+21:09:02 [health] frame avg=42.3ms p95=43.9ms max=142.6ms  n=23 ap=41  heap free=90400 largest=47092 free8=90400 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/79  interval=5000ms
+21:09:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=26/0 maxOutage=0ms rebootRec=0
+21:09:04 [POST] Handling form submission to config web server...
+21:09:06 [logbook] loaded 12 types (1 claimed), 11 airlines (1), 1 countries (1), 25 contacts
+21:09:06 [logbook] NVS 362/2646 entries used (2284 free); logbook budget ~2204, ceilings need 1375
+21:09:06 [logbook] seeded from 23 contact(s) already tracked: 8 types, 8 airlines, 3 countries, 13 airports
+21:09:06 [cloud] no key override; using the factory-provisioned key
+21:09:06 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+21:09:06 [dim] brightness -> 51 (night)
+21:09:06 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+21:09:06 [cloud] airports: 41 within 100 km
+21:09:30 [perf] 2026-08-23T04:09:35Z polls=13 busy=1%(fetch=1% enrich=0%) parse=4ms/poll bytes=1345/poll ac=23/23 lag=avg7384ms,max11000ms gapMax=5118ms episodes=0 cache=H1/S12/M0 enrichReqs=0
+21:09:34 [health] frame avg=42.9ms p95=44.0ms max=165.9ms  n=23 ap=41  heap free=85576 largest=38900 free8=85576 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/88  interval=5000ms
+21:09:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=29/0 maxOutage=0ms rebootRec=0
+21:10:02 [health] frame avg=42.4ms p95=43.7ms max=49.0ms  n=22 ap=41  heap free=86820 largest=38900 free8=86820 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/94  interval=5000ms
+21:10:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=32/0 maxOutage=0ms rebootRec=0
+21:10:32 [perf] 2026-08-23T04:10:35Z polls=12 busy=1%(fetch=1% enrich=0%) parse=4ms/poll bytes=1292/poll ac=22/22 lag=avg7500ms,max11000ms gapMax=5152ms episodes=0 cache=H0/S12/M0 enrichReqs=0
+21:10:34 [health] frame avg=42.3ms p95=44.0ms max=47.9ms  n=21 ap=41  heap free=88048 largest=38900 free8=88048 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/100  interval=5000ms
+21:10:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=35/0 maxOutage=0ms rebootRec=0
+21:11:02 [health] frame avg=41.9ms p95=42.7ms max=47.4ms  n=20 ap=41  heap free=89448 largest=38900 free8=89448 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/106  interval=5000ms
+21:11:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=38/0 maxOutage=0ms rebootRec=0
+21:11:32 [perf] 2026-08-23T04:11:35Z polls=12 busy=1%(fetch=1% enrich=0%) parse=3ms/poll bytes=1153/poll ac=19/19 lag=avg7500ms,max10000ms gapMax=5129ms episodes=0 cache=H0/S12/M0 enrichReqs=0
+21:11:34 [health] frame avg=41.5ms p95=42.5ms max=46.6ms  n=19 ap=41  heap free=90732 largest=38900 free8=90732 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/112  interval=5000ms
+21:11:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=41/0 maxOutage=0ms rebootRec=0
