@@ -31,6 +31,23 @@ void configmigration::Apply()
                       stored, CONFIG_REV, (int)hadType, (int)hadOp);
     }
 
+    if (NeedsLogbookReset(stored)) {
+        // Same REMOVE-don't-overwrite rule as the info fields, and for the same
+        // reason: an absent key is the only state a firmware default can reach.
+        //
+        // Note this clears a key that is almost certainly PRESENT and "false" --
+        // every device that has ever saved the config page has one, because the
+        // form posts whole and the box has always rendered unticked. That is the
+        // population this exists for; see NeedsLogbookReset for why their intent
+        // cannot be recovered and why this is a one-shot.
+        const bool had = prefs.isKey("logbook");
+        const bool wasOn = had && prefs.getString("logbook", "false") == "true";
+        if (had) prefs.remove("logbook");
+        Serial.printf("[cfg-migrate] rev %d -> %d: cleared logbook=%d (was %s); "
+                      "the spotting logbook now defaults ON\n",
+                      stored, CONFIG_REV, (int)had, wasOn ? "on" : "off");
+    }
+
     prefs.putInt("cfg-rev", CONFIG_REV);
     prefs.end();
 }

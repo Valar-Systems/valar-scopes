@@ -1,4 +1,5 @@
 #include "ConfigurationWebServer.h"
+#include "ConfigMigration.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <lwip/tcpip.h>            // LOCK_TCPIP_CORE / UNLOCK_TCPIP_CORE
@@ -2275,7 +2276,17 @@ void ConfigurationWebServer::Initialise() {
         const String milVisual = HtmlEscape(prefs.isKey("mil-visual") ? prefs.getString("mil-visual", "off") : "off");
         const String emgVisual = HtmlEscape(prefs.isKey("emg-visual") ? prefs.getString("emg-visual", "ring") : "ring");
         const String visualNight = HtmlEscape(prefs.isKey("visual-night") ? prefs.getString("visual-night", "false") : "false");
-        const String logbookOn = HtmlEscape(prefs.isKey("logbook") ? prefs.getString("logbook", "false") : "false");
+        // Resolved through the SAME helper the device uses, rather than the bare
+        // "false" literal that used to sit here. With the default flipped ON, a
+        // page that kept its own copy would render the box unticked on a device
+        // that is happily collecting -- the customer's two sources of truth
+        // disagreeing, which is precisely how "it says one thing here and another
+        // there" bugs get reported and never reproduced.
+        const String logbookOn = HtmlEscape(
+            configmigration::ResolveToggle(
+                prefs.isKey("logbook") ? prefs.getString("logbook", "").c_str() : nullptr,
+                configmigration::LOGBOOK_DEFAULT_ON)
+            ? "true" : "false");
         const String lbEnabled = HtmlEscape(prefs.isKey("lb-enabled") ? prefs.getString("lb-enabled", "false") : "false");
         const String lbName = HtmlEscape(prefs.getString("lb-name", ""));
         // --- links to pages the CLOUD PROXY serves, not this device -------------

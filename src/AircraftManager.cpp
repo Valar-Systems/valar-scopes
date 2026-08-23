@@ -1,4 +1,5 @@
 #include "AircraftManager.h"
+#include "ConfigMigration.h"
 
 #include <algorithm>
 #include <cmath>
@@ -743,7 +744,11 @@ void AircraftManager::Initialise()
     // has to backfill from what is already on screen -- see the seed call below.
     const bool logbookWasEnabled = logbookEnabled;
     const String logbookStr = configServer.GetStoredString("logbook");
-    logbookEnabled = logbookStr.isEmpty() ? false : (logbookStr == "true");
+    // The default lives in ConfigMigration.h, NOT as a literal here -- the config
+    // page resolves the same toggle and the two must not be able to disagree
+    // about what "unset" means.
+    logbookEnabled = configmigration::ResolveToggle(logbookStr.c_str(),
+                                                    configmigration::LOGBOOK_DEFAULT_ON);
     if (logbookEnabled) {
         metadataNeeded = true;
         logbook.Begin(); // idempotent: only the first call loads from NVS
