@@ -513,3 +513,16 @@
 21:09:06 [dim] brightness -> 51 (night)
 21:09:06 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
 21:09:06 [cloud] airports: 41 within 100 km
+21:09:30 [perf] 2026-08-23T04:09:35Z polls=13 busy=1%(fetch=1% enrich=0%) parse=4ms/poll bytes=1345/poll ac=23/23 lag=avg7384ms,max11000ms gapMax=5118ms episodes=0 cache=H1/S12/M0 enrichReqs=0
+21:09:34 [health] frame avg=42.9ms p95=44.0ms max=165.9ms  n=23 ap=41  heap free=85576 largest=38900 free8=85576 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/88  interval=5000ms
+21:09:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=29/0 maxOutage=0ms rebootRec=0
+21:10:02 [health] frame avg=42.4ms p95=43.7ms max=49.0ms  n=22 ap=41  heap free=86820 largest=38900 free8=86820 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/94  interval=5000ms
+21:10:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=32/0 maxOutage=0ms rebootRec=0
+21:10:32 [perf] 2026-08-23T04:10:35Z polls=12 busy=1%(fetch=1% enrich=0%) parse=4ms/poll bytes=1292/poll ac=22/22 lag=avg7500ms,max11000ms gapMax=5152ms episodes=0 cache=H0/S12/M0 enrichReqs=0
+21:10:34 [health] frame avg=42.3ms p95=44.0ms max=47.9ms  n=21 ap=41  heap free=88048 largest=38900 free8=88048 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/100  interval=5000ms
+21:10:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=35/0 maxOutage=0ms rebootRec=0
+21:11:02 [health] frame avg=41.9ms p95=42.7ms max=47.4ms  n=20 ap=41  heap free=89448 largest=38900 free8=89448 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/106  interval=5000ms
+21:11:04 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=38/0 maxOutage=0ms rebootRec=0
+21:11:32 [perf] 2026-08-23T04:11:35Z polls=12 busy=1%(fetch=1% enrich=0%) parse=3ms/poll bytes=1153/poll ac=19/19 lag=avg7500ms,max10000ms gapMax=5129ms episodes=0 cache=H0/S12/M0 enrichReqs=0
+21:11:34 [health] frame avg=41.5ms p95=42.5ms max=46.6ms  n=19 ap=41  heap free=90732 largest=38900 free8=90732 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/112  interval=5000ms
+21:11:34 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=41/0 maxOutage=0ms rebootRec=0
