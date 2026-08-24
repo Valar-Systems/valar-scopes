@@ -73,6 +73,35 @@ namespace BuildIdentity {
         return s;
     }
 
+    // THE PRODUCT NAME, in the customer's words -- what they bought and what they
+    // say to a friend. The company is the maker's mark and sits subordinate to it.
+    //
+    // Selected by the same FEATURE_* switch main.cpp uses to choose the app, and in
+    // the same order, so the wordmark and the running application can never
+    // disagree. A new edition that forgets to add itself here falls through to the
+    // radar's name -- which is wrong, but wrong LOUDLY on the first boot anybody
+    // does, rather than silently shipping another edition's brand.
+    //
+    // Not variant::NAME: that names the BOARD ("Blipscope Kit S3"), which happens to
+    // contain the product name on the radar SKUs and does not on any other edition.
+#if defined(FEATURE_EAM)
+    constexpr char PRODUCT_WORDMARK[] = "MISSILEER";
+#elif defined(FEATURE_SPACE)
+    constexpr char PRODUCT_WORDMARK[] = "ORBITSCOPE";
+#elif defined(FEATURE_SEISMIC)
+    constexpr char PRODUCT_WORDMARK[] = "QUAKESCOPE";
+#elif defined(FEATURE_BIRDING)
+    constexpr char PRODUCT_WORDMARK[] = "QUILLSCOPE";
+#elif defined(FEATURE_FISHING)
+    constexpr char PRODUCT_WORDMARK[] = "REELSCOPE";
+#elif defined(FEATURE_CLAUDESCOPE)
+    constexpr char PRODUCT_WORDMARK[] = "CLAUDESCOPE";
+#elif defined(FEATURE_SPEED)
+    constexpr char PRODUCT_WORDMARK[] = "SPEEDSCOPE";
+#else
+    constexpr char PRODUCT_WORDMARK[] = "BLIPSCOPE";
+#endif
+
     // Where the cloud feed points, or "" when this build has none. The staging vs
     // production distinction is invisible on the glass and matters: a board on a
     // staging image reports to a board nobody is looking at.
