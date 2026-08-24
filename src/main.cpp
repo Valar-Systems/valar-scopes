@@ -12,6 +12,7 @@
 #include "DeviceIdentity.h"
 #include "FactoryReset.h"
 #include "ConfigMigration.h"
+#include "TlsAllocator.h"
 #include "HeapHealth.h"
 #include "WiFiManagerHelpers.h"
 #include "ConfigurationWebServer.h"
@@ -141,6 +142,12 @@ void setup()
   // Board-specific bring-up that has to happen before the display. On SKUs whose panel/touch
   // reset and chip-select hang off an I2C IO expander (the S3-2.1), this drives that expander
   // (and the IMU); on the C3 it's a no-op. See variant::BoardPreInit().
+  // BEFORE ANYTHING NETWORKED. mbedTLS frees with whatever allocator is
+  // installed at free() time, so this has to be in place before the first TLS
+  // context exists or an internal pointer could reach the PSRAM path. Nothing
+  // above this line opens a socket.
+  tlsalloc::Install();
+
   variant::BoardPreInit();
 
   // initialise LGFX + screen. init() returns false if the panel/bus didn't come up (on an
