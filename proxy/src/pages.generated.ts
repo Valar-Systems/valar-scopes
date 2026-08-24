@@ -528,6 +528,7 @@ export const supportHtml = `<!DOCTYPE html>
     <a href="#setup">Setup</a>
     <a href="#problems">Troubleshooting</a>
     <a href="#data">Flight data</a>
+    <a href="#alerts">Phone alerts</a>
     <a href="#updates">Updates</a>
     <a href="#privacy">Privacy</a>
     <a href="#help">Still stuck</a>
@@ -654,6 +655,19 @@ export const supportHtml = `<!DOCTYPE html>
          photo — the position is still correct. If a <b>common</b> airliner shows
          nothing at all, that is a bug worth reporting.</p>
     </div>
+
+    <div class="fix">
+      <div class="q">No phone alerts are arriving</div>
+      <p>First, check that you have actually switched an alert on. A topic with
+         every trigger unticked and an empty watch list is silent by design — see
+         <a href="#alerts">Phone alerts</a>.</p>
+      <p>Then check the topic in the app matches the config page. Topics are
+         <b>case-sensitive</b>; stray spaces around it are not a problem, the device
+         trims those.</p>
+      <p>Still nothing? Open <code>ntfy.sh/&lt;your-topic&gt;</code> in a browser and
+         publish a message to yourself from that page. If it reaches your phone, the
+         app and the topic are fine and the device is the thing to look at.</p>
+    </div>
   </section>
 
   <section class="blk">
@@ -700,6 +714,80 @@ export const supportHtml = `<!DOCTYPE html>
       <p>Treat <code>credentials.json</code> like a password. If you lose the
          secret, use <b>Reset Credential</b> on your OpenSky account page to issue a
          new one — which invalidates the old.</p>
+    </div>
+  </section>
+
+  <section class="blk">
+    <h2 id="alerts">Phone alerts</h2>
+    <p>Blipscope can push a notification to your phone when something you care
+       about flies over — a tail number you are watching, a military aircraft, an
+       emergency squawk. It does this through <a href="https://ntfy.sh">ntfy</a>, a
+       free, open-source notification service. <b>There is no account to make.</b></p>
+
+    <h3>Setting it up</h3>
+    <ol>
+      <li>Install <b>ntfy</b> from the App Store or Google Play — or, if you would
+          rather not install anything, open <a href="https://ntfy.sh/app">ntfy.sh/app</a>
+          in a browser.</li>
+      <li><b>Invent a topic name.</b> A topic is just a word you make up; it is how
+          your device and your phone find each other. Make it long and unguessable —
+          <code>blipscope-k7m2p9xq</code>, not <code>blipscope</code>. There is a
+          reason for that, below.</li>
+      <li>In the app, tap <b>+</b> and subscribe to that exact topic.</li>
+      <li>On your device's config page, open <b>Watchlist &amp; alerts</b> and paste
+          the same topic into <b>ntfy.sh topic (phone alerts)</b>.</li>
+      <li><b>Switch on at least one alert</b> — see below — and press Save.</li>
+    </ol>
+
+    <div class="note">
+      <p><b>The topic on its own does nothing.</b> It is only an address to send to.
+         Save a topic but leave every alert switched off and the watch list empty,
+         and your phone stays silent — nothing is broken, the device has simply not
+         been told that anything is worth reporting.</p>
+    </div>
+
+    <h3>What it will tell you</h3>
+    <p>Four triggers, all in <b>Watchlist &amp; alerts</b> on the config page, each
+       independent of the others:</p>
+    <ul>
+      <li><b>Watch list</b> — a comma-separated list of callsigns, tail numbers,
+          ICAO hex codes or type codes. Anything matching gets a ping, so
+          <code>N4523K, BAW117, C172</code> covers one aeroplane, one flight and one
+          whole type.</li>
+      <li><b>Alert on military</b> — any contact the device recognises as military.
+          Worked out on the device from the live feed; no account or lookup needed.</li>
+      <li><b>Alert on emergency squawk</b> — a contact squawking 7500, 7600 or 7700.
+          These name the squawk: <code>hijack</code>, <code>radio failure</code> or
+          <code>general emergency</code>.</li>
+      <li><b>“Look up!” overhead alert</b> — anything passing within the distance you
+          set. Tick <b>also ntfy</b> beside it, or you get the on-screen ring only.</li>
+    </ul>
+    <p>A notification names the aircraft the way the detail card does — something
+       like <code>BAW117 (B772) British Airways at 4,300 ft</code>.</p>
+
+    <h3>How often it will fire</h3>
+    <p><b>Once per aircraft per visit.</b> A contact crossing your radar is
+       announced a single time however long it stays. If it leaves and comes back
+       later that counts as a new visit, and it can announce itself again.</p>
+    <p>Alerts also go out one at a time, a couple of seconds apart, so a busy sky
+       never arrives as a burst of notifications.</p>
+
+    <h3>Keep the topic to yourself</h3>
+    <p><b>The topic name is the only thing protecting it.</b> ntfy topics are
+       public — anyone who knows or guesses yours can subscribe and read your
+       alerts. Those alerts describe aircraft passing over your house, which over
+       enough of them says a good deal about where you live.</p>
+    <p>So treat it as a password rather than a name. A long random string is plenty,
+       nobody but you ever has to type it, and if you think it has got out, change it
+       on the config page and re-subscribe on your phone.</p>
+    <p>Worth knowing either way: alerts are delivered by <b>ntfy.sh</b>, which is not
+       us. Even a device running against your own receiver, which otherwise never
+       talks to anyone, sends its alerts through them.</p>
+
+    <div class="note">
+      <p>Every Valar Scopes edition uses this same field, so one topic and one
+         subscription covers whichever device you are running. Only the triggers
+         change.</p>
     </div>
   </section>
 
