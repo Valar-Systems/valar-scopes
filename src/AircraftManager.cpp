@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "ConfigMigration.h"
+#include "TlsAllocator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1485,7 +1486,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #else
     const unsigned apCount = (unsigned)AIRPORT_COUNT;
 #endif
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  interval=%lums%s\n",
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
                   (unsigned)heapFree, (unsigned)largest, (unsigned)free8, tlsOk,
                   (unsigned long)heaphealth::TrialRejectionCount(),
@@ -1493,7 +1494,86 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned long)heaphealth::BallastReacquireFailures(),
                   (unsigned long)AllocFailureCount(), (unsigned long)FetchHardFailCount(),
                   (unsigned long)http.TlsHandshakes(), (unsigned long)http.TlsReuses(),
+                  // tlsmem=psram/internal/fallback -- issue #245. The middle number
+                  // stays non-zero by design (small allocations belong in internal
+                  // RAM); the THIRD must stay 0. A rising fallback count means PSRAM
+                  // refused and mbedTLS is back on the heap that fragments -- the fix
+                  // installed but not working, which otherwise looks identical to it
+                  // working.
+                  (unsigned long)tlsalloc::PsramAllocs(),
+                  (unsigned long)tlsalloc::InternalAllocs(),
+                  (unsigned long)tlsalloc::PsramFallbacks(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
+
+    // ---- issue #245: the enrichment-starvation watch ------------------------
+    //
+    // TWO JOBS, and the first one is why this exists at all: SAY SO. Before this,
+    // a board whose ballast was gone reported ball=0/48 on a line that also
+    // carried a healthy frame rate and a full sky, and nothing anywhere called
+    // that a fault. It is the single number separating "mitigated" from "failed"
+    // and it was being printed as trivia.
+    {
+        const bool starved = (tlsOk == 0) && !heaphealth::BallastHeld();
+        const unsigned long nowMs = millis();
+
+        if (!starved) {
+            if (starvedSinceMs != 0) {
+                Serial.printf("[health] ENRICHMENT RECOVERED after %lus (%u recovery attempt(s)); "
+                              "cards will fill again\n",
+                              (unsigned long)((nowMs - starvedSinceMs) / 1000), (unsigned)starveRecoveries);
+                starvedSinceMs = 0;
+                starveRecoveries = 0;
+            }
+        } else {
+            if (starvedSinceMs == 0) {
+                starvedSinceMs = nowMs;
+                lastStarveLogMs = 0;
+                starveRecoveries = 0;
+                ++starveEpisodes;
+            }
+            const unsigned long forS = (nowMs - starvedSinceMs) / 1000;
+
+            // Loud on the edge, then every STARVE_LOG_INTERVAL_MS, so a capture
+            // attached an hour later still learns the board is in this state
+            // rather than having to infer it from ball=0.
+            if (lastStarveLogMs == 0 || nowMs - lastStarveLogMs >= STARVE_LOG_INTERVAL_MS) {
+                lastStarveLogMs = nowMs;
+                Serial.printf("[health] ENRICHMENT STARVED for %lus: no handshake block "
+                              "(ball=0/%lu largest=%u < %u). Type, operator and photos will "
+                              "NOT fill until this clears. See issue #245.\n",
+                              forS, (unsigned long)heaphealth::BallastReacquireFailures(),
+                              (unsigned)largest, (unsigned)heaphealth::TLS_HANDSHAKE_BYTES);
+            }
+
+            // SECOND JOB: try to get out of it. A live mbedTLS session is holding
+            // the largest contiguous allocation on the device -- its 16 KB record
+            // buffer -- so tearing the session down frees exactly the block the
+            // ballast needs. Re-take it BEFORE releasing the bus, or a background
+            // fetch re-opens a session in the gap and takes the block back.
+            //
+            // Non-blocking on the bus by design: if a request is in flight we do
+            // nothing and try again on the next health tick. A recovery that
+            // blocked the loop task waiting on a network mutex would trade a
+            // cosmetic fault for a frozen screen.
+            if (forS * 1000UL >= STARVE_RECOVERY_AFTER_MS &&
+                (lastStarveRecoveryMs == 0 || nowMs - lastStarveRecoveryMs >= STARVE_RECOVERY_AFTER_MS)) {
+                lastStarveRecoveryMs = nowMs;
+                if (http.TryAcquireBus()) {
+                    ++starveRecoveries;
+                    http.ReleaseTlsLocked();
+                    heaphealth::ReserveHandshakeBallast();
+                    const bool got = heaphealth::BallastHeld();
+                    http.ReleaseBus();
+                    Serial.printf("[health] STARVE RECOVERY #%u: dropped the TLS session to free "
+                                  "its record buffer -> ballast %s (largest now %u)\n",
+                                  (unsigned)starveRecoveries, got ? "RETAKEN" : "still lost",
+                                  (unsigned)ESP.getMaxAllocHeap());
+                } else {
+                    Serial.println("[health] STARVE RECOVERY deferred: a request is in flight");
+                }
+            }
+        }
+    }
 
     // Opportunistic re-take of the handshake ballast (fix 4). Deliberately on the
     // health line's slow cadence rather than in the loop: while a TLS session is
