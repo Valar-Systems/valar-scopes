@@ -176,23 +176,58 @@ before building the wrong one. Measure it first; see §12.
 
 ## 4. The state machine
 
-### 4.1 What we cannot know
+### 4.1 Field elevation — CORRECTED 2026-08-25
 
-`include/Airports.h` is about 250 major internationals, IATA codes, **and carries
-no elevation**. A flight school's field is not in it and never will be — the
-header's own comment says the table is deliberately curated, because a wrong
-position is a bug while a missing strip is only a gap.
+> **This section previously said the opposite, and the workaround it invented is
+> deleted.** The original text read: *"`include/Airports.h` is about 250 major
+> internationals, IATA codes, and carries no elevation… So 'descended to field
+> elevation at KPAE' is not implementable as specified. The device learns the
+> field instead of looking it up… after one or two flights there is a home
+> position and a ground altitude, self-calibrated."*
+>
+> That premise was false. It was true of `include/Airports.h`, and I generalised
+> from the only airport table I had looked at to airport data in general.
 
-So "descended to field elevation at KPAE" is not implementable as specified.
+**We have field elevation for 34,128 airports.** The `airports.csv` in the
+CC0 `vradarserver/standing-data` set carries:
 
-**The device learns the field instead of looking it up.** Record where a track
-begins and ends; after one or two flights there is a home position and a ground
-altitude, self-calibrated. This is more robust than a lookup would have been: it
-works for grass strips, private fields, and anywhere else the table has never
-heard of.
+```
+Code,Name,ICAO,IATA,Location,CountryISO2,Latitude,Longitude,AltitudeFeet
+4CA0,Lapd Hooper Heliport,4CA0,,Los Angeles,US,34.043301,-118.247002,302
+```
 
-Available per fix: `onGround`, `baroAltitude`, `geoAltitude`, `velocity`,
-`trueTrack`, `verticalRate`, `positionSource`.
+34,128 rows against the 250 hand-curated entries in `include/Airports.h`, and
+`AltitudeFeet` on every one. A flight school's field is in it. So is the
+heliport above.
+
+**Consequences, which are all deletions:**
+
+- The self-calibrating learn-over-two-flights mechanism is **removed**. It
+  existed only to synthesise a number we can now look up.
+- Landed detection gets a **real threshold** — `geoAltitude` against the field's
+  published elevation — instead of a value the device had to earn over its first
+  two flights and could get wrong on either.
+- The **first** flight is detected as well as the tenth. The old design was
+  silently degraded until it had calibrated, which is exactly the period a new
+  owner is watching most closely.
+- "Airport not plottable" disappears as a state.
+
+Available per fix, unchanged: `onGround`, `baroAltitude`, `geoAltitude`,
+`velocity`, `trueTrack`, `verticalRate`, `positionSource`.
+
+**What still needs deciding, and is NOT urgent** (Follow does not start until a
+board frees up): §4.3 and §4.4 below still speak of a "learned home field" and a
+"learned home radius". Those are now a *lookup* rather than a calibration, and
+the state machine gets simpler rather than different — the threshold arrives at
+boot instead of after two flights. That pass happens when Follow starts; the
+false premise is corrected here so nothing is built from it in the meantime.
+
+**Where the elevation comes from at runtime.** 2.38 MiB cannot ship on the
+device, so this rides the existing `/api/v1/blipscope/airports` overlay endpoint
+(already server-capped and priority-sorted) out of the D1 mirror — see §10. That
+makes Follow's landed detection depend on the mirror existing, which is a real
+new dependency and is why the local/flight-school regime that needs no geography
+at all is worth shipping first.
 
 ### 4.2 Absence is three states, not one
 
@@ -530,16 +565,52 @@ readable terms content and the search results were generic. **So this note does 
 contain an answer and must not be read as one.** The honest state is that the
 question is open and has not been asked.
 
-### Recommended resolution
+### RESOLVED 2026-08-25 — we own the data instead of asking for it
 
-1. **Ask.** Same treatment as adsb.fi: a written question about commercial use,
-   rate limits, and specifically redistribution of route data to customer devices.
-   Record the answer and the date.
-2. **Meanwhile, prefer routeset.** adsb.lol's routeset is already primary and
-   already licensed. The code anticipates this — `adsbdb.ts:8` says "Drop this
-   again when routeset stabilizes". Establishing whether it *has* stabilised is a
-   cheap measurement and might retire the question entirely.
-3. **Do not design stage 2 around adsbdb** until (1) is answered.
+The question is retired rather than answered, which is a better outcome than the
+answer would have been.
+
+**Why "prefer routeset" was a dead end.** adsb.lol's `/api/0/routeset` has
+returned `201 Created` with an empty body since 2026-07-08 — seven weeks — and
+it is not a contract change. Their live OpenAPI (at `/api/openapi.json`; the
+conventional `/openapi.json` is a 404) still documents the endpoint,
+undeprecated, with exactly the request shape we send and a documented 200. The
+diagnosis is that a **deliberately invalid body also returns 201/empty** where
+the documented behaviour is 422 — so nothing is parsing requests and the
+application is not being reached at all. It is broken upstream, silently, and we
+are a paying sponsor who is not contacting them again about it.
+
+**The route data does not need their API.** It is published as static files
+built from `vradarserver/standing-data`, which carries **CC0 1.0 Universal** —
+verified by reading `LICENSE` (7,048 B), which names *"a database"* and
+*"including without limitation commercial purposes"* explicitly. Public domain
+dedication, no permission needed, no rate limit to negotiate.
+
+**The plan, approved 2026-08-25:**
+
+1. **Build the CSVs ourselves from the sharded CC0 source**
+   (`routes/schema-01/[A-Z]/…`), NOT from `vrs-standing-data.adsb.lol`. That
+   combined CSV is a build artifact of the same operation whose API died
+   silently for seven weeks; depending on it reintroduces exactly the dependency
+   being removed, and it would fail the same quiet way.
+2. **Mirror into D1** — 619,103 routes, 34,128 airports. Daily cron on
+   `Last-Modified`, staged load into `routes_new`, atomic swap. A failed refresh
+   never touches the live table.
+3. **Freshness AND a row-count band** on `/healthz` and in smoke-prod. Age alone
+   would repeat the routeset failure: a successful fetch of a truncated file
+   refreshes the timestamp while destroying the data. Plus a canary callsign
+   through live `/v1/enrich` — prove presence is observable before believing an
+   absence.
+4. **adsbdb leaves the stack entirely**, both halves — the Worker fallback *and*
+   the firmware's direct calls at `AircraftManager.cpp:338` and `:386`. Those
+   never appeared in the measured 1,170/day because they originate from customer
+   home IPs, so the exposure was understated. BYO is about **positions** — a
+   local receiver, one-second updates, a radar that survives an internet outage.
+   It was never about enrichment. Those two call sites point at our Worker, and
+   cards degrade during an outage while the radar keeps working, which is
+   already exactly how photos behave.
+5. Cite CC0 upstream as the licence basis and keep the `/credits` entry even
+   though CC0 requires no attribution.
 
 ---
 
