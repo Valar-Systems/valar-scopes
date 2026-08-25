@@ -480,7 +480,13 @@ async function main() {
       );
       return JSON.parse(body) as { o?: string; d?: string };
     } catch (e) {
-      console.log(`  ! ${cs} request failed: ${(e as Error).message.slice(0, 120)}`);
+      // DO NOT PRINT THE ERROR MESSAGE. execSync puts the whole failed command in
+      // e.message, and the command carries `-H "X-Blip-Key: <secret>"` about forty
+      // characters in -- so any slice long enough to be useful also leaks the
+      // device key into the log, and CI logs outlive the run. Report the status
+      // only; the key is never the interesting part of the failure anyway.
+      const status = (e as { status?: number }).status;
+      console.log(`  ! ${cs} request failed (curl exit ${status ?? "?"})`);
       return null;
     }
   };
