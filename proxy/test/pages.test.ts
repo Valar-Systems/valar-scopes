@@ -108,20 +108,37 @@ describe("a trimmed or slash-suffixed URL still lands somewhere", () => {
   // These are the ways a printed URL actually gets mistyped. /blipscope/support
   // is the destination of a QR code that cannot be reprinted, so the cost of a
   // JSON 404 here is not symmetric with the cost of one extra redirect.
+  // The STATUS is part of the contract, not an implementation detail -- see the
+  // 302 case below, where caching semantics are the whole point.
   it.each([
-    ["/blipscope/support/", "/blipscope/support"],
-    ["/blipscope/leaderboard/", "/blipscope/leaderboard"],
-    ["/credits/", "/credits"],
+    ["/blipscope/support/", "/blipscope/support", 301],
+    ["/blipscope/leaderboard/", "/blipscope/leaderboard", 301],
+    ["/credits/", "/credits", 301],
     // Trimming one surface off the end of a page path lands on SUPPORT, not
     // the hub. Changed 2026-08-25: "/blipscope" is the short URL going on the
     // printed quick-start card, and a support QR must answer the question it
     // was scanned to ask rather than hand back a product index. Trimming
     // further, to "/", still reaches the hub -- covered below.
-    ["/blipscope", "/blipscope/support"],
-  ])("%s redirects to %s", async (from, to) => {
+    // 302: this destination is deliberately re-pointable after the cards print.
+    ["/blipscope", "/blipscope/support", 302],
+  ])("%s redirects to %s (%i)", async (from, to, status) => {
     const res = await call(new Request(`https://proxy.test${from}`));
-    expect(res.status).toBe(301);
+    expect(res.status).toBe(status);
     expect(new URL(res.headers.get("Location") as string).pathname).toBe(to);
+  });
+
+  it("the printed short URL redirects TEMPORARILY, so it can be re-pointed", async () => {
+    // The printed QR resolves through /blipscope. A 301 is cached by browsers
+    // indefinitely, so every customer who already scanned would keep the old
+    // destination forever -- which negates the entire reason for routing the QR
+    // through this Worker rather than printing the support URL directly.
+    //
+    // Asserted as its own test, not folded into the table above, because this is
+    // a PRODUCT commitment (the card is unreprintable) rather than a routing
+    // detail, and it should fail with a message that says so.
+    const res = await call(new Request("https://proxy.test/blipscope"));
+    expect(res.status, "/blipscope must be 302 -- the card cannot be reprinted").toBe(302);
+    expect(res.status).not.toBe(301);
   });
 
   it("a mistyped PAGE path gets a page, not the API error envelope", async () => {

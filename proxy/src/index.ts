@@ -129,10 +129,10 @@ function staticPage(html: string, status = 200): Response {
 
 // 301, not 302: the move is permanent, and a permanent redirect is what gets
 // bookmarks and search results rewritten instead of re-followed forever.
-function movedTo(url: URL, newPath: string): Response {
+function movedTo(url: URL, newPath: string, status: 301 | 302 = 301): Response {
   const target = new URL(url.toString());
   target.pathname = newPath;
-  return new Response(null, { status: 301, headers: { Location: target.toString() } });
+  return new Response(null, { status, headers: { Location: target.toString() } });
 }
 
 async function route(
@@ -184,7 +184,18 @@ async function route(
   // question someone scans a support QR to ask, rather than on a product index
   // that makes them choose again. Trimming further, to "/", still reaches the
   // hub for anyone who wants the other editions.
-  if (url.pathname === PAGE_PREFIX) return movedTo(url, `${PAGE_PREFIX}/support`);
+  //
+  // 302, NOT 301, and this one is load-bearing. A 301 is cached by browsers
+  // INDEFINITELY, so every customer who has already scanned the card keeps the
+  // old destination forever -- which negates the entire reason for routing the
+  // printed QR through this Worker instead of printing the support URL
+  // directly. That reason is re-pointability AFTER the cards exist, and the
+  // cards cannot be reprinted. A 301 also asserts a permanence we have
+  // explicitly said we do not want.
+  //
+  // The trailing-slash normalisation above stays 301: those targets ARE
+  // permanent, and caching them is the point.
+  if (url.pathname === PAGE_PREFIX) return movedTo(url, `${PAGE_PREFIX}/support`, 302);
 
   if (url.pathname === "/healthz") return handleHealth(env);
   // Public photo-attribution page (a browser follows the config page's link; no
