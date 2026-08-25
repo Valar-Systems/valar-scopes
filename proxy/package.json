@@ -24,7 +24,8 @@
     "deploy:production": "bash scripts/deploy.sh production",
     "tail:production": "wrangler tail --env production",
     "ingest:typenames": "tsx scripts/ingest-typenames.ts",
-    "photo-gaps": "tsx scripts/photo-gaps.ts"
+    "photo-gaps": "tsx scripts/photo-gaps.ts",
+    "verify:routes": "tsx scripts/verify-routes.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
