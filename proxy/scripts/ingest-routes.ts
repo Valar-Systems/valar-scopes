@@ -546,19 +546,58 @@ async function main() {
   // data. Writing it by some other route would prove that other route works.
   const toWrite: [string, string][] = [[`rt:${sentinelCs}`, sentinelVal], ...changedPairs];
   let written = 0;
+  let retries = 0;
   for (let i = 0; i < toWrite.length; i += BULK_CHUNK) {
     const chunk = toWrite.slice(i, i + BULK_CHUNK);
     const path = join(tmp, `bulk-${i / BULK_CHUNK}.json`);
     writeFileSync(path, JSON.stringify(chunk.map(([k, value]) => ({ key: k, value }))));
     console.log(`bulk put ${chunk.length} (${i + chunk.length}/${toWrite.length}) ...`);
-    execSync(
-      ["npx", "wrangler", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
-      { stdio: "inherit" },
-    );
-    // Incremented only after the put RETURNS. execSync throws on a non-zero
-    // exit, so a failed chunk aborts the run with the meta key untouched.
+
+    // RETRIED, because without this a single transient upstream hiccup destroys a
+    // 619,103-key load. Measured 2026-08-25: the first staging attempt died on
+    // chunk 3 of 62 with a Cloudflare 524 (a gateway timeout on their own KV API,
+    // returned as an HTML error page). At 62 chunks even a low per-chunk failure
+    // rate makes a complete run unlikely, so retry is not a nicety here -- it is
+    // what makes the operation possible at all.
+    //
+    // Backoff is long because a 524 means the far side is already struggling;
+    // hammering it is how a transient failure becomes a sustained one.
+    const BACKOFF_S = [5, 15, 45, 120];
+    let lastErr = "";
+    let ok = false;
+    for (let attempt = 0; attempt <= BACKOFF_S.length && !ok; attempt++) {
+      try {
+        execSync(
+          ["npx", "wrangler", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
+            `--env=${args.env}`, "--remote"].join(" "),
+          { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
+        );
+        ok = true;
+      } catch (e) {
+        const err = e as { stdout?: string; stderr?: string };
+        lastErr = `${err.stdout ?? ""}\n${err.stderr ?? ""}`.trim();
+        const wait = BACKOFF_S[attempt];
+        if (wait === undefined) break;
+        retries++;
+        // PRINTED WHOLE, not grepped for an expected shape. The failure output is
+        // the one thing guaranteed not to look the way you predicted.
+        console.log(`  chunk failed (attempt ${attempt + 1}), retrying in ${wait}s`);
+        console.log(`  --- wrangler output ---\n${lastErr.slice(0, 600)}\n  -----------------------`);
+        execSync(`sleep ${wait}`, { stdio: "ignore" });
+      }
+    }
+    if (!ok) {
+      console.error(`REFUSING: chunk at offset ${i} failed every retry. Nothing further is`);
+      console.error("written and the meta key is untouched, so this run reads as the failure");
+      console.error("it is. If 524s persist, lower BULK_CHUNK -- 10,000 is the API maximum,");
+      console.error("not a target.");
+      console.error(`--- last wrangler output ---\n${lastErr}\n----------------------------`);
+      process.exit(1);
+    }
+    // Incremented only after the put SUCCEEDS.
     written += chunk.length;
   }
+  if (retries > 0) console.log(`(${retries} chunk retries were needed)`);
   const writtenData = written - 1; // the sentinel is not a route
   console.log(`wrote ${writtenData} route keys (+1 sentinel)`);
 
