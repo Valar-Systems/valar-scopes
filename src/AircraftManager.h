@@ -563,6 +563,11 @@ private:
     // the reminder becoming the noise that the old ball=0 line already was.
     static constexpr unsigned long STARVE_LOG_INTERVAL_MS = 300000UL;
 
+    // Consecutive health ticks on which the allocator refused a handshake
+    // block. The watch keys off a RUN rather than one sample: a healthy board
+    // dips for a tick or two (measured on BOTH soak boards), and an alarm
+    // that fired on those would be switched off within a week.
+    uint8_t       starveRun = 0;
     unsigned long starvedSinceMs = 0;      // 0 = not starved; else when it began
     unsigned long lastStarveLogMs = 0;     // rate-limits the reminder line
     unsigned long lastStarveRecoveryMs = 0;// last recovery attempt

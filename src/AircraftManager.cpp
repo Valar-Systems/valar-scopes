@@ -94,6 +94,7 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 
 #include <esp_heap_caps.h>
 #include "HeapHealth.h"
+#include "StarvationPolicy.h"
 
 namespace {
     // Outcome-based soak criteria (2026-07-10): count what actually fails instead of
@@ -1513,7 +1514,18 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // that a fault. It is the single number separating "mitigated" from "failed"
     // and it was being printed as trivia.
     {
-        const bool starved = (tlsOk == 0) && !heaphealth::BallastHeld();
+        // ASK THE ALLOCATOR DIRECTLY, not tlsOk. tlsOk is CanHandshake(),
+        // whose ballast arm short-circuits before it ever reaches the
+        // allocator -- so while a block is held it reports 1 however bad the
+        // heap is, which is exactly what blinded the first version of this
+        // watch for the whole 2026-08-24 soak. See StarvationPolicy.h.
+        //
+        // A refusal here counts toward `rej` like any other gate refusal.
+        // Intended rather than tolerated: on a starved board a climbing rej
+        // IS the signal, and it costs one malloc/free per health tick.
+        const bool canAlloc = heaphealth::CanAllocate(heaphealth::TLS_HANDSHAKE_BYTES);
+        starveRun = starvation::NextRun(starveRun, canAlloc);
+        const bool starved = starvation::IsStarved(starveRun, heaphealth::BallastHeld());
         const unsigned long nowMs = millis();
 
         if (!starved) {
@@ -1538,11 +1550,20 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             // rather than having to infer it from ball=0.
             if (lastStarveLogMs == 0 || nowMs - lastStarveLogMs >= STARVE_LOG_INTERVAL_MS) {
                 lastStarveLogMs = nowMs;
-                Serial.printf("[health] ENRICHMENT STARVED for %lus: no handshake block "
-                              "(ball=0/%lu largest=%u < %u). Type, operator and photos will "
-                              "NOT fill until this clears. See issue #245.\n",
-                              forS, (unsigned long)heaphealth::BallastReacquireFailures(),
-                              (unsigned)largest, (unsigned)heaphealth::TLS_HANDSHAKE_BYTES);
+                // Reports ball= rather than asserting ball=0. A board CAN be
+                // starved while holding its ballast -- that is the finding this
+                // watch was rewritten around, and hiding it would relearn it.
+                // `largest` is deliberately absent: a max across regions that
+                // latches onto reserves (HeapHealth.h), so printing it beside a
+                // real verdict would invite reading it as the cause.
+                Serial.printf("[health] ENRICHMENT STARVED for %lus (%u consecutive "
+                              "refusals, ball=%d, reacq-fail=%lu): the heap cannot serve "
+                              "%u B for a handshake. Type, operator and photos will NOT "
+                              "fill until this clears. See issue #245.\n",
+                              forS, (unsigned)starveRun,
+                              heaphealth::BallastHeld() ? 1 : 0,
+                              (unsigned long)heaphealth::BallastReacquireFailures(),
+                              (unsigned)heaphealth::TLS_HANDSHAKE_BYTES);
             }
 
             // SECOND JOB: try to get out of it. A live mbedTLS session is holding
