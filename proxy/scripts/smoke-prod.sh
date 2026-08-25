@@ -365,18 +365,24 @@ CHAIN_TILES="47.40,8.55 51.47,-0.45 40.64,-73.78 33.94,-118.41 35.55,139.78 -33.
 CHAIN_UPSTREAMS=""
 chain_fail=0
 chain_n=0
+chain_ac_total=0
+chain_ac_tiles=0
 printf '\n===== upstream chain (freshness + both relays serving) =====\n'
 printf 'expect: every tile fresh within %ss, and >1 distinct relay across the probes\n' "$MAX_AGE_S"
 for t in $CHAIN_TILES; do
   tlat="${t%%,*}"; tlon="${t##*,}"
   hdrs="$(mktemp)"; body="$(curl -s -D "$hdrs" --max-time 25 \
-    "${AUTH[@]}" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=1")"
+    "${AUTH[@]}" "$BASE/v1/blips?lat=$tlat&lon=$tlon&r=40&limit=50")"
   st="$(awk 'NR==1{print $2}' "$hdrs")"
   up="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-upstream"{print $2}')"
   ch="$(tr -d '\r' < "$hdrs" | awk -F': ' 'tolower($1)=="x-cache"{print $2}')"
   rm -f "$hdrs"
   # Picture timestamp: {"v":1,"t":<epoch seconds>,...}. Its absence is itself a fault.
   pt="$(printf '%s' "$body" | grep -oE '"t":[0-9]+' | head -1 | cut -d: -f2)"
+  # Aircraft rows are arrays inside "a":[[...],[...]] -- count the openers.
+  ac="$(printf '%s' "$body" | grep -oE '"a":\[.*' | grep -oE '\[\[|\],\[' | grep -c . || true)"
+  chain_ac_total=$((chain_ac_total + ${ac:-0}))
+  [ "${ac:-0}" -gt 0 ] && chain_ac_tiles=$((chain_ac_tiles+1))
   chain_n=$((chain_n+1))
   if [ "$st" != "200" ] || [ -z "$pt" ]; then
     printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=?     FAIL\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}"
@@ -415,6 +421,45 @@ for t in $CHAIN_TILES; do
 done
 # shellcheck disable=SC2086
 CHAIN_DISTINCT="$(printf '%s\n' $CHAIN_UPSTREAMS | grep -c .)"
+# ---------------------------------------------------------------------------
+# THE SKY MUST NOT BE EMPTY.
+#
+# Everything above passes on a feed returning ZERO AIRCRAFT: the tiles were
+# fetched with limit=1 and only the picture TIMESTAMP was read, so a throttled
+# or broken upstream answering 200 with an empty array looked identical to a
+# working one. That is the failure that hid adsb.lol routeset for seven weeks,
+# and the one CLAUDE.md already records for anonymous adsb.lol calls, where a
+# throttled 200 with ac:[] reads as an empty sky.
+#
+# ASSERTED ON THE TOTAL, NOT PER TILE, deliberately. The six tiles span every
+# time zone on purpose, so at any UTC hour some are legitimately quiet.
+# Measured 2026-08-25 18:10 UTC:
+#
+#   Heathrow 34   JFK 50   LAX 50   Zurich 12   Tokyo 1   Sydney 2
+#
+# Tokyo and Sydney were at 03:10 and 04:10 local. A per-tile floor fails on both,
+# and an alarm that fires for a reason unrelated to what it watches gets ignored
+# -- and then it watches nothing.
+#
+# The floor is 10 against a measured 149, and is NOT tuned to that margin: the
+# failure being caught serves NOTHING, which reads 0. Anything between 1 and 9
+# across six major metros already deserves a look.
+#
+# The second condition stops one busy tile masking five dead ones.
+#
+# Force the failing branch to check this gate still works:  CHAIN_AC_FLOOR=99999
+# ---------------------------------------------------------------------------
+CHAIN_AC_FLOOR=${CHAIN_AC_FLOOR:-10}
+printf 'aircraft seen: %d across %d tiles, %d tiles non-empty (floor %d, need >=2 non-empty)\n' \
+  "$chain_ac_total" "$chain_n" "$chain_ac_tiles" "$CHAIN_AC_FLOOR"
+if [ "$chain_ac_total" -lt "$CHAIN_AC_FLOOR" ] || [ "$chain_ac_tiles" -lt 2 ]; then
+  printf 'RESULT: FAIL -- the feed is serving an EMPTY SKY (%d aircraft across %d tiles).\n' \
+    "$chain_ac_total" "$chain_n"
+  printf '        The timestamps above may look perfectly fresh. That is the point:\n'
+  printf '        a throttled upstream answers 200, an empty array, and a current clock.\n'
+  fail=$((fail+1))
+fi
+
 printf 'relays seen across %d tiles:%s (%s distinct)\n' "$chain_n" "$CHAIN_UPSTREAMS" "$CHAIN_DISTINCT"
 if [ "$chain_fail" -gt 0 ]; then
   printf 'RESULT: FAIL -- %d of %d tiles were stale or errored.\n' "$chain_fail" "$chain_n"
