@@ -16,6 +16,7 @@
     "ingest:mildb": "tsx scripts/ingest-mildb.ts",
     "ingest:planealert": "tsx scripts/ingest-planealert.ts",
     "ingest:airports": "tsx scripts/ingest-airports.ts",
+    "ingest:routes": "tsx scripts/ingest-routes.ts",
     "derive-device-key": "tsx scripts/derive-device-key.ts",
     "dashboard": "tsx scripts/photo-dashboard.ts",
     "deploy:staging": "bash scripts/deploy.sh staging",
