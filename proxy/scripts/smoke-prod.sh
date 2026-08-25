@@ -90,6 +90,7 @@ AUTH=(-H "X-Blip-Key: $KEY" -H "X-Blip-Device: $DEVICE")
 EXPECT_AUTH="${BLIP_EXPECT_AUTH:-device}"
 
 pass=0
+warn=0
 fail=0
 
 # hit <name> <expected-status> <curl args...>
@@ -826,12 +827,40 @@ RS_CTRL_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST "$R
                  -H 'content-type: application/json' -d '{"garbage":true}' 2>/dev/null)"
 printf 'reachability control (invalid body, expect 422): HTTP %s\n' "$RS_CTRL_CODE"
 
+# EXPIRES, IN CODE, NOT IN A COMMENT.
+#
+# adsb.lol routeset is broken upstream and we are not fixing it -- the D1
+# mirror replaces it, after which THIS WHOLE CHECK IS DELETED (see the cutover
+# checklist in ROADMAP.md). Until then a hard FAIL would leave the only
+# production check we have permanently red, during exactly the window we are
+# making the largest changes, and "one expected FAIL" is one step from "three
+# FAILs are probably normal".
+#
+# So it warns -- but only until a DATE. A comment saying "expected red until
+# cutover" becomes permanent furniture the moment the mirror slips. Past this
+# date it is a FAIL again regardless, and the suite going red forces the
+# conversation instead of quietly tolerating a third state.
+#
+# The date is the mirror timeline (cables ~2 weeks from 2026-08-25, and the
+# image cut cannot precede the cutover) plus a week of slack.
+ROUTESET_WARN_UNTIL="${ROUTESET_WARN_UNTIL:-2026-09-15}"
+TODAY="$(date -u +%Y-%m-%d)"
 if [ "$RS_CTRL_CODE" != "422" ]; then
-  printf 'RESULT: FAIL -- the routeset APPLICATION is not being reached.\n'
-  printf '        An invalid body was not rejected, so nothing is parsing requests.\n'
-  printf '        Every route lookup is falling through to adsbdb, which we have no\n'
-  printf '        written permission to use. Upstream fault: raise it with adsb.lol.\n'
-  fail=$((fail+1))
+  printf '        the routeset APPLICATION is not being reached -- an invalid body was\n'
+  printf '        not rejected, so nothing is parsing requests. Every route lookup is\n'
+  printf '        falling through to adsbdb. Fixed by the D1 mirror, not by adsb.lol.\n'
+  # [[ ]] not [ ]: inside POSIX test, < is a REDIRECTION, so the first
+  # version tried to open a file named 2026-09-15 and took the FAIL branch.
+  # ISO-8601 dates compare correctly as strings, which is why the format matters.
+  if [[ "$TODAY" < "$ROUTESET_WARN_UNTIL" ]]; then
+    printf 'RESULT: WARN -- known, expires %s (then this becomes a FAIL).\n' \
+      "$ROUTESET_WARN_UNTIL"
+    warn=$((warn+1))
+  else
+    printf 'RESULT: FAIL -- the grace period ended %s and the mirror has not landed.\n' \
+      "$ROUTESET_WARN_UNTIL"
+    fail=$((fail+1))
+  fi
 else
   RS_BODY="$(curl -s --max-time 20 -X POST "$ROUTESET_URL" -H 'content-type: application/json' \
               -d '{"planes":[{"callsign":"AAL175","lat":40.6,"lng":-73.8}]}' 2>/dev/null)"
@@ -846,8 +875,23 @@ else
 fi
 
 printf '\n================ SUMMARY ================\n'
-printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
+printf 'PASS: %d   FAIL: %d   WARN: %d   SKIPPED: %d\n' "$pass" "$fail" "$warn" "$skipped"
+if [ "$warn" -gt 0 ]; then
+  printf 'WARN: routeset -- known, expires %s\n' "${ROUTESET_WARN_UNTIL:-?}"
+fi
 if [ "$skipped" -gt 0 ]; then
   printf 'NOTE: skipped checks did NOT run. Do not read this as a clean pass.\n'
+fi
+# ASSERT THE WARN COUNT. A warning nobody counts is a warning nobody reads,
+# and an UNBOUNDED warn count turns a binary gate into a judgement call. One
+# known warn is fine; two means something new started warning and nobody said
+# so. With this, "1 known warn, 0 unknown" is still a usable pass/fail -- which
+# is the entire point of demoting the routeset check rather than deleting it.
+EXPECTED_WARNS="${EXPECTED_WARNS:-1}"
+if [ "$warn" -ne "$EXPECTED_WARNS" ]; then
+  printf 'RESULT: FAIL -- %d warning(s), expected exactly %d. A NEW warning appeared,\n' \
+    "$warn" "$EXPECTED_WARNS"
+  printf '        or an expected one stopped firing. Either way it needs a human.\n'
+  exit 1
 fi
 [ "$fail" -eq 0 ] || exit 1

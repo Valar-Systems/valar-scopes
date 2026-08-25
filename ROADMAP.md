@@ -196,6 +196,35 @@ publishes a matching `version.txt`.
 > **Publish the Release first, confirm `latest` ≥ `current` on one assembled unit, then
 > assemble the rest.**
 
+> ### ☑ CUTOVER CHECKLIST — leaving adsbdb for the CC0 route mirror
+>
+> Ordered. Each step gates the next.
+>
+> 1. **Build the mirror** from the sharded CC0 source (`routes/schema-01/[A-Z]/*.csv`),
+>    NOT from `vrs-standing-data.adsb.lol`. Our build was verified against theirs on
+>    2026-08-25: **619,103 rows, delta 0**, zero malformed, zero unknown.
+> 2. **Coverage comparison at full scale.** A 120-key sample on 2026-08-25 gave
+>    **0 misses in 61 resolved routes** (95% upper bound ~5% by the rule of three),
+>    plus one route VRS knows that adsbdb did not. Re-run over the whole `rt:` set
+>    once loaded. **Note the trap:** ~40% of `rt:` keys are NEGATIVE cache entries
+>    (adsbdb returned unknown — tail numbers, NetJets/Flexjet). Comparing raw key
+>    names gives a false 39.9% miss rate. Compare only callsigns adsbdb RESOLVED.
+> 3. **Firmware first, before the image is cut.** `AircraftManager.cpp:338` and
+>    `:386` call `api.adsbdb.com` DIRECTLY from the device. Those never appeared in
+>    the measured 1,170/day because they originate from customer home IPs. The
+>    flashed image must contain no adsbdb call site — not "fixed by OTA after first
+>    boot".
+> 4. **Worker second:** delete `upstreams/adsbdb.ts`, `ROUTE_ADSBDB_ENABLED`,
+>    `ADSBDB_BREAKER_ID`, and the `fetchAircraftMetaAdsbdb` backfill.
+> 5. **DELETE the routeset check** in `proxy/scripts/smoke-prod.sh`, and drop
+>    `EXPECTED_WARNS` back to 0. It exists only to watch a dependency that will no
+>    longer exist. Leaving it warning forever is the failure mode the expiry date
+>    was added to prevent — do not simply push the date out.
+> 6. Replace it with the mirror’s own freshness + row-band assertion.
+>
+> **The check expires 2026-09-15.** Past that date it is a hard FAIL regardless of
+> whether the mirror landed, and the suite goes red to force the conversation.
+
 > ### RESTORE THE STORE LINK AT LAUNCH
 >
 > `valarsystems.com/products/blipscope` is **DRAFT and returns 404**. On 2026-08-25 it
