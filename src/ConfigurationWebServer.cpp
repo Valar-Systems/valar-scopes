@@ -719,6 +719,18 @@ R"(
                         <span>ntfy.sh topic (phone alerts):</span>
                         <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
                     </label>
+                    <!-- Both of these are learned AT THIS FIELD, which is why they are here
+                         and not only on the support page. The first is the mistake somebody
+                         is about to make while looking at this box; the second is the one
+                         they cannot detect afterwards. -->
+                    <span class="hint mt">
+                        Alerts need a trigger &mdash; tick one below, or add something to the watch
+                        list. A topic on its own sends nothing.
+                    </span>
+                    <span class="hint">
+                        Anyone who knows this topic can read your alerts. Treat it like a
+                        password, not a name.
+                    </span>
                     <div class="grid2 mt">
                         <label class="check"><input name="mil-show" type="checkbox" %MIL_SHOW%><span>Highlight military</span></label>
                         <label class="check"><input name="mil-alert" type="checkbox" %MIL_ALERT%><span>Alert on military (ntfy)</span></label>
