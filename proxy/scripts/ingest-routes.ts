@@ -564,19 +564,25 @@ async function main() {
 
   // ---- rule 3, part 2: the sentinel, read back through the LIVE path -------
   //
-  // Retried, because KV is eventually consistent. The window is sized against
-  // Cloudflare's documented "up to 60 s" for a write to become globally visible,
-  // doubled -- 8 attempts at 15 s is a little over two minutes.
+  // Retried, because KV is eventually consistent. 8 attempts at 15 s is a little
+  // over two minutes.
   //
-  // THAT NUMBER IS A DOCUMENTED CEILING, NOT AN OBSERVED ONE, and it should not
-  // be treated as measured until it has been. So the attempt and the elapsed
-  // seconds are printed on success: the staging run is the first real data point,
-  // and if it lands on attempt 1 every time the window can be argued down from
-  // evidence rather than trimmed on a hunch.
+  // MEASURED ON STAGING 2026-08-25, and the measurement is the argument for the
+  // anchor/sentinel split rather than a footnote to it. Two keys, same bulk put,
+  // one difference -- whether the key had been read before it was written:
   //
-  // Note this key was never probed before the write, so no edge has cached a miss
-  // for it. The window therefore only has to cover write propagation -- negative
-  // cache expiry, which is the slower of the two, is not in play at all.
+  //     probed first, then written    visible after 62 s (attempt 5 of 8)
+  //     never probed, then written    visible after  0 s (attempt 1, first try)
+  //
+  // The whole 62 s is the negative cache: reading a key that does not exist
+  // teaches an edge to remember the miss, and Cloudflare's documented ceiling for
+  // that is 60 s. Write propagation itself was not observable at this resolution.
+  //
+  // So the single-key design was not merely racy, it spent a minute per run
+  // waiting out a miss it had caused itself, with the window only twice the delay
+  // it was measuring. This key is never probed before the write, so the window is
+  // ~120 s against an observed 0 s. The attempt and elapsed seconds are still
+  // printed on success, so a regression shows up as a number rather than a hang.
   const expected = JSON.parse(sentinelVal) as { o: string; d: string };
   const startedAt = Date.now();
   let sentinelSeen = false;
