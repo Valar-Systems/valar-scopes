@@ -367,6 +367,7 @@ chain_fail=0
 chain_n=0
 chain_ac_total=0
 chain_ac_tiles=0
+chain_ok=0
 printf '\n===== upstream chain (freshness + both relays serving) =====\n'
 printf 'expect: every tile fresh within %ss, and >1 distinct relay across the probes\n' "$MAX_AGE_S"
 for t in $CHAIN_TILES; do
@@ -379,15 +380,23 @@ for t in $CHAIN_TILES; do
   rm -f "$hdrs"
   # Picture timestamp: {"v":1,"t":<epoch seconds>,...}. Its absence is itself a fault.
   pt="$(printf '%s' "$body" | grep -oE '"t":[0-9]+' | head -1 | cut -d: -f2)"
-  # Aircraft rows are arrays inside "a":[[...],[...]] -- count the openers.
-  ac="$(printf '%s' "$body" | grep -oE '"a":\[.*' | grep -oE '\[\[|\],\[' | grep -c . || true)"
-  chain_ac_total=$((chain_ac_total + ${ac:-0}))
-  [ "${ac:-0}" -gt 0 ] && chain_ac_tiles=$((chain_ac_tiles+1))
   chain_n=$((chain_n+1))
   if [ "$st" != "200" ] || [ -z "$pt" ]; then
     printf '  %-16s HTTP %-4s upstream=%-12s cache=%-6s age=?     FAIL\n' "$tlat,$tlon" "$st" "${up:-none}" "${ch:-none}"
     chain_fail=$((chain_fail+1)); continue
   fi
+  # COUNT ONLY WHAT WAS VALIDATED, and only past this point. Above it the
+  # response is not yet known to be a picture at all.
+  #
+  # This ordering is not cosmetic. While writing this check I ran the probe by
+  # hand, got zero aircraft on all six tiles, and nearly reported a fleet-wide
+  # outage -- it was a 401, because I had sent X-Blip-Key without X-Blip-Device.
+  # A refusal read as an empty sky is precisely the bug class this section
+  # exists to catch, and counting before validating would have built it in.
+  ac="$(printf '%s' "$body" | grep -oE '"a":\[.*' | grep -oE '\[\[|\],\[' | grep -c . || true)"
+  chain_ac_total=$((chain_ac_total + ${ac:-0}))
+  [ "${ac:-0}" -gt 0 ] && chain_ac_tiles=$((chain_ac_tiles+1))
+  chain_ok=$((chain_ok+1))
   age=$(( $(date -u +%s) - pt ))
   # A SMALL NEGATIVE AGE IS CLOCK SKEW, NOT A DEFECT. `age` subtracts the
   # upstream's own timestamp from THIS workstation's clock, and those are two
@@ -452,7 +461,14 @@ CHAIN_DISTINCT="$(printf '%s\n' $CHAIN_UPSTREAMS | grep -c .)"
 CHAIN_AC_FLOOR=${CHAIN_AC_FLOOR:-10}
 printf 'aircraft seen: %d across %d tiles, %d tiles non-empty (floor %d, need >=2 non-empty)\n' \
   "$chain_ac_total" "$chain_n" "$chain_ac_tiles" "$CHAIN_AC_FLOOR"
-if [ "$chain_ac_total" -lt "$CHAIN_AC_FLOOR" ] || [ "$chain_ac_tiles" -lt 2 ]; then
+if [ "$chain_ok" -lt 2 ]; then
+  printf 'RESULT: FAIL -- CANNOT JUDGE THE SKY: only %d of %d tiles returned a\n' \
+    "$chain_ok" "$chain_n"
+  printf '        well-formed picture. That is a refusal or a transport fault, NOT an\n'
+  printf '        empty sky -- read the per-tile HTTP codes above. A probe reporting\n'
+  printf '        absence must first prove it can observe presence.\n'
+  fail=$((fail+1))
+elif [ "$chain_ac_total" -lt "$CHAIN_AC_FLOOR" ] || [ "$chain_ac_tiles" -lt 2 ]; then
   printf 'RESULT: FAIL -- the feed is serving an EMPTY SKY (%d aircraft across %d tiles).\n' \
     "$chain_ac_total" "$chain_n"
   printf '        The timestamps above may look perfectly fresh. That is the point:\n'
