@@ -732,6 +732,58 @@ enroll_post "enroll POST, unsolved token -> 403 (both secrets bound, gate live)"
 enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)" \
   400 '"bad_request"' '{"id":"../../etc","token":"not-a-real-solve"}'
 
+# =============================================================================
+# THE ROUTE SOURCE, CHECKED FOR DATA AND NOT JUST FOR A PULSE
+#
+# adsb.lol /api/0/routeset returned "201 Created" with an EMPTY body from
+# 2026-07-08 until at least 2026-08-25 -- SEVEN WEEKS -- and nothing said so.
+# Every route silently fell through to adsbdb, a service we have no written
+# permission to use, while /healthz reported every upstream "closed".
+#
+# IT WAS INVISIBLE BY DESIGN. chain.ts records an alive-but-empty response as
+# breaker SUCCESS, on the deliberate reasoning that "the breaker guards
+# transport health, not data coverage". That is right for a breaker and it is
+# exactly why a breaker cannot be the only check: the failure was in content.
+#
+# So this asserts DATA, in the order that tells the two failures apart -- a
+# probe reporting absence must first prove it can observe presence.
+#
+#   1. REACHABILITY CONTROL. Post a deliberately invalid body. Their published
+#      OpenAPI documents 422 for that, so a 422 proves the application is
+#      reached. During the outage this returned the same 201/empty as a VALID
+#      request -- the tell: if a malformed body is not rejected, nothing is
+#      parsing it and the app is not there.
+#   2. ONLY THEN the real query: a scheduled callsign must return 200 + array.
+#
+# Failing (1) and failing (2) mean different things -- their edge is broken vs
+# their data is thin -- and collapsing them is what makes an alarm useless.
+# =============================================================================
+printf '\n===== adsb.lol routeset (the PRIMARY route source) =====\n'
+ROUTESET_URL="https://api.adsb.lol/api/0/routeset"
+
+RS_CTRL_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST "$ROUTESET_URL" \
+                 -H 'content-type: application/json' -d '{"garbage":true}' 2>/dev/null)"
+printf 'reachability control (invalid body, expect 422): HTTP %s\n' "$RS_CTRL_CODE"
+
+if [ "$RS_CTRL_CODE" != "422" ]; then
+  printf 'RESULT: FAIL -- the routeset APPLICATION is not being reached.\n'
+  printf '        An invalid body was not rejected, so nothing is parsing requests.\n'
+  printf '        Every route lookup is falling through to adsbdb, which we have no\n'
+  printf '        written permission to use. Upstream fault: raise it with adsb.lol.\n'
+  fail=$((fail+1))
+else
+  RS_BODY="$(curl -s --max-time 20 -X POST "$ROUTESET_URL" -H 'content-type: application/json' \
+              -d '{"planes":[{"callsign":"AAL175","lat":40.6,"lng":-73.8}]}' 2>/dev/null)"
+  printf 'live query (AAL175): %s\n' "$(printf '%s' "$RS_BODY" | head -c 160)"
+  case "$RS_BODY" in
+    \[*)  printf 'RESULT: PASS -- app reachable AND a JSON array came back.\n'
+          pass=$((pass+1)) ;;
+    *)    printf 'RESULT: FAIL -- app reachable but no usable array.\n'
+          printf '        A DATA gap, not an outage -- a different fix from the above.\n'
+          fail=$((fail+1)) ;;
+  esac
+fi
+
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
 if [ "$skipped" -gt 0 ]; then
