@@ -426,9 +426,38 @@ async function main() {
   // observes the present state cannot tell a working write from a stale hit --
   // the same reason the square probe has an anchor control. Absent-then-present
   // is the pair of observations that means something; either one alone does not.
-  const runId = randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
-  const sentinelCs = `ZZ${runId}`;                       // 8 chars, matches the Worker's ^[A-Z0-9]{2,8}$
-  const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: runId.slice(3, 6) });
+  // TWO CALLSIGNS, NOT ONE, AND THE REASON IS A RACE THAT ONLY EXISTS BECAUSE
+  // THE ANCHOR DRIVES A REAL LOOKUP.
+  //
+  // The negative cache lives at `rt:<cs>` itself -- enrich.ts reads it at :214
+  // and writes it at :224, and those are the only two KV touches on the route
+  // path, so a bulk put simply overwrites a cached miss. That much is safe.
+  //
+  // What is NOT safe is WHEN the miss gets written. handleEnrich races the route
+  // lookup against a 2,500 ms serve deadline and, on a timeout, returns the empty
+  // body while ctx.waitUntil keeps resolveRoute running -- so the negative write
+  // can land at an arbitrary moment AFTER the probe's response. With adsb.lol's
+  // routeset dead and adsbdb having to be asked about a callsign that does not
+  // exist, overshooting 2,500 ms is the likely case, not the corner case.
+  //
+  // Probing and writing the SAME key therefore has a real ordering hazard: the
+  // waitUntil negative write can land after our bulk put and blank the sentinel,
+  // and no amount of retrying outruns it because the poison arrives later than
+  // the write. It fails safe -- meta is not written -- but it aborts a good
+  // 619k-key load and sends someone hunting a bug that is not there.
+  //
+  // So the anchor and the sentinel are different callsigns. The anchor is probed
+  // and never written (any negative entry it collects is inert and expires on the
+  // 24 h route TTL). The sentinel is never probed before the write, so nothing
+  // can poison it -- and as a bonus no edge has cached a miss for it either, so
+  // the readback only has to cover write propagation, not negative-cache expiry.
+  //
+  // Both live under `rt:ZZ`, which is safe as a scratch namespace: zero of the
+  // corpus's 619,103 callsigns begin with ZZ (checked, not assumed).
+  const runId = randomBytes(4).toString("hex").toUpperCase().slice(0, 5);
+  const anchorCs = `ZZ${runId}A`;                        // probed, never written
+  const sentinelCs = `ZZ${runId}S`;                      // written, never probed first
+  const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: `${runId.slice(3, 5)}Z` });
 
   const base = args.env === "production"
     ? "https://scopes.valarsystems.com"
@@ -456,22 +485,54 @@ async function main() {
     }
   };
 
-  // THE ANCHOR, BEFORE THE WRITE. The sentinel must be ABSENT now. If it already
-  // resolves, either the callsign is not as unique as assumed or the read path is
-  // returning something invented -- and in both cases the post-write check would
-  // pass for a reason that has nothing to do with our write, which is worse than
-  // no check. Refuse before touching a single key.
-  const pre = enrich(sentinelCs);
+  // SWEEP STALE SENTINELS FIRST. A run that dies between the bulk put and the
+  // cleanup at the end leaves one junk key behind, and that is precisely the
+  // never-deleted accumulation documented in the diff block above. Clearing them
+  // at the START rather than trusting the END means a crash costs nothing, and it
+  // exercises the delete path every run instead of only on the happy path.
+  try {
+    const listed = execSync(
+      ["npx", "wrangler", "kv", "key", "list", "--prefix=rt:ZZ",
+        "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const stale = (JSON.parse(listed) as { name: string }[]).map((k) => k.name);
+    if (stale.length > 0) {
+      const p = join(tmp, "stale.json");
+      writeFileSync(p, JSON.stringify(stale));
+      execSync(
+        ["npx", "wrangler", "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
+          `--env=${args.env}`, "--remote", "--force"].join(" "),
+        { stdio: "inherit" },
+      );
+      console.log(`swept ${stale.length} stale sentinel key(s) from previous runs`);
+    }
+  } catch (e) {
+    // Not fatal: a failed sweep leaves junk, it does not corrupt anything. But it
+    // is said out loud rather than swallowed, because silence here is how the
+    // accumulation would go unnoticed.
+    console.log(`WARN: could not sweep rt:ZZ -- ${(e as Error).message.slice(0, 120)}`);
+  }
+
+  // THE ANCHOR, BEFORE THE WRITE. A ZZ-prefixed callsign must resolve to NOTHING
+  // through the live path. If it resolves, the read path is inventing routes and
+  // the post-write check would pass for a reason unrelated to our write -- which
+  // is worse than no check at all. Refuse before touching a single key.
+  //
+  // This is the observation that makes the later one mean something: a probe that
+  // has only ever seen the present state cannot tell a good write from a stale
+  // hit. Absent-here, present-there is the pair that carries the information.
+  const pre = enrich(anchorCs);
   if (pre === null) {
     console.error(`REFUSING: the live path is unreachable at ${base} -- nothing written.`);
     process.exit(1);
   }
   if (pre.o || pre.d) {
-    console.error(`REFUSING: sentinel ${sentinelCs} already resolves to ${pre.o}-${pre.d} BEFORE`);
-    console.error("the write. This probe cannot distinguish our data from someone else's.");
+    console.error(`REFUSING: anchor ${anchorCs} resolves to ${pre.o}-${pre.d} before any write.`);
+    console.error("A nonsense callsign must not resolve; this probe cannot be trusted.");
     process.exit(1);
   }
-  console.log(`anchor: ${sentinelCs} is absent before the write (as required)`);
+  console.log(`anchor: ${anchorCs} is absent through the live path (as required)`);
 
   // ---- write the data keys, tallying what ACTUALLY went (rule 2) -----------
   //
@@ -497,16 +558,28 @@ async function main() {
 
   // ---- rule 3, part 2: the sentinel, read back through the LIVE path -------
   //
-  // Retried, because KV is eventually consistent and the anchor probe above just
-  // taught an edge to cache a MISS for this key (KV caches negative lookups the
-  // same as positive ones, up to 60 s). A single immediate read would fail on a
-  // perfectly good write, and a check that cries wolf gets switched off.
+  // Retried, because KV is eventually consistent. The window is sized against
+  // Cloudflare's documented "up to 60 s" for a write to become globally visible,
+  // doubled -- 8 attempts at 15 s is a little over two minutes.
+  //
+  // THAT NUMBER IS A DOCUMENTED CEILING, NOT AN OBSERVED ONE, and it should not
+  // be treated as measured until it has been. So the attempt and the elapsed
+  // seconds are printed on success: the staging run is the first real data point,
+  // and if it lands on attempt 1 every time the window can be argued down from
+  // evidence rather than trimmed on a hunch.
+  //
+  // Note this key was never probed before the write, so no edge has cached a miss
+  // for it. The window therefore only has to cover write propagation -- negative
+  // cache expiry, which is the slower of the two, is not in play at all.
+  const expected = JSON.parse(sentinelVal) as { o: string; d: string };
+  const startedAt = Date.now();
   let sentinelSeen = false;
   for (let attempt = 1; attempt <= 8 && !sentinelSeen; attempt++) {
     const got = enrich(sentinelCs);
-    if (got && got.o === runId.slice(0, 3) && got.d === runId.slice(3, 6)) {
+    if (got && got.o === expected.o && got.d === expected.d) {
       sentinelSeen = true;
-      console.log(`sentinel: ${sentinelCs} -> ${got.o}-${got.d} on attempt ${attempt} (PROVENANCE PROVED)`);
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      console.log(`sentinel: ${sentinelCs} -> ${got.o}-${got.d} on attempt ${attempt} after ${secs}s (PROVENANCE PROVED)`);
     } else if (attempt < 8) {
       execSync("sleep 15", { stdio: "ignore" });
     }
@@ -515,6 +588,7 @@ async function main() {
     console.error(`REFUSING to write the meta key: sentinel ${sentinelCs} never came back through`);
     console.error(`${base} after 2 minutes. The bulk put reported success and the live read path`);
     console.error("cannot see it, so a fresh row count would be a claim about unreadable data.");
+    console.error(`The data keys ARE written. Re-run to retry; the sweep will clear ${sentinelCs}.`);
     process.exit(1);
   }
 
@@ -592,6 +666,30 @@ async function main() {
     { stdio: "inherit" },
   );
   console.log(`meta written: rows=${totalRows} written=${writtenData} sentinel=OK canaries=${canaryOk}/${CANARIES.length}`);
+
+  // ---- cleanup: the sentinel is scaffolding, not data ----------------------
+  //
+  // Deleted AFTER the meta key, deliberately. Meta is the commit point; once it
+  // is written the run has succeeded, and cleanup that fails must not undo that.
+  // A failure here leaves exactly one junk key, which the next run's sweep
+  // collects -- so the accumulation this guards against is bounded at one per
+  // failed cleanup rather than one per run.
+  // `kv bulk delete` for a single key, not `kv key delete`: only the bulk form
+  // takes --force. The single-key form has no such flag and prompts for
+  // confirmation, which in a script with no stdin is a hang, not a refusal.
+  try {
+    const delPath = join(tmp, "sentinel-delete.json");
+    writeFileSync(delPath, JSON.stringify([`rt:${sentinelCs}`]));
+    execSync(
+      ["npx", "wrangler", "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
+        `--env=${args.env}`, "--remote", "--force"].join(" "),
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    console.log(`cleanup: rt:${sentinelCs} deleted`);
+  } catch (e) {
+    console.log(`WARN: could not delete rt:${sentinelCs} -- ${(e as Error).message.slice(0, 120)}`);
+    console.log("      Harmless: it is one key under rt:ZZ and the next run sweeps that prefix.");
+  }
 }
 
 main().catch((e) => {
