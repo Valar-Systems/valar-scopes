@@ -5,6 +5,7 @@
 #include "Layout.h"     // SCREEN_SIZE, SCREEN_SIZE_DIV_2
 #include "Board.h"      // board::DisplayFlush
 #include "OtaUpdater.h" // FW_VERSION
+#include "BuildIdentity.h" // BuildIdentity::PRODUCT_WORDMARK
 
 // The Valar Systems boot identity -- the FIRST thing this device ever draws, and the
 // frame every other boot message renders inside.
@@ -42,18 +43,52 @@
 
 namespace splash {
 
-// Text scale. The built-in GLCD glyph is 6x8 px, so "VALAR SYSTEMS" (13 glyphs) is
-// 156 px wide at scale 2 -- comfortably inside the ~170 px inscribed square of a 240 px
-// round panel. The bigger SKUs get one step up; do NOT raise the 240 px case to 3
-// (234 px), it would run off the curve.
-constexpr int WORDMARK_SCALE = (SCREEN_SIZE >= 320) ? 3 : 2;
-constexpr int STATUS_SCALE   = (SCREEN_SIZE >= 320) ? 2 : 1;
+// THE WORDMARK IS THE PRODUCT NAME NOW, with "VALAR SYSTEMS" as the maker's mark
+// beneath it. The customer bought a Blipscope, not a Valar Systems, and the name
+// they say to a friend should be the one the device says back.
+//
+// The scale is COMPUTED, not tabled, because the edition names differ in length by
+// nearly a third: BLIPSCOPE is 9 glyphs, CLAUDESCOPE is 11. At the built-in 6x8
+// GLCD font, scale 3 makes those 162 px and 198 px -- the first fits the ~170 px
+// inscribed square of a 240 px round panel and the second runs off the curve. A
+// hardcoded scale would therefore be correct for the edition it was chosen on and
+// silently wrong for the next one, which is precisely the class of bug a round
+// panel hides until someone flashes that SKU and looks at it.
+constexpr int GLYPH_W = 6;
+constexpr int GLYPH_H = 8;
 
-constexpr int GLYPH_H     = 8;
-constexpr int WORDMARK_H  = GLYPH_H * WORDMARK_SCALE;
+// 70% of the panel: inside the inscribed square (~71%) of a round display, and
+// harmless on a square one.
+constexpr int MAX_WORDMARK_W = (SCREEN_SIZE * 7) / 10;
+
+// sizeof-1 rather than strlen so the whole thing stays compile-time.
+constexpr int PRODUCT_LEN = (int)(sizeof(BuildIdentity::PRODUCT_WORDMARK) - 1);
+
+// Largest scale that still fits. Recursive so it is constexpr on every toolchain.
+constexpr int FitScale(int len, int start)
+{
+    return (start > 1 && len * GLYPH_W * start > MAX_WORDMARK_W)
+             ? FitScale(len, start - 1)
+             : start;
+}
+
+constexpr int PRODUCT_SCALE = FitScale(PRODUCT_LEN, (SCREEN_SIZE >= 320) ? 4 : 3);
+constexpr int STATUS_SCALE  = (SCREEN_SIZE >= 320) ? 2 : 1;
+
+// FitScale bottoms out at 1, so this fires only when a name cannot fit even at the
+// smallest legible size. That is a naming decision, not a layout one, and it should
+// stop a build rather than reach a round panel and run off the curve where nobody
+// sees it until that SKU is flashed and looked at.
+static_assert(PRODUCT_LEN * GLYPH_W * PRODUCT_SCALE <= MAX_WORDMARK_W,
+              "product wordmark does not fit this panel even at scale 1 -- shorten it");
+constexpr int MAKER_SCALE   = STATUS_SCALE;   // the maker's mark rides with the small text
+
+constexpr int PRODUCT_H   = GLYPH_H * PRODUCT_SCALE;
+constexpr int MAKER_H     = GLYPH_H * MAKER_SCALE;
 constexpr int STATUS_H    = GLYPH_H * STATUS_SCALE;
-constexpr int GAP_VERSION = 6;   // wordmark -> version
-constexpr int GAP_STATUS  = 14;  // version  -> status block
+constexpr int GAP_MAKER   = 4;   // product -> maker's mark: tight, they are one lockup
+constexpr int GAP_VERSION = 6;   // maker's mark -> version
+constexpr int GAP_STATUS  = 14;  // version -> status block
 constexpr int GAP_LINE    = 6;   // between status lines
 
 } // namespace splash
@@ -82,7 +117,7 @@ inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite&
 
     // Centre the WHOLE block (wordmark + version + any status lines) on the screen, so
     // the composition stays balanced whether or not a status line is present.
-    int blockH = WORDMARK_H + GAP_VERSION + STATUS_H;
+    int blockH = PRODUCT_H + GAP_MAKER + MAKER_H + GAP_VERSION + STATUS_H;
     if (lines > 0)
         blockH += GAP_STATUS + lines * STATUS_H + (lines - 1) * GAP_LINE;
 
@@ -93,11 +128,19 @@ inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite&
 
         g.fillScreen(lgfx::color888(0, 0, 0));
 
-        // Wordmark, full brightness. drawCenterString takes the TOP of the text.
+        // Product name, full brightness. drawCenterString takes the TOP of the text.
         g.setTextColor(lgfx::color888(255, 255, 255));
-        g.setTextSize(WORDMARK_SCALE);
+        g.setTextSize(PRODUCT_SCALE);
+        g.drawCenterString(BuildIdentity::PRODUCT_WORDMARK, SCREEN_SIZE_DIV_2, y);
+        y += PRODUCT_H + GAP_MAKER;
+
+        // Maker's mark: present, subordinate, and clearly a different tier -- dimmer
+        // than the product name and brighter than the version, so the three lines
+        // read as a hierarchy rather than as three labels of equal weight.
+        g.setTextColor(lgfx::color888(170, 170, 170));
+        g.setTextSize(MAKER_SCALE);
         g.drawCenterString("VALAR SYSTEMS", SCREEN_SIZE_DIV_2, y);
-        y += WORDMARK_H + GAP_VERSION;
+        y += MAKER_H + GAP_VERSION;
 
         // Version, dimmer -- present for support, subordinate to the brand. Single source of
         // truth: the same FW_VERSION int the OTA gate compares against, so what the screen
@@ -105,7 +148,7 @@ inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite&
         char version[8];
         snprintf(version, sizeof(version), "v%d", FW_VERSION);
         g.setTextSize(STATUS_SCALE);
-        g.setTextColor(lgfx::color888(120, 120, 120));
+        g.setTextColor(lgfx::color888(110, 110, 110));
         g.drawCenterString(version, SCREEN_SIZE_DIV_2, y);
         y += STATUS_H;
 
@@ -144,7 +187,7 @@ inline void DrawSplash([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_Sprite&
     // This used to be a single call on whichever object was being drawn to, which was
     // also the object every other boot screen used. That is no longer true: composing
     // means the scale is left on the sprite while some callers still draw to the panel,
-    // so restoring only one of them would leak WORDMARK_SCALE into the next screen.
+    // so restoring only one of them would leak PRODUCT_SCALE into the next screen.
     tft.setTextSize(1);
     fb.setTextSize(1);
     board::DisplayFlush(tft); // RGB panels: make it visible (no-op on SPI SKUs)
