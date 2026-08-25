@@ -196,6 +196,20 @@ publishes a matching `version.txt`.
 > **Publish the Release first, confirm `latest` ≥ `current` on one assembled unit, then
 > assemble the rest.**
 
+> ### RESTORE THE STORE LINK AT LAUNCH
+>
+> `valarsystems.com/products/blipscope` is **DRAFT and returns 404**. On 2026-08-25 it
+> was linked from the support page footer, the editions hub footer, and README.md --
+> i.e. from the two pages a confused customer is most likely to be on. All three were
+> replaced with a contact route rather than left pointing at a dead page.
+>
+> **At launch, restore all three.** They are marked with `LAUNCH:` comments in
+> `proxy/pages/support.html`, `proxy/pages/index.html` and `README.md`, so
+> `grep -rn "LAUNCH:" ` finds every one.
+>
+> Editing the two HTML pages means regenerating: `node proxy/scripts/embed-pages.mjs`.
+> The `--check` gate in CI will catch a forgotten regenerate, but only after the fact.
+
 **[[s3-128-overnight-slowdown]] — CLOSED 2026-07-21, not reproduced.** The original report
 was real (observed ~14 h uptime: planes barely moving, taps needing several tries, detail
 card ~10 s to close), but it never recurred under observation across three clean

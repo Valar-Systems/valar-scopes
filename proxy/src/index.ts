@@ -12,7 +12,7 @@ import {
   handleProfile,
 } from "./leaderboard";
 import { FONTS } from "./fonts.generated";
-import { indexHtml, supportHtml } from "./pages.generated";
+import { indexHtml, supportHtml, notfoundHtml } from "./pages.generated";
 import { record, recordOtaMem, setDeviceAttribution, type RequestMetric } from "./metrics";
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
@@ -111,14 +111,18 @@ function apiEndpoint(pathname: string): { suffix: string; legacy: boolean } | nu
 // rather than held as bytes because these are served rarely (a human arriving,
 // not a fleet polling), and max-age=300 matches the leaderboard page -- markup
 // changes on deploys, so five minutes is the cost of being wrong.
-function staticPage(html: string): Response {
+function staticPage(html: string, status = 200): Response {
   const bytes = new TextEncoder().encode(html);
+  // A 404 gets a SHORT cache. The 300 s that suits a live page would keep
+  // serving "not found" for five minutes after the page it names starts
+  // existing -- and the paths most likely to 404 here are the ones about to go
+  // on a printed card, i.e. exactly the ones we might fix in a hurry.
   return new Response(bytes, {
-    status: 200,
+    status,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Content-Length": String(bytes.byteLength),
-      "Cache-Control": "public, max-age=300",
+      "Cache-Control": status === 200 ? "public, max-age=300" : "public, max-age=30",
     },
   });
 }
@@ -174,10 +178,13 @@ async function route(
     return movedTo(url, url.pathname.replace(/\/+$/, "") || "/");
   }
 
-  // An edition root with no page of its own. Someone who trims a surface off the
-  // end of "/blipscope/support" lands here, and the hub is what they were
-  // reaching for -- the same reasoning that put a page at "/" at all.
-  if (url.pathname === PAGE_PREFIX) return movedTo(url, "/");
+  // The edition root goes to SUPPORT, not the hub. This is the short URL going
+  // on the printed quick-start card, and the card is the one artifact we cannot
+  // revise after the fact -- so it must land on the page that answers the
+  // question someone scans a support QR to ask, rather than on a product index
+  // that makes them choose again. Trimming further, to "/", still reaches the
+  // hub for anyone who wants the other editions.
+  if (url.pathname === PAGE_PREFIX) return movedTo(url, `${PAGE_PREFIX}/support`);
 
   if (url.pathname === "/healthz") return handleHealth(env);
   // Public photo-attribution page (a browser follows the config page's link; no
@@ -264,7 +271,16 @@ async function route(
   // not merely a 404, it is an endpoint that skipped authentication. Both
   // prefixes must arrive, which is why this tests the normalized `api` rather
   // than a literal prefix string.
-  if (api === null) return errorResponse(404, "not_found");
+  // NOT an API path, so this is a person -- a typo, a stale link, a QR that
+  // aged badly. They get a page. Answering `{"v":1,"error":"not_found"}` to a
+  // customer reads as a broken device rather than a wrong address, and the
+  // address most likely to be wrong is the one printed on a card nobody can
+  // reprint.
+  //
+  // The auth gate below is UNCHANGED and still load-bearing: a mistyped API
+  // path resolves `api` non-null and falls through to the JSON 404 at the end
+  // of this function, so machines still get machine errors.
+  if (api === null) return staticPage(notfoundHtml, 404);
 
   // Per-IP limit first (throttles key-guessing too), then auth, then per-key.
   const ipLimited = await limitByIp(env, request);

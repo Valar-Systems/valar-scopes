@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found — Valar Scopes</title>
+<meta name="description" content="That page does not exist. Here is where to go instead.">
+<meta name="robots" content="noindex">
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/inter.woff2) format('woff2')}
+  @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(/fonts/mono.woff2) format('woff2')}
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500 700;
+    font-display:swap;src:url(/fonts/grotesk.woff2) format('woff2')}
+  :root{
+    --bg:#101215; --panel:#171a1e; --edge:#2a2f36;
+    --ink:#eceef1; --ink-2:#a8aeb7; --ink-3:#6f7680;
+    --live:#3ddc84; --amber:#e0a33a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;
+       font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+       min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .wrap{max-width:560px;padding:48px 22px;text-align:center}
+  a{color:var(--live);text-decoration:none;border-bottom:1px solid rgba(61,220,132,.3)}
+  a:hover{border-bottom-color:var(--live)}
+  a:focus-visible{outline:2px solid var(--live);outline-offset:3px;border-radius:2px}
+  code{font-family:'JetBrains Mono',monospace;font-size:.88em;background:var(--panel);
+       border:1px solid var(--edge);border-radius:4px;padding:1px 5px;color:var(--ink-2);
+       word-break:break-all}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;
+           text-transform:uppercase;color:var(--amber);margin-bottom:16px}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;
+     letter-spacing:.01em;line-height:1.12;text-wrap:balance}
+  p{font-size:15px;color:var(--ink-2);margin-top:14px}
+  .paths{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:28px}
+  .paths a{background:var(--panel);border:1px solid var(--edge);border-radius:6px;
+           padding:10px 16px;font-size:14px;color:var(--ink);font-weight:500}
+  .paths a:hover{border-color:var(--live)}
+  .foot{margin-top:34px;font-size:13px;color:var(--ink-3)}
+  .foot a{color:var(--ink-3);border-bottom-color:rgba(111,118,128,.35)}
+  .foot a:hover{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">404 — Not found</div>
+  <h1>That page doesn&rsquo;t exist</h1>
+  <p>The address may have a typo in it, or it may have moved. Nothing is wrong
+     with your device &mdash; this is just a page that isn&rsquo;t here.</p>
+  <div class="paths">
+    <a href="/blipscope/support">Blipscope support</a>
+    <a href="/">All editions</a>
+  </div>
+  <p class="foot">
+    Still stuck? Email
+    <a href="mailto:support@valarsystems.com">support@valarsystems.com</a>
+    &mdash; a real person reads it.
+  </p>
+</div>
+</body>
+</html>
