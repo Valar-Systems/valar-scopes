@@ -51,10 +51,19 @@
  *      of intent; the write count is evidence. Reporting the parsed figure would
  *      mean a refresh that failed halfway still published a full row count.
  *
- *   3. CANARIES READ BACK THROUGH THE LIVE PATH. A handful of known callsigns
- *      are resolved via GET /v1/enrich against the deployed Worker -- NOT by
- *      reading KV directly, which would prove only that we can read our own
- *      write. If they fail, the meta key is not written.
+ *   3. READ BACK THROUGH THE LIVE PATH, WITH A CHECK THAT CAN ACTUALLY FAIL.
+ *      GET /v1/enrich against the deployed Worker -- not a direct KV read, which
+ *      would prove only that we can read our own write.
+ *
+ *      The first draft used real airline callsigns for this and was WORTHLESS:
+ *      resolveRoute() falls back to adsbdb on a KV miss, so BAW117 resolves
+ *      whether our mirror landed or not. The green light stayed green against a
+ *      bulk put that wrote nothing.
+ *
+ *      So the check is a per-run SENTINEL callsign, probed absent before the
+ *      write and present after, carrying a value no upstream could invent. The
+ *      airline canaries are kept but demoted to a liveness check. If either the
+ *      sentinel or a majority of canaries fails, the meta key is not written.
  *
  *   4. DIFF, DO NOT BLIND-UPSERT. VRS changes incrementally. A daily 619k-write
  *      refresh is a real cost and a real risk; this hashes each airline shard
@@ -75,10 +84,11 @@
  * as destination, matching the parser this replaces.
  */
 import { execSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { q, sh } from "./shquote";
 
 /** One request for the whole corpus, from the CC0 source of record. */
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
@@ -97,9 +107,15 @@ const MIN_ROWS = 400_000;
 const MAX_ROWS = 900_000;
 
 /**
- * Canary callsigns. Scheduled, long-lived, and spread across three continents
- * so a single airline's schedule change cannot fail the build. Resolved through
- * the LIVE path -- see rule 3.
+ * Liveness canaries. Scheduled, long-lived, spread across three continents so a
+ * single airline's schedule change cannot fail the build.
+ *
+ * THESE DO NOT PROVE THE MIRROR WORKS, and the earlier version of this file said
+ * they did. The Worker's resolveRoute falls back to adsbdb on a KV miss, so a
+ * real callsign resolving through /v1/enrich is equally consistent with "our
+ * 619,103 keys landed", "adsbdb answered", and "a leftover 24 h cache entry
+ * answered". Provenance is the sentinel's job (see rule 3, part 1); this list
+ * only shows the endpoint is alive.
  */
 const CANARIES = ["BAW117", "AAL175", "UAE201", "DLH400", "QFA1"];
 
@@ -119,17 +135,6 @@ function parseArgs(argv: string[]): Args {
   return a;
 }
 
-/**
- * Shell-argument path normaliser. Node's join()/tmpdir() emit backslashes on
- * Windows, and every layer between here and the binary treats one as an escape:
- * the path arrives at tar as C:\\Users\\... and it opens nothing. Forward
- * slashes are accepted by Windows APIs and by every tool we invoke, so they are
- * the portable spelling. No-op on Linux, where CI runs.
- */
-const sh = (p: string) => p.split(String.fromCharCode(92)).join("/");  // 92 = backslash; written this way because the escaped-regex form was
-// itself mis-escaped once and silently matched DOUBLE backslashes, leaving
-// Windows paths untouched and tar opening nothing.
-const q = (s: string) => (s.includes(" ") ? `"${s}"` : s);
 
 /** Recursive .csv walk -- the source shards by first letter, then by airline. */
 function csvFiles(dir: string, out: string[] = []): string[] {
@@ -142,18 +147,73 @@ function csvFiles(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Minimal CSV row split. The source has no quoted fields in the columns we use
- * (callsigns and airport codes are [A-Z0-9-]), so a full parser would be
- * dead weight -- but the BOM is real and must be stripped or the first header
- * name comes back as "﻿Callsign" and every lookup silently misses.
+ * Split one CSV line, honouring double-quoted fields.
+ *
+ * THIS WAS A PLAIN .split(",") AND IT LOST 22 AIRPORTS.
+ *
+ * The reasoning for the naive version was that the columns we read are
+ * [A-Z0-9-] and therefore never quoted -- true of those columns, and irrelevant,
+ * because the airports file is Code,Name,ICAO,IATA,Location,... and both `Name`
+ * and `Location` are free text. "Trondheim Airport, Værnes" is one quoted field
+ * containing a comma, so a comma-split shifts every column after it: ICAO picked
+ * up a fragment of the name and IATA picked up the ICAO.
+ *
+ * MEASURED, and the measurement matters because the first estimate was five
+ * times too big. On the 2026-08-25 corpus 142 airport rows carry a quoted comma
+ * -- but in 120 of them the comma is in `Location`, which sits AFTER the two
+ * columns we read, so those rows parsed correctly by luck. Only the 22 with a
+ * comma in `Name` actually shifted:
+ *
+ *     15 Norwegian ("X Airport, Y" is their house style) -- Trondheim TRD,
+ *        Stavanger SVG, Bergen BGO, Sandefjord TRF, Svalbard LYR, ...
+ *      7 others -- Hyderabad HYD, Amritsar ATQ, Baton Rouge BTR, Old Town OLD,
+ *        Ambon AMQ, Labuha LAH, Mangole MAL
+ *
+ * 7,383 of the 619,103 routes (1.19%) begin or end at one of those, and every
+ * one would have rendered the raw four-letter ICAO on the card -- the exact
+ * outcome the IATA preference exists to avoid.
+ *
+ * The route shards are unaffected and always were: zero of their 619,103 rows
+ * contain a quote character at all. The original comment was right about routes
+ * and wrong about airports, which is why the assumption survived.
+ *
+ * Nothing about the row COUNT changes when this breaks -- 619,103 either way --
+ * so no count-based check could ever have seen it. What surfaced it was
+ * validating the SHAPE of each parsed code, which is the cheaper habit: assert
+ * on the field you are about to use, not on the size of the batch it came in.
+ */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i] as string;
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } // RFC 4180 escaped quote
+        else inQuotes = false;
+      } else cur += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ",") { out.push(cur); cur = ""; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+/**
+ * Parse a CSV shard into records keyed by header name.
+ *
+ * The BOM is real and must be stripped or the first header name comes back as
+ * "﻿Callsign" and every lookup silently misses.
  */
 function rows(text: string): Record<string, string>[] {
   const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
-  const head = (lines[0] as string).split(",");
+  const head = splitCsvLine(lines[0] as string);
   const out: Record<string, string>[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cells = (lines[i] as string).split(",");
+    const cells = splitCsvLine(lines[i] as string);
     const rec: Record<string, string> = {};
     head.forEach((h, j) => (rec[h.trim()] = (cells[j] ?? "").trim()));
     out.push(rec);
@@ -188,16 +248,35 @@ async function main() {
   // ---- ICAO -> IATA, from the SAME CC0 corpus ------------------------------
   // Same source and same revision as the routes, so the two can never drift
   // apart the way two independently-refreshed datasets would.
+  //
+  // SHAPE-CHECKED, because the CSV split here is naive on purpose and the
+  // airports file is the one place that assumption is exposed: its columns are
+  // Code,Name,ICAO,IATA,... and Name is free text. One unescaped comma in an
+  // airport name shifts every later column, so ICAO would silently pick up a
+  // fragment of a city and IATA a country code -- a corruption that changes no
+  // row COUNT and would sail past a count-based check. AA.csv was sampled clean
+  // (zero quote characters), but a sample is not the corpus, so the invariant is
+  // enforced on every row and the rejects are counted rather than assumed zero.
   const icaoToIata = new Map<string, string>();
+  let airportSkipped = 0;
   for (const fp of csvFiles(join(root, "airports"))) {
     for (const r of rows(readFileSync(fp, "utf8"))) {
       const icao = (r["ICAO"] ?? "").toUpperCase();
       const iata = (r["IATA"] ?? "").toUpperCase();
-      if (icao && iata) icaoToIata.set(icao, iata);
+      if (!icao || !iata) continue;
+      if (!/^[A-Z0-9]{4}$/.test(icao) || !/^[A-Z0-9]{3}$/.test(iata)) { airportSkipped++; continue; }
+      icaoToIata.set(icao, iata);
     }
   }
   const code = (icao: string) => icaoToIata.get(icao.toUpperCase()) ?? icao.toUpperCase();
-  console.log(`airports: ${icaoToIata.size} ICAO->IATA mappings`);
+  console.log(`airports: ${icaoToIata.size} ICAO->IATA mappings, ${airportSkipped} malformed`);
+  // A handful of odd rows is the source's business. A flood means the columns
+  // moved under us, and every route code downstream would be quietly wrong.
+  if (airportSkipped > icaoToIata.size / 100) {
+    console.error(`REFUSING: ${airportSkipped} malformed airport rows is over 1% -- the CSV columns`);
+    console.error("have almost certainly shifted, which would corrupt every code silently.");
+    process.exit(1);
+  }
 
   // ---- parse the route shards, hashing each --------------------------------
   const shardFiles = csvFiles(join(root, "routes")).sort();
@@ -233,39 +312,178 @@ async function main() {
   }
 
   // ---- rule 4: diff against the stored manifest ----------------------------
+  //
+  // "ABSENT" AND "CANNOT READ" MUST NOT COLLAPSE INTO ONE BRANCH.
+  //
+  // The first version of this caught every error and called it a first run. That
+  // is right for a missing key and catastrophically wrong for an expired token,
+  // a wrong working directory, or a 401 -- each of which produces the identical
+  // empty object and would silently turn an incremental refresh of a few hundred
+  // keys into a blind 619,103-key rewrite of production KV. Same shape as the
+  // verify-release.sh square probe: the failure mode of a broken reader is
+  // "everything is missing", which is exactly what a first run looks like.
+  //
+  // So the reason is captured and inspected, and anything that is NOT a clean
+  // not-found aborts. stderr goes to its own pipe and is PRINTED -- a guard that
+  // can tell you a result is untrustworthy should also tell you why, or you
+  // spend the next hour bisecting a silent empty string.
   let prevManifest: Record<string, string> = {};
   if (args.env) {
+    const cmd = ["npx", "wrangler", "kv", "key", "get", q(META_KEY),
+      "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" ");
+    let raw: string | null = null;
     try {
-      const out = execSync(
-        ["npx", "wrangler", "kv", "key", "get", q(META_KEY), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-      );
-      prevManifest = (JSON.parse(out) as { shards?: Record<string, string> }).shards ?? {};
+      raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      const err = e as { status?: number; stdout?: string; stderr?: string };
+      const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
+      // wrangler's not-found wording, matched loosely because it has changed
+      // between releases. Everything else -- auth, network, config -- is fatal.
+      const notFound = /not found|does not exist|key .* not/i.test(blob);
+      if (!notFound) {
+        console.error(`REFUSING: could not read ${META_KEY} from ${args.env}, and this is NOT a`);
+        console.error("clean not-found. Treating it as a first run would blind-write every key.");
+        console.error(`exit status: ${err.status ?? "?"}`);
+        console.error(`--- wrangler output ---\n${blob.trim()}\n-----------------------`);
+        process.exit(1);
+      }
+      console.log(`no ${META_KEY} in ${args.env} -- confirmed absent, so this is a FULL build`);
+    }
+    if (raw !== null) {
+      // A successful exit still has to yield the shape we expect. wrangler has
+      // been known to put a banner on stdout ahead of the value; a parse failure
+      // here is a reason to stop, not a reason to assume a first run.
+      try {
+        const parsed = JSON.parse(raw) as { shards?: Record<string, string> };
+        if (!parsed || typeof parsed !== "object" || !parsed.shards) {
+          throw new Error("no `shards` field in the meta value");
+        }
+        prevManifest = parsed.shards;
+      } catch (e) {
+        console.error(`REFUSING: ${META_KEY} read back but did not parse as a manifest.`);
+        console.error(`reason: ${(e as Error).message}`);
+        console.error(`--- first 200 bytes ---\n${raw.slice(0, 200)}\n-----------------------`);
+        process.exit(1);
+      }
       console.log(`previous manifest: ${Object.keys(prevManifest).length} shards`);
-    } catch {
-      // ABSENT IS NOT AN ERROR, it is the first run -- but it must be said out
-      // loud, because "no previous manifest" and "could not read KV" produce the
-      // same empty object and mean very different things.
-      console.log("no previous manifest readable -- treating as a FULL build");
     }
   }
 
-  const changed = [...shards.entries()].filter(([name, s]) => prevManifest[name] !== s.hash);
+  // Manifest values are "<hash>:<rowcount>". Compare on the HASH half only --
+  // reading the whole string would make every shard look changed the first time
+  // the format moved, and a diff that silently degrades to a full rewrite is
+  // indistinguishable from a diff that is working.
+  const prevHash = (name: string) => (prevManifest[name] ?? "").split(":")[0] ?? "";
+  const prevCount = (name: string) => Number((prevManifest[name] ?? "").split(":")[1] ?? NaN);
+  const changed = [...shards.entries()].filter(([name, s]) => prevHash(name) !== s.hash);
   const changedPairs = changed.flatMap(([, s]) => s.pairs);
   console.log(`diff: ${changed.length}/${shards.size} shards changed -> ${changedPairs.length} keys to write`);
+
+  // THE DELETION GAP, STATED OUT LOUD RATHER THAN LEFT TO BE DISCOVERED.
+  //
+  // A changed shard is rewritten wholesale, so a callsign REMOVED upstream keeps
+  // its old `rt:` key forever -- these are written without a TTL, and nothing
+  // here lists or deletes. The effect is a retired flight number serving a route
+  // that was true once. Not corrupting, but not self-healing either, and the
+  // only way it ever becomes visible is if someone counts.
+  //
+  // So it gets counted every run. Fixing it needs per-shard key lists in the
+  // manifest (or a prefix list per changed shard) and belongs in its own change;
+  // shipping the measurement first means the follow-up has a number to justify it.
+  let shrink = 0;
+  for (const [name, s] of changed) {
+    const before = prevCount(name);
+    if (Number.isFinite(before) && before > s.pairs.length) shrink += before - s.pairs.length;
+  }
+  if (shrink > 0) {
+    console.log(`NOTE: ${shrink} callsigns disappeared from changed shards and are NOT deleted`);
+    console.log("      (known gap -- keys have no TTL; see the deletion note in the diff block)");
+  }
 
   if (args.dryRun) {
     console.log("--dry-run: stopping before any write");
     return;
   }
 
+  // ---- rule 3, part 1: the SENTINEL -- the only provenance-proof check -----
+  //
+  // WHY THE AIRLINE CANARIES BELOW CANNOT DO THIS JOB.
+  //
+  // resolveRoute() in src/enrich.ts reads `rt:` from KV and, on a miss, falls
+  // through to the route-source chain -- adsb.lol routeset, then adsbdb, which
+  // is still enabled (ROUTE_ADSBDB_ENABLED = "true") until the cutover. So
+  // "BAW117 resolved through /v1/enrich" is true when our mirror answered, true
+  // when adsbdb answered, and true when a leftover 24 h adsbdb cache entry
+  // answered. It is a green light that stays green against a bulk put that
+  // wrote nothing at all -- which is the precise failure it was added to catch.
+  //
+  // The fix is a value no upstream can invent. A per-run sentinel callsign is
+  // written through the SAME bulk-put path as the data, then read back through
+  // the SAME live path; adsbdb has never heard of it and adsb.lol returns
+  // nothing, so a resolved sentinel can only have come from this run's write.
+  //
+  // And it is probed BEFORE the write as well as after. A check that only ever
+  // observes the present state cannot tell a working write from a stale hit --
+  // the same reason the square probe has an anchor control. Absent-then-present
+  // is the pair of observations that means something; either one alone does not.
+  const runId = randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
+  const sentinelCs = `ZZ${runId}`;                       // 8 chars, matches the Worker's ^[A-Z0-9]{2,8}$
+  const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: runId.slice(3, 6) });
+
+  const base = args.env === "production"
+    ? "https://scopes.valarsystems.com"
+    : "https://scopes-staging.valarsystems.com";
+  const key = process.env["BLIP_KEY"] ?? "";
+  const device = process.env["BLIP_DEVICE"] ?? "";
+  if (!key || !device) {
+    console.error("REFUSING: BLIP_KEY/BLIP_DEVICE are unset, so nothing can be read back through");
+    console.error("the live path. An unverified build must not publish a fresh row count.");
+    process.exit(1);
+  }
+
+  /** GET /v1/enrich for one callsign. Returns null when the request itself failed. */
+  const enrich = (cs: string): { o?: string; d?: string } | null => {
+    const url = `${base}/v1/enrich/000000?cs=${cs}`;
+    try {
+      const body = execSync(
+        `curl -s --max-time 25 -H ${q(`X-Blip-Key: ${key}`)} -H ${q(`X-Blip-Device: ${device}`)} ${q(url)}`,
+        { encoding: "utf8" },
+      );
+      return JSON.parse(body) as { o?: string; d?: string };
+    } catch (e) {
+      console.log(`  ! ${cs} request failed: ${(e as Error).message.slice(0, 120)}`);
+      return null;
+    }
+  };
+
+  // THE ANCHOR, BEFORE THE WRITE. The sentinel must be ABSENT now. If it already
+  // resolves, either the callsign is not as unique as assumed or the read path is
+  // returning something invented -- and in both cases the post-write check would
+  // pass for a reason that has nothing to do with our write, which is worse than
+  // no check. Refuse before touching a single key.
+  const pre = enrich(sentinelCs);
+  if (pre === null) {
+    console.error(`REFUSING: the live path is unreachable at ${base} -- nothing written.`);
+    process.exit(1);
+  }
+  if (pre.o || pre.d) {
+    console.error(`REFUSING: sentinel ${sentinelCs} already resolves to ${pre.o}-${pre.d} BEFORE`);
+    console.error("the write. This probe cannot distinguish our data from someone else's.");
+    process.exit(1);
+  }
+  console.log(`anchor: ${sentinelCs} is absent before the write (as required)`);
+
   // ---- write the data keys, tallying what ACTUALLY went (rule 2) -----------
+  //
+  // The sentinel rides in the FIRST chunk, through the same bulk-put path as the
+  // data. Writing it by some other route would prove that other route works.
+  const toWrite: [string, string][] = [[`rt:${sentinelCs}`, sentinelVal], ...changedPairs];
   let written = 0;
-  for (let i = 0; i < changedPairs.length; i += BULK_CHUNK) {
-    const chunk = changedPairs.slice(i, i + BULK_CHUNK);
+  for (let i = 0; i < toWrite.length; i += BULK_CHUNK) {
+    const chunk = toWrite.slice(i, i + BULK_CHUNK);
     const path = join(tmp, `bulk-${i / BULK_CHUNK}.json`);
-    writeFileSync(path, JSON.stringify(chunk.map(([key, value]) => ({ key, value }))));
-    console.log(`bulk put ${chunk.length} (${i + chunk.length}/${changedPairs.length}) ...`);
+    writeFileSync(path, JSON.stringify(chunk.map(([k, value]) => ({ key: k, value }))));
+    console.log(`bulk put ${chunk.length} (${i + chunk.length}/${toWrite.length}) ...`);
     execSync(
       ["npx", "wrangler", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
       { stdio: "inherit" },
@@ -274,33 +492,75 @@ async function main() {
     // exit, so a failed chunk aborts the run with the meta key untouched.
     written += chunk.length;
   }
-  console.log(`wrote ${written} keys`);
+  const writtenData = written - 1; // the sentinel is not a route
+  console.log(`wrote ${writtenData} route keys (+1 sentinel)`);
 
-  // ---- rule 3: canaries, through the LIVE path ----------------------------
-  const base = args.env === "production"
-    ? "https://scopes.valarsystems.com"
-    : "https://scopes-staging.valarsystems.com";
-  const key = process.env["BLIP_KEY"] ?? "";
-  const device = process.env["BLIP_DEVICE"] ?? "";
-  if (!key || !device) {
-    console.error("REFUSING to write the meta key: BLIP_KEY/BLIP_DEVICE are unset, so the");
-    console.error("canaries cannot run. An unverified build must not publish a fresh row count.");
+  // ---- rule 3, part 2: the sentinel, read back through the LIVE path -------
+  //
+  // Retried, because KV is eventually consistent and the anchor probe above just
+  // taught an edge to cache a MISS for this key (KV caches negative lookups the
+  // same as positive ones, up to 60 s). A single immediate read would fail on a
+  // perfectly good write, and a check that cries wolf gets switched off.
+  let sentinelSeen = false;
+  for (let attempt = 1; attempt <= 8 && !sentinelSeen; attempt++) {
+    const got = enrich(sentinelCs);
+    if (got && got.o === runId.slice(0, 3) && got.d === runId.slice(3, 6)) {
+      sentinelSeen = true;
+      console.log(`sentinel: ${sentinelCs} -> ${got.o}-${got.d} on attempt ${attempt} (PROVENANCE PROVED)`);
+    } else if (attempt < 8) {
+      execSync("sleep 15", { stdio: "ignore" });
+    }
+  }
+  if (!sentinelSeen) {
+    console.error(`REFUSING to write the meta key: sentinel ${sentinelCs} never came back through`);
+    console.error(`${base} after 2 minutes. The bulk put reported success and the live read path`);
+    console.error("cannot see it, so a fresh row count would be a claim about unreadable data.");
     process.exit(1);
   }
+
+  // ---- rule 2, verified: sample the DATA keys, not just the tally ----------
+  //
+  // `written` counts chunks the CLI accepted without erroring, which is a weaker
+  // thing than keys that exist. This reads a spread-out sample straight from the
+  // namespace and compares byte-for-byte with what we handed it.
+  const SAMPLE = 12;
+  const stride = Math.max(1, Math.floor(changedPairs.length / SAMPLE));
+  let sampleOk = 0;
+  let sampleChecked = 0;
+  for (let i = 0; i < changedPairs.length && sampleChecked < SAMPLE; i += stride) {
+    const [k, expected] = changedPairs[i] as [string, string];
+    sampleChecked++;
+    try {
+      const got = execSync(
+        ["npx", "wrangler", "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      ).trim();
+      if (got === expected) sampleOk++;
+      else console.log(`  sample MISMATCH ${k}: expected ${expected} got ${got.slice(0, 80)}`);
+    } catch (e) {
+      const err = e as { stdout?: string; stderr?: string };
+      console.log(`  sample MISSING ${k}: ${`${err.stdout ?? ""} ${err.stderr ?? ""}`.trim().slice(0, 120)}`);
+    }
+  }
+  if (sampleChecked > 0 && sampleOk !== sampleChecked) {
+    console.error(`REFUSING to write the meta key: ${sampleOk}/${sampleChecked} sampled keys matched.`);
+    console.error("The bulk put claimed success for data that is not in the namespace.");
+    process.exit(1);
+  }
+  console.log(`sample: ${sampleOk}/${sampleChecked} written keys read back byte-identical`);
+
+  // ---- rule 3, part 3: the airline canaries -- LIVENESS, not provenance ----
+  //
+  // Deliberately kept, and deliberately demoted. These prove the enrich path
+  // answers real scheduled callsigns end to end; they do NOT prove the answer
+  // came from our mirror, because the adsbdb fallback is still wired in until
+  // the cutover. Read them as "the endpoint works", never as "the mirror works"
+  // -- the sentinel above is the only check that separates those two.
   let canaryOk = 0;
   for (const cs of CANARIES) {
-    const url = `${base}/v1/enrich/000000?cs=${cs}`;
-    try {
-      const body = execSync(
-        `curl -s --max-time 25 -H ${q(`X-Blip-Key: ${key}`)} -H ${q(`X-Blip-Device: ${device}`)} ${q(url)}`,
-        { encoding: "utf8" },
-      );
-      const j = JSON.parse(body) as { o?: string; d?: string };
-      if (j.o && j.d) { canaryOk++; console.log(`  canary ${cs} -> ${j.o}-${j.d}`); }
-      else console.log(`  canary ${cs} -> NO ROUTE`);
-    } catch (e) {
-      console.log(`  canary ${cs} -> ERROR ${(e as Error).message.slice(0, 80)}`);
-    }
+    const j = enrich(cs);
+    if (j && j.o && j.d) { canaryOk++; console.log(`  canary ${cs} -> ${j.o}-${j.d}`); }
+    else if (j) console.log(`  canary ${cs} -> NO ROUTE`);
   }
   // A MAJORITY, not all: a single airline retiring a flight number must not
   // block a refresh, but three of five failing means the read path is broken and
@@ -316,10 +576,14 @@ async function main() {
   const meta = {
     v: 1,
     rows: totalRows,
-    written,
+    written: writtenData,
     builtAt: new Date().toISOString(),
     source: "vradarserver/standing-data (CC0 1.0)",
-    shards: Object.fromEntries([...shards.entries()].map(([n, s]) => [n, s.hash])),
+    sentinel: sentinelCs,
+    // Per-shard hash AND row count. The count is not used by the diff -- it is
+    // here so the next run can see a shard SHRINK, which is the one thing this
+    // design cannot currently act on (see the deletion note at the top).
+    shards: Object.fromEntries([...shards.entries()].map(([n, s]) => [n, `${s.hash}:${s.pairs.length}`])),
   };
   const metaPath = join(tmp, "meta.json");
   writeFileSync(metaPath, JSON.stringify([{ key: META_KEY, value: JSON.stringify(meta) }]));
@@ -327,7 +591,7 @@ async function main() {
     ["npx", "wrangler", "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
-  console.log(`meta written: rows=${totalRows} written=${written} canaries=${canaryOk}/${CANARIES.length}`);
+  console.log(`meta written: rows=${totalRows} written=${writtenData} sentinel=OK canaries=${canaryOk}/${CANARIES.length}`);
 }
 
 main().catch((e) => {
