@@ -112,12 +112,56 @@ describe("a trimmed or slash-suffixed URL still lands somewhere", () => {
     ["/blipscope/support/", "/blipscope/support"],
     ["/blipscope/leaderboard/", "/blipscope/leaderboard"],
     ["/credits/", "/credits"],
-    // Trimming one surface off the end of a page path.
-    ["/blipscope", "/"],
+    // Trimming one surface off the end of a page path lands on SUPPORT, not
+    // the hub. Changed 2026-08-25: "/blipscope" is the short URL going on the
+    // printed quick-start card, and a support QR must answer the question it
+    // was scanned to ask rather than hand back a product index. Trimming
+    // further, to "/", still reaches the hub -- covered below.
+    ["/blipscope", "/blipscope/support"],
   ])("%s redirects to %s", async (from, to) => {
     const res = await call(new Request(`https://proxy.test${from}`));
     expect(res.status).toBe(301);
     expect(new URL(res.headers.get("Location") as string).pathname).toBe(to);
+  });
+
+  it("a mistyped PAGE path gets a page, not the API error envelope", async () => {
+    // The print-gate check. A customer who mistypes the URL on the card, or
+    // scans a QR that has aged badly, previously got
+    // `{"v":1,"error":"not_found"}` -- which reads as a broken device rather
+    // than a wrong address, and sends them to support about the wrong thing.
+    const res = await call(new Request("https://proxy.test/blipscope/typo"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const body = await res.text();
+    expect(body).not.toContain(String.fromCharCode(34) + "error" + String.fromCharCode(34));
+    // It must route them somewhere, or it is just a prettier dead end.
+    expect(body).toContain("/blipscope/support");
+  });
+
+  it("a mistyped API path never gets HTML -- machines get machine errors", async () => {
+    // The other half, and the reason the human 404 sits where it does: an
+    // API-shaped path resolves `api` non-null, so it goes THROUGH the auth gate
+    // and can never be handed an HTML page a device would try to parse.
+    //
+    // Asserted on the CONTENT TYPE rather than the status, deliberately. The
+    // first version of this test expected 404 and got 401 -- the auth gate
+    // firing first, which is correct and load-bearing. Pinning 404 would have
+    // pinned the wrong thing: what must hold is that a device never receives
+    // markup, whatever the reason for the refusal.
+    const res = await call(new Request("https://proxy.test/api/v1/blipscope/bogus", {
+      headers: { "X-Blip-Key": "test-key" },
+    }));
+    expect(res.headers.get("Content-Type")).not.toContain("text/html");
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it("the hub is still reachable, at the root", async () => {
+    // The edition root now goes to support, so this is the check that the hub
+    // did not become unreachable as a side effect of pointing the card at a
+    // more useful page.
+    const res = await call(new Request("https://proxy.test/"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
   });
 
   it("never redirects an API path, however it is spelled", async () => {

@@ -162,7 +162,9 @@ Have an Edition you'd love to see — or a free data feed that belongs on a roun
 
 The easiest way to build a Valar Scope is to grab a kit. It includes the display module, the redesigned enclosure parts, and everything else you need in one box — no hunting around marketplaces for the right components, and the hardware is guaranteed to match the firmware and the enclosure. The hardware is the same across editions; you choose which one to run by the firmware you flash, and you can re-flash to a different edition any time.
 
-### 👉 [Order a Valar Scopes kit from Valar Systems](https://valarsystems.com/products/blipscope)
+<!-- LAUNCH: restore the store link here. The product page is DRAFT and 404s
+     until the store opens; see the LAUNCH CHECKLIST in ROADMAP.md. -->
+### 👉 Kits open at launch — email [support@valarsystems.com](mailto:support@valarsystems.com) to be told when
 
 Buying a kit is also the best way to support continued development of the project. Thank you 🙏
 
