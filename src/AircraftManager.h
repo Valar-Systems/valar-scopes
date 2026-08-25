@@ -539,6 +539,40 @@ private:
     // This max spans the whole interval, so any stall is caught and logged.
     uint16_t frameMaxTenths = 0;
     unsigned long lastHealthReportMs = 0;
+
+    // ---- issue #245: the enrichment-starvation watch ------------------------
+    //
+    // The state this tracks is SILENT and PERMANENT without it. When the internal
+    // heap fragments past a handshake-sized block the ballast cannot be re-taken,
+    // both CanHandshake() gate sites refuse forever, and every aircraft card
+    // loses its type, operator and photo. Positions are ungated, so the radar
+    // keeps drawing a full sky at a healthy frame rate and nothing looks wrong.
+    // Observed on COM119 2026-08-24: ball=0/48, tlsOk=0, enrichReqs=0, and the
+    // owner's report was "the images stopped loading", not "my device is broken".
+    // How long a board must be CONTINUOUSLY starved before we try to recover.
+    //
+    // Not zero, and the reason is that `starved` is legitimately true for a
+    // moment during normal operation: while a handshake is in flight the ballast
+    // has been released and the session holds the block, so both halves of the
+    // test can be true at once. The health tick is 30 s, so 2 minutes means four
+    // consecutive starved observations -- comfortably past any real handshake,
+    // and short enough that an owner barely registers the gap.
+    static constexpr unsigned long STARVE_RECOVERY_AFTER_MS = 120000UL;
+
+    // The reminder cadence once starved. The edge is always logged; this stops
+    // the reminder becoming the noise that the old ball=0 line already was.
+    static constexpr unsigned long STARVE_LOG_INTERVAL_MS = 300000UL;
+
+    // Consecutive health ticks on which the allocator refused a handshake
+    // block. The watch keys off a RUN rather than one sample: a healthy board
+    // dips for a tick or two (measured on BOTH soak boards), and an alarm
+    // that fired on those would be switched off within a week.
+    uint8_t       starveRun = 0;
+    unsigned long starvedSinceMs = 0;      // 0 = not starved; else when it began
+    unsigned long lastStarveLogMs = 0;     // rate-limits the reminder line
+    unsigned long lastStarveRecoveryMs = 0;// last recovery attempt
+    uint32_t      starveRecoveries = 0;    // attempts made this starvation episode
+    uint32_t      starveEpisodes = 0;      // lifetime, for the health line
     uint32_t budgetBreaches = 0;                  // BUDGET BROKEN lines emitted (soak gate: must stay 0)
 
     // backlight + clock
