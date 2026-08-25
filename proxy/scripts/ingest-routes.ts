@@ -123,14 +123,16 @@ interface Args {
   env?: string;
   dryRun: boolean;
   file?: string;
+  forceShards: string[];
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false };
+  const a: Args = { dryRun: false, forceShards: [] };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dry-run") a.dryRun = true;
     else if (argv[i] === "--env") a.env = argv[++i];
     else if (argv[i] === "--file") a.file = argv[++i];
+    else if (argv[i] === "--force-shard") a.forceShards.push(argv[++i] as string);
   }
   return a;
 }
@@ -375,7 +377,42 @@ async function main() {
   // indistinguishable from a diff that is working.
   const prevHash = (name: string) => (prevManifest[name] ?? "").split(":")[0] ?? "";
   const prevCount = (name: string) => Number((prevManifest[name] ?? "").split(":")[1] ?? NaN);
-  const changed = [...shards.entries()].filter(([name, s]) => prevHash(name) !== s.hash);
+
+  // --force-shard: REWRITE A SHARD WHOSE SOURCE HAS NOT CHANGED.
+  //
+  // The diff keys off the SOURCE hash, which is the right thing for a refresh and
+  // the wrong thing for a repair -- and the difference is not theoretical. The
+  // 2026-08-25 staging load wrote 619,103 keys, reported Success! on every chunk,
+  // and silently dropped exactly one: rt:IGO7J, mid-chunk, in a chunk unrelated
+  // to the one 524 that was retried. `written` counted it. A 12-key sample had a
+  // 1-in-51,592 chance of catching it.
+  //
+  // Without this flag that hole is PERMANENT: the IGO shard's hash is unchanged,
+  // so every subsequent run writes nothing and the key never comes back. A repair
+  // path is not a convenience here, it is the difference between a mirror that
+  // converges on correct and one that accumulates silent gaps forever.
+  //
+  // It lives in the writer rather than the verifier on purpose -- the writer is
+  // what knows how to turn a corpus row into a value, and a second implementation
+  // of that would be free to disagree with this one.
+  //
+  //   npm run verify:routes -- --env staging          # names the bad shards
+  //   npm run ingest:routes -- --env staging --force-shard IGO-all.csv
+  const forced = new Set<string>();
+  if (args.forceShards.length > 0) {
+    for (const name of shards.keys()) {
+      if (args.forceShards.some((f) => name.includes(f))) forced.add(name);
+    }
+    console.log(`--force-shard matched ${forced.size} shard(s): ${[...forced].join(", ")}`);
+    if (forced.size === 0) {
+      console.error("REFUSING: --force-shard matched nothing. A repair that silently repairs");
+      console.error("no shard is worse than no repair, because it reports success.");
+      process.exit(1);
+    }
+  }
+
+  const changed = [...shards.entries()]
+    .filter(([name, s]) => forced.has(name) || prevHash(name) !== s.hash);
   const changedPairs = changed.flatMap(([, s]) => s.pairs);
   console.log(`diff: ${changed.length}/${shards.size} shards changed -> ${changedPairs.length} keys to write`);
 
