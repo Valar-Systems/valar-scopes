@@ -746,6 +746,34 @@ and Follow silently repointing it would surprise someone who never asked.
 
 **This is the regime that ships first (§1.1).**
 
+### The radar card already names this regime, and Follow should reuse the phrase
+
+As of the CC0 route mirror (#260), a route whose origin equals its destination is
+**data, not a defect** — 39 such callsigns exist in the 619,103-row table and every
+one is a real circular flight: RAF Cranwell circuits, Nice sightseeing runs, survey
+patterns. The rev-3 endpoint rule guarantees the property directly (`o == d` **iff**
+every leg is the same field), so the device can trust `o == d` as *"this aircraft
+came back to where it started"* without any further check. That is what makes the
+render decision safe to make on-device from two three-letter codes.
+
+The radar's detail card therefore renders those as **`Local flight: EGYD`** rather
+than `EGYD -> EGYD`, which read as the manufactured self-loop the rule exists to
+prevent. Two notes for whoever builds this face:
+
+- **Follow's local face should use the same words.** A pilot doing circuits sees
+  `Local flight` on the card that launched the follow; a different phrase on the
+  follow face would read as a different concept. This is one of the §7.2
+  "reuse, do not rebuild" cases, at the level of copy rather than code.
+- **The airport is a CODE, not a name.** The device carries `include/Airports.h`
+  — ~250 IATA codes and coordinates, no names — and §10 above is explicit that the
+  local face adds no dataset. So it is `Local flight: EGYD`, never
+  `Local flight: Cranwell`. If names are ever wanted they come from the Worker as
+  an enrich field, not from a baked table; that is a separate decision with a
+  flash cost, and nothing in Follow needs it.
+
+`ON THE GROUND` and `Local flight` are not the same statement and must not merge:
+one is where the aircraft is now, the other is what the whole flight was.
+
 ### Why the arc face does not transfer
 
 A Cessna doing circuits at the local field has **no origin/destination pair, no progress,
