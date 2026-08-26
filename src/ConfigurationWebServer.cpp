@@ -466,8 +466,9 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     <span>Radius:</span>
                     <input id="radius" name="radius" type="number" min="0.1" step="0.1" max="222" value='%RADIUS%' class="grow">
                     <select id="radius-unit" name="radius-unit">
-                        <option value="km" %RADIUS_UNIT_KM%>km</option>
                         <option value="mi" %RADIUS_UNIT_MI%>mi</option>
+                        <option value="km" %RADIUS_UNIT_KM%>km</option>
+                        <option value="nmi" %RADIUS_UNIT_NMI%>nmi</option>
                     </select>
                 </label>
 
@@ -932,18 +933,26 @@ R"(
             // within OpenSky's rate-limit area, swapping the limit with the unit
             const radiusInput = document.getElementById('radius');
             const radiusUnit = document.getElementById('radius-unit');
-            const KM_PER_MILE = 1.609344;
+            // Mirrors include/DisplayUnits.h. Both are exact by definition.
+            // Convert VIA kilometres rather than unit-to-unit: three units would
+            // otherwise need six directed branches, and the two-way version this
+            // replaced was already the shape that makes a missed case render one
+            // unit under another's label.
+            const KM_PER = { km: 1, mi: 1.609344, nmi: 1.852 };
+            // ~2 degrees of scan box, to stay inside OpenSky's rate-limit area.
+            const MAX_KM = 222;
+            let prevUnit = radiusUnit.value;
             function updateRadiusMax() {
-                radiusInput.max = radiusUnit.value === 'mi' ? '138' : '222';
+                radiusInput.max = String(Math.floor(MAX_KM / KM_PER[radiusUnit.value]));
             }
             radiusUnit.addEventListener('change', function() {
-                // the unit just flipped, so convert the displayed value to keep the
-                // real-world distance the same: -> mi means it was km, -> km means it was mi
+                // Keep the real-world distance the same across the swap.
                 const value = parseFloat(radiusInput.value);
                 if (!isNaN(value)) {
-                    const converted = radiusUnit.value === 'mi' ? value / KM_PER_MILE : value * KM_PER_MILE;
-                    radiusInput.value = Math.round(converted * 10) / 10;
+                    const km = value * KM_PER[prevUnit];
+                    radiusInput.value = Math.round((km / KM_PER[radiusUnit.value]) * 10) / 10;
                 }
+                prevUnit = radiusUnit.value;
                 updateRadiusMax();
             });
             updateRadiusMax();
@@ -2223,7 +2232,11 @@ void ConfigurationWebServer::Initialise() {
         const String radius = HtmlEscape(prefs.getString("radius", "100"));
         // isKey() probes without logging; a plain getString() on this not-yet-saved
         // key spams "nvs_get_str ... NOT_FOUND" on every page load until first save
-        const String radiusUnit = HtmlEscape(prefs.isKey("radius-unit") ? prefs.getString("radius-unit", "km") : "km");
+        // DEFAULT IS mi. Decided 2026-08-26 while the store was still draft, so
+        // there is no installed base to migrate and no cfg-rev cost -- buyers are
+        // predominantly American. A device that stored ANY value keeps it: a
+        // default only ever reaches keys that were never written.
+        const String radiusUnit = HtmlEscape(prefs.isKey("radius-unit") ? prefs.getString("radius-unit", "mi") : "mi");
         const String openskyClientId = HtmlEscape(prefs.getString("opensky-id", ""));
         String openskySecret = HtmlEscape(prefs.getString("opensky-secret", ""));
 #ifdef FEATURE_CLOUD_FEED
@@ -2620,8 +2633,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
                 if (var == "RADIUS")         return radius;
-                if (var == "RADIUS_UNIT_KM") return radiusUnit == "mi" ? "" : "selected";
-                if (var == "RADIUS_UNIT_MI") return radiusUnit == "mi" ? "selected" : "";
+                if (var == "RADIUS_UNIT_KM")  return radiusUnit == "km"  ? "selected" : "";
+                if (var == "RADIUS_UNIT_MI")  return radiusUnit == "nmi" || radiusUnit == "km" ? "" : "selected";
+                if (var == "RADIUS_UNIT_NMI") return radiusUnit == "nmi" ? "selected" : "";
                 if (var == "OPENSKY_ID")     return openskyClientId;
                 if (var == "OPENSKY_SECRET") return openskySecret;
 #ifdef FEATURE_CLOUD_FEED

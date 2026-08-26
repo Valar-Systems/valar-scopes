@@ -1,4 +1,5 @@
 #include "AircraftManager.h"
+#include "DisplayUnits.h"
 #include "ConfigMigration.h"
 #include "TlsAllocator.h"
 
@@ -625,8 +626,12 @@ void AircraftManager::Initialise()
     // aircraft until the radius is explicitly changed.
     const String radiusStr = configServer.GetStoredString("radius");
     const double distance = radiusStr.isEmpty() ? 100.0 : radiusStr.toDouble();
-    const bool inMiles = configServer.GetStoredString("radius-unit") == "mi";
-    const double distanceKm = inMiles ? distance * 1.609344 : distance;
+    // Normalise once, here, and pass the unit around -- never re-read and
+    // re-branch at a render site. units::Normalise falls back to the default for
+    // anything unrecognised, so a value written by a NEWER firmware cannot be
+    // treated as a unit this build does not know.
+    const String cfgUnit = units::Normalise(configServer.GetStoredString("radius-unit"));
+    const double distanceKm = units::ToKm(distance, cfgUnit);
 
     constexpr double KM_PER_DEGREE = 111.0;
     constexpr double MAX_DEGREES = 2.0; // keep the OpenSky box within rate-limit area
@@ -642,8 +647,8 @@ void AircraftManager::Initialise()
     // outer range-ring distance in the user's unit (derived from the clamped
     // radLat so the labels match what's actually drawn), for the ring labels
     rangeRadiusDisplay = radLat * KM_PER_DEGREE;
-    if (inMiles) rangeRadiusDisplay /= 1.609344;
-    rangeUnit = inMiles ? "mi" : "km";
+    rangeRadiusDisplay = units::FromKm(rangeRadiusDisplay, cfgUnit);
+    rangeUnit = cfgUnit;
 
     // configuration
     const String renderText = configServer.GetStoredString("infotext");
@@ -811,7 +816,7 @@ void AircraftManager::Initialise()
     alertOverhead = configServer.GetStoredString("lookup-alert") == "true";
     double lookupDist = configServer.GetStoredString("lookup-dist").toDouble();
     if (lookupDist <= 0.0) lookupDist = 3.0;
-    overheadKm = inMiles ? lookupDist * 1.609344 : lookupDist;
+    overheadKm = units::ToKm(lookupDist, cfgUnit);
 
     // Home Assistant / MQTT publishing (off by default).
     mqttEnabled = configServer.GetStoredString("mqtt") == "true";
@@ -2709,8 +2714,7 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
         auto [la, lo] = t.GetDisplayPosition();
         const float dLa = la - (float)lat, dLo = (lo - (float)lon) * clat;
         float dist = sqrtf(dLa * dLa + dLo * dLo) * 111.0f; // degrees -> km
-        if (rangeUnit == "mi") dist /= 1.609344f;
-        const String distStr = String(dist, dist < 10.0f ? 1 : 0) + rangeUnit;
+        const String distStr = units::FormatKm(dist, rangeUnit);
 
         const int y = LIST_ROW_TOP + r * LIST_ROW_H;
         uint32_t rowColor = lgfx::color888(0, 200, 0);
@@ -2840,8 +2844,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         line("High " + label(highIcao) + " " + String(lroundf(maxAlt * METRES_TO_FEET)) + "ft");
         line("Fast " + label(fastIcao) + " " + String(lroundf(maxVel * MS_TO_KNOTS)) + "kt");
         float distance = sqrtf(minD2) * 111.0f;
-        if (rangeUnit == "mi") distance /= 1.609344f;
-        line("Near " + label(nearIcao) + " " + String(distance, distance < 10.0f ? 1 : 0) + rangeUnit);
+        line("Near " + label(nearIcao) + " " + units::FormatKm(distance, rangeUnit));
     }
 
     // TODAY -- contacts since local midnight, peak simultaneous count, busiest
@@ -2927,8 +2930,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
             if (rf.set) best += " " + String(lroundf(rf.value)) + "kt";
             if (rn.set) {
                 float d = rn.value;
-                if (rangeUnit == "mi") d /= 1.609344f;
-                best += " " + String(d, d < 10.0f ? 1 : 0) + rangeUnit;
+                best += " " + units::FormatKm(d, rangeUnit);
             }
             line(best);
         }
@@ -3241,6 +3243,8 @@ void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
     const float ringFrac[3] = { 1.0f, 2.0f / 3.0f, 1.0f / 3.0f };
     const int inset[3] = { 14, 3, 3 }; // push the outer label down off the bezel/N
     for (int i = 0; i < 3; ++i) {
+        // rangeRadiusDisplay is ALREADY in display units (converted at setup),
+        // so this formats the number without re-converting.
         const float value = rangeRadiusDisplay * ringFrac[i];
         String label = String(value, value < 10.0f ? 1 : 0);
         if (i == 0) label += rangeUnit; // unit on the outer ring only
@@ -5615,12 +5619,11 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         const float dLatKm = (aLat - (float)lat) * 111.0f;
         const float dLonKm = (aLon - (float)lon) * 111.0f * cosf(radians((float)lat));
         float distance = sqrtf(dLatKm * dLatKm + dLonKm * dLonKm);
-        if (rangeUnit == "mi") distance /= 1.609344f;
         float bearing = degrees(atan2f(dLonKm, dLatKm));
         if (bearing < 0.0f) bearing += 360.0f;
         static const char* DIRS[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
         const char* dir = DIRS[((int)roundf(bearing / 45.0f)) % 8];
-        line("Dist: " + String(distance, distance < 10.0f ? 1 : 0) + " " + rangeUnit + " " + dir);
+        line("Dist: " + units::FormatKm(distance, rangeUnit, /*space=*/true) + " " + dir);
 
         if (!tracked.registration.isEmpty()) line("Reg: " + tracked.registration);
         line("Alt: " + String(lroundf(s.baroAltitude * METRES_TO_FEET)) + " ft");
