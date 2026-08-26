@@ -81,10 +81,11 @@ This section is the reason the merge was worth doing. Read it before anything el
 
 The design note says "Mirror into D1" (§10 step 2) and describes field elevation
 riding "out of the D1 mirror" (§4.1). **Both are stale.** The storage decision was
-reversed on new information and the mirror is Cloudflare Workers KV. As of
-2026-08-25 it is loaded and verified in staging: 619,103 route keys, `meta:routes`
-reporting 1,575 shards, sentinel provenance proved, 12/12 sampled keys byte-identical,
-diff path exercised at 0 changed keys.
+reversed on new information and the mirror is Cloudflare Workers KV. As of 2026-08-26 it is
+loaded and verified in **staging AND production**: 619,103 route keys in each,
+`meta:routes` reporting 1,575 shards, sentinel provenance proved, sampled keys
+byte-identical, the diff path exercised at 0 changed keys, and a full per-shard
+enumeration passing 1575/1575 on staging. Production carries rule rev 2 (§C5a).
 
 This is not a simple find-and-replace, and that is the point of flagging it:
 
@@ -166,7 +167,7 @@ It needs a face: the route, the scheduled departure, a countdown, and a transiti
 `IN_CONTACT` on first contact. For the local regime it needs less — the aircraft is
 either at the field or it is not — but it still needs to say so.
 
-### C5 — Field elevation: CORRECTED 2026-08-25, and the correction has propagated
+### C5 — Field elevation: the WORKAROUND is dead; the DELIVERY is not built
 
 The design note originally said `include/Airports.h` carries no elevation, generalised
 that to airport data in general, and built a self-calibrating learn-over-two-flights
@@ -188,6 +189,22 @@ number the device had to earn; the **first** flight is detected as well as the t
 The visual spec's §13 still carried an instruction to "correct the note before building
 from it." **That instruction is discharged** — it is done — and is dropped here so
 nobody actions it twice.
+
+**But only the workaround deletion is settled.** Checked against the built pipeline
+on 2026-08-26: `scripts/ingest-routes.ts` emits `rt:` keys from `routes/` and nothing
+else. No airport family is written to KV at all, so `AltitudeFeet` exists in the
+corpus and is reachable by **no running code**.
+
+So this section resolves exactly one claim — *the self-calibrating
+learn-over-two-flights mechanism stays deleted*, because the data exists and is ours
+and the device must never have to earn a number we already have. It does **not**
+establish that landed detection has a threshold available to it today. Delivering
+that data is a build item (§19 item 7) and is C1's concrete form: `ap:` keys if a
+lookup by code suffices, the D1 side if §7.3's priority-sorted overlay forces a query.
+
+**Stage 1 is not gated on it.** The local regime's home field is one airport, which
+can ride the existing config flow — so nothing about local-first waits for this
+decision.
 
 ### C6 — Follow is one screen with several faces, not several screens
 
@@ -1134,14 +1151,25 @@ Local regime first (§1.1). Within it:
 
 Then the airline regime, gated on the production mirror cutover:
 
-7. **Arc face and the four contact states** (§8).
-8. **Post-flight card, great-circle version.**
-9. **Globe face**, long-haul only (§9).
-10. **Regional chart** plus the Worker-delivered regional dataset.
-11. **Card integration**, once the gesture question is answered (§12.5).
-12. **On-device picker**, only if C2 is resolved in its favour (§12.4).
+7. **Emit an airport family from the ingest** — the delivery half of C5, and C1's
+   concrete form. `AltitudeFeet` for 34,128 fields is in the CC0 corpus and no
+   running code reads it: the ingest writes `rt:` keys only. Landed detection needs
+   `geoAltitude` against published field elevation, so this precedes anything that
+   claims to detect a landing away from home.
+   **Decide the store with the access pattern, not by symmetry with routes:** `ap:`
+   keys in KV if lookup-by-code is sufficient, the D1 side if §7.3's priority-sorted
+   nearest-N overlay forces a query. KV cannot answer nearest-N.
+   *Not required for stage 1* — the local regime's home field is a single airport
+   carried by the existing config flow.
+8. **Arc face and the four contact states** (§8).
+9. **Post-flight card, great-circle version.**
+10. **Globe face**, long-haul only (§9).
+11. **Regional chart** plus the Worker-delivered regional dataset.
+12. **Card integration**, once the gesture question is answered (§12.5).
+13. **On-device picker** — CLOSED for stage 1 by the C2 decision (option 3). Reopen
+    only with a resolution that keeps §17 testable as string-absence.
 
-Steps 7–12 are worthless without step 2. **Ship honest states before pretty ones.**
+Steps 8–13 are worthless without step 2. **Ship honest states before pretty ones.**
 
 ---
 
