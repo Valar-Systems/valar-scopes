@@ -4405,6 +4405,14 @@ void AircraftManager::ProcessDetailLookups()
         // request. Marking it before the guard would strand the aircraft in
         // Fetching forever on a device with no proxy configured -- a card that
         // says "Loading..." with nothing loading, which is worse than an empty one.
+        // GUARDED, because RequestCloudEnrich is only declared under
+        // FEATURE_CLOUD_FEED and not every env defines it -- blipscope-pro-s3-175-amoled
+        // does not. Without this the SKU fails to COMPILE, which is the good
+        // outcome: with adsbdb gone there is no other detail source, so an
+        // unguarded call would otherwise have been a silent behaviour gap on a
+        // board nobody was building locally. The background lookup below already
+        // had this guard; this call site was added without it.
+#ifdef FEATURE_CLOUD_FEED
         if (UseCloudEnrich()) {
             String cs = tracked.state.callsign;
             cs.trim();
@@ -4412,6 +4420,7 @@ void AircraftManager::ProcessDetailLookups()
             auto [dLat, dLon] = tracked.GetDisplayPosition();
             RequestCloudEnrich(selectedIcao, cs, dLat, dLon);
         }
+#endif
         return;
     }
     if (tracked.metadataState == TrackedAircraft::MetadataState::Fetching)
