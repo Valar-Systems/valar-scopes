@@ -80,14 +80,18 @@
  * preference the airport overlay uses, and for the same reason (a spotter
  * recognises DFW; for a field with no IATA, KONT beats blank).
  *
- * Multi-leg routes ("VHHH-UACC-EBLG") take the FIRST leg as origin and the LAST
- * as destination, matching the parser this replaces.
+ * Multi-leg handling lives in routerule.ts (shared with the verifier so the two
+ * cannot drift): through service A-B-C renders A-C, but a ROTATION A-B-A renders
+ * the outbound leg A-B rather than the self-loop A-A the inherited parser
+ * produced. RULE_REV is folded into the shard hash so a change to that rule
+ * re-diffs every shard instead of silently writing nothing.
  */
 import { execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { RULE_REV, routeEndpoints } from "./routerule";
 import { q, sh } from "./shquote";
 
 /** One request for the whole corpus, from the CC0 source of record. */
@@ -96,6 +100,7 @@ const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/r
 const BULK_CHUNK = 10_000;
 /** Written LAST, and only if everything else succeeded. See rule 1. */
 const META_KEY = "meta:routes";
+
 
 /**
  * Sanity band on the row count. Not tuned to the margin: 619,103 measured on
@@ -285,10 +290,13 @@ async function main() {
   const shards = new Map<string, { hash: string; pairs: [string, string][] }>();
   let parsed = 0;
   let skipped = 0;
+  let rotations = 0;
   for (const fp of shardFiles) {
     const raw = readFileSync(fp, "utf8");
     const name = fp.slice(root.length + 1).replace(/\\/g, "/");
-    const hash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
+    // RULE_REV is part of the hash, not just the bytes: a rule change must
+    // re-diff every shard, or the fix silently writes nothing.
+    const hash = createHash("sha256").update("rule" + RULE_REV).update(raw).digest("hex").slice(0, 16);
     const pairs: [string, string][] = [];
     for (const r of rows(raw)) {
       parsed++;
@@ -297,15 +305,16 @@ async function main() {
       if (!cs || !codes || codes.toLowerCase() === "unknown") { skipped++; continue; }
       const legs = codes.split("-").filter((p) => p.length > 0);
       if (legs.length < 2) { skipped++; continue; }
-      pairs.push([
-        `rt:${cs}`,
-        JSON.stringify({ o: code(legs[0] as string), d: code(legs[legs.length - 1] as string) }),
-      ]);
+      // See routeEndpoints: a rotation must not render as DFW-DFW.
+      const [oIcao, dIcao] = routeEndpoints(legs);
+      if (legs.length > 2 && legs[0] === legs[legs.length - 1]) rotations++;
+      pairs.push([`rt:${cs}`, JSON.stringify({ o: code(oIcao), d: code(dIcao) })]);
     }
     shards.set(name, { hash, pairs });
   }
   const totalRows = [...shards.values()].reduce((n, s) => n + s.pairs.length, 0);
   console.log(`routes: ${shardFiles.length} shards, ${parsed} rows parsed, ${skipped} skipped, ${totalRows} usable`);
+  console.log(`  rule rev ${RULE_REV}: ${rotations} rotations rendered as their outbound leg (would have been X-X)`);
 
   if (totalRows < MIN_ROWS || totalRows > MAX_ROWS) {
     console.error(`REFUSING: ${totalRows} rows is outside the sane band ${MIN_ROWS}-${MAX_ROWS}.`);
@@ -737,6 +746,7 @@ async function main() {
   // ---- rule 1: the meta key, LAST -----------------------------------------
   const meta = {
     v: 1,
+    ruleRev: RULE_REV,
     rows: totalRows,
     written: writtenData,
     builtAt: new Date().toISOString(),

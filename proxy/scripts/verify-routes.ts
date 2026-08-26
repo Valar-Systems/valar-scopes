@@ -33,6 +33,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { routeEndpoints } from "./routerule";
 import { q, sh } from "./shquote";
 
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
@@ -118,6 +119,8 @@ async function main() {
   // ---- what SHOULD be there, per shard ------------------------------------
   const expectedByShard = new Map<string, Set<string>>();
   const expectedAll = new Set<string>();
+  // Values too, not just keys -- presence is not correctness.
+  const expectedValues = new Map<string, { o: string; d: string }>();
   for (const fp of csvFiles(join(root, "routes")).sort()) {
     const shard = sh(fp.slice(root.length + 1));
     const keys = new Set<string>();
@@ -126,8 +129,11 @@ async function main() {
       const codes = r["AirportCodes"] ?? "";
       if (!cs || !codes || codes.toLowerCase() === "unknown") continue;
       if (codes.split("-").filter((p) => p.length > 0).length < 2) continue;
+      const legs = codes.split("-").filter((p) => p.length > 0);
+      const [o, d] = routeEndpoints(legs);
       keys.add(`rt:${cs}`);
       expectedAll.add(`rt:${cs}`);
+      expectedValues.set(`rt:${cs}`, { o, d });
     }
     if (keys.size > 0) expectedByShard.set(shard, keys);
   }
@@ -189,6 +195,42 @@ async function main() {
     }
     if (badShards.length > 25) console.log(`  ... and ${badShards.length - 25} more shard(s)`);
   }
+
+  // ---- VALUE assertion: origin must not equal destination ------------------
+  //
+  // Presence is not correctness. A key can be present, byte-identical to what
+  // the writer produced, and still say the aircraft flew from Dallas to Dallas.
+  //
+  // That is not hypothetical -- it shipped to staging. The inherited multi-leg
+  // rule took the first and last leg of "KDFW-KBUR-KDFW" and rendered DFW-DFW,
+  // on 9,249 routes. Every coverage check passed, because every one of them
+  // asked "is the key there" and none asked "is the value meaningful". It was
+  // caught by eyeballing three AAL flight numbers in a disagreement sample,
+  // which is not a process.
+  //
+  // A self-loop is the one route value that is provably wrong without needing a
+  // second source to compare against -- no scheduled service departs and arrives
+  // at the same airport -- so it is exactly the kind of thing a verifier should
+  // assert rather than a human should notice.
+  console.log("checking values (origin != destination) ...");
+  const selfLoops: string[] = [];
+  for (const [shard, want] of expectedByShard) {
+    for (const k of want) {
+      const v = expectedValues.get(k);
+      if (!v) continue;
+      if (v.o && v.o === v.d) selfLoops.push(`${k} = ${v.o}-${v.d}  [${shard}]`);
+    }
+  }
+  if (selfLoops.length > 0) {
+    console.log("");
+    console.log(`RESULT: FAIL -- ${selfLoops.length} route(s) have origin == destination`);
+    selfLoops.slice(0, 15).forEach((s) => console.log(`  ${s}`));
+    if (selfLoops.length > 15) console.log(`  ... and ${selfLoops.length - 15} more`);
+    console.log("A card cannot say an aircraft flew from an airport to itself. See");
+    console.log("routeEndpoints() in ingest-routes.ts and bump RULE_REV when fixing.");
+    process.exit(1);
+  }
+  console.log(`values: 0 self-loops in ${expectedAll.size} routes`);
 
   // Keys under rt: the corpus does not expect. NOT a failure: adsbdb-era entries
   // are still aging out on their 24 h TTL, and an anchor's negative entry lives
