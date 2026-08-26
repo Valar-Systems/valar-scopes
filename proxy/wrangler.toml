@@ -131,7 +131,12 @@ BLIPS_FEED_MAX_AGE_MS = "85000"
 # airplanes.live is PROHIBITED by operator (written refusal) and hardcoded off in
 # code -- this var is a dead no-op. See "Upstream licensing posture" in README.md.
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
-ROUTE_ADSBDB_ENABLED = "true"
+# adsbdb is OFF here so the route canaries can FAIL. With the fallback enabled a
+# resolved callsign proves nothing -- it is equally consistent with our mirror
+# answering, adsbdb answering, and a leftover 24 h cache entry answering. Off, a
+# canary that resolves can only have come from the rt: mirror, which is the
+# falsifiable version of the same check. Production follows at cutover.
+ROUTE_ADSBDB_ENABLED = "false"
 
 # Full request logs on staging (low traffic). Production should sample --
 # ~200 B/request of JSON at fleet scale is real Workers Logs money; see the
