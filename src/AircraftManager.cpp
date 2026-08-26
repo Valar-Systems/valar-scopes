@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "DisplayUnits.h"
+#include "RouteLabel.h"
 #include "ConfigMigration.h"
 #include "TlsAllocator.h"
 
@@ -5487,9 +5488,16 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     }
 
-    // identity first (route + type + operator), shown in both layouts
-    if (!tracked.routeOrigin.isEmpty() && !tracked.routeDest.isEmpty())
-        line(tracked.routeOrigin + " -> " + tracked.routeDest);
+    // identity first (route + type + operator), shown in both layouts.
+    // routelabel::CardLine returns "" when there is no route, and renders a
+    // flight that came back to its departure field as "Local flight: EGYD"
+    // instead of "EGYD -> EGYD" -- which is real data, but reads exactly like
+    // the manufactured self-loop the mirror's rev-3 rule exists to prevent.
+    // Shared with the List screen's Route field; see include/RouteLabel.h.
+    {
+        const String routeLine = routelabel::CardLine(tracked.routeOrigin, tracked.routeDest);
+        if (!routeLine.isEmpty()) line(routeLine);
+    }
     if (!tracked.typeCode.isEmpty())     line("Type: " + tracked.typeCode);
     if (!showPhoto && !tracked.typeName.isEmpty()) line(tracked.typeName); // full model, data page only
     if (!tracked.operatorName.isEmpty()) line(tracked.operatorName);
