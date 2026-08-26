@@ -196,6 +196,32 @@ publishes a matching `version.txt`.
 > **Publish the Release first, confirm `latest` ≥ `current` on one assembled unit, then
 > assemble the rest.**
 
+> ### PRINT GATE: THE QR ENCODES THE SCOPES URL, NEVER THE APEX SHORT FORM
+>
+> **QR target: `https://scopes.valarsystems.com/blipscope`. Not
+> `valarsystems.com/blipscope`.**
+>
+> The short form works and is fine for a *typed* URL, but it is a **301** and
+> cannot be made anything else. Traced 2026-08-26: the apex is `A 23.227.38.65`,
+> **DNS-only**, straight to Shopify — Cloudflare's proxy never sees that traffic,
+> which is why the zone has no redirect rule for it. The 301 is **Shopify
+> UrlRedirect 369360142395**, and Shopify URL redirects are *always* 301: the
+> resource type has no status field. There is nothing to configure.
+>
+> A 301 is cached by the browser indefinitely, so every scan of a printed card
+> would permanently bind that phone to whatever the redirect said on the day it
+> was scanned. Encoding the scopes URL **deletes that hop from the printed path**
+> rather than trying to repair it. The Shopify redirect stays for people who type
+> the short form.
+>
+> Hop 2 (`scopes.valarsystems.com/blipscope` → `/blipscope/support`) is a **302**
+> as of #258, deployed `d35f504` and verified in production with `curl -sS -o
+> /dev/null -D -`. Note `curl -sI` **cannot** verify it: `-sI` sends HEAD and the
+> Worker answers HEAD with 405, so it reports 405 whatever the redirect does.
+>
+> So the destination stays re-pointable forever, and the card is bound only to
+> the hostname we control.
+
 > ### RESTORE THE STORE LINK AT LAUNCH
 >
 > `valarsystems.com/products/blipscope` is **DRAFT and returns 404**. On 2026-08-25 it

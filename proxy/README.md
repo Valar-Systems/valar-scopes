@@ -563,6 +563,70 @@ Expect the feed to go empty during adsb.lol's shared-egress 429 windows once the
 failovers are off; that is the trade being made, and it is why they were enabled
 for the bench soak in the first place.
 
+### Route mirror (`rt:` keys) — and why loading it is a four-step procedure
+
+The callsign→route table is **ours**, mirrored from
+[vradarserver/standing-data](https://github.com/vradarserver/standing-data)
+(CC0 1.0 Universal — verified by reading `LICENSE`, which names *"a database"*
+and *"including without limitation commercial purposes"*). 619,103 routes across
+1,575 airline shards, keyed `rt:<CALLSIGN>` → `{"o":"...","d":"..."}`. This is
+what replaced adsbdb; see `docs/follow-mode-design.md` §10.
+
+**The procedure is not negotiable, and it is four steps, not one:**
+
+```sh
+npm run ingest:routes -- --env production            # 1. write
+npm run verify:routes -- --env production            # 2. enumerate + diff, PER SHARD
+npm run ingest:routes -- --env production --force-shard <name>   # 3. repair what step 2 named
+npm run verify:routes -- --env production            # 4. prove the repair
+```
+
+**A load is not finished when the writer exits zero. It is finished when the
+verifier says 1575/1575 shards and 619,103/619,103 keys.** Those are different
+events, and the reason they are different has a name.
+
+#### The IGO7J story
+
+The 2026-08-25 staging load wrote 619,103 keys in 62 chunks. Every chunk printed
+`Success!`. The writer exited 0. `written=619103`. The 12-key sample read back
+byte-identical. Five canary callsigns resolved through the live path. By every
+check the ingest had, it was clean.
+
+It was missing `rt:IGO7J` — IndiGo, Cochin→Chennai. One key in 619,103.
+
+The forensics are the reason this section exists:
+
+- It sat **mid-chunk**, at write offset 302,495 — chunk 30, position 2,495.
+- The one chunk that failed (a Cloudflare **524** on its own KV API) and was
+  retried was chunk **45**, at offset 450,000. **A different chunk.** So this was
+  not a retry artifact: a bulk put that reported success silently dropped one of
+  its ten thousand keys.
+- `written` counted it, because that counter increments on a zero exit status —
+  it measures what the CLI accepted, never what exists.
+- The stride sample had a **1-in-51,592** chance of selecting it.
+
+And the half that would have shipped: **the diff keys off the source hash**, so
+the IGO shard read unchanged forever. Every subsequent run would write zero keys
+and the hole would never heal. That is why `--force-shard` exists, and why it
+refuses when its pattern matches nothing — a repair that repairs nothing while
+reporting success is the same failure wearing a different hat.
+
+Two design notes that follow from this and should not be quietly optimised away:
+
+- **`verify:routes` enumerates the entire namespace. No sampling, either side.**
+  Globally that one key is 99.9998% present, which is a number comfortable
+  enough to wave through. The per-shard report is what made it legible: one
+  airline at 7881/7882 against 1,574 shards at 100%.
+- **The verifier refuses to judge** if the listing returns under half the
+  expected keys. "Everything is missing" is the most likely shape of a *broken
+  enumeration* — wrong binding, wrong env, expired token — and it presents as a
+  fleet-wide catastrophe rather than as a broken tool. Same anchor control as the
+  square-photo probe in `scripts/verify-release.sh`.
+
+Chunk size stays at 10,000 (the API maximum) on the evidence of **1 retry in 62
+chunks**. If that ratio worsens, the retry counter in the ingest output is the
+number to argue from.
+
 ### Weekly data refresh
 
 `.github/workflows/refresh-data.yml` runs Mondays 06:17 UTC and refreshes the
