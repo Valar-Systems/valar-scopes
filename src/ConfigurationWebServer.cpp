@@ -630,7 +630,6 @@ R"(
                         <select name="local-details" id="local-details" class="grow">
                             <option value="" disabled %LD_UNSET%>Choose one &mdash; no default</option>
                             <option value="cloud" %LD_CLOUD%>Blipscope Cloud</option>
-                            <option value="adsbdb" %LD_ADSBDB%>adsbdb direct</option>
                             <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
                         </select>
                     </label>
@@ -643,14 +642,12 @@ R"(
                         and position, plus your device model, firmware version and access key. Your
                         receiver's address is never sent, and neither is your own location &mdash;
                         but an aircraft you tapped is by definition near you, so
-                        <i>treat this as coarse location rather than none</i>. This <i>replaces</i>
-                        the adsbdb connection rather than adding to it, so details cost one internet
-                        host instead of two, and it is the only option with photos.<br>
-                        <b>adsbdb direct</b> &mdash; queries the public api.adsbdb.com, plus a second
-                        host for thumbnails. We are never contacted; a third party is. No photo
-                        library, no caching.<br>
+                        <i>treat this as coarse location rather than none</i>. One internet host,
+                        and the only option with photos.<br>
                         <b>Off</b> &mdash; contacts nothing at all. The card shows only what your own
-                        receiver reported.
+                        receiver reported. Your radar is unaffected either way: positions come from
+                        your own receiver, so an internet outage empties the cards and leaves the
+                        radar running.
                     </span>
                 </div>
 
@@ -1091,8 +1088,8 @@ R"(
                     let h = '<div class="hint">Seeing an aircraft is your antenna. Claiming it is you &mdash; ' +
                         'open a contact\'s card on the device to claim its type, operator, country and airports at once.</div>';
                     h += section('Types', d.types, 'code', k.types || 0, 0);
-                    // "Operators", not "Airlines". adsbdb returns the REGISTERED
-                    // OWNER, and outside airline traffic that is a person or a
+                    // "Operators", not "Airlines". The registry returns the
+                    // REGISTERED OWNER, and outside airline traffic that is a person or a
                     // single-airframe LLC -- a real board's list reads ANDREW
                     // KLEMISH, BORKOSKI BRIAN, 84 ALPHA KILO LLC. Calling that
                     // "Airlines" was the least honest label on the page. The JSON
@@ -2656,10 +2653,8 @@ void ConfigurationWebServer::Initialise() {
                 // Exact matches only -- anything unrecognised (including unset) leaves the
                 // placeholder selected rather than quietly implying a choice.
                 if (var == "LD_CLOUD")  return localDetails == "cloud"  ? "selected" : "";
-                if (var == "LD_ADSBDB") return localDetails == "adsbdb" ? "selected" : "";
                 if (var == "LD_OFF")    return localDetails == "off"    ? "selected" : "";
-                if (var == "LD_UNSET")  return (localDetails == "cloud" || localDetails == "adsbdb"
-                                                || localDetails == "off") ? "" : "selected";
+                if (var == "LD_UNSET")  return localDetails == "cloud" ? "" : "selected";
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";

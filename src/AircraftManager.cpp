@@ -197,7 +197,9 @@ struct FetchResult {
 // ownership transfers by pointer through a depth-1 queue: the receiver frees it.
 // The task fills a result the loop applies; it never touches trackedAircraft,
 // the photo sprite, or the logbook.
-enum class EnrichKind : uint8_t { Metadata, Route, Photo, CloudEnrich, Ntfy, Leaderboard };
+// Metadata and Route were the two adsbdb lookups; both are gone. CloudEnrich
+// replaces them with one pre-joined request to our own proxy.
+enum class EnrichKind : uint8_t { Photo, CloudEnrich, Ntfy, Leaderboard };
 
 struct EnrichRequest {
     EnrichKind kind;
@@ -216,7 +218,7 @@ struct EnrichRequest {
 };
 
 struct EnrichResult {
-    EnrichKind kind = EnrichKind::Metadata;
+    EnrichKind kind = EnrichKind::Photo;
     String icao24;
     bool definitive = false; // a final HTTP answer arrived; false = transient failure (retry)
     // How long the loop should hold off a retry after a non-definitive result.
@@ -334,100 +336,26 @@ String normalizeLocalUrl(String url)
 // range (erased on the loop) can never be written under them. Always non-null,
 // so the loop's in-flight gate is always cleared by the matching result.
 
-EnrichResult* fetchAircraftMetadata(HttpRequestManager& http, const String& icao24)
-{
-    EnrichResult* res = new EnrichResult();
-
-    const HttpResult result = http.Get("https://api.adsbdb.com/v0/aircraft/" + icao24);
-
-    // A network-level failure (no HTTP response at all) is transient: leave it
-    // non-definitive so the loop returns the aircraft to NotFetched and retries.
-    if (!result.success) {
-        Serial.printf("[adsbdb] lookup for %s failed: %s\n", icao24.c_str(), result.errorMessage.c_str());
-        return res;
-    }
-
-    // Only a conclusive answer -- 2xx, or 404 "unknown aircraft" -- is final. A
-    // 429/5xx must stay non-definitive: recording it as Fetched-with-empty-fields
-    // would permanently blank enrichment after one adsbdb throttle window (a
-    // Fetched aircraft is never looked up again).
-    res->definitive = (result.statusCode >= 200 && result.statusCode < 300) || result.statusCode == 404;
-    if (!res->definitive) {
-        Serial.printf("[adsbdb] lookup for %s: HTTP %d, will retry\n", icao24.c_str(), result.statusCode);
-        return res;
-    }
-
-    JsonDocument doc;
-    if (deserializeJson(doc, result.response))
-        return res; // malformed body: treat as no data, but don't retry
-
-    // adsbdb wraps the record in { "response": { "aircraft": {...} } }; when the
-    // address is unknown it returns { "response": "unknown aircraft" }, leaving
-    // this lookup null.
-    JsonObject aircraft = doc["response"]["aircraft"];
-    if (aircraft.isNull()) {
-        Serial.printf("[adsbdb] %s -> unknown aircraft\n", icao24.c_str());
-        return res;
-    }
-
-    res->typeCode     = aircraft["icao_type"].isNull()           ? "" : aircraft["icao_type"].as<String>();
-    res->typeName     = aircraft["type"].isNull()                ? "" : aircraft["type"].as<String>();
-    res->operatorName = aircraft["registered_owner"].isNull()    ? "" : aircraft["registered_owner"].as<String>();
-    res->registration = aircraft["registration"].isNull()        ? "" : aircraft["registration"].as<String>();
-    res->photoUrl     = aircraft["url_photo_thumbnail"].isNull() ? "" : aircraft["url_photo_thumbnail"].as<String>();
-
-    Serial.printf("[adsbdb] %s -> type=%s operator=%s reg=%s\n",
-                  icao24.c_str(), res->typeCode.c_str(),
-                  res->operatorName.c_str(), res->registration.c_str());
-    return res;
-}
-
-EnrichResult* fetchRoute(HttpRequestManager& http, const String& callsign)
-{
-    EnrichResult* res = new EnrichResult();
-
-    const HttpResult result = http.Get("https://api.adsbdb.com/v0/callsign/" + callsign);
-
-    // network-level failure is transient: stay non-definitive so it's retried
-    if (!result.success && result.statusCode <= 0) {
-        Serial.printf("[adsbdb] route %s failed: %s\n", callsign.c_str(), result.errorMessage.c_str());
-        return res;
-    }
-
-    // only a conclusive answer (2xx, or 404 unknown callsign) is final; a
-    // 429/5xx stays non-definitive so the detail path retries it later
-    res->definitive = (result.statusCode >= 200 && result.statusCode < 300) || result.statusCode == 404;
-    if (!res->definitive) {
-        Serial.printf("[adsbdb] route %s: HTTP %d, will retry\n", callsign.c_str(), result.statusCode);
-        return res;
-    }
-    res->routeCallsign = callsign;
-
-    JsonDocument doc;
-    if (deserializeJson(doc, result.response))
-        return res;
-
-    JsonObject flightroute = doc["response"]["flightroute"];
-    if (flightroute.isNull()) {
-        Serial.printf("[adsbdb] route %s -> unknown\n", callsign.c_str());
-        return res;
-    }
-
-    // prefer the short IATA code, fall back to ICAO
-    auto airportCode = [](JsonObject airport) -> String {
-        if (airport.isNull()) return "";
-        if (!airport["iata_code"].isNull()) return airport["iata_code"].as<String>();
-        if (!airport["icao_code"].isNull()) return airport["icao_code"].as<String>();
-        return "";
-    };
-
-    res->routeOrigin = airportCode(flightroute["origin"]);
-    res->routeDest = airportCode(flightroute["destination"]);
-
-    Serial.printf("[adsbdb] route %s -> %s->%s\n", callsign.c_str(),
-                  res->routeOrigin.c_str(), res->routeDest.c_str());
-    return res;
-}
+// fetchAircraftMetadata() and fetchRoute() USED TO LIVE HERE.
+//
+// They called api.adsbdb.com directly from the device for aircraft metadata and
+// routes. Both are deleted: adsbdb is out of the stack entirely, on both halves
+// (the Worker's fallback went first; this is the firmware half).
+//
+// WHY THE DEVICE STOPPED TALKING TO THEM AT ALL. We have no written permission to
+// use adsbdb commercially. These call sites never appeared in the measured
+// request volume because they originate from CUSTOMER HOME IPs, so the exposure
+// was understated by exactly the traffic we could not see.
+//
+// WHAT REPLACED THEM: fetchCloudEnrich() below, one GET to our own Worker that
+// pre-joins metadata + route + photo pointer. BYO is about POSITIONS -- a local
+// receiver, one-second updates, a radar that survives an internet outage -- and
+// it was never about enrichment. So a local-receiver or OpenSky device keeps its
+// own position source and gets its cards from us. During an internet outage the
+// cards degrade while the radar keeps working, which is already exactly how
+// photos behave.
+//
+// See docs/follow-mode-consolidated.md §10 for the licensing reasoning.
 
 EnrichResult* fetchPhoto(HttpRequestManager& http, const String& url, const String& authKey)
 {
@@ -852,9 +780,11 @@ void AircraftManager::Initialise()
     // page enforces the choice up front; this is the belt-and-braces half.
     {
         const String det = configServer.GetStoredString("local-details");
-        localDetails = det == "cloud"  ? LocalDetails::Cloud
-                     : det == "adsbdb" ? LocalDetails::Adsbdb
-                                       : LocalDetails::Off;
+        // "adsbdb" is migrated to "cloud" at boot (ConfigMigration rev 4), so by the
+        // time this runs the stored value is never "adsbdb". The mapping is NOT
+        // repeated here: a stored value must resolve in exactly one place, and a
+        // second silent translation would hide a migration that failed to run.
+        localDetails = det == "cloud" ? LocalDetails::Cloud : LocalDetails::Off;
     }
 
 #ifdef FEATURE_CLOUD_FEED
@@ -4394,7 +4324,7 @@ void AircraftManager::ProcessDetailLookups()
     // chosen detail source is Off, or is Cloud but unusable (no URL/key). Falling
     // through to adsbdb here would silently substitute a third party for the
     // source the user actually picked.
-    if (useLocalSource && localDetails != LocalDetails::Adsbdb && !UseCloudEnrich()) {
+    if (useLocalSource && !UseCloudEnrich()) {
         photoIcao = selectedIcao;   // mark resolved so the card stops saying "Loading"
         photoResolved = true;
         return;
@@ -4468,24 +4398,37 @@ void AircraftManager::ProcessDetailLookups()
         // frame, hammering the shared TLS path and holding the bus off the feed task.
         if (millis() < tracked.metadataRetryAfter)
             return;
-        tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
-        RequestMetadata(selectedIcao);
+        // ONE request covers metadata AND route: /v1/enrich pre-joins them, which
+        // is why the separate route step below is gone.
+        //
+        // The state is set to Fetching ONLY on the branch that actually issues a
+        // request. Marking it before the guard would strand the aircraft in
+        // Fetching forever on a device with no proxy configured -- a card that
+        // says "Loading..." with nothing loading, which is worse than an empty one.
+        // GUARDED, because RequestCloudEnrich is only declared under
+        // FEATURE_CLOUD_FEED and not every env defines it -- blipscope-pro-s3-175-amoled
+        // does not. Without this the SKU fails to COMPILE, which is the good
+        // outcome: with adsbdb gone there is no other detail source, so an
+        // unguarded call would otherwise have been a silent behaviour gap on a
+        // board nobody was building locally. The background lookup below already
+        // had this guard; this call site was added without it.
+#ifdef FEATURE_CLOUD_FEED
+        if (UseCloudEnrich()) {
+            String cs = tracked.state.callsign;
+            cs.trim();
+            tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
+            auto [dLat, dLon] = tracked.GetDisplayPosition();
+            RequestCloudEnrich(selectedIcao, cs, dLat, dLon);
+        }
+#endif
         return;
     }
     if (tracked.metadataState == TrackedAircraft::MetadataState::Fetching)
         return;
 
-    // 2. route, once per callsign. A transient failure leaves routeCallsign unchanged
-    //    (so it retries), but behind the same 30 s cooldown as metadata -- otherwise
-    //    the route retries back-to-back every frame while adsbdb is unreachable.
-    String callsign = tracked.state.callsign;
-    callsign.trim();
-    if (!callsign.isEmpty() && tracked.routeCallsign != callsign) {
-        if (millis() < tracked.routeRetryAfter)
-            return;
-        RequestRoute(selectedIcao, callsign);
-        return;
-    }
+    // 2. route -- NO SEPARATE STEP. The proxy's /v1/enrich returns metadata and
+    //    route in one response, so the route arrives with step 1. The old second
+    //    lookup existed only because adsbdb had two endpoints.
 
     // 3. photo, once per aircraft
     if (photoIcao != selectedIcao) {
@@ -4537,8 +4480,6 @@ void AircraftManager::RunEnrichTask()
         const unsigned long enrichStartMs = millis(); // MEASUREMENT: the other consumer
                                                       // of the shared client
         switch (req->kind) {
-            case EnrichKind::Metadata: res = fetchAircraftMetadata(http, req->icao24); break;
-            case EnrichKind::Route:    res = fetchRoute(http, req->callsign);          break;
             case EnrichKind::Photo:    res = fetchPhoto(http, req->url, req->cloudKey);   break;
 #ifdef FEATURE_CLOUD_FEED
             case EnrichKind::CloudEnrich: res = fetchCloudEnrich(http, *req);          break;
@@ -4578,21 +4519,8 @@ bool AircraftManager::EnrichDeferredForSubmit() const
 #endif
 }
 
-void AircraftManager::RequestMetadata(const String& icao24)
-{
-    if (EnrichDeferredForSubmit())
-        return;
-    if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Metadata, icao24, "", "" }))
-        enrichInFlight = true;
-}
-
-void AircraftManager::RequestRoute(const String& icao24, const String& callsign)
-{
-    if (EnrichDeferredForSubmit())
-        return;
-    if (enqueueEnrich(enrichRequestQueue, new EnrichRequest{ EnrichKind::Route, icao24, callsign, "" }))
-        enrichInFlight = true;
-}
+// RequestMetadata() and RequestRoute() are deleted with the producers they fed.
+// Every detail lookup now goes through RequestCloudEnrich().
 
 void AircraftManager::RequestPhoto(const String& icao24, const String& url, const String& authKey)
 {
@@ -4749,35 +4677,8 @@ void AircraftManager::ConsumeEnrichResults()
     auto it = trackedAircraft.find(res->icao24);
 
     switch (res->kind) {
-        case EnrichKind::Metadata:
-            if (it != trackedAircraft.end()) {
-                if (res->definitive) {
-                    TrackedAircraft& t = it->second;
-                    t.metadataState = TrackedAircraft::MetadataState::Fetched;
-                    t.typeCode = res->typeCode;
-                    t.typeName = res->typeName;
-                    t.operatorName = res->operatorName;
-                    t.registration = res->registration;
-                    t.photoUrl = res->photoUrl;
-
-                    // Record what was SEEN (that happens on its own, and is what the
-                    // lifelist counts), then ask whether the type is still
-                    // unclaimed -- which is what the badge means. On the loop; the
-                    // logbook is loop-owned.
-                    if (logbookEnabled) {
-                        logbook.NoteType(t.typeCode);
-                        logbook.NoteOperator(t.operatorName);
-                        t.claimable = !t.typeCode.isEmpty() && logbook.IsTypeClaimable(t.typeCode);
-                    }
-                } else {
-                    // transient network failure: allow a later retry, but not before
-                    // a cooldown -- otherwise this same aircraft is re-picked every
-                    // cycle and hammers the (often heap-starved) TLS path in a storm.
-                    it->second.metadataState = TrackedAircraft::MetadataState::NotFetched;
-                    it->second.metadataRetryAfter = millis() + res->retryCooldownMs;
-                }
-            }
-            break;
+        // EnrichKind::Metadata handled the adsbdb metadata reply. Deleted with it --
+        // CloudEnrich below carries the same fields from our own proxy.
 
 #ifdef FEATURE_CLOUD_FEED
         case EnrichKind::CloudEnrich:
@@ -4876,26 +4777,8 @@ void AircraftManager::ConsumeEnrichResults()
             break;
 #endif
 
-        case EnrichKind::Route:
-            if (it != trackedAircraft.end()) {
-                if (res->definitive) {
-                    TrackedAircraft& t = it->second;
-                    t.routeCallsign = res->routeCallsign;
-                    t.routeOrigin = res->routeOrigin;
-                    t.routeDest = res->routeDest;
-                    if (logbookEnabled) {
-                        logbook.NoteAirport(t.routeOrigin);
-                        logbook.NoteAirport(t.routeDest);
-                    }
-                } else {
-                    // transient failure: leave routeCallsign unchanged so the detail
-                    // path retries, but behind a cooldown (mirrors metadata) so it
-                    // doesn't hammer adsbdb every frame during an outage.
-                    constexpr unsigned long ROUTE_RETRY_COOLDOWN = 30000;
-                    it->second.routeRetryAfter = millis() + ROUTE_RETRY_COOLDOWN;
-                }
-            }
-            break;
+        // EnrichKind::Route handled the adsbdb route reply. Deleted with it -- the
+        // proxy returns the route in the same response as the metadata.
 
         case EnrichKind::Photo:
             // decode here, on the loop, so the photo sprite is only ever touched by
@@ -5646,7 +5529,7 @@ void AircraftManager::ProcessMetadataLookups()
     // key must ALSO send nothing -- it must never fall through to the adsbdb path
     // below, because that would quietly hand a third party the data of a user who
     // explicitly picked us. A chosen source that cannot run stays silent.
-    if (useLocalSource && localDetails != LocalDetails::Adsbdb && !UseCloudEnrich())
+    if (useLocalSource && !UseCloudEnrich())
         return;
 
 #ifdef FEATURE_CLOUD_FEED
@@ -5750,15 +5633,18 @@ void AircraftManager::ProcessMetadataLookups()
     if (best == nullptr)
         return; // nothing needs a network lookup this tick
 
-    lastMetadataLookup = now;
-    best->metadataState = TrackedAircraft::MetadataState::Fetching;
 #ifdef FEATURE_CLOUD_FEED
     if (UseCloudEnrich()) {
+        lastMetadataLookup = now;
+        best->metadataState = TrackedAircraft::MetadataState::Fetching;
         String callsign = best->state.callsign;
         callsign.trim();
         RequestCloudEnrich(*bestIcao, callsign, bestLat, bestLon);
         return;
     }
 #endif
-    RequestMetadata(*bestIcao);
+    // No proxy configured: nothing to ask, and nothing is marked in flight.
+    // Leaving metadataState at Fetching here would strand every aircraft in a
+    // permanent "Loading..." on a device that will never issue the request.
+    // The radar is unaffected -- it runs on its own position source.
 }

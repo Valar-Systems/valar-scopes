@@ -48,6 +48,21 @@ void configmigration::Apply()
                       stored, CONFIG_REV, (int)had, wasOn ? "on" : "off");
     }
 
+    if (NeedsLocalDetailsMigration(stored)) {
+        // WRITE, not remove -- see NeedsLocalDetailsMigration. An absent
+        // local-details parses as Off, which would silently strip card details
+        // from the devices that explicitly asked for them.
+        const String det = prefs.isKey("local-details")
+                               ? prefs.getString("local-details", "")
+                               : String("");
+        if (det == "adsbdb") {
+            prefs.putString("local-details", "cloud");
+            Serial.printf("[cfg-migrate] rev %d -> %d: local-details migrated to cloud "
+                          "(details now come from the proxy)\n",
+                          stored, CONFIG_REV);
+        }
+    }
+
     prefs.putInt("cfg-rev", CONFIG_REV);
     prefs.end();
 }

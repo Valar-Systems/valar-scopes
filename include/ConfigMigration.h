@@ -34,8 +34,9 @@ namespace configmigration {
  *   1          reserved: the implicit revision of every build before this
  *   2          info-type / info-operator default ON (#238)
  *   3          spotting logbook default ON (v8)
+ *   4          local-details "adsbdb" -> "cloud" (adsbdb left the stack)
  */
-constexpr int CONFIG_REV = 3;
+constexpr int CONFIG_REV = 4;
 
 /**
  * The firmware default for the spotting logbook.
@@ -111,6 +112,31 @@ constexpr bool NeedsInfoFieldReset(int storedRev) { return storedRev < 2; }
  * means what the brief wanted it to mean, and no future migration may clear it.
  */
 constexpr bool NeedsLogbookReset(int storedRev) { return storedRev < 3; }
+
+/**
+ * Does this device still hold "adsbdb" as its local-receiver detail source?
+ *
+ * THIS ONE IS NOT A DEFAULT CHANGE -- IT IS A DELETED ENUM VALUE, and that makes
+ * it the one migration that CANNOT be skipped.
+ *
+ * The other two in this file clear a key so a firmware default can reach it; skip
+ * them and a device merely keeps an old behaviour. Skip this one and a device
+ * boots holding a string that no longer maps to anything. AircraftManager parses
+ * an unrecognised value as LocalDetails::Off, so the device would silently stop
+ * showing card details entirely -- and it would do so on exactly the population
+ * that went out of its way to opt INTO detail lookups.
+ *
+ * WRITE, don't remove. The other migrations remove because absence is what lets a
+ * default apply; here absence means Off, which is the wrong answer. The owner
+ * asked for remote detail lookups and that request is still satisfiable -- only
+ * the party serving them changed, from a third party we had no permission to use
+ * to our own proxy. So the stored value is rewritten rather than cleared.
+ *
+ * If the device has no proxy configured, UseCloudEnrich() is false and it lands
+ * on the same no-lookup behaviour it would have had anyway -- but by a route that
+ * is legible in the config page rather than by a parse failure.
+ */
+constexpr bool NeedsLocalDetailsMigration(int storedRev) { return storedRev < 4; }
 
 /**
  * Run any pending migrations against the "config" namespace.

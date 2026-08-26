@@ -335,8 +335,11 @@ private:
     // keep-alive client the rest of the firmware already uses.
     enum class LocalDetails : uint8_t {
         Cloud,   // via the Blipscope Cloud proxy (default)
-        Adsbdb,  // legacy behaviour: straight to api.adsbdb.com, no photos
         Off,     // contact nothing; the card shows only what the receiver reports
+        // An "Adsbdb" member used to sit here -- straight to the public API, no
+        // photos. Removed when adsbdb left the stack; stored values are migrated
+        // to Cloud by ConfigMigration rev 4 so no device boots holding an enum
+        // value that no longer exists.
     };
     LocalDetails localDetails = LocalDetails::Cloud;
 
@@ -715,8 +718,6 @@ private:
     static void EnrichTaskTrampoline(void* arg); // FreeRTOS entry -> RunEnrichTask()
     void RunEnrichTask();                        // blocking adsbdb GET / photo download, off-loop
     bool EnrichDeferredForSubmit() const;    // true while a due submit owns the next enrich slot
-    void RequestMetadata(const String& icao24);                      // loop: queue a metadata lookup
-    void RequestRoute(const String& icao24, const String& callsign); // loop: queue a route lookup
     void RequestPhoto(const String& icao24, const String& url, const String& authKey = ""); // loop: queue a photo download (authKey set in cloud mode)
     void ConsumeEnrichResults();                 // loop: apply a ready result, non-blocking
 
