@@ -307,6 +307,12 @@
        scheduled airline routes looked up by callsign. It is not read off the
        aircraft: an ADS-B transmission carries a position and a callsign, never a
        flight plan.</p>
+    <p><b>So a route is a best-effort lookup by flight number, not a live flight
+       plan, and it can lag a schedule change.</b> Airlines reassign flight
+       numbers between seasons; a database captured before a reassignment will
+       confidently give you the old city pair. That has always been true of this
+       field, whichever database was answering — the difference now is that ours
+       is dated, refreshed daily, and we can tell you where it came from.</p>
     <p><b>We changed where that database comes from.</b> Blipscope now uses a
        public-domain route database that we mirror and control, rather than the
        third-party service used previously. The reason is licensing: the old
