@@ -624,8 +624,37 @@ Two design notes that follow from this and should not be quietly optimised away:
   square-photo probe in `scripts/verify-release.sh`.
 
 Chunk size stays at 10,000 (the API maximum) on the evidence of **1 retry in 62
-chunks**. If that ratio worsens, the retry counter in the ingest output is the
-number to argue from.
+chunks** on staging and **2 in 62** on production. If that ratio worsens, the
+retry counter in the ingest output is the number to argue from.
+
+#### A control must travel the whole pipeline, not just the interesting part
+
+Second story, same file, because it is a different failure and the general form
+is worth more than either instance.
+
+Measuring how many routes change at cutover meant querying adsbdb for 467 live
+callsigns. Knowing that a probe reporting absence must first prove it can observe
+presence, the run was preceded by a control: query `BAW117`, confirm `LHR-JFK`;
+query `ZZQQ999`, confirm a stated `"unknown callsign"`. Both passed. Presence and
+absence were both demonstrably observable.
+
+**All 467 real queries then returned empty**, and the control had no way to say
+so. The callsign list was written by Python on Windows, so it was **CRLF**; every
+URL ended in a literal carriage return and curl rejected it before sending. The
+control passed because the callsigns in it were *typed as literals* — it
+exercised the query path and never touched the input path, which is where the
+defect was.
+
+> The general form: **feed the control the actual first line of the actual file.**
+> A control assembled by hand tests the code you were thinking about, which is
+> never where the bug is.
+
+The failure was invisible for a second reason worth naming: the script used
+`curl -s` with no stderr capture, so `curl: (3) URL rejected: Malformed input to
+a URL function` was discarded 467 times. That is the standing "never filter the
+output of a command you are testing for failure" rule, broken in the one script
+whose entire job was detecting a difference. Run it bare, keep stderr in its own
+file, add filters only after you have seen both shapes.
 
 ### Weekly data refresh
 
