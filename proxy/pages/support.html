@@ -301,6 +301,33 @@
          secret, use <b>Reset Credential</b> on your OpenSky account page to issue a
          new one — which invalidates the old.</p>
     </div>
+
+    <h3 id="routes">Flight routes — where “LHR → JFK” comes from</h3>
+    <p>When a card shows an origin and destination, that comes from a database of
+       scheduled airline routes looked up by callsign. It is not read off the
+       aircraft: an ADS-B transmission carries a position and a callsign, never a
+       flight plan.</p>
+    <p><b>We changed where that database comes from.</b> Blipscope now uses a
+       public-domain route database that we mirror and control, rather than the
+       third-party service used previously. The reason is licensing: the old
+       source’s terms could not support a commercial product, and we would rather
+       own the data than ship on an unclear footing.</p>
+    <p>Two things you may notice, both expected:</p>
+    <ul>
+      <li><b>Some flights show a different route than before.</b> The two databases
+          disagree about certain flight numbers — airlines reassign them between
+          seasons, and the two sources were built from different snapshots.</li>
+      <li><b>Some flights now show no route at all.</b> If our database has no entry
+          for a callsign, the card leaves those fields blank rather than guessing.</li>
+    </ul>
+    <p>A blank route is the honest answer. The previous data’s provenance wasn’t,
+       and that is the trade we chose deliberately. Everything else on the card —
+       aircraft type, operator, registration, the photo — is unaffected, and so is
+       the radar itself.</p>
+    <p>The route database is
+       <a href="https://github.com/vradarserver/standing-data">vradarserver/standing-data</a>,
+       released into the public domain under CC0 1.0. Corrections go upstream to
+       them and reach your device on the next refresh.</p>
   </section>
 
   <section class="blk">
