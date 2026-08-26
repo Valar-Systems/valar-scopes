@@ -80,6 +80,47 @@ if [ -z "$(git branch -r --contains HEAD 2>/dev/null)" ]; then
   printf '\033[33mALLOW_UNPUSHED=1\033[0m -- deploying a commit that exists only locally.\n\n'
 fi
 
+# ---- 3. the tree must not be BEHIND origin/main -----------------------------
+#
+# wrangler bundles the WORKING TREE, so deploying from a branch that is behind
+# main silently REVERTS whatever main has and the branch does not. Nothing in the
+# deploy output says so: the upload succeeds, /healthz reports a real commit, and
+# production quietly loses features that were merged days ago.
+#
+# Caught by hand on 2026-08-26, one command before a production deploy: the route
+# mirror branch was three commits behind and would have reverted the printed-card
+# 302 (#258), the splash change (#251) and the nautical-miles unit refactor
+# (#259). All three were already live. The deploy would have reported success.
+#
+# So it is a check in the tool, not a line in a runbook: "which branch am I on"
+# is a PRODUCTION question here, not bookkeeping.
+#
+# Only blocks on commits that touch proxy/ -- firmware-only commits on main
+# cannot reach this bundle, and a guard that fires on unrelated work teaches
+# people to bypass it, which costs more than it saves.
+git fetch -q origin main 2>/dev/null || true
+BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
+BEHIND_PROXY="$(git rev-list --count HEAD..origin/main -- proxy/ 2>/dev/null || echo 0)"
+if [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
+  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
+    fatal "this tree is $BEHIND_PROXY commit(s) behind origin/main in proxy/, and wrangler ships the WORKING TREE."
+    echo "" >&2
+    echo "Deploying now would REVERT these from production:" >&2
+    git --no-pager log --oneline HEAD..origin/main -- proxy/ >&2
+    echo "" >&2
+    echo "  git merge origin/main    (then re-run)" >&2
+    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
+    exit 1
+  fi
+  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; these are being REVERTED:"
+  git --no-pager log --oneline HEAD..origin/main -- proxy/
+  echo ""
+elif [ "${BEHIND_ALL:-0}" -gt 0 ]; then
+  # Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
+  echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
+  echo ""
+fi
+
 # ---- 3. stamp what is actually being shipped --------------------------------
 SHA="$(git rev-parse --short HEAD)"
 [ -n "$DIRTY" ] && SHA="${SHA}-dirty"

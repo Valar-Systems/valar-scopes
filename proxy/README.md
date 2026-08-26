@@ -508,6 +508,38 @@ npm run deploy:staging
 Staging serves at `https://scopes-staging.valarsystems.com` (custom domain; the
 zone must be on the same Cloudflare account).
 
+### The working tree is what ships
+
+`wrangler deploy` bundles the **working tree**, not a commit and not a branch
+tip. Two consequences, and the second cost us nothing only because it was caught
+by hand one command before a production deploy:
+
+1. **Uncommitted changes ship.** Guarded since 2026-08-07 — `deploy.sh` refuses a
+   dirty `proxy/`, because an untracked `.ts` under `src/` is every bit as
+   importable as a tracked one.
+2. **A branch BEHIND main silently REVERTS whatever main has.** Nothing in the
+   output says so: the upload succeeds, `/healthz` reports a real commit, and
+   production quietly loses features merged days ago.
+
+On 2026-08-26 the route-mirror branch was three commits behind and a deploy from
+it would have reverted the printed-card 302 (#258), the splash change (#251) and
+the nautical-miles unit refactor (#259) — all three already live, all three
+invisible in the deploy log.
+
+> **"Which branch am I on" is a production question here, not bookkeeping.**
+
+So it is a check in the tool rather than a rule in this file: `deploy.sh` now
+refuses when the tree is behind `origin/main` **in `proxy/`**, and prints the
+commits it would revert. Commits that touch only firmware are noted and not
+blocked — a guard that fires on unrelated work teaches people to bypass it, which
+costs more than it saves. Escape hatch is `ALLOW_BEHIND=1`, loud like the others.
+
+Rehearsed in both directions before being trusted: it refuses from a tree behind
+in `proxy/`, naming the commit, and stays quiet from a tree behind only in
+firmware. The first rehearsal attempt used a commit whose only gap was
+firmware-only, so the guard correctly did NOT fire — a reminder that a rehearsal
+has to exercise the branch you are claiming works.
+
 ### Going to production
 
 The `[env.production]` block already exists in `wrangler.toml` (mirrors staging,
@@ -562,6 +594,99 @@ type backfill, not aircraft positions, so it is not part of this revert.
 Expect the feed to go empty during adsb.lol's shared-egress 429 windows once the
 failovers are off; that is the trade being made, and it is why they were enabled
 for the bench soak in the first place.
+
+### Route mirror (`rt:` keys) — and why loading it is a four-step procedure
+
+The callsign→route table is **ours**, mirrored from
+[vradarserver/standing-data](https://github.com/vradarserver/standing-data)
+(CC0 1.0 Universal — verified by reading `LICENSE`, which names *"a database"*
+and *"including without limitation commercial purposes"*). 619,103 routes across
+1,575 airline shards, keyed `rt:<CALLSIGN>` → `{"o":"...","d":"..."}`. This is
+what replaced adsbdb; see `docs/follow-mode-design.md` §10.
+
+**The procedure is not negotiable, and it is four steps, not one:**
+
+```sh
+npm run ingest:routes -- --env production            # 1. write
+npm run verify:routes -- --env production            # 2. enumerate + diff, PER SHARD
+npm run ingest:routes -- --env production --force-shard <name>   # 3. repair what step 2 named
+npm run verify:routes -- --env production            # 4. prove the repair
+```
+
+**A load is not finished when the writer exits zero. It is finished when the
+verifier says 1575/1575 shards and 619,103/619,103 keys.** Those are different
+events, and the reason they are different has a name.
+
+#### The IGO7J story
+
+The 2026-08-25 staging load wrote 619,103 keys in 62 chunks. Every chunk printed
+`Success!`. The writer exited 0. `written=619103`. The 12-key sample read back
+byte-identical. Five canary callsigns resolved through the live path. By every
+check the ingest had, it was clean.
+
+It was missing `rt:IGO7J` — IndiGo, Cochin→Chennai. One key in 619,103.
+
+The forensics are the reason this section exists:
+
+- It sat **mid-chunk**, at write offset 302,495 — chunk 30, position 2,495.
+- The one chunk that failed (a Cloudflare **524** on its own KV API) and was
+  retried was chunk **45**, at offset 450,000. **A different chunk.** So this was
+  not a retry artifact: a bulk put that reported success silently dropped one of
+  its ten thousand keys.
+- `written` counted it, because that counter increments on a zero exit status —
+  it measures what the CLI accepted, never what exists.
+- The stride sample had a **1-in-51,592** chance of selecting it.
+
+And the half that would have shipped: **the diff keys off the source hash**, so
+the IGO shard read unchanged forever. Every subsequent run would write zero keys
+and the hole would never heal. That is why `--force-shard` exists, and why it
+refuses when its pattern matches nothing — a repair that repairs nothing while
+reporting success is the same failure wearing a different hat.
+
+Two design notes that follow from this and should not be quietly optimised away:
+
+- **`verify:routes` enumerates the entire namespace. No sampling, either side.**
+  Globally that one key is 99.9998% present, which is a number comfortable
+  enough to wave through. The per-shard report is what made it legible: one
+  airline at 7881/7882 against 1,574 shards at 100%.
+- **The verifier refuses to judge** if the listing returns under half the
+  expected keys. "Everything is missing" is the most likely shape of a *broken
+  enumeration* — wrong binding, wrong env, expired token — and it presents as a
+  fleet-wide catastrophe rather than as a broken tool. Same anchor control as the
+  square-photo probe in `scripts/verify-release.sh`.
+
+Chunk size stays at 10,000 (the API maximum) on the evidence of **1 retry in 62
+chunks** on staging and **2 in 62** on production. If that ratio worsens, the
+retry counter in the ingest output is the number to argue from.
+
+#### A control must travel the whole pipeline, not just the interesting part
+
+Second story, same file, because it is a different failure and the general form
+is worth more than either instance.
+
+Measuring how many routes change at cutover meant querying adsbdb for 467 live
+callsigns. Knowing that a probe reporting absence must first prove it can observe
+presence, the run was preceded by a control: query `BAW117`, confirm `LHR-JFK`;
+query `ZZQQ999`, confirm a stated `"unknown callsign"`. Both passed. Presence and
+absence were both demonstrably observable.
+
+**All 467 real queries then returned empty**, and the control had no way to say
+so. The callsign list was written by Python on Windows, so it was **CRLF**; every
+URL ended in a literal carriage return and curl rejected it before sending. The
+control passed because the callsigns in it were *typed as literals* — it
+exercised the query path and never touched the input path, which is where the
+defect was.
+
+> The general form: **feed the control the actual first line of the actual file.**
+> A control assembled by hand tests the code you were thinking about, which is
+> never where the bug is.
+
+The failure was invisible for a second reason worth naming: the script used
+`curl -s` with no stderr capture, so `curl: (3) URL rejected: Malformed input to
+a URL function` was discarded 467 times. That is the standing "never filter the
+output of a command you are testing for failure" rule, broken in the one script
+whose entire job was detecting a difference. Run it bare, keep stderr in its own
+file, add filters only after you have seen both shapes.
 
 ### Weekly data refresh
 

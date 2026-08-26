@@ -131,7 +131,12 @@ BLIPS_FEED_MAX_AGE_MS = "85000"
 # airplanes.live is PROHIBITED by operator (written refusal) and hardcoded off in
 # code -- this var is a dead no-op. See "Upstream licensing posture" in README.md.
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
-ROUTE_ADSBDB_ENABLED = "true"
+# adsbdb is OFF here so the route canaries can FAIL. With the fallback enabled a
+# resolved callsign proves nothing -- it is equally consistent with our mirror
+# answering, adsbdb answering, and a leftover 24 h cache entry answering. Off, a
+# canary that resolves can only have come from the rt: mirror, which is the
+# falsifiable version of the same check. Production follows at cutover.
+ROUTE_ADSBDB_ENABLED = "false"
 
 # Full request logs on staging (low traffic). Production should sample --
 # ~200 B/request of JSON at fleet scale is real Workers Logs money; see the
@@ -243,7 +248,15 @@ UPSTREAM_ADSB_FI_ENABLED = "true"
 UPSTREAM_ADSB_FI_BASE   = "https://relay-a.valarsystems.com/fi"
 UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
-ROUTE_ADSBDB_ENABLED = "true"
+# CUTOVER 2026-08-26: adsbdb is OFF. Every route now comes from our own CC0
+# mirror (619,103 rt: keys, rule rev 3), verified by full per-shard enumeration
+# before this line changed.
+#
+# ROLLBACK IS THIS ONE VALUE. Set it back to "true" and deploy: the fallback
+# code path is still present and unchanged, deliberately, so the mirror can soak
+# under real customer traffic with a one-line escape hatch. Deleting the fallback
+# code is a LATER change, once the soak has said something.
+ROUTE_ADSBDB_ENABLED = "false"
 # Tracks the relay tile TTL, which moves 8 s -> 30 s for the 50-board pilot. The rule is
 # N >= 2 x TTL + 25 s (DEFAULT_FEED_MAX_AGE_MS in upstreams/chain.ts), so 30 s needs
 # >= 85 s: the old 45 s default would mark every normal fetch degraded and walk the whole
