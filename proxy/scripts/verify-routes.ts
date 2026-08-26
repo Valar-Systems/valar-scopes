@@ -33,7 +33,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { routeEndpoints } from "./routerule";
+import { isGenuineSelfLoop, routeEndpoints } from "./routerule";
 import { q, sh } from "./shquote";
 
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
@@ -120,7 +120,9 @@ async function main() {
   const expectedByShard = new Map<string, Set<string>>();
   const expectedAll = new Set<string>();
   // Values too, not just keys -- presence is not correctness.
-  const expectedValues = new Map<string, { o: string; d: string }>();
+  // `circular` records whether the SOURCE row was genuinely all-same, which is
+  // what separates reality from a self-loop the rule manufactured.
+  const expectedValues = new Map<string, { o: string; d: string; circular: boolean }>();
   for (const fp of csvFiles(join(root, "routes")).sort()) {
     const shard = sh(fp.slice(root.length + 1));
     const keys = new Set<string>();
@@ -133,7 +135,7 @@ async function main() {
       const [o, d] = routeEndpoints(legs);
       keys.add(`rt:${cs}`);
       expectedAll.add(`rt:${cs}`);
-      expectedValues.set(`rt:${cs}`, { o, d });
+      expectedValues.set(`rt:${cs}`, { o, d, circular: isGenuineSelfLoop(legs) });
     }
     if (keys.size > 0) expectedByShard.set(shard, keys);
   }
@@ -212,25 +214,35 @@ async function main() {
   // second source to compare against -- no scheduled service departs and arrives
   // at the same airport -- so it is exactly the kind of thing a verifier should
   // assert rather than a human should notice.
-  console.log("checking values (origin != destination) ...");
-  const selfLoops: string[] = [];
+  // A self-loop that traces to an all-same SOURCE row is reality -- 38 of them
+  // are training circuits, test and positioning flights (CWL91 at RAF Cranwell,
+  // CLX789 at Schiphol). Those pass, and the card renders them as a local flight.
+  //
+  // A self-loop the RULE manufactured from a row containing DISTINCT airports is
+  // a bug and stays a hard failure. That is the case that caught DLH8985
+  // (EGTE-EGTE-EGTE under rev 2, where legs[1] was also EGTE), and narrowing the
+  // assertion must not blunt it.
+  console.log("checking values (a self-loop must trace to a circular source row) ...");
+  const manufactured: string[] = [];
+  let circular = 0;
   for (const [shard, want] of expectedByShard) {
     for (const k of want) {
       const v = expectedValues.get(k);
-      if (!v) continue;
-      if (v.o && v.o === v.d) selfLoops.push(`${k} = ${v.o}-${v.d}  [${shard}]`);
+      if (!v || !v.o || v.o !== v.d) continue;
+      if (v.circular) { circular++; continue; }
+      manufactured.push(`${k} = ${v.o}-${v.d}  [${shard}]`);
     }
   }
-  if (selfLoops.length > 0) {
+  if (manufactured.length > 0) {
     console.log("");
-    console.log(`RESULT: FAIL -- ${selfLoops.length} route(s) have origin == destination`);
-    selfLoops.slice(0, 15).forEach((s) => console.log(`  ${s}`));
-    if (selfLoops.length > 15) console.log(`  ... and ${selfLoops.length - 15} more`);
-    console.log("A card cannot say an aircraft flew from an airport to itself. See");
-    console.log("routeEndpoints() in ingest-routes.ts and bump RULE_REV when fixing.");
+    console.log(`RESULT: FAIL -- ${manufactured.length} self-loop(s) NOT present in the source`);
+    manufactured.slice(0, 15).forEach((x) => console.log(`  ${x}`));
+    if (manufactured.length > 15) console.log(`  ... and ${manufactured.length - 15} more`);
+    console.log("These rows contain distinct airports, so the RULE produced the self-loop.");
+    console.log("See routeEndpoints() in scripts/routerule.ts and bump RULE_REV when fixing.");
     process.exit(1);
   }
-  console.log(`values: 0 self-loops in ${expectedAll.size} routes`);
+  console.log(`values: 0 manufactured self-loops (${circular} genuine circular routes, which are real)`);
 
   // Keys under rt: the corpus does not expect. NOT a failure: adsbdb-era entries
   // are still aging out on their 24 h TTL, and an anchor's negative entry lives

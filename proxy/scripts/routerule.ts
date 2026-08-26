@@ -35,8 +35,10 @@
  *
  *   1  first leg -> last leg for every multi-leg route (the parser we inherited)
  *   2  rotations (first == last) render the OUTBOUND leg, not a self-loop
+ *   3  the outbound leg is the first leg that DIFFERS from the origin; an
+ *      all-same row (A-A-A) is a genuine self-loop and is stored as one
  */
-export const RULE_REV = 2;
+export const RULE_REV = 3;
 
 /**
  * Pick the origin and destination to show for a route's leg list.
@@ -73,8 +75,49 @@ export const RULE_REV = 2;
 export function routeEndpoints(legs: string[]): [string, string] {
   const first = legs[0] as string;
   const last = legs[legs.length - 1] as string;
-  if (legs.length > 2 && first === last) return [first, legs[1] as string];
+  if (legs.length > 2 && first === last) {
+    // REV 3: the first leg that DIFFERS from the origin, not simply legs[1].
+    //
+    // Rev 2 guaranteed "not first-and-last" when the requirement was "not equal"
+    // -- a proxy for the property standing in for the property. DLH8985 is
+    // EGTE-EGTE-EGTE, so legs[1] is ALSO EGTE and the rule produced the very
+    // self-loop it existed to prevent. It fixed the shape and not the property.
+    //
+    // Found by the verifier's o != d assertion on the production load, which is
+    // the whole argument for asserting the property directly rather than trusting
+    // the transformation that was supposed to establish it.
+    for (let i = 1; i < legs.length - 1; i++) {
+      if (legs[i] !== first) return [first, legs[i] as string];
+    }
+    // Every leg is the same field: this is not a rotation with a missing leg, it
+    // is a genuine circular flight. Stored as one -- see isGenuineSelfLoop.
+    return [first, first];
+  }
   return [first, last];
+}
+
+/**
+ * True when the SOURCE row is genuinely circular -- every leg the same field.
+ *
+ * These are real and there are 38 of them in the corpus: training circuits,
+ * scenic flights, test and positioning flights. CWL91 is EGYD-EGYD, an RAF
+ * Cranwell training circuit; CLX789 is a Cargolux test circuit at Schiphol.
+ * "Departed and returned to Nice" is exactly what happened, so the data is not
+ * malformed and must not be blanked -- blank is this product's promised signal
+ * for "we do not know", and spending it on "we know, but it looks odd" would
+ * corrupt the one honest signal the card has.
+ *
+ * The verifier uses this to keep its o != d tripwire sharp: a self-loop that
+ * traces to an all-same source row is reality and passes; a self-loop the RULE
+ * manufactured from a row containing distinct airports is a bug and fails. That
+ * distinction is what would still have caught DLH8985.
+ *
+ * The card renders these as a local flight with the field named once
+ * ("Local flight - Nice") rather than NCE -> NCE, which reads as a glitch to
+ * anyone who does not know what a test circuit is.
+ */
+export function isGenuineSelfLoop(legs: string[]): boolean {
+  return legs.length >= 2 && legs.every((l) => l === legs[0]);
 }
 
 /** True when this leg list is a rotation the rule above rewrites. */
