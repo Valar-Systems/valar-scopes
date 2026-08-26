@@ -1,5 +1,7 @@
 #include "AircraftInfoFields.h"
 
+#include "RouteLabel.h"
+
 #include <cmath>
 
 namespace {
@@ -77,12 +79,15 @@ String fmtType(const TrackedAircraft& t)     { return t.typeCode; }
 String fmtOperator(const TrackedAircraft& t) { return t.operatorName; }
 String fmtReg(const TrackedAircraft& t)      { return t.registration; }
 
-// Flight route (origin>destination airport codes). Cloud mode fills this from
-// background enrichment; the BYO adsbdb path only resolves routes on inspect,
-// so there the label appears after the aircraft has been tapped once.
+// Flight route (origin>destination airport codes), filled by background
+// enrichment from the proxy.
+//
+// Formatting lives in include/RouteLabel.h, shared with the detail card, because
+// a route that comes back to its departure field renders as "Local: EGYD" rather
+// than "EGYD>EGYD" and the two screens must not disagree about that. See that
+// header for why o == d is a fact rather than a data defect.
 String fmtRoute(const TrackedAircraft& t) {
-    if (t.routeOrigin.isEmpty() || t.routeDest.isEmpty()) return "";
-    return t.routeOrigin + ">" + t.routeDest;
+    return routelabel::InfoField(t.routeOrigin, t.routeDest);
 }
 
 } // namespace
