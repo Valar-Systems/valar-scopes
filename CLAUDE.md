@@ -25,7 +25,7 @@ In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-
 
 ## Variants / multi-SKU
 
-Blipscope is several boards from one codebase. A `-DBLIPSCOPE_VARIANT_*` flag (set per env) selects a header in [include/variants/](include/variants/) defining pins, the display/touch driver (`BLIPSCOPE_PANEL_*` / `BLIPSCOPE_TOUCH_*`), capability flags (`BANDED_RENDER`, `ENRICH_ALWAYS`, `HAS_AUDIO`, `HAS_IMU`), and `SLUG`/`NAME`. Shared code never hardcodes hardware: geometry comes from [Layout.h](include/Layout.h) (from `variant::SCREEN_SIZE`), behaviour from `variant::*`, and display config from those macros in [LGFX.h](include/LGFX.h) (add a panel via an `#if` block). **Add a SKU = a variant header + an `[env:*]` + a CI matrix row** ([RELEASING.md](RELEASING.md)). Don't reintroduce hardcoded `240`/pins.
+Blipscope is several boards from one codebase. A `-DBLIPSCOPE_VARIANT_*` flag (set per env) selects a header in [include/variants/](include/variants/) defining pins, the display/touch driver (`BLIPSCOPE_PANEL_*` / `BLIPSCOPE_TOUCH_*`), capability flags (`BANDED_RENDER`, `ENRICH_ALWAYS`, `HAS_AUDIO`, `HAS_IMU`), and `SLUG`/`NAME`. Shared code never hardcodes hardware: geometry comes from [Layout.h](include/Layout.h) (from `variant::SCREEN_SIZE`), behaviour from `variant::*`, and display config from those macros in [LGFX.h](include/LGFX.h) (add a panel via an `#if` block). **Add a SKU = a variant header + an `[env:*]` + a CI matrix row** ([RELEASING.md](RELEASING.md)). Don't reintroduce hardcoded `240`/pins. A SKU still in bring-up gets a **slug-less** matrix row — built and run through the launch gate, never published; the `slug` is what names `firmware-<slug>.bin` and points an OTA channel at it. Leaving such an env out of CI entirely is how the 1.75" AMOLED quietly stopped compiling.
 
 The shipping radar SKUs are S3: `blipscope-s3-128` (**Kit S3** — jxl/EC-Buying 1.28" GC9A01 + CST816D; graduated to a CI row 2026-07-15 on the wedge gate passing — **the default**), `blipscope-s3-146` (Waveshare ESP32-S3-Touch-LCD-1.46B — SPD2010 412×412 QSPI), and `blipscope-pro-s3-21` (Waveshare ESP32-S3-Touch-LCD-2.1 — first **RGB-bus** panel, an ST7701 480×480). The Kit S3 is the one SKU whose *hardware* needs a per-batch acceptance gate before it ships — the touch IC's factory config and the u.FL-vs-chip antenna build are both silent, per-batch substitution risks; see [INCOMING-INSPECTION.md](INCOMING-INSPECTION.md). The S3-2.1 also has two board-specific wrinkles the others don't share: its panel/touch reset and the ST7701 init chip-select hang off a **TCA9554 I²C IO expander**, and it carries an IMU + buzzer. Both are handled behind the variant: `variant::BoardPreInit()` (a hook called in [setup()](src/main.cpp) before `tft.init()`; an inline no-op in every other variant header) drives the expander, and the IMU/buzzer live in [src/board/board_s3_touch21.cpp](src/board/board_s3_touch21.cpp) behind `board::*` (no-ops elsewhere via [Board.h](include/Board.h)). All board I²C uses LovyanGFX's `lgfx::i2c` (same owner as touch) on the loop task — don't reach for Arduino `Wire`.
 
@@ -369,6 +369,21 @@ was written. So the procedure, not the principle:
 
 The cost is a few lines of scrollback. The cost of the alternative was reporting
 a secret as set when it was not.
+
+**The same rule governs an assertion, not just a pipe.** A test that checks for a
+*substring* has pre-trimmed the output exactly like a `grep` — and it is blindest
+in the case it exists for. Instance (2026-08-26): the launch gate's matrix parser
+got a selftest whose cases were `case "$got" in *" charlie-retired "*)`, i.e.
+"this token must be absent". Rehearsed against a parser broken on purpose, it
+printed eight PASSes and `SELFTEST PASSED`. `sed`'s `s///` rewrites only the
+matched span and prints the whole line, so the commented-out row came back as
+`#charlie-retired` — the forbidden token, present, wearing a hash. The assertion
+was written against the shape the author imagined the failure would take.
+
+The fix is the same one as for filters: **stop matching fragments, compare the
+whole thing.** The selftest now asserts the parser's entire output equals an
+entire expected list, so anything extra fails regardless of what it looks like.
+`grep -c pattern` → compare the full list; `assert x in out` → `assert out == y`.
 
 ### Worked example: the rule, written down, then broken twice in one hour
 

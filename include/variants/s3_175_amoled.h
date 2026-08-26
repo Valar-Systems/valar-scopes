@@ -12,9 +12,14 @@
 // =====================================================================================
 //  STATUS: BENCH-ONLY SCAFFOLD. The pin map below is NOT YET VERIFIED against the
 //  Waveshare ESP32-S3-Touch-AMOLED-1.75 wiki pin table -- it is seeded from the AMOLED
-//  family and WILL need confirmation on the physical board before flashing. Do not add a
-//  CI row or ship this SKU until the pins are checked and the board is brought up
-//  (a WRONG pin is a bug, per the Airports.h/first-article discipline).
+//  family and WILL need confirmation on the physical board before flashing. Do not
+//  PUBLISH this SKU until the pins are checked and the board is brought up (a WRONG
+//  pin is a bug, per the Airports.h/first-article discipline).
+//
+//  It IS built by CI, as a slug-less compile-only row -- built and scanned, never
+//  attached to a release. Giving it the row is what stops the env rotting while it
+//  waits for hardware; giving it a SLUG is what would ship it. Add the slug here and
+//  in the matrix together, at bring-up. See RELEASING.md.
 // =====================================================================================
 
 // ---- driver selection (consumed by LGFX.h) ----

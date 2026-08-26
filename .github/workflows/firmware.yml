@@ -96,6 +96,22 @@ jobs:
       - name: Every radar SKU in the matrix builds a production cloud image
         run: node scripts/check_release_envs.mjs
 
+  # The launch gate itself scans linked binaries and so runs inside the build
+  # matrix below, per SKU. What runs HERE is its MATRIX PARSER -- the part that
+  # decides which images get scanned at all.
+  #
+  # That part gets its own job because its failure mode is silence: a parser that
+  # returns fewer envs does not fail anything, it just omits SKUs from a table
+  # whose remaining rows all say PASS. The first version of this selftest passed
+  # against a parser broken on purpose; the note in the script says why and what
+  # replaced it.
+  adsbdb-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the gate's matrix parser before the gate is trusted
+        run: bash scripts/check-adsbdb-out.sh --selftest
+
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -133,7 +149,24 @@ jobs:
           # hardware lives in INCOMING-INSPECTION.md (the touch IC's factory config and
           # the u.FL antenna build are both silent, per-batch substitution risks).
           - { env: blipscope-s3-128, slug: s3-128 }
-          # - { env: blipscope-pro-s3-175-amoled, slug: s3-175-amoled }
+          # ---- COMPILE-ONLY ROWS -------------------------------------------------
+          # A row with NO `slug` is built and scanned but publishes nothing: no
+          # firmware-<slug>.bin, no CI artifact, no release asset. It exists because
+          # "does it still compile" and "does it ship" are different questions, and
+          # only the second one needs a slug.
+          #
+          # The 1.75" AMOLED is here rather than in the published rows above because
+          # its variant header says, in capitals, that the pin map is UNVERIFIED
+          # against the board wiki -- so it must not be flashed, let alone published
+          # to an OTA channel. It also has no cloud feed, which check_release_envs
+          # would correctly reject if it were a publishing row.
+          #
+          # What being absent from CI cost: the env stopped compiling and nobody
+          # knew. It was found by hand, during a sweep that built all eleven images
+          # rather than the ten CI knew about, and the break had been introduced by
+          # the very change that sweep was checking. An env nothing builds is an env
+          # that rots silently, and this row is what stops that.
+          - { env: blipscope-pro-s3-175-amoled }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -143,15 +176,41 @@ jobs:
         run: pip install --upgrade platformio
       - name: Build ${{ matrix.env }}
         run: pio run -e ${{ matrix.env }}
+      # The launch gate, per SKU: plant a reachable adsbdb endpoint, require the
+      # scanner to FIND it in this env's image, unplant, rebuild, and scan for
+      # real. A scanner proven against one binary has not been proven against the
+      # next, so the control is planted per env rather than once.
+      #
+      # It runs BEFORE the binary is named and uploaded, and it leaves a clean
+      # rebuild in .pio -- so the image attached to a release is the exact image
+      # this scanned, and an unplant that silently failed shows up as ENDPOINT=1
+      # here instead of as a planted string in a shipped binary.
+      - name: adsbdb launch gate (${{ matrix.env }})
+        run: bash scripts/check-adsbdb-out.sh ${{ matrix.env }}
+      # The gate prints the tail of the failing build's log inline, which is
+      # usually enough. This keeps the whole thing when it is not: a control that
+      # comes back blind is exactly the case where the interesting line is above
+      # the tail. Guarded by failure() so green runs upload nothing.
+      - name: Gate build logs (on failure only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatelogs-${{ matrix.env }}
+          path: .pio/gatelogs/
+          if-no-files-found: ignore
+      # Everything below publishes, so everything below is skipped on a
+      # compile-only row.
       - name: Name binary by slug
+        if: matrix.slug
         run: cp ".pio/build/${{ matrix.env }}/firmware.bin" "firmware-${{ matrix.slug }}.bin"
       - name: Upload CI artifact
+        if: matrix.slug
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.slug }}
           path: firmware-${{ matrix.slug }}.bin
       - name: Attach to release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' && matrix.slug
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

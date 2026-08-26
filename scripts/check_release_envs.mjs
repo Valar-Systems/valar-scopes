@@ -97,9 +97,23 @@ export function resolveMacro(flags, name) {
 }
 
 // ---- firmware.yml matrix ----------------------------------------------------
+// Two kinds of row, and the difference is the whole contract:
+//
+//   { env: X, slug: Y }   PUBLISHED  -- CI names firmware-Y.bin and attaches it to
+//                                       the release, so every device on that SKU
+//                                       OTAs into it. Full assertions apply.
+//   { env: X }            COMPILE-ONLY -- built and scanned, publishes nothing.
+//                                       No slug, no asset, no fleet. A SKU whose
+//                                       hardware is not brought up lives here.
+//
+// The slug is not decoration: it is the thing that makes an image reachable by a
+// device, and it is therefore exactly the right trigger for the cloud-feed check.
+// Compile-only rows are returned with `slug: null` rather than dropped, because a
+// row this parser cannot see is a row nothing checks -- including the "is it even
+// in platformio.ini" assertion below, which applies to both kinds.
 export function matrixEnvs(yaml) {
-  return [...yaml.matchAll(/^\s*-\s*\{\s*env:\s*([A-Za-z0-9_-]+)\s*,\s*slug:\s*([A-Za-z0-9_-]+)/gm)]
-    .map((m) => ({ env: m[1], slug: m[2] }));
+  return [...yaml.matchAll(/^\s*-\s*\{\s*env:\s*([A-Za-z0-9_-]+)\s*(,\s*slug:\s*([A-Za-z0-9_-]+))?/gm)]
+    .map((m) => ({ env: m[1], slug: m[3] ?? null }));
 }
 
 export function check(iniText, yamlText) {
@@ -108,9 +122,31 @@ export function check(iniText, yamlText) {
   const rows = matrixEnvs(yamlText);
   if (rows.length === 0) problems.push("no matrix rows found in firmware.yml -- the parser or the file changed shape");
 
+  // Two published rows sharing a slug is silent and serious: CI writes both to
+  // firmware-<slug>.bin and `gh release upload --clobber` keeps whichever
+  // finished last, so a SKU receives another SKU's image on its next OTA. Matrix
+  // rows are copy-pasted and the slug is the field people forget to change.
+  const seen = new Map();
+  for (const { env, slug } of rows) {
+    if (slug === null) continue;
+    if (seen.has(slug)) {
+      problems.push(
+        `slug "${slug}" is claimed by both ${seen.get(slug)} and ${env}. ` +
+        `Both publish firmware-${slug}.bin, so one SKU would OTA into the other's image.`,
+      );
+    } else {
+      seen.set(slug, env);
+    }
+  }
+
   for (const { env, slug } of rows) {
     const sec = `env:${env}`;
     if (!ini[sec]) { problems.push(`${env}: in the CI matrix but not in platformio.ini`); continue; }
+    // Compile-only row: no slug means no published asset, so there is no fleet
+    // that could OTA into it and nothing for the cloud-feed rule to protect. The
+    // "must exist in platformio.ini" check above still applies -- that one is
+    // about the build, not the release.
+    if (slug === null) continue;
     const flags = resolveFlags(ini, sec);
     if (EDITION_FLAGS.some((f) => resolveMacro(flags, f).defined)) continue; // another product
 
@@ -187,6 +223,31 @@ function selftest() {
     ["composition via ${cloud.prod} resolves and passes", COMPOSED_INI, GOOD_YAML, 0],
     ["composition via ${cloud.staging} is caught",
       COMPOSED_INI.replace("${cloud.prod}", "${cloud.staging}"), GOOD_YAML, 1],
+    // ---- compile-only rows (no slug) ----------------------------------------
+    // A SKU that publishes nothing has no fleet to strand, so the cloud rule must
+    // not fire on it -- otherwise the only way to get an un-brought-up board built
+    // by CI is to lie about its backend, which is worse than not building it.
+    ["a compile-only row (no slug) is not required to carry a cloud feed",
+      GOOD_INI.replace("    -DFEATURE_CLOUD_FEED\n", "").replace(/    -DCLOUD_FEED_BASE=.*\n/, ""),
+      `        include:\n          - { env: blipscope-s3-128 }\n`, 0],
+    // ...but it is still a row CI will try to build, so a typo in the env name is
+    // caught for both kinds. This is the half that would go missing if the parser
+    // simply skipped slug-less rows instead of returning them with slug: null.
+    ["a compile-only row missing from platformio.ini is still caught",
+      GOOD_INI, `        include:\n          - { env: ghost-s3-999 }\n`, 1],
+    // The published row and the compile-only row must not be confusable: give the
+    // SAME env a slug and the cloud check comes back.
+    ["adding a slug to that row brings the cloud check back",
+      GOOD_INI.replace("    -DFEATURE_CLOUD_FEED\n", "").replace(/    -DCLOUD_FEED_BASE=.*\n/, ""),
+      `        include:\n          - { env: blipscope-s3-128, slug: s3-128 }\n`, 1],
+    // ---- slug collisions ------------------------------------------------------
+    ["two rows claiming the same slug is caught",
+      GOOD_INI + `[env:blipscope-s3-146]\nextends = env:blipscope-s3-128\n`,
+      GOOD_YAML + `          - { env: blipscope-s3-146, slug: s3-128 }\n`, 1],
+    // Compile-only rows have no slug, so any number of them must NOT collide.
+    ["two compile-only rows do not collide with each other",
+      GOOD_INI + `[env:blipscope-s3-146]\nextends = env:blipscope-s3-128\n`,
+      GOOD_YAML + `          - { env: blipscope-s3-146 }\n`, 0],
     // Must NOT fire on other products, which legitimately have no cloud feed.
     ["an edition SKU is skipped, not flagged",
       GOOD_INI.replace("    -DFEATURE_CLOUD_FEED\n", "    -DFEATURE_EAM\n").replace(/    -DCLOUD_FEED_BASE=.*\n/, ""),

@@ -299,6 +299,30 @@ A new SKU needs three entries that stay in sync:
 
 Add all three, and the next release automatically builds and publishes that SKU's binary.
 
+### A SKU that isn't ready yet: the compile-only row
+
+A board still in bring-up should **not** get a `slug` — a slug is what names
+`firmware-<slug>.bin`, and publishing that asset points an OTA channel at an image
+nobody has flashed. Give it a row with the env alone:
+
+```yaml
+- { env: blipscope-pro-s3-175-amoled }
+```
+
+CI builds it and runs the adsbdb launch gate on it, then skips naming, uploading and
+attaching. `check_release_envs.mjs` still asserts the env exists in
+`platformio.ini`, and still does **not** demand a production cloud feed — a SKU with
+no published asset has no fleet to strand. Add the `slug` when the pins are verified
+and the board is brought up; that one edit promotes it to a published SKU and the
+cloud-feed assertions switch on with it.
+
+**Why this row kind exists at all.** The 1.75" AMOLED env had no CI row, stopped
+compiling, and nobody knew. It was found by hand during a sweep that built all
+eleven images rather than the ten CI knew about — and the break had been introduced
+by the very change that sweep was checking. Leaving an env out of CI because it
+isn't a product yet is how it becomes an env that no longer builds; the compile-only
+row is the way to say "build this, don't ship it" instead.
+
 ## Missileer builds — a separate OTA channel
 
 The `missileer-*` envs build a different **product** (Missileer, the EAM monitor, `-DFEATURE_EAM`; see
