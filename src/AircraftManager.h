@@ -18,6 +18,7 @@
 #include "MqttPublisher.h"
 #include "LGFX.h"
 #include "BandCanvas.h"
+#include "FollowTrack.h" // Follow Mode track buffer (header-only; radar path only)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 
 class AircraftManager
@@ -211,6 +212,26 @@ private:
     // flyover alert. Empty watchlist disables all of it.
     std::vector<String> watchlist;
     String ntfyTopic = "";
+
+    // ---- Follow Mode (docs/follow-mode-consolidated.md) ---------------------
+    // STAGE 1: the track buffer and its draw cost. The state machine, the faces
+    // and the alerts are not built -- §19 puts the draw-cost measurement first
+    // because everything else is contingent on it.
+    //
+    // `followTarget` gates the whole feature. Empty means no allocation, no
+    // draw, no behaviour change for anyone who did not ask (§15).
+    String followTarget = "";      // lowercased tail / callsign / hex prefix
+    bool   followDrawTrack = true; // "follow-track"; §15 marks the default conditional on §18.1
+    follow::Track followTrack;
+
+    // The number this build exists to produce. Measured around the track draw
+    // ALONE, not the whole frame: the frame figure already exists and cannot
+    // answer "what did the track cost", which is the question in §18.1.
+    uint32_t followDrawUs = 0;      // last frame
+    uint32_t followDrawMaxUs = 0;   // worst since the last health report
+    uint32_t followDrawSumUs = 0;   // for a mean over the report interval
+    uint32_t followDrawFrames = 0;
+    size_t   followDrawSegments = 0; // segments actually drawn last frame
     unsigned long lastNotifyCheck = 0;
 
     // Special-aircraft detection. Every class is derived offline from the live
@@ -619,6 +640,12 @@ private:
     // so a photo-less card reads as designed rather than broken. Varied by emitter category.
     void DrawAircraftSilhouette(BandCanvas& backbuffer, int cx, int cy, const TrackedAircraft& tracked) const;
     void DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness = 1.0f) const;
+    // Follow Mode stage 1. DrawFollowTrack is const-except-for-instrumentation,
+    // so it is not const: it writes the timing counters that are its whole point.
+    void DrawFollowTrack(BandCanvas& backbuffer);
+    void DrawFollowHud(BandCanvas& backbuffer) const;
+    bool MatchesFollow(const TrackedAircraft& tracked) const;
+    void UpdateFollowTrack();
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
 

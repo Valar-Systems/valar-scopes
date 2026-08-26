@@ -95,6 +95,15 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 // is it -- see src/HeapHealth.h.
 
 #include <esp_heap_caps.h>
+#include <esp_timer.h> // Follow track draw-cost timing (§18.1)
+
+// Follow track draw budget (§4.5). A build flag rather than a bare constant
+// because the FIRST thing anyone will want after seeing one number is the shape
+// of the curve -- 64 / 128 / 256 / 512 -- and re-editing a header between runs is
+// how a measurement session turns into a bisect. -DFOLLOW_DRAW_SEGMENT_CAP=N.
+#ifndef FOLLOW_DRAW_SEGMENT_CAP
+#define FOLLOW_DRAW_SEGMENT_CAP 256
+#endif
 #include "HeapHealth.h"
 #include "StarvationPolicy.h"
 
@@ -639,6 +648,75 @@ void AircraftManager::Initialise()
 
     // a watchlist needs registration/type, so make sure metadata gets fetched
     if (!watchlist.empty()) metadataNeeded = true;
+
+    // ---- Follow Mode stage 1 (docs/follow-mode-consolidated.md §4, §14) ------
+    //
+    // ONE field gates the feature. Empty means the track is never allocated, the
+    // draw is never entered and nothing changes for anyone who did not ask --
+    // which is §15's argument for the default, restated as code so a later reader
+    // does not have to trust a table.
+    //
+    // Initialise() runs on EVERY config save, so this is written to be safe to
+    // re-enter: Enable() is idempotent, and after a failure it latches degraded
+    // and short-circuits. The retry that §4.3 forbids is a retry in a LOOP; a
+    // person pressing Save is not a loop, and clearing the field re-arms it.
+    {
+        String want = configServer.GetStoredString("follow");
+        want.trim();
+        want.toLowerCase();
+        const String followTrackStr = configServer.GetStoredString("follow-track");
+        followDrawTrack = followTrackStr.isEmpty() ? true : (followTrackStr == "true");
+
+        if (want != followTarget) {
+            // Identity changed -- including to or from empty.
+            if (want.isEmpty()) {
+                followTrack.Disable();   // the ONLY free site (§4.3)
+            } else if (!followTarget.isEmpty()) {
+                // Still following, but somebody else: keep the allocation, drop
+                // the path. This is exactly the ResetFlight/Disable split.
+                followTrack.ResetFlight();
+            }
+            followTarget = want;
+            if (!followTarget.isEmpty() && followDrawTrack) {
+                if (!followTrack.Enable()) {
+                    // Degraded: notification-only. Stage 1 has no notifications
+                    // yet, so today this simply means no track -- but the state is
+                    // real and the HUD says so rather than looking like a bug.
+                    Serial.println("[follow] notification-only: no track buffer");
+                }
+            }
+        } else if (!followTarget.isEmpty() && followDrawTrack && !followTrack.Active()) {
+            // The toggle came back on for the same aircraft.
+            followTrack.Enable();
+        } else if (!followDrawTrack && followTrack.Active()) {
+            followTrack.Disable();
+        }
+#ifdef FOLLOW_BENCH
+        // ---- bench only: make the §18.1 measurement obtainable ---------------
+        //
+        // The question this build exists to answer is the draw cost of a FULL
+        // 1024-point track. Waiting for one is not a plan: 1024 points at 150 m
+        // separation is ~150 km of flown path, i.e. a couple of hours of a real
+        // aeroplane near a real bench, and nobody runs that before deciding
+        // whether to build the feature. What would happen instead is that the
+        // number gets taken off a half-empty buffer and is quietly optimistic --
+        // which is the worst outcome, because it decides the product.
+        //
+        // So the bench env fills the worst case directly, at boot, with no
+        // aircraft required. Empty follow field still means no allocation and no
+        // fill: this exercises the feature, it does not switch it on.
+        // distanceKm, not rangeKmCfg: rangeKmCfg is assigned further down and
+        // only inside #ifdef FEATURE_CLOUD_FEED, so reading it here would give a
+        // stale 100 km on the first boot and nothing at all on a non-cloud build.
+        // distanceKm is the configured radius, already normalised to km above.
+        if (!followTarget.isEmpty() && followTrack.Active())
+            followTrack.FillSynthetic((float)lat, (float)lon, (float)distanceKm);
+#endif
+        if (!followTarget.isEmpty())
+            Serial.printf("[follow] target=\"%s\" track=%d active=%d degraded=%d\n",
+                          followTarget.c_str(), (int)followDrawTrack,
+                          (int)followTrack.Active(), (int)followTrack.Degraded());
+    }
 
     // military / special-aircraft detection (offline, ICAO-address based; needs no
     // enrichment). Highlighting defaults on; the ntfy alert defaults off.
@@ -1423,9 +1501,15 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #else
     const unsigned apCount = (unsigned)AIRPORT_COUNT;
 #endif
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  interval=%lums%s\n",
+    // psram_free was ABSENT from this line until Follow stage 1, and §4.4 names
+    // it as the primary acceptance signal: the track allocation should drop it by
+    // ~12 KB at follow-enable and then hold flat for the whole soak. Without it
+    // the only PSRAM evidence was the boot banner -- one sample, which cannot show
+    // a trend, and a trend is the entire question. One cheap read.
+    const uint32_t psramFree = ESP.getFreePsram();
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u psram_free=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
-                  (unsigned)heapFree, (unsigned)largest, (unsigned)free8, tlsOk,
+                  (unsigned)heapFree, (unsigned)largest, (unsigned)free8, (unsigned)psramFree, tlsOk,
                   (unsigned long)heaphealth::TrialRejectionCount(),
                   heaphealth::BallastHeld() ? 1 : 0,
                   (unsigned long)heaphealth::BallastReacquireFailures(),
@@ -1441,6 +1525,33 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned long)tlsalloc::InternalAllocs(),
                   (unsigned long)tlsalloc::PsramFallbacks(),
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
+    // ---- Follow Mode stage 1: the §18.1 measurement -------------------------
+    //
+    // Its OWN line, and only while following, so the [health] line's shape does
+    // not change for the boards not running this experiment: anything parsing it
+    // keeps working, and a bench log stays diffable against one from before
+    // Follow existed.
+    //
+    // trk=<size>/<capacity> is the x-axis. A draw cost quoted without the number
+    // of points it was measured at is the same mistake as a frame p95 with no
+    // contact count -- which is exactly why n= was added to the line above.
+    if (!followTarget.isEmpty()) {
+        const uint32_t meanUs = followDrawFrames ? (followDrawSumUs / followDrawFrames) : 0;
+        Serial.printf("[follow] trk=%u/%u seg=%u cap=%d  draw mean=%.2fms max=%.2fms over %lu frames  "
+                      "appends=%lu near-rejects=%lu  active=%d degraded=%d\n",
+                      (unsigned)followTrack.Size(), (unsigned)follow::Track::CAPACITY,
+                      (unsigned)followDrawSegments, (int)FOLLOW_DRAW_SEGMENT_CAP,
+                      meanUs / 1000.0f, followDrawMaxUs / 1000.0f,
+                      (unsigned long)followDrawFrames,
+                      (unsigned long)followTrack.Appends(),
+                      (unsigned long)followTrack.RejectedNear(),
+                      (int)followTrack.Active(), (int)followTrack.Degraded());
+        // Reset the window with the report, like frameMaxTenths above, so each
+        // line describes its own 30 s rather than all of history.
+        followDrawMaxUs = 0;
+        followDrawSumUs = 0;
+        followDrawFrames = 0;
+    }
 
     // ---- issue #245: the enrichment-starvation watch ------------------------
     //
@@ -2252,6 +2363,11 @@ void AircraftManager::ConsumeFetchResult()
             }
         }
 
+        // Follow Mode: sample the followed aircraft's position into the track.
+        // After the merge, so it sees this poll's fix; on the loop task, like
+        // every other mutation of shared state.
+        UpdateFollowTrack();
+
         // offer every airborne contact's measurements to the lifetime records
         // (highest / fastest / closest ever). Feed cadence, not frame cadence,
         // so it's a handful of compares per poll. Plausibility bounds keep a
@@ -2451,6 +2567,13 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     if (displayAirports)
         DrawAirports(backbuffer);
 
+    // Follow Mode: the flight track, drawn BENEATH the traffic and above the
+    // fixed geography. §4.5 -- "draw the track beneath everything else, in one
+    // dim distinct colour", and exempt from the sweep's phosphor fade, because a
+    // radar return decays for a reason the track does not share: a return is a
+    // return, the track is a record.
+    DrawFollowTrack(backbuffer);
+
     // identify the "of interest" contacts to ring: nearest, highest, fastest
     String nearestIcao, highestIcao, fastestIcao;
     if (displayHighlight) {
@@ -2598,6 +2721,12 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y + 13);
         }
     }
+
+    // Follow Mode stage 1: the draw-cost readout, last so it sits on top of the
+    // scene. Bench instrumentation, not product UI -- it exists so the §18.1
+    // number can be read off a board without a serial console, and it disappears
+    // entirely when no aircraft is being followed.
+    DrawFollowHud(backbuffer);
 }
 
 void AircraftManager::DrawList(BandCanvas& backbuffer)
@@ -3802,6 +3931,150 @@ void AircraftManager::DrawRankToast(BandCanvas& backbuffer) const
 #else
     (void)backbuffer;
 #endif
+}
+
+// ---------------------------------------------------------------------------
+// Follow Mode stage 1 (docs/follow-mode-consolidated.md §4)
+// ---------------------------------------------------------------------------
+
+// Identity match against the single follow field. Deliberately the same
+// semantics as ClassifyWatchlist's WatchClass::Specific arm -- callsign, ICAO
+// address or registration prefix -- because §14 says to reuse that path and
+// because a second, subtly different notion of "this exact aircraft" is how the
+// two end up disagreeing. TYPE is NOT matched here: "follow every C172" is a
+// category, and following a category is not a thing this feature means.
+bool AircraftManager::MatchesFollow(const TrackedAircraft& tracked) const
+{
+    if (followTarget.isEmpty())
+        return false;
+
+    String callsign = tracked.state.callsign; callsign.trim(); callsign.toLowerCase();
+    if (!callsign.isEmpty() && callsign.startsWith(followTarget)) return true;
+    String icao = tracked.state.icao24; icao.toLowerCase();
+    if (!icao.isEmpty() && icao.startsWith(followTarget)) return true;
+    String reg = tracked.registration; reg.toLowerCase();
+    if (!reg.isEmpty() && reg.startsWith(followTarget)) return true;
+    return false;
+}
+
+// Feed the track from whatever the contact table currently holds.
+//
+// Called once per merge, on the loop task, like everything else that touches
+// shared state. The track deliberately does NOT live on the TrackedAircraft: a
+// contact absent past the grace window is evicted and rebuilt from scratch
+// (§3), which for a trainer at pattern altitude is the normal case rather than
+// an edge case. Losing the aircraft loses nothing here -- the buffer is the
+// manager's and simply stops being appended to until it comes back.
+void AircraftManager::UpdateFollowTrack()
+{
+    if (!followTrack.Active())
+        return;
+
+    for (auto& [hex, tracked] : trackedAircraft) {
+        if (!MatchesFollow(tracked))
+            continue;
+        if (tracked.state.onGround)
+            return; // a taxiing aeroplane is not a flight path
+        auto [aLat, aLon] = tracked.GetDisplayPosition();
+        followTrack.Append(aLat, aLon);
+        return; // one followed aircraft; first identity match wins
+    }
+}
+
+// The measurement this whole build exists to take (§18.1).
+//
+// The frame budget note above records 27.5-31.1 ms under full load with overlay
+// and trails. Projecting and drawing up to 1024 extra segments per frame could
+// blow that outright, so the cap is a DRAW-TIME cap with adaptive stride: the
+// buffer keeps all 1024 points, and the draw walks it in steps sized to land at
+// or under FOLLOW_DRAW_SEGMENT_CAP however full it is. Decimating the STORAGE
+// instead would be cheaper here and would throw away the shape the feature is
+// about.
+//
+// Timed around the track alone. The existing [health] frame figure cannot answer
+// "what did the track cost" -- it is one number for everything -- and that is
+// precisely the question that decides whether Follow is a track product or a
+// notification product.
+void AircraftManager::DrawFollowTrack(BandCanvas& backbuffer)
+{
+    followDrawSegments = 0;
+    if (!followDrawTrack || !followTrack.Active())
+        return;
+    const size_t n = followTrack.Size();
+    if (n < 2)
+        return;
+
+    const int64_t t0 = esp_timer_get_time();
+
+    const size_t stride = follow::Track::StrideFor(n, FOLLOW_DRAW_SEGMENT_CAP);
+
+    // §4.5: one dim distinct colour, drawn BENEATH everything else, and exempt
+    // from the sweep's phosphor fade. A radar return decays because it is a
+    // RETURN; the track is a RECORD. Holding it steady while returns pulse around
+    // it is what tells you at a glance which marks are live and which are
+    // history -- so no brightness argument is taken here, deliberately.
+    constexpr uint32_t TRACK_COLOR = 0x0060A0u; // dim cyan-blue: not the green of a return
+    int prevX = 0, prevY = 0;
+    bool havePrev = false;
+    size_t segments = 0;
+
+    for (size_t i = 0; i < n; i += stride) {
+        auto [x, y] = ProjectCoordinateToScreen(followTrack.At(i).lat, followTrack.At(i).lon);
+        if (havePrev) {
+            backbuffer.drawLine(prevX, prevY, x, y, TRACK_COLOR);
+            ++segments;
+        }
+        prevX = x; prevY = y; havePrev = true;
+    }
+    // The newest point always gets drawn even when the stride skipped it -- the
+    // head of the track is the one segment a viewer is actually looking at.
+    if (havePrev && ((n - 1) % stride) != 0) {
+        auto [x, y] = ProjectCoordinateToScreen(followTrack.At(n - 1).lat, followTrack.At(n - 1).lon);
+        backbuffer.drawLine(prevX, prevY, x, y, TRACK_COLOR);
+        ++segments;
+    }
+
+    const uint32_t us = (uint32_t)(esp_timer_get_time() - t0);
+    followDrawUs = us;
+    followDrawSegments = segments;
+    if (us > followDrawMaxUs) followDrawMaxUs = us;
+    followDrawSumUs += us;
+    ++followDrawFrames;
+}
+
+// The on-screen half of the measurement, so the number can be read off the bench
+// without a serial console attached. Serial carries the same figures in the
+// [health] line; this exists because the person measuring is looking at a board.
+void AircraftManager::DrawFollowHud(BandCanvas& backbuffer) const
+{
+    if (followTarget.isEmpty())
+        return;
+
+    char buf[64];
+    if (followTrack.Active()) {
+        const uint32_t meanUs = followDrawFrames ? (followDrawSumUs / followDrawFrames) : 0;
+        snprintf(buf, sizeof(buf), "trk %u/%u s%u  %.1f/%.1fms",
+                 (unsigned)followTrack.Size(), (unsigned)follow::Track::CAPACITY,
+                 (unsigned)followDrawSegments, meanUs / 1000.0f, followDrawMaxUs / 1000.0f);
+    } else if (followTrack.Degraded()) {
+        // Say the real state. A blank track that looks like a bug is worse than
+        // a line admitting the allocation failed (§4.3).
+        snprintf(buf, sizeof(buf), "trk OFF: no PSRAM (notify only)");
+    } else {
+        snprintf(buf, sizeof(buf), "trk off");
+    }
+
+    // Plain top-left draw, x centred by hand from the 6 px default-font advance.
+    // BandCanvas forwards a deliberately small surface (drawString/drawLine/
+    // setTextColor/setTextSize and little else) and does NOT forward
+    // setTextDatum, so a datum call here would not compile -- and adding one to
+    // the wrapper for a bench HUD would widen a shared type for a temporary
+    // readout.
+    constexpr int CHAR_W = 6;
+    const int w = (int)strlen(buf) * CHAR_W;
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(0, 150, 200));
+    backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - w / 2, SCREEN_SIZE - 12);
 }
 
 void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
