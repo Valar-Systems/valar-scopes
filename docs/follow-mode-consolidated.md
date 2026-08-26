@@ -732,6 +732,18 @@ each other rather than competing — but only if the coast stays dominant.
 
 ## 10. Local face — the flight school regime
 
+**Units.** Every distance Follow renders — the local face's range readout, the
+arc face's primary readout (§8), the post-flight card (§11) and any ntfy body —
+uses the device's configured distance unit via `include/DisplayUnits.h`. Follow
+introduces no unit of its own and no second conversion; a follow readout in
+different units from the radar behind it would read as a bug.
+
+`nmi` exists as of 2026-08-26 and is the natural **suggestion** for anyone setting
+up a follow — a feature built for watching a specific pilot should speak that
+pilot's unit. Make it a suggestion in the UI copy next to the follow field, not a
+changed default: the device-wide default is `mi`, it is set for the whole product,
+and Follow silently repointing it would surprise someone who never asked.
+
 **This is the regime that ships first (§1.1).**
 
 ### Why the arc face does not transfer
