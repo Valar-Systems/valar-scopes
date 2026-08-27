@@ -227,6 +227,56 @@ int main()
     check(!Machine::IsExpectedAbsence(State::SignalLost),
           "CONTROL: the unexpected one does not");
 
+    // §6's note came true in stage 2: two regimes, one switch. The local words
+    // are asserted above and must not have moved; these are the airline ones.
+    std::printf("  ---- copy: and the two regimes do not read alike either\n");
+    check(same(Headline(State::NoCoverage, Regime::Airline), "NO COVERAGE"),
+          "§8's chip: mid-ocean says NO COVERAGE, not BELOW COVERAGE");
+    check(same(Headline(State::ApproachLost, Regime::Airline), "BELOW COVERAGE"),
+          "§8's chip: an airline approach says BELOW COVERAGE");
+    check(!same(Headline(State::NoCoverage, Regime::Airline),
+                Headline(State::ApproachLost, Regime::Airline)),
+          "the two airline absences still do not read the same");
+    check(!same(Headline(State::NoCoverage, Regime::Airline),
+                Headline(State::SignalLost, Regime::Airline)),
+          "and neither reads like the unexpected one");
+    check(!same(Headline(State::NoCoverage, Regime::Airline),
+                Headline(State::NoCoverage, Regime::Local)),
+          "the regime actually changes the words -- CONTROL for the parameter "
+          "being wired to anything at all");
+    check(same(Headline(State::Airborne, Regime::Airline),
+               Headline(State::Airborne, Regime::Local)),
+          "CONTROL: and it changes only the two states that §8 moves");
+    check(same(Headline(State::SignalLost, Regime::Airline),
+               Headline(State::SignalLost, Regime::Local)),
+          "CONTROL: SIGNAL LOST is the same fault in both regimes");
+    // §6's "Next contact expected around 18:40, near Ireland" is deliberately
+    // absent -- we licence no coverage model and no schedule, so the sentence
+    // would be invented. Assert the decline, or it comes back.
+    {
+        const char* e = Explanation(State::NoCoverage, Regime::Airline);
+        bool claimsATime = false;
+        for (const char* p = e; *p; ++p) if (*p >= '0' && *p <= '9') claimsATime = true;
+        check(!claimsATime, "the ocean copy states no time -- we cannot know one");
+        check(e[0] != '\0', "CONTROL: it still says something");
+    }
+    // C4: WAITING has copy now, and it must not borrow a loss state's word.
+    check(Headline(State::Waiting)[0] != '\0', "C4: WAITING has a headline");
+    check(Explanation(State::Waiting)[0] != '\0', "C4: ... and the load-bearing line");
+    {
+        const char* w = Headline(State::Waiting);
+        const char* x = Explanation(State::Waiting);
+        bool borrowed = false;
+        const char* both[2] = { w, x };
+        for (int i = 0; i < 2; ++i)
+            for (const char* p = both[i]; *p; ++p)
+                if ((p[0] == 'l' && p[1] == 'o' && p[2] == 's' && p[3] == 't') ||
+                    (p[0] == 'L' && p[1] == 'O' && p[2] == 'S' && p[3] == 'T'))
+                    borrowed = true;
+        check(!borrowed,
+              "C4: nothing has been lost, so WAITING never says 'lost'");
+    }
+
     // 15: SIGNAL_LOST is screen-only by default. The asymmetry is the argument.
     char title[96];
     check(AlertTitle(State::Landed, "N4523K", title, sizeof(title)) &&
@@ -467,6 +517,158 @@ int main()
           "longer than any flight means the inputs disagree -- decline");
     check(MinutesToArrival(926.0f, 500.0f) > 0,
           "CONTROL: a sane pair still produces an answer");
+
+    // -------------------------------------------------------------------------
+    // §9's worked example, which is also the control for the interpolation
+    // -------------------------------------------------------------------------
+    std::printf("  ---- great-circle interpolation: over the pole, not through Morocco\n");
+    {
+        const Endpoint den = LookupAirport("DEN");
+        const Endpoint del = LookupAirport("DEL");
+        check(den.known && del.known, "both ends of the worked example are in the table");
+
+        float mLat = 0.0f, mLon = 0.0f;
+        InterpolateGreatCircle(den, del, 0.5f, mLat, mLon);
+        // §9 [MEASURED]: "a 111.6 degree great circle with its midpoint at
+        // 83.9 N, 88.6 E". Hand-computed in the spec, transcribed here.
+        check(std::fabs(mLat - 83.9f) < 0.6f, "DEN->DEL's midpoint is at 83.9 N");
+        check(std::fabs(mLon - 88.6f) < 1.5f, "... and 88.6 E -- north of Siberia");
+
+        // THE CONTROL, and it is the whole reason this function is not two
+        // averages: a naive lat/lon lerp lands in the Atlantic off Morocco,
+        // some 5,000 km away, and looks entirely plausible on a 240 px disc.
+        const float naiveLat = (den.lat + del.lat) * 0.5f;
+        const float naiveLon = (den.lon + del.lon) * 0.5f;
+        check(std::fabs(naiveLat - mLat) > 40.0f,
+              "CONTROL: averaging the latitudes is wrong by 40+ degrees");
+        check(GreatCircleKm(mLat, mLon, naiveLat, naiveLon) > 4000.0f,
+              "CONTROL: ... which is over 4,000 km of error");
+
+        // Endpoints, and monotonicity along the route.
+        float eLat = 0.0f, eLon = 0.0f;
+        InterpolateGreatCircle(den, del, 0.0f, eLat, eLon);
+        check(GreatCircleKm(eLat, eLon, den.lat, den.lon) < 1.0f, "f=0 is the origin");
+        InterpolateGreatCircle(den, del, 1.0f, eLat, eLon);
+        check(GreatCircleKm(eLat, eLon, del.lat, del.lon) < 1.0f, "f=1 is the destination");
+
+        const float total = GreatCircleKm(den.lat, den.lon, del.lat, del.lon);
+        check(std::fabs(total - 12406.0f) < 60.0f, "and the route is §9's 12,406 km");
+        bool monotone = true;
+        float prev = -1.0f;
+        for (float f = 0.0f; f <= 1.0001f; f += 0.05f) {
+            float pLat = 0.0f, pLon = 0.0f;
+            InterpolateGreatCircle(den, del, f, pLat, pLon);
+            const float flown = GreatCircleKm(den.lat, den.lon, pLat, pLon);
+            if (flown < prev - 1.0f) monotone = false;
+            prev = flown;
+            // Every interpolated point must lie ON the route: the two legs must
+            // sum to the whole, which a point off the great circle cannot do.
+            const float legs = flown + GreatCircleKm(pLat, pLon, del.lat, del.lon);
+            check(std::fabs(legs - total) < 25.0f, "an interpolated point lies on the route");
+        }
+        check(monotone, "progress along the interpolation never goes backwards");
+
+        // Coincident endpoints: nothing to interpolate, and no divide by zero.
+        InterpolateGreatCircle(den, den, 0.5f, eLat, eLon);
+        check(std::fabs(eLat - den.lat) < 0.01f && std::fabs(eLon - den.lon) < 0.01f,
+              "a route to the same field returns the field, not a NaN");
+    }
+
+    // -------------------------------------------------------------------------
+    // §7.1 REGIME -- and the reason its input is a maximum
+    // -------------------------------------------------------------------------
+    std::printf("  ---- regime: inferred from the flight's extent, never configured\n");
+    check(RegimeFor(3.0f, 8.0f, true) == Regime::Local,
+          "a circuit inside the home radius is the local regime");
+    check(RegimeFor(12.0f, 8.0f, true) == Regime::Airline,
+          "a flight that leaves it is not");
+    check(RegimeFor(8.0f, 8.0f, true) == Regime::Local,
+          "exactly at the radius has not left it");
+    check(RegimeFor(4000.0f, 8.0f, false) == Regime::Local,
+          "with no home position the LOCAL face is chosen -- because it declines "
+          "visibly, and the arc face would point a wedge at nothing");
+    check(RegimeFor(NAN, 8.0f, true) == Regime::Local,
+          "NaN extent does not become an airliner");
+
+    // THE CONTROL THAT MATTERS. The claim is that feeding the flight's MAXIMUM
+    // extent latches the regime for the flight, and that feeding the LIVE
+    // separation instead would flap the face once per circuit. Both halves are
+    // asserted, because only the second says the input choice was load-bearing.
+    {
+        HomeContext h = HomeAt(HLAT, HLON, true);   // radiusKm 8
+        FlightStats s;
+        uint32_t now = 1000;
+        // Out to 9 km -- just past the boundary -- and back overhead.
+        const float legKm[] = { 1.0f, 5.0f, 9.0f, 5.0f, 1.0f, 0.2f };
+        bool latched = true, liveWouldFlap = false;
+        for (float km : legKm) {
+            const Fix f = FixNorthOf(HLAT, HLON, km, PATTERN_MSL, 90.0f, 0.0f);
+            s.OnFix(f, now, h);
+            now += 5000;
+            if (s.furthestKm > 8.0f && RegimeFor(s.furthestKm, h.radiusKm, true) != Regime::Airline)
+                latched = false;
+            // What the same function says about the CURRENT separation:
+            const float live = SeparationKm(f.lat, f.lon, h.lat, h.lon);
+            if (s.furthestKm > 8.0f && RegimeFor(live, h.radiusKm, true) == Regime::Local)
+                liveWouldFlap = true;
+        }
+        check(latched, "once the flight has left the radius the regime stays out");
+        check(liveWouldFlap,
+              "CONTROL: the live separation WOULD have flapped back -- which is "
+              "why the input is the maximum");
+        check(s.furthestKm > 8.9f && s.furthestKm < 9.1f,
+              "and the maximum is the peak, not the last leg");
+    }
+
+    // -------------------------------------------------------------------------
+    // §8 NO_COVERAGE -- the dead-reckoned estimate
+    // -------------------------------------------------------------------------
+    std::printf("  ---- dead reckoning: forward along the route, or not at all\n");
+    // 500 kt is 926 km/h; on an 1,852 km route that is exactly half the route
+    // per hour, so these numbers are checkable by hand.
+    check(std::fabs(ProgressDeadReckoned(0.2f, 1852.0f, 500.0f, 3600.0f) - 0.7f) < 0.005f,
+          "an hour at 500 kt on an 1,852 km route advances half the arc");
+    check(std::fabs(ProgressDeadReckoned(0.2f, 1852.0f, 500.0f, 1800.0f) - 0.45f) < 0.005f,
+          "half an hour advances a quarter of it");
+    check(ProgressDeadReckoned(0.2f, 1852.0f, 20.0f, 3600.0f) == 0.2f,
+          "below 40 kt nothing is claimed -- the marker does not creep");
+    check(ProgressDeadReckoned(0.2f, 1852.0f, 500.0f, 0.0f) == 0.2f,
+          "no elapsed time, no advance");
+    check(ProgressDeadReckoned(0.2f, 0.0f, 500.0f, 3600.0f) == 0.2f,
+          "a zero-length route cannot be progressed along");
+    check(ProgressDeadReckoned(0.2f, 1852.0f, NAN, 3600.0f) == 0.2f,
+          "NaN speed does not propagate into a screen position");
+    check(ProgressDeadReckoned(0.2f, 1852.0f, 500.0f, 36000.0f) <= 1.0f,
+          "ten hours of silence still lands on the arc, not past its end");
+    check(ProgressDeadReckoned(-3.0f, 1852.0f, 500.0f, 0.0f) == 0.0f,
+          "a nonsense starting progress is clamped before anything else happens");
+    // CONTROL: without this, every "returns the input unchanged" assertion above
+    // would also pass for a function that never estimates anything at all.
+    check(ProgressDeadReckoned(0.2f, 1852.0f, 500.0f, 3600.0f) > 0.2f,
+          "CONTROL: a sane set of inputs really does advance the marker");
+
+    // -------------------------------------------------------------------------
+    // §8 SIGNAL_LOST -- how stale the picture is, as a glanceable magnitude
+    // -------------------------------------------------------------------------
+    std::printf("  ---- elapsed: the headline in SIGNAL_LOST\n");
+    {
+        char b[16];
+        FormatElapsed(45u, b, sizeof(b));     check(same(b, "45s"),   "45 s");
+        FormatElapsed(60u, b, sizeof(b));     check(same(b, "1m"),    "one minute rolls to minutes");
+        FormatElapsed(3599u, b, sizeof(b));   check(same(b, "59m"),   "59 m stays minutes");
+        FormatElapsed(3600u, b, sizeof(b));   check(same(b, "1h00"),  "an hour is zero-padded");
+        FormatElapsed(4500u, b, sizeof(b));   check(same(b, "1h15"),  "1 h 15 m");
+        FormatElapsed(86399u, b, sizeof(b));  check(same(b, "23h59"), "just under a day");
+        FormatElapsed(86400u, b, sizeof(b));  check(same(b, "1d"),    "a day rolls to days");
+        FormatElapsed(200000u, b, sizeof(b)); check(same(b, "2d"),    "and stays there");
+        // CONTROL: every assertion above compares against a literal, so a
+        // formatter that wrote one fixed string would fail -- but a formatter
+        // that wrote nothing at all would leave the buffer untouched and could
+        // pass by accident on a reused buffer. Prove it writes.
+        char fresh[16] = { 'z', 'z', 'z', '\0' };
+        FormatElapsed(4500u, fresh, sizeof(fresh));
+        check(!same(fresh, "zzz"), "CONTROL: the buffer is actually written");
+    }
 
     // =========================================================================
     // 10 -- THE RING LADDER

@@ -109,6 +109,55 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 // -- this draws on a 240 round, a 412 round and a 480 square, and the inset is
 // what keeps the outer ring's label off the bezel on all three.
 static constexpr int FOLLOW_FACE_RADIUS_PX = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 10;
+
+// The follow palette, in one place, because the two faces MUST agree about
+// which colour means which kind of absence. §6's whole argument is that an
+// expected absence must not look like a fault; that argument is worth nothing
+// if the local face says amber and the arc face says red for the same state.
+static const uint32_t FOLLOW_GREEN   = lgfx::color888(0, 220, 0);
+static const uint32_t FOLLOW_AMBER   = lgfx::color888(255, 176, 0);
+static const uint32_t FOLLOW_RED     = lgfx::color888(255, 60, 60);
+static const uint32_t FOLLOW_DIM     = lgfx::color888(110, 110, 110);
+static const uint32_t FOLLOW_TRACK   = lgfx::color888(0, 96, 160);
+static const uint32_t FOLLOW_HOME    = lgfx::color888(200, 200, 200);
+// The unflown arc and the dead bezel: present, never competing with data.
+static const uint32_t FOLLOW_NEUTRAL = lgfx::color888(52, 52, 52);
+
+// Scale a colour toward black. §8 asks for the bearing wedge at "~40% opacity"
+// and there is no alpha in this draw path -- the backbuffer is opaque and the
+// wedge sits on the bezel, so scaling the colour is the same picture.
+static uint32_t FollowFade(uint32_t c, float f)
+{
+    return lgfx::color888((uint8_t)(((c >> 16) & 0xFF) * f),
+                          (uint8_t)(((c >> 8)  & 0xFF) * f),
+                          (uint8_t)(( c        & 0xFF) * f));
+}
+
+// State -> colour. ONE mapping, and the single parameter is the one place the
+// two faces are allowed to differ.
+//
+// §8 IS EMPHATIC ABOUT APPROACH_LOST: "Not the warning colour. Use the active
+// accent... Getting this one wrong alarms someone watching a family member
+// land. It is the single most important state in the feature." So on the arc
+// face it is green.
+//
+// §10 says nothing about the local face's colour for it, and the local face has
+// already been eyeballed on the bench with amber. Changing it here would be an
+// unreviewed change to a composition that was signed off, so it keeps amber
+// until the absence-copy session judges the two side by side. That session is
+// where this belongs: it is a question about how a colour READS, and no
+// argument in a comment settles it.
+static uint32_t FollowStateColour(follow::State st, bool benignApproach)
+{
+    if (st == follow::State::ApproachLost)
+        return benignApproach ? FOLLOW_GREEN : FOLLOW_AMBER;
+    if (st == follow::State::SignalLost)             return FOLLOW_RED;
+    if (follow::Machine::IsExpectedAbsence(st))      return FOLLOW_AMBER;
+    if (st == follow::State::Ground ||
+        st == follow::State::Landed)                 return FOLLOW_HOME;
+    return FOLLOW_GREEN;
+}
+
 #include "HeapHealth.h"
 #include "StarvationPolicy.h"
 
@@ -1645,6 +1694,18 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       (unsigned long)followTrack.Appends(),
                       (unsigned long)followTrack.RejectedNear(),
                       (int)followTrack.Active(), (int)followTrack.Degraded());
+        // The arc face (§8), on its own line and only once it has drawn. §7.2's
+        // globe reference is 0.34 ms for 1,306 vertices; this is the number to
+        // put beside it, and reporting it here means the soak logs carry it.
+        if (followArcMaxUs) {
+            Serial.printf("[follow] arc=%.2fms max=%.2fms strokes=%u route=%s->%s regime=%s\n",
+                          followArcUs / 1000.0f, followArcMaxUs / 1000.0f,
+                          (unsigned)followArcStrokes,
+                          followRouteOrigin.isEmpty() ? "--" : followRouteOrigin.c_str(),
+                          followRouteDest.isEmpty() ? "--" : followRouteDest.c_str(),
+                          FollowRegime() == follow::Regime::Airline ? "airline" : "local");
+            followArcMaxUs = 0;
+        }
         // The STATE, on the same line. §19: "the feature is the states, not the
         // picture", and a soak log that carries the draw cost but not which
         // state the machine sat in cannot answer the one question a logged
@@ -4248,6 +4309,22 @@ void AircraftManager::UpdateFollowTrack()
         followMachine.OnFix(f, (uint32_t)nowMs, followHome);
         followStats.OnFix(f, (uint32_t)nowMs, followHome);
 
+        // §8: the route is captured HERE, from the live contact, and held for
+        // the flight. It has to be -- the arc's whole job is to keep drawing
+        // through the states in which this loop finds nothing, and the codes
+        // arrive on the aircraft that has just vanished from the table.
+        //
+        // §17/C2: this is a READ off an enrich result the radar already fetched
+        // for a contact that is overhead. Nothing is requested because of the
+        // follow, which is the line C2 draws: a route fetched FOR the follow
+        // target would be an outbound request whose existence names it.
+        if (!tracked.routeOrigin.isEmpty() && !tracked.routeDest.isEmpty()) {
+            followRouteOrigin = tracked.routeOrigin;
+            followRouteDest   = tracked.routeDest;
+        }
+        // C4: the aircraft exists, so the stale-follow nudge must never fire.
+        followLog.Disarm();
+
         // A taxiing aeroplane is not a flight path: the state machine wants
         // the on-ground fix, the TRACK does not.
         if (!tracked.state.onGround && followTrack.Active())
@@ -4259,6 +4336,13 @@ void AircraftManager::UpdateFollowTrack()
         // Not in the contact table this pass. Absence is a state, not a gap --
         // the machine decides which KIND after trackLostMs (§5.1).
         followMachine.OnNoFix((uint32_t)nowMs, followHome);
+        // C4: start the stale clock the first time we are waiting on an
+        // aircraft we have never seen. Arm() is a no-op once armed and a no-op
+        // without a synced clock, so this is one NVS write per follow target.
+        if (followMachine.Current() == follow::State::Waiting) {
+            const time_t nowUtc = time(nullptr);
+            if (nowUtc > 1600000000) followLog.Arm((uint32_t)nowUtc);
+        }
     }
     // ONE call, on both paths. It used to sit only under OnNoFix, behind an
     // early return from the loop -- which meant the two transitions §13.3
@@ -4384,6 +4468,12 @@ void AircraftManager::HandleFollowTransition()
          was == follow::State::Waiting)) {
         followTrack.ResetFlight();
         followStats.Reset();
+        // The route belongs to the FLIGHT, not the aircraft. Yesterday's
+        // LHR->JFK on today's departure would draw a confident arc to the wrong
+        // continent, and the regime -- which is read off followStats -- has
+        // just been reset with it, so the two stay consistent.
+        followRouteOrigin = "";
+        followRouteDest   = "";
     }
 
     SendFollowAlert(was, now);
@@ -4434,6 +4524,8 @@ void AircraftManager::PollBenchSerial()
         announced = true;
         Serial.println("[bench] follow state override: 1=AIRBORNE 2=GROUND 3=BELOW-COVERAGE "
                        "4=APPROACH-LOST 5=SIGNAL-LOST 0=release n=next");
+        Serial.println("[bench] arc face: l=synthetic DEN->DEL long-haul (toggle) "
+                       "p=step progress 15/45/80% w=WAITING (C4 face)");
     }
     while (Serial.available()) {
         const int ch = Serial.read();
@@ -4459,6 +4551,54 @@ void AircraftManager::PollBenchSerial()
                 want = CYCLE[(i + 1) % 5];
                 break;
             }
+            // ---- stage 2: the synthetic long-haul -------------------------
+            //
+            // The bench cannot produce an airliner over the pole, and the two
+            // things the arc face needs are exactly the two a bench cannot
+            // supply: a ROUTE (which only ever arrives on a live enriched
+            // contact) and a POSITION along it. Both are forged here and
+            // nowhere else -- followMachine is untouched, and none of this
+            // exists outside FOLLOW_BENCH.
+            //
+            // DEN->DEL is §9's worked example on purpose: 12,406 km over the
+            // pole is the case that justifies the globe, so the same key
+            // exercises both faces and the scale threshold between them.
+            case 'l': case 'L':
+                followBenchLongHaul = !followBenchLongHaul;
+                if (followBenchLongHaul) {
+                    followRouteOrigin = "DEN";
+                    followRouteDest   = "DEL";
+                    // Push the flight's extent past the home radius so §7.1's
+                    // inference lands on the airline regime -- the same input
+                    // a real departure would move, rather than a flag that
+                    // bypasses the routing being tested.
+                    followStats.furthestKm = 4000.0f;
+                } else {
+                    followRouteOrigin = ""; followRouteDest = "";
+                    followStats.furthestKm = 0.0f;
+                }
+                Serial.printf("[bench] synthetic long-haul %s (DEN->DEL, %.0f%%)\n",
+                              followBenchLongHaul ? "ON" : "OFF",
+                              (double)(followBenchProgress * 100.0f));
+                continue;
+            case 'p': case 'P': {
+                // 15% (near the origin), 45% (mid-ocean -- the NO_COVERAGE
+                // case), 80% (nearly there -- the APPROACH_LOST case).
+                followBenchProgress = followBenchProgress < 0.2f ? 0.45f
+                                    : (followBenchProgress < 0.6f ? 0.80f : 0.15f);
+                float pLat = 0.0f, pLon = 0.0f;
+                const follow::Endpoint o = follow::LookupAirport(followRouteOrigin.c_str());
+                const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
+                if (o.known && d.known)
+                    follow::InterpolateGreatCircle(o, d, followBenchProgress, pLat, pLon);
+                Serial.printf("[bench] synthetic progress %.0f%% -> %.2f, %.2f\n",
+                              (double)(followBenchProgress * 100.0f),
+                              (double)pLat, (double)pLon);
+                continue;
+            }
+            case 'w': case 'W':
+                want = follow::State::Waiting;
+                break;
             default: set = false; break;
         }
         if (!set) continue;
@@ -4685,10 +4825,45 @@ bool AircraftManager::ShowPostFlightCard() const
            st == follow::State::Ground  || st == follow::State::Idle;
 }
 
+// §7.1's routing table, in order. The face is CHOSEN, never picked -- there is
+// no config key for this and there must not be, because the customer following
+// a trainer and the customer following a son's airliner both just typed a tail
+// number into the same box.
+//
+// The globe (§9) is not in this list yet; when it lands it takes the long-haul
+// half of the arc branch, gated on great-circle distance, and nothing else here
+// changes.
 void AircraftManager::DrawFollow(BandCanvas& backbuffer)
 {
-    if (ShowPostFlightCard()) DrawFollowPostFlightCard(backbuffer);
-    else                      DrawFollowLocalFace(backbuffer);
+#ifdef FOLLOW_BENCH
+    const follow::State st = followForce ? followForced : followMachine.Current();
+#else
+    const follow::State st = followMachine.Current();
+#endif
+    // C4 comes FIRST, and only when there is no souvenir to show instead. A
+    // device that has flown before shows Saturday's flight; a device that never
+    // has shows the pre-departure face, which is the one the owner meets
+    // seconds after configuring a follow.
+    if (st == follow::State::Waiting && !followLog.Has()) {
+        DrawFollowWaitingFace(backbuffer);
+        return;
+    }
+    if (ShowPostFlightCard()) { DrawFollowPostFlightCard(backbuffer); return; }
+
+    // THE ARC FACE REQUIRES A ROUTE, WHICH IS A DEVIATION FROM §7.1 AND IS
+    // DELIBERATE. The table sends "airline regime, otherwise" to the arc face
+    // unconditionally, but an arc with no origin, no destination and no
+    // progress is a dim ring with nothing on it -- strictly less than the local
+    // face, whose rings auto-scale to whatever extent the flight has and whose
+    // track is still a picture of the flight. A GA cross-country is exactly
+    // this case: outside the home radius, no route, and well served by rings.
+    // So the arc is chosen when it has something to draw, and the local face is
+    // the fallback rather than the other way round.
+    if (FollowRegime() == follow::Regime::Airline && FollowRouteKnown()) {
+        DrawFollowArcFace(backbuffer);
+        return;
+    }
+    DrawFollowLocalFace(backbuffer);
 }
 
 void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
@@ -4711,18 +4886,16 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
 
     // §6: expected absence must not look like a fault. Amber explains, red
     // alarms, and the whole state machine exists so the two are never confused.
-    const uint32_t GREEN = lgfx::color888(0, 220, 0);
-    const uint32_t AMBER = lgfx::color888(255, 176, 0);
-    const uint32_t RED   = lgfx::color888(255, 60, 60);
-    const uint32_t DIM   = lgfx::color888(110, 110, 110);
-    const uint32_t TRACK = lgfx::color888(0, 96, 160);
-    const uint32_t HOME  = lgfx::color888(200, 200, 200);
+    // ONE palette for both faces -- that argument is worth nothing if the arc
+    // face and this one disagree about which colour means which.
+    const uint32_t AMBER = FOLLOW_AMBER;
+    const uint32_t DIM   = FOLLOW_DIM;
+    const uint32_t TRACK = FOLLOW_TRACK;
+    const uint32_t HOME  = FOLLOW_HOME;
 
-    uint32_t stateColour = GREEN;
-    if (st == follow::State::SignalLost)                stateColour = RED;
-    else if (follow::Machine::IsExpectedAbsence(st))    stateColour = AMBER;
-    else if (st == follow::State::Ground ||
-             st == follow::State::Landed)               stateColour = HOME;
+    // benignApproach FALSE here: this face keeps amber for APPROACH_LOST until
+    // the bench judges §8's green beside it. See FollowStateColour.
+    const uint32_t stateColour = FollowStateColour(st, /*benignApproach=*/false);
 
     // No location means no home, and the local face is built entirely around
     // home -- it would draw rings around a point in the Gulf of Guinea. Same
@@ -4911,6 +5084,434 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
 }
 
 // ===========================================================================
+// THE ARC FACE (§8) -- the airline default
+// ===========================================================================
+//
+// "A round panel affords two independent circular readings. Spend both, and
+// keep the centre clear." The ROUTE is the inner arc; the BEARING is the bezel;
+// the centre holds the one number the customer came for.
+//
+// ---------------------------------------------------------------------------
+// EVERY NUMBER BELOW IS THE SPEC'S 240 px FIGURE TIMES SCREEN_SIZE/240
+//
+// §8's geometry is written for the 1.28" disc. Hardcoding those figures is the
+// mistake CLAUDE.md names by hand ("Don't reintroduce hardcoded 240/pins"), and
+// on the 412 px SPD2010 it would draw the whole face inside the middle half of
+// the glass with a bezel ring floating in the centre. Si() is the only way a
+// radius or a text row gets into this file.
+//
+// ---------------------------------------------------------------------------
+// ONE ANGLE CONVENTION, AND IT IS FollowArc.h's
+//
+// LovyanGFX has fillArc and it would be cheaper than stepping. It is not used,
+// because then the BAND would be placed by LovyanGFX's convention while the
+// marker, the codes and the wedge are placed by follow::ArcAngleDeg -- two
+// implementations of one fact, which is this repo's most reliable way to ship a
+// bug. If the two disagreed by even a few degrees the marker would sit beside
+// the arc rather than on it, and in a photograph that reads as a PROGRESS
+// error, not a geometry error: you would go looking at ProgressAlong, which is
+// correct and graded.
+//
+// The dashes need per-step control anyway (§8's NO_COVERAGE projection), so the
+// stepped form is not a detour. Its cost is measured, not assumed -- see the
+// [follow] arc= line.
+// ===========================================================================
+
+// A thick arc as radial strokes, one per pixel of arc length, optionally
+// dashed. `dashPx` 0 draws solid. Returns the number of strokes drawn, which is
+// what the cost line reports.
+static int DrawArcBand(BandCanvas& bb, int cx, int cy, float r, float stroke,
+                       float a0Deg, float a1Deg, uint32_t colour, float dashPx)
+{
+    if (!(r > 1.0f) || a1Deg <= a0Deg) return 0;
+    const float half = stroke * 0.5f;
+    const float stepDeg = follow::ARC_RAD2DEG / r;   // ~1 px of arc per step
+    int drawn = 0;
+    float travelled = 0.0f;
+    for (float a = a0Deg; a <= a1Deg; a += stepDeg, travelled += 1.0f) {
+        if (dashPx > 0.0f && fmodf(travelled / dashPx, 2.0f) >= 1.0f)
+            continue;
+        const float rad = a * follow::ARC_DEG2RAD;
+        const float c = cosf(rad), s = sinf(rad);
+        bb.drawLine((int)lroundf(cx + c * (r - half)), (int)lroundf(cy + s * (r - half)),
+                    (int)lroundf(cx + c * (r + half)), (int)lroundf(cy + s * (r + half)),
+                    colour);
+        ++drawn;
+    }
+    return drawn;
+}
+
+// §7.1's inference. The arithmetic, and the reason its input is the flight's
+// MAXIMUM extent rather than the live separation, is in FollowState.h.
+follow::Regime AircraftManager::FollowRegime() const
+{
+    return follow::RegimeFor(followStats.furthestKm, followHome.radiusKm,
+                             followHome.positionKnown);
+}
+
+void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
+{
+    const uint32_t t0 = micros();
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    constexpr int cy = SCREEN_SIZE_DIV_2;
+    const float k = (float)SCREEN_SIZE / 240.0f;
+    const auto S  = [k](float v) { return v * k; };
+    const auto Si = [k](float v) { return (int)lroundf(v * k); };
+
+#ifdef FOLLOW_BENCH
+    const follow::State st = followForce ? followForced : followMachine.Current();
+#else
+    const follow::State st = followMachine.Current();
+#endif
+    const uint32_t colour = FollowStateColour(st, /*benignApproach=*/true);
+    const bool degraded = follow::Machine::IsAbsent(st);
+
+    backbuffer.setTextSize(1);
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+    // EVERY ROW IS PLACED BY ITS VERTICAL CENTRE, including the big one. §8's
+    // stack has the primary readout at y=124 and its label at y=139; at
+    // 34-point-equivalent type the primary is 24 px tall, so read as a TOP it
+    // would run through the label. Centres make the slot-sharing arithmetic
+    // (altitude and the state chip both at y=158) obvious instead of arithmetic
+    // nobody re-derives.
+    const auto row = [&](const String& s, float y240, uint32_t c, int size) {
+        backbuffer.setTextSize(size);
+        backbuffer.setTextColor(c);
+        const String fit = FitToDisc(backbuffer, s, Si(y240) - (lineH * size) / 2, lineH * size);
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2,
+                              Si(y240) - (lineH * size) / 2);
+        backbuffer.setTextSize(1);
+    };
+    const auto at = [&](float deg, float r, int& x, int& y) {
+        const float rad = deg * follow::ARC_DEG2RAD;
+        x = cx + (int)lroundf(cosf(rad) * r);
+        y = cy + (int)lroundf(sinf(rad) * r);
+    };
+
+    // ---- what we actually know ---------------------------------------------
+    //
+    // The codes are STRINGS first and coordinates second, and that split is the
+    // whole degradation story: an unresolved code still draws at the end of the
+    // arc, it just cannot place a marker. "Honest rather than wrong."
+    const follow::Endpoint org = follow::LookupAirport(followRouteOrigin.c_str());
+    const follow::Endpoint dst = follow::LookupAirport(followRouteDest.c_str());
+    const bool placed = org.known && dst.known;
+
+    float acLat = 0.0f, acLon = 0.0f;
+    bool havePos = false;
+    float gsKt = 0.0f;
+    const TrackedAircraft* live = FollowedAircraft();
+    if (live) {
+        auto [a, b] = live->GetDisplayPosition();
+        acLat = a; acLon = b;
+        havePos = true;
+        gsKt = live->state.velocity * 1.94384f;
+    } else if (followMachine.LastFixMs() != 0) {
+        // THE ABSENCE STATES ARE WHY THIS BRANCH EXISTS. The aeroplane is not in
+        // the contact table -- that is what NO_COVERAGE and SIGNAL_LOST MEAN --
+        // so the last fix the machine holds is the only position there is.
+        const follow::Fix& f = followMachine.LastFix();
+        acLat = f.lat; acLon = f.lon;
+        havePos = true;
+        gsKt = f.velocityKt;
+    }
+    const uint32_t sinceSec = followMachine.LastFixMs()
+        ? (uint32_t)((millis() - followMachine.LastFixMs()) / 1000UL) : 0u;
+
+#ifdef FOLLOW_BENCH
+    if (followBenchLongHaul && placed) {
+        follow::InterpolateGreatCircle(org, dst, followBenchProgress, acLat, acLon);
+        havePos = true;
+        gsKt = 480.0f;
+    }
+#endif
+
+    const float totalKm = placed
+        ? follow::GreatCircleKm(org.lat, org.lon, dst.lat, dst.lon) : 0.0f;
+    const float fixProgress = (placed && havePos)
+        ? follow::ProgressAlong(org, dst, acLat, acLon) : 0.0f;
+
+    // §8, state by state. NO_COVERAGE carries the marker forward; SIGNAL_LOST
+    // freezes it, because "we do not know, so we do not draw."
+    float shown = fixProgress;
+    if (st == follow::State::NoCoverage)
+        shown = follow::ProgressDeadReckoned(fixProgress, totalKm, gsKt, (float)sinceSec);
+
+    // ---- the bezel: panel ring, cardinal ticks, bearing wedge ---------------
+    backbuffer.drawCircle(cx, cy, Si(118.5f), FOLLOW_NEUTRAL);
+    backbuffer.drawCircle(cx, cy, Si(117.0f), FOLLOW_NEUTRAL);
+
+    // A TRUE bearing becomes a screen angle through the SAME window-up rotation
+    // the radar uses: screen-up is the compass bearing `radarUpDeg`, and this
+    // face's 0 degrees is 3 o'clock. Getting this wrong points the wedge at a
+    // plausible but wrong quadrant, which is unfalsifiable from a photograph.
+    const auto screenAngle = [this](float trueBearingDeg) {
+        return trueBearingDeg - (float)radarUpDeg - 90.0f;
+    };
+
+    // §8: "The cardinal ticks are not decoration. A pointer with no reference
+    // frame is meaningless; if the ticks are cut, cut the wedge too." They are
+    // therefore drawn together or not at all -- both need a home position.
+    if (hasLocation) {
+        for (int b = 0; b < 360; b += 90) {
+            int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+            at(screenAngle((float)b), S(107.0f), x0, y0);
+            at(screenAngle((float)b), S(112.0f), x1, y1);
+            backbuffer.drawLine(x0, y0, x1, y1, FOLLOW_DIM);
+        }
+        int nx = 0, ny = 0;
+        at(screenAngle(0.0f), S(97.0f), nx, ny);
+        backbuffer.setTextColor(FOLLOW_DIM);
+        backbuffer.drawString("N", nx - (int)backbuffer.textWidth("N") / 2, ny - lineH / 2);
+
+        if (havePos) {
+            // A filled triangle pointing outward, ~4.6 degrees of half-width.
+            const float b = follow::BearingDeg((float)lat, (float)lon, acLat, acLon);
+            const float a = screenAngle(b);
+            int tipX = 0, tipY = 0, lX = 0, lY = 0, rX = 0, rY = 0;
+            at(a, S(115.0f), tipX, tipY);
+            at(a - 4.6f, S(105.0f), lX, lY);
+            at(a + 4.6f, S(105.0f), rX, rY);
+            // §8: dimmed to ~40% in NO_COVERAGE -- one of the three simultaneous
+            // signals that the position is inferred rather than measured.
+            const uint32_t wedge = (st == follow::State::NoCoverage)
+                ? FollowFade(colour, 0.4f) : colour;
+            backbuffer.fillTriangle(tipX, tipY, lX, lY, rX, rY, wedge);
+        }
+    }
+
+    // ---- the route arc -------------------------------------------------------
+    const float a0 = follow::ARC_START_DEG;
+    const float a1 = follow::ARC_START_DEG + follow::ARC_SWEEP_DEG;
+    const float aNow = follow::ArcAngleDeg(shown);
+    int strokes = 0;
+
+    // The unflown remainder, in the dim neutral. Drawn only where the accent
+    // will NOT cover it: overdrawing the whole sweep first is a stroke-for-
+    // stroke waste on the one face where the arc is the most expensive thing on
+    // the screen, and this face is measured (below), so the waste would show.
+    strokes += DrawArcBand(backbuffer, cx, cy, S(100.0f), S(5.0f),
+                           (placed && havePos) ? aNow : a0, a1, FOLLOW_NEUTRAL, 0.0f);
+
+    if (placed && havePos) {
+        // Flown, in the state's colour. SIGNAL_LOST freezes here and draws
+        // nothing ahead: §8, "No dashed projection. We do not know, so we do
+        // not draw."
+        strokes += DrawArcBand(backbuffer, cx, cy, S(100.0f), S(5.0f), a0, aNow, colour, 0.0f);
+        if (st == follow::State::NoCoverage)
+            strokes += DrawArcBand(backbuffer, cx, cy, S(100.0f), S(5.0f), aNow, a1,
+                                   colour, S(4.0f));
+    }
+
+    // ---- the codes, at each end of the arc ----------------------------------
+    //
+    // Drawn from the STRINGS, so they appear even when the table cannot place
+    // them -- that is the code-only degradation, and it is the reason widening
+    // coverage later (C1's ap:<CODE>) touches no drawing code at all.
+    const auto code = [&](const String& s, float deg, uint32_t c) {
+        if (s.isEmpty()) return;
+        String up = s; up.toUpperCase();
+        int x = 0, y = 0;
+        at(deg, S(84.0f), x, y);
+        backbuffer.setTextColor(c);
+        backbuffer.drawString(up, x - (int)backbuffer.textWidth(up) / 2, y - lineH / 2);
+    };
+    // §8: APPROACH_LOST highlights the destination -- he is nearly there, and
+    // that is the reassuring half of the picture.
+    const bool nearlyThere = (st == follow::State::ApproachLost);
+    code(followRouteOrigin, a0, nearlyThere ? FOLLOW_DIM : FOLLOW_DIM);
+    code(followRouteDest,   a1, nearlyThere ? colour : FOLLOW_DIM);
+
+    // ---- the marker ---------------------------------------------------------
+    if (placed && havePos) {
+        int mx = 0, my = 0;
+        at(aNow, S(100.0f), mx, my);
+        backbuffer.drawCircle(mx, my, Si(9.5f), FollowFade(colour, 0.35f));
+        // Hollow whenever the position is not a live measurement (§8). Three
+        // of the four states draw it hollow; only IN_CONTACT is solid.
+        if (degraded) backbuffer.drawCircle(mx, my, Si(5.0f), colour);
+        else          backbuffer.fillCircle(mx, my, Si(5.0f), colour);
+    }
+
+    // ---- the centre stack ----------------------------------------------------
+    String who = followTarget; who.toUpperCase();
+    if (live) {
+        String cs = live->state.callsign; cs.trim();
+        if (!cs.isEmpty()) { cs.toUpperCase(); who = cs; }
+    }
+    row(who, 86.0f, FOLLOW_DIM, 1);
+
+    // THE PRIMARY SLOT ALWAYS HOLDS A MAGNITUDE AND THE LABEL ALWAYS NAMES IT.
+    //
+    // §8 words APPROACH_LOST's readout as "ON APPROACH with distance out",
+    // which would put a phrase in a slot that holds a number in the other three
+    // states. At this type size a phrase either overflows the chord or forces
+    // the number smaller, and a stack whose type size changes with state is the
+    // jump §8 designed the shared altitude/chip slot to avoid. So the state's
+    // word goes to the label line, which exists to name the magnitude, and the
+    // distance goes in the slot. Recorded as a deviation in the spec.
+    String primary = "--", label = "";
+    if (!placed) {
+        // No route, or a code the baked table does not carry. The honest
+        // readout is the one thing we do know: how far away he is.
+        if (havePos && hasLocation) {
+            primary = units::FormatKm(
+                follow::SeparationKm(acLat, acLon, (float)lat, (float)lon), rangeUnit, true);
+            label = "AWAY";
+        }
+    } else if (st == follow::State::SignalLost) {
+        char b[16];
+        follow::FormatElapsed(sinceSec, b, sizeof(b));
+        primary = b;
+        label = "SINCE CONTACT";
+    } else if (st == follow::State::ApproachLost) {
+        primary = units::FormatKm(
+            follow::GreatCircleKm(acLat, acLon, dst.lat, dst.lon), rangeUnit, true);
+        label = "ON APPROACH";
+    } else {
+        const int mins = follow::MinutesToArrival(totalKm * (1.0f - shown), gsKt);
+        if (mins >= 0) {
+            char b[16];
+            follow::FormatElapsed((uint32_t)mins * 60u, b, sizeof(b));
+            primary = b;
+        }
+        label = (st == follow::State::NoCoverage) ? "EST. ARRIVAL" : "TO ARRIVAL";
+    }
+    // §8 dims the readout in NO_COVERAGE: the number is an estimate and must
+    // not carry the same weight as a measured one.
+    row(primary, 124.0f, (st == follow::State::NoCoverage) ? FollowFade(colour, 0.55f) : colour, 3);
+    if (!label.isEmpty()) row(label, 139.0f, FOLLOW_DIM, 1);
+
+    // The shared slot. §8: "Altitude and the state chip occupy the same slot
+    // deliberately: when anything degrades, altitude is what gets displaced,
+    // and the layout does not jump."
+    if (degraded) {
+        const String chip = follow::Headline(st, follow::Regime::Airline);
+        const int w = (int)backbuffer.textWidth(chip) + Si(14.0f);
+        const int h = Si(17.0f);
+        const int top = Si(158.0f) - h / 2;
+        backbuffer.drawRoundRect(cx - w / 2, top, w, h, h / 2, colour);
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(chip, cx - (int)backbuffer.textWidth(chip) / 2,
+                              top + (h - lineH) / 2);
+        const String why = follow::Explanation(st, follow::Regime::Airline);
+        if (!why.isEmpty()) row(why, 176.0f, FOLLOW_DIM, 1);
+    } else if (havePos) {
+        // Same discipline as the local face: state the MSL figure with "MSL"
+        // beside it, or decline. C5's elevation delivery is what would make an
+        // AGL figure honest, and it is not built.
+        const follow::Fix& f = followMachine.LastFix();
+        const float msl = follow::AltitudeMslFt(f);
+        if (follow::ReportableAltFt(msl, st == follow::State::Airborne))
+            row(String((int)lroundf(msl)) + " ft MSL", 158.0f, FOLLOW_DIM, 1);
+    }
+
+    // §18: the draw cost is INSTRUMENTED, not assumed -- and reported against
+    // the stroke count, because a cost quoted without the geometry it was
+    // measured at is the same mistake as a frame p95 with no contact count.
+    followArcUs = micros() - t0;
+    followArcStrokes = (size_t)strokes;
+    if (followArcUs > followArcMaxUs) followArcMaxUs = followArcUs;
+}
+
+// ===========================================================================
+// C4 -- THE PRE-DEPARTURE FACE. The state the owner sees FIRST.
+// ===========================================================================
+//
+// You set up a follow the night before and then look at the device. If WAITING
+// renders as an empty face -- or worse, as one of the loss states -- the
+// feature looks broken at exactly the moment someone has finished configuring
+// it. It must (1) prove the device understood them, (2) prove it is working,
+// and (3) tell them to do nothing.
+//
+// ---------------------------------------------------------------------------
+// C4 PROPOSES TWO FACES CHOSEN BY REGIME, AND THE REGIME IS UNKNOWABLE HERE
+//
+// This is a finding, not a shortcut. C4 asks for the arc face's not-started
+// state in the airline regime and the local face's rings in the local one. But
+// §7.1 infers the regime from how far the aircraft got FROM HOME -- and in
+// WAITING it has never been seen. There is no flight, so there is no extent, so
+// there is no regime. Picking one anyway means picking a face that is confidently
+// wrong half the time, on the screen whose entire job is honest nothing-yet.
+//
+// So the pre-departure face is regime-AGNOSTIC: a dim ring, the target, and the
+// copy. It cannot preview a route it has not been told (the route arrives on a
+// tracked contact, and asking a server for one BY CALLSIGN would name the follow
+// target in an outbound request -- C2's resolution forbids exactly that), so it
+// previews the disc rather than the arc.
+//
+// If a route survives from a previous flight the codes are drawn, which is the
+// preview C4 wanted, obtained without a single new request.
+void AircraftManager::DrawFollowWaitingFace(BandCanvas& backbuffer)
+{
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    const float k = (float)SCREEN_SIZE / 240.0f;
+    const auto Si = [k](float v) { return (int)lroundf(v * k); };
+    backbuffer.setTextSize(1);
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+    const auto centred = [&](const String& s, int y, uint32_t c) {
+        backbuffer.setTextColor(c);
+        const String fit = FitToDisc(backbuffer, s, y, lineH);
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
+    };
+
+    backbuffer.drawCircle(cx, cx, Si(118.5f), FOLLOW_NEUTRAL);
+    backbuffer.drawCircle(cx, cx, Si(100.0f), FOLLOW_NEUTRAL);
+
+    centred(follow::Headline(follow::State::Waiting), Si(86.0f), FOLLOW_DIM);
+
+    String who = followTarget; who.toUpperCase();
+    if (FollowRouteKnown()) {
+        String o = followRouteOrigin, d = followRouteDest;
+        o.toUpperCase(); d.toUpperCase();
+        who += "   " + o + " -> " + d;     // ASCII arrow: see RouteLabel.h
+    } else if (!followHomeCode.isEmpty()) {
+        who += "   at " + followHomeCode;
+    }
+    centred(who, Si(104.0f), FOLLOW_HOME);
+
+    // THE THIRD LINE IS THE LOAD-BEARING ONE. It answers the question the owner
+    // actually has -- "is it broken, or is he just not flying?" -- and tells
+    // them there is no action to take.
+    //
+    // After seven days with no fix EVER seen it is replaced by the nudge: a tail
+    // that is sold, re-registered or mistyped would otherwise be promised
+    // "changes on its own" every day for a year. Only when a fix has never been
+    // seen: an aeroplane parked for a fortnight after a real flight is a
+    // different situation and already gets the post-flight card.
+    const time_t nowUtc = time(nullptr);
+    const uint32_t armed = followLog.ArmedEpoch();
+    const bool stale = armed != 0 && nowUtc > 1600000000 &&
+                       (uint32_t)nowUtc > armed + FOLLOW_STALE_NUDGE_SEC;
+
+    String body = stale
+        ? ("Nothing heard from " + followTarget + " in " +
+           String((unsigned)((((uint32_t)nowUtc - armed)) / 86400u)) +
+           " days. Check the tail number on the config page.")
+        : String(follow::Explanation(follow::State::Waiting));
+
+    // Wrapped on words into at most four lines, same rule as the local face's
+    // explanation box: the chord, not the bounding box.
+    constexpr int MAX_CHARS = SCREEN_SIZE / 11;
+    String lines[4]; int nLines = 0;
+    String word, cur;
+    for (const char* p = body.c_str(); ; ++p) {
+        if (*p && *p != ' ') { word += *p; continue; }
+        if (word.length()) {
+            if (cur.isEmpty()) cur = word;
+            else if ((int)(cur.length() + 1 + word.length()) <= MAX_CHARS) cur += " " + word;
+            else { if (nLines < 4) lines[nLines++] = cur; cur = word; }
+            word = "";
+        }
+        if (!*p) break;
+    }
+    if (!cur.isEmpty() && nLines < 4) lines[nLines++] = cur;
+    const int top = Si(132.0f);
+    for (int i = 0; i < nLines; ++i)
+        centred(lines[i], top + i * (lineH + 3), stale ? FOLLOW_AMBER : FOLLOW_DIM);
+}
+
+// ===========================================================================
 // THE POST-FLIGHT CARD (§11) -- "the answer to 'the screen is empty most of the
 // week'"
 // ===========================================================================
@@ -4971,8 +5572,10 @@ void AircraftManager::DrawFollowPostFlightCard(BandCanvas& backbuffer)
         float minLat = 1e9f, maxLat = -1e9f, minLon = 1e9f, maxLon = -1e9f;
         for (size_t i = 0; i < n; ++i) {
             float la, lo; followLog.PointAt(i, la, lo);
-            if (la < minLat) minLat = la;  if (la > maxLat) maxLat = la;
-            if (lo < minLon) minLon = lo;  if (lo > maxLon) maxLon = lo;
+            if (la < minLat) minLat = la;
+            if (la > maxLat) maxLat = la;
+            if (lo < minLon) minLon = lo;
+            if (lo > maxLon) maxLon = lo;
         }
         const float midLat = (minLat + maxLat) * 0.5f;
         const float midLon = (minLon + maxLon) * 0.5f;

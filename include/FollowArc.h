@@ -30,6 +30,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 
 #include "Airports.h"
 
@@ -61,6 +62,15 @@ struct Endpoint {
 /// FACE CHANGES. That seam is why the face is built against the table first:
 /// the majors cover the overwhelming majority of airline city pairs, and a code
 /// that misses degrades to an honest code-only arc rather than to a wrong one.
+///
+/// THREE LETTERS ONLY, AND A FOUR-LETTER CODE MISSES ON PURPOSE. The route
+/// mirror carries both forms -- RouteLabel.h's own examples are DFW-BUR (IATA)
+/// and EGYD-EGYD (ICAO) -- and the baked table is IATA. "EGYD" therefore fails
+/// the code[3] == '\0' test and resolves to unknown, which is right: the
+/// alternative is matching its first three characters against "EGY", a field
+/// this table does not contain today but might tomorrow, and drawing an
+/// aircraft over the wrong continent. A missing airport is a gap; a wrong one
+/// is a bug (Airports.h says the same thing about its own curation).
 inline Endpoint LookupAirport(const char* code)
 {
     Endpoint e;
@@ -154,6 +164,87 @@ inline int MinutesToArrival(float remainingKm, float groundSpeedKt)
     const float h = remainingKm / kmh;
     if (h > 24.0f) return -1;            // longer than any flight: the inputs disagree
     return (int)lroundf(h * 60.0f);
+}
+
+/// A point a fraction `f` of the way along the great circle from a to b.
+///
+/// SPHERICAL INTERPOLATION, AND THE DIFFERENCE IS NOT SUBTLE. Averaging two
+/// latitudes and two longitudes puts the midpoint of DEN->DEL at 34.2 N,
+/// 13.8 W -- in the Atlantic, off Morocco. The real midpoint is 83.9 N, 88.6 E,
+/// north of Siberia (§9's worked example), because the route goes over the pole.
+/// Those are 5,000 km apart, and the wrong one looks perfectly plausible on a
+/// 240 px disc, which is exactly the class of error §9 exists to render
+/// correctly.
+///
+/// Used by the globe's route polyline and by the bench's synthetic long-haul.
+inline void InterpolateGreatCircle(const Endpoint& a, const Endpoint& b, float f,
+                                   float& outLat, float& outLon)
+{
+    const float p1 = a.lat * ARC_DEG2RAD, l1 = a.lon * ARC_DEG2RAD;
+    const float p2 = b.lat * ARC_DEG2RAD, l2 = b.lon * ARC_DEG2RAD;
+    const float dp = sinf((p2 - p1) * 0.5f), dl = sinf((l2 - l1) * 0.5f);
+    float h = dp * dp + cosf(p1) * cosf(p2) * dl * dl;
+    if (h < 0.0f) h = 0.0f;
+    if (h > 1.0f) h = 1.0f;
+    const float d = 2.0f * asinf(sqrtf(h));      // angular separation, radians
+    const float sd = sinf(d);
+    // Coincident (or antipodal, where the great circle is not unique): there is
+    // nothing to interpolate along, so return an endpoint rather than dividing.
+    if (!(sd > 1e-6f)) { outLat = a.lat; outLon = a.lon; return; }
+    const float A = sinf((1.0f - f) * d) / sd;
+    const float B = sinf(f * d) / sd;
+    const float x = A * cosf(p1) * cosf(l1) + B * cosf(p2) * cosf(l2);
+    const float y = A * cosf(p1) * sinf(l1) + B * cosf(p2) * sinf(l2);
+    const float z = A * sinf(p1) + B * sinf(p2);
+    outLat = atan2f(z, sqrtf(x * x + y * y)) * ARC_RAD2DEG;
+    outLon = atan2f(y, x) * ARC_RAD2DEG;
+}
+
+/// Progress carried forward from the last fix by dead reckoning, for the
+/// NO_COVERAGE estimate (§8).
+///
+/// ALONG THE ROUTE, NOT ALONG A HEADING, and the reason is not laziness: a
+/// follow::Fix carries no track angle at all. It could be given one -- the feed
+/// has it -- but it should not be, because what the arc renders is a PROGRESS
+/// BAR, and a progress bar advanced by "he flew 400 km somewhere" is worse than
+/// one advanced by "he flew 400 km onward". Mid-Atlantic, onward is also the
+/// truth: the whole reason this state exists is that he is following a route
+/// across a receiver gap.
+///
+/// Returns the unchanged input rather than an estimate whenever it cannot
+/// honestly extrapolate -- a stationary ground speed, a garbage total, a
+/// negative elapsed. The caller draws a hollow marker either way; what it must
+/// never do is creep forward on numbers that do not support it.
+inline float ProgressDeadReckoned(float progressAtFix, float totalKm,
+                                  float groundSpeedKt, float elapsedSec)
+{
+    const float p = progressAtFix < 0.0f ? 0.0f
+                                         : (progressAtFix > 1.0f ? 1.0f : progressAtFix);
+    if (!std::isfinite(totalKm) || !std::isfinite(groundSpeedKt) ||
+        !std::isfinite(elapsedSec))
+        return p;
+    if (!(totalKm > 1.0f) || elapsedSec <= 0.0f) return p;
+    if (groundSpeedKt < 40.0f) return p;   // same floor as MinutesToArrival
+    const float km = groundSpeedKt * 1.852f * (elapsedSec / 3600.0f);
+    const float f = p + km / totalKm;
+    return f > 1.0f ? 1.0f : f;
+}
+
+/// "How long since we last heard anything", for SIGNAL_LOST's primary readout.
+///
+/// The headline in that state is HOW STALE THE PICTURE IS, so this is a
+/// glanceable magnitude rather than a precise duration: minutes below an hour,
+/// hours and minutes below a day, whole days above. Formats into the caller's
+/// buffer for the same reason AlertTitle does -- nothing on a draw path should
+/// allocate, and String is what would drag Arduino into this header.
+inline void FormatElapsed(uint32_t seconds, char* out, size_t n)
+{
+    if (!out || n == 0) return;
+    if (seconds < 60u)              snprintf(out, n, "%us", (unsigned)seconds);
+    else if (seconds < 3600u)       snprintf(out, n, "%um", (unsigned)(seconds / 60u));
+    else if (seconds < 86400u)      snprintf(out, n, "%uh%02u", (unsigned)(seconds / 3600u),
+                                             (unsigned)((seconds % 3600u) / 60u));
+    else                            snprintf(out, n, "%ud", (unsigned)(seconds / 86400u));
 }
 
 } // namespace follow

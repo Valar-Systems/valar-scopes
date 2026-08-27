@@ -268,6 +268,15 @@ private:
     uint32_t followDrawFrames = 0;
     size_t   followDrawSegments = 0; // segments actually drawn last frame
 
+    // The arc face's own counters, and they are SEPARATE ON PURPOSE. Folding
+    // the arc into followDrawUs would report "the track cost 4 ms" on a frame
+    // where the track was never drawn -- the same one-number-for-everything
+    // mistake the [follow] line's own comment warns about, committed by the
+    // person who wrote the warning. Two costs, two lines.
+    uint32_t followArcUs = 0;
+    uint32_t followArcMaxUs = 0;
+    size_t   followArcStrokes = 0;
+
     // ---- the local face (§10) ----------------------------------------------
     // The home field's CODE, from the airport data already on the device. §10 is
     // explicit that the local face adds no dataset and that the marker carries a
@@ -280,6 +289,30 @@ private:
     // position half so an absent elevation costs AGL and nothing else -- see the
     // note on follow::HomeContext.
     bool   followHomeCodeResolved = false;
+
+    // ---- the arc face (§8) ---------------------------------------------------
+    //
+    // THE ROUTE IS CACHED FOR THE FLIGHT, and it has to be: the arc's whole job
+    // is to keep drawing while the aeroplane is NOT in the contact table, and
+    // the codes arrive on the tracked aircraft that has just vanished from it.
+    // Read from the live contact whenever it is seen, held across every absence
+    // state, and cleared with the flight in HandleFollowTransition.
+    //
+    // §17: these are AIRPORT CODES, never the target. Nothing looks them up over
+    // the network -- LookupAirport reads the baked table -- and C2's resolution
+    // (lookup by code, never by callsign) is what makes that the only acceptable
+    // shape. A route fetched FOR the follow target would be a request whose very
+    // existence names the aircraft being followed.
+    String followRouteOrigin = "";
+    String followRouteDest   = "";
+
+    // C4's stale-follow nudge. Seven days is a GUESS and is marked as one: it
+    // wants to be longer than a holiday and shorter than a season, so a weekly
+    // flyer who takes a fortnight off is never told their device is
+    // misconfigured. Counted only while no fix has EVER been seen -- the clock
+    // lives in the follow-log NVS namespace so it survives a reboot, since a
+    // device power-cycled weekly could never reach seven days on millis().
+    static constexpr uint32_t FOLLOW_STALE_NUDGE_SEC = 7UL * 24UL * 3600UL;
 
     // §13.3: Follow auto-surfaces ONLY on a state transition -- takeoff, landing
     // -- for a dwell, then returns to wherever the owner was. It never takes the
@@ -303,6 +336,12 @@ private:
     // needs looking at; the transitions are graded in the host suite.
     bool          followForce = false;
     follow::State followForced = follow::State::SignalLost;
+    // Stage 2: a synthetic long-haul so the arc, the globe, both scales and all
+    // four contact states can be judged on glass without a real airliner. It
+    // supplies what the bench cannot: a route the device would only ever learn
+    // from a live contact, and a position mid-route.
+    bool  followBenchLongHaul = false;
+    float followBenchProgress = 0.45f;
     void PollBenchSerial();
 #endif
     unsigned long lastNotifyCheck = 0;
@@ -719,10 +758,21 @@ private:
     void DrawFollowHud(BandCanvas& backbuffer) const;
     bool MatchesFollow(const TrackedAircraft& tracked) const;
     void UpdateFollowTrack();
-    // The local face (§10). One screen slot, several faces (C6) -- DrawFollow is
-    // the router, and the local face is the only one built.
+    // One screen slot, several faces (C6). DrawFollow is the router (§7.1); the
+    // faces below are chosen by regime and state and never by the customer.
     void DrawFollow(BandCanvas& backbuffer);
     void DrawFollowLocalFace(BandCanvas& backbuffer);
+    /// The airline default (§8): route arc, bearing wedge, centre stack.
+    void DrawFollowArcFace(BandCanvas& backbuffer);
+    /// C4's pre-departure face -- the state the owner sees FIRST.
+    void DrawFollowWaitingFace(BandCanvas& backbuffer);
+    /// §7.1's inference: an aircraft that stays inside the home radius is
+    /// local, one that leaves it is not. Arithmetic in FollowArc.h.
+    follow::Regime FollowRegime() const;
+    /// Both route codes resolved against the baked table (§8's degradation:
+    /// unresolved codes still DRAW, they just cannot place a marker).
+    bool FollowRouteKnown() const { return !followRouteOrigin.isEmpty() &&
+                                          !followRouteDest.isEmpty(); }
     /// The view the local face draws: home at the centre, rings auto-fitted to
     /// the track's extent. Pure arithmetic lives in include/FollowGeometry.h.
     follow::LocalView BuildLocalView() const;

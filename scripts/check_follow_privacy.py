@@ -123,6 +123,15 @@ ALLOWED_TOUCH = {
     "AircraftManager::UpdateFollowTrack",    # gates the feature
     "AircraftManager::FollowedAircraft",
     "AircraftManager::DrawFollowLocalFace",  # drawn on the customer's own glass
+    "AircraftManager::DrawFollowArcFace",    # ditto: the centre stack's callsign row
+    "AircraftManager::DrawFollowWaitingFace",# ditto: C4's nudge names the tail so the
+                                             # owner can check it against the config
+                                             # page. Reviewed 2026-08-27: reaches the
+                                             # panel and nothing else -- the route
+                                             # codes it draws beside it come from
+                                             # LookupAirport, a BAKED-TABLE read, so
+                                             # no request is made on the target's
+                                             # behalf (C2).
     "AircraftManager::DrawFollowHud",
     "AircraftManager::DrawRadar",            # the followed-contact ring
     "FollowScreenVisible",                   # inline in the header

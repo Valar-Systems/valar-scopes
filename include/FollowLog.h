@@ -112,6 +112,7 @@ public:
         Preferences p;
         if (!p.begin(NS, /*readOnly=*/true))
             return;
+        armedEpoch = p.getULong("armed", 0);
         FlightRecord in{};
         if (p.getBytes("rec", &in, sizeof(in)) == sizeof(in) && in.version == VERSION &&
             in.points > 0 && in.points <= POINTS) {
@@ -183,13 +184,61 @@ public:
     void Clear()
     {
         rec = FlightRecord{};
+        armedEpoch = 0;
         Preferences p;
         if (p.begin(NS, false)) { p.clear(); p.end(); }
+    }
+
+    // =========================================================================
+    // THE STALE-FOLLOW CLOCK (C4's 7-day nudge)
+    //
+    // A tail that is sold, re-registered or simply mistyped sits in WAITING
+    // forever, and the pre-departure copy cheerfully promises that the screen
+    // "changes on its own" every day for a year. The nudge needs to know how
+    // long the device has been waiting, and that has to survive a reboot --
+    // millis() would restart the clock every power cycle, so a device rebooted
+    // weekly could never reach seven days.
+    //
+    // IT LIVES HERE RATHER THAN IN `config` DELIBERATELY. The config namespace
+    // is opened read-write in exactly three places (see
+    // docs/nvs-config-flip-2026-08-27.md, which turns on that fact being true);
+    // adding a fourth writer to it for a clock would make the next unexplained
+    // config flip harder to eliminate, for no benefit. The follow-log namespace
+    // already exists, already belongs to Follow, and is already cleared when the
+    // target changes -- which is exactly when this clock should restart.
+    //
+    // EPOCH, NOT UPTIME, so 0 has one meaning: not armed. A device whose clock
+    // has never synced passes 0 and simply does not arm, which costs a nudge
+    // and never fires a wrong one.
+    uint32_t ArmedEpoch() const { return armedEpoch; }
+
+    void Arm(uint32_t epoch)
+    {
+        if (epoch == 0 || armedEpoch != 0) return;  // one write, at the first arming
+        armedEpoch = epoch;
+        Preferences p;
+        if (!p.begin(NS, false)) return;
+        p.putULong("armed", epoch);
+        p.end();
+    }
+
+    /// Called on the first fix ever seen. From then on the aircraft is known to
+    /// exist and the nudge must never fire: an aeroplane parked for a fortnight
+    /// after a real flight gets the post-flight card, which is already better.
+    void Disarm()
+    {
+        if (armedEpoch == 0) return;
+        armedEpoch = 0;
+        Preferences p;
+        if (!p.begin(NS, false)) return;
+        p.remove("armed");
+        p.end();
     }
 
 private:
     FlightRecord rec{};
     LogPoint     pts[POINTS]{};
+    uint32_t     armedEpoch = 0;
 };
 
 } // namespace follow

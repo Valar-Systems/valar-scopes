@@ -442,6 +442,39 @@ private:
 };
 
 // =============================================================================
+// REGIME -- WHICH FACE, AND WHY IT IS INFERRED RATHER THAN CONFIGURED
+//
+// §7.1: "an aircraft that stays inside the home radius is local; one that
+// leaves it is not." One sentence, and it does the whole job -- there is no
+// config key for this and there must not be, because the customer following a
+// trainer and the customer following a son's airliner both just typed a tail
+// number into the same box.
+//
+// THE HYSTERESIS IS FREE, and that is why the input is what it is. This takes
+// the FLIGHT'S FURTHEST EXTENT, not the current separation. FlightStats keeps
+// furthestKm as a maximum that never falls and resets on a new flight, so a
+// circuit that clips the radius boundary cannot flap the face back and forth
+// once per lap -- the regime latches for the flight and starts fresh with the
+// next one. Feeding this the live separation instead would make the face
+// oscillate exactly where the aircraft spends most of its time.
+enum class Regime : uint8_t {
+    Local,    // the flight school regime -- rings around home (§10)
+    Airline,  // the arc (§8) or the globe (§9)
+};
+
+/// Which regime this flight is in. `positionKnown` false is deliberately Local:
+/// the local face DECLINES visibly when there is no home ("SET YOUR LOCATION"),
+/// while the arc face would happily draw a bearing wedge from a home it does
+/// not have -- a confident pointer at nothing. Decline beats a plausible wrong
+/// answer here for exactly the reason AglFt() returns NaN.
+inline Regime RegimeFor(float furthestKm, float homeRadiusKm, bool positionKnown)
+{
+    if (!positionKnown) return Regime::Local;
+    if (!std::isfinite(furthestKm) || !std::isfinite(homeRadiusKm)) return Regime::Local;
+    return furthestKm > homeRadiusKm ? Regime::Airline : Regime::Local;
+}
+
+// =============================================================================
 // §6 -- THE COPY. This is the product, not the rendering.
 //
 // A hobbyist radar with a coverage gap is a shrug. A device someone's spouse is
@@ -459,22 +492,44 @@ private:
 // a UTF-8 middot arrives as two bytes of garbage. Same finding as RouteLabel.h.
 // =============================================================================
 
-// NOTE for whoever builds the airline regime (§19 items 8-10): NoCoverage is
-// worded for the LOCAL regime, which is the only one that ships. §6 gives it
-// different words out of range -- "NO COVERAGE" without a route, "OVER THE
-// ATLANTIC" with one -- so this becomes regime-dependent at that point. It is
-// one string today because there is one regime today, not because the two
-// agree.
-inline const char* Headline(State s)
+// THE NOTE THAT USED TO SIT HERE HAS COME TRUE (stage 2, 2026-08-27). It read:
+// "NoCoverage is worded for the LOCAL regime, which is the only one that ships.
+// §6 gives it different words out of range... so this becomes regime-dependent
+// at that point. It is one string today because there is one regime today, not
+// because the two agree." The arc face is that point.
+//
+// TWO REGIMES, ONE SWITCH, and deliberately not two functions. A parallel
+// HeadlineAirline() would be the same fact written twice -- the exact shape
+// RouteLabel.h was created to remove, and the shape CI has checkers for
+// elsewhere in this repo. The regime is a parameter; the strings stay in one
+// place where a reader can see that they differ and how.
+//
+// The default is Local, so every existing caller and every stage-1 assertion
+// keeps its meaning.
+//
+// WHAT MOVES, AND WHY:
+//   NoCoverage    local  "BELOW COVERAGE"  -- §10: a circuit dropout, not a fault
+//                 airline "NO COVERAGE"    -- §8's chip: mid-ocean, by design
+//   ApproachLost  local  "ON APPROACH - SIGNAL LOST"
+//                 airline "BELOW COVERAGE" -- §8's chip, with "expected at this
+//                                            range" beneath it
+// The airline ApproachLost chip borrows the local regime's NoCoverage words on
+// purpose: in each regime the phrase names the same physical thing (he is below
+// where the receivers reach), and the two regimes never appear on one screen.
+inline const char* Headline(State s, Regime r = Regime::Local)
 {
     switch (s) {
         case State::Idle:         return "";
-        case State::Waiting:      return "WAITING";        // [C4] no face yet
+        case State::Waiting:      return "WAITING FOR DEPARTURE";   // C4
         case State::Ground:       return "ON THE GROUND";
         case State::Airborne:     return "AIRBORNE";
-        case State::NoCoverage:   return "BELOW COVERAGE"; // §10: NOT "signal lost"
+        case State::NoCoverage:
+            return r == Regime::Airline ? "NO COVERAGE"     // §8's chip
+                                        : "BELOW COVERAGE"; // §10: NOT "signal lost"
         case State::SignalLost:   return "SIGNAL LOST";
-        case State::ApproachLost: return "ON APPROACH - SIGNAL LOST";
+        case State::ApproachLost:
+            return r == Regime::Airline ? "BELOW COVERAGE"  // §8's chip
+                                        : "ON APPROACH - SIGNAL LOST";
         case State::Landed:       return "ON THE GROUND";
     }
     return "";
@@ -483,15 +538,34 @@ inline const char* Headline(State s)
 // The reassuring second line. Every one of these names the MECHANISM -- it is a
 // statement about OUR equipment rather than about him, which is the whole
 // difference between an alarming absence and an explained one.
-inline const char* Explanation(State s)
+//
+// AND ONE THING §6 ASKS FOR IS DELIBERATELY NOT HERE. Its worked example for a
+// no-coverage crossing ends "Next contact expected around 18:40, near Ireland."
+// We cannot say that. It needs a model of where receiver coverage resumes,
+// which we do not have and do not licence, and a time derived from it -- so it
+// would be a number invented on the one screen whose job is to explain an
+// absence honestly. Same call as cutting C4's countdown, same reason (§6
+// principle 2). "He will reappear on the far side" says what we do know.
+inline const char* Explanation(State s, Regime r = Regime::Local)
 {
     switch (s) {
         case State::NoCoverage:
-            return "Ground receivers do not reach where he is now.";
+            return r == Regime::Airline
+                ? "No ground receivers out here - this is expected. "
+                  "He will reappear on the far side."
+                : "Ground receivers do not reach where he is now.";
         case State::SignalLost:
             return "He is out of receiver range, not off the radar.";
         case State::ApproachLost:
-            return "Low-level coverage is patchy. This usually means landed.";
+            return r == Regime::Airline
+                ? "Expected at this range."
+                : "Low-level coverage is patchy. This usually means landed.";
+        case State::Waiting:
+            // C4. The load-bearing line, and it is the same in both regimes:
+            // it answers "is it broken, or is he just not flying?" and tells
+            // the owner there is nothing to do.
+            return "Nothing heard yet today. This screen changes on its own "
+                   "when he takes off.";
         default:
             return "";
     }

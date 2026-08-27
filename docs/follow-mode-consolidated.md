@@ -299,6 +299,36 @@ either at the field or it is not — but it still needs to say so.
 > **[FOR DANIEL]** three calls: the copy register, cutting the countdown, and whether
 > 7 days is the right nudge.
 
+> ### BUILT 2026-08-27 — the pre-departure face. **And C4's two-face proposal
+> could not be implemented as written, for a reason worth keeping.**
+>
+> C4 asks for the arc face's not-started state in the airline regime and the
+> local face's rings in the local one. **The regime is unknowable at that
+> moment.** §7.1 infers it from how far the aircraft got from home — and in
+> `WAITING` it has never been seen, so there is no flight, no extent and no
+> regime. Picking one anyway means picking a face that is confidently wrong half
+> the time, on the screen whose entire job is honest nothing-yet. That is the
+> same shape as the countdown this proposal already cut.
+>
+> So the face is **regime-agnostic**: a dim ring, the target, and the copy. It
+> also cannot preview a route it has not been told — the codes arrive on a
+> tracked contact, and asking a server for a route **by callsign** would be an
+> outbound request whose existence names the follow target, which C2 forbids. If
+> a route survives from a previous flight the codes *are* drawn, which is the
+> preview C4 wanted at no cost.
+>
+> **The 7-day nudge is built and its clock is in the `follow-log` NVS namespace,
+> not `config`.** `millis()` would restart it every power cycle, so a device
+> rebooted weekly could never reach seven days. It is deliberately not a fourth
+> writer to the `config` namespace: the elimination in
+> [nvs-config-flip-2026-08-27.md](nvs-config-flip-2026-08-27.md) turns on there
+> being exactly three, and a clock is not worth making the next unexplained flip
+> harder to diagnose. Armed once, on the first pass with a target and no fix
+> ever seen; disarmed on the first fix; the namespace is already cleared when the
+> target changes, so a new tail restarts the clock for free. A device whose clock
+> has never synced does not arm — that costs a nudge and never fires a wrong one.
+
+
 ### C5 — Field elevation: the WORKAROUND is dead; the DELIVERY is not built
 
 The design note originally said `include/Airports.h` carries no elevation, generalised
@@ -722,9 +752,48 @@ than about him.
 
 Note the deliberate absence of the word "lost" in both. Different state, different words.
 
-### Pre-departure **[UNKNOWN]** — copy not yet written
+> ### BUILT 2026-08-27 — the copy is now regime-dependent, as this section's own
+> stage-1 note predicted.
+>
+> `FollowState.h` carried a note reading: *"NoCoverage is worded for the LOCAL
+> regime, which is the only one that ships... so this becomes regime-dependent at
+> that point. It is one string today because there is one regime today, not
+> because the two agree."* The arc face is that point.
+>
+> **Two regimes, one switch** — `Headline(State, Regime = Local)` and
+> `Explanation(State, Regime = Local)`. Deliberately not a parallel
+> `HeadlineAirline()`: that is the same fact written twice, the shape
+> `RouteLabel.h` exists to remove. The default keeps every stage-1 caller and
+> assertion meaning what it meant.
+>
+> | state | local | airline |
+> |---|---|---|
+> | `NO_COVERAGE` | `BELOW COVERAGE` | `NO COVERAGE` |
+> | `APPROACH_LOST` | `ON APPROACH - SIGNAL LOST` | `BELOW COVERAGE` |
+>
+> The airline `APPROACH_LOST` chip borrows the local regime's `NO_COVERAGE`
+> words on purpose: in each regime the phrase names the same physical thing, and
+> the two regimes never appear on one screen. Asserted pairwise-distinct within
+> each regime, plus a control that the parameter is wired to anything at all
+> (`SIGNAL LOST` and `AIRBORNE` must be *identical* across regimes).
+>
+> **One line of §6 is deliberately not built.** The no-coverage worked example
+> ends *"Next contact expected around 18:40, near Ireland."* We cannot say that:
+> it needs a model of where receiver coverage resumes, which we neither have nor
+> licence, and a time derived from it — a number invented on the one screen whose
+> job is to explain an absence honestly. Same call as cutting C4's countdown,
+> same reason (principle 2). *"He will reappear on the far side"* says what we do
+> know. A test asserts the airline no-coverage copy **contains no digit**, so the
+> sentence cannot quietly come back.
 
-See C4. Needs strings before build, on the same principle as the rest of this section.
+
+### Pre-departure **[DRAFTED 2026-08-27 — approved]**
+
+Written at C4 and approved with the countdown cut. The headline is
+`WAITING FOR DEPARTURE`; the load-bearing line is *"Nothing heard yet today.
+This screen changes on its own when he takes off."* **`WAITING` never borrows a
+loss state's word** — nothing has been lost, nothing has started, and a test
+asserts the string "lost" appears in neither line.
 
 ---
 
@@ -811,6 +880,71 @@ is a D1 shape, while routes are a key lookup already living in KV.
 
 A round panel affords two independent circular readings. Spend both, and keep the centre
 clear.
+
+> ### BUILT 2026-08-27 — the arc face. Verdict: **§8 renders as specified, with two
+> recorded deviations and one colour question left for the bench.**
+>
+> `AircraftManager::DrawFollowArcFace`, plus `include/FollowArc.h` for every
+> number it draws. 428 host checks over the arithmetic, 0 failures, rehearsed
+> red three times (a raw `atan2` bearing, an unclamped progress, a naive
+> lat/lon midpoint — 3, 12 and 23 failures respectively).
+>
+> **Every radius and text row is the spec's 240 px figure × `SCREEN_SIZE/240`.**
+> Hardcoding them is the mistake CLAUDE.md names by hand, and on the 412 px
+> SPD2010 it would draw the whole face inside the middle half of the glass with
+> a bezel ring floating in the centre.
+>
+> **One angle convention, and it is `FollowArc.h`'s.** LovyanGFX has `fillArc`
+> and it would be cheaper than stepping. It is not used: the band would then be
+> placed by LovyanGFX's convention while the marker, the codes and the wedge are
+> placed by `ArcAngleDeg` — two implementations of one fact. If they disagreed by
+> a few degrees the marker would sit *beside* the arc, and in a photograph that
+> reads as a **progress** error, sending the next reader to `ProgressAlong`,
+> which is correct and graded. The dashes need per-step control anyway.
+>
+> **DEVIATION 1 — the primary slot always holds a magnitude; the label names it.**
+> §8 words `APPROACH_LOST`'s readout as "`ON APPROACH` with distance out", which
+> puts a phrase in a slot holding a number in the other three states. At this
+> type size a phrase either overflows the chord or forces the number smaller —
+> and a stack whose type size changes with state is precisely the jump the shared
+> altitude/chip slot was designed to avoid. So the state's word goes to the label
+> line and the distance to the slot: primary `12 mi`, label `ON APPROACH`. The
+> chip still carries `BELOW COVERAGE`.
+>
+> **DEVIATION 2 — the arc face requires a route; the local face is the fallback.**
+> §7.1 routes "airline regime, otherwise" to the arc unconditionally. But an arc
+> with no origin, no destination and no progress is a dim ring with nothing on
+> it — strictly *less* than the local face, whose rings auto-scale to whatever
+> extent the flight has and whose track is still a picture of the flight. A GA
+> cross-country is exactly that case: outside the home radius, no route, well
+> served by rings. So the arc is chosen when it has something to draw.
+>
+> **The degradation is a tested path, not a hope.** An unresolved code still
+> *draws* — the codes are strings first and coordinates second — so a missing
+> airport costs the marker and nothing else. A four-letter ICAO code (the mirror
+> carries both forms) misses on purpose rather than matching its first three
+> characters against some other field.
+>
+> **[FOR DANIEL] the one open question is a colour.** §8 is emphatic that
+> `APPROACH_LOST` must use the accent, not the warning colour — "getting this one
+> wrong alarms someone watching a family member land". §10 says nothing about the
+> local face's colour for it, and that face has already been eyeballed with amber.
+> Changing it unreviewed would be worse than asking, so the arc face uses green
+> and the local face keeps amber, from one mapping with one parameter. **Judge
+> them side by side in the absence-copy session** — no argument in a comment
+> settles how a colour reads.
+>
+> **Cost: instrumented, NOT yet measured.** `[follow] arc=` reports µs and stroke
+> count on its own line — deliberately *not* folded into `followDrawUs`, which
+> would report "the track cost 4 ms" on a frame where the track was never drawn.
+> No board was free to measure on (COM4 is running the #264 stock-config capture;
+> COM119/COM16 are on the #245 A/B and are not to be disturbed), so what follows
+> is arithmetic, labelled as such: worst case is `NO_COVERAGE` at low progress —
+> 471 strokes of unflown-plus-flown plus ~235 dashed, each a 5 px radial line,
+> ≈ 3,530 px. Against `FlightAnimation.cpp`'s own **measured** 1.06 µs/px that is
+> **≈ 3.7 ms plus ~706 call overheads**. Read the real number off the serial line
+> before quoting it.
+
 
 ### Geometry **[PROPOSAL]**
 
@@ -1613,7 +1747,8 @@ Local regime first (§1.1). Within it:
 
 1. **Measure the track draw cost** (§18.1). Everything depends on it.
 2. **The state machine and the copy** — the feature is the states, not the picture.
-   Includes the pre-departure state once C4 is designed.
+   Includes the pre-departure state once C4 is designed. **BUILT**; the copy became
+   regime-dependent in stage 2 exactly as its own note predicted (box at §6).
 3. **Local face** (§10) — no external data, no Worker surface, no licence question.
    **BUILT 2026-08-27**, bench-unverified. See the box at §10 for what shipped and
    the two readouts that are honestly less than the list there.
@@ -1642,7 +1777,13 @@ Then the airline regime, gated on the production mirror cutover:
    nearest-N overlay forces a query. KV cannot answer nearest-N.
    *Not required for stage 1* — the local regime's home field is a single airport
    carried by the existing config flow.
-8. **Arc face and the four contact states** (§8).
+8. **Arc face and the four contact states** (§8). **BUILT 2026-08-27**,
+   bench-unverified, against the **baked ~250-airport table** rather than step 7 —
+   the majors cover the overwhelming majority of airline city pairs, an unresolved
+   code degrades to an honest code-only arc, and `LookupAirport` is the one seam
+   `ap:` widens later without touching the face. C4's pre-departure face landed
+   with it. See the box at §8 for the two deviations and the one colour question
+   left for the bench.
 9. **Post-flight card, great-circle version.**
 10. **Globe face**, long-haul only (§9).
 11. **Regional chart** plus the Worker-delivered regional dataset.
