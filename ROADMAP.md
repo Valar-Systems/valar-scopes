@@ -136,6 +136,15 @@ E3 the 88 resident hexes, if the enrichment overlay is ever revisited (see
 1,994).
 E4 #131 config-page frame spike, filed and unprioritised.
 
+E5 **OPEN ANOMALY (2026-08-27): three info-field keys flipped on COM4 across a
+flash**, with the migration and a partition difference both eliminated and only
+`/save` able to write them. Fixed forward and the board's config verified against
+the `defaultOn` table before the #264 soak started. Not reproduced, so not an
+issue yet -- but an NVS change with no identified writer is a nothing until it is
+a #245. Timestamps, what was eliminated, the two surviving hypotheses and the
+trigger for treating it as real:
+[docs/nvs-config-flip-2026-08-27.md](docs/nvs-config-flip-2026-08-27.md).
+
 ### Already done — carried on lists but true in the tree
 
 Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:

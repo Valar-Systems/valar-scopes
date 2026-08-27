@@ -251,16 +251,28 @@ struct FlightStats {
 // TWO RULES, because one of them does not catch the reported case and saying so
 // matters more than a tidy single test:
 //
-//  1. PHYSICAL BOUNDS. No ADS-B altitude for a real aircraft sits below about
-//     -1,500 ft (the Dead Sea basin, and Bar Yehuda at -1,266 ft is a real
-//     airfield) or above ~60,000 ft. Outside that, the reading is broken.
-//     -900 ft PASSES this rule -- it is a legal altitude somewhere on Earth --
-//     which is exactly why the second rule exists.
+//  1. PHYSICAL BOUNDS, which CANNOT be the whole answer, and Bar Yehuda is the
+//     reason. A bounds check has to pick a floor, and any floor tight enough to
+//     reject -900 ft rejects a REAL PLACE: Bar Yehuda, in the Dead Sea basin,
+//     is an operating airfield at -1,266 ft. A check that rejects real places is
+//     one that whoever hits it next will loosen, and loosened checks stay loose.
+//     So the floor is set below the real world (-1,500 ft, ceiling ~60,000 ft)
+//     and it catches only readings that are broken as PHYSICS.
+//     -900 ft passes it. That is not a gap in the rule; it is the rule being
+//     honest about what a bound can know.
 //
-//  2. CONTRADICTION WITH THE STATE. If the machine says AIRBORNE and the
-//     altitude is at or below sea level, the two disagree. We do not know which
-//     is wrong, so the honest render is neither: decline the number and leave
-//     the headline, which is the thing the customer is actually reading.
+//  2. CONTRADICTION WITH THE STATE, which is what actually catches it. A bound
+//     asks "is this value possible anywhere?" and the answer for -900 ft is yes.
+//     The useful question is "is it possible HERE, given what we already
+//     claim?" -- and if the machine says AIRBORNE while the altitude is at or
+//     below sea level, the two disagree. We do not know which is wrong, so the
+//     honest render is neither: decline the number, keep the headline, which is
+//     the thing the customer is actually reading.
+//
+//     The generalisation, which is worth more than this instance: WHEN A VALUE
+//     CANNOT BE JUDGED IN ISOLATION, JUDGE IT AGAINST SOMETHING ELSE THE DEVICE
+//     ALREADY ASSERTS. Two cheap readings that must agree beat one expensive
+//     threshold that has to be right on its own.
 //
 // The cost of rule 2 is an aircraft genuinely airborne below sea level over the
 // Dead Sea, which loses a readout and keeps its state. That is the right trade
