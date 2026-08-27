@@ -1612,9 +1612,21 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         // carries ap=60 against the soak pair's ap=41, which is a natural
         // experiment worth not wasting. The track stays ON throughout so its cost
         // stays visible on the [follow] line beside every reading.
+        // VARIABLE: the per-aircraft info labels.
+        //
+        // The overlay arm ran first and came back -0.09 ms over 29 paired
+        // ticks -- nothing, at ap=60. Reading the three boards config pages
+        // then showed what actually differs between this fresh unit and the
+        // soak pair: info-callsign, info-speed and info-baroalt are ON here
+        // and OFF there. Those draw PER AIRCRAFT, every frame, and the label
+        // box walks the same fields a second time for layout -- so at n=30
+        // that is ~180 String builds a frame the soak boards never do.
+        //
+        // This is the shipping default against the legacy one, which makes it
+        // a defaults decision rather than a curiosity.
         static const char* const PHASE[2] = {
-            "overlay=1",
-            "overlay=0",
+            "infotext=1",
+            "infotext=0",
         };
         if (!announced) {
             Serial.println("[bench] subtraction harness: rotating render config every health tick");
@@ -1625,7 +1637,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       (unsigned)trackedAircraft.size(), apCount);
         benchPhase = (benchPhase + 1) % 2;
         followDrawTrack = true;             // constant: its cost is already known
-        displayAirports = (benchPhase == 0);
+        displayAirports = true;             // settled: -0.09 ms, leave it on
+        displayInfoText = (benchPhase == 0);
         Serial.printf("[bench] NEXT     %s\n", PHASE[benchPhase]);
     }
 #endif

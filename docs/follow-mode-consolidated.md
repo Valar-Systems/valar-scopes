@@ -337,6 +337,20 @@ and `radar-up` rotation (`AircraftManager.cpp:3226`) comes free.
   no colour. **Keep colour for state semantics only.** Altitude gets a number or a thin
   profile strip; it does not get a colour ramp.
 
+**CORRECTED 2026-08-26 -- the frame reference quoted below was the wrong number.**
+This section cited 27.5-31.1 ms as "under full load with overlay and trails".
+The code note it came from says the opposite: that range was measured with
+`overlay/trails/fade/scanline OFF`, and is the retracted 2026-08-02 artefact.
+The honest all-on figure was 46-48 ms -- and even that was measured on boards
+whose per-aircraft info labels had been silently switched off by the same
+scripted POST, so stock config is ~60-68 ms at n=30-40. The budget was
+re-baselined 60 -> 85 ms accordingly (#264). **Follow was never measured
+against a real budget until that was fixed.**
+
+**MEASURED 2026-08-26 on the s3-128: track draw mean 4.30 ms, max 5.5 ms at
+cap 256, on a full 1024/1024 buffer, stable over thousands of frames, with
+`psram_free` flat and `allocFail` 0. Verdict per 18.1: TRACK PRODUCT.**
+
 **The draw cost is the number that decides what this feature is.** The frame budget note
 at `AircraftManager.cpp:1531` records 27.5–31.1 ms under full load with overlay and
 trails. Projecting and drawing up to 1024 extra segments per frame could blow that
@@ -349,6 +363,25 @@ wrong one. See §18.
 ---
 
 ## 5. The state machine
+
+> **BUILT 2026-08-26 in `include/FollowState.h`, with two deviations from what
+> is written below. Both are recorded here rather than only in the code,
+> because a spec that disagrees with the build is how the next reader gets
+> misled.**
+>
+> 1. **`HomeContext.known` ships `false`.** The AGL reasoning in 5.3 needs the
+>    published field elevation, which per C5 is a LOOKUP that is not built.
+>    Rather than reason from a wrong threshold, the machine degrades to its
+>    position-free arms and says so. When C5 lands, setting `known` is the
+>    whole change.
+> 2. **The copy is ASCII.** 6 writes middots; there is no `setFont()` anywhere
+>    in the radar draw path, so the glyph set is the default font's and a
+>    UTF-8 middot arrives as two bytes of garbage. Same finding as
+>    `include/RouteLabel.h`. The words are unchanged; only the separators are.
+>
+> The module is PURE -- no members, no display, no `millis()` -- which is the
+> extraction 17 names as the prerequisite for the privacy test. That test can
+> now land alongside the config surface rather than after it.
 
 ### 5.1 Absence is three states, not one
 
