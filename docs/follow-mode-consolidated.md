@@ -933,6 +933,51 @@ A radar scope, which is what the product already is:
 > "watchlisted" and "this is the aeroplane my son is flying" are not the same
 > statement.
 >
+> **BENCH EYEBALL PASS 2026-08-27 (Daniel).** Composition reads correctly — home
+> diamond centred, auto-scaled rings with labels, the track, the aircraft marker
+> with heading ring, `AIRBORNE` with the callsign above. Six findings, all
+> addressed:
+>
+> 1. **The bottom readout ran off both ends of the curve.** A round panel has no
+>    edge to clip against — glyphs run off the glass and it looks identical to a
+>    bug. At `SCREEN_SIZE-26` the chord is **118 px, nineteen characters**, and
+>    `-900 ft MSL  67 kt  148mi` is twenty-five. This was the *second* surface
+>    with the defect (the Stats SSID row was the first), so the rule moved to
+>    `include/DiscGeometry.h` and both call sites use the one copy. The readout
+>    now appends fields **while they still fit** rather than ellipsising one long
+>    string — a truncated `14...` reads as a value, an absent field does not.
+> 2. **`-900 ft MSL` printed under an `AIRBORNE` headline without complaint.**
+>    Bounds alone do not catch it: −900 ft is legal somewhere (Bar Yehuda is a
+>    real airfield at −1,266 ft). What catches it is that the altitude and the
+>    state **contradict each other** — so `ReportableAltFt` declines when
+>    airborne and at-or-below sea level, and the row renders `-- ft MSL`. Same
+>    rule as `AglFt()` returning NaN: decline over a plausible wrong number.
+> 3. **The chosen ring scale is now on serial** (`[follow] rings=3 x 50.00mi
+>    outer=241.4km`), so a real 1–5 mi circuit can be checked against a number
+>    rather than measured off a photograph.
+> 4. **The trail reading as dots is the scale, not a defect** — and the serial
+>    line now says so instead of leaving it to be inferred. `seg_px` is the mean
+>    on-screen distance between consecutive *drawn* points. The decimation is
+>    150 m of **flown path** (§4.1), so at the synthetic 150 mi ring that is
+>    kilometres per pixel and the laps separate; at a 2 mi circuit ring the same
+>    buffer draws a connected racetrack, which is what §11's keepsake needs.
+>    Watch `seg_px` on the first real lesson rather than trusting this paragraph.
+> 5. **The bench self-enable masked the §4.3 disable path.** It fired on every
+>    `Initialise`, and `Initialise` re-runs on every config save — so clearing
+>    the follow field fell straight back to the synthetic target and the
+>    allocation was never freed. Now **armed once per boot**: one auto-enable so
+>    the face has something to draw, after which an empty field means the owner
+>    cleared it. The disable path is reachable on the bench image.
+> 6. **The absence copy could not be judged** without pulling the router.
+>    `FOLLOW_BENCH` now takes a serial key to force the displayed state
+>    (`1`–`5`, `n` to cycle, `0` to release). Display only — `followMachine` is
+>    untouched and the transitions stay exactly as the host suite grades them.
+>    §6 is the emotional core of the feature and it is the one part that can only
+>    be judged by a person looking at the panel.
+>
+> Orientation was confirmed correct (the device was physically rotated 90° for
+> the photographs).
+
 > **Not reachable on a shipping build yet**, and that is the correct sequencing
 > rather than an omission: the `follow` config field is §19 item 5. The bench env
 > (`follow-bench-s3-128`) self-enables and fills a synthetic 1024-point track, so

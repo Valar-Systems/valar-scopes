@@ -742,13 +742,28 @@ void AircraftManager::Initialise()
         // a fresh bench board is in, and exactly the state this build could not
         // work in.
         //
-        // A real follow target overrides it, so setting the key later (once §14 is
-        // built) changes nothing here.
-        if (followTarget.isEmpty()) {
-            followTarget = "bench";
-            if (followDrawTrack && !followTrack.Active())
-                followTrack.Enable();
-            Serial.println("[follow] FOLLOW_BENCH: self-enabled (no config page field yet)");
+        // A real follow target overrides it, so setting the key changes nothing
+        // here.
+        //
+        // ARMED ONCE PER BOOT, and that is a bench finding rather than a tidy-up.
+        // The self-enable used to fire on EVERY Initialise, and Initialise re-runs
+        // on every config save -- so clearing the follow field and saving fell
+        // straight back to the synthetic target. Correct-looking, and it made the
+        // §4.3 DISABLE path (allocation freed, screen hidden entirely) impossible
+        // to exercise on the only image that can reach this code.
+        //
+        // Now: one auto-enable at boot so the face has something to draw, and
+        // after that an empty field means the owner CLEARED it and is honoured.
+        // A reboot re-arms, which is what a bench image should do.
+        if (followBenchArmed) {
+            followBenchArmed = false;
+            if (followTarget.isEmpty()) {
+                followTarget = "bench";
+                if (followDrawTrack && !followTrack.Active())
+                    followTrack.Enable();
+                Serial.println("[follow] FOLLOW_BENCH: self-enabled once for this boot; "
+                               "clearing the field now sticks (tests the 4.3 disable path)");
+            }
         }
         // ---- bench only: make the §18.1 measurement obtainable ---------------
         //
@@ -1060,6 +1075,13 @@ void AircraftManager::Initialise()
 void AircraftManager::Update()
 {
     unsigned long now = millis();
+
+#ifdef FOLLOW_BENCH
+    // Every loop, not on the merge path: the state override has to answer a
+    // keypress on an idle board with no feed, which is exactly the condition
+    // the absence copy is being judged under.
+    PollBenchSerial();
+#endif
 
     // advance the radar sweep + paint the contacts it crossed this frame, before
     // any early-return below, so the beam keeps turning even while a card is open
@@ -1637,6 +1659,40 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       follow::Headline(followMachine.Current()),
                       followHomeCode.isEmpty() ? "-" : followHomeCode.c_str(),
                       (int)followHome.positionKnown, (int)followHome.elevationKnown);
+        // THE RING SCALE, STATED RATHER THAN INFERRED FROM A PHOTOGRAPH.
+        //
+        // Read off the bench as 50/100/150 mi against the synthetic path, which
+        // was the right answer and could only be checked by measuring a picture.
+        // The number that matters later is the one a REAL circuit produces --
+        // 1-5 mi rings -- and nobody will photograph that at the right moment.
+        //
+        // seg_px is the mean on-screen distance between CONSECUTIVE DRAWN points
+        // and is the direct answer to "why does the trail look like dots": the
+        // decimation is 150 m of FLOWN PATH, so how it reads is purely a function
+        // of the current scale. At a 150 mi ring it is kilometres per pixel and
+        // the laps separate; at a 2 mi circuit ring the same buffer draws as a
+        // connected racetrack.
+        {
+            const follow::LocalView v = BuildLocalView();
+            const size_t nn = followTrack.Size();
+            const size_t stride = follow::Track::StrideFor(nn, FOLLOW_DRAW_SEGMENT_CAP);
+            float pitchPx = 0.0f;
+            if (nn > stride) {
+                const float pxPerKm = (v.radiusKm > 0.0f)
+                    ? ((float)FOLLOW_FACE_RADIUS_PX / v.radiusKm) : 0.0f;
+                float sumKm = 0.0f; size_t pairs = 0;
+                for (size_t i = stride; i < nn; i += stride) {
+                    const follow::TrackPoint& a = followTrack.At(i - stride);
+                    const follow::TrackPoint& b = followTrack.At(i);
+                    sumKm += follow::SeparationKm(a.lat, a.lon, b.lat, b.lon);
+                    ++pairs;
+                }
+                if (pairs) pitchPx = (sumKm / (float)pairs) * pxPerKm;
+            }
+            Serial.printf("[follow] rings=%d x %.2f%s outer=%.1fkm  stride=%u seg_px=%.1f\n",
+                          v.rings, (double)v.stepDisplay, rangeUnit.c_str(),
+                          (double)v.radiusKm, (unsigned)stride, (double)pitchPx);
+        }
         // Reset the window with the report, like frameMaxTenths above, so each
         // line describes its own 30 s rather than all of history.
         followDrawMaxUs = 0;
@@ -3062,22 +3118,13 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // Width is the chord, measured at whichever edge of the glyph band sits FARTHER from
     // the centre line: the text occupies yTop..yTop+lh, and the narrower end is the one
     // that decides whether it fits.
+    // The geometry moved to Layout.h (ChordWidthPx) and the ellipsis to
+    // FitToDisc, because the local face's bottom readout ran off both ends of
+    // the curve for exactly this reason and a second copy would have drifted
+    // from this one. Kept as a named lambda so the call sites below read the
+    // same as they did.
     auto fitted = [&](const String& s, int yTop) -> String {
-        const float r  = (float)SCREEN_SIZE_DIV_2;
-        const int   d0 = yTop - SCREEN_SIZE_DIV_2;
-        const int   d1 = yTop + lh - SCREEN_SIZE_DIV_2;
-        const float dy = (float)((d0 < 0 ? -d0 : d0) > (d1 < 0 ? -d1 : d1)
-                                     ? (d0 < 0 ? -d0 : d0)
-                                     : (d1 < 0 ? -d1 : d1));
-        if (dy >= r) return String();
-        const int avail = (int)(2.0f * sqrtf(r * r - dy * dy)) - 8; // inset off the bezel
-        if (avail <= 0) return String();
-        if ((int)backbuffer.textWidth(s) <= avail) return s;
-
-        String out = s;
-        while (out.length() > 1 && (int)backbuffer.textWidth(out + "...") > avail)
-            out.remove(out.length() - 1);
-        return out + "...";
+        return FitToDisc(backbuffer, s, yTop, lh);
     };
 
     line(String(count) + " aircraft");
@@ -4361,6 +4408,68 @@ void AircraftManager::HandleFollowTransition()
     Serial.printf("[follow] auto-surfaced on %s\n", follow::Headline(now));
 }
 
+#ifdef FOLLOW_BENCH
+// Force the display state from serial, so §6's copy can be judged on glass.
+//
+// THE ABSENCE COPY IS THE EMOTIONAL CORE OF THE FEATURE (§6) and it is the one
+// part that cannot be graded anywhere but on the panel. The host suite asserts
+// that the strings differ and that the machine picks the right one; neither
+// tells you whether "BELOW COVERAGE / Ground receivers do not reach where he is
+// now." reads as reassuring at 240 px in a dim room. That needs eyes.
+//
+// Reaching those states honestly means cutting the network and waiting three
+// minutes per state, on a bench where the router is not ours to pull. So the
+// state is forced FOR DISPLAY ONLY: followMachine is untouched, the transitions
+// stay exactly as graded, and nothing here exists outside FOLLOW_BENCH.
+//
+// Keys, one character, no newline needed:
+//   1  AIRBORNE          4  ON APPROACH - SIGNAL LOST
+//   2  ON THE GROUND     5  SIGNAL LOST
+//   3  BELOW COVERAGE    0  release, back to the real machine
+//   n  next state (cycles) -- one key, so it can be driven blind
+void AircraftManager::PollBenchSerial()
+{
+    static bool announced = false;
+    if (!announced) {
+        announced = true;
+        Serial.println("[bench] follow state override: 1=AIRBORNE 2=GROUND 3=BELOW-COVERAGE "
+                       "4=APPROACH-LOST 5=SIGNAL-LOST 0=release n=next");
+    }
+    while (Serial.available()) {
+        const int ch = Serial.read();
+        follow::State want = followForced;
+        bool set = true;
+        switch (ch) {
+            case '1': want = follow::State::Airborne;     break;
+            case '2': want = follow::State::Ground;       break;
+            case '3': want = follow::State::NoCoverage;   break;
+            case '4': want = follow::State::ApproachLost; break;
+            case '5': want = follow::State::SignalLost;   break;
+            case '0':
+                followForce = false;
+                Serial.println("[bench] follow state override RELEASED -- showing the real machine");
+                continue;
+            case 'n': case 'N': {
+                static const follow::State CYCLE[5] = {
+                    follow::State::Airborne, follow::State::Ground,
+                    follow::State::NoCoverage, follow::State::ApproachLost,
+                    follow::State::SignalLost };
+                int i = 0;
+                for (; i < 5; ++i) if (CYCLE[i] == followForced) break;
+                want = CYCLE[(i + 1) % 5];
+                break;
+            }
+            default: set = false; break;
+        }
+        if (!set) continue;
+        followForced = want;
+        followForce = true;
+        Serial.printf("[bench] follow state FORCED: %s | %s\n",
+                      follow::Headline(want), follow::Explanation(want));
+    }
+}
+#endif
+
 // The measurement this whole build exists to take (§18.1).
 //
 // The frame budget note above records 27.5-31.1 ms under full load with overlay
@@ -4474,6 +4583,25 @@ void AircraftManager::DrawFollowHud(BandCanvas& backbuffer) const
 // no zoom dilemma, no licence question. Everything below is generated from
 // positions the device already receives.
 
+// Fit a string to the chord of the round panel at row `yTop`.
+//
+// The geometry is in Layout.h (ChordWidthPx) and is graded on the workstation;
+// only the ellipsis needs a display object, because only the display knows how
+// wide a glyph is. Same helper the Stats screen uses for the SSID -- there is
+// one implementation, because the bench found the second surface with the same
+// defect and a third would have found a third.
+String AircraftManager::FitToDisc(BandCanvas& backbuffer, const String& t,
+                                  int yTop, int lineH) const
+{
+    const int avail = ChordWidthPx(yTop, lineH);
+    if (avail <= 0) return String();
+    if ((int)backbuffer.textWidth(t) <= avail) return t;
+    String out = t;
+    while (out.length() > 1 && (int)backbuffer.textWidth(out + "...") > avail)
+        out.remove(out.length() - 1);
+    return out + "...";
+}
+
 const TrackedAircraft* AircraftManager::FollowedAircraft() const
 {
     if (followTarget.isEmpty())
@@ -4566,7 +4694,14 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
 void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
 {
     constexpr int cx = SCREEN_SIZE_DIV_2;
+#ifdef FOLLOW_BENCH
+    // 6's copy can be forced from serial so it can be judged on glass without
+    // cutting the network. The DRAWING is what needs a human; the transitions
+    // are graded in the host suite.
+    const follow::State st = followForce ? followForced : followMachine.Current();
+#else
     const follow::State st = followMachine.Current();
+#endif
 
     backbuffer.setTextSize(1);
     const auto centred = [&](const String& s, int y, uint32_t colour) {
@@ -4602,7 +4737,9 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
     }
 
     // ---- the state, first, because it is the product (§19) -----------------
-    centred(follow::Headline(st), 8, stateColour);
+    centred(FitToDisc(backbuffer, follow::Headline(st), 8,
+                      backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8),
+            8, stateColour);
 
     // Who, and where from. §10: the airport is a CODE, never a name.
     String who = followTarget; who.toUpperCase();
@@ -4612,7 +4749,11 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
     }
     if (!followHomeCode.isEmpty())
         who += "  at " + followHomeCode;
-    centred(who, 21, DIM);
+    // The callsign is feed-supplied and the home code is ours, so this row is
+    // the one on this face whose length is not bounded by construction.
+    centred(FitToDisc(backbuffer, who, 21,
+                      backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8),
+            21, DIM);
 
     // ---- the scope ----------------------------------------------------------
     const follow::LocalView v = BuildLocalView();
@@ -4674,27 +4815,59 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
     // the field elevation. At Bend that error is 3,460 ft, and a readout that
     // says a trainer is at 4,400 ft AGL in the circuit is worse than one that
     // declines to say.
+    // BUILT AS FIELDS, IN PRIORITY ORDER, AND ADDED ONLY WHILE THEY STILL FIT.
+    //
+    // The bench found this row running off BOTH ends of the curve. At
+    // SCREEN_SIZE-26 on a 240 panel the chord is 118 px -- nineteen characters --
+    // and "-900 ft MSL  67 kt  148mi" is twenty-five. Ellipsising one long
+    // string would cut a number in half, which is worse than dropping a field:
+    // a truncated "14..." reads as a value. So fields are appended while the
+    // whole line fits and the least important one is simply absent when it
+    // does not.
+    constexpr int READOUT_Y = SCREEN_SIZE - 26;
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
     String readout;
+    const auto addField = [&](const String& part) {
+        const String next = readout.isEmpty() ? part : readout + "  " + part;
+        if ((int)backbuffer.textWidth(next) <= ChordWidthPx(READOUT_Y, lineH))
+            readout = next;
+    };
+
     if (live) {
         const follow::Fix& f = followMachine.LastFix();
-        const float alt = followHome.elevationKnown ? follow::AglFt(f, followHome)
-                                                    : follow::AltitudeMslFt(f);
-        readout = String((int)lroundf(alt)) + (followHome.elevationKnown ? " AGL" : " ft MSL");
-        readout += "  " + String((int)lroundf(f.velocityKt)) + " kt";
+        const bool airborne = (st == follow::State::Airborne);
+        // DECLINE RATHER THAN PRINT. The bench showed "-900 ft MSL" under an
+        // AIRBORNE headline and the readout stated it as confidently as a real
+        // number. -900 ft is legal SOMEWHERE (Bar Yehuda sits at -1,266 ft), so
+        // a bounds check alone does not catch it -- what catches it is that the
+        // altitude and the state contradict each other. See ReportableAltFt.
+        if (followHome.elevationKnown) {
+            const float agl = follow::AglFt(f, followHome);
+            if (follow::PlausibleAltFt(agl))
+                addField(String((int)lroundf(agl)) + " AGL");
+        } else {
+            const float msl = follow::AltitudeMslFt(f);
+            if (follow::ReportableAltFt(msl, airborne))
+                addField(String((int)lroundf(msl)) + " ft MSL");
+            else
+                addField("-- ft MSL");
+        }
+        if (follow::PlausibleSpeedKt(f.velocityKt))
+            addField(String((int)lroundf(f.velocityKt)) + " kt");
         // From the DISPLAYED position, not the last raw fix. The dart is drawn
         // dead-reckoned; a range computed off the stale fix would disagree with
         // the ring the customer can see it sitting on.
         auto [rLat, rLon] = live->GetDisplayPosition();
         const float rangeKm = follow::SeparationKm(rLat, rLon, v.centreLat, v.centreLon);
-        readout += "  " + units::FormatKm(rangeKm, rangeUnit);
+        addField(units::FormatKm(rangeKm, rangeUnit));
     } else if (followTrack.Active() && n) {
-        readout = String((unsigned)n) + " track points";
+        addField(String((unsigned)n) + " track points");
     }
     // CIRCUIT COUNT IS NOT HERE. §10 lists it and §11 defers it in the same
     // breath -- see the note at the bottom of include/FollowGeometry.h. A wrong
     // count is a claim the customer cannot check.
     if (!readout.isEmpty())
-        centred(readout, SCREEN_SIZE - 26, DIM);
+        centred(readout, READOUT_Y, DIM);
 
     // ---- the reassurance, when there is something to reassure about ---------
     //

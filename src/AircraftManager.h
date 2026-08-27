@@ -289,6 +289,21 @@ private:
     Screen        followAutoReturnTo = Screen::Radar;
     unsigned long followAutoUntilMs = 0;
     static constexpr unsigned long FOLLOW_AUTO_DWELL_MS = 20000;
+
+#ifdef FOLLOW_BENCH
+    // The bench image self-enables a synthetic target once per boot so the face
+    // has something to draw. It is ARMED ONCE: after the first Initialise an
+    // empty follow field means the owner CLEARED it, which is what makes the
+    // 4.3 disable path reachable on the bench image at all.
+    bool followBenchArmed = true;
+    // 6's absence copy is the emotional core of the feature and can only be
+    // judged by eye. It cannot be reached on a bench without cutting the
+    // network, so the state can be FORCED for display -- the drawing is what
+    // needs looking at; the transitions are graded in the host suite.
+    bool          followForce = false;
+    follow::State followForced = follow::State::SignalLost;
+    void PollBenchSerial();
+#endif
     unsigned long lastNotifyCheck = 0;
 
     // Special-aircraft detection. Every class is derived offline from the live
@@ -724,6 +739,10 @@ private:
     /// The ONE sanctioned outbound use of the follow target (17 / C3).
     bool SendFollowAlert(follow::State was, follow::State now);
     void DrawFollowPostFlightCard(BandCanvas& backbuffer);
+    /// Ellipsise `t` to the chord of the round panel at row `yTop`.
+    /// A round screen has no edge to clip against -- glyphs just run off the
+    /// curve, and text clipped by the bezel looks identical to a bug.
+    String FitToDisc(BandCanvas& backbuffer, const String& t, int yTop, int lineH) const;
     /// 7.1: LANDED until the next takeoff shows the card, not the live face.
     bool ShowPostFlightCard() const;
     /// The nearest airport code to home, from the data already on the device.

@@ -240,6 +240,53 @@ struct FlightStats {
     }
 };
 
+// -----------------------------------------------------------------------------
+// DECLINE, DO NOT PRINT: the same rule AglFt() follows (§18.3)
+//
+// The bench showed `-900 ft MSL` on the local face, under an `AIRBORNE`
+// headline, rendered without complaint. That is the failure this whole file is
+// arranged against, one layer out: a number the device cannot defend, printed in
+// the same typeface as one it can.
+//
+// TWO RULES, because one of them does not catch the reported case and saying so
+// matters more than a tidy single test:
+//
+//  1. PHYSICAL BOUNDS. No ADS-B altitude for a real aircraft sits below about
+//     -1,500 ft (the Dead Sea basin, and Bar Yehuda at -1,266 ft is a real
+//     airfield) or above ~60,000 ft. Outside that, the reading is broken.
+//     -900 ft PASSES this rule -- it is a legal altitude somewhere on Earth --
+//     which is exactly why the second rule exists.
+//
+//  2. CONTRADICTION WITH THE STATE. If the machine says AIRBORNE and the
+//     altitude is at or below sea level, the two disagree. We do not know which
+//     is wrong, so the honest render is neither: decline the number and leave
+//     the headline, which is the thing the customer is actually reading.
+//
+// The cost of rule 2 is an aircraft genuinely airborne below sea level over the
+// Dead Sea, which loses a readout and keeps its state. That is the right trade
+// on a device sold for watching one aeroplane fly circuits.
+constexpr float ALT_FLOOR_FT   = -1500.0f;
+constexpr float ALT_CEILING_FT = 60000.0f;
+constexpr float SPEED_CEILING_KT = 1000.0f;
+
+inline bool PlausibleAltFt(float ft)
+{
+    return std::isfinite(ft) && ft >= ALT_FLOOR_FT && ft <= ALT_CEILING_FT;
+}
+
+inline bool PlausibleSpeedKt(float kt)
+{
+    return std::isfinite(kt) && kt >= 0.0f && kt <= SPEED_CEILING_KT;
+}
+
+/// Rule 1 AND rule 2 together. `airborne` is the machine's own verdict.
+inline bool ReportableAltFt(float ft, bool airborne)
+{
+    if (!PlausibleAltFt(ft)) return false;
+    if (airborne && ft <= 0.0f) return false;
+    return true;
+}
+
 class Machine {
 public:
     State Current() const { return state; }

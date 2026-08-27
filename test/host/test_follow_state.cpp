@@ -29,6 +29,10 @@
 #include <cmath>
 #include <cstdio>
 
+// DiscGeometry.h, not Layout.h: Layout resolves the variant and needs the
+// board. The chord rule has no hardware in it, so the SAME definition the
+// firmware compiles is the one graded here.
+#include "../../include/DiscGeometry.h"
 #include "../../include/FollowGeometry.h"
 #include "../../include/FollowState.h"
 
@@ -300,6 +304,66 @@ int main()
         check(fs.furthestKm == 0.0f, "no home position -> no furthest-point claim");
         check(std::fabs(fs.maxAltMslFt - 9000.0f) < 1.0f,
               "CONTROL: the numbers that do not need home are still recorded");
+    }
+
+    // =========================================================================
+    // THE READOUT DECLINES WHAT IT CANNOT DEFEND
+    //
+    // Straight from the bench: the local face printed "-900 ft MSL" under an
+    // AIRBORNE headline, in the same typeface as a real number. Two rules,
+    // because the obvious one does not catch it -- which is the point.
+    // =========================================================================
+    std::printf("  ---- the readout declines what it cannot defend\n");
+
+    // Rule 1: physical bounds.
+    check(PlausibleAltFt(3500.0f), "a normal cruise altitude is plausible");
+    check(!PlausibleAltFt(90000.0f), "90,000 ft is not");
+    check(!PlausibleAltFt(-9000.0f), "-9,000 ft is not");
+    check(!PlausibleAltFt(NAN), "NaN is not");
+    // CONTROL for rule 1's floor: Bar Yehuda is a REAL airfield at -1,266 ft, so
+    // the floor must not be zero. A check that rejects real places is one that
+    // gets loosened by whoever hits it next, and loosened checks stay loose.
+    check(PlausibleAltFt(-1266.0f), "CONTROL: a real below-sea-level airfield passes");
+
+    // Rule 2: contradiction with the state. THIS is the one that catches -900.
+    check(PlausibleAltFt(-900.0f),
+          "-900 ft passes the BOUNDS check -- which is why bounds alone are not enough");
+    check(!ReportableAltFt(-900.0f, /*airborne=*/true),
+          "-900 ft under AIRBORNE is declined: the two readings contradict");
+    check(ReportableAltFt(-900.0f, /*airborne=*/false),
+          "CONTROL: the same -900 ft on the GROUND is reported, not declined");
+    check(ReportableAltFt(3500.0f, true),
+          "CONTROL: a sane airborne altitude is still reported");
+
+    check(PlausibleSpeedKt(120.0f) && !PlausibleSpeedKt(-3.0f) && !PlausibleSpeedKt(4000.0f),
+          "speed is bounded at both ends");
+
+    // =========================================================================
+    // THE ROUND PANEL HAS NO EDGE TO CLIP AGAINST (Layout.h)
+    // =========================================================================
+    std::printf("  ---- chord width: text must fit the curve, not the box\n");
+    {
+        const int S = 240, LH = 8;
+        // The row the bench found running off both ends.
+        const int atReadout = discgeom::ChordWidthPx(S - 26, LH, S);
+        const int atMiddle  = discgeom::ChordWidthPx(S / 2 - 4, LH, S);
+        check(atReadout > 0 && atReadout < atMiddle,
+              "the bottom readout row is narrower than the middle");
+        check(atMiddle > 200, "the middle of the disc is nearly the full width");
+        // The measured failure: 25 characters at 6 px did not fit that row.
+        check(25 * 6 > atReadout,
+              "\"-900 ft MSL  67 kt  148mi\" does NOT fit -- the reported defect, in numbers");
+        check(19 * 6 <= atReadout, "... but nineteen characters do");
+        // CONTROL: a square panel of the same size would have fitted it, which is
+        // why this is a round-panel bug and not a font-size one.
+        check(atReadout < S - 8, "CONTROL: the chord is narrower than the bounding box");
+        // Off the glass entirely is 0, not a negative width a caller might use.
+        check(discgeom::ChordWidthPx(-40, LH, S) == 0 && discgeom::ChordWidthPx(S + 40, LH, S) == 0,
+              "a row off the disc reports zero, never a negative width");
+        // Symmetric about the centre line, or one end of the face clips and the
+        // other does not -- which is exactly how it was reported.
+        check(discgeom::ChordWidthPx(20, LH, S) == discgeom::ChordWidthPx(S - 20 - LH, LH, S),
+              "the top and bottom of the disc are treated identically");
     }
 
     // =========================================================================
