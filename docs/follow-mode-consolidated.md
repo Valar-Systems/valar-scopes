@@ -1015,6 +1015,87 @@ Same panel, geography instead of an arc. An orthographic projection of a sphere 
 circle**, so on a round panel it fills the glass with nothing cropped. No rectangular
 display can claim that. This is the one place where the hardware's shape is an advantage.
 
+> ### FINDINGS 2026-08-27 — before building it. **The threshold is closed; §7.2's
+> "lift it" is blocked on the module's shape, which is a bigger job than a
+> re-include.**
+>
+> #### 1. The threshold, argued rather than chosen: **4,000 km**
+>
+> The screen span of a route centred on the disc is `2·R·sin(θ/2)`, where θ is
+> its great-circle angle. **That formula reproduces all three of §9's measured
+> rows exactly** at R = 119 — DEN→DEL 196.8 px (measured 197), SEA→LAX 28.6
+> (measured 29), PDX→SEA 3.89 (measured 3.9) — which is the control for using it
+> at the composition's actual R = 94.
+>
+> Solving `2·94·sin(θ/2) = 60` gives θ = 37.2°, i.e. **4,139 km**. It is rounded
+> **down to 4,000 km**, and the rounding is the argument: the US transcon family
+> straddles the exact figure — JFK→LAX is 3,974 km (57.7 px) and SFO→JFK is
+> 4,152 km (60.2 px). Those two look identical on glass and would get different
+> faces. A customer following two transcons seeing two different faces is a worse
+> outcome than 2 px of arc, and §9 says "roughly 60 px" precisely because the
+> number is soft. 4,000 km is 57.9 px.
+>
+> | route | km | px @ R=94 | face |
+> |---|---:|---:|---|
+> | PDX→SEA | 208 | 3.1 | arc |
+> | SFO→LAX | 544 | 8.0 | arc |
+> | LHR→BCN | 1,147 | 16.9 | arc |
+> | JFK→ORD | 1,187 | 17.5 | arc |
+> | DFW→ORD | 1,291 | 19.0 | arc |
+> | SEA→LAX | 1,537 | 22.6 | arc |
+> | JFK→DEN | 2,609 | 38.2 | arc |
+> | JFK→LAX | 3,974 | 57.7 | **globe** (by the rounding) |
+> | SFO→JFK | 4,152 | 60.2 | globe |
+> | LHR→DXB | 5,498 | 78.6 | globe |
+> | LHR→JFK | 5,540 | 79.2 | globe |
+> | SFO→NRT | 8,227 | 113.1 | globe |
+> | DEN→DEL | 12,404 | 155.4 | globe |
+>
+> #### 2. The cases that would have wanted the regional chart — and they are the
+> majority
+>
+> Every row above between **~500 km and 4,000 km** renders 8–38 px of globe arc:
+> too small to read as a route, and far too large for the regional chart's
+> ~413 km window at r ≈ 3,700. **Neither of §9's two scales serves them.** That
+> band is SEA→LAX, DFW→ORD, JFK→ORD, LHR→BCN, JFK→DEN — most of what an airline
+> follow will actually be.
+>
+> This is not an argument for a third scale. It is the reason the **arc face is
+> the airline default and the globe is the long-haul upgrade**, exactly as §8's
+> title says: below the threshold a 270° arc is strictly more legible than 20 px
+> of great circle, and the regional chart only becomes the better answer once its
+> fine coastline dataset exists (§9, out of scope for this pass).
+>
+> #### 3. §7.2's "re-include `+<anim/>` and lift `GlobePt()`" **cannot work as
+> written**
+>
+> Checked in the source rather than assumed. `GlobePt`, `GeoVec`, `kCoast`,
+> `BuildGlobeBasis` and the `gGlobe` basis all live inside
+> `namespace missileer { namespace flight { namespace { … } } }` — an **anonymous
+> namespace**, i.e. internal linkage. `FlightAnimation.h` exposes only the
+> `FlightAnimation` class (`Begin`/`Advance`/`Render`/`SetScenario`). Re-including
+> the module compiles it; **nothing in it becomes callable.**
+>
+> Two further blockers behind that one:
+>
+> - `GlobePt` reads a **file-global basis that latches** (`gGlobeReady`), built by
+>   `BuildGlobeBasis()` from the missile scenario's `gLaunchLat/gAimLat` globals.
+>   Follow needs a basis per route, so a parameter has to replace a global.
+> - `kCoast` is declared against a `GeoVec` defined in that same anonymous scope,
+>   so the data cannot be reached without the type.
+>
+> **So the globe is an extraction, not a re-include:** the projection and the
+> coastline data have to be exported to a shared surface that both the animation
+> and Follow call — one implementation, per §7.2's actual intent — and that means
+> editing shipping Missileer code. Doing it is right; doing it *unverified* is
+> not, and **no board is free** (COM4 is on the #264 capture, COM119/COM16 on the
+> #245 A/B). The extraction is therefore its own increment, with the animation
+> re-checked on glass when a board frees up.
+>
+> Nothing above changes what §9 asks for. It changes what building it costs, and
+> that was worth knowing before starting rather than halfway through.
+
+
 ### Composition **[PROPOSAL]**
 
 - Globe disc **r = 94, centred at (120, 102)** — pulled up and shrunk from the full 119 so
@@ -1067,8 +1148,9 @@ At r = 3,700 a 208 km route spans **121 px** **[MEASURED]** and the visible wind
 about 3.7° ≈ 413 km.
 
 **Do not build a continuous zoom.** Two scales, selected by great-circle distance, no user
-control. The threshold is **[UNKNOWN]** — pick it from where the globe arc drops below
-roughly 60 px and argue the number rather than choosing it.
+control. The threshold is **[DECIDED 2026-08-27: 4,000 km]** — derived from
+`2·R·sin(θ/2) = 60 px` at R = 94, then rounded down so the US transcon family does not
+straddle it. See the findings box at the head of §9.
 
 ### Regional chart needs different data
 
