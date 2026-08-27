@@ -1605,18 +1605,56 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // hypothesis can be tested properly; nothing here should be cited as
     // evidence for or against it.
     //
-    // BUDGET UNCHANGED AT 60 ms:
-    //   - The honest all-on envelope is 48.0 ms, so 60 keeps ~25 % margin.
-    //   - Tightening toward it would re-create the exact failure that forced
-    //     50 -> 60: a line that flags the renderer's honest steady state as a
-    //     regression. 48.0 is uncomfortably close to 50 for that reason.
-    //   - Nothing crossed 60 ms in any window: 1396 overnight samples plus 110
-    //     the next day, across every configuration measured including the
-    //     accidental one.
+    // RE-BASELINED 2026-08-26, 60 -> 85 ms. "ALL ON" WAS NEVER ALL ON.
+    //
+    // Everything above is still true and its conclusion was still wrong, for a
+    // reason nobody could see from the numbers: every board those measurements
+    // came from had the per-aircraft INFO LABELS TURNED OFF.
+    //
+    // The 2026-08-02 scripted POST is the cause, and it did more damage than the
+    // retraction above records. It wrote `false` for every checkbox absent from
+    // the body -- and `info-callsign`, `info-speed` and `info-baroalt` were among
+    // them. They ship ON (see AIRCRAFT_INFO_FIELDS). The bench boards have been
+    // carrying them OFF ever since, so "the honest all-on envelope is 48.0 ms" is
+    // an envelope for a renderer missing its primary readout, and the 60 ms
+    // budget derived from it inherits the same gap.
+    //
+    // MEASURED 2026-08-26, paired A/B on one board, one boot, alternating every
+    // 30 s health tick so the warm-up drift brackets out (a fresh board climbs
+    // ~12 ms over its first six minutes -- comparing arms 30 s apart without
+    // pairing is how the 2026-08-02 result went wrong in the first place):
+    //
+    //     info labels ON vs OFF, 17 pairs, n=14-18:  +8.52 ms mean, +9.00 median
+    //
+    // They are drawn per aircraft and AircraftLabelBox walks the same fields a
+    // second time for layout, so the cost scales with contact count: ~9 ms at
+    // n=16 implies roughly double at the n=30-40 the fleet actually runs at.
+    // Stock config therefore sits around 60-68 ms where the stripped bench boards
+    // sit at 46-48, which was being read as a hardware difference between boards.
+    //
+    // Also measured, and worth recording because it closes a question this note
+    // left open: the AIRPORT OVERLAY costs -0.09 ms over 29 paired ticks at
+    // ap=60. It is not the frame lever. `ap=` can stop being a suspect.
+    //
+    // THE DEFAULTS KEEP THEIR COST. Callsign, ground speed and barometric
+    // altitude are the radar's readout; a scope of unlabelled dots is not this
+    // product, so the ~9-18 ms is bought deliberately. What changes is the
+    // ASSERTION, because a budget calibrated against a stripped renderer flags
+    // every stock unit as a regression -- and a warning that fires on every
+    // healthy device is one nobody reads by week two. That is exactly how the
+    // ntfy early-return survived as long as it did.
+    //
+    // 85 ms = a ~68 ms stock envelope + the same ~25 % margin the 60 ms figure
+    // used. PROVISIONAL: no stock-config soak exists yet. The number that should
+    // replace it is a multi-hour run on a board with the shipping defaults
+    // intact, at n=30-40 -- not another reading from a bench board whose config
+    // froze in August.
     // BLIPS_LIMIT=40 is unaffected by all of this -- it is bounded by heap, not
     // frame time, and that bound was measured on the cloud build with the feed
     // saturated (see the constant).
-    constexpr float FRAME_P95_BUDGET_MS = 60.0f;
+    // 85, not 60 -- see the re-baseline note above. The 60 was derived from
+    // boards whose info labels had been silently switched off in 2026-08.
+    constexpr float FRAME_P95_BUDGET_MS = 85.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
         budgetBreaches++;
