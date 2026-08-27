@@ -33,6 +33,7 @@
 // board. The chord rule has no hardware in it, so the SAME definition the
 // firmware compiles is the one graded here.
 #include "../../include/DiscGeometry.h"
+#include "../../include/FollowArc.h"
 #include "../../include/FollowGeometry.h"
 #include "../../include/FollowState.h"
 
@@ -365,6 +366,107 @@ int main()
         check(discgeom::ChordWidthPx(20, LH, S) == discgeom::ChordWidthPx(S - 20 - LH, LH, S),
               "the top and bottom of the disc are treated identically");
     }
+
+    // =========================================================================
+    // 8 -- THE ARC FACE'S ARITHMETIC
+    //
+    // Graded against hand-computed references, because a marker at 41% instead
+    // of 44% looks exactly like a marker at 44% on a 240 px disc. Nothing about
+    // this is checkable by eye, which is the definition of what belongs here.
+    // =========================================================================
+    std::printf("== FollowArc ==\n");
+    std::printf("  ---- great circle, not the flat approximation\n");
+    {
+        // The spec's own worked example: DEN -> DEL is 12,406 km.
+        const Endpoint den = LookupAirport("DEN");
+        const Endpoint del = LookupAirport("DEL");
+        check(den.known, "DEN resolves from the baked table");
+        check(del.known, "DEL resolves from the baked table");
+        if (den.known && del.known) {
+            const float d = GreatCircleKm(den.lat, den.lon, del.lat, del.lon);
+            check(d > 12200.0f && d < 12600.0f,
+                  "DEN->DEL is ~12,406 km (the spec's MEASURED figure)");
+            // CONTROL: the equirectangular approximation FollowState uses for the
+            // home radius is wildly wrong here -- which is why the two functions
+            // exist separately and are named differently.
+            const float flat = SeparationKm(den.lat, den.lon, del.lat, del.lon);
+            check(flat > d * 1.2f || flat < d * 0.8f,
+                  "CONTROL: the flat approximation is NOT usable at this range");
+        }
+        // A short hop, where haversine must still be right.
+        const Endpoint sea = LookupAirport("SEA");
+        const Endpoint lax = LookupAirport("LAX");
+        if (sea.known && lax.known) {
+            const float d = GreatCircleKm(sea.lat, sea.lon, lax.lat, lax.lon);
+            check(d > 1450.0f && d < 1620.0f, "SEA->LAX is ~1,537 km (spec MEASURED)");
+        }
+        check(!LookupAirport("ZZZ").known, "CONTROL: a bogus code does not resolve");
+        check(!LookupAirport("").known && !LookupAirport(nullptr).known,
+              "CONTROL: empty and null do not resolve, and do not crash");
+        check(GreatCircleKm(10.0f, 20.0f, 10.0f, 20.0f) < 0.001f,
+              "a point is zero km from itself");
+    }
+
+    std::printf("  ---- bearing, normalised to the compass\n");
+    {
+        // Due north and due east from the equator are the two cases where the
+        // answer is exactly known without trigonometry.
+        check(std::fabs(BearingDeg(0.0f, 0.0f, 10.0f, 0.0f) - 0.0f) < 0.5f, "due north is 0");
+        check(std::fabs(BearingDeg(0.0f, 0.0f, 0.0f, 10.0f) - 90.0f) < 0.5f, "due east is 90");
+        check(std::fabs(BearingDeg(10.0f, 0.0f, 0.0f, 0.0f) - 180.0f) < 0.5f, "due south is 180");
+        // THE ONE THAT WOULD SHIP WRONG: due west is 270, not -90. atan2 returns
+        // a negative and the compass has no negatives.
+        const float w = BearingDeg(0.0f, 10.0f, 0.0f, 0.0f);
+        check(w > 269.5f && w < 270.5f, "due west normalises to 270, never -90");
+        for (float lat = -60.0f; lat <= 60.0f; lat += 17.0f)
+            for (float lon = -170.0f; lon <= 170.0f; lon += 43.0f) {
+                const float b = BearingDeg(0.0f, 0.0f, lat, lon);
+                ++checks;
+                if (!(b >= 0.0f && b < 360.0f)) {
+                    std::printf("  FAIL: bearing %g out of [0,360)\n", (double)b);
+                    ++failures;
+                }
+            }
+    }
+
+    std::printf("  ---- progress and the arc sweep\n");
+    {
+        const Endpoint a = LookupAirport("JFK");
+        const Endpoint b = LookupAirport("LHR");
+        check(a.known && b.known, "JFK and LHR both resolve");
+        if (a.known && b.known) {
+            check(ProgressAlong(a, b, a.lat, a.lon) < 0.01f, "at the origin, progress is 0");
+            check(ProgressAlong(a, b, b.lat, b.lon) > 0.99f, "at the destination, progress is 1");
+            // Past the destination -- a diversion, or an overfly. Clamped, because
+            // a marker off the end of the arc is a rendering bug, not information.
+            check(ProgressAlong(a, b, 55.0f, 20.0f) <= 1.0f, "beyond the destination clamps to 1");
+        }
+        // An unresolved endpoint yields no progress, which is what makes the
+        // code-only arc (no marker) the honest degradation rather than a marker
+        // sitting at 7:30 pretending to be a position.
+        Endpoint unknown;
+        check(ProgressAlong(unknown, b, 50.0f, 0.0f) == 0.0f,
+              "an unresolved endpoint gives no progress");
+
+        // §8's geometry: origin at 7:30, destination at 4:30.
+        check(std::fabs(ArcAngleDeg(0.0f) - 135.0f) < 0.01f, "progress 0 sits at 135 (7:30)");
+        check(std::fabs(ArcAngleDeg(1.0f) - 405.0f) < 0.01f, "progress 1 sits at 405 (4:30)");
+        check(std::fabs(ArcAngleDeg(0.5f) - 270.0f) < 0.01f, "halfway sits at the top");
+        check(std::fabs(ArcAngleDeg(2.0f) - 405.0f) < 0.01f, "CONTROL: out-of-range clamps");
+    }
+
+    std::printf("  ---- time to arrival declines rather than guesses\n");
+    check(MinutesToArrival(926.0f, 500.0f) == 60,
+          "926 km at 500 kt is one hour");
+    check(MinutesToArrival(100.0f, 0.0f) < 0,
+          "a stopped aircraft has no arrival time -- not a huge one");
+    check(MinutesToArrival(100.0f, 20.0f) < 0,
+          "and neither does one below 40 kt");
+    check(MinutesToArrival(100.0f, NAN) < 0, "NaN speed declines");
+    check(MinutesToArrival(60000.0f, 60.0f) < 0,
+          "longer than any flight means the inputs disagree -- decline");
+    check(MinutesToArrival(926.0f, 500.0f) > 0,
+          "CONTROL: a sane pair still produces an answer");
 
     // =========================================================================
     // 10 -- THE RING LADDER
