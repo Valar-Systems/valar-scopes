@@ -206,6 +206,23 @@ lookup by code suffices, the D1 side if §7.3's priority-sorted overlay forces a
 can ride the existing config flow — so nothing about local-first waits for this
 decision.
 
+> **Confirmed by the build, 2026-08-27, and with a sharper split than this
+> section assumed.** C5 is really *two* deliverables, and only one is missing:
+>
+> | | stage 1 | how |
+> |---|---|---|
+> | **which field** | **available** | nearest code from the airports data already on the device — no new dataset, no Worker surface |
+> | **its elevation** | missing | needs the `ap:` family this section describes (§19 item 7) |
+>
+> Treating them as one thing is what produced the `HomeContext.known` defect
+> recorded at §5: the *position* half was withheld because the *elevation* half
+> was unavailable, and every pattern dropout read `SIGNAL LOST` as a result. The
+> two are independent and are now two flags.
+>
+> So what C5's delivery actually buys, concretely: AGL readouts on the local
+> face, `APPROACH_LOST`, and landed-by-profile. Nothing else in stage 1 waits on
+> it.
+
 ### C6 — Follow is one screen with several faces, not several screens
 
 The design note says Follow is "a fourth screen (Radar / List / Stats / Follow)." The
@@ -374,6 +391,47 @@ wrong one. See §18.
 >    Rather than reason from a wrong threshold, the machine degrades to its
 >    position-free arms and says so. When C5 lands, setting `known` is the
 >    whole change.
+>
+>    **CORRECTED 2026-08-27 while building the local face, and the correction
+>    is worth more than the original note.** That single flag was a defect, not
+>    a deviation. `InsideHome()` — a question about WHERE he is — was gated on
+>    it, so with the elevation unknown every position argument fell through and
+>    **every pattern dropout came out `SIGNAL_LOST`**: precisely the failure 10
+>    names in bold, *"getting this backwards makes the device look broken every
+>    single circuit"*, shipped by the mechanism the note above described as a
+>    safe degradation.
+>
+>    The device has always known where home is — it is the configured location,
+>    the point the radar is centred on. Two independent facts had been folded
+>    into one flag, so `HomeContext` now carries two:
+>
+>    | flag | question | stage 1 |
+>    |---|---|---|
+>    | `positionKnown` | where is home? | **true** whenever a location is set |
+>    | `elevationKnown` | how high is the field? | false until C5's delivery half |
+>
+>    The reading rule: an argument about **where** needs `positionKnown`; an
+>    argument about **height above ground** needs `elevationKnown`, and without
+>    it the machine declines the argument rather than substituting MSL. At a
+>    3,460 ft field a 1,000 ft circuit reads 4,460 ft, which is above every
+>    threshold in `Tuning` and silently wrong. `AglFt()` returns **NaN** rather
+>    than a plausible number, so a caller that forgets produces something
+>    visibly broken instead of something quietly off by the field elevation.
+>
+>    Consequently `LANDED`-by-profile and `APPROACH_LOST` are unavailable in
+>    stage 1 and `NO_COVERAGE` is not — which is the honest reading of 5.1's
+>    own sentence, *"NO_COVERAGE is a POSITION argument."*
+>
+>    **This is graded, not asserted.** `test/host/test_follow_state.cpp` pins
+>    it with the pre-fix world as a control: it asserts that with
+>    `positionKnown` false the circuit dropout comes out `SIGNAL_LOST`, so
+>    re-conflating the flags fails the suite. Rehearsed red before being
+>    believed.
+>
+> 1b. **`AlertTitle` formats into a caller buffer** instead of returning a
+>    `String`. That removed the last Arduino dependency from the file, which is
+>    what makes the host test above possible at all — and an alert path that
+>    does not allocate is better on the device regardless.
 > 2. **The copy is ASCII.** 6 writes middots; there is no `setFont()` anywhere
 >    in the radar draw path, so the glyph set is the default font's and a
 >    UTF-8 middot arrives as two bytes of garbage. Same finding as
@@ -823,7 +881,7 @@ does not carry and should not.
 **So the local face draws no map at all.** This is good news: no dataset, no Worker
 delivery, no zoom dilemma, no licence question. **The trail is the picture.**
 
-### Composition **[PROPOSAL]**
+### Composition **[BUILT 2026-08-27]**
 
 A radar scope, which is what the product already is:
 
@@ -833,6 +891,52 @@ A radar scope, which is what the product already is:
 - **The track**, decimated by distance per §4.1
 - **Current position** with heading
 - **Readouts**: altitude **AGL** (real threshold, per C5) and **circuit count**
+
+> **What shipped, and the two places it is honestly less than the list above.**
+> `AircraftManager::DrawFollowLocalFace`, with the arithmetic in
+> `include/FollowGeometry.h` (pure, host-tested).
+>
+> **The half of C5 that *is* available today was used.** "Which field" needs no
+> new dataset: the airports overlay is already fetched for the radar and
+> `include/Airports.h` is baked on every board, so the marker carries the nearest
+> field's **code** within 12 km — and `HOME` when nothing is close enough to
+> claim, rather than a wrong code under the anchor of the whole view. It is the
+> code and never a name, per the note above. Resolved once, dropped when the
+> configured location changes.
+>
+> 1. **Altitude is MSL, labelled `ft MSL`, not AGL.** C5's delivery half does not
+>    exist, so the field elevation is unknown; the render says the number the
+>    feed carries and names it correctly. An AGL-shaped number would be wrong by
+>    the field elevation — 3,460 ft at Bend — and a readout claiming a trainer is
+>    at 4,400 ft AGL in the circuit is worse than one that declines to say. When
+>    C5 lands this becomes one branch.
+> 2. **No circuit count.** §11 defers it in the same breath §10 asks for it, and
+>    §18.3 says every constant is a guess until a real lesson is logged. A wrong
+>    count is a *claim* the customer has no way to check, so the slot is empty
+>    rather than confident. The reasoning is written where someone would go to
+>    add it — the bottom of `FollowGeometry.h`.
+>
+> **The ladder is walked in the customer's unit, not in kilometres.** A step that
+> is round in km is 0.62 / 1.24 / 3.11 in miles, and a ring labelled 3.11 is a
+> ring nobody reads. One conversion out and one back, both through
+> `include/DisplayUnits.h`.
+>
+> **Screen integration, per C6 and §13.3.** One slot, hidden entirely when the
+> follow field is empty — so the swipe cycle and the page dots walk *visible*
+> screens rather than counting to four, and a collection customer who never uses
+> Follow inherits nothing. It auto-surfaces for a 20 s dwell on **takeoff and
+> landing only** (never on an absence — a dropout is the normal operating
+> condition at pattern altitude, and a screen that jumped on every one would be
+> the device looking broken every circuit in a louder way than copy could fix),
+> and a swipe cancels the dwell. The followed contact gets its own ring on the
+> radar in the track's blue — deliberately not the watchlist amber, because
+> "watchlisted" and "this is the aeroplane my son is flying" are not the same
+> statement.
+>
+> **Not reachable on a shipping build yet**, and that is the correct sequencing
+> rather than an omission: the `follow` config field is §19 item 5. The bench env
+> (`follow-bench-s3-128`) self-enables and fills a synthetic 1024-point track, so
+> the face's geometry can be looked at exactly the way the §18.1 draw cost was.
 
 ### Auto-scaling is correct here, and only here
 
@@ -1185,6 +1289,25 @@ which is the exact substitution this repo has been bitten by before.
 Recommendation: build the strong form. If the extraction turns out large, land the grep
 guard first so the window is covered, and say plainly in the PR that it is the weaker check.
 
+> **The rig for the strong form exists as of 2026-08-27.**
+> `test/host/test_follow_state.cpp` runs in `test/host/run.sh` against
+> `FollowState.h` and `FollowGeometry.h`, both of which now compile with
+> `-I src/game` and **nothing else on the include path** — so the purity claim is
+> enforced by the same gate as everything else in that suite rather than asserted
+> in a comment. Putting `#include <Arduino.h>` back into either header stops the
+> suite compiling.
+>
+> What remains for §17 itself is the **payload builders**, which still live
+> inside `AircraftManager.cpp`. The test to write sets a distinctive follow value
+> and asserts it appears in none of them. One sanctioned exception is already
+> pinned by the existing suite: `AlertTitle` carries the tail, per C3, and the
+> test asserts it does — an invariant with no positive case is one nobody can
+> tell from a broken extractor.
+>
+> Serial output is in scope and is already respected: the `[follow]` health line
+> prints the state, the home code and the two knowledge flags, and deliberately
+> **not the target**.
+
 **C2 is a live conflict with this section.** Resolve it before the picker is built.
 
 ---
@@ -1218,6 +1341,8 @@ Local regime first (§1.1). Within it:
 2. **The state machine and the copy** — the feature is the states, not the picture.
    Includes the pre-departure state once C4 is designed.
 3. **Local face** (§10) — no external data, no Worker surface, no licence question.
+   **BUILT 2026-08-27**, bench-unverified. See the box at §10 for what shipped and
+   the two readouts that are honestly less than the list there.
 4. **Post-flight card, local version** (§11).
 5. **Config surface and the generated ntfy topic** (§14).
 6. **The privacy test** (§17), landed alongside or before anything that builds a payload.

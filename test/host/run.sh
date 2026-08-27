@@ -116,6 +116,36 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+echo "== FollowState + FollowGeometry =="
+# Follow's state machine, its copy, and the local face's ring ladder.
+#
+# NO NEW -I. The test reaches the headers by relative path, exactly as
+# ConfigMigration does, so this binary is built with `-I src/game` and nothing
+# else on the path -- which means the purity claim in FollowState.h is enforced
+# by the same gate as everything else here rather than asserted in a comment. If
+# somebody puts `#include <Arduino.h>` back into either header, this stops
+# compiling.
+#
+# The state machine is the part of Follow that cannot be graded on the bench: its
+# interesting cases each need a real aeroplane to vanish in a particular way, and
+# that produces one observation with no control beside it. See the file header.
+if ! "$CXX" $FLAGS $INCLUDES \
+      "$ROOT/test/host/test_follow_state.cpp" \
+      -o "$OUT/test_follow_state.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_state.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+echo
 echo "== StarvationPolicy =="
 # Pure predicate, graded against values captured off two real boards during the
 # 2026-08-24 A/B soak. It is host-tested rather than bench-tested on purpose: the

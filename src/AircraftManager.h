@@ -20,6 +20,7 @@
 #include "BandCanvas.h"
 #include "FollowTrack.h" // Follow Mode track buffer (header-only; radar path only)
 #include "FollowState.h" // Follow Mode state machine + copy (spec 5 and 6)
+#include "FollowGeometry.h" // Follow Mode local-face geometry (spec 10)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 
 class AircraftManager
@@ -84,9 +85,21 @@ private:
     // window for a painted blip. angle = TWO_PI * millis() / SWEEP_PERIOD_MS.
     static constexpr unsigned long SWEEP_PERIOD_MS = 5000;
 
-    // Screen navigation. Three top-level screens cycle via horizontal swipe; the
+    // Screen navigation. Top-level screens cycle via horizontal swipe; the
     // detail card overlays whichever screen you're on.
-    enum class Screen { Radar, List, Stats };
+    //
+    // FOLLOW IS ONE SLOT WITH SEVERAL FACES, NOT SEVERAL SCREENS (spec C6). The
+    // local face, the arc face, the globe and the post-flight card are all this
+    // one entry; which of them draws is decided by regime and state (§7.1), and
+    // is never something the customer picks.
+    //
+    // It is HIDDEN ENTIRELY when no aircraft is being followed (§13.3), the way
+    // the other editions skip empty feeds -- so the cycle below walks visible
+    // screens rather than counting a fixed number. A collection customer who
+    // never uses this must not inherit a dead screen, and a fixed `% 4` is
+    // exactly how they would.
+    enum class Screen { Radar, List, Stats, Follow };
+    static constexpr int SCREEN_COUNT = 4;
     Screen screen = Screen::Radar;
 
     // Stats-screen "Reset" row -- the entry point to the reset menu below. Its
@@ -239,6 +252,29 @@ private:
     uint32_t followDrawSumUs = 0;   // for a mean over the report interval
     uint32_t followDrawFrames = 0;
     size_t   followDrawSegments = 0; // segments actually drawn last frame
+
+    // ---- the local face (§10) ----------------------------------------------
+    // The home field's CODE, from the airport data already on the device. §10 is
+    // explicit that the local face adds no dataset and that the marker carries a
+    // code and never a name: the device has coordinates and identifiers, not
+    // names, and inventing one would mean a new table and a flash cost for
+    // nothing Follow needs. Empty when no field is close enough to claim.
+    String followHomeCode = "";
+    // The elevation half of C5 is NOT delivered (the CC0 corpus has AltitudeFeet
+    // for 34,128 fields; no running code writes it to KV). Kept separate from the
+    // position half so an absent elevation costs AGL and nothing else -- see the
+    // note on follow::HomeContext.
+    bool   followHomeCodeResolved = false;
+
+    // §13.3: Follow auto-surfaces ONLY on a state transition -- takeoff, landing
+    // -- for a dwell, then returns to wherever the owner was. It never takes the
+    // screen otherwise, and a swipe during the dwell cancels it: the customer
+    // moving is a decision, and a screen that snaps back after one is a screen
+    // that feels broken.
+    follow::State followLastState = follow::State::Idle;
+    Screen        followAutoReturnTo = Screen::Radar;
+    unsigned long followAutoUntilMs = 0;
+    static constexpr unsigned long FOLLOW_AUTO_DWELL_MS = 20000;
     unsigned long lastNotifyCheck = 0;
 
     // Special-aircraft detection. Every class is derived offline from the live
@@ -653,6 +689,25 @@ private:
     void DrawFollowHud(BandCanvas& backbuffer) const;
     bool MatchesFollow(const TrackedAircraft& tracked) const;
     void UpdateFollowTrack();
+    // The local face (§10). One screen slot, several faces (C6) -- DrawFollow is
+    // the router, and the local face is the only one built.
+    void DrawFollow(BandCanvas& backbuffer);
+    void DrawFollowLocalFace(BandCanvas& backbuffer);
+    /// The view the local face draws: home at the centre, rings auto-fitted to
+    /// the track's extent. Pure arithmetic lives in include/FollowGeometry.h.
+    follow::LocalView BuildLocalView() const;
+    std::pair<int, int> ProjectLocal(float pLat, float pLon, const follow::LocalView& v) const;
+    /// The followed contact, if it is in the table this pass. Null is the normal
+    /// case at pattern altitude, not an error -- see FollowTrack.h.
+    const TrackedAircraft* FollowedAircraft() const;
+    /// Empty follow field -> the screen does not exist (§13.3).
+    bool FollowScreenVisible() const { return !followTarget.isEmpty(); }
+    /// Next/previous VISIBLE screen. dir is +1 or -1.
+    void AdvanceScreen(int dir);
+    /// §13.3: surface Follow on a takeoff/landing transition, for a dwell.
+    void MaybeAutoSurfaceFollow();
+    /// The nearest airport code to home, from the data already on the device.
+    void ResolveHomeField();
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
 

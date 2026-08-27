@@ -104,6 +104,11 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 #ifndef FOLLOW_DRAW_SEGMENT_CAP
 #define FOLLOW_DRAW_SEGMENT_CAP 256
 #endif
+
+// The local face's usable disc (§10). Derived from SCREEN_SIZE, never a literal
+// -- this draws on a 240 round, a 412 round and a 480 square, and the inset is
+// what keeps the outer ring's label off the bezel on all three.
+static constexpr int FOLLOW_FACE_RADIUS_PX = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 10;
 #include "HeapHealth.h"
 #include "StarvationPolicy.h"
 
@@ -548,6 +553,12 @@ void AircraftManager::Initialise()
     // note on hasLocation in the header. A factory-fresh or factory-reset device
     // lands here with both empty, and the radar has nothing to centre on.
     hasLocation = latStr.length() > 0 && lonStr.length() > 0;
+    // Follow's home field is resolved once and cached (see ResolveHomeField).
+    // Initialise re-runs on every config save, and a save is the only way the
+    // location can move -- so this is exactly where the cache must be dropped.
+    // Left stale, a customer who moved the device would keep the old field's
+    // code under the marker the whole local face is built around.
+    followHomeCodeResolved = false;
     // Said out loud, because "the screen is asking me to set a location" is a
     // support conversation and this is the line that answers it in one look.
     if (!hasLocation)
@@ -1566,6 +1577,20 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       (unsigned long)followTrack.Appends(),
                       (unsigned long)followTrack.RejectedNear(),
                       (int)followTrack.Active(), (int)followTrack.Degraded());
+        // The STATE, on the same line. §19: "the feature is the states, not the
+        // picture", and a soak log that carries the draw cost but not which
+        // state the machine sat in cannot answer the one question a logged
+        // training flight exists to answer (§18.3) -- whether the constants in
+        // Tuning put the machine in the right state at the right moment. It is
+        // one word and it is the difference between a log and evidence.
+        //
+        // The TARGET is deliberately NOT printed. §17 lists serial output among
+        // the places the follow value must never appear, with the Wi-Fi password
+        // incident as the precedent.
+        Serial.printf("[follow] state=%s home=%s pos=%d elev=%d\n",
+                      follow::Headline(followMachine.Current()),
+                      followHomeCode.isEmpty() ? "-" : followHomeCode.c_str(),
+                      (int)followHome.positionKnown, (int)followHome.elevationKnown);
         // Reset the window with the report, like frameMaxTenths above, so each
         // line describes its own 30 s rather than all of history.
         followDrawMaxUs = 0;
@@ -2541,9 +2566,17 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         return;
     }
 
+    // A follow target cleared while the Follow screen was showing leaves the
+    // customer on a screen that no longer exists. Snap back rather than draw an
+    // empty face -- §13.3's "hidden entirely" has to mean hidden from every
+    // route in, including the one they were already standing on.
+    if (screen == Screen::Follow && !FollowScreenVisible())
+        screen = Screen::Radar;
+
     switch (screen) {
-        case Screen::List:  DrawList(backbuffer);  break;
-        case Screen::Stats: DrawStats(backbuffer); break;
+        case Screen::List:   DrawList(backbuffer);   break;
+        case Screen::Stats:  DrawStats(backbuffer);  break;
+        case Screen::Follow: DrawFollow(backbuffer); break;
         case Screen::Radar:
         default:
             // NO LOCATION -> say so, ahead of everything else. A radar centred on
@@ -2796,6 +2829,18 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(AMBER);
             backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y - 16);
+        }
+
+        // FOLLOWED contact: a distinct ring on the radar, so it is findable
+        // without leaving the collection view (§13.3). Deliberately its own
+        // colour and its own radius rather than reusing the watchlist amber:
+        // "watchlisted" and "this is the aeroplane my son is flying" are not the
+        // same statement, and a customer who uses both must be able to tell
+        // which ring is which at a glance.
+        if (!followTarget.isEmpty() && MatchesFollow(tracked)) {
+            const uint32_t FOLLOW_RING = lgfx::color888(0, 170, 255); // the track's blue
+            backbuffer.drawCircle(x, y, 12, FOLLOW_RING);
+            backbuffer.drawCircle(x, y, 13, FOLLOW_RING);
         }
 
         // pinned ("tracked") contact: white reticle + always-on callsign
@@ -3210,10 +3255,19 @@ void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
 {
     constexpr int cx = SCREEN_SIZE_DIV_2;
     const int y = SCREEN_SIZE - 16;
-    for (int i = 0; i < 3; ++i) {
+    // Dots for the screens that EXIST, not for the enum. Follow is hidden when
+    // no aircraft is being followed (§13.3), and a dot for a screen no swipe can
+    // reach is a promise the device does not keep -- the same reason the cycle
+    // walks visible screens instead of counting to four.
+    const int shown = SCREEN_COUNT - (FollowScreenVisible() ? 0 : 1);
+    int slot = 0;
+    for (int i = 0; i < SCREEN_COUNT; ++i) {
+        if ((Screen)i == Screen::Follow && !FollowScreenVisible())
+            continue;
         const bool active = (i == (int)screen);
-        backbuffer.fillCircle(cx - 12 + i * 12, y, active ? 3 : 2,
+        backbuffer.fillCircle(cx - (shown - 1) * 6 + slot * 12, y, active ? 3 : 2,
                               active ? lgfx::color888(0, 255, 0) : lgfx::color888(0, 80, 0));
+        ++slot;
     }
 }
 
@@ -4067,13 +4121,25 @@ void AircraftManager::UpdateFollowTrack()
 
     followHome.lat = (float)lat;
     followHome.lon = (float)lon;
-    // C5: field elevation is a LOOKUP that is not built yet, so AGL reasoning
-    // is unavailable and `known` says so rather than the machine quietly using
-    // a wrong threshold. The absence states degrade to the position-free arms.
-    followHome.known = false;
+    // WHERE home is: known whenever the device has a location. This is the same
+    // point the radar is centred on, so it is exactly as good as everything else
+    // on the screen.
+    followHome.positionKnown = hasLocation;
+    // HOW HIGH the field is: C5's delivery half is not built (the CC0 corpus
+    // carries AltitudeFeet for 34,128 fields and no running code writes it to
+    // KV), so AGL reasoning is unavailable and the machine declines the two
+    // arguments that need it rather than substituting MSL.
+    //
+    // These were ONE flag until the local face was built, and gating the first
+    // on the second is what made every circuit dropout read SIGNAL LOST -- the
+    // failure §10 names in bold. See follow::HomeContext.
+    followHome.elevationKnown = false;
+
+    ResolveHomeField();
 
 
     const unsigned long nowMs = millis();
+    bool seen = false;
     for (auto& [hex, tracked] : trackedAircraft) {
         if (!MatchesFollow(tracked))
             continue;
@@ -4092,11 +4158,111 @@ void AircraftManager::UpdateFollowTrack()
         // the on-ground fix, the TRACK does not.
         if (!tracked.state.onGround && followTrack.Active())
             followTrack.Append(aLat, aLon);
-        return; // one followed aircraft; first identity match wins
+        seen = true;
+        break; // one followed aircraft; first identity match wins
     }
-    // Not in the contact table this pass. Absence is a state, not a gap --
-    // the machine decides which KIND after trackLostMs (§5.1).
-    followMachine.OnNoFix((uint32_t)nowMs, followHome);
+    if (!seen) {
+        // Not in the contact table this pass. Absence is a state, not a gap --
+        // the machine decides which KIND after trackLostMs (§5.1).
+        followMachine.OnNoFix((uint32_t)nowMs, followHome);
+    }
+    // ONE call, on both paths. It used to sit only under OnNoFix, behind an
+    // early return from the loop -- which meant the two transitions §13.3
+    // actually names, takeoff and landing, were the only two it could never
+    // see: both are reached from OnFix.
+    MaybeAutoSurfaceFollow();
+}
+
+// The home field's CODE, from the airport data the device already has.
+//
+// §10 says the local face adds no dataset, and this adds none: the cloud
+// airports overlay is already fetched and cached for the radar, and
+// include/Airports.h is the baked fallback that ships on every board. What is
+// missing is elevation -- neither source carries it -- which is C5's delivery
+// half and is why followHome.elevationKnown stays false.
+//
+// THE CODE, NEVER A NAME. §10 is explicit: it is "Local flight: EGYD", never
+// "Local flight: Cranwell". The device has identifiers and coordinates; names
+// would be a new table and a flash cost for something nothing in Follow needs.
+//
+// Resolved ONCE. The airport tables do not move and neither does the configured
+// location, so re-walking a few hundred entries every merge would be work done
+// to reach the same answer. Cleared when the location changes (Initialise).
+void AircraftManager::ResolveHomeField()
+{
+    if (followHomeCodeResolved || !hasLocation)
+        return;
+    followHomeCodeResolved = true;
+    followHomeCode = "";
+
+    // A field further than this is not "the home field" in any sense a pilot
+    // would recognise, and claiming one would put a wrong code under the marker
+    // the whole face is built around. Better to draw HOME.
+    constexpr float CLAIM_KM = 12.0f;
+    float bestKm = CLAIM_KM;
+
+    const auto consider = [&](float apLat, float apLon, const char* code) {
+        const float d = follow::SeparationKm(apLat, apLon, (float)lat, (float)lon);
+        if (d < bestKm) { bestKm = d; followHomeCode = code; }
+    };
+
+#ifdef FEATURE_CLOUD_FEED
+    for (const CloudFeed::CloudAirport& ap : cloudAirports)
+        consider(ap.lat, ap.lon, ap.code);
+#endif
+    if (followHomeCode.isEmpty())
+        for (size_t i = 0; i < AIRPORT_COUNT; ++i)
+            consider(AIRPORTS[i].lat, AIRPORTS[i].lon, AIRPORTS[i].code);
+
+    followHomeCode.toUpperCase();
+    Serial.printf("[follow] home field: %s (%.1f km)\n",
+                  followHomeCode.isEmpty() ? "(none within 12 km -- drawing HOME)"
+                                           : followHomeCode.c_str(),
+                  (double)bestKm);
+}
+
+// §13.3 -- "It auto-surfaces ONLY on a state transition -- takeoff, landing --
+// for a dwell period, then returns to wherever the owner was."
+//
+// The restraint is the design. Follow gets a screen; it never gets THE screen.
+// A followed aircraft airborne while something rare flies over must not steal
+// the display: the rare aircraft keeps its NEW highlight, the followed aircraft
+// keeps its ring, and neither wins. The only thing that ever takes the screen is
+// a transition, twice a flight.
+void AircraftManager::MaybeAutoSurfaceFollow()
+{
+    const follow::State now = followMachine.Current();
+    const follow::State was = followLastState;
+    followLastState = now;
+
+    // Return first, so a dwell that expired this pass frees the screen even if
+    // nothing transitioned.
+    if (followAutoUntilMs && millis() >= followAutoUntilMs) {
+        followAutoUntilMs = 0;
+        if (screen == Screen::Follow)
+            screen = followAutoReturnTo;
+    }
+
+    if (now == was || !FollowScreenVisible())
+        return;
+    // Takeoff and landing. Not the absence states: a dropout is the NORMAL
+    // operating condition at pattern altitude (§3), and a screen that jumped on
+    // every one of them would be the device looking broken every circuit in a
+    // second, louder way than the copy could ever fix.
+    const bool worthShowing = (now == follow::State::Airborne) ||
+                              (now == follow::State::Landed);
+    if (!worthShowing)
+        return;
+    // Never over a card or a destructive confirmation.
+    if (inDetail || resetMenu != ResetMenu::Closed)
+        return;
+
+    if (screen != Screen::Follow) {
+        followAutoReturnTo = screen;
+        screen = Screen::Follow;
+    }
+    followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
+    Serial.printf("[follow] auto-surfaced on %s\n", follow::Headline(now));
 }
 
 // The measurement this whole build exists to take (§18.1).
@@ -4193,6 +4359,268 @@ void AircraftManager::DrawFollowHud(BandCanvas& backbuffer) const
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(0, 150, 200));
     backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - w / 2, SCREEN_SIZE - 12);
+}
+
+// ===========================================================================
+// THE LOCAL FACE (§10) -- the flight-school regime, which ships first (§1.1)
+// ===========================================================================
+//
+// A radar scope, which is what the product already is. What it deliberately is
+// NOT is a map:
+//
+//   "A circuit is roughly 2-5 km across. Fitting 5 km to 120 px needs a radius
+//    around 153,000 px, at which one pixel is about 20 m. Coastlines are
+//    meaningless at that scale; the reference you would actually want is runways
+//    and taxiways, which the device does not carry and should not. So the local
+//    face draws no map at all. THE TRAIL IS THE PICTURE."
+//
+// That is the good news in this whole feature: no dataset, no Worker delivery,
+// no zoom dilemma, no licence question. Everything below is generated from
+// positions the device already receives.
+
+const TrackedAircraft* AircraftManager::FollowedAircraft() const
+{
+    if (followTarget.isEmpty())
+        return nullptr;
+    for (const auto& [hex, tracked] : trackedAircraft) {
+        (void)hex;
+        if (MatchesFollow(tracked))
+            return &tracked;
+    }
+    return nullptr; // the normal case at pattern altitude, not an error (§3)
+}
+
+// Auto-fit, and §9's no-continuous-zoom rule does not apply here: that rule is
+// about SAMPLED geography, where zooming past the decimation exposes it. The
+// reference here is GENERATED -- rings drawn at whatever radius the data needs
+// and labelled with it -- so there is nothing to expose. "Auto-scaling is
+// correct here, and only here."
+follow::LocalView AircraftManager::BuildLocalView() const
+{
+    follow::LocalView v;
+    v.centreLat = followHome.lat;
+    v.centreLon = followHome.lon;
+    v.rings = 3;
+
+    // The extent the rings have to contain: every stored track point, plus where
+    // he is right now. Including the live position matters -- fitting the track
+    // alone would let the aeroplane sit outside the outermost ring on the one
+    // frame it flies beyond everything it has already flown, which is every
+    // frame of an outbound leg.
+    float maxKm = 0.0f;
+    const size_t n = followTrack.Size();
+    for (size_t i = 0; i < n; ++i) {
+        const follow::TrackPoint& p = followTrack.At(i);
+        const float d = follow::SeparationKm(p.lat, p.lon, v.centreLat, v.centreLon);
+        if (d > maxKm) maxKm = d;
+    }
+    if (const TrackedAircraft* t = FollowedAircraft()) {
+        auto [aLat, aLon] = t->GetDisplayPosition();
+        const float d = follow::SeparationKm(aLat, aLon, v.centreLat, v.centreLon);
+        if (d > maxKm) maxKm = d;
+    }
+
+    // THE LADDER IS WALKED IN THE CUSTOMER'S UNIT, not in kilometres. A step
+    // that is round in km is 0.62 / 1.24 / 3.11 in miles, and a ring labelled
+    // 3.11 is a ring nobody reads. One conversion out, one back, both through
+    // include/DisplayUnits.h -- see FollowGeometry.h.
+    const float maxDisplay = units::FromKm(maxKm, rangeUnit);
+    v.stepDisplay = follow::NiceStep(maxDisplay, v.rings);
+    v.radiusKm = (float)units::ToKm(v.stepDisplay * v.rings, rangeUnit);
+    return v;
+}
+
+std::pair<int, int> AircraftManager::ProjectLocal(float pLat, float pLon,
+                                                  const follow::LocalView& v) const
+{
+    float x = 0.0f, y = 0.0f;
+    follow::ProjectLocal(pLat, pLon, v, rotSin, rotCos,
+                         (float)SCREEN_SIZE, (float)FOLLOW_FACE_RADIUS_PX, x, y);
+    return { (int)lroundf(x), (int)lroundf(y) };
+}
+
+// The router (C6). One screen slot, several faces, chosen by regime and state
+// per §7.1 -- never picked by the customer. The local face is the only one
+// built; the arc face, the globe and the post-flight card are §19 items 4 and
+// 8-10, and until they exist an airline-regime follow gets the local face's
+// honest states rather than a face that pretends to know a route.
+void AircraftManager::DrawFollow(BandCanvas& backbuffer)
+{
+    DrawFollowLocalFace(backbuffer);
+}
+
+void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
+{
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    const follow::State st = followMachine.Current();
+
+    backbuffer.setTextSize(1);
+    const auto centred = [&](const String& s, int y, uint32_t colour) {
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(s, cx - (int)backbuffer.textWidth(s) / 2, y);
+    };
+
+    // §6: expected absence must not look like a fault. Amber explains, red
+    // alarms, and the whole state machine exists so the two are never confused.
+    const uint32_t GREEN = lgfx::color888(0, 220, 0);
+    const uint32_t AMBER = lgfx::color888(255, 176, 0);
+    const uint32_t RED   = lgfx::color888(255, 60, 60);
+    const uint32_t DIM   = lgfx::color888(110, 110, 110);
+    const uint32_t TRACK = lgfx::color888(0, 96, 160);
+    const uint32_t HOME  = lgfx::color888(200, 200, 200);
+
+    uint32_t stateColour = GREEN;
+    if (st == follow::State::SignalLost)                stateColour = RED;
+    else if (follow::Machine::IsExpectedAbsence(st))    stateColour = AMBER;
+    else if (st == follow::State::Ground ||
+             st == follow::State::Landed)               stateColour = HOME;
+
+    // No location means no home, and the local face is built entirely around
+    // home -- it would draw rings around a point in the Gulf of Guinea. Same
+    // reasoning as the radar's DrawNoLocation, and it outranks everything below
+    // for the same reason: a face that looks finished and is not is worse than
+    // one that says what is missing.
+    if (!hasLocation) {
+        backbuffer.drawCircle(cx, cx, FOLLOW_FACE_RADIUS_PX, lgfx::color888(0, 60, 0));
+        centred("SET YOUR LOCATION", cx - 14, AMBER);
+        centred("Follow needs a home field", cx + 2, DIM);
+        return;
+    }
+
+    // ---- the state, first, because it is the product (§19) -----------------
+    centred(follow::Headline(st), 8, stateColour);
+
+    // Who, and where from. §10: the airport is a CODE, never a name.
+    String who = followTarget; who.toUpperCase();
+    if (const TrackedAircraft* t = FollowedAircraft()) {
+        String cs = t->state.callsign; cs.trim();
+        if (!cs.isEmpty()) { cs.toUpperCase(); who = cs; }
+    }
+    if (!followHomeCode.isEmpty())
+        who += "  at " + followHomeCode;
+    centred(who, 21, DIM);
+
+    // ---- the scope ----------------------------------------------------------
+    const follow::LocalView v = BuildLocalView();
+
+    // Rings, equally spaced, each labelled with the radius it was drawn at.
+    // Only the outer one carries the unit, matching DrawRadarCircles -- three
+    // labels each repeating "mi" is three times the ink for no more meaning.
+    for (int i = 1; i <= v.rings; ++i) {
+        const int r = (FOLLOW_FACE_RADIUS_PX * i) / v.rings;
+        backbuffer.drawCircle(cx, cx, r, i == v.rings ? lgfx::color888(0, 90, 0)
+                                                      : lgfx::color888(0, 45, 0));
+        const float value = v.stepDisplay * i;
+        String label = String(value, value < 10.0f ? 1 : 0);
+        if (i == v.rings) label += rangeUnit;
+        backbuffer.setTextColor(lgfx::color888(0, 110, 0));
+        backbuffer.drawString(label, cx + 4, cx - r + (i == v.rings ? 3 : 2));
+    }
+
+    // The track. §4.5: one dim distinct colour, beneath everything, and NOT
+    // faded -- a return decays because it is a return; the track is a record.
+    // The same draw-time cap and adaptive stride as the radar face, so a full
+    // 1024-point buffer costs what §18.1 measured rather than four times it.
+    const size_t n = followTrack.Size();
+    if (followDrawTrack && followTrack.Active() && n >= 2) {
+        const size_t stride = follow::Track::StrideFor(n, FOLLOW_DRAW_SEGMENT_CAP);
+        int prevX = 0, prevY = 0; bool havePrev = false;
+        for (size_t i = 0; i < n; i += stride) {
+            auto [x, y] = ProjectLocal(followTrack.At(i).lat, followTrack.At(i).lon, v);
+            if (havePrev) backbuffer.drawLine(prevX, prevY, x, y, TRACK);
+            prevX = x; prevY = y; havePrev = true;
+        }
+        if (havePrev && ((n - 1) % stride) != 0) {
+            auto [x, y] = ProjectLocal(followTrack.At(n - 1).lat, followTrack.At(n - 1).lon, v);
+            backbuffer.drawLine(prevX, prevY, x, y, TRACK);
+        }
+    }
+
+    // Home field: the anchor the whole view is built around, so it is drawn
+    // after the track and reads through it.
+    backbuffer.drawLine(cx - 4, cx, cx + 4, cx, HOME);
+    backbuffer.drawLine(cx, cx - 4, cx, cx + 4, HOME);
+    backbuffer.drawCircle(cx, cx, 3, HOME);
+
+    // Where he is now, with heading. Reuses the radar's dart so a followed
+    // aircraft looks like the same aircraft on both faces (§7.2).
+    const TrackedAircraft* live = FollowedAircraft();
+    if (live) {
+        auto [aLat, aLon] = live->GetDisplayPosition();
+        auto [x, y] = ProjectLocal(aLat, aLon, v);
+        DrawAircraftTriangle(backbuffer, x, y, *live, stateColour);
+        backbuffer.drawCircle(x, y, 8, stateColour);
+    }
+
+    // ---- readouts -----------------------------------------------------------
+    //
+    // ALTITUDE IS LABELLED FOR WHAT IT IS. §10 asks for AGL, and C5's delivery
+    // half does not exist, so the honest render is the MSL figure the feed
+    // carries with "MSL" beside it -- not an AGL-shaped number that is wrong by
+    // the field elevation. At Bend that error is 3,460 ft, and a readout that
+    // says a trainer is at 4,400 ft AGL in the circuit is worse than one that
+    // declines to say.
+    String readout;
+    if (live) {
+        const follow::Fix& f = followMachine.LastFix();
+        const float alt = followHome.elevationKnown ? follow::AglFt(f, followHome)
+                                                    : follow::AltitudeMslFt(f);
+        readout = String((int)lroundf(alt)) + (followHome.elevationKnown ? " AGL" : " ft MSL");
+        readout += "  " + String((int)lroundf(f.velocityKt)) + " kt";
+        // From the DISPLAYED position, not the last raw fix. The dart is drawn
+        // dead-reckoned; a range computed off the stale fix would disagree with
+        // the ring the customer can see it sitting on.
+        auto [rLat, rLon] = live->GetDisplayPosition();
+        const float rangeKm = follow::SeparationKm(rLat, rLon, v.centreLat, v.centreLon);
+        readout += "  " + units::FormatKm(rangeKm, rangeUnit);
+    } else if (followTrack.Active() && n) {
+        readout = String((unsigned)n) + " track points";
+    }
+    // CIRCUIT COUNT IS NOT HERE. §10 lists it and §11 defers it in the same
+    // breath -- see the note at the bottom of include/FollowGeometry.h. A wrong
+    // count is a claim the customer cannot check.
+    if (!readout.isEmpty())
+        centred(readout, SCREEN_SIZE - 26, DIM);
+
+    // ---- the reassurance, when there is something to reassure about ---------
+    //
+    // Drawn OVER the scope on purpose. In an absence state there is nothing live
+    // underneath to obscure -- the track is frozen and the dart is gone -- and
+    // the middle of the disc is the only place on a 240 px round panel wide
+    // enough to set a sentence. §6: "Name the mechanism. 'No receivers here' is
+    // calming because it explains."
+    const char* why = follow::Explanation(st);
+    if (why[0] != '\0') {
+        // Width from SCREEN_SIZE, not a literal: 22 characters fills the 240
+        // round and leaves two thirds of a 480 square empty. The 11 is the
+        // 6 px glyph advance plus margin, solved for "the box spans a bit over
+        // half the disc" -- which is the widest a centred sentence can be while
+        // still sitting inside the round panel's chord at that height.
+        constexpr int CHAR_W = 6, LINE_H = 11;
+        constexpr int MAX_CHARS = SCREEN_SIZE / 11;
+        // Wrap on words, into at most three lines.
+        String lines[3]; int nLines = 0;
+        String word, cur;
+        for (const char* p = why; ; ++p) {
+            if (*p && *p != ' ') { word += *p; continue; }
+            if (word.length()) {
+                if (cur.isEmpty()) cur = word;
+                else if ((int)(cur.length() + 1 + word.length()) <= MAX_CHARS) cur += " " + word;
+                else { if (nLines < 3) lines[nLines++] = cur; cur = word; }
+                word = "";
+            }
+            if (!*p) break;
+        }
+        if (!cur.isEmpty() && nLines < 3) lines[nLines++] = cur;
+
+        const int boxH = nLines * LINE_H + 8;
+        const int boxW = MAX_CHARS * CHAR_W + 10;
+        const int top = cx - boxH / 2 + 6;
+        backbuffer.fillRoundRect(cx - boxW / 2, top, boxW, boxH, 4, lgfx::color888(0, 0, 0));
+        backbuffer.drawRoundRect(cx - boxW / 2, top, boxW, boxH, 4, stateColour);
+        for (int i = 0; i < nLines; ++i)
+            centred(lines[i], top + 5 + i * LINE_H, DIM);
+    }
 }
 
 void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
@@ -4530,8 +4958,30 @@ void AircraftManager::HandleSwipe(Swipe swipe)
         CloseResetMenu();
         return;
     }
-    if (swipe == Swipe::Left)  screen = (Screen)(((int)screen + 1) % 3);
-    if (swipe == Swipe::Right) screen = (Screen)(((int)screen + 2) % 3);
+    //
+    // A swipe is also the customer taking the wheel, so it CANCELS an
+    // auto-surfaced Follow dwell (§13.3). Snapping back to Follow a few seconds
+    // after someone deliberately swiped away from it is the device arguing.
+    followAutoUntilMs = 0;
+    if (swipe == Swipe::Left)  AdvanceScreen(+1);
+    if (swipe == Swipe::Right) AdvanceScreen(-1);
+}
+
+// Walk to the next VISIBLE screen. Follow is hidden entirely when no aircraft is
+// being followed (§13.3), so the cycle cannot be a fixed modulus -- a `% 4`
+// would give every collection customer who never uses Follow a dead screen
+// between Stats and Radar, which is the failure the other editions avoid by
+// skipping empty feeds.
+void AircraftManager::AdvanceScreen(int dir)
+{
+    int next = (int)screen;
+    for (int i = 0; i < SCREEN_COUNT; ++i) {
+        next = (next + dir + SCREEN_COUNT) % SCREEN_COUNT;
+        if ((Screen)next == Screen::Follow && !FollowScreenVisible())
+            continue;
+        screen = (Screen)next;
+        return;
+    }
 }
 
 void AircraftManager::CloseResetMenu()

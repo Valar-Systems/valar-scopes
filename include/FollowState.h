@@ -19,8 +19,11 @@
 //     them is named in the spec as the prerequisite, and doing it now costs
 //     nothing; doing it later means rewriting whatever grew in the meantime.
 //
-// The only Arduino dependency is String, for the copy builders. The state
-// machine itself is free of it.
+// As of the local face this file has NO Arduino dependency at all. The one that
+// remained was `String` in AlertTitle, and it was removed rather than worked
+// around: the builder now formats into a caller-supplied buffer. That is better
+// on the device anyway (no heap churn in an alert path) and it is what makes the
+// host test below possible -- see test/host/test_follow_state.cpp.
 //
 // =============================================================================
 // §5.1 -- ABSENCE IS THREE STATES, NOT ONE
@@ -54,12 +57,16 @@
 //
 // If you change one thing in this file, do not change that.
 
-#include <Arduino.h>
-
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 namespace follow {
+
+// Arduino's radians() is a macro on a header this file deliberately does not
+// include. The constant, not the macro.
+constexpr float DEG_TO_RAD_F = 0.01745329252f;
 
 // §5.2 lifecycle states. WAITING has no face yet -- C4 is [UNKNOWN] and §6 says
 // its copy is not written, so the machine models it but nothing renders it.
@@ -89,12 +96,42 @@ struct Fix {
 // What the machine knows about home. Per C5 this is a LOOKUP, not a
 // calibration -- the field elevation arrives at boot rather than after two
 // flights, which makes the machine simpler rather than different.
+//
+// =============================================================================
+// TWO KINDS OF KNOWLEDGE, AND CONFLATING THEM BROKE §10
+//
+// This struct carried ONE flag, `known`, and stage 1 sets it false because the
+// field elevation is not delivered yet (C5 -- the corpus has AltitudeFeet for
+// 34,128 fields and no running code writes it to KV). That was correct about
+// elevation and WRONG about position, because InsideHome() was gated on the
+// same flag.
+//
+// The consequence was the exact failure §10 names in bold: with `known` false,
+// InsideHome() returned false for every fix, every absence arm that needs a
+// position fell through, and every pattern dropout came out as SIGNAL LOST --
+// "Getting this backwards makes the device look broken every single circuit."
+//
+// The device has ALWAYS known where home is. It is the configured location; it
+// is what the radar is centred on. The two facts are independent and they are
+// now two flags:
+//
+//   positionKnown   we know where home is             -- true whenever the
+//                                                        device has a location
+//   elevationKnown  we know the field's elevation     -- false until C5's
+//                                                        delivery half exists
+//
+// The rule for reading them: any argument about WHERE he is needs
+// positionKnown. Any argument about HOW HIGH he is above the ground needs
+// elevationKnown, and without it the honest move is to decline the argument
+// rather than to substitute MSL -- at a 3,400 ft field a 1,000 ft circuit reads
+// 4,400 ft, which is above every threshold in Tuning and silently wrong.
 struct HomeContext {
     float lat        = 0.0f;
     float lon        = 0.0f;
     float radiusKm   = 8.0f;   // "inside the home radius"
     float elevationFt = 0.0f;  // published field elevation; AGL = alt - this
-    bool  known      = false;  // false -> AGL reasoning is unavailable, say so
+    bool  positionKnown  = false; // false -> no argument about WHERE he is
+    bool  elevationKnown = false; // false -> no argument about HOW HIGH he is
 };
 
 // -----------------------------------------------------------------------------
@@ -122,22 +159,32 @@ struct Tuning {
 inline float SeparationKm(float aLat, float aLon, float bLat, float bLon)
 {
     const float dLat = (aLat - bLat) * 111.0f;
-    const float dLon = (aLon - bLon) * 111.0f * cosf(radians(aLat));
+    const float dLon = (aLon - bLon) * 111.0f * cosf(aLat * DEG_TO_RAD_F);
     return sqrtf(dLat * dLat + dLon * dLon);
 }
 
+// A POSITION argument, so it needs the position half of home and nothing else.
 inline bool InsideHome(const Fix& f, const HomeContext& home)
 {
-    return home.known && SeparationKm(f.lat, f.lon, home.lat, home.lon) <= home.radiusKm;
+    return home.positionKnown &&
+           SeparationKm(f.lat, f.lon, home.lat, home.lon) <= home.radiusKm;
 }
 
-// Height above the field, when the field elevation is known. Falls back to the
-// barometric figure, which is wrong by the field elevation -- so callers that
-// care must check home.known rather than trusting the number.
+// MSL, from the best source the fix carries. Named for what it is: no caller
+// should be able to mistake this for a height above the ground.
+inline float AltitudeMslFt(const Fix& f)
+{
+    return f.geoAltFt > 0.0f ? f.geoAltFt : f.baroAltFt;
+}
+
+// Height above the field. ONLY meaningful when home.elevationKnown -- and rather
+// than returning a plausible-looking wrong number when it is not, this returns
+// NaN, so a caller that forgot to check produces something visibly broken
+// instead of something quietly off by the field elevation.
 inline float AglFt(const Fix& f, const HomeContext& home)
 {
-    const float alt = f.geoAltFt > 0.0f ? f.geoAltFt : f.baroAltFt;
-    return home.known ? (alt - home.elevationFt) : alt;
+    if (!home.elevationKnown) return NAN;
+    return AltitudeMslFt(f) - home.elevationFt;
 }
 
 class Machine {
@@ -155,6 +202,11 @@ public:
     // A fix arrived for the followed aircraft.
     void OnFix(const Fix& f, uint32_t nowMs, const HomeContext& home, const Tuning& t = Tuning{})
     {
+        // `home` is unused on this path and stays in the signature deliberately:
+        // OnFix and OnNoFix are the machine's two inputs and callers should not
+        // have to remember which of them currently happens to consult home. The
+        // day a takeoff needs the home radius, the call sites do not change.
+        (void)home;
         if (state == State::Idle) return;
 
         // A long enough gap makes the resumed track a NEW FLIGHT rather than the
@@ -201,27 +253,52 @@ public:
         if ((nowMs - lastFixMs) < t.trackLostMs)
             return; // not absent yet; a gap is not a state
 
+        const bool  inside = InsideHome(last, home);
+        const float agl    = AglFt(last, home); // NaN unless elevationKnown
+
         // THE SECOND CONFIDENT LANDING ARGUMENT: low and slow inside the home
         // radius, with onGround never seen. This is the only other route to
         // Landed, and it is deliberately narrow.
-        const float agl = AglFt(last, home);
-        const bool inside = InsideHome(last, home);
-        if (inside && home.known && agl < 200.0f && last.velocityKt < t.slowKt) {
+        //
+        // It needs a real AGL and therefore a real field elevation. Without one
+        // the argument is simply not available, and per §5.4 the machine
+        // declines it rather than approximating: a landing claimed on a
+        // substituted number is the exact failure the rail exists to prevent.
+        // Every NaN comparison below is false, which is the behaviour wanted --
+        // but it is written explicitly because relying on that is a trap.
+        if (inside && home.elevationKnown && agl < 200.0f && last.velocityKt < t.slowKt) {
             state = State::Landed;
             return;
         }
 
         // PROFILE ARGUMENT -- descending toward the field. Expected absence.
-        if (inside && last.verticalRateFpm <= t.approachDescentFpm && agl <= t.approachAltAglFt) {
+        // Also needs AGL: "1,200 ft over the field" is the copy, and quoting an
+        // MSL figure as though it were a height above the field is how the
+        // hedged message stops being honest.
+        if (inside && home.elevationKnown &&
+            last.verticalRateFpm <= t.approachDescentFpm && agl <= t.approachAltAglFt) {
             state = State::ApproachLost;
             return;
         }
 
-        // POSITION ARGUMENT -- low near home is pattern work, where ground
-        // coverage is patchy by nature. §10: a local dropout must NOT use the
-        // alarming copy; it is the local analogue of APPROACH_LOST. Getting this
-        // backwards makes the device look broken every single circuit.
-        if (inside && home.known && agl <= t.lowLevelAglFt) {
+        // POSITION ARGUMENT -- and it is a POSITION argument, which is why it
+        // survives the missing elevation when the two above do not.
+        //
+        // §5.1 states it plainly: "NO_COVERAGE is a POSITION argument." An
+        // aircraft last seen inside the home radius that stopped being heard is
+        // in the pattern or on the ground, and either way "ground receivers do
+        // not reach where he is now" is TRUE. §10: a local dropout must NOT use
+        // the alarming copy; it is the local analogue of APPROACH_LOST, and
+        // getting it backwards makes the device look broken every single
+        // circuit.
+        //
+        // The altitude test is kept as a CEILING and only where it can be
+        // afforded: with a known field elevation, an aircraft loitering high
+        // over home is not below coverage and should read SIGNAL LOST. Without
+        // one, position alone decides -- which is the honest reading of §5.1 and
+        // is right for the regime that ships first, where the followed aircraft
+        // is a trainer in the circuit rather than an airliner overhead.
+        if (inside && (!home.elevationKnown || agl <= t.lowLevelAglFt)) {
             state = State::NoCoverage;
             return;
         }
@@ -270,6 +347,12 @@ private:
 // a UTF-8 middot arrives as two bytes of garbage. Same finding as RouteLabel.h.
 // =============================================================================
 
+// NOTE for whoever builds the airline regime (§19 items 8-10): NoCoverage is
+// worded for the LOCAL regime, which is the only one that ships. §6 gives it
+// different words out of range -- "NO COVERAGE" without a route, "OVER THE
+// ATLANTIC" with one -- so this becomes regime-dependent at that point. It is
+// one string today because there is one regime today, not because the two
+// agree.
 inline const char* Headline(State s)
 {
     switch (s) {
@@ -302,17 +385,32 @@ inline const char* Explanation(State s)
     }
 }
 
-// ntfy title. Empty means "do not send" -- SIGNAL_LOST is screen-only by default
-// (§15): the asymmetry is the argument, since a missed lost-alert costs mild
-// worry and an unwanted one costs panic.
-inline String AlertTitle(State s, const String& target)
+// ntfy title. Returns false for "do not send" -- SIGNAL_LOST is screen-only by
+// default (§15): the asymmetry is the argument, since a missed lost-alert costs
+// mild worry and an unwanted one costs panic.
+//
+// Formats into the caller's buffer rather than returning a String. Two reasons,
+// and only the first is about the device: an alert path should not allocate, and
+// String is the last thing that would make this header need Arduino -- which
+// would put §17's host test out of reach for the sake of one concatenation.
+//
+// §17 NOTE: this is the ONE place the follow target is allowed to leave the
+// device, per C3. The owner named an aircraft in a field marked Follow; the
+// notification is the thing they asked for. Every other outbound payload must
+// not contain it, which is what the §17 test asserts.
+inline bool AlertTitle(State s, const char* target, char* out, size_t n)
 {
+    if (!out || n == 0) return false;
+    out[0] = '\0';
+    const char* suffix = nullptr;
     switch (s) {
-        case State::Airborne:     return target + " is airborne";
-        case State::Landed:       return target + " is down";
-        case State::ApproachLost: return target + " - last seen on approach";
-        default:                  return String("");
+        case State::Airborne:     suffix = " is airborne";              break;
+        case State::Landed:       suffix = " is down";                  break;
+        case State::ApproachLost: suffix = " - last seen on approach";  break;
+        default:                  return false;
     }
+    snprintf(out, n, "%s%s", target ? target : "", suffix);
+    return true;
 }
 
 } // namespace follow
