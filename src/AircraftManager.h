@@ -19,6 +19,7 @@
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "FollowTrack.h" // Follow Mode track buffer (header-only; radar path only)
+#include "FollowState.h" // Follow Mode state machine + copy (spec 5 and 6)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 
 class AircraftManager
@@ -223,6 +224,12 @@ private:
     String followTarget = "";      // lowercased tail / callsign / hex prefix
     bool   followDrawTrack = true; // "follow-track"; §15 marks the default conditional on §18.1
     follow::Track followTrack;
+
+    // The states and the words (spec 5, 6). A pure module -- this only holds the
+    // instance; all the reasoning lives in include/FollowState.h so it can be
+    // host-tested, which spec 17 names as the prerequisite for the privacy test.
+    follow::Machine     followMachine;
+    follow::HomeContext followHome;
 
     // The number this build exists to produce. Measured around the track draw
     // ALONE, not the whole frame: the frame figure already exists and cannot

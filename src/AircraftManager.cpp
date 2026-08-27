@@ -1573,6 +1573,63 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         followDrawFrames = 0;
     }
 
+#ifdef FOLLOW_BENCH
+    // ---- SUBTRACTION HARNESS -----------------------------------------------
+    //
+    // Why this exists. Daniel's bench board reported frame avg 69 ms where two
+    // s3-128s soaking beside it reported 46-48 ms, and the track accounts for
+    // 4.3 ms of the difference. Something costs ~18 ms and there was no way to
+    // ask which thing.
+    //
+    // WITHIN ONE BOOT, not across flashes. The obvious experiment -- flash the
+    // shipping env, read the number, compare -- changes the board, the sky and
+    // the aircraft count at the same time as the variable of interest. That is
+    // precisely the mistake the frame-budget note above documents at length: a
+    // measurement that "proved" 40 aircraft render cheaper than 25 was comparing
+    // a full renderer against a gutted one, and it took a month to unpick. So
+    // this rotates the render configuration every health interval and labels
+    // what was measured. Same board, same boot, same sky, one variable.
+    //
+    // The overlay is in the rotation deliberately. That same note says the load
+    // axis is UNTESTED and names the airport overlay as a live suspect that was
+    // never separated -- "ap= is on the health line so the overlay hypothesis can
+    // be tested properly". ap=41 symbols are drawn every frame. This is that test.
+    //
+    // Track OFF here means DRAW-off, not freed: the allocation stays, so this
+    // measures draw cost and cannot be confused with an allocation effect.
+    {
+        static int benchPhase = 0;
+        static bool announced = false;
+        // ALTERNATE ONE VARIABLE, EVERY TICK. The first version rotated four
+        // configurations and was worthless: a freshly booted board's frame cost
+        // CLIMBS ~12 ms over its first six minutes (the soak control does the
+        // same, 39.2 -> 51.6 ms at constant n=40), so 30 s between arms put more
+        // drift between two readings than the effect being measured. Consecutive
+        // ticks bracket the drift instead; average the pairs.
+        //
+        // The overlay is the variable because the frame-budget note says the load
+        // axis is UNTESTED and names it as the never-separated suspect. This board
+        // carries ap=60 against the soak pair's ap=41, which is a natural
+        // experiment worth not wasting. The track stays ON throughout so its cost
+        // stays visible on the [follow] line beside every reading.
+        static const char* const PHASE[2] = {
+            "overlay=1",
+            "overlay=0",
+        };
+        if (!announced) {
+            Serial.println("[bench] subtraction harness: rotating render config every health tick");
+            announced = true;
+        }
+        Serial.printf("[bench] MEASURED %s  avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u\n",
+                      PHASE[benchPhase], avgMs, p95Ms, maxMs,
+                      (unsigned)trackedAircraft.size(), apCount);
+        benchPhase = (benchPhase + 1) % 2;
+        followDrawTrack = true;             // constant: its cost is already known
+        displayAirports = (benchPhase == 0);
+        Serial.printf("[bench] NEXT     %s\n", PHASE[benchPhase]);
+    }
+#endif
+
     // ---- issue #245: the enrichment-starvation watch ------------------------
     //
     // TWO JOBS, and the first one is why this exists at all: SAY SO. Before this,
@@ -3987,18 +4044,46 @@ bool AircraftManager::MatchesFollow(const TrackedAircraft& tracked) const
 // manager's and simply stops being appended to until it comes back.
 void AircraftManager::UpdateFollowTrack()
 {
-    if (!followTrack.Active())
+    // The state machine runs whenever a target is set -- it is the feature
+    // (§19), and it does not depend on the track buffer existing. A board that
+    // degraded to notification-only still needs to know whether he is airborne.
+    const bool following = !followTarget.isEmpty();
+    followMachine.SetTarget(following);
+    if (!following)
         return;
 
+    followHome.lat = (float)lat;
+    followHome.lon = (float)lon;
+    // C5: field elevation is a LOOKUP that is not built yet, so AGL reasoning
+    // is unavailable and `known` says so rather than the machine quietly using
+    // a wrong threshold. The absence states degrade to the position-free arms.
+    followHome.known = false;
+
+
+    const unsigned long nowMs = millis();
     for (auto& [hex, tracked] : trackedAircraft) {
         if (!MatchesFollow(tracked))
             continue;
-        if (tracked.state.onGround)
-            return; // a taxiing aeroplane is not a flight path
         auto [aLat, aLon] = tracked.GetDisplayPosition();
-        followTrack.Append(aLat, aLon);
+
+        follow::Fix f;
+        f.onGround        = tracked.state.onGround;
+        f.baroAltFt       = tracked.state.baroAltitude * 3.28084f;
+        f.geoAltFt        = tracked.state.geoAltitude * 3.28084f;
+        f.velocityKt      = tracked.state.velocity * 1.94384f;
+        f.verticalRateFpm = tracked.state.verticalRate * 196.850f;
+        f.lat = aLat; f.lon = aLon;
+        followMachine.OnFix(f, (uint32_t)nowMs, followHome);
+
+        // A taxiing aeroplane is not a flight path: the state machine wants
+        // the on-ground fix, the TRACK does not.
+        if (!tracked.state.onGround && followTrack.Active())
+            followTrack.Append(aLat, aLon);
         return; // one followed aircraft; first identity match wins
     }
+    // Not in the contact table this pass. Absence is a state, not a gap --
+    // the machine decides which KIND after trackLostMs (§5.1).
+    followMachine.OnNoFix((uint32_t)nowMs, followHome);
 }
 
 // The measurement this whole build exists to take (§18.1).
