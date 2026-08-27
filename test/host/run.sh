@@ -250,6 +250,43 @@ fi
 # isolated and the guarantee this whole rig exists for is gone -- so a SUCCESS
 # here is the failure. Stderr goes to its own file rather than /dev/null: when
 # this does fire, the reason is the thing worth reading (ledger 15's rule).
+# --- 1c. the follow-target privacy guard (spec 17) ---------------------------
+#
+# Its own selftest runs FIRST and its failure is a RIG failure, not a test
+# failure: a guard that cannot fail is indistinguishable from a codebase that is
+# clean, and this one has now been wrong three times -- brace-depth attribution,
+# a regex with a literal backspace in it, and a per-line check that passed
+# against the actual multi-line bug it was written for.
+echo
+echo "== follow privacy (spec 17) =="
+# FOUND IS NOT THE SAME AS WORKING. On Windows, `command -v python3` resolves to
+# the Microsoft Store App Execution Alias, which exists on PATH, is executable,
+# and does nothing but print an advertisement and exit non-zero. Taking it and
+# running the guard reported "the privacy guard's own selftest did not pass",
+# i.e. the rig blaming the guard for the shell picking a stub. So each candidate
+# is asked to prove it can run something before it is believed.
+PY=""
+for cand in python3 python py; do
+  c="$(command -v "$cand" 2>/dev/null)" || continue
+  [ -n "$c" ] || continue
+  if "$c" -c "pass" >/dev/null 2>&1; then PY="$c"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the follow privacy guard cannot run."
+  echo "      Reporting this as the rig being incomplete rather than as a pass."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/check_follow_privacy.py" --selftest
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: the privacy guard's own selftest did not pass. This is the RIG."
+    exit 2
+  fi
+  "$PY" "$ROOT/scripts/check_follow_privacy.py"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then fail=1; fi
+fi
+
 echo
 echo "== purity gate =="
 if "$CXX" $FLAGS $INCLUDES \

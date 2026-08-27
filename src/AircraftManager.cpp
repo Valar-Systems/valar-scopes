@@ -678,6 +678,18 @@ void AircraftManager::Initialise()
         const String followTrackStr = configServer.GetStoredString("follow-track");
         followDrawTrack = followTrackStr.isEmpty() ? true : (followTrackStr == "true");
 
+        // 15: these defaults are frozen the first time anybody saves the form,
+        // and setting a location IS a whole-form save -- so they are the defaults
+        // for everyone who ever owns this. They match the config page exactly;
+        // two copies of a default disagreeing is how a box renders ticked on a
+        // device that behaves as though it is not.
+        const String upStr   = configServer.GetStoredString("follow-up");
+        const String downStr = configServer.GetStoredString("follow-down");
+        const String lostStr = configServer.GetStoredString("follow-lost");
+        followAlertUp   = upStr.isEmpty()   ? true  : (upStr   == "true");
+        followAlertDown = downStr.isEmpty() ? true  : (downStr == "true");
+        followAlertLost = lostStr.isEmpty() ? false : (lostStr == "true");
+
         if (want != followTarget) {
             // Identity changed -- including to or from empty.
             if (want.isEmpty()) {
@@ -758,9 +770,28 @@ void AircraftManager::Initialise()
         if (!followTarget.isEmpty() && followTrack.Active())
             followTrack.FillSynthetic((float)lat, (float)lon, (float)distanceKm);
 #endif
-        if (!followTarget.isEmpty())
-            Serial.printf("[follow] target=\"%s\" track=%d active=%d degraded=%d\n",
-                          followTarget.c_str(), (int)followDrawTrack,
+        // THE TARGET IS NOT PRINTED. §17 lists serial output among the places
+        // the follow value must never appear, with the Wi-Fi password incident
+        // as the precedent -- a tail number tied to a named person is the same
+        // class of data, and a serial log is copied into bug reports, pasted
+        // into chats and committed to bench-logs/ without anyone rereading it.
+        //
+        // It WAS printed here, from stage 1 until 2026-08-27, and it was found
+        // by scripts/check_follow_privacy.py on the first run rather than by
+        // anyone rereading this line. The length is safe to state and is the
+        // only part that helps diagnose ("did the field save?").
+        //
+        // The length is lifted into a local rather than called inside the
+        // printf, and that is not style. scripts/check_follow_privacy.py's one
+        // absolute rule is that the token never appears in a statement that
+        // reaches a sink -- no exceptions, no allow list -- because a rule with
+        // "unless it is only the length" in it needs a reader to judge
+        // `.length()` against `.substring()` against `.charAt()`, and a rule
+        // that needs judgement is one that gets judged wrong.
+        const unsigned targetLen = (unsigned)followTarget.length();
+        if (targetLen)
+            Serial.printf("[follow] target set (%u chars) track=%d active=%d degraded=%d\n",
+                          targetLen, (int)followDrawTrack,
                           (int)followTrack.Active(), (int)followTrack.Degraded());
     }
 
@@ -4308,6 +4339,8 @@ void AircraftManager::HandleFollowTransition()
         followStats.Reset();
     }
 
+    SendFollowAlert(was, now);
+
     // Takeoff and landing. Not the absence states: a dropout is the NORMAL
     // operating condition at pattern altitude (§3), and a screen that jumped on
     // every one of them would be the device looking broken every circuit in a
@@ -6102,6 +6135,108 @@ bool AircraftManager::SendEmergencyNotification(const TrackedAircraft& tracked)
     body += " at " + String(lroundf(tracked.state.baroAltitude * METRES_TO_FEET)) + " ft";
 
     return QueueNtfyPost("Blipscope EMERGENCY squawk", "sos", body);
+}
+
+// Follow Mode alerts (§14 toggles, §6 copy).
+//
+// =============================================================================
+// THIS IS THE ONE PLACE THE FOLLOW TARGET IS ALLOWED TO LEAVE THE DEVICE
+//
+// §17: the follow target must never leave the device *except in the ntfy
+// notification body*, which is the one channel the owner explicitly opted into
+// by naming an aircraft (C3). A tail number tied to a named person is a
+// different class of data from a type code -- it must not appear in the
+// leaderboard submission, the enrollment payload, any feed or enrich request,
+// the OTA telemetry headers, or serial output.
+//
+// So this function exists on purpose and is the exception, not an oversight.
+// Everything else that builds an outbound body must be free of it, and the §17
+// test is what will assert that rather than a comment like this one.
+//
+// The words come from FollowState.h, not from here, because §6 is the product:
+// "A hobbyist radar with a coverage gap is a shrug. A device someone's spouse is
+// watching that goes dark mid-Atlantic is frightening."
+bool AircraftManager::SendFollowAlert(follow::State was, follow::State now)
+{
+    (void)was;
+    if (followTarget.isEmpty())
+        return false;
+
+    // §15's asymmetry: a missed lost-alert costs mild worry and an unwanted one
+    // costs panic, so SIGNAL LOST is screen-only unless it was asked for.
+    switch (now) {
+        case follow::State::Airborne:     if (!followAlertUp)   return false; break;
+        case follow::State::Landed:       if (!followAlertDown) return false; break;
+        case follow::State::SignalLost:   if (!followAlertLost) return false; break;
+        // APPROACH_LOST rides the LANDED toggle rather than the LOST one. It is
+        // the probably-landed case (§6) -- somebody who asked to hear about
+        // landings wants this, and somebody who deliberately declined the
+        // alarming alert must not receive it under a different name.
+        case follow::State::ApproachLost: if (!followAlertDown) return false; break;
+        default: return false;
+    }
+
+    // Uppercase, so the phone shows what the customer typed rather than the
+    // lowercased form the matcher uses.
+    String who = followTarget; who.toUpperCase();
+    char title[96];
+    if (!follow::AlertTitle(now, who.c_str(), title, sizeof(title))) {
+        // SIGNAL LOST has no title in FollowState.h because it is screen-only by
+        // default. Reaching here means the owner opted in, so it gets one --
+        // built here rather than there, so the pure module keeps stating the
+        // DEFAULT policy and this states the opt-in.
+        if (now != follow::State::SignalLost)
+            return false;
+        snprintf(title, sizeof(title), "%s - signal lost", who.c_str());
+    }
+
+    // The body names the mechanism (§6 principle 1). "No receivers here" is
+    // calming because it explains; "signal lost" alone is not.
+    String body;
+    const follow::Fix& f = followMachine.LastFix();
+    char clock[8] = "";
+    {
+        const time_t utc = time(nullptr);
+        if (utc > 1600000000) {
+            const time_t local = utc + utcOffsetSec;
+            struct tm t; gmtime_r(&local, &t);
+            snprintf(clock, sizeof(clock), "%02d:%02d", t.tm_hour, t.tm_min);
+        }
+    }
+    switch (now) {
+        case follow::State::Airborne:
+            body = clock[0] ? ("Off at " + String(clock) + ".") : String("Airborne.");
+            break;
+        case follow::State::Landed:
+            body = clock[0] ? ("Landed " + String(clock) + ".") : String("Down.");
+            if (followStats.DurationSec() >= 60) {
+                const uint32_t m = followStats.DurationSec() / 60;
+                body += " " + (m >= 60 ? String(m / 60) + " h " + String(m % 60) + " m"
+                                       : String(m) + " m") + " in the air.";
+            }
+            break;
+        case follow::State::ApproachLost:
+            body = "Signal lost";
+            if (followHome.elevationKnown)
+                body += " at " + String((int)lroundf(follow::AglFt(f, followHome))) + " ft";
+            body += " over the field";
+            if (clock[0]) body += ", " + String(clock);
+            body += ". Coverage near the ground is patchy, so this usually means landed.";
+            break;
+        case follow::State::SignalLost:
+            body = "Last seen";
+            if (clock[0]) body += " " + String(clock);
+            body += " at " + String((int)lroundf(follow::AltitudeMslFt(f))) + " ft MSL. "
+                    "He is out of receiver range, not off the radar.";
+            break;
+        default:
+            return false;
+    }
+
+    const char* tag = (now == follow::State::Airborne) ? "airplane"
+                    : (now == follow::State::Landed)   ? "checkered_flag"
+                                                       : "grey_question";
+    return QueueNtfyPost(String(title), tag, body);
 }
 
 void AircraftManager::PublishMqttState()

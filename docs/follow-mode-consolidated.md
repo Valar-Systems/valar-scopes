@@ -1336,7 +1336,57 @@ which is the exact substitution this repo has been bitten by before.
 Recommendation: build the strong form. If the extraction turns out large, land the grep
 guard first so the window is covered, and say plainly in the PR that it is the weaker check.
 
-> **The rig for the strong form exists as of 2026-08-27.**
+> **A GUARD LANDED 2026-08-27, AND IT FOUND A REAL LEAK ON ITS FIRST RUN.**
+>
+> `scripts/check_follow_privacy.py`, in CI and in the host suite. **This is the
+> WEAK form** and its own header says so: it reads the source, not the artifact,
+> which is the exact substitution this repo has been bitten by before. The strong
+> form is still owed.
+>
+> What it found: `Serial.printf("[follow] target=%s", followTarget.c_str())`,
+> shipped in the stage-1 commit, in a file whose header states the target must
+> never be printed. 17 lists serial output among the forbidden places with the
+> Wi-Fi password incident as the precedent. Nobody caught it by rereading the
+> line, including the person who wrote the header two commits later.
+>
+> **Two checks, and only one is an assertion:**
+>
+> | | rule | allow list |
+> |---|---|---|
+> | per statement | the target and an outbound sink in the same statement | **none** |
+> | per function | touches the target anywhere, reaches a sink anywhere | two, and they are a REVIEW RECORD |
+>
+> The second deliberately over-flags -- `Initialise` is enormous and contains
+> both for unrelated reasons -- and that is the point: the list is what somebody
+> looked at, compared whole rather than by substring absence.
+>
+> **The guard was wrong three times before it was right, and every one of them
+> was caught by its own anchor control** (the branch that fails when the review
+> list names functions the scanner can no longer find). Recorded because the
+> third is the one that matters:
+>
+> 1. Brace-depth attribution drifted on braces inside string literals; the scan
+>    reported 2 functions instead of 12, which without the anchor would have read
+>    as a very clean pass.
+> 2. A regex written through a shell heredoc lost a backslash and compiled with a
+>    literal **backspace** on the end. `grep` showed the line looking perfectly
+>    correct, because a terminal renders a backspace by not rendering it.
+> 3. **The per-line check passed against the actual bug.** The selftest planted
+>    the violation on one line; the real one is a `printf` with four arguments,
+>    so the format string and `followTarget.c_str()` sit on consecutive lines.
+>    Rehearsing against the REAL shape -- not the imagined one -- is what caught
+>    it, and the fix was to join statements rather than lines. This is the launch
+>    gate's `#charlie-retired` again, in Python, inside the tool written to
+>    prevent that class of mistake.
+>
+> Consequence for the code, worth stating because it looks like fussiness: the
+> `[follow]` health line lifts `followTarget.length()` into a local before the
+> `printf`. The rule is absolute -- the token never appears in a statement that
+> reaches a sink -- because a rule with *"unless it is only the length"* in it
+> needs a reader to judge `.length()` against `.substring()`, and a rule that
+> needs judgement is one that gets judged wrong.
+>
+> **The rig for the strong form also exists as of 2026-08-27.**
 > `test/host/test_follow_state.cpp` runs in `test/host/run.sh` against
 > `FollowState.h` and `FollowGeometry.h`, both of which now compile with
 > `-I src/game` and **nothing else on the include path** — so the purity claim is
@@ -1392,8 +1442,16 @@ Local regime first (§1.1). Within it:
    the two readouts that are honestly less than the list there.
 4. **Post-flight card, local version** (§11). **BUILT 2026-08-27**, bench-unverified.
    See the box at 11. Circuit counting stays deferred.
-5. **Config surface and the generated ntfy topic** (§14).
+5. **Config surface and the generated ntfy topic** (§14). **BUILT 2026-08-27** —
+   its own `<details>` block, five keys, the §15 defaults, and the topic generated
+   from `esp_random()` at first boot with a regenerate affordance beside it. The
+   three alert toggles fire; `APPROACH_LOST` rides the *landed* toggle rather than
+   the *lost* one, because it is the probably-landed case and somebody who declined
+   the alarming alert must not receive it under a different name.
 6. **The privacy test** (§17), landed alongside or before anything that builds a payload.
+   **WEAK FORM BUILT 2026-08-27** — see the box at §17. It found a real leak on its
+   first run. The strong form (a host test over extracted pure payload builders) is
+   still owed.
 
 Then the airline regime, gated on the production mirror cutover:
 

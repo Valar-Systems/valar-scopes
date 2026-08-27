@@ -237,6 +237,12 @@ private:
     // draw, no behaviour change for anyone who did not ask (§15).
     String followTarget = "";      // lowercased tail / callsign / hex prefix
     bool   followDrawTrack = true; // "follow-track"; §15 marks the default conditional on §18.1
+    // 15's alert toggles. follow-lost defaults OFF and the asymmetry IS the
+    // argument: a missed lost-alert costs mild worry, an unwanted one costs
+    // panic. The screen always shows the state; the phone only if asked.
+    bool   followAlertUp   = true;   // "follow-up"
+    bool   followAlertDown = true;   // "follow-down"
+    bool   followAlertLost = false;  // "follow-lost"
     follow::Track followTrack;
 
     // The states and the words (spec 5, 6). A pure module -- this only holds the
@@ -715,6 +721,8 @@ private:
     /// Everything that happens on a follow STATE CHANGE: freeze the finished
     /// flight (11), start a new one, and surface the screen for a dwell (13.3).
     void HandleFollowTransition();
+    /// The ONE sanctioned outbound use of the follow target (17 / C3).
+    bool SendFollowAlert(follow::State was, follow::State now);
     void DrawFollowPostFlightCard(BandCanvas& backbuffer);
     /// 7.1: LANDED until the next takeoff shows the card, not the live face.
     bool ShowPostFlightCard() const;
