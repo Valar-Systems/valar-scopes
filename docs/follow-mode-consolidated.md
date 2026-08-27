@@ -100,6 +100,66 @@ design and not the contradiction it looks like — but it has not been decided, 
 Follow's landed detection depends on the answer. Decide before §5's landed threshold
 is built.
 
+> ### RECOMMENDATION 2026-08-27: `ap:<CODE>` keys in KV. No D1. **[FOR DANIEL]**
+>
+> **Flagged before building, not after.** Stage 2's arc and globe both need endpoint
+> coordinates, so this is on the critical path — but it is a delivery question and it
+> is cheaper to argue than to migrate.
+>
+> **The premise above is falsified by shipped code.** C1 rejects KV because "it can
+> only fetch by exact key... That is a D1 shape." But `/api/v1/blipscope/airports`
+> already answers exactly that nearest-N, priority-sorted query, **out of KV**, and
+> has since 2026-07-16: `npm run ingest:airports` pre-tiles OurAirports into 1°
+> `apt:<lat>:<lon>` keys and the handler walks the tiles the radius circle touches,
+> distance-filters, sorts large > medium > small then nearest, and caps at 60.
+> Pre-tiling is how a key-value store answers a spatial query, and we are already
+> doing it in production.
+>
+> So the choice is not "key lookup vs query". It is "one store or two", and the
+> reasons for one:
+>
+> | | |
+> |---|---|
+> | **What Follow needs** | `code → {lat, lon, elev}`. An exact key. The single thing KV is best at. |
+> | **What §7.3 needs** | nearest-N — already solved on KV, in production, by the `apt:` tiles. |
+> | **Size** | 34,128 rows. The `rt:` mirror is **619,103** keys and is loaded and verified in both environments. This is 5% of a thing we have already done twice. |
+> | **Operations** | one ingest, one verifier, one failure mode. The route load taught us that the verifier is the expensive part to get right (`IGO7J` — one key in 619,103, found only by per-shard enumeration). A second store means writing that discipline a second time, or not writing it. |
+> | **Refresh** | the CC0 corpus refreshes as one unit. Two stores means two things that can be half-refreshed, and a skew nobody would notice. |
+>
+> **Two key families, both KV, both from the same corpus:**
+>
+>     ap:<CODE>            -> {"lat":..,"lon":..,"alt":..}   exact lookup (Follow, C5)
+>     apt:<lat>:<lon>      -> tile of nearby fields           spatial (already shipped)
+>
+> `ap:` also closes **C5**: `AltitudeFeet` rides the same row, so landed detection and
+> the local face's AGL readout arrive with it. That is §19 item 7 done by the same
+> ingest rather than as separate work.
+>
+> **What would change my mind:** a genuine ranked query the tiles cannot express —
+> "the 20 busiest fields in this country", say. Nothing in Follow or §7.3 asks for
+> one. If that arrives, D1 can be added *for that query only*, with `ap:` staying
+> where it is; the reverse (starting on D1 and discovering the edge cache mattered)
+> is the expensive direction.
+>
+> **§17 constraint, which shapes the request and is not negotiable.** The device must
+> fetch `ap:` **by airport code, never by callsign** (C2's resolution). That means the
+> followed aircraft's route must NOT be requested from the Worker by its callsign —
+> doing so would put the follow target in an outbound payload, which is precisely
+> what §17 forbids and what `scripts/check_follow_privacy.py` guards.
+>
+> The route arrives instead through the path that already exists: while the aircraft
+> is **in contact** it is an ordinary visible contact and its route comes back with
+> normal enrichment, indistinguishable from any other aircraft's. The device caches
+> it for the flight. Out of contact, nothing is requested — which is also the only
+> time the arc face needs it, so the ordering works out.
+>
+> **Residual, stated so it is a decision and not an oversight:** two `ap:` fetches for
+> a specific pair of codes shortly after a follow is configured are correlatable with
+> *a route*, though never with *an aircraft*. That is the same class as the airports
+> overlay the device already fetches hourly, and it carries no identifier §17 lists.
+> If that is judged too much, the mitigation is to fold the pair into the existing
+> overlay fetch rather than to move stores.
+
 ### C2 — Callsign validation contradicts the privacy invariant **[BLOCKING]**
 
 The sharpest conflict, and neither document could see it alone.
@@ -166,6 +226,78 @@ moment someone has just finished configuring it.
 It needs a face: the route, the scheduled departure, a countdown, and a transition to
 `IN_CONTACT` on first contact. For the local regime it needs less — the aircraft is
 either at the field or it is not — but it still needs to say so.
+
+> ### PROPOSAL 2026-08-27 — the pre-departure face. **COPY IS A DRAFT FOR DANIEL.**
+>
+> Designed first in stage 2 because it is a decision and decisions are cheapest to
+> change. Everything below is renderable from what the device already has.
+>
+> **THE COUNTDOWN IS CUT, AND THAT IS THE MAIN DESIGN CALL.** C4 asks for "the
+> scheduled departure, a countdown" — and we have no schedule data. Not in the CC0
+> corpus (routes are `o`/`d` codes, no times), not on the wire, not anywhere we
+> licence. A countdown would have to be invented, and §6 principle 2 is *never imply
+> certainty we do not have*. Inventing a departure time on the one screen whose whole
+> job is to say "nothing has happened yet" would be the worst possible place for it:
+> the owner would watch it reach zero and conclude the device is wrong.
+>
+> If schedule data is ever licensed, the countdown is additive and this face has the
+> slot for it. Until then it says what it knows.
+>
+> **What it must do, in order.** This is the state the owner sees *first*, seconds
+> after configuring a follow. It must (1) prove the device understood them, (2) prove
+> it is working, and (3) tell them to do nothing. An empty face fails all three, and
+> rendering it as one of the loss states fails worse than empty.
+>
+> **Airline regime** — the arc face in its *not-started* state, not a different
+> screen. The full arc dim, both airport codes drawn, no marker. It previews what
+> they will see, which is the cheapest possible way to prove the device understood
+> the configuration.
+>
+>     screen   WAITING FOR DEPARTURE
+>              LHR -> JFK
+>              Nothing heard yet today. This screen changes on
+>              its own when he takes off.
+>
+> **Local regime** — the local face with rings and the home marker, no track.
+>
+>     screen   WAITING FOR DEPARTURE
+>              at EGYD
+>              Nothing heard yet today. This screen changes on
+>              its own when he takes off.
+>
+> The third line is the load-bearing one and is the same in both. It answers the
+> question the owner actually has — *"is it broken, or is he just not flying?"* — and
+> it tells them there is no action to take. Same register as §6's absence copy: name
+> the mechanism, and make the sentence about our equipment rather than about him.
+>
+> **`WAITING` must never borrow a loss state's word.** Not "no contact", not "signal",
+> not "lost". Nothing has been lost; nothing has started. This is the fourth kind of
+> absence the visual spec named — *not yet* — and it gets its own vocabulary.
+>
+> **Transition** is already built: `Machine::OnFix` moves `Waiting` → `Ground` or
+> `Airborne` on the first fix, and `HandleFollowTransition` surfaces the screen on the
+> `Airborne` edge. Nothing new in the machine — this is a face for a state that
+> already exists, which is the §19 rule that stage 2 is a rendering layer.
+>
+> **THE STALE-FOLLOW QUESTION, which C4 does not raise and this face makes urgent.**
+> A tail that is sold, re-registered, or simply mistyped sits in `WAITING` **forever**,
+> and the copy above cheerfully says "changes on its own" every day for a year. §21
+> already lists a *"this aircraft has not flown in N days"* nudge as an open question;
+> this face is where it lands.
+>
+> **Draft: after 7 days with no fix ever seen**, the third line is replaced by
+>
+>     Nothing heard from N4523K in 7 days. Check the tail number
+>     on the config page.
+>
+> Seven days is a guess and is marked as one (§18.3). It wants to be longer than a
+> holiday and shorter than a season; a weekly flyer who takes a fortnight off should
+> not be told their device is misconfigured. **Only counted when a fix has NEVER been
+> seen** — an aircraft that flew last month and is parked is a different situation and
+> gets the post-flight card, which is already true and already better.
+>
+> **[FOR DANIEL]** three calls: the copy register, cutting the countdown, and whether
+> 7 days is the right nudge.
 
 ### C5 — Field elevation: the WORKAROUND is dead; the DELIVERY is not built
 
