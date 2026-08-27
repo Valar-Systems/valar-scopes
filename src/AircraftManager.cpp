@@ -692,6 +692,26 @@ void AircraftManager::Initialise()
             followTrack.Disable();
         }
 #ifdef FOLLOW_BENCH
+        // SELF-ENABLE. The config page has no "follow" field yet -- §19 orders the
+        // config surface AFTER this measurement, so it is deliberately not built.
+        // Without this the bench image is unusable: there is no way to set the key
+        // the feature gates on, so the track never allocates and the build cannot
+        // produce the one number it exists to produce.
+        //
+        // Found by flashing it and reading the board back, not by reading the code.
+        // The banner said env=follow-bench-s3-128 and the board came up in its
+        // Wi-Fi setup AP with no stored config at all -- which is exactly the state
+        // a fresh bench board is in, and exactly the state this build could not
+        // work in.
+        //
+        // A real follow target overrides it, so setting the key later (once §14 is
+        // built) changes nothing here.
+        if (followTarget.isEmpty()) {
+            followTarget = "bench";
+            if (followDrawTrack && !followTrack.Active())
+                followTrack.Enable();
+            Serial.println("[follow] FOLLOW_BENCH: self-enabled (no config page field yet)");
+        }
         // ---- bench only: make the §18.1 measurement obtainable ---------------
         //
         // The question this build exists to answer is the draw cost of a FULL
