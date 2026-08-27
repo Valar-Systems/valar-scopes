@@ -187,6 +187,59 @@ inline float AglFt(const Fix& f, const HomeContext& home)
     return AltitudeMslFt(f) - home.elevationFt;
 }
 
+// -----------------------------------------------------------------------------
+// THE FLIGHT'S NUMBERS (§11) -- accumulated per flight, frozen on landing.
+//
+// Pure, and here rather than in FollowLog.h, because it accumulates from Fixes
+// and because FollowLog needs Preferences and could therefore never be graded on
+// the workstation. Four numbers is not much arithmetic, but "how long was he
+// up?" is exactly the kind of thing that is off by an hour on a wrap and nobody
+// notices until someone flies at midnight.
+//
+// Altitude is MSL and is named for it. C5's elevation half is not delivered, so
+// there is no honest AGL here -- and a post-flight card is the worst place for a
+// number that is quietly wrong by the field elevation, because it is the one
+// part of Follow the customer keeps looking at after the fact.
+// -----------------------------------------------------------------------------
+struct FlightStats {
+    bool     started      = false;
+    uint32_t startMs      = 0;
+    uint32_t lastMs       = 0;
+    float    maxAltMslFt  = 0.0f;
+    float    topSpeedKt   = 0.0f;
+    float    furthestKm   = 0.0f;
+
+    void Reset() { *this = FlightStats{}; }
+
+    void OnFix(const Fix& f, uint32_t nowMs, const HomeContext& home)
+    {
+        // The clock starts at the first AIRBORNE fix, not at the first fix.
+        // An aeroplane that sat on the apron with its transponder on for forty
+        // minutes did not fly for forty minutes, and a duration that says it did
+        // is the card's easiest way to be wrong.
+        if (f.onGround)
+            return;
+        if (!started) { started = true; startMs = nowMs; }
+        lastMs = nowMs;
+
+        const float alt = AltitudeMslFt(f);
+        if (alt > maxAltMslFt) maxAltMslFt = alt;
+        if (f.velocityKt > topSpeedKt) topSpeedKt = f.velocityKt;
+        if (home.positionKnown) {
+            const float d = SeparationKm(f.lat, f.lon, home.lat, home.lon);
+            if (d > furthestKm) furthestKm = d;
+        }
+    }
+
+    // millis() wraps at 49.7 days. Unsigned subtraction gives the right answer
+    // across the wrap, which is why both stamps are uint32 and neither is ever
+    // compared with < to the other.
+    uint32_t DurationSec() const
+    {
+        return started ? (uint32_t)((lastMs - startMs) / 1000u) : 0u;
+    }
+};
+
 class Machine {
 public:
     State Current() const { return state; }

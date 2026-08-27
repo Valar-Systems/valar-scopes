@@ -21,6 +21,7 @@
 #include "FollowTrack.h" // Follow Mode track buffer (header-only; radar path only)
 #include "FollowState.h" // Follow Mode state machine + copy (spec 5 and 6)
 #include "FollowGeometry.h" // Follow Mode local-face geometry (spec 10)
+#include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 
 class AircraftManager
@@ -243,6 +244,13 @@ private:
     // host-tested, which spec 17 names as the prerequisite for the privacy test.
     follow::Machine     followMachine;
     follow::HomeContext followHome;
+    // The flight's four numbers, accumulated live and frozen on landing (11).
+    follow::FlightStats followStats;
+    // The post-flight card's store. ONE write per flight, own NVS namespace,
+    // and the only part of Follow that survives a power cycle -- because it is
+    // the only part that cannot become untrue while the device is off (11).
+    follow::Log         followLog;
+    bool                followLogLoaded = false;
 
     // The number this build exists to produce. Measured around the track draw
     // ALONE, not the whole frame: the frame figure already exists and cannot
@@ -704,8 +712,12 @@ private:
     bool FollowScreenVisible() const { return !followTarget.isEmpty(); }
     /// Next/previous VISIBLE screen. dir is +1 or -1.
     void AdvanceScreen(int dir);
-    /// §13.3: surface Follow on a takeoff/landing transition, for a dwell.
-    void MaybeAutoSurfaceFollow();
+    /// Everything that happens on a follow STATE CHANGE: freeze the finished
+    /// flight (11), start a new one, and surface the screen for a dwell (13.3).
+    void HandleFollowTransition();
+    void DrawFollowPostFlightCard(BandCanvas& backbuffer);
+    /// 7.1: LANDED until the next takeoff shows the card, not the live face.
+    bool ShowPostFlightCard() const;
     /// The nearest airport code to home, from the data already on the device.
     void ResolveHomeField();
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;

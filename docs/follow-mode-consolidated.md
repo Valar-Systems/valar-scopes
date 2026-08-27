@@ -974,6 +974,53 @@ The answer to "the screen is empty most of the week." On `LANDED`, freeze a summ
 show it until the next takeoff: duration, max altitude, top speed, furthest point — and
 the shape of the flight.
 
+> **BUILT 2026-08-27**, bench-unverified. `include/FollowLog.h` (the store) plus
+> `follow::FlightStats` in `FollowState.h` (the numbers, pure and host-tested)
+> and `AircraftManager::DrawFollowPostFlightCard`.
+>
+> **One write per flight by construction, not by debounce.** The save happens on
+> the `LANDED` transition and nowhere else, so there is nothing to tune and
+> nothing to trust. Logbook debounces because it is written continuously by a
+> running sky; a flight ends once. What makes it safe to write at all is §5.4's
+> rail — `LANDED` fires only on confident evidence, so a card can never appear
+> for a flight that merely stopped being heard.
+>
+> **The last slot is reserved.** The stride is computed against `POINTS - 1` and
+> the final track point is always appended, because it is where he touched down
+> and this section draws it filled. On a full 1024-point buffer the stride is 9
+> and the walk ends at index 1017 — without the reservation the destination
+> marker sits about a kilometre short of the runway, which is invisible once
+> drawn: a track that ends *near* the field looks exactly like one that ends
+> *at* it.
+>
+> **Two things the numbers get right that are easy to get wrong**, both pinned by
+> host tests with the wrong answer as the control:
+>
+> - The clock starts at the first **airborne** fix. An aeroplane that sat on the
+>   apron with its transponder on for forty minutes did not fly for forty
+>   minutes.
+> - The maxima never fall back. He lands low and slow, so the last fix of every
+>   flight is the smallest one — an end-of-flight snapshot would record a top
+>   speed of 45 kt for every flight ever made.
+>
+> Plus the `millis()` wrap, which is right by unsigned subtraction and does not
+> look it.
+>
+> **Altitude is MSL, labelled.** Same reason as the local face, and more
+> sharply here: a souvenir is the one face with nothing live beside it to
+> contradict a wrong figure. **The date is quoted only when the clock was real** —
+> an unsynced device records epoch 0 and the card says "time not known" rather
+> than 1970.
+>
+> **North-up always.** `radar-up` deliberately does not apply: the card is a
+> record, not a view out of a window, and rotating a souvenir by a setting made
+> for live traffic would make the same flight look different on two devices.
+>
+> **The card is cleared when the follow target changes to a different
+> aircraft.** A previous aeroplane's flight is not this aeroplane's history, and
+> a souvenir attributed to the wrong aircraft is the single way this face can be
+> wrong — which is the entire reason it is allowed to persist at all.
+
 Redrawn as **shape rather than position**. No arc, no bearing, no live data — nothing here
 can be wrong, which is why it is the only part of Follow that should survive a power
 cycle. Origin hollow, destination filled, duration and distance below.
@@ -1343,7 +1390,8 @@ Local regime first (§1.1). Within it:
 3. **Local face** (§10) — no external data, no Worker surface, no licence question.
    **BUILT 2026-08-27**, bench-unverified. See the box at §10 for what shipped and
    the two readouts that are honestly less than the list there.
-4. **Post-flight card, local version** (§11).
+4. **Post-flight card, local version** (§11). **BUILT 2026-08-27**, bench-unverified.
+   See the box at 11. Circuit counting stays deferred.
 5. **Config surface and the generated ntfy topic** (§14).
 6. **The privacy test** (§17), landed alongside or before anything that builds a payload.
 

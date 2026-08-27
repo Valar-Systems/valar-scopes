@@ -233,6 +233,76 @@ int main()
           "and it leaves nothing in the buffer for a caller to send by accident");
 
     // =========================================================================
+    // 11 -- THE FLIGHT'S NUMBERS
+    //
+    // Four numbers on a souvenir, and the reason they are graded is that a
+    // post-flight card is the one face with nothing live beside it to
+    // contradict a wrong figure. The customer looks at it after the fact,
+    // repeatedly, and has no way to check it.
+    // =========================================================================
+    std::printf("  ---- the flight's numbers\n");
+    {
+        FlightStats fs;
+        const HomeContext home = HomeAt(HLAT, HLON, false);
+
+        // FORTY MINUTES ON THE APRON with the transponder on. He did not fly for
+        // forty minutes, and a duration that says he did is the card's easiest
+        // way to be wrong.
+        Fix apron = FixNorthOf(HLAT, HLON, 0.0f, 3460.0f, 0.0f, 0.0f);
+        apron.onGround = true;
+        for (uint32_t t = 0; t <= 2400000u; t += 60000u)
+            fs.OnFix(apron, t, home);
+        check(!fs.started && fs.DurationSec() == 0,
+              "ground fixes do not start the clock");
+
+        // Then twelve minutes airborne.
+        fs.OnFix(FixNorthOf(HLAT, HLON, 1.0f, 4000.0f, 70.0f, 500.0f), 2400000u, home);
+        fs.OnFix(FixNorthOf(HLAT, HLON, 9.0f, 5200.0f, 110.0f, 0.0f), 3120000u, home);
+        check(fs.DurationSec() == 720, "duration runs from the first AIRBORNE fix: 12 min");
+
+        // CONTROL: measured from the first fix of any kind it would be 52 min.
+        check(fs.DurationSec() != 3120, "CONTROL: it is not the whole transponder-on span");
+
+        check(std::fabs(fs.maxAltMslFt - 5200.0f) < 1.0f, "max altitude is the maximum");
+        check(std::fabs(fs.topSpeedKt - 110.0f) < 1.0f, "top speed is the maximum");
+        check(fs.furthestKm > 8.0f && fs.furthestKm < 10.0f, "furthest point is ~9 km");
+
+        // CONTROL: maxima do not fall back. A later, lower fix must not lower
+        // them -- which is what a plain assignment would do and what an
+        // end-of-flight snapshot would produce (he lands low and slow, so the
+        // last fix of every flight is the smallest one).
+        fs.OnFix(FixNorthOf(HLAT, HLON, 0.2f, 3500.0f, 45.0f, -500.0f), 3180000u, home);
+        check(std::fabs(fs.maxAltMslFt - 5200.0f) < 1.0f,
+              "CONTROL: landing low does not lower the max altitude");
+        check(std::fabs(fs.topSpeedKt - 110.0f) < 1.0f,
+              "CONTROL: landing slow does not lower the top speed");
+        check(fs.furthestKm > 8.0f,
+              "CONTROL: coming home does not shrink the furthest point");
+    }
+    {
+        // millis() WRAPS AT 49.7 DAYS, and a device that has been on a shelf for
+        // seven weeks is not exotic. Unsigned subtraction is right across the
+        // wrap; the test exists because it does not LOOK right.
+        FlightStats fs;
+        const HomeContext home = HomeAt(HLAT, HLON, false);
+        const uint32_t nearMax = 0xFFFFFF00u;
+        fs.OnFix(FixNorthOf(HLAT, HLON, 1.0f, 4000.0f, 70.0f, 0.0f), nearMax, home);
+        fs.OnFix(FixNorthOf(HLAT, HLON, 2.0f, 4000.0f, 70.0f, 0.0f), nearMax + 600000u, home);
+        check(fs.DurationSec() == 600, "duration is correct across a millis() wrap");
+    }
+    {
+        // Without a home position there is no furthest-from-home to compute, and
+        // the honest answer is zero rather than a distance from 0N 0E.
+        FlightStats fs;
+        HomeContext blind = HomeAt(HLAT, HLON, false);
+        blind.positionKnown = false;
+        fs.OnFix(FixNorthOf(HLAT, HLON, 40.0f, 9000.0f, 200.0f, 0.0f), 1000, blind);
+        check(fs.furthestKm == 0.0f, "no home position -> no furthest-point claim");
+        check(std::fabs(fs.maxAltMslFt - 9000.0f) < 1.0f,
+              "CONTROL: the numbers that do not need home are still recorded");
+    }
+
+    // =========================================================================
     // 10 -- THE RING LADDER
     // =========================================================================
     std::printf("== FollowGeometry ==\n");

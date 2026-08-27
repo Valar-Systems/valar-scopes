@@ -686,7 +686,14 @@ void AircraftManager::Initialise()
                 // Still following, but somebody else: keep the allocation, drop
                 // the path. This is exactly the ResetFlight/Disable split.
                 followTrack.ResetFlight();
+                // AND DROP THE CARD. A previous aeroplane's flight is not this
+                // aeroplane's history, and a souvenir attributed to the wrong
+                // aircraft is the one way the post-flight card can be wrong --
+                // which is the entire reason it is allowed to persist at all.
+                followLog.Clear();
             }
+            followStats.Reset();
+            followLastState = follow::State::Idle;
             followTarget = want;
             if (!followTarget.isEmpty() && followDrawTrack) {
                 if (!followTrack.Enable()) {
@@ -701,6 +708,14 @@ void AircraftManager::Initialise()
             followTrack.Enable();
         } else if (!followDrawTrack && followTrack.Active()) {
             followTrack.Disable();
+        }
+        // Read once per boot. Initialise() re-runs on every config save, so this
+        // is guarded rather than unconditional -- re-reading NVS would be
+        // harmless but would also overwrite an in-RAM record written since, and
+        // "harmless today" is how a re-read becomes a data-loss bug later.
+        if (!followLogLoaded) {
+            followLogLoaded = true;
+            followLog.Load();
         }
 #ifdef FOLLOW_BENCH
         // SELF-ENABLE. The config page has no "follow" field yet -- §19 orders the
@@ -4153,6 +4168,7 @@ void AircraftManager::UpdateFollowTrack()
         f.verticalRateFpm = tracked.state.verticalRate * 196.850f;
         f.lat = aLat; f.lon = aLon;
         followMachine.OnFix(f, (uint32_t)nowMs, followHome);
+        followStats.OnFix(f, (uint32_t)nowMs, followHome);
 
         // A taxiing aeroplane is not a flight path: the state machine wants
         // the on-ground fix, the TRACK does not.
@@ -4170,7 +4186,7 @@ void AircraftManager::UpdateFollowTrack()
     // early return from the loop -- which meant the two transitions §13.3
     // actually names, takeoff and landing, were the only two it could never
     // see: both are reached from OnFix.
-    MaybeAutoSurfaceFollow();
+    HandleFollowTransition();
 }
 
 // The home field's CODE, from the airport data the device already has.
@@ -4221,15 +4237,21 @@ void AircraftManager::ResolveHomeField()
                   (double)bestKm);
 }
 
-// §13.3 -- "It auto-surfaces ONLY on a state transition -- takeoff, landing --
-// for a dwell period, then returns to wherever the owner was."
+// Everything that happens when the state CHANGES: the flight is frozen (§11), a
+// new one is started, and the screen surfaces for a dwell (§13.3).
 //
-// The restraint is the design. Follow gets a screen; it never gets THE screen.
-// A followed aircraft airborne while something rare flies over must not steal
-// the display: the rare aircraft keeps its NEW highlight, the followed aircraft
-// keeps its ring, and neither wins. The only thing that ever takes the screen is
-// a transition, twice a flight.
-void AircraftManager::MaybeAutoSurfaceFollow()
+// One function because the three are one event and splitting them is how the
+// record ends up written on a transition the screen does not surface on, or
+// vice versa. It already happened once in miniature: the auto-surface lived
+// under OnNoFix, behind an early return, so takeoff and landing -- the only two
+// transitions §13.3 names -- were the two it could never see.
+//
+// §13.3's restraint is the design. Follow gets a screen; it never gets THE
+// screen. A followed aircraft airborne while something rare flies over must not
+// steal the display: the rare aircraft keeps its NEW highlight, the followed
+// aircraft keeps its ring, and neither wins. The only thing that ever takes the
+// screen is a transition, twice a flight.
+void AircraftManager::HandleFollowTransition()
 {
     const follow::State now = followMachine.Current();
     const follow::State was = followLastState;
@@ -4245,6 +4267,47 @@ void AircraftManager::MaybeAutoSurfaceFollow()
 
     if (now == was || !FollowScreenVisible())
         return;
+
+    // ---- LANDED: freeze the flight (§11) ------------------------------------
+    //
+    // Written HERE and nowhere else, on the transition, so it is one write per
+    // flight by construction rather than by a debounce that has to be trusted.
+    // The state machine's rail is what makes this safe to write at all: Landed
+    // fires only on confident evidence, so a card can never appear for a flight
+    // that merely stopped being heard (§5.4).
+    if (now == follow::State::Landed) {
+        follow::FlightRecord summary;
+        summary.durationSec   = followStats.DurationSec();
+        summary.maxAltMslFt   = (int32_t)lroundf(followStats.maxAltMslFt);
+        // Clamped, not wrapped. A garbage velocity in one fix must cost a wrong
+        // top speed, never a top speed that reads 12 kt because it overflowed.
+        summary.topSpeedKt    = (uint16_t)std::min(65535.0f, std::max(0.0f, followStats.topSpeedKt));
+        summary.furthestKmX10 = (uint16_t)std::min(65535.0f, std::max(0.0f, followStats.furthestKm * 10.0f));
+        // 0 means the clock was never synced. Recorded as 0 and rendered as
+        // "time unknown" rather than as 1970, which would be a date the card
+        // states confidently and is wrong.
+        const time_t nowUtc = time(nullptr);
+        summary.landedEpoch = (nowUtc > 1600000000) ? (uint32_t)nowUtc : 0u;
+        followLog.Save(followTrack, summary);
+    }
+
+    // ---- AIRBORNE after a landing: a NEW flight ------------------------------
+    //
+    // The buffer's write index moves; the ALLOCATION is untouched. §4.3 keeps
+    // those two as separate calls for exactly this moment -- freeing and
+    // re-allocating 12 KB twice a flight is the fragmentation behaviour the
+    // whole discipline exists to avoid.
+    //
+    // Ordering matters and is the reason this sits after the block above: the
+    // card is written from the track, so resetting the track before saving
+    // would leave a flight with no shape.
+    if (now == follow::State::Airborne &&
+        (was == follow::State::Landed || was == follow::State::Ground ||
+         was == follow::State::Waiting)) {
+        followTrack.ResetFlight();
+        followStats.Reset();
+    }
+
     // Takeoff and landing. Not the absence states: a dropout is the NORMAL
     // operating condition at pattern altitude (§3), and a screen that jumped on
     // every one of them would be the device looking broken every circuit in a
@@ -4444,9 +4507,27 @@ std::pair<int, int> AircraftManager::ProjectLocal(float pLat, float pLon,
 // built; the arc face, the globe and the post-flight card are §19 items 4 and
 // 8-10, and until they exist an airline-regime follow gets the local face's
 // honest states rather than a face that pretends to know a route.
+bool AircraftManager::ShowPostFlightCard() const
+{
+    if (!followLog.Has())
+        return false;
+    // 7.1: LANDED until the next takeoff. WAITING is in the list because it
+    // is the state a device boots into -- and the card is the one part of
+    // Follow that survives a power cycle precisely so that a reboot on a
+    // Tuesday still shows Saturday's flight rather than an empty scope.
+    //
+    // The three ABSENCE states are deliberately NOT here. They have words
+    // that matter (6) and a live picture behind them; a souvenir on top of
+    // 'BELOW COVERAGE' would bury the thing the customer needs to read.
+    const follow::State st = followMachine.Current();
+    return st == follow::State::Landed || st == follow::State::Waiting ||
+           st == follow::State::Ground  || st == follow::State::Idle;
+}
+
 void AircraftManager::DrawFollow(BandCanvas& backbuffer)
 {
-    DrawFollowLocalFace(backbuffer);
+    if (ShowPostFlightCard()) DrawFollowPostFlightCard(backbuffer);
+    else                      DrawFollowLocalFace(backbuffer);
 }
 
 void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
@@ -4621,6 +4702,131 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
         for (int i = 0; i < nLines; ++i)
             centred(lines[i], top + 5 + i * LINE_H, DIM);
     }
+}
+
+// ===========================================================================
+// THE POST-FLIGHT CARD (§11) -- "the answer to 'the screen is empty most of the
+// week'"
+// ===========================================================================
+//
+// SHAPE RATHER THAN POSITION, and that is the whole design. There is no arc, no
+// bearing, no live data and no home marker: the flight is drawn about its OWN
+// bounding box, not about the field, so what the customer sees is the figure
+// they flew rather than where it sat on a map.
+//
+//   "The alternative was to drop shape and show four numbers. Rejected because
+//    the shape IS the emotional payload: a racetrack of circuits is the picture
+//    that says 'he practised landings today' without a word of text."
+//
+// Origin hollow, destination filled -- so a pattern reads as a loop that started
+// and ended at the same place, which for circuits is the truth and is exactly
+// what makes six touch-and-goes legible as six.
+void AircraftManager::DrawFollowPostFlightCard(BandCanvas& backbuffer)
+{
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    const follow::FlightRecord& r = followLog.Record();
+    const size_t n = followLog.Size();
+
+    backbuffer.setTextSize(1);
+    const auto centred = [&](const String& s, int y, uint32_t colour) {
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(s, cx - (int)backbuffer.textWidth(s) / 2, y);
+    };
+    const uint32_t DIM   = lgfx::color888(110, 110, 110);
+    const uint32_t INK   = lgfx::color888(0, 190, 220);
+    const uint32_t LABEL = lgfx::color888(0, 150, 170);
+
+    centred("LAST FLIGHT", 8, LABEL);
+
+    // The clock is quoted only when it was real. A device that never reached NTP
+    // records 0, and 0 rendered as a date is 1970 -- a wrong fact stated with the
+    // same confidence as a right one, on the one face whose entire claim is that
+    // nothing here can be wrong.
+    if (r.landedEpoch) {
+        const time_t local = (time_t)r.landedEpoch + utcOffsetSec;
+        struct tm t; gmtime_r(&local, &t);
+        char when[24];
+        snprintf(when, sizeof(when), "%02d %s  %02d:%02d",
+                 t.tm_mday,
+                 (const char*[]){"Jan","Feb","Mar","Apr","May","Jun",
+                                 "Jul","Aug","Sep","Oct","Nov","Dec"}[t.tm_mon],
+                 t.tm_hour, t.tm_min);
+        centred(when, 21, DIM);
+    } else {
+        centred("time not known", 21, DIM);
+    }
+
+    // ---- the shape ----------------------------------------------------------
+    //
+    // Auto-fit about the track's OWN extent, isotropically. A per-axis fit would
+    // stretch a circuit into an oval and quietly change the figure -- the one
+    // thing the card is of.
+    if (n >= 2) {
+        float minLat = 1e9f, maxLat = -1e9f, minLon = 1e9f, maxLon = -1e9f;
+        for (size_t i = 0; i < n; ++i) {
+            float la, lo; followLog.PointAt(i, la, lo);
+            if (la < minLat) minLat = la;  if (la > maxLat) maxLat = la;
+            if (lo < minLon) minLon = lo;  if (lo > maxLon) maxLon = lo;
+        }
+        const float midLat = (minLat + maxLat) * 0.5f;
+        const float midLon = (minLon + maxLon) * 0.5f;
+        const float kmLat = 111.0f;
+        const float kmLon = 111.0f * cosf(radians(midLat));
+        const float spanNorthKm = (maxLat - minLat) * kmLat;
+        const float spanEastKm  = (maxLon - minLon) * kmLon;
+        const float spanKm = std::max(0.001f, std::max(spanNorthKm, spanEastKm));
+
+        const int boxPx = SCREEN_SIZE / 3; // half-extent of the drawing area
+        const float pxPerKm = (float)boxPx / (spanKm * 0.5f) * 0.5f;
+
+        const auto project = [&](float la, float lo, int& px, int& py) {
+            const float dN = (la - midLat) * kmLat;
+            const float dE = (lo - midLon) * kmLon;
+            // North-up, always. The card is a record, not a view out of a
+            // window, so `radar-up` deliberately does NOT apply -- rotating a
+            // souvenir by a setting made for live traffic would mean the same
+            // flight looked different on two devices.
+            px = cx + (int)lroundf(dE * pxPerKm);
+            py = cx - (int)lroundf(dN * pxPerKm);
+        };
+
+        int prevX = 0, prevY = 0;
+        for (size_t i = 0; i < n; ++i) {
+            float la, lo; followLog.PointAt(i, la, lo);
+            int x, y; project(la, lo, x, y);
+            if (i) backbuffer.drawLine(prevX, prevY, x, y, INK);
+            prevX = x; prevY = y;
+        }
+
+        float la0, lo0, la1, lo1;
+        followLog.PointAt(0, la0, lo0);
+        followLog.PointAt(n - 1, la1, lo1);
+        int ox, oy, dx, dy;
+        project(la0, lo0, ox, oy);
+        project(la1, lo1, dx, dy);
+        backbuffer.drawCircle(ox, oy, 4, lgfx::color888(200, 200, 200)); // origin, hollow
+        backbuffer.fillCircle(dx, dy, 4, lgfx::color888(255, 255, 255)); // destination, filled
+    }
+
+    // ---- the numbers --------------------------------------------------------
+    //
+    // Altitude is MSL and labelled for it. C5's elevation half is not delivered,
+    // and a souvenir is the worst place for a figure that is quietly wrong by
+    // the field elevation -- it is the number the customer looks at afterwards,
+    // repeatedly, with nothing live beside it to contradict it.
+    const uint32_t sec = r.durationSec;
+    char dur[16];
+    if (sec >= 3600) snprintf(dur, sizeof(dur), "%luh %02lum",
+                              (unsigned long)(sec / 3600), (unsigned long)((sec % 3600) / 60));
+    else             snprintf(dur, sizeof(dur), "%lum", (unsigned long)(sec / 60));
+
+    centred(String(dur) + " in the air", SCREEN_SIZE - 40, INK);
+    centred(String((long)r.maxAltMslFt) + " ft MSL   " + String((unsigned)r.topSpeedKt) + " kt",
+            SCREEN_SIZE - 28, DIM);
+    centred(units::FormatKm(r.furthestKmX10 / 10.0f, rangeUnit, /*space=*/true) + " out",
+            SCREEN_SIZE - 16, DIM);
+    // CIRCUIT COUNT belongs on this line and is not here -- §11 defers it in the
+    // same paragraph that asks for it. See the note in include/FollowGeometry.h.
 }
 
 void AircraftManager::DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness) const
