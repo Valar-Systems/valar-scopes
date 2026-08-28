@@ -2860,6 +2860,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     // radar return decays for a reason the track does not share: a return is a
     // return, the track is a record.
     DrawFollowTrack(backbuffer);
+    DrawFollowRouteStrip(backbuffer);
 
     // identify the "of interest" contacts to ring: nearest, highest, fastest
     String nearestIcao, highestIcao, fastestIcao;
@@ -4244,6 +4245,10 @@ void AircraftManager::DrawRankToast(BandCanvas& backbuffer) const
 // category, and following a category is not a thing this feature means.
 bool AircraftManager::MatchesFollow(const TrackedAircraft& tracked) const
 {
+    // The SESSION target wins while it is set (docs/tap-to-peek.md). One
+    // accessor rather than a branch at every call site: a second place that
+    // decided which target was in force is a second place to get it wrong.
+    const String followTarget = EffectiveFollowTarget();
     if (followTarget.isEmpty())
         return false;
 
@@ -4269,7 +4274,7 @@ void AircraftManager::UpdateFollowTrack()
     // The state machine runs whenever a target is set -- it is the feature
     // (§19), and it does not depend on the track buffer existing. A board that
     // degraded to notification-only still needs to know whether he is airborne.
-    const bool following = !followTarget.isEmpty();
+    const bool following = !EffectiveFollowTarget().isEmpty();
     followMachine.SetTarget(following);
     if (!following)
         return;
@@ -4826,6 +4831,158 @@ bool AircraftManager::ShowPostFlightCard() const
            st == follow::State::Ground  || st == follow::State::Idle;
 }
 
+
+// ===========================================================================
+// THE SESSION FOLLOW TARGET, AND THE RADAR ROUTE STRIP
+// docs/tap-to-peek.md
+// ===========================================================================
+
+// Swipe down on a detail card: follow that flight for this session.
+//
+// SESSION ONLY, AND THE ABSENCE OF A WRITE IS THE FEATURE. Nothing here touches
+// NVS. The config page stays the only path by which this device STORES an
+// aircraft somebody cares about, which is what keeps C2's line intact -- a
+// gesture that persisted a target would quietly make the device remember a
+// preference it was never explicitly given.
+//
+// The configured target is not overwritten, so dismissing this restores it.
+void AircraftManager::SetSessionFollow(const TrackedAircraft& tracked)
+{
+    // Prefer the callsign, since that is what the route mirror is keyed on and
+    // therefore what gives this flight an arc to draw. Fall back to the hex,
+    // which always exists.
+    String id = tracked.state.callsign; id.trim();
+    if (id.isEmpty()) id = tracked.state.icao24;
+    id.toLowerCase();
+    if (id.isEmpty()) return;
+
+    followSessionTarget = id;
+
+    // A new subject means the previous flight's track, stats and route belong to
+    // somebody else. Reset them here rather than letting HandleFollowTransition
+    // discover it later: the first frame after the gesture would otherwise draw
+    // the OLD aeroplane's arc under the NEW one's callsign.
+    followTrack.ResetFlight();
+    followStats.Reset();
+    followRouteOrigin = tracked.routeOrigin;
+    followRouteDest   = tracked.routeDest;
+    followMachine.SetTarget(true);
+
+    // Surface the face once so the gesture visibly took effect, then hand the
+    // screen straight back to the rotation -- §13.3: Follow gets a screen, never
+    // THE screen. This is the same dwell the state transitions use.
+    followAutoReturnTo = (screen == Screen::Follow) ? Screen::Radar : screen;
+    screen = Screen::Follow;
+    followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
+
+    // §17: the target is NOT printed. The count and the route are.
+    Serial.printf("[follow] session target set (%u chars) route=%s->%s\n",
+                  (unsigned)id.length(),
+                  followRouteOrigin.isEmpty() ? "--" : followRouteOrigin.c_str(),
+                  followRouteDest.isEmpty() ? "--" : followRouteDest.c_str());
+}
+
+// Swipe down on the follow face: stop following, and let a configured target
+// resume if there is one.
+void AircraftManager::ClearSessionFollow()
+{
+    if (followSessionTarget.isEmpty()) return;
+    followSessionTarget = "";
+    followTrack.ResetFlight();
+    followStats.Reset();
+    followRouteOrigin = "";
+    followRouteDest = "";
+    followMachine.SetTarget(!followTarget.isEmpty());
+    followAutoUntilMs = 0;
+    screen = Screen::Radar;
+    // The BOOLEAN is computed first and the token never enters the printf
+    // statement. §17's per-statement check has no allow list, and it is right
+    // not to: "only the emptiness is printed" is exactly what the author of the
+    // next leak will also believe.
+    const bool configuredResumes = !followTarget.isEmpty();
+    Serial.printf("[follow] session target cleared; configured target %s\n",
+                  configuredResumes ? "resumes" : "absent");
+}
+
+// The route strip on the RADAR face.
+//
+// This is the answer to "the flight should be on screen the entire way" that
+// does not cost the radar. §13.3 keeps Follow in the rotation; the strip and the
+// existing followed-contact ring together mean the flight IS continuously
+// visible -- on the screen the owner is already looking at -- for the price of
+// one line rather than the whole display.
+//
+// DRAWN ONLY WHEN THERE IS SOMETHING TRUE TO SAY: a followed flight, with both
+// route codes. No codes, no strip; the ring alone carries it. Same rule as the
+// faces -- the strip draws from the STRINGS, so an unresolved code still shows
+// its route, and only the progress marker needs coordinates.
+//
+// Its cost is added to the SAME counters as the faces (§18), because unlike them
+// it lands on the radar path, where the 85 ms budget is provisional (#264) and
+// the globe's cost is still unmeasured. A strip that quietly costs 4 ms on every
+// radar frame is exactly the kind of thing that shows up as "the soak got
+// slower" three weeks later.
+void AircraftManager::DrawFollowRouteStrip(BandCanvas& backbuffer)
+{
+    if (!FollowScreenVisible() || followRouteOrigin.isEmpty() || followRouteDest.isEmpty())
+        return;
+
+    const uint32_t t0 = micros();
+    const float k = (float)SCREEN_SIZE / 240.0f;
+    const auto Si = [k](float v) { return (int)lroundf(v * k); };
+    const int cx = SCREEN_SIZE_DIV_2;
+
+    // Sits just below the disc's vertical centre-line text, inside the chord so
+    // nothing runs off the curve -- the same rule every other row obeys.
+    const int y = Si(214.0f);
+    backbuffer.setTextSize(1);
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+    const int avail = ChordWidthPx(y, lineH);
+    if (avail < Si(70.0f)) return;   // no room on this panel: draw nothing
+
+    String o = followRouteOrigin, d = followRouteDest;
+    o.toUpperCase(); d.toUpperCase();
+
+    const follow::Endpoint org = follow::LookupAirport(o.c_str());
+    const follow::Endpoint dst = follow::LookupAirport(d.c_str());
+
+    // Progress needs coordinates AND a position. Without either the strip still
+    // draws the pair, just without a marker -- honest rather than absent.
+    float progress = -1.0f;
+    if (org.known && dst.known) {
+        if (const TrackedAircraft* live = FollowedAircraft()) {
+            auto [aLat, aLon] = live->GetDisplayPosition();
+            progress = follow::ProgressAlong(org, dst, aLat, aLon);
+        } else if (followMachine.LastFixMs() != 0) {
+            const follow::Fix& f = followMachine.LastFix();
+            progress = follow::ProgressAlong(org, dst, f.lat, f.lon);
+        }
+    }
+
+    const int codeW = (int)backbuffer.textWidth("XXXX");
+    const int barX0 = cx - avail / 2 + codeW + Si(4.0f);
+    const int barX1 = cx + avail / 2 - codeW - Si(4.0f);
+    if (barX1 <= barX0) return;
+
+    const uint32_t colour = FollowStateColour(followMachine.Current(), true);
+    backbuffer.setTextColor(FOLLOW_DIM);
+    backbuffer.drawString(o, cx - avail / 2, y);
+    backbuffer.drawString(d, barX1 + Si(4.0f), y);
+
+    const int barY = y + lineH / 2;
+    backbuffer.drawLine(barX0, barY, barX1, barY, FOLLOW_NEUTRAL);
+    if (progress >= 0.0f) {
+        const int mx = barX0 + (int)lroundf((barX1 - barX0) * progress);
+        backbuffer.drawLine(barX0, barY, mx, barY, colour);
+        backbuffer.fillCircle(mx, barY, Si(2.5f), colour);
+    }
+
+    // Folded into the face counters on purpose -- see the note above.
+    const uint32_t us = micros() - t0;
+    followArcUs += us;
+    if (followArcUs > followArcMaxUs) followArcMaxUs = followArcUs;
+}
+
 // §7.1's routing table, in order. The face is CHOSEN, never picked -- there is
 // no config key for this and there must not be, because the customer following
 // a trainer and the customer following a son's airliner both just typed a tail
@@ -5180,7 +5337,7 @@ AircraftManager::RouteView AircraftManager::FollowRouteView() const
     v.org = follow::LookupAirport(followRouteOrigin.c_str());
     v.dst = follow::LookupAirport(followRouteDest.c_str());
 
-    v.label = followTarget; v.label.toUpperCase();
+    v.label = EffectiveFollowTarget(); v.label.toUpperCase();
     const TrackedAircraft* live = FollowedAircraft();
     if (live) {
         auto [a, b] = live->GetDisplayPosition();
@@ -6237,7 +6394,30 @@ void AircraftManager::HandleSwipe(Swipe swipe)
             pinnedIcao = (pinnedIcao == selectedIcao) ? "" : selectedIcao;
             screen = Screen::Radar;
         }
+        // SWIPE DOWN FOLLOWS THIS FLIGHT for the session -- but only when there
+        // is a route to draw. docs/tap-to-peek.md's first rule: no route, no
+        // affordance, and the swipe keeps its old meaning of "close". An
+        // affordance that sometimes does nothing teaches people it does nothing.
+        if (swipe == Swipe::Down) {
+            auto sel = trackedAircraft.find(selectedIcao);
+            if (sel != trackedAircraft.end() &&
+                !sel->second.routeOrigin.isEmpty() && !sel->second.routeDest.isEmpty()) {
+                SetSessionFollow(sel->second);
+                inDetail = false;   // NOT ExitDetail(): SetSessionFollow already
+                                    // chose the screen, and ExitDetail would
+                                    // undo it.
+                return;
+            }
+        }
         ExitDetail();
+        return;
+    }
+
+    // Swipe down on the follow face stops a SESSION follow. A configured target
+    // is not touched -- it was set deliberately on the config page, and a
+    // gesture must not delete a setting somebody typed.
+    if (screen == Screen::Follow && swipe == Swipe::Down && FollowSessionActive()) {
+        ClearSessionFollow();
         return;
     }
 

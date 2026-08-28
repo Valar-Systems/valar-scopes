@@ -237,6 +237,17 @@ private:
     // `followTarget` gates the whole feature. Empty means no allocation, no
     // draw, no behaviour change for anyone who did not ask (§15).
     String followTarget = "";      // lowercased tail / callsign / hex prefix
+    // ---- the SESSION target (docs/tap-to-peek.md) ---------------------------
+    //
+    // Set by swiping down on a detail card. NEVER WRITTEN TO NVS, and that is
+    // the whole privacy argument rather than an implementation detail: the
+    // config page stays the only path by which this device STORES an aircraft
+    // somebody cares about, so C2's line is untouched. A reboot forgets it and
+    // the configured target resumes.
+    //
+    // Kept separate from followTarget rather than overwriting it, so the
+    // configured target survives a session follow and comes back on dismissal.
+    String followSessionTarget = "";
     bool   followDrawTrack = true; // "follow-track"; §15 marks the default conditional on §18.1
     // 15's alert toggles. follow-lost defaults OFF and the asymmetry IS the
     // argument: a missed lost-alert costs mild worry, an unwanted one costs
@@ -818,8 +829,21 @@ private:
     /// The followed contact, if it is in the table this pass. Null is the normal
     /// case at pattern altitude, not an error -- see FollowTrack.h.
     const TrackedAircraft* FollowedAircraft() const;
+    /// The target actually in force: a session follow overrides the configured
+    /// one for as long as it is set.
+    String EffectiveFollowTarget() const {
+        return followSessionTarget.isEmpty() ? followTarget : followSessionTarget;
+    }
+    bool FollowSessionActive() const { return !followSessionTarget.isEmpty(); }
+    /// Swipe down on a card: follow that aircraft for this session.
+    void SetSessionFollow(const TrackedAircraft& tracked);
+    /// Swipe down on the follow face: stop, and let the configured target resume.
+    void ClearSessionFollow();
+    /// §13.3 + docs/tap-to-peek.md: the followed flight's route, drawn on the
+    /// RADAR face so it is visible the whole flight without taking the screen.
+    void DrawFollowRouteStrip(BandCanvas& backbuffer);
     /// Empty follow field -> the screen does not exist (§13.3).
-    bool FollowScreenVisible() const { return !followTarget.isEmpty(); }
+    bool FollowScreenVisible() const { return !EffectiveFollowTarget().isEmpty(); }
     /// Next/previous VISIBLE screen. dir is +1 or -1.
     void AdvanceScreen(int dir);
     /// Everything that happens on a follow STATE CHANGE: freeze the finished

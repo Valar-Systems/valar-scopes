@@ -72,7 +72,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # The value itself. `followHomeCode` is derived from the device's own configured
 # location rather than from what the customer typed, so it is not the target.
-TARGET_TOKENS = ("followTarget",)
+# followSessionTarget is NOT a substring of followTarget ("followSession" +
+# "Target"), so it needed adding explicitly -- and it was invisible to this
+# scanner for the whole of the session-follow build until the review list's
+# churn prompted a look. A gesture-set target is exactly as sensitive as a
+# configured one: §17 is about the VALUE leaving the device, and says nothing
+# about how it got there.
+TARGET_TOKENS = ("followTarget", "followSessionTarget")
 
 # Anything that puts bytes on a wire or a console. Serial is on the list because
 # 17 names it: "serial output (the Wi-Fi password incident is the precedent)".
@@ -120,34 +126,40 @@ ALLOWED_TOUCH = {
     # --- on-device only ----------------------------------------------------
     "AircraftManager::Initialise",           # reads the config key
     "AircraftManager::MatchesFollow",        # identity match against the contacts
-    "AircraftManager::UpdateFollowTrack",    # gates the feature
     "AircraftManager::FollowedAircraft",
     "AircraftManager::DrawFollowLocalFace",  # drawn on the customer's own glass
-    # DrawRouteArc / DrawRouteGlobe are DELIBERATELY ABSENT from this list.
-    #
-    # The 2026-08-28 signature refactor moved them onto a RouteView, so they take
-    # a label rather than reading followTarget -- and the scanner confirms they
-    # no longer touch it at all. The surface shrank, and the anchor control is
-    # what made that a checked fact instead of an assumption: it fired on the two
-    # names disappearing, which is indistinguishable from a broken scanner until
-    # someone looks.
-    "AircraftManager::FollowRouteView",      # the ONE place Follow's members feed
-                                             # the faces. Reviewed 2026-08-28:
-                                             # reads the target into a label that
-                                             # reaches the panel, nothing else.
     "AircraftManager::DrawFollowWaitingFace",# C4's nudge names the tail so the
                                              # owner can check it against the
-                                             # config page. Reviewed 2026-08-27:
-                                             # reaches the panel and nothing else.
+                                             # config page; panel only.
     "AircraftManager::DrawFollowHud",
     "AircraftManager::DrawRadar",            # the followed-contact ring
-    "FollowScreenVisible",                   # inline in the header
+    "EffectiveFollowTarget",                 # inline in the header: the ONE place
+                                             # that decides which target is in
+                                             # force. Concentrating it here is why
+                                             # UpdateFollowTrack, FollowRouteView
+                                             # and FollowScreenVisible no longer
+                                             # touch a target at all.
+    "AircraftManager::SetSessionFollow",     # the gesture. Reviewed 2026-08-28:
+                                             # stores to RAM only -- never NVS --
+                                             # and its serial line prints the
+                                             # LENGTH, never the value.
+    "AircraftManager::ClearSessionFollow",   # ditto; prints a precomputed bool.
+    "FollowSessionActive",                   # inline in the header: an emptiness
+                                             # test, never the value.
+    "<file scope>",                          # the member DECLARATIONS in
+                                             # AircraftManager.h. followTarget's
+                                             # own declaration was already
+                                             # excluded by DECL_RE; the session
+                                             # one is a String with a comment
+                                             # block above it and lands at file
+                                             # scope instead. A declaration is
+                                             # not a use.
     "AircraftManager::RecordFrameUs",        # the [follow] health line: prints the
                                              # STATE and counters, never the target
     # --- serves the value back to the OWNER'S OWN BROWSER -------------------
     # The config page is served by this device over the LAN to the person who
     # typed the value, so they can see and edit it. That is not the disclosure
-    # 17 is about -- the value reaching US or a third party -- and a settings
+    # §17 is about -- the value reaching US or a third party -- and a settings
     # page that cannot show a setting is not a settings page.
     "ConfigurationWebServer::Initialise",
     # --- THE one sanctioned outbound use (C3) ------------------------------
@@ -162,6 +174,14 @@ ALLOWED_SINK = {
     "AircraftManager::Initialise",         # huge; logs plenty, never the target
     "AircraftManager::RecordFrameUs",      # the [follow] line: state + counters only
     "ConfigurationWebServer::Initialise",  # the config page, to the owner's browser
+    # Both set/clear the session target AND print a serial line. Read
+    # 2026-08-28: the target cannot reach either printf. SetSessionFollow prints
+    # id.length() and the two ROUTE CODES; ClearSessionFollow prints a bool
+    # computed on the line before. The per-statement check above is what actually
+    # guards them -- it already rejected an earlier draft of the clear line that
+    # put followTarget.isEmpty() inline in the printf.
+    "AircraftManager::SetSessionFollow",
+    "AircraftManager::ClearSessionFollow",
 }
 
 
