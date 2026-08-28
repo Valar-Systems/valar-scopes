@@ -16,6 +16,7 @@
 #include "Logbook.h"
 #include "FactoryReset.h"
 #include "MqttPublisher.h"
+#include "UsageStore.h"  // anonymous feature-use counters (README "Telemetry")
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
@@ -85,6 +86,22 @@ private:
     // Screen navigation. Three top-level screens cycle via horizontal swipe; the
     // detail card overlays whichever screen you're on.
     enum class Screen { Radar, List, Stats };
+
+    /// Switch screens, and count it.
+    ///
+    /// ONE PLACE, and that is the point rather than tidiness: `screen` is
+    /// assigned from three sites and a counter bumped beside each of them would
+    /// drift the first time a fourth is added. Counting where the change
+    /// actually happens means a screen switch cannot be added without being
+    /// counted -- or, when that is wrong, being visibly not counted.
+    void EnterScreen(Screen s);
+
+    /// Anonymous feature-use counters. Loop task only (it touches NVS).
+    ///
+    /// §17-adjacent and deliberately narrow: this object is handed COUNTS, never
+    /// subjects. See include/UsageReport.h -- its report builder has no
+    /// parameter that could carry a callsign, a tail number or a follow target.
+    usage::Store usageStore;
     Screen screen = Screen::Radar;
 
     // Stats-screen "Reset" row -- the entry point to the reset menu below. Its

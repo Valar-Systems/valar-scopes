@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   record,
   recordOtaMem,
+  recordUsage,
   routeTemplate,
   setDeviceAttribution,
+  USAGE_FIELD_COUNT,
   type RequestMetric,
 } from "../src/metrics";
 import type { Env } from "../src/types";
@@ -204,5 +206,103 @@ describe("routeTemplate", () => {
     const pt = writeDataPoint.mock.calls[0]?.[0];
     expect(pt.blobs[0]).toBe("/v1/enrich");
     expect(pt.indexes).toEqual(["/v1/enrich"]);
+  });
+});
+
+// The device sends this at most once an hour, on a check-in it was making
+// anyway. Device-supplied input reaching storage, so the shape is enforced here
+// rather than trusted -- and the REJECTIONS are what most of this describes,
+// because a malformed value that gets stored is a wrong row nobody can spot in
+// an aggregate.
+describe("recordUsage", () => {
+  it("records a well-formed report as one Analytics Engine point", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "41,7,3,2,11,5,1,137", "s3-128", "8", "2aeea64cb4b760b8");
+    expect(writeDataPoint).toHaveBeenCalledTimes(1);
+    expect(writeDataPoint).toHaveBeenCalledWith({
+      blobs: ["usage", "s3-128", "8", "2aeea64cb4b760b8"],
+      doubles: [41, 7, 3, 2, 11, 5, 1, 137],
+      indexes: ["usage"],
+    });
+  });
+
+  it("keeps the device on the point, because per-device was the ask", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "1,0,0,0,0,0,0,1", "s3-128", "8", "2aeea64cb4b760b8");
+    expect(writeDataPoint.mock.calls[0]?.[0].blobs[3]).toBe("2aeea64cb4b760b8");
+  });
+
+  it("records an empty device when the caller has no attribution", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "1,0,0,0,0,0,0,1", "s3-128", "8");
+    expect(writeDataPoint.mock.calls[0]?.[0].blobs[3]).toBe("");
+  });
+
+  it("does nothing when the check-in carries no report", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, null, "s3-128", "8");
+    recordUsage(env, "", "s3-128", "8");
+    expect(writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  // THE FIELD COUNT IS A CONTRACT WITH THE FIRMWARE. usage::FIELD_COUNT in
+  // include/UsageReport.h is the other side of it, and a parser that quietly
+  // accepted a different arity is exactly how the two drift apart.
+  it("pins the arity at 8 and rejects anything else", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    expect(USAGE_FIELD_COUNT).toBe(8);
+    recordUsage(env, "1,2,3,4,5,6,1", "s3-128", "8"); // seven
+    recordUsage(env, "1,2,3,4,5,6,1,2,3", "s3-128", "8"); // nine
+    expect(writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  // The device emits digits and commas by construction (its builder takes only
+  // integers). Anything else did not come from an image we ship, so it is
+  // dropped rather than parsed leniently -- and this is the same assertion the
+  // firmware's host test makes, from the other side of the wire.
+  it("rejects any value that is not digits and commas", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    for (const bad of [
+      "41,7,3,2,11,5,1,N4523K",
+      "41,7,3,2,11,5,1,137,BAW117",
+      "-1,7,3,2,11,5,1,137",
+      "41.5,7,3,2,11,5,1,137",
+      "41, 7,3,2,11,5,1,137",
+      "41,7,3,2,11,5,1,",
+      "hello",
+    ]) {
+      recordUsage(env, bad, "s3-128", "8");
+    }
+    expect(writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  it("rejects a length nothing legitimate approaches", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "1".repeat(200), "s3-128", "8");
+    expect(writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  it("rejects a value past a u32", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, `1,2,3,4,5,6,1,${0x100000000}`, "s3-128", "8");
+    expect(writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  // followEnabled is a FLAG. A "2" summed into an adoption ratio is worse than a
+  // dropped row, because the ratio stays plausible.
+  it("rejects a follow flag that is not 0 or 1", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "1,2,3,4,5,6,2,10", "s3-128", "8");
+    expect(writeDataPoint).not.toHaveBeenCalled();
+    // CONTROL: both legal values still land, or the assertion above would pass
+    // against a function that rejected everything.
+    recordUsage(env, "1,2,3,4,5,6,0,10", "s3-128", "8");
+    recordUsage(env, "1,2,3,4,5,6,1,10", "s3-128", "8");
+    expect(writeDataPoint).toHaveBeenCalledTimes(2);
+  });
+
+  it("never throws, whatever the device sends", () => {
+    const env = {} as unknown as Env; // no METRICS binding at all
+    expect(() => recordUsage(env, "1,2,3,4,5,6,1,10", "s3-128", "8")).not.toThrow();
   });
 });

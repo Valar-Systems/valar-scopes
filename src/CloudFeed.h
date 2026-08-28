@@ -103,7 +103,12 @@ String NormalizeBaseUrl(String url);
 // (variant::SLUG -- the server resolves per-model tunables from it), X-Blip-FW.
 // otaMem: the one-shot X-Blip-OTA-Mem value (OtaUpdater.h's TakeOtaMemReport),
 // added only when non-empty -- the first check-in after an update attempt.
-std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem = "");
+//
+// usage: the periodic X-Blip-Usage value (UsageStore::Take), "" unless a report
+// is due. Anonymous COUNTS of feature use -- never what the use was about; see
+// include/UsageReport.h, whose builder cannot carry text at all.
+std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem = "",
+                                               const String& usage = "");
 
 String BlipsUrl(const String& base);
 String EnrichUrl(const String& base, const String& icao24);
