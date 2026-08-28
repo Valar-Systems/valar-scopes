@@ -338,6 +338,53 @@ Skyscope](https://github.com/Valar-Systems/skyscope) parses this repo's
 defect lives in the *operations* — so the two checks are complementary and
 neither substitutes for the other.
 
+## Standing practice: a presence check prints a boolean, never a value
+
+**The question is almost always "is this secret set?" — which is one bit. Print
+the bit.** Printing the secret to answer it puts the secret in scrollback, in the
+session transcript, in CI logs, and in whatever the screen was being shared to.
+
+The instance (2026-08-28): checking whether `CLOUDFLARE_API_TOKEN` was available
+before an ingest run, via
+
+```sh
+reg query "HKCU\Environment" | grep -i token      # DON'T
+```
+
+`reg query` prints **names and values**, and so four live secrets —
+`CLOUDFLARE_API_TOKEN`, `BLIP_KEY`, `MSC_BOOTSTRAP_TOKEN`, `BLIP_DEVICE` — went
+into the transcript in plaintext and had to be rotated. Narrowing to one name
+does not help: `reg query "HKCU\Environment" /v CLOUDFLARE_API_TOKEN` prints that
+value too. The tool's job is to show you values; the mistake was asking it.
+
+**The safe forms all end in a boolean, and none of them can be made to leak by a
+tool doing its job:**
+
+```sh
+[ -n "$CLOUDFLARE_API_TOKEN" ] && echo present || echo absent
+reg query "HKCU\Environment" /v NAME >/dev/null 2>&1 && echo present || echo absent
+powershell -NoProfile -Command "if ([Environment]::GetEnvironmentVariable('NAME','User')) { 'present' } else { 'absent' }"
+```
+
+If a length is genuinely needed to tell a truncated paste from a good one, print
+the **length**, never a prefix. A prefix of a token is still a prefix of a token,
+and the entropy you left out is not the part that identifies it.
+
+**Why this is its own entry and not a footnote to the filtering rule.** The
+filtering rule says a filter written against expected output is blindest when the
+command fails. This is the mirror image: the filter was written against the
+output's *shape* (`grep` for a name) while the command emitted a different shape
+(name **and** value), and the cost landed instantly rather than being hidden. The
+rule that covers both: **decide what you need out of a command before running it,
+and shape the command to emit exactly that** — do not emit everything and sort it
+out afterwards, because "afterwards" is too late for a secret and too generous
+for a failure.
+
+Related, and the reason this is not merely tidiness: this project has already
+leaked one credential through logs — see the Wi-Fi password incident, fixed
+forward in PR #183. That one was firmware serial output; this one was a shell.
+Same class, different surface.
+
 ## Standing practice: never filter the output of a command you are testing for failure
 
 Twice in one week a `grep`/`tail` on a command's output hid the failure it was
