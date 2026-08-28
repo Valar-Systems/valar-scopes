@@ -140,12 +140,56 @@ const AP_ELEV_MIN_FT = -1500;
 const AP_ELEV_MAX_FT = 18000;
 const AP_CODE_RE = /^[A-Z0-9]{3,4}$/;
 
-// A code no real airport can hold, carrying a per-run nonce, probed through the
-// LIVE path before and after the write. See rule 3 in the routes ingest: a
-// read-back that goes straight to KV proves only that we can read our own
-// write, and airport codes are the kind of thing an endpoint could plausibly
-// answer from somewhere else.
+// A code no real airport can hold, carrying a per-run discriminator, probed
+// through the LIVE path before and after the write. See rule 3 in the routes
+// ingest: a read-back that goes straight to KV proves only that we can read our
+// own write, and airport codes are the kind of thing an endpoint could
+// plausibly answer from somewhere else.
 const AP_SENTINEL = "ZZZZ";
+
+// The staging/production read path for the sentinel probe. The endpoint is the
+// point: rule 3 is about the LIVE path, so this must be the deployed Worker.
+const AP_PROBE_BASE: Record<string, string> = {
+  staging: "https://scopes-staging.valarsystems.com",
+  production: "https://scopes.valarsystems.com",
+};
+
+/**
+ * The sentinel's coordinates, derived from the run's nonce.
+ *
+ * THE DISCRIMINATOR HAS TO RIDE FIELDS THE ENDPOINT RETURNS. The first version
+ * put the nonce in a fourth array element, which the handler does not return --
+ * so the live probe could confirm that SOMETHING was at ap:ZZZZ and could not
+ * tell this run's write from one three weeks old. That is precisely the property
+ * a sentinel exists to have, and it did not have it.
+ *
+ * lat/lon are returned, so the nonce goes there. Rounded to 3 decimals to match
+ * the rounding every other row gets, so the value survives the round trip
+ * byte-identical rather than nearly.
+ */
+function sentinelCoords(nonce: string): { lat: number; lon: number } {
+  const h = createHash("sha256").update(nonce).digest();
+  const lat = Math.round((((h.readUInt32BE(0) % 178_000) / 1000) - 89) * 1000) / 1000;
+  const lon = Math.round((((h.readUInt32BE(4) % 358_000) / 1000) - 179) * 1000) / 1000;
+  return { lat, lon };
+}
+
+/** GET the sentinel through the deployed Worker. null when it is absent. */
+async function probeSentinel(
+  env: string,
+  creds: { key: string; dev: string },
+): Promise<{ lat: number; lon: number } | null> {
+  const base = AP_PROBE_BASE[env];
+  if (!base) throw new Error(`no probe base URL for env ${env}`);
+  const res = await fetch(`${base}/api/v1/blipscope/airport/${AP_SENTINEL}`, {
+    headers: { "X-Blip-Key": creds.key, "X-Blip-Device": creds.dev },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`sentinel probe got HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const j = (await res.json()) as { lat?: number; lon?: number };
+  if (typeof j.lat !== "number" || typeof j.lon !== "number") return null;
+  return { lat: j.lat, lon: j.lon };
+}
 
 interface ApRow {
   code: string;
@@ -391,6 +435,29 @@ async function loadApFamily(
     return;
   }
 
+  // ---- RULE 3, first half: what is at the sentinel BEFORE we write? ------
+  //
+  // Recorded through the LIVE path so the "after" value has something to be
+  // different from. A first run sees 404, which is a fine "before".
+  //
+  // NO CREDENTIALS MEANS NO CHECK, AND IT SAYS SO LOUDLY. Skipping quietly would
+  // leave a run that looks identical to a verified one, which is the failure this
+  // whole procedure is built against.
+  const probeKey = process.env.BLIP_KEY ?? "";
+  const probeDev = process.env.BLIP_DEVICE ?? "";
+  const canProbe = probeKey.length > 0 && probeDev.length > 0;
+  let before: { lat: number; lon: number } | null = null;
+  if (canProbe) {
+    before = await probeSentinel(args.env, { key: probeKey, dev: probeDev });
+    console.log(`ap: sentinel BEFORE = ${before ? `${before.lat},${before.lon}` : "(absent)"}`);
+  } else {
+    console.log("");
+    console.log("ap: !!! RULE 3 NOT EXERCISED -- BLIP_KEY/BLIP_DEVICE are not set, so the");
+    console.log("ap: !!! sentinel cannot be probed through the live path. This run proves");
+    console.log("ap: !!! only that wrangler accepted the writes.");
+    console.log("");
+  }
+
   // RULE 4 -- diff. Read the previous shard hashes out of the existing meta.
   let prior: Record<string, string> = {};
   try {
@@ -433,19 +500,50 @@ async function loadApFamily(
     console.log(`ap: shard ${k} -> ${codes.length} keys`);
   }
 
-  // RULE 3 -- the sentinel, with a nonce this run and no other could produce.
+  // RULE 3 -- the sentinel. Its COORDINATES carry the run's nonce, because those
+  // are the fields the endpoint returns; see sentinelCoords.
   const nonce = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
+  const want = sentinelCoords(nonce);
   const sentinelPath = join(tmp, "ap-sentinel.json");
   writeFileSync(
     sentinelPath,
-    JSON.stringify([{ key: `ap:${AP_SENTINEL}`, value: JSON.stringify([1.5, 2.5, 42, nonce]) }]),
+    JSON.stringify([{ key: `ap:${AP_SENTINEL}`, value: JSON.stringify([want.lat, want.lon, 0]) }]),
   );
   execSync(
     ["npx", "wrangler", "kv", "bulk", "put", q(sentinelPath),
      "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
-  console.log(`ap: sentinel written (nonce ${nonce})`);
+  console.log(`ap: sentinel written (nonce ${nonce} -> ${want.lat},${want.lon})`);
+
+  // ---- RULE 3, second half: read it back through the LIVE path -----------
+  //
+  // Retried, because KV is eventually consistent and an isolate may still be
+  // serving the previous value for a few seconds. Retrying a check that CAN
+  // fail is fine; what would not be fine is treating a timeout as a pass.
+  if (canProbe) {
+    let after: { lat: number; lon: number } | null = null;
+    for (let attempt = 1; attempt <= 6; attempt++) {
+      after = await probeSentinel(args.env, { key: probeKey, dev: probeDev });
+      if (after && after.lat === want.lat && after.lon === want.lon) break;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+    console.log(`ap: sentinel AFTER  = ${after ? `${after.lat},${after.lon}` : "(absent)"}`);
+    if (!after || after.lat !== want.lat || after.lon !== want.lon) {
+      throw new Error(
+        `RULE 3 FAILED: the live path does not return this run's sentinel ` +
+          `(want ${want.lat},${want.lon}, got ${after ? `${after.lat},${after.lon}` : "absent"}). ` +
+          `meta:airports NOT written; the previous build remains current.`,
+      );
+    }
+    if (before && before.lat === after.lat && before.lon === after.lon) {
+      throw new Error(
+        "RULE 3 FAILED: the sentinel is unchanged from before the write, so this " +
+          "check cannot tell a fresh load from a stale one.",
+      );
+    }
+    console.log("ap: RULE 3 PASS -- the live path returns THIS run's sentinel, and it moved.");
+  }
 
   console.log("");
   console.log(`ap: ${written} keys written across ${changed.length} shard(s).`);
