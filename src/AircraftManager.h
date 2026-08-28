@@ -353,6 +353,12 @@ private:
     // from a live contact, and a position mid-route.
     bool  followBenchLongHaul = false;
     float followBenchProgress = 0.45f;
+    /// Force the resolving state, which nothing produces yet: the ap: device
+    /// client is unbuilt, so this is the only way to put its copy on glass.
+    bool  followBenchResolving = false;
+    /// Set a session follow from the bench, with a canned route. The real entry
+    /// point takes a TrackedAircraft, and a bench has none.
+    void  BenchSessionFollow(const char* label, const char* org, const char* dst);
     void PollBenchSerial();
 #endif
     unsigned long lastNotifyCheck = 0;
@@ -799,6 +805,11 @@ private:
         uint32_t sinceSec = 0;       // since the last fix, for SIGNAL_LOST
         follow::State st = follow::State::Idle;
         float  altMslFt = NAN;       // NaN = nothing reportable
+        /// Codes are known but their coordinates are not YET -- an ap: lookup is
+        /// in flight. Distinct from "unresolvable": one resolves shortly, the
+        /// other never will, and telling the customer they are the same thing is
+        /// how a working feature looks broken for two seconds.
+        bool   resolving = false;
     };
 
     /// The airline default (§8): route arc, bearing wedge, centre stack.

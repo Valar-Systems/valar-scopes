@@ -4505,6 +4505,39 @@ void AircraftManager::HandleFollowTransition()
 }
 
 #ifdef FOLLOW_BENCH
+// Set a session follow from the bench, with a canned route.
+//
+// The real entry point takes a TrackedAircraft off the contact table, and a
+// bench has no aeroplanes. This forges the same END STATE -- session target,
+// route, reset track and stats -- so what Saturday judges is the real face
+// reading real members, not a mock.
+void AircraftManager::BenchSessionFollow(const char* label, const char* org, const char* dst)
+{
+    followSessionTarget = label;
+    followSessionTarget.toLowerCase();
+    followRouteOrigin = org;
+    followRouteDest = dst;
+    followTrack.ResetFlight();
+    followStats.Reset();
+    // Push the extent past the home radius so §7.1's inference lands on the
+    // airline regime -- the same input a real departure moves, rather than a
+    // flag that bypasses the routing being judged.
+    followStats.furthestKm = 4000.0f;
+    followMachine.SetTarget(true);
+    followForce = true;
+    followForced = follow::State::Airborne;
+    followBenchLongHaul = true;
+    screen = Screen::Follow;
+    followAutoUntilMs = 0;   // no dwell: the bench wants it to STAY
+    // Length computed first: the token must not appear in the printf
+    // statement even when only its LENGTH is used. I made this exact
+    // mistake twice in one session, which is the argument for the check
+    // having no allow list.
+    const unsigned n = (unsigned)followSessionTarget.length();
+    Serial.printf("[bench] session follow: %s->%s (%u chars)\n",
+                  org, dst, n);
+}
+
 // Force the display state from serial, so §6's copy can be judged on glass.
 //
 // THE ABSENCE COPY IS THE EMOTIONAL CORE OF THE FEATURE (§6) and it is the one
@@ -4532,6 +4565,8 @@ void AircraftManager::PollBenchSerial()
                        "4=APPROACH-LOST 5=SIGNAL-LOST 0=release n=next");
         Serial.println("[bench] arc face: l=synthetic DEN->DEL long-haul (toggle) "
                        "p=step progress 15/45/80% w=WAITING (C4 face)");
+        Serial.println("[bench] session follow: s=LHR->JFK (globe) a=LHR->BCN (arc) "
+                       "u=unresolvable codes (code-only arc) r=resolving x=clear");
     }
     while (Serial.available()) {
         const int ch = Serial.read();
@@ -4605,6 +4640,31 @@ void AircraftManager::PollBenchSerial()
             case 'w': case 'W':
                 want = follow::State::Waiting;
                 break;
+            // ---- session follow, the three route cases (docs/tap-to-peek.md) --
+            //
+            // Saturday needs all THREE on glass, not just the happy path: a
+            // resolvable long haul, a resolvable short hop, and codes the baked
+            // table cannot place. The third is the one that would otherwise
+            // never be seen until a customer met it.
+            case 's': case 'S':   // long haul -> globe (5,540 km >= 4,000)
+                BenchSessionFollow("bench-lhr-jfk", "LHR", "JFK");
+                continue;
+            case 'a': case 'A':   // short hop -> arc (1,147 km < 4,000)
+                BenchSessionFollow("bench-lhr-bcn", "LHR", "BCN");
+                continue;
+            case 'u': case 'U':   // codes the table cannot resolve -> code-only arc
+                BenchSessionFollow("bench-unknown", "ZQX", "QZY");
+                continue;
+            case 'r': case 'R':
+                followBenchResolving = !followBenchResolving;
+                Serial.printf("[bench] resolving state %s\n",
+                              followBenchResolving ? "FORCED" : "off");
+                continue;
+            case 'x': case 'X':
+                followBenchResolving = false;
+                followBenchLongHaul = false;
+                ClearSessionFollow();
+                continue;
             default: set = false; break;
         }
         if (!set) continue;
@@ -5360,6 +5420,7 @@ AircraftManager::RouteView AircraftManager::FollowRouteView() const
     v.altMslFt = follow::ReportableAltFt(msl, v.st == follow::State::Airborne) ? msl : NAN;
 
 #ifdef FOLLOW_BENCH
+    v.resolving = followBenchResolving;
     if (followBenchLongHaul && v.org.known && v.dst.known) {
         follow::InterpolateGreatCircle(v.org, v.dst, followBenchProgress, v.acLat, v.acLon);
         v.havePos = true;
@@ -5557,6 +5618,12 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
         primary = units::FormatKm(
             follow::GreatCircleKm(acLat, acLon, dst.lat, dst.lon), rangeUnit, true);
         label = "ON APPROACH";
+    } else if (view.resolving) {
+        // RESOLVING IS NOT UNRESOLVABLE, and the copy must not read as failure:
+        // one clears in a second, the other never will. "LOCATING" says a thing
+        // is happening; "unknown" would say a thing has finished badly.
+        primary = "--";
+        label = "LOCATING " + (view.org.known ? view.destCode : view.origCode);
     } else {
         const int mins = follow::MinutesToArrival(totalKm * (1.0f - shown), gsKt);
         if (mins >= 0) {

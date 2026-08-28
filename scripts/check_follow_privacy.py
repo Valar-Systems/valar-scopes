@@ -144,6 +144,10 @@ ALLOWED_TOUCH = {
                                              # and its serial line prints the
                                              # LENGTH, never the value.
     "AircraftManager::ClearSessionFollow",   # ditto; prints a precomputed bool.
+    "AircraftManager::BenchSessionFollow",   # FOLLOW_BENCH only -- absent from every
+                                             # shipping image, verified by grepping
+                                             # the blipscope-s3-128 ELF. Sets a canned
+                                             # target; prints a precomputed length.
     "FollowSessionActive",                   # inline in the header: an emptiness
                                              # test, never the value.
     "<file scope>",                          # the member DECLARATIONS in
@@ -182,6 +186,7 @@ ALLOWED_SINK = {
     # put followTarget.isEmpty() inline in the printf.
     "AircraftManager::SetSessionFollow",
     "AircraftManager::ClearSessionFollow",
+    "AircraftManager::BenchSessionFollow",
 }
 
 
