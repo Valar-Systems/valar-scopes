@@ -41,10 +41,17 @@ interface Args {
   only: "tiles" | "ap" | "both";
   /** Re-write these ap: shards even if their hash is unchanged (repair step). */
   forceShard?: string;
+  /**
+   * Write meta:airports and finish. RULE 1: the meta key is the CLAIM that a
+   * build is good, so it is written last and by a separate invocation -- after
+   * verify-airports has enumerated the namespace. A meta key written by the same
+   * run that did the loading can only ever attest to what that run believed.
+   */
+  seal: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, only: "both" };
+  const a: Args = { dryRun: false, only: "both", seal: false };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--env") a.env = argv[++i];
@@ -52,6 +59,7 @@ function parseArgs(argv: string[]): Args {
     else if (v === "--file") a.file = argv[++i];
     else if (v === "--only") a.only = (argv[++i] as Args["only"]) ?? "both";
     else if (v === "--force-shard") a.forceShard = argv[++i];
+    else if (v === "--seal") a.seal = true;
     else throw new Error(`unknown argument: ${v}`);
   }
   if (!a.dryRun && !a.env) throw new Error("an upload run needs --env <name> (or use --dry-run)");
@@ -148,7 +156,10 @@ interface ApRow {
 
 interface ApBuild {
   rows: Map<string, ApRow>;
+  /** Same-namespace conflicts: unresolvable, so the code is dropped. */
   collisions: string[];
+  /** Cross-namespace conflicts resolved in IATA's favour, with the loser named. */
+  resolved: string[];
   rejected: { code: string; why: string }[];
   elevDropped: number;
 }
@@ -166,8 +177,11 @@ function buildApRows(
   cols: { type: number; lat: number; lon: number; iata: number; local: number; ident: number; elev: number },
 ): ApBuild {
   const rows = new Map<string, ApRow>();
-  const claimed = new Map<string, string>(); // code -> ident that claimed it
+  // code -> who claimed it, and FROM WHICH NAMESPACE. The namespace is what
+  // makes the tie-break a fact rather than a preference; see the conflict block.
+  const claimed = new Map<string, { ident: string; src: "iata" | "icao" }>();
   const collisions: string[] = [];
+  const resolved: string[] = [];
   const rejected: { code: string; why: string }[] = [];
   let elevDropped = 0;
 
@@ -216,21 +230,60 @@ function buildApRows(
     // what made that visible, by counting instead of picking a winner. IATA and
     // ICAO are globally unique by definition, which is what a global key space
     // needs, and they are also the two forms the route mirror actually emits.
-    const forms = [
-      (f[cols.iata] ?? "").trim().toUpperCase(),
-      ident,
-    ].filter((c, idx, a) => c && a.indexOf(c) === idx);
+    //
+    // The provenance is carried alongside each form because the conflict rule
+    // below needs to know which namespace a string came from.
+    const iata = (f[cols.iata] ?? "").trim().toUpperCase();
+    const forms: { code: string; src: "iata" | "icao" }[] = [];
+    if (iata) forms.push({ code: iata, src: "iata" });
+    if (ident && ident !== iata) forms.push({ code: ident, src: "icao" });
 
-    for (const code of forms) {
+    for (const { code, src } of forms) {
       if (!AP_CODE_RE.test(code)) continue; // silently: most rows have blanks here
       const prior = claimed.get(code);
-      if (prior && prior !== ident) {
-        // Two different fields want one code. Neither gets it.
+      if (prior && prior.ident !== ident) {
+        // ---------------------------------------------------------------
+        // TWO FIELDS WANT ONE CODE. IATA WINS -- AND THAT IS A FACT ABOUT
+        // THE QUERY NAMESPACE, NOT A COIN FLIP.
+        //
+        // These keys are read by one caller asking one kind of question: the
+        // firmware looking up a route endpoint. The codes in that traffic come
+        // from the route mirror, where a three-letter string means IATA. So
+        // when a string is one airport's IATA code and another's ICAO ident,
+        // the IATA holder is the one our queries are actually about.
+        //
+        // The concrete case that settles it: GIG (Rio Galeao) is in the
+        // firmware's baked majors table. Dropping it would make a code the
+        // device resolves TODAY stop resolving -- a live regression, traded for
+        // tidiness.
+        //
+        // THE LOSER IS NAMED IN THE OUTPUT. A resolved conflict is still a
+        // dropped record, and a drop nobody can see is the failure mode this
+        // whole rule exists to avoid.
+        // ---------------------------------------------------------------
+        if (src === "iata" && prior.src === "icao") {
+          resolved.push(`${code}: IATA ${ident} wins, ICAO ident ${prior.ident} dropped`);
+          claimed.set(code, { ident, src });
+          rows.set(code, {
+            code,
+            lat: Math.round(lat * 1000) / 1000,
+            lon: Math.round(lon * 1000) / 1000,
+            elev,
+          });
+          continue;
+        }
+        if (src === "icao" && prior.src === "iata") {
+          resolved.push(`${code}: IATA ${prior.ident} wins, ICAO ident ${ident} dropped`);
+          continue; // the incumbent keeps it
+        }
+        // SAME NAMESPACE on both sides: two IATA codes or two ICAO idents that
+        // are equal. That is a source defect, not an ambiguity we can reason
+        // about, so neither gets the key.
         rows.delete(code);
-        collisions.push(`${code} (${prior} vs ${ident})`);
+        collisions.push(`${code} (${prior.src} ${prior.ident} vs ${src} ${ident})`);
         continue;
       }
-      claimed.set(code, ident);
+      claimed.set(code, { ident, src });
       rows.set(code, {
         code,
         // ~0.001 deg (~110 m). Finer than the tiles because these are ROUTE
@@ -241,7 +294,7 @@ function buildApRows(
       });
     }
   }
-  return { rows, collisions, rejected, elevDropped };
+  return { rows, collisions, resolved, rejected, elevDropped };
 }
 
 /** Stable hash of a shard's contents, for the diff. */
@@ -278,7 +331,9 @@ async function loadApFamily(
   console.log(`    rows rejected outright: ${built.rejected.length}`);
   for (const r of built.rejected.slice(0, 5)) console.log(`      - ${r.code || "(no ident)"}: ${r.why}`);
   if (built.rejected.length > 5) console.log(`      ... and ${built.rejected.length - 5} more`);
-  console.log(`    CODE COLLISIONS (dropped, not resolved): ${built.collisions.length}`);
+  console.log(`    conflicts resolved to IATA (loser named): ${built.resolved.length}`);
+  for (const c of built.resolved) console.log(`      - ${c}`);
+  console.log(`    CODE COLLISIONS (same namespace -- dropped, not resolved): ${built.collisions.length}`);
   for (const c of built.collisions.slice(0, 10)) console.log(`      - ${c}`);
   if (built.collisions.length > 10) console.log(`      ... and ${built.collisions.length - 10} more`);
 
@@ -394,13 +449,60 @@ async function loadApFamily(
 
   console.log("");
   console.log(`ap: ${written} keys written across ${changed.length} shard(s).`);
-  console.log("ap: NOT writing meta:airports yet -- run verify-airports next, then");
-  console.log("    re-run with --seal to publish the meta key. Rule 1: the meta key");
-  console.log("    is the claim that the build is good, and it is written last.");
+  console.log("ap: meta:airports NOT written. Next:");
+  console.log(`      npm run verify:airports -- --env ${args.env}`);
+  console.log(`      npx tsx scripts/ingest-airports.ts --env ${args.env} --only ap --seal`);
+  console.log("    Rule 1: the meta key is the CLAIM that the build is good, so it is");
+  console.log("    written last and by a separate run -- after something other than the");
+  console.log("    loader has enumerated the namespace.");
 
   if (canaryFails > 0) {
-    throw new Error(`${canaryFails} canary failure(s) -- meta not sealed, previous build still current`);
+    throw new Error(`${canaryFails} canary failure(s) -- meta not written, previous build still current`);
   }
+}
+
+/**
+ * Write meta:airports. Separate invocation, after verify-airports passes.
+ *
+ * The shard hashes go in because the next run's diff reads them back -- so the
+ * meta key is both the health claim and the diff's memory, and refusing to write
+ * it on a failed build correctly forces the next run to rewrite everything.
+ */
+async function sealApFamily(
+  lines: string[],
+  cols: { type: number; lat: number; lon: number; iata: number; local: number; ident: number; elev: number },
+  args: Args,
+): Promise<void> {
+  if (!args.env) throw new Error("--seal needs --env");
+  const built = buildApRows(lines, cols);
+  const shards = new Map<string, string[]>();
+  for (const code of built.rows.keys()) {
+    const k = code[0]!;
+    let list = shards.get(k);
+    if (!list) shards.set(k, (list = []));
+    list.push(code);
+  }
+  const hashes: Record<string, string> = {};
+  for (const [k, codes] of shards) hashes[k] = shardHash(codes, built.rows);
+
+  const meta = {
+    rows: built.rows.size,
+    shards: hashes,
+    built: new Date().toISOString(),
+    source: CSV_URL,
+    collisionsDropped: built.collisions.length,
+    conflictsResolvedToIata: built.resolved.length,
+    elevationDropped: built.elevDropped,
+  };
+  const tmp = mkdtempSync(join(tmpdir(), "blip-apmeta-"));
+  const path = join(tmp, "meta.json");
+  writeFileSync(path, JSON.stringify([{ key: "meta:airports", value: JSON.stringify(meta) }]));
+  execSync(
+    ["npx", "wrangler", "kv", "bulk", "put", q(path),
+     "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+    { stdio: "inherit" },
+  );
+  console.log(`ap: meta:airports sealed -- ${meta.rows} rows, ${Object.keys(hashes).length} shards`);
 }
 
 async function main(): Promise<void> {
@@ -459,6 +561,14 @@ async function main(): Promise<void> {
   console.log(
     `selected ${total} airports (L ${kindCounts.L} / M ${kindCounts.M} / S ${kindCounts.S}) into ${tiles.size} tiles`,
   );
+
+  if (doAp && args.seal) {
+    await sealApFamily(lines, {
+      type: cType, lat: cLat, lon: cLon,
+      iata: cIata, local: cLocal, ident: cIdent, elev: cElev,
+    }, args);
+    return;
+  }
 
   if (doAp) {
     await loadApFamily(lines, {

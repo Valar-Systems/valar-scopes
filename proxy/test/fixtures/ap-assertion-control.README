@@ -1,0 +1,10 @@
+# NOT DATA. Eight synthetic rows in the OurAirports shape whose only job is to
+# prove the ap: builder's assertions CAN FIRE. Against the real corpus every
+# rejection counter reads 0, and a zero from an assertion nobody has seen fail
+# is indistinguishable from an assertion that is unreachable.
+#
+#   npx tsx scripts/ingest-airports.ts --dry-run --only ap --file test/fixtures/ap-assertion-control.csv
+#
+# Expected: elevation dropped 2, rows rejected 3 (two positions, one 0,0),
+# canaries 3/4 (DEL absent, so the canary check is shown failing too), and
+# Bar Yehuda at -1266 ft KEPT -- the floor must admit a real airfield.
