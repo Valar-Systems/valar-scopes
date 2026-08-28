@@ -201,6 +201,7 @@ constexpr int LIST_COL_ALT  = 118; // altitude
 #include <ArduinoJson.h>
 
 #include "Airports.h"     // baked major-airport table for the radar overlay
+#include "GlobeProjection.h"  // the orthographic globe, shared with src/anim (§7.2)
 #include "SevenSegment.h" // shared 7-seg renderer, for the night clock face
 
 // Cap on aircraft retained per fetch, applied to BOTH sources: keep only the nearest this-many to
@@ -4860,6 +4861,17 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
     // So the arc is chosen when it has something to draw, and the local face is
     // the fallback rather than the other way round.
     if (FollowRegime() == follow::Regime::Airline && FollowRouteKnown()) {
+        // §9's threshold, argued at 4,000 km in the spec. Both codes have to
+        // RESOLVE for the globe, not merely be present: the arc face can draw a
+        // code-only route, the globe cannot place a single pixel without
+        // coordinates.
+        const follow::Endpoint o = follow::LookupAirport(followRouteOrigin.c_str());
+        const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
+        if (o.known && d.known &&
+            follow::GreatCircleKm(o.lat, o.lon, d.lat, d.lon) >= FOLLOW_GLOBE_MIN_KM) {
+            DrawFollowGlobeFace(backbuffer);
+            return;
+        }
         DrawFollowArcFace(backbuffer);
         return;
     }
@@ -5509,6 +5521,285 @@ void AircraftManager::DrawFollowWaitingFace(BandCanvas& backbuffer)
     const int top = Si(132.0f);
     for (int i = 0; i < nLines; ++i)
         centred(lines[i], top + i * (lineH + 3), stale ? FOLLOW_AMBER : FOLLOW_DIM);
+}
+
+// ===========================================================================
+// THE GLOBE FACE (§9) -- long-haul only
+// ===========================================================================
+//
+// "An orthographic projection of a sphere IS a circle, so on a round panel it
+// fills the glass with nothing cropped. No rectangular display can claim that.
+// This is the one place where the hardware's shape is an advantage."
+//
+// Chosen over the arc face at 4,000 km (see the findings box at §9): below that
+// the globe's route spans under ~58 px and a 270 degree arc is strictly more
+// legible; above it the arc face can only say "42%" while the globe can say
+// "over the pole, north of Siberia."
+//
+// THE PROJECTION AND THE COASTLINES ARE THE ANIMATION'S, not a second copy --
+// include/GlobeProjection.h, extracted from src/anim/ so both products call one
+// implementation. Nothing is cached into a sprite: the module measured a 240x240
+// PSRAM blit at 6.24 ms against 0.34 ms to draw the whole globe live, so
+// redrawing is ~18x cheaper than remembering.
+//
+// TILT IS ZERO HERE, AND THAT IS A DEPARTURE FROM THE MODULE'S 30 DEGREES. The
+// animation tilts so a near-meridional missile arc bows across the disc instead
+// of running down its spine. §9 asks for something incompatible with that:
+// "centre the globe on the great-circle midpoint so both endpoints are visible."
+// A tilt moves the midpoint off centre by construction. The composition rule
+// wins, and the route reads as a straight line through the centre -- which is
+// what a great circle through the view centre actually is.
+
+/// Subsolar point, for the terminator. Low-precision declination (Cooper), good
+/// to about half a degree.
+///
+/// THE EQUATION OF TIME IS OMITTED, and that is a measured decision rather than
+/// an oversight: it reaches +/-16 minutes, i.e. +/-4 degrees of longitude, which
+/// at r = 94 is under 1.7 px at the equator and less everywhere else. The
+/// terminator is a soft edge on a 240 px disc; a correction smaller than the
+/// line drawing it is not a correction.
+static void FollowSubsolar(time_t utc, float& outLat, float& outLon)
+{
+    struct tm t;
+    gmtime_r(&utc, &t);
+    const int doy = t.tm_yday + 1;
+    outLat = 23.44f * sinf(2.0f * 3.14159265f * (float)(doy - 81) / 365.0f);
+    const float hours = (float)t.tm_hour + (float)t.tm_min / 60.0f +
+                        (float)t.tm_sec / 3600.0f;
+    outLon = -15.0f * (hours - 12.0f);
+}
+
+void AircraftManager::DrawFollowGlobeFace(BandCanvas& backbuffer)
+{
+    const uint32_t t0 = micros();
+    const float k = (float)SCREEN_SIZE / 240.0f;
+    const auto Si = [k](float v) { return (int)lroundf(v * k); };
+    const int cx = Si(120.0f);
+    const int cy = Si(102.0f);          // §9: pulled UP, so the readout gets a band
+    const float R = k * 94.0f;          // ... and shrunk from the full 119 for it
+    const int   Ri = (int)lroundf(R);
+
+#ifdef FOLLOW_BENCH
+    const follow::State st = followForce ? followForced : followMachine.Current();
+#else
+    const follow::State st = followMachine.Current();
+#endif
+    const uint32_t colour = FollowStateColour(st, /*benignApproach=*/true);
+
+    backbuffer.setTextSize(1);
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+
+    const follow::Endpoint org = follow::LookupAirport(followRouteOrigin.c_str());
+    const follow::Endpoint dst = follow::LookupAirport(followRouteDest.c_str());
+
+    float acLat = 0.0f, acLon = 0.0f;
+    bool havePos = false;
+    const TrackedAircraft* live = FollowedAircraft();
+    if (live) {
+        auto [a, b] = live->GetDisplayPosition();
+        acLat = a; acLon = b; havePos = true;
+    } else if (followMachine.LastFixMs() != 0) {
+        const follow::Fix& f = followMachine.LastFix();
+        acLat = f.lat; acLon = f.lon; havePos = true;
+    }
+#ifdef FOLLOW_BENCH
+    if (followBenchLongHaul && org.known && dst.known) {
+        follow::InterpolateGreatCircle(org, dst, followBenchProgress, acLat, acLon);
+        havePos = true;
+    }
+#endif
+
+    // §9: centred on the great-circle MIDPOINT so both ends are on the visible
+    // hemisphere. MakeBasis does exactly that at tilt 0.
+    const globeproj::Basis basis =
+        globeproj::MakeBasis(org.lon, org.lat, dst.lon, dst.lat, 0.0f);
+
+    const uint32_t OCEAN = lgfx::color888(4, 12, 26);
+    const uint32_t NIGHT = lgfx::color888(2, 5, 12);
+    const uint32_t COAST = lgfx::color888(70, 110, 130);
+    const uint32_t TERM  = lgfx::color888(150, 96, 40);   // a thin WARM line
+
+    // ---- the disc, and the night side --------------------------------------
+    backbuffer.fillCircle(cx, cy, Ri, OCEAN);
+
+    // The sun in CAMERA coordinates, so the day/night test is three multiplies
+    // per sample instead of a rotation. A screen point (px, py) on the near
+    // hemisphere is px*r + py*u + pz*v with pz = sqrt(1 - px^2 - py^2), so its
+    // illumination is px*sr + py*su + pz*sv.
+    float sunLat = 0.0f, sunLon = 0.0f, sun[3] = { 0.0f, 0.0f, 0.0f };
+    const time_t nowUtc = time(nullptr);
+    const bool clockSynced = nowUtc > 1600000000;
+    if (clockSynced) {
+        FollowSubsolar(nowUtc, sunLat, sunLon);
+        globeproj::UnitVec(sunLon, sunLat, sun);
+        const float sr = globeproj::Dot3(sun, basis.r);
+        const float su = globeproj::Dot3(sun, basis.u);
+        const float sv = globeproj::Dot3(sun, basis.v);
+
+        // Scanline fill at 2 px. The night region is bounded by one great circle
+        // and the limb, so a per-scanline sign scan finds it exactly to the step
+        // size -- and 2 px is invisible against a terminator that is itself a
+        // soft edge. Sampling per pixel would double the cost to resolve
+        // something the atmosphere does not resolve either.
+        constexpr int STEP = 2;
+        for (int y = cy - Ri; y <= cy + Ri; y += STEP) {
+            const float py = (float)(cy - y) / R;
+            const float halfSq = 1.0f - py * py;
+            if (halfSq <= 0.0f) continue;
+            const float half = sqrtf(halfSq);
+            int runStart = 0;
+            bool inRun = false;
+            for (int i = 0; ; ++i) {
+                const float px = -half + (float)i * (float)STEP / R;
+                const bool past = px > half;
+                bool night = false;
+                if (!past) {
+                    const float pz2 = 1.0f - px * px - py * py;
+                    const float pz = pz2 > 0.0f ? sqrtf(pz2) : 0.0f;
+                    night = (px * sr + py * su + pz * sv) < 0.0f;
+                }
+                const int sx = cx + (int)lroundf(px * R);
+                if (night && !inRun) { runStart = sx; inRun = true; }
+                else if ((!night || past) && inRun) {
+                    backbuffer.fillRect(runStart, y, sx - runStart, STEP, NIGHT);
+                    inRun = false;
+                }
+                if (past) break;
+            }
+        }
+    }
+
+    // ---- coastlines ---------------------------------------------------------
+    // A segment is drawn only when BOTH ends are on the near hemisphere, which is
+    // the module's own rule: clipping to the limb buys at most half a pixel,
+    // because the data is decimated to ~1 px and everything near the limb is
+    // foreshortened below that.
+    const globeproj::Coastline* rings = globeproj::Coastlines();
+    const int ringCount = globeproj::CoastlineCount();
+    int vertices = 0;
+    for (int i = 0; i < ringCount; ++i) {
+        const globeproj::GeoVec* v = rings[i].v;
+        const int n = rings[i].n;
+        float px = 0.0f, py = 0.0f;
+        bool pv = false;
+        for (int a = 0; a <= n; ++a) {
+            const globeproj::GeoVec& p = v[a == n ? 0 : a];   // close the ring
+            float x = 0.0f, y = 0.0f;
+            const bool vis = globeproj::Project(basis,
+                p.x * globeproj::VEC_INV, p.y * globeproj::VEC_INV,
+                p.z * globeproj::VEC_INV, (float)cx, (float)cy, R, x, y);
+            if (vis && pv)
+                backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, COAST);
+            px = x; py = y; pv = vis;
+            ++vertices;
+        }
+    }
+
+    // The limb: the one line that makes the disc a sphere rather than a circle.
+    backbuffer.drawCircle(cx, cy, Ri, lgfx::color888(40, 70, 90));
+
+    // The terminator itself, as the great circle perpendicular to the sun.
+    if (clockSynced) {
+        // Any two orthogonal vectors in the plane normal to the sun. e1 is the
+        // sun crossed with world north, which degenerates only with the sun
+        // exactly over a pole -- impossible, since |declination| <= 23.44.
+        float north[3] = { 0.0f, 0.0f, 1.0f }, e1[3], e2[3];
+        globeproj::Cross3(sun, north, e1); globeproj::Norm3(e1);
+        globeproj::Cross3(sun, e1, e2);    globeproj::Norm3(e2);
+        float px = 0.0f, py = 0.0f; bool pv = false;
+        for (int i = 0; i <= 120; ++i) {
+            const float a = (float)i * (2.0f * 3.14159265f / 120.0f);
+            const float ca = cosf(a), sa = sinf(a);
+            float x = 0.0f, y = 0.0f;
+            const bool vis = globeproj::Project(basis,
+                e1[0] * ca + e2[0] * sa, e1[1] * ca + e2[1] * sa,
+                e1[2] * ca + e2[2] * sa, (float)cx, (float)cy, R, x, y);
+            if (vis && pv) backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, TERM);
+            px = x; py = y; pv = vis;
+        }
+    }
+
+    // ---- the route ----------------------------------------------------------
+    //
+    // §9: dashed AHEAD, solid BEHIND. The split is at the aircraft's along-track
+    // progress, not at its projection onto the line -- see ProgressAlong.
+    const float progress = havePos ? follow::ProgressAlong(org, dst, acLat, acLon) : 0.0f;
+    {
+        constexpr int STEPS = 96;
+        float px = 0.0f, py = 0.0f; bool pv = false;
+        for (int i = 0; i <= STEPS; ++i) {
+            const float f = (float)i / (float)STEPS;
+            float w[3];
+            globeproj::GreatCirclePoint(org.lon, org.lat, dst.lon, dst.lat, f, w);
+            float x = 0.0f, y = 0.0f;
+            const bool vis = globeproj::Project(basis, w[0], w[1], w[2],
+                                                (float)cx, (float)cy, R, x, y);
+            if (vis && pv) {
+                const bool behind = f <= progress;
+                // The dash is on the UNFLOWN half only, so "how far along" reads
+                // off the solid run without a marker being needed to say it.
+                if (behind || (i & 2))
+                    backbuffer.drawLine((int)px, (int)py, (int)x, (int)y,
+                                        behind ? colour : FollowFade(colour, 0.5f));
+            }
+            px = x; py = y; pv = vis;
+        }
+    }
+
+    // Endpoints, then the aircraft.
+    const auto place = [&](float lat0, float lon0, int r, uint32_t c, bool fill) {
+        float w[3], x = 0.0f, y = 0.0f;
+        globeproj::UnitVec(lon0, lat0, w);
+        if (!globeproj::Project(basis, w[0], w[1], w[2], (float)cx, (float)cy, R, x, y))
+            return;
+        if (fill) backbuffer.fillCircle((int)x, (int)y, r, c);
+        else      backbuffer.drawCircle((int)x, (int)y, r, c);
+    };
+    place(org.lat, org.lon, Si(3.0f), FOLLOW_DIM, false);
+    place(dst.lat, dst.lon, Si(3.0f), FOLLOW_DIM, true);
+
+    // §9: THE AIRCRAFT IS DRAWN AT ITS REAL ADS-B POSITION, NOT INTERPOLATED
+    // ONTO THE LINE. "The gap between the two is the actual routing and is more
+    // interesting than a bead on a wire."
+    if (havePos) {
+        const bool degraded = follow::Machine::IsAbsent(st);
+        place(acLat, acLon, Si(4.0f), colour, !degraded);
+        float w[3], x = 0.0f, y = 0.0f;
+        globeproj::UnitVec(acLon, acLat, w);
+        if (globeproj::Project(basis, w[0], w[1], w[2], (float)cx, (float)cy, R, x, y))
+            backbuffer.drawCircle((int)x, (int)y, Si(8.0f), FollowFade(colour, 0.35f));
+    }
+
+    // ---- text, on its own bands above and below the disc --------------------
+    const auto centred = [&](const String& s, int y, uint32_t c) {
+        backbuffer.setTextColor(c);
+        const String fit = FitToDisc(backbuffer, s, y, lineH);
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
+    };
+    String who = followTarget; who.toUpperCase();
+    if (live) {
+        String cs = live->state.callsign; cs.trim();
+        if (!cs.isEmpty()) { cs.toUpperCase(); who = cs; }
+    }
+    String o = followRouteOrigin, d = followRouteDest;
+    o.toUpperCase(); d.toUpperCase();
+    // The backing plate: text over ocean is legible, text over the terminator is
+    // not, and which one a given route produces is not knowable in advance.
+    const String top = who + "  " + o + " -> " + d;
+    const int tw = (int)backbuffer.textWidth(top) + Si(8.0f);
+    backbuffer.fillRect(cx - tw / 2, Si(26.0f) - 2, tw, lineH + 4, lgfx::color888(0, 0, 0));
+    centred(top, Si(26.0f), FOLLOW_DIM);
+
+    if (follow::Machine::IsAbsent(st))
+        centred(follow::Headline(st, follow::Regime::Airline), Si(206.0f), colour);
+    centred(String((int)lroundf(progress * 100.0f)) + "%  of  " +
+            units::FormatKm(follow::GreatCircleKm(org.lat, org.lon, dst.lat, dst.lon),
+                            rangeUnit, true),
+            Si(223.0f), FOLLOW_DIM);
+
+    followArcUs = micros() - t0;
+    followArcStrokes = (size_t)vertices;
+    if (followArcUs > followArcMaxUs) followArcMaxUs = followArcUs;
 }
 
 // ===========================================================================

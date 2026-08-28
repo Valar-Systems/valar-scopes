@@ -193,6 +193,20 @@ jobs:
           # the very change that sweep was checking. An env nothing builds is an env
           # that rots silently, and this row is what stops that.
           - { env: blipscope-pro-s3-175-amoled }
+          # The flight-animation harness. Slug-less, and added 2026-08-27 when the
+          # globe projection was extracted out of src/anim/ for Follow (§7.2).
+          #
+          # THE SAFETY NET THAT WAS ASSUMED TO COVER THIS DOES NOT. missileer-s3-146
+          # is in this matrix and builds green, but every EAM env applies
+          # ${filters.anim_off}, so src/anim/ IS NOT IN THE MISSILEER IMAGE AT ALL --
+          # confirmed by grepping its ELF for FlightAnimation/kCoast/GOLF-07 (all
+          # absent) against an anchor that is present. A refactor of the animation
+          # module could therefore break every env that actually contains it while
+          # the Missileer row stayed green, which is the same shape as the 1.75"
+          # AMOLED above: an env nothing builds is an env that rots silently.
+          #
+          # animtest-s3-128 is the only env that compiles AND renders src/anim/.
+          - { env: animtest-s3-128 }
           # Follow Mode stage 1 bench image. BRANCH-ONLY -- this row must not reach
           # main, and neither must the env it names.
           #

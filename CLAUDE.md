@@ -338,6 +338,57 @@ Skyscope](https://github.com/Valar-Systems/skyscope) parses this repo's
 defect lives in the *operations* — so the two checks are complementary and
 neither substitutes for the other.
 
+## Standing practice: when you decline to state a number, assert that it cannot come back
+
+**A decision not to claim something is a decision, and decisions decay.** The
+usual way is not an argument — nobody re-litigates it — but a later edit that
+looks like an improvement. Someone fills in the blank, because a blank reads as
+unfinished.
+
+The instance: Follow's no-coverage copy. The spec's worked example ends *"Next
+contact expected around 18:40, near Ireland."* We licence no model of where
+receiver coverage resumes and no schedule data, so that time would be invented,
+on the one screen whose entire job is to explain an absence honestly. It was cut.
+
+A comment saying "do not add a time here" would have been the normal protection.
+It is worth almost nothing: it is advice, sitting next to a string, addressed to
+someone who has already decided the string looks incomplete.
+
+**What was written instead is a test that the string contains no digit.**
+
+```cpp
+for (const char* p = e; *p; ++p) if (*p >= '0' && *p <= '9') claimsATime = true;
+check(!claimsATime, "the ocean copy states no time -- we cannot know one");
+check(e[0] != '\0',  "CONTROL: it still says something");
+```
+
+That is a different kind of object from a comment. It does not ask anyone to
+agree; it fails the build. And it does not need to anticipate the specific
+sentence someone might add — any restored precision, in any wording, in any
+unit, contains a digit.
+
+**The generalisation, which is the reason this is here.** Wherever a product
+declines to state something because the data does not support it, the decline can
+usually be made *structural* rather than *remembered*:
+
+| the decline | the assertion that keeps it |
+|---|---|
+| no arrival time we cannot compute | the string contains no digit |
+| no countdown without schedule data | the pre-departure face renders no `%d` |
+| no AGL without field elevation | `AglFt()` returns NaN, and a test says so |
+| no landing claim without evidence | the rail: `Landed` unreachable from absence |
+
+Note the shape they share: **the honest version has a property the dishonest
+version cannot have.** Find that property and assert it. Three of the four rows
+above already existed in this codebase before the rule was written down, which is
+the sign it was a pattern rather than a preference.
+
+The paired CONTROL is not optional. "Contains no digit" is trivially satisfied by
+an empty string, and an empty absence message is a worse failure than a made-up
+time — so the assertion that it still says *something* is what stops the guard
+from passing in the one state it exists to prevent. Same rule as everywhere else
+here: a check that cannot fail is a check nobody can trust.
+
 ## Standing practice: never filter the output of a command you are testing for failure
 
 Twice in one week a `grep`/`tail` on a command's output hid the failure it was

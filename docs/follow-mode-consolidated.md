@@ -818,14 +818,28 @@ One screen slot (C6). The face is chosen, never picked:
 | condition | face |
 |---|---|
 | no follow target | screen hidden entirely |
-| target set, not yet seen | pre-departure **[UNKNOWN]** |
+| target set, not yet seen, no previous flight | pre-departure (C4) |
+| target set, not yet seen, previous flight on file | post-flight card (§11) |
 | local regime, any live state | local face (§10) |
-| airline regime, route known, great-circle ≥ threshold | globe face (§9) |
-| airline regime, otherwise | arc face (§8) |
+| airline regime, both codes resolve, great-circle ≥ **4,000 km** | globe face (§9) |
+| airline regime, route known | arc face (§8) |
+| **airline regime, NO route** | **local face (§10)** — see below |
 | `LANDED` until next takeoff | post-flight card (§11) |
 
 Regime is inferred, not configured: an aircraft that stays inside the home radius is
 local; one that leaves it is not.
+
+**AMENDED 2026-08-27 — the route-less long-range row.** This table used to send
+"airline regime, otherwise" to the arc face unconditionally, which assumed a route
+always exists. It does not: a GA cross-country is past the home radius with nothing
+filed, and it was getting a dim empty ring. The local face's auto-scaled rings and
+its track are strictly more informative for that flight, so it is the fallback.
+The arc is chosen when it has something to draw.
+
+Note also that the regime is read from the flight's **furthest extent**, which never
+falls within a flight and resets with the next one. Feeding it the live separation
+would flap the face once per circuit at exactly the radius where an aircraft spends
+most of its time.
 
 ### 7.2 Reuse, do not rebuild
 
@@ -902,22 +916,13 @@ clear.
 > reads as a **progress** error, sending the next reader to `ProgressAlong`,
 > which is correct and graded. The dashes need per-step control anyway.
 >
-> **DEVIATION 1 — the primary slot always holds a magnitude; the label names it.**
-> §8 words `APPROACH_LOST`'s readout as "`ON APPROACH` with distance out", which
-> puts a phrase in a slot holding a number in the other three states. At this
-> type size a phrase either overflows the chord or forces the number smaller —
-> and a stack whose type size changes with state is precisely the jump the shared
-> altitude/chip slot was designed to avoid. So the state's word goes to the label
-> line and the distance to the slot: primary `12 mi`, label `ON APPROACH`. The
-> chip still carries `BELOW COVERAGE`.
->
-> **DEVIATION 2 — the arc face requires a route; the local face is the fallback.**
-> §7.1 routes "airline regime, otherwise" to the arc unconditionally. But an arc
-> with no origin, no destination and no progress is a dim ring with nothing on
-> it — strictly *less* than the local face, whose rings auto-scale to whatever
-> extent the flight has and whose track is still a picture of the flight. A GA
-> cross-country is exactly that case: outside the home radius, no route, well
-> served by rings. So the arc is chosen when it has something to draw.
+> **Two things the build found are now SPEC rather than deviations, amended
+> 2026-08-27.** The primary-slot rule (always a magnitude, the label names it) is
+> written into the centre-stack section above, because it generalises past this
+> face. And §7.1's routing table has a new row: "airline regime, NO route" falls
+> to the **local face**, not to an arc with nothing on it — a GA cross-country is
+> past the home radius with nothing filed, and rings-and-track beat a dim empty
+> ring. Both were found by building it; neither is carried as a deviation.
 >
 > **The degradation is a tested path, not a hope.** An unresolved code still
 > *draws* — the codes are strings first and coordinates second — so a missing
@@ -967,13 +972,30 @@ if the ticks are cut, cut the wedge too.
 | y | content | style |
 |---|---|---|
 | 86 | callsign | mono 10, letterspaced, dim |
-| 124 | **primary readout** | condensed 34, accent |
-| 139 | readout label | mono 8, letterspaced |
+| 124 | **primary readout** — always a MAGNITUDE | condensed 34, accent |
+| 139 | readout label — names the magnitude | mono 8, letterspaced |
 | 150–167 | state chip (when degraded) | outlined pill, 8 px |
 | 158 | altitude (when nominal) | mono 9 |
 
 Altitude and the state chip occupy the same slot deliberately: when anything degrades,
 altitude is what gets displaced, and the layout does not jump.
+
+**THE PRIMARY SLOT ALWAYS HOLDS A MAGNITUDE, AND THE LABEL ALWAYS NAMES IT.**
+Amended 2026-08-27, and it generalises beyond this face. A slot that holds `1h12` in
+three states and the phrase `ON APPROACH` in the fourth has to either overflow the
+chord or shrink the type — and a stack whose type size changes with state is the
+same jump the shared altitude/chip slot above exists to prevent. The label line is
+already there to say what the number is, so the state's word goes to it:
+
+| state | primary | label |
+|---|---|---|
+| `IN_CONTACT` | `1h12` | `TO ARRIVAL` |
+| `NO_COVERAGE` | `1h12`, dimmed | `EST. ARRIVAL` |
+| `SIGNAL_LOST` | `24m` | `SINCE CONTACT` |
+| `APPROACH_LOST` | `12 mi` | `ON APPROACH` |
+| no route resolved | `210 mi` | `AWAY` |
+
+The state's *word* is not lost — it is on the chip, which is where a state belongs.
 
 ### How the four contact states are drawn
 
@@ -1014,6 +1036,68 @@ most important state in the feature.**
 Same panel, geography instead of an arc. An orthographic projection of a sphere **is a
 circle**, so on a round panel it fills the glass with nothing cropped. No rectangular
 display can claim that. This is the one place where the hardware's shape is an advantage.
+
+> ### BUILT 2026-08-27 — the globe, and the extraction that had to come first.
+>
+> **The extraction.** `include/GlobeProjection.h` + `src/anim/Coastlines.cpp` now
+> hold the projection and the coastline set; `FlightAnimation.cpp` calls them
+> instead of its own copy. One implementation, two consumers — §7.2's actual
+> intent, reached by exporting rather than re-including, because everything it
+> named was in an anonymous namespace.
+>
+> **The one design change is the one the blocker pointed at.** `MakeBasis()`
+> returns a basis and `Project()` takes one; no globals live in the shared
+> header. The animation keeps a *cache* of its basis (its scenario changes only
+> in `SetScenario`, which clears the flag) — that is a cache of a pure function,
+> not the latch it used to be, and Follow builds its own per route.
+>
+> **"Behaviour-preserving" is asserted, not claimed.** The expected values in
+> `test/host/test_globe_proj.cpp` were *printed by the pre-extraction code*: the
+> GOLF-07 basis to nine decimals and nine real coastline vertices projected
+> through it. 37 checks. Four red probes fix what they bite on: flipping the
+> screen-y sign fails 11, tilting the other way fails 14, truncating `d2r` to
+> `0.01745` fails 14 — and making `d2r` *more* accurate fails **nothing**,
+> because it moves a vertex by ~4e-5 px against a 1e-3 px tolerance. The pins
+> catch anything that moves the picture and are deliberately blind to anything
+> that does not.
+>
+> **A safety net that was believed to exist does not.** `missileer-s3-146` builds
+> green in CI and contains **no animation code at all** — every EAM env applies
+> `${filters.anim_off}`. Confirmed by grepping its ELF for `FlightAnimation`,
+> `kCoast` and `GOLF-07` (all absent) against an anchor that is present. So a
+> refactor of the module could have broken every env that actually contains it
+> while the Missileer row stayed green. `animtest-s3-128` — the only env that
+> compiles *and renders* `src/anim/` — was absent from CI and now has a slug-less
+> row, the same fix and the same reasoning as the 1.75" AMOLED.
+>
+> **Composition, as specified**: disc r = 94 at (120, 102), top line at y = 26 on
+> a backing plate, readout at y = 223, centred on the great-circle midpoint,
+> route solid behind and dashed ahead, aircraft at its **real ADS-B position**
+> rather than interpolated onto the line, terminator with the night side shaded.
+>
+> **Tilt is 0, departing from the module's 30°.** The animation tilts so a
+> near-meridional missile arc bows across the disc instead of running down its
+> spine. §9 asks for something incompatible: *"centre the globe on the
+> great-circle midpoint so both endpoints are visible"* — and a tilt moves the
+> midpoint off centre by construction. The composition rule wins.
+>
+> **The equation of time is omitted from the terminator**, deliberately: it
+> reaches ±4° of longitude, under 1.7 px at r = 94. A correction smaller than the
+> line drawing it is not a correction.
+>
+> **Flash, measured on the artifact.** Re-including `+<anim/>` in the radar env
+> cost **+568 B** before anything referenced it — which is §7.2's own measured
+> figure for the unreferenced module, arrived at independently. With the globe
+> face referencing it, the radar image goes from 1,782,655 to **1,797,359 B
+> (+14,704)**, i.e. 0.22% of the 6.25 MB app partition. The Missileer image is
+> unchanged at 1,608,019 B, for the reason above: it never contained the module.
+>
+> **Cost: instrumented, still NOT measured on hardware.** `[follow] arc=` reports
+> µs and the vertex count for whichever face drew. §7.2's reference is 0.34 ms
+> for 1,306 vertices of projection; this face adds ~7,000 day/night sign tests
+> for the night fill and a 96-step route polyline. No board is free (COM4 is on
+> the #264 capture; COM119/COM16 on the #245 A/B), so there is no honest total to
+> quote — read it off the serial line in the bench session.
 
 > ### FINDINGS 2026-08-27 — before building it. **The threshold is closed; §7.2's
 > "lift it" is blocked on the module's shape, which is a bigger job than a
@@ -1867,7 +1951,11 @@ Then the airline regime, gated on the production mirror cutover:
    with it. See the box at §8 for the two deviations and the one colour question
    left for the bench.
 9. **Post-flight card, great-circle version.**
-10. **Globe face**, long-haul only (§9).
+10. **Globe face**, long-haul only (§9). **BUILT 2026-08-27**, bench-unverified.
+    Required extracting the projection and coastline set out of `src/anim/` first
+    (§7.2's "lift it" was not a re-include — everything it named had internal
+    linkage). Threshold 4,000 km, argued at §9. Pinned against pre-extraction
+    output in `test/host/test_globe_proj.cpp`.
 11. **Regional chart** plus the Worker-delivered regional dataset.
 12. **Card integration**, once the gesture question is answered (§12.5).
 13. **On-device picker** — CLOSED for stage 1 by the C2 decision (option 3). Reopen

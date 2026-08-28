@@ -145,6 +145,25 @@ elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
 
+# --- 1d. the globe projection, extracted from src/anim (spec 7.2) ------------
+#
+# Pinned against values PRINTED BY THE PRE-EXTRACTION CODE, so "behaviour
+# preserving" is asserted rather than claimed. Coastlines.cpp is compiled in
+# because the data moved with the maths; it needs no Arduino either.
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_globe_proj.cpp"       "$ROOT/src/anim/Coastlines.cpp"       -o "$OUT/test_globe_proj.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the globe projection test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_globe_proj.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 echo
 echo "== StarvationPolicy =="
 # Pure predicate, graded against values captured off two real boards during the

@@ -124,6 +124,13 @@ ALLOWED_TOUCH = {
     "AircraftManager::FollowedAircraft",
     "AircraftManager::DrawFollowLocalFace",  # drawn on the customer's own glass
     "AircraftManager::DrawFollowArcFace",    # ditto: the centre stack's callsign row
+    "AircraftManager::DrawFollowGlobeFace",  # ditto: the top line. Reviewed
+                                             # 2026-08-27: the globe fetches
+                                             # nothing at all -- projection and
+                                             # coastlines are compiled in, and
+                                             # the endpoints come from the baked
+                                             # table. It is the one face that
+                                             # cannot leak by construction.
     "AircraftManager::DrawFollowWaitingFace",# ditto: C4's nudge names the tail so the
                                              # owner can check it against the config
                                              # page. Reviewed 2026-08-27: reaches the

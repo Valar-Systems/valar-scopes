@@ -766,6 +766,12 @@ private:
     void DrawFollowArcFace(BandCanvas& backbuffer);
     /// C4's pre-departure face -- the state the owner sees FIRST.
     void DrawFollowWaitingFace(BandCanvas& backbuffer);
+    /// §9's globe, long-haul only. Uses include/GlobeProjection.h, the
+    /// projection and coastline set extracted from src/anim/ (§7.2).
+    void DrawFollowGlobeFace(BandCanvas& backbuffer);
+    /// §9's threshold, argued in the spec: below this the globe's route spans
+    /// under ~58 px and the arc face is strictly more legible.
+    static constexpr float FOLLOW_GLOBE_MIN_KM = 4000.0f;
     /// §7.1's inference: an aircraft that stays inside the home radius is
     /// local, one that leaves it is not. Arithmetic in FollowArc.h.
     follow::Regime FollowRegime() const;
