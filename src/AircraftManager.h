@@ -762,13 +762,45 @@ private:
     // faces below are chosen by regime and state and never by the customer.
     void DrawFollow(BandCanvas& backbuffer);
     void DrawFollowLocalFace(BandCanvas& backbuffer);
+    /// EVERYTHING A ROUTE FACE NEEDS, PASSED IN RATHER THAN READ OFF THIS
+    /// OBJECT.
+    ///
+    /// The two faces used to read `followRouteOrigin`, `followRouteDest`,
+    /// `followTarget` and the machine's state directly, which gave each of them
+    /// exactly one possible caller: Follow. That is the wrong shape regardless
+    /// of what else gets built -- a renderer that can only draw one subject is a
+    /// renderer with its subject hardcoded.
+    ///
+    /// The device-level things a face reads (`lat`/`lon`, `radarUpDeg`,
+    /// `rangeUnit`) stay as members on purpose. Those are display CONFIGURATION
+    /// -- how this panel is oriented and what units this owner reads -- not
+    /// facts about the subject, and threading them through would be noise.
+    struct RouteView {
+        follow::Endpoint org{};      // resolved origin; .known false = code only
+        follow::Endpoint dst{};      // resolved destination
+        String origCode;             // the STRINGS, which draw even when unresolved
+        String destCode;
+        String label;                // callsign or tail, already uppercased
+        float  acLat = 0.0f;
+        float  acLon = 0.0f;
+        bool   havePos = false;
+        float  gsKt = 0.0f;
+        uint32_t sinceSec = 0;       // since the last fix, for SIGNAL_LOST
+        follow::State st = follow::State::Idle;
+        float  altMslFt = NAN;       // NaN = nothing reportable
+    };
+
     /// The airline default (§8): route arc, bearing wedge, centre stack.
-    void DrawFollowArcFace(BandCanvas& backbuffer);
+    void DrawRouteArc(BandCanvas& backbuffer, const RouteView& v);
+    /// Build a RouteView from the CURRENT follow state. The one place that
+    /// knows Follow's members feed the faces, so a second caller (a
+    /// session-set target) supplies its own view instead of mutating these.
+    RouteView FollowRouteView() const;
     /// C4's pre-departure face -- the state the owner sees FIRST.
     void DrawFollowWaitingFace(BandCanvas& backbuffer);
     /// §9's globe, long-haul only. Uses include/GlobeProjection.h, the
     /// projection and coastline set extracted from src/anim/ (§7.2).
-    void DrawFollowGlobeFace(BandCanvas& backbuffer);
+    void DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& v);
     /// §9's threshold, argued in the spec: below this the globe's route spans
     /// under ~58 px and the arc face is strictly more legible.
     static constexpr float FOLLOW_GLOBE_MIN_KM = 4000.0f;

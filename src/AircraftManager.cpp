@@ -4869,10 +4869,10 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
         const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
         if (o.known && d.known &&
             follow::GreatCircleKm(o.lat, o.lon, d.lat, d.lon) >= FOLLOW_GLOBE_MIN_KM) {
-            DrawFollowGlobeFace(backbuffer);
+            DrawRouteGlobe(backbuffer, FollowRouteView());
             return;
         }
-        DrawFollowArcFace(backbuffer);
+        DrawRouteArc(backbuffer, FollowRouteView());
         return;
     }
     DrawFollowLocalFace(backbuffer);
@@ -5161,7 +5161,58 @@ follow::Regime AircraftManager::FollowRegime() const
                              followHome.positionKnown);
 }
 
-void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
+// Everything the route faces need, gathered in ONE place from Follow's members.
+//
+// This is the seam the signature refactor exists to create: the faces below take
+// a RouteView and know nothing about `followTarget` or the follow machine, so a
+// second caller supplies its own view rather than having to mutate Follow's
+// state to borrow its renderer.
+AircraftManager::RouteView AircraftManager::FollowRouteView() const
+{
+    RouteView v;
+#ifdef FOLLOW_BENCH
+    v.st = followForce ? followForced : followMachine.Current();
+#else
+    v.st = followMachine.Current();
+#endif
+    v.origCode = followRouteOrigin;
+    v.destCode = followRouteDest;
+    v.org = follow::LookupAirport(followRouteOrigin.c_str());
+    v.dst = follow::LookupAirport(followRouteDest.c_str());
+
+    v.label = followTarget; v.label.toUpperCase();
+    const TrackedAircraft* live = FollowedAircraft();
+    if (live) {
+        auto [a, b] = live->GetDisplayPosition();
+        v.acLat = a; v.acLon = b; v.havePos = true;
+        v.gsKt = live->state.velocity * 1.94384f;
+        String cs = live->state.callsign; cs.trim();
+        if (!cs.isEmpty()) { cs.toUpperCase(); v.label = cs; }
+    } else if (followMachine.LastFixMs() != 0) {
+        // THE ABSENCE STATES ARE WHY THIS BRANCH EXISTS. The aeroplane is not in
+        // the contact table -- that is what NO_COVERAGE and SIGNAL_LOST MEAN --
+        // so the last fix the machine holds is the only position there is.
+        const follow::Fix& f = followMachine.LastFix();
+        v.acLat = f.lat; v.acLon = f.lon; v.havePos = true;
+        v.gsKt = f.velocityKt;
+    }
+    v.sinceSec = followMachine.LastFixMs()
+        ? (uint32_t)((millis() - followMachine.LastFixMs()) / 1000UL) : 0u;
+
+    const float msl = follow::AltitudeMslFt(followMachine.LastFix());
+    v.altMslFt = follow::ReportableAltFt(msl, v.st == follow::State::Airborne) ? msl : NAN;
+
+#ifdef FOLLOW_BENCH
+    if (followBenchLongHaul && v.org.known && v.dst.known) {
+        follow::InterpolateGreatCircle(v.org, v.dst, followBenchProgress, v.acLat, v.acLon);
+        v.havePos = true;
+        v.gsKt = 480.0f;
+    }
+#endif
+    return v;
+}
+
+void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view)
 {
     const uint32_t t0 = micros();
     constexpr int cx = SCREEN_SIZE_DIV_2;
@@ -5170,11 +5221,7 @@ void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
     const auto S  = [k](float v) { return v * k; };
     const auto Si = [k](float v) { return (int)lroundf(v * k); };
 
-#ifdef FOLLOW_BENCH
-    const follow::State st = followForce ? followForced : followMachine.Current();
-#else
-    const follow::State st = followMachine.Current();
-#endif
+    const follow::State st = view.st;
     const uint32_t colour = FollowStateColour(st, /*benignApproach=*/true);
     const bool degraded = follow::Machine::IsAbsent(st);
 
@@ -5205,38 +5252,15 @@ void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
     // The codes are STRINGS first and coordinates second, and that split is the
     // whole degradation story: an unresolved code still draws at the end of the
     // arc, it just cannot place a marker. "Honest rather than wrong."
-    const follow::Endpoint org = follow::LookupAirport(followRouteOrigin.c_str());
-    const follow::Endpoint dst = follow::LookupAirport(followRouteDest.c_str());
+    const follow::Endpoint& org = view.org;
+    const follow::Endpoint& dst = view.dst;
     const bool placed = org.known && dst.known;
 
-    float acLat = 0.0f, acLon = 0.0f;
-    bool havePos = false;
-    float gsKt = 0.0f;
+    const float acLat = view.acLat, acLon = view.acLon;
+    const bool  havePos = view.havePos;
+    const float gsKt = view.gsKt;
+    const uint32_t sinceSec = view.sinceSec;
     const TrackedAircraft* live = FollowedAircraft();
-    if (live) {
-        auto [a, b] = live->GetDisplayPosition();
-        acLat = a; acLon = b;
-        havePos = true;
-        gsKt = live->state.velocity * 1.94384f;
-    } else if (followMachine.LastFixMs() != 0) {
-        // THE ABSENCE STATES ARE WHY THIS BRANCH EXISTS. The aeroplane is not in
-        // the contact table -- that is what NO_COVERAGE and SIGNAL_LOST MEAN --
-        // so the last fix the machine holds is the only position there is.
-        const follow::Fix& f = followMachine.LastFix();
-        acLat = f.lat; acLon = f.lon;
-        havePos = true;
-        gsKt = f.velocityKt;
-    }
-    const uint32_t sinceSec = followMachine.LastFixMs()
-        ? (uint32_t)((millis() - followMachine.LastFixMs()) / 1000UL) : 0u;
-
-#ifdef FOLLOW_BENCH
-    if (followBenchLongHaul && placed) {
-        follow::InterpolateGreatCircle(org, dst, followBenchProgress, acLat, acLon);
-        havePos = true;
-        gsKt = 480.0f;
-    }
-#endif
 
     const float totalKm = placed
         ? follow::GreatCircleKm(org.lat, org.lon, dst.lat, dst.lon) : 0.0f;
@@ -5331,8 +5355,8 @@ void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
     // §8: APPROACH_LOST highlights the destination -- he is nearly there, and
     // that is the reassuring half of the picture.
     const bool nearlyThere = (st == follow::State::ApproachLost);
-    code(followRouteOrigin, a0, nearlyThere ? FOLLOW_DIM : FOLLOW_DIM);
-    code(followRouteDest,   a1, nearlyThere ? colour : FOLLOW_DIM);
+    code(view.origCode, a0, nearlyThere ? FOLLOW_DIM : FOLLOW_DIM);
+    code(view.destCode, a1, nearlyThere ? colour : FOLLOW_DIM);
 
     // ---- the marker ---------------------------------------------------------
     if (placed && havePos) {
@@ -5346,11 +5370,7 @@ void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
     }
 
     // ---- the centre stack ----------------------------------------------------
-    String who = followTarget; who.toUpperCase();
-    if (live) {
-        String cs = live->state.callsign; cs.trim();
-        if (!cs.isEmpty()) { cs.toUpperCase(); who = cs; }
-    }
+    const String& who = view.label;
     row(who, 86.0f, FOLLOW_DIM, 1);
 
     // THE PRIMARY SLOT ALWAYS HOLDS A MAGNITUDE AND THE LABEL ALWAYS NAMES IT.
@@ -5412,10 +5432,8 @@ void AircraftManager::DrawFollowArcFace(BandCanvas& backbuffer)
         // Same discipline as the local face: state the MSL figure with "MSL"
         // beside it, or decline. C5's elevation delivery is what would make an
         // AGL figure honest, and it is not built.
-        const follow::Fix& f = followMachine.LastFix();
-        const float msl = follow::AltitudeMslFt(f);
-        if (follow::ReportableAltFt(msl, st == follow::State::Airborne))
-            row(String((int)lroundf(msl)) + " ft MSL", 158.0f, FOLLOW_DIM, 1);
+        if (!std::isnan(view.altMslFt))
+            row(String((int)lroundf(view.altMslFt)) + " ft MSL", 158.0f, FOLLOW_DIM, 1);
     }
 
     // §18: the draw cost is INSTRUMENTED, not assumed -- and reported against
@@ -5569,7 +5587,7 @@ static void FollowSubsolar(time_t utc, float& outLat, float& outLon)
     outLon = -15.0f * (hours - 12.0f);
 }
 
-void AircraftManager::DrawFollowGlobeFace(BandCanvas& backbuffer)
+void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& view)
 {
     const uint32_t t0 = micros();
     const float k = (float)SCREEN_SIZE / 240.0f;
@@ -5579,35 +5597,17 @@ void AircraftManager::DrawFollowGlobeFace(BandCanvas& backbuffer)
     const float R = k * 94.0f;          // ... and shrunk from the full 119 for it
     const int   Ri = (int)lroundf(R);
 
-#ifdef FOLLOW_BENCH
-    const follow::State st = followForce ? followForced : followMachine.Current();
-#else
-    const follow::State st = followMachine.Current();
-#endif
+    const follow::State st = view.st;
     const uint32_t colour = FollowStateColour(st, /*benignApproach=*/true);
 
     backbuffer.setTextSize(1);
     const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
 
-    const follow::Endpoint org = follow::LookupAirport(followRouteOrigin.c_str());
-    const follow::Endpoint dst = follow::LookupAirport(followRouteDest.c_str());
+    const follow::Endpoint& org = view.org;
+    const follow::Endpoint& dst = view.dst;
 
-    float acLat = 0.0f, acLon = 0.0f;
-    bool havePos = false;
-    const TrackedAircraft* live = FollowedAircraft();
-    if (live) {
-        auto [a, b] = live->GetDisplayPosition();
-        acLat = a; acLon = b; havePos = true;
-    } else if (followMachine.LastFixMs() != 0) {
-        const follow::Fix& f = followMachine.LastFix();
-        acLat = f.lat; acLon = f.lon; havePos = true;
-    }
-#ifdef FOLLOW_BENCH
-    if (followBenchLongHaul && org.known && dst.known) {
-        follow::InterpolateGreatCircle(org, dst, followBenchProgress, acLat, acLon);
-        havePos = true;
-    }
-#endif
+    const float acLat = view.acLat, acLon = view.acLon;
+    const bool  havePos = view.havePos;
 
     // §9: centred on the great-circle MIDPOINT so both ends are on the visible
     // hemisphere. MakeBasis does exactly that at tilt 0.
@@ -5776,12 +5776,8 @@ void AircraftManager::DrawFollowGlobeFace(BandCanvas& backbuffer)
         const String fit = FitToDisc(backbuffer, s, y, lineH);
         backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
     };
-    String who = followTarget; who.toUpperCase();
-    if (live) {
-        String cs = live->state.callsign; cs.trim();
-        if (!cs.isEmpty()) { cs.toUpperCase(); who = cs; }
-    }
-    String o = followRouteOrigin, d = followRouteDest;
+    const String& who = view.label;
+    String o = view.origCode, d = view.destCode;
     o.toUpperCase(); d.toUpperCase();
     // The backing plate: text over ocean is legible, text over the terminator is
     // not, and which one a given route produces is not knowable in advance.
