@@ -472,6 +472,18 @@ async function loadApFamily(
     console.log("ap: no previous meta (or unreadable) -- writing every shard");
   }
 
+  // KNOWN DEFECT -- issue #267. This reports every shard as changed on every run,
+  // including immediately after a seal where the answer is 0. The meta key reads
+  // back correctly with the right hashes, so the comparison (or shardHash's
+  // stability across runs) is at fault, not the read.
+  //
+  // Left in because a blind upsert is idempotent and both loads so far were first
+  // loads. It MUST be fixed before a weekly refresh is wired up: a broken diff and
+  // a working one produce identical output, so the job would silently do a full
+  // 39k-key rewrite every week -- which is also more exposure to the silent-drop
+  // behaviour that cost us ap:VTF and rt:IGO7J.
+  //
+  // Treat rule 4 as UNVERIFIED, not satisfied.
   const changed = [...shards.keys()].filter((k) => prior[k] !== hashes[k]);
   const forced = args.forceShard ? args.forceShard.split(",").map((x) => x.trim().toUpperCase()) : [];
   for (const f of forced) if (!changed.includes(f) && shards.has(f)) changed.push(f);
