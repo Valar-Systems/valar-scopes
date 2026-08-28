@@ -985,3 +985,19 @@ afternoon.
   for all three. There is no database left to ask and no override that can honestly be
   written. **A customer who watches one of them fly over every week is the only remaining
   source of that identification.**
+
+### Tap-to-peek — DESIGN LOCKED 2026-08-28, build deferred
+
+A card's flight shown on the globe/arc transiently: swipe down on the detail
+card, ~12 s dwell, any touch dismisses. Design settled in
+[docs/tap-to-peek.md](docs/tap-to-peek.md) and not to be reopened.
+
+Gated on two things, one of which is a measurement rather than a decision:
+Follow's merge (every reusable piece is on `feat/follow-mode`), and the
+`[follow] arc=` frame-cost reading — the globe draws on its own screen in Follow
+but on the RADAR path in a peek, so an expensive globe surfaces here first.
+
+Carries one permanent finding worth knowing before proposing any gesture:
+**long-press is unavailable on this hardware.** The CST816D may report no change
+interrupt under a static contact, which is why the reset menu was converted from
+a hold to discrete taps.
