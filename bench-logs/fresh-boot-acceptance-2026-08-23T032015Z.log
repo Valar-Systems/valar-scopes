@@ -1,0 +1,45 @@
+20:20:15 =blipscope-s3-128 fw=v7 features=cloud cloud=https://scopes.valarsystems.com
+20:20:15 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+20:20:15 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=7
+20:20:15 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291936
+20:20:15 *wm:v2.0.17  D:2
+20:20:15 [WiFi] credentials saved: portal will time out after 180 s and retry them
+20:20:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:20:15 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+20:20:15 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+20:20:15 [WiFi] Associated with "Tony", waiting for IP...
+20:20:15 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-45 dBm
+20:20:15 [WiFi] fast join OK in 1650 ms
+20:20:15 [WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
+20:20:15 [ota] channel=s3-128 current=7 latest=7
+20:20:15 [web] config server listening on :80 (http://Blipscope-31D918.local)
+20:20:15 [cfg-migrate] rev 0 -> 2: cleared info-type=1 info-operator=1 (defaults now apply)
+20:20:15 [logbook] loaded 202 types (24 claimed), 220 airlines (16), 18 countries (1), 4085 contacts
+20:20:15 [logbook] NVS 720/2646 entries used (1926 free); logbook budget ~2204, ceilings need 1375
+20:20:15 [cloud] no key override; using the factory-provisioned key
+20:20:15 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+20:20:15 [heap] handshake ballast reserved (16717 B); free8=119500
+20:20:15 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0
+20:20:15 [cloud] airports: 60 within 161 km
+20:20:15 [dim] brightness -> 51 (night)
+20:20:15 [health] frame avg=38.1ms p95=39.4ms max=45.1ms  n=21 ap=60  heap free=69708 largest=31732 free8=69708 tlsOk=1 rej=0 ball=0/0  allocFail=0 hardFail=0  tls=2/8  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=2/0 maxOutage=0ms rebootRec=0
+20:20:15 [perf] 2026-08-23T03:17:14Z polls=10 busy=10%(fetch=1% enrich=9%) parse=6ms/poll bytes=1243/poll ac=20/20 lag=avg7300ms,max11000ms gapMax=5027ms episodes=0 cache=H0/S9/M1 enrichReqs=9
+20:20:15 [health] frame avg=41.2ms p95=42.0ms max=48.0ms  n=22 ap=60  heap free=49672 largest=31732 free8=49672 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/20  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=5/0 maxOutage=0ms rebootRec=0
+20:20:15 [health] frame avg=43.4ms p95=44.9ms max=50.6ms  n=22 ap=60  heap free=48456 largest=31732 free8=48456 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/32  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=8/0 maxOutage=0ms rebootRec=0
+20:20:15 [perf] 2026-08-23T03:18:14Z polls=12 busy=19%(fetch=1% enrich=18%) parse=5ms/poll bytes=1326/poll ac=22/22 lag=avg8250ms,max12000ms gapMax=6064ms episodes=0 cache=H0/S12/M0 enrichReqs=12
+20:20:15 [health] frame avg=46.2ms p95=48.0ms max=51.4ms  n=23 ap=60  heap free=46496 largest=31732 free8=46496 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/44  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=11/0 maxOutage=0ms rebootRec=0
+20:20:15 [health] frame avg=46.6ms p95=48.2ms max=53.6ms  n=23 ap=60  heap free=45136 largest=31732 free8=45136 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/52  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=14/0 maxOutage=0ms rebootRec=0
+20:20:15 [perf] 2026-08-23T03:19:14Z polls=12 busy=6%(fetch=1% enrich=5%) parse=4ms/poll bytes=1336/poll ac=22/22 lag=avg8500ms,max11000ms gapMax=5241ms episodes=0 cache=H0/S12/M0 enrichReqs=2
+20:20:15 [health] frame avg=47.4ms p95=49.9ms max=53.8ms  n=23 ap=60  heap free=46184 largest=31732 free8=46184 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/58  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=17/0 maxOutage=0ms rebootRec=0
+20:20:15 [health] frame avg=47.6ms p95=49.2ms max=53.8ms  n=25 ap=60  heap free=42608 largest=31732 free8=42608 tlsOk=1 rej=0 ball=1/0  allocFail=0 hardFail=0  tls=2/66  interval=5000ms
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=20/0 maxOutage=0ms rebootRec=0
+20:20:15 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=23/0 maxOutage=0ms rebootRec=0
+20:20:35 [touch] 265049 press (175,127) inDetail=0
+20:20:38 [touch] 265195 release start=(175,127) end=(65,123) d=(-110,-4) held=146ms -> SWIPE
+20:20:39 [touch] 265725 press (189,141) inDetail=0
