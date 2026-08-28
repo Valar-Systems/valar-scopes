@@ -1,5 +1,5 @@
 import type { Env } from "./types";
-import { handleAirports } from "./airports";
+import { handleAirports, handleAirportByCode } from "./airports";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
@@ -334,6 +334,11 @@ async function route(
   if (api.suffix === "blips") return handleBlips(request, env, ctx, meta);
   if (api.suffix === "config") return handleConfig(request, env);
   if (api.suffix === "airports") return handleAirports(request, env);
+  // Single airport by code (Follow's arc/globe endpoints, and C5's elevation).
+  // Matched before the generic 404 and after the tiled overlay, so the two
+  // airport routes read together.
+  const airportMatch = api.suffix.match(/^airport\/([^/]+)$/);
+  if (airportMatch) return handleAirportByCode(env, airportMatch[1] as string);
   if (isLeaderboardSubmit) return handleLeaderboardSubmit(request, env);
   const enrichMatch = api.suffix.match(/^enrich\/([^/]+)$/);
   if (enrichMatch) return handleEnrich(request, env, ctx, enrichMatch[1] as string, meta);
