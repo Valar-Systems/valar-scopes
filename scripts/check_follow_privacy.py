@@ -123,22 +123,22 @@ ALLOWED_TOUCH = {
     "AircraftManager::UpdateFollowTrack",    # gates the feature
     "AircraftManager::FollowedAircraft",
     "AircraftManager::DrawFollowLocalFace",  # drawn on the customer's own glass
-    "AircraftManager::DrawFollowArcFace",    # ditto: the centre stack's callsign row
-    "AircraftManager::DrawFollowGlobeFace",  # ditto: the top line. Reviewed
-                                             # 2026-08-27: the globe fetches
-                                             # nothing at all -- projection and
-                                             # coastlines are compiled in, and
-                                             # the endpoints come from the baked
-                                             # table. It is the one face that
-                                             # cannot leak by construction.
-    "AircraftManager::DrawFollowWaitingFace",# ditto: C4's nudge names the tail so the
-                                             # owner can check it against the config
-                                             # page. Reviewed 2026-08-27: reaches the
-                                             # panel and nothing else -- the route
-                                             # codes it draws beside it come from
-                                             # LookupAirport, a BAKED-TABLE read, so
-                                             # no request is made on the target's
-                                             # behalf (C2).
+    # DrawRouteArc / DrawRouteGlobe are DELIBERATELY ABSENT from this list.
+    #
+    # The 2026-08-28 signature refactor moved them onto a RouteView, so they take
+    # a label rather than reading followTarget -- and the scanner confirms they
+    # no longer touch it at all. The surface shrank, and the anchor control is
+    # what made that a checked fact instead of an assumption: it fired on the two
+    # names disappearing, which is indistinguishable from a broken scanner until
+    # someone looks.
+    "AircraftManager::FollowRouteView",      # the ONE place Follow's members feed
+                                             # the faces. Reviewed 2026-08-28:
+                                             # reads the target into a label that
+                                             # reaches the panel, nothing else.
+    "AircraftManager::DrawFollowWaitingFace",# C4's nudge names the tail so the
+                                             # owner can check it against the
+                                             # config page. Reviewed 2026-08-27:
+                                             # reaches the panel and nothing else.
     "AircraftManager::DrawFollowHud",
     "AircraftManager::DrawRadar",            # the followed-contact ring
     "FollowScreenVisible",                   # inline in the header
