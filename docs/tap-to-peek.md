@@ -1,12 +1,20 @@
-# Tap-to-peek — design, locked 2026-08-28
+# Tap-to-follow — design, locked 2026-08-28
 
-**A card's flight, shown on the globe or arc, transiently.** Touch a detail card
-whose flight has a resolvable route and the route view opens; a dwell expires or
-any touch returns you to normal rotation. No config, no persistence.
+> **This was "tap-to-peek" for about an hour.** The transient-peek design (dwell,
+> auto-close, freeze-on-loss) is superseded: the swipe does not open a temporary
+> view, it **sets the aircraft as the follow target for the session**. What
+> follows from there is Follow exactly as built. The old lifecycle is kept at the
+> bottom under [Superseded](#superseded) because the reasoning that killed it is
+> worth not re-deriving.
 
-**Status: DESIGN LOCKED, BUILD DEFERRED.** Every decision below is settled and
-should not be reopened without a new fact. What is not settled is *when*, and
-that has two gates — see [Sequencing](#sequencing).
+**Swipe down on a card and that flight becomes the followed flight, until it
+lands or you dismiss it.** Session-only: it is **never written to NVS**, so the
+config page remains the only persistent path and C2's privacy line is untouched.
+
+**Status: DESIGN LOCKED, BUILD IN PROGRESS 2026-08-28.** Every decision below is
+settled. The display question (rotation vs a locked screen) was the last open
+one and is answered in §3. Nothing merges: this rides the same glass gate as
+Follow.
 
 ---
 
@@ -70,22 +78,46 @@ resolution miss degrades to the arc rather than to a blank disc.
 
 ---
 
-## 3. Lifecycle
+## 3. Lifecycle — a session follow target
 
-- **Entry:** swipe down on a card whose flight has a route.
-- **Dwell:** ~12 s. Deliberately shorter than Follow's 20 s auto-surface: this is
-  transient by definition, where Follow's dwell follows a state transition the
-  owner may want to study.
-- **Dismissal:** **any** touch — tap or swipe — returns immediately. The timer is
-  a backstop, not the primary exit.
+- **Entry:** swipe down on a card whose flight has a route. The aircraft becomes
+  the follow target **for this session only**.
+- **Persistence: none.** Never written to NVS. A reboot forgets it and the
+  configured target (if any) resumes. The config page stays the only persistent
+  path, which is what keeps C2 untouched: the device still never *stores* a
+  target it was not explicitly given.
+- **From there it is Follow as built.** Absence states and dead reckoning on
+  contact loss, arc/globe by the 4,000 km rule, the post-flight card on landing.
+  No dwell, no auto-close, no freeze-and-expire — those existed only because a
+  12 s peek had no stake, and a session follow does.
+- **Dismissal:** swipe down on the follow face clears the session target and the
+  configured one (if any) resumes.
 - **Resolving:** the globe cannot draw until both endpoints resolve, and the
   fetch cannot block the loop task (85 ms frame budget; the fetch task exists for
-  exactly this). So a peek opens in a *resolving* state and fills in.
-- **Aircraft leaves the contact table mid-peek:** **freeze the marker** and let
-  the dwell expire. Do **not** import Follow's absence machinery — the three
-  absence states exist because someone is watching a specific aeroplane over
-  hours. A 12 s peek has no such stake, and `SIGNAL LOST` on a glance is alarm
-  without purpose.
+  exactly this). So the face opens in a *resolving* state and fills in.
+
+### The display question, settled: rotation, plus a route strip
+
+**Follow stays in rotation per §13.3.** A locked screen delivers "on screen the
+entire way" literally and costs the radar for the whole flight — fifteen-plus
+hours on a DEN→DEL — and it contradicts a settled principle: *"Follow gets a
+screen; it never gets THE screen."* That rule exists because a followed aircraft
+airborne while something rare passes overhead must not steal the display.
+
+So the flight is visible continuously **on the radar**, without taking it:
+
+- the **followed-contact ring**, which already exists, stays; and
+- a **persistent route strip** on the radar face — origin → destination with
+  along-track progress — drawn for as long as a followed flight has a route.
+
+That is the literal reading of "on screen the entire way" satisfied on the screen
+the owner is already looking at, at the cost of one strip rather than the whole
+display.
+
+**The strip's draw cost is inside the same instrumentation as the faces**
+(`[follow] arc=`), because it lands on the RADAR path where the 85 ms budget is
+provisional and the globe's cost is still unmeasured. Saturday produces a number
+that includes it, not an impression.
 
 ---
 
@@ -113,22 +145,20 @@ disclosure that those requests did not already make.
 | `include/GlobeProjection.h` | **100%.** The extraction already made the basis a per-route parameter, so an arbitrary flight's route needs no change at all. |
 | `include/FollowArc.h` maths | **100%.** Great circle, bearing, progress, interpolation. |
 | The 4,000 km threshold and the router shape | 100%. |
-| `DrawFollowGlobeFace` / `DrawFollowArcFace` | Needs a **signature refactor**, not a rewrite — see below. |
+| `DrawRouteArc` / `DrawRouteGlobe` | **100% now.** The signature refactor below already landed. |
 
-### The signature refactor is merge cleanup, not peek work
+### The signature refactor — DONE 2026-08-28 (`b640490`)
 
-Both faces currently read `followRouteOrigin` / `followRouteDest` / the follow
-machine's state off the manager. They should take their inputs:
+Both faces read `followRouteOrigin` / `followRouteDest` / `followTarget` off the
+manager, which gave each exactly one possible caller. They now take a
+`RouteView`, and `FollowRouteView()` is the single place that knows Follow's
+members feed them — so a session-set target supplies its own view rather than
+mutating Follow's state to borrow its renderer.
 
-```cpp
-void DrawRouteGlobe(BandCanvas&, const follow::Endpoint& org,
-                    const follow::Endpoint& dst,
-                    float acLat, float acLon, follow::State st);
-```
-
-**That is the right shape whether or not peek is ever built** — a face that reads
-global-ish members is a face with one possible caller. Do it as part of Follow's
-merge cleanup so peek is a caller rather than a refactor.
+Done as merge cleanup rather than as this feature's work, because **it is the
+right shape whether or not any of this gets built**. The privacy guard's anchor
+control fired on the rename and confirmed the two faces no longer touch
+`followTarget` at all — a shrunk surface checked rather than assumed.
 
 ### New
 
@@ -136,19 +166,22 @@ merge cleanup so peek is a caller rather than a refactor.
   endpoint shipped 2026-08-28 is server-side only and nothing on the device calls
   it. This is the real cost: a new request kind on the shared HTTP client, a
   parse, and a small resolved-endpoint cache so repeat peeks do not refetch.
-- **Peek state machine** and the gesture binding.
+- **Session target + gesture binding.** Much smaller than the peek state machine
+  it replaces: the gesture sets a target, and Follow's existing machinery does
+  the rest. An effective-target accessor (session overrides configured) is most
+  of it.
+- **The radar route strip**, instrumented with the faces.
 - **Copy** for the resolving and unresolvable states.
 
 ---
 
 ## Sequencing
 
-Peek waits on **two** things, and only one of them is a decision:
+Nothing here merges before Follow does — it is all on `feat/follow-mode` and
+rides the same glass gate. The one open **measurement**:
 
-1. **Saturday's glass session settling Follow's merge.** Every reusable piece is
-   on `feat/follow-mode`. Building before that means building on an unmerged
-   branch or duplicating the faces, and duplication is what this codebase keeps
-   paying for.
+1. ~~Saturday's glass session settling Follow's merge~~ — build proceeds on the
+   branch; the merge gate is unchanged.
 2. **The `[follow] arc=` frame-cost reading.** The globe's per-frame cost is
    still **unmeasured** — no board was free during stage 2. Follow's globe draws
    on its own screen; a peek puts it on the **radar** path. If it is expensive,
@@ -158,3 +191,19 @@ Peek waits on **two** things, and only one of them is a decision:
 **The `ap:` device client is the one piece with no dependency on the glass
 decision.** It can be specified now. It must not be wired up until the above
 resolve.
+
+---
+
+## Superseded
+
+The original transient-peek lifecycle: ~12 s dwell, any-touch dismissal, marker
+frozen if the aircraft left the contact table mid-peek, and explicitly **no**
+absence machinery — on the reasoning that the three absence states exist for
+someone watching one aeroplane over hours, so `SIGNAL LOST` on a 12 s glance is
+alarm without purpose.
+
+That reasoning was right about a peek and is exactly why the session design is
+better: it does not need the exemption. A session follow **has** the stake the
+peek lacked, so the absence states and dead reckoning are appropriate rather than
+alarming, and the special case dissolves. Recorded so the exemption is not
+reintroduced along with a lifecycle that no longer exists.
