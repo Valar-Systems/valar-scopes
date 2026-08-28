@@ -439,11 +439,100 @@ def selftest():
     return 0 if state["ok"] else 2
 
 
+# ---------------------------------------------------------------------------
+# CHECK 3: EVERY TARGET-SHAPED MEMBER IS CLASSIFIED, OR THE BUILD FAILS.
+#
+# THE HOLE THIS CLOSES, AND HOW IT WAS FOUND. `followSessionTarget` was added on
+# 2026-08-28 and was INVISIBLE to checks 1 and 2 for the whole of that build --
+# it is not a substring of "followTarget" ("followSession" + "Target"), so a
+# gesture-set target went unscanned. It was noticed by luck, while reading
+# unrelated churn in the review list.
+#
+# Checks 1 and 2 scan for KNOWN NAMES, so anything newly named is absent from
+# them by construction, and absence is exactly what they cannot report. This one
+# inverts that: it enumerates the DECLARATIONS and requires each to have been
+# classified. A new `String followWhatever` is a build failure until somebody
+# says which kind of thing it is.
+#
+# WHAT IT STILL DOES NOT CLOSE, stated so it is not mistaken for complete: it is
+# keyed on the `follow` prefix, so a target-shaped member named
+# `sessionAircraftId` would escape it. The form that closes that is a TYPE --
+# wrap the value so only code with access can read it, and let the compiler be
+# the guard. That is a real refactor and is filed rather than done.
+DECL_SCAN_FILE = os.path.join(ROOT, "src", "AircraftManager.h")
+MEMBER_DECL_RE = re.compile(r"^\s*String\s+(follow\w*)\s*=", re.M)
+
+# Each member, and which kind of thing it is. "target" means §17 applies.
+MEMBER_KINDS = {
+    "followTarget": "target",         # the configured one, from the config page
+    "followSessionTarget": "target",  # the gesture-set one; RAM only, never NVS
+    # Not targets, and the reasons are load-bearing rather than decorative:
+    "followHomeCode": "not-a-target",   # derived from the device's OWN configured
+                                        # location, not from what the customer
+                                        # typed about an aircraft
+    "followRouteOrigin": "not-a-target",  # an airport code off the enrich path
+    "followRouteDest": "not-a-target",
+}
+
+
+def check_declarations():
+    """Returns (failures, found) -- every follow* String member must be classified."""
+    fails = []
+    try:
+        with open(DECL_SCAN_FILE, encoding="utf-8", errors="replace") as fh:
+            src = fh.read()
+    except OSError as e:
+        return ([f"cannot read {DECL_SCAN_FILE}: {e}"], set())
+
+    found = set(MEMBER_DECL_RE.findall(src))
+
+    # The anchor control, same shape as check 2's: finding nothing means the
+    # regex or the path broke, not that the members vanished.
+    if not found:
+        return ([
+            "the declaration scan found NO follow* members at all. That is a "
+            "broken scan, not a clean codebase -- check DECL_SCAN_FILE and "
+            "MEMBER_DECL_RE before believing anything else in this run."
+        ], found)
+
+    unclassified = sorted(found - set(MEMBER_KINDS))
+    if unclassified:
+        fails.append(
+            "these follow* members are declared but not classified:\n    "
+            + "\n    ".join(unclassified)
+            + "\n  Add each to MEMBER_KINDS as 'target' or 'not-a-target' WITH A"
+              "\n  REASON. If it is a target, it must also be in TARGET_TOKENS --"
+              "\n  that is the whole point: a new target-shaped member is"
+              "\n  invisible to the name-based checks until someone says so."
+        )
+
+    missing = sorted(set(MEMBER_KINDS) - found)
+    if missing:
+        fails.append(
+            "MEMBER_KINDS classifies members that no longer exist:\n    "
+            + "\n    ".join(missing)
+            + "\n  Either they were renamed (update this) or the scan is broken."
+        )
+
+    # And the classification must agree with what checks 1 and 2 actually scan.
+    for name, kind in MEMBER_KINDS.items():
+        if kind == "target" and name not in TARGET_TOKENS:
+            fails.append(
+                f"{name} is classified 'target' but is not in TARGET_TOKENS, so "
+                f"checks 1 and 2 do not look at it. That is exactly the "
+                f"followSessionTarget hole."
+            )
+    return (fails, found)
+
+
 def main():
     if "--selftest" in sys.argv:
         return selftest()
     touching, sinking, line_leaks = analyse(ROOT)
     fails = report(touching, sinking, line_leaks)
+    decl_fails, decl_found = check_declarations()
+    print(f"  follow* members declared, all classified: {len(decl_found)}")
+    fails = list(fails) + decl_fails
     if fails:
         print("\nFOLLOW PRIVACY CHECK FAILED (spec 17):\n")
         for f in fails:
