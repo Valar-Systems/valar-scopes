@@ -22,7 +22,8 @@ Follow.
 
 **Entry: swipe DOWN on the detail card.**
 
-Everything else on the card is taken:
+Everything else on the card is taken (full map:
+[gestures.md](gestures.md)):
 
 | gesture | current meaning |
 |---|---|
