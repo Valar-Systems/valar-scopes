@@ -620,6 +620,23 @@ experiment — here, the #245 A/B and the #264 capture.
   what §3 of this runbook already says to do. No board is touched.
 - **Revoke `2afa3e2c7140ef5e` and re-enrol COM119 after the A/B closes.**
 
+### Sequencing note: this interacts with the shared-secret issue
+
+[#266](https://github.com/Valar-Systems/valar-scopes/issues/266) records that
+staging and production hold the **same** `DEVICE_KEY_SECRET`, so a
+production-derived key authenticates against staging (and, the direction that
+matters, a staging compromise mints production identities).
+
+**Do the revocation FIRST, then the split.** Revoking `2afa3e2c7140ef5e` today is
+a straightforward re-enrol against one shared secret. If the secrets are split
+first, the re-enrol mints a key valid in only one environment and the bench has
+to start tracking which one it is addressing -- a second moving part introduced
+during a repair.
+
+The revocation is also the natural moment to *check* the split once it lands,
+rather than assume it: mint against staging, present that key to production, and
+require a **401**.
+
 ### The check that would have caught it
 
 `smoke-prod.sh` runs against whatever `BLIP_DEVICE` holds and passes either way —
