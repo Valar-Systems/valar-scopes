@@ -90,3 +90,59 @@ export async function handleAirports(request: Request, env: Env): Promise<Respon
   await cache.put(cacheKey, res.clone());
   return res;
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/blipscope/airport/<CODE> -- ONE airport, by code.
+//
+// A different question from the overlay above, and therefore a different key
+// family. The overlay asks "what is near this position", which is why it is
+// pre-tiled; this asks "where is LHR", which a tile walk cannot answer without
+// scanning the planet.
+//
+//   ap:<CODE>  ->  [lat, lon, elevFt|null]
+//
+// WHO NEEDS IT. Follow Mode's arc and globe faces draw a route between two
+// airport codes that arrive on the enrich path, and the firmware's baked table
+// is ~250 majors -- enough for most airline city pairs, and a miss degrades to
+// an honest code-only arc. This closes the long tail. It also carries
+// ELEVATION, which nothing else does, and which is what makes an AGL figure
+// honest rather than wrong by the field elevation (Follow spec C5).
+//
+// BY CODE, NEVER BY CALLSIGN. The device may only ever ask this endpoint about
+// an AIRPORT. A lookup keyed on the followed aircraft would be a request whose
+// existence names the follow target, which the Follow spec's privacy invariant
+// forbids outright -- so the shape of this route is itself part of that
+// guarantee.
+const CODE_RE = /^[A-Z0-9]{3,4}$/;
+
+export async function handleAirportByCode(env: Env, rawCode: string): Promise<Response> {
+  const code = decodeURIComponent(rawCode).trim().toUpperCase();
+  // Shape-checked before it reaches KV: the key space is ours, and an unbounded
+  // suffix on a key prefix is how a lookup endpoint becomes a scanner.
+  if (!CODE_RE.test(code)) return errorResponse(400, "bad_code");
+
+  const raw = await env.ENRICH_KV.get(`ap:${code}`, "text");
+  // A code we do not carry is a 404 and NOT an error. The device is expected to
+  // ask about codes that miss -- the route mirror emits both IATA and ICAO
+  // forms, and a small field may be in neither our data nor anyone's.
+  if (!raw) return errorResponse(404, "unknown_airport");
+
+  let row: unknown;
+  try {
+    row = JSON.parse(raw);
+  } catch {
+    return errorResponse(404, "unknown_airport");
+  }
+  if (!Array.isArray(row) || row.length < 2) return errorResponse(404, "unknown_airport");
+  const [lat, lon, elev] = row as [number, number, number | null];
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return errorResponse(404, "unknown_airport");
+
+  // elev is null when the source figure failed the sanity band. Passed through
+  // as null rather than 0: a device that gets 0 will subtract 0 and report a
+  // confident wrong AGL, where null makes it decline.
+  return jsonResponse(
+    { v: SCHEMA_V, code, lat, lon, elev: typeof elev === "number" ? elev : null },
+    200,
+    { "Cache-Control": "public, max-age=604800" },
+  );
+}

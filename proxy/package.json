@@ -26,7 +26,8 @@
     "ingest:typenames": "tsx scripts/ingest-typenames.ts",
     "photo-gaps": "tsx scripts/photo-gaps.ts",
     "verify:routes": "tsx scripts/verify-routes.ts",
-    "stats": "tsx scripts/usage-stats.ts"
+    "stats": "tsx scripts/usage-stats.ts",
+    "verify:airports": "tsx scripts/verify-airports.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",

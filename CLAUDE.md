@@ -338,6 +338,48 @@ Skyscope](https://github.com/Valar-Systems/skyscope) parses this repo's
 defect lives in the *operations* — so the two checks are complementary and
 neither substitutes for the other.
 
+## Standing practice: a KV bulk put drops keys silently, and `Success!` means nothing
+
+**Established twice now, on two different key families, so it is a property of the
+tool and not a bad day.** `wrangler kv bulk put` reports `Success!` per chunk and
+exits zero while having written fewer keys than it was given.
+
+| | what was loaded | what vanished |
+|---|---|---|
+| 2026-08-25 | `rt:` — 619,103 route keys | `rt:IGO7J`, mid-chunk, in a chunk unrelated to the 524 that were retried |
+| 2026-08-28 | `ap:` — 39,105 airport keys | `ap:VTF`, on the first production load |
+
+Both were confirmed absent rather than assumed: a live `GET` returned 404 and a
+direct KV read found nothing, which together separate "the key is missing" from
+"the list index has not caught up yet" — and the second is a real state that
+looks identical for a minute or two after a load.
+
+**What this invalidates.** Every quantity an ingest can report about its own
+write:
+
+- `written=39105` counts chunks the CLI **accepted**. The increment happens on a
+  zero exit status, so a dropped key increments it.
+- A sample passes. One key in 39,105 has a 1-in-3,258 chance of appearing in a
+  12-key sample; the routes case was 1 in 51,592.
+- A global percentage reads as a rounding error. 39,104/39,105 is "100%".
+
+**So an ingest is not done when the writer says so. It is done when something
+that is not the writer has enumerated the whole namespace and diffed it, per
+shard.** That is what `verify-routes.ts` and `verify-airports.ts` are, why they
+report per shard rather than per corpus, and why they refuse to judge a listing
+too small to be trustworthy (exit 2, distinct from exit 1's real gap).
+
+**And the repair has to be able to override the diff.** This is the part that is
+easy to leave out. A shard-hash diff correctly skips a shard whose source has not
+changed — which is exactly the state a dropped key leaves behind, so without a
+`--force-shard` escape the hole is **permanent**: every later run writes nothing
+and the key never returns. A mirror without that flag does not converge on
+correct, it accumulates silent gaps forever.
+
+The four steps exist for this and are not ceremony: **write → verify →
+force-shard repair → verify**, and only then seal the meta key. Both incidents
+above were caught at step 2 and fixed at step 3.
+
 ## Standing practice: a presence check prints a boolean, never a value
 
 **The question is almost always "is this secret set?" — which is one bit. Print
