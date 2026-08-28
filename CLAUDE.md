@@ -458,8 +458,39 @@ Finally: once the system is healthy the failing branch may become **unreachable*
 A gate that cannot be made to fail is a gate nobody can check. Leave a seam that
 forces it (`PROBE_PANEL=999`), and use it.
 
-## Non-goal: behavioural telemetry (settled 2026-08-02)
+## Usage telemetry: counts yes, subjects never (revised 2026-08-27)
 
-**Never propose or add screen-usage, interaction, or engagement telemetry.** Which screen a customer looks at, how often they tap, how long the device is watched, which aircraft they open — none of it is collected, and the gap is deliberate rather than unfinished. It would be easy to add (the device already makes a request counters could ride on), which is exactly why this is written down. The reasoning: it is behavioural data from a device in someone's home; at this fleet size asking ten owners beats instrumenting all of them; and *"Blipscope doesn't track how you use it"* is only true while it stays entirely true. It is a **published commitment** in [README.md](README.md)'s Privacy & telemetry section, not an internal preference.
+**This section used to read "Non-goal: behavioural telemetry (settled 2026-08-02)"
+and said never.** It was reversed deliberately, by Daniel, and the reversal is
+recorded rather than edited away so the next person does not read the new code as
+a violation of an old rule and revert it.
 
-Operational telemetry — that a device checked in, its model/firmware, OTA outcomes, enrichment gaps — is fine and is what the [dashboard/](dashboard/) reads. The line is: a consequence of serving the device, not a measurement of the person. The dashboard's "Cards" column sits on the right side of that line only because it counts a photo fetch the device must make to draw the card; it is not a counter that was attached, and it isn't a precedent for attaching one.
+**What is collected now.** Anonymous counts of feature use, at most hourly, on a
+request the device already makes: detail-card opens, screen switches per screen,
+logbook claims, whether Follow is configured (a boolean), and uptime hours. Eight
+integers. See [include/UsageReport.h](include/UsageReport.h).
+
+**What is not, and this is the part that has not moved.** Which aircraft was
+opened. The callsign, the tail number, the follow target. Location. Configuration.
+A timestamp per event. Anything from the §17 list.
+
+**The line, in one sentence: count THAT a feature was used, never WHAT it was used
+on.** The old rule drew its line at collecting nothing; this one draws it between
+the action and its subject. That is a narrower line and it is easier to cross by
+accident, which is why it is enforced by construction and not by this paragraph:
+
+- `usage::Format()` takes a struct of **integers**. There is no parameter that
+  could carry a name, so appending one requires changing a signature — a visible
+  act, not an accident.
+- `test/host/test_usage_report.cpp` asserts the payload is **digits and commas
+  only**, with a control that it is not merely empty. That fails for every
+  identity at once rather than for a named example.
+- `recordUsage()` in the Worker re-asserts the same shape from the other side of
+  the wire and drops anything else.
+
+**And the disclosure is part of the feature, not a follow-up.** Adding a counter
+without updating [README.md](README.md)'s Privacy & telemetry section and
+[proxy/pages/support.html](proxy/pages/support.html) makes a published statement
+false — both said "permanently" before this. If a future change widens what is
+collected, those two files change in the same commit or the change is not done.
+

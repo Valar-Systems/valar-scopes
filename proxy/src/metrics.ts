@@ -297,3 +297,67 @@ export function recordOtaMem(env: Env, raw: string | null, model: string, dev?: 
     // never let telemetry break serving
   }
 }
+
+// X-Blip-Usage: "<cardOpens>,<radar>,<list>,<stats>,<follow>,<claims>,<followEnabled>,<uptimeHours>"
+// sent by a device at most once an hour on a check-in it was making anyway
+// (include/UsageReport.h). Anonymous COUNTS of feature use.
+//
+// WHAT IT CARRIES AND WHAT IT CANNOT. Counts of how often features are used --
+// never what the use was about. No aircraft, no callsign, no tail number, no
+// follow target, no per-event timestamp. `followEnabled` is a boolean, not a
+// name. The device-side builder cannot carry text at all: its parameters are
+// integers, asserted in test/host/test_usage_report.cpp, so an identity cannot
+// reach this parser even by accident.
+//
+// The published statement this has to stay true to is on the support page and in
+// README "Telemetry": *usage counts yes, subjects of usage never*.
+//
+// FIELD COUNT IS PINNED AT 8 AND MUST TRACK usage::FIELD_COUNT. A parser that
+// accepts a different arity than the device emits is the silent-drift shape this
+// repo keeps meeting -- so the constant is named, and the firmware's own header
+// is the other side of that contract. Arity changes are visible on both sides.
+//
+// Deliberately NOT console.logged, exactly like recordOtaMem: request logs are
+// real money at fleet scale (see the README cost model), and this rides every
+// active device hourly. It lands as an Analytics Engine point or not at all.
+//
+// Device-supplied input, so it is validated to a fixed shape before it reaches
+// storage; anything off-shape is dropped silently rather than allowed to shape a
+// data point.
+export const USAGE_FIELD_COUNT = 8;
+
+export function recordUsage(env: Env, raw: string | null, model: string, fw: string, dev?: string): void {
+  if (!raw) return;
+  try {
+    if (raw.length > 128) return; // nothing legitimate approaches this
+    // Digits and commas only. The device cannot emit anything else, so a value
+    // containing anything else did not come from a device we ship -- and this is
+    // the same assertion the firmware's host test makes, from the other side.
+    if (!/^[0-9]+(,[0-9]+){7}$/.test(raw)) return;
+    const nums = raw.split(",").map((p) => Number(p));
+    if (nums.length !== USAGE_FIELD_COUNT) return;
+    // Reject NaN/Infinity/negatives and anything past a u32: every field is a
+    // counter delta, a boolean, or an hour count, all small and non-negative.
+    if (nums.some((n) => !Number.isFinite(n) || n < 0 || n > 0xffffffff)) return;
+    const [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours] =
+      nums as [number, number, number, number, number, number, number, number];
+    // followEnabled is a flag; anything but 0/1 means a device we do not
+    // understand, and a "2" summed into an adoption ratio is worse than a drop.
+    if (followEnabled !== 0 && followEnabled !== 1) return;
+
+    // ONE POINT PER REPORT, with the device on it: per-device was the ask
+    // ("this unit opens cards daily, that one never has"), and fleet totals are
+    // the same rows without the GROUP BY.
+    //
+    // Analytics Engine allows 20 doubles and 20 blobs per point, so all eight
+    // fields fit on one row -- which matters, because splitting them across
+    // points would make "devices that opened a card" require a join.
+    env.METRICS?.writeDataPoint({
+      blobs: ["usage", model, fw, dev ?? ""],
+      doubles: [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours],
+      indexes: ["usage"], // own index: usage queries separately from per-request points
+    });
+  } catch {
+    // never let telemetry break serving
+  }
+}

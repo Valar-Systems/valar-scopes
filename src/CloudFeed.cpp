@@ -42,7 +42,8 @@ String NormalizeBaseUrl(String url)
     return url;
 }
 
-std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem)
+std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem,
+                                               const String& usage)
 {
     std::vector<std::pair<String, String>> h = {
         { "X-Blip-Key", key },
@@ -66,6 +67,11 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
     // the device was making anyway: no extra traffic, no endpoint of its own.
     if (!otaMem.isEmpty())
         h.push_back({ "X-Blip-OTA-Mem", otaMem });
+    // Anonymous feature-use counts, at most once an hour, on a request the device
+    // was making anyway (README "Telemetry"). Counts only: the value is digits
+    // and commas by construction, asserted in test/host/test_usage_report.cpp.
+    if (!usage.isEmpty())
+        h.push_back({ "X-Blip-Usage", usage });
     return h;
 }
 

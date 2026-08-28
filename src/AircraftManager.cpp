@@ -166,6 +166,10 @@ struct FetchRequest {
                                      // Read (and cleared) on the LOOP task at request
                                      // build time -- TakeOtaMemReport touches NVS, and
                                      // this task owns that, like every other snapshot here.
+    String usage;                    // X-Blip-Usage value, "" unless a report is due.
+                                     // Same rule and the same reason as otaMem: taken on
+                                     // the LOOP task at request build time, because the
+                                     // take writes NVS and commits the delta.
 #endif
 };
 struct FetchResult {
@@ -1710,7 +1714,7 @@ void AircraftManager::RunFetchTask()
             JsonDocument cfgDoc;
             const HttpResult r = http.GetJson(CloudFeed::ConfigUrl(req->cloudBase), cfgDoc,
                                               std::vector<std::pair<String, String>>{},
-                                              CloudFeed::Headers(req->cloudKey, req->otaMem));
+                                              CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage));
             if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
                 CloudFeed::ParseConfig(cfgDoc, res->config)) {
                 res->ok = true;
@@ -1800,7 +1804,7 @@ void AircraftManager::RunFetchTask()
                   { "lon", String(req->lon, 4) },
                   { "r", String((int)lround(req->rangeKm)) },
                   { "limit", String(BLIPS_LIMIT) } },
-                CloudFeed::Headers(req->cloudKey, req->otaMem));
+                CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage));
         }
 #endif
         else {
@@ -1959,6 +1963,7 @@ void AircraftManager::RequestFetch()
         req->cloudKey = cloudKey;
         req->rangeKm = rangeKmCfg;
         req->otaMem = TakeOtaMemReport(); // "" unless an OTA happened; clears on read
+        req->usage  = usageStore.Take(millis()); // "" unless an hour has passed
     } else
 #endif
     if (useLocalSource) {
@@ -2002,6 +2007,11 @@ bool AircraftManager::RequestCloudConfig()
     // Whichever check-in is built first after an OTA carries the report; the
     // config fetch is normally it (boot runs it ahead of the first feed poll).
     req->otaMem = TakeOtaMemReport();
+    // NOT req->usage. The config fetch runs at boot and on every config reload,
+    // which is exactly when a bench session reloads it repeatedly -- and the
+    // usage take COMMITS its delta, so a report riding this request would be
+    // taken (and its counts consumed) at a moment that has nothing to do with
+    // the hourly cadence. The feed poll is the periodic carrier; this one is not.
     if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
         return true;
@@ -3685,6 +3695,7 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
 
     tracked.claimFired = true;
     tracked.claimable = false;
+    usageStore.LogbookClaim();
 
     // A tap claims EVERYTHING the aircraft carries. One deliberate action credits
     // the whole card, which keeps airlines/countries/airports meaningful as
@@ -4080,6 +4091,7 @@ void AircraftManager::HandleTap(int tx, int ty)
             selectedIcao = cands[tapCycleIndex].second;
             inDetail = true;
             detailPage = 0;
+            usageStore.CardOpened();
             // Already enriched: claim now, so the confirmation lands with the tap.
             // Cold contacts claim later, when enrichment reveals the type.
             auto sel = trackedAircraft.find(selectedIcao);
@@ -4097,6 +4109,7 @@ void AircraftManager::HandleTap(int tx, int ty)
                     selectedIcao = order[idx];
                     inDetail = true;
                     detailPage = 0;
+                    usageStore.CardOpened();
                     auto sel = trackedAircraft.find(selectedIcao); // same claim-on-open as the radar
                     if (sel != trackedAircraft.end())
                         ClaimTappedAircraft(sel->second);
@@ -4107,6 +4120,20 @@ void AircraftManager::HandleTap(int tx, int ty)
     // Stats screen: tap does nothing
 }
 
+void AircraftManager::EnterScreen(Screen s)
+{
+    screen = s;
+    // The FOLLOW screen is absent from this build and its counter is reserved in
+    // the wire format anyway, so the arity does not change when Follow merges --
+    // a schema that shifts under the server's parser is the thing to avoid, and
+    // a field that honestly reads 0 costs one byte.
+    switch (s) {
+        case Screen::Radar: usageStore.ScreenRadar(); break;
+        case Screen::List:  usageStore.ScreenList();  break;
+        case Screen::Stats: usageStore.ScreenStats(); break;
+    }
+}
+
 void AircraftManager::HandleSwipe(Swipe swipe)
 {
     // detail card: swipe up pins ("tracks") the aircraft and returns to the
@@ -4114,7 +4141,7 @@ void AircraftManager::HandleSwipe(Swipe swipe)
     if (inDetail) {
         if (swipe == Swipe::Up) {
             pinnedIcao = (pinnedIcao == selectedIcao) ? "" : selectedIcao;
-            screen = Screen::Radar;
+            EnterScreen(Screen::Radar);
         }
         ExitDetail();
         return;
@@ -4139,8 +4166,8 @@ void AircraftManager::HandleSwipe(Swipe swipe)
         CloseResetMenu();
         return;
     }
-    if (swipe == Swipe::Left)  screen = (Screen)(((int)screen + 1) % 3);
-    if (swipe == Swipe::Right) screen = (Screen)(((int)screen + 2) % 3);
+    if (swipe == Swipe::Left)  EnterScreen((Screen)(((int)screen + 1) % 3));
+    if (swipe == Swipe::Right) EnterScreen((Screen)(((int)screen + 2) % 3));
 }
 
 void AircraftManager::CloseResetMenu()

@@ -13,7 +13,7 @@ import {
 } from "./leaderboard";
 import { FONTS } from "./fonts.generated";
 import { indexHtml, supportHtml, notfoundHtml } from "./pages.generated";
-import { record, recordOtaMem, setDeviceAttribution, type RequestMetric } from "./metrics";
+import { record, recordOtaMem, recordUsage, setDeviceAttribution, type RequestMetric } from "./metrics";
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
@@ -320,6 +320,12 @@ async function route(
   // Analytics Engine budget, and it cannot affect the response the device came
   // for: whatever this does, the request below is served identically.
   recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model, meta.dev);
+  // Anonymous feature-use counts, at most hourly per device, on the same
+  // already-authenticated request and behind the same rate limiting for the same
+  // reason: an anonymous caller must never be able to spend our Analytics Engine
+  // budget. Counts only -- what a device DOES, never what it does it to. See
+  // recordUsage() and include/UsageReport.h.
+  recordUsage(env, request.headers.get("X-Blip-Usage"), meta.model, meta.fw ?? "", meta.dev);
 
   // Dispatch on the normalized suffix: one call site per handler, reached
   // identically from /api/v1/blipscope/<x> and the deprecated /v1/<x>. Same
