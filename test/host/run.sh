@@ -283,6 +283,25 @@ elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
 
+# ---------------------------------------------------------------------------
+# The Follow label sanitiser. Exists because a charset filter allowing only
+# A-Z0-9 reached a bench board and mangled every hyphenated registration:
+# G-ABCD -> GABCD. The output still LOOKS like an identifier, which is what
+# makes that class of bug worth a permanent test rather than a fix.
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_follow_label.cpp"       -o "$OUT/test_follow_label.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow label tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_label.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 # --- 2. the purity gate, and the control that proves it can fire -------------
 #
 # Compiling no_arduino.cpp MUST fail. If it succeeds, the drill TU is no longer

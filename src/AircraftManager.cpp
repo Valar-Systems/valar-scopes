@@ -1,4 +1,5 @@
 #include "AircraftManager.h"
+#include "FollowLabel.h"
 #include "DisplayUnits.h"
 #include "RouteLabel.h"
 #include "ConfigMigration.h"
@@ -5575,38 +5576,6 @@ follow::Regime AircraftManager::FollowRegime() const
 // a RouteView and know nothing about `followTarget` or the follow machine, so a
 // second caller supplies its own view rather than having to mutate Follow's
 // state to borrow its renderer.
-// Clamp a string to the shape of a callsign: uppercase A-Z0-9, at most 8.
-//
-// WHY THIS EXISTS. The Follow label normally holds a live ADS-B callsign, which
-// arrives from the feed already constrained -- 8 characters of the Mode S flight
-// ID field, alphanumeric, space-padded. When there is no contact in the table
-// there is no callsign, and the label falls back to the follow TARGET, which is
-// the one string on this screen that arrives verbatim from a field the owner
-// typed. That fallback is deliberate and stays: somebody watching an empty
-// scope needs to know what it is waiting for, and on-screen was never the
-// privacy boundary -- 17 is about what leaves the device.
-//
-// But "shown to the owner" is not "shown unclamped". A typed field can carry
-// any length and any byte, and this slot is laid out for a callsign; an
-// overlong or punctuation-laden string does not become a privacy problem, it
-// becomes a LAYOUT problem, and one that only appears for the customers whose
-// target happens to be unusual. So it is clamped to the shape the slot was
-// designed around, at the single point the fallback is taken.
-static String ClampToCallsignShape(const String& in)
-{
-    constexpr size_t kMaxLen = 8;   // Mode S flight ID field
-    String out;
-    out.reserve(kMaxLen);
-    for (size_t i = 0; i < in.length() && out.length() < kMaxLen; ++i) {
-        const char c = in.charAt((unsigned)i);
-        if (c >= 'a' && c <= 'z')      out += (char)(c - 'a' + 'A');
-        else if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) out += c;
-        // everything else is dropped rather than substituted: a placeholder
-        // glyph would imply the character mattered.
-    }
-    return out;
-}
-
 AircraftManager::RouteView AircraftManager::FollowRouteView() const
 {
     RouteView v;
@@ -5620,9 +5589,16 @@ AircraftManager::RouteView AircraftManager::FollowRouteView() const
     v.org = follow::LookupAirport(followRouteOrigin.c_str());
     v.dst = follow::LookupAirport(followRouteDest.c_str());
 
-    // The fallback: clamped to a callsign's shape, because the live-callsign
-    // path below overwrites it with a string the feed already constrained.
-    v.label = ClampToCallsignShape(EffectiveFollowTarget());
+    // The fallback: charset-filtered, because the live-callsign path below
+    // overwrites it with a string the feed already constrained. NOT length-
+    // capped here -- FitToDisc truncates for the panel, visibly and by measured
+    // width, and a second cap in front of it was silent and cruder. See
+    // include/FollowLabel.h for why the hyphen is in the charset.
+    {
+        char lbl[follow::LABEL_COST_BOUND + 4];
+        follow::SanitiseLabel(EffectiveFollowTarget().c_str(), lbl, sizeof(lbl));
+        v.label = lbl;
+    }
     const TrackedAircraft* live = FollowedAircraft();
     if (live) {
         auto [a, b] = live->GetDisplayPosition();
