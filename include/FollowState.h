@@ -424,6 +424,38 @@ public:
         return s == State::NoCoverage || s == State::SignalLost || s == State::ApproachLost;
     }
 
+    /**
+     * Is the aircraft ON ITS WAY somewhere? Ask this before making any claim
+     * about arrival, progress or remaining distance.
+     *
+     * WHY THIS EXISTS, because it looks redundant next to the inputs. An
+     * arrival estimate needs an origin, a destination and a position -- and a
+     * jet parked at a gate HAS ALL THREE. Every input is present and the claim
+     * "arrives 23:19" is still false. The guard that asked
+     *
+     *     org.known && dst.known && havePos
+     *
+     * therefore passed happily and the face told the owner a stationary
+     * aeroplane would land in 43 minutes. Found on glass 2026-08-29.
+     *
+     * THE GENERAL RULE, since this was the third instance of it in one sitting
+     * (a label that named nothing when its number declined; an empty numeric
+     * slot; this): A GUARD THAT TESTS WHETHER THE INPUTS EXIST IS NOT A GUARD
+     * THAT TESTS WHETHER THE CLAIM IS TRUE. Availability of data is not
+     * applicability of the conclusion drawn from it, and the states are what
+     * carry applicability here -- which is the whole reason §19 says "the
+     * feature is the states, not the picture".
+     *
+     * The absence states ARE en route: NoCoverage, SignalLost and ApproachLost
+     * all mean "airborne, and we have lost sight of it", so an estimate remains
+     * meaningful (and §8 already dims it to say it is inferred). Ground, Landed,
+     * Waiting and Idle are not, and no arithmetic over them produces an arrival.
+     */
+    static bool IsEnRoute(State s)
+    {
+        return s == State::Airborne || IsAbsent(s);
+    }
+
     // Expected absence reads differently from unexpected absence, and callers
     // (alert gating, colour choice) should ask this rather than re-deriving it.
     static bool IsExpectedAbsence(State s)

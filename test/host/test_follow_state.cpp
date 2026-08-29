@@ -737,5 +737,33 @@ int main()
     }
 
     std::printf("\n%d checks, %d failures\n", checks, failures);
+    // ---- EN ROUTE IS NOT THE SAME AS LOCATABLE -----------------------------
+    //
+    // The bug this pins, found on glass 2026-08-29: a parked aircraft claimed
+    // a landing time. Its guard was org.known && dst.known && havePos, and a
+    // jet at a gate satisfies all three -- every input present, the claim still
+    // false. An arrival is a statement about being ON THE WAY, so the STATE has
+    // to be asked, not merely the data.
+    std::printf("  ---- an arrival claim requires being en route, not locatable\n");
+    {
+        // Flying, or flying and out of contact: an estimate still means something.
+        check( Machine::IsEnRoute(State::Airborne),     "Airborne is en route");
+        check( Machine::IsEnRoute(State::NoCoverage),   "NoCoverage is en route");
+        check( Machine::IsEnRoute(State::SignalLost),   "SignalLost is en route");
+        check( Machine::IsEnRoute(State::ApproachLost), "ApproachLost is en route");
+
+        // Not flying. No arithmetic over these produces an arrival.
+        check(!Machine::IsEnRoute(State::Ground),  "Ground is NOT en route -- the bug");
+        check(!Machine::IsEnRoute(State::Landed),  "Landed is NOT en route");
+        check(!Machine::IsEnRoute(State::Waiting), "Waiting is NOT en route");
+        check(!Machine::IsEnRoute(State::Idle),    "Idle is NOT en route");
+
+        // CONTROL: this must not become a synonym for "we have data". Ground is
+        // the state where every input is available and the conclusion is wrong,
+        // so if IsEnRoute ever collapses into an input check, this fails.
+        check(Machine::IsEnRoute(State::Airborne) != Machine::IsEnRoute(State::Ground),
+              "CONTROL: en route distinguishes flying from parked");
+    }
+
     return failures ? 1 : 0;
 }

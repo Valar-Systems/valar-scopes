@@ -3626,6 +3626,11 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
 int AircraftManager::FollowMinutesToArrival() const
 {
     const RouteView v = FollowRouteView();
+    // EN ROUTE FIRST, INPUTS SECOND. A jet at a gate has an origin, a
+    // destination and a position -- every input this function needs -- and
+    // "arrives 23:19" is still false. Availability of data is not applicability
+    // of the conclusion; see follow::Machine::IsEnRoute.
+    if (!follow::Machine::IsEnRoute(v.st)) return -1;
     if (!v.org.known || !v.dst.known || !v.havePos) return -1;
     const float totalKm = follow::GreatCircleKm(v.org.lat, v.org.lon, v.dst.lat, v.dst.lon);
     const float progress = follow::ProgressAlong(v.org, v.dst, v.acLat, v.acLon);
@@ -5848,7 +5853,11 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
         primary = units::FormatKm(
             follow::GreatCircleKm(acLat, acLon, dst.lat, dst.lon), rangeUnit, true);
         label = "ON APPROACH";
-    } else {
+    } else if (follow::Machine::IsEnRoute(st)) {
+        // Same rule as the ARR slot above: Ground, Landed and Waiting reach
+        // here with every input satisfied and no arrival to claim. They fall
+        // through to the ladder, which states the route rather than inventing
+        // a landing time for a parked aeroplane.
         const int mins = follow::MinutesToArrival(totalKm * (1.0f - shown), gsKt);
         if (mins >= 0) {
             char b[16];
@@ -5892,7 +5901,15 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
     // The shared slot. §8: "Altitude and the state chip occupy the same slot
     // deliberately: when anything degrades, altitude is what gets displaced,
     // and the layout does not jump."
-    if (degraded) {
+    // THE CHIP DREW ONLY FOR ABSENT STATES, so ON THE GROUND could not appear
+    // on this face at all -- Ground is not absent, so the altitude branch ran
+    // instead and a parked aircraft was described entirely by "0 ft MSL".
+    // Ground and Landed have headlines; they should use them. Airborne keeps
+    // the altitude, which is the §8 arrangement: the chip displaces altitude
+    // exactly when there is something more important to say than a number.
+    const bool chipState = degraded || st == follow::State::Ground
+                                    || st == follow::State::Landed;
+    if (chipState) {
         const String chip = follow::Headline(st, follow::Regime::Airline);
         const int w = (int)backbuffer.textWidth(chip) + Si(14.0f);
         const int h = Si(17.0f);
