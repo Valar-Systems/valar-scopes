@@ -898,6 +898,7 @@ private:
     void DrawClock(BandCanvas& backbuffer) const;
     /// Minutes until the followed flight arrives, or -1 if unknowable.
     int  FollowMinutesToArrival() const;
+    int  FollowMinutesToArrival(const RouteView& v) const;
     void DrawNightClock(BandCanvas& backbuffer) const; // big 7-seg face replacing an empty night radar
     std::vector<String> SortedAircraftByDistance();
 

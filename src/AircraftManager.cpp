@@ -3599,7 +3599,8 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
     String out = buf;
     uint32_t ink = lgfx::color888(0, 170, 0);
     if (screen == Screen::Follow) {
-        const int mins = FollowMinutesToArrival();
+        const RouteView v = FollowRouteView();
+        const int mins = FollowMinutesToArrival(v);
         if (mins >= 0) {
             const time_t arrive = local + (time_t)mins * 60;
             struct tm a;
@@ -3607,8 +3608,21 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
             char ab[16];
             snprintf(ab, sizeof(ab), "ARR %02d:%02d", a.tm_hour, a.tm_min);
             out = ab;
-            ink = lgfx::color888(0, 140, 0);   // a shade back: it is a derived
-                                               // figure, not a measured one
+            // THE CONFIDENCE TREATMENT IS ONE TREATMENT, NOT FOUR.
+            //
+            // This was a hardcoded green and it STAYED green in NO COVERAGE,
+            // while the hero dimmed, the band ahead went dashed, the bearing
+            // wedge faded to 40% and everything else turned amber. A slot
+            // holding full-confidence styling while the rest of the face says
+            // "inferred" is not a fifth signal, it contradicts the other four --
+            // and this is the most inferred number on the screen there, resting
+            // on a dead-reckoned position AND an assumed groundspeed.
+            //
+            // So it takes the state's colour and the same 0.55 fade 8 gives the
+            // estimated readout, from the two functions the face already uses.
+            ink = FollowStateColour(v.st, /*benignApproach=*/true);
+            if (follow::Machine::IsAbsent(v.st))
+                ink = FollowFade(ink, 0.55f);
         }
     }
 
@@ -3625,7 +3639,11 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
 // countdown above it would be worse than showing neither.
 int AircraftManager::FollowMinutesToArrival() const
 {
-    const RouteView v = FollowRouteView();
+    return FollowMinutesToArrival(FollowRouteView());
+}
+
+int AircraftManager::FollowMinutesToArrival(const RouteView& v) const
+{
     // EN ROUTE FIRST, INPUTS SECOND. A jet at a gate has an origin, a
     // destination and a position -- every input this function needs -- and
     // "arrives 23:19" is still false. Availability of data is not applicability
@@ -4868,7 +4886,8 @@ void AircraftManager::PollBenchSerial()
         followForced = want;
         followForce = true;
         Serial.printf("[bench] follow state FORCED: %s | %s\n",
-                      follow::Headline(want), follow::Explanation(want));
+                      follow::Headline(want, FollowRegime()),
+                      follow::Explanation(want, FollowRegime()));
     }
 }
 #endif
