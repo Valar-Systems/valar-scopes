@@ -5962,8 +5962,15 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     const float k = (float)SCREEN_SIZE / 240.0f;
     const auto Si = [k](float v) { return (int)lroundf(v * k); };
     const int cx = Si(120.0f);
-    const int cy = Si(102.0f);          // §9: pulled UP, so the readout gets a band
-    const float R = k * 94.0f;          // ... and shrunk from the full 119 for it
+    // FULL-BLEED, 2026-08-29. §9 originally pulled the disc up to cy=102 and shrank
+    // it to R=94 so the readout got a clear band underneath. That reserved a fifth
+    // of the panel to avoid drawing text on a sphere -- and this function already
+    // had the answer to that problem for its top row: a backing plate. So the disc
+    // takes the whole screen the way Missileer's does (kGlobeR=119, and 120 would
+    // touch x=240 and run off a 0..239 buffer), and every text row gets the plate
+    // the top row already had.
+    const int cy = Si(120.0f);
+    const float R = k * 119.0f;
     const int   Ri = (int)lroundf(R);
 
     const follow::State st = view.st;
@@ -5983,9 +5990,14 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     const globeproj::Basis basis =
         globeproj::MakeBasis(org.lon, org.lat, dst.lon, dst.lat, 0.0f);
 
-    const uint32_t OCEAN = lgfx::color888(4, 12, 26);
-    const uint32_t NIGHT = lgfx::color888(2, 5, 12);
-    const uint32_t COAST = lgfx::color888(70, 110, 130);
+    // GREEN, taken from Missileer's globe rather than invented alongside it --
+    // src/anim/FlightAnimation.cpp Ocean()/Coast(), whose palette note reads
+    // "green = the world (coastlines, graticule)". Two products drawing the same
+    // sphere in two different colours is a difference that means nothing, and the
+    // one that already shipped a globe is the one to match.
+    const uint32_t OCEAN = lgfx::color888(0x06, 0x18, 0x14);
+    const uint32_t NIGHT = lgfx::color888(0x03, 0x0C, 0x0A);  // the same hue, darker
+    const uint32_t COAST = lgfx::color888(0x2A, 0x9E, 0x62);
     const uint32_t TERM  = lgfx::color888(150, 96, 40);   // a thin WARM line
 
     // ---- the disc, and the night side --------------------------------------
@@ -6065,7 +6077,7 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     }
 
     // The limb: the one line that makes the disc a sphere rather than a circle.
-    backbuffer.drawCircle(cx, cy, Ri, lgfx::color888(40, 70, 90));
+    backbuffer.drawCircle(cx, cy, Ri, lgfx::color888(0x12, 0x46, 0x33));  // graticule green
 
     // The terminator itself, as the great circle perpendicular to the sun.
     if (clockSynced) {
@@ -6139,28 +6151,33 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
             backbuffer.drawCircle((int)x, (int)y, Si(8.0f), FollowFade(colour, 0.35f));
     }
 
-    // ---- text, on its own bands above and below the disc --------------------
-    const auto centred = [&](const String& s, int y, uint32_t c) {
-        backbuffer.setTextColor(c);
-        const String fit = FitToDisc(backbuffer, s, y, lineH);
-        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
-    };
+    // ---- text, plated, over the disc ----------------------------------------
     const String& who = view.label;
     String o = view.origCode, d = view.destCode;
     o.toUpperCase(); d.toUpperCase();
     // The backing plate: text over ocean is legible, text over the terminator is
     // not, and which one a given route produces is not knowable in advance.
-    const String top = who + "  " + o + " -> " + d;
-    const int tw = (int)backbuffer.textWidth(top) + Si(8.0f);
-    backbuffer.fillRect(cx - tw / 2, Si(26.0f) - 2, tw, lineH + 4, lgfx::color888(0, 0, 0));
-    centred(top, Si(26.0f), FOLLOW_DIM);
+    //
+    // EVERY row gets one now, not just this one. While the disc stopped at R=94
+    // the lower rows sat on bare background and needed nothing; full-bleed puts
+    // them over coastline, terminator and night side at once, which is the exact
+    // condition this plate was written for. One lambda so a row cannot be added
+    // later without it.
+    const auto plated = [&](const String& sTxt, int y, uint32_t c) {
+        const String fit = FitToDisc(backbuffer, sTxt, y, lineH);
+        const int w = (int)backbuffer.textWidth(fit) + Si(8.0f);
+        backbuffer.fillRect(cx - w / 2, y - 2, w, lineH + 4, lgfx::color888(0, 0, 0));
+        backbuffer.setTextColor(c);
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
+    };
+    plated(who + "  " + o + " -> " + d, Si(26.0f), FOLLOW_DIM);
 
     if (follow::Machine::IsAbsent(st))
-        centred(follow::Headline(st, follow::Regime::Airline), Si(206.0f), colour);
-    centred(String((int)lroundf(progress * 100.0f)) + "%  of  " +
-            units::FormatKm(follow::GreatCircleKm(org.lat, org.lon, dst.lat, dst.lon),
-                            rangeUnit, true),
-            Si(223.0f), FOLLOW_DIM);
+        plated(follow::Headline(st, follow::Regime::Airline), Si(206.0f), colour);
+    plated(String((int)lroundf(progress * 100.0f)) + "%  of  " +
+           units::FormatKm(follow::GreatCircleKm(org.lat, org.lon, dst.lat, dst.lon),
+                           rangeUnit, true),
+           Si(223.0f), FOLLOW_DIM);
 
     followArcUs = micros() - t0;
     followArcStrokes = (size_t)vertices;
