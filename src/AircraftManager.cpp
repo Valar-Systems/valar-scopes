@@ -230,6 +230,10 @@ struct FetchRequest {
                                      // Read (and cleared) on the LOOP task at request
                                      // build time -- TakeOtaMemReport touches NVS, and
                                      // this task owns that, like every other snapshot here.
+    String usage;                    // X-Blip-Usage value, "" unless a report is due.
+                                     // Same rule and the same reason as otaMem: taken on
+                                     // the LOOP task at request build time, because the
+                                     // take writes NVS and commits the delta.
 #endif
 };
 struct FetchResult {
@@ -1995,18 +1999,56 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // hypothesis can be tested properly; nothing here should be cited as
     // evidence for or against it.
     //
-    // BUDGET UNCHANGED AT 60 ms:
-    //   - The honest all-on envelope is 48.0 ms, so 60 keeps ~25 % margin.
-    //   - Tightening toward it would re-create the exact failure that forced
-    //     50 -> 60: a line that flags the renderer's honest steady state as a
-    //     regression. 48.0 is uncomfortably close to 50 for that reason.
-    //   - Nothing crossed 60 ms in any window: 1396 overnight samples plus 110
-    //     the next day, across every configuration measured including the
-    //     accidental one.
+    // RE-BASELINED 2026-08-26, 60 -> 85 ms. "ALL ON" WAS NEVER ALL ON.
+    //
+    // Everything above is still true and its conclusion was still wrong, for a
+    // reason nobody could see from the numbers: every board those measurements
+    // came from had the per-aircraft INFO LABELS TURNED OFF.
+    //
+    // The 2026-08-02 scripted POST is the cause, and it did more damage than the
+    // retraction above records. It wrote `false` for every checkbox absent from
+    // the body -- and `info-callsign`, `info-speed` and `info-baroalt` were among
+    // them. They ship ON (see AIRCRAFT_INFO_FIELDS). The bench boards have been
+    // carrying them OFF ever since, so "the honest all-on envelope is 48.0 ms" is
+    // an envelope for a renderer missing its primary readout, and the 60 ms
+    // budget derived from it inherits the same gap.
+    //
+    // MEASURED 2026-08-26, paired A/B on one board, one boot, alternating every
+    // 30 s health tick so the warm-up drift brackets out (a fresh board climbs
+    // ~12 ms over its first six minutes -- comparing arms 30 s apart without
+    // pairing is how the 2026-08-02 result went wrong in the first place):
+    //
+    //     info labels ON vs OFF, 17 pairs, n=14-18:  +8.52 ms mean, +9.00 median
+    //
+    // They are drawn per aircraft and AircraftLabelBox walks the same fields a
+    // second time for layout, so the cost scales with contact count: ~9 ms at
+    // n=16 implies roughly double at the n=30-40 the fleet actually runs at.
+    // Stock config therefore sits around 60-68 ms where the stripped bench boards
+    // sit at 46-48, which was being read as a hardware difference between boards.
+    //
+    // Also measured, and worth recording because it closes a question this note
+    // left open: the AIRPORT OVERLAY costs -0.09 ms over 29 paired ticks at
+    // ap=60. It is not the frame lever. `ap=` can stop being a suspect.
+    //
+    // THE DEFAULTS KEEP THEIR COST. Callsign, ground speed and barometric
+    // altitude are the radar's readout; a scope of unlabelled dots is not this
+    // product, so the ~9-18 ms is bought deliberately. What changes is the
+    // ASSERTION, because a budget calibrated against a stripped renderer flags
+    // every stock unit as a regression -- and a warning that fires on every
+    // healthy device is one nobody reads by week two. That is exactly how the
+    // ntfy early-return survived as long as it did.
+    //
+    // 85 ms = a ~68 ms stock envelope + the same ~25 % margin the 60 ms figure
+    // used. PROVISIONAL: no stock-config soak exists yet. The number that should
+    // replace it is a multi-hour run on a board with the shipping defaults
+    // intact, at n=30-40 -- not another reading from a bench board whose config
+    // froze in August.
     // BLIPS_LIMIT=40 is unaffected by all of this -- it is bounded by heap, not
     // frame time, and that bound was measured on the cloud build with the feed
     // saturated (see the constant).
-    constexpr float FRAME_P95_BUDGET_MS = 60.0f;
+    // 85, not 60 -- see the re-baseline note above. The 60 was derived from
+    // boards whose info labels had been silently switched off in 2026-08.
+    constexpr float FRAME_P95_BUDGET_MS = 85.0f;
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
     if (p95Ms > FRAME_P95_BUDGET_MS) {
         budgetBreaches++;
@@ -2100,7 +2142,7 @@ void AircraftManager::RunFetchTask()
             JsonDocument cfgDoc;
             const HttpResult r = http.GetJson(CloudFeed::ConfigUrl(req->cloudBase), cfgDoc,
                                               std::vector<std::pair<String, String>>{},
-                                              CloudFeed::Headers(req->cloudKey, req->otaMem));
+                                              CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage));
             if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
                 CloudFeed::ParseConfig(cfgDoc, res->config)) {
                 res->ok = true;
@@ -2190,7 +2232,7 @@ void AircraftManager::RunFetchTask()
                   { "lon", String(req->lon, 4) },
                   { "r", String((int)lround(req->rangeKm)) },
                   { "limit", String(BLIPS_LIMIT) } },
-                CloudFeed::Headers(req->cloudKey, req->otaMem));
+                CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage));
         }
 #endif
         else {
@@ -2349,6 +2391,7 @@ void AircraftManager::RequestFetch()
         req->cloudKey = cloudKey;
         req->rangeKm = rangeKmCfg;
         req->otaMem = TakeOtaMemReport(); // "" unless an OTA happened; clears on read
+        req->usage  = usageStore.Take(millis()); // "" unless an hour has passed
     } else
 #endif
     if (useLocalSource) {
@@ -2392,6 +2435,11 @@ bool AircraftManager::RequestCloudConfig()
     // Whichever check-in is built first after an OTA carries the report; the
     // config fetch is normally it (boot runs it ahead of the first feed poll).
     req->otaMem = TakeOtaMemReport();
+    // NOT req->usage. The config fetch runs at boot and on every config reload,
+    // which is exactly when a bench session reloads it repeatedly -- and the
+    // usage take COMMITS its delta, so a report riding this request would be
+    // taken (and its counts consumed) at a moment that has nothing to do with
+    // the hourly cadence. The feed poll is the periodic carrier; this one is not.
     if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
         return true;
@@ -2735,7 +2783,8 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     // empty face -- §13.3's "hidden entirely" has to mean hidden from every
     // route in, including the one they were already standing on.
     if (screen == Screen::Follow && !FollowScreenVisible())
-        screen = Screen::Radar;
+        screen = Screen::Radar;   // NOT EnterScreen: the screen was taken away,
+                                  // nobody navigated to Radar. See EnterScreen.
 
     switch (screen) {
         case Screen::List:   DrawList(backbuffer);   break;
@@ -4114,6 +4163,7 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
 
     tracked.claimFired = true;
     tracked.claimable = false;
+    usageStore.LogbookClaim();
 
     // A tap claims EVERYTHING the aircraft carries. One deliberate action credits
     // the whole card, which keeps airlines/countries/airports meaningful as
@@ -4498,7 +4548,8 @@ void AircraftManager::HandleFollowTransition()
 
     if (screen != Screen::Follow) {
         followAutoReturnTo = screen;
-        screen = Screen::Follow;
+        screen = Screen::Follow;   // NOT EnterScreen: the device surfaced this,
+                                   // the customer did not. See EnterScreen.
     }
     followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
     Serial.printf("[follow] auto-surfaced on %s\n", follow::Headline(now));
@@ -4527,7 +4578,8 @@ void AircraftManager::BenchSessionFollow(const char* label, const char* org, con
     followForce = true;
     followForced = follow::State::Airborne;
     followBenchLongHaul = true;
-    screen = Screen::Follow;
+    screen = Screen::Follow;   // NOT EnterScreen: synthetic. A bench key must not
+                               // move a shipping counter. See EnterScreen.
     followAutoUntilMs = 0;   // no dwell: the bench wants it to STAY
     // Length computed first: the token must not appear in the printf
     // statement even when only its LENGTH is used. I made this exact
@@ -4932,7 +4984,7 @@ void AircraftManager::SetSessionFollow(const TrackedAircraft& tracked)
     // screen straight back to the rotation -- §13.3: Follow gets a screen, never
     // THE screen. This is the same dwell the state transitions use.
     followAutoReturnTo = (screen == Screen::Follow) ? Screen::Radar : screen;
-    screen = Screen::Follow;
+    EnterScreen(Screen::Follow);   // customer-initiated: the swipe asked for this
     followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
 
     // §17: the target is NOT printed. The count and the route are.
@@ -4954,7 +5006,7 @@ void AircraftManager::ClearSessionFollow()
     followRouteDest = "";
     followMachine.SetTarget(!followTarget.isEmpty());
     followAutoUntilMs = 0;
-    screen = Screen::Radar;
+    EnterScreen(Screen::Radar);    // customer-initiated: the swipe asked for this
     // The BOOLEAN is computed first and the token never enters the printf
     // statement. §17's per-statement check has no allow list, and it is right
     // not to: "only the emptiness is printed" is exactly what the author of the
@@ -6425,6 +6477,7 @@ void AircraftManager::HandleTap(int tx, int ty)
             selectedIcao = cands[tapCycleIndex].second;
             inDetail = true;
             detailPage = 0;
+            usageStore.CardOpened();
             // Already enriched: claim now, so the confirmation lands with the tap.
             // Cold contacts claim later, when enrichment reveals the type.
             auto sel = trackedAircraft.find(selectedIcao);
@@ -6442,6 +6495,7 @@ void AircraftManager::HandleTap(int tx, int ty)
                     selectedIcao = order[idx];
                     inDetail = true;
                     detailPage = 0;
+                    usageStore.CardOpened();
                     auto sel = trackedAircraft.find(selectedIcao); // same claim-on-open as the radar
                     if (sel != trackedAircraft.end())
                         ClaimTappedAircraft(sel->second);
@@ -6452,6 +6506,42 @@ void AircraftManager::HandleTap(int tx, int ty)
     // Stats screen: tap does nothing
 }
 
+void AircraftManager::EnterScreen(Screen s)
+{
+    screen = s;
+    // Follow's counter was reserved in the wire format before Follow existed, so
+    // the arity did not shift when it merged -- the case below is all that had to
+    // be added. That was the point of reserving it.
+    switch (s) {
+        case Screen::Radar:  usageStore.ScreenRadar();  break;
+        case Screen::List:   usageStore.ScreenList();   break;
+        case Screen::Stats:  usageStore.ScreenStats();  break;
+        case Screen::Follow: usageStore.ScreenFollow(); break;
+    }
+}
+
+// WHAT COUNTS AS A SCREEN SWITCH, and why three sites deliberately do not call
+// the function above.
+//
+// The counter answers "did the customer use this screen", so it counts screen
+// changes THE CUSTOMER ASKED FOR: swipes, and the two session-follow gestures.
+// It does not count the device moving itself.
+//
+// Three sites assign `screen` directly, on purpose:
+//
+//   - the auto-surface on a Follow state transition, and its dwell return. The
+//     device raised the face; nobody navigated to it. Counting it would inflate
+//     screenFollow with events the customer did not cause, and Follow would read
+//     as used on a device whose owner never touched it -- a metric that argues
+//     for keeping a feature by counting its own notifications.
+//   - the forced eviction when a followed flight lands and the Follow screen
+//     stops being visible underneath someone. That is the screen being taken
+//     away, not a visit to Radar.
+//   - the FOLLOW_BENCH forcing key, which is synthetic by construction.
+//
+// Each is marked at its site. If a fourth appears, decide which kind it is
+// rather than defaulting -- the honest reading of this counter depends on it.
+
 void AircraftManager::HandleSwipe(Swipe swipe)
 {
     // detail card: swipe up pins ("tracks") the aircraft and returns to the
@@ -6459,7 +6549,7 @@ void AircraftManager::HandleSwipe(Swipe swipe)
     if (inDetail) {
         if (swipe == Swipe::Up) {
             pinnedIcao = (pinnedIcao == selectedIcao) ? "" : selectedIcao;
-            screen = Screen::Radar;
+            EnterScreen(Screen::Radar);
         }
         // SWIPE DOWN FOLLOWS THIS FLIGHT for the session -- but only when there
         // is a route to draw. docs/tap-to-peek.md's first rule: no route, no
@@ -6528,7 +6618,7 @@ void AircraftManager::AdvanceScreen(int dir)
         next = (next + dir + SCREEN_COUNT) % SCREEN_COUNT;
         if ((Screen)next == Screen::Follow && !FollowScreenVisible())
             continue;
-        screen = (Screen)next;
+        EnterScreen((Screen)next);
         return;
     }
 }

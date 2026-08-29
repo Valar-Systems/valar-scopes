@@ -263,6 +263,26 @@ else
   done
 fi
 
+# --- 1c. the usage counters (README "Telemetry") ------------------------------
+#
+# The load-bearing assertion is that the payload CANNOT carry an identity: its
+# builder takes integers, and the test asserts the rendered value is digits and
+# commas with a control that it is not merely empty. Pure, so it grades here
+# rather than needing a board.
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_usage_report.cpp"       -o "$OUT/test_usage_report.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the usage counter tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_usage_report.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 # --- 2. the purity gate, and the control that proves it can fire -------------
 #
 # Compiling no_arduino.cpp MUST fail. If it succeeds, the drill TU is no longer

@@ -904,10 +904,21 @@ export const supportHtml = `<!DOCTYPE html>
 
   <section class="blk">
     <h2 id="privacy">Privacy</h2>
-    <p><b>Blipscope does not track how you use it.</b> Nothing reports which screen
-       you look at, how often you tap, how long it is watched, or which aircraft you
-       open. That is a permanent decision, not a feature we haven't got to yet.</p>
-    <p>What a cloud device does send is operational: that it checked in, its model and
+    <p><b>Blipscope never reports what you looked at.</b> Not which aircraft you
+       opened, not which one you follow, not where you are. That line does not
+       move.</p>
+    <p><b>It does report anonymous usage counts</b> — how often features are
+       used, so we know what to improve. How many times a detail card was opened,
+       how many times each screen was switched to, how many logbook claims, whether
+       Follow is switched on, and how long the device has been running. Counts
+       only: numbers, never the aircraft or the callsign or the tail number they
+       were about. The report is a short line of digits, sent at most once an hour
+       on a connection the device was already using.</p>
+    <p>This changed in firmware 9. Earlier versions collected none of it and said so
+       here; we would rather say plainly that it changed than quietly reword the old
+       promise. If you would prefer not to send it, run the device against your own
+       receiver — then it never talks to us at all.</p>
+    <p>What a cloud device also sends is operational: that it checked in, its model and
        firmware version, and — after a firmware update — whether the update worked and
        how much free memory it had. No location, no configuration, no serial number,
        no list of aircraft you watched.</p>

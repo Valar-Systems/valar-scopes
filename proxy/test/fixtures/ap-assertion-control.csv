@@ -1,0 +1,9 @@
+id,ident,type,name,latitude_deg,longitude_deg,elevation_ft,continent,iso_country,iso_region,municipality,scheduled_service,gps_code,iata_code,local_code,home_link
+1,EGLL,large_airport,Test EGLL,51.4706,-0.461941,83,EU,GB,GB-ENG,Town,yes,EGLL,LHR,,
+2,KDEN,large_airport,Test KDEN,39.8617,-104.673,5431,EU,GB,GB-ENG,Town,yes,KDEN,DEN,,
+3,ZZBH,large_airport,Test ZZBH,31.3,35.38,-1266,EU,GB,GB-ENG,Town,yes,ZZBH,BYH,,
+4,ZZE1,large_airport,Test ZZE1,10.0,10.0,99999,EU,GB,GB-ENG,Town,yes,ZZE1,EL1,,
+5,ZZE2,large_airport,Test ZZE2,10.5,10.5,-99999,EU,GB,GB-ENG,Town,yes,ZZE2,EL2,,
+6,ZZP1,large_airport,Test ZZP1,999,10.0,100,EU,GB,GB-ENG,Town,yes,ZZP1,PX1,,
+7,ZZP2,large_airport,Test ZZP2,nan,10.0,100,EU,GB,GB-ENG,Town,yes,ZZP2,PX2,,
+8,ZZP3,large_airport,Test ZZP3,0,0,100,EU,GB,GB-ENG,Town,yes,ZZP3,PX3,,

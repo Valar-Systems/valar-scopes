@@ -579,3 +579,74 @@ ROTATION <date>
   There is nothing to preserve.
 - **No telemetry on how often the banner is seen.** Operational counters on the Worker
   side (enrolment ledger, `enrollments` count) are the record. See CLAUDE.md.
+
+---
+
+## FINDING 2026-08-28 — the workstation held a real board's key, not the smoke identity
+
+**`BLIP_KEY` / `BLIP_DEVICE` on the workstation held `2afa3e2c7140ef5e` — "Bend
+Radar2", i.e. COM119, a live soak board — where this runbook specifies the
+synthetic `beefbeefbeefbeef`.**
+
+Found the hard way: a shell command printed the environment block while checking
+whether an unrelated token was set, and four secrets landed in a session
+transcript (see CLAUDE.md, *a presence check prints a boolean, never a value*).
+The drift is what turned that from "rotate a smoke credential" into "rotate a
+credential belonging to a board mid-experiment".
+
+### Why the drift is expensive, and it is not about this one incident
+
+A per-device key is **derived**: `HMAC(DEVICE_KEY_SECRET, deviceId)`. It cannot be
+rotated on its own. Whatever the reason for wanting it gone, there are exactly
+two levers and both are blunt:
+
+| lever | blast radius |
+|---|---|
+| rotate `DEVICE_KEY_SECRET` | every device key in the fleet; all three bench boards drop off cloud at once |
+| revoke the device id | that board only, until re-enrolled |
+
+The synthetic identity exists precisely so that neither lever ever has to be
+pulled for a workstation exposure: `beefbeefbeefbeef` is not a board, so revoking
+it costs a mint and nothing else. Holding a real board's key in an env var
+silently converts a cheap incident into one that has to be scheduled around an
+experiment — here, the #245 A/B and the #264 capture.
+
+### Disposition
+
+- **Do not rotate now.** The exposure reaches one bench board: an attacker could
+  pull feed data on its rate-limit bucket and post to the leaderboard as "Bend
+  Radar2". Nothing customer-facing, nothing fleet-wide.
+- **Mint `beefbeefbeefbeef` and put that in `BLIP_KEY`/`BLIP_DEVICE`**, which is
+  what §3 of this runbook already says to do. No board is touched.
+- **Revoke `2afa3e2c7140ef5e` and re-enrol COM119 after the A/B closes.**
+
+### Sequencing note: this interacts with the shared-secret issue
+
+[#266](https://github.com/Valar-Systems/valar-scopes/issues/266) records that
+staging and production hold the **same** `DEVICE_KEY_SECRET`, so a
+production-derived key authenticates against staging (and, the direction that
+matters, a staging compromise mints production identities).
+
+**Do the revocation FIRST, then the split.** Revoking `2afa3e2c7140ef5e` today is
+a straightforward re-enrol against one shared secret. If the secrets are split
+first, the re-enrol mints a key valid in only one environment and the bench has
+to start tracking which one it is addressing -- a second moving part introduced
+during a repair.
+
+The revocation is also the natural moment to *check* the split once it lands,
+rather than assume it: mint against staging, present that key to production, and
+require a **401**.
+
+### The check that would have caught it
+
+`smoke-prod.sh` runs against whatever `BLIP_DEVICE` holds and passes either way —
+a real board's key authenticates exactly as well as the smoke identity's, which
+is why nothing complained for however long this had been true. If the smoke path
+is meant to use the synthetic identity, the script should **assert** that:
+
+```sh
+[ "$BLIP_DEVICE" = "beefbeefbeefbeef" ] || { echo "BLIP_DEVICE is not the smoke identity"; exit 2; }
+```
+
+Same shape as everything else here: the passing and failing states produced the
+same observation, so the observation could not tell them apart.
