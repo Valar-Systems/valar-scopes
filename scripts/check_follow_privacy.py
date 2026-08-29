@@ -92,6 +92,20 @@ SINK_RE = re.compile("|".join([
     r"\bmqtt\.(?:Publish|publish)\s*\(",
     r"\bSerial\.(?:print|printf|println)\s*\(",
     r"\baddHeader\s*\(",
+    # A header appended to a vector rather than set on a client. Added
+    # 2026-08-29, when usage telemetry merged into this branch and brought a new
+    # outbound path the sink list did not know: CloudFeed builds its request
+    # headers as `h.push_back({ "X-Blip-Usage", usage })`, which matches none of
+    # the shapes above.
+    #
+    # Found by planting the leak rather than by reading: a probe adding
+    # `h.push_back({ "X-Blip-Follow", followTarget })` DID fail the build -- but
+    # on the review list (an unlisted function touched the target), with the sink
+    # count still reading 0. That is one line of defence, not two, and the
+    # remaining one fails open: a reviewer who adds the function to ALLOWED_TOUCH
+    # with an entirely plausible reason ("it only assembles headers") would then
+    # be shipping the target to the backend with a green check.
+    r"\bpush_back\s*\(\s*\{",
 ]))
 
 # A top-level definition, at column 0. Anything nested -- a lambda, a loop body
