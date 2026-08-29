@@ -598,6 +598,29 @@ Finally: once the system is healthy the failing branch may become **unreachable*
 A gate that cannot be made to fail is a gate nobody can check. Leave a seam that
 forces it (`PROBE_PANEL=999`), and use it.
 
+### Corollary: an anchor is meaningless against a target that is still moving
+
+**A live log is not a file, it is a stream with a filename.** Reading the COM4
+soak, the anchor fired three times and reported three different counts for the
+same quantity — 5132, 5135, then 5136 frame lines. Every instinct says flaky
+regex, and the next hour goes into the parser. The parser was correct. The
+capture was still appending, so `grep` and the parse ran against different
+bytes; two reads *inside one Python process* disagreed for the same reason.
+
+The tell is the direction: the parse found **more** than `grep` did. A broken
+regex drops lines, it does not invent them. An anchor that fails *upward* is
+evidence about the file, not the code.
+
+So: **snapshot first, then measure both sides of the same bytes** — and derive
+the expected counts from that snapshot rather than hardcoding them, or the
+anchor goes stale the moment anything appends. One `cp`, and the check becomes
+trustworthy for the same reason it was untrustworthy before.
+
+This is the same family as everything above, one step earlier: those entries are
+about a check that cannot detect its own failure, and this is about a check that
+reports a failure that is not there. Both end with the artifact being blamed for
+the instrument.
+
 ## Usage telemetry: counts yes, subjects never (revised 2026-08-27)
 
 **This section used to read "Non-goal: behavioural telemetry (settled 2026-08-02)"
