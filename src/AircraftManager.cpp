@@ -5745,11 +5745,40 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
     // jump §8 designed the shared altitude/chip slot to avoid. So the state's
     // word goes to the label line, which exists to name the magnitude, and the
     // distance goes in the slot. Recorded as a deviation in the spec.
-    String primary = "--", label = "";
+    // NEVER AN EMPTY NUMERIC SLOT (glass, 2026-08-29). This started as
+    // `primary = "--"`, and on the code-only face that rendered two dashes in
+    // the hero slot with nothing under them -- which reads as a screen that
+    // FAILED TO LOAD rather than one reporting a lesser state. The absence
+    // states got careful copy precisely so degradation would look deliberate;
+    // an empty value slot throws that away in the one case where the face has
+    // least else to say.
+    //
+    // So: a field with no number is not drawn, and the hero carries the most
+    // informative TRUE thing available. The ladder is at the bottom of this
+    // block -- every branch here now either produces a number or leaves
+    // `primary` empty and lets the ladder speak.
+    String primary = "", label = "";
+    int psize = 3;
     if (!placed) {
-        // No route, or a code the baked table does not carry. The honest
-        // readout is the one thing we do know: how far away he is.
-        if (havePos && hasLocation) {
+        // RESOLVING IS NOT UNRESOLVABLE, and this is where that distinction has
+        // to be drawn -- "one clears in a second, the other never will".
+        //
+        // It used to be tested further down, in the `placed` chain, where it was
+        // UNREACHABLE IN EVERY CASE IT WAS WRITTEN FOR: `placed` means both ends
+        // are already resolved, so there is nothing left to locate, and the
+        // branch's own `org.known ? destCode : origCode` only makes sense when
+        // one end is missing -- which forces `placed` false and skipped it.
+        // Found on glass 2026-08-29 by pressing the bench's resolving key and
+        // watching the screen not change.
+        if (view.resolving) {
+            // The label names what is happening to the thing in the hero slot,
+            // which the ladder below fills with the route pair. A distance would
+            // be a magnitude this label does not name -- see the primary-slot
+            // rule further down.
+            label = "LOCATING " + (view.org.known ? view.destCode : view.origCode);
+        } else if (havePos && hasLocation) {
+            // No route, or a code the baked table does not carry. The honest
+            // readout is the one thing we do know: how far away he is.
             primary = units::FormatKm(
                 follow::SeparationKm(acLat, acLon, (float)lat, (float)lon), rangeUnit, true);
             label = "AWAY";
@@ -5763,24 +5792,45 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
         primary = units::FormatKm(
             follow::GreatCircleKm(acLat, acLon, dst.lat, dst.lon), rangeUnit, true);
         label = "ON APPROACH";
-    } else if (view.resolving) {
-        // RESOLVING IS NOT UNRESOLVABLE, and the copy must not read as failure:
-        // one clears in a second, the other never will. "LOCATING" says a thing
-        // is happening; "unknown" would say a thing has finished badly.
-        primary = "--";
-        label = "LOCATING " + (view.org.known ? view.destCode : view.origCode);
     } else {
         const int mins = follow::MinutesToArrival(totalKm * (1.0f - shown), gsKt);
         if (mins >= 0) {
             char b[16];
             follow::FormatElapsed((uint32_t)mins * 60u, b, sizeof(b));
             primary = b;
+            // The label is set INSIDE the guard on purpose: MinutesToArrival
+            // returns -1 rather than guess at an unknown groundspeed, and a
+            // label left behind by a declined number names nothing.
+            label = (st == follow::State::NoCoverage) ? "EST. ARRIVAL" : "TO ARRIVAL";
         }
-        label = (st == follow::State::NoCoverage) ? "EST. ARRIVAL" : "TO ARRIVAL";
+    }
+
+    // ---- the ladder: the most informative TRUE thing, or nothing ------------
+    //
+    // Reached whenever nothing above produced a number. In descending order of
+    // what it means to the person watching:
+    //   1. the route LENGTH, if both ends are placed -- a real measured number;
+    //   2. the route itself, if the codes exist but cannot be placed. This is
+    //      the code-only state, and the route is exactly what it knows;
+    //   3. nothing at all. An empty hero slot is better than a filled one that
+    //      says nothing, and the state chip below still names the situation.
+    if (primary.isEmpty()) {
+        if (placed && totalKm > 0.0f) {
+            primary = units::FormatKm(totalKm, rangeUnit, true);
+            if (label.isEmpty()) label = "ROUTE LENGTH";
+        } else if (!view.origCode.isEmpty() && !view.destCode.isEmpty()) {
+            String o = view.origCode, d = view.destCode;
+            o.toUpperCase(); d.toUpperCase();
+            primary = o + " -> " + d;
+            psize = 2;                       // a 10-char pair cannot be size 3
+            if (label.isEmpty()) label = "ROUTE ONLY";
+        }
     }
     // §8 dims the readout in NO_COVERAGE: the number is an estimate and must
     // not carry the same weight as a measured one.
-    row(primary, 124.0f, (st == follow::State::NoCoverage) ? FollowFade(colour, 0.55f) : colour, 3);
+    if (!primary.isEmpty())
+        row(primary, 124.0f,
+            (st == follow::State::NoCoverage) ? FollowFade(colour, 0.55f) : colour, psize);
     if (!label.isEmpty()) row(label, 139.0f, FOLLOW_DIM, 1);
 
     // The shared slot. §8: "Altitude and the state chip occupy the same slot
