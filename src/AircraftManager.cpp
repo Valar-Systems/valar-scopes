@@ -3580,9 +3580,55 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
     char buf[6];
     snprintf(buf, sizeof(buf), "%02d:%02d", t.tm_hour, t.tm_min);
 
+    // ON THE FOLLOW SCREEN THIS SLOT CARRIES ARRIVAL, NOT NOW.
+    //
+    // Every other screen already shows the current time, and on a face whose
+    // hero slot is counting DOWN ("43m TO ARRIVAL") the useful companion is the
+    // clock time that countdown lands on -- not a second copy of now.
+    //
+    // ALWAYS LABELLED "ARR", never a bare number. A clock that means something
+    // different on one screen is a clock that lies: 18:45 on Radar is the time,
+    // and an unlabelled 18:45 here would read as the time while meaning
+    // something else entirely. The label is what makes the reuse honest, so it
+    // is not optional and there is no branch that omits it.
+    //
+    // Falls back to the wall clock whenever an arrival cannot be computed --
+    // MinutesToArrival declines rather than guess at an unknown groundspeed --
+    // because the alternative is an empty slot on every screen but this one.
+    String out = buf;
+    uint32_t ink = lgfx::color888(0, 170, 0);
+    if (screen == Screen::Follow) {
+        const int mins = FollowMinutesToArrival();
+        if (mins >= 0) {
+            const time_t arrive = local + (time_t)mins * 60;
+            struct tm a;
+            gmtime_r(&arrive, &a);
+            char ab[16];
+            snprintf(ab, sizeof(ab), "ARR %02d:%02d", a.tm_hour, a.tm_min);
+            out = ab;
+            ink = lgfx::color888(0, 140, 0);   // a shade back: it is a derived
+                                               // figure, not a measured one
+        }
+    }
+
     backbuffer.setTextSize(1);
-    backbuffer.setTextColor(lgfx::color888(0, 170, 0));
-    backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, SCREEN_SIZE - 30);
+    backbuffer.setTextColor(ink);
+    backbuffer.drawString(out, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(out) / 2, SCREEN_SIZE - 30);
+}
+
+// Minutes to arrival for the followed flight, or -1 when it cannot be known.
+//
+// Deliberately a thin wrapper over the same call the arc face makes, rather
+// than a second derivation: two places computing "when does he land" from the
+// same inputs is two places to drift, and the clock slot disagreeing with the
+// countdown above it would be worse than showing neither.
+int AircraftManager::FollowMinutesToArrival() const
+{
+    const RouteView v = FollowRouteView();
+    if (!v.org.known || !v.dst.known || !v.havePos) return -1;
+    const float totalKm = follow::GreatCircleKm(v.org.lat, v.org.lon, v.dst.lat, v.dst.lon);
+    const float progress = follow::ProgressAlong(v.org, v.dst, v.acLat, v.acLon);
+    return follow::MinutesToArrival(totalKm * (1.0f - progress), v.gsKt);
 }
 
 bool AircraftManager::NightClockActive() const
