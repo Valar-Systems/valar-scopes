@@ -1415,9 +1415,15 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // many contacts get drawn, so this is the x-axis for the p95 the line already
     // prints. One size_t read; it stays in shipping builds because it is just as
     // useful for "why is this customer's device slow?" as it is on the bench.
-    // ap=<airports>: the overlay symbol count, added 2026-08-02 because it is
-    // the leading suspect for what actually drives frame p95 (n does not -- see
-    // the budget note below) and there was no way to test that without it.
+    // ap=<airports>: the overlay symbol count, added 2026-08-02 when it was the
+    // leading suspect for what drives frame p95. IT IS NOT, and neither half of
+    // that 2026-08-02 guess survived: the overlay costs -0.09 ms over 29 paired
+    // ticks at ap=60, and `n` -- which this comment used to say was not the
+    // lever -- turned out to be the whole story at 0.802 ms per contact
+    // (R2=0.985, 5137 samples; see the budget note below). Kept on the line
+    // anyway: it is the control that lets a future overlay change be told apart
+    // from a contact-count change, which is precisely what was missing in
+    // August.
     // Whichever overlay is actually in force: the cloud long tail while it has
     // landed, else the baked majors table DrawAirports falls back to -- so the
     // number always means "symbols available to draw", on every build.
@@ -1427,8 +1433,25 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #else
     const unsigned apCount = (unsigned)AIRPORT_COUNT;
 #endif
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  interval=%lums%s\n",
-                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount,
+    // The frame budget is a LINE, not a constant. Declared here rather than at
+    // the gate because the health line reports the residual against it and the
+    // gate below tests the same model -- one definition, two readers. The
+    // measurement, the provenance and the condition on reusing these numbers are
+    // all in the budget note further down; read that before changing either.
+    constexpr float FRAME_P95_INTERCEPT_MS    = 35.80f;
+    constexpr float FRAME_P95_PER_AIRCRAFT_MS = 0.802f;
+    const float predictedP95Ms = FRAME_P95_INTERCEPT_MS +
+                                 FRAME_P95_PER_AIRCRAFT_MS * (float)trackedAircraft.size();
+    // resid=<observed - predicted>, and it is on the line for one specific
+    // reason: these constants are fitted on a board that was heap-starved for
+    // 84.9 % of its samples, so they WILL need re-fitting once #245 lands.
+    // Printing the residual makes that re-fit a DATA question -- collect
+    // residuals from a healthy board, read the bias straight off -- instead of a
+    // redesign that has to re-derive the shape from nothing. A model with no
+    // published error term is one nobody can correct.
+    const float residualMs = p95Ms - predictedP95Ms;
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u resid=%+.1fms  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  interval=%lums%s\n",
+                  avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount, residualMs,
                   (unsigned)heapFree, (unsigned)largest, (unsigned)free8, tlsOk,
                   (unsigned long)heaphealth::TrialRejectionCount(),
                   heaphealth::BallastHeld() ? 1 : 0,
@@ -1656,13 +1679,83 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // BLIPS_LIMIT=40 is unaffected by all of this -- it is bounded by heap, not
     // frame time, and that bound was measured on the cloud build with the feed
     // saturated (see the constant).
-    // 85, not 60 -- see the re-baseline note above. The 60 was derived from
-    // boards whose info labels had been silently switched off in 2026-08.
-    constexpr float FRAME_P95_BUDGET_MS = 85.0f;
+    //
+    // ======================================================================
+    // SUPERSEDED 2026-08-29 BY THE SOAK THIS NOTE ASKED FOR. The budget is not
+    // a constant; it is a LINE. Frame cost is dominated by contact count, and
+    // that is now measured rather than suspected.
+    //
+    // THE RUN: COM4, shipping env, stock defaults never touched, 48 h
+    // continuous, 5137 health samples, zero reboots, touch watchdog clean.
+    //
+    //     p95 = 35.80 ms + 0.802 ms * aircraft       R2 = 0.985, n = 5137
+    //           35.8 at n=0         67.9 at n=40 (BLIPS_LIMIT -- the worst case
+    //                                             the firmware can reach)
+    //           residuals: p99 +3.1 ms, max +9.4 ms
+    //
+    // It confirms the projection above FROM THE OTHER DIRECTION. That note
+    // predicted a 60-68 ms stock envelope by extrapolating a paired label A/B
+    // taken at n=16; the soak measured 67.9 ms at the cap. Two methods that
+    // share no measurement, one number. The 85 above was a good provisional
+    // guess and is kept below as an absolute ceiling.
+    //
+    // The "n does not drive p95" claim that survived in the ap= comment further
+    // up is now dead in both places: n is the lever, at 0.802 ms per contact.
+    //
+    // WHY A LINE AND NOT A BIGGER CONSTANT. A flat gate can only be set for the
+    // worst case, so it is blind everywhere else. Measured against these 5137
+    // samples:
+    //
+    //     gate                     false fires        what it catches
+    //     flat 60 ms (pre-#264)    2512 (48.9 %)      unusable -- this is the
+    //                                                 BUDGET BROKEN noise
+    //     flat 85 ms (#264)             0             >17 ms, and only at n=40;
+    //                                                 at n=0 a 49 ms regression
+    //                                                 passes in silence
+    //     line + 10 ms                  0             >10 ms at ANY n
+    //
+    // PROVENANCE, AND THE CONDITION ON THESE CONSTANTS. Fitted 2026-08-29 on a
+    // board STARVED FOR 84.9 % OF SAMPLES (largest block median 7668 B; a
+    // handshake needs 16717). Enrichment was consequently near-idle: 97.4 % of
+    // samples sat at enrich <= 4 % busy. So THE ENRICHMENT AXIS IS UNMEASURED
+    // and these numbers describe a board that was mostly not enriching.
+    //
+    // That starvation is not a fault on that board -- it is the experiment. The
+    // soak ran the plain shipping env, which is the CONTROL ARM of the #245 A/B:
+    // -DBLIPSCOPE_TLS_PSRAM lives only in env:blipscope-s3-128-tlspsram, so the
+    // shipping image routes mbedTLS to the internal heap on purpose while the
+    // comparison runs. `tlsmem=0/0/0` across all 5137 samples is the tell, and
+    // it is the boring reading of it: the allocator was compiled out, not
+    // installed-and-failing. Which board to re-fit on is therefore already
+    // decided -- the treatment arm, or the shipping env once #245's fix lands
+    // on it. Do not re-fit on another control-arm board and expect a different
+    // answer.
+    //
+    // RE-FIT AFTER #245, AND THAT RE-FIT IS A REQUIRED STEP OF CLOSING #245 --
+    // not a follow-up for somebody to remember. A gate calibrated on a sick
+    // board starts crying wolf the day the board gets well, and "the warning
+    // that fires on every healthy device is one nobody reads by week two" is
+    // the exact failure the 60 ms gate above already demonstrated. The health
+    // line prints resid= so that re-fit is a data question, not a redesign.
+    // ======================================================================
+    constexpr float FRAME_P95_MARGIN_MS  = 10.0f;   // > the p99 (+3.1) and max
+                                                    // (+9.4) residuals observed
+    constexpr float FRAME_P95_CEILING_MS = 85.0f;   // absolute, model-independent
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
-    if (p95Ms > FRAME_P95_BUDGET_MS) {
+    if (p95Ms > predictedP95Ms + FRAME_P95_MARGIN_MS) {
         budgetBreaches++;
-        Serial.printf("[health] BUDGET BROKEN: frame p95 %.1fms > %.0fms\n", p95Ms, FRAME_P95_BUDGET_MS);
+        Serial.printf("[health] BUDGET BROKEN: frame p95 %.1fms > %.1fms (model %.1f at n=%u + margin %.0f)\n",
+                      p95Ms, predictedP95Ms + FRAME_P95_MARGIN_MS, predictedP95Ms,
+                      (unsigned)trackedAircraft.size(), FRAME_P95_MARGIN_MS);
+    }
+    // The ceiling is not redundant with the line: the model is only fitted over
+    // n=0-40, so anything that makes a frame expensive WITHOUT adding contacts
+    // (a new overlay, a full-screen effect, a regression in the sweep) can ride
+    // under the line at low n and still be far too slow to look at.
+    if (p95Ms > FRAME_P95_CEILING_MS) {
+        budgetBreaches++;
+        Serial.printf("[health] BUDGET BROKEN: frame p95 %.1fms > absolute ceiling %.0fms\n",
+                      p95Ms, FRAME_P95_CEILING_MS);
     }
     if (largest < LARGEST_BLOCK_BUDGET) {
         budgetBreaches++;
