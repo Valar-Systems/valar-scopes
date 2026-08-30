@@ -748,7 +748,17 @@ void AircraftManager::Initialise()
 
         if (want != followTarget) {
             // Identity changed -- including to or from empty.
-            if (want.isEmpty()) {
+            // OWNERSHIP: the buffer belongs to whatever is being followed, and
+            // that is now TWO possible owners. This site knew only the
+            // configured one, so clearing the config field freed 12 KB out from
+            // under a live SESSION follow -- the face kept drawing while its
+            // track buffer was returned. 4.3 says "freed only when follow is
+            // disabled", and a session follow running is not follow disabled.
+            //
+            // Deliberately NOT symmetric: this only ever frees. Whether a SWIPE
+            // should ALLOCATE 12 KB is a design question, not an oversight --
+            // see the issue -- so nothing here enables on a session target.
+            if (want.isEmpty() && followSessionTarget.isEmpty()) {
                 followTrack.Disable();   // the ONLY free site (§4.3)
             } else if (!followTarget.isEmpty()) {
                 // Still following, but somebody else: keep the allocation, drop
@@ -5190,6 +5200,12 @@ void AircraftManager::ClearSessionFollow()
     followRouteOrigin = "";
     followRouteDest = "";
     followMachine.SetTarget(!followTarget.isEmpty());
+    // The other half of the ownership rule above. With the session target gone
+    // and no configured one behind it, nothing is being followed and the buffer
+    // has no owner -- so this is the second place 4.3's free can legitimately
+    // happen, and leaving it out would strand 12 KB for the rest of the boot.
+    if (followTarget.isEmpty() && followTrack.Active())
+        followTrack.Disable();
     followAutoUntilMs = 0;
     EnterScreen(Screen::Radar);    // customer-initiated: the swipe asked for this
     // The BOOLEAN is computed first and the token never enters the printf
