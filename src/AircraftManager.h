@@ -23,6 +23,7 @@
 #include "FollowState.h" // Follow Mode state machine + copy (spec 5 and 6)
 #include "FollowGeometry.h" // Follow Mode local-face geometry (spec 10)
 #include "FollowArc.h" // Follow Mode arc-face arithmetic (spec 8)
+#include "FollowRouting.h" // which face, and whether a swipe can produce one
 #include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 

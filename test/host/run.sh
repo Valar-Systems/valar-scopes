@@ -145,6 +145,26 @@ elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
 
+# --- 1c-bis. the routing decisions, extracted 2026-08-30 ---------------------
+#
+# Which face, and whether a swipe can produce one. Both were inline in a 9,000-
+# line Arduino TU where the only check available was flashing a board -- which is
+# how the routing rule spent a fortnight keyed on the wrong input.
+echo
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_follow_routing.cpp"       -o "$OUT/test_follow_routing.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow routing test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_routing.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 # --- 1d. the globe projection, extracted from src/anim (spec 7.2) ------------
 #
 # Pinned against values PRINTED BY THE PRE-EXTRACTION CODE, so "behaviour

@@ -5466,7 +5466,7 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
     // beneath it reads as deliberate rather than broken. Sending an unplaceable
     // pair to the local face would throw that away AND lose the codes, which are
     // the most informative true thing the device holds about that flight.
-    if (FollowRouteKnown()) {
+    {
         // A GLOBE FOR EVERY AIRLINER, AT WHATEVER SCALE THE ROUTE NEEDS (#274).
         //
         // The 4,000 km threshold is gone. It was two things at once -- a
@@ -5480,12 +5480,14 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
         // pixel without coordinates. That is the code-only degradation.
         const follow::Endpoint o = follow::LookupAirport(followRouteOrigin.c_str());
         const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
-        if (o.known && d.known) {
-            DrawRouteGlobe(backbuffer, FollowRouteView());
-            return;
+        // The decision itself lives in FollowRouting.h so it can be graded on
+        // the host. Its SIGNATURE is the assertion: it takes no regime and no
+        // distance, so neither can creep back in as a condition here.
+        switch (follow::FaceForRoute(FollowRouteKnown(), o.known, d.known)) {
+            case follow::Face::Globe: DrawRouteGlobe(backbuffer, FollowRouteView()); return;
+            case follow::Face::Arc:   DrawRouteArc(backbuffer, FollowRouteView());   return;
+            case follow::Face::Local: break;
         }
-        DrawRouteArc(backbuffer, FollowRouteView());
-        return;
     }
     DrawFollowLocalFace(backbuffer);
 }
@@ -7227,7 +7229,8 @@ void AircraftManager::HandleSwipe(Swipe swipe)
                 // the same fact, but this is the one DrawNoLocation reads, and a
                 // decline that disagreed with the radar about whether the device
                 // knows where it is would be worse than either answer.
-                if (!haveRoute && !hasLocation) {
+                if (follow::OutcomeForSwipe(haveRoute, hasLocation) ==
+                    follow::SwipeOutcome::Decline) {
                     followDeclineUntilMs = millis() + FOLLOW_DECLINE_MS;
                     Serial.println("[follow] swipe declined: no route and no location; "
                                    "nothing to draw");
