@@ -4762,7 +4762,12 @@ void AircraftManager::HandleFollowTransition()
     // The state machine's rail is what makes this safe to write at all: Landed
     // fires only on confident evidence, so a card can never appear for a flight
     // that merely stopped being heard (§5.4).
-    if (now == follow::State::Landed) {
+    if (now == follow::State::Landed && !FollowSessionActive()) {
+        // AND NOT FOR A SESSION FOLLOW. "Never written to NVS" is the promise the
+        // swipe is built on, and a souvenir is an NVS write. Two separate wrongs
+        // it avoids: overwriting the configured target's flight with a stranger's,
+        // and persisting a record produced by a gesture whose whole design is that
+        // the device forgets it at the next boot.
         follow::FlightRecord summary;
         summary.durationSec   = followStats.DurationSec();
         summary.maxAltMslFt   = (int32_t)lroundf(followStats.maxAltMslFt);
@@ -5198,6 +5203,20 @@ std::pair<int, int> AircraftManager::ProjectLocal(float pLat, float pLon,
 bool AircraftManager::ShowPostFlightCard() const
 {
     if (!followLog.Has())
+        return false;
+    // NOT UNDER A SESSION FOLLOW. The record carries no identity -- it is a
+    // summary of a flight, not of an aeroplane -- so the only thing keeping the
+    // card honest is that the subject has not changed underneath it. Initialise
+    // enforces that for the CONFIGURED target by clearing the log on an identity
+    // change; a swipe changes the subject without going near that path, and the
+    // reversed affordance rule means any card can now do it.
+    //
+    // SUPPRESSED RATHER THAN CLEARED, deliberately. Clearing would let a casual
+    // gesture permanently destroy the owner's Saturday flight, which is the one
+    // part of Follow that survives a power cycle and the reason it is allowed to.
+    // A session follow is transient by design; the souvenir outlives it and comes
+    // back when it ends.
+    if (FollowSessionActive())
         return false;
     // 7.1: LANDED until the next takeoff. WAITING is in the list because it
     // is the state a device boots into -- and the card is the one part of
