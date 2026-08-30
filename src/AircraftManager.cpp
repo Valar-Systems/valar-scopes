@@ -5175,6 +5175,35 @@ void AircraftManager::SetSessionFollow(const TrackedAircraft& tracked)
     followRouteDest   = tracked.routeDest;
     followMachine.SetTarget(true);
 
+    // #275: SEED THE MACHINE FROM THE CONTACT THAT WAS SWIPED, rather than
+    // opening at WAITING FOR DEPARTURE and spending 10-30 s of feed polls
+    // getting to a state the card underneath already showed. The argument for
+    // bypassing airborneConfirmFixes is written at follow::Machine::
+    // SeedFromContact; the short form is that the gate filters ONE UNATTESTED
+    // FIX, and a carded aircraft is not one.
+    //
+    // STAMPED WITH THE CONTACT'S OWN lastSeen, NOT millis(). The gesture is not
+    // evidence of freshness -- a card can be open on an aircraft heard 90 s ago
+    // -- and stamping the seed 'now' would restart the trackLostMs clock on
+    // nothing, delaying the absence states by exactly the age of the contact.
+    {
+        auto [sLat, sLon] = tracked.GetDisplayPosition();
+        follow::Fix f;
+        f.onGround        = tracked.state.onGround;
+        f.baroAltFt       = tracked.state.baroAltitude * 3.28084f;
+        f.geoAltFt        = tracked.state.geoAltitude * 3.28084f;
+        f.velocityKt      = tracked.state.velocity * 1.94384f;
+        f.verticalRateFpm = tracked.state.verticalRate * 196.850f;
+        f.lat = sLat; f.lon = sLon;
+        followMachine.SeedFromContact(f, (uint32_t)tracked.lastSeen);
+        // AND THE STATS, for the same reason one level along. The regime is
+        // read off followStats.furthestKm, and since the routing change the
+        // regime's only remaining job is choosing COPY -- so a freshly reset
+        // stats block would put the local regime's words ("Ground receivers do
+        // not reach that far.") under a jet in the middle of the Atlantic.
+        followStats.OnFix(f, (uint32_t)tracked.lastSeen, followHome);
+    }
+
     // Surface the face once so the gesture visibly took effect, then hand the
     // screen straight back to the rotation -- §13.3: Follow gets a screen, never
     // THE screen. This is the same dwell the state transitions use.
@@ -5182,11 +5211,15 @@ void AircraftManager::SetSessionFollow(const TrackedAircraft& tracked)
     EnterScreen(Screen::Follow);   // customer-initiated: the swipe asked for this
     followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
 
-    // §17: the target is NOT printed. The count and the route are.
-    Serial.printf("[follow] session target set (%u chars) route=%s->%s\n",
+    // §17: the target is NOT printed. The count, the route and the SEEDED
+    // STATE are -- the last of those so #275 is verifiable from the cable
+    // rather than from the glass: "state=AIRBORNE" on the same line as the
+    // gesture is the whole fix, and its absence is the regression.
+    Serial.printf("[follow] session target set (%u chars) route=%s->%s state=%s\n",
                   (unsigned)id.length(),
                   followRouteOrigin.isEmpty() ? "--" : followRouteOrigin.c_str(),
-                  followRouteDest.isEmpty() ? "--" : followRouteDest.c_str());
+                  followRouteDest.isEmpty() ? "--" : followRouteDest.c_str(),
+                  follow::Headline(followMachine.Current(), FollowRegime()));
 }
 
 // Swipe down on the follow face: stop following, and let a configured target

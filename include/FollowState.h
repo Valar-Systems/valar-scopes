@@ -337,6 +337,59 @@ public:
         if (state == State::Idle) state = State::Waiting;
     }
 
+    /**
+     * Adopt a contact the customer is LOOKING AT as this machine's starting
+     * state, instead of opening at WAITING FOR DEPARTURE (#275).
+     *
+     * WHY THIS IS NOT A SHORTCUT AROUND airborneConfirmFixes. That gate exists
+     * so ONE SPURIOUS FIX CANNOT ANNOUNCE A TAKEOFF -- it is a filter on a
+     * single unattested sample arriving from the feed. A swiped contact is not
+     * that sample and cannot be: it is an aircraft that has been in the tracked
+     * table long enough to be enriched, drawn on the radar, selected, and have
+     * its detail card opened. The evidence the gate is waiting for has already
+     * been gathered by the time the gesture is possible.
+     *
+     * WHAT IT COSTS TO LEAVE IT OUT, which is why it is worth a method. Without
+     * this the machine starts at Waiting and needs two more feed fixes to reach
+     * Airborne -- 10-30 s at the poll interval. For a configured target that is
+     * invisible, because nobody is watching the moment a target is typed into a
+     * web form. Under the swipe it is the FIRST THING THE FEATURE EVER SAYS,
+     * and what it says about an aircraft visibly at FL380 is
+     *
+     *     WAITING FOR DEPARTURE
+     *     Nothing heard today. Updates when they take off.
+     *
+     * -- two sentences that are both false about a contact whose altitude is on
+     * the card underneath. An occasional annoyance for one path is the normal
+     * first experience of the other.
+     *
+     * ON THE GROUND IS SEEDED TOO, and is not the same claim as Waiting. Ground
+     * means "seen, and it is on the ground"; Waiting means "nothing heard".
+     * Both read as "it has not left", but only one of them is true here, and
+     * the difference is exactly the one this machine exists to keep straight.
+     */
+    void SeedFromContact(const Fix& f, uint32_t nowMs, const Tuning& t = Tuning{})
+    {
+        if (state == State::Idle) return;   // nothing is being followed
+
+        last      = f;
+        lastFixMs = nowMs;
+        haveLast  = true;
+        newFlight = false;
+
+        if (f.onGround) {
+            state         = State::Ground;
+            groundSinceMs = nowMs;
+            airborneRun   = 0;
+            return;
+        }
+        groundSinceMs = 0;
+        // Already confirmed, by the card. Anything less would let the next
+        // ordinary fix re-run a gate this contact has already passed.
+        airborneRun = t.airborneConfirmFixes;
+        state       = State::Airborne;
+    }
+
     // A fix arrived for the followed aircraft.
     void OnFix(const Fix& f, uint32_t nowMs, const HomeContext& home, const Tuning& t = Tuning{})
     {

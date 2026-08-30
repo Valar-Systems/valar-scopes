@@ -979,5 +979,97 @@ int main()
         }
     }
 
+    // ---- #275: A SWIPED CONTACT IS NOT WAITING FOR DEPARTURE ---------------
+    //
+    // The machine opens at Waiting and needs airborneConfirmFixes feed fixes to
+    // reach Airborne. Under the config page nobody sees that. Under the swipe
+    // it is the first thing the feature ever says, and about a jet visibly at
+    // cruise it says "WAITING FOR DEPARTURE / Nothing heard today."
+    //
+    // Each assertion below is paired with the SAME scenario minus the seed,
+    // because "the machine is Airborne" is not evidence on its own -- two
+    // ordinary fixes would also produce it, and then this block would be
+    // testing OnFix rather than the fix.
+    std::printf("  ---- 275: seeding from a swiped contact\n");
+    {
+        const HomeContext home = HomeAt(HLAT, HLON, false);
+        const Fix atCruise = FixNorthOf(HLAT, HLON, 400.0f, 38000.0f, 480.0f, 0.0f);
+
+        // THE CONTROL FIRST, so the assertion after it means something. One
+        // fix through the ordinary path is NOT enough: this is the 10-30 s the
+        // customer spends looking at a false sentence.
+        {
+            Machine m; m.SetTarget(true);
+            m.OnFix(atCruise, 1000, home);
+            check(m.Current() == State::Waiting,
+                  "CONTROL: one ordinary fix leaves the machine WAITING (the bug)");
+            check(same(Headline(m.Current()), "WAITING FOR DEPARTURE"),
+                  "CONTROL: ... and that is the sentence #275 is about");
+        }
+
+        // The seed, from the same contact, in one call.
+        {
+            Machine m; m.SetTarget(true);
+            m.SeedFromContact(atCruise, 1000);
+            check(m.Current() == State::Airborne,
+                  "a seeded airborne contact is AIRBORNE on the first frame");
+        }
+
+        // ON THE GROUND IS A DIFFERENT CLAIM FROM NOTHING HEARD, and the seed
+        // must not flatten the two together in either direction.
+        {
+            Fix parked = atCruise;
+            parked.onGround = true; parked.velocityKt = 0.0f;
+            Machine m; m.SetTarget(true);
+            m.SeedFromContact(parked, 1000);
+            check(m.Current() == State::Ground,
+                  "a seeded on-ground contact is ON THE GROUND, not WAITING");
+            check(m.Current() != State::Landed,
+                  "CONTROL: ... and seeding never claims a LANDING it did not see");
+        }
+
+        // The seed is not a licence to follow nothing.
+        {
+            Machine m;   // no SetTarget: Idle
+            m.SeedFromContact(atCruise, 1000);
+            check(m.Current() == State::Idle,
+                  "CONTROL: seeding an Idle machine follows nothing and stays Idle");
+        }
+
+        // A seeded machine must not fall back out of Airborne on the next
+        // ordinary fix -- the confirm gate has to be satisfied, not deferred.
+        {
+            Machine m; m.SetTarget(true);
+            m.SeedFromContact(atCruise, 1000);
+            m.OnFix(atCruise, 6000, home);
+            check(m.Current() == State::Airborne,
+                  "the next ordinary fix keeps it AIRBORNE, not back to Waiting");
+        }
+
+        // THE STAMP IS THE CONTACT'S, NOT THE GESTURE'S. A card can be open on
+        // an aircraft last heard minutes ago; stamping the seed "now" restarts
+        // the absence clock on no evidence and hides a real dropout for exactly
+        // as long as the contact was stale.
+        {
+            Tuning t;
+            const uint32_t heard = 1000;
+            const uint32_t now   = heard + t.trackLostMs + 1000;
+
+            Machine honest; honest.SetTarget(true);
+            honest.SeedFromContact(atCruise, heard);          // stamped when HEARD
+            honest.OnNoFix(now, home, DestContext{}, t);
+            check(honest.Current() != State::Airborne,
+                  "a seed stamped at lastSeen goes absent on schedule");
+
+            // CONTROL: the same scenario stamped at the gesture instead. It must
+            // come out DIFFERENT, or the assertion above is not about the stamp.
+            Machine flattering; flattering.SetTarget(true);
+            flattering.SeedFromContact(atCruise, now);        // stamped "now"
+            flattering.OnNoFix(now, home, DestContext{}, t);
+            check(flattering.Current() == State::Airborne,
+                  "CONTROL: stamping the seed 'now' would hide the dropout");
+        }
+    }
+
     return failures ? 1 : 0;
 }
