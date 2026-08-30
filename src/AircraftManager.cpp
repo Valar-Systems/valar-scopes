@@ -5982,12 +5982,29 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
             };
             const int avail = discgeom::ClearCentredWidthPx(ey, lineH, SCREEN_SIZE,
                                                             boxes, 2);
-            String fit = why;
-            while (fit.length() > 1 && (int)backbuffer.textWidth(fit + "...") > avail)
-                fit.remove(fit.length() - 1);
-            if (fit.length() < why.length()) fit += "...";
+            // TWO LINES, WHOLE, OR NOTHING IS CUT. The clamp that used to live
+            // here turned "Out of receiver range, not off the radar." into
+            // "Out of receiver range, not" -- a different sentence that reads as
+            // a finished one. Right-truncation always removes the end, and the
+            // reassurance is at the end of every one of these strings.
+            //
+            // WrapBreaks refuses rather than shortening, so a string that does
+            // not fit is a fact about the STRING and the copy changes
+            // deliberately. The host test asserts the drawn text EQUALS the
+            // source, which is the only assertion that can catch this.
+            const int ey2 = ey + lineH + 1;
+            const int avail2 = discgeom::ClearCentredWidthPx(ey2, lineH, SCREEN_SIZE,
+                                                             boxes, 2);
+            const int widths[2] = { avail, avail2 };
+            int st_[2] = {0,0}, ln_[2] = {0,0};
+            const int used = follow::WrapBreaks(why.c_str(), widths, 2,
+                                                (int)backbuffer.textWidth("M"), st_, ln_);
             backbuffer.setTextColor(FOLLOW_DIM);
-            backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, ey);
+            for (int i = 0; i < used; ++i) {
+                const String part = why.substring(st_[i], st_[i] + ln_[i]);
+                const int ly = (i == 0) ? ey : ey2;
+                backbuffer.drawString(part, cx - (int)backbuffer.textWidth(part) / 2, ly);
+            }
         }
     } else if (havePos) {
         // Same discipline as the local face: state the MSL figure with "MSL"

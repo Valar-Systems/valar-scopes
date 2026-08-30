@@ -86,4 +86,61 @@ inline size_t SanitiseLabel(const char* in, char* out, size_t n)
     return w;
 }
 
+
+/**
+ * Word-wrap `text` across at most `maxLines`, given each line's usable width.
+ *
+ * ALL OR NOTHING. Returns the number of lines used, or 0 if the text does not
+ * fit -- never a partial result, and never a shortened one.
+ *
+ * WHY IT REFUSES INSTEAD OF TRUNCATING. The arc face used to clamp its
+ * explanation to the available width and append "...". On SIGNAL LOST that cut
+ *
+ *     "Out of receiver range, not off the radar."
+ *
+ * down to "Out of receiver range, not" -- which is not a shortened sentence, it
+ * is a DIFFERENT one, and it reads as complete. The clause carrying the whole
+ * meaning ("not off the radar") is exactly the clause a right-truncation
+ * removes, because reassurance lives at the end of a sentence and the caveat
+ * lives at the start.
+ *
+ * So the renderer no longer decides which half of a sentence the customer gets.
+ * If a string does not fit its region, that is a fact about the STRING, and the
+ * copy changes deliberately -- which a caller can only do if this function
+ * refuses rather than quietly coping.
+ *
+ * Fixed advance per character: the panel font is 6 px at size 1, and both this
+ * and the host test measure the same way.
+ */
+inline int WrapBreaks(const char* text, const int* widthPx, int maxLines,
+                      int charPx, int* startOut, int* lenOut)
+{
+    if (!text || !widthPx || !startOut || !lenOut || maxLines <= 0 || charPx <= 0)
+        return 0;
+    int n = 0; while (text[n]) ++n;
+    int pos = 0, line = 0;
+    while (pos < n && line < maxLines) {
+        while (text[pos] == ' ') ++pos;          // no line starts with a space
+        if (pos >= n) break;
+        const int budget = widthPx[line] / charPx;
+        if (budget <= 0) return 0;
+        int take = n - pos;
+        if (take > budget) {
+            // Break at the last space that fits; a word longer than the line
+            // cannot be placed at all, and that is a refusal, not a hyphenation.
+            int brk = -1;
+            for (int i = 0; i <= budget && pos + i < n; ++i)
+                if (text[pos + i] == ' ') brk = i;
+            if (brk <= 0) return 0;
+            take = brk;
+        }
+        startOut[line] = pos;
+        lenOut[line]   = take;
+        pos += take;
+        ++line;
+    }
+    while (pos < n && text[pos] == ' ') ++pos;
+    return (pos >= n) ? line : 0;   // leftover text means it did not fit
+}
+
 } // namespace follow

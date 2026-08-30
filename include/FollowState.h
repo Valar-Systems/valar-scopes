@@ -616,21 +616,19 @@ inline const char* Explanation(State s, Regime r = Regime::Local)
     switch (s) {
         case State::NoCoverage:
             return r == Regime::Airline
-                ? "No ground receivers out here - this is expected. "
-                  "Contact resumes on the far side."
+                ? "Expected out here. Contact resumes on the far side."
                 : "Ground receivers do not reach that far.";
         case State::SignalLost:
             return "Out of receiver range, not off the radar.";
         case State::ApproachLost:
             return r == Regime::Airline
                 ? "Expected at this range."
-                : "Low-level coverage is patchy. This usually means landed.";
+                : "Low coverage near the ground. Usually means landed.";
         case State::Waiting:
             // C4. The load-bearing line, and it is the same in both regimes:
             // it answers "is it broken, or is he just not flying?" and tells
             // the owner there is nothing to do.
-            return "Nothing heard yet today. This screen changes on its own "
-                   "when they take off.";
+            return "Nothing heard today. Updates when they take off.";
         default:
             return "";
     }

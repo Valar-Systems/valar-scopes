@@ -28,11 +28,13 @@
 // fails here rather than in six months on somebody's desk.
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 // DiscGeometry.h, not Layout.h: Layout resolves the variant and needs the
 // board. The chord rule has no hardware in it, so the SAME definition the
 // firmware compiles is the one graded here.
 #include "../../include/DiscGeometry.h"
+#include "../../include/FollowLabel.h"
 #include "../../include/FollowArc.h"
 #include "../../include/FollowGeometry.h"
 #include "../../include/FollowState.h"
@@ -909,6 +911,72 @@ int main()
         m3.OnNoFix(n3, home, DestContext{});
         check(m3.Current() == State::ApproachLost,
               "no route: home is the destination, local regime unchanged");
+    }
+
+    // ---- THE DRAWN TEXT EQUALS THE SOURCE TEXT ----------------------------
+    //
+    // Not "does not overlap" -- EQUALS. The overlap assertion passed while the
+    // renderer was quietly amputating sentences: SIGNAL LOST rendered
+    // "Out of receiver range, not" from "Out of receiver range, not off the
+    // radar.", which is not a shortened sentence but a different one, and it
+    // reads as complete. Right-truncation always takes the end, and the
+    // reassurance is at the end of every one of these strings -- the customer
+    // keeps the bad half and loses the good half.
+    //
+    // Copy is written TO the slot, not clamped INTO it. A string that cannot be
+    // laid out whole fails here, at build time, rather than being trimmed at
+    // draw time in front of somebody.
+    std::printf("  ---- every explanation renders WHOLE in its region\n");
+    {
+        constexpr int S = 240, LINEH = 8, CHARW = 6;
+        const int y0 = (int)follow::ARC_EXPLAIN_Y;
+        const int y1 = y0 + LINEH + 1;
+        const int ox = 61, oy = 179, dx = 179, dy = 179, half = 2 * CHARW;
+        const discgeom::Box boxes[2] = {
+            { ox - half, oy - LINEH / 2, ox + half, oy + LINEH / 2 },
+            { dx - half, dy - LINEH / 2, dx + half, dy + LINEH / 2 },
+        };
+        const int widths[2] = {
+            discgeom::ClearCentredWidthPx(y0, LINEH, S, boxes, 2),
+            discgeom::ClearCentredWidthPx(y1, LINEH, S, boxes, 2),
+        };
+
+        const State every[] = { State::NoCoverage, State::SignalLost,
+                                State::ApproachLost, State::Waiting };
+        const Regime both[2] = { Regime::Local, Regime::Airline };
+        for (State st : every) {
+            for (Regime r : both) {
+                const char* src = Explanation(st, r);
+                if (!src[0]) continue;
+                int a[2] = {0,0}, b[2] = {0,0};
+                const int used = follow::WrapBreaks(src, widths, 2, CHARW, a, b);
+                check(used > 0, "the explanation fits its region without clamping");
+                if (!used) { std::printf("        TOO LONG: %s\n", src); continue; }
+                // Reassemble exactly what the face draws, and compare.
+                std::string drawn;
+                for (int i = 0; i < used; ++i) {
+                    if (i) drawn += " ";
+                    drawn.append(src + a[i], (size_t)b[i]);
+                }
+                std::string want(src);
+                while (!want.empty() && want.back() == 32) want.pop_back();
+                check(drawn == want, "the drawn text EQUALS the source string");
+                if (drawn != want)
+                    std::printf("        drawn: %s\n        src  : %s\n",
+                                drawn.c_str(), want.c_str());
+            }
+        }
+
+        // CONTROL: a string deliberately too long MUST be refused, or this
+        // whole block passes by testing nothing.
+        {
+            int a[2], b[2];
+            const char* huge =
+                "This sentence is far too long to fit inside the region the arc "
+                "face reserves for an explanation, by a wide margin indeed.";
+            check(follow::WrapBreaks(huge, widths, 2, CHARW, a, b) == 0,
+                  "CONTROL: an overlong string is refused, not silently cut");
+        }
     }
 
     return failures ? 1 : 0;

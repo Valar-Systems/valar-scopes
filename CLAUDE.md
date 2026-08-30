@@ -598,6 +598,44 @@ Finally: once the system is healthy the failing branch may become **unreachable*
 A gate that cannot be made to fail is a gate nobody can check. Leave a seam that
 forces it (`PROBE_PANEL=999`), and use it.
 
+### A probe that cannot prove it planted is not a probe
+
+**Rehearsing a check red only means something if the sabotage actually
+happened.** Three times in one session a probe silently failed to apply, and
+each time the resulting green was read as information.
+
+- **The `/tmp` backup that was never written.** A header was copied to `/tmp`
+  from bash and restored from Python, which on Windows resolves that path
+  somewhere else entirely. Both probes failed to plant, and all three candidate
+  layout rows reported `0 failures` — including the two that were broken. The
+  reading was "the test passes everywhere", i.e. exactly backwards.
+- **The `sed` that matched nothing.** A cross-wiring probe used a pattern with
+  one space where the file had four. It reported PASS, which was true and
+  meaningless. Redone with an assertion that the edit applied: two real failures.
+- **The unfalsifiable prediction.** A message predicted the same slot would
+  render `BENCH-UN` and `BENCHUNK`, one paragraph apart, and miscounted the
+  source string. A prediction covering both outcomes cannot be wrong, so
+  confirming it proves nothing.
+
+The shape is the same as the two entries above it: **the observation cannot
+distinguish the passing world from the broken one.** A stale anchor, a moving
+target, and a probe that did not plant all produce output that looks like
+success.
+
+So, mechanically:
+
+1. **Assert the mutation before measuring.** `assert needle in src` then
+   `assert after != before`. Prefer doing it in the language that will read the
+   file back, so path and escaping assumptions are shared.
+2. **Never construct a probe with `sed` or a shell heredoc when the pattern
+   contains backslashes or indentation.** Both have silently eaten probes here.
+   Build the edit in Python with `chr(92)` where a literal backslash is needed.
+3. **State one expected value, not a range of them.** If you cannot say which
+   string should appear, you do not yet know what the check proves.
+4. **Read the failure, not just the count.** "0 failures" from a probe that
+   never planted is indistinguishable from "0 failures" because the code is
+   correct — so print what changed, and check that something did.
+
 ### Corollary: an anchor is meaningless against a target that is still moving
 
 **A live log is not a file, it is a stream with a filename.** Reading the COM4
