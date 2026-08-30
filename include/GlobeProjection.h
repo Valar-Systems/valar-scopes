@@ -78,35 +78,6 @@ constexpr float VEC_INV   = 1.0f / VEC_SCALE;
 const Coastline* Coastlines();
 int CoastlineCount();
 
-/// The high-density set, for zoomed-in views. Natural Earth 1:50m at 0.043 deg
-/// -- 13,512 vertices against the coarse set's 1,306. See LOD_DENSE_ABOVE_R.
-const Coastline* CoastlinesDense();
-int CoastlineDenseCount();
-
-/// Above this projection radius the coarse set's 0.52 deg decimation becomes
-/// visible as straight segments, and the dense set earns its cost.
-///
-/// DERIVED, NOT CHOSEN. The coarse data is decimated at 0.52 deg, so its drawn
-/// segment is 0.52*pi/180*R pixels: 1.1 px at R=119, 3.0 px at R=331, 9.7 px at
-/// R=1068. Three pixels is where straightness starts to read on this panel, so
-/// the crossover is 330 -- the same arithmetic that fixed the old 4,000 km
-/// threshold, applied to a scale instead of a distance.
-///
-/// The first version of this constant was 200, picked by feel before the
-/// arithmetic was done, and it put LHR-JFK (R=228) on the dense set for no
-/// visible gain at 17 ms of cost. Long routes zoom OUT to a small R and belong
-/// on the coarse set; short routes zoom IN and are exactly where the detail
-/// shows.
-constexpr float LOD_DENSE_ABOVE_R = 330.0f;
-
-/// Which coastline set should a view at this radius draw?
-inline const Coastline* CoastlinesFor(float R, int& countOut)
-{
-    if (R > LOD_DENSE_ABOVE_R) { countOut = CoastlineDenseCount(); return CoastlinesDense(); }
-    countOut = CoastlineCount();
-    return Coastlines();
-}
-
 // -----------------------------------------------------------------------------
 // The projection
 // -----------------------------------------------------------------------------

@@ -6212,13 +6212,19 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // touch x=240 and run off a 0..239 buffer), and every text row gets the plate
     // the top row already had.
     const int cy = Si(120.0f);
-    // FRAMED TO THE ROUTE (#274 step 5), not fixed at one scale. Depends only on
-    // the endpoints, so it is constant for as long as this flight is followed --
-    // see GlobeRadiusForRoute for why that is what makes the LOD switch safe.
-    const float routeKm = (view.org.known && view.dst.known)
-        ? follow::GreatCircleKm(view.org.lat, view.org.lon, view.dst.lat, view.dst.lon)
-        : 0.0f;
-    const float R  = follow::GlobeRadiusForRoute(routeKm, k * 120.0f);
+    // PANEL SIZE, AT EVERY DISTANCE. Route framing was built (#274) and reverted
+    // after seeing it: THE BEZEL IS THE LIMB. A full-panel disc reads as a planet
+    // because the physical edge of the round screen completes it, so zooming past
+    // panel size does not lose detail -- it loses the EDGE. At R=1068 the view is
+    // a 6.5 degree cap with no edge in it and reads as a flat map with a line on
+    // it, and drawn cues do not buy the edge back: a graticule at 6.5 degrees
+    // renders straight and reads as GRAPH PAPER, making the flatness worse. The
+    // pair cost ~9 ms and put the frame at the 85 ms ceiling for the privilege.
+    //
+    // So the globe answers "where on Earth" and the arc answers "how far along".
+    // A 1,147 km route is a short arc over France at this scale -- small, honest,
+    // and still showing something the arc cannot.
+    const float R  = k * 119.0f;
     const int   Ri = (int)lroundf(R);
 
     const follow::State st = view.st;
@@ -6326,10 +6332,8 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // the module's own rule: clipping to the limb buys at most half a pixel,
     // because the data is decimated to ~1 px and everything near the limb is
     // foreshortened below that.
-    // Coarse below the LOD radius, dense above -- the extra vertices are
-    // sub-pixel at whole-earth zoom and cost 19 ms for nothing there.
-    int ringCount = 0;
-    const globeproj::Coastline* rings = globeproj::CoastlinesFor(R, ringCount);
+    const globeproj::Coastline* rings = globeproj::Coastlines();
+    const int ringCount = globeproj::CoastlineCount();
     int vertices = 0;
     for (int i = 0; i < ringCount; ++i) {
         const globeproj::GeoVec* v = rings[i].v;

@@ -63,45 +63,6 @@ constexpr float ARC_RAD2DEG = 57.2957795131f;
 /// 40 km is about five minutes at approach speed, and comfortably larger than
 /// any terminal area -- the point is to exclude an aircraft several HUNDRED
 /// miles out, not to model an approach plate.
-/// The projection radius that FRAMES a route on a panel of radius `panelPx`.
-///
-/// Replaces the 4,000 km globe/arc threshold (#274). Instead of drawing the
-/// whole earth at one scale and refusing short routes, the sphere is scaled so
-/// the two endpoints sit at FRAME_FILL of the panel radius -- a 900 km hop
-/// becomes a close-up of curved terrain, a transoceanic haul a hemisphere.
-///
-/// An endpoint at angular distance theta/2 from the basis centre (MakeBasis
-/// already centres on the great-circle midpoint) projects to screen radius
-/// R*sin(theta/2), so R = FILL * panelPx / sin(theta/2).
-///
-/// FIXED PER ROUTE, AND DELIBERATELY SO. It depends only on the two endpoints,
-/// never on the aircraft's position or the flown track, so it cannot change
-/// while a flight is displayed. That is what makes the coastline LOD switch
-/// safe without hysteresis: the scale changes only when the followed flight
-/// changes, which is already a full face teardown. Framing that included the
-/// TRACK would shrink R continuously as the track grew, cross the LOD boundary
-/// mid-flight, and pop the coastline shape under the viewer -- so if that is
-/// ever wanted, hysteresis or a crossfade becomes mandatory at the same moment.
-inline float GlobeRadiusForRoute(float km, float panelPx)
-{
-    constexpr float FILL = 0.80f;
-    constexpr float EARTH_KM = 6371.0f;
-    const float theta = km / EARTH_KM;
-    const float s = sinf(theta * 0.5f);
-    // Same airport, or nonsense input: fall back to the whole-earth view rather
-    // than dividing by ~0 and scaling to infinity.
-    if (!(s > 1e-4f)) return panelPx;
-    const float R = FILL * panelPx / s;
-    // Never smaller than the panel. A globe that does not reach the edge reads
-    // as a shrunken earth rather than a wide shot, and near-antipodal routes
-    // would otherwise draw a disc floating in the middle of the screen.
-    const float lo = panelPx;
-    // Never sharper than the dense coastline data can support: 0.043 deg is
-    // ~1 px at R=1332, and past that the close-up is magnifying straight lines.
-    const float hi = 1332.0f * (panelPx / 120.0f);
-    return R < lo ? lo : (R > hi ? hi : R);
-}
-
 constexpr float APPROACH_RADIUS_KM = 40.0f;
 
 constexpr float ARC_EXPLAIN_Y = 190.0f;
