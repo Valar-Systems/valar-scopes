@@ -636,6 +636,46 @@ So, mechanically:
    never planted is indistinguishable from "0 failures" because the code is
    correct — so print what changed, and check that something did.
 
+### A plausible measurement from a build that never landed
+
+**Same family as the entry above, different mechanism.** There the sabotage did
+not apply; here the *fix* did not apply, and both hand back a believable number
+about a state that does not exist.
+
+Twice in one night a `pio ... -t upload` was fired while the serial bridge still
+held COM4. It fails in about ten seconds with
+
+    A fatal error occurred: Could not open COM4, the port is busy or doesn't exist.
+
+and `bench-capture.ps1` documents exactly this ("killing the process returns
+immediately but Windows releases the COM handle a beat later"). The board keeps
+running the OLD image, the bridge reattaches, the keys are acknowledged, the
+serial log looks completely normal — and the measurement that follows is real
+data from the wrong firmware.
+
+**What caught it was that the numbers were too identical.** `arc=40.78ms` against
+the previous run's `arc=40.80ms`. Had the change been subtle, two runs agreeing
+to a hundredth of a millisecond would have read as *"no regression"* — the most
+reassuring possible phrasing of "you measured nothing".
+
+The general trap: **a failed deploy and an ineffective change produce the same
+observation.** So does a successful deploy of a change that does nothing. Three
+different worlds, one reading.
+
+Mechanically, and this is cheap:
+
+1. **Read the flash's exit status and stop on it.** Not the tail of its output —
+   the exit code. A failed upload prints plenty of cheerful text above the error.
+2. **Free the port before flashing, and wait for the handle**, which is a poll,
+   not a sleep. Killing the holder returns before Windows releases it.
+3. **Prove the new image is the one running before you measure it.** The
+   `[build] env=` banner names the ENV, not the BUILD, so it cannot distinguish
+   two images of the same env — which is precisely this case. Until a build stamp
+   exists, the substitute is to change something observable and observe it.
+4. **Treat an identical number as suspicious, not as confirmation.** Real
+   measurements of a real change move, even slightly. Two runs agreeing exactly
+   is evidence about the pipeline, not about the code.
+
 ### Corollary: an anchor is meaningless against a target that is still moving
 
 **A live log is not a file, it is a stream with a filename.** Reading the COM4
