@@ -3621,7 +3621,14 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
             // So it takes the state's colour and the same 0.55 fade 8 gives the
             // estimated readout, from the two functions the face already uses.
             ink = FollowStateColour(v.st, /*benignApproach=*/true);
-            if (follow::Machine::IsAbsent(v.st))
+            // THE SAME CONDITION THE HERO USES, not a similar one. The first
+            // version faded on IsAbsent, which is a SUPERSET: ApproachLost is
+            // absent, so the arrival time dimmed while the hero above it stayed
+            // full green -- reintroducing the split treatment one state over
+            // from where it was fixed. 8 fades the estimated readout in
+            // NO COVERAGE specifically, because that is where the position is
+            // dead-reckoned rather than last-known.
+            if (v.st == follow::State::NoCoverage)
                 ink = FollowFade(ink, 0.55f);
         }
     }
@@ -7879,7 +7886,13 @@ bool AircraftManager::SendFollowAlert(follow::State was, follow::State now)
             body = "Last seen";
             if (clock[0]) body += " " + String(clock);
             body += " at " + String((int)lroundf(follow::AltitudeMslFt(f))) + " ft MSL. "
-                    "He is out of receiver range, not off the radar.";
+                    // The same sentence as follow::Explanation(SignalLost),
+                    // written out a second time. The pronoun fix had to be made
+                    // in both places and the ELF grep is what found this one --
+                    // the source edit looked unique because it WAS unique in
+                    // that file. Worth folding into one string when the ntfy
+                    // bodies are next touched.
+                    "Out of receiver range, not off the radar.";
             break;
         default:
             return false;

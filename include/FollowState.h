@@ -399,7 +399,7 @@ public:
         // §5.1 states it plainly: "NO_COVERAGE is a POSITION argument." An
         // aircraft last seen inside the home radius that stopped being heard is
         // in the pattern or on the ground, and either way "ground receivers do
-        // not reach where he is now" is TRUE. §10: a local dropout must NOT use
+        // not reach that far" is TRUE. §10: a local dropout must NOT use
         // the alarming copy; it is the local analogue of APPROACH_LOST, and
         // getting it backwards makes the device look broken every single
         // circuit.
@@ -584,10 +584,10 @@ inline const char* Explanation(State s, Regime r = Regime::Local)
         case State::NoCoverage:
             return r == Regime::Airline
                 ? "No ground receivers out here - this is expected. "
-                  "He will reappear on the far side."
-                : "Ground receivers do not reach where he is now.";
+                  "Contact resumes on the far side."
+                : "Ground receivers do not reach that far.";
         case State::SignalLost:
-            return "He is out of receiver range, not off the radar.";
+            return "Out of receiver range, not off the radar.";
         case State::ApproachLost:
             return r == Regime::Airline
                 ? "Expected at this range."
@@ -597,7 +597,7 @@ inline const char* Explanation(State s, Regime r = Regime::Local)
             // it answers "is it broken, or is he just not flying?" and tells
             // the owner there is nothing to do.
             return "Nothing heard yet today. This screen changes on its own "
-                   "when he takes off.";
+                   "when they take off.";
         default:
             return "";
     }
