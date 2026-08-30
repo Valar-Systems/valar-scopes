@@ -16,11 +16,27 @@
 #include "../../include/GlobeProjection.h"
 
 namespace globeproj {
-namespace {
-#include "Coastlines.inc"
-}  // namespace
 
-const Coastline* Coastlines() { return kCoast; }
-int CoastlineCount() { return (int)(sizeof(kCoast) / sizeof(kCoast[0])); }
+// TWO SETS, SELECTED BY ZOOM (#274 step 5). Each .inc declares the same symbol
+// names, so each gets its own namespace rather than an edit to a generated file.
+//
+// WHY BOTH ARE SHIPPED. The dense set is 10.3x the vertices and buys nothing at
+// whole-earth zoom, where the extra detail is sub-pixel: measured on COM4 it
+// cost 22.5 -> 41.9 ms and pushed the frame residual to +9.0 ms against a 10 ms
+// gate margin. It is worth its 71 KB only once the view is zoomed in far enough
+// that the coarse set would show straight edges -- 0.52 deg is 1 px at R=110 and
+// 12 px at R=1349.
+namespace coarse {
+#include "Coastlines.inc"
+}  // namespace coarse
+namespace dense {
+#include "CoastlinesDense.inc"
+}  // namespace dense
+
+const Coastline* Coastlines() { return coarse::kCoast; }
+int CoastlineCount() { return (int)(sizeof(coarse::kCoast) / sizeof(coarse::kCoast[0])); }
+
+const Coastline* CoastlinesDense() { return dense::kCoast; }
+int CoastlineDenseCount() { return (int)(sizeof(dense::kCoast) / sizeof(dense::kCoast[0])); }
 
 }  // namespace globeproj

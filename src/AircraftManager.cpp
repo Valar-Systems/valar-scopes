@@ -5341,14 +5341,21 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
     // So the arc is chosen when it has something to draw, and the local face is
     // the fallback rather than the other way round.
     if (FollowRegime() == follow::Regime::Airline && FollowRouteKnown()) {
-        // §9's threshold, argued at 4,000 km in the spec. Both codes have to
-        // RESOLVE for the globe, not merely be present: the arc face can draw a
-        // code-only route, the globe cannot place a single pixel without
-        // coordinates.
+        // A GLOBE FOR EVERY AIRLINER, AT WHATEVER SCALE THE ROUTE NEEDS (#274).
+        //
+        // The 4,000 km threshold is gone. It was two things at once -- a
+        // legibility argument, and (within 7 %) the radius past which the coarse
+        // coastline set draws visible straight edges -- and route framing plus
+        // the dense LOD set removes both. A 900 km hop now zooms to a close-up
+        // of curved terrain instead of falling back to the arc.
+        //
+        // Both codes must still RESOLVE, and that is not a distance rule: the
+        // arc draws a route from its STRINGS, the globe cannot place a single
+        // pixel without coordinates. That is the code-only degradation, and it
+        // is the only reason left to prefer the arc.
         const follow::Endpoint o = follow::LookupAirport(followRouteOrigin.c_str());
         const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
-        if (o.known && d.known &&
-            follow::GreatCircleKm(o.lat, o.lon, d.lat, d.lon) >= FOLLOW_GLOBE_MIN_KM) {
+        if (o.known && d.known) {
             DrawRouteGlobe(backbuffer, FollowRouteView());
             return;
         }
@@ -6205,7 +6212,13 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // touch x=240 and run off a 0..239 buffer), and every text row gets the plate
     // the top row already had.
     const int cy = Si(120.0f);
-    const float R = k * 119.0f;
+    // FRAMED TO THE ROUTE (#274 step 5), not fixed at one scale. Depends only on
+    // the endpoints, so it is constant for as long as this flight is followed --
+    // see GlobeRadiusForRoute for why that is what makes the LOD switch safe.
+    const float routeKm = (view.org.known && view.dst.known)
+        ? follow::GreatCircleKm(view.org.lat, view.org.lon, view.dst.lat, view.dst.lon)
+        : 0.0f;
+    const float R  = follow::GlobeRadiusForRoute(routeKm, k * 120.0f);
     const int   Ri = (int)lroundf(R);
 
     const follow::State st = view.st;
@@ -6313,8 +6326,10 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // the module's own rule: clipping to the limb buys at most half a pixel,
     // because the data is decimated to ~1 px and everything near the limb is
     // foreshortened below that.
-    const globeproj::Coastline* rings = globeproj::Coastlines();
-    const int ringCount = globeproj::CoastlineCount();
+    // Coarse below the LOD radius, dense above -- the extra vertices are
+    // sub-pixel at whole-earth zoom and cost 19 ms for nothing there.
+    int ringCount = 0;
+    const globeproj::Coastline* rings = globeproj::CoastlinesFor(R, ringCount);
     int vertices = 0;
     for (int i = 0; i < ringCount; ++i) {
         const globeproj::GeoVec* v = rings[i].v;
