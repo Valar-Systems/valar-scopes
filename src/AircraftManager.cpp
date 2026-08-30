@@ -6350,6 +6350,62 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         }
     }
 
+    // ---- the graticule ------------------------------------------------------
+    //
+    // MERIDIANS AND PARALLELS CURVE AT ANY ZOOM, which is the whole reason they
+    // are here. The limb is what says "sphere", and the limb leaves the panel
+    // the moment R exceeds panel size -- at R=1068 the view is a 6.5 degree cap
+    // with no edge in it, and the result reads as a flat map with a line on it.
+    // A parallel is a circle seen obliquely and a meridian converges toward the
+    // poles, so both carry curvature when there is no edge to carry it.
+    //
+    // ONLY THE LINES THAT CROSS THE VIEW, and the spacing follows the zoom, so
+    // this gets CHEAPER as it zooms in: fewer lines intersect a smaller cap.
+    // Measured budget at 2.80 us per projection: ~3.1 ms at R=119 falling to
+    // ~1.3 ms at R=1068.
+    {
+        const float viewSin = fminf(1.0f, (float)SCREEN_SIZE_DIV_2 / R);
+        const float viewDeg = asinf(viewSin) * 57.2957795f;
+        // Spacing chosen so a handful of lines cross the view at any zoom.
+        const float stepDeg = viewDeg > 60.0f ? 30.0f
+                            : viewDeg > 20.0f ? 15.0f
+                            : viewDeg > 8.0f  ?  5.0f : 2.0f;
+        // The view centre in lat/lon: basis.v is the vector pointing at the
+        // viewer, so it IS the centre of the visible cap.
+        const float cLat = asinf(fmaxf(-1.0f, fminf(1.0f, basis.v[2]))) * 57.2957795f;
+        const float cLon = atan2f(basis.v[1], basis.v[0]) * 57.2957795f;
+        const uint32_t GRAT = lgfx::color888(0x0E, 0x2E, 0x22);   // under the coast
+        const float margin = viewDeg + stepDeg;
+
+        const auto strokeLine = [&](bool meridian, float fixedDeg) {
+            float pxL = 0.0f, pyL = 0.0f; bool pvL = false;
+            constexpr int N = 48;
+            for (int i = 0; i <= N; ++i) {
+                const float t = (float)i / (float)N;
+                // Sample only the span that can be in view, not the whole line.
+                const float lo = (meridian ? cLat : cLon) - margin;
+                const float hi = (meridian ? cLat : cLon) + margin;
+                const float v = lo + (hi - lo) * t;
+                const float la = meridian ? v : fixedDeg;
+                const float lo2 = meridian ? fixedDeg : v;
+                if (la < -90.0f || la > 90.0f) { pvL = false; continue; }
+                float w[3], x = 0.0f, y = 0.0f;
+                globeproj::UnitVec(lo2, la, w);
+                const bool vis = globeproj::Project(basis, w[0], w[1], w[2],
+                                                    (float)cx, (float)cy, R, x, y);
+                if (vis && pvL &&
+                    !globeproj::SegmentOffPanel(pxL, pyL, x, y, SCREEN_SIZE, SCREEN_SIZE))
+                    backbuffer.drawLine((int)pxL, (int)pyL, (int)x, (int)y, GRAT);
+                pxL = x; pyL = y; pvL = vis;
+            }
+        };
+        for (float d = -margin; d <= margin; d += stepDeg) {
+            const float lat = roundf((cLat + d) / stepDeg) * stepDeg;
+            if (lat > -90.0f && lat < 90.0f) strokeLine(false, lat);   // parallel
+            strokeLine(true, roundf((cLon + d) / stepDeg) * stepDeg);  // meridian
+        }
+    }
+
     // The limb: the one line that makes the disc a sphere rather than a circle.
     backbuffer.drawCircle(cx, cy, Ri, lgfx::color888(0x12, 0x46, 0x33));  // graticule green
 
@@ -6361,17 +6417,45 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         float north[3] = { 0.0f, 0.0f, 1.0f }, e1[3], e2[3];
         globeproj::Cross3(sun, north, e1); globeproj::Norm3(e1);
         globeproj::Cross3(sun, e1, e2);    globeproj::Norm3(e2);
-        // SAMPLES PROPORTIONAL TO ZOOM (#274 step 3). A fixed 120 samples of the
-        // whole great circle is ~6 px per segment at R=119. At R=1350 the
-        // visible cap is ~10 degrees of arc, so about THREE samples land on the
-        // panel and the terminator becomes a three-segment polyline. Scaling
-        // with R holds the on-screen segment length roughly constant; the
-        // off-panel majority is now thrown away by the outcode cull above
-        // rather than drawn.
-        const int termSteps = (int)fminf(1440.0f, fmaxf(120.0f, R));
+        // ONLY THE VISIBLE ARC, IN CLOSED FORM.
+        //
+        // Step 3 scaled the sample count with R, which was the crude version of
+        // this: at R=1068 it walked 1,068 samples of the whole great circle so
+        // that the ~60 falling on the panel would be dense enough. Solving for
+        // the visible span instead costs a few trig calls and samples ONLY that
+        // span, so the drawn part is denser AND the whole thing is cheaper --
+        // 2.99 ms -> 0.17 ms at R=1068 by the measured 2.80 us per projection.
+        //
+        // A terminator point is P(a) = e1*cos(a) + e2*sin(a), and it is on the
+        // visible cap when dot(P, viewCentre) > cos(viewRadius). Writing
+        // A = dot(e1,c), B = dot(e2,c), that is
+        //
+        //     A*cos(a) + B*sin(a) > cosR   <=>   K*cos(a - phi) > cosR
+        //
+        // with K = hypot(A,B) and phi = atan2(B,A). So the visible span is
+        // exactly a in [phi - D, phi + D], D = acos(cosR / K). cosR/K > 1 means
+        // the terminator misses the view entirely -- draw nothing, which is why
+        // it is often correctly absent -- and < -1 means all of it is in view.
+        const float viewSin = fminf(1.0f, (float)SCREEN_SIZE_DIV_2 / R);
+        const float cosR    = sqrtf(fmaxf(0.0f, 1.0f - viewSin * viewSin));
+        const float A = globeproj::Dot3(e1, basis.v);
+        const float B = globeproj::Dot3(e2, basis.v);
+        const float K = sqrtf(A * A + B * B);
+        float aFrom = 0.0f, aTo = 2.0f * 3.14159265f;
+        bool  termVisible = true;
+        if (K > 1e-6f) {
+            const float q = cosR / K;
+            if (q > 1.0f)       termVisible = false;           // misses the view
+            else if (q > -1.0f) {                              // a bounded arc
+                const float phi = atan2f(B, A);
+                const float D   = acosf(q);
+                aFrom = phi - D; aTo = phi + D;
+            }
+        }
+        const int termSteps = 72;
         float px = 0.0f, py = 0.0f; bool pv = false;
-        for (int i = 0; i <= termSteps; ++i) {
-            const float a = (float)i * (2.0f * 3.14159265f / (float)termSteps);
+        for (int i = 0; termVisible && i <= termSteps; ++i) {
+            const float a = aFrom + (aTo - aFrom) * ((float)i / (float)termSteps);
             const float ca = cosf(a), sa = sinf(a);
             float x = 0.0f, y = 0.0f;
             const bool vis = globeproj::Project(basis,
@@ -6412,16 +6496,57 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     }
 
     // Endpoints, then the aircraft.
-    const auto place = [&](float lat0, float lon0, int r, uint32_t c, bool fill) {
+    const auto place = [&](float lat0, float lon0, int r, uint32_t c, bool fill,
+                           float* outX = nullptr, float* outY = nullptr) {
         float w[3], x = 0.0f, y = 0.0f;
         globeproj::UnitVec(lon0, lat0, w);
         if (!globeproj::Project(basis, w[0], w[1], w[2], (float)cx, (float)cy, R, x, y))
-            return;
+            return false;
         if (fill) backbuffer.fillCircle((int)x, (int)y, r, c);
         else      backbuffer.drawCircle((int)x, (int)y, r, c);
+        if (outX) *outX = x;
+        if (outY) *outY = y;
+        return true;
     };
-    place(org.lat, org.lon, Si(3.0f), FOLLOW_DIM, false);
-    place(dst.lat, dst.lon, Si(3.0f), FOLLOW_DIM, true);
+    float oX = 0.0f, oY = 0.0f, dX = 0.0f, dY = 0.0f;
+    const bool oOn = place(org.lat, org.lon, Si(3.0f), FOLLOW_DIM, false, &oX, &oY);
+    const bool dOn = place(dst.lat, dst.lon, Si(3.0f), FOLLOW_DIM, true,  &dX, &dY);
+
+    // THE CODES BELONG AT THE ENDS OF THE ROUTE, NOT IN A HEADER.
+    //
+    // They used to ride in the y=26 header as "<label>  ORG -> DST", where the
+    // chord is 141 px -- 23 characters. "BENCH-LHR-BCN  LHR -> BCN" is 25, so
+    // FitToDisc cut it from the right and DESTROYED THE DESTINATION, leaving the
+    // origin stranded mid-string in a centred, shortened line. Reported from the
+    // bench as two bugs ("BCN has no label", "LHR is in the top-left corner");
+    // it was one. Exactly the defect fixed on the arc face's explanation row
+    // hours earlier -- and I fixed that face without checking this one.
+    //
+    // At the ends there is no header to overflow, and the label sits next to the
+    // thing it names. Placed on the far side of each marker from the other, so
+    // the two never lean toward each other.
+    const auto endLabel = [&](const String& code, float x, float y, bool towardLeft,
+                              uint32_t c) {
+        if (code.isEmpty()) return;
+        String up = code; up.toUpperCase();
+        const int w = (int)backbuffer.textWidth(up);
+        const int lx = towardLeft ? (int)x - w - Si(6.0f) : (int)x + Si(6.0f);
+        const int ly = (int)y - lineH / 2;
+        // A round panel has no edge to clip against, so keep the whole label on
+        // the glass rather than letting it run off the curve.
+        if (lx < 2 || lx + w > SCREEN_SIZE - 2) return;
+        backbuffer.setTextColor(c);
+        backbuffer.drawString(up, lx, ly);
+    };
+    // Two labels closer than this would overlap; fall back to the header form,
+    // which is legible precisely when the ends are too close to label separately.
+    const float sep = (oOn && dOn) ? sqrtf((dX - oX) * (dX - oX) + (dY - oY) * (dY - oY))
+                                   : 0.0f;
+    const bool labelAtEnds = oOn && dOn && sep >= (float)Si(46.0f);
+    if (labelAtEnds) {
+        endLabel(view.origCode, oX, oY, dX > oX, FOLLOW_DIM);
+        endLabel(view.destCode, dX, dY, dX < oX, colour);
+    }
 
     // §9: THE AIRCRAFT IS DRAWN AT ITS REAL ADS-B POSITION, NOT INTERPOLATED
     // ONTO THE LINE. "The gap between the two is the actual routing and is more
@@ -6454,7 +6579,9 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         backbuffer.setTextColor(c);
         backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
     };
-    plated(who + "  " + o + " -> " + d, Si(26.0f), FOLLOW_DIM);
+    // The header carries the CODES only when the ends are too close together to
+    // label individually -- otherwise it is just the flight, and cannot overflow.
+    plated(labelAtEnds ? who : (who + "  " + o + " -> " + d), Si(26.0f), FOLLOW_DIM);
 
     if (follow::Machine::IsAbsent(st))
         plated(follow::Headline(st, follow::Regime::Airline), Si(206.0f), colour);
