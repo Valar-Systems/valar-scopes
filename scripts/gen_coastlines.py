@@ -36,7 +36,23 @@ TWO RULES FROM THE FLAT-MAP ERA ARE GONE, both non-problems on a sphere:
   python scripts/gen_coastlines.py ne_110m_land.geojson > src/anim/Coastlines.inc
 
 Source: https://github.com/nvkelso/natural-earth-vector (public domain).
+REGENERATING THIS DATA REQUIRES TOUCHING THE TU THAT INCLUDES IT.
+
+    python scripts/gen_coastlines.py ne_50m_land.geojson > src/anim/Coastlines.inc
+    touch src/anim/Coastlines.cpp        # <-- NOT OPTIONAL
+
+SCons does not track Coastlines.inc as a dependency of Coastlines.cpp, so a
+regenerated .inc alone does NOT trigger a recompile: the build succeeds, reports
+no error, and silently links the PREVIOUS data.
+
+This cost a full measurement round on 2026-08-30. Three coastline densities were
+built and compared, and all three produced the shipped build -- the tell was that
+two of the image sizes were byte-identical for vertex counts differing by more
+than a thousand. Without that coincidence the numbers would have been reported as
+"density barely affects frame cost", which is both wrong and plausible.
+
 """
+
 import json
 import math
 import sys

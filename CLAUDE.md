@@ -676,6 +676,33 @@ Mechanically, and this is cheap:
    measurements of a real change move, even slightly. Two runs agreeing exactly
    is evidence about the pipeline, not about the code.
 
+**The third member, and the worst, because it is CONSISTENT.** A generated data
+file (`src/anim/Coastlines.inc`) is `#include`d by a `.cpp`, and **SCons does not
+track it as a dependency**. Regenerate the data, rebuild, and the build succeeds,
+reports nothing, and links the PREVIOUS data.
+
+Three coastline densities were built and measured this way. All three were the
+same shipped build. Unlike a failed flash — which produces *one* wrong number and
+usually smells wrong — this produces a *complete, internally consistent table* of
+wrong numbers, and the conclusion it supports ("density barely affects frame
+cost") is exactly the sort of tidy result nobody questions.
+
+What caught it was rule 4 above: two of the image sizes were **byte-identical**
+for vertex counts differing by more than a thousand. The fix is one line
+(`touch` the including TU) and it is now written at the top of the generator.
+
+So a fourth rule, and the generalisation of the three: **compare the ARTIFACTS,
+not the numbers derived from them.** `cmp` the two binaries. If a change that
+should alter the image leaves it byte-identical, nothing downstream is worth
+reading.
+
+Related, from the same session and worth one line so the symptom is recognised:
+**a rehearsal log ran away to 8.1 GB and filled the volume to 13 MB free.** The
+first build after that failed with `OSError: [Errno 28] No space left on device`
+buried in a SCons traceback — which reads as a build error, not a disk error, and
+sent the investigation toward the data that had just changed. Check `df` before
+believing a build failure that arrives right after you generated something large.
+
 ### Corollary: an anchor is meaningless against a target that is still moving
 
 **A live log is not a file, it is a stream with a filename.** Reading the COM4
