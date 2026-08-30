@@ -59,36 +59,99 @@ until the hardware does.
 
 ## 2. The three-case route rule
 
-The affordance and the face are both decided by what the route resolves to, and
-the three cases want three different things:
+> **AMENDED 2026-08-30, and one rule below is REVERSED.** The three cases and
+> the rule underneath them survive intact; what changed is that the route no
+> longer gates the *gesture*, only the *face*, and the 4,000 km threshold is
+> gone (#274). The superseded row is kept below rather than deleted, because
+> the argument that produced it is sound and will be re-derived by somebody
+> otherwise.
 
-| case | behaviour |
+The face is decided by what the route resolves to, and the three cases want
+three different things:
+
+| case | face |
 |---|---|
-| **No route at all** (`routeOrigin`/`routeDest` empty) | **No affordance.** The swipe keeps meaning "close". A peek with nothing to draw should not be offerable. |
-| **Both codes resolve to coordinates** | Globe if great-circle ≥ **4,000 km**, arc below. Same threshold as Follow (§9). |
-| **Codes present, one or both unresolvable** | **Arc, never an empty globe.** |
+| **Both codes place** | **Globe.** At whatever scale the route needs — the 4,000 km threshold was deleted in #274. |
+| **Codes present, one or both unplaceable** | **Arc, never an empty globe.** |
+| **No destination at all** (`routeOrigin`/`routeDest` empty) | **Local face.** Rings around home, and a track. |
 
 The rule underneath, which is the part to remember:
 
-> **The globe requires coordinates; the arc requires only strings.**
+> **The globe requires coordinates; the arc requires only strings; the local
+> face requires neither.**
 
 The globe has nothing to centre on without both endpoints — its basis is built
 from them. The arc draws its codes from the strings and simply omits the marker,
 which is the code-only degradation Follow already builds and tests. So a
 resolution miss degrades to the arc rather than to a blank disc.
 
+**The arc is the CODE-ONLY face, not the unrouted face**, and that distinction
+is load-bearing. An earlier reading of this rule was binary — routed or not —
+and would have sent an unplaceable pair to the local face. That throws away work
+already judged on glass (ZQX → QZY under ROUTE ONLY was made to read as
+deliberate rather than broken) *and* loses the codes, which are the most
+informative true thing the device holds about that flight.
+
+### The reversal: every card is swipeable
+
+**The original rule was: no route, no affordance.** The swipe kept meaning
+"close" on a route-less card, on the argument that
+
+> A peek with nothing to draw should not be offerable. An affordance that
+> sometimes does nothing teaches people it does nothing.
+
+**That argument is sound and it was aimed at the wrong target.** A route-less
+contact is not a flight with nothing to draw — it is a flight whose picture is
+the **local face**, which is the face this product shipped first (§1.1) and the
+one most contacts on a domestic scope deserve. Withholding the gesture there
+meant the feature silently refused the commonest aircraft on the screen, which
+teaches "it does nothing" *faster* than an occasional weak result would.
+
+So the route chooses the face and no longer gates the gesture. Exactly one
+combination is genuinely empty:
+
+| | |
+|---|---|
+| no route | no arc (needs codes), no globe (needs coordinates) |
+| **and** no location | no local face either — its rings, its HOME marker and its whole auto-scale are built around a point the device has not been told |
+
+**That one declines visibly**, which is what the original rule actually wanted:
+
+```
+NO LOCATION SET
+Set one to follow this flight.
+```
+
+Amber, not red (§6: an explained state, not a fault). The copy names the fix
+rather than the mechanism — the customer cannot give the flight a route, and can
+give the device a location in half a minute — and the second line is scoped to
+**this flight** on purpose, because a routed flight follows perfectly well
+without a location and "you cannot follow anything" would be false.
+
+### Known behaviour: the trail is empty at the moment of the swipe
+
+The local face is rings plus a **track**, and the track starts at the gesture —
+so the first frame after a swipe onto a route-less contact has a bearing arrow
+and rings and no path behind it. This is **accepted, not a defect**: the trail
+fills as the aircraft moves, and rings with a bearing arrow are already a true
+picture of where it is. Recorded here so it is not re-diagnosed as a bug, and
+so nobody designs a backfill for it — the trail is what the device has actually
+observed since it was asked to watch, and inventing history for it would make
+the one honest thing on that face dishonest.
+
 ---
 
 ## 3. Lifecycle — a session follow target
 
-- **Entry:** swipe down on a card whose flight has a route. The aircraft becomes
-  the follow target **for this session only**.
+- **Entry:** swipe down on **any** card. The aircraft becomes the follow target
+  **for this session only**. (Was "a card whose flight has a route" — see the
+  reversal in §2.)
 - **Persistence: none.** Never written to NVS. A reboot forgets it and the
   configured target (if any) resumes. The config page stays the only persistent
   path, which is what keeps C2 untouched: the device still never *stores* a
   target it was not explicitly given.
 - **From there it is Follow as built.** Absence states and dead reckoning on
-  contact loss, arc/globe by the 4,000 km rule, the post-flight card on landing.
+  contact loss, the face by §2's three-case rule, the post-flight card on landing.
   No dwell, no auto-close, no freeze-and-expire — those existed only because a
   12 s peek had no stake, and a session follow does.
 - **Dismissal:** swipe down on the follow face clears the session target and the

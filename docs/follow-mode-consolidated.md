@@ -820,26 +820,64 @@ One screen slot (C6). The face is chosen, never picked:
 | no follow target | screen hidden entirely |
 | target set, not yet seen, no previous flight | pre-departure (C4) |
 | target set, not yet seen, previous flight on file | post-flight card (§11) |
-| local regime, any live state | local face (§10) |
-| airline regime, both codes resolve, great-circle ≥ **4,000 km** | globe face (§9) |
-| airline regime, route known | arc face (§8) |
-| **airline regime, NO route** | **local face (§10)** — see below |
+| both route codes **place** | globe face (§9) |
+| route codes present, one or both **unplaceable** | arc face (§8) — the CODE-ONLY face |
+| **no destination at all** | local face (§10) |
 | `LANDED` until next takeoff | post-flight card (§11) |
 
-Regime is inferred, not configured: an aircraft that stays inside the home radius is
-local; one that leaves it is not.
+### AMENDED 2026-08-30 — THE REGIME NO LONGER SELECTS A FACE
 
-**AMENDED 2026-08-27 — the route-less long-range row.** This table used to send
-"airline regime, otherwise" to the arc face unconditionally, which assumed a route
-always exists. It does not: a GA cross-country is past the home radius with nothing
-filed, and it was getting a dim empty ring. The local face's auto-scaled rings and
-its track are strictly more informative for that flight, so it is the fallback.
-The arc is chosen when it has something to draw.
+**This table used to route on the regime, and it no longer does.** Every row
+above is decided by the route alone. The regime is not deleted; it is
+**demoted**, and its remaining job is real: it selects the **copy**
+(`Headline` / `Explanation`), which is the one question it was always good at.
 
-Note also that the regime is read from the flight's **furthest extent**, which never
-falls within a flight and resets with the next one. Feeding it the live separation
-would flap the face once per circuit at exactly the radius where an aircraft spends
-most of its time.
+Why the demotion. Routing on the regime put a decision about *which picture to
+draw* behind an inference about *how far from home the flight got*. Those are
+unrelated questions, and the seam showed:
+
+- an airliner still inside the home radius on climb-out got the **local face**
+  despite having a filed route and a globe's worth of coordinates; and
+- the face then **changed under the customer** the moment the aircraft crossed
+  an invisible circle nobody had drawn.
+
+Whereas for copy the regime is exactly the right input, because "Ground
+receivers do not reach that far" and "Expected out here. Contact resumes on the
+far side." differ in *nothing else*. **Face from the route; words from the
+regime.**
+
+The 2026-08-27 amendment below is subsumed by this one — the route-less
+long-range flight still gets the local face, now because it has no destination
+rather than because of anything about its regime.
+
+> **AMENDED 2026-08-27 — the route-less long-range row.** This table used to send
+> "airline regime, otherwise" to the arc face unconditionally, which assumed a route
+> always exists. It does not: a GA cross-country is past the home radius with nothing
+> filed, and it was getting a dim empty ring. The local face's auto-scaled rings and
+> its track are strictly more informative for that flight, so it is the fallback.
+> The arc is chosen when it has something to draw.
+
+Two properties of the regime that still matter, since it still chooses words:
+
+- It is inferred, not configured: an aircraft that stays inside the home radius is
+  local; one that leaves it is not. There is no config key for this and there must
+  not be — the customer following a trainer and the customer following a son's
+  airliner both just typed a tail number into the same box.
+- It is read from the flight's **furthest extent**, which never falls within a
+  flight and resets with the next one. Feeding it the live separation would flap
+  the *copy* once per circuit at exactly the radius where an aircraft spends most
+  of its time. (Before the demotion this would have flapped the whole face, which
+  is the sharper version of the same bug and the reason the rule exists.)
+
+**Consequence for the session follow.** `SetSessionFollow` seeds `followStats`
+from the swiped contact as well as the machine, because a freshly reset stats
+block reports `furthestKm = 0`, i.e. the local regime — which would put
+"Ground receivers do not reach that far." under a jet in the middle of the
+Atlantic. When the regime routed faces this was one bug; now that it only picks
+words it is still one bug, in the one place the regime is still read.
+
+**The 4,000 km globe threshold is also gone** (#274). A globe is drawn for any
+route whose endpoints place, at whatever scale the route needs.
 
 ### 7.2 Reuse, do not rebuild
 
@@ -923,6 +961,13 @@ clear.
 > to the **local face**, not to an arc with nothing on it — a GA cross-country is
 > past the home radius with nothing filed, and rings-and-track beat a dim empty
 > ring. Both were found by building it; neither is carried as a deviation.
+>
+> **Superseded in part, 2026-08-30.** That row's outcome stands and its reason
+> changed: the local face is chosen because there is **no destination**, not
+> because of anything about the regime, which no longer selects faces at all.
+> The arc's own row is now "codes present, one or both unplaceable" — so the
+> degradation described below is not a fallback the arc tolerates, it is the arc's
+> defining case.
 >
 > **The degradation is a tested path, not a hope.** An unresolved code still
 > *draws* — the codes are strings first and coordinates second — so a missing
