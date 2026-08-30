@@ -43,6 +43,15 @@ constexpr float ARC_RAD2DEG = 57.2957795131f;
 // §8's arc sweeps clockwise from 135 degrees to 405, with 0 at 3 o'clock. That
 // puts the origin at 7:30 and the destination at 4:30, leaving the bottom of the
 // disc clear for the readout -- which is the whole reason for the odd numbers.
+/// The row the state EXPLANATION draws on, in 240 px units.
+///
+/// SHARED WITH THE TEST ON PURPOSE. It was 176, which put the text band
+/// (176..184) straight through both airport code boxes (y 175..183); the
+/// collision was found on glass 2026-08-29. A host test that hardcoded its own
+/// copy of the row would keep passing if the face moved back, so the face and
+/// the check read the same number and a regression cannot hide between them.
+constexpr float ARC_EXPLAIN_Y = 186.0f;
+
 constexpr float ARC_START_DEG = 135.0f;
 constexpr float ARC_SWEEP_DEG = 270.0f;
 

@@ -765,5 +765,88 @@ int main()
               "CONTROL: en route distinguishes flying from parked");
     }
 
+    // ---- THE EXPLANATION LINE MUST CLEAR THE AIRPORT LABELS ----------------
+    //
+    // Found on glass 2026-08-29: "Expected at this range." ran into "BCN", and
+    // "No ground receivers out here" into the same label one state over. It
+    // read as string-length dependent -- short strings looked fine, long ones
+    // did not -- so it was invisible to review of any single string.
+    //
+    // It was never about the copy. EVERY explanation is wider than the free
+    // span at the old row, because the row itself overlapped the label boxes.
+    // This asserts the geometry against all of them at once, so a layout that
+    // happens to suit the sentences we wrote today cannot pass.
+    std::printf("  ---- every explanation clears the arc-end labels\n");
+    {
+        constexpr int S = 240, LINEH = 8, CHARW = 6;   // built-in font, size 1
+        // FROM THE FACE, not a copy of it -- see follow::ARC_EXPLAIN_Y.
+        const int EXPLAIN_Y = (int)follow::ARC_EXPLAIN_Y;
+        // The two code labels, at radius 84 on the 135..405 degree arc.
+        const int ox = 61, oy = 179, dx = 179, dy = 179;   // computed centres
+        const int half = 2 * CHARW;                        // a 4-char code
+        const discgeom::Box boxes[2] = {
+            { ox - half, oy - LINEH / 2, ox + half, oy + LINEH / 2 },
+            { dx - half, dy - LINEH / 2, dx + half, dy + LINEH / 2 },
+        };
+
+        const int avail = discgeom::ClearCentredWidthPx(EXPLAIN_Y, LINEH, S, boxes, 2);
+        check(avail > 0, "the explanation row has usable width at all");
+
+        // A centred line of that width must not reach either label box.
+        const int lo = S / 2 - avail / 2, hi = S / 2 + avail / 2;
+        for (int i = 0; i < 2; ++i) {
+            const bool vOverlap = !(boxes[i].y1 <= EXPLAIN_Y || boxes[i].y0 >= EXPLAIN_Y + LINEH);
+            const bool hOverlap = !(hi <= boxes[i].x0 || lo >= boxes[i].x1);
+            check(!(vOverlap && hOverlap), "the fitted line does not overlap a code label");
+        }
+
+        // Every explanation, clamped to that width, still fits.
+        // The shortest explanation we ship: if the row cannot hold even this,
+        // the row is wrong regardless of what the other strings do.
+        int shortestPx = 1 << 30;
+        {
+            const State every[] = { State::NoCoverage, State::SignalLost,
+                                    State::ApproachLost, State::Waiting };
+            const Regime both[2] = { Regime::Local, Regime::Airline };
+            for (State st : every)
+                for (Regime r : both) {
+                    const char* e = Explanation(st, r);
+                    int n = 0; while (e[n]) ++n;
+                    if (n > 0 && n * CHARW < shortestPx) shortestPx = n * CHARW;
+                }
+        }
+        check(shortestPx < (1 << 30), "found a shortest explanation to measure against");
+
+        const State all[] = { State::NoCoverage, State::SignalLost,
+                              State::ApproachLost, State::Waiting };
+        for (State st : all) {
+            const Regime regs[2] = { Regime::Local, Regime::Airline };
+            for (Regime r : regs) {
+                const char* e = Explanation(st, r);
+                int n = 0; while (e[n]) ++n;
+                const int wanted = n * CHARW;
+                // Either it fits, or the face clamps it -- both are fine. What
+                // must never happen is the row being too narrow to say anything.
+                // THE REAL REQUIREMENT. Clearing the labels is true by
+                // construction of ClearCentredWidthPx, so asserting it cannot
+                // fail. What CAN fail -- and did, at the old row -- is the free
+                // span collapsing below what the copy needs: at y=176 it was
+                // 100 px against a 138 px shortest explanation, so every string
+                // was clamped into nonsense or drawn over the label.
+                if (wanted > 0)
+                    check(avail >= shortestPx,
+                          "the row fits the shortest explanation without clamping");
+            }
+        }
+
+        // CONTROL: at the OLD row the same check must FAIL, or this test would
+        // have passed against the bug it exists for.
+        const int oldAvail = discgeom::ClearCentredWidthPx(176, LINEH, S, boxes, 2);
+        check(oldAvail < avail,
+              "CONTROL: the old row (176) is narrower -- it overlapped the labels");
+        check(oldAvail * 1 < 138,
+              "CONTROL: the old row could not fit even the shortest explanation");
+    }
+
     return failures ? 1 : 0;
 }

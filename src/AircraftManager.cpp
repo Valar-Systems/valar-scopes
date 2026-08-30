@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "FollowLabel.h"
+#include "DiscGeometry.h"
 #include "DisplayUnits.h"
 #include "RouteLabel.h"
 #include "ConfigMigration.h"
@@ -5945,7 +5946,36 @@ void AircraftManager::DrawRouteArc(BandCanvas& backbuffer, const RouteView& view
         backbuffer.drawString(chip, cx - (int)backbuffer.textWidth(chip) / 2,
                               top + (h - lineH) / 2);
         const String why = follow::Explanation(st, follow::Regime::Airline);
-        if (!why.isEmpty()) row(why, 176.0f, FOLLOW_DIM, 1);
+        // MOVED OFF THE LABEL ROW, 2026-08-29, and bounded so it cannot drift
+        // back. At y=176 this line's band (176..184) overlapped BOTH airport
+        // code boxes (y 175..183), and the widest centred span clearing the
+        // destination label there is 100 px against a 195 px chord -- narrower
+        // than the shortest explanation we have. Fitting to the chord therefore
+        // ran every one of them through the code. y=186 clears the labels
+        // entirely and keeps ~180 px.
+        //
+        // The boxes are passed rather than assumed: if the codes ever move, the
+        // width follows them instead of silently overlapping again.
+        if (!why.isEmpty()) {
+            const int ey = Si(follow::ARC_EXPLAIN_Y);
+            int ox = 0, oy = 0, dx = 0, dy = 0;
+            at(a0, S(84.0f), ox, oy);
+            at(a1, S(84.0f), dx, dy);
+            const int ow = (int)backbuffer.textWidth(view.origCode) / 2 + Si(2.0f);
+            const int dw = (int)backbuffer.textWidth(view.destCode) / 2 + Si(2.0f);
+            const discgeom::Box boxes[2] = {
+                { ox - ow, oy - lineH / 2, ox + ow, oy + lineH / 2 },
+                { dx - dw, dy - lineH / 2, dx + dw, dy + lineH / 2 },
+            };
+            const int avail = discgeom::ClearCentredWidthPx(ey, lineH, SCREEN_SIZE,
+                                                            boxes, 2);
+            String fit = why;
+            while (fit.length() > 1 && (int)backbuffer.textWidth(fit + "...") > avail)
+                fit.remove(fit.length() - 1);
+            if (fit.length() < why.length()) fit += "...";
+            backbuffer.setTextColor(FOLLOW_DIM);
+            backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, ey);
+        }
     } else if (havePos) {
         // Same discipline as the local face: state the MSL figure with "MSL"
         // beside it, or decline. C5's elevation delivery is what would make an
