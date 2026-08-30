@@ -5290,9 +5290,19 @@ void AircraftManager::DrawFollowRouteStrip(BandCanvas& backbuffer)
         backbuffer.fillCircle(mx, barY, Si(2.5f), colour);
     }
 
-    // Folded into the face counters on purpose -- see the note above.
+    // ASSIGN, DO NOT ACCUMULATE. This was `+=`, which made every strip number
+    // reported today meaningless: the faces assign per draw and only
+    // followArcMaxUs is reset after a report, so on the radar face -- where the
+    // strip draws and the faces do not -- followArcUs summed EVERY FRAME across
+    // the whole report window. It read 260.88 ms for a draw that costs well
+    // under a millisecond, and the "max" was just that total climbing.
+    //
+    // It hid because the strip is the one thing here that draws on a screen
+    // whose counter nobody was watching. The faces and the strip never draw in
+    // the same frame, so one counter is fine -- as long as both write it the
+    // same way.
     const uint32_t us = micros() - t0;
-    followArcUs += us;
+    followArcUs = us;
     if (followArcUs > followArcMaxUs) followArcMaxUs = followArcUs;
 }
 
@@ -6247,17 +6257,40 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         // size -- and 2 px is invisible against a terminator that is itself a
         // soft edge. Sampling per pixel would double the cost to resolve
         // something the atmosphere does not resolve either.
+        // BOUNDED BY THE PANEL, NOT THE SPHERE (#274 step 1).
+        //
+        // This used to run `y` from cy-Ri to cy+Ri and scan the full chord at
+        // each row. At the fixed R=119 that is nearly the panel and costs
+        // nothing to ignore. Under route framing R reaches ~1350 for a short
+        // hop, and the loop then scans 1,348 rows of which 120 are on screen --
+        // 91 % of the work thrown away -- with the inner scan crossing the whole
+        // sphere each time. Measured cost went as R^1.46, extrapolating to
+        // ~770 ms per frame. That is the entire reason zooming looked impossible.
+        //
+        // Clipped, the fill is bounded by the PANEL at any zoom: the row count
+        // is at most SCREEN_SIZE/STEP and each row spans at most SCREEN_SIZE.
+        // The sphere may be enormous; the work is not.
         constexpr int STEP = 2;
-        for (int y = cy - Ri; y <= cy + Ri; y += STEP) {
+        const int yLo = (cy - Ri) > 0 ? (cy - Ri) : 0;
+        const int yHi = (cy + Ri) < (SCREEN_SIZE - 1) ? (cy + Ri) : (SCREEN_SIZE - 1);
+        for (int y = yLo; y <= yHi; y += STEP) {
             const float py = (float)(cy - y) / R;
             const float halfSq = 1.0f - py * py;
             if (halfSq <= 0.0f) continue;
             const float half = sqrtf(halfSq);
+            // Clip the span to the panel in x as well, in the same units the
+            // scan already uses. Without this the row is cheap but still walks
+            // the sphere's whole chord to find the two pixels that are visible.
+            const float pxLoPanel = ((float)(0 - cx)) / R;
+            const float pxHiPanel = ((float)(SCREEN_SIZE - 1 - cx)) / R;
+            const float pxLo = (-half > pxLoPanel) ? -half : pxLoPanel;
+            const float pxHi = ( half < pxHiPanel) ?  half : pxHiPanel;
+            if (pxHi <= pxLo) continue;
             int runStart = 0;
             bool inRun = false;
             for (int i = 0; ; ++i) {
-                const float px = -half + (float)i * (float)STEP / R;
-                const bool past = px > half;
+                const float px = pxLo + (float)i * (float)STEP / R;
+                const bool past = px > pxHi;
                 bool night = false;
                 if (!past) {
                     const float pz2 = 1.0f - px * px - py * py;
@@ -6294,7 +6327,8 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
             const bool vis = globeproj::Project(basis,
                 p.x * globeproj::VEC_INV, p.y * globeproj::VEC_INV,
                 p.z * globeproj::VEC_INV, (float)cx, (float)cy, R, x, y);
-            if (vis && pv)
+            if (vis && pv &&
+                !globeproj::SegmentOffPanel(px, py, x, y, SCREEN_SIZE, SCREEN_SIZE))
                 backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, COAST);
             px = x; py = y; pv = vis;
             ++vertices;
@@ -6312,15 +6346,25 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         float north[3] = { 0.0f, 0.0f, 1.0f }, e1[3], e2[3];
         globeproj::Cross3(sun, north, e1); globeproj::Norm3(e1);
         globeproj::Cross3(sun, e1, e2);    globeproj::Norm3(e2);
+        // SAMPLES PROPORTIONAL TO ZOOM (#274 step 3). A fixed 120 samples of the
+        // whole great circle is ~6 px per segment at R=119. At R=1350 the
+        // visible cap is ~10 degrees of arc, so about THREE samples land on the
+        // panel and the terminator becomes a three-segment polyline. Scaling
+        // with R holds the on-screen segment length roughly constant; the
+        // off-panel majority is now thrown away by the outcode cull above
+        // rather than drawn.
+        const int termSteps = (int)fminf(1440.0f, fmaxf(120.0f, R));
         float px = 0.0f, py = 0.0f; bool pv = false;
-        for (int i = 0; i <= 120; ++i) {
-            const float a = (float)i * (2.0f * 3.14159265f / 120.0f);
+        for (int i = 0; i <= termSteps; ++i) {
+            const float a = (float)i * (2.0f * 3.14159265f / (float)termSteps);
             const float ca = cosf(a), sa = sinf(a);
             float x = 0.0f, y = 0.0f;
             const bool vis = globeproj::Project(basis,
                 e1[0] * ca + e2[0] * sa, e1[1] * ca + e2[1] * sa,
                 e1[2] * ca + e2[2] * sa, (float)cx, (float)cy, R, x, y);
-            if (vis && pv) backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, TERM);
+            if (vis && pv &&
+                !globeproj::SegmentOffPanel(px, py, x, y, SCREEN_SIZE, SCREEN_SIZE))
+                backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, TERM);
             px = x; py = y; pv = vis;
         }
     }

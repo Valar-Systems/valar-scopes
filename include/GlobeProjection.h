@@ -184,6 +184,35 @@ inline bool Project(const Basis& g, float x, float y, float z,
 
 /// Great-circle interpolation between two places, as a unit vector. The
 /// animation's own `GreatCircle()` in world coordinates, parameterised.
+/// Cohen-Sutherland outcode against a w x h panel.
+inline int Outcode(float x, float y, int w, int h)
+{
+    int o = 0;
+    if (x < 0.0f)            o |= 1;
+    else if (x > (float)(w - 1)) o |= 2;
+    if (y < 0.0f)            o |= 4;
+    else if (y > (float)(h - 1)) o |= 8;
+    return o;
+}
+
+/// Can this segment be thrown away without drawing it?
+///
+/// VISIBILITY IS A VIEWPORT QUESTION, NOT A HEMISPHERE ONE (#274 step 2).
+/// Project() returns `zz > 0`, which asks "is this point on the near side of the
+/// sphere" -- the right question when the sphere fills the panel and a wildly
+/// wrong one once it does not. Under route framing R reaches ~1350 px on a
+/// 240 px panel, so almost everything on the near hemisphere is off screen and
+/// still reached drawLine.
+///
+/// Trivial reject only: both ends outside the SAME edge. A segment with both
+/// ends off-panel on different sides may still cross it, and dropping those is
+/// how a coastline develops holes at high zoom -- the bug this function exists
+/// to avoid, not to cause.
+inline bool SegmentOffPanel(float x0, float y0, float x1, float y1, int w, int h)
+{
+    return (Outcode(x0, y0, w, h) & Outcode(x1, y1, w, h)) != 0;
+}
+
 inline void GreatCirclePoint(float lon0, float lat0, float lon1, float lat1,
                              float f, float* o)
 {
