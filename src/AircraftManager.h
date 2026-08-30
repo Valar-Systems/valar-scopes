@@ -352,6 +352,15 @@ private:
     unsigned long followAutoUntilMs = 0;
     static constexpr unsigned long FOLLOW_AUTO_DWELL_MS = 20000;
 
+    // A swipe that CANNOT produce a face has to say so. Every card is swipeable
+    // now, and exactly one combination has nothing to draw: no route (so no arc
+    // and no globe) and no configured location (so the local face would ring a
+    // point in the Gulf of Guinea). Silence there is the worst option -- it
+    // teaches the customer the gesture does nothing, which is what the old
+    // no-affordance rule was trying to avoid and got backwards.
+    unsigned long followDeclineUntilMs = 0;   // millis() the notice expires (0 = none)
+    static constexpr unsigned long FOLLOW_DECLINE_MS = 4000;
+
 #ifdef FOLLOW_BENCH
     // The bench image self-enables a synthetic target once per boot so the face
     // has something to draw. It is ARMED ONCE: after the first Initialise an
@@ -639,6 +648,7 @@ private:
     void PushClaimToast(const String& text);
     void UpdateClaimToast();
     void DrawClaimToast(BandCanvas& backbuffer) const;
+    void DrawFollowDeclineToast(BandCanvas& backbuffer) const; // swipe with nothing to draw
     // Claim everything a tapped aircraft is carrying (type, airline, country,
     // route airports) and queue the confirmation. Safe to call every frame the
     // card is open: it no-ops once the type is claimed.

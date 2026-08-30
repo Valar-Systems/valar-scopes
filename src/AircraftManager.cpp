@@ -2884,6 +2884,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
             DrawDetailCard(backbuffer, it->second);
             DrawVisualAlert(backbuffer); // the edge ring stays visible around the card
             DrawRankToast(backbuffer);   // a rank-up toast shows over the card too
+            DrawFollowDeclineToast(backbuffer);
             return;
         }
         ExitDetail(); // selected aircraft left the feed (idempotent across band passes)
@@ -2933,6 +2934,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     DrawVisualAlert(backbuffer); // military/emergency ring pulse / flash, over any screen
     DrawRankToast(backbuffer);   // transient "RANK UP" banner after a leaderboard climb
     DrawClaimToast(backbuffer);  // transient "CLAIMED <type> #N" after a tap-to-claim
+    DrawFollowDeclineToast(backbuffer);  // a swipe that had nothing to draw, said out loud
 }
 
 SpecialAircraft::Class AircraftManager::SpecialClassOf(const TrackedAircraft& tracked) const
@@ -4480,6 +4482,63 @@ void AircraftManager::DrawRankToast(BandCanvas& backbuffer) const
 #endif
 }
 
+// A SWIPE THAT COULD NOT PRODUCE A FACE, SAID OUT LOUD.
+//
+// Every card is swipeable now -- the old "no route, no affordance" rule is
+// reversed, because withholding the gesture from route-less contacts meant the
+// commonest aircraft on a domestic scope silently refused the feature. Exactly
+// one combination is left with nothing to draw:
+//
+//     no route          -> no arc (it needs codes) and no globe (coordinates)
+//     no home position  -> no local face either; its rings, its HOME marker and
+//                          its whole auto-scale are built around a point the
+//                          device has not been told
+//
+// A follow set in that state renders an empty disc, which is indistinguishable
+// from a broken one -- the same failure DrawNoLocation exists to prevent on the
+// radar, and the reason it is first in that chain.
+//
+// SO IT DECLINES, VISIBLY. The alternative considered and rejected was to keep
+// the swipe silent here; that is the old rule in miniature, and its cost is that
+// the customer learns the gesture does nothing rather than learning what to do.
+//
+// THE COPY NAMES THE FIX, NOT THE MECHANISM. "This flight has no route so Follow
+// needs a home position" is true and useless: the customer cannot give it a
+// route, and can give it a location in about thirty seconds. The second line is
+// scoped to THIS FLIGHT on purpose -- a routed flight follows perfectly well
+// without a location, so "you cannot follow anything" would be a lie.
+void AircraftManager::DrawFollowDeclineToast(BandCanvas& backbuffer) const
+{
+    if (followDeclineUntilMs == 0) return;
+    if ((long)(millis() - followDeclineUntilMs) >= 0) return;   // expired
+
+    const char* l1 = "NO LOCATION SET";
+    const char* l2 = "Set one to follow this flight.";
+
+    backbuffer.setTextSize(1);
+    const int th = backbuffer.fontHeight();
+    const int w1 = (int)backbuffer.textWidth(l1);
+    const int w2 = (int)backbuffer.textWidth(l2);
+    const int tw = (w1 > w2) ? w1 : w2;
+
+    const int padX = 10, padY = 6, gap = 4;
+    const int w = tw + 2 * padX;
+    const int h = 2 * th + gap + 2 * padY;
+    const int cx = SCREEN_SIZE_DIV_2;
+    const int cy = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 6;   // above centre, clear of the clock
+    const int x = cx - w / 2, y = cy - h / 2;
+
+    // Amber, not red. 6's argument in one word: this is an explained state, not
+    // a fault, and the palette has to say so here for the same reason it says so
+    // on the faces.
+    backbuffer.fillRoundRect(x, y, w, h, 5, lgfx::color888(38, 26, 0));
+    backbuffer.drawRoundRect(x, y, w, h, 5, FOLLOW_AMBER);
+    backbuffer.setTextColor(FOLLOW_AMBER);
+    backbuffer.drawString(l1, cx - w1 / 2, y + padY);
+    backbuffer.setTextColor(FOLLOW_DIM);
+    backbuffer.drawString(l2, cx - w2 / 2, y + padY + th + gap);
+}
+
 // ---------------------------------------------------------------------------
 // Follow Mode stage 1 (docs/follow-mode-consolidated.md §4)
 // ---------------------------------------------------------------------------
@@ -5132,11 +5191,10 @@ std::pair<int, int> AircraftManager::ProjectLocal(float pLat, float pLon,
     return { (int)lroundf(x), (int)lroundf(y) };
 }
 
-// The router (C6). One screen slot, several faces, chosen by regime and state
-// per §7.1 -- never picked by the customer. The local face is the only one
-// built; the arc face, the globe and the post-flight card are §19 items 4 and
-// 8-10, and until they exist an airline-regime follow gets the local face's
-// honest states rather than a face that pretends to know a route.
+// The router (C6). One screen slot, several faces, chosen by THE ROUTE and the
+// state -- never picked by the customer, and, since the routing change, never
+// picked by the regime either. All four faces are built now. See DrawFollow for
+// the three-case rule and for what the regime was demoted to.
 bool AircraftManager::ShowPostFlightCard() const
 {
     if (!followLog.Has())
@@ -5379,16 +5437,36 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
     }
     if (ShowPostFlightCard()) { DrawFollowPostFlightCard(backbuffer); return; }
 
-    // THE ARC FACE REQUIRES A ROUTE, WHICH IS A DEVIATION FROM §7.1 AND IS
-    // DELIBERATE. The table sends "airline regime, otherwise" to the arc face
-    // unconditionally, but an arc with no origin, no destination and no
-    // progress is a dim ring with nothing on it -- strictly less than the local
-    // face, whose rings auto-scale to whatever extent the flight has and whose
-    // track is still a picture of the flight. A GA cross-country is exactly
-    // this case: outside the home radius, no route, and well served by rings.
-    // So the arc is chosen when it has something to draw, and the local face is
-    // the fallback rather than the other way round.
-    if (FollowRegime() == follow::Regime::Airline && FollowRouteKnown()) {
+    // THREE CASES, THREE FACES, AND THE ROUTE DECIDES ALL OF THEM.
+    //
+    //   both codes PLACEABLE   -> globe.  It is built from coordinates.
+    //   codes present, one or
+    //     both UNPLACEABLE     -> arc.    It is built from strings, and is the
+    //                                     only face that can be.
+    //   NO DESTINATION at all  -> local.  Rings around home, and a track.
+    //
+    // The rule underneath: THE GLOBE REQUIRES COORDINATES, THE ARC REQUIRES ONLY
+    // STRINGS, THE LOCAL FACE REQUIRES NEITHER. Each case gets the most
+    // informative face its inputs can actually fill.
+    //
+    // THE REGIME NO LONGER SELECTS A FACE, and that is a demotion rather than an
+    // omission. 7.1 used to route on it, which put a decision about WHICH PICTURE
+    // TO DRAW behind an inference about HOW FAR FROM HOME THE FLIGHT GOT -- so an
+    // airliner still inside the home radius on climb-out got the local face
+    // despite having a route, and the face changed under the customer when the
+    // aircraft crossed an invisible circle. The regime survives, and its
+    // remaining job is real: it chooses the COPY (Headline/Explanation), where
+    // "how far from home" is exactly the right question, because "Ground
+    // receivers do not reach that far" and "Expected out here" differ in nothing
+    // else. Face from the route; words from the regime.
+    //
+    // THE ARC IS NOT THE UNROUTED FACE -- it is the CODE-ONLY face. That was the
+    // correction to an earlier binary reading of this rule, and it preserves
+    // something already built and judged on glass: ZQX -> QZY with ROUTE ONLY
+    // beneath it reads as deliberate rather than broken. Sending an unplaceable
+    // pair to the local face would throw that away AND lose the codes, which are
+    // the most informative true thing the device holds about that flight.
+    if (FollowRouteKnown()) {
         // A GLOBE FOR EVERY AIRLINER, AT WHATEVER SCALE THE ROUTE NEEDS (#274).
         //
         // The 4,000 km threshold is gone. It was two things at once -- a
@@ -5399,8 +5477,7 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
         //
         // Both codes must still RESOLVE, and that is not a distance rule: the
         // arc draws a route from its STRINGS, the globe cannot place a single
-        // pixel without coordinates. That is the code-only degradation, and it
-        // is the only reason left to prefer the arc.
+        // pixel without coordinates. That is the code-only degradation.
         const follow::Endpoint o = follow::LookupAirport(followRouteOrigin.c_str());
         const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
         if (o.known && d.known) {
@@ -7124,14 +7201,39 @@ void AircraftManager::HandleSwipe(Swipe swipe)
             pinnedIcao = (pinnedIcao == selectedIcao) ? "" : selectedIcao;
             EnterScreen(Screen::Radar);
         }
-        // SWIPE DOWN FOLLOWS THIS FLIGHT for the session -- but only when there
-        // is a route to draw. docs/tap-to-peek.md's first rule: no route, no
-        // affordance, and the swipe keeps its old meaning of "close". An
-        // affordance that sometimes does nothing teaches people it does nothing.
+        // SWIPE DOWN FOLLOWS THIS FLIGHT for the session. EVERY CARD, which is
+        // a REVERSAL of docs/tap-to-peek.md's original first rule.
+        //
+        // That rule said "no route, no affordance": the swipe kept its old
+        // meaning of close, on the argument that an affordance which sometimes
+        // does nothing teaches people it does nothing. The argument is sound and
+        // it was aimed at the wrong target. A route-less contact is not a flight
+        // with nothing to show -- it is a flight whose picture is the LOCAL FACE,
+        // rings and a track and honest states, which is the face this product
+        // shipped first and the one most domestic contacts deserve. Withholding
+        // the gesture there meant the feature silently refused the commonest
+        // aircraft on the scope, which teaches the same lesson faster.
+        //
+        // So the route no longer gates the gesture; it chooses the FACE (see
+        // DrawFollow). The one genuinely empty combination declines out loud
+        // rather than quietly, which is what the original rule actually wanted.
         if (swipe == Swipe::Down) {
             auto sel = trackedAircraft.find(selectedIcao);
-            if (sel != trackedAircraft.end() &&
-                !sel->second.routeOrigin.isEmpty() && !sel->second.routeDest.isEmpty()) {
+            if (sel != trackedAircraft.end()) {
+                const bool haveRoute = !sel->second.routeOrigin.isEmpty() &&
+                                       !sel->second.routeDest.isEmpty();
+                // No route AND no location: no face can be drawn. `hasLocation`
+                // rather than followHome.positionKnown deliberately -- they hold
+                // the same fact, but this is the one DrawNoLocation reads, and a
+                // decline that disagreed with the radar about whether the device
+                // knows where it is would be worse than either answer.
+                if (!haveRoute && !hasLocation) {
+                    followDeclineUntilMs = millis() + FOLLOW_DECLINE_MS;
+                    Serial.println("[follow] swipe declined: no route and no location; "
+                                   "nothing to draw");
+                    ExitDetail();
+                    return;
+                }
                 SetSessionFollow(sel->second);
                 inDetail = false;   // NOT ExitDetail(): SetSessionFollow already
                                     // chose the screen, and ExitDetail would
