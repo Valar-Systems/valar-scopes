@@ -45,11 +45,19 @@ constexpr float ARC_RAD2DEG = 57.2957795131f;
 // disc clear for the readout -- which is the whole reason for the odd numbers.
 /// The row the state EXPLANATION draws on, in 240 px units.
 ///
-/// SHARED WITH THE TEST ON PURPOSE. It was 176, which put the text band
-/// (176..184) straight through both airport code boxes (y 175..183); the
-/// collision was found on glass 2026-08-29. A host test that hardcoded its own
-/// copy of the row would keep passing if the face moved back, so the face and
-/// the check read the same number and a regression cannot hide between them.
+/// SHARED WITH THE TEST ON PURPOSE. A host test holding its own copy of the row
+/// would keep passing if the face moved, so both read this and a regression
+/// cannot hide between them.
+///
+/// 176 -> 186 -> 190, and the middle step is the instructive one. At 176 the
+/// text band (176..184) ran straight through both airport code boxes
+/// (y 175..183). Moving to 186 cleared them geometrically -- and put the line
+/// three pixels under the ORIGIN label, which read as crowded and would have
+/// collided outright for any longer string. That was fixing the instance.
+///
+/// 190 is the first row clear of the boxes PLUS DISC_OBSTACLE_MARGIN_PX, and it
+/// is chosen by that rule rather than by trying rows until the strings we happen
+/// to ship looked right.
 /// How close to the destination counts as "on approach", in km.
 ///
 /// 40 km is about five minutes at approach speed, and comfortably larger than
@@ -57,7 +65,7 @@ constexpr float ARC_RAD2DEG = 57.2957795131f;
 /// miles out, not to model an approach plate.
 constexpr float APPROACH_RADIUS_KM = 40.0f;
 
-constexpr float ARC_EXPLAIN_Y = 186.0f;
+constexpr float ARC_EXPLAIN_Y = 190.0f;
 
 constexpr float ARC_START_DEG = 135.0f;
 constexpr float ARC_SWEEP_DEG = 270.0f;

@@ -67,17 +67,29 @@ struct Box { int x0, y0, x1, y1; };
 /// screen. It was never a copy problem. Every explanation string is wider than
 /// the free span at that row -- the row was in the wrong place, and shortening
 /// the copy would only have moved the trap to whoever wrote the next string.
+/// Clearance kept between text and an obstacle, in pixels.
+///
+/// NOT ZERO, and the difference is the whole fix. The first version tested bare
+/// intersection, so a line sitting THREE PIXELS under an airport code counted as
+/// clear and returned the full chord -- geometrically true, visibly crowded, and
+/// it moved the collision to the other label rather than resolving it. An
+/// obstacle is something text keeps AWAY from, not something it merely fails to
+/// intersect.
+constexpr int DISC_OBSTACLE_MARGIN_PX = 5;
+
 inline int ClearCentredWidthPx(int yTop, int lineH, int screenSize,
                                const Box* boxes, int nBoxes,
-                               int inset = DISC_TEXT_INSET_PX)
+                               int inset = DISC_TEXT_INSET_PX,
+                               int margin = DISC_OBSTACLE_MARGIN_PX)
 {
     int w = ChordWidthPx(yTop, lineH, screenSize, inset);
     if (w <= 0) return 0;
     const int cx = screenSize / 2;
     const int yBot = yTop + lineH;
     for (int i = 0; i < nBoxes; ++i) {
-        const Box& b = boxes[i];
-        if (b.y1 <= yTop || b.y0 >= yBot) continue;   // no vertical overlap
+        Box b = boxes[i];
+        b.x0 -= margin; b.y0 -= margin; b.x1 += margin; b.y1 += margin;
+        if (b.y1 <= yTop || b.y0 >= yBot) continue;   // clear by more than margin
         int limit;
         if (b.x1 <= cx)       limit = 2 * (cx - b.x1);   // wholly left of centre
         else if (b.x0 >= cx)  limit = 2 * (b.x0 - cx);   // wholly right of centre
