@@ -4562,7 +4562,20 @@ void AircraftManager::UpdateFollowTrack()
     if (!seen) {
         // Not in the contact table this pass. Absence is a state, not a gap --
         // the machine decides which KIND after trackLostMs (§5.1).
-        followMachine.OnNoFix((uint32_t)nowMs, followHome);
+        // The destination, when the route is known -- so ApproachLost asks
+        // about where the flight is GOING rather than where the owner lives.
+        // Empty codes leave it unknown and the machine falls back to home,
+        // which is the correct destination in the local regime.
+        follow::DestContext dctx;
+        {
+            const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
+            if (d.known) {
+                dctx.lat = d.lat; dctx.lon = d.lon;
+                dctx.radiusKm = follow::APPROACH_RADIUS_KM;
+                dctx.known = true;
+            }
+        }
+        followMachine.OnNoFix((uint32_t)nowMs, followHome, dctx);
         // C4: start the stale clock the first time we are waiting on an
         // aircraft we have never seen. Arm() is a no-op once armed and a no-op
         // without a synced clock, so this is one NVS write per follow target.

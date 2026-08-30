@@ -164,6 +164,32 @@ inline float SeparationKm(float aLat, float aLon, float bLat, float bLon)
 }
 
 // A POSITION argument, so it needs the position half of home and nothing else.
+/// WHERE THE FLIGHT IS GOING, when a route is known.
+///
+/// SEPARATE FROM HomeContext FOR THE REASON WRITTEN ABOVE IT. That struct's own
+/// history is one flag doing two jobs (elevation and position) and breaking 10
+/// when they diverged. This is the same shape one level up: `inside` -- near the
+/// OWNER'S home -- was licensing ApproachLost, which is a claim about being near
+/// the DESTINATION. Those coincide in the local regime, where the followed
+/// aircraft is a trainer returning to its home field, and are unrelated in the
+/// airline regime, where home is just wherever the customer happens to live.
+///
+/// The observable failure: an aircraft that has just DEPARTED a field near the
+/// owner, still under 3,000 ft and dipping past -300 fpm for one fix in a
+/// level-off, is announced as ON APPROACH while it is several hundred miles
+/// from where it is going. Found on glass 2026-08-29 -- 392 mi remaining on a
+/// 713 mi route, with the marker not yet halfway.
+///
+/// `known` false means no route, and then home IS the only destination that can
+/// be inferred -- which is the local regime, and is why the fallback preserves
+/// the old behaviour exactly rather than disabling the arm.
+struct DestContext {
+    float lat      = 0.0f;
+    float lon      = 0.0f;
+    float radiusKm = 0.0f;   // how close counts as "on approach"
+    bool  known    = false;
+};
+
 inline bool InsideHome(const Fix& f, const HomeContext& home)
 {
     return home.positionKnown &&
@@ -356,7 +382,8 @@ public:
 
     // No fix this pass. nowMs advances; the machine decides which KIND of absence
     // this is -- which is the whole point of §5.1.
-    void OnNoFix(uint32_t nowMs, const HomeContext& home, const Tuning& t = Tuning{})
+    void OnNoFix(uint32_t nowMs, const HomeContext& home,
+                 const DestContext& dest, const Tuning& t = Tuning{})
     {
         if (state == State::Idle || state == State::Waiting || state == State::Landed)
             return;
@@ -387,7 +414,13 @@ public:
         // Also needs AGL: "1,200 ft over the field" is the copy, and quoting an
         // MSL figure as though it were a height above the field is how the
         // hedged message stops being honest.
-        if (inside && home.elevationKnown &&
+        // APPROACH IS ABOUT WHERE IT IS GOING, not where the owner lives. With a
+        // route known this asks the destination; without one, home is the only
+        // destination there is (the local regime) and the test is unchanged.
+        const bool nearDest = dest.known
+            ? (SeparationKm(last.lat, last.lon, dest.lat, dest.lon) <= dest.radiusKm)
+            : inside;
+        if (nearDest && home.elevationKnown &&
             last.verticalRateFpm <= t.approachDescentFpm && agl <= t.approachAltAglFt) {
             state = State::ApproachLost;
             return;

@@ -50,6 +50,13 @@ constexpr float ARC_RAD2DEG = 57.2957795131f;
 /// collision was found on glass 2026-08-29. A host test that hardcoded its own
 /// copy of the row would keep passing if the face moved back, so the face and
 /// the check read the same number and a regression cannot hide between them.
+/// How close to the destination counts as "on approach", in km.
+///
+/// 40 km is about five minutes at approach speed, and comfortably larger than
+/// any terminal area -- the point is to exclude an aircraft several HUNDRED
+/// miles out, not to model an approach plate.
+constexpr float APPROACH_RADIUS_KM = 40.0f;
+
 constexpr float ARC_EXPLAIN_Y = 186.0f;
 
 constexpr float ARC_START_DEG = 135.0f;

@@ -96,7 +96,7 @@ static State AbsenceAfter(const Fix& f, const HomeContext& home)
     now += 5000;
     m.OnFix(f, now, home, t);            // 2nd -> airborneConfirmFixes
     now += t.trackLostMs + 1000;         // and then silence
-    m.OnNoFix(now, home, t);
+    m.OnNoFix(now, home, DestContext{}, t);
     return m.Current();
 }
 
@@ -846,6 +846,69 @@ int main()
               "CONTROL: the old row (176) is narrower -- it overlapped the labels");
         check(oldAvail * 1 < 138,
               "CONTROL: the old row could not fit even the shortest explanation");
+    }
+
+    // ---- ON APPROACH REQUIRES BEING NEAR THE DESTINATION -------------------
+    //
+    // Found on glass 2026-08-29: the face read "392 mi / ON APPROACH" with the
+    // marker not yet halfway along a 713 mi route. The transition tested
+    // `inside` -- near the OWNER'S home -- to license a claim about being near
+    // the DESTINATION. Identical in the local regime, where the followed
+    // aircraft is a trainer coming back to its home field; unrelated in the
+    // airline regime, where home is just where the customer lives.
+    //
+    // Same shape as HomeContext.known doing two jobs before it was split, which
+    // is why DestContext is its own struct rather than another flag on that one.
+    std::printf("  ---- ON APPROACH requires being near the DESTINATION\n");
+    {
+        // The real scenario, not a contrived one: an aircraft that has just
+        // DEPARTED a field near the owner. Still low, and dipping past the
+        // descent threshold for one fix during a level-off -- which satisfies
+        // every condition the old arm tested.
+        HomeContext home = HomeAt(HLAT, HLON, /*elevation=*/true);
+        Fix departing{};
+        departing.lat = HLAT + 0.02f; departing.lon = HLON;   // right by home
+        departing.baroAltFt      = 2000.0f;
+        departing.geoAltFt       = 2000.0f;
+        departing.verticalRateFpm = -400.0f;   // a momentary dip in the climb
+        departing.velocityKt      = 200.0f;
+
+        // Destination 700 km away -- it is going somewhere far.
+        DestContext far{};
+        far.lat = HLAT + 6.3f; far.lon = HLON; far.radiusKm = APPROACH_RADIUS_KM;
+        far.known = true;
+
+        Machine m; m.SetTarget(true);
+        uint32_t now = 1000;
+        for (int i = 0; i < 4; ++i) { m.OnFix(departing, now, home); now += 1000; }
+        now += 400000;                       // long enough to be absent
+        m.OnNoFix(now, home, far);
+        check(m.Current() != State::ApproachLost,
+              "a departing aircraft 700 km from its destination is NOT on approach");
+
+        // CONTROL: the SAME fix, with the destination actually nearby, must
+        // still produce ApproachLost -- otherwise this test passes by breaking
+        // the feature rather than by fixing it.
+        DestContext near{};
+        near.lat = HLAT + 0.02f; near.lon = HLON;
+        near.radiusKm = APPROACH_RADIUS_KM; near.known = true;
+        Machine m2; m2.SetTarget(true);
+        uint32_t n2 = 1000;
+        for (int i = 0; i < 4; ++i) { m2.OnFix(departing, n2, home); n2 += 1000; }
+        n2 += 400000;
+        m2.OnNoFix(n2, home, near);
+        check(m2.Current() == State::ApproachLost,
+              "CONTROL: the same profile NEAR the destination is still ApproachLost");
+
+        // And with NO route known, home is the only destination there is --
+        // the local regime, whose behaviour must be unchanged.
+        Machine m3; m3.SetTarget(true);
+        uint32_t n3 = 1000;
+        for (int i = 0; i < 4; ++i) { m3.OnFix(departing, n3, home); n3 += 1000; }
+        n3 += 400000;
+        m3.OnNoFix(n3, home, DestContext{});
+        check(m3.Current() == State::ApproachLost,
+              "no route: home is the destination, local regime unchanged");
     }
 
     return failures ? 1 : 0;
