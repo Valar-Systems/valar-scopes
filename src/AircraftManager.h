@@ -842,6 +842,27 @@ private:
     void DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& v);
     /// §9's threshold, argued in the spec: below this the globe's route spans
     /// under ~58 px and the arc face is strictly more legible.
+    ///
+    /// AND IT IS ALSO, BY COINCIDENCE OR NOT, THE RESOLUTION LIMIT OF THE
+    /// COASTLINE DATA -- which is worth knowing before anyone "just lowers it".
+    ///
+    /// The coastlines in src/anim/Coastlines.inc are decimated at 0.52° of arc,
+    /// a tolerance picked because 0.52° is exactly one pixel at R=110 px (see
+    /// scripts/gen_coastlines.py). Framing a route so its endpoints sit at 80 %
+    /// of the panel radius needs R = 95.2 / sin(θ/2). Hold the drawn coastline
+    /// segment to 3 px and the data supports R = 331, which frames a
+    ///
+    ///     3,722 km route -- against the 4,000 shipped here. Within 7 %.
+    ///
+    /// So this number is not only a legibility argument. Any attempt to show a
+    /// SHORTER route on a globe has to zoom in, and zooming past R≈330 draws
+    /// coastlines as visibly straight segments: 9.6 px at LHR-BCN, 12.2 px at a
+    /// 900 km hop. No code change fixes that, because the vertices do not exist.
+    ///
+    /// Measured 2026-08-29 when the threshold was questioned. It goes away only
+    /// together with ~12x denser coastline data and a route-framed scale, which
+    /// is filed rather than done -- and until then, lowering it trades a legible
+    /// arc for an illegible globe.
     static constexpr float FOLLOW_GLOBE_MIN_KM = 4000.0f;
     /// §7.1's inference: an aircraft that stays inside the home radius is
     /// local, one that leaves it is not. Arithmetic in FollowArc.h.
