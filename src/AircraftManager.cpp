@@ -747,45 +747,58 @@ void AircraftManager::Initialise()
         followAlertLost = lostStr.isEmpty() ? false : (lostStr == "true");
 
         if (want != followTarget) {
-            // Identity changed -- including to or from empty.
-            // OWNERSHIP: the buffer belongs to whatever is being followed, and
-            // that is now TWO possible owners. This site knew only the
-            // configured one, so clearing the config field freed 12 KB out from
-            // under a live SESSION follow -- the face kept drawing while its
-            // track buffer was returned. 4.3 says "freed only when follow is
-            // disabled", and a session follow running is not follow disabled.
-            //
-            // Deliberately NOT symmetric: this only ever frees. Whether a SWIPE
-            // should ALLOCATE 12 KB is a design question, not an oversight --
-            // see the issue -- so nothing here enables on a session target.
-            if (want.isEmpty() && followSessionTarget.isEmpty()) {
-                followTrack.Disable();   // the ONLY free site (§4.3)
-            } else if (!followTarget.isEmpty()) {
-                // Still following, but somebody else: keep the allocation, drop
-                // the path. This is exactly the ResetFlight/Disable split.
-                followTrack.ResetFlight();
-                // AND DROP THE CARD. A previous aeroplane's flight is not this
-                // aeroplane's history, and a souvenir attributed to the wrong
-                // aircraft is the one way the post-flight card can be wrong --
-                // which is the entire reason it is allowed to persist at all.
+            // Identity changed -- including to or from empty. THE PATH belongs to
+            // the aircraft and is dropped here; THE BUFFER does not, and is not
+            // touched. See the allocation block below.
+            const bool goingIdle = want.isEmpty() && followSessionTarget.isEmpty();
+            followTrack.ResetFlight();
+            if (!goingIdle && !followTarget.isEmpty()) {
+                // Following somebody else now -- so DROP THE CARD. A previous
+                // aeroplane's flight is not this aeroplane's history, and a
+                // souvenir attributed to the wrong aircraft is the one way the
+                // post-flight card can be wrong, which is the entire reason it
+                // is allowed to persist at all.
                 followLog.Clear();
             }
             followStats.Reset();
             followLastState = follow::State::Idle;
             followTarget = want;
-            if (!followTarget.isEmpty() && followDrawTrack) {
-                if (!followTrack.Enable()) {
-                    // Degraded: notification-only. Stage 1 has no notifications
-                    // yet, so today this simply means no track -- but the state is
-                    // real and the HUD says so rather than looking like a bug.
-                    Serial.println("[follow] notification-only: no track buffer");
-                }
+        }
+
+        // THE TRAIL BUFFER BELONGS TO THE TRAIL TOGGLE, NOT TO A TARGET (#273).
+        //
+        // It used to belong to whoever was being followed, and that owner went
+        // from one to two the day the swipe existed -- which is how clearing the
+        // config field freed 12 KB out from under a live SESSION follow, with the
+        // face still drawing. The fix at the time made the free site aware of both
+        // owners. This is the fix that stops there being an ownership question.
+        //
+        // WHY ALLOCATE WITH NO TARGET SET, which is the part that looks wasteful:
+        //
+        //   - it is 12 KB of PSRAM, not internal heap. FollowTrack::Enable
+        //     allocates MALLOC_CAP_SPIRAM and FREES THE BLOCK AND DEGRADES if it
+        //     lands on the internal heap instead -- so this cannot become the
+        //     #245 fragmentation source, by construction rather than by care.
+        //   - Enable() is idempotent (`if (buf) return true`), so "allocate at
+        //     boot and on every save" is one allocation for the life of the boot.
+        //   - the alternative starves exactly the case the new spec creates. A
+        //     swipe would have to allocate 12 KB inside the gesture, and the local
+        //     face -- the one a route-less contact now gets -- IS the trail: rings
+        //     and a path. Deferring the allocation means the first face the
+        //     customer sees after their first swipe is the empty version of the
+        //     only face that swipe can produce.
+        //
+        // So 4.3's "freed only when follow is disabled" now reads: freed when the
+        // TRAIL is disabled. The disable test still has a trigger and it is the
+        // draw-track toggle rather than the target field.
+        if (followDrawTrack && !followTrack.Active()) {
+            if (!followTrack.Enable()) {
+                // Degraded: notification-only. The state is real and the HUD says
+                // so rather than looking like a bug.
+                Serial.println("[follow] notification-only: no track buffer");
             }
-        } else if (!followTarget.isEmpty() && followDrawTrack && !followTrack.Active()) {
-            // The toggle came back on for the same aircraft.
-            followTrack.Enable();
         } else if (!followDrawTrack && followTrack.Active()) {
-            followTrack.Disable();
+            followTrack.Disable();   // the ONLY free site (§4.3)
         }
         // Read once per boot. Initialise() re-runs on every config save, so this
         // is guarded rather than unconditional -- re-reading NVS would be
@@ -825,10 +838,13 @@ void AircraftManager::Initialise()
             followBenchArmed = false;
             if (followTarget.isEmpty()) {
                 followTarget = "bench";
-                if (followDrawTrack && !followTrack.Active())
-                    followTrack.Enable();
+                // NO Enable() HERE ANY MORE (#273): the buffer is allocated
+                // above from the trail toggle alone and does not wait on a
+                // target. A second enable site would re-imply the ownership
+                // this change exists to remove.
                 Serial.println("[follow] FOLLOW_BENCH: self-enabled once for this boot; "
-                               "clearing the field now sticks (tests the 4.3 disable path)");
+                               "clearing the field now hides the face (the 4.3 screen "
+                               "half); the buffer follows the draw-track toggle");
             }
         }
         // ---- bench only: make the §18.1 measurement obtainable ---------------
@@ -5233,12 +5249,11 @@ void AircraftManager::ClearSessionFollow()
     followRouteOrigin = "";
     followRouteDest = "";
     followMachine.SetTarget(!followTarget.isEmpty());
-    // The other half of the ownership rule above. With the session target gone
-    // and no configured one behind it, nothing is being followed and the buffer
-    // has no owner -- so this is the second place 4.3's free can legitimately
-    // happen, and leaving it out would strand 12 KB for the rest of the boot.
-    if (followTarget.isEmpty() && followTrack.Active())
-        followTrack.Disable();
+    // NO FREE HERE ANY MORE (#273). This used to be the second half of an
+    // ownership rule that had two owners and therefore two free sites; the
+    // buffer now belongs to the trail toggle, which this gesture does not
+    // touch. Freeing on dismissal would also mean the next swipe re-allocates
+    // inside the gesture -- the exact behaviour the issue removed.
     followAutoUntilMs = 0;
     EnterScreen(Screen::Radar);    // customer-initiated: the swipe asked for this
     // The BOOLEAN is computed first and the token never enters the printf
