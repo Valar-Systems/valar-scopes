@@ -552,6 +552,19 @@ was open. See *a green signal is about process; the artifact is elsewhere* —
 different facts. For a Worker there is a fourth: `workers.yml` has no deploy
 step, so even merging does not ship it.
 
+**A SINGLE READING OF A PROPAGATING SYSTEM IS A COIN FLIP, AND IT LANDS ON
+WHICHEVER ANSWER YOU WERE BRACED FOR.** The revocation probe of 2026-08-31 had a
+stale 401 at the start of its step-2 window, while a ~60 s cache TTL drained. One
+poll timed a few seconds earlier reads *"still revoked"* and the conclusion is
+that the fix is not live. `polls=3,4,4` is what made it legible as propagation
+rather than failure.
+
+That is the exact mirror of the stale-`LIVE` bug found the same morning: there, a
+retained value said **fine** when the endpoint was unreachable; here, a retained
+value would have said **broken** when the parser was correct. Same mechanism,
+opposite directions, both invisible to a single sample. Anything with a cache, a
+drain, or an isolate lifetime is sampled until it is stable, never read once.
+
 **A REHEARSAL YOU REASONED ABOUT TESTS YOUR MODEL. A REHEARSAL YOU RAN TESTS THE
 CODE.** Only the second can surprise you, and the surprise is the point.
 
