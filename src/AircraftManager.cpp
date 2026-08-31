@@ -1420,7 +1420,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // that 2026-08-02 guess survived: the overlay costs -0.09 ms over 29 paired
     // ticks at ap=60, and `n` -- which this comment used to say was not the
     // lever -- turned out to be the whole story at 0.802 ms per contact
-    // (R2=0.985, 5137 samples; see the budget note below). Kept on the line
+    // (R2=0.985, 5392 samples; see the budget note below). Kept on the line
     // anyway: it is the control that lets a future overlay change be told apart
     // from a contact-count change, which is precisely what was missing in
     // August.
@@ -1444,7 +1444,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                                  FRAME_P95_PER_AIRCRAFT_MS * (float)trackedAircraft.size();
     // resid=<observed - predicted>, and it is on the line for one specific
     // reason: these constants are fitted on a board that was heap-starved for
-    // 84.9 % of its samples, so they WILL need re-fitting once #245 lands.
+    // 85.0 % of its samples, so they WILL need re-fitting once #245 lands.
     // Printing the residual makes that re-fit a DATA question -- collect
     // residuals from a healthy board, read the bias straight off -- instead of a
     // redesign that has to re-derive the shape from nothing. A model with no
@@ -1685,13 +1685,26 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // a constant; it is a LINE. Frame cost is dominated by contact count, and
     // that is now measured rather than suspected.
     //
-    // THE RUN: COM4, shipping env, stock defaults never touched, 48 h
-    // continuous, 5137 health samples, zero reboots, touch watchdog clean.
+    // THE RUN: COM4, shipping env, stock defaults never touched, 44.9 h
+    // continuous, 5392 health samples, zero reboots, touch watchdog clean
+    // (0 wedges), hardFail=0.
     //
-    //     p95 = 35.80 ms + 0.802 ms * aircraft       R2 = 0.985, n = 5137
+    // 44.9 h, not the 48 h an earlier draft of this note claimed. 48 was a round
+    // number the capture was aimed at, never a derived threshold, and the board
+    // was needed for the bench before it got there. The figure is written out
+    // exactly because a doc that rounds 44.9 up to "48 h" is the small lie that
+    // makes the next person trust the wrong number -- and this note exists to be
+    // trusted by someone re-fitting it.
+    //
+    // The constants below were fitted mid-run at 42.8 h / 5137 samples and then
+    // re-checked against the complete capture: 35.81 + 0.803, R2 unchanged at
+    // 0.985, gate still 0 false fires. A +0.03 ms difference at the n=40 cap is
+    // not worth churning a merged constant for, so they stand as fitted.
+    //
+    //     p95 = 35.80 ms + 0.802 ms * aircraft       R2 = 0.985, n = 5392
     //           35.8 at n=0         67.9 at n=40 (BLIPS_LIMIT -- the worst case
     //                                             the firmware can reach)
-    //           residuals: p99 +3.1 ms, max +9.4 ms
+    //           residuals: p99 +3.2 ms, max +9.4 ms
     //
     // It confirms the projection above FROM THE OTHER DIRECTION. That note
     // predicted a 60-68 ms stock envelope by extrapolating a paired label A/B
@@ -1703,11 +1716,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // up is now dead in both places: n is the lever, at 0.802 ms per contact.
     //
     // WHY A LINE AND NOT A BIGGER CONSTANT. A flat gate can only be set for the
-    // worst case, so it is blind everywhere else. Measured against these 5137
+    // worst case, so it is blind everywhere else. Measured against all 5392
     // samples:
     //
     //     gate                     false fires        what it catches
-    //     flat 60 ms (pre-#264)    2512 (48.9 %)      unusable -- this is the
+    //     flat 60 ms (pre-#264)    2746 (50.9 %)      unusable -- this is the
     //                                                 BUDGET BROKEN noise
     //     flat 85 ms (#264)             0             >17 ms, and only at n=40;
     //                                                 at n=0 a 49 ms regression
@@ -1715,7 +1728,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     //     line + 10 ms                  0             >10 ms at ANY n
     //
     // PROVENANCE, AND THE CONDITION ON THESE CONSTANTS. Fitted 2026-08-29 on a
-    // board STARVED FOR 84.9 % OF SAMPLES (largest block median 7668 B; a
+    // board STARVED FOR 85.0 % OF SAMPLES (largest block median 7668 B; a
     // handshake needs 16717). Enrichment was consequently near-idle: 97.4 % of
     // samples sat at enrich <= 4 % busy. So THE ENRICHMENT AXIS IS UNMEASURED
     // and these numbers describe a board that was mostly not enriching.
@@ -1724,7 +1737,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // soak ran the plain shipping env, which is the CONTROL ARM of the #245 A/B:
     // -DBLIPSCOPE_TLS_PSRAM lives only in env:blipscope-s3-128-tlspsram, so the
     // shipping image routes mbedTLS to the internal heap on purpose while the
-    // comparison runs. `tlsmem=0/0/0` across all 5137 samples is the tell, and
+    // comparison runs. `tlsmem=0/0/0` across all 5392 samples is the tell, and
     // it is the boring reading of it: the allocator was compiled out, not
     // installed-and-failing. Which board to re-fit on is therefore already
     // decided -- the treatment arm, or the shipping env once #245's fix lands
