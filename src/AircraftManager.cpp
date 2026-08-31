@@ -6719,16 +6719,23 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // from here it is an obstacle that arrives later and cannot be negotiated
     // with. Leaving it out is how the state row came to overlap it (see below).
     const int GLOBE_HEADER_Y  = Si(26.0f);
+    const int GLOBE_SUBHEAD_Y = Si(38.0f);   // used only by the two-line header
     const int GLOBE_STATE_Y   = Si(192.0f);
     const int GLOBE_READOUT_Y = Si(223.0f);
     const int CLOCK_Y         = SCREEN_SIZE - 30;   // DrawClock's row, always drawn
-    const discgeom::Box reservedRow[] = {
-        { 0, GLOBE_HEADER_Y  - 2, SCREEN_SIZE, GLOBE_HEADER_Y  + lineH + 2 },
-        { 0, GLOBE_STATE_Y   - 2, SCREEN_SIZE, GLOBE_STATE_Y   + lineH + 2 },
-        { 0, GLOBE_READOUT_Y - 2, SCREEN_SIZE, GLOBE_READOUT_Y + lineH + 2 },
-        { 0, CLOCK_Y         - 2, SCREEN_SIZE, CLOCK_Y         + lineH + 2 },
+    discgeom::Box reservedRow[5];
+    int nReservedRow = 0;
+    const auto reserveRow = [&](int y) {
+        if (nReservedRow < 5)
+            reservedRow[nReservedRow++] =
+                discgeom::Box{ 0, y - 2, SCREEN_SIZE, y + lineH + 2 };
     };
-    const int nReservedRow = (int)(sizeof(reservedRow) / sizeof(reservedRow[0]));
+    reserveRow(GLOBE_STATE_Y);
+    reserveRow(GLOBE_READOUT_Y);
+    reserveRow(CLOCK_Y);
+    // GLOBE_HEADER_Y and GLOBE_SUBHEAD_Y are added below, once the header knows
+    // how many rows it needs -- reserving a row nothing draws would push labels
+    // away from space that is actually free.
 
     // Filled by endLabel below, consumed by `plated` further down. The order is
     // the point: the labels claim their space first, and the centred rows fit
@@ -6797,6 +6804,63 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     const float sep = (oOn && dOn) ? sqrtf((dX - oX) * (dX - oX) + (dY - oY) * (dY - oY))
                                    : 0.0f;
     const bool labelAtEnds = oOn && dOn && sep >= (float)Si(46.0f);
+
+    // ---- THE HEADER, COMPOSED BY COMPONENT AND NEVER CUT THROUGH -----------
+    //
+    // THE BUG THIS REPLACES. The fallback form was built by concatenation --
+    // `who + "  " + o + " -> " + d` -- and handed whole to FitToDisc, which cuts
+    // from the right and appends "...". At y=26 the chord is 141 px, 23
+    // characters; "BENCH-LHR-JFK  LHR -> JFK" is 25. What reached the glass was
+    //
+    //     LHR -...
+    //
+    // and the destination was simply gone. This is the same family as every
+    // other defect this weekend: A STRING APPENDED WITHOUT MEASURING THE SPACE
+    // IT LANDS IN.
+    //
+    // WHY AN ELLIPSIS IS NOT ENOUGH HERE, when it is enough on the label slot.
+    // FollowLabel.h argues -- correctly -- that FitToDisc's truncation is GOOD
+    // for the target label, because the "..." lands ON the identifier it
+    // shortened and therefore announces itself. In a composite it does not: the
+    // marker attaches to whatever component happened to be last, so "LHR" reads
+    // as whole and "JFK" reads as absent. A PARTIAL AIRPORT CODE IS A DIFFERENT
+    // AIRPORT, and one that has been silently deleted is worse still.
+    //
+    // THE RULE: measure, then fit or omit. Each component goes in whole or not
+    // at all, and the ladder always ends on the most informative thing that is
+    // true.
+    const String& who = view.label;
+    String o = view.origCode, d = view.destCode;
+    o.toUpperCase(); d.toUpperCase();
+    const String route = o + " -> " + d;
+
+    backbuffer.setTextSize(1);
+    const int headAvail = ChordWidthPx(GLOBE_HEADER_Y, lineH);
+    const auto headFits = [&](const String& t) {
+        return !t.isEmpty() && (int)backbuffer.textWidth(t) <= headAvail;
+    };
+
+    // Measured here, decided in FollowLabel.h so the policy can be graded on the
+    // host. The two-row form exists because in this branch the codes appear
+    // nowhere else on the face -- that is what labelAtEnds being false means --
+    // so they cannot be the part that is dropped.
+    String headLine, subLine;
+    switch (follow::HeaderFormFor(labelAtEnds,
+                                  headFits(who + "  " + route),
+                                  headFits(route),
+                                  headFits(who))) {
+        // The one component allowed to ellipsise, for FollowLabel.h's reason:
+        // the marker lands ON the thing it shortened and so announces itself.
+        case follow::HeaderForm::LabelOnly:      headLine = who;                break;
+        case follow::HeaderForm::Combined:       headLine = who + "  " + route; break;
+        case follow::HeaderForm::RouteThenLabel: headLine = route; subLine = who; break;
+        case follow::HeaderForm::RouteOnly:      headLine = route;              break;
+        case follow::HeaderForm::Nothing:        break;   // nothing safe to draw
+    }
+
+    reserveRow(GLOBE_HEADER_Y);
+    if (!subLine.isEmpty()) reserveRow(GLOBE_SUBHEAD_Y);
+
     if (labelAtEnds) {
         endLabel(view.origCode, oX, oY, dX > oX, FOLLOW_DIM);
         endLabel(view.destCode, dX, dY, dX < oX, colour);
@@ -6815,9 +6879,6 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     }
 
     // ---- text, plated, over the disc ----------------------------------------
-    const String& who = view.label;
-    String o = view.origCode, d = view.destCode;
-    o.toUpperCase(); d.toUpperCase();
     // The backing plate: text over ocean is legible, text over the terminator is
     // not, and which one a given route produces is not knowable in advance.
     //
@@ -6842,9 +6903,10 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         backbuffer.setTextColor(c);
         backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
     };
-    // The header carries the CODES only when the ends are too close together to
-    // label individually -- otherwise it is just the flight, and cannot overflow.
-    plated(labelAtEnds ? who : (who + "  " + o + " -> " + d), GLOBE_HEADER_Y, FOLLOW_DIM);
+    // Composed above, by component. Empty means the ladder ran out and there was
+    // nothing safe to draw -- `plated` already declines an empty string.
+    plated(headLine, GLOBE_HEADER_Y, FOLLOW_DIM);
+    if (!subLine.isEmpty()) plated(subLine, GLOBE_SUBHEAD_Y, FOLLOW_DIM);
 
     // THE STATE ROW MOVED FROM y=206 TO y=192, and that is a collision fix
     // rather than a nudge for looks. DrawClock draws at SCREEN_SIZE-30 = 210 on

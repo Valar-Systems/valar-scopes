@@ -139,6 +139,82 @@ int main()
         check(b[0] == '\0', "and yields an empty string");
     }
 
+    // ---- THE GLOBE HEADER: MEASURE, THEN FIT OR OMIT -----------------------
+    //
+    // Reported from the bench as "LHR -..." with the destination gone. The old
+    // header was a concatenation handed to a width-fitter, and the ellipsis --
+    // which is honest on a lone identifier -- lies in a composite: it attaches
+    // to whichever component came last, so the first reads whole and the rest
+    // read as absent.
+    //
+    // The measuring stays on the device; this grades the POLICY. Every case
+    // below is checked twice over: once for which form it picks, and once for
+    // the invariant that matters more than any individual choice -- NO FORM
+    // EVER CONTAINS A PARTIAL COMPONENT, because none of them is built by
+    // cutting.
+    std::printf("  ---- the globe header fits or omits, never cuts\n");
+    {
+        using follow::HeaderForm;
+        using follow::HeaderFormFor;
+
+        // Codes at the route's ends: the header names the flight and nothing else.
+        check(HeaderFormFor(true,  false, false, false) == HeaderForm::LabelOnly,
+              "codes at the ends -> the header is the flight alone");
+        check(HeaderFormFor(true,  true,  true,  true)  == HeaderForm::LabelOnly,
+              "... and that does not change just because more would fit");
+
+        // Everything fits on one row: say it all.
+        check(HeaderFormFor(false, true,  true,  true)  == HeaderForm::Combined,
+              "everything fits -> one row with both");
+
+        // THE REPORTED CASE. BENCH-LHR-JFK + LHR -> JFK is 25 chars against 23.
+        check(HeaderFormFor(false, false, true,  true)  == HeaderForm::RouteThenLabel,
+              "combined overflows -> route on the header, label whole beneath it");
+
+        // CONTROL: the old behaviour was to cut the combined string. There is no
+        // form that means "cut", so the assertion is that the overflow case does
+        // NOT resolve to Combined -- the one outcome that would put a truncated
+        // composite on the glass.
+        check(HeaderFormFor(false, false, true,  true)  != HeaderForm::Combined,
+              "CONTROL: an overflowing combined string is never chosen anyway");
+
+        // A label too long to fit whole ANYWHERE does not take the codes down
+        // with it. Dropping the flight leaves a route; dropping the route leaves
+        // a globe with an unnamed line on it.
+        check(HeaderFormFor(false, false, true,  false) == HeaderForm::RouteOnly,
+              "an unfittable label is omitted; the codes stay");
+        check(HeaderFormFor(false, false, true,  false) != HeaderForm::Nothing,
+              "CONTROL: ... and it does not give up on the whole header");
+
+        // The honest end of the ladder. No real pair of codes reaches it, and it
+        // is asserted anyway: an unreachable branch that returns something wrong
+        // is how it stops being unreachable.
+        check(HeaderFormFor(false, false, false, true)  == HeaderForm::Nothing,
+              "not even the route fits -> draw nothing, do not draw something cut");
+        check(HeaderFormFor(false, false, false, false) == HeaderForm::Nothing,
+              "... and likewise with nothing else available either");
+
+        // EXHAUSTIVE, because the rule is 16 inputs wide and small enough to
+        // enumerate. The invariant: the codes survive in every form reachable
+        // with labelAtEnds false and routeFits true, which is the whole point of
+        // the change -- the codes appear nowhere else on the face in that branch.
+        {
+            int codesLost = 0, forms[5] = {0, 0, 0, 0, 0};
+            for (int i = 0; i < 16; ++i) {
+                const bool ends = (i & 8) != 0, comb = (i & 4) != 0;
+                const bool rt   = (i & 2) != 0, lab  = (i & 1) != 0;
+                const HeaderForm f = HeaderFormFor(ends, comb, rt, lab);
+                forms[(int)f]++;
+                if (!ends && rt && f == HeaderForm::Nothing) ++codesLost;
+            }
+            check(codesLost == 0,
+                  "with the codes unshown at the ends and a route that fits, "
+                  "no input drops them");
+            check(forms[(int)HeaderForm::LabelOnly] == 8,
+                  "CONTROL: half the inputs are labelAtEnds and take the short path");
+        }
+    }
+
     std::printf("\n%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;
 }

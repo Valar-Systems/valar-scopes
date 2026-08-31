@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>   // HeaderForm's underlying type
 
 /**
  * The identifier shown in Follow's label slot.
@@ -141,6 +142,57 @@ inline int WrapBreaks(const char* text, const int* widthPx, int maxLines,
     }
     while (pos < n && text[pos] == ' ') ++pos;
     return (pos >= n) ? line : 0;   // leftover text means it did not fit
+}
+
+
+/**
+ * WHAT THE GLOBE'S HEADER ROW CARRIES, decided by what FITS rather than by what
+ * was concatenated.
+ *
+ * THE DEFECT THIS ENCODES AWAY. The header was built as
+ * `label + "  " + org + " -> " + dst` and handed whole to a width-fitter, which
+ * cuts from the right and appends "...". At y=26 the chord holds 23 characters
+ * and "BENCH-LHR-JFK  LHR -> JFK" is 25, so the glass showed
+ *
+ *     LHR -...
+ *
+ * with the destination deleted. A string appended without measuring the space it
+ * lands in -- and the ellipsis, which is honest on a single identifier, lies in a
+ * composite: it attaches to whichever component came last, so the first reads as
+ * whole and the rest read as absent. A PARTIAL AIRPORT CODE IS A DIFFERENT
+ * AIRPORT.
+ *
+ * SO: MEASURE, THEN FIT OR OMIT. Each component goes in whole or not at all.
+ * The MEASURING stays at the call site, where the font and the panel are; the
+ * POLICY lives here, where it can be graded without either.
+ */
+enum class HeaderForm : uint8_t {
+    Nothing,          ///< nothing safe to draw -- draw nothing
+    LabelOnly,        ///< the codes are at the route's ends; header names the flight
+    Combined,         ///< "<label>  ORG -> DST" on one row
+    RouteThenLabel,   ///< route on the header row, label whole on the row below
+    RouteOnly,        ///< the label will not fit whole anywhere; codes still shown
+};
+
+/**
+ * @param labelAtEnds  the codes are drawn at the route's endpoints
+ * @param combinedFits "<label>  ORG -> DST" fits the header row
+ * @param routeFits    "ORG -> DST" alone fits the header row
+ * @param labelFits    the label alone fits a row
+ *
+ * WHEN labelAtEnds IS FALSE THE CODES CANNOT BE THE PART THAT IS DROPPED --
+ * that flag being false is precisely what means they appear nowhere else on the
+ * face. A globe with an unnamed route is a picture with no caption; a globe
+ * whose caption omits the flight is still a route somebody chose to watch.
+ */
+inline HeaderForm HeaderFormFor(bool labelAtEnds, bool combinedFits,
+                                bool routeFits, bool labelFits)
+{
+    if (labelAtEnds) return HeaderForm::LabelOnly;
+    if (combinedFits) return HeaderForm::Combined;
+    if (routeFits)   return labelFits ? HeaderForm::RouteThenLabel
+                                      : HeaderForm::RouteOnly;
+    return HeaderForm::Nothing;
 }
 
 } // namespace follow
