@@ -26,7 +26,7 @@ compatibility_date = "2025-12-01"
 #
 # A deployment reporting "dev" therefore did NOT come from the deploy script, and
 # that is the point: it is the one state that cannot be explained away later.
-define = { BUILD_COMMIT = "\"dev\"" }
+define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
 
 # Pin the account explicitly. Without this wrangler calls /memberships to work out
 # which account to target, which needs a User->User Details->Read permission the CI
@@ -69,8 +69,25 @@ routes = [
 # an env that omits it ships a bundle where BUILD_COMMIT is an undeclared
 # identifier and /healthz throws ReferenceError. Caught by a --dry-run grep, which
 # is the only reason it is written down here.
+#
+# THE VALUE IS UNSTAMPED, NOT dev, AND THAT IS THE POINT OF THIS DEFAULT.
+# scripts/deploy.sh overrides it with --define BUILD_COMMIT and then CONFIRMS
+# /healthz reports that sha back, polling while the isolates drain. A bare
+# `npx wrangler deploy` bypasses both and falls through to this default -- a
+# legitimate thing to do in a hurry, and it used to be SILENT, because dev is a
+# plausible value that /healthz reported without complaint.
+#
+# It cost the deploy-state signal outright. Production reported 59d9a15 for weeks
+# as a FOSSIL of the last stamped deploy; a hand-deploy on 2026-08-31 moved it to
+# dev, and at that point nothing could say what was running. A placeholder that
+# looks like an answer is worse than no answer -- this repo's oldest rule, sitting
+# in the config file the whole time.
+#
+# UNSTAMPED cannot be mistaken for a commit by a human or by a check. It means
+# exactly: deployed by something that was not scripts/deploy.sh, so the running
+# code is unidentifiable. Treat it as RED, never as a value to compare.
 [env.staging.define]
-BUILD_COMMIT = "\"dev\""
+BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.staging.vars]
 # Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
@@ -205,7 +222,7 @@ routes = [
 # See the staging note: `define` is not inherited, and omitting it here would ship
 # a production bundle whose /healthz throws.
 [env.production.define]
-BUILD_COMMIT = "\"dev\""
+BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.production.vars]
 # Turnstile sitekey for the device-enrolment page. Public by construction (it is
