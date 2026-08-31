@@ -1071,5 +1071,97 @@ int main()
         }
     }
 
+    // ---- AN AIRPORT CODE MOVES; A SENTENCE NARROWS -------------------------
+    //
+    // The globe face reserves four full-width rows (header, state, readout, and
+    // the clock DrawClock puts at SCREEN_SIZE-30). An endpoint label lands
+    // wherever its marker is, which on a bottom-of-disc destination is straight
+    // through two of them -- reported from the bench as "JFK at the bottom is
+    // crowded".
+    //
+    // WHY THIS DIRECTION. ClearCentredWidthPx already solves the other half:
+    // a centred row yields width to an obstacle beside it. That is right for a
+    // sentence and wrong for a code. Narrowing "JFK" gives "JF...", which is not
+    // a shorter code -- it is a different airport, or none. So the label moves
+    // and the row narrows, and this tests the moving half.
+    std::printf("  ---- an endpoint label is nudged out of the fixed rows\n");
+    {
+        using discgeom::Box;
+        const int S = 240, LH = 8;
+        // The globe's own four, at the values the face uses.
+        const Box rows[] = {
+            {   0,  24, S,  36 },   // header      y=26
+            {   0, 190, S, 202 },   // state       y=192
+            {   0, 221, S, 233 },   // readout     y=223
+            {   0, 208, S, 220 },   // clock       y=210
+        };
+        const int N = 4;
+
+        // Untouched when it is already clear.
+        check(discgeom::NudgeClearOfBands(120, LH, rows, N, S) == 120,
+              "a label in open water is not moved at all");
+
+        // THE REPORTED CASE: a destination low on the disc, inside the clock row.
+        {
+            const int y = discgeom::NudgeClearOfBands(211, LH, rows, N, S);
+            check(y >= 0, "a bottom-of-disc label finds somewhere to go");
+            bool clear = true;
+            for (int i = 0; i < N; ++i)
+                if (y + LH > rows[i].y0 - discgeom::DISC_OBSTACLE_MARGIN_PX &&
+                    y < rows[i].y1 + discgeom::DISC_OBSTACLE_MARGIN_PX) clear = false;
+            check(clear, "... and it clears EVERY row, not just the one it started in");
+        }
+
+        // The bands are close together down there, so a shove out of one has to
+        // keep going rather than stopping in the next. Sweep the whole bottom of
+        // the disc: every result is either a refusal or genuinely clear.
+        {
+            int placed = 0, refused = 0, bad = 0;
+            for (int start = 180; start <= 232; ++start) {
+                const int y = discgeom::NudgeClearOfBands(start, LH, rows, N, S);
+                if (y < 0) { ++refused; continue; }
+                ++placed;
+                for (int i = 0; i < N; ++i)
+                    if (y + LH > rows[i].y0 - discgeom::DISC_OBSTACLE_MARGIN_PX &&
+                        y < rows[i].y1 + discgeom::DISC_OBSTACLE_MARGIN_PX) ++bad;
+            }
+            check(bad == 0, "sweeping the crowded half: no result ever lands in a row");
+            check(placed > 0, "CONTROL: ... and it is not passing by refusing everything");
+            std::printf("        placed %d, refused %d over 53 starts\n", placed, refused);
+        }
+
+        // THE MARGIN IS PART OF THE ANSWER, same lesson as the obstacle margin
+        // one block up. A label three pixels under a row is not clear of it.
+        {
+            const int justUnder = rows[1].y1 + 3;          // 3 px below the state row
+            check(discgeom::NudgeClearOfBands(justUnder, LH, rows, N, S) != justUnder,
+                  "3 px of gap is a collision, not a clearance");
+        }
+
+        // A REFUSAL MUST BE ABOUT THE BANDS, NOT ABOUT THE GEOMETRY. Bands
+        // covering the glass leave nowhere to go; the SAME y with no bands must
+        // succeed, or this assertion would also pass on a function that refused
+        // everything.
+        {
+            const Box wall[] = { { 0, 0, S, S } };
+            check(discgeom::NudgeClearOfBands(100, LH, wall, 1, S) < 0,
+                  "no position on the glass clears a full-panel band -> refuse");
+            check(discgeom::NudgeClearOfBands(100, LH, wall, 0, S) == 100,
+                  "CONTROL: the same row with NO bands is returned unchanged");
+        }
+
+        // Refusal is -1 by default and the caller must not draw. Assert the
+        // sentinel is distinguishable from a valid top-of-glass row.
+        // The refusal sentinel is the caller's, so it can never be mistaken for
+        // a row. Asserted with a value no coordinate could take.
+        {
+            const Box wall[] = { { 0, 0, S, S } };
+            check(discgeom::NudgeClearOfBands(100, LH, wall, 1, S, -999) == -999,
+                  "the refusal uses the caller's sentinel, not a magic -1");
+            check(discgeom::NudgeClearOfBands(100, LH, wall, 0, S, -999) == 100,
+                  "CONTROL: ... and a placeable row comes back as a row");
+        }
+    }
+
     return failures ? 1 : 0;
 }

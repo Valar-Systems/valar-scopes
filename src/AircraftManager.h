@@ -891,7 +891,8 @@ private:
     /// Ellipsise `t` to the chord of the round panel at row `yTop`.
     /// A round screen has no edge to clip against -- glyphs just run off the
     /// curve, and text clipped by the bezel looks identical to a bug.
-    String FitToDisc(BandCanvas& backbuffer, const String& t, int yTop, int lineH) const;
+    String FitToDisc(BandCanvas& backbuffer, const String& t, int yTop, int lineH,
+                     int availOverride = -1) const;
     /// 7.1: LANDED until the next takeoff shows the card, not the live face.
     bool ShowPostFlightCard() const;
     /// The nearest airport code to home, from the data already on the device.

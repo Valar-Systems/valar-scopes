@@ -99,4 +99,67 @@ inline int ClearCentredWidthPx(int yTop, int lineH, int screenSize,
     return w > 0 ? w : 0;
 }
 
+
+/// Move a text band vertically until it clears every reserved band, or report
+/// that it cannot.
+///
+/// WHY A NUDGE AND NOT A SHRINK. ClearCentredWidthPx above answers the other
+/// half of this problem -- a CENTRED row yielding width to an obstacle beside
+/// it. That is right for a sentence and wrong for a label: an airport code is
+/// three characters that mean one thing, so narrowing it produces "JF..." which
+/// is not a shorter code, it is a wrong one. A code has somewhere else to go
+/// (the marker it names is a point, and any adjacent pixel still reads as
+/// adjacent), so it moves.
+///
+/// THE TWO ARE COMPLEMENTARY, AND THE ORDER MATTERS: the label moves first and
+/// is then RESERVED, and the centred rows shrink around where it ended up. Doing
+/// it the other way round would let a row claim a span the label is about to
+/// need.
+///
+/// @return the adjusted yTop, or `noFit` if no position on the glass clears the
+///         bands. Callers must treat that as "do not draw" rather than clamping,
+///         for the reason above -- a label drawn in the wrong place is worse than
+///         one that is absent, because the marker underneath it is still there
+///         and still correct.
+inline int NudgeClearOfBands(int yTop, int lineH, const Box* bands, int nBands,
+                             int screenSize, int noFit = -1,
+                             int margin = DISC_OBSTACLE_MARGIN_PX)
+{
+    const int top = 2, bot = screenSize - 2;
+    const auto onGlass = [&](int y) { return y >= top && y + lineH <= bot; };
+    const auto clearAt = [&](int y) {
+        for (int i = 0; i < nBands; ++i)
+            if (y + lineH > bands[i].y0 - margin && y < bands[i].y1 + margin)
+                return false;
+        return true;
+    };
+
+    if (clearAt(yTop) && onGlass(yTop)) return yTop;
+
+    // ENUMERATE, DO NOT WALK. The first version shoved the band to whichever
+    // side of the offending row was nearer and repeated. That thrashes wherever
+    // rows are close together -- and on this face they are: at the bottom of the
+    // globe the state, clock and readout rows leave gaps of 6 px and 1 px, so a
+    // label starting in the clock row was pushed up into the state row, back
+    // down into the clock row, and out of the loop as "no fit". The sweep test
+    // measured it: 13 placements against 40 refusals across the crowded half.
+    //
+    // A greedy local move cannot see past the row it is standing in. There are
+    // only 2n+1 positions that can ever be the answer -- flush above or below
+    // each band, or where it started -- so score them all and take the nearest
+    // valid one. Deterministic, no iteration count to tune, and it cannot
+    // oscillate.
+    int best = noFit, bestDist = 0;
+    const auto consider = [&](int y) {
+        if (!onGlass(y) || !clearAt(y)) return;
+        const int d = (y > yTop) ? (y - yTop) : (yTop - y);
+        if (best == noFit || d < bestDist) { best = y; bestDist = d; }
+    };
+    for (int i = 0; i < nBands; ++i) {
+        consider(bands[i].y0 - margin - lineH);   // flush above, with clearance
+        consider(bands[i].y1 + margin);           // flush below
+    }
+    return best;
+}
+
 } // namespace discgeom

@@ -3666,8 +3666,23 @@ void AircraftManager::DrawClock(BandCanvas& backbuffer) const
     }
 
     backbuffer.setTextSize(1);
+    const int cw = (int)backbuffer.textWidth(out);
+    const int cy = SCREEN_SIZE - 30;
+    // A PLATE ON THE FOLLOW SCREEN, AND ONLY THERE. Every other screen puts this
+    // row over the dark background it was designed against. Follow's globe is
+    // full-bleed, so at y=210 this row sits over ocean, coastline, terminator or
+    // night side depending entirely on which route is loaded -- the same
+    // condition the face's own rows are plated for. It was the one row on that
+    // face without the treatment, because it is drawn by a function that does
+    // not know it is over a planet.
+    if (screen == Screen::Follow) {
+        const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+        const int pw = cw + 8;
+        backbuffer.fillRect(SCREEN_SIZE_DIV_2 - pw / 2, cy - 2, pw, lineH + 4,
+                            lgfx::color888(0, 0, 0));
+    }
     backbuffer.setTextColor(ink);
-    backbuffer.drawString(out, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(out) / 2, SCREEN_SIZE - 30);
+    backbuffer.drawString(out, SCREEN_SIZE_DIV_2 - cw / 2, cy);
 }
 
 // Minutes to arrival for the followed flight, or -1 when it cannot be known.
@@ -5127,9 +5142,13 @@ void AircraftManager::DrawFollowHud(BandCanvas& backbuffer) const
 // one implementation, because the bench found the second surface with the same
 // defect and a third would have found a third.
 String AircraftManager::FitToDisc(BandCanvas& backbuffer, const String& t,
-                                  int yTop, int lineH) const
+                                  int yTop, int lineH, int availOverride) const
 {
-    const int avail = ChordWidthPx(yTop, lineH);
+    // availOverride < 0 means "the chord is the only constraint". A caller that
+    // has already worked out a NARROWER span -- because something is reserved
+    // beside this row -- passes it here rather than fitting to the chord and
+    // then discovering the collision on glass.
+    const int avail = (availOverride >= 0) ? availOverride : ChordWidthPx(yTop, lineH);
     if (avail <= 0) return String();
     if ((int)backbuffer.textWidth(t) <= avail) return t;
     String out = t;
@@ -6693,6 +6712,30 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     const bool oOn = place(org.lat, org.lon, Si(3.0f), FOLLOW_DIM, false, &oX, &oY);
     const bool dOn = place(dst.lat, dst.lon, Si(3.0f), FOLLOW_DIM, true,  &dX, &dY);
 
+    // THE ROWS THIS FACE ALWAYS DRAWS, as bands nothing else may sit in.
+    //
+    // THE CLOCK IS IN THIS LIST AND IS NOT DRAWN BY THIS FUNCTION. DrawClock
+    // runs after the screen switch, on every screen, at SCREEN_SIZE-30 -- so
+    // from here it is an obstacle that arrives later and cannot be negotiated
+    // with. Leaving it out is how the state row came to overlap it (see below).
+    const int GLOBE_HEADER_Y  = Si(26.0f);
+    const int GLOBE_STATE_Y   = Si(192.0f);
+    const int GLOBE_READOUT_Y = Si(223.0f);
+    const int CLOCK_Y         = SCREEN_SIZE - 30;   // DrawClock's row, always drawn
+    const discgeom::Box reservedRow[] = {
+        { 0, GLOBE_HEADER_Y  - 2, SCREEN_SIZE, GLOBE_HEADER_Y  + lineH + 2 },
+        { 0, GLOBE_STATE_Y   - 2, SCREEN_SIZE, GLOBE_STATE_Y   + lineH + 2 },
+        { 0, GLOBE_READOUT_Y - 2, SCREEN_SIZE, GLOBE_READOUT_Y + lineH + 2 },
+        { 0, CLOCK_Y         - 2, SCREEN_SIZE, CLOCK_Y         + lineH + 2 },
+    };
+    const int nReservedRow = (int)(sizeof(reservedRow) / sizeof(reservedRow[0]));
+
+    // Filled by endLabel below, consumed by `plated` further down. The order is
+    // the point: the labels claim their space first, and the centred rows fit
+    // around what is left.
+    discgeom::Box labelBox[2];
+    int nLabelBox = 0;
+
     // THE CODES BELONG AT THE ENDS OF THE ROUTE, NOT IN A HEADER.
     //
     // They used to ride in the y=26 header as "<label>  ORG -> DST", where the
@@ -6706,18 +6749,48 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // At the ends there is no header to overflow, and the label sits next to the
     // thing it names. Placed on the far side of each marker from the other, so
     // the two never lean toward each other.
+    //
+    // TWO THINGS THE FIRST VERSION LEFT OUT, both found on glass 2026-08-30 in
+    // one photograph ("JFK is green-on-green over coastline at the bottom"):
+    //
+    //   NO PLATE. Every centred row on this face has had a backing plate since
+    //   the disc went full-bleed, for the reason written at `plated` below --
+    //   text over ocean is legible, text over a terminator or a coastline is
+    //   not, and which one a given route produces is not knowable in advance. A
+    //   code at the END of a route is over land BY CONSTRUCTION: airports are on
+    //   land, so this is the row MOST likely to sit on a coastline, and it was
+    //   the one row without the treatment.
+    //
+    //   NO RESERVATION. The centred rows are drawn afterwards and fit to the
+    //   CHORD, so a plated row's black rectangle painted straight through a code
+    //   near the bottom of the disc. The label now takes a box first, and the
+    //   rows below shrink around it.
+    //
+    // The vertical nudge is the other half of the reservation, and it goes in
+    // this direction on purpose. A centred SENTENCE can lose width; a three-
+    // letter code cannot -- "JF..." is not a shorter code, it is a wrong one.
+    // The code has somewhere to go and the row does not, so the code moves and
+    // the row narrows. See discgeom::NudgeClearOfBands.
     const auto endLabel = [&](const String& code, float x, float y, bool towardLeft,
                               uint32_t c) {
         if (code.isEmpty()) return;
         String up = code; up.toUpperCase();
         const int w = (int)backbuffer.textWidth(up);
         const int lx = towardLeft ? (int)x - w - Si(6.0f) : (int)x + Si(6.0f);
-        const int ly = (int)y - lineH / 2;
         // A round panel has no edge to clip against, so keep the whole label on
         // the glass rather than letting it run off the curve.
         if (lx < 2 || lx + w > SCREEN_SIZE - 2) return;
+        const int ly = discgeom::NudgeClearOfBands((int)y - lineH / 2, lineH,
+                                                   reservedRow, nReservedRow,
+                                                   SCREEN_SIZE, /*noFit=*/-1);
+        if (ly < 0) return;   // nowhere on the glass clears the fixed rows
+        const int pad = Si(4.0f);
+        const discgeom::Box box = { lx - pad, ly - 2, lx + w + pad, ly + lineH + 2 };
+        backbuffer.fillRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0,
+                            lgfx::color888(0, 0, 0));
         backbuffer.setTextColor(c);
         backbuffer.drawString(up, lx, ly);
+        if (nLabelBox < 2) labelBox[nLabelBox++] = box;
     };
     // Two labels closer than this would overlap; fall back to the header form,
     // which is legible precisely when the ends are too close to label separately.
@@ -6754,7 +6827,16 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // condition this plate was written for. One lambda so a row cannot be added
     // later without it.
     const auto plated = [&](const String& sTxt, int y, uint32_t c) {
-        const String fit = FitToDisc(backbuffer, sTxt, y, lineH);
+        // FIT TO WHAT IS FREE, NOT TO THE CHORD. The endpoint labels have
+        // already claimed their boxes, and a centred row that fits the full
+        // chord will paint its plate straight through a code sitting beside it.
+        // Same helper, same margin and same reason as the arc face's
+        // explanation row -- an obstacle is something text keeps AWAY from,
+        // not merely fails to intersect.
+        const int avail = discgeom::ClearCentredWidthPx(y, lineH, SCREEN_SIZE,
+                                                        labelBox, nLabelBox);
+        const String fit = FitToDisc(backbuffer, sTxt, y, lineH, avail);
+        if (fit.isEmpty()) return;   // nothing free at this row: draw nothing
         const int w = (int)backbuffer.textWidth(fit) + Si(8.0f);
         backbuffer.fillRect(cx - w / 2, y - 2, w, lineH + 4, lgfx::color888(0, 0, 0));
         backbuffer.setTextColor(c);
@@ -6762,14 +6844,21 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     };
     // The header carries the CODES only when the ends are too close together to
     // label individually -- otherwise it is just the flight, and cannot overflow.
-    plated(labelAtEnds ? who : (who + "  " + o + " -> " + d), Si(26.0f), FOLLOW_DIM);
+    plated(labelAtEnds ? who : (who + "  " + o + " -> " + d), GLOBE_HEADER_Y, FOLLOW_DIM);
 
+    // THE STATE ROW MOVED FROM y=206 TO y=192, and that is a collision fix
+    // rather than a nudge for looks. DrawClock draws at SCREEN_SIZE-30 = 210 on
+    // every screen including this one, so at a font height of 8 the two bands
+    // were 206..214 and 210..218 -- overlapping by four pixels. It has never
+    // been photographed because the state row only draws in an ABSENT state and
+    // the bench shots have all been of live ones, which is exactly the kind of
+    // defect that ships.
     if (follow::Machine::IsAbsent(st))
-        plated(follow::Headline(st, follow::Regime::Airline), Si(206.0f), colour);
+        plated(follow::Headline(st, follow::Regime::Airline), GLOBE_STATE_Y, colour);
     plated(String((int)lroundf(progress * 100.0f)) + "%  of  " +
            units::FormatKm(follow::GreatCircleKm(org.lat, org.lon, dst.lat, dst.lon),
                            rangeUnit, true),
-           Si(223.0f), FOLLOW_DIM);
+           GLOBE_READOUT_Y, FOLLOW_DIM);
 
     followArcUs = micros() - t0;
     followArcStrokes = (size_t)vertices;
