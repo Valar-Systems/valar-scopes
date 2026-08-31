@@ -99,7 +99,7 @@ export async function isRevoked(env: Env, deviceId: string): Promise<boolean> {
 //   2. Edit revoked.txt -- one device id per line. Blank lines and `#` comments
 //      are ignored, so annotate freely:
 //        # RMA 2026-08-04, board resold
-//        2aeea64cb4b760b8
+//        0123456789abcdef
 //
 //   3. Publish:
 //        npx wrangler kv key put --binding=ENRICH_KV --env production --remote \

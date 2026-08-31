@@ -1,0 +1,25 @@
+name: device-ids
+
+# NO PATH FILTER, DELIBERATELY.
+#
+# workers.yml is filtered to proxy/** and dashboard/**, which is right for a test
+# suite and wrong for this. Every real device id found on 2026-08-31 was in a
+# DOC or a test fixture, and the one that mattered -- somebody else's board -- was
+# added by a docs-only PR that no filtered workflow would have run. A guard whose
+# trigger excludes the place the problem lives is not a guard.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  no-real-device-ids:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Full history is NOT needed and is not wanted: this scans the tree at
+      # HEAD. Two commits pushed on 2026-08-31 carry a real id and were
+      # deliberately left alone rather than rewritten -- a history-wide scan
+      # would be permanently red, and a control that can never pass is a control
+      # somebody disables. See scripts/check_device_ids.py.
+      - run: python3 scripts/check_device_ids.py

@@ -4,7 +4,7 @@ import { REVOKED_KEY, parseRevoked, readRevoked, setRevoked } from "../src/revok
 import type { Env } from "../src/types";
 
 const E = env as unknown as Env;
-const ID = "2aeea64cb4b760b8";
+const ID = "0123456789abcdef";
 const ID2 = "a1b2c3d4e5f60718";
 
 beforeEach(async () => {
@@ -13,7 +13,7 @@ beforeEach(async () => {
 
 describe("parseRevoked", () => {
   it("reads the tolerant hand-edited format", () => {
-    const s = parseRevoked(`# RMA 2026-08-04\n${ID}\n\n  ${ID2}  , 2AEEA64CB4B760B8\n`);
+    const s = parseRevoked(`# RMA 2026-08-04\n${ID}\n\n  ${ID2}  , 0123456789ABCDEF\n`);
     expect([...s].sort()).toEqual([ID2, ID].sort());
   });
 

@@ -25,7 +25,7 @@ describe("the front door", () => {
     const res = await worker.fetch(
       new Request("https://fleet.example/revoke", {
         method: "POST",
-        body: new URLSearchParams({ dev: "2aeea64cb4b760b8", to: "1" }),
+        body: new URLSearchParams({ dev: "0123456789abcdef", to: "1" }),
       }),
       E,
     );
@@ -44,9 +44,9 @@ describe("the front door", () => {
 // this product that can take a customer's device off the air.
 describe("flashFor", () => {
   it("renders the four real outcomes", () => {
-    expect(flashFor("revoked", "2aeea64cb4b760b8")).toContain("REVOKED");
-    expect(flashFor("restored", "2aeea64cb4b760b8")).toContain("active again");
-    expect(flashFor("nochange", "2aeea64cb4b760b8")).toContain("nothing changed");
+    expect(flashFor("revoked", "0123456789abcdef")).toContain("REVOKED");
+    expect(flashFor("restored", "0123456789abcdef")).toContain("active again");
+    expect(flashFor("nochange", "0123456789abcdef")).toContain("nothing changed");
     expect(flashFor("bad", "whatever")).toContain("not a device id");
   });
 
@@ -61,7 +61,7 @@ describe("flashFor", () => {
       '"><script>alert(1)</script>',
       "<img src=x onerror=alert(1)>",
       "javascript:alert(1)",
-      "2aeea64cb4b760b8<script>",
+      "0123456789abcdef<script>",
     ];
     for (const p of payloads) {
       const out = flashFor("revoked", p);
@@ -72,6 +72,6 @@ describe("flashFor", () => {
   });
 
   it("normalises a real id rather than rejecting it on case", () => {
-    expect(flashFor("revoked", "2AEEA64CB4B760B8")).toContain("2aeea64cb4b760b8");
+    expect(flashFor("revoked", "0123456789ABCDEF")).toContain("0123456789abcdef");
   });
 });

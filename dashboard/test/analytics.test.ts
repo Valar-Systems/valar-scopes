@@ -132,7 +132,7 @@ describe("row coercion", () => {
   it("turns the API's stringy numbers into numbers", async () => {
     captureSql([
       {
-        dev: "2aeea64cb4b760b8", model: "s3-128", fw: "5",
+        dev: "0123456789abcdef", model: "s3-128", fw: "5",
         requests: "1234.0", errors: "2", cards: "17", enriches: "40",
         stale_served: "3", last_seen: "2026-08-02 09:00:00",
       },
