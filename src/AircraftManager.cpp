@@ -2156,7 +2156,10 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // the exact failure the 60 ms gate above already demonstrated. The health
     // line prints resid= so that re-fit is a data question, not a redesign.
     // ======================================================================
-    constexpr float FRAME_P95_MARGIN_MS  = 10.0f;   // > the p99 (+3.1) and max
+    // SPENT, IN PART, 2026-08-30. The globe face's residual moved from -6.0 ms to
+// +1.2 ms when the coastline density was raised (see DrawRouteGlobe). The margin
+// below is now doing real work on that face rather than covering an unused gap.
+constexpr float FRAME_P95_MARGIN_MS  = 10.0f;   // > the p99 (+3.1) and max
                                                     // (+9.4) residuals observed
     constexpr float FRAME_P95_CEILING_MS = 85.0f;   // absolute, model-independent
     constexpr uint32_t LARGEST_BLOCK_BUDGET = 20000;
@@ -6344,6 +6347,34 @@ static void FollowSubsolar(time_t utc, float& outLat, float& outLon)
     outLon = -15.0f * (hours - 12.0f);
 }
 
+// COASTLINE DENSITY: 0.15 deg, ADOPTED 2026-08-30 -- AND THIS FACE NOW HAS NO
+// CUSHION UNDER THE FRAME MODEL. Read this before adding anything to it.
+//
+// Two candidates were built and judged on glass at panel size (R = 119). 0.15
+// won on the question that was actually asked: Greenland and the arctic
+// archipelago read as real coastline rather than as chords. The 4,000 km
+// threshold that used to hide this (#274) is gone, so every route is drawn at a
+// scale where the data's resolution is visible.
+//
+// WHAT IT COST, measured, not estimated:
+//
+//     vertices        1,306  ->  5,286      (105 rings, was 84)
+//     flash                    +23.5 KB
+//     globe draw               +6.7 ms
+//     residual         -6.0 ms ->  +1.2 ms
+//
+// THE LAST ROW IS THE ONE THAT MATTERS TO WHOEVER READS THIS NEXT. The frame
+// gate is a fitted model (FRAME_P95_INTERCEPT_MS / _PER_AIRCRAFT_MS) plus a
+// 10 ms margin. This face used to sit 6 ms BELOW what the model predicts, and
+// that gap was not headroom anybody allocated -- it was slack, and it has been
+// spent. At +1.2 ms the face is now marginally above the model and living on the
+// margin itself.
+//
+// So: anything added here is spending MARGIN, not slack. Roughly 8 ms of it is
+// left before the gate starts firing, and the gate's constants were fitted on a
+// heap-starved board with enrichment nearly idle (#271) -- meaning the true
+// remaining margin is smaller than 8 ms, not larger. Measure before and after,
+// and read `resid=` off the health line rather than reasoning about it.
 void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& view)
 {
     const uint32_t t0 = micros();

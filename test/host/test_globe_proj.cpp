@@ -78,8 +78,18 @@ int main()
           near(Dot3(g.u, g.u), 1.0f, 1e-5f), "and normalised");
 
     std::printf("  ---- real coastline vertices, through the same c and R\n");
-    // Nine vertices copied from the head of src/anim/Coastlines.inc, with the
-    // screen positions the ORIGINAL GlobePt gave them at c=120, R=119.
+    // Nine vertices with the screen positions the ORIGINAL GlobePt gave them at
+    // c=120, R=119.
+    //
+    // THEY ARE FIXED INPUTS, NOT A SAMPLE OF THE SHIPPED DATA -- and that
+    // distinction only became visible when the data changed under them. They
+    // were copied from the head of the 0.50 deg set, which is no longer what
+    // ships (the density moved to 0.15 on 2026-08-30). Nothing about this block
+    // needs updating for that: it grades the PROJECTION, and the projection is
+    // behaviour-preserving or not regardless of which vertices happen to be in
+    // the file today. Re-pinning them to the new data's head would swap a
+    // pre-extraction golden for a post-extraction one and quietly delete the
+    // only reason the block exists.
     struct Golden { int16_t x, y, z; float sx, sy; bool near_; };
     static const Golden kGolden[] = {
         {  -110, -11476, 30691, 114.956730f,  3.902812f, true },
@@ -175,14 +185,22 @@ int main()
     {
         const Coastline* c = Coastlines();
         const int n = CoastlineCount();
-        check(n == 84, "84 rings, as generated");
+        // THE TRIPWIRE, AND IT HAS FIRED ONCE IN ANGER. These numbers exist so
+        // that regenerating the data cannot happen silently -- "if this moves,
+        // the globe's cost figures moved with it". On 2026-08-30 a docs commit
+        // swept a candidate .inc into the branch and this is what said so.
+        //
+        // 0.15 deg, adopted 2026-08-30 after the two candidates were compared on
+        // glass. Was 84 rings / 1,306 vertices at 0.50 deg. If you are changing
+        // these numbers, you are changing what ships: re-measure the globe face
+        // and re-read the residual, because the previous change spent all of the
+        // model's cushion (see DrawRouteGlobe).
+        check(n == 105, "105 rings, as generated at 0.15 deg");
         int verts = 0;
         for (int i = 0; i < n; ++i) verts += c[i].n;
-        // §7.2 [MEASURED]: 1,306 vertices. If this number moves, the data was
-        // regenerated and the globe's cost figures went with it.
-        check(verts == 1306, "1,306 vertices, as §7.2 measured");
-        check(c[0].v[0].x == -110 && c[0].v[0].y == -11476 && c[0].v[0].z == 30691,
-              "and the first vertex is the one the golden values were taken from");
+        check(verts == 5286, "5,286 vertices, as measured 2026-08-30");
+        check(c[0].v[0].x == -770 && c[0].v[0].y == -10224 && c[0].v[0].z == 31121,
+              "and the first vertex is the shipped data's own, read back from it");
         // Every vertex should be a unit vector x32767, within rounding.
         bool allUnit = true;
         for (int i = 0; i < n; ++i)
