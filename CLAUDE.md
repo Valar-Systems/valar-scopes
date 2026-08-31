@@ -501,6 +501,53 @@ leaked one credential through logs — see the Wi-Fi password incident, fixed
 forward in PR #183. That one was firmware serial output; this one was a shell.
 Same class, different surface.
 
+## Standing practice: a rule can be right in its domain and wrong one call site over
+
+**The dangerous rule is not the wrong one. It is the correct one, cited
+accurately, at a site it was never about.** Nobody catches that by re-reading the
+rule — the rule is fine — and nobody catches it by reading the code, because the
+code cites a real principle and looks disciplined doing it.
+
+The instance (2026-08-31). Follow's spec §13.3 says:
+
+> **Follow gets a screen; it never gets THE screen.**
+
+Correct and load-bearing. It governs the **device** raising the Follow face on a
+state transition: a followed aircraft going quiet must not steal the display from
+a rare contact passing overhead. The auto-surface path arms a dwell and hands the
+screen back, exactly as it should.
+
+`SetSessionFollow` — the customer's deliberate **swipe** — armed the same dwell,
+citing the same rule, with a comment explaining it. Twenty seconds after asking
+to follow an aircraft, the face was gone. That inverted the defining requirement
+of the entire feature:
+
+> *"I don't want the card to auto close, I want it to stay open and the aircraft
+> followed the entire way on screen"*
+
+And it did more than annoy: **every absence state became unobservable**, because
+you cannot watch a flight leave coverage on a screen that closes first. The glass
+gate the feature was waiting on could not be run.
+
+**Why it survived review.** The line was commented, the citation was accurate,
+and the behaviour it produced was *deliberate*. There is nothing to notice. The
+first hypothesis on the bench was that a card timeout had been inherited — a
+plausible mechanism that was not what happened.
+
+**What separates the two sites is one word: who asked.** §13.3 protects the
+customer from the DEVICE taking the screen. A swipe is the customer TAKING the
+screen. Same face, same timer, opposite meaning.
+
+So when a rule is cited at a new call site, ask **whose case it was written for**,
+not whether it applies. It will always seem to apply — that is what makes a good
+rule general, and it is exactly the property that lets it be misapplied with
+confidence.
+
+Cheap tell, worth running: **a rule that fires identically on a device-initiated
+and a customer-initiated path is almost certainly wrong on one of them.** The two
+have different owners, and a rule about who may take something cannot be
+indifferent to who is doing the taking.
+
 ## Standing practice: an alarm raised from memory or from prose is not an alarm
 
 **Read the artifact first — the blob, the deployed value, the rendered page —
