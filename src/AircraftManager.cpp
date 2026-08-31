@@ -5372,12 +5372,29 @@ void AircraftManager::SetSessionFollow(const TrackedAircraft& tracked)
         followStats.OnFix(f, (uint32_t)tracked.lastSeen, followHome);
     }
 
-    // Surface the face once so the gesture visibly took effect, then hand the
-    // screen straight back to the rotation -- §13.3: Follow gets a screen, never
-    // THE screen. This is the same dwell the state transitions use.
-    followAutoReturnTo = (screen == Screen::Follow) ? Screen::Radar : screen;
+    // A SWIPED FOLLOW STAYS UP. NO DWELL.
+    //
+    // This armed FOLLOW_AUTO_DWELL_MS and handed the screen back to the rotation,
+    // citing §13.3 -- "Follow gets a screen, never THE screen". That rule is real
+    // and it is about the DEVICE raising the face on a state transition: a
+    // followed aircraft going quiet must not steal the display from a rare
+    // contact overhead. It was never about the customer CHOOSING the face.
+    //
+    // Applied here it inverted the defining requirement of the feature:
+    //
+    //     "I don't want the card to auto close, I want it to stay open and the
+    //      aircraft followed the entire way on screen"
+    //
+    // Twenty seconds later the face was gone, which makes every absence state
+    // unobservable -- you cannot watch a flight leave coverage on a screen that
+    // closes first -- and made the glass gate itself unrunnable.
+    //
+    // The auto-surface path keeps its dwell (HandleFollowTransition): the device
+    // raised that one and nobody asked for it, which is exactly §13.3's case.
+    // Dismissal here is the swipe down ClearSessionFollow already handles.
+    followAutoReturnTo = screen;
     EnterScreen(Screen::Follow);   // customer-initiated: the swipe asked for this
-    followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
+    followAutoUntilMs = 0;         // stays until dismissed
 
     // §17: the target is NOT printed. The count, the route and the SEEDED
     // STATE are -- the last of those so #275 is verifiable from the cable
