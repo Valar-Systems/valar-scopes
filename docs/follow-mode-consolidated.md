@@ -1950,6 +1950,39 @@ When hardware frees up, in this order:
    threshold. Every constant in §5.3 is a guess until that exists, and guessing them from
    first principles is how you get a state machine that is elegant and wrong.
 
+### 18.1 The glass sessions have a shape, and it is not random
+
+**We photograph what is easy to produce.** Written down 2026-08-30 after a
+collision that had been on the branch for days and had never appeared in a
+single bench photograph.
+
+The globe's state row sat at y=206 and `DrawClock` draws at `SCREEN_SIZE-30` =
+210 on every screen. At a font height of 8 the two bands were 206..214 and
+210..218 — overlapping by four pixels, every frame, in plain sight. It was
+found by *listing the rows* while building the label reservation, not by looking
+at the board.
+
+The reason it was never seen is the part worth keeping: **the state row only
+draws in an ABSENT state, and every bench shot so far has been of a live one.**
+Live is what a bench produces by default — the aeroplane is there, the feed is
+up, the face is green. NO_COVERAGE, SIGNAL_LOST and APPROACH_LOST each need
+something to go missing in a particular way, so nobody reaches them by accident,
+so nobody photographs them.
+
+That is a coverage gap with a **shape**, not a run of bad luck, and it does not
+close itself:
+
+- the states that are cheap to reach are the ones that get looked at;
+- the states that are expensive to reach are the ones whose copy, colour and
+  layout matter most (§6 exists entirely for them);
+- and `FOLLOW_BENCH`'s forcing keys were built precisely so those states can be
+  put on the glass on demand — so the gap is a habit, not a capability.
+
+**So a glass session deliberately shoots the states nobody reaches by accident.**
+Force each absence state in turn and photograph it, the same way the live face is
+photographed. The forcing keys already exist (`1`..`5`); using them is the
+discipline that was missing.
+
 ---
 
 ## 19. Build order

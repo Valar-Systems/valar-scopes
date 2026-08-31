@@ -478,6 +478,67 @@ leaked one credential through logs — see the Wi-Fi password incident, fixed
 forward in PR #183. That one was firmware serial output; this one was a shell.
 Same class, different surface.
 
+## Standing practice: know which instrument can see the failure you have
+
+**The bench panel and the host suite fail in opposite directions, and the lesson
+is not "trust the board".** It is that each one is blind to a whole class of
+defect, and picking the wrong instrument means looking straight at a bug and
+seeing nothing wrong.
+
+The case that made this a rule (2026-08-30, Follow's globe face). Endpoint labels
+were colliding with the fixed text rows, so they got a vertical nudge: shove the
+label to whichever side of the offending row is nearer, and repeat. It looked
+right, it compiled, and on the panel it looked *fixed* — the label that had been
+crowded was no longer crowded.
+
+A host test swept the crowded half of the disc and reported **13 placements
+against 40 refusals**. The algorithm was thrashing: where rows sit close together
+(6 px and 1 px apart at the bottom of that face) it pushed the label up into the
+next row, back down into the first, and out of its iteration bound as "no fit".
+A greedy local move cannot see past the row it is standing in.
+
+**So the fix for "the label is missing" would have deleted the label** — in
+exactly the cases nobody photographs, and while presenting as a success in the
+one case they do. Replacing the walk with an enumeration over the only 2n+1
+positions that can be the answer took it to 53 placements, 0 refusals.
+
+The panel could not have found this, and not because nobody looked hard enough:
+
+| | the panel sees | the host suite sees |
+|---|---|---|
+| **one case, fully rendered** | yes — colour, contrast, crowding, whether it *reads* | no |
+| **a population of cases** | one at a time, whichever the feed happens to produce | all of them, including the ones no feed will produce today |
+| **absence** | nothing. A label that is not drawn looks like a label that is not there | a count, which is the only form absence has |
+
+A missing label on a panel is invisible **by construction**: there is no gap, no
+error, no ellipsis — the pixels that would have been the label are simply the
+picture behind it. The refusal rate had no visual signature at all. It had a
+number, and only one of the two instruments produces numbers.
+
+The converse holds just as hard, which is why this is not "write more tests":
+the host suite would happily pass a label rendered in green on green, at 2 px, or
+behind the terminator. **It cannot see a picture.** Both of the defects fixed
+that day — *green-on-green over coastline* and *13/40 refusals* — were on the
+same feature, in the same hour, and each was invisible to the instrument that
+caught the other.
+
+Practical form, and it is a question to ask before reaching for either:
+
+- **Is the property a rendering, or a population?** Colour, contrast, crowding,
+  "does it read" — glass. Rates, counts, coverage, "does it ever fail" — host.
+- **Can the failure be seen at all in the medium I am about to use?** Absence
+  cannot be seen on a panel. A picture cannot be seen in a test.
+- **When the property is "this never happens", sweep it.** One observation of a
+  thing not happening is not evidence; a sweep with a placed-vs-refused count is.
+  Print both numbers — `placed 53, refused 0 over 53 starts` is a result, and
+  `PASS` is not.
+
+Same family as [the coverage-gap note in the Follow spec](docs/follow-mode-consolidated.md)
+one level down: there, the bench photographs live states because live is what a
+bench produces by default, so the absence states go unseen. Here, the bench
+cannot photograph a non-event at all. Both are "the instrument decides what you
+are able to notice."
+
 ## Standing practice: never filter the output of a command you are testing for failure
 
 Twice in one week a `grep`/`tail` on a command's output hid the failure it was
