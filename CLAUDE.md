@@ -505,6 +505,16 @@ did they get it" while a live production auth failure sat unexamined. An alarm i
 a steering input, so raising one from unverified material steers on unverified
 material.
 
+**This entry fired on its own author the same afternoon it was written.** A
+token file was reported deleted on the strength of a Python `os.path.exists()`
+that had been handed an MSYS path (`/c/Users/...`) it could not resolve; the file
+was still on disk. It was caught before being reported — `ls -la` in bash, which
+understands that path, said so — and that is the only one of the day's four
+instances caught in time. Worth recording, because it is the difference between a
+rule people believe and a rule people have watched fire: the artifact was a
+one-word `ls`, and the tool's word was confidently wrong in the reassuring
+direction.
+
 The check is one line and it is always available:
 
 | claim | the artifact |
@@ -554,6 +564,18 @@ and then to build the thing that fires by itself:
 | "don't commit real device ids" | [`.githooks/pre-commit`](.githooks/pre-commit) + [`scripts/check_device_ids.py`](scripts/check_device_ids.py) in CI |
 | "don't let example data read as real" | the allowlist file — fake ids are the only ones that pass |
 | "don't infer liveness from enrolment" | *(still only a rule — and therefore still likely to fail)* |
+
+**What the last failure of each un-mechanised rule cost** — attach the receipt, or
+the rule reads as a style preference:
+
+| rule with no control | last failure | cost |
+|---|---|---|
+| don't infer liveness from enrolment | 2026-08-31 | a device with 32,165 requests in fourteen days written off as dormant; the blast radius of a production secret rotation stated wrong, twice |
+
+Prose that has to survive on persuasion needs its receipts attached. A reader who
+meets *"don't infer liveness from enrolment"* cold will weigh it against whatever
+they are trying to get done; a reader who meets it with **an hour and a wrong
+blast radius** beside it will not.
 
 That last row is left in deliberately. Not everything mechanises, and the honest
 thing is to know which of your rules are load-bearing prose and which are
