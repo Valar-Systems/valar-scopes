@@ -74,6 +74,50 @@ Because the two surviving hypotheses have very different consequences:
 - if neither, an NVS key changed value with no code path that could have changed
   it, on a board whose sibling has an open unexplained fragmentation issue.
 
+## 2026-08-31 — checked against the whole-form mechanism. STILL OPEN.
+
+Revisited after a partial POST to `/save` was attempted from the workstation
+during an unrelated credential repair. Two things were established from the code
+rather than from recollection, and the conclusion is **negative** — the anomaly
+does not close.
+
+**The mechanism in hypothesis 1 is real and is exactly as described.**
+`SaveToggle` writes `"false"` for an absent box **only when the hidden `cfg-form`
+marker is present**:
+
+```cpp
+const bool wholeForm = request->hasParam("cfg-form", true);
+auto SaveToggle = [request, &prefs, wholeForm](const char* name) {
+    if (request->hasParam(name, true))  prefs.putString(name, "true");
+    else if (wholeForm)                 prefs.putString(name, "false");
+};
+```
+
+So a whole-form POST from a stale tab writes the DOM as rendered, including
+`false` for boxes that were ticked in NVS by then. That is a live path and
+remains the leading hypothesis.
+
+**But the CSRF guard does NOT explain why it stopped, and it is worth writing
+down so nobody reaches for it.** `RejectCrossOrigin` blocks a request whose
+Origin is not the device. **A stale browser tab is SAME-ORIGIN** — it was
+served by the device, and posting from it later is precisely the scenario the
+guard is designed to allow. The guard is orthogonal to hypothesis 1 and closes
+nothing about it.
+
+What today *did* eliminate, which was never on the list: a scripted or external
+partial POST could not have caused the flip, and is now doubly excluded — it is
+refused by `RejectCrossOrigin` before it is parsed, and would be inert even if
+accepted, because without `cfg-form` `SaveToggle` never writes `"false"`.
+
+**A correction to a claim made during that repair**, since it is the kind that
+propagates: a partial POST to `/save` was described as something that "would have
+wiped every toggle", and the 403 as a lucky escape. That is wrong in both halves.
+The `cfg-form` guard is exactly what makes a partial POST safe, and it is the
+same guard the 12:32 forward-correction above relied on deliberately.
+
+**Status unchanged: open, not reproduced.** The trigger below stands.
+
+
 ## The trigger
 
 **If the three keys flip again across a flash with no `/save` in between and no
