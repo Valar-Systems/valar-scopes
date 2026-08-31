@@ -97,11 +97,21 @@ deployment on the list that has never needed attention.
 
 **Confirm each single-enrolment id against the bench log for that timestamp**
 before calling it a field unit. That is what identified the two on this list:
-`a5669521b763534e` enrolled at 2026-08-24T17:34Z and the COM16 capture shows
-`HTTP 401` at that exact minute, i.e. our own board being flashed;
-`870b7377557531eb` enrolled at 2026-08-27T02:47Z with **no bench log written
-anywhere near that window**, so nothing of ours was being flashed and it is
-somebody's Blipscope.
+one id enrolled at 2026-08-24T17:34Z and the COM16 capture shows `HTTP 401` at
+that exact minute, i.e. our own board being flashed; the other enrolled at
+2026-08-27T02:47Z with **no bench log written anywhere near that window**, so
+nothing of ours was being flashed and it is somebody's Blipscope.
+
+> **IDS ARE NOT WRITTEN OUT IN THIS FILE.** The enrolment registry (`enr:dev:*`,
+> queried above) is the source of truth, and it is current in a way a document
+> cannot be. Use `0123456789abcdef` as a placeholder when an id-shaped literal is
+> needed for illustration; refer to real boards by port or nickname.
+>
+> One of the ids this section originally named belongs to **somebody else's
+> device**. Publishing your own device's id in a public repo is a shrug;
+> publishing a friend's without asking is a different thing, and he would have no
+> way of knowing it happened. That is the reason for this rule — not tidiness. A
+> `pre-commit` hook now refuses id-shaped tokens (see `.githooks/README.md`).
 
 ### There is no server-side liveness record, and that is a real limit
 
@@ -635,7 +645,7 @@ ROTATION <date>
 
 ## FINDING 2026-08-28 — the workstation held a real board's key, not the smoke identity
 
-**`BLIP_KEY` / `BLIP_DEVICE` on the workstation held `2afa3e2c7140ef5e` — "Bend
+**`BLIP_KEY` / `BLIP_DEVICE` on the workstation held the COM119 id — "Bend
 Radar2", i.e. COM119, a live soak board — where this runbook specifies the
 synthetic `beefbeefbeefbeef`.**
 
@@ -669,7 +679,7 @@ experiment — here, the #245 A/B and the #264 capture.
   Radar2". Nothing customer-facing, nothing fleet-wide.
 - **Mint `beefbeefbeefbeef` and put that in `BLIP_KEY`/`BLIP_DEVICE`**, which is
   what §3 of this runbook already says to do. No board is touched.
-- **Revoke `2afa3e2c7140ef5e` and re-enrol COM119 after the A/B closes.**
+- **Revoke the COM119 id and re-enrol COM119 after the A/B closes.**
 
 > ### CORRECTED 2026-08-31: REVOCATION IS CONTAINMENT, NOT REMEDIATION
 >
@@ -705,7 +715,7 @@ staging and production hold the **same** `DEVICE_KEY_SECRET`, so a
 production-derived key authenticates against staging (and, the direction that
 matters, a staging compromise mints production identities).
 
-**Do the revocation FIRST, then the split.** Revoking `2afa3e2c7140ef5e` today is
+**Do the revocation FIRST, then the split.** Revoking the COM119 id today is
 a straightforward re-enrol against one shared secret. If the secrets are split
 first, the re-enrol mints a key valid in only one environment and the bench has
 to start tracking which one it is addressing -- a second moving part introduced
