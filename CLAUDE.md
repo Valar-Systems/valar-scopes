@@ -552,6 +552,34 @@ was open. See *a green signal is about process; the artifact is elsewhere* —
 different facts. For a Worker there is a fourth: `workers.yml` has no deploy
 step, so even merging does not ship it.
 
+**A REHEARSAL YOU REASONED ABOUT TESTS YOUR MODEL. A REHEARSAL YOU RAN TESTS THE
+CODE.** Only the second can surprise you, and the surprise is the point.
+
+Reasoning about a sabotage produces exactly the failures you already predicted —
+which is what makes it feel efficient, and precisely why it is worthless. On
+2026-08-31 a deploy-confirmation loop was sabotaged by deleting its
+"unreachable" branch, to reproduce a reported bug (a good deploy reported as
+unconfirmed). Running it produced the predicted failure **and one nobody had
+thought of**:
+
+    unreachable -> cannot observe        got WRONG_SHA     <- predicted
+    unreachable OUTRANKS a stale body    got CONFIRMED     <- not predicted
+
+`LIVE` persisted across loop iterations, so an endpoint that answered once and
+then went down was reported as a **confirmed deploy**. The reported bug was noisy
+in the alarming direction; this one was silent in the reassuring direction, and
+it was in the block whose only job is proving what production is running.
+
+Note where it sits: *the readings that need a second source are the ones that
+agree with you*. The reassuring-direction failure is structurally invisible to
+surprise, so it will never be the one you predict — and it turned up in the very
+next check, in a confirmation loop, one message after that rule was written.
+
+**Corollary: a sabotage that does not visibly change the result did not apply.**
+The first attempt at that rehearsal silently failed to patch the file, and the
+unsabotaged "9 passed" was nearly reported as the rehearsal. Print the failure
+count before and after; if they match, the sabotage is the thing that is broken.
+
 The check is one line and it is always available:
 
 | claim | the artifact |
@@ -565,6 +593,31 @@ with the sign flipped.** The RMA annotation cost an hour precisely because nobod
 had written *"this is fake"* beside it. So example data says it is example data
 (`0000000000000000`, `# EXAMPLE -- not a real device`), and real data that must
 stay says why it is there. Neither is expensive; the ambiguity between them is.
+
+## Standing practice: on this machine, do file operations in bash, not Python
+
+**Windows Python cannot resolve an MSYS path (`/c/Users/...`, `/tmp/...`), and it
+does not error — it reports the file absent.** Every failure is therefore in the
+reassuring direction:
+
+| what was done | what Python said | what was true |
+|---|---|---|
+| delete a credential file | "already absent" | still on disk |
+| patch a file to sabotage it | patched | never applied; the selftest passed unchanged |
+
+Twice in one session, both reported as success. Bash understands those paths
+because it created them; `git`, `python` and any other native Windows binary do
+not, and `/tmp` in particular is two different directories depending on who is
+looking.
+
+**So: `ls`, `rm`, `cp`, `test -f` and the verification that follows them happen in
+bash.** When Python must touch a file, hand it a `C:/`-style path and check the
+result in bash afterwards — the check is what matters, since the failure mode is
+silent success.
+
+Same shape as the redirect trap one level down: `cmd > /tmp/x` writes an MSYS
+path that a subsequent Windows process cannot open, so the file "does not exist"
+to the second command while plainly existing to the first.
 
 ## Standing practice: a rule you have just written down does not protect you from it
 
