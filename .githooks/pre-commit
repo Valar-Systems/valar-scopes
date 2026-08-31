@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Refuse a commit that stages a real device id.
+#
+# WHY A HOOK AND NOT A RULE. Two instances on 2026-08-31, hours apart, by someone
+# who had just written the rule down: an example annotation carrying a real id
+# cost an hour of alarm mid-incident, and then a `git add -A` swept an operator
+# scratch file into a public repo. A CLAUDE.md entry does not survive the
+# twentieth minute of a good debugging run. `git add -A` stages what you did not
+# look at, and that is the actual mechanism.
+#
+# WHAT IT MATCHES. A bare 16-hex-digit token, which is the device-id shape
+# (efuse MAC derived). Word boundaries mean a 40-char git SHA does not match --
+# there is no boundary inside a longer hex run -- and neither does 0xdeadbeef...
+# for the same reason.
+#
+# ALLOWLIST. The obviously-fake ones the docs are supposed to use, plus the
+# synthetic bench identity, which is a real enrolled id but is synthetic BY
+# DESIGN and exists precisely so that real ids never have to appear.
+set -u
+
+ALLOW='0000000000000000|0123456789abcdef|beefbeefbeefbeef'
+PATTERN='\b[0-9a-f]{16}\b'
+found=0
+
+while IFS= read -r f; do
+  [ -z "$f" ] || [ ! -e "$f" ] && continue
+  # Read the STAGED content, not the worktree: they differ under `git add -p`,
+  # and the staged bytes are what the commit will contain.
+  hits=$(git show ":$f" 2>/dev/null | grep -oE "$PATTERN" | grep -vE "^($ALLOW)$" | sort -u)
+  if [ -n "$hits" ]; then
+    found=1
+    echo "  $f"
+    echo "$hits" | sed 's/^/      /'
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ "$found" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+COMMIT REFUSED: a real-looking device id is staged.
+
+A device id is not a credential -- the key is HMAC(DEVICE_KEY_SECRET, id) and the
+secret does the work -- but a real id in the tree becomes a record somebody acts
+on later, and once ids belong to customers it is a privacy surface too.
+
+Use an obviously-fake id and label it:
+
+    # EXAMPLE -- not a real device
+    0000000000000000
+
+Allowed: 0000000000000000, 0123456789abcdef, beefbeefbeefbeef (synthetic).
+
+If a real id genuinely belongs in this commit, say so deliberately:
+
+    git commit --no-verify
+
+MSG
+  exit 1
+fi
+exit 0
