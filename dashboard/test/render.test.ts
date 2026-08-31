@@ -3,7 +3,7 @@ import { fleetBody, page } from "../src/render";
 import type { DeviceRow } from "../src/types";
 
 const row = (over: Partial<DeviceRow> = {}): DeviceRow => ({
-  dev: "2aeea64cb4b760b8", model: "s3-128", fw: "5",
+  dev: "0123456789abcdef", model: "s3-128", fw: "5",
   requests: 6200, errors: 3, cards: 14, enriches: 40, staleServed: 2,
   lastSeen: new Date().toISOString(), revoked: false, ...over,
 });
@@ -13,7 +13,7 @@ const totals = { devices: 2, requests: 12400, errors: 3, cards: 14, unattributed
 describe("fleet rendering", () => {
   it("renders a device row with its numbers", () => {
     const html = fleetBody([row()], totals, 24, "");
-    expect(html).toContain("2aeea64cb4b760b8");
+    expect(html).toContain("0123456789abcdef");
     expect(html).toContain("6,200");
     expect(html).toContain("Revoke");
   });

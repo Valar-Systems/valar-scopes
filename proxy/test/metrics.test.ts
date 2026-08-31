@@ -21,10 +21,10 @@ function envWithSpy() {
 describe("recordOtaMem", () => {
   it("records a well-formed report as one Analytics Engine point", () => {
     const { env, writeDataPoint } = envWithSpy();
-    recordOtaMem(env, "4,5,46068,71668,ok", "s3-128", "2aeea64cb4b760b8");
+    recordOtaMem(env, "4,5,46068,71668,ok", "s3-128", "0123456789abcdef");
     expect(writeDataPoint).toHaveBeenCalledTimes(1);
     expect(writeDataPoint).toHaveBeenCalledWith({
-      blobs: ["ota", "ok", "s3-128", "2aeea64cb4b760b8"],
+      blobs: ["ota", "ok", "s3-128", "0123456789abcdef"],
       doubles: [4, 5, 46068, 71668],
       indexes: ["ota"],
     });
@@ -85,8 +85,8 @@ describe("setDeviceAttribution", () => {
 
   it("attributes a device-authed request", () => {
     const m = blank();
-    setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": "5" }));
-    expect(m.dev).toBe("2aeea64cb4b760b8");
+    setDeviceAttribution(m, req({ "X-Blip-Device": "0123456789abcdef", "X-Blip-FW": "5" }));
+    expect(m.dev).toBe("0123456789abcdef");
     expect(m.fw).toBe("5");
   });
 
@@ -105,8 +105,8 @@ describe("setDeviceAttribution", () => {
   // precondition it was given.
   it("attributes purely from the headers, the caller having already proven identity", () => {
     const m = blank();
-    setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": "5" }));
-    expect(m.dev).toBe("2aeea64cb4b760b8");
+    setDeviceAttribution(m, req({ "X-Blip-Device": "0123456789abcdef", "X-Blip-FW": "5" }));
+    expect(m.dev).toBe("0123456789abcdef");
     // No headers at all -> nothing invented, even past auth.
     const m2 = blank();
     setDeviceAttribution(m2, req({}));
@@ -115,7 +115,7 @@ describe("setDeviceAttribution", () => {
   });
 
   it("drops a malformed id rather than storing it", () => {
-    for (const bad of ["", "  ", "ZZZZ", "2aeea6", "../../etc", "2aeea64cb4b760b8x".repeat(4)]) {
+    for (const bad of ["", "  ", "ZZZZ", "2aeea6", "../../etc", "0123456789abcdefx".repeat(4)]) {
       const m = blank();
       setDeviceAttribution(m, req({ "X-Blip-Device": bad }));
       expect(m.dev).toBeUndefined();
@@ -125,16 +125,16 @@ describe("setDeviceAttribution", () => {
   it("drops a malformed firmware version rather than storing it", () => {
     for (const bad of ["", "v5", "5.1", "-1", "1234567", "'; DROP"]) {
       const m = blank();
-      setDeviceAttribution(m, req({ "X-Blip-Device": "2aeea64cb4b760b8", "X-Blip-FW": bad }));
-      expect(m.dev).toBe("2aeea64cb4b760b8");
+      setDeviceAttribution(m, req({ "X-Blip-Device": "0123456789abcdef", "X-Blip-FW": bad }));
+      expect(m.dev).toBe("0123456789abcdef");
       expect(m.fw).toBeUndefined();
     }
   });
 
   it("normalises case so one device is one row", () => {
     const m = blank();
-    setDeviceAttribution(m, req({ "X-Blip-Device": " 2AEEA64CB4B760B8 " }));
-    expect(m.dev).toBe("2aeea64cb4b760b8");
+    setDeviceAttribution(m, req({ "X-Blip-Device": " 0123456789ABCDEF " }));
+    expect(m.dev).toBe("0123456789abcdef");
   });
 });
 
@@ -147,10 +147,10 @@ describe("record blob layout", () => {
     record(env, {
       ep: "/v1/blips", status: 200, ms: 4, model: "s3-128", colo: "SEA",
       cache: "MISS", upstream: "adsb_lol", upstreamMs: 120,
-      dev: "2aeea64cb4b760b8", fw: "5",
+      dev: "0123456789abcdef", fw: "5",
     });
     expect(writeDataPoint.mock.calls[0]?.[0].blobs).toEqual([
-      "/v1/blips", "MISS", "adsb_lol", "s3-128", "2aeea64cb4b760b8", "5",
+      "/v1/blips", "MISS", "adsb_lol", "s3-128", "0123456789abcdef", "5",
     ]);
   });
 
@@ -171,7 +171,7 @@ describe("routeTemplate", () => {
   it("collapses the per-resource routes", () => {
     expect(routeTemplate("/v1/enrich/a0e5dd")).toBe("/v1/enrich");
     expect(routeTemplate("/v1/photo/b738-united")).toBe("/v1/photo");
-    expect(routeTemplate("/leaderboard/2aeea64cb4b760b8")).toBe("/leaderboard/:id");
+    expect(routeTemplate("/leaderboard/0123456789abcdef")).toBe("/leaderboard/:id");
   });
 
   it("leaves the fixed routes exactly as they were, so existing queries still match", () => {
@@ -217,10 +217,10 @@ describe("routeTemplate", () => {
 describe("recordUsage", () => {
   it("records a well-formed report as one Analytics Engine point", () => {
     const { env, writeDataPoint } = envWithSpy();
-    recordUsage(env, "41,7,3,2,11,5,1,137", "s3-128", "8", "2aeea64cb4b760b8");
+    recordUsage(env, "41,7,3,2,11,5,1,137", "s3-128", "8", "0123456789abcdef");
     expect(writeDataPoint).toHaveBeenCalledTimes(1);
     expect(writeDataPoint).toHaveBeenCalledWith({
-      blobs: ["usage", "s3-128", "8", "2aeea64cb4b760b8"],
+      blobs: ["usage", "s3-128", "8", "0123456789abcdef"],
       doubles: [41, 7, 3, 2, 11, 5, 1, 137],
       indexes: ["usage"],
     });
@@ -228,8 +228,8 @@ describe("recordUsage", () => {
 
   it("keeps the device on the point, because per-device was the ask", () => {
     const { env, writeDataPoint } = envWithSpy();
-    recordUsage(env, "1,0,0,0,0,0,0,1", "s3-128", "8", "2aeea64cb4b760b8");
-    expect(writeDataPoint.mock.calls[0]?.[0].blobs[3]).toBe("2aeea64cb4b760b8");
+    recordUsage(env, "1,0,0,0,0,0,0,1", "s3-128", "8", "0123456789abcdef");
+    expect(writeDataPoint.mock.calls[0]?.[0].blobs[3]).toBe("0123456789abcdef");
   });
 
   it("records an empty device when the caller has no attribution", () => {

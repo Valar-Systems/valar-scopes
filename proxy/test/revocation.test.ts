@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { isRevoked, parseRevoked, resetRevocationCache, REVOKED_KEY } from "../src/revocation";
 import type { Env } from "../src/types";
 
-const REAL = "2aeea64cb4b760b8";
+const REAL = "0123456789abcdef";
 const OTHER = "1111222233334444";
 
 function envWith(raw: string | null, opts: { throws?: boolean } = {}): Env {

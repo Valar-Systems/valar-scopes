@@ -1,0 +1,29 @@
+# Device ids that may appear in the tree. One per line; '#' comments a whole line.
+#
+# ONE FILE, READ BY BOTH GUARDS. .githooks/pre-commit (bash) and
+# scripts/check_device_ids.py (CI) both read this. They had separate lists for
+# about four minutes on 2026-08-31 and the hook promptly refused a commit the CI
+# check considered clean -- two guards on one rule is two rules.
+#
+# This file needs no exemption from either guard: everything in it is, by
+# definition, allowed.
+
+# The documented placeholders. Use these in docs and examples.
+0000000000000000
+0123456789abcdef
+
+# The synthetic bench identity. A REAL enrolled id, but synthetic by design --
+# it exists precisely so a real board's id never has to appear anywhere.
+beefbeefbeefbeef
+
+# Pre-existing test fixtures, enumerated rather than pattern-matched. There is no
+# reliable way to tell "obviously fake" from "real" by looking -- that is the
+# whole lesson of the RMA annotation -- so a new fixture is added here
+# deliberately, and that one-line diff is the review moment.
+a1b2c3d4e5f6a7b8
+a1b2c3d4e5f60718
+b2c3d4e5f6a7b8c9
+dead0000beef1111
+1111222233334444
+aaaabbbbccccdddd
+ffffffffffffffff

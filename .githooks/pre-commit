@@ -18,7 +18,13 @@
 # DESIGN and exists precisely so that real ids never have to appear.
 set -u
 
-ALLOW='0000000000000000|0123456789abcdef|beefbeefbeefbeef'
+# ONE ALLOWLIST, SHARED WITH scripts/check_device_ids.py. They were separate
+# inline lists for about four minutes on 2026-08-31 and this hook promptly
+# refused a commit the CI check considered clean. Two guards on one rule is two
+# rules, and the second one is always the stale one.
+ALLOWFILE='scripts/device-id-allowlist.txt'
+ALLOW=$(sed 's/#.*//' "$ALLOWFILE" 2>/dev/null | tr -d ' 	' | grep -E '^[0-9a-f]{16}$' | paste -sd'|' -)
+[ -z "$ALLOW" ] && { echo "pre-commit: cannot read $ALLOWFILE -- refusing to run blind" >&2; exit 1; }
 PATTERN='\b[0-9a-f]{16}\b'
 found=0
 
