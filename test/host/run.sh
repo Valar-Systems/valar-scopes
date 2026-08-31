@@ -116,6 +116,12 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+echo
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_config_vocab.cpp" -o "$OUT/test_config_vocab.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the config vocabulary test did not compile"; cat "$OUT/build.log"; exit 2
+fi
+"$OUT/test_config_vocab.exe" || fail=1
+
 echo "== StarvationPolicy =="
 # Pure predicate, graded against values captured off two real boards during the
 # 2026-08-24 A/B soak. It is host-tested rather than bench-tested on purpose: the

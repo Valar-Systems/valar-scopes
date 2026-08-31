@@ -1,3 +1,4 @@
+#include "ConfigVocabulary.h"
 #include "ConfigurationWebServer.h"
 #include "ConfigMigration.h"
 #include <WiFi.h>
@@ -145,7 +146,13 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(if(junk.length){st.textContent='NOT SAVED - could not read that '+(junk[0]===la?'latitude':'longitude')+'. Examples: 44.058173 or 44.058 N or 44 3 29.4 N';)" \
     R"(st.style.color='#ff4d4d';st.style.fontWeight='bold';junk[0].scrollIntoView({block:'center'});junk[0].focus();return})" \
     R"(st.textContent='saving...';st.style.color='';st.style.fontWeight='';)" \
-    R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:new FormData(this)}).then(function(r){return r.text()}).then(function(t){)" \
+/* The form declares its own vocabulary: every checkbox name in the DOM AS \
+   RENDERED. A toggle absent from it is one this page does not know about, \
+   and /save leaves those alone rather than writing false. Built from the \
+   DOM, so it cannot drift from the form. See include/ConfigVocabulary.h. */ \
+    R"(var fd=new FormData(this);)" \
+    R"(fd.append('cfg-toggles',Array.prototype.map.call(this.querySelectorAll('input[type=checkbox]'),function(c){return c.name}).join(','));)" \
+    R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){return r.text()}).then(function(t){)" \
     R"(st.textContent=t;var w=/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
     /* Only on a CLEAN save. A response containing MISSING means the device \
        rejected something, and ticking off a step the device did not accept would \
@@ -3027,12 +3034,24 @@ void ConfigurationWebServer::Initialise() {
         // is a whole form and absent means false, exactly as before. Without it
         // the POST is partial, and a toggle nobody mentioned is left ALONE
         // rather than silently cleared.
-        const bool wholeForm = request->hasParam("cfg-form", true);
-        auto SaveToggle = [request, &prefs, wholeForm](const char* name) {
-            if (request->hasParam(name, true))
-                prefs.putString(name, "true");
-            else if (wholeForm)
-                prefs.putString(name, "false");
+        // THE FORM DECLARES ITS OWN VOCABULARY, and only names it declared may be
+        // written false. See include/ConfigVocabulary.h for the stale-tab wipe this
+        // prevents. An ABSENT list means nothing is written false -- deliberate: a
+        // stale tab is exactly the client that will not send the field, so falling
+        // back to the old whole-form behaviour would exempt the only case the fix
+        // exists for. It is also the right failure mode if the JS ever breaks.
+        const String cfgVocab = request->hasParam("cfg-toggles", true)
+                              ? request->getParam("cfg-toggles", true)->value() : String();
+        const bool haveVocab = !cfgVocab.isEmpty();
+        int togglesWritten = 0, togglesLeftAlone = 0;
+        auto SaveToggle = [&](const char* name) {
+            if (request->hasParam(name, true)) {
+                prefs.putString(name, "true"); ++togglesWritten; return;
+            }
+            if (haveVocab && cfgvocab::Declares(cfgVocab.c_str(), name)) {
+                prefs.putString(name, "false"); ++togglesWritten; return;
+            }
+            ++togglesLeftAlone;   // this form never mentioned it: leave it alone
             };
 
         prefs.begin("config", false);
@@ -3351,6 +3370,31 @@ void ConfigurationWebServer::Initialise() {
             return;
         }
 #endif
+        // SAY WHAT WAS ACTUALLY WRITTEN. Without this the trade is an invisible
+        // wipe for an invisible no-op: the customer unticks a setting, it comes
+        // back on, and they file it under "flaky" exactly as before -- just with a
+        // smaller blast radius. The detection-profile complaint that made the wipe
+        // a launch item applies to the fix too.
+        if (!haveVocab) {
+            request->send(200, "text/html",
+                          "Saved - settings applied. This page did not say which "
+                          "settings it knows about, so none were turned off. If a "
+                          "toggle you unticked is still on, reload the page and save "
+                          "again.");
+            return;
+        }
+        if (togglesLeftAlone > 0) {
+            char vbuf[192];
+            snprintf(vbuf, sizeof(vbuf),
+                     "Saved - %d setting%s applied. %d setting%s this page does not "
+                     "know about %s left unchanged - reload to see %s.",
+                     togglesWritten, togglesWritten == 1 ? "" : "s",
+                     togglesLeftAlone, togglesLeftAlone == 1 ? "" : "s",
+                     togglesLeftAlone == 1 ? "was" : "were",
+                     togglesLeftAlone == 1 ? "it" : "them");
+            request->send(200, "text/html", vbuf);
+            return;
+        }
         request->send(200, "text/html", "Saved - settings applied.");
         }
     );
@@ -3579,4 +3623,4 @@ const String ConfigurationWebServer::GetStoredString(const char* key)
     const String value = prefs.isKey(key) ? prefs.getString(key, "") : String();
     prefs.end();
     return value;
-}
+}
