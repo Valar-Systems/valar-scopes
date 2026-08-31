@@ -102,6 +102,27 @@ export async function isRevoked(env: Env, deviceId: string): Promise<boolean> {
   return cache.ids.has(id);
 }
 
+//
+// ===========================================================================
+// HOLDING RULE UNTIL THIS FIX IS DEPLOYED: NO '#' IN cfg:revoked AT ALL.
+//
+// Not "no device id inside a comment" -- that is the correct invariant and it
+// is the WEAKER one to hold, because it requires everyone who edits the blob to
+// think about the parser. "No '#' at all" requires nothing of anybody: it is a
+// property of the whole blob rather than of somebody's judgement, it is one
+// grep, and it can be checked before every write:
+//
+//     grep -c '#' revoked.txt      # must be 0 until /healthz reports a commit
+//                                  # containing the line-based parser below
+//
+// It costs annotations for a few days. That is exactly the trade you want while
+// the parser that mishandles annotations is the one running in production.
+// History goes in docs/bench-key-rotation.md, which no parser reads.
+//
+// Applied 2026-08-31: cfg:revoked is a ZERO-BYTE blob. parseRevoked(null) and
+// parseRevoked("") both yield an empty set, so nobody is revoked -- identical
+// behaviour to the annotated version it replaced, with no way to misfire.
+// ===========================================================================
 // ---------------------------------------------------------------------------
 // OPERATOR PROCEDURE (no admin surface exists; this is the whole interface)
 //
