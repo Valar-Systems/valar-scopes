@@ -143,7 +143,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
                ? '<p class="sub">Sent back to your device. You can close this window.</p>'
                : '<p class="sub">Copy this key into the <b>Access key</b> box on your device\\'s settings page:</p>'+
                  '<div class="k">'+res.j.key+'</div>') +
-             (already ? '<p class="sub">This board was verified before - reflashing does not change its key.</p>' : ''));
+             (already ? '<p class="sub">This board has verified before. A fresh key was issued just now and is the one above - if this board was already working, nothing changes.</p>' : ''));
       })
       .catch(function(){
         gate.hidden = true;

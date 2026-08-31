@@ -62,8 +62,69 @@ Rotation invalidates **every** key derived from the old secret, simultaneously a
 permanently. `deviceauth.ts` holds one secret and recomputes; there is no dual-secret
 grace window and no per-device carve-out.
 
-Today that is: **2 bench boards + the `beefbeefbeefbeef` smoke identity.** Each needs a
-re-verify (§5, §7, §8). At pilot scale this same procedure means every customer board
+**CORRECTED 2026-08-31 — IT WAS 2 BENCH BOARDS AND IT IS FIVE IDENTITIES, ONE OF
+THEM IN SOMEBODY ELSE'S HOUSE.** The old figure below was reasoned from the bench
+inventory — the boards visible from the desk — rather than measured from the
+registry. Do not repeat that; **query it**, every time, because the answer changes
+without anyone editing this file:
+
+```sh
+npx wrangler kv key list --binding=ENRICH_KV --env production --remote --prefix "enr:dev:"
+```
+
+Measured on 2026-08-31: **five enrolled ids** — three bench boards, the synthetic
+identity, and **one unit in the field**. The registry is `enr:dev:*`; the other
+`enr:` keys are daily counters, and `lb:dev:*` is a useful independent
+cross-check (it added nothing, which is what makes it worth running).
+
+### Reading the ledger: a SINGLE enrolment means a WORKING unit, not a dead one
+
+This is the part that goes wrong silently, so it is written out.
+
+`lastAt` in an `enr:dev:` row is **the last ENROLMENT, not the last time the
+device was seen.** A device enrols when it needs a key and never again while that
+key works. So the counts inverted the obvious reading:
+
+| enrolments | what it actually indicates |
+|---|---|
+| 1,556 / 1,431 | a **bench board**, reflashed all week, re-enrolling each time |
+| 195 | the synthetic identity, minted by hand repeatedly |
+| **1** | a unit that enrolled once and has been **working ever since** |
+
+Read casually, "last seen 2026-08-27, 1 enrolment" looks like something that
+turned up once and died. It is the opposite: it is the signature of the only
+deployment on the list that has never needed attention.
+
+**Confirm each single-enrolment id against the bench log for that timestamp**
+before calling it a field unit. That is what identified the two on this list:
+one id enrolled at 2026-08-24T17:34Z and the COM16 capture shows `HTTP 401` at
+that exact minute, i.e. our own board being flashed; the other enrolled at
+2026-08-27T02:47Z with **no bench log written anywhere near that window**, so
+nothing of ours was being flashed and it is somebody's Blipscope.
+
+> **IDS ARE NOT WRITTEN OUT IN THIS FILE.** The enrolment registry (`enr:dev:*`,
+> queried above) is the source of truth, and it is current in a way a document
+> cannot be. Use `0123456789abcdef` as a placeholder when an id-shaped literal is
+> needed for illustration; refer to real boards by port or nickname.
+>
+> One of the ids this section originally named belongs to **somebody else's
+> device**. Publishing your own device's id in a public repo is a shrug;
+> publishing a friend's without asking is a different thing, and he would have no
+> way of knowing it happened. That is the reason for this rule — not tidiness. A
+> `pre-commit` hook now refuses id-shaped tokens (see `.githooks/README.md`).
+
+### There is no server-side liveness record, and that is a real limit
+
+Nothing in KV says which of the five is online. Per-device rate limiting is a
+Workers **rate-limiter binding**, not a KV namespace, so it enumerates nothing.
+The only liveness signal is the Analytics Engine `dev` dimension, and reading it
+needs `Account Analytics:Read` on the API token, which the workstation token does
+not currently carry (the query returns `code 10000, Authentication error`). Until
+that is fixed, **"which devices are alive" is unanswerable from here, and an empty
+analytics result must be reported as "cannot observe" rather than "nobody is
+active."**
+
+Each identity needs a re-verify (§5, §7, §8). At pilot scale this same procedure means every customer board
 lights `NEEDS VERIFY` at once and every owner presses one button — which is exactly the
 scenario the copy was written for, and the reason it names an action rather than a fault.
 
@@ -584,7 +645,7 @@ ROTATION <date>
 
 ## FINDING 2026-08-28 — the workstation held a real board's key, not the smoke identity
 
-**`BLIP_KEY` / `BLIP_DEVICE` on the workstation held `2afa3e2c7140ef5e` — "Bend
+**`BLIP_KEY` / `BLIP_DEVICE` on the workstation held the COM119 id — "Bend
 Radar2", i.e. COM119, a live soak board — where this runbook specifies the
 synthetic `beefbeefbeefbeef`.**
 
@@ -618,7 +679,34 @@ experiment — here, the #245 A/B and the #264 capture.
   Radar2". Nothing customer-facing, nothing fleet-wide.
 - **Mint `beefbeefbeefbeef` and put that in `BLIP_KEY`/`BLIP_DEVICE`**, which is
   what §3 of this runbook already says to do. No board is touched.
-- **Revoke `2afa3e2c7140ef5e` and re-enrol COM119 after the A/B closes.**
+- **Revoke the COM119 id and re-enrol COM119 after the A/B closes.**
+
+> ### CORRECTED 2026-08-31: REVOCATION IS CONTAINMENT, NOT REMEDIATION
+>
+> **The line above, and the sequencing note below it, are wrong about what
+> re-enrolment does.** Both assume a re-enrol mints something fresh. It does not:
+>
+> ```
+> deriveDeviceKey(secret, id) = HMAC(DEVICE_KEY_SECRET, id)
+> ```
+>
+> is a pure function, and the device id is derived on-device from the efuse MAC
+> and survives a full erase. `handleEnroll` refuses a revoked id outright, so
+> re-enrolling requires **un-revoking first** — at which point the same key comes
+> back, character for character. It is the string that leaked.
+>
+> So revoke-then-re-enrol **refuses** the leaked credential; it does not **retire**
+> it. That is containment, and containment is worth having — a refused key opens
+> no sockets — but it is not the repair, and the difference matters when
+> somebody later asks whether the incident is closed.
+>
+> **Only a new `DEVICE_KEY_SECRET` kills the string.** So the remediation folds
+> into the secret split rather than preceding it, and the ordering argument below
+> — which is about bench convenience, "a second moving part introduced during a
+> repair" — was answering a smaller question than the one that mattered.
+>
+> The corrected order is: **revoke (contain) → split the secrets, minting a NEW
+> production secret (remediate) → un-revoke → re-enrol against the new secret.**
 
 ### Sequencing note: this interacts with the shared-secret issue
 
@@ -627,7 +715,7 @@ staging and production hold the **same** `DEVICE_KEY_SECRET`, so a
 production-derived key authenticates against staging (and, the direction that
 matters, a staging compromise mints production identities).
 
-**Do the revocation FIRST, then the split.** Revoking `2afa3e2c7140ef5e` today is
+**Do the revocation FIRST, then the split.** Revoking the COM119 id today is
 a straightforward re-enrol against one shared secret. If the secrets are split
 first, the re-enrol mints a key valid in only one environment and the bench has
 to start tracking which one it is addressing -- a second moving part introduced

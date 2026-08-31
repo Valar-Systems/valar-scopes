@@ -169,6 +169,17 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
 
   // IDEMPOTENT BY CONSTRUCTION, AND SAID SO OUT LOUD.
   //
+  // THE ORDER ABOVE IS LOAD-BEARING, and was questioned on 2026-08-31 while a
+  // rotated board sat on this page reading "Already verified". `key` is derived
+  // from the CURRENT secret BEFORE this ledger read, and is returned on BOTH
+  // branches -- so an already_enrolled response carries a FRESHLY DERIVED key,
+  // which is exactly what a device needs after a DEVICE_KEY_SECRET rotation.
+  //
+  // This is not a short-circuit and must not become one. If the ledger read ever
+  // moves above the derivation, or `key` is dropped from the repeat branch as
+  // "redundant", a rotated device would be told it is fine while still 401ing --
+  // a screen reporting a conclusion drawn from the wrong signal. There is a test.
+  //
   // The key is a pure function of the id, so a second enrollment cannot produce
   // a different one — re-enrolling is a re-derivation, not a re-issue. A
   // customer who reflashed (Blipscope -> Missileer -> Blipscope, or a full

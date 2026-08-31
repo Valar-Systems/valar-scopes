@@ -42,10 +42,31 @@ export function resetRevocationCache(): void {
 export function parseRevoked(raw: string | null): Set<string> {
   const out = new Set<string>();
   if (!raw) return out;
-  for (const tokenRaw of raw.split(/[\s,]+/)) {
-    const token = tokenRaw.trim().toLowerCase();
-    if (!token || token.startsWith("#")) continue;
-    if (DEVICE_ID_RE.test(token)) out.add(token);
+  // LINE BY LINE, AND A '#' COMMENTS OUT THE REST OF ITS LINE.
+  //
+  // This used to split the WHOLE blob on whitespace and commas and skip only
+  // tokens that START WITH '#'. So a '#' commented out exactly one token --
+  // itself -- and every word after it on the line was still parsed. Any
+  // id-shaped token anywhere in the prose was therefore a live revocation, in
+  // a file whose own header says "annotate freely".
+  //
+  // It fired in production on 2026-08-31. An annotation naming the synthetic
+  // bench identity revoked that identity, and it presented as "production
+  // refuses a correctly-derived key" -- which sent the investigation through
+  // wrangler versions, deployments and route config before anyone re-read the
+  // comment they had just written.
+  //
+  // The failure is silent in the dangerous direction and self-camouflaging: the
+  // symptom of an accidental revocation is indistinguishable from a broken
+  // secret rotation, which is exactly what was being done at the time.
+  for (const line of raw.split(/\r?\n/)) {
+    const hash = line.indexOf("#");
+    const body = hash >= 0 ? line.slice(0, hash) : line;
+    for (const tokenRaw of body.split(/[\s,]+/)) {
+      const token = tokenRaw.trim().toLowerCase();
+      if (!token) continue;
+      if (DEVICE_ID_RE.test(token)) out.add(token);
+    }
   }
   return out;
 }
@@ -81,6 +102,27 @@ export async function isRevoked(env: Env, deviceId: string): Promise<boolean> {
   return cache.ids.has(id);
 }
 
+//
+// ===========================================================================
+// HOLDING RULE UNTIL THIS FIX IS DEPLOYED: NO '#' IN cfg:revoked AT ALL.
+//
+// Not "no device id inside a comment" -- that is the correct invariant and it
+// is the WEAKER one to hold, because it requires everyone who edits the blob to
+// think about the parser. "No '#' at all" requires nothing of anybody: it is a
+// property of the whole blob rather than of somebody's judgement, it is one
+// grep, and it can be checked before every write:
+//
+//     grep -c '#' revoked.txt      # must be 0 until /healthz reports a commit
+//                                  # containing the line-based parser below
+//
+// It costs annotations for a few days. That is exactly the trade you want while
+// the parser that mishandles annotations is the one running in production.
+// History goes in docs/bench-key-rotation.md, which no parser reads.
+//
+// Applied 2026-08-31: cfg:revoked is a ZERO-BYTE blob. parseRevoked(null) and
+// parseRevoked("") both yield an empty set, so nobody is revoked -- identical
+// behaviour to the annotated version it replaced, with no way to misfire.
+// ===========================================================================
 // ---------------------------------------------------------------------------
 // OPERATOR PROCEDURE (no admin surface exists; this is the whole interface)
 //
@@ -96,10 +138,22 @@ export async function isRevoked(env: Env, deviceId: string): Promise<boolean> {
 //        npx wrangler kv key get --binding=ENRICH_KV --env production --remote \
 //          "cfg:revoked" > revoked.txt
 //
-//   2. Edit revoked.txt -- one device id per line. Blank lines and `#` comments
-//      are ignored, so annotate freely:
+//   2. Edit revoked.txt -- one device id per line. Blank lines are ignored and a
+//      `#` comments out the REST OF ITS LINE, so annotate freely -- which became
+//      true on 2026-08-31 and was not before. Until then a '#' hid only itself
+//      and an id written inside a comment was a live revocation:
+//        # EXAMPLE -- not a real device
 //        # RMA 2026-08-04, board resold
-//        2aeea64cb4b760b8
+//        0000000000000000
+//
+//      EXAMPLE IDS ARE ALL-ZERO AND LABELLED, AND THAT IS NOT FUSSINESS. This
+//      block previously used a REAL device id beside the annotation "RMA
+//      2026-08-04, board resold". On 2026-08-31 that id turned up LIVE in the
+//      enrolment registry and the annotation was read as a RECORD -- costing an
+//      hour of genuine alarm about a fleet unit in a stranger's hands, in the
+//      middle of an incident. It was example text all along. Example text that
+//      is indistinguishable from a real record is a landmine, so: an
+//      obviously-fake id, and a '# EXAMPLE' line above it.
 //
 //   3. Publish:
 //        npx wrangler kv key put --binding=ENRICH_KV --env production --remote \

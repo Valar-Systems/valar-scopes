@@ -36,3 +36,8 @@ bench-logs/capture-*.pid
 # Stray npm/vitest caches if a workspace command is ever run from the repo root
 # (the real dependency trees live in proxy/ and dashboard/, ignored there).
 node_modules/
+
+# Operator scratch file for the revocation list (see src/revocation.ts).
+# Fetched from KV, edited, put back -- never a source of truth, and it holds
+# real device ids, so it does not belong in the repo.
+proxy/revoked.txt
