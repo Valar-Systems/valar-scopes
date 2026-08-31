@@ -121,8 +121,18 @@ export async function isRevoked(env: Env, deviceId: string): Promise<boolean> {
 //      `#` comments out the REST OF ITS LINE, so annotate freely -- which became
 //      true on 2026-08-31 and was not before. Until then a '#' hid only itself
 //      and an id written inside a comment was a live revocation:
+//        # EXAMPLE -- not a real device
 //        # RMA 2026-08-04, board resold
-//        0123456789abcdef
+//        0000000000000000
+//
+//      EXAMPLE IDS ARE ALL-ZERO AND LABELLED, AND THAT IS NOT FUSSINESS. This
+//      block previously used a REAL device id beside the annotation "RMA
+//      2026-08-04, board resold". On 2026-08-31 that id turned up LIVE in the
+//      enrolment registry and the annotation was read as a RECORD -- costing an
+//      hour of genuine alarm about a fleet unit in a stranger's hands, in the
+//      middle of an incident. It was example text all along. Example text that
+//      is indistinguishable from a real record is a landmine, so: an
+//      obviously-fake id, and a '# EXAMPLE' line above it.
 //
 //   3. Publish:
 //        npx wrangler kv key put --binding=ENRICH_KV --env production --remote \
