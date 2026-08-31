@@ -200,6 +200,29 @@ about *the running system*. The counter is one command, and it is never the badg
 Same family as everything below, one level up: the input is a statement of intent,
 and a green check is a statement that the intent was processed.
 
+### Vocabulary: never use a word that spans several of these facts
+
+Not a caution — a rule about which word to type. **"Shipped" is not checkable.**
+For a Worker it spans four different facts, and on 2026-08-31 only the first was
+true while the last was reported:
+
+| say this | and it means exactly | checked by |
+|---|---|---|
+| **"PR open."** | a branch exists on the remote with a description | `gh pr view N` |
+| **"Merged."** | it is in `main` | `git ls-tree origin/main -- <path>` |
+| **"CI green."** | the tests ran and passed | the run |
+| **"Deployed, `/healthz` reports `<sha>`."** | **production is running it** | `curl .../healthz` |
+
+Only the last is a statement about the running system, and `workers.yml` has no
+deploy step — so for this repo **merged does not imply deployed either**, and the
+gap between those two is a three-day, twenty-commit incident already recorded
+above.
+
+The cost of the vague word is not vagueness, it is a false negative on a live
+bug: *"the parseRevoked fix shipped"* read as *fixed in production*, when
+production was still running the broken parser and would have kept running it
+until somebody re-checked. **Say which fact. Each of the four is one command.**
+
 ## Standing practice: take a check's input from the *other* side of the contract
 
 **A test that requests the path the test chose will pass against a feature that is
