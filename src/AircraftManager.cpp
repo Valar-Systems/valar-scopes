@@ -1450,7 +1450,29 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // redesign that has to re-derive the shape from nothing. A model with no
     // published error term is one nobody can correct.
     const float residualMs = p95Ms - predictedP95Ms;
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u resid=%+.1fms  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  interval=%lums%s\n",
+
+    // DIE TEMPERATURE, for the enclosure-ventilation question.
+    //
+    // READ WHAT THIS IS BEFORE QUOTING IT. It is the SoC junction temperature,
+    // not the air inside the case and not the surface anyone touches. The die
+    // runs warmer than its surroundings by whatever the package and the board
+    // are dissipating, so it is an UPPER BOUND on the enclosure and a lower
+    // bound on nothing. A ventilation decision wants the delta between two
+    // readings taken the same way -- case open vs case shut, same board, same
+    // room -- rather than one absolute number compared against a datasheet.
+    //
+    // Accuracy is a couple of degrees at best, and Arduino-ESP32 configures the
+    // sensor for a default range that does not cover the whole scale, so a
+    // reading far outside normal room-plus-load is more likely to be the sensor
+    // than the silicon. Printed to one decimal because that is the resolution
+    // the comparison needs, NOT because it is accurate to 0.1 C.
+    //
+    // On the line rather than in a separate probe build so it lands in the same
+    // soak captures as everything else: a thermal question is a long-run
+    // equilibrium question, and a spot reading taken with the case open on a
+    // bench answers nothing about a sealed enclosure.
+    const float dieC = temperatureRead();
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u resid=%+.1fms  heap free=%u largest=%u free8=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  die=%.1fC  interval=%lums%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount, residualMs,
                   (unsigned)heapFree, (unsigned)largest, (unsigned)free8, tlsOk,
                   (unsigned long)heaphealth::TrialRejectionCount(),
@@ -1467,6 +1489,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned long)tlsalloc::PsramAllocs(),
                   (unsigned long)tlsalloc::InternalAllocs(),
                   (unsigned long)tlsalloc::PsramFallbacks(),
+                  dieC,
                   CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
 
     // ---- issue #245: the enrichment-starvation watch ------------------------
