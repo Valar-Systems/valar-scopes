@@ -143,6 +143,41 @@ describe("enrollment is idempotent across a reflash", () => {
     expect(second.body.status).toBe("already_enrolled");
     expect(second.body.enrollments).toBe(2);
   });
+  // ---- A ROTATED DEVICE MUST GET A NEW KEY, NOT A RECEIPT --------------------
+  //
+  // Asked on 2026-08-31 with a rotated board sitting on the verify page reading
+  // "Already verified": does that path re-derive against the CURRENT secret, or
+  // short-circuit on the enrolment record existing and send nothing useful?
+  //
+  // It re-derives, because `key` is computed BEFORE the ledger read and returned
+  // on both branches. This pins that. If the derivation ever moves below the
+  // ledger read, or `key` is dropped from the repeat branch as redundant, a
+  // rotated device would be told it is fine while still 401ing.
+  it("after a SECRET ROTATION, already_enrolled carries a NEW key", async () => {
+    const before = await enroll({ id: DEVICE_ID, token: "t1" });
+    expect(before.body.status).toBe("enrolled");
+
+    // The rotation: same device, same id, different DEVICE_KEY_SECRET.
+    const after = await enroll({ id: DEVICE_ID, token: "t2" },
+                               { DEVICE_KEY_SECRET: "a-rotated-device-secret" });
+
+    expect(after.status).toBe(200);
+    expect(after.body.status).toBe("already_enrolled");
+    expect(typeof after.body.key).toBe("string");
+    expect(after.body.key).toMatch(/^[0-9a-f]{64}$/);
+    expect(after.body.key).not.toBe(before.body.key);   // the whole point
+  });
+
+  it("CONTROL: without a rotation the repeat key is unchanged", async () => {
+    // Without this, the assertion above passes against an endpoint that returns
+    // a random string, or one that changes the key on every call -- which would
+    // break the reflash case the idempotency test exists for.
+    const a = await enroll({ id: DEVICE_ID, token: "t1" });
+    const b = await enroll({ id: DEVICE_ID, token: "t2" });
+    expect(b.body.key).toBe(a.body.key);
+  });
+
+
 
   it("logs the repeat in the ledger rather than blocking it", async () => {
     await enroll({ id: DEVICE_ID, token: "t1" });
