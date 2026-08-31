@@ -478,6 +478,93 @@ leaked one credential through logs — see the Wi-Fi password incident, fixed
 forward in PR #183. That one was firmware serial output; this one was a shell.
 Same class, different surface.
 
+## Standing practice: an alarm raised from memory or from prose is not an alarm
+
+**Read the artifact first — the blob, the deployed value, the rendered page —
+then raise it.** This is *read the artifact, not the config* applied to incident
+reporting, and it is the same rule both times.
+
+2026-08-31 produced three alarms in one session. The tally is the argument:
+
+| alarm | raised from | real? |
+|---|---|---|
+| "a fleet unit is in a stranger's hands" | an **annotation** beside a real id: *"RMA 2026-08-04, board resold"* | **no** — example text |
+| "I committed a file full of real device ids to a public repo" | an **hour-old memory** of what that file contained | **no** — it had been emptied before the commit |
+| "production refuses a correctly-derived key" | reading the **bytes** of `cfg:revoked` | **yes** — `parseRevoked` was broken |
+
+The two false ones were both raised from *words*: example text mistaken for a
+record, and a recollection of a file mistaken for the file. The true one came
+from reading what was actually there. One `git cat-file -p <blob>` would have
+killed the second before it was ever stated — and it did kill it, one message
+late, which is the right instinct arriving after the cost was paid.
+
+**Why the cost is asymmetric, and why this is not just "be careful".** A false
+alarm during an incident does not merely waste time: it *redirects* the
+investigation. The RMA annotation sent an hour into "whose device is this and how
+did they get it" while a live production auth failure sat unexamined. An alarm is
+a steering input, so raising one from unverified material steers on unverified
+material.
+
+The check is one line and it is always available:
+
+| claim | the artifact |
+|---|---|
+| "this file contains X" | `git cat-file -p <blob>` / `git show <sha>:<path>` |
+| "this id is a real device" | the registry: `wrangler kv key list --prefix "enr:dev:"` |
+| "this annotation is a record" | nothing — **which is the point.** If provenance cannot be established, it is prose |
+
+Corollary, which is the fix for the third row: **unlabelled real data is a trap
+with the sign flipped.** The RMA annotation cost an hour precisely because nobody
+had written *"this is fake"* beside it. So example data says it is example data
+(`0000000000000000`, `# EXAMPLE -- not a real device`), and real data that must
+stay says why it is there. Neither is expensive; the ambiguity between them is.
+
+## Standing practice: a rule you have just written down does not protect you from it
+
+**Writing the rule is not the control. The control is the thing that fires
+without you.**
+
+2026-08-31, twice, hours apart, by the person who had written the rule that day:
+
+- The **enrolment-recency trap** was written into
+  [docs/bench-key-rotation.md](docs/bench-key-rotation.md) — *"`lastAt` is the
+  last ENROLMENT, not the last time the device was seen; a single enrolment is
+  the signature of a working unit."* **Within the hour**, a device with 32,165
+  requests in fourteen days was written off as *"a bench board, silent since
+  08-17"* — from its last enrolment.
+- The **example-text landmine** was written into a commit message — *"example
+  text that is indistinguishable from a real record is a landmine"* — and
+  twenty minutes later a `git add -A proxy/` swept an operator scratch file into
+  a public repo.
+
+Knowing a rule and applying it are different cognitive acts, and the second one
+competes with everything else in a debugging session. **A rule is a prompt you
+have to remember to read; by the twentieth minute of a good run you are not
+reading it.**
+
+So the useful move is not "write it down harder". It is to ask **what narrower,
+mechanisable thing was actually behind it** — both instances above sit under one:
+
+> `git add -A` stages what you did not look at.
+
+and then to build the thing that fires by itself:
+
+| the rule | the control that does not need you |
+|---|---|
+| "don't commit real device ids" | [`.githooks/pre-commit`](.githooks/pre-commit) + [`scripts/check_device_ids.py`](scripts/check_device_ids.py) in CI |
+| "don't let example data read as real" | the allowlist file — fake ids are the only ones that pass |
+| "don't infer liveness from enrolment" | *(still only a rule — and therefore still likely to fail)* |
+
+That last row is left in deliberately. Not everything mechanises, and the honest
+thing is to know which of your rules are load-bearing prose and which are
+enforced — because they feel identical from the inside, right up until one of
+them doesn't fire.
+
+**Both guards read ONE allowlist**, incidentally, because the first version had
+two inline lists and they drifted within four minutes: the hook refused a commit
+the CI check considered clean. Two guards on one rule is two rules, and the
+second one is always the stale one.
+
 ## Standing practice: know which instrument can see the failure you have
 
 **The bench panel and the host suite fail in opposite directions, and the lesson
