@@ -94,6 +94,66 @@ describe("isRevoked", () => {
     }
   });
 
+  // ---- A '#' COMMENTS OUT ITS LINE, NOT ONE TOKEN --------------------------
+  //
+  // THE 2026-08-31 PRODUCTION INCIDENT. parseRevoked split the whole blob on
+  // whitespace and commas and skipped only tokens that START WITH '#'. So a '#'
+  // commented out exactly itself, and every word after it on the line was still
+  // parsed -- making any id-shaped token inside prose a live revocation, in a
+  // file whose header says "annotate freely".
+  //
+  // It fired while somebody was being careful: an annotation explaining WHY a
+  // board was revoked named the synthetic bench identity, and revoked it. The
+  // symptom was "production refuses a correctly-derived key", which is
+  // indistinguishable from a botched secret rotation -- and a secret rotation
+  // was in progress at the time.
+  //
+  // Both shapes below are from the real file. The second is the one that bit:
+  // an id in the middle of a sentence, not on a line of its own.
+  it("does NOT revoke an id that appears inside a comment", () => {
+    const raw = [
+      "# Revoked device ids, one per line.",
+      `# ${OTHER} is the synthetic bench identity, do not revoke it`,
+      REAL,
+    ].join("\n");
+    const ids = parseRevoked(raw);
+    expect(ids.has(REAL)).toBe(true);          // the real entry still lands
+    expect(ids.has(OTHER)).toBe(false);        // the mentioned one does not
+    expect(ids.size).toBe(1);
+  });
+
+  it("does NOT revoke an id buried mid-sentence in a comment", () => {
+    // The exact shape that fired: prose, a comma after the id, more words after.
+    const raw = [
+      "# 2026-08-31 -- the workstation held this board's key where the runbook",
+      `# specifies the synthetic ${OTHER}, and four secrets reached a transcript.`,
+      REAL,
+    ].join("\n");
+    const ids = parseRevoked(raw);
+    expect(ids.has(OTHER)).toBe(false);
+    expect([...ids]).toEqual([REAL]);
+  });
+
+  it("CONTROL: the same ids OUTSIDE a comment are still revoked", () => {
+    // Without this the two assertions above pass against a parser that revokes
+    // nothing at all, which is the other way to be catastrophically wrong here.
+    const ids = parseRevoked(`${REAL}\n${OTHER}`);
+    expect(ids.has(REAL)).toBe(true);
+    expect(ids.has(OTHER)).toBe(true);
+    expect(ids.size).toBe(2);
+  });
+
+  it("a trailing comment on an entry line leaves the entry revoked", () => {
+    const ids = parseRevoked(`${REAL}   # RMA, board resold`);
+    expect([...ids]).toEqual([REAL]);
+  });
+
+  it("survives CRLF, which is what a Windows operator will paste", () => {
+    const ids = parseRevoked(`# note about ${OTHER}\r\n${REAL}\r\n`);
+    expect(ids.has(OTHER)).toBe(false);
+    expect(ids.has(REAL)).toBe(true);
+  });
+
   it("caches: a second call in the window does not re-read KV", async () => {
     let reads = 0;
     const env = {
