@@ -174,14 +174,10 @@ npx wrangler deploy --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exi
 HOST="scopes.valarsystems.com"
 [ "$ENVIRONMENT" = "staging" ] && HOST="scopes-staging.valarsystems.com"
 
-printf '\nconfirming /healthz reports %s (isolates take a few minutes to drain)\n' "$SHA"
-for i in $(seq 1 30); do
-  LIVE="$(curl -s --max-time 10 "https://$HOST/healthz" | grep -oE '"commit":"[^"]*"' | cut -d'"' -f4)"
-  if [ "$LIVE" = "$SHA" ]; then
-    printf '  \033[32mconfirmed\033[0m: /healthz reports commit=%s\n' "$LIVE"
-    printf '\nNow run the smoke test:  BLIP_KEY=... ./scripts/smoke-prod.sh\n'
-    exit 0
-  fi
-done
-printf '  \033[33mnot confirmed yet\033[0m: /healthz last reported commit=%s, expected %s\n' "${LIVE:-<none>}" "$SHA"
-printf '  The upload succeeded. Re-check in a minute:  curl -s https://%s/healthz\n' "$HOST"
+printf '
+confirming /healthz reports %s (isolates take a few minutes to drain)
+' "$SHA"
+# The loop lives in its own script so it can be exercised against a stub without
+# deploying -- see scripts/test-confirm-deploy.sh. Two bugs hid in it precisely
+# because reaching them required a real production deploy.
+"$(dirname "$0")/confirm-deploy.sh" "$HOST" "$SHA"
