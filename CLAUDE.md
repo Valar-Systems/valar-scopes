@@ -515,6 +515,20 @@ rule people believe and a rule people have watched fire: the artifact was a
 one-word `ls`, and the tool's word was confidently wrong in the reassuring
 direction.
 
+**A COUNT AND ITS OWN LIST ARE TWO CLAIMS.** The closing summary of the session
+that produced this entry said *"five PRs (#277, #279, #281, #282, #283, #285)"*
+and *"three issues (#278, #280, #284, #286)"* — six and four. Writing both is
+free; checking they agree is the part that gets skipped, and a total sitting
+beside its own enumeration and disagreeing with it is the same contradiction
+check being applied to everything else in the document. Whenever you write "N
+things" next to the N things, count them.
+
+The same summary said a fix had **shipped** when what had happened was that a PR
+was open. See *a green signal is about process; the artifact is elsewhere* —
+"shipped" is a word about intent, and MERGED, CI-green and deployed are three
+different facts. For a Worker there is a fourth: `workers.yml` has no deploy
+step, so even merging does not ship it.
+
 The check is one line and it is always available:
 
 | claim | the artifact |
