@@ -326,6 +326,39 @@ export function trackBucket(trk: number | undefined): string {
  * backward compatible with devices that do not yet send one: they behave
  * exactly as before rather than missing every lookup. The fix therefore
  * activates per-device as firmware ships, and never regresses an old one.
+ *
+ * TODO(retire the no-track fallback) -- THE EXPIRY CONDITION IS A QUERY, NOT A
+ * MEMORY, AND NOT A DATE. Do not retire this on a recollection that "the fleet
+ * has updated". Run:
+ *
+ *     npx wrangler kv key list --prefix fw: --binding ENRICH_KV --env production
+ *
+ * A fw: row is written per device by Instrument A (src/fleet.ts) on the
+ * authenticated path, so that listing IS the enrolled fleet. While ANY row sits
+ * on a version that predates trk, the bare `rt:<cs>` fallback above is doing its
+ * job: those devices cannot send a direction, and serving them a shared key is
+ * the conservative, backward-compatible answer.
+ *
+ * WHAT CHANGES IS THE MEANING OF AN ABSENT trk, NOT THE CODE. Today an absent
+ * trk means "old firmware". Once every enrolled unit in that listing is on a
+ * trk-sending version, it stops meaning that and starts meaning ANOMALOUS -- a
+ * caller that is not one of our devices, or one whose track is genuinely
+ * unavailable. At that point the shared key is no longer compatibility; it is a
+ * hole, and it is the original reversed-card bug still live for whatever is
+ * coming through it.
+ *
+ * THE END STATE IS A CACHE BYPASS FOR NO-TRACK CALLERS, NOT A TIGHTER FALLBACK
+ * KEY. The instinct is to invent a sharper key for the no-track case. There is
+ * nothing to sharpen it WITH -- the absent direction is the whole problem, so
+ * any key built without it is the same shared key wearing a longer name. A
+ * no-track caller should MISS the cache and take the upstream's positional
+ * answer, which is the one path that cannot serve somebody else's leg.
+ *
+ * Read the listing, not this comment. scripts/reconcile-fleet.py prints the fw:
+ * table on every run, so the condition is visible to anyone asking anything
+ * about the fleet rather than only to whoever remembers this paragraph exists --
+ * which is the point of the standing entry in CLAUDE.md about instruments that
+ * fire correctly into a void.
  */
 export function routeCacheKey(cs: string, trk: number | undefined): string {
   const b = trackBucket(trk);
