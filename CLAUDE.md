@@ -432,6 +432,44 @@ statement of intent, and intent is the thing that was already wrong.
 Corollary, same root cause: **when a check protects a property, confirm the check's own
 environment has that property** — see [RELEASING.md](RELEASING.md).
 
+### Corollary: two builds of the same source are NOT byte-identical, and that is not a wrong build
+
+**A release binary rebuilt from identical source gets a different sha256. Do not read
+that as a different build.** Measured 2026-09-01, v9 re-cut from the same firmware
+source after a CI-only change: `d583522b...` -> `e789984d...`, identical size, and
+**75 differing bytes out of 1,855,616** -- every one accounted for:
+
+| region | bytes |
+|---|---|
+| `esp_app_desc_t.app_elf_sha256` @0xB0 | 32 |
+| trailing image SHA-256 | 32 |
+| image checksum byte | 1 |
+| WiFiManager `aboutdate` string, `18:46:38` -> `19:18:54` | 5 |
+| WiFiManager `Software Info:` string, `18:47:17` -> `19:19:35` | 5 |
+
+**Zero payload bytes differ.** Those timestamps come from WiFiManager's about page
+embedding `__DATE__ " " __TIME__`.
+
+Without this written down, the next session to compare shas across a rebuild spends an
+hour proving the build is wrong. It is not. **The accounting is what makes the claim
+safe** -- "probably just timestamps" is a guess; 75 bytes with all five regions named
+and nothing left over is a measurement. If you ever find bytes you cannot place, that
+IS a different build and the whole thing stops.
+
+**And the honest half, which is the reusable half.** The determinism check that missed
+this grepped `src/` and `include/` for `__DATE__`/`__TIME__`, found nothing, and
+concluded the build carried no wall-clock. The wall-clock was in a DEPENDENCY, under
+`.pio/libdeps/` -- outside the grep. **The check was scoped to our side of the boundary
+and the defect lived on the other side**, which is this file's most repeated shape. A
+build's inputs are its source AND its libraries; scope determinism questions to the
+link, not to the repo.
+
+So: **compare shas to detect an unexpected republish, never to identify a build.** To
+identify a build, use content only that build has -- the pre-registered discriminator
+set (strings present in the new image and provably absent from the old), behind an
+anchor control. That survives a rebuild; a sha does not.
+
+
 ## Standing practice: a default only reaches keys that were never saved
 
 **Changing a `defaultOn` in firmware reaches factory-fresh devices and nobody
@@ -499,6 +537,33 @@ A receipt rather than "is the asset on the release": the release already holds
 assets from earlier runs, so asset-exists is equally true of a stale upload from
 a run whose gate failed -- the exact state this must refuse. Same family as the
 anchor control: **evidence about THIS run, not about history.**
+
+**THE NEW GATE'S BLOCKING DIRECTION HAS NEVER FIRED, AND THAT IS A ROW IN THE TABLE
+ABOVE.** Its permissive direction is proven -- on 2026-09-01 `animtest` failed and
+`version` published anyway, which is why v9 shipped at all. Its blocking direction is
+proven only in the SCRIPT (selftest plus two deliberate sabotages), never in the
+WORKFLOW WIRING. `version` carries `if: always() && github.event_name == 'release'`, so
+no push or PR run can exercise it: on those events the job is skipped whatever the
+receipts say.
+
+That leaves exactly the shape this file warns about -- **a rule nobody has seen reject
+anything is untested, and something else may be doing its job.** The old wiring blocked
+on everything, badly; the new wiring blocks on receipts, and a hole in the receipt
+logic publishes version.txt for an image the launch gate never certified. Silent, and
+it surfaces on the day a shipping SKU actually fails -- the worst possible day to find
+out.
+
+**It can be closed safely, and the mechanism is the same `github.event_name ==
+'release'` that blocks the easy test.** Cut a throwaway tag (`v9-gatetest`) with one
+SHIPPING SKU deliberately broken and publish it as a PRERELEASE. A prerelease is
+excluded from `releases/latest`, so no device can see it and
+`latest/download/version.txt` keeps resolving to the real release throughout. That buys
+a genuine release-event run with a failing slug-ful leg, and the observation is one
+bit: **is `version` skipped?** Zero fleet exposure, both directions closed.
+
+NOT during an OTA observation window -- it makes workflow runs and release noise while
+a run is the thing being measured. Scheduled for after Run 1 closes
+(2026-09-02T20:21:42Z).
 
 **Still open, deliberately.** The gate cannot yet distinguish SKIP ("nothing to
 verify here") from UNTRUSTWORTHY ("cannot verify"), so `animtest` stays red
