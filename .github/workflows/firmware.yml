@@ -207,19 +207,6 @@ jobs:
           #
           # animtest-s3-128 is the only env that compiles AND renders src/anim/.
           - { env: animtest-s3-128 }
-          # Follow Mode stage 1 bench image. BRANCH-ONLY -- this row must not reach
-          # main, and neither must the env it names.
-          #
-          # It is here because Daniel FLASHES this one. The launch gate's rule is
-          # "no flashable image contains a reachable adsbdb endpoint", and the gate
-          # derives its env list from this matrix -- so an image absent from here is
-          # one the gate reports as neither pass nor fail. It simply is not in the
-          # table, and a table of PASS rows reads as success whatever is missing.
-          # Confirmed by running it: `check-adsbdb-out.sh follow-bench` answered
-          # GATE INCONCLUSIVE, filter matched none of 11, before this row existed.
-          #
-          # Slug-less, so it builds and gates and publishes nothing.
-          - { env: follow-bench-s3-128 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
