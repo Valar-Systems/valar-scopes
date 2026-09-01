@@ -111,6 +111,39 @@ Every SKU is now a **dual-core S3 with PSRAM**. Read the state below as current,
 - Put per-variant behaviour behind `variant::` capability flags, not `#ifdef`s scattered through the logic — and delete a flag once no SKU sets it and no code reads it. `ENRICH_ALWAYS` survived as a flag that read like a switch and was wired to nothing.
 - `credentials.json` (OpenSky client secret) is a user secret — never read, commit, or log it.
 
+## Standing practice: write down what each result will mean BEFORE you can see which one you got
+
+This is one technique, not several instincts, and it produced most of what went
+right in the sessions of 2026-08-31 and 09-01:
+
+- the **four borders** -- the Columbia, the Snake, the Bitterroot, California's
+  southern edge -- were named *before* the acceptance test was written, so the
+  test could fail. A test written after looking at the output picks whatever the
+  output happened to contain;
+- `reconcile-fleet.py` **predicted 0/1/3 and then 3/1/0** before it ran;
+- the OTA plan's **outcome tables** were written before Run 1 existed;
+- `scripts/ota-latest-probe.sh` carries its **verdict table in the script**, so
+  the result cannot be argued with after it arrives.
+
+The value is not rigour for its own sake. It is that the moment you can see the
+result is the moment you are least able to judge it fairly -- the first
+explanation that fits arrives already feeling like the conclusion.
+
+**AND PRE-REGISTER THE OUTSIDE-THE-SET BRANCH, which is the refinement that cost
+us one.** The dual-path `download_count` probe was properly pre-registered with
+three outcomes: `+7` meant the `latest` alias was uncounted, `>=8` meant it
+counted and we had been seeing lag, `0` meant the counter was dead. The result
+was **+6**. Because no meaning had been assigned to "none of the above", one was
+improvised on the spot -- and the improvised reading argued that tag fetches
+count exactly in order to eliminate one hypothesis, in the same paragraph that
+argued they do not in order to explain the shortfall. Both cannot hold.
+
+The technique did not fail; **the predicted set was incomplete**. So every
+verdict table gets an escape hatch, and "none of the above -> the instrument is
+unreliable at this scale, stop and decide" is a legitimate pre-registered
+outcome. A table without one quietly guarantees improvisation at exactly the
+moment you can least afford it.
+
 ## Standing practice: when you add a second path, enumerate what the FIRST one establishes
 
 **Seven times in one day, in seven unrelated subsystems, the same defect: a guard
@@ -130,6 +163,7 @@ written.
 | 8 | editor anchor | a unique-match guard: refuse unless the anchor appears exactly once | it establishes UNAMBIGUITY, not LOCATION -- a loose anchor matched once, in the wrong function, and edited `DrawStats` instead of `DrawList` |
 | 9 | admin-0 whole-part rule | "keep a part only if EVERY vertex is inside the box" | it rejected **zero** parts. The 24 N floor was doing the work, and got no scrutiny because attention went to the elaborate mechanism |
 | 10 | `ProgressAlong`'s clamp | `min(1, x)` keeps progress in range | a ratio above 1.0 is PROOF the aircraft is not between the endpoints; the clamp maps that proof onto 100%, the most reassuring number in the range |
+| 11 | admin-0 extent bound | a host test asserting no border vertex sits north of 70 N | it CANNOT BE WRITTEN there: the generated `.inc` merges admin-0 and admin-1 and records which layer a line came from nowhere, so the check has no way to scope itself |
 
 **Rows 8 to 10 are not the same failure as 1 to 7, and collapsing them loses the
 point.** The first seven are structural: a guard exists and a path goes round
@@ -147,13 +181,32 @@ nothing.
   Haiti; that is what converted "I believe this rule works" into "I know which
   rule is load-bearing". If nothing changes when you relax a constraint, the work
   is happening somewhere you have not looked.
-- **10 is the worst of the three, because the guard destroys the evidence.** A
+- **10 destroys the evidence.** A
   defensive clamp or default that maps an IMPOSSIBLE value onto a PLAUSIBLE one
   does not merely lose a diagnosis, it manufactures reassurance. The clamp
   converts the strongest available evidence of a wrong route into the most
   reassuring possible number. The tell is short enough to grep for: `min(1, x)`,
   `?? 0`, `if (n > max) n = max`. At every one, ask **what did the out-of-range
   value know?**
+
+**11 IS THE DIAGNOSTIC ONE, AND IT IS THE MOST USEFUL ENTRY IN THIS TABLE.** It
+is not a guard with a path around it; it is a guard placed *after the information
+it depends on stopped existing*. The same shape appeared twice on 2026-09-01:
+
+| | upstream knows | what discards it | the check that cannot be written |
+|---|---|---|---|
+| route cache | `/api/0/routeset` takes callsign **+ lat + lng**, so the upstream decides which leg | caching under `rt:${cs}`, with no positional component | `routeContradicted`, downstream, trying to catch the consequence -- and structurally unable to see a REVERSED route, since it has the same two endpoints |
+| border data | the generator holds `a0_parts` and `a1_parts` separately | merging both into one `.inc` with no layer marker | a host-test extent bound scoped to admin-0 -- 78.69 N is legitimate admin-1 data and nothing downstream can tell the two apart |
+
+Rows 1 to 10 tell you a hazard exists. This one tells you **where to go**, and
+the prescription is a question you can actually ask:
+
+> **When a check refuses to be written, find the last stage that still had the
+> information, and put it there.**
+
+The generator got the latitude-band refusal for exactly that reason, and it was
+observed firing. The route cache's fix is the same move one layer up: the key,
+not a downstream plausibility test.
 
 
 **The rule.** When you add a second path, enumerate what the first path
@@ -230,39 +283,6 @@ committed, and unread when the same row was reported hours later as a firmware
 downgrade worth investigating. **A note in a document is only read by someone who
 already opened the document**, and whoever trips over a signal is by definition
 somewhere else. So the baseline is a printed number now, not a paragraph.
-
-## Standing practice: write down what each result will mean BEFORE you can see which one you got
-
-This is one technique, not several instincts, and it produced most of what went
-right in the sessions of 2026-08-31 and 09-01:
-
-- the **four borders** -- the Columbia, the Snake, the Bitterroot, California's
-  southern edge -- were named *before* the acceptance test was written, so the
-  test could fail. A test written after looking at the output picks whatever the
-  output happened to contain;
-- `reconcile-fleet.py` **predicted 0/1/3 and then 3/1/0** before it ran;
-- the OTA plan's **outcome tables** were written before Run 1 existed;
-- `scripts/ota-latest-probe.sh` carries its **verdict table in the script**, so
-  the result cannot be argued with after it arrives.
-
-The value is not rigour for its own sake. It is that the moment you can see the
-result is the moment you are least able to judge it fairly -- the first
-explanation that fits arrives already feeling like the conclusion.
-
-**AND PRE-REGISTER THE OUTSIDE-THE-SET BRANCH, which is the refinement that cost
-us one.** The dual-path `download_count` probe was properly pre-registered with
-three outcomes: `+7` meant the `latest` alias was uncounted, `>=8` meant it
-counted and we had been seeing lag, `0` meant the counter was dead. The result
-was **+6**. Because no meaning had been assigned to "none of the above", one was
-improvised on the spot -- and the improvised reading argued that tag fetches
-count exactly in order to eliminate one hypothesis, in the same paragraph that
-argued they do not in order to explain the shortfall. Both cannot hold.
-
-The technique did not fail; **the predicted set was incomplete**. So every
-verdict table gets an escape hatch, and "none of the above -> the instrument is
-unreliable at this scale, stop and decide" is a legitimate pre-registered
-outcome. A table without one quietly guarantees improvisation at exactly the
-moment you can least afford it.
 
 ## Standing practice: a finding without a named-and-eliminated alternative is not finished
 
