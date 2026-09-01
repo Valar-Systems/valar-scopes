@@ -227,4 +227,14 @@ confirming /healthz reports %s (isolates take a few minutes to drain)
 # The loop lives in its own script so it can be exercised against a stub without
 # deploying -- see scripts/test-confirm-deploy.sh. Two bugs hid in it precisely
 # because reaching them required a real production deploy.
-"$(dirname "$0")/confirm-deploy.sh" "$HOST" "$SHA"
+#
+# ANCHORED ON $ROOT, NOT ON $0. `dirname "$0"` is a RELATIVE path when the script
+# was invoked by one, and this line runs after `cd "$ROOT/proxy"` -- so
+# `bash proxy/scripts/deploy.sh production` from the repo root resolved it to
+# $ROOT/proxy/proxy/scripts/ and died with "No such file or directory" (exit 127)
+# on 2026-09-01, AFTER a successful upload. The deploy itself was fine; the step
+# that PROVES a deploy landed was the one that did not run, which is the worst
+# possible thing to leave un-run and the easiest to shrug at because production
+# was in fact healthy. Invoking from inside proxy/ happens to work, which is why
+# this survived: the canonical path masked it.
+"$ROOT/proxy/scripts/confirm-deploy.sh" "$HOST" "$SHA"
