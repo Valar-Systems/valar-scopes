@@ -371,6 +371,64 @@ timestamps, and a photograph of the screen showing the version.
 
 ---
 
+### Run 1 — WHEN movement is expected, written down before the table is stared at
+
+**Recorded 2026-09-01T19:40Z, before any observation. The expected shape of this run
+is ~23 hours of nothing, then everything at the end.** A flat all-zero table at hour
+20 is ON SCHEDULE, not an early failure, and that has to be stated before someone is
+looking at it wondering.
+
+**The mechanism, read out of the artifact and not assumed.** `MaybeUpdateFirmware`
+has three call sites in [src/main.cpp](../src/main.cpp): a boot check in `setup()`
+(L389), the daily timer in `loop()` (L506), and the cloud `minFw` trigger (L582). The
+timer is `static unsigned long lastOtaCheck = 0` compared against `millis()`, and
+`millis()` is 0 at boot -- so the first timer firing is **24 h after boot**, and the
+only earlier check is the one in `setup()`.
+
+| | |
+|---|---|
+| boots (all three) | **~18:11-18:14Z, 2026-09-01** (estimated, see below) |
+| their boot-time OTA check | saw `latest=8` -- **not** a 404 |
+| next scheduled check | **~18:11-18:14Z, 2026-09-02** |
+| WINDOW_START | 19:21:42Z, 2026-09-01 |
+| window closes | 20:21:42Z, 2026-09-02 |
+| margin | checks land **~2 h 07 m before close** |
+
+**Two corrections to the first draft of this expectation, both of which move the
+numbers.** They are recorded because the point of pre-registering is that a deviation
+becomes visible, and a baseline built on the wrong quantity cannot do that.
+
+- **18:40-18:52Z are NOT boot times.** They are Instrument A `lastSeen` values, and
+  each is exactly +1 h from the previous one (17:52:06 -> 18:52:10, 17:40:46 ->
+  18:40:47, 17:40:48 -> 18:40:50). That is `REFRESH_MS = 60*60*1000` in
+  [proxy/src/fleet.ts](../proxy/src/fleet.ts), which skips the write while the fw
+  value is unchanged. **A refresh cadence read as a boot time** -- the same shape as
+  every other entry in CLAUDE.md: the quantity was real, it just answered a different
+  question. The actual boots were the post-flash serial verification, which resets the
+  board on DTR; the KV read immediately after was at 18:14:08Z.
+- **The boot checks did not see a 404.** v9 did not exist until 18:42:59Z and its
+  `version.txt` not until 19:20:48Z, so at ~18:12Z `releases/latest` still resolved to
+  v8 and returned `8`. The boards' own boot logs agree: `[ota] channel=s3-128
+  current=8 latest=8`. The 404 window (18:42:59Z-19:20:48Z) opened after every board
+  had already checked and closed before any of them checked again.
+
+**The boot time is an ESTIMATE (+/- ~3 min) and cannot be tightened without touching a
+board, which the window forbids.** It is written as an estimate on purpose. If the
+observed check lands outside ~18:05-18:20Z tomorrow, the anchor is not what this
+section says it is.
+
+**What a deviation would mean** -- this is the reason to write any of it down:
+
+| observation | reading |
+|---|---|
+| nothing until ~18:11Z, then all three move | on schedule; the model holds |
+| a board checks EARLY | the anchor is not boot+24 h. Informative, not a failure -- find the real anchor before the next run |
+| checks land, no `changes[]` entry follows | discovery, download or apply is broken. This is the launch blocker, and it is only diagnosable AFTER the check time |
+| all zero at hour 20 | **expected.** Not evidence of anything yet |
+
+A reading before ~18:11Z tomorrow carries no information about whether OTA works. The
+only readings that can is the one after the boards' scheduled check.
+
 ## Run 2 — does it refuse a bad image (~25 hours, one device)
 
 Run only after Run 1 passes. Use **one device you are willing to lose**, on shipping
