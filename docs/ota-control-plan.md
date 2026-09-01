@@ -300,7 +300,7 @@ a pass.
 | No device's reported FW moves | **The timer never fires, or discovery is dead.** Headline bug. Stop here — nothing downstream matters until it is fixed. |
 | Every powered device reports *N+1*, each with a **new** `changes[]` entry stamped inside the window | **Pass.** The mechanism works end to end, unattended. |
 | A device applies but boots back on *N* | Rollback is firing. Something in *N+1* fails the boot check, or the partition logic is wrong. |
-| A device reports *N+1* to the server but the screen still shows *N* (or vice versa) | The reported version and the running image have separate sources. Broken looks exactly like normal here — treat as a failure. |
+| A device reports *N+1* to the server but the config page still shows *N* (or vice versa) | **Cannot happen as built, and that is a guarantee rather than a gap** — see below. If it ever does, someone has given the reported version a second source. |
 | Some devices move and others do not | Not targeting (there is none — see below). Look at power, Wi-Fi, and the update timer on the ones that did not. |
 
 **`download_count` DOES NOT APPEAR IN THIS TABLE, AND ITS ABSENCE IS DELIBERATE.**
@@ -319,6 +319,26 @@ The reasoning, so nobody rebuilds it:
 Removing it also retires **invalidation condition 4** (the fleet-wide counter meant no
 other unit could be powered during the window). That constraint is gone: other devices
 running during Run 1 are now harmless, and in fact useful — see below.
+
+### The two version surfaces cannot disagree, because there is only one source
+
+Checked 2026-09-01, mechanism not intent. Both customer-reachable readings come from the
+same compiled constant `FW_VERSION` ([src/OtaUpdater.h](../src/OtaUpdater.h)):
+
+- **reported to the server** — `{ "X-Blip-FW", String(FW_VERSION) }` in `src/CloudFeed.cpp`
+- **shown to the customer** — the `%FW_VERSION%` placeholder on the config page at
+  `http://<device-name>.local` (there is no version on the LCD; the config page is the
+  customer-reachable surface, and it needs neither a cable nor a terminal, so it satisfies
+  invalidation condition 3)
+
+One constant, compiled into one image, so a disagreement is not a failure mode that exists.
+The original row treated it as a live hazard — "broken looks exactly like normal here" —
+which was reasonable to suspect and is verifiably false here.
+
+**What would break it, and is the thing to watch for:** giving the reported version a second
+source — reading it from NVS, from a build-stamp file, from the release tag, or caching it
+server-side per device. At that moment the guarantee is gone silently and this row becomes
+live again. Do not let the reported version come from anywhere but the constant.
 
 ### There is no control device, because there is no targeting
 
