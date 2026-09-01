@@ -1,4 +1,5 @@
 #include "ConfigurationWebServer.h"
+#include "NtfyTopic.h" // the generated private topic (spec 14.1)
 #include "ConfigMigration.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -738,8 +739,15 @@ R"(
                     </span>
                     <span class="hint">
                         Anyone who knows this topic can read your alerts. Treat it like a
-                        password, not a name.
+                        password, not a name. This device generated a private one for you;
+                        you can replace it, but a short name is a name other people guess.
                     </span>
+                    <!-- The honest advice on a leaked topic is to change it, so the
+                         device offers the change rather than leaving the customer to
+                         invent a replacement -- which is how a 50-bit topic becomes
+                         "planes2". Regenerated on the DEVICE with esp_random(), not in
+                         the browser, so it is the same generator that made the first one. -->
+                    <label class="check mt"><input name="ntfy-regen" type="checkbox"><span>Generate a new topic when I save (re-subscribe your phone afterwards)</span></label>
                     <div class="grid2 mt">
                         <label class="check"><input name="mil-show" type="checkbox" %MIL_SHOW%><span>Highlight military</span></label>
                         <label class="check"><input name="mil-alert" type="checkbox" %MIL_ALERT%><span>Alert on military (ntfy)</span></label>
@@ -784,6 +792,55 @@ R"(
                     </div>
                     <span class="hint mt">
                         Flashes a cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance (in your radar's units) of your location &mdash; glance up and spot it.
+                    </span>
+                </details>
+
+                <!-- FOLLOW MODE. Its own block, deliberately not folded into
+                     "Watchlist & alerts": a watchlist is a category of aircraft you
+                     find interesting, and this is one aeroplane with a person in it.
+                     The two read differently and are configured for different
+                     reasons, so they get different boxes. (spec 14) -->
+                <details class="auto">
+                    <summary>Follow one aircraft</summary>
+                    <label class="field">
+                        <span>Follow (tail / callsign / ICAO hex):</span>
+                        <input name="follow" value='%FOLLOW%' class="grow">
+                    </label>
+                    <span class="hint mt">
+                        Names ONE aircraft &mdash; a tail number, a callsign, or an ICAO hex
+                        address. Leave it empty and nothing changes: the Follow screen does not
+                        exist until you put something here.
+                    </span>
+                    <span class="hint">
+                        The Follow screen shows where it is relative to your field, the path
+                        it has flown, and &mdash; in plain words &mdash; whether it is airborne,
+                        down, or simply somewhere the ground receivers do not reach. Coverage
+                        near the ground is patchy everywhere; that is expected and the screen
+                        says so rather than reporting it as a fault.
+                    </span>
+                    <div class="grid2 mt">
+                        <label class="check"><input name="follow-track" type="checkbox" %FOLLOW_TRACK%><span>Draw the flight track</span></label>
+                        <label class="check"><input name="follow-up" type="checkbox" %FOLLOW_UP%><span>Alert when it takes off (ntfy)</span></label>
+                        <label class="check"><input name="follow-down" type="checkbox" %FOLLOW_DOWN%><span>Alert when it lands (ntfy)</span></label>
+                        <label class="check"><input name="follow-lost" type="checkbox" %FOLLOW_LOST%><span>Alert when the signal is lost (ntfy)</span></label>
+                    </div>
+                    <!-- The asymmetry IS the argument (15), and it is worth explaining
+                         rather than just defaulting: a missed lost-alert costs mild
+                         worry, an unwanted one costs panic. -->
+                    <span class="hint mt">
+                        Take-off and landing alerts are on because a landing message only makes
+                        sense if you also got the take-off. The signal-lost alert is off: losing
+                        the signal is normal and usually means nothing, and a phone alert saying
+                        so at the wrong moment is frightening. The screen always shows it either way.
+                    </span>
+                    <span class="hint">
+                        Alerts carry the aircraft you named, so keep the topic above private.
+                        Nothing else this device sends anywhere &mdash; not the feed, not the
+                        leaderboard &mdash; ever includes it.
+                    </span>
+                    <span class="hint">
+                        Flying with a pilot? Set the distance unit above to <b>nmi</b> &mdash;
+                        it is the unit they will use.
                     </span>
                 </details>
 
@@ -2322,6 +2379,21 @@ void ConfigurationWebServer::Initialise() {
             ? "true" : "false");
         const String lbEnabled = HtmlEscape(prefs.isKey("lb-enabled") ? prefs.getString("lb-enabled", "false") : "false");
         const String lbName = HtmlEscape(prefs.getString("lb-name", ""));
+        // --- Follow Mode (14 / 15) ------------------------------------------
+        // THESE DEFAULTS ARE FOREVER. New keys freeze the moment anyone saves the
+        // form, and setting a location IS a whole-form save that every device must
+        // do -- so today's values here are the values for everyone who ever owns
+        // this. Changing one later costs a cfg-rev bump plus a migration in
+        // include/ConfigMigration.h. Cheap now, expensive in a month.
+        //
+        // follow-lost is OFF and that asymmetry is the argument: a missed
+        // lost-alert costs mild worry, an unwanted one costs panic. The screen
+        // always shows the state; the phone only if asked.
+        const String followTarget = HtmlEscape(prefs.getString("follow", ""));
+        const String followTrack = HtmlEscape(prefs.isKey("follow-track") ? prefs.getString("follow-track", "true") : "true");
+        const String followUp    = HtmlEscape(prefs.isKey("follow-up")    ? prefs.getString("follow-up", "true")    : "true");
+        const String followDown  = HtmlEscape(prefs.isKey("follow-down")  ? prefs.getString("follow-down", "true")  : "true");
+        const String followLost  = HtmlEscape(prefs.isKey("follow-lost")  ? prefs.getString("follow-lost", "false") : "false");
         // --- links to pages the CLOUD PROXY serves, not this device -------------
         // Both of these used to be (or were missing precisely because of) a
         // host-confusion bug: the config page is served by the DEVICE, so a
@@ -2632,7 +2704,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -2698,6 +2770,11 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "VISUAL_NIGHT")   return visualNight == "true" ? "checked" : "";
                 if (var == "LOGBOOK")        return logbookOn == "true" ? "checked" : "";
                 if (var == "LB_ENABLED")     return lbEnabled == "true" ? "checked" : "";
+                if (var == "FOLLOW")         return followTarget;
+                if (var == "FOLLOW_TRACK")   return followTrack == "true" ? "checked" : "";
+                if (var == "FOLLOW_UP")      return followUp    == "true" ? "checked" : "";
+                if (var == "FOLLOW_DOWN")    return followDown  == "true" ? "checked" : "";
+                if (var == "FOLLOW_LOST")    return followLost  == "true" ? "checked" : "";
                 if (var == "LB_NAME")        return lbName;
                 if (var == "LB_LINK")        return lbLink;
                 if (var == "LB_STANDING")    return lbStanding;
@@ -3061,6 +3138,16 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("tz-offset");
         TrySaveParam("watchlist");
         TrySaveParam("ntfy-topic");
+        // Regenerate LAST, so it beats whatever was sitting in the box -- the
+        // browser posts the old value alongside the tick, and a customer who
+        // asked for a new topic must not get the old one back because of field
+        // ordering. On the device with esp_random(), not in the browser, so it
+        // is the same generator that produced the first one (14.1).
+        if (request->hasParam("ntfy-regen", true)) {
+            prefs.putString("ntfy-topic", ntfytopic::Generate());
+            Serial.println("[ntfy] topic regenerated on request -- re-subscribe your phone");
+        }
+        TrySaveParam("follow");
         TrySaveParam("opensky-id");
         TrySaveParam("data-source");
         TrySaveParam("local-url");
@@ -3129,6 +3216,10 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("spc-show");
         SaveToggle("logbook");
         SaveToggle("lb-enabled");
+        SaveToggle("follow-track");
+        SaveToggle("follow-up");
+        SaveToggle("follow-down");
+        SaveToggle("follow-lost");
         TrySaveParam("lb-name");
         SaveToggle("lookup");
         SaveToggle("lookup-alert");

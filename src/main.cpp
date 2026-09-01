@@ -12,6 +12,7 @@
 #include "DeviceIdentity.h"
 #include "FactoryReset.h"
 #include "ConfigMigration.h"
+#include "NtfyTopic.h"
 #include "TlsAllocator.h"
 #include "HeapHealth.h"
 #include "WiFiManagerHelpers.h"
@@ -395,6 +396,13 @@ void setup()
   // session on the pre-migration values, which for #238 is exactly the session a
   // customer would be looking at while wondering why the OTA changed nothing.
   configmigration::Apply();
+
+  // A private ntfy topic, generated once on a factory-fresh device (14.1).
+  // AFTER Wi-Fi, because esp_random() wants the RF subsystem up for full
+  // entropy, and BEFORE the app reads settings, so the first session already
+  // has it. Only ever writes a key that has never been written -- an owner
+  // who saved the form with the box cleared made a decision.
+  ntfytopic::Ensure();
 
   // initialise the active app (radar or EAM monitor)
   appManager.Initialise();

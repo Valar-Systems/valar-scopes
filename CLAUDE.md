@@ -496,6 +496,29 @@ about *the running system*. The counter is one command, and it is never the badg
 Same family as everything below, one level up: the input is a statement of intent,
 and a green check is a statement that the intent was processed.
 
+### Vocabulary: never use a word that spans several of these facts
+
+Not a caution — a rule about which word to type. **"Shipped" is not checkable.**
+For a Worker it spans four different facts, and on 2026-08-31 only the first was
+true while the last was reported:
+
+| say this | and it means exactly | checked by |
+|---|---|---|
+| **"PR open."** | a branch exists on the remote with a description | `gh pr view N` |
+| **"Merged."** | it is in `main` | `git ls-tree origin/main -- <path>` |
+| **"CI green."** | the tests ran and passed | the run |
+| **"Deployed, `/healthz` reports `<sha>`."** | **production is running it** | `curl .../healthz` |
+
+Only the last is a statement about the running system, and `workers.yml` has no
+deploy step — so for this repo **merged does not imply deployed either**, and the
+gap between those two is a three-day, twenty-commit incident already recorded
+above.
+
+The cost of the vague word is not vagueness, it is a false negative on a live
+bug: *"the parseRevoked fix shipped"* read as *fixed in production*, when
+production was still running the broken parser and would have kept running it
+until somebody re-checked. **Say which fact. Each of the four is one command.**
+
 ## Standing practice: take a check's input from the *other* side of the contract
 
 **A test that requests the path the test chose will pass against a feature that is
@@ -634,6 +657,57 @@ Skyscope](https://github.com/Valar-Systems/skyscope) parses this repo's
 defect lives in the *operations* — so the two checks are complementary and
 neither substitutes for the other.
 
+## Standing practice: when you decline to state a number, assert that it cannot come back
+
+**A decision not to claim something is a decision, and decisions decay.** The
+usual way is not an argument — nobody re-litigates it — but a later edit that
+looks like an improvement. Someone fills in the blank, because a blank reads as
+unfinished.
+
+The instance: Follow's no-coverage copy. The spec's worked example ends *"Next
+contact expected around 18:40, near Ireland."* We licence no model of where
+receiver coverage resumes and no schedule data, so that time would be invented,
+on the one screen whose entire job is to explain an absence honestly. It was cut.
+
+A comment saying "do not add a time here" would have been the normal protection.
+It is worth almost nothing: it is advice, sitting next to a string, addressed to
+someone who has already decided the string looks incomplete.
+
+**What was written instead is a test that the string contains no digit.**
+
+```cpp
+for (const char* p = e; *p; ++p) if (*p >= '0' && *p <= '9') claimsATime = true;
+check(!claimsATime, "the ocean copy states no time -- we cannot know one");
+check(e[0] != '\0',  "CONTROL: it still says something");
+```
+
+That is a different kind of object from a comment. It does not ask anyone to
+agree; it fails the build. And it does not need to anticipate the specific
+sentence someone might add — any restored precision, in any wording, in any
+unit, contains a digit.
+
+**The generalisation, which is the reason this is here.** Wherever a product
+declines to state something because the data does not support it, the decline can
+usually be made *structural* rather than *remembered*:
+
+| the decline | the assertion that keeps it |
+|---|---|
+| no arrival time we cannot compute | the string contains no digit |
+| no countdown without schedule data | the pre-departure face renders no `%d` |
+| no AGL without field elevation | `AglFt()` returns NaN, and a test says so |
+| no landing claim without evidence | the rail: `Landed` unreachable from absence |
+
+Note the shape they share: **the honest version has a property the dishonest
+version cannot have.** Find that property and assert it. Three of the four rows
+above already existed in this codebase before the rule was written down, which is
+the sign it was a pattern rather than a preference.
+
+The paired CONTROL is not optional. "Contains no digit" is trivially satisfied by
+an empty string, and an empty absence message is a worse failure than a made-up
+time — so the assertion that it still says *something* is what stops the guard
+from passing in the one state it exists to prevent. Same rule as everywhere else
+here: a check that cannot fail is a check nobody can trust.
+
 ## Standing practice: a KV bulk put drops keys silently, and `Success!` means nothing
 
 **Established twice now, on two different key families, so it is a property of the
@@ -722,6 +796,303 @@ Related, and the reason this is not merely tidiness: this project has already
 leaked one credential through logs — see the Wi-Fi password incident, fixed
 forward in PR #183. That one was firmware serial output; this one was a shell.
 Same class, different surface.
+
+## Standing practice: a rule can be right in its domain and wrong one call site over
+
+**The dangerous rule is not the wrong one. It is the correct one, cited
+accurately, at a site it was never about.** Nobody catches that by re-reading the
+rule — the rule is fine — and nobody catches it by reading the code, because the
+code cites a real principle and looks disciplined doing it.
+
+The instance (2026-08-31). Follow's spec §13.3 says:
+
+> **Follow gets a screen; it never gets THE screen.**
+
+Correct and load-bearing. It governs the **device** raising the Follow face on a
+state transition: a followed aircraft going quiet must not steal the display from
+a rare contact passing overhead. The auto-surface path arms a dwell and hands the
+screen back, exactly as it should.
+
+`SetSessionFollow` — the customer's deliberate **swipe** — armed the same dwell,
+citing the same rule, with a comment explaining it. Twenty seconds after asking
+to follow an aircraft, the face was gone. That inverted the defining requirement
+of the entire feature:
+
+> *"I don't want the card to auto close, I want it to stay open and the aircraft
+> followed the entire way on screen"*
+
+And it did more than annoy: **every absence state became unobservable**, because
+you cannot watch a flight leave coverage on a screen that closes first. The glass
+gate the feature was waiting on could not be run.
+
+**Why it survived review.** The line was commented, the citation was accurate,
+and the behaviour it produced was *deliberate*. There is nothing to notice. The
+first hypothesis on the bench was that a card timeout had been inherited — a
+plausible mechanism that was not what happened.
+
+**What separates the two sites is one word: who asked.** §13.3 protects the
+customer from the DEVICE taking the screen. A swipe is the customer TAKING the
+screen. Same face, same timer, opposite meaning.
+
+So when a rule is cited at a new call site, ask **whose case it was written for**,
+not whether it applies. It will always seem to apply — that is what makes a good
+rule general, and it is exactly the property that lets it be misapplied with
+confidence.
+
+Cheap tell, worth running: **a rule that fires identically on a device-initiated
+and a customer-initiated path is almost certainly wrong on one of them.** The two
+have different owners, and a rule about who may take something cannot be
+indifferent to who is doing the taking.
+
+## Standing practice: an alarm raised from memory or from prose is not an alarm
+
+**Read the artifact first — the blob, the deployed value, the rendered page —
+then raise it.** This is *read the artifact, not the config* applied to incident
+reporting, and it is the same rule both times.
+
+2026-08-31 produced three alarms in one session. The tally is the argument:
+
+| alarm | raised from | real? |
+|---|---|---|
+| "a fleet unit is in a stranger's hands" | an **annotation** beside a real id: *"RMA 2026-08-04, board resold"* | **no** — example text |
+| "I committed a file full of real device ids to a public repo" | an **hour-old memory** of what that file contained | **no** — it had been emptied before the commit |
+| "production refuses a correctly-derived key" | reading the **bytes** of `cfg:revoked` | **yes** — `parseRevoked` was broken |
+
+The two false ones were both raised from *words*: example text mistaken for a
+record, and a recollection of a file mistaken for the file. The true one came
+from reading what was actually there. One `git cat-file -p <blob>` would have
+killed the second before it was ever stated — and it did kill it, one message
+late, which is the right instinct arriving after the cost was paid.
+
+**Why the cost is asymmetric, and why this is not just "be careful".** A false
+alarm during an incident does not merely waste time: it *redirects* the
+investigation. The RMA annotation sent an hour into "whose device is this and how
+did they get it" while a live production auth failure sat unexamined. An alarm is
+a steering input, so raising one from unverified material steers on unverified
+material.
+
+**This entry fired on its own author the same afternoon it was written.** A
+token file was reported deleted on the strength of a Python `os.path.exists()`
+that had been handed an MSYS path (`/c/Users/...`) it could not resolve; the file
+was still on disk. It was caught before being reported — `ls -la` in bash, which
+understands that path, said so — and that is the only one of the day's four
+instances caught in time. Worth recording, because it is the difference between a
+rule people believe and a rule people have watched fire: the artifact was a
+one-word `ls`, and the tool's word was confidently wrong in the reassuring
+direction.
+
+**A COUNT AND ITS OWN LIST ARE TWO CLAIMS.** The closing summary of the session
+that produced this entry said *"five PRs (#277, #279, #281, #282, #283, #285)"*
+and *"three issues (#278, #280, #284, #286)"* — six and four. Writing both is
+free; checking they agree is the part that gets skipped, and a total sitting
+beside its own enumeration and disagreeing with it is the same contradiction
+check being applied to everything else in the document. Whenever you write "N
+things" next to the N things, count them.
+
+The same summary said a fix had **shipped** when what had happened was that a PR
+was open. See *a green signal is about process; the artifact is elsewhere* —
+"shipped" is a word about intent, and MERGED, CI-green and deployed are three
+different facts. For a Worker there is a fourth: `workers.yml` has no deploy
+step, so even merging does not ship it.
+
+**A SINGLE READING OF A PROPAGATING SYSTEM IS A COIN FLIP, AND IT LANDS ON
+WHICHEVER ANSWER YOU WERE BRACED FOR.** The revocation probe of 2026-08-31 had a
+stale 401 at the start of its step-2 window, while a ~60 s cache TTL drained. One
+poll timed a few seconds earlier reads *"still revoked"* and the conclusion is
+that the fix is not live. `polls=3,4,4` is what made it legible as propagation
+rather than failure.
+
+That is the exact mirror of the stale-`LIVE` bug found the same morning: there, a
+retained value said **fine** when the endpoint was unreachable; here, a retained
+value would have said **broken** when the parser was correct. Same mechanism,
+opposite directions, both invisible to a single sample. Anything with a cache, a
+drain, or an isolate lifetime is sampled until it is stable, never read once.
+
+**A REHEARSAL YOU REASONED ABOUT TESTS YOUR MODEL. A REHEARSAL YOU RAN TESTS THE
+CODE.** Only the second can surprise you, and the surprise is the point.
+
+Reasoning about a sabotage produces exactly the failures you already predicted —
+which is what makes it feel efficient, and precisely why it is worthless. On
+2026-08-31 a deploy-confirmation loop was sabotaged by deleting its
+"unreachable" branch, to reproduce a reported bug (a good deploy reported as
+unconfirmed). Running it produced the predicted failure **and one nobody had
+thought of**:
+
+    unreachable -> cannot observe        got WRONG_SHA     <- predicted
+    unreachable OUTRANKS a stale body    got CONFIRMED     <- not predicted
+
+`LIVE` persisted across loop iterations, so an endpoint that answered once and
+then went down was reported as a **confirmed deploy**. The reported bug was noisy
+in the alarming direction; this one was silent in the reassuring direction, and
+it was in the block whose only job is proving what production is running.
+
+Note where it sits: *the readings that need a second source are the ones that
+agree with you*. The reassuring-direction failure is structurally invisible to
+surprise, so it will never be the one you predict — and it turned up in the very
+next check, in a confirmation loop, one message after that rule was written.
+
+**Corollary: a sabotage that does not visibly change the result did not apply.**
+The first attempt at that rehearsal silently failed to patch the file, and the
+unsabotaged "9 passed" was nearly reported as the rehearsal. Print the failure
+count before and after; if they match, the sabotage is the thing that is broken.
+
+The check is one line and it is always available:
+
+| claim | the artifact |
+|---|---|
+| "this file contains X" | `git cat-file -p <blob>` / `git show <sha>:<path>` |
+| "this id is a real device" | the registry: `wrangler kv key list --prefix "enr:dev:"` |
+| "this annotation is a record" | nothing — **which is the point.** If provenance cannot be established, it is prose |
+
+Corollary, which is the fix for the third row: **unlabelled real data is a trap
+with the sign flipped.** The RMA annotation cost an hour precisely because nobody
+had written *"this is fake"* beside it. So example data says it is example data
+(`0000000000000000`, `# EXAMPLE -- not a real device`), and real data that must
+stay says why it is there. Neither is expensive; the ambiguity between them is.
+
+## Standing practice: on this machine, do file operations in bash, not Python
+
+**Windows Python cannot resolve an MSYS path (`/c/Users/...`, `/tmp/...`), and it
+does not error — it reports the file absent.** Every failure is therefore in the
+reassuring direction:
+
+| what was done | what Python said | what was true |
+|---|---|---|
+| delete a credential file | "already absent" | still on disk |
+| patch a file to sabotage it | patched | never applied; the selftest passed unchanged |
+
+Twice in one session, both reported as success. Bash understands those paths
+because it created them; `git`, `python` and any other native Windows binary do
+not, and `/tmp` in particular is two different directories depending on who is
+looking.
+
+**So: `ls`, `rm`, `cp`, `test -f` and the verification that follows them happen in
+bash.** When Python must touch a file, hand it a `C:/`-style path and check the
+result in bash afterwards — the check is what matters, since the failure mode is
+silent success.
+
+Same shape as the redirect trap one level down: `cmd > /tmp/x` writes an MSYS
+path that a subsequent Windows process cannot open, so the file "does not exist"
+to the second command while plainly existing to the first.
+
+## Standing practice: a rule you have just written down does not protect you from it
+
+**Writing the rule is not the control. The control is the thing that fires
+without you.**
+
+2026-08-31, twice, hours apart, by the person who had written the rule that day:
+
+- The **enrolment-recency trap** was written into
+  [docs/bench-key-rotation.md](docs/bench-key-rotation.md) — *"`lastAt` is the
+  last ENROLMENT, not the last time the device was seen; a single enrolment is
+  the signature of a working unit."* **Within the hour**, a device with 32,165
+  requests in fourteen days was written off as *"a bench board, silent since
+  08-17"* — from its last enrolment.
+- The **example-text landmine** was written into a commit message — *"example
+  text that is indistinguishable from a real record is a landmine"* — and
+  twenty minutes later a `git add -A proxy/` swept an operator scratch file into
+  a public repo.
+
+Knowing a rule and applying it are different cognitive acts, and the second one
+competes with everything else in a debugging session. **A rule is a prompt you
+have to remember to read; by the twentieth minute of a good run you are not
+reading it.**
+
+So the useful move is not "write it down harder". It is to ask **what narrower,
+mechanisable thing was actually behind it** — both instances above sit under one:
+
+> `git add -A` stages what you did not look at.
+
+and then to build the thing that fires by itself:
+
+| the rule | the control that does not need you |
+|---|---|
+| "don't commit real device ids" | [`.githooks/pre-commit`](.githooks/pre-commit) + [`scripts/check_device_ids.py`](scripts/check_device_ids.py) in CI |
+| "don't let example data read as real" | the allowlist file — fake ids are the only ones that pass |
+| "don't infer liveness from enrolment" | *(still only a rule — and therefore still likely to fail)* |
+
+**What the last failure of each un-mechanised rule cost** — attach the receipt, or
+the rule reads as a style preference:
+
+| rule with no control | last failure | cost |
+|---|---|---|
+| don't infer liveness from enrolment | 2026-08-31 | a device with 32,165 requests in fourteen days written off as dormant; the blast radius of a production secret rotation stated wrong, twice |
+
+Prose that has to survive on persuasion needs its receipts attached. A reader who
+meets *"don't infer liveness from enrolment"* cold will weigh it against whatever
+they are trying to get done; a reader who meets it with **an hour and a wrong
+blast radius** beside it will not.
+
+That last row is left in deliberately. Not everything mechanises, and the honest
+thing is to know which of your rules are load-bearing prose and which are
+enforced — because they feel identical from the inside, right up until one of
+them doesn't fire.
+
+**Both guards read ONE allowlist**, incidentally, because the first version had
+two inline lists and they drifted within four minutes: the hook refused a commit
+the CI check considered clean. Two guards on one rule is two rules, and the
+second one is always the stale one.
+
+## Standing practice: know which instrument can see the failure you have
+
+**The bench panel and the host suite fail in opposite directions, and the lesson
+is not "trust the board".** It is that each one is blind to a whole class of
+defect, and picking the wrong instrument means looking straight at a bug and
+seeing nothing wrong.
+
+The case that made this a rule (2026-08-30, Follow's globe face). Endpoint labels
+were colliding with the fixed text rows, so they got a vertical nudge: shove the
+label to whichever side of the offending row is nearer, and repeat. It looked
+right, it compiled, and on the panel it looked *fixed* — the label that had been
+crowded was no longer crowded.
+
+A host test swept the crowded half of the disc and reported **13 placements
+against 40 refusals**. The algorithm was thrashing: where rows sit close together
+(6 px and 1 px apart at the bottom of that face) it pushed the label up into the
+next row, back down into the first, and out of its iteration bound as "no fit".
+A greedy local move cannot see past the row it is standing in.
+
+**So the fix for "the label is missing" would have deleted the label** — in
+exactly the cases nobody photographs, and while presenting as a success in the
+one case they do. Replacing the walk with an enumeration over the only 2n+1
+positions that can be the answer took it to 53 placements, 0 refusals.
+
+The panel could not have found this, and not because nobody looked hard enough:
+
+| | the panel sees | the host suite sees |
+|---|---|---|
+| **one case, fully rendered** | yes — colour, contrast, crowding, whether it *reads* | no |
+| **a population of cases** | one at a time, whichever the feed happens to produce | all of them, including the ones no feed will produce today |
+| **absence** | nothing. A label that is not drawn looks like a label that is not there | a count, which is the only form absence has |
+
+A missing label on a panel is invisible **by construction**: there is no gap, no
+error, no ellipsis — the pixels that would have been the label are simply the
+picture behind it. The refusal rate had no visual signature at all. It had a
+number, and only one of the two instruments produces numbers.
+
+The converse holds just as hard, which is why this is not "write more tests":
+the host suite would happily pass a label rendered in green on green, at 2 px, or
+behind the terminator. **It cannot see a picture.** Both of the defects fixed
+that day — *green-on-green over coastline* and *13/40 refusals* — were on the
+same feature, in the same hour, and each was invisible to the instrument that
+caught the other.
+
+Practical form, and it is a question to ask before reaching for either:
+
+- **Is the property a rendering, or a population?** Colour, contrast, crowding,
+  "does it read" — glass. Rates, counts, coverage, "does it ever fail" — host.
+- **Can the failure be seen at all in the medium I am about to use?** Absence
+  cannot be seen on a panel. A picture cannot be seen in a test.
+- **When the property is "this never happens", sweep it.** One observation of a
+  thing not happening is not evidence; a sweep with a placed-vs-refused count is.
+  Print both numbers — `placed 53, refused 0 over 53 starts` is a result, and
+  `PASS` is not.
+
+Same family as [the coverage-gap note in the Follow spec](docs/follow-mode-consolidated.md)
+one level down: there, the bench photographs live states because live is what a
+bench produces by default, so the absence states go unseen. Here, the bench
+cannot photograph a non-event at all. Both are "the instrument decides what you
+are able to notice."
 
 ## Standing practice: never filter the output of a command you are testing for failure
 
@@ -842,6 +1213,111 @@ Finally: once the system is healthy the failing branch may become **unreachable*
 — after a full publish, no real type sits in the "rectangle but no square" state.
 A gate that cannot be made to fail is a gate nobody can check. Leave a seam that
 forces it (`PROBE_PANEL=999`), and use it.
+
+### A probe that cannot prove it planted is not a probe
+
+**Rehearsing a check red only means something if the sabotage actually
+happened.** Three times in one session a probe silently failed to apply, and
+each time the resulting green was read as information.
+
+- **The `/tmp` backup that was never written.** A header was copied to `/tmp`
+  from bash and restored from Python, which on Windows resolves that path
+  somewhere else entirely. Both probes failed to plant, and all three candidate
+  layout rows reported `0 failures` — including the two that were broken. The
+  reading was "the test passes everywhere", i.e. exactly backwards.
+- **The `sed` that matched nothing.** A cross-wiring probe used a pattern with
+  one space where the file had four. It reported PASS, which was true and
+  meaningless. Redone with an assertion that the edit applied: two real failures.
+- **The unfalsifiable prediction.** A message predicted the same slot would
+  render `BENCH-UN` and `BENCHUNK`, one paragraph apart, and miscounted the
+  source string. A prediction covering both outcomes cannot be wrong, so
+  confirming it proves nothing.
+
+The shape is the same as the two entries above it: **the observation cannot
+distinguish the passing world from the broken one.** A stale anchor, a moving
+target, and a probe that did not plant all produce output that looks like
+success.
+
+So, mechanically:
+
+1. **Assert the mutation before measuring.** `assert needle in src` then
+   `assert after != before`. Prefer doing it in the language that will read the
+   file back, so path and escaping assumptions are shared.
+2. **Never construct a probe with `sed` or a shell heredoc when the pattern
+   contains backslashes or indentation.** Both have silently eaten probes here.
+   Build the edit in Python with `chr(92)` where a literal backslash is needed.
+3. **State one expected value, not a range of them.** If you cannot say which
+   string should appear, you do not yet know what the check proves.
+4. **Read the failure, not just the count.** "0 failures" from a probe that
+   never planted is indistinguishable from "0 failures" because the code is
+   correct — so print what changed, and check that something did.
+
+### A plausible measurement from a build that never landed
+
+**Same family as the entry above, different mechanism.** There the sabotage did
+not apply; here the *fix* did not apply, and both hand back a believable number
+about a state that does not exist.
+
+Twice in one night a `pio ... -t upload` was fired while the serial bridge still
+held COM4. It fails in about ten seconds with
+
+    A fatal error occurred: Could not open COM4, the port is busy or doesn't exist.
+
+and `bench-capture.ps1` documents exactly this ("killing the process returns
+immediately but Windows releases the COM handle a beat later"). The board keeps
+running the OLD image, the bridge reattaches, the keys are acknowledged, the
+serial log looks completely normal — and the measurement that follows is real
+data from the wrong firmware.
+
+**What caught it was that the numbers were too identical.** `arc=40.78ms` against
+the previous run's `arc=40.80ms`. Had the change been subtle, two runs agreeing
+to a hundredth of a millisecond would have read as *"no regression"* — the most
+reassuring possible phrasing of "you measured nothing".
+
+The general trap: **a failed deploy and an ineffective change produce the same
+observation.** So does a successful deploy of a change that does nothing. Three
+different worlds, one reading.
+
+Mechanically, and this is cheap:
+
+1. **Read the flash's exit status and stop on it.** Not the tail of its output —
+   the exit code. A failed upload prints plenty of cheerful text above the error.
+2. **Free the port before flashing, and wait for the handle**, which is a poll,
+   not a sleep. Killing the holder returns before Windows releases it.
+3. **Prove the new image is the one running before you measure it.** The
+   `[build] env=` banner names the ENV, not the BUILD, so it cannot distinguish
+   two images of the same env — which is precisely this case. Until a build stamp
+   exists, the substitute is to change something observable and observe it.
+4. **Treat an identical number as suspicious, not as confirmation.** Real
+   measurements of a real change move, even slightly. Two runs agreeing exactly
+   is evidence about the pipeline, not about the code.
+
+**The third member, and the worst, because it is CONSISTENT.** A generated data
+file (`src/anim/Coastlines.inc`) is `#include`d by a `.cpp`, and **SCons does not
+track it as a dependency**. Regenerate the data, rebuild, and the build succeeds,
+reports nothing, and links the PREVIOUS data.
+
+Three coastline densities were built and measured this way. All three were the
+same shipped build. Unlike a failed flash — which produces *one* wrong number and
+usually smells wrong — this produces a *complete, internally consistent table* of
+wrong numbers, and the conclusion it supports ("density barely affects frame
+cost") is exactly the sort of tidy result nobody questions.
+
+What caught it was rule 4 above: two of the image sizes were **byte-identical**
+for vertex counts differing by more than a thousand. The fix is one line
+(`touch` the including TU) and it is now written at the top of the generator.
+
+So a fourth rule, and the generalisation of the three: **compare the ARTIFACTS,
+not the numbers derived from them.** `cmp` the two binaries. If a change that
+should alter the image leaves it byte-identical, nothing downstream is worth
+reading.
+
+Related, from the same session and worth one line so the symptom is recognised:
+**a rehearsal log ran away to 8.1 GB and filled the volume to 13 MB free.** The
+first build after that failed with `OSError: [Errno 28] No space left on device`
+buried in a SCons traceback — which reads as a build error, not a disk error, and
+sent the investigation toward the data that had just changed. Check `df` before
+believing a build failure that arrives right after you generated something large.
 
 ### Corollary: an anchor is meaningless against a target that is still moving
 

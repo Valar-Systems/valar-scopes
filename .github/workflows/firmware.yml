@@ -38,6 +38,32 @@ jobs:
       - name: Every config page is a single whole form
         run: python scripts/check-config-form.py
 
+  # Follow Mode's privacy invariant (docs/follow-mode-consolidated.md 17): the
+  # aircraft a customer named must not leave the device, except in the ntfy body
+  # they opted into by naming it. A tail number tied to a named person is not a
+  # type code, and a rule that lives only in a comment gets violated in six
+  # months by someone who does not know it exists.
+  #
+  # This is the WEAKER form and is labelled as such in the script's own header --
+  # it reads the source, not the artifact. It earns its place anyway: it found a
+  # Serial.printf of the target that had shipped in the stage-1 commit, in a file
+  # whose header says the target must never be printed.
+  #
+  # --selftest first, same reasoning as config-form above, and more sharply here:
+  # this checker has been wrong three times, and each time a passing run and a
+  # clean codebase looked identical.
+  follow-privacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove the guard catches a leak, including the multi-line shape
+        run: python scripts/check_follow_privacy.py --selftest
+      - name: The follow target reaches exactly one outbound sink
+        run: python scripts/check_follow_privacy.py
+
   # The ICAO country table is binary-searched, so "sorted and non-overlapping" is a
   # correctness precondition rather than a style rule -- and breaking it produces no
   # compiler error, just a few addresses that silently resolve to the wrong country
@@ -167,6 +193,33 @@ jobs:
           # the very change that sweep was checking. An env nothing builds is an env
           # that rots silently, and this row is what stops that.
           - { env: blipscope-pro-s3-175-amoled }
+          # The flight-animation harness. Slug-less, and added 2026-08-27 when the
+          # globe projection was extracted out of src/anim/ for Follow (§7.2).
+          #
+          # THE SAFETY NET THAT WAS ASSUMED TO COVER THIS DOES NOT. missileer-s3-146
+          # is in this matrix and builds green, but every EAM env applies
+          # ${filters.anim_off}, so src/anim/ IS NOT IN THE MISSILEER IMAGE AT ALL --
+          # confirmed by grepping its ELF for FlightAnimation/kCoast/GOLF-07 (all
+          # absent) against an anchor that is present. A refactor of the animation
+          # module could therefore break every env that actually contains it while
+          # the Missileer row stayed green, which is the same shape as the 1.75"
+          # AMOLED above: an env nothing builds is an env that rots silently.
+          #
+          # animtest-s3-128 is the only env that compiles AND renders src/anim/.
+          - { env: animtest-s3-128 }
+          # Follow Mode stage 1 bench image. BRANCH-ONLY -- this row must not reach
+          # main, and neither must the env it names.
+          #
+          # It is here because Daniel FLASHES this one. The launch gate's rule is
+          # "no flashable image contains a reachable adsbdb endpoint", and the gate
+          # derives its env list from this matrix -- so an image absent from here is
+          # one the gate reports as neither pass nor fail. It simply is not in the
+          # table, and a table of PASS rows reads as success whatever is missing.
+          # Confirmed by running it: `check-adsbdb-out.sh follow-bench` answered
+          # GATE INCONCLUSIVE, filter matched none of 11, before this row existed.
+          #
+          # Slug-less, so it builds and gates and publishes nothing.
+          - { env: follow-bench-s3-128 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

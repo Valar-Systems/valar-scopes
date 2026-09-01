@@ -52,6 +52,9 @@
 // ---------------------------------------------------------------------------
 #include "FlightAnimation.h"
 
+// The globe projection and the coastline data, shared with Follow (§7.2).
+#include "../../include/GlobeProjection.h"
+
 #include <math.h>
 
 namespace missileer {
@@ -834,10 +837,11 @@ const float kRcsPods[4][2] = {{-1.8f, -1.0f}, {-1.8f, 1.0f},
 // stroked over it; land is implied by its outline, which is also the look every
 // missile-plot in the genre has.
 // ---------------------------------------------------------------------------
-struct GeoVec { int16_t x, y, z; };
-struct Coastline { const GeoVec* v; int n; };
-#include "Coastlines.inc"
-constexpr int kCoastCount = (int)(sizeof(kCoast) / sizeof(kCoast[0]));
+// The data and its types now live in globeproj (see GlobeProjection.h and
+// Coastlines.cpp). This TU keeps the old names so the draw code below reads
+// exactly as it did.
+using GeoVec = globeproj::GeoVec;
+using Coastline = globeproj::Coastline;
 
 /* The look target's GOLF-07 scenario: F.E. Warren AFB to the South Pacific pole
  * of inaccessibility. Open ocean, per the tone rule -- the aim point is never a
@@ -935,32 +939,13 @@ constexpr float kGlobeR = 119.0f;
  */
 constexpr float kGlobeTilt = 30.0f;
 
-inline void UnitVec(float lonDeg, float latDeg, float* o)
-{
-    const float d2r = 0.0174533f;
-    const float c = cosf(latDeg * d2r);
-    o[0] = c * cosf(lonDeg * d2r);
-    o[1] = c * sinf(lonDeg * d2r);
-    o[2] = sinf(latDeg * d2r);
-}
-
-inline void Norm3(float* v)
-{
-    const float m = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    if (m > 1e-9f) { v[0] /= m; v[1] /= m; v[2] /= m; }
-}
-
-inline void Cross3(const float* a, const float* b, float* o)
-{
-    o[0] = a[1] * b[2] - a[2] * b[1];
-    o[1] = a[2] * b[0] - a[0] * b[2];
-    o[2] = a[0] * b[1] - a[1] * b[0];
-}
-
-inline float Dot3(const float* a, const float* b)
-{
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
+// Moved to include/GlobeProjection.h so Follow can use the same code. These
+// four were byte-for-byte what is now in that header; the host test pins the
+// result against values printed by this file BEFORE the move.
+using globeproj::UnitVec;
+using globeproj::Norm3;
+using globeproj::Cross3;
+using globeproj::Dot3;
 
 /**
  * The camera. FIXED for the whole beat, and that is a decision, not a shortcut.
@@ -978,47 +963,26 @@ inline float Dot3(const float* a, const float* b)
  * NORTH IS UP, and the tilt is applied toward the great-circle normal, so the
  * arc bows across the disc instead of running down its spine.
  */
-struct GlobeBasis { float v[3], r[3], u[3]; };
-GlobeBasis gGlobe;
+// THE BASIS IS NOW A VALUE, NOT A GLOBAL -- but it is still cached here, and the
+// distinction matters. globeproj::MakeBasis() takes the two places and returns a
+// basis; this file keeps the result because its scenario changes only in
+// SetScenario(), which clears the flag. That is a cache of a pure function, not
+// the latch it used to be, and Follow builds its own basis per route without
+// touching this one.
+globeproj::Basis gGlobe;
 bool gGlobeReady = false;
 
 void BuildGlobeBasis()
 {
     if (gGlobeReady) return;
     gGlobeReady = true;
-
-    float L[3], A[3];
-    UnitVec(gLaunchLon, gLaunchLat, L);
-    UnitVec(gAimLon,    gAimLat,    A);
-
-    float n[3]; Cross3(L, A, n); Norm3(n);                 // great-circle normal
-    float m[3] = {L[0] + A[0], L[1] + A[1], L[2] + A[2]};  // arc midpoint
-    Norm3(m);
-
-    const float phi = kGlobeTilt * 0.0174533f;
-    const float cp = cosf(phi), sp = sinf(phi);
-    for (int i = 0; i < 3; ++i) gGlobe.v[i] = m[i] * cp + n[i] * sp;
-    Norm3(gGlobe.v);
-
-    // right = worldNorth x view, up = view x right. Degenerate only looking
-    // straight down a pole, which this tilt cannot produce.
-    float north[3] = {0.0f, 0.0f, 1.0f};
-    Cross3(north, gGlobe.v, gGlobe.r);
-    if (Dot3(gGlobe.r, gGlobe.r) < 1e-6f) {
-        gGlobe.r[0] = 1.0f; gGlobe.r[1] = 0.0f; gGlobe.r[2] = 0.0f;
-    }
-    Norm3(gGlobe.r);
-    Cross3(gGlobe.v, gGlobe.r, gGlobe.u);
-    Norm3(gGlobe.u);
+    gGlobe = globeproj::MakeBasis(gLaunchLon, gLaunchLat, gAimLon, gAimLat, kGlobeTilt);
 }
 
 /** World unit vector -> screen. Returns true on the near hemisphere. */
 inline bool GlobePt(float x, float y, float z, float c, float R, float& sx, float& sy)
 {
-    const float zz = gGlobe.v[0] * x + gGlobe.v[1] * y + gGlobe.v[2] * z;
-    sx = c + (gGlobe.r[0] * x + gGlobe.r[1] * y + gGlobe.r[2] * z) * R;
-    sy = c - (gGlobe.u[0] * x + gGlobe.u[1] * y + gGlobe.u[2] * z) * R;
-    return zz > 0.0f;
+    return globeproj::Project(gGlobe, x, y, z, c, R, sx, sy);
 }
 
 /** Great-circle interpolation, launch -> aim, as a unit vector. */
@@ -2846,7 +2810,9 @@ void Director::DrawMap(LovyanGFX& g, int dy) const
     // alternative -- clipping the segment to the limb -- buys at most half a
     // pixel here, because the data is decimated to ~1 px and everything near the
     // limb is foreshortened to less than that.
-    constexpr float kInv = 1.0f / 32767.0f;
+    constexpr float kInv = globeproj::VEC_INV;
+    const Coastline* kCoast = globeproj::Coastlines();
+    const int kCoastCount = globeproj::CoastlineCount();
     for (int i = 0; i < kCoastCount; ++i) {
         const GeoVec* v = kCoast[i].v;
         const int     n = kCoast[i].n;
