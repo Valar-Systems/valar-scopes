@@ -216,6 +216,13 @@ struct EnrichRequest {
     String cloudBase, cloudKey;
     float  acLat = 0.0f, acLon = 0.0f;
     bool   hasPos = false;
+    // Direction of travel, sent as `trk`. NOT for the plausibility check -- that
+    // is symmetric and cannot see a reversal -- but for the proxy's route CACHE
+    // KEY. A flight number flies both directions in a day and the cache TTL is
+    // 24 h, so without this the first leg to be fetched owns the entry and the
+    // return leg draws its card backwards. See routeCacheKey() in enrich.ts.
+    float  acTrack = 0.0f;
+    bool   hasTrack = false;
     // Ntfy: the alert content, POSTed off-loop with the usual ntfy headers.
     String ntfyTitle, ntfyTags, ntfyBody;
     // Leaderboard: the JSON submission body, POSTed to cloudBase + /api/v1/blipscope/leaderboard.
@@ -424,6 +431,10 @@ EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& re
         params.push_back({ "lat", String(req.acLat, 4) });
         params.push_back({ "lon", String(req.acLon, 4) });
     }
+    // Omitted rather than sent as 0 when unknown: the proxy falls back to the
+    // legacy callsign-only key on absence, and a bogus 0 would claim "due north"
+    // and pin every trackless contact into one bucket.
+    if (req.hasTrack) params.push_back({ "trk", String(req.acTrack, 1) });
 
     JsonDocument doc;
     // Headers(key) deliberately, NOT Headers(key, otaMem): the OTA memory report
@@ -4558,7 +4569,8 @@ void AircraftManager::ProcessDetailLookups()
                 callsign.trim();
                 auto [acLat, acLon] = tracked.GetDisplayPosition();
                 tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
-                RequestCloudEnrich(selectedIcao, callsign, acLat, acLon);
+                RequestCloudEnrich(selectedIcao, callsign, acLat, acLon,
+                               tracked.state.trueTrack, tracked.state.velocity > 1.0f);
                 return;
             }
         }
@@ -4613,7 +4625,8 @@ void AircraftManager::ProcessDetailLookups()
             cs.trim();
             tracked.metadataState = TrackedAircraft::MetadataState::Fetching;
             auto [dLat, dLon] = tracked.GetDisplayPosition();
-            RequestCloudEnrich(selectedIcao, cs, dLat, dLon);
+            RequestCloudEnrich(selectedIcao, cs, dLat, dLon,
+                               tracked.state.trueTrack, tracked.state.velocity > 1.0f);
         }
 #endif
         return;
@@ -4729,7 +4742,8 @@ void AircraftManager::RequestPhoto(const String& icao24, const String& url, cons
 
 #ifdef FEATURE_CLOUD_FEED
 void AircraftManager::RequestCloudEnrich(const String& icao24, const String& callsign,
-                                         float acLat, float acLon)
+                                         float acLat, float acLon,
+                                         float acTrack, bool hasTrack)
 {
     if (EnrichDeferredForSubmit())
         return;
@@ -4742,6 +4756,8 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
     req->acLat = acLat;
     req->acLon = acLon;
     req->hasPos = true;
+    req->acTrack = acTrack;
+    req->hasTrack = hasTrack;
     if (enqueueEnrich(enrichRequestQueue, req))
         enrichInFlight = true;
 }
@@ -5841,7 +5857,8 @@ void AircraftManager::ProcessMetadataLookups()
         best->metadataState = TrackedAircraft::MetadataState::Fetching;
         String callsign = best->state.callsign;
         callsign.trim();
-        RequestCloudEnrich(*bestIcao, callsign, bestLat, bestLon);
+        RequestCloudEnrich(*bestIcao, callsign, bestLat, bestLon,
+                       best->state.trueTrack, best->state.velocity > 1.0f);
         return;
     }
 #endif

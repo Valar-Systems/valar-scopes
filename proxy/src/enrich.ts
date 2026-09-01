@@ -256,15 +256,93 @@ async function routeContradicted(
   return toO > routeKm + MARGIN_KM && toD > routeKm + MARGIN_KM;
 }
 
+/* ===========================================================================
+ * THE ROUTE CACHE KEY CARRIES DIRECTION OF TRAVEL.
+ *
+ * WHY THE CALLSIGN ALONE IS WRONG. The upstream disambiguates legs for us --
+ * routesetRequest() sends lat/lng precisely because "callsigns get reused across
+ * legs" -- and then this cache threw that away by keying on the callsign. The
+ * first caller's leg won `rt:<cs>` for the whole TTL and every other device
+ * tracking a DIFFERENT leg of the same flight number got served that answer.
+ *
+ * WHY A POSITION TILE DOES NOT FIX IT. ASA537 flies SEA->BUR in the morning and
+ * BUR->SEA in the afternoon. Same corridor, therefore the same tiles. The
+ * morning leg populates the tile, the afternoon leg hits it, and the card is
+ * reversed exactly as before. A position tile separates DIFFERENT ROUTES IN
+ * DIFFERENT PLACES (the b16e859 case: a Bend aircraft showing MCO->BWI); it
+ * cannot separate the same route in both directions, because reversal preserves
+ * geography. Neither can a cached plausibility verdict -- that is a corridor
+ * test, and a corridor is symmetric. Same blindness as routeContradicted(),
+ * one layer down.
+ *
+ * And the TTL is 24 h, so it does not save us either: a same-day out-and-back
+ * sits entirely inside one entry's lifetime.
+ *
+ * WHY DIRECTION IS A KEY AND NOT A HEURISTIC, WHICH IS THE WHOLE ARGUMENT. A
+ * heuristic that GUESSES a reversal and swaps the displayed endpoints shows a
+ * customer a confidently wrong card when it guesses wrong. A cache key that
+ * guesses wrong just MISSES -- and a miss is a fresh fetch with the true
+ * position, which returns the right answer. Being wrong here costs one upstream
+ * request and never a wrong route. That inversion is why the objection to a
+ * swap-detector does not apply to a key.
+ *
+ * It also disposes of the departure-turn case that killed the detector: an
+ * aircraft leaving SEA briefly tracking north lands in a different bucket,
+ * misses, and fetches correctly.
+ *
+ * THE SEPARATION PROPERTY, WHICH IS EXACT RATHER THAN EMPIRICAL. A reversal is
+ * exactly 180 degrees. Adding 180 to a track advances the bucket index by
+ * exactly TRACK_BUCKETS/2, which is non-zero mod TRACK_BUCKETS for any EVEN
+ * bucket count -- so the two legs are guaranteed to land in different buckets,
+ * for 2, 4 or 8 buckets, and regardless of where the boundaries are placed.
+ * An ODD count breaks the guarantee, which is why the count is asserted even.
+ *
+ * Four buckets of 90 degrees: guaranteed separation, minimal fragmentation.
+ * Err toward MORE buckets, never fewer -- more costs redundant fetches, fewer
+ * costs stale hits, and only one of those is a wrong card.
+ * ======================================================================== */
+export const TRACK_BUCKETS = 4;
+if (TRACK_BUCKETS % 2 !== 0) {
+  // Not decoration: an odd count silently destroys the separation guarantee
+  // above, and the symptom would be an occasional reversed card -- i.e. the
+  // original bug, back, looking like bad upstream data.
+  throw new Error("TRACK_BUCKETS must be EVEN or a reversal can share a bucket");
+}
+
+/** Coarse direction bucket, or "" when the caller sent no usable track. */
+export function trackBucket(trk: number | undefined): string {
+  if (trk === undefined || !Number.isFinite(trk)) return "";
+  // Normalised the long way round on purpose: `%` follows the sign of the
+  // DIVIDEND in JS, so a negative track would otherwise land on a negative
+  // bucket index. See the cross-language rounding entry in CLAUDE.md.
+  const norm = ((trk % 360) + 360) % 360;
+  return String(Math.floor(norm / (360 / TRACK_BUCKETS)) % TRACK_BUCKETS);
+}
+
+/**
+ * Cache key for a route.
+ *
+ * Falls back to the bare `rt:<cs>` when no track is known, which keeps this
+ * backward compatible with devices that do not yet send one: they behave
+ * exactly as before rather than missing every lookup. The fix therefore
+ * activates per-device as firmware ships, and never regresses an old one.
+ */
+export function routeCacheKey(cs: string, trk: number | undefined): string {
+  const b = trackBucket(trk);
+  return b === "" ? `rt:${cs}` : `rt:${cs}:${b}`;
+}
+
 // Route: KV, else the route-source chain (adsb.lol routeset, then adsbdb).
 async function resolveRoute(
   env: Env,
   cs: string,
   lat: number | undefined,
   lon: number | undefined,
+  trk: number | undefined,
 ): Promise<RouteEntry> {
   if (!cs) return { o: "", d: "" };
-  const cached = await env.ENRICH_KV.get<RouteEntry>(`rt:${cs}`, "json");
+  const rtKey = routeCacheKey(cs, trk);
+  const cached = await env.ENRICH_KV.get<RouteEntry>(rtKey, "json");
   if (cached) {
     // THE CACHED BRANCH IS CHECKED TOO, WHICH IT WAS NOT.
     //
@@ -304,7 +382,7 @@ async function resolveRoute(
   const usable = lat !== undefined && lon !== undefined ? r.plausible : true;
   const route = usable ? { o: r.o, d: r.d } : { o: "", d: "" };
   if (r.definitive) {
-    await env.ENRICH_KV.put(`rt:${cs}`, JSON.stringify(route), { expirationTtl: RT_TTL_S });
+    await env.ENRICH_KV.put(rtKey, JSON.stringify(route), { expirationTtl: RT_TTL_S });
   }
   return route;
 }
@@ -343,6 +421,9 @@ export async function handleEnrich(
   // Optional live position: feeds the route plausibility check.
   const lat = maybeFloat(url.searchParams.get("lat"));
   const lon = maybeFloat(url.searchParams.get("lon"));
+  // Direction of travel, for the route cache key -- see routeCacheKey(). Absent
+  // on firmware that predates it, which falls back to the old callsign-only key.
+  const trk = maybeFloat(url.searchParams.get("trk"));
 
   // The two lookups are independent; run them concurrently to keep tap->card
   // latency down (the firmware budget is sub-second on the warm path). Each
@@ -354,7 +435,7 @@ export async function handleEnrich(
     setTimeout(() => resolve("deadline"), deadlineMs),
   );
   const metaPromise = resolveMeta(env, hex, meta);
-  const routePromise = resolveRoute(env, cs, lat, lon);
+  const routePromise = resolveRoute(env, cs, lat, lon, trk);
   const [metaOutcome, routeOutcome] = await Promise.all([
     Promise.race([metaPromise, deadline]),
     Promise.race([routePromise, deadline]),

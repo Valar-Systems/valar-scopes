@@ -720,8 +720,14 @@ private:
     bool RequestCloudAirports();                // loop: queue a /api/v1/blipscope/airports fetch on the fetch task
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
+    // loop: queue a /api/v1/blipscope/enrich lookup.
+    // acTrack/hasTrack feed the proxy's route CACHE KEY (routeCacheKey() in
+    // enrich.ts), not the plausibility check. Defaulted off so a call site
+    // without a usable track says so by omission and gets the legacy key,
+    // rather than sending 0 and claiming due north.
     void RequestCloudEnrich(const String& icao24, const String& callsign,
-                            float acLat, float acLon); // loop: queue a /api/v1/blipscope/enrich lookup
+                            float acLat, float acLon,
+                            float acTrack = 0.0f, bool hasTrack = false);
     // Apply one enrichment payload to a tracked aircraft (shared by the network
     // result and the LRU-cache hit paths); notes the logbook like adsbdb did.
     void ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e);
