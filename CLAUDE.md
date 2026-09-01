@@ -209,7 +209,7 @@ observed firing. The route cache's fix is the same move one layer up: the key,
 not a downstream plausibility test.
 
 
-**An eighth, in an argv path (2026-09-01).** `deploy.sh` ends by calling
+**A twelfth, in an argv path (2026-09-01).** `deploy.sh` ends by calling
 `confirm-deploy.sh` -- the step that proves a deploy actually landed -- via
 `"$(dirname "$0")/..."`, evaluated *after* the script has `cd`'d into `proxy/`.
 Invoked the canonical way (from inside `proxy/`) it resolves. Invoked as
@@ -219,7 +219,7 @@ guard existed, ran on one invocation path, and silently did not exist on the
 other -- and it was masked because production genuinely *was* healthy that time,
 which is the self-camouflaging half below.
 
-Worth noting where this family has now turned up: in code (rows 1-5, 7), in a
+Worth noting where this family has now turned up: in code (rows 1-5, 7-11), in a
 **comment** that stated the hazard beside a path that ignored it, in **test
 scaffolding** (an assertion matching a fragment of the shape the author imagined
 failure would take), and now in **how a script is invoked**. The shape is not a
