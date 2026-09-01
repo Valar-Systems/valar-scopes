@@ -465,6 +465,48 @@ Two corollaries worth carrying:
   "save everything" form freezes every default it renders, including ones the
   customer never looked at.
 
+## Standing practice: a gate that refuses to certify is working; check the coupling
+
+**2026-09-01, v9.** `animtest-s3-128` failed the adsbdb launch gate and the whole
+fleet's OTA gate went dark: `version` carried `needs: build`, `build` is a MATRIX,
+and GitHub hands a dependent job the AGGREGATE of every leg. One slug-less harness
+env failed, `version` was skipped, and
+`releases/latest/download/version.txt` returned **404** while ten verified binaries
+sat on the release. No device could discover v9.
+
+**THE GATE DID ITS JOB. DO NOT "FIX" THE GATE.** It reported
+`UNTRUSTWORTHY (control blind)`, not FAIL. The gate plants a reachable adsbdb
+string and requires the scanner to FIND it before believing any absence; in the
+animation harness -- which contains no enrichment code -- there was nothing to
+plant it in, so the control came back blind. It refused to certify rather than
+emitting a false PASS on an image it could not actually see into. That is this
+file's oldest rule executing correctly, and the next person to meet a red
+`animtest` leg will be tempted to relax the gate to clear it. **The defect was
+never the gate. It was the COUPLING** -- a row that publishes nothing being able
+to block publication.
+
+The fix is [scripts/check-publish-receipts.sh](scripts/check-publish-receipts.sh):
+`version` keeps `needs: build` for ORDERING only, `always()` stops the aggregate
+deciding anything, and a slug-ful leg emits a receipt after its gate AND its
+upload both pass. The discriminator is `slug`, read from the matrix -- an env with
+one publishes a binary and must be certified; an env without one publishes
+nothing and cannot withhold the fleet's gate. **The direction is asymmetric and
+is the entire point:** a slug-FUL leg that fails leaves no receipt, the check
+fails, and version.txt does NOT advance. Devices must never be pointed at an
+image no launch gate certified.
+
+A receipt rather than "is the asset on the release": the release already holds
+assets from earlier runs, so asset-exists is equally true of a stale upload from
+a run whose gate failed -- the exact state this must refuse. Same family as the
+anchor control: **evidence about THIS run, not about history.**
+
+**Still open, deliberately.** The gate cannot yet distinguish SKIP ("nothing to
+verify here") from UNTRUSTWORTHY ("cannot verify"), so `animtest` stays red
+forever. That is the correct fix and it is NOT free: a SKIP that is easy to earn
+is a hole in a gate that currently has none. It needs scheduling rather than
+filing, because a permanently red leg trains everyone to read past it -- which is
+precisely the state the enrolment ledger sat in for twenty days.
+
 ## Standing practice: a green signal is about process; the artifact is elsewhere
 
 **CI green does not mean deployed. MERGED does not mean in main. `/healthz` and the
