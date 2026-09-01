@@ -41,8 +41,11 @@ Any of these makes the run meaningless. Stop and restart rather than reasoning a
 3. **Version read over the serial console rather than from the device's own report or its
    screen.** A customer has neither a cable nor a terminal. If the only way to know the
    device updated is to plug into it, you have not tested what customers experience.
-4. **Any other unit powered on during the window.** `download_count` is fleet-wide; a
-   second device fetching makes the counter uninterpretable.
+4. ~~**Any other unit powered on during the window.**~~ **RETIRED 2026-09-01** along with
+   Instrument B. This existed only because `download_count` is fleet-wide. With B removed
+   from Run 1, other powered units are not merely harmless but *wanted*: several
+   independent devices updating simultaneously while nobody is present is the evidence
+   that replaces the control device we cannot build.
 5. **Devices flashed from a local build rather than the release artifact.** Flash from the
    same artifact the OTA channel serves, or you are comparing two different things.
 
@@ -62,8 +65,14 @@ The Worker then knows what firmware every device is running, over time. **An OTA
 that value changing with nobody touching the device.** That is the observation the whole
 plan turns on.
 
-**Instrument B — the release asset (GitHub).** The Releases API exposes `download_count`
-per asset. Record it immediately before the window opens and immediately after it closes.
+**Instrument B — the release asset (GitHub). WITHDRAWN 2026-09-01 — do not rebuild it.**
+The Releases API exposes `download_count` per asset, and the intent was to record it either
+side of the window. It never passed its control: the counter settles over *hours*, so a
+movement inside a 25-hour window cannot be attributed to that window, and a null reading and
+a non-null one are equally uninformative. The measurement that established this, and the
+reason a half-signal was removed rather than kept, are under "B's read" below and in Run 1.
+The three-outcome table immediately following is what B *would* have bought and is retained
+only to show what was given up.
 
 Together they give three distinguishable outcomes:
 
@@ -83,11 +92,11 @@ covered.
 
 - Issue one feed request from a known device and confirm the row appears with both headers
   populated. A log that has never been seen producing a row is not evidence.
-- Fetch the release asset once by hand and confirm `download_count` moves. Record that
-  fetch — it is part of your baseline, and it is also the control proving the counter works.
+- ~~Fetch the release asset once by hand and confirm `download_count` moves.~~ This control
+  was run and **did not pass** — which is exactly what it was for. It is the reason B is
+  withdrawn rather than the reason to keep tuning it.
 
-**Keep the window clean.** `download_count` is fleet-wide, not per-device. No other unit may
-be running or fetching during the window, or the counter is uninterpretable.
+~~**Keep the window clean.**~~ Retired with B; see invalidation condition 4.
 
 ### Status as of 2026-09-01: A built and undeployed, B built and FAILING its control
 
@@ -264,17 +273,18 @@ appears in the feed log at all, and what it is running when it does.
 
 ---
 
-## Run 1 — does OTA work at all (~25 hours, two devices)
+## Run 1 — does OTA work at all (~25 hours, every powered device a subject)
 
-Two devices, both freshly flashed from the release artifact, both left alone. They run the
-same window simultaneously, so the negative and the positive are observed under identical
-conditions.
+Every device is flashed from the release artifact at version *N*, then left alone. There is
+no control device and there cannot be one — see "There is no control device" below; the
+evidence that an update arrived by OTA is several independent devices moving simultaneously
+with nobody present, not one board held back.
 
-| | Device A (control) | Device B (subject) |
-|---|---|---|
-| Firmware | release artifact, version *N* | release artifact, version *N* |
-| Update published for it | none | version *N+1* |
-| Expected outcome | stays on *N* | downloads, verifies, applies, boots *N+1* |
+| | Every powered device |
+|---|---|
+| Firmware at window open | release artifact, version *N* |
+| Update published | version *N+1*, fleet-wide (the only kind there is) |
+| Expected outcome | downloads, verifies, applies, boots *N+1* |
 
 **Version *N+1* must differ only in a marker**, not in behaviour — a bumped version
 identifier is enough. The marker must be visible **two ways**: reported by the device to
@@ -287,13 +297,54 @@ a pass.
 
 | Observation | Conclusion |
 |---|---|
-| `download_count` unchanged and neither device's reported FW moves | **The timer never fires, or discovery is dead.** Headline bug. Stop here — nothing downstream matters until it is fixed. |
-| `download_count` +1, B reports *N+1*, A still reports *N* | **Pass.** The mechanism works end to end, and A proves the update was delivered by OTA rather than by something else in the room, and that targeting works. |
-| `download_count` unchanged but B's FW moves | The update did not come from the release asset. Something else changed that device — find out what. |
-| `download_count` increments, B still reports *N* | Transport works; verification or the apply step does not. |
-| B applies but boots back on *N* | Rollback is firing. Something in *N+1* fails the boot check, or the partition logic is wrong. |
-| B reports *N+1* to the server but the screen still shows *N* (or vice versa) | The reported version and the running image have separate sources. Broken looks exactly like normal here — treat as a failure. |
-| A also updates | Targeting does not work. You cannot do staged rollouts, and a bad build reaches all fifty at once. |
+| No device's reported FW moves | **The timer never fires, or discovery is dead.** Headline bug. Stop here — nothing downstream matters until it is fixed. |
+| Every powered device reports *N+1*, each with a **new** `changes[]` entry stamped inside the window | **Pass.** The mechanism works end to end, unattended. |
+| A device applies but boots back on *N* | Rollback is firing. Something in *N+1* fails the boot check, or the partition logic is wrong. |
+| A device reports *N+1* to the server but the screen still shows *N* (or vice versa) | The reported version and the running image have separate sources. Broken looks exactly like normal here — treat as a failure. |
+| Some devices move and others do not | Not targeting (there is none — see below). Look at power, Wi-Fi, and the update timer on the ones that did not. |
+
+**`download_count` DOES NOT APPEAR IN THIS TABLE, AND ITS ABSENCE IS DELIBERATE.**
+Instrument B was removed from Run 1 on 2026-09-01 rather than kept as a degraded signal.
+The reasoning, so nobody rebuilds it:
+
+- The counter settles over **hours** — established, not guessed: the retracted 87 and this
+  probe's baseline of 89 differ by the earlier hand fetches arriving late, long after they
+  were read as "did not move".
+- Therefore a movement inside a 25-hour window cannot be attributed to that window. A null
+  reading means nothing, **and so does a non-null one.**
+- A half-signal that still gets printed will get interpreted. Someone reading this table in
+  six weeks sees `+1` and calls it a device fetch. A number that cannot discriminate must
+  not sit beside outcomes that can.
+
+Removing it also retires **invalidation condition 4** (the fleet-wide counter meant no
+other unit could be powered during the window). That constraint is gone: other devices
+running during Run 1 are now harmless, and in fact useful — see below.
+
+### There is no control device, because there is no targeting
+
+The table above has no Device A, and the original "A also updates → targeting does not
+work" row is gone. Both were removed on 2026-09-01 after checking the mechanism rather
+than the intent:
+
+`version.txt` is **shared across the whole fleet** (`src/OtaUpdater.cpp`: one integer gates
+everyone; each SKU then fetches its own `firmware-<slug>.bin`), and
+`.github/workflows/firmware.yml` publishes every slug from one bump. There is no
+per-device, per-serial, per-SKU or staged publishing anywhere, and no on-device OTA
+opt-out. So a control that "has no update published for it" **cannot be constructed**, and
+"A also updates" is not a finding — it is the designed behaviour, which would have been
+recorded as a failure.
+
+**Do not manufacture one with `-DOTA_RELEASE_BASE` pinning.** A control pinned to the old
+release stays on *N* by construction; it cannot fail, and a control that cannot fail proves
+nothing — the same objection this plan makes to every other check it refuses to trust.
+
+**What replaces it.** Every powered device is a subject, and the evidence that the update
+arrived by OTA rather than by something in the room is *simultaneity across independent
+devices while nobody is present* — which is strictly stronger than one control board, and
+is exactly what Instrument A's per-device `changes[]` timestamps record. The staged-rollout
+question is real and unanswered, but it is a **capability we do not have**, not a Run 1
+outcome; it belongs in its own line item, not in a table that would have reported its
+absence as a bug.
 
 **Record for each device:** device id, image hash before and after, every server log row with
 timestamps, and a photograph of the screen showing the version.

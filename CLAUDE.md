@@ -146,34 +146,44 @@ moment you can least afford it.
 
 ## Standing practice: when you add a second path, enumerate what the FIRST one establishes
 
-**Seven times in one day, in seven unrelated subsystems, the same defect: a guard
-existed, was correct, and one path did not go through it.** That is not a
-coincidence and it is not seven bugs. It is one bug about how second paths get
-written.
+**This started as seven instances in one day, in seven unrelated subsystems: a
+guard existed, was correct, and one path did not go through it.** That was not a
+coincidence and it was not seven bugs. It is one bug about how second paths get
+written — and the table below has kept growing since, which is the argument.
 
-| # | subsystem | the guard | the path that missed it |
-|---|---|---|---|
-| 1 | Follow dwell | auto-surface arms a dwell so the device never steals the screen | the SWIPE path armed it too, closing a face the customer had chosen |
-| 2 | bearing face marker | the rings read the aircraft position from the view | the marker fetched it again from `FollowedAircraft()`, null in the absence states |
-| 3 | `followAutoReturnTo` | the entry path records the screen to return to | `ClearSessionFollow` hardcoded `Screen::Radar` and never read it |
-| 4 | session clear | `SetTarget(false)` clears the machine's state | it deliberately KEEPS `last`/`lastFixMs`, so a dismissed flight's position survived into the next subject |
-| 5 | `ChordWidthPx` | "the rule lives here, once, and every caller goes through it" | the detail card never became a caller |
-| 6 | `getMaxAllocHeap` | a heap floor gating TLS handshakes | every path went through it; it established nothing, and never fired once in 6,466 samples |
-| 7 | route cache | `resolveRoute` refuses a route implausible for the aircraft's position | the CACHED branch returns three lines before the test |
-| 8 | editor anchor | a unique-match guard: refuse unless the anchor appears exactly once | it establishes UNAMBIGUITY, not LOCATION -- a loose anchor matched once, in the wrong function, and edited `DrawStats` instead of `DrawList` |
-| 9 | admin-0 whole-part rule | "keep a part only if EVERY vertex is inside the box" | it rejected **zero** parts. The 24 N floor was doing the work, and got no scrutiny because attention went to the elaborate mechanism |
-| 10 | `ProgressAlong`'s clamp | `min(1, x)` keeps progress in range | a ratio above 1.0 is PROOF the aircraft is not between the endpoints; the clamp maps that proof onto 100%, the most reassuring number in the range |
-| 11 | admin-0 extent bound | a host test asserting no border vertex sits north of 70 N | it CANNOT BE WRITTEN there: the generated `.inc` merges admin-0 and admin-1 and records which layer a line came from nowhere, so the check has no way to scope itself |
+(The count is deliberately not stated as a number anywhere else. It was "seven"
+for exactly as long as it took someone to find an eighth.)
+
+**Rows are referenced BY NAME, never by position.** This file is edited by several
+sessions at once: an entry written as "an eighth" was accurate when written and false
+by the time it was pushed, because rows landed underneath it in the meantime. A
+name survives reordering and insertion; an ordinal is a future wrong statement with
+nothing to announce the change. Same defect the file is full of -- a reference that
+was true once and is not re-checked.
+
+| subsystem | the guard | the path that missed it |
+|---|---|---|
+| Follow dwell | auto-surface arms a dwell so the device never steals the screen | the SWIPE path armed it too, closing a face the customer had chosen |
+| bearing face marker | the rings read the aircraft position from the view | the marker fetched it again from `FollowedAircraft()`, null in the absence states |
+| `followAutoReturnTo` | the entry path records the screen to return to | `ClearSessionFollow` hardcoded `Screen::Radar` and never read it |
+| session clear | `SetTarget(false)` clears the machine's state | it deliberately KEEPS `last`/`lastFixMs`, so a dismissed flight's position survived into the next subject |
+| `ChordWidthPx` | "the rule lives here, once, and every caller goes through it" | the detail card never became a caller |
+| `getMaxAllocHeap` | a heap floor gating TLS handshakes | every path went through it; it established nothing, and never fired once in 6,466 samples |
+| route cache | `resolveRoute` refuses a route implausible for the aircraft's position | the CACHED branch returns three lines before the test |
+| editor anchor | a unique-match guard: refuse unless the anchor appears exactly once | it establishes UNAMBIGUITY, not LOCATION -- a loose anchor matched once, in the wrong function, and edited `DrawStats` instead of `DrawList` |
+| admin-0 whole-part rule | "keep a part only if EVERY vertex is inside the box" | it rejected **zero** parts. The 24 N floor was doing the work, and got no scrutiny because attention went to the elaborate mechanism |
+| `ProgressAlong`'s clamp | `min(1, x)` keeps progress in range | a ratio above 1.0 is PROOF the aircraft is not between the endpoints; the clamp maps that proof onto 100%, the most reassuring number in the range |
+| admin-0 extent bound | a host test asserting no border vertex sits north of 70 N | it CANNOT BE WRITTEN there: the generated `.inc` merges admin-0 and admin-1 and records which layer a line came from nowhere, so the check has no way to scope itself |
 
 **Rows 8 to 10 are not the same failure as 1 to 7, and collapsing them loses the
-point.** The first seven are structural: a guard exists and a path goes round
+point.** Most are structural: a guard exists and a path goes round
 it. The last three are about guards that *run on every path* and still protect
 nothing.
 
-- **8 is a guard that answers a narrower question than its name suggests.**
+- **The EDITOR ANCHOR row is a guard that answers a narrower question than its name suggests.**
   Unique-match is a real property; it is simply not the property "this edit lands
   where I meant". The check was working perfectly.
-- **9 is a rule that has never rejected anything.** That is not evidence it
+- **The ADMIN-0 WHOLE-PART row is a rule that has never rejected anything.** That is not evidence it
   works -- it is evidence it is untested, *and* that something else is silently
   doing the job you attributed to it. **The method that finds these is to relax
   each constraint and see what changes.** Dropping the box floor from 24 N to
@@ -181,7 +191,7 @@ nothing.
   Haiti; that is what converted "I believe this rule works" into "I know which
   rule is load-bearing". If nothing changes when you relax a constraint, the work
   is happening somewhere you have not looked.
-- **10 destroys the evidence.** A
+- **`ProgressAlong`'s CLAMP destroys the evidence.** A
   defensive clamp or default that maps an IMPOSSIBLE value onto a PLAUSIBLE one
   does not merely lose a diagnosis, it manufactures reassurance. The clamp
   converts the strongest available evidence of a wrong route into the most
@@ -189,7 +199,7 @@ nothing.
   `?? 0`, `if (n > max) n = max`. At every one, ask **what did the out-of-range
   value know?**
 
-**11 IS THE DIAGNOSTIC ONE, AND IT IS THE MOST USEFUL ENTRY IN THIS TABLE.** It
+**THE ADMIN-0 EXTENT BOUND IS THE DIAGNOSTIC ONE, AND THE MOST USEFUL ENTRY IN THIS TABLE.** It
 is not a guard with a path around it; it is a guard placed *after the information
 it depends on stopped existing*. The same shape appeared twice on 2026-09-01:
 
@@ -209,7 +219,7 @@ observed firing. The route cache's fix is the same move one layer up: the key,
 not a downstream plausibility test.
 
 
-**A twelfth, in an argv path (2026-09-01).** `deploy.sh` ends by calling
+**Another instance, in an argv path (2026-09-01).** `deploy.sh` ends by calling
 `confirm-deploy.sh` -- the step that proves a deploy actually landed -- via
 `"$(dirname "$0")/..."`, evaluated *after* the script has `cd`'d into `proxy/`.
 Invoked the canonical way (from inside `proxy/`) it resolves. Invoked as
@@ -219,7 +229,7 @@ guard existed, ran on one invocation path, and silently did not exist on the
 other -- and it was masked because production genuinely *was* healthy that time,
 which is the self-camouflaging half below.
 
-Worth noting where this family has now turned up: in code (rows 1-5, 7-11), in a
+Worth noting where this family has now turned up: in code (most of the table), in a
 **comment** that stated the hazard beside a path that ignored it, in **test
 scaffolding** (an assertion matching a fragment of the shape the author imagined
 failure would take), and now in **how a script is invoked**. The shape is not a
@@ -230,11 +240,11 @@ property of code — it is a property of second paths, wherever they live.
 sometimes the property has to be re-derived. Either way the question is what the
 first path knows to be true by the time it returns.
 
-That is deliberately harder to apply than "call the same helper", because #7
+That is deliberately harder to apply than "call the same helper", because the ROUTE CACHE row
 proves the easy version is not always available: the route check's verdict was
 `r.plausible`, computed by the UPSTREAM during a fetch. There is no fetch on the
 cached path, so the property had to be re-derived geometrically. A rule phrased
-as "reuse the guard" would have had nothing to say there. And #6 is the case that
+as "reuse the guard" would have had nothing to say there. And `getMaxAllocHeap` is the case that
 kills the easy version outright -- every path DID call the guard, and the guard
 was measuring something that was never true.
 
