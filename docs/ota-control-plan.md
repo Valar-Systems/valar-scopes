@@ -89,6 +89,69 @@ covered.
 **Keep the window clean.** `download_count` is fleet-wide, not per-device. No other unit may
 be running or fetching during the window, or the counter is uninterpretable.
 
+### Status as of 2026-09-01: A built and undeployed, B built and FAILING its control
+
+**Instrument B's control does not pass.** After a hand fetch of `version.txt`, the counter
+did not move across six reads over sixty seconds; re-checked six minutes later after three
+hand fetches in total, still 87. The fetches themselves succeed (`HTTP 200`, 2 bytes, two
+redirects). So `download_count` is lagging far longer than an hour, not counting these
+fetches, or dead.
+
+**Nothing may be concluded from the number 87 that is currently on `version.txt`.** It was
+briefly read as proof that discovery and the timer are alive. That reading is withdrawn, and
+it is withdrawn on its own evidence: if the `latest` alias is uncounted -- the leading
+hypothesis, and the alias the device actually uses -- then none of those 87 came from a
+device and they are development and CI traffic. The supporting argument was worse: the
+`version.txt` 87 against `firmware-s3-128.bin` 3 was read as "the shape fleet traffic
+makes, many checks and few installs". It is equally the shape DEVELOPER traffic makes --
+the version endpoint gets hit constantly while working and the binary rarely. A ratio
+consistent with two explanations discriminates between neither.
+
+**So "the timer never fires, or discovery is dead" is NOT excluded.** It remains one of the
+live outcomes in the Run 1 table below.
+
+**The discriminating test, which is not "fetch the tag-pinned URL and see".** That has a
+hole: if the real cause is counter lag or API caching rather than the alias, a pinned fetch
+will not move promptly either, and the wrong conclusion -- "pinned is uncounted too" -- is
+indistinguishable from the right one. Instead fetch BOTH paths with DIFFERENT counts in one
+pass, then read once after an hour or more:
+
+    3 fetches via  /releases/latest/download/version.txt
+    7 fetches via  /releases/download/<tag>/version.txt
+
+| delta after >= 1 h | conclusion |
+|---|---|
+| +7 | the `latest` alias is uncounted -- and it is the alias the device uses, so B can never see a device download |
+| +10 | both paths count; what was observed was lag, and B is usable with a long enough settling time |
+| 0 | the counter is dead, or lags far beyond any useful window |
+
+**B IS TIMEBOXED TO ONE HOUR AND MUST NOT BLOCK THE CLOCK.** Instrument A is the gate; B is
+diagnostic assistance. If A shows a device's reported firmware changing with nobody having
+touched it, OTA works end to end and that alone passes Run 1. B only tells you WHICH step
+failed when it fails. If B is unresolved after an hour: deploy A, verify it produces a row,
+and open Run 1 anyway with reduced diagnostics -- and record here that the three-outcome
+table has degraded to a single signal, so that nobody later reads a null `download_count`
+as meaningful when it means nothing.
+
+### An unenrolled board is undetectable in the field, by construction
+
+`meta.dev` and `meta.fw` are only populated past authenticate (see the header of
+`proxy/src/metrics.ts`: recording them earlier would let anyone write arbitrary device ids).
+So Instrument A's placement is forced, and the consequence is stronger than "unenrolled
+boards produce no row":
+
+> **"No row" means unenrolled, or unpowered, or offline, and those three are
+> indistinguishable -- permanently, not just during a run.**
+
+This is not a check that can be added later. It is a PROCESS CHANGE, and it belongs to
+manufacturing rather than to this plan's runs: **enrollment must be verified at the bench,
+before the box closes, on every unit.** There is no subsequent opportunity to notice that a
+unit was never enrolled -- a dead board and an unenrolled board look identical from here
+forever.
+
+What Instrument A *does* answer, for units that are enrolled: whether a running board ever
+appears in the feed log at all, and what it is running when it does.
+
 ---
 
 ## Run 1 — does OTA work at all (~25 hours, two devices)

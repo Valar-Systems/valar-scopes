@@ -1,0 +1,12 @@
+dual-path download_count probe
+started   2026-09-01T14:33:51Z
+tag       v8
+baseline  version.txt = 89
+latest    3 fetches
+pinned    7 fetches
+read back after >= 1 hour:
+  +7   -> the latest alias is UNCOUNTED (and it is what the device uses)
+  >=8  -> latest counts; what was seen before was lag
+  0    -> the counter is dead or lags beyond any useful window
+NOTE: the s3-128 on COM4 is powered; a stray device fetch adds to LATEST only,
+      so any delta >= 8 still means latest counts.
