@@ -184,6 +184,30 @@ elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
 
+# --- 1e. the generated borders, and the chunked cull that draws them ---------
+#
+# The four features graded here were NAMED BEFORE the test was written, because
+# the representation they replaced could not express any of them and a map with
+# some lines on it looks like a map. See the file header.
+#
+# StateBorders.cpp is compiled in for the same reason Coastlines.cpp is above:
+# the data is the thing under test, and it needs no Arduino either.
+echo
+echo "== state / province / international borders =="
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_state_borders.cpp"       "$ROOT/src/anim/StateBorders.cpp"       -o "$OUT/test_state_borders.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the border test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_state_borders.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 echo
 echo "== StarvationPolicy =="
 # Pure predicate, graded against values captured off two real boards during the
