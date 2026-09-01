@@ -144,6 +144,53 @@ unreliable at this scale, stop and decide" is a legitimate pre-registered
 outcome. A table without one quietly guarantees improvisation at exactly the
 moment you can least afford it.
 
+### And the same discipline pointed at the INPUT: prove the artifact is holding still
+
+Pre-registration removes the moment where you improvise about the *result*. This
+removes the moment where you improvise about *what you were even measuring*. Same
+discipline, other end.
+
+**Three failures on 2026-09-01, three different artifacts, one cause:**
+
+- **a tree that had moved.** Three tool calls were spent editing `proxy/src/enrich.ts`
+  against a copy that had already been committed and built on. The anchor did not
+  match, and the natural reading of that -- "my patch is wrong" -- was the wrong
+  one; the file was.
+- **a probe opened while its predecessor was still draining.** The `download_count`
+  follow-up was designed against a baseline the first probe had not finished
+  moving.
+- **"an eighth instance" against a table that grew to twelve.** Rows landed in
+  parallel from another session, so an ORDINAL written in one context named a
+  different row by the time it was read.
+
+**And the cure was already in this repo three times, unnamed:**
+
+- `reconcile-fleet.py`'s caveat computes its window *from the data* -- "measured,
+  not assumed";
+- the clean Instrument B re-test requires **a baseline read twice at an interval**
+  to prove it is static before any fetch is made;
+- and the COM4 soak taught it outright: **an anchor against a moving target
+  measures the movement.** Three reads of one quantity gave 5132, 5135, 5136, and
+  the parser was correct -- the file was still appending.
+
+**The rule, and the proof is always the same shape: read it twice.**
+
+> Prove the artifact is static before anchoring to it.
+
+| what you are anchoring to | the two-read proof |
+|---|---|
+| a repository | `git log` **before** `git diff` -- and again if minutes have passed |
+| a counter, a log, a live capture | baseline, wait, baseline again; only then measure |
+| a document other sessions edit | refer to a row by **name**, never by ordinal |
+
+**The cleanest example of the family is not one of the failures, because nobody
+made a mistake in it.** A 17:18 status read reported `enrich.ts` dirty and
+`routekey.test.ts` untracked; a report written shortly after found `proxy/`
+clean. Both observations were correct -- the file was genuinely dirty at 17:18
+and genuinely committed minutes later. **Two correct observations that contradict
+each other is the signature of this family**, and when you see one, the question
+is not which observer was wrong. It is what moved in between.
+
 ## Standing practice: when you add a second path, enumerate what the FIRST one establishes
 
 **This started as seven instances in one day, in seven unrelated subsystems: a
