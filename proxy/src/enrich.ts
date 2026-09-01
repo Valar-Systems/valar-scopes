@@ -203,6 +203,59 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   return built;
 }
 
+/// Coordinates for an airport code, or null when we do not carry it.
+async function airportLatLon(env: Env, code: string): Promise<[number, number] | null> {
+  const raw = await env.ENRICH_KV.get(`ap:${code.toUpperCase()}`, "text");
+  if (!raw) return null;
+  try {
+    const row = JSON.parse(raw);
+    if (!Array.isArray(row) || row.length < 2) return null;
+    const [la, lo] = row as [number, number];
+    return Number.isFinite(la) && Number.isFinite(lo) ? [la, lo] : null;
+  } catch {
+    return null;
+  }
+}
+
+function gcKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad;
+  const dLon = (bLon - aLon) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+/// Can this route belong to an aircraft at (lat, lon)?
+///
+/// The same one-sided test the firmware applies (follow::RouteContradicted): is
+/// the aircraft further from BOTH endpoints than they are from each other? On a
+/// real leg the aircraft lies roughly between them, so neither distance exceeds
+/// the route length by much. Deliberately crude -- flights leave the geodesic by
+/// hundreds of km routinely, and a tight cross-track threshold would reject
+/// correct routes. This asks a question with no innocent answer.
+///
+/// UNKNOWN CODES ARE NOT CONTRADICTIONS. If either endpoint is missing from the
+/// airport table there is nothing to measure, and refusing on absence of
+/// evidence would blank every route through a field we do not carry.
+async function routeContradicted(
+  env: Env,
+  o: string,
+  d: string,
+  lat: number,
+  lon: number,
+): Promise<boolean> {
+  const [op, dp] = await Promise.all([airportLatLon(env, o), airportLatLon(env, d)]);
+  if (!op || !dp) return false;
+  const routeKm = gcKm(op[0], op[1], dp[0], dp[1]);
+  if (routeKm <= 1) return false;
+  const toO = gcKm(lat, lon, op[0], op[1]);
+  const toD = gcKm(lat, lon, dp[0], dp[1]);
+  const MARGIN_KM = 100;
+  return toO > routeKm + MARGIN_KM && toD > routeKm + MARGIN_KM;
+}
+
 // Route: KV, else the route-source chain (adsb.lol routeset, then adsbdb).
 async function resolveRoute(
   env: Env,
@@ -212,7 +265,37 @@ async function resolveRoute(
 ): Promise<RouteEntry> {
   if (!cs) return { o: "", d: "" };
   const cached = await env.ENRICH_KV.get<RouteEntry>(`rt:${cs}`, "json");
-  if (cached) return cached;
+  if (cached) {
+    // THE CACHED BRANCH IS CHECKED TOO, WHICH IT WAS NOT.
+    //
+    // SWA986 drew Orlando -> Baltimore for an aircraft overhead in central
+    // Oregon. The route was not wrong when it was stored -- it was that
+    // aeroplane's leg, it passed the plausibility test below, and it was cached
+    // under the CALLSIGN. A flight number is reused across legs and days, so the
+    // next aircraft to fly SWA986 got the previous leg served straight out of
+    // KV, and the test that exists to catch exactly this was three lines further
+    // down, past a `return`.
+    //
+    // The comment below already says "callsigns get reused across legs". The
+    // knowledge was here; only the cached path did not go through the check.
+    //
+    // WHY NOT REUSE r.plausible: that flag is the UPSTREAM's verdict, computed
+    // when we fetch. There is no fetch on this path, so the check has to be
+    // geometric and local -- which is also what makes it free of an upstream
+    // that might be wrong.
+    if (lat !== undefined && lon !== undefined && cached.o && cached.d) {
+      const bad = await routeContradicted(env, cached.o, cached.d, lat, lon);
+      if (bad) {
+        // NOT DELETED. The entry is correct for the aircraft it was cached
+        // from, and another unit may be looking at that one right now; deleting
+        // would turn one wrong answer into a cache stampede on every device
+        // tracking the real flight. Withheld from THIS caller only.
+        console.log(`route_stale cs=${cs} ${cached.o}->${cached.d} not_for_position`);
+        return { o: "", d: "" };
+      }
+    }
+    return cached;
+  }
 
   const r = await fetchRoute(env, cs, lat, lon);
   if (!r) return { o: "", d: "" };
