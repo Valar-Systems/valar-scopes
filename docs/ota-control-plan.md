@@ -167,6 +167,27 @@ draft) carries two synthetic entries stamped 1788277780930 and
 instrument has ever produced a row, which is precisely what this plan refuses to accept for
 anything else. Any `changes[]` entry stamped inside a run window is real; these two are not.
 
+#### RUN 1 BASELINE: the change-entry COUNT is 2 (fleet-wide, 2026-09-01)
+
+**Run 1's pass condition is a NEW entry, not a non-empty array.** Those are different
+tests and only one of them works now: `changes[]` is already non-empty in the resting
+state, so "did any transition appear" answers yes before Run 1 starts.
+
+    fleet-wide changes[] entries, all synthetic, as of 2026-09-01 ...... 2
+
+Run 1 passes on **3 or more**, or equivalently on an entry stamped inside the run window.
+
+This paragraph is the second attempt at this note, and the first attempt's failure is the
+reason for the number. The prose above -- "these two are left in place deliberately" -- was
+already here, correct and unread, when a reconcile on 2026-09-01 hit the same row from a
+different direction and reported the `8 -> 9 -> 8` pair as a firmware downgrade worth
+investigating. **A note in a document is only read by someone who already opened the
+document**, and the person who trips over a signal is by definition somewhere else.
+
+So the count is also printed by `python scripts/reconcile-fleet.py`, which reads the fw:
+table on every run and labels the figure as this baseline. That is the copy that will
+actually be in front of whoever needs it; this one is the explanation of why.
+
 ### An unenrolled board is undetectable in the field, by construction
 
 `meta.dev` and `meta.fw` are only populated past authenticate (see the header of
