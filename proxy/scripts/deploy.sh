@@ -140,21 +140,68 @@ cd "$ROOT/proxy" || exit 1
 # deployed to, because the two environments hold separate secrets and the failure
 # is total rather than partial.
 #
-# Run bare and inspected whole, per CLAUDE.md: `wrangler secret list` puts auth
-# failures on stderr and a cheerful body on stdout, so a filtered read of a
-# failed call looks like "secret absent" when it actually means "not logged in".
-# An error is therefore reported as an error, never as a missing secret.
+# Run bare and inspected whole, per CLAUDE.md. This block ALSO serves as the
+# scope-revealing preflight: it is the first call that needs Workers Scripts
+# permission, and it happens before anything irreversible.
+#
+# BOTH STREAMS ARE PRINTED ON FAILURE, and that is a correction rather than
+# belt-and-braces. This comment used to assert that wrangler "puts auth failures
+# on stderr and a cheerful body on stdout". Measured 2026-09-01 against a real
+# `Authentication error [code: 10000]`, it is the other way round:
+#
+#     stdout  20 lines  the ERROR, the failing endpoint, the account table
+#     stderr   7 lines  a WARNING about `unsafe` wrangler.toml fields
+#
+# So the script captured stdout into a variable, discarded it on the failure
+# path, printed the warning, and told the reader to "fix the error and re-run"
+# without ever showing the error. That cost a session. A guard that knows which
+# stream the reason arrives on has pre-decided the shape of the failure, which is
+# the one thing this repo keeps learning not to do -- so it no longer decides.
 SECRET_ERR="$(mktemp)"
-SECRET_OUT="$(npx wrangler secret list --env "$ENVIRONMENT" 2>"$SECRET_ERR")"
+SECRET_OUT_F="$(mktemp)"
+npx wrangler secret list --env "$ENVIRONMENT" >"$SECRET_OUT_F" 2>"$SECRET_ERR"
 SECRET_RC=$?
+SECRET_OUT="$(cat "$SECRET_OUT_F")"
 if [ $SECRET_RC -ne 0 ]; then
   echo "FATAL: could not list secrets for $ENVIRONMENT (wrangler exit $SECRET_RC)." >&2
-  echo "  This is NOT the same as the secret being absent -- fix the error and re-run." >&2
+  echo "  This is NOT the same as the secret being absent." >&2
+  echo "  --- wrangler stdout ---" >&2
+  sed 's/^/  /' "$SECRET_OUT_F" >&2
+  echo "  --- wrangler stderr ---" >&2
   sed 's/^/  /' "$SECRET_ERR" >&2
-  rm -f "$SECRET_ERR"
+  # THE LIKELY CAUSE, NAMED. Four sessions have now been spent on this variable,
+  # and every one of them started by checking whether it was SET. Presence was
+  # never the question: wrangler PREFERS CLOUDFLARE_API_TOKEN over an existing
+  # `wrangler login` session, so a token that is present and valid but scoped for
+  # something else (this account's is the GHA KV-write token) SHADOWS a working
+  # OAuth login and produces an auth error identical to having no credential at
+  # all. Valid is not the same as correctly scoped, and set is not the same as
+  # wanted.
+  #
+  # Boolean only -- never echo the value. A presence check that prints the secret
+  # puts it in scrollback, in CI logs, and in whatever the screen was shared to.
+  if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    echo "" >&2
+    echo "  LIKELY CAUSE: CLOUDFLARE_API_TOKEN is set in this environment (present;" >&2
+    echo "  value not shown) and wrangler prefers it over your \`wrangler login\`" >&2
+    echo "  session. If that token lacks Workers Scripts permission it fails exactly" >&2
+    echo "  like a missing credential. Try:" >&2
+    echo "" >&2
+    echo "      unset CLOUDFLARE_API_TOKEN          # PowerShell: Remove-Item Env:CLOUDFLARE_API_TOKEN" >&2
+    echo "      scripts/deploy.sh $ENVIRONMENT" >&2
+    echo "" >&2
+    echo "  On Windows it is set at user level, so a fresh shell re-inherits it --" >&2
+    echo "  clearing it in the session is the fix, not editing the registry." >&2
+  else
+    echo "" >&2
+    echo "  CLOUDFLARE_API_TOKEN is NOT set here, so wrangler is using your login" >&2
+    echo "  session. Check \`npx wrangler whoami\` and that the account has Workers" >&2
+    echo "  Scripts permission." >&2
+  fi
+  rm -f "$SECRET_ERR" "$SECRET_OUT_F"
   exit 1
 fi
-rm -f "$SECRET_ERR"
+rm -f "$SECRET_ERR" "$SECRET_OUT_F"
 if ! printf '%s' "$SECRET_OUT" | grep -q 'DEVICE_KEY_SECRET'; then
   echo "FATAL: DEVICE_KEY_SECRET is not set on $ENVIRONMENT." >&2
   echo "  Per-device keys are the only auth path, so deploying now 401s the whole fleet." >&2

@@ -133,6 +133,40 @@ and open Run 1 anyway with reduced diagnostics -- and record here that the three
 table has degraded to a single signal, so that nobody later reads a null `download_count`
 as meaningful when it means nothing.
 
+### Instrument A is VERIFIED, including the branch Run 1 turns on (2026-09-01)
+
+Deployed and confirmed live: `/healthz` reports `4d72a06`, and the confirmation loop read
+`b16e859` on its first poll before flipping -- so it proved it could tell the two apart
+rather than merely agreeing with the expected answer.
+
+**The write-suppression is proven behaviourally.** COM4's first row read
+`firstSeen == lastSeen` 52 minutes after boot: one KV write across roughly 600 feed requests
+at a 5-second poll.
+
+**And `changes[]` has now been seen executing, which it had not been.** An empty array from a
+device that never updated is not evidence that the detector works -- it is a branch nobody
+has watched run, sitting on the single observation this whole plan depends on. If Run 1 had
+completed with `changes[]` empty, "the update never happened" and "the detector is broken"
+would have been indistinguishable.
+
+Forced without an OTA, by bumping `FW_VERSION` and flashing over USB (safe: `OtaUpdater.cpp`
+returns early on `latest <= FW_VERSION`, so a board on 9 against a release of 8 sits quiet --
+observed: `[ota] channel=s3-128 current=9 latest=8`):
+
+    8 -> 9   {"fw":"9", firstSeen 1788273635331, changes:[{from:"8",to:"9",at:1788277780930}]}
+    9 -> 8   {"fw":"8", firstSeen 1788273635331, changes:[ ...8->9..., {from:"9",to:"8",at:1788277922570}]}
+
+Both directions fire, entries APPEND rather than overwrite, and `firstSeen` survives both --
+so a device that updates will still show when it was first seen.
+
+**These two transitions are left in place deliberately, and Run 1 readers must subtract
+them.** The bench board's own row (`fw:<COM4's device id>` -- the id is deliberately not
+written here; the pre-commit hook refuses real ids, and it refused this paragraph's first
+draft) carries two synthetic entries stamped 1788277780930 and
+1788277922570 (2026-09-01). Deleting them would have tidied away the only evidence this
+instrument has ever produced a row, which is precisely what this plan refuses to accept for
+anything else. Any `changes[]` entry stamped inside a run window is real; these two are not.
+
 ### An unenrolled board is undetectable in the field, by construction
 
 `meta.dev` and `meta.fw` are only populated past authenticate (see the header of
