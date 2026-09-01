@@ -111,6 +111,55 @@ Every SKU is now a **dual-core S3 with PSRAM**. Read the state below as current,
 - Put per-variant behaviour behind `variant::` capability flags, not `#ifdef`s scattered through the logic — and delete a flag once no SKU sets it and no code reads it. `ENRICH_ALWAYS` survived as a flag that read like a switch and was wired to nothing.
 - `credentials.json` (OpenSky client secret) is a user secret — never read, commit, or log it.
 
+## Standing practice: when you add a second path, enumerate what the FIRST one establishes
+
+**Seven times in one day, in seven unrelated subsystems, the same defect: a guard
+existed, was correct, and one path did not go through it.** That is not a
+coincidence and it is not seven bugs. It is one bug about how second paths get
+written.
+
+| # | subsystem | the guard | the path that missed it |
+|---|---|---|---|
+| 1 | Follow dwell | auto-surface arms a dwell so the device never steals the screen | the SWIPE path armed it too, closing a face the customer had chosen |
+| 2 | bearing face marker | the rings read the aircraft position from the view | the marker fetched it again from `FollowedAircraft()`, null in the absence states |
+| 3 | `followAutoReturnTo` | the entry path records the screen to return to | `ClearSessionFollow` hardcoded `Screen::Radar` and never read it |
+| 4 | session clear | `SetTarget(false)` clears the machine's state | it deliberately KEEPS `last`/`lastFixMs`, so a dismissed flight's position survived into the next subject |
+| 5 | `ChordWidthPx` | "the rule lives here, once, and every caller goes through it" | the detail card never became a caller |
+| 6 | `getMaxAllocHeap` | a heap floor gating TLS handshakes | every path went through it; it established nothing, and never fired once in 6,466 samples |
+| 7 | route cache | `resolveRoute` refuses a route implausible for the aircraft's position | the CACHED branch returns three lines before the test |
+
+**The rule.** When you add a second path, enumerate what the first path
+*establishes* -- not what function it calls. Sometimes the guard can be shared;
+sometimes the property has to be re-derived. Either way the question is what the
+first path knows to be true by the time it returns.
+
+That is deliberately harder to apply than "call the same helper", because #7
+proves the easy version is not always available: the route check's verdict was
+`r.plausible`, computed by the UPSTREAM during a fetch. There is no fetch on the
+cached path, so the property had to be re-derived geometrically. A rule phrased
+as "reuse the guard" would have had nothing to say there. And #6 is the case that
+kills the easy version outright -- every path DID call the guard, and the guard
+was measuring something that was never true.
+
+**The tell, when you are looking for instances rather than waiting for them:** a
+comment on one path stating a hazard, and another path that does not mention it.
+`resolveRoute`'s own comment says *"callsigns get reused across legs"*, two lines
+below the `return` that skipped the check. `ChordWidthPx`'s header says *"every
+caller goes through it"*. The knowledge was written down both times. Prose does
+not run.
+
+**Which is the counterexample worth carrying, because it is the encouraging
+half.** On the same day, `scripts/deploy.sh` refused a production deploy over an
+untracked `err.log` inside `proxy/` -- a file its own author had just created,
+caught by a guard written that morning for exactly that case. The guards that
+EXECUTE do protect you, including from the person who wrote them. It is the
+guards that are only written down that fail, and every row in the table above is
+one of those.
+
+So: a rule added to this file is the weakest form of the fix. Prefer a check that
+runs -- a refusal, a test, a `--tol=` the caller must state. Where that is not
+possible, the entry at least gives the next person the shape to recognise.
+
 ## Standing practice: read the artifact, not the config
 
 **For anything that gates what ships, verify the built thing — not the source that was supposed to

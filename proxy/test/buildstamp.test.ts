@@ -19,13 +19,23 @@ describe("build stamp", () => {
     expect(body.commit.length).toBeGreaterThan(0);
   });
 
-  it('is "dev" under test, which is what makes it meaningful in production', () => {
+  it('is "UNSTAMPED" under test, which is what makes it meaningful in production', () => {
     // The default comes from the `define` block in wrangler.toml. A DEPLOYED
-    // Worker reporting "dev" did not come from scripts/deploy.sh -- someone ran
-    // `wrangler deploy` by hand, bypassing the dirty-tree and unpushed-commit
-    // guards. smoke-prod.sh asserts production never says "dev" for exactly that
-    // reason, and this test pins the sentinel both sides depend on.
-    expect(BUILD_COMMIT).toBe("dev");
+    // Worker reporting the sentinel did not come from scripts/deploy.sh --
+    // someone ran `wrangler deploy` by hand, bypassing the dirty-tree and
+    // unpushed-commit guards. smoke-prod.sh asserts production never reports it,
+    // and this test pins the sentinel both sides depend on.
+    //
+    // UNSTAMPED, NOT "dev" (#288). The old sentinel was a plausible value that
+    // /healthz reported without complaint; this one cannot be mistaken for a
+    // commit by a human or by a check.
+    //
+    // THIS TEST WAS RED ON main FROM #288 UNTIL 2026-08-31 and nobody noticed,
+    // which is the argument for fixing it the hour it was found rather than
+    // filing it. A suite with one known-red test is a suite people learn to skim,
+    // and the next real failure arrives looking exactly like the one they have
+    // been ignoring.
+    expect(BUILD_COMMIT).toBe("UNSTAMPED");
   });
 });
 
