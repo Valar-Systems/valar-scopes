@@ -309,11 +309,22 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     /* Validate the VALUE, not the sender. A key must be 64 hex and is handed \
        straight back to this device, which checks it names THIS board before \
        storing it -- so a page that lies about its origin gains nothing. */ \
+    /* ONE KEY LANDING PER PAGE LOAD. The popup used to re-post its key every
+       time Turnstile refreshed its token (~5 min, fixed in enrollpage.ts on
+       2026-09-01), and each message here is an NVS write of "cloud-key-fac"
+       plus a reload that installs a fresh listener -- so the cycle could
+       sustain itself. Harmless in the end (NVS wear budget is ~100k and the
+       observed volume was thousands), and the driving loop is fixed upstream,
+       but a receiver that writes flash on every message it is handed should
+       not depend on the sender being well-behaved. Same shape as the bug that
+       fed it: a handler the caller may invoke repeatedly, with no guard. */ \
+    R"(var enrolling=false;)" \
     R"(window.addEventListener('message',function(e){var d=e.data;)" \
     R"(if(!d||d.type!=='blipscope-enroll'||!/^[0-9a-f]{64}$/.test(String(d.key||'')))return;)" \
+    R"(if(enrolling)return;enrolling=true;)" \
     R"(var fd=new FormData();fd.append('key',d.key);fd.append('id',d.id||'');)" \
     R"(fetch('/enroll-key',{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){)" \
-    R"(if(r.ok){location.reload()}else{r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
+    R"(if(r.ok){location.reload()}else{enrolling=false;r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
     R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"

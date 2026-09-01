@@ -209,6 +209,22 @@ observed firing. The route cache's fix is the same move one layer up: the key,
 not a downstream plausibility test.
 
 
+**An eighth, in an argv path (2026-09-01).** `deploy.sh` ends by calling
+`confirm-deploy.sh` -- the step that proves a deploy actually landed -- via
+`"$(dirname "$0")/..."`, evaluated *after* the script has `cd`'d into `proxy/`.
+Invoked the canonical way (from inside `proxy/`) it resolves. Invoked as
+`bash proxy/scripts/deploy.sh` from the repo root it resolves to
+`proxy/proxy/scripts/` and dies **exit 127, after a successful upload**. So the
+guard existed, ran on one invocation path, and silently did not exist on the
+other -- and it was masked because production genuinely *was* healthy that time,
+which is the self-camouflaging half below.
+
+Worth noting where this family has now turned up: in code (rows 1-5, 7), in a
+**comment** that stated the hazard beside a path that ignored it, in **test
+scaffolding** (an assertion matching a fragment of the shape the author imagined
+failure would take), and now in **how a script is invoked**. The shape is not a
+property of code — it is a property of second paths, wherever they live.
+
 **The rule.** When you add a second path, enumerate what the first path
 *establishes* -- not what function it calls. Sometimes the guard can be shared;
 sometimes the property has to be re-derived. Either way the question is what the
@@ -277,12 +293,26 @@ during Run 1 and then, unless something reads it routinely, never again — whic
 is precisely the position the enrolment ledger was in. That is why it is in the
 reconcile output rather than only in [docs/ota-control-plan.md](docs/ota-control-plan.md).
 
-Related, and the reason the doc alone was not enough: the plan doc *already
-said* the two `changes[]` entries were synthetic. That paragraph was correct,
-committed, and unread when the same row was reported hours later as a firmware
-downgrade worth investigating. **A note in a document is only read by someone who
-already opened the document**, and whoever trips over a signal is by definition
-somewhere else. So the baseline is a printed number now, not a paragraph.
+**The sharper version, and it is worse than "nobody reads the instrument."** The
+plan doc *already said* the two `changes[]` entries were synthetic. That
+paragraph was correct, committed, and hours old when **its own author** read the
+same KV row from a different direction and reported the `8 -> 9 -> 8` pair as a
+firmware downgrade worth investigating. Not a stale doc, not a missing doc, not
+someone else's doc. The person who wrote the note did not read the note.
+
+So the lesson is **not** "write it down". It was written down. The lesson is
+**put it where the reader is already looking** — and the reader is not in the
+document, because whoever trips over a signal arrives from somewhere else
+entirely, holding a different question.
+
+That is why the fix is the printed number and not the paragraph: the change
+count now appears in `scripts/reconcile-fleet.py`'s output, next to the fw:
+rows, where anyone asking anything about the fleet will see it without having
+chosen to. The CLAUDE.md row and the doc paragraph are the weak form and are
+explicitly labelled as such in both places. **A rule that has to be remembered
+before it helps has already failed the case it was written for** — this file's
+own opening entry says a check that runs beats a rule that is written, and this
+is that principle turned on documentation itself.
 
 ## Standing practice: a finding without a named-and-eliminated alternative is not finished
 
