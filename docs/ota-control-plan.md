@@ -125,6 +125,40 @@ pass, then read once after an hour or more:
 | +10 | both paths count; what was observed was lag, and B is usable with a long enough settling time |
 | 0 | the counter is dead, or lags far beyond any useful window |
 
+### B's read, 2026-09-01T17:14Z: +6, which is in NO bucket. Timebox expired; B is DEGRADED.
+
+The dual-path probe ran (`bench-logs/ota-dualpath-probe.txt`): baseline **89** at 14:33:51Z,
+then 3 fetches via `latest` and 7 via the pinned tag. Read back at 17:06Z and again at
+17:14:31Z: **95 both times.**
+
+    delta = +6 over ~2h40m
+
+**+6 matches none of the three predicted outcomes, and it is BELOW the pinned-only floor of
+7.** Not one of the 3/7/0 rows can be claimed. The temptation is to call it "+7, so the
+alias is uncounted" — that is rounding a measurement into the nearest hypothesis, and the
+whole reason this test was designed with unequal counts was to make that impossible. If
+fewer counts have landed than the *pinned* fetches alone should produce, then counting has
+not settled, and "latest is uncounted" is **not** distinguishable from "still lagging."
+
+**What IS now established: the counter is not dead.** The retracted reading was 87; this
+probe's baseline was 89. Those +2 are the earlier hand fetches — the ones that "did not
+move the counter" across 60 s and again at 6 minutes — arriving late. So the counter works
+and its settling time is *hours*, which is what makes it useless inside a run window.
+
+**The isolated follow-up probe is contaminated and cannot resolve this.**
+`bench-logs/ota-latest-probe.txt` started at 17:06:11Z with baseline 95 — i.e. it opened
+*while the dual-path probe was still draining*. Any late dual-path arrival now lands inside
+its window and is attributed to its `latest` fetches, which is precisely the hypothesis it
+exists to test. An anchor taken against a target that is still moving measures the movement,
+not the target. **A clean re-test needs the previous probe fully settled first — no fetches
+of any kind for several hours, a baseline read twice at an interval to prove it is static,
+and only then the fetches.**
+
+**Operative state for Run 1: the three-outcome table has degraded to a single signal.**
+Instrument A alone is the gate, and A is verified and deployed. A null or ambiguous
+`download_count` across Run 1 means **nothing** and must not be reported as "never fetched" —
+that row of the table is unavailable until B's control passes, which it never has.
+
 **B IS TIMEBOXED TO ONE HOUR AND MUST NOT BLOCK THE CLOCK.** Instrument A is the gate; B is
 diagnostic assistance. If A shows a device's reported firmware changing with nobody having
 touched it, OTA works end to end and that alone passes Run 1. B only tells you WHICH step
@@ -167,6 +201,12 @@ draft) carries two synthetic entries stamped 1788277780930 and
 instrument has ever produced a row, which is precisely what this plan refuses to accept for
 anything else. Any `changes[]` entry stamped inside a run window is real; these two are not.
 
+**THE BASELINE IS TWO. Run 1 looks for a THIRD entry, not for a non-empty array.**
+Written out because the absence of this line has already cost one false alarm: the
+synthetic 8->9 transition was flagged as a possible OTA anomaly hours after it was
+created, by the person who created it, because nothing recorded that it was
+expected. A non-empty `changes[]` is now the NORMAL state of this row.
+
 #### RUN 1 BASELINE: the change-entry COUNT is 2 (fleet-wide, 2026-09-01)
 
 **Run 1's pass condition is a NEW entry, not a non-empty array.** Those are different
@@ -187,6 +227,21 @@ document**, and the person who trips over a signal is by definition somewhere el
 So the count is also printed by `python scripts/reconcile-fleet.py`, which reads the fw:
 table on every run and labels the figure as this baseline. That is the copy that will
 actually be in front of whoever needs it; this one is the explanation of why.
+
+### There is no upstream track source -- the device is the only one we will get
+
+Established 2026-09-01 by enumerating adsb.lol's published OpenAPI: **18 endpoints,
+none of them historical.** No trace, track, history or path route exists, and the
+readsb/tar1090-style paths (`/api/0/trace/{hex}`, `/data/traces/<xx>/trace_full_<hex>.json`)
+return 404 against the direct host. Every endpoint returns current state: one
+position per aircraft. adsb.fi is not yet resolved either way and should not be
+extrapolated from this.
+
+So a real flown track can only come from **the device accumulating its own
+observations during a follow session**, bounded by reception range. Written down
+so nobody goes hunting for a source again. Note that the bend-through-the-aircraft
+change in DrawRouteGlobe uses ONE current position and accumulates nothing -- it is
+the cheap approximation, not the thing itself.
 
 ### An unenrolled board is undetectable in the field, by construction
 

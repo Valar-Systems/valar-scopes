@@ -127,6 +127,34 @@ written.
 | 5 | `ChordWidthPx` | "the rule lives here, once, and every caller goes through it" | the detail card never became a caller |
 | 6 | `getMaxAllocHeap` | a heap floor gating TLS handshakes | every path went through it; it established nothing, and never fired once in 6,466 samples |
 | 7 | route cache | `resolveRoute` refuses a route implausible for the aircraft's position | the CACHED branch returns three lines before the test |
+| 8 | editor anchor | a unique-match guard: refuse unless the anchor appears exactly once | it establishes UNAMBIGUITY, not LOCATION -- a loose anchor matched once, in the wrong function, and edited `DrawStats` instead of `DrawList` |
+| 9 | admin-0 whole-part rule | "keep a part only if EVERY vertex is inside the box" | it rejected **zero** parts. The 24 N floor was doing the work, and got no scrutiny because attention went to the elaborate mechanism |
+| 10 | `ProgressAlong`'s clamp | `min(1, x)` keeps progress in range | a ratio above 1.0 is PROOF the aircraft is not between the endpoints; the clamp maps that proof onto 100%, the most reassuring number in the range |
+
+**Rows 8 to 10 are not the same failure as 1 to 7, and collapsing them loses the
+point.** The first seven are structural: a guard exists and a path goes round
+it. The last three are about guards that *run on every path* and still protect
+nothing.
+
+- **8 is a guard that answers a narrower question than its name suggests.**
+  Unique-match is a real property; it is simply not the property "this edit lands
+  where I meant". The check was working perfectly.
+- **9 is a rule that has never rejected anything.** That is not evidence it
+  works -- it is evidence it is untested, *and* that something else is silently
+  doing the job you attributed to it. **The method that finds these is to relax
+  each constraint and see what changes.** Dropping the box floor from 24 N to
+  12 N swept in seven parts and 251 vertices and drew lines through Guatemala and
+  Haiti; that is what converted "I believe this rule works" into "I know which
+  rule is load-bearing". If nothing changes when you relax a constraint, the work
+  is happening somewhere you have not looked.
+- **10 is the worst of the three, because the guard destroys the evidence.** A
+  defensive clamp or default that maps an IMPOSSIBLE value onto a PLAUSIBLE one
+  does not merely lose a diagnosis, it manufactures reassurance. The clamp
+  converts the strongest available evidence of a wrong route into the most
+  reassuring possible number. The tell is short enough to grep for: `min(1, x)`,
+  `?? 0`, `if (n > max) n = max`. At every one, ask **what did the out-of-range
+  value know?**
+
 
 **The rule.** When you add a second path, enumerate what the first path
 *establishes* -- not what function it calls. Sometimes the guard can be shared;
@@ -202,6 +230,75 @@ committed, and unread when the same row was reported hours later as a firmware
 downgrade worth investigating. **A note in a document is only read by someone who
 already opened the document**, and whoever trips over a signal is by definition
 somewhere else. So the baseline is a printed number now, not a paragraph.
+
+## Standing practice: write down what each result will mean BEFORE you can see which one you got
+
+This is one technique, not several instincts, and it produced most of what went
+right in the sessions of 2026-08-31 and 09-01:
+
+- the **four borders** -- the Columbia, the Snake, the Bitterroot, California's
+  southern edge -- were named *before* the acceptance test was written, so the
+  test could fail. A test written after looking at the output picks whatever the
+  output happened to contain;
+- `reconcile-fleet.py` **predicted 0/1/3 and then 3/1/0** before it ran;
+- the OTA plan's **outcome tables** were written before Run 1 existed;
+- `scripts/ota-latest-probe.sh` carries its **verdict table in the script**, so
+  the result cannot be argued with after it arrives.
+
+The value is not rigour for its own sake. It is that the moment you can see the
+result is the moment you are least able to judge it fairly -- the first
+explanation that fits arrives already feeling like the conclusion.
+
+**AND PRE-REGISTER THE OUTSIDE-THE-SET BRANCH, which is the refinement that cost
+us one.** The dual-path `download_count` probe was properly pre-registered with
+three outcomes: `+7` meant the `latest` alias was uncounted, `>=8` meant it
+counted and we had been seeing lag, `0` meant the counter was dead. The result
+was **+6**. Because no meaning had been assigned to "none of the above", one was
+improvised on the spot -- and the improvised reading argued that tag fetches
+count exactly in order to eliminate one hypothesis, in the same paragraph that
+argued they do not in order to explain the shortfall. Both cannot hold.
+
+The technique did not fail; **the predicted set was incomplete**. So every
+verdict table gets an escape hatch, and "none of the above -> the instrument is
+unreliable at this scale, stop and decide" is a legitimate pre-registered
+outcome. A table without one quietly guarantees improvisation at exactly the
+moment you can least afford it.
+
+## Standing practice: a finding without a named-and-eliminated alternative is not finished
+
+Distinct from every entry above, which are about code structure. This one is
+about **reading evidence**, and it is the failure behind the YVR call, behind
+reading a photograph sideways, and behind "87 downloads, therefore the timer
+works".
+
+The tell is short: **a report that offers exactly one explanation for an
+observation.**
+
+- *"`code: 10000`, therefore a missing permission"* -- without naming that a
+  token shadowing a working `wrangler login` session produces an identical
+  error. It did. Four sessions have gone into that variable and every one began
+  by checking whether it was SET; presence was never the question.
+- *"87 downloads, therefore discovery and the timer are alive"* -- without
+  naming that CI and development traffic produce the same count. And the
+  supporting ratio, 87 checks against 3 installs, is equally the shape developer
+  traffic makes. **A ratio consistent with two explanations discriminates
+  between neither.**
+
+**Do not write this rule as "ask what else produces this".** That is a habit,
+and habits fail on output you are currently producing -- it was stated and then
+breached in the same message, twice in one day. Write it as something a reader
+can check by looking at the text:
+
+> State the alternative explicitly and say why the data excludes it. If it does
+> not exclude it, report both.
+
+**The test is whether you can finish the sentence.** *"The alternative is X, and
+the data excludes it because --"* either completes or it does not, and the
+failure is visible while writing rather than in review. The `+6` paragraph would
+have failed its own test at the moment of writing.
+
+Same family as the control that proves a check can fail: a finding with no named
+alternative is visibly unfinished, in the way a check with no control is.
 
 ## Standing practice: read the artifact, not the config
 
