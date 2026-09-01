@@ -112,6 +112,105 @@ constexpr float MS_TO_KNOTS    = 1.94384f;
 // what keeps the outer ring's label off the bezel on all three.
 static constexpr int FOLLOW_FACE_RADIUS_PX = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 10;
 
+// TWO FITS, AND THEY ARE DELIBERATELY NOT THE SAME FUNCTION.
+//
+//   ContradictionFitRadius  fits the ROUTE ONLY -- origin and destination.
+//   DrawnFitRadius          fits the route AND the aircraft, for drawing.
+//
+// DO NOT "SIMPLIFY" THESE INTO ONE. The contradiction check asks whether the
+// aircraft lands inside the view fitted to its own route. If the aircraft is a
+// TERM in that fit, it is inside BY CONSTRUCTION and the check can never fire
+// again. SWA4083 -- 1,450 km from its own origin, carrying a route that belonged
+// to a different leg -- would then render as a confident three-point zigzag
+// across half the continent instead of falling back to the bearing face.
+//
+// That is this week's recurring pattern with the sign flipped: not a guard with
+// a path around it, but a NEW FEATURE DISSOLVING A GUARD'S PRECONDITION. The
+// order in DrawFollow is therefore fixed and must stay fixed: fit to the route,
+// run the check, refuse or proceed -- and only then may the aircraft become a
+// vertex of the drawn line.
+//
+// R = usable / sin(half-angle) puts the outermost fitted point exactly on the
+// usable circle, clamped below by the panel radius (never zoom OUT past the
+// sphere) and above by R_MAX. The full derivation, the bisection that settled
+// R_MAX_SPHERE at 500, and the ONT->PDX reconciliation are in DrawRouteGlobe.
+static float FitRadiusForHalfAngle(float halfAngleRad)
+{
+    const float k      = (float)SCREEN_SIZE / 240.0f;
+    const float panelR = k * 119.0f;
+    const float usable = (float)FOLLOW_FACE_RADIUS_PX - k * 10.0f;
+
+    constexpr float SEGMENT_PX_TOLERANCE    = 3.0f;
+    constexpr float COASTLINE_TOLERANCE_DEG = 0.15f;
+    const float R_MAX_FIDELITY = (SEGMENT_PX_TOLERANCE * 180.0f) /
+                                 (3.14159265f * COASTLINE_TOLERANCE_DEG);
+    constexpr float R_MAX_SPHERE = 500.0f;
+    const float R_MAX = R_MAX_FIDELITY < R_MAX_SPHERE ? R_MAX_FIDELITY : R_MAX_SPHERE;
+
+    const float sh = sinf(halfAngleRad);
+    if (!(sh > 1e-6f)) return panelR;
+    const float rFit = usable / sh;
+    return rFit < panelR ? panelR : (rFit > R_MAX ? R_MAX : rFit);
+}
+
+/// The route's great-circle midpoint -- the centre MakeBasis() uses at tilt 0,
+/// so every angle below is measured from the ACTUAL view centre rather than from
+/// an approximation of it.
+static bool RouteCentre(const follow::Endpoint& org, const follow::Endpoint& dst,
+                        float* out)
+{
+    if (!org.known || !dst.known) return false;
+    float ov[3], dv[3];
+    globeproj::UnitVec(org.lon, org.lat, ov);
+    globeproj::UnitVec(dst.lon, dst.lat, dv);
+    out[0] = ov[0] + dv[0]; out[1] = ov[1] + dv[1]; out[2] = ov[2] + dv[2];
+    const float m = sqrtf(out[0]*out[0] + out[1]*out[1] + out[2]*out[2]);
+    if (m < 1e-4f) return false;               // antipodal: no meaningful centre
+    out[0] /= m; out[1] /= m; out[2] /= m;
+    return true;
+}
+
+static float AngleFromCentre(const float* c, float lat, float lon)
+{
+    float v[3];
+    globeproj::UnitVec(lon, lat, v);
+    float d = globeproj::Dot3(c, v);
+    if (d >  1.0f) d =  1.0f;
+    if (d < -1.0f) d = -1.0f;
+    return acosf(d);
+}
+
+/// THE CHECK'S FIT. Route only; the aircraft is deliberately absent.
+static float ContradictionFitRadius(const follow::Endpoint& org,
+                                    const follow::Endpoint& dst)
+{
+    float c[3];
+    if (!RouteCentre(org, dst, c)) return FitRadiusForHalfAngle(0.0f);
+    // Both endpoints are equidistant from their own midpoint, so either one
+    // gives the route's half-angle.
+    return FitRadiusForHalfAngle(AngleFromCentre(c, org.lat, org.lon));
+}
+
+/// THE DRAWING FIT. Route AND aircraft, so a plane legitimately off the geodesic
+/// still lands on the glass once it has become a vertex of the drawn line.
+///
+/// Reached ONLY after the contradiction check has passed -- see DrawFollow. With
+/// havePos false this is exactly ContradictionFitRadius, because the max over
+/// {origin, destination} of the angle to their own midpoint IS the route's
+/// half-angle. The two agree in that case by construction, not by coincidence.
+static float DrawnFitRadius(const follow::Endpoint& org, const follow::Endpoint& dst,
+                            float acLat, float acLon, bool havePos)
+{
+    float c[3];
+    if (!RouteCentre(org, dst, c)) return FitRadiusForHalfAngle(0.0f);
+    float half = AngleFromCentre(c, org.lat, org.lon);
+    if (havePos) {
+        const float a = AngleFromCentre(c, acLat, acLon);
+        if (a > half) half = a;
+    }
+    return FitRadiusForHalfAngle(half);
+}
+
 // The follow palette, in one place, because the two faces MUST agree about
 // which colour means which kind of absence. §6's whole argument is that an
 // expected absence must not look like a fault; that argument is worth nothing
@@ -3088,7 +3187,19 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     // radar return decays for a reason the track does not share: a return is a
     // return, the track is a record.
     DrawFollowTrack(backbuffer);
-    DrawFollowRouteStrip(backbuffer);
+    // THE ROUTE STRIP IS NOT DRAWN HERE ANY MORE. It moved to DrawFollow.
+    //
+    // It was on the radar to serve 13.3 -- "Follow gets a screen, never THE
+    // screen" -- so the flight stayed visible while the owner sat on the
+    // collection view. Follow is a MODAL now: it is opened from a card and
+    // closed with a tap, and there is no state in which a session follow is
+    // running while the radar is showing. What the strip actually did on this
+    // path was outlive the face, which is the opposite of what it was for.
+    //
+    // DrawFollowTrack above STAYS. The track is 4.5's record of where the
+    // flight went, it is cleared by ClearSessionFollow (followTrack.
+    // ResetFlight), and unlike the strip it draws nothing once the session
+    // ends.
 
     // identify the "of interest" contacts to ring: nearest, highest, fastest
     String nearestIcao, highestIcao, fastestIcao;
@@ -3230,7 +3341,23 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // "watchlisted" and "this is the aeroplane my son is flying" are not the
         // same statement, and a customer who uses both must be able to tell
         // which ring is which at a glance.
-        if (!followTarget.isEmpty() && MatchesFollow(tracked)) {
+        // GUARDED ON THE EFFECTIVE TARGET, NOT THE CONFIGURED ONE. This read
+        // `!followTarget.isEmpty()`, the config-page field, while MatchesFollow
+        // just below answers about EffectiveFollowTarget() -- session first.
+        // The two disagree for every swipe-initiated follow on a device with no
+        // configured target, which is the entire modal flow: the guard was
+        // false, so the contact the customer had just chosen to follow was the
+        // one contact on the scope with no ring.
+        //
+        // The mismatch is easy to write because MatchesFollow shadows the member
+        // with a local of the same name, so `followTarget` means "effective"
+        // inside it and "configured" here, and the call site reads correct
+        // either way. Same defect, same cause, at FollowedAircraft().
+        //
+        // Tied to the effective target it also CLEARS itself: ClearSessionFollow
+        // empties followSessionTarget, so the ring is gone on the next frame
+        // rather than needing anyone to remember it here.
+        if (!EffectiveFollowTarget().isEmpty() && MatchesFollow(tracked)) {
             const uint32_t FOLLOW_RING = lgfx::color888(0, 170, 255); // the track's blue
             backbuffer.drawCircle(x, y, 12, FOLLOW_RING);
             backbuffer.drawCircle(x, y, 13, FOLLOW_RING);
@@ -3269,8 +3396,14 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
     if (listScroll > maxScroll) listScroll = maxScroll;
     if (listScroll < 0) listScroll = 0;
 
+    // Same one-funnel treatment as the detail card: every centred string on this
+    // face passes through here, so fitting it here covers both headers and
+    // anything added later without a second decision.
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
     auto centered = [&](const String& s, int y) {
-        backbuffer.drawString(s, cx - (int)backbuffer.textWidth(s) / 2, y);
+        const String fit = FitToDisc(backbuffer, s, y, lineH);
+        if (fit.isEmpty()) return;
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
     };
 
     // centre the fixed-width column block so the rows sit mid-screen on any panel size
@@ -3311,10 +3444,38 @@ void AircraftManager::DrawList(BandCanvas& backbuffer)
         if (MatchesWatchlist(t))         rowColor = lgfx::color888(255, 140, 0); // amber
         if (order[idx] == pinnedIcao)    rowColor = lgfx::color888(255, 255, 255); // pin wins
         backbuffer.setTextColor(rowColor);
-        backbuffer.drawString(cs,      lx + LIST_COL_CS,   y);
-        backbuffer.drawString(type,    lx + LIST_COL_TYPE, y);
-        backbuffer.drawString(distStr, lx + LIST_COL_DIST, y);
-        backbuffer.drawString(alt,     lx + LIST_COL_ALT,  y);
+
+        // ---- the columns, bounded by the glass at THIS row ------------------
+        //
+        // NOT CURRENTLY CLIPPING, AND THAT IS WHY IT IS WORTH DOING NOW.
+        // Measured on a 240: the tightest row is the first (y=40), where the
+        // chord leaves x = 35..205 against a block of 40..200 -- five pixels of
+        // margin on the altitude column. It fits by luck rather than by rule,
+        // and the rule it lacks is the same one the card was missing this
+        // afternoon and the bearing face the day before.
+        //
+        // A ROW IS NOT A CENTRED STRING, so FitToDisc is the wrong tool here:
+        // these are four LEFT-ALIGNED columns at fixed offsets, and truncating
+        // one with an ellipsis would leave "3800..." reading as an altitude.
+        // The columns are already in priority order left to right -- who, what,
+        // how far, how high -- so a column that will not fit is DROPPED, from
+        // the right, and the ones that fit stay exact.
+        //
+        // Dropping beats truncating for the same reason the local face's readout
+        // drops fields rather than ellipsising them: a cut number is a wrong
+        // number, and an absent one is visibly absent.
+        const int rowAvail = ChordWidthPx(y, lineH);
+        const int xMin = cx - rowAvail / 2;
+        const int xMax = cx + rowAvail / 2;
+        const auto col = [&](const String& s, int x) {
+            if (s.isEmpty() || x < xMin) return;
+            if (x + (int)backbuffer.textWidth(s) > xMax) return;
+            backbuffer.drawString(s, x, y);
+        };
+        col(cs,      lx + LIST_COL_CS);
+        col(type,    lx + LIST_COL_TYPE);
+        col(distStr, lx + LIST_COL_DIST);
+        col(alt,     lx + LIST_COL_ALT);
     }
 }
 
@@ -3323,8 +3484,14 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     constexpr int cx = SCREEN_SIZE_DIV_2;
     backbuffer.setTextSize(1);
 
+    // Same one-funnel treatment as the detail card: every centred string on this
+    // face passes through here, so fitting it here covers the two headers and
+    // anything added later without a second decision.
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
     auto centered = [&](const String& s, int y) {
-        backbuffer.drawString(s, cx - (int)backbuffer.textWidth(s) / 2, y);
+        const String fit = FitToDisc(backbuffer, s, y, lineH);
+        if (fit.isEmpty()) return;
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
     };
 
     // snapshot over the airborne contacts
@@ -3639,14 +3806,19 @@ void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
 {
     constexpr int cx = SCREEN_SIZE_DIV_2;
     const int y = SCREEN_SIZE - 16;
-    // Dots for the screens that EXIST, not for the enum. Follow is hidden when
-    // no aircraft is being followed (§13.3), and a dot for a screen no swipe can
-    // reach is a promise the device does not keep -- the same reason the cycle
-    // walks visible screens instead of counting to four.
-    const int shown = SCREEN_COUNT - (FollowScreenVisible() ? 0 : 1);
+    // Dots for the screens a swipe can REACH, not for the enum. Follow is a
+    // modal and is never in the carousel, so it never gets a dot: a dot for a
+    // screen no swipe can select is a promise the device does not keep, which
+    // is the same reason AdvanceScreen skips it rather than counting to four.
+    //
+    // An unconditional -1 now, not a state test. While a session follow was
+    // running the old test said "visible" and drew a FOURTH dot -- on a face
+    // the customer had reached by tapping a card -- advertising a swipe target
+    // that AdvanceScreen refuses to walk to.
+    const int shown = SCREEN_COUNT - 1;
     int slot = 0;
     for (int i = 0; i < SCREEN_COUNT; ++i) {
-        if ((Screen)i == Screen::Follow && !FollowScreenVisible())
+        if ((Screen)i == Screen::Follow)
             continue;
         const bool active = (i == (int)screen);
         backbuffer.fillCircle(cx - (shown - 1) * 6 + slot * 12, y, active ? 3 : 2,
@@ -4895,9 +5067,26 @@ void AircraftManager::HandleFollowTransition()
         followAutoReturnTo = screen;
         screen = Screen::Follow;   // NOT EnterScreen: the device surfaced this,
                                    // the customer did not. See EnterScreen.
+
+        // ARM THE DWELL ONLY WHEN THIS CALL ACTUALLY RAISED THE FACE.
+        //
+        // This sat OUTSIDE the if, so a state transition arriving while the
+        // face was ALREADY up re-armed the timer -- including when the customer
+        // had swiped there, granting a dwell nobody asked for and dismissing a
+        // face they opened deliberately.
+        //
+        // THAT IS WHY THE AUTO-CLOSE FIX LOOKED LIKE IT DID NOT TAKE. The swipe
+        // path correctly sets followAutoUntilMs = 0 and this overwrote it -- but
+        // only when a transition landed inside the window being watched, so it
+        // reproduced intermittently and read as the same unfixed bug rather than
+        // as a second one. Two writers, one variable, second writer silently
+        // outranking the first.
+        //
+        // The rule: WHOEVER RAISED THE FACE OWNS ITS LIFETIME. A transition
+        // arriving mid-view changes what the face SAYS, never how long it lives.
+        followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
+        Serial.printf("[follow] auto-surfaced on %s\n", follow::Headline(now));
     }
-    followAutoUntilMs = millis() + FOLLOW_AUTO_DWELL_MS;
-    Serial.printf("[follow] auto-surfaced on %s\n", follow::Headline(now));
 }
 
 #ifdef FOLLOW_BENCH
@@ -5210,9 +5399,32 @@ String AircraftManager::FitToDisc(BandCanvas& backbuffer, const String& t,
     return out + "...";
 }
 
+// THE GUARD READS THE EFFECTIVE TARGET, NOT THE CONFIGURED ONE.
+//
+// This tested `followTarget` -- the config-page field -- while the loop below
+// asks MatchesFollow, which answers about EffectiveFollowTarget() (session
+// first). On a device with NO configured target the two disagree completely,
+// and that is not a corner: it is EVERY swipe-initiated follow, which is now
+// the only way the feature is normally entered. The function returned nullptr
+// with the followed aircraft sitting in `trackedAircraft`.
+//
+// It reads as correct because MatchesFollow shadows this member with a local of
+// the same name, so `followTarget` means "effective" inside that function and
+// "configured" in this one, and both call sites look right.
+//
+// What it cost, all of it silent -- a null here is a LEGITIMATE state (the
+// contact is not in the table this pass), so every caller degrades quietly
+// instead of failing:
+//   * the local face never drew the aeroplane, so the centre marker was
+//     always HOME -- the reported symptom;
+//   * BuildLocalView left the live position out of the ring auto-fit;
+//   * the route strip's progress marker always took the last-fix fallback;
+//   * FollowRouteView took its absence branch while the aircraft was live,
+//     so the globe and arc ran on a stale fix and never upgraded the label
+//     to the live callsign.
 const TrackedAircraft* AircraftManager::FollowedAircraft() const
 {
-    if (followTarget.isEmpty())
+    if (EffectiveFollowTarget().isEmpty())
         return nullptr;
     for (const auto& [hex, tracked] : trackedAircraft) {
         (void)hex;
@@ -5239,16 +5451,41 @@ follow::LocalView AircraftManager::BuildLocalView() const
     // alone would let the aeroplane sit outside the outermost ring on the one
     // frame it flies beyond everything it has already flown, which is every
     // frame of an outbound leg.
-    float maxKm = 0.0f;
+    // WHERE HE IS, RESOLVED ONCE, HERE. The live contact when there is one and
+    // the machine's last fix when there is not -- see the note on LocalView's
+    // subject fields for why the second branch is the whole point. This runs
+    // BEFORE the extent loop below so the fit sees the same position the face
+    // will draw.
     const size_t n = followTrack.Size();
+    if (const TrackedAircraft* t = FollowedAircraft()) {
+        auto [aLat, aLon] = t->GetDisplayPosition();
+        v.acLat = aLat; v.acLon = aLon; v.havePos = true;
+        v.gsKt = t->state.velocity * 1.94384f;
+        v.headingDeg = t->state.trueTrack; v.haveHeading = true;
+    } else if (followMachine.LastFixMs() != 0) {
+        const follow::Fix& f = followMachine.LastFix();
+        v.acLat = f.lat; v.acLon = f.lon; v.havePos = true;
+        v.gsKt = f.velocityKt;
+        // A Fix has no heading field, so the last leg of the track is the only
+        // heading there is. Two points that decimation kept are >=150 m apart
+        // (FollowTrack.h), which is far enough for the bearing between them to
+        // be a course rather than GPS noise.
+        if (n >= 2) {
+            const follow::TrackPoint& a = followTrack.At(n - 2);
+            const follow::TrackPoint& b = followTrack.At(n - 1);
+            v.headingDeg = follow::BearingDeg(a.lat, a.lon, b.lat, b.lon);
+            v.haveHeading = true;
+        }
+    }
+
+    float maxKm = 0.0f;
     for (size_t i = 0; i < n; ++i) {
         const follow::TrackPoint& p = followTrack.At(i);
         const float d = follow::SeparationKm(p.lat, p.lon, v.centreLat, v.centreLon);
         if (d > maxKm) maxKm = d;
     }
-    if (const TrackedAircraft* t = FollowedAircraft()) {
-        auto [aLat, aLon] = t->GetDisplayPosition();
-        const float d = follow::SeparationKm(aLat, aLon, v.centreLat, v.centreLon);
+    if (v.havePos) {
+        const float d = follow::SeparationKm(v.acLat, v.acLon, v.centreLat, v.centreLon);
         if (d > maxKm) maxKm = d;
     }
 
@@ -5396,6 +5633,22 @@ void AircraftManager::SetSessionFollow(const TrackedAircraft& tracked)
     EnterScreen(Screen::Follow);   // customer-initiated: the swipe asked for this
     followAutoUntilMs = 0;         // stays until dismissed
 
+    // ARM THE REOPEN REFRACTORY, WHICH THIS PATH NEVER NEEDED BEFORE.
+    //
+    // A tap on this face now DISMISSES it, so the gesture that opens it and the
+    // gesture that closes it are one stroke apart. ProcessTouchSample classifies
+    // a stroke once at release, so a clean swipe cannot also be a tap -- but a
+    // swipe the controller splits (the CST816 dropping contact mid-stroke, which
+    // is why TouchWatchdog exists on this SKU) arrives as two strokes, and the
+    // trailing fragment is short enough to classify as a TAP. That tap would
+    // land on a face that opened microseconds earlier and close it again, and
+    // what the customer sees is a swipe that did nothing.
+    //
+    // ExitDetail arms this for exactly the same failure on the card, and this
+    // path deliberately does not call ExitDetail (it would undo the screen
+    // choice above), so it arms the timer itself. Same 400 ms.
+    tapSuppressUntilMs = millis() + 400;
+
     // §17: the target is NOT printed. The count, the route and the SEEDED
     // STATE are -- the last of those so #275 is verifiable from the cable
     // rather than from the glass: "state=AIRBORNE" on the same line as the
@@ -5417,6 +5670,13 @@ void AircraftManager::ClearSessionFollow()
     followStats.Reset();
     followRouteOrigin = "";
     followRouteDest = "";
+    // RESET, THEN RE-ARM. SetTarget(false) alone leaves `last` and `lastFixMs`
+    // holding the dismissed flight -- see Machine::Reset -- so a configured
+    // target resuming here would inherit the session aircraft's last known
+    // position and report it as its own. Reset() first makes the resume start
+    // from WAITING and re-acquire from the feed, which is the truth: nothing
+    // has been heard from the configured target since before the session began.
+    followMachine.Reset();
     followMachine.SetTarget(!followTarget.isEmpty());
     // NO FREE HERE ANY MORE (#273). This used to be the second half of an
     // ownership rule that had two owners and therefore two free sites; the
@@ -5424,7 +5684,17 @@ void AircraftManager::ClearSessionFollow()
     // touch. Freeing on dismissal would also mean the next swipe re-allocates
     // inside the gesture -- the exact behaviour the issue removed.
     followAutoUntilMs = 0;
-    EnterScreen(Screen::Radar);    // customer-initiated: the swipe asked for this
+    // BACK WHERE THE CUSTOMER CAME FROM, not a hardcoded Radar. Follow is a
+    // MODAL now: it is opened from a detail card -- and a card is opened from
+    // the Radar face OR the List face -- so the screen underneath the modal is
+    // whichever one the card was raised over. Sending everybody to Radar put a
+    // follow started from the List back somewhere they never navigated to.
+    //
+    // Always set before the face goes up, on BOTH entry paths: the swipe in
+    // SetSessionFollow and the auto-surface in HandleFollowTransition. So this
+    // is the screen that was actually showing, never a default standing in for
+    // one.
+    EnterScreen(followAutoReturnTo);   // customer-initiated: the tap asked for this
     // The BOOLEAN is computed first and the token never enters the printf
     // statement. §17's per-statement check has no allow list, and it is right
     // not to: "only the emptiness is printed" is exactly what the author of the
@@ -5462,9 +5732,17 @@ void AircraftManager::DrawFollowRouteStrip(BandCanvas& backbuffer)
     const auto Si = [k](float v) { return (int)lroundf(v * k); };
     const int cx = SCREEN_SIZE_DIV_2;
 
-    // Sits just below the disc's vertical centre-line text, inside the chord so
-    // nothing runs off the curve -- the same rule every other row obeys.
-    const int y = Si(214.0f);
+    // ONE ROW ABOVE THE CLOCK, not on top of it. This drew at Si(214) when it
+    // lived on the radar, where DrawClock's row is bare text and the overlap
+    // went unnoticed. On the Follow face that row is PLATED -- DrawClock fills
+    // a black rectangle behind "ARR 18:45" because the globe is full-bleed --
+    // and the plate is painted AFTER the face, so at 214 the strip was drawn
+    // and then erased through the middle.
+    //
+    // The clock sits at SCREEN_SIZE-30 and its plate starts 2 px above that, so
+    // this row ends where the plate begins. Scaled like everything else here,
+    // so it holds on the 412 and 480 panels rather than only on the 240.
+    const int y = Si(198.0f);
     backbuffer.setTextSize(1);
     const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
     const int avail = ChordWidthPx(y, lineH);
@@ -5591,16 +5869,57 @@ void AircraftManager::DrawFollow(BandCanvas& backbuffer)
         // pixel without coordinates. That is the code-only degradation.
         const follow::Endpoint o = follow::LookupAirport(followRouteOrigin.c_str());
         const follow::Endpoint d = follow::LookupAirport(followRouteDest.c_str());
+
+        // REFUSE A ROUTE THAT CANNOT BE THIS AIRCRAFT'S (see
+        // AircraftOutOfFittedView).
+        //
+        // Falls all the way through to the LOCAL face rather than to the arc:
+        // the arc is built from the STRINGS, so it would go on asserting
+        // "MCO -> BWI" without the coordinates that exposed the lie. If the
+        // route is disowned, every face built on it is disowned with it.
+        //
+        // Needs both endpoints placed to test at all, which is the same
+        // condition the globe needs -- an unplaceable pair cannot be checked and
+        // is left alone rather than refused on suspicion.
+        if (o.known && d.known) {
+            const follow::LocalView cv = BuildLocalView();
+            if (cv.havePos &&
+                follow::AircraftOutOfFittedView(o, d, cv.acLat, cv.acLon,
+                                                ContradictionFitRadius(o, d),
+                                                SCREEN_SIZE)) {
+                // Named in the log, because a face silently choosing a different
+                // picture is the hardest kind of behaviour to diagnose later.
+                // The CODES are printed, not the target -- they are ours, and
+                // §17 is about the aircraft's identity, not the airports'.
+                Serial.printf("[follow] route refused: %s->%s is not this "
+                              "aircraft's; falling back to the bearing face\n",
+                              followRouteOrigin.c_str(), followRouteDest.c_str());
+                DrawFollowLocalFace(backbuffer);
+                DrawFollowRouteStrip(backbuffer);
+                return;
+            }
+        }
         // The decision itself lives in FollowRouting.h so it can be graded on
         // the host. Its SIGNATURE is the assertion: it takes no regime and no
         // distance, so neither can creep back in as a condition here.
         switch (follow::FaceForRoute(FollowRouteKnown(), o.known, d.known)) {
-            case follow::Face::Globe: DrawRouteGlobe(backbuffer, FollowRouteView()); return;
-            case follow::Face::Arc:   DrawRouteArc(backbuffer, FollowRouteView());   return;
+            case follow::Face::Globe:
+                DrawRouteGlobe(backbuffer, FollowRouteView());
+                DrawFollowRouteStrip(backbuffer);
+                return;
+            case follow::Face::Arc:
+                DrawRouteArc(backbuffer, FollowRouteView());
+                DrawFollowRouteStrip(backbuffer);
+                return;
             case follow::Face::Local: break;
         }
     }
     DrawFollowLocalFace(backbuffer);
+    // Harmless on this face and called anyway, rather than being the one branch
+    // that has to remember: the LOCAL face is selected precisely BECAUSE there
+    // is no destination, and the strip's own first line declines without two
+    // codes. A guard here would be a second copy of that rule.
+    DrawFollowRouteStrip(backbuffer);
 }
 
 void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
@@ -5627,7 +5946,8 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
     // face and this one disagree about which colour means which.
     const uint32_t AMBER = FOLLOW_AMBER;
     const uint32_t DIM   = FOLLOW_DIM;
-    const uint32_t TRACK = FOLLOW_TRACK;
+    // FOLLOW_TRACK is gone with the track polyline -- the bearing face has no
+    // scaled projection to draw one through.
     const uint32_t HOME  = FOLLOW_HOME;
 
     // benignApproach FALSE here: this face keeps amber for APPROACH_LOST until
@@ -5646,148 +5966,270 @@ void AircraftManager::DrawFollowLocalFace(BandCanvas& backbuffer)
         return;
     }
 
-    // ---- the state, first, because it is the product (§19) -----------------
-    centred(FitToDisc(backbuffer, follow::Headline(st), 8,
-                      backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8),
-            8, stateColour);
+    // ==== THE BEARING INDICATOR =============================================
+    //
+    // RINGS ARE FOR A FIELD OF CONTACTS; THIS FACE HAS ONE TARGET. The rings
+    // and the track polyline that used to fill this disc were a scaled scope
+    // borrowed from the radar, and a scope spends its whole area answering
+    // "which of these, and where" -- a question that does not arise when the
+    // answer is always the same aeroplane. What the owner of one aeroplane
+    // actually asks is WHICH WAY DO I LOOK, and a scope answers that worst at
+    // the moment it matters most: at circuit distance the dart sits a few
+    // pixels from home, inside the innermost ring, indistinguishable from it.
+    //
+    // So the picture is a bearing, not a position: ONE ray from home at his
+    // true bearing, full length whatever the range, with the distance carried
+    // as a NUMBER beside the aeroplane rather than as the length of the ray.
+    // Bearing is the graphic; distance is the text. That is also why the track
+    // is gone -- it can only be drawn through the auto-fit scale this face no
+    // longer has, and two scales in one picture is not a picture.
+    //
+    // NORTH-UP, AND DELIBERATELY NOT WINDOW-UP. The radar rotates by
+    // radarUpDeg so the picture matches the window the panel sits in; a compass
+    // rose whose N is not at the top is not a compass rose. This is the one
+    // face that ignores radarUpDeg, which is why neither ProjectLocal nor
+    // DrawAircraftTriangle is reused below -- both apply the rotation.
+    //
+    // Every radius and row below is the 240 px figure times SCREEN_SIZE/240,
+    // the same rule the arc face follows. No bare 240s.
+    const float k = (float)SCREEN_SIZE / 240.0f;
+    const auto Si = [k](float value) { return (int)lroundf(value * k); };
 
-    // Who, and where from. §10: the airport is a CODE, never a name.
-    String who = followTarget; who.toUpperCase();
-    if (const TrackedAircraft* t = FollowedAircraft()) {
-        String cs = t->state.callsign; cs.trim();
-        if (!cs.isEmpty()) { cs.toUpperCase(); who = cs; }
-    }
-    if (!followHomeCode.isEmpty())
-        who += "  at " + followHomeCode;
-    // The callsign is feed-supplied and the home code is ours, so this row is
-    // the one on this face whose length is not bounded by construction.
-    centred(FitToDisc(backbuffer, who, 21,
-                      backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8),
-            21, DIM);
-
-    // ---- the scope ----------------------------------------------------------
     const follow::LocalView v = BuildLocalView();
-
-    // Rings, equally spaced, each labelled with the radius it was drawn at.
-    // Only the outer one carries the unit, matching DrawRadarCircles -- three
-    // labels each repeating "mi" is three times the ink for no more meaning.
-    for (int i = 1; i <= v.rings; ++i) {
-        const int r = (FOLLOW_FACE_RADIUS_PX * i) / v.rings;
-        backbuffer.drawCircle(cx, cx, r, i == v.rings ? lgfx::color888(0, 90, 0)
-                                                      : lgfx::color888(0, 45, 0));
-        const float value = v.stepDisplay * i;
-        String label = String(value, value < 10.0f ? 1 : 0);
-        if (i == v.rings) label += rangeUnit;
-        backbuffer.setTextColor(lgfx::color888(0, 110, 0));
-        backbuffer.drawString(label, cx + 4, cx - r + (i == v.rings ? 3 : 2));
-    }
-
-    // The track. §4.5: one dim distinct colour, beneath everything, and NOT
-    // faded -- a return decays because it is a return; the track is a record.
-    // The same draw-time cap and adaptive stride as the radar face, so a full
-    // 1024-point buffer costs what §18.1 measured rather than four times it.
-    const size_t n = followTrack.Size();
-    if (followDrawTrack && followTrack.Active() && n >= 2) {
-        const size_t stride = follow::Track::StrideFor(n, FOLLOW_DRAW_SEGMENT_CAP);
-        int prevX = 0, prevY = 0; bool havePrev = false;
-        for (size_t i = 0; i < n; i += stride) {
-            auto [x, y] = ProjectLocal(followTrack.At(i).lat, followTrack.At(i).lon, v);
-            if (havePrev) backbuffer.drawLine(prevX, prevY, x, y, TRACK);
-            prevX = x; prevY = y; havePrev = true;
-        }
-        if (havePrev && ((n - 1) % stride) != 0) {
-            auto [x, y] = ProjectLocal(followTrack.At(n - 1).lat, followTrack.At(n - 1).lon, v);
-            backbuffer.drawLine(prevX, prevY, x, y, TRACK);
-        }
-    }
-
-    // Home field: the anchor the whole view is built around, so it is drawn
-    // after the track and reads through it.
-    backbuffer.drawLine(cx - 4, cx, cx + 4, cx, HOME);
-    backbuffer.drawLine(cx, cx - 4, cx, cx + 4, HOME);
-    backbuffer.drawCircle(cx, cx, 3, HOME);
-
-    // Where he is now, with heading. Reuses the radar's dart so a followed
-    // aircraft looks like the same aircraft on both faces (§7.2).
-    const TrackedAircraft* live = FollowedAircraft();
-    if (live) {
-        auto [aLat, aLon] = live->GetDisplayPosition();
-        auto [x, y] = ProjectLocal(aLat, aLon, v);
-        DrawAircraftTriangle(backbuffer, x, y, *live, stateColour);
-        backbuffer.drawCircle(x, y, 8, stateColour);
-    }
-
-    // ---- readouts -----------------------------------------------------------
-    //
-    // ALTITUDE IS LABELLED FOR WHAT IT IS. §10 asks for AGL, and C5's delivery
-    // half does not exist, so the honest render is the MSL figure the feed
-    // carries with "MSL" beside it -- not an AGL-shaped number that is wrong by
-    // the field elevation. At Bend that error is 3,460 ft, and a readout that
-    // says a trainer is at 4,400 ft AGL in the circuit is worse than one that
-    // declines to say.
-    // BUILT AS FIELDS, IN PRIORITY ORDER, AND ADDED ONLY WHILE THEY STILL FIT.
-    //
-    // The bench found this row running off BOTH ends of the curve. At
-    // SCREEN_SIZE-26 on a 240 panel the chord is 118 px -- nineteen characters --
-    // and "-900 ft MSL  67 kt  148mi" is twenty-five. Ellipsising one long
-    // string would cut a number in half, which is worse than dropping a field:
-    // a truncated "14..." reads as a value. So fields are appended while the
-    // whole line fits and the least important one is simply absent when it
-    // does not.
-    constexpr int READOUT_Y = SCREEN_SIZE - 26;
     const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
-    String readout;
-    const auto addField = [&](const String& part) {
-        const String next = readout.isEmpty() ? part : readout + "  " + part;
-        if ((int)backbuffer.textWidth(next) <= ChordWidthPx(READOUT_Y, lineH))
-            readout = next;
+
+    // A row placed by its vertical CENTRE, so the stacking arithmetic stays
+    // obvious across the two text sizes. Same helper shape as the arc face.
+    const auto row = [&](const String& s, float y240, uint32_t colour, int size) {
+        if (s.isEmpty()) return;
+        backbuffer.setTextSize(size);
+        const int h = lineH * size;
+        const int top = Si(y240) - h / 2;
+        const String fit = FitToDisc(backbuffer, s, top, h);
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, top);
+        backbuffer.setTextSize(1);
     };
 
-    if (live) {
+    // North-up polar: bearing 0 is straight UP, and up is -y. This is the only
+    // angle convention on this face; the arc face's `at()` is screen-polar
+    // (0 = east), and mixing the two is the reliable way to draw a marker
+    // beside the thing it belongs on.
+    const auto polar = [&](float bearingDeg, float r, int& outX, int& outY) {
+        const float rad = bearingDeg * 0.01745329252f;
+        outX = cx + (int)lroundf(sinf(rad) * r);
+        outY = cx - (int)lroundf(cosf(rad) * r);
+    };
+
+    constexpr float RING_R = 66.0f;  // the compass ring
+    constexpr float TIP_R  = 56.0f;  // the arrowhead's POINT
+    constexpr float DIST_R = 70.0f;  // the distance number, in a gap it cuts in the ring
+    constexpr float N_R    = 84.0f;  // the N letter, clear of the top text stack
+
+    // ---- who, large, at the top ---------------------------------------------
+    //
+    // The identity is the first thing read and it is now the only thing in the
+    // top third. It used to share that space with the state headline and the
+    // home code at one size, which is how a face with three rows of small green
+    // text ends up with no first thing to read at all.
+    String label;
+    {
+        char lbl[follow::LABEL_COST_BOUND + 4];
+        follow::SanitiseLabel(EffectiveFollowTarget().c_str(), lbl, sizeof(lbl));
+        label = lbl;
+    }
+    if (const TrackedAircraft* t = FollowedAircraft()) {
+        String cs = t->state.callsign; cs.trim();
+        if (!cs.isEmpty()) label = cs;
+    }
+    label.toUpperCase();
+    row(label, 22.0f, stateColour, 2);
+
+    // ---- the compass ring ----------------------------------------------------
+    backbuffer.drawCircle(cx, cx, Si(RING_R), lgfx::color888(0, 70, 0));
+    for (int b = 0; b < 360; b += 30) {
+        const bool cardinal = (b % 90) == 0;
+        const float len = cardinal ? 6.0f : 3.0f;
+        int x0, y0, x1, y1;
+        polar((float)b, (float)Si(RING_R - len), x0, y0);
+        polar((float)b, (float)Si(RING_R + (cardinal ? len : 0.0f)), x1, y1);
+        backbuffer.drawLine(x0, y0, x1, y1,
+                            b == 0 ? lgfx::color888(0, 150, 0) : lgfx::color888(0, 70, 0));
+    }
+    // N is the only cardinal lettered. Three more letters is three times the ink
+    // to say what the first one has already established.
+    backbuffer.setTextColor(lgfx::color888(0, 150, 0));
+    backbuffer.drawString("N", cx - (int)backbuffer.textWidth("N") / 2,
+                          cx - Si(N_R) - lineH / 2);
+
+    // ---- home, at the centre -------------------------------------------------
+    backbuffer.drawLine(cx - Si(4.0f), cx, cx + Si(4.0f), cx, HOME);
+    backbuffer.drawLine(cx, cx - Si(4.0f), cx, cx + Si(4.0f), HOME);
+    backbuffer.drawCircle(cx, cx, Si(3.0f), HOME);
+
+    // ---- the ray, the aeroplane, and the distance ----------------------------
+    //
+    // READ FROM `v`, NOT FROM FollowedAircraft(). The rings always read from the
+    // view and the marker never did, and since FollowedAircraft() is null in
+    // precisely the absence states this face is FOR, the aeroplane was drawn on
+    // none of the frames anybody needed it on. See LocalView's subject fields.
+    if (v.havePos) {
+        const float bearing = follow::BearingDeg(v.centreLat, v.centreLon,
+                                                 v.acLat, v.acLon);
+        const float rangeKm = follow::SeparationKm(v.acLat, v.acLon,
+                                                   v.centreLat, v.centreLon);
+
+        // ONE ARROW, ONE DIRECTION -- and the direction is the BEARING.
+        //
+        // This drew a five-pixel bar with an aeroplane on the end rotated to the
+        // aircraft's HEADING, so a single graphic asserted two different angles
+        // at once: a shaft running west with a dart on its tip pointing 358.
+        // The intent was "where he is, and which way he is going". What it
+        // produced was a picture whose subject the reader has to work out first
+        // -- and a bar has two ends and no direction to begin with.
+        //
+        // Heading is still a fact and it is still on the face, as HDG in the
+        // readout below, where it is labelled and cannot be mistaken for the
+        // bearing. Bearing is what this graphic is FOR, so it is the only thing
+        // the graphic says.
+        const float rad = bearing * 0.01745329252f;
+        const float ux = sinf(rad), uy = -cosf(rad);   // along the bearing
+        const float perpX = -uy,    perpY = ux;        // its perpendicular
+
+        const float headL = (float)Si(12.0f);          // arrowhead, along the shaft
+        const float headW = (float)Si(6.0f);           // arrowhead, half-width
+        const float tipR  = (float)Si(TIP_R);
+        const float baseR = tipR - headL;              // where the head begins
+
+        // The shaft: THIN, and it stops where the head starts rather than
+        // running through it. Three pixels on a 240 where it was five -- at five
+        // the parallel offsets close up into a filled rectangle, which is the
+        // shape that was reading as a bar.
+        const int half = Si(2.0f) / 2;
+        for (int o = -half; o <= half; ++o) {
+            const float ox = perpX * (float)o, oy = perpY * (float)o;
+            backbuffer.drawLine(
+                (int)lroundf((float)cx + ux * (float)Si(12.0f) + ox),
+                (int)lroundf((float)cx + uy * (float)Si(12.0f) + oy),
+                (int)lroundf((float)cx + ux * baseR + ox),
+                (int)lroundf((float)cx + uy * baseR + oy),
+                stateColour);
+        }
+
+        // The head. This is the element that carries the meaning and it was
+        // simply not there: filled, pointing OUTWARD along the shaft, and long
+        // enough to read as a head rather than as a widening of the line.
+        backbuffer.fillTriangle(
+            (int)lroundf((float)cx + ux * tipR),
+            (int)lroundf((float)cx + uy * tipR),
+            (int)lroundf((float)cx + ux * baseR + perpX * headW),
+            (int)lroundf((float)cx + uy * baseR + perpY * headW),
+            (int)lroundf((float)cx + ux * baseR - perpX * headW),
+            (int)lroundf((float)cx + uy * baseR - perpY * headW),
+            stateColour);
+
+        // Distance, past the head, IN A GAP IT CUTS IN THE COMPASS RING.
+        //
+        // The plate was two pixels of padding around text at radius 72 with the
+        // ring at 66, so the ring passed four pixels outside the plate, hard
+        // against the glyphs -- the number was legible only where the ring
+        // happened not to run through a stroke.
+        //
+        // Widening the plate until it COVERS the ring is the fix, rather than
+        // nudging the label somewhere the ring is not: the label follows the
+        // bearing, so there is nowhere on the circle it does not eventually go.
+        // Outside the ring is not available either -- due north is the N letter
+        // and due south is the altitude row, and it visits both.
+        //
+        // At 70 with 5 px of padding the plate spans radius 61-79, so the ring
+        // at 66 falls inside it across the whole width of the number (at the
+        // plate corner the ring is at 63.8, still covered). The ring reads as
+        // interrupted for the width of the label, which is what a scale does.
+        const String dist = units::FormatKm(rangeKm, rangeUnit);
+        int dx, dy; polar(bearing, (float)Si(DIST_R), dx, dy);
+        const int dw = (int)backbuffer.textWidth(dist);
+        const int dpad = Si(5.0f);
+        backbuffer.fillRect(dx - dw / 2 - dpad, dy - lineH / 2 - dpad,
+                            dw + 2 * dpad, lineH + 2 * dpad, lgfx::color888(0, 0, 0));
+        backbuffer.setTextColor(stateColour);
+        backbuffer.drawString(dist, dx - dw / 2, dy - lineH / 2);
+    }
+
+    // ---- the secondary block, small, at the bottom ---------------------------
+    //
+    // ALTITUDE IS LABELLED FOR WHAT IT IS. Spec 10 asks for AGL, and C5's
+    // delivery half does not exist, so without a field elevation the honest
+    // render is the MSL figure the feed carries with "MSL" beside it -- not an
+    // AGL-shaped number that is wrong by the field elevation. At Bend that error
+    // is 3,460 ft, and a readout saying a trainer is at 4,400 ft AGL in the
+    // circuit is worse than one that declines to say.
+    //
+    // THESE READ FROM THE LAST FIX AND ARE NO LONGER GATED ON A LIVE CONTACT.
+    // They always came from followMachine.LastFix() -- which is exactly the
+    // thing that survives an absence -- but sat behind an `if (live)`, so the
+    // one source that still had something to say was silenced by a test that is
+    // false whenever it matters. Same defect as the marker's, one screen down.
+    {
         const follow::Fix& f = followMachine.LastFix();
         const bool airborne = (st == follow::State::Airborne);
-        // DECLINE RATHER THAN PRINT. The bench showed "-900 ft MSL" under an
-        // AIRBORNE headline and the readout stated it as confidently as a real
-        // number. -900 ft is legal SOMEWHERE (Bar Yehuda sits at -1,266 ft), so
-        // a bounds check alone does not catch it -- what catches it is that the
-        // altitude and the state contradict each other. See ReportableAltFt.
+        String alt;
         if (followHome.elevationKnown) {
             const float agl = follow::AglFt(f, followHome);
-            if (follow::PlausibleAltFt(agl))
-                addField(String((int)lroundf(agl)) + " AGL");
+            if (follow::PlausibleAltFt(agl)) alt = String((int)lroundf(agl)) + " ft AGL";
         } else {
             const float msl = follow::AltitudeMslFt(f);
-            if (follow::ReportableAltFt(msl, airborne))
-                addField(String((int)lroundf(msl)) + " ft MSL");
-            else
-                addField("-- ft MSL");
+            alt = follow::ReportableAltFt(msl, airborne)
+                      ? String((int)lroundf(msl)) + " ft MSL"
+                      : String("-- ft MSL");
         }
-        if (follow::PlausibleSpeedKt(f.velocityKt))
-            addField(String((int)lroundf(f.velocityKt)) + " kt");
-        // From the DISPLAYED position, not the last raw fix. The dart is drawn
-        // dead-reckoned; a range computed off the stale fix would disagree with
-        // the ring the customer can see it sitting on.
-        auto [rLat, rLon] = live->GetDisplayPosition();
-        const float rangeKm = follow::SeparationKm(rLat, rLon, v.centreLat, v.centreLon);
-        addField(units::FormatKm(rangeKm, rangeUnit));
-    } else if (followTrack.Active() && n) {
-        addField(String((unsigned)n) + " track points");
-    }
-    // CIRCUIT COUNT IS NOT HERE. §10 lists it and §11 defers it in the same
-    // breath -- see the note at the bottom of include/FollowGeometry.h. A wrong
-    // count is a claim the customer cannot check.
-    if (!readout.isEmpty())
-        centred(readout, READOUT_Y, DIM);
+        // 192, NOT 196. THE CLOCK OWNS THE BOTTOM OF THIS FACE and these three
+        // rows were stacked into it: DrawClock draws at SCREEN_SIZE-30 with a
+        // PLATE from 208 to 220, and the screen dots sit at 224. The old
+        // 196/208/220 put one row under the plate and one under the dots, which
+        // is the "rows overlapping each other" on glass -- not a wrapping bug,
+        // a stacking one, and invisible from inside this function because the
+        // clock is drawn by a different function afterwards.
+        //
+        // The usable band here is between the compass ring's bottom (120+66=186)
+        // and the clock plate's top (208): 22 px, which is exactly two rows.
+        // The third row -- the state headline -- moved to the TOP of the face.
+        if (followMachine.LastFixMs() != 0)
+            row(alt, 192.0f, DIM, 1);
 
-    // ---- the reassurance, when there is something to reassure about ---------
+        String line2;
+        if (follow::PlausibleSpeedKt(v.gsKt))
+            line2 = String((int)lroundf(v.gsKt)) + " kt";
+        if (v.haveHeading) {
+            // Three digits, the way a heading is always written.
+            char hdg[16];
+            snprintf(hdg, sizeof(hdg), "HDG %03d",
+                     ((int)lroundf(v.headingDeg) % 360 + 360) % 360);
+            line2 = line2.isEmpty() ? String(hdg) : line2 + "   " + hdg;
+        }
+        row(line2, 202.0f, DIM, 1);
+    }
+
+    // ---- the state -----------------------------------------------------------
     //
-    // Drawn OVER the scope on purpose. In an absence state there is nothing live
-    // underneath to obscure -- the track is frozen and the dart is gone -- and
-    // the middle of the disc is the only place on a 240 px round panel wide
-    // enough to set a sentence. §6: "Name the mechanism. 'No receivers here' is
-    // calming because it explains."
+    // AT THE TOP, under the callsign, because the bottom is spoken for: 220 put
+    // this row underneath the clock's plate and against the screen dots. Above
+    // the compass ring there is a clear band between the N letter (32..40) and
+    // the ring's top (120-66=54), and 46 sits in it.
+    //
+    // It also reads better here -- identity, then state, then the picture --
+    // and spec 19 only asks that the state be ON the face, not that it be last.
+    row(follow::Headline(st), 46.0f, stateColour, 1);
+
+    // ---- the reassurance, ONLY when there is nothing to draw -----------------
+    //
+    // Spec 6: "Name the mechanism. 'No receivers here' is calming because it
+    // explains." That still holds -- but it is a box across the middle of the
+    // disc, and the middle of the disc is now the bearing. The box was
+    // unconditional when an absence state meant an empty face; it does not any
+    // more, because the last fix draws. So it appears in the one case that is
+    // still genuinely empty: no position at all, ever.
     const char* why = follow::Explanation(st);
-    if (why[0] != '\0') {
+    if (!v.havePos && why[0] != '\0') {
         // Width from SCREEN_SIZE, not a literal: 22 characters fills the 240
         // round and leaves two thirds of a 480 square empty. The 11 is the
         // 6 px glyph advance plus margin, solved for "the box spans a bit over
@@ -6478,20 +6920,10 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // touch x=240 and run off a 0..239 buffer), and every text row gets the plate
     // the top row already had.
     const int cy = Si(120.0f);
-    // PANEL SIZE, AT EVERY DISTANCE. Route framing was built (#274) and reverted
-    // after seeing it: THE BEZEL IS THE LIMB. A full-panel disc reads as a planet
-    // because the physical edge of the round screen completes it, so zooming past
-    // panel size does not lose detail -- it loses the EDGE. At R=1068 the view is
-    // a 6.5 degree cap with no edge in it and reads as a flat map with a line on
-    // it, and drawn cues do not buy the edge back: a graticule at 6.5 degrees
-    // renders straight and reads as GRAPH PAPER, making the flatness worse. The
-    // pair cost ~9 ms and put the frame at the 85 ms ceiling for the privilege.
-    //
-    // So the globe answers "where on Earth" and the arc answers "how far along".
-    // A 1,147 km route is a short arc over France at this scale -- small, honest,
-    // and still showing something the arc cannot.
-    const float R  = k * 119.0f;
-    const int   Ri = (int)lroundf(R);
+    // Panel size: the radius at which the limb sits exactly on the bezel. It is
+    // the FLOOR of the zoom below, and the radius the disc is painted at.
+    const float panelR  = k * 119.0f;
+    const int   panelRi = (int)lroundf(panelR);
 
     const follow::State st = view.st;
     const uint32_t colour = FollowStateColour(st, /*benignApproach=*/true);
@@ -6505,8 +6937,77 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     const float acLat = view.acLat, acLon = view.acLon;
     const bool  havePos = view.havePos;
 
+    // ---- FIT TO ROUTE -------------------------------------------------------
+    //
+    // LAX->SEA rendered as a 29 px stub at the fixed radius: 12 % of the disc,
+    // for a route that is the whole subject of the face.
+    //
+    // A point theta/2 from the view centre projects to R*sin(theta/2), so the
+    // radius that puts both ends exactly on the usable circle is
+    //
+    //     R_fit = usable / sin(theta / 2)
+    //
+    // and that is EXACT rather than a fit in the least-squares sense, and it is
+    // exact IN ANY BASIS. Both endpoints sit theta/2 from the view centre, which
+    // is the great-circle midpoint; orthographic projection turns that angle
+    // into a screen RADIUS, and no rotation of the camera about its own view
+    // axis can change a radius. So both ends land on the usable circle whatever
+    // the roll -- only the ANGLE at which they fall varies.
+    //
+    // This paragraph previously claimed the opposite, and that error is what a
+    // route-up basis was built to satisfy. See the note in GlobeProjection.h.
+    //
+    // usable = FOLLOW_FACE_RADIUS_PX - margin = 96 - 10 = 86 on a 240. Note this
+    // is the FACE radius, not the full-bleed panel radius of 119: the route is
+    // fitted inside the ring the text rows leave clear, so a zoomed arc cannot
+    // run underneath a readout.
+    //
+    //   route          km    R_fit   clamped   field
+    //   150 km hop    150    7,306      1146   957 km
+    //   LAX->SEA    1,540      713       713   1,540 km
+    //   ONT->PDX    1,270      864       864   1,270 km   (see note)
+    //
+    // NOTE ON THE ONT->PDX ROW. Its arithmetic reconciles at usable = 86 like
+    // every other row, but its DISTANCE is not what this device will compute:
+    // include/Airports.h holds ONT at 34.06,-117.60 and PDX at 45.59,-122.60,
+    // which are 1,351 km apart, giving R_fit = 813 rather than 864. The formula
+    // is not in question -- the km input is. Checked against the baked table
+    // rather than against a map, because the baked table is what ships.
+    //   LAX->JFK    3,970      281       281   3,970 km
+    //   LHR->JFK    5,540      204       204   5,540 km
+    //
+    // THE CEILING COMES FROM THE COASTLINE DATA, NOT FROM TASTE. The rings are
+    // simplified to 0.15 degrees, so a stored segment is a straight chord across
+    // that much sphere and its on-screen length is R * 0.15 * pi/180. Holding
+    // that to SEGMENT_PX_TOLERANCE gives
+    //
+    //     R_MAX = (segment_px * 180) / (pi * 0.15) = 1146 px at 3 px
+    //
+    // SEGMENT_PX_TOLERANCE IS 3 AND IS WRITTEN HERE RATHER THAN INLINED. 3 px was
+    // acceptable at the old coastline density and nothing about the denser set
+    // makes a straight segment more visible. Writing 1 would tighten a shipped
+    // tolerance threefold as a side effect of a zoom change, which is not a thing
+    // a zoom change gets to do quietly.
+    //
+    // The floor is panel size. Below it the globe would shrink inside the bezel
+    // and leave dead corners; a route long enough to want that (beyond ~10,300
+    // km) simply reaches closer to the rim than `usable`, which is a cosmetic
+    // cost on the rarest routes rather than a correctness one.
+    // THE DRAWING FIT, which includes the aircraft -- and is NOT the fit the
+    // contradiction check ran on. That check used ContradictionFitRadius (route
+    // only) and has already passed by the time we are here. See the header of
+    // FitRadiusForHalfAngle for why merging the two would disarm it permanently.
+    const float R = DrawnFitRadius(org, dst, acLat, acLon, havePos);
+    const int Ri = (int)lroundf(R);
+
     // §9: centred on the great-circle MIDPOINT so both ends are on the visible
     // hemisphere. MakeBasis does exactly that at tilt 0.
+    //
+    // NORTH IS UP, AND THAT IS NOT NEGOTIABLE ON THIS FACE. A route-up roll was
+    // tried and removed: it framed well and made the geography unrecognisable,
+    // which loses the thing the map is for. A map is a map. See the note in
+    // GlobeProjection.h for the full reasoning and for the false premise that
+    // made the roll look necessary.
     const globeproj::Basis basis =
         globeproj::MakeBasis(org.lon, org.lat, dst.lon, dst.lat, 0.0f);
 
@@ -6521,7 +7022,12 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     const uint32_t TERM  = lgfx::color888(150, 96, 40);   // a thin WARM line
 
     // ---- the disc, and the night side --------------------------------------
-    backbuffer.fillCircle(cx, cy, Ri, OCEAN);
+    //
+    // PAINTED AT PANEL SIZE, NOT AT R. Once R exceeds panel size the whole panel
+    // is inside the sphere, so the ocean is the panel; filling a circle of radius
+    // 713 would ask the rasteriser to clip half a million pixels to find the same
+    // disc. R is the PROJECTION scale from here on and nothing paints at it.
+    backbuffer.fillCircle(cx, cy, panelRi, OCEAN);
 
     // The sun in CAMERA coordinates, so the day/night test is three multiplies
     // per sample instead of a rotation. A screen point (px, py) on the near
@@ -6600,23 +7106,73 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // foreshortened below that.
     const globeproj::Coastline* rings = globeproj::Coastlines();
     const int ringCount = globeproj::CoastlineCount();
+
+    // ---- the cull ------------------------------------------------------------
+    //
+    // The view's angular radius, taken to the panel's CORNER rather than its
+    // edge: a pixel at the corner of the square is half-width * sqrt(2) from the
+    // centre, and culling to the half-width would drop rings that are visible
+    // there. See globeproj::CapMayBeVisible for the full argument, including why
+    // a cap that misses the panel cannot produce a segment that hits it.
+    //
+    // A degree of slack on top. It costs a few rings that get projected and then
+    // rejected as before; the other direction costs a coastline that vanishes at
+    // one particular view angle, months from now, on somebody's desk.
+    const float halfDiag = (float)SCREEN_SIZE_DIV_2 * 1.41421356f;
+    const float viewSinC = fminf(1.0f, halfDiag / R);
+    const float viewRad  = asinf(viewSinC) + 0.0175f;      // +1 deg of slack
+    const float cosViewC = cosf(viewRad), sinViewC = sinf(viewRad);
+
+    int chunkCount = 0;
+    const globeproj::ChunkCap* chunks = globeproj::CoastlineChunks(chunkCount);
+
     int vertices = 0;
-    for (int i = 0; i < ringCount; ++i) {
-        const globeproj::GeoVec* v = rings[i].v;
-        const int n = rings[i].n;
-        float px = 0.0f, py = 0.0f;
-        bool pv = false;
-        for (int a = 0; a <= n; ++a) {
-            const globeproj::GeoVec& p = v[a == n ? 0 : a];   // close the ring
-            float x = 0.0f, y = 0.0f;
-            const bool vis = globeproj::Project(basis,
-                p.x * globeproj::VEC_INV, p.y * globeproj::VEC_INV,
-                p.z * globeproj::VEC_INV, (float)cx, (float)cy, R, x, y);
-            if (vis && pv &&
-                !globeproj::SegmentOffPanel(px, py, x, y, SCREEN_SIZE, SCREEN_SIZE))
-                backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, COAST);
-            px = x; py = y; pv = vis;
-            ++vertices;
+    if (chunkCount > 0) {
+        for (int c = 0; c < chunkCount; ++c) {
+            if (!globeproj::CapMayBeVisible(chunks[c].cap, basis.v,
+                                            cosViewC, sinViewC))
+                continue;
+            const globeproj::GeoVec* v = rings[chunks[c].ring].v;
+            const int n = rings[chunks[c].ring].n;
+            float px = 0.0f, py = 0.0f;
+            bool pv = false;   // reset per chunk: no segment is ever drawn
+                               // across a gap left by a culled neighbour
+            for (int s = 0; s <= chunks[c].count; ++s) {
+                int idx = chunks[c].first + s;
+                if (idx >= n) idx -= n;              // the closing segment wraps
+                const globeproj::GeoVec& p = v[idx];
+                float x = 0.0f, y = 0.0f;
+                const bool vis = globeproj::Project(basis,
+                    p.x * globeproj::VEC_INV, p.y * globeproj::VEC_INV,
+                    p.z * globeproj::VEC_INV, (float)cx, (float)cy, R, x, y);
+                if (vis && pv &&
+                    !globeproj::SegmentOffPanel(px, py, x, y, SCREEN_SIZE, SCREEN_SIZE))
+                    backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, COAST);
+                px = x; py = y; pv = vis;
+                ++vertices;
+            }
+        }
+    } else {
+        // The chunk table could not be built (more rings than it holds). Draw
+        // everything, exactly as before -- slower and correct, which is the only
+        // acceptable direction for a fallback.
+        for (int i = 0; i < ringCount; ++i) {
+            const globeproj::GeoVec* v = rings[i].v;
+            const int n = rings[i].n;
+            float px = 0.0f, py = 0.0f;
+            bool pv = false;
+            for (int a = 0; a <= n; ++a) {
+                const globeproj::GeoVec& p = v[a == n ? 0 : a];
+                float x = 0.0f, y = 0.0f;
+                const bool vis = globeproj::Project(basis,
+                    p.x * globeproj::VEC_INV, p.y * globeproj::VEC_INV,
+                    p.z * globeproj::VEC_INV, (float)cx, (float)cy, R, x, y);
+                if (vis && pv &&
+                    !globeproj::SegmentOffPanel(px, py, x, y, SCREEN_SIZE, SCREEN_SIZE))
+                    backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, COAST);
+                px = x; py = y; pv = vis;
+                ++vertices;
+            }
         }
     }
 
@@ -6633,13 +7189,72 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
     // this gets CHEAPER as it zooms in: fewer lines intersect a smaller cap.
     // Measured budget at 2.80 us per projection: ~3.1 ms at R=119 falling to
     // ~1.3 ms at R=1068.
+    // WILL THE BORDERS DRAW? Only the zoom decides it now.
+    //
+    // This used to be two gates: the zoom, then one cap test asking "is North
+    // America anywhere near the view", so a route over the Atlantic paid a single
+    // dot product for the whole block. That second gate came from the hand table,
+    // whose 26 rows had no structure to cull -- it was all or nothing, so the
+    // continent-sized cap was the only granularity available.
+    //
+    // The generated set has 142 polylines behind the same per-chunk cull the
+    // coastline uses, so the cap test is now redundant with a cull that is
+    // strictly finer: 142 dot products worst case, against 2.80 us per
+    // PROJECTION, is a few microseconds to decide something the chunk loop
+    // decides better. Keeping it would have meant maintaining a hand-authored
+    // bounding cap for USA+CAN whose only job was to duplicate a worse version of
+    // the next loop's answer.
+    bool stateLinesShown = false;
     {
-        const float viewSin = fminf(1.0f, (float)SCREEN_SIZE_DIV_2 / R);
-        const float viewDeg = asinf(viewSin) * 57.2957795f;
+        constexpr float STATE_MAX_VIEW_DEG = 30.0f;
+        const float svd =
+            asinf(fminf(1.0f, (float)SCREEN_SIZE_DIV_2 / R)) * 57.2957795f;
+        stateLinesShown = (svd < STATE_MAX_VIEW_DEG);
+    }
+
+    const float gratViewDeg =
+        asinf(fminf(1.0f, (float)SCREEN_SIZE_DIV_2 / R)) * 57.2957795f;
+    // DROPPED ABOVE THE ZOOM WHERE IT STOPS MEANING ANYTHING.
+    //
+    // The graticule is here to carry curvature once the limb has left the panel.
+    // It stops doing that when the cap is small enough that a parallel and a
+    // meridian both render as straight lines -- at which point what is on screen
+    // is a regular grid of straight lines over a flat-looking field, which is
+    // GRAPH PAPER, and it makes the flatness it was added to fix worse.
+    //
+    // The threshold is 8 degrees, and it is not a new number: it is the last rung
+    // of the spacing ladder below. Under 8 degrees the ladder was already having
+    // to fall to 2 degree spacing to get any lines into the view at all, and
+    // needing a denser grid to show curvature is the same statement as there
+    // being no curvature left to show. One constant, used twice, so the two
+    // cannot drift.
+    //
+    // Cost recovered is the graticule's own ~1.3 ms at high zoom, not the ~9 ms
+    // the reverted attempt quoted -- that figure was the PAIR (framing plus
+    // graticule) and most of it was the unclipped night fill and terminator,
+    // both of which have since been bounded by the panel. Worth stating plainly
+    // so the next person does not go looking for 8 ms that are already gone.
+    // THE GRATICULE STAYS WHEN THE STATE LINES DRAW. Tried standing it down over
+    // the US and reverted the same hour: Daniel wants it, and he is right to.
+    //
+    // The reasoning for removing it was that two grids of the same weight read
+    // as one illegible one -- which was a correct diagnosis of the SYMPTOM and
+    // the wrong fix. The lat/lon grid answers "where on Earth and how big is
+    // this view", which no state box answers; a route that leaves the US keeps
+    // it, so removing it over the US made the face change character depending on
+    // where the aeroplane was. The problem was never that both were present, it
+    // was that they were indistinguishable.
+    //
+    // So the fix is CONTRAST, not subtraction: the borders moved to 0x247E5C and
+    // the graticule stays at 0x0E2E22, roughly three times darker. Two grids at
+    // two weights is a map; two grids at one weight was the mess.
+    constexpr float GRAT_MIN_VIEW_DEG = 8.0f;
+    if (gratViewDeg > GRAT_MIN_VIEW_DEG) {
+        const float viewDeg = gratViewDeg;
         // Spacing chosen so a handful of lines cross the view at any zoom.
         const float stepDeg = viewDeg > 60.0f ? 30.0f
                             : viewDeg > 20.0f ? 15.0f
-                            : viewDeg > 8.0f  ?  5.0f : 2.0f;
+                            :                    5.0f;
         // The view centre in lat/lon: basis.v is the vector pointing at the
         // viewer, so it IS the centre of the visible cap.
         const float cLat = asinf(fmaxf(-1.0f, fminf(1.0f, basis.v[2]))) * 57.2957795f;
@@ -6676,8 +7291,78 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
         }
     }
 
-    // The limb: the one line that makes the disc a sphere rather than a circle.
-    backbuffer.drawCircle(cx, cy, Ri, lgfx::color888(0x12, 0x46, 0x33));  // graticule green
+    // ---- state and province boundaries, LOD-gated -----------------------------
+    //
+    // Illegible at hemisphere scale -- a grid of hairlines over a continent
+    // 30 px wide is noise -- so they appear only once the view is a regional
+    // one. Same machinery as the graticule's own gate, one rung apart: the
+    // graticule STOPS below 8 deg because curvature has gone; these START below
+    // 30 deg because that is where a state is big enough to be a shape.
+    //
+    // NATURAL EARTH 1:50m ADMIN-1, THROUGH THE SAME CHUNK CULL AS THE COASTLINE.
+    // The 26-row hand table this replaced could only express meridians and
+    // parallels, so the rivers and the divides were simply absent and the west
+    // coast drew nothing at all. See src/anim/StateBorders.cpp for what that cost
+    // and why these draw as straight chords rather than being subdivided.
+    if (stateLinesShown) {
+        // BELOW THE COASTLINE, ABOVE THE GRATICULE, and the ladder is the point
+        // rather than any one value. The coastline is the anchor that says WHERE
+        // you are; a border is reference laid on top of it; the lat/lon grid is
+        // scaffolding under both. Three layers at one weight is the mess that
+        // produced "a grid of rectangles" -- so they are separated deliberately:
+        //
+        //     COAST   0x2A9E62      the planet, and it reads first
+        //     BORDER  0x1A5C44      this line
+        //     GRAT    0x0E2E22      the scaffolding
+        //
+        // Briefly brightened to 0x247E5C while the graticule was stood down over
+        // the US. That experiment was reverted -- Daniel wants the graticule --
+        // so the borders go back under the coast where they belong.
+        const uint32_t BORDER = lgfx::color888(0x1A, 0x5C, 0x44);
+
+        const globeproj::Coastline* blines = globeproj::Borders();
+        int bChunkCount = 0;
+        const globeproj::ChunkCap* bChunks = globeproj::BorderChunks(bChunkCount);
+
+        // No fallback branch here, unlike the coastline: the border chunk table
+        // is sized exactly by BORDER_CHUNK_COUNT, so it cannot overflow and
+        // bChunkCount cannot come back 0 for a non-empty set.
+        for (int c = 0; c < bChunkCount; ++c) {
+            if (!globeproj::CapMayBeVisible(bChunks[c].cap, basis.v,
+                                            cosViewC, sinViewC))
+                continue;
+            const globeproj::GeoVec* v = blines[bChunks[c].ring].v;
+            float px = 0.0f, py = 0.0f;
+            bool pv = false;   // reset per chunk: no segment is ever drawn
+                               // across a gap left by a culled neighbour
+            for (int s = 0; s <= bChunks[c].count; ++s) {
+                // No wrap: these are open polylines, so the last vertex is the
+                // end of the line and not the start of a closing segment.
+                const globeproj::GeoVec& p = v[bChunks[c].first + s];
+                float x = 0.0f, y = 0.0f;
+                const bool vis = globeproj::Project(basis,
+                    p.x * globeproj::VEC_INV, p.y * globeproj::VEC_INV,
+                    p.z * globeproj::VEC_INV, (float)cx, (float)cy, R, x, y);
+                if (vis && pv &&
+                    !globeproj::SegmentOffPanel(px, py, x, y, SCREEN_SIZE, SCREEN_SIZE))
+                    backbuffer.drawLine((int)px, (int)py, (int)x, (int)y, BORDER);
+                px = x; py = y; pv = vis;
+                ++vertices;
+            }
+        }
+    }
+
+    // The limb: the one line that makes the disc a sphere rather than a circle --
+    // AND ONLY WHEN IT IS REALLY THERE.
+    //
+    // Drawn unconditionally at Ri this is invisible when zoomed (a circle of
+    // radius 713 on a 240 panel), so the temptation is to draw it at panelRi
+    // instead. That would be a drawn lie: past the limb the panel edge is a CROP
+    // of a cap, not the edge of the world, and a stroke there says "this is where
+    // the planet ends" about a place the planet does not end. The bezel already
+    // supplies a physical edge; it does not need a painted one claiming more.
+    if (Ri <= panelRi)
+        backbuffer.drawCircle(cx, cy, Ri, lgfx::color888(0x12, 0x46, 0x33));
 
     // The terminator itself, as the great circle perpendicular to the sun.
     if (clockSynced) {
@@ -6740,28 +7425,72 @@ void AircraftManager::DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& vi
 
     // ---- the route ----------------------------------------------------------
     //
-    // §9: dashed AHEAD, solid BEHIND. The split is at the aircraft's along-track
-    // progress, not at its projection onto the line -- see ProgressAlong.
+    // §9 dashed-ahead/solid-behind is now drawn from the GEOMETRY (leg one vs
+    // leg two) -- see the block below. This value survives for the READOUT only.
+    //
+    // AND IT IS NOT ALONG-TRACK PROGRESS, whatever the previous comment here
+    // said. ProgressAlong is dist(origin -> aircraft) / dist(origin -> dest),
+    // clamped to [0,1]: a raw distance ratio, not a projection onto the line.
+    // The old comment asserted the opposite -- "not its projection onto the
+    // line" -- of a function that has never done anything else.
+    //
+    // THE CLAMP IS THE DANGEROUS PART. A ratio above 1.0 is positive proof the
+    // aircraft is not between the endpoints, which is the single most useful
+    // fact available about a wrong route. min(1, x) does not merely discard it,
+    // it maps it onto 100% -- the most reassuring number in the range. SWA4083
+    // read 1.60 and displayed "100%", so the strongest evidence of a bad route
+    // arrived looking like a flight about to land.
     const float progress = havePos ? follow::ProgressAlong(org, dst, acLat, acLon) : 0.0f;
+    // THE LINE BENDS THROUGH THE AIRCRAFT: origin -> aircraft -> destination.
+    //
+    // The complaint this answers is that the aeroplane is usually not on its own
+    // route line, which reads as a drawing bug and is actually the truth badly
+    // presented -- a great circle is not the flown track. Making the position a
+    // VERTEX fixes it by construction and is not merely cosmetic: the aircraft
+    // sits on the true track by definition, so the line bends toward the real
+    // routing and keeps bending as the flight proceeds. On BUR->PDX the flown
+    // track runs ~150 km east of the geodesic at its widest -- about 19 px on a
+    // disc fitted to that route -- and this recovers a good share of it free.
+    //
+    // ONE ROUTINE, CALLED TWICE. A second copy of the walk is exactly the
+    // mistake BuildChunks was written to avoid, and the two legs differ in
+    // nothing but their endpoints and their weight.
+    //
+    // AND THE DASH SPLIT FALLS OUT. It used to be computed from `progress` and
+    // compared against the parameter f; with the aircraft as a vertex, flown and
+    // remaining ARE leg one and leg two. So the solid/faded split is now a
+    // property of the geometry rather than a number that has to agree with it --
+    // which matters, because ProgressAlong is a raw distance ratio and disagrees
+    // with the picture for any aircraft off the geodesic.
     {
-        constexpr int STEPS = 96;
-        float px = 0.0f, py = 0.0f; bool pv = false;
-        for (int i = 0; i <= STEPS; ++i) {
-            const float f = (float)i / (float)STEPS;
-            float w[3];
-            globeproj::GreatCirclePoint(org.lon, org.lat, dst.lon, dst.lat, f, w);
-            float x = 0.0f, y = 0.0f;
-            const bool vis = globeproj::Project(basis, w[0], w[1], w[2],
-                                                (float)cx, (float)cy, R, x, y);
-            if (vis && pv) {
-                const bool behind = f <= progress;
-                // The dash is on the UNFLOWN half only, so "how far along" reads
-                // off the solid run without a marker being needed to say it.
-                if (behind || (i & 2))
+        // 48 per leg keeps the projection budget where the single 96-step walk
+        // left it (98 points against 97), so the frame model is undisturbed.
+        constexpr int STEPS = 48;
+        const auto leg = [&](float aLat, float aLon, float bLat, float bLon,
+                             bool flown) {
+            float px = 0.0f, py = 0.0f; bool pv = false;
+            for (int i = 0; i <= STEPS; ++i) {
+                const float f = (float)i / (float)STEPS;
+                float w[3];
+                globeproj::GreatCirclePoint(aLon, aLat, bLon, bLat, f, w);
+                float x = 0.0f, y = 0.0f;
+                const bool vis = globeproj::Project(basis, w[0], w[1], w[2],
+                                                    (float)cx, (float)cy, R, x, y);
+                if (vis && pv && (flown || (i & 2)))
                     backbuffer.drawLine((int)px, (int)py, (int)x, (int)y,
-                                        behind ? colour : FollowFade(colour, 0.5f));
+                                        flown ? colour : FollowFade(colour, 0.5f));
+                px = x; py = y; pv = vis;
             }
-            px = x; py = y; pv = vis;
+        };
+        if (havePos) {
+            leg(org.lat, org.lon, acLat, acLon, true);    // flown: solid
+            leg(acLat, acLon, dst.lat, dst.lon, false);   // remaining: dashed
+        } else {
+            // No position, so nothing is KNOWN to be flown and the whole line is
+            // drawn as remaining. This is what the old code did too -- progress
+            // was 0, so every segment past the first took the dashed branch --
+            // but it did it as an arithmetic side effect rather than on purpose.
+            leg(org.lat, org.lon, dst.lat, dst.lon, false);
         }
     }
 
@@ -7326,8 +8055,27 @@ void AircraftManager::HandleTap(int tx, int ty)
         return;
     }
 
-    // detail card: flip the photo page to the data page, else close
+    // detail card: the glyph opens Follow; everything else flips or closes.
     if (inDetail) {
+        // THE GLYPH TAKES THE TAP FIRST, AND ONLY WHERE IT IS DRAWN.
+        //
+        // Tap was already the card's busiest gesture -- flip-to-data and close,
+        // the only route to either -- so binding the whole face to Follow would
+        // have taken away the only way to read a card and the only way to shut
+        // it. Carving out the mark instead leaves both intact: the target is the
+        // box DrawFollowFaceGlyph wrote, and it exists only on the frames the
+        // glyph was actually drawn, so a contact with no face to open has no
+        // invisible target sitting over its card.
+        if (followGlyphX0 >= 0 &&
+            tx >= followGlyphX0 && tx <= followGlyphX1 &&
+            ty >= followGlyphY0 && ty <= followGlyphY1) {
+            Serial.println("[touch] tap on the follow glyph -> open");
+            if (OpenFollowFromCard())
+                return;
+            // Fell through: the contact left the feed between the draw and the
+            // tap. Let the flip/close below have it rather than swallowing it.
+        }
+
         const bool hasPhoto = photoReady && photoIcao == selectedIcao && photoSprite.getBuffer() != nullptr;
         Serial.printf("[touch] tap-in-detail hasPhoto=%d page=%d -> %s\n",
                       (int)hasPhoto, detailPage, (hasPhoto && detailPage == 0) ? "flip-to-data" : "CLOSE");
@@ -7351,6 +8099,29 @@ void AircraftManager::HandleTap(int tx, int ty)
     if (screen == Screen::Stats && resetRowY0 >= 0 && ty >= resetRowY0 && ty <= resetRowY1) {
         Serial.println("[reset] menu opened from the Stats row");
         resetMenu = ResetMenu::Choosing;
+        return;
+    }
+
+    // FOLLOW IS A MODAL, AND A TAP ANYWHERE ON IT CLOSES IT.
+    //
+    // Bound to ClearSessionFollow -- the SAME function the swipe down below
+    // calls -- rather than a second dismissal path. "Close the modal" and "stop
+    // the session follow" are one act, and two functions that both had to
+    // enumerate everything a session leaves behind is two lists to drift apart.
+    //
+    // No hit box: the whole face is the target. There is nothing else on this
+    // screen a tap could mean, and a modal whose dismissal needs aim is a modal
+    // the customer gets stuck in.
+    //
+    // GUARDED ON FollowSessionActive() for the same reason the swipe is: the
+    // face can also be raised by the auto-surface path for a CONFIGURED target,
+    // and that one is not the customer's to close -- it is on a dwell timer and
+    // returns itself. Tapping it clears nothing, exactly as swiping it does now.
+    if (screen == Screen::Follow) {
+        if (FollowSessionActive()) {
+            Serial.println("[touch] tap on the follow face -> close");
+            ClearSessionFollow();
+        }
         return;
     }
 
@@ -7491,29 +8262,16 @@ void AircraftManager::HandleSwipe(Swipe swipe)
         // DrawFollow). The one genuinely empty combination declines out loud
         // rather than quietly, which is what the original rule actually wanted.
         if (swipe == Swipe::Down) {
-            auto sel = trackedAircraft.find(selectedIcao);
-            if (sel != trackedAircraft.end()) {
-                const bool haveRoute = !sel->second.routeOrigin.isEmpty() &&
-                                       !sel->second.routeDest.isEmpty();
-                // No route AND no location: no face can be drawn. `hasLocation`
-                // rather than followHome.positionKnown deliberately -- they hold
-                // the same fact, but this is the one DrawNoLocation reads, and a
-                // decline that disagreed with the radar about whether the device
-                // knows where it is would be worse than either answer.
-                if (follow::OutcomeForSwipe(haveRoute, hasLocation) ==
-                    follow::SwipeOutcome::Decline) {
-                    followDeclineUntilMs = millis() + FOLLOW_DECLINE_MS;
-                    Serial.println("[follow] swipe declined: no route and no location; "
-                                   "nothing to draw");
-                    ExitDetail();
-                    return;
-                }
-                SetSessionFollow(sel->second);
-                inDetail = false;   // NOT ExitDetail(): SetSessionFollow already
-                                    // chose the screen, and ExitDetail would
-                                    // undo it.
+            // THE ALIAS. Tapping the glyph is the way in now (HandleTap); this
+            // is the same call from the gesture that used to be the only one.
+            // Kept because it works, and because anyone who has already learned
+            // it should not find it quietly gone.
+            //
+            // Falls through on a false return exactly as before -- that is the
+            // "contact left the feed" case, and the ExitDetail below it is the
+            // behaviour this branch always had.
+            if (OpenFollowFromCard())
                 return;
-            }
         }
         ExitDetail();
         return;
@@ -7522,7 +8280,28 @@ void AircraftManager::HandleSwipe(Swipe swipe)
     // Swipe down on the follow face stops a SESSION follow. A configured target
     // is not touched -- it was set deliberately on the config page, and a
     // gesture must not delete a setting somebody typed.
-    if (screen == Screen::Follow && swipe == Swipe::Down && FollowSessionActive()) {
+    //
+    // TAP IS THE PRIMARY DISMISSAL NOW (HandleTap); this is the same call from
+    // the gesture that used to be the only one. Kept rather than replaced
+    // because swipe-down-to-dismiss is the inverse of the swipe-down-on-a-card
+    // that opened the face, and a customer who found it that way should not
+    // discover it stopped working. Both routes are one function, so neither can
+    // learn about a piece of session state the other misses.
+    //
+    // AND EVERY OTHER DIRECTION DISMISSES IT TOO, because a modal that can be
+    // swiped out from under is not modal. Follow is no longer in the carousel
+    // (AdvanceScreen), but removing it as a DESTINATION does not stop a
+    // horizontal swipe made WHILE STANDING ON IT from cycling to Radar -- and
+    // that left a session follow running on a screen with no route back to it,
+    // since the card that raised the face is closed and no gesture selects it.
+    // The dots would have shown three, the follow would have been live, and the
+    // only exit would have been the config page.
+    //
+    // One call for all four directions, and the same one the tap uses. The
+    // gesture that dismisses is not the interesting part; the enumeration of
+    // what a session leaves behind is, and there is exactly one copy of it.
+    if (screen == Screen::Follow && FollowSessionActive()) {
+        Serial.println("[follow] swipe on the follow face -> close");
         ClearSessionFollow();
         return;
     }
@@ -7555,17 +8334,29 @@ void AircraftManager::HandleSwipe(Swipe swipe)
     if (swipe == Swipe::Right) AdvanceScreen(-1);
 }
 
-// Walk to the next VISIBLE screen. Follow is hidden entirely when no aircraft is
-// being followed (§13.3), so the cycle cannot be a fixed modulus -- a `% 4`
-// would give every collection customer who never uses Follow a dead screen
-// between Stats and Radar, which is the failure the other editions avoid by
-// skipping empty feeds.
+// Walk to the next CAROUSEL screen: Radar, List, Stats.
+//
+// FOLLOW IS NOT IN THE CAROUSEL AT ALL ANY MORE -- not "hidden while empty",
+// but never reachable by a swipe in either direction. It is a MODAL: raised
+// from a detail card, dismissed with a tap, and gone.
+//
+// The old rule skipped Follow only when nothing was being followed, which made
+// the carousel's length depend on state. That was right while Follow was a
+// fourth screen and is wrong now, for a reason the state test cannot express:
+// with a session follow ACTIVE, FollowScreenVisible() is TRUE, so the skip did
+// not fire and a horizontal swipe on the modal cycled away to Radar -- leaving
+// a live follow running behind a screen with no route back to it, because the
+// card that opened it is closed and the face answers to no gesture.
+//
+// So the skip is unconditional. The loop keeps its bounded form -- the modulus
+// still walks the whole enum -- and the continue is now the only thing between
+// the cycle and a screen no swipe is allowed to select.
 void AircraftManager::AdvanceScreen(int dir)
 {
     int next = (int)screen;
     for (int i = 0; i < SCREEN_COUNT; ++i) {
         next = (next + dir + SCREEN_COUNT) % SCREEN_COUNT;
-        if ((Screen)next == Screen::Follow && !FollowScreenVisible())
+        if ((Screen)next == Screen::Follow)
             continue;
         EnterScreen((Screen)next);
         return;
@@ -8821,14 +9612,210 @@ void AircraftManager::DrawAircraftSilhouette(BandCanvas& g, int cx, int cy, cons
     g.fillTriangle(cx + 4, cy + 26, cx + 22, cy + 38, cx + 4, cy + 36, col); // right tailplane
 }
 
+// WHICH FOLLOW FACE THIS CARD OPENS ONTO -- one glyph, no text row.
+//
+// A globe when both endpoints place, an arrow when they do not. The point is
+// not decoration: the owner opens Follow from here and lands on a picture that
+// was chosen for them, so the card showing WHICH picture makes the choice
+// legible before it happens instead of surprising after.
+//
+// DECIDED BY follow::FaceForRoute, THE SAME FUNCTION DrawFollow ROUTES ON, from
+// the same three inputs. Not a similar test -- the same one. A preview computed
+// from its own reading of the route is a second implementation of the routing
+// rule, and the first time the two disagree the glyph is a lie told confidently
+// on the screen the owner is looking at when they decide whether to open it.
+// Arc and Local both take the arrow: the distinction the glyph draws is exactly
+// the one FaceForRoute makes first, "can this route be PLACED".
+//
+// NO GLYPH WHEN THERE IS NOTHING TO OPEN. A contact with neither a route nor a
+// home to draw it around has no face at all, and the entry gesture DECLINES it
+// (follow::OutcomeForSwipe). Previewing a face there would promise something
+// the device then refuses to give -- so this asks the gesture's own predicate,
+// with the same `hasLocation` the swipe path reads, rather than a lookalike.
+void AircraftManager::DrawFollowFaceGlyph(BandCanvas& backbuffer, const TrackedAircraft& tracked)
+{
+    const bool haveRoute = !tracked.routeOrigin.isEmpty() && !tracked.routeDest.isEmpty();
+    if (follow::OutcomeForSwipe(haveRoute, hasLocation) == follow::SwipeOutcome::Decline) {
+        // NOT DRAWN MEANS NOT TAPPABLE. Retiring the box here rather than only
+        // in ExitDetail is what keeps the two in step: this runs on every frame
+        // the card is up, so the target is re-armed or withdrawn on the same
+        // pass that decides whether the mark exists at all.
+        followGlyphX0 = followGlyphY0 = followGlyphX1 = followGlyphY1 = -1;
+        return;
+    }
+
+    const follow::Endpoint o = follow::LookupAirport(tracked.routeOrigin.c_str());
+    const follow::Endpoint d = follow::LookupAirport(tracked.routeDest.c_str());
+    const bool globe = (follow::FaceForRoute(haveRoute, o.known, d.known) == follow::Face::Globe);
+
+    const float k = (float)SCREEN_SIZE / 240.0f;
+    const auto Si = [k](float v) { return (int)lroundf(v * k); };
+
+    // THE CARD'S OWN AFFORDANCE GREEN, PER PAGE, rather than a colour of its
+    // own. It was the follow track's cyan, which is correct on the radar -- where
+    // it distinguishes the followed contact from everything else -- and wrong
+    // here, where the job is the opposite: to look like one of the card's parts.
+    // The full-bleed page hints in (0,150,0) and the data page in (0,110,0), so
+    // it takes whichever page it is on.
+    const bool onPhotoPage =
+        photoReady && photoIcao == selectedIcao &&
+        photoSprite.getBuffer() != nullptr && detailPage == 0;
+    const uint32_t ink = onPhotoPage ? lgfx::color888(0, 150, 0)
+                                     : lgfx::color888(0, 110, 0);
+
+    // TOP-LEFT, and the position is the constrained part rather than the art.
+    // Both card layouts centre their text, and the bottom of the disc is fully
+    // spoken for -- FULLBLEED_TITLE_Y and FULLBLEED_HINT_Y on the photo page,
+    // the two gesture hints on the data page. Left of centre and high is the
+    // one region free on BOTH, and it still sits inside the round panel: the
+    // far corner of the plate is 111 px from centre on a 240, inside the 119 px
+    // the bezel leaves.
+    // QUIET, AND MADE OF THE SAME MATERIAL AS THE CARD.
+    //
+    // It read as a foreign object for three reasons and every one of them was
+    // finish rather than placement: a colour nothing else on the device uses, an
+    // opaque bordered plate on a card whose every other element floats on the
+    // background, and a solid fill among thin pixel-font strokes. So: no plate,
+    // the card's green, outlined at the type's own weight, and scaled to a text
+    // row instead of to a badge.
+    //
+    // r = 5 makes it 10 px across against an 8 px font -- the same size class as
+    // a line of text, which is what "aligned to the text block" has to mean for
+    // something that is not itself text. Its vertical CENTRE is the title row's
+    // vertical centre (36..52 at size 2), so on the data page it sits ON the
+    // title's optical line rather than near it.
+    //
+    // NO PLATE, AND THAT HAS A COST WORTH NAMING. On the full-bleed page this
+    // now strokes straight onto the photograph, so a bright sky behind it will
+    // fight a dark green outline. The plate is precisely what made it look
+    // bolted on, so if it washes out the answer is a brighter green or a
+    // hairline shadow -- not the box back.
+    // CENTRE-BOTTOM, WITH A WORD, because a small mark in a corner is not read
+    // as a control. Tucked top-left it was competing with the callsign for the
+    // one region of the card that is free, which is also what forced the tap
+    // target down to 30 px wide -- any wider and it stole taps meant for the
+    // title. Centred in the lower third, both problems go away at once: nothing
+    // else is centred there, so the glyph can have a label AND a target a finger
+    // actually hits.
+    //
+    // Sits above the existing footer rows (SCREEN_SIZE-46 and -34) rather than
+    // among them: those are STATEMENTS about gestures, and this is the gesture.
+    const int r  = Si(5.0f);
+    const int gy = Si(178.0f);
+    backbuffer.setTextSize(1);
+    const String glyphLabel = "follow";
+    const int labelW = (int)backbuffer.textWidth(glyphLabel);
+    const int gapPx  = Si(5.0f);
+    const int groupW = 2 * r + gapPx + labelW;
+    const int gx     = SCREEN_SIZE_DIV_2 - groupW / 2 + r;   // glyph centre
+
+    if (globe) {
+        // A circle, an equator, and a meridian bowed either side of centre.
+        // Four segments rather than an ellipse because BandCanvas has no
+        // drawEllipse, and at this size the bow is what separates a globe from
+        // a crosshair.
+        const int m = r / 2;
+        backbuffer.drawCircle(gx, gy, r, ink);
+        backbuffer.drawLine(gx - r, gy, gx + r, gy, ink);
+        backbuffer.drawLine(gx, gy - r, gx - m, gy, ink);
+        backbuffer.drawLine(gx - m, gy, gx, gy + r, ink);
+        backbuffer.drawLine(gx, gy - r, gx + m, gy, ink);
+        backbuffer.drawLine(gx + m, gy, gx, gy + r, ink);
+    } else {
+        // A shaft with a head: the same ray-and-dart the local face draws from
+        // home, so the symbol previewing that face looks like that face.
+        //
+        // STROKED, NOT FILLED. BandCanvas has no drawTriangle, so the head is
+        // three lines -- which is the point rather than a workaround: a filled
+        // wedge at this size is a blob beside one-pixel type, and an outline is
+        // the same weight as everything around it.
+        const int hw = (r * 3) / 5, hy = gy - r / 4;
+        backbuffer.drawLine(gx, gy + r, gx, hy, ink);
+        backbuffer.drawLine(gx, gy - r, gx - hw, hy, ink);
+        backbuffer.drawLine(gx, gy - r, gx + hw, hy, ink);
+        backbuffer.drawLine(gx - hw, hy, gx + hw, hy, ink);
+    }
+
+    // The word, on the glyph's optical centre line.
+    {
+        const int lh = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+        backbuffer.setTextColor(ink);
+        backbuffer.drawString(glyphLabel, gx + r + gapPx, gy - lh / 2);
+    }
+
+    // ---- the tap target ------------------------------------------------------
+    //
+    // WIDER THAN THE MARK, AND IT CAN AFFORD TO BE NOW. In the corner this had
+    // to be 30 px wide or it stole taps from the callsign; centred in the lower
+    // third there is nothing to steal from, so the target is the whole group
+    // plus a generous margin -- about 88 x 30 on a 240.
+    //
+    // Bounded ABOVE the footer rows (SCREEN_SIZE-46) so "swipe up: pin" and
+    // "tap: back" keep meaning what they say, and below the flowed telemetry,
+    // which is capped for this reason where hardBottomY is set.
+    //
+    // Built from the same gx/gy/groupW the drawing used, so the target cannot
+    // drift from the mark.
+    followGlyphX0 = SCREEN_SIZE_DIV_2 - groupW / 2 - Si(14.0f);
+    followGlyphX1 = SCREEN_SIZE_DIV_2 + groupW / 2 + Si(14.0f);
+    followGlyphY0 = gy - Si(14.0f);
+    followGlyphY1 = gy + Si(16.0f);
+}
+
+// The ONE way into Follow from a card. Both the glyph tap and the swipe-down
+// alias call this; neither carries its own copy of the decline rule or of the
+// "inDetail = false, but not ExitDetail" subtlety below.
+bool AircraftManager::OpenFollowFromCard()
+{
+    auto sel = trackedAircraft.find(selectedIcao);
+    if (sel == trackedAircraft.end())
+        return false;   // the contact left the feed: let the caller fall through
+
+    const bool haveRoute = !sel->second.routeOrigin.isEmpty() &&
+                           !sel->second.routeDest.isEmpty();
+    // No route AND no location: no face can be drawn. `hasLocation` rather than
+    // followHome.positionKnown deliberately -- they hold the same fact, but this
+    // is the one DrawNoLocation reads, and a decline that disagreed with the
+    // radar about whether the device knows where it is would be worse than
+    // either answer.
+    if (follow::OutcomeForSwipe(haveRoute, hasLocation) ==
+        follow::SwipeOutcome::Decline) {
+        followDeclineUntilMs = millis() + FOLLOW_DECLINE_MS;
+        Serial.println("[follow] entry declined: no route and no location; "
+                       "nothing to draw");
+        ExitDetail();
+        return true;
+    }
+    SetSessionFollow(sel->second);
+    inDetail = false;   // NOT ExitDetail(): SetSessionFollow already chose the
+                        // screen, and ExitDetail would undo it.
+    return true;
+}
+
 void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked)
 {
     const Aircraft& s = tracked.state;
     constexpr int cx = SCREEN_SIZE_DIV_2;
 
+    // EVERY ROW ON THIS CARD GOES THROUGH THE DISC, and it did not until now.
+    //
+    // discgeom::ChordWidthPx has existed for two surfaces (Stats' SSID row, the
+    // Follow local face's readout) and its own header says "the rule lives here,
+    // once, and every caller goes through it". The card was never converted, so
+    // it kept laying out as if the panel were square -- which is why
+    // "AMERICAN ROCKWELL Turbo Commander 690" and "CO FIRE AVIATION LEASING INC"
+    // ran off the curve while three other faces were already safe.
+    //
+    // Fixing it HERE rather than at the call sites is the point: this lambda is
+    // the single funnel every string on the card passes through -- title,
+    // badges, captions, and the whole flowed telemetry block -- so one change
+    // covers rows that do not exist yet.
     auto centered = [&](const String& str, int yy) {
-        const int x = cx - static_cast<int>(backbuffer.textWidth(str)) / 2;
-        backbuffer.drawString(str, x, yy);
+        const int h = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+        const String fit = FitToDisc(backbuffer, str, yy, h);
+        if (fit.isEmpty()) return;   // the row is off the glass entirely
+        const int x = cx - static_cast<int>(backbuffer.textWidth(fit)) / 2;
+        backbuffer.drawString(fit, x, yy);
     };
 
     // title: callsign, or the ICAO address if there's no callsign
@@ -8939,6 +9926,13 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
                                 tracked.photoRepresentative ? "representative photo" : "tap: details",
                                 tracked.photoRepresentative ? "stock photo" : "tap: details"),
                  FULLBLEED_HINT_Y);
+        // The one exception to "nothing else belongs over the photograph", and
+        // it earns the pixels: this is page 0, the page a card OPENS on, so it
+        // is the page the decision to follow is actually made from. A preview
+        // that only appeared after a tap through to the data page would be
+        // telling the owner what they were going to get after they had stopped
+        // asking.
+        DrawFollowFaceGlyph(backbuffer, tracked);
         return; // nothing else belongs over the photograph
     }
 
@@ -8988,7 +9982,20 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     // keep them), and the flow itself stops at the bezel margin so no line can
     // ever draw off the round panel.
     const int hintZoneY   = SCREEN_SIZE - 58; // hints need everything below this
-    const int hardBottomY = SCREEN_SIZE - 12; // bezel margin: last drawable line
+    // THE FOLLOW CONTROL IS RESERVED, unlike the gesture hints below it.
+    //
+    // The existing rule is that telemetry outranks the footer hints, and that is
+    // right -- a hint is a statement, and a statement can wait. A CONTROL is not
+    // a statement: a tap target that disappears when a card happens to be
+    // data-rich is a target the customer cannot rely on, and worse, its hit box
+    // would still be armed under whatever drew over it. So the flow stops above
+    // it, at the cost of a line or two on the densest cards.
+    const bool followCtl =
+        follow::OutcomeForSwipe(!tracked.routeOrigin.isEmpty() &&
+                                !tracked.routeDest.isEmpty(),
+                                hasLocation) != follow::SwipeOutcome::Decline;
+    const int hardBottomY = followCtl ? SCREEN_SIZE - 74   // clear of the control
+                                      : SCREEN_SIZE - 12;  // bezel margin
     auto line = [&](const String& str) {
         if (str.isEmpty()) return;
         if (y + backbuffer.fontHeight() > hardBottomY) return; // no room: drop
@@ -9065,6 +10072,13 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         centered(pinnedIcao == selectedIcao ? "swipe up: unpin" : "swipe up: pin", SCREEN_SIZE - 46);
         centered(showPhoto ? "tap: details" : "tap: back", SCREEN_SIZE - 34);
     }
+
+    // OUTSIDE the hint zone test above. Those two rows are suppressed when the
+    // telemetry flow reaches them, because text interleaving text is unreadable
+    // -- but the glyph is in the top-left corner and cannot collide with a
+    // centred flow, so gating it on that test would hide it on exactly the
+    // busiest cards for a reason that does not apply to it.
+    DrawFollowFaceGlyph(backbuffer, tracked);
 }
 
 void AircraftManager::ProcessMetadataLookups()
