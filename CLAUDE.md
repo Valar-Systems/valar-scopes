@@ -160,6 +160,49 @@ So: a rule added to this file is the weakest form of the fix. Prefer a check tha
 runs -- a refusal, a test, a `--tol=` the caller must state. Where that is not
 possible, the entry at least gives the next person the shape to recognise.
 
+## Standing practice: an instrument that fires correctly into a void
+
+Two failure modes already have entries here: **a guard with a path around it**
+(one caller skipped it) and **a rule that never fires** (`getMaxAllocHeap`, which
+measured nothing). This is the third, and it is the worst of them, because
+nothing anywhere is broken.
+
+The enrolment ledger recorded a runaway loop faithfully — ~600 events a day for
+twenty days. The Worker logged every one. The code was right, the data was
+right, the number sat in KV the whole time. It surfaced on 2026-09-01 only
+because a fleet reconcile run **for an unrelated reason** happened to list the
+keys.
+
+There is no failing test to write here and no guard to add. The signal was
+perfect. **The only defect was that nothing read it.**
+
+Two things follow, and the second is the one that gets skipped:
+
+- **A new instrument needs a reader, specified at the same time as the writer.**
+  "We can query it when we need to" is how this happens — the moment you need to
+  query it is the moment you already know something is wrong, and the instrument
+  existed to tell you *before* that.
+- **The reader must be somewhere a person already goes.** Not a dashboard to
+  remember, not a query to run. `scripts/reconcile-fleet.py` prints enrolments
+  per day and the fw: table's liveness on every run, because that tool gets run
+  whenever anyone asks anything about the fleet.
+
+The tell: an instrument whose value has never appeared in output anyone reads.
+Ask of anything you build that records — *what routinely prints this, and if the
+answer is "someone would query it", who, and when?*
+
+**Instrument A has exactly this fate available to it.** It will be read closely
+during Run 1 and then, unless something reads it routinely, never again — which
+is precisely the position the enrolment ledger was in. That is why it is in the
+reconcile output rather than only in [docs/ota-control-plan.md](docs/ota-control-plan.md).
+
+Related, and the reason the doc alone was not enough: the plan doc *already
+said* the two `changes[]` entries were synthetic. That paragraph was correct,
+committed, and unread when the same row was reported hours later as a firmware
+downgrade worth investigating. **A note in a document is only read by someone who
+already opened the document**, and whoever trips over a signal is by definition
+somewhere else. So the baseline is a printed number now, not a paragraph.
+
 ## Standing practice: read the artifact, not the config
 
 **For anything that gates what ships, verify the built thing — not the source that was supposed to
