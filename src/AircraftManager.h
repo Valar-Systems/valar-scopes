@@ -899,6 +899,16 @@ private:
     void ResolveHomeField();
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
+    /// The one-glyph preview of which Follow face this card opens onto.
+    void DrawFollowFaceGlyph(BandCanvas& backbuffer, const TrackedAircraft& tracked);
+    /// The glyph's TAP TARGET, in screen pixels, written by the function that
+    /// draws it so the pixels and the hit test cannot disagree -- the same rule
+    /// the reset menu's rows follow. -1 means "not drawn this frame, not
+    /// tappable", which is the state for a contact with no face to open.
+    int followGlyphX0 = -1, followGlyphY0 = -1, followGlyphX1 = -1, followGlyphY1 = -1;
+    /// Open Follow on the carded aircraft. ONE entry path, shared by the glyph
+    /// tap and the swipe-down alias. True if the gesture was consumed.
+    bool OpenFollowFromCard();
 
     void DrawRadar(BandCanvas& backbuffer, bool firstPass);
     void DrawList(BandCanvas& backbuffer);

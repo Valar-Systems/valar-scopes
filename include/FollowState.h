@@ -338,6 +338,30 @@ public:
     }
 
     /**
+     * Forget the flight entirely -- the subject is changing.
+     *
+     * NOT THE SAME AS SetTarget(false), and the difference is the whole reason
+     * this exists. SetTarget(false) clears the STATE (Idle, run counter,
+     * haveLast) and deliberately keeps `last` and `lastFixMs`, because a
+     * configured target that momentarily has no fix is still the same
+     * aeroplane and the last thing heard from it is the most useful thing the
+     * machine holds.
+     *
+     * When the SUBJECT changes -- a session follow being dismissed -- that
+     * retention is a lie waiting to be read. `LastFixMs() != 0` is the exact
+     * test FollowRouteView and the route strip use to decide "no live contact,
+     * fall back to the last known position", and after a dismissal it answers
+     * TRUE while `last` holds a completely different aircraft's coordinates.
+     * Every reader is gated behind something else today, so nothing shows it;
+     * that is a description of today's call sites, not a property of the data.
+     *
+     * Same idiom as FlightStats::Reset above, for the same reason: assigning a
+     * fresh instance cannot miss a member, and a member added later is covered
+     * without anyone remembering to come back here.
+     */
+    void Reset() { *this = Machine{}; }
+
+    /**
      * Adopt a contact the customer is LOOKING AT as this machine's starting
      * state, instead of opening at WAITING FOR DEPARTURE (#275).
      *
