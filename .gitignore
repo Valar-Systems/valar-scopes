@@ -41,3 +41,6 @@ node_modules/
 # Fetched from KV, edited, put back -- never a source of truth, and it holds
 # real device ids, so it does not belong in the repo.
 proxy/revoked.txt
+
+# Transient stderr capture from scripts/reconcile-fleet.py.
+.reconcile-stderr.log

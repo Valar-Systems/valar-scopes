@@ -81,10 +81,11 @@ This section is the reason the merge was worth doing. Read it before anything el
 
 The design note says "Mirror into D1" (§10 step 2) and describes field elevation
 riding "out of the D1 mirror" (§4.1). **Both are stale.** The storage decision was
-reversed on new information and the mirror is Cloudflare Workers KV. As of
-2026-08-25 it is loaded and verified in staging: 619,103 route keys, `meta:routes`
-reporting 1,575 shards, sentinel provenance proved, 12/12 sampled keys byte-identical,
-diff path exercised at 0 changed keys.
+reversed on new information and the mirror is Cloudflare Workers KV. As of 2026-08-26 it is
+loaded and verified in **staging AND production**: 619,103 route keys in each,
+`meta:routes` reporting 1,575 shards, sentinel provenance proved, sampled keys
+byte-identical, the diff path exercised at 0 changed keys, and a full per-shard
+enumeration passing 1575/1575 on staging. Production carries rule rev 2 (§C5a).
 
 This is not a simple find-and-replace, and that is the point of flagging it:
 
@@ -98,6 +99,66 @@ So the mirror may legitimately be **split across both stores**, which is a defen
 design and not the contradiction it looks like — but it has not been decided, and
 Follow's landed detection depends on the answer. Decide before §5's landed threshold
 is built.
+
+> ### RECOMMENDATION 2026-08-27: `ap:<CODE>` keys in KV. No D1. **[FOR DANIEL]**
+>
+> **Flagged before building, not after.** Stage 2's arc and globe both need endpoint
+> coordinates, so this is on the critical path — but it is a delivery question and it
+> is cheaper to argue than to migrate.
+>
+> **The premise above is falsified by shipped code.** C1 rejects KV because "it can
+> only fetch by exact key... That is a D1 shape." But `/api/v1/blipscope/airports`
+> already answers exactly that nearest-N, priority-sorted query, **out of KV**, and
+> has since 2026-07-16: `npm run ingest:airports` pre-tiles OurAirports into 1°
+> `apt:<lat>:<lon>` keys and the handler walks the tiles the radius circle touches,
+> distance-filters, sorts large > medium > small then nearest, and caps at 60.
+> Pre-tiling is how a key-value store answers a spatial query, and we are already
+> doing it in production.
+>
+> So the choice is not "key lookup vs query". It is "one store or two", and the
+> reasons for one:
+>
+> | | |
+> |---|---|
+> | **What Follow needs** | `code → {lat, lon, elev}`. An exact key. The single thing KV is best at. |
+> | **What §7.3 needs** | nearest-N — already solved on KV, in production, by the `apt:` tiles. |
+> | **Size** | 34,128 rows. The `rt:` mirror is **619,103** keys and is loaded and verified in both environments. This is 5% of a thing we have already done twice. |
+> | **Operations** | one ingest, one verifier, one failure mode. The route load taught us that the verifier is the expensive part to get right (`IGO7J` — one key in 619,103, found only by per-shard enumeration). A second store means writing that discipline a second time, or not writing it. |
+> | **Refresh** | the CC0 corpus refreshes as one unit. Two stores means two things that can be half-refreshed, and a skew nobody would notice. |
+>
+> **Two key families, both KV, both from the same corpus:**
+>
+>     ap:<CODE>            -> {"lat":..,"lon":..,"alt":..}   exact lookup (Follow, C5)
+>     apt:<lat>:<lon>      -> tile of nearby fields           spatial (already shipped)
+>
+> `ap:` also closes **C5**: `AltitudeFeet` rides the same row, so landed detection and
+> the local face's AGL readout arrive with it. That is §19 item 7 done by the same
+> ingest rather than as separate work.
+>
+> **What would change my mind:** a genuine ranked query the tiles cannot express —
+> "the 20 busiest fields in this country", say. Nothing in Follow or §7.3 asks for
+> one. If that arrives, D1 can be added *for that query only*, with `ap:` staying
+> where it is; the reverse (starting on D1 and discovering the edge cache mattered)
+> is the expensive direction.
+>
+> **§17 constraint, which shapes the request and is not negotiable.** The device must
+> fetch `ap:` **by airport code, never by callsign** (C2's resolution). That means the
+> followed aircraft's route must NOT be requested from the Worker by its callsign —
+> doing so would put the follow target in an outbound payload, which is precisely
+> what §17 forbids and what `scripts/check_follow_privacy.py` guards.
+>
+> The route arrives instead through the path that already exists: while the aircraft
+> is **in contact** it is an ordinary visible contact and its route comes back with
+> normal enrichment, indistinguishable from any other aircraft's. The device caches
+> it for the flight. Out of contact, nothing is requested — which is also the only
+> time the arc face needs it, so the ordering works out.
+>
+> **Residual, stated so it is a decision and not an oversight:** two `ap:` fetches for
+> a specific pair of codes shortly after a follow is configured are correlatable with
+> *a route*, though never with *an aircraft*. That is the same class as the airports
+> overlay the device already fetches hourly, and it carries no identifier §17 lists.
+> If that is judged too much, the mitigation is to fold the pair into the existing
+> overlay fetch rather than to move stores.
 
 ### C2 — Callsign validation contradicts the privacy invariant **[BLOCKING]**
 
@@ -166,7 +227,109 @@ It needs a face: the route, the scheduled departure, a countdown, and a transiti
 `IN_CONTACT` on first contact. For the local regime it needs less — the aircraft is
 either at the field or it is not — but it still needs to say so.
 
-### C5 — Field elevation: CORRECTED 2026-08-25, and the correction has propagated
+> ### PROPOSAL 2026-08-27 — the pre-departure face. **COPY IS A DRAFT FOR DANIEL.**
+>
+> Designed first in stage 2 because it is a decision and decisions are cheapest to
+> change. Everything below is renderable from what the device already has.
+>
+> **THE COUNTDOWN IS CUT, AND THAT IS THE MAIN DESIGN CALL.** C4 asks for "the
+> scheduled departure, a countdown" — and we have no schedule data. Not in the CC0
+> corpus (routes are `o`/`d` codes, no times), not on the wire, not anywhere we
+> licence. A countdown would have to be invented, and §6 principle 2 is *never imply
+> certainty we do not have*. Inventing a departure time on the one screen whose whole
+> job is to say "nothing has happened yet" would be the worst possible place for it:
+> the owner would watch it reach zero and conclude the device is wrong.
+>
+> If schedule data is ever licensed, the countdown is additive and this face has the
+> slot for it. Until then it says what it knows.
+>
+> **What it must do, in order.** This is the state the owner sees *first*, seconds
+> after configuring a follow. It must (1) prove the device understood them, (2) prove
+> it is working, and (3) tell them to do nothing. An empty face fails all three, and
+> rendering it as one of the loss states fails worse than empty.
+>
+> **Airline regime** — the arc face in its *not-started* state, not a different
+> screen. The full arc dim, both airport codes drawn, no marker. It previews what
+> they will see, which is the cheapest possible way to prove the device understood
+> the configuration.
+>
+>     screen   WAITING FOR DEPARTURE
+>              LHR -> JFK
+>              Nothing heard yet today. This screen changes on
+>              its own when he takes off.
+>
+> **Local regime** — the local face with rings and the home marker, no track.
+>
+>     screen   WAITING FOR DEPARTURE
+>              at EGYD
+>              Nothing heard yet today. This screen changes on
+>              its own when he takes off.
+>
+> The third line is the load-bearing one and is the same in both. It answers the
+> question the owner actually has — *"is it broken, or is he just not flying?"* — and
+> it tells them there is no action to take. Same register as §6's absence copy: name
+> the mechanism, and make the sentence about our equipment rather than about him.
+>
+> **`WAITING` must never borrow a loss state's word.** Not "no contact", not "signal",
+> not "lost". Nothing has been lost; nothing has started. This is the fourth kind of
+> absence the visual spec named — *not yet* — and it gets its own vocabulary.
+>
+> **Transition** is already built: `Machine::OnFix` moves `Waiting` → `Ground` or
+> `Airborne` on the first fix, and `HandleFollowTransition` surfaces the screen on the
+> `Airborne` edge. Nothing new in the machine — this is a face for a state that
+> already exists, which is the §19 rule that stage 2 is a rendering layer.
+>
+> **THE STALE-FOLLOW QUESTION, which C4 does not raise and this face makes urgent.**
+> A tail that is sold, re-registered, or simply mistyped sits in `WAITING` **forever**,
+> and the copy above cheerfully says "changes on its own" every day for a year. §21
+> already lists a *"this aircraft has not flown in N days"* nudge as an open question;
+> this face is where it lands.
+>
+> **Draft: after 7 days with no fix ever seen**, the third line is replaced by
+>
+>     Nothing heard from N4523K in 7 days. Check the tail number
+>     on the config page.
+>
+> Seven days is a guess and is marked as one (§18.3). It wants to be longer than a
+> holiday and shorter than a season; a weekly flyer who takes a fortnight off should
+> not be told their device is misconfigured. **Only counted when a fix has NEVER been
+> seen** — an aircraft that flew last month and is parked is a different situation and
+> gets the post-flight card, which is already true and already better.
+>
+> **[FOR DANIEL]** three calls: the copy register, cutting the countdown, and whether
+> 7 days is the right nudge.
+
+> ### BUILT 2026-08-27 — the pre-departure face. **And C4's two-face proposal
+> could not be implemented as written, for a reason worth keeping.**
+>
+> C4 asks for the arc face's not-started state in the airline regime and the
+> local face's rings in the local one. **The regime is unknowable at that
+> moment.** §7.1 infers it from how far the aircraft got from home — and in
+> `WAITING` it has never been seen, so there is no flight, no extent and no
+> regime. Picking one anyway means picking a face that is confidently wrong half
+> the time, on the screen whose entire job is honest nothing-yet. That is the
+> same shape as the countdown this proposal already cut.
+>
+> So the face is **regime-agnostic**: a dim ring, the target, and the copy. It
+> also cannot preview a route it has not been told — the codes arrive on a
+> tracked contact, and asking a server for a route **by callsign** would be an
+> outbound request whose existence names the follow target, which C2 forbids. If
+> a route survives from a previous flight the codes *are* drawn, which is the
+> preview C4 wanted at no cost.
+>
+> **The 7-day nudge is built and its clock is in the `follow-log` NVS namespace,
+> not `config`.** `millis()` would restart it every power cycle, so a device
+> rebooted weekly could never reach seven days. It is deliberately not a fourth
+> writer to the `config` namespace: the elimination in
+> [nvs-config-flip-2026-08-27.md](nvs-config-flip-2026-08-27.md) turns on there
+> being exactly three, and a clock is not worth making the next unexplained flip
+> harder to diagnose. Armed once, on the first pass with a target and no fix
+> ever seen; disarmed on the first fix; the namespace is already cleared when the
+> target changes, so a new tail restarts the clock for free. A device whose clock
+> has never synced does not arm — that costs a nudge and never fires a wrong one.
+
+
+### C5 — Field elevation: the WORKAROUND is dead; the DELIVERY is not built
 
 The design note originally said `include/Airports.h` carries no elevation, generalised
 that to airport data in general, and built a self-calibrating learn-over-two-flights
@@ -188,6 +351,39 @@ number the device had to earn; the **first** flight is detected as well as the t
 The visual spec's §13 still carried an instruction to "correct the note before building
 from it." **That instruction is discharged** — it is done — and is dropped here so
 nobody actions it twice.
+
+**But only the workaround deletion is settled.** Checked against the built pipeline
+on 2026-08-26: `scripts/ingest-routes.ts` emits `rt:` keys from `routes/` and nothing
+else. No airport family is written to KV at all, so `AltitudeFeet` exists in the
+corpus and is reachable by **no running code**.
+
+So this section resolves exactly one claim — *the self-calibrating
+learn-over-two-flights mechanism stays deleted*, because the data exists and is ours
+and the device must never have to earn a number we already have. It does **not**
+establish that landed detection has a threshold available to it today. Delivering
+that data is a build item (§19 item 7) and is C1's concrete form: `ap:` keys if a
+lookup by code suffices, the D1 side if §7.3's priority-sorted overlay forces a query.
+
+**Stage 1 is not gated on it.** The local regime's home field is one airport, which
+can ride the existing config flow — so nothing about local-first waits for this
+decision.
+
+> **Confirmed by the build, 2026-08-27, and with a sharper split than this
+> section assumed.** C5 is really *two* deliverables, and only one is missing:
+>
+> | | stage 1 | how |
+> |---|---|---|
+> | **which field** | **available** | nearest code from the airports data already on the device — no new dataset, no Worker surface |
+> | **its elevation** | missing | needs the `ap:` family this section describes (§19 item 7) |
+>
+> Treating them as one thing is what produced the `HomeContext.known` defect
+> recorded at §5: the *position* half was withheld because the *elevation* half
+> was unavailable, and every pattern dropout read `SIGNAL LOST` as a result. The
+> two are independent and are now two flags.
+>
+> So what C5's delivery actually buys, concretely: AGL readouts on the local
+> face, `APPROACH_LOST`, and landed-by-profile. Nothing else in stage 1 waits on
+> it.
 
 ### C6 — Follow is one screen with several faces, not several screens
 
@@ -320,6 +516,20 @@ and `radar-up` rotation (`AircraftManager.cpp:3226`) comes free.
   no colour. **Keep colour for state semantics only.** Altitude gets a number or a thin
   profile strip; it does not get a colour ramp.
 
+**CORRECTED 2026-08-26 -- the frame reference quoted below was the wrong number.**
+This section cited 27.5-31.1 ms as "under full load with overlay and trails".
+The code note it came from says the opposite: that range was measured with
+`overlay/trails/fade/scanline OFF`, and is the retracted 2026-08-02 artefact.
+The honest all-on figure was 46-48 ms -- and even that was measured on boards
+whose per-aircraft info labels had been silently switched off by the same
+scripted POST, so stock config is ~60-68 ms at n=30-40. The budget was
+re-baselined 60 -> 85 ms accordingly (#264). **Follow was never measured
+against a real budget until that was fixed.**
+
+**MEASURED 2026-08-26 on the s3-128: track draw mean 4.30 ms, max 5.5 ms at
+cap 256, on a full 1024/1024 buffer, stable over thousands of frames, with
+`psram_free` flat and `allocFail` 0. Verdict per 18.1: TRACK PRODUCT.**
+
 **The draw cost is the number that decides what this feature is.** The frame budget note
 at `AircraftManager.cpp:1531` records 27.5–31.1 ms under full load with overlay and
 trails. Projecting and drawing up to 1024 extra segments per frame could blow that
@@ -332,6 +542,66 @@ wrong one. See §18.
 ---
 
 ## 5. The state machine
+
+> **BUILT 2026-08-26 in `include/FollowState.h`, with two deviations from what
+> is written below. Both are recorded here rather than only in the code,
+> because a spec that disagrees with the build is how the next reader gets
+> misled.**
+>
+> 1. **`HomeContext.known` ships `false`.** The AGL reasoning in 5.3 needs the
+>    published field elevation, which per C5 is a LOOKUP that is not built.
+>    Rather than reason from a wrong threshold, the machine degrades to its
+>    position-free arms and says so. When C5 lands, setting `known` is the
+>    whole change.
+>
+>    **CORRECTED 2026-08-27 while building the local face, and the correction
+>    is worth more than the original note.** That single flag was a defect, not
+>    a deviation. `InsideHome()` — a question about WHERE he is — was gated on
+>    it, so with the elevation unknown every position argument fell through and
+>    **every pattern dropout came out `SIGNAL_LOST`**: precisely the failure 10
+>    names in bold, *"getting this backwards makes the device look broken every
+>    single circuit"*, shipped by the mechanism the note above described as a
+>    safe degradation.
+>
+>    The device has always known where home is — it is the configured location,
+>    the point the radar is centred on. Two independent facts had been folded
+>    into one flag, so `HomeContext` now carries two:
+>
+>    | flag | question | stage 1 |
+>    |---|---|---|
+>    | `positionKnown` | where is home? | **true** whenever a location is set |
+>    | `elevationKnown` | how high is the field? | false until C5's delivery half |
+>
+>    The reading rule: an argument about **where** needs `positionKnown`; an
+>    argument about **height above ground** needs `elevationKnown`, and without
+>    it the machine declines the argument rather than substituting MSL. At a
+>    3,460 ft field a 1,000 ft circuit reads 4,460 ft, which is above every
+>    threshold in `Tuning` and silently wrong. `AglFt()` returns **NaN** rather
+>    than a plausible number, so a caller that forgets produces something
+>    visibly broken instead of something quietly off by the field elevation.
+>
+>    Consequently `LANDED`-by-profile and `APPROACH_LOST` are unavailable in
+>    stage 1 and `NO_COVERAGE` is not — which is the honest reading of 5.1's
+>    own sentence, *"NO_COVERAGE is a POSITION argument."*
+>
+>    **This is graded, not asserted.** `test/host/test_follow_state.cpp` pins
+>    it with the pre-fix world as a control: it asserts that with
+>    `positionKnown` false the circuit dropout comes out `SIGNAL_LOST`, so
+>    re-conflating the flags fails the suite. Rehearsed red before being
+>    believed.
+>
+> 1b. **`AlertTitle` formats into a caller buffer** instead of returning a
+>    `String`. That removed the last Arduino dependency from the file, which is
+>    what makes the host test above possible at all — and an alert path that
+>    does not allocate is better on the device regardless.
+> 2. **The copy is ASCII.** 6 writes middots; there is no `setFont()` anywhere
+>    in the radar draw path, so the glyph set is the default font's and a
+>    UTF-8 middot arrives as two bytes of garbage. Same finding as
+>    `include/RouteLabel.h`. The words are unchanged; only the separators are.
+>
+> The module is PURE -- no members, no display, no `millis()` -- which is the
+> extraction 17 names as the prerequisite for the privacy test. That test can
+> now land alongside the config surface rather than after it.
 
 ### 5.1 Absence is three states, not one
 
@@ -482,9 +752,48 @@ than about him.
 
 Note the deliberate absence of the word "lost" in both. Different state, different words.
 
-### Pre-departure **[UNKNOWN]** — copy not yet written
+> ### BUILT 2026-08-27 — the copy is now regime-dependent, as this section's own
+> stage-1 note predicted.
+>
+> `FollowState.h` carried a note reading: *"NoCoverage is worded for the LOCAL
+> regime, which is the only one that ships... so this becomes regime-dependent at
+> that point. It is one string today because there is one regime today, not
+> because the two agree."* The arc face is that point.
+>
+> **Two regimes, one switch** — `Headline(State, Regime = Local)` and
+> `Explanation(State, Regime = Local)`. Deliberately not a parallel
+> `HeadlineAirline()`: that is the same fact written twice, the shape
+> `RouteLabel.h` exists to remove. The default keeps every stage-1 caller and
+> assertion meaning what it meant.
+>
+> | state | local | airline |
+> |---|---|---|
+> | `NO_COVERAGE` | `BELOW COVERAGE` | `NO COVERAGE` |
+> | `APPROACH_LOST` | `ON APPROACH - SIGNAL LOST` | `BELOW COVERAGE` |
+>
+> The airline `APPROACH_LOST` chip borrows the local regime's `NO_COVERAGE`
+> words on purpose: in each regime the phrase names the same physical thing, and
+> the two regimes never appear on one screen. Asserted pairwise-distinct within
+> each regime, plus a control that the parameter is wired to anything at all
+> (`SIGNAL LOST` and `AIRBORNE` must be *identical* across regimes).
+>
+> **One line of §6 is deliberately not built.** The no-coverage worked example
+> ends *"Next contact expected around 18:40, near Ireland."* We cannot say that:
+> it needs a model of where receiver coverage resumes, which we neither have nor
+> licence, and a time derived from it — a number invented on the one screen whose
+> job is to explain an absence honestly. Same call as cutting C4's countdown,
+> same reason (principle 2). *"He will reappear on the far side"* says what we do
+> know. A test asserts the airline no-coverage copy **contains no digit**, so the
+> sentence cannot quietly come back.
 
-See C4. Needs strings before build, on the same principle as the rest of this section.
+
+### Pre-departure **[DRAFTED 2026-08-27 — approved]**
+
+Written at C4 and approved with the countdown cut. The headline is
+`WAITING FOR DEPARTURE`; the load-bearing line is *"Nothing heard yet today.
+This screen changes on its own when he takes off."* **`WAITING` never borrows a
+loss state's word** — nothing has been lost, nothing has started, and a test
+asserts the string "lost" appears in neither line.
 
 ---
 
@@ -509,14 +818,66 @@ One screen slot (C6). The face is chosen, never picked:
 | condition | face |
 |---|---|
 | no follow target | screen hidden entirely |
-| target set, not yet seen | pre-departure **[UNKNOWN]** |
-| local regime, any live state | local face (§10) |
-| airline regime, route known, great-circle ≥ threshold | globe face (§9) |
-| airline regime, otherwise | arc face (§8) |
+| target set, not yet seen, no previous flight | pre-departure (C4) |
+| target set, not yet seen, previous flight on file | post-flight card (§11) |
+| both route codes **place** | globe face (§9) |
+| route codes present, one or both **unplaceable** | arc face (§8) — the CODE-ONLY face |
+| **no destination at all** | local face (§10) |
 | `LANDED` until next takeoff | post-flight card (§11) |
 
-Regime is inferred, not configured: an aircraft that stays inside the home radius is
-local; one that leaves it is not.
+### AMENDED 2026-08-30 — THE REGIME NO LONGER SELECTS A FACE
+
+**This table used to route on the regime, and it no longer does.** Every row
+above is decided by the route alone. The regime is not deleted; it is
+**demoted**, and its remaining job is real: it selects the **copy**
+(`Headline` / `Explanation`), which is the one question it was always good at.
+
+Why the demotion. Routing on the regime put a decision about *which picture to
+draw* behind an inference about *how far from home the flight got*. Those are
+unrelated questions, and the seam showed:
+
+- an airliner still inside the home radius on climb-out got the **local face**
+  despite having a filed route and a globe's worth of coordinates; and
+- the face then **changed under the customer** the moment the aircraft crossed
+  an invisible circle nobody had drawn.
+
+Whereas for copy the regime is exactly the right input, because "Ground
+receivers do not reach that far" and "Expected out here. Contact resumes on the
+far side." differ in *nothing else*. **Face from the route; words from the
+regime.**
+
+The 2026-08-27 amendment below is subsumed by this one — the route-less
+long-range flight still gets the local face, now because it has no destination
+rather than because of anything about its regime.
+
+> **AMENDED 2026-08-27 — the route-less long-range row.** This table used to send
+> "airline regime, otherwise" to the arc face unconditionally, which assumed a route
+> always exists. It does not: a GA cross-country is past the home radius with nothing
+> filed, and it was getting a dim empty ring. The local face's auto-scaled rings and
+> its track are strictly more informative for that flight, so it is the fallback.
+> The arc is chosen when it has something to draw.
+
+Two properties of the regime that still matter, since it still chooses words:
+
+- It is inferred, not configured: an aircraft that stays inside the home radius is
+  local; one that leaves it is not. There is no config key for this and there must
+  not be — the customer following a trainer and the customer following a son's
+  airliner both just typed a tail number into the same box.
+- It is read from the flight's **furthest extent**, which never falls within a
+  flight and resets with the next one. Feeding it the live separation would flap
+  the *copy* once per circuit at exactly the radius where an aircraft spends most
+  of its time. (Before the demotion this would have flapped the whole face, which
+  is the sharper version of the same bug and the reason the rule exists.)
+
+**Consequence for the session follow.** `SetSessionFollow` seeds `followStats`
+from the swiped contact as well as the machine, because a freshly reset stats
+block reports `furthestKm = 0`, i.e. the local regime — which would put
+"Ground receivers do not reach that far." under a jet in the middle of the
+Atlantic. When the regime routed faces this was one bug; now that it only picks
+words it is still one bug, in the one place the regime is still read.
+
+**The 4,000 km globe threshold is also gone** (#274). A globe is drawn for any
+route whose endpoints place, at whatever scale the route needs.
 
 ### 7.2 Reuse, do not rebuild
 
@@ -572,6 +933,69 @@ is a D1 shape, while routes are a key lookup already living in KV.
 A round panel affords two independent circular readings. Spend both, and keep the centre
 clear.
 
+> ### BUILT 2026-08-27 — the arc face. Verdict: **§8 renders as specified, with two
+> recorded deviations and one colour question left for the bench.**
+>
+> `AircraftManager::DrawFollowArcFace`, plus `include/FollowArc.h` for every
+> number it draws. 428 host checks over the arithmetic, 0 failures, rehearsed
+> red three times (a raw `atan2` bearing, an unclamped progress, a naive
+> lat/lon midpoint — 3, 12 and 23 failures respectively).
+>
+> **Every radius and text row is the spec's 240 px figure × `SCREEN_SIZE/240`.**
+> Hardcoding them is the mistake CLAUDE.md names by hand, and on the 412 px
+> SPD2010 it would draw the whole face inside the middle half of the glass with
+> a bezel ring floating in the centre.
+>
+> **One angle convention, and it is `FollowArc.h`'s.** LovyanGFX has `fillArc`
+> and it would be cheaper than stepping. It is not used: the band would then be
+> placed by LovyanGFX's convention while the marker, the codes and the wedge are
+> placed by `ArcAngleDeg` — two implementations of one fact. If they disagreed by
+> a few degrees the marker would sit *beside* the arc, and in a photograph that
+> reads as a **progress** error, sending the next reader to `ProgressAlong`,
+> which is correct and graded. The dashes need per-step control anyway.
+>
+> **Two things the build found are now SPEC rather than deviations, amended
+> 2026-08-27.** The primary-slot rule (always a magnitude, the label names it) is
+> written into the centre-stack section above, because it generalises past this
+> face. And §7.1's routing table has a new row: "airline regime, NO route" falls
+> to the **local face**, not to an arc with nothing on it — a GA cross-country is
+> past the home radius with nothing filed, and rings-and-track beat a dim empty
+> ring. Both were found by building it; neither is carried as a deviation.
+>
+> **Superseded in part, 2026-08-30.** That row's outcome stands and its reason
+> changed: the local face is chosen because there is **no destination**, not
+> because of anything about the regime, which no longer selects faces at all.
+> The arc's own row is now "codes present, one or both unplaceable" — so the
+> degradation described below is not a fallback the arc tolerates, it is the arc's
+> defining case.
+>
+> **The degradation is a tested path, not a hope.** An unresolved code still
+> *draws* — the codes are strings first and coordinates second — so a missing
+> airport costs the marker and nothing else. A four-letter ICAO code (the mirror
+> carries both forms) misses on purpose rather than matching its first three
+> characters against some other field.
+>
+> **[FOR DANIEL] the one open question is a colour.** §8 is emphatic that
+> `APPROACH_LOST` must use the accent, not the warning colour — "getting this one
+> wrong alarms someone watching a family member land". §10 says nothing about the
+> local face's colour for it, and that face has already been eyeballed with amber.
+> Changing it unreviewed would be worse than asking, so the arc face uses green
+> and the local face keeps amber, from one mapping with one parameter. **Judge
+> them side by side in the absence-copy session** — no argument in a comment
+> settles how a colour reads.
+>
+> **Cost: instrumented, NOT yet measured.** `[follow] arc=` reports µs and stroke
+> count on its own line — deliberately *not* folded into `followDrawUs`, which
+> would report "the track cost 4 ms" on a frame where the track was never drawn.
+> No board was free to measure on (COM4 is running the #264 stock-config capture;
+> COM119/COM16 are on the #245 A/B and are not to be disturbed), so what follows
+> is arithmetic, labelled as such: worst case is `NO_COVERAGE` at low progress —
+> 471 strokes of unflown-plus-flown plus ~235 dashed, each a 5 px radial line,
+> ≈ 3,530 px. Against `FlightAnimation.cpp`'s own **measured** 1.06 µs/px that is
+> **≈ 3.7 ms plus ~706 call overheads**. Read the real number off the serial line
+> before quoting it.
+
+
 ### Geometry **[PROPOSAL]**
 
 - **Panel ring** r = 118.5, stroke 3
@@ -593,13 +1017,30 @@ if the ticks are cut, cut the wedge too.
 | y | content | style |
 |---|---|---|
 | 86 | callsign | mono 10, letterspaced, dim |
-| 124 | **primary readout** | condensed 34, accent |
-| 139 | readout label | mono 8, letterspaced |
+| 124 | **primary readout** — always a MAGNITUDE | condensed 34, accent |
+| 139 | readout label — names the magnitude | mono 8, letterspaced |
 | 150–167 | state chip (when degraded) | outlined pill, 8 px |
 | 158 | altitude (when nominal) | mono 9 |
 
 Altitude and the state chip occupy the same slot deliberately: when anything degrades,
 altitude is what gets displaced, and the layout does not jump.
+
+**THE PRIMARY SLOT ALWAYS HOLDS A MAGNITUDE, AND THE LABEL ALWAYS NAMES IT.**
+Amended 2026-08-27, and it generalises beyond this face. A slot that holds `1h12` in
+three states and the phrase `ON APPROACH` in the fourth has to either overflow the
+chord or shrink the type — and a stack whose type size changes with state is the
+same jump the shared altitude/chip slot above exists to prevent. The label line is
+already there to say what the number is, so the state's word goes to it:
+
+| state | primary | label |
+|---|---|---|
+| `IN_CONTACT` | `1h12` | `TO ARRIVAL` |
+| `NO_COVERAGE` | `1h12`, dimmed | `EST. ARRIVAL` |
+| `SIGNAL_LOST` | `24m` | `SINCE CONTACT` |
+| `APPROACH_LOST` | `12 mi` | `ON APPROACH` |
+| no route resolved | `210 mi` | `AWAY` |
+
+The state's *word* is not lost — it is on the chip, which is where a state belongs.
 
 ### How the four contact states are drawn
 
@@ -640,6 +1081,149 @@ most important state in the feature.**
 Same panel, geography instead of an arc. An orthographic projection of a sphere **is a
 circle**, so on a round panel it fills the glass with nothing cropped. No rectangular
 display can claim that. This is the one place where the hardware's shape is an advantage.
+
+> ### BUILT 2026-08-27 — the globe, and the extraction that had to come first.
+>
+> **The extraction.** `include/GlobeProjection.h` + `src/anim/Coastlines.cpp` now
+> hold the projection and the coastline set; `FlightAnimation.cpp` calls them
+> instead of its own copy. One implementation, two consumers — §7.2's actual
+> intent, reached by exporting rather than re-including, because everything it
+> named was in an anonymous namespace.
+>
+> **The one design change is the one the blocker pointed at.** `MakeBasis()`
+> returns a basis and `Project()` takes one; no globals live in the shared
+> header. The animation keeps a *cache* of its basis (its scenario changes only
+> in `SetScenario`, which clears the flag) — that is a cache of a pure function,
+> not the latch it used to be, and Follow builds its own per route.
+>
+> **"Behaviour-preserving" is asserted, not claimed.** The expected values in
+> `test/host/test_globe_proj.cpp` were *printed by the pre-extraction code*: the
+> GOLF-07 basis to nine decimals and nine real coastline vertices projected
+> through it. 37 checks. Four red probes fix what they bite on: flipping the
+> screen-y sign fails 11, tilting the other way fails 14, truncating `d2r` to
+> `0.01745` fails 14 — and making `d2r` *more* accurate fails **nothing**,
+> because it moves a vertex by ~4e-5 px against a 1e-3 px tolerance. The pins
+> catch anything that moves the picture and are deliberately blind to anything
+> that does not.
+>
+> **A safety net that was believed to exist does not.** `missileer-s3-146` builds
+> green in CI and contains **no animation code at all** — every EAM env applies
+> `${filters.anim_off}`. Confirmed by grepping its ELF for `FlightAnimation`,
+> `kCoast` and `GOLF-07` (all absent) against an anchor that is present. So a
+> refactor of the module could have broken every env that actually contains it
+> while the Missileer row stayed green. `animtest-s3-128` — the only env that
+> compiles *and renders* `src/anim/` — was absent from CI and now has a slug-less
+> row, the same fix and the same reasoning as the 1.75" AMOLED.
+>
+> **Composition, as specified**: disc r = 94 at (120, 102), top line at y = 26 on
+> a backing plate, readout at y = 223, centred on the great-circle midpoint,
+> route solid behind and dashed ahead, aircraft at its **real ADS-B position**
+> rather than interpolated onto the line, terminator with the night side shaded.
+>
+> **Tilt is 0, departing from the module's 30°.** The animation tilts so a
+> near-meridional missile arc bows across the disc instead of running down its
+> spine. §9 asks for something incompatible: *"centre the globe on the
+> great-circle midpoint so both endpoints are visible"* — and a tilt moves the
+> midpoint off centre by construction. The composition rule wins.
+>
+> **The equation of time is omitted from the terminator**, deliberately: it
+> reaches ±4° of longitude, under 1.7 px at r = 94. A correction smaller than the
+> line drawing it is not a correction.
+>
+> **Flash, measured on the artifact.** Re-including `+<anim/>` in the radar env
+> cost **+568 B** before anything referenced it — which is §7.2's own measured
+> figure for the unreferenced module, arrived at independently. With the globe
+> face referencing it, the radar image goes from 1,782,655 to **1,797,359 B
+> (+14,704)**, i.e. 0.22% of the 6.25 MB app partition. The Missileer image is
+> unchanged at 1,608,019 B, for the reason above: it never contained the module.
+>
+> **Cost: instrumented, still NOT measured on hardware.** `[follow] arc=` reports
+> µs and the vertex count for whichever face drew. §7.2's reference is 0.34 ms
+> for 1,306 vertices of projection; this face adds ~7,000 day/night sign tests
+> for the night fill and a 96-step route polyline. No board is free (COM4 is on
+> the #264 capture; COM119/COM16 on the #245 A/B), so there is no honest total to
+> quote — read it off the serial line in the bench session.
+
+> ### FINDINGS 2026-08-27 — before building it. **The threshold is closed; §7.2's
+> "lift it" is blocked on the module's shape, which is a bigger job than a
+> re-include.**
+>
+> #### 1. The threshold, argued rather than chosen: **4,000 km**
+>
+> The screen span of a route centred on the disc is `2·R·sin(θ/2)`, where θ is
+> its great-circle angle. **That formula reproduces all three of §9's measured
+> rows exactly** at R = 119 — DEN→DEL 196.8 px (measured 197), SEA→LAX 28.6
+> (measured 29), PDX→SEA 3.89 (measured 3.9) — which is the control for using it
+> at the composition's actual R = 94.
+>
+> Solving `2·94·sin(θ/2) = 60` gives θ = 37.2°, i.e. **4,139 km**. It is rounded
+> **down to 4,000 km**, and the rounding is the argument: the US transcon family
+> straddles the exact figure — JFK→LAX is 3,974 km (57.7 px) and SFO→JFK is
+> 4,152 km (60.2 px). Those two look identical on glass and would get different
+> faces. A customer following two transcons seeing two different faces is a worse
+> outcome than 2 px of arc, and §9 says "roughly 60 px" precisely because the
+> number is soft. 4,000 km is 57.9 px.
+>
+> | route | km | px @ R=94 | face |
+> |---|---:|---:|---|
+> | PDX→SEA | 208 | 3.1 | arc |
+> | SFO→LAX | 544 | 8.0 | arc |
+> | LHR→BCN | 1,147 | 16.9 | arc |
+> | JFK→ORD | 1,187 | 17.5 | arc |
+> | DFW→ORD | 1,291 | 19.0 | arc |
+> | SEA→LAX | 1,537 | 22.6 | arc |
+> | JFK→DEN | 2,609 | 38.2 | arc |
+> | JFK→LAX | 3,974 | 57.7 | **globe** (by the rounding) |
+> | SFO→JFK | 4,152 | 60.2 | globe |
+> | LHR→DXB | 5,498 | 78.6 | globe |
+> | LHR→JFK | 5,540 | 79.2 | globe |
+> | SFO→NRT | 8,227 | 113.1 | globe |
+> | DEN→DEL | 12,404 | 155.4 | globe |
+>
+> #### 2. The cases that would have wanted the regional chart — and they are the
+> majority
+>
+> Every row above between **~500 km and 4,000 km** renders 8–38 px of globe arc:
+> too small to read as a route, and far too large for the regional chart's
+> ~413 km window at r ≈ 3,700. **Neither of §9's two scales serves them.** That
+> band is SEA→LAX, DFW→ORD, JFK→ORD, LHR→BCN, JFK→DEN — most of what an airline
+> follow will actually be.
+>
+> This is not an argument for a third scale. It is the reason the **arc face is
+> the airline default and the globe is the long-haul upgrade**, exactly as §8's
+> title says: below the threshold a 270° arc is strictly more legible than 20 px
+> of great circle, and the regional chart only becomes the better answer once its
+> fine coastline dataset exists (§9, out of scope for this pass).
+>
+> #### 3. §7.2's "re-include `+<anim/>` and lift `GlobePt()`" **cannot work as
+> written**
+>
+> Checked in the source rather than assumed. `GlobePt`, `GeoVec`, `kCoast`,
+> `BuildGlobeBasis` and the `gGlobe` basis all live inside
+> `namespace missileer { namespace flight { namespace { … } } }` — an **anonymous
+> namespace**, i.e. internal linkage. `FlightAnimation.h` exposes only the
+> `FlightAnimation` class (`Begin`/`Advance`/`Render`/`SetScenario`). Re-including
+> the module compiles it; **nothing in it becomes callable.**
+>
+> Two further blockers behind that one:
+>
+> - `GlobePt` reads a **file-global basis that latches** (`gGlobeReady`), built by
+>   `BuildGlobeBasis()` from the missile scenario's `gLaunchLat/gAimLat` globals.
+>   Follow needs a basis per route, so a parameter has to replace a global.
+> - `kCoast` is declared against a `GeoVec` defined in that same anonymous scope,
+>   so the data cannot be reached without the type.
+>
+> **So the globe is an extraction, not a re-include:** the projection and the
+> coastline data have to be exported to a shared surface that both the animation
+> and Follow call — one implementation, per §7.2's actual intent — and that means
+> editing shipping Missileer code. Doing it is right; doing it *unverified* is
+> not, and **no board is free** (COM4 is on the #264 capture, COM119/COM16 on the
+> #245 A/B). The extraction is therefore its own increment, with the animation
+> re-checked on glass when a board frees up.
+>
+> Nothing above changes what §9 asks for. It changes what building it costs, and
+> that was worth knowing before starting rather than halfway through.
+
 
 ### Composition **[PROPOSAL]**
 
@@ -693,8 +1277,9 @@ At r = 3,700 a 208 km route spans **121 px** **[MEASURED]** and the visible wind
 about 3.7° ≈ 413 km.
 
 **Do not build a continuous zoom.** Two scales, selected by great-circle distance, no user
-control. The threshold is **[UNKNOWN]** — pick it from where the globe arc drops below
-roughly 60 px and argue the number rather than choosing it.
+control. The threshold is **[DECIDED 2026-08-27: 4,000 km]** — derived from
+`2·R·sin(θ/2) = 60 px` at R = 94, then rounded down so the US transcon family does not
+straddle it. See the findings box at the head of §9.
 
 ### Regional chart needs different data
 
@@ -715,7 +1300,47 @@ each other rather than competing — but only if the coast stays dominant.
 
 ## 10. Local face — the flight school regime
 
+**Units.** Every distance Follow renders — the local face's range readout, the
+arc face's primary readout (§8), the post-flight card (§11) and any ntfy body —
+uses the device's configured distance unit via `include/DisplayUnits.h`. Follow
+introduces no unit of its own and no second conversion; a follow readout in
+different units from the radar behind it would read as a bug.
+
+`nmi` exists as of 2026-08-26 and is the natural **suggestion** for anyone setting
+up a follow — a feature built for watching a specific pilot should speak that
+pilot's unit. Make it a suggestion in the UI copy next to the follow field, not a
+changed default: the device-wide default is `mi`, it is set for the whole product,
+and Follow silently repointing it would surprise someone who never asked.
+
 **This is the regime that ships first (§1.1).**
+
+### The radar card already names this regime, and Follow should reuse the phrase
+
+As of the CC0 route mirror (#260), a route whose origin equals its destination is
+**data, not a defect** — 39 such callsigns exist in the 619,103-row table and every
+one is a real circular flight: RAF Cranwell circuits, Nice sightseeing runs, survey
+patterns. The rev-3 endpoint rule guarantees the property directly (`o == d` **iff**
+every leg is the same field), so the device can trust `o == d` as *"this aircraft
+came back to where it started"* without any further check. That is what makes the
+render decision safe to make on-device from two three-letter codes.
+
+The radar's detail card therefore renders those as **`Local flight: EGYD`** rather
+than `EGYD -> EGYD`, which read as the manufactured self-loop the rule exists to
+prevent. Two notes for whoever builds this face:
+
+- **Follow's local face should use the same words.** A pilot doing circuits sees
+  `Local flight` on the card that launched the follow; a different phrase on the
+  follow face would read as a different concept. This is one of the §7.2
+  "reuse, do not rebuild" cases, at the level of copy rather than code.
+- **The airport is a CODE, not a name.** The device carries `include/Airports.h`
+  — ~250 IATA codes and coordinates, no names — and §10 above is explicit that the
+  local face adds no dataset. So it is `Local flight: EGYD`, never
+  `Local flight: Cranwell`. If names are ever wanted they come from the Worker as
+  an enrich field, not from a baked table; that is a separate decision with a
+  flash cost, and nothing in Follow needs it.
+
+`ON THE GROUND` and `Local flight` are not the same statement and must not merge:
+one is where the aircraft is now, the other is what the whole flight was.
 
 ### Why the arc face does not transfer
 
@@ -733,7 +1358,7 @@ does not carry and should not.
 **So the local face draws no map at all.** This is good news: no dataset, no Worker
 delivery, no zoom dilemma, no licence question. **The trail is the picture.**
 
-### Composition **[PROPOSAL]**
+### Composition **[BUILT 2026-08-27]**
 
 A radar scope, which is what the product already is:
 
@@ -743,6 +1368,97 @@ A radar scope, which is what the product already is:
 - **The track**, decimated by distance per §4.1
 - **Current position** with heading
 - **Readouts**: altitude **AGL** (real threshold, per C5) and **circuit count**
+
+> **What shipped, and the two places it is honestly less than the list above.**
+> `AircraftManager::DrawFollowLocalFace`, with the arithmetic in
+> `include/FollowGeometry.h` (pure, host-tested).
+>
+> **The half of C5 that *is* available today was used.** "Which field" needs no
+> new dataset: the airports overlay is already fetched for the radar and
+> `include/Airports.h` is baked on every board, so the marker carries the nearest
+> field's **code** within 12 km — and `HOME` when nothing is close enough to
+> claim, rather than a wrong code under the anchor of the whole view. It is the
+> code and never a name, per the note above. Resolved once, dropped when the
+> configured location changes.
+>
+> 1. **Altitude is MSL, labelled `ft MSL`, not AGL.** C5's delivery half does not
+>    exist, so the field elevation is unknown; the render says the number the
+>    feed carries and names it correctly. An AGL-shaped number would be wrong by
+>    the field elevation — 3,460 ft at Bend — and a readout claiming a trainer is
+>    at 4,400 ft AGL in the circuit is worse than one that declines to say. When
+>    C5 lands this becomes one branch.
+> 2. **No circuit count.** §11 defers it in the same breath §10 asks for it, and
+>    §18.3 says every constant is a guess until a real lesson is logged. A wrong
+>    count is a *claim* the customer has no way to check, so the slot is empty
+>    rather than confident. The reasoning is written where someone would go to
+>    add it — the bottom of `FollowGeometry.h`.
+>
+> **The ladder is walked in the customer's unit, not in kilometres.** A step that
+> is round in km is 0.62 / 1.24 / 3.11 in miles, and a ring labelled 3.11 is a
+> ring nobody reads. One conversion out and one back, both through
+> `include/DisplayUnits.h`.
+>
+> **Screen integration, per C6 and §13.3.** One slot, hidden entirely when the
+> follow field is empty — so the swipe cycle and the page dots walk *visible*
+> screens rather than counting to four, and a collection customer who never uses
+> Follow inherits nothing. It auto-surfaces for a 20 s dwell on **takeoff and
+> landing only** (never on an absence — a dropout is the normal operating
+> condition at pattern altitude, and a screen that jumped on every one would be
+> the device looking broken every circuit in a louder way than copy could fix),
+> and a swipe cancels the dwell. The followed contact gets its own ring on the
+> radar in the track's blue — deliberately not the watchlist amber, because
+> "watchlisted" and "this is the aeroplane my son is flying" are not the same
+> statement.
+>
+> **BENCH EYEBALL PASS 2026-08-27 (Daniel).** Composition reads correctly — home
+> diamond centred, auto-scaled rings with labels, the track, the aircraft marker
+> with heading ring, `AIRBORNE` with the callsign above. Six findings, all
+> addressed:
+>
+> 1. **The bottom readout ran off both ends of the curve.** A round panel has no
+>    edge to clip against — glyphs run off the glass and it looks identical to a
+>    bug. At `SCREEN_SIZE-26` the chord is **118 px, nineteen characters**, and
+>    `-900 ft MSL  67 kt  148mi` is twenty-five. This was the *second* surface
+>    with the defect (the Stats SSID row was the first), so the rule moved to
+>    `include/DiscGeometry.h` and both call sites use the one copy. The readout
+>    now appends fields **while they still fit** rather than ellipsising one long
+>    string — a truncated `14...` reads as a value, an absent field does not.
+> 2. **`-900 ft MSL` printed under an `AIRBORNE` headline without complaint.**
+>    Bounds alone do not catch it: −900 ft is legal somewhere (Bar Yehuda is a
+>    real airfield at −1,266 ft). What catches it is that the altitude and the
+>    state **contradict each other** — so `ReportableAltFt` declines when
+>    airborne and at-or-below sea level, and the row renders `-- ft MSL`. Same
+>    rule as `AglFt()` returning NaN: decline over a plausible wrong number.
+> 3. **The chosen ring scale is now on serial** (`[follow] rings=3 x 50.00mi
+>    outer=241.4km`), so a real 1–5 mi circuit can be checked against a number
+>    rather than measured off a photograph.
+> 4. **The trail reading as dots is the scale, not a defect** — and the serial
+>    line now says so instead of leaving it to be inferred. `seg_px` is the mean
+>    on-screen distance between consecutive *drawn* points. The decimation is
+>    150 m of **flown path** (§4.1), so at the synthetic 150 mi ring that is
+>    kilometres per pixel and the laps separate; at a 2 mi circuit ring the same
+>    buffer draws a connected racetrack, which is what §11's keepsake needs.
+>    Watch `seg_px` on the first real lesson rather than trusting this paragraph.
+> 5. **The bench self-enable masked the §4.3 disable path.** It fired on every
+>    `Initialise`, and `Initialise` re-runs on every config save — so clearing
+>    the follow field fell straight back to the synthetic target and the
+>    allocation was never freed. Now **armed once per boot**: one auto-enable so
+>    the face has something to draw, after which an empty field means the owner
+>    cleared it. The disable path is reachable on the bench image.
+> 6. **The absence copy could not be judged** without pulling the router.
+>    `FOLLOW_BENCH` now takes a serial key to force the displayed state
+>    (`1`–`5`, `n` to cycle, `0` to release). Display only — `followMachine` is
+>    untouched and the transitions stay exactly as the host suite grades them.
+>    §6 is the emotional core of the feature and it is the one part that can only
+>    be judged by a person looking at the panel.
+>
+> Orientation was confirmed correct (the device was physically rotated 90° for
+> the photographs).
+
+> **Not reachable on a shipping build yet**, and that is the correct sequencing
+> rather than an omission: the `follow` config field is §19 item 5. The bench env
+> (`follow-bench-s3-128`) self-enables and fills a synthetic 1024-point track, so
+> the face's geometry can be looked at exactly the way the §18.1 draw cost was.
 
 ### Auto-scaling is correct here, and only here
 
@@ -779,6 +1495,53 @@ stop looking at.
 The answer to "the screen is empty most of the week." On `LANDED`, freeze a summary and
 show it until the next takeoff: duration, max altitude, top speed, furthest point — and
 the shape of the flight.
+
+> **BUILT 2026-08-27**, bench-unverified. `include/FollowLog.h` (the store) plus
+> `follow::FlightStats` in `FollowState.h` (the numbers, pure and host-tested)
+> and `AircraftManager::DrawFollowPostFlightCard`.
+>
+> **One write per flight by construction, not by debounce.** The save happens on
+> the `LANDED` transition and nowhere else, so there is nothing to tune and
+> nothing to trust. Logbook debounces because it is written continuously by a
+> running sky; a flight ends once. What makes it safe to write at all is §5.4's
+> rail — `LANDED` fires only on confident evidence, so a card can never appear
+> for a flight that merely stopped being heard.
+>
+> **The last slot is reserved.** The stride is computed against `POINTS - 1` and
+> the final track point is always appended, because it is where he touched down
+> and this section draws it filled. On a full 1024-point buffer the stride is 9
+> and the walk ends at index 1017 — without the reservation the destination
+> marker sits about a kilometre short of the runway, which is invisible once
+> drawn: a track that ends *near* the field looks exactly like one that ends
+> *at* it.
+>
+> **Two things the numbers get right that are easy to get wrong**, both pinned by
+> host tests with the wrong answer as the control:
+>
+> - The clock starts at the first **airborne** fix. An aeroplane that sat on the
+>   apron with its transponder on for forty minutes did not fly for forty
+>   minutes.
+> - The maxima never fall back. He lands low and slow, so the last fix of every
+>   flight is the smallest one — an end-of-flight snapshot would record a top
+>   speed of 45 kt for every flight ever made.
+>
+> Plus the `millis()` wrap, which is right by unsigned subtraction and does not
+> look it.
+>
+> **Altitude is MSL, labelled.** Same reason as the local face, and more
+> sharply here: a souvenir is the one face with nothing live beside it to
+> contradict a wrong figure. **The date is quoted only when the clock was real** —
+> an unsynced device records epoch 0 and the card says "time not known" rather
+> than 1970.
+>
+> **North-up always.** `radar-up` deliberately does not apply: the card is a
+> record, not a view out of a window, and rotating a souvenir by a setting made
+> for live traffic would make the same flight look different on two devices.
+>
+> **The card is cleared when the follow target changes to a different
+> aircraft.** A previous aeroplane's flight is not this aeroplane's history, and
+> a souvenir attributed to the wrong aircraft is the single way this face can be
+> wrong — which is the entire reason it is allowed to persist at all.
 
 Redrawn as **shape rather than position**. No arc, no bearing, no live data — nothing here
 can be wrong, which is why it is the only part of Follow that should survive a power
@@ -1095,6 +1858,75 @@ which is the exact substitution this repo has been bitten by before.
 Recommendation: build the strong form. If the extraction turns out large, land the grep
 guard first so the window is covered, and say plainly in the PR that it is the weaker check.
 
+> **A GUARD LANDED 2026-08-27, AND IT FOUND A REAL LEAK ON ITS FIRST RUN.**
+>
+> `scripts/check_follow_privacy.py`, in CI and in the host suite. **This is the
+> WEAK form** and its own header says so: it reads the source, not the artifact,
+> which is the exact substitution this repo has been bitten by before. The strong
+> form is still owed.
+>
+> What it found: `Serial.printf("[follow] target=%s", followTarget.c_str())`,
+> shipped in the stage-1 commit, in a file whose header states the target must
+> never be printed. 17 lists serial output among the forbidden places with the
+> Wi-Fi password incident as the precedent. Nobody caught it by rereading the
+> line, including the person who wrote the header two commits later.
+>
+> **Two checks, and only one is an assertion:**
+>
+> | | rule | allow list |
+> |---|---|---|
+> | per statement | the target and an outbound sink in the same statement | **none** |
+> | per function | touches the target anywhere, reaches a sink anywhere | two, and they are a REVIEW RECORD |
+>
+> The second deliberately over-flags -- `Initialise` is enormous and contains
+> both for unrelated reasons -- and that is the point: the list is what somebody
+> looked at, compared whole rather than by substring absence.
+>
+> **The guard was wrong three times before it was right, and every one of them
+> was caught by its own anchor control** (the branch that fails when the review
+> list names functions the scanner can no longer find). Recorded because the
+> third is the one that matters:
+>
+> 1. Brace-depth attribution drifted on braces inside string literals; the scan
+>    reported 2 functions instead of 12, which without the anchor would have read
+>    as a very clean pass.
+> 2. A regex written through a shell heredoc lost a backslash and compiled with a
+>    literal **backspace** on the end. `grep` showed the line looking perfectly
+>    correct, because a terminal renders a backspace by not rendering it.
+> 3. **The per-line check passed against the actual bug.** The selftest planted
+>    the violation on one line; the real one is a `printf` with four arguments,
+>    so the format string and `followTarget.c_str()` sit on consecutive lines.
+>    Rehearsing against the REAL shape -- not the imagined one -- is what caught
+>    it, and the fix was to join statements rather than lines. This is the launch
+>    gate's `#charlie-retired` again, in Python, inside the tool written to
+>    prevent that class of mistake.
+>
+> Consequence for the code, worth stating because it looks like fussiness: the
+> `[follow]` health line lifts `followTarget.length()` into a local before the
+> `printf`. The rule is absolute -- the token never appears in a statement that
+> reaches a sink -- because a rule with *"unless it is only the length"* in it
+> needs a reader to judge `.length()` against `.substring()`, and a rule that
+> needs judgement is one that gets judged wrong.
+>
+> **The rig for the strong form also exists as of 2026-08-27.**
+> `test/host/test_follow_state.cpp` runs in `test/host/run.sh` against
+> `FollowState.h` and `FollowGeometry.h`, both of which now compile with
+> `-I src/game` and **nothing else on the include path** — so the purity claim is
+> enforced by the same gate as everything else in that suite rather than asserted
+> in a comment. Putting `#include <Arduino.h>` back into either header stops the
+> suite compiling.
+>
+> What remains for §17 itself is the **payload builders**, which still live
+> inside `AircraftManager.cpp`. The test to write sets a distinctive follow value
+> and asserts it appears in none of them. One sanctioned exception is already
+> pinned by the existing suite: `AlertTitle` carries the tail, per C3, and the
+> test asserts it does — an invariant with no positive case is one nobody can
+> tell from a broken extractor.
+>
+> Serial output is in scope and is already respected: the `[follow]` health line
+> prints the state, the home code and the two knowledge flags, and deliberately
+> **not the target**.
+
 **C2 is a live conflict with this section.** Resolve it before the picker is built.
 
 ---
@@ -1118,6 +1950,39 @@ When hardware frees up, in this order:
    threshold. Every constant in §5.3 is a guess until that exists, and guessing them from
    first principles is how you get a state machine that is elegant and wrong.
 
+### 18.1 The glass sessions have a shape, and it is not random
+
+**We photograph what is easy to produce.** Written down 2026-08-30 after a
+collision that had been on the branch for days and had never appeared in a
+single bench photograph.
+
+The globe's state row sat at y=206 and `DrawClock` draws at `SCREEN_SIZE-30` =
+210 on every screen. At a font height of 8 the two bands were 206..214 and
+210..218 — overlapping by four pixels, every frame, in plain sight. It was
+found by *listing the rows* while building the label reservation, not by looking
+at the board.
+
+The reason it was never seen is the part worth keeping: **the state row only
+draws in an ABSENT state, and every bench shot so far has been of a live one.**
+Live is what a bench produces by default — the aeroplane is there, the feed is
+up, the face is green. NO_COVERAGE, SIGNAL_LOST and APPROACH_LOST each need
+something to go missing in a particular way, so nobody reaches them by accident,
+so nobody photographs them.
+
+That is a coverage gap with a **shape**, not a run of bad luck, and it does not
+close itself:
+
+- the states that are cheap to reach are the ones that get looked at;
+- the states that are expensive to reach are the ones whose copy, colour and
+  layout matter most (§6 exists entirely for them);
+- and `FOLLOW_BENCH`'s forcing keys were built precisely so those states can be
+  put on the glass on demand — so the gap is a habit, not a capability.
+
+**So a glass session deliberately shoots the states nobody reaches by accident.**
+Force each absence state in turn and photograph it, the same way the live face is
+photographed. The forcing keys already exist (`1`..`5`); using them is the
+discipline that was missing.
+
 ---
 
 ## 19. Build order
@@ -1126,22 +1991,55 @@ Local regime first (§1.1). Within it:
 
 1. **Measure the track draw cost** (§18.1). Everything depends on it.
 2. **The state machine and the copy** — the feature is the states, not the picture.
-   Includes the pre-departure state once C4 is designed.
+   Includes the pre-departure state once C4 is designed. **BUILT**; the copy became
+   regime-dependent in stage 2 exactly as its own note predicted (box at §6).
 3. **Local face** (§10) — no external data, no Worker surface, no licence question.
-4. **Post-flight card, local version** (§11).
-5. **Config surface and the generated ntfy topic** (§14).
+   **BUILT 2026-08-27**, bench-unverified. See the box at §10 for what shipped and
+   the two readouts that are honestly less than the list there.
+4. **Post-flight card, local version** (§11). **BUILT 2026-08-27**, bench-unverified.
+   See the box at 11. Circuit counting stays deferred.
+5. **Config surface and the generated ntfy topic** (§14). **BUILT 2026-08-27** —
+   its own `<details>` block, five keys, the §15 defaults, and the topic generated
+   from `esp_random()` at first boot with a regenerate affordance beside it. The
+   three alert toggles fire; `APPROACH_LOST` rides the *landed* toggle rather than
+   the *lost* one, because it is the probably-landed case and somebody who declined
+   the alarming alert must not receive it under a different name.
 6. **The privacy test** (§17), landed alongside or before anything that builds a payload.
+   **WEAK FORM BUILT 2026-08-27** — see the box at §17. It found a real leak on its
+   first run. The strong form (a host test over extracted pure payload builders) is
+   still owed.
 
 Then the airline regime, gated on the production mirror cutover:
 
-7. **Arc face and the four contact states** (§8).
-8. **Post-flight card, great-circle version.**
-9. **Globe face**, long-haul only (§9).
-10. **Regional chart** plus the Worker-delivered regional dataset.
-11. **Card integration**, once the gesture question is answered (§12.5).
-12. **On-device picker**, only if C2 is resolved in its favour (§12.4).
+7. **Emit an airport family from the ingest** — the delivery half of C5, and C1's
+   concrete form. `AltitudeFeet` for 34,128 fields is in the CC0 corpus and no
+   running code reads it: the ingest writes `rt:` keys only. Landed detection needs
+   `geoAltitude` against published field elevation, so this precedes anything that
+   claims to detect a landing away from home.
+   **Decide the store with the access pattern, not by symmetry with routes:** `ap:`
+   keys in KV if lookup-by-code is sufficient, the D1 side if §7.3's priority-sorted
+   nearest-N overlay forces a query. KV cannot answer nearest-N.
+   *Not required for stage 1* — the local regime's home field is a single airport
+   carried by the existing config flow.
+8. **Arc face and the four contact states** (§8). **BUILT 2026-08-27**,
+   bench-unverified, against the **baked ~250-airport table** rather than step 7 —
+   the majors cover the overwhelming majority of airline city pairs, an unresolved
+   code degrades to an honest code-only arc, and `LookupAirport` is the one seam
+   `ap:` widens later without touching the face. C4's pre-departure face landed
+   with it. See the box at §8 for the two deviations and the one colour question
+   left for the bench.
+9. **Post-flight card, great-circle version.**
+10. **Globe face**, long-haul only (§9). **BUILT 2026-08-27**, bench-unverified.
+    Required extracting the projection and coastline set out of `src/anim/` first
+    (§7.2's "lift it" was not a re-include — everything it named had internal
+    linkage). Threshold 4,000 km, argued at §9. Pinned against pre-extraction
+    output in `test/host/test_globe_proj.cpp`.
+11. **Regional chart** plus the Worker-delivered regional dataset.
+12. **Card integration**, once the gesture question is answered (§12.5).
+13. **On-device picker** — CLOSED for stage 1 by the C2 decision (option 3). Reopen
+    only with a resolution that keeps §17 testable as string-absence.
 
-Steps 7–12 are worthless without step 2. **Ship honest states before pretty ones.**
+Steps 8–13 are worthless without step 2. **Ship honest states before pretty ones.**
 
 ---
 

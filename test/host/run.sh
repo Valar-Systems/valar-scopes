@@ -116,6 +116,99 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+echo "== FollowState + FollowGeometry =="
+# Follow's state machine, its copy, and the local face's ring ladder.
+#
+# NO NEW -I. The test reaches the headers by relative path, exactly as
+# ConfigMigration does, so this binary is built with `-I src/game` and nothing
+# else on the path -- which means the purity claim in FollowState.h is enforced
+# by the same gate as everything else here rather than asserted in a comment. If
+# somebody puts `#include <Arduino.h>` back into either header, this stops
+# compiling.
+#
+# The state machine is the part of Follow that cannot be graded on the bench: its
+# interesting cases each need a real aeroplane to vanish in a particular way, and
+# that produces one observation with no control beside it. See the file header.
+if ! "$CXX" $FLAGS $INCLUDES \
+      "$ROOT/test/host/test_follow_state.cpp" \
+      -o "$OUT/test_follow_state.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_state.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+# --- 1c-bis. the routing decisions, extracted 2026-08-30 ---------------------
+#
+# Which face, and whether a swipe can produce one. Both were inline in a 9,000-
+# line Arduino TU where the only check available was flashing a board -- which is
+# how the routing rule spent a fortnight keyed on the wrong input.
+echo
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_follow_routing.cpp"       -o "$OUT/test_follow_routing.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow routing test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_routing.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+# --- 1d. the globe projection, extracted from src/anim (spec 7.2) ------------
+#
+# Pinned against values PRINTED BY THE PRE-EXTRACTION CODE, so "behaviour
+# preserving" is asserted rather than claimed. Coastlines.cpp is compiled in
+# because the data moved with the maths; it needs no Arduino either.
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_globe_proj.cpp"       "$ROOT/src/anim/Coastlines.cpp"       -o "$OUT/test_globe_proj.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the globe projection test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_globe_proj.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+# --- 1e. the generated borders, and the chunked cull that draws them ---------
+#
+# The four features graded here were NAMED BEFORE the test was written, because
+# the representation they replaced could not express any of them and a map with
+# some lines on it looks like a map. See the file header.
+#
+# StateBorders.cpp is compiled in for the same reason Coastlines.cpp is above:
+# the data is the thing under test, and it needs no Arduino either.
+echo
+echo "== state / province / international borders =="
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_state_borders.cpp"       "$ROOT/src/anim/StateBorders.cpp"       -o "$OUT/test_state_borders.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the border test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_state_borders.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+echo
 echo
 if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_config_vocab.cpp" -o "$OUT/test_config_vocab.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the config vocabulary test did not compile"; cat "$OUT/build.log"; exit 2
@@ -240,12 +333,68 @@ elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
 
+# ---------------------------------------------------------------------------
+# The Follow label sanitiser. Exists because a charset filter allowing only
+# A-Z0-9 reached a bench board and mangled every hyphenated registration:
+# G-ABCD -> GABCD. The output still LOOKS like an identifier, which is what
+# makes that class of bug worth a permanent test rather than a fix.
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_follow_label.cpp"       -o "$OUT/test_follow_label.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow label tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_label.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 # --- 2. the purity gate, and the control that proves it can fire -------------
 #
 # Compiling no_arduino.cpp MUST fail. If it succeeds, the drill TU is no longer
 # isolated and the guarantee this whole rig exists for is gone -- so a SUCCESS
 # here is the failure. Stderr goes to its own file rather than /dev/null: when
 # this does fire, the reason is the thing worth reading (ledger 15's rule).
+# --- 1c. the follow-target privacy guard (spec 17) ---------------------------
+#
+# Its own selftest runs FIRST and its failure is a RIG failure, not a test
+# failure: a guard that cannot fail is indistinguishable from a codebase that is
+# clean, and this one has now been wrong three times -- brace-depth attribution,
+# a regex with a literal backspace in it, and a per-line check that passed
+# against the actual multi-line bug it was written for.
+echo
+echo "== follow privacy (spec 17) =="
+# FOUND IS NOT THE SAME AS WORKING. On Windows, `command -v python3` resolves to
+# the Microsoft Store App Execution Alias, which exists on PATH, is executable,
+# and does nothing but print an advertisement and exit non-zero. Taking it and
+# running the guard reported "the privacy guard's own selftest did not pass",
+# i.e. the rig blaming the guard for the shell picking a stub. So each candidate
+# is asked to prove it can run something before it is believed.
+PY=""
+for cand in python3 python py; do
+  c="$(command -v "$cand" 2>/dev/null)" || continue
+  [ -n "$c" ] || continue
+  if "$c" -c "pass" >/dev/null 2>&1; then PY="$c"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the follow privacy guard cannot run."
+  echo "      Reporting this as the rig being incomplete rather than as a pass."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/check_follow_privacy.py" --selftest
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: the privacy guard's own selftest did not pass. This is the RIG."
+    exit 2
+  fi
+  "$PY" "$ROOT/scripts/check_follow_privacy.py"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then fail=1; fi
+fi
+
 echo
 echo "== purity gate =="
 if "$CXX" $FLAGS $INCLUDES \

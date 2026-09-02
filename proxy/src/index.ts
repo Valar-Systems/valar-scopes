@@ -3,6 +3,7 @@ import { handleAirports, handleAirportByCode } from "./airports";
 import { handleBlips } from "./blips";
 import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
+import { recordFleetFirmware } from "./fleet";
 import { handleEnroll } from "./enroll";
 import { enrollHtml } from "./enrollpage";
 import {
@@ -319,6 +320,12 @@ async function route(
   // only past auth + rate limiting, so an anonymous caller can never spend our
   // Analytics Engine budget, and it cannot affect the response the device came
   // for: whatever this does, the request below is served identically.
+  // INSTRUMENT A of the OTA control plan. The Worker is not on the update
+  // path -- devices fetch GitHub Releases directly -- so this watches the
+  // OUTCOME instead: an OTA success is X-Blip-FW changing with nobody having
+  // touched the device. See src/fleet.ts for why it is here and not earlier.
+  recordFleetFirmware(env, ctx, meta);
+
   recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model, meta.dev);
   // Anonymous feature-use counts, at most hourly per device, on the same
   // already-authenticated request and behind the same rate limiting for the same

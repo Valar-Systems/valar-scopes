@@ -107,7 +107,28 @@ button:disabled{opacity:.5;cursor:not-allowed}
     }
   }, 6000);
 
+  // ONE SUBMIT PER PAGE LOAD. Turnstile refreshes an expiring token on its own
+  // (data-refresh-expired defaults to "auto") and re-invokes this callback to
+  // hand over the new one -- so an UNGUARDED onSolve is not a handler, it is a
+  // ~5-minute timer. A tab left open on this page re-enrolled one board 1,988
+  // times over 20 days, and three days running the fleet-wide counter sat at
+  // 594/595/597 -- two tabs, beating steadily, around the clock.
+  //
+  // It was invisible because re-enrolment is idempotent BY DESIGN: the key is a
+  // pure function of the id, so every repeat returned the identical key and the
+  // device kept working perfectly. Nothing anywhere reported a fault.
+  //
+  // The guard is here rather than on the widget: data-refresh-expired="never"
+  // would leave a stale page holding an expired token and hand the customer an
+  // "unverified" error, which trades a silent loop for a visible failure in the
+  // one flow that must not break. The server is deliberately NOT changed to
+  // suppress repeats -- enrolment volume is the abuse signal (see enroll.ts),
+  // and a server that quietly de-duplicates is a server that cannot see this
+  // class of bug at all. It observed this one correctly; the client was wrong.
+  var submitted = false;
   window.onSolve = function(token){
+    if(submitted) return;
+    submitted = true;
     document.getElementById('hint').textContent = 'Checking...';
     fetch('/blipscope/enroll', {
       method:'POST', headers:{'content-type':'application/json'},

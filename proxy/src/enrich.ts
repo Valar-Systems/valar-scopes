@@ -203,16 +203,210 @@ async function resolveMeta(env: Env, hex: string, meta: RequestMetric): Promise<
   return built;
 }
 
+/// Coordinates for an airport code, or null when we do not carry it.
+async function airportLatLon(env: Env, code: string): Promise<[number, number] | null> {
+  const raw = await env.ENRICH_KV.get(`ap:${code.toUpperCase()}`, "text");
+  if (!raw) return null;
+  try {
+    const row = JSON.parse(raw);
+    if (!Array.isArray(row) || row.length < 2) return null;
+    const [la, lo] = row as [number, number];
+    return Number.isFinite(la) && Number.isFinite(lo) ? [la, lo] : null;
+  } catch {
+    return null;
+  }
+}
+
+function gcKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad;
+  const dLon = (bLon - aLon) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+/// Can this route belong to an aircraft at (lat, lon)?
+///
+/// The same one-sided test the firmware applies (follow::RouteContradicted): is
+/// the aircraft further from BOTH endpoints than they are from each other? On a
+/// real leg the aircraft lies roughly between them, so neither distance exceeds
+/// the route length by much. Deliberately crude -- flights leave the geodesic by
+/// hundreds of km routinely, and a tight cross-track threshold would reject
+/// correct routes. This asks a question with no innocent answer.
+///
+/// UNKNOWN CODES ARE NOT CONTRADICTIONS. If either endpoint is missing from the
+/// airport table there is nothing to measure, and refusing on absence of
+/// evidence would blank every route through a field we do not carry.
+async function routeContradicted(
+  env: Env,
+  o: string,
+  d: string,
+  lat: number,
+  lon: number,
+): Promise<boolean> {
+  const [op, dp] = await Promise.all([airportLatLon(env, o), airportLatLon(env, d)]);
+  if (!op || !dp) return false;
+  const routeKm = gcKm(op[0], op[1], dp[0], dp[1]);
+  if (routeKm <= 1) return false;
+  const toO = gcKm(lat, lon, op[0], op[1]);
+  const toD = gcKm(lat, lon, dp[0], dp[1]);
+  const MARGIN_KM = 100;
+  return toO > routeKm + MARGIN_KM && toD > routeKm + MARGIN_KM;
+}
+
+/* ===========================================================================
+ * THE ROUTE CACHE KEY CARRIES DIRECTION OF TRAVEL.
+ *
+ * WHY THE CALLSIGN ALONE IS WRONG. The upstream disambiguates legs for us --
+ * routesetRequest() sends lat/lng precisely because "callsigns get reused across
+ * legs" -- and then this cache threw that away by keying on the callsign. The
+ * first caller's leg won `rt:<cs>` for the whole TTL and every other device
+ * tracking a DIFFERENT leg of the same flight number got served that answer.
+ *
+ * WHY A POSITION TILE DOES NOT FIX IT. ASA537 flies SEA->BUR in the morning and
+ * BUR->SEA in the afternoon. Same corridor, therefore the same tiles. The
+ * morning leg populates the tile, the afternoon leg hits it, and the card is
+ * reversed exactly as before. A position tile separates DIFFERENT ROUTES IN
+ * DIFFERENT PLACES (the b16e859 case: a Bend aircraft showing MCO->BWI); it
+ * cannot separate the same route in both directions, because reversal preserves
+ * geography. Neither can a cached plausibility verdict -- that is a corridor
+ * test, and a corridor is symmetric. Same blindness as routeContradicted(),
+ * one layer down.
+ *
+ * And the TTL is 24 h, so it does not save us either: a same-day out-and-back
+ * sits entirely inside one entry's lifetime.
+ *
+ * WHY DIRECTION IS A KEY AND NOT A HEURISTIC, WHICH IS THE WHOLE ARGUMENT. A
+ * heuristic that GUESSES a reversal and swaps the displayed endpoints shows a
+ * customer a confidently wrong card when it guesses wrong. A cache key that
+ * guesses wrong just MISSES -- and a miss is a fresh fetch with the true
+ * position, which returns the right answer. Being wrong here costs one upstream
+ * request and never a wrong route. That inversion is why the objection to a
+ * swap-detector does not apply to a key.
+ *
+ * It also disposes of the departure-turn case that killed the detector: an
+ * aircraft leaving SEA briefly tracking north lands in a different bucket,
+ * misses, and fetches correctly.
+ *
+ * THE SEPARATION PROPERTY, WHICH IS EXACT RATHER THAN EMPIRICAL. A reversal is
+ * exactly 180 degrees. Adding 180 to a track advances the bucket index by
+ * exactly TRACK_BUCKETS/2, which is non-zero mod TRACK_BUCKETS for any EVEN
+ * bucket count -- so the two legs are guaranteed to land in different buckets,
+ * for 2, 4 or 8 buckets, and regardless of where the boundaries are placed.
+ * An ODD count breaks the guarantee, which is why the count is asserted even.
+ *
+ * Four buckets of 90 degrees: guaranteed separation, minimal fragmentation.
+ * Err toward MORE buckets, never fewer -- more costs redundant fetches, fewer
+ * costs stale hits, and only one of those is a wrong card.
+ * ======================================================================== */
+export const TRACK_BUCKETS = 4;
+if (TRACK_BUCKETS % 2 !== 0) {
+  // Not decoration: an odd count silently destroys the separation guarantee
+  // above, and the symptom would be an occasional reversed card -- i.e. the
+  // original bug, back, looking like bad upstream data.
+  throw new Error("TRACK_BUCKETS must be EVEN or a reversal can share a bucket");
+}
+
+/** Coarse direction bucket, or "" when the caller sent no usable track. */
+export function trackBucket(trk: number | undefined): string {
+  if (trk === undefined || !Number.isFinite(trk)) return "";
+  // Normalised the long way round on purpose: `%` follows the sign of the
+  // DIVIDEND in JS, so a negative track would otherwise land on a negative
+  // bucket index. See the cross-language rounding entry in CLAUDE.md.
+  const norm = ((trk % 360) + 360) % 360;
+  return String(Math.floor(norm / (360 / TRACK_BUCKETS)) % TRACK_BUCKETS);
+}
+
+/**
+ * Cache key for a route.
+ *
+ * Falls back to the bare `rt:<cs>` when no track is known, which keeps this
+ * backward compatible with devices that do not yet send one: they behave
+ * exactly as before rather than missing every lookup. The fix therefore
+ * activates per-device as firmware ships, and never regresses an old one.
+ *
+ * TODO(retire the no-track fallback) -- THE EXPIRY CONDITION IS A QUERY, NOT A
+ * MEMORY, AND NOT A DATE. Do not retire this on a recollection that "the fleet
+ * has updated". Run:
+ *
+ *     npx wrangler kv key list --prefix fw: --binding ENRICH_KV --env production
+ *
+ * A fw: row is written per device by Instrument A (src/fleet.ts) on the
+ * authenticated path, so that listing IS the enrolled fleet. While ANY row sits
+ * on a version that predates trk, the bare `rt:<cs>` fallback above is doing its
+ * job: those devices cannot send a direction, and serving them a shared key is
+ * the conservative, backward-compatible answer.
+ *
+ * WHAT CHANGES IS THE MEANING OF AN ABSENT trk, NOT THE CODE. Today an absent
+ * trk means "old firmware". Once every enrolled unit in that listing is on a
+ * trk-sending version, it stops meaning that and starts meaning ANOMALOUS -- a
+ * caller that is not one of our devices, or one whose track is genuinely
+ * unavailable. At that point the shared key is no longer compatibility; it is a
+ * hole, and it is the original reversed-card bug still live for whatever is
+ * coming through it.
+ *
+ * THE END STATE IS A CACHE BYPASS FOR NO-TRACK CALLERS, NOT A TIGHTER FALLBACK
+ * KEY. The instinct is to invent a sharper key for the no-track case. There is
+ * nothing to sharpen it WITH -- the absent direction is the whole problem, so
+ * any key built without it is the same shared key wearing a longer name. A
+ * no-track caller should MISS the cache and take the upstream's positional
+ * answer, which is the one path that cannot serve somebody else's leg.
+ *
+ * Read the listing, not this comment. scripts/reconcile-fleet.py prints the fw:
+ * table on every run, so the condition is visible to anyone asking anything
+ * about the fleet rather than only to whoever remembers this paragraph exists --
+ * which is the point of the standing entry in CLAUDE.md about instruments that
+ * fire correctly into a void.
+ */
+export function routeCacheKey(cs: string, trk: number | undefined): string {
+  const b = trackBucket(trk);
+  return b === "" ? `rt:${cs}` : `rt:${cs}:${b}`;
+}
+
 // Route: KV, else the route-source chain (adsb.lol routeset, then adsbdb).
 async function resolveRoute(
   env: Env,
   cs: string,
   lat: number | undefined,
   lon: number | undefined,
+  trk: number | undefined,
 ): Promise<RouteEntry> {
   if (!cs) return { o: "", d: "" };
-  const cached = await env.ENRICH_KV.get<RouteEntry>(`rt:${cs}`, "json");
-  if (cached) return cached;
+  const rtKey = routeCacheKey(cs, trk);
+  const cached = await env.ENRICH_KV.get<RouteEntry>(rtKey, "json");
+  if (cached) {
+    // THE CACHED BRANCH IS CHECKED TOO, WHICH IT WAS NOT.
+    //
+    // SWA986 drew Orlando -> Baltimore for an aircraft overhead in central
+    // Oregon. The route was not wrong when it was stored -- it was that
+    // aeroplane's leg, it passed the plausibility test below, and it was cached
+    // under the CALLSIGN. A flight number is reused across legs and days, so the
+    // next aircraft to fly SWA986 got the previous leg served straight out of
+    // KV, and the test that exists to catch exactly this was three lines further
+    // down, past a `return`.
+    //
+    // The comment below already says "callsigns get reused across legs". The
+    // knowledge was here; only the cached path did not go through the check.
+    //
+    // WHY NOT REUSE r.plausible: that flag is the UPSTREAM's verdict, computed
+    // when we fetch. There is no fetch on this path, so the check has to be
+    // geometric and local -- which is also what makes it free of an upstream
+    // that might be wrong.
+    if (lat !== undefined && lon !== undefined && cached.o && cached.d) {
+      const bad = await routeContradicted(env, cached.o, cached.d, lat, lon);
+      if (bad) {
+        // NOT DELETED. The entry is correct for the aircraft it was cached
+        // from, and another unit may be looking at that one right now; deleting
+        // would turn one wrong answer into a cache stampede on every device
+        // tracking the real flight. Withheld from THIS caller only.
+        console.log(`route_stale cs=${cs} ${cached.o}->${cached.d} not_for_position`);
+        return { o: "", d: "" };
+      }
+    }
+    return cached;
+  }
 
   const r = await fetchRoute(env, cs, lat, lon);
   if (!r) return { o: "", d: "" };
@@ -221,7 +415,7 @@ async function resolveRoute(
   const usable = lat !== undefined && lon !== undefined ? r.plausible : true;
   const route = usable ? { o: r.o, d: r.d } : { o: "", d: "" };
   if (r.definitive) {
-    await env.ENRICH_KV.put(`rt:${cs}`, JSON.stringify(route), { expirationTtl: RT_TTL_S });
+    await env.ENRICH_KV.put(rtKey, JSON.stringify(route), { expirationTtl: RT_TTL_S });
   }
   return route;
 }
@@ -260,6 +454,9 @@ export async function handleEnrich(
   // Optional live position: feeds the route plausibility check.
   const lat = maybeFloat(url.searchParams.get("lat"));
   const lon = maybeFloat(url.searchParams.get("lon"));
+  // Direction of travel, for the route cache key -- see routeCacheKey(). Absent
+  // on firmware that predates it, which falls back to the old callsign-only key.
+  const trk = maybeFloat(url.searchParams.get("trk"));
 
   // The two lookups are independent; run them concurrently to keep tap->card
   // latency down (the firmware budget is sub-second on the warm path). Each
@@ -271,7 +468,7 @@ export async function handleEnrich(
     setTimeout(() => resolve("deadline"), deadlineMs),
   );
   const metaPromise = resolveMeta(env, hex, meta);
-  const routePromise = resolveRoute(env, cs, lat, lon);
+  const routePromise = resolveRoute(env, cs, lat, lon, trk);
   const [metaOutcome, routeOutcome] = await Promise.all([
     Promise.race([metaPromise, deadline]),
     Promise.race([routePromise, deadline]),

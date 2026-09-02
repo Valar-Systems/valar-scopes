@@ -270,6 +270,84 @@ def build_nvs(key: str, cloud_url: str | None, workdir: Path, size: int = NVS_DE
     return bin_path
 
 
+# ---------------------------------------------------------------------------
+# THE MANUFACTURING RECORD. Not optional, and checked BEFORE the board is touched.
+#
+# On 2026-09-01 a reconcile found three of four known boards absent from this
+# log. The cause turned out to be a second key-issuance path (web self-enrolment)
+# that never calls this script at all -- so these two functions do not fix that,
+# and cannot. What they fix is the failure mode this script owns: the log write
+# used to be the LAST statement in the run, which put every way it can fail
+# (unwritable path, --log into a directory that does not exist, a read-only
+# file, a full disk) strictly AFTER the flash. That is the one ordering where
+# the record becomes unreconstructible -- the board is programmed and the only
+# remaining copy of what happened is in an operator's head.
+#
+# So: prove the record is writable first, write it, then read it back. At fifty
+# units the difference between "the run failed" and "the run failed and we do
+# not know which board" is the difference between a retry and a support ticket.
+# ---------------------------------------------------------------------------
+
+LOG_COLUMNS = ["utc", "env", "mac", "device_id", "source"]
+
+
+def log_preflight(log: Path) -> None:
+    """Fail before flashing if the record cannot be written afterwards."""
+    try:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open("a", encoding="utf-8"):
+            pass
+    except OSError as e:
+        die(f"the provisioning record {log} is not writable ({e}).\n"
+            f"       Refusing to flash: a board programmed without a record is a board\n"
+            f"       nobody can identify later. Fix the path or pass --log elsewhere.")
+
+
+def append_log(log: Path, env: str, mac: str, dev_id: str, source: str = "provisioned") -> None:
+    """Append one row, then READ IT BACK before calling the run a success.
+
+    The read-back is not paranoia about the filesystem; it is the same rule this
+    project applies to every other write it depends on (see the KV bulk-put
+    entry in CLAUDE.md): the writer reporting success is not evidence that the
+    write landed. Here it is one line and one re-read, so there is no excuse.
+
+    Row width follows the FILE's existing header, so a log created before the
+    `source` column still gets valid 4-column rows instead of ragged ones.
+    """
+    header = LOG_COLUMNS
+    if log.exists() and log.stat().st_size > 0:
+        with log.open(newline="", encoding="utf-8") as f:
+            first = next(csv.reader(f), None)
+        if first:
+            header = first
+    row = {"utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "env": env, "mac": mac, "device_id": dev_id, "source": source}
+
+    try:
+        new = not log.exists() or log.stat().st_size == 0
+        with log.open("a", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            if new:
+                w.writerow(header)
+            w.writerow([row.get(c, "") for c in header])
+    except OSError as e:
+        die(f"FAILED to write the provisioning record {log} ({e}).\n"
+            f"       THE BOARD IS ALREADY FLASHED. Record it by hand, now:\n"
+            f"         {row['utc']},{env},{mac},{dev_id},{source}")
+
+    # Read back. A run that cannot prove its row exists does not exit 0.
+    try:
+        with log.open(newline="", encoding="utf-8") as f:
+            landed = any((r.get("device_id") or "").strip() == dev_id
+                         for r in csv.DictReader(f))
+    except OSError as e:
+        die(f"wrote the record but could not read {log} back ({e}) -- treat as unrecorded.")
+    if not landed:
+        die(f"the provisioning row for {dev_id} is NOT in {log} after writing it.\n"
+            f"       THE BOARD IS ALREADY FLASHED. Record it by hand, now:\n"
+            f"         {row['utc']},{env},{mac},{dev_id},{source}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Provision one board with a per-device key.")
     ap.add_argument("--env", required=True, help="PlatformIO env, e.g. blipscope-s3-128-cloud")
@@ -285,6 +363,11 @@ def main() -> None:
     secret = os.environ.get("DEVICE_KEY_SECRET", "").strip()
     if not secret:
         die("set DEVICE_KEY_SECRET in the environment (the Worker's secret)")
+
+    # Before anything touches hardware. --dry-run flashes nothing and so has no
+    # record to keep, but every other path must be able to write one.
+    if not args.dry_run:
+        log_preflight(Path(args.log))
 
     print(f"\n=== provisioning [{args.env}] ===")
     salt = salt_from_sources(args.env)
@@ -341,15 +424,11 @@ def main() -> None:
             die("minted key was rejected -- check DEVICE_KEY_SECRET matches the Worker's")
 
     # Provisioning record. deviceId only: the key is re-derivable from the secret,
-    # so there is no reason to persist it and every reason not to.
-    log = Path(args.log)
-    new = not log.exists()
-    with log.open("a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        if new:
-            w.writerow(["utc", "env", "mac", "device_id"])
-        w.writerow([datetime.now(timezone.utc).isoformat(timespec="seconds"), args.env, mac, dev_id])
-    print(f"\n  logged to {log}")
+    # so there is no reason to persist it and every reason not to. append_log
+    # reads the row back and die()s if it is not there, so reaching the next line
+    # means the record exists -- which is what "DONE" is now allowed to claim.
+    append_log(Path(args.log), args.env, mac, dev_id)
+    print(f"\n  logged to {args.log}")
     print("  DONE\n")
 
 

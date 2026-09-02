@@ -19,6 +19,12 @@
 #include "UsageStore.h"  // anonymous feature-use counters (README "Telemetry")
 #include "LGFX.h"
 #include "BandCanvas.h"
+#include "FollowTrack.h" // Follow Mode track buffer (header-only; radar path only)
+#include "FollowState.h" // Follow Mode state machine + copy (spec 5 and 6)
+#include "FollowGeometry.h" // Follow Mode local-face geometry (spec 10)
+#include "FollowArc.h" // Follow Mode arc-face arithmetic (spec 8)
+#include "FollowRouting.h" // which face, and whether a swipe can produce one
+#include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 
 class AircraftManager
@@ -83,9 +89,21 @@ private:
     // window for a painted blip. angle = TWO_PI * millis() / SWEEP_PERIOD_MS.
     static constexpr unsigned long SWEEP_PERIOD_MS = 5000;
 
-    // Screen navigation. Three top-level screens cycle via horizontal swipe; the
+    // Screen navigation. Top-level screens cycle via horizontal swipe; the
     // detail card overlays whichever screen you're on.
-    enum class Screen { Radar, List, Stats };
+    //
+    // FOLLOW IS ONE SLOT WITH SEVERAL FACES, NOT SEVERAL SCREENS (spec C6). The
+    // local face, the arc face, the globe and the post-flight card are all this
+    // one entry; which of them draws is decided by regime and state (§7.1), and
+    // is never something the customer picks.
+    //
+    // It is HIDDEN ENTIRELY when no aircraft is being followed (§13.3), the way
+    // the other editions skip empty feeds -- so the cycle below walks visible
+    // screens rather than counting a fixed number. A collection customer who
+    // never uses this must not inherit a dead screen, and a fixed `% 4` is
+    // exactly how they would.
+    enum class Screen { Radar, List, Stats, Follow };
+    static constexpr int SCREEN_COUNT = 4;
 
     /// Switch screens, and count it.
     ///
@@ -228,6 +246,148 @@ private:
     // flyover alert. Empty watchlist disables all of it.
     std::vector<String> watchlist;
     String ntfyTopic = "";
+
+    // ---- Follow Mode (docs/follow-mode-consolidated.md) ---------------------
+    // STAGE 1: the track buffer and its draw cost. The state machine, the faces
+    // and the alerts are not built -- §19 puts the draw-cost measurement first
+    // because everything else is contingent on it.
+    //
+    // `followTarget` gates the whole feature. Empty means no allocation, no
+    // draw, no behaviour change for anyone who did not ask (§15).
+    String followTarget = "";      // lowercased tail / callsign / hex prefix
+    // ---- the SESSION target (docs/tap-to-peek.md) ---------------------------
+    //
+    // Set by swiping down on a detail card. NEVER WRITTEN TO NVS, and that is
+    // the whole privacy argument rather than an implementation detail: the
+    // config page stays the only path by which this device STORES an aircraft
+    // somebody cares about, so C2's line is untouched. A reboot forgets it and
+    // the configured target resumes.
+    //
+    // Kept separate from followTarget rather than overwriting it, so the
+    // configured target survives a session follow and comes back on dismissal.
+    String followSessionTarget = "";
+    bool   followDrawTrack = true; // "follow-track"; §15 marks the default conditional on §18.1
+    // 15's alert toggles. follow-lost defaults OFF and the asymmetry IS the
+    // argument: a missed lost-alert costs mild worry, an unwanted one costs
+    // panic. The screen always shows the state; the phone only if asked.
+    bool   followAlertUp   = true;   // "follow-up"
+    bool   followAlertDown = true;   // "follow-down"
+    bool   followAlertLost = false;  // "follow-lost"
+    follow::Track followTrack;
+
+    // The states and the words (spec 5, 6). A pure module -- this only holds the
+    // instance; all the reasoning lives in include/FollowState.h so it can be
+    // host-tested, which spec 17 names as the prerequisite for the privacy test.
+    follow::Machine     followMachine;
+    follow::HomeContext followHome;
+    // The flight's four numbers, accumulated live and frozen on landing (11).
+    follow::FlightStats followStats;
+    // The post-flight card's store. ONE write per flight, own NVS namespace,
+    // and the only part of Follow that survives a power cycle -- because it is
+    // the only part that cannot become untrue while the device is off (11).
+    follow::Log         followLog;
+    bool                followLogLoaded = false;
+
+    // The number this build exists to produce. Measured around the track draw
+    // ALONE, not the whole frame: the frame figure already exists and cannot
+    // answer "what did the track cost", which is the question in §18.1.
+    uint32_t followDrawUs = 0;      // last frame
+    uint32_t followDrawMaxUs = 0;   // worst since the last health report
+    uint32_t followDrawSumUs = 0;   // for a mean over the report interval
+    uint32_t followDrawFrames = 0;
+    size_t   followDrawSegments = 0; // segments actually drawn last frame
+
+    // The arc face's own counters, and they are SEPARATE ON PURPOSE. Folding
+    // the arc into followDrawUs would report "the track cost 4 ms" on a frame
+    // where the track was never drawn -- the same one-number-for-everything
+    // mistake the [follow] line's own comment warns about, committed by the
+    // person who wrote the warning. Two costs, two lines.
+    uint32_t followArcUs = 0;
+    uint32_t followArcMaxUs = 0;
+    size_t   followArcStrokes = 0;
+
+    // ---- the local face (§10) ----------------------------------------------
+    // The home field's CODE, from the airport data already on the device. §10 is
+    // explicit that the local face adds no dataset and that the marker carries a
+    // code and never a name: the device has coordinates and identifiers, not
+    // names, and inventing one would mean a new table and a flash cost for
+    // nothing Follow needs. Empty when no field is close enough to claim.
+    String followHomeCode = "";
+    // The elevation half of C5 is NOT delivered (the CC0 corpus has AltitudeFeet
+    // for 34,128 fields; no running code writes it to KV). Kept separate from the
+    // position half so an absent elevation costs AGL and nothing else -- see the
+    // note on follow::HomeContext.
+    bool   followHomeCodeResolved = false;
+
+    // ---- the arc face (§8) ---------------------------------------------------
+    //
+    // THE ROUTE IS CACHED FOR THE FLIGHT, and it has to be: the arc's whole job
+    // is to keep drawing while the aeroplane is NOT in the contact table, and
+    // the codes arrive on the tracked aircraft that has just vanished from it.
+    // Read from the live contact whenever it is seen, held across every absence
+    // state, and cleared with the flight in HandleFollowTransition.
+    //
+    // §17: these are AIRPORT CODES, never the target. Nothing looks them up over
+    // the network -- LookupAirport reads the baked table -- and C2's resolution
+    // (lookup by code, never by callsign) is what makes that the only acceptable
+    // shape. A route fetched FOR the follow target would be a request whose very
+    // existence names the aircraft being followed.
+    String followRouteOrigin = "";
+    String followRouteDest   = "";
+
+    // C4's stale-follow nudge. Seven days is a GUESS and is marked as one: it
+    // wants to be longer than a holiday and shorter than a season, so a weekly
+    // flyer who takes a fortnight off is never told their device is
+    // misconfigured. Counted only while no fix has EVER been seen -- the clock
+    // lives in the follow-log NVS namespace so it survives a reboot, since a
+    // device power-cycled weekly could never reach seven days on millis().
+    static constexpr uint32_t FOLLOW_STALE_NUDGE_SEC = 7UL * 24UL * 3600UL;
+
+    // §13.3: Follow auto-surfaces ONLY on a state transition -- takeoff, landing
+    // -- for a dwell, then returns to wherever the owner was. It never takes the
+    // screen otherwise, and a swipe during the dwell cancels it: the customer
+    // moving is a decision, and a screen that snaps back after one is a screen
+    // that feels broken.
+    follow::State followLastState = follow::State::Idle;
+    Screen        followAutoReturnTo = Screen::Radar;
+    unsigned long followAutoUntilMs = 0;
+    static constexpr unsigned long FOLLOW_AUTO_DWELL_MS = 20000;
+
+    // A swipe that CANNOT produce a face has to say so. Every card is swipeable
+    // now, and exactly one combination has nothing to draw: no route (so no arc
+    // and no globe) and no configured location (so the local face would ring a
+    // point in the Gulf of Guinea). Silence there is the worst option -- it
+    // teaches the customer the gesture does nothing, which is what the old
+    // no-affordance rule was trying to avoid and got backwards.
+    unsigned long followDeclineUntilMs = 0;   // millis() the notice expires (0 = none)
+    static constexpr unsigned long FOLLOW_DECLINE_MS = 4000;
+
+#ifdef FOLLOW_BENCH
+    // The bench image self-enables a synthetic target once per boot so the face
+    // has something to draw. It is ARMED ONCE: after the first Initialise an
+    // empty follow field means the owner CLEARED it, which is what makes the
+    // 4.3 disable path reachable on the bench image at all.
+    bool followBenchArmed = true;
+    // 6's absence copy is the emotional core of the feature and can only be
+    // judged by eye. It cannot be reached on a bench without cutting the
+    // network, so the state can be FORCED for display -- the drawing is what
+    // needs looking at; the transitions are graded in the host suite.
+    bool          followForce = false;
+    follow::State followForced = follow::State::SignalLost;
+    // Stage 2: a synthetic long-haul so the arc, the globe, both scales and all
+    // four contact states can be judged on glass without a real airliner. It
+    // supplies what the bench cannot: a route the device would only ever learn
+    // from a live contact, and a position mid-route.
+    bool  followBenchLongHaul = false;
+    float followBenchProgress = 0.45f;
+    /// Force the resolving state, which nothing produces yet: the ap: device
+    /// client is unbuilt, so this is the only way to put its copy on glass.
+    bool  followBenchResolving = false;
+    /// Set a session follow from the bench, with a canned route. The real entry
+    /// point takes a TrackedAircraft, and a bench has none.
+    void  BenchSessionFollow(const char* label, const char* org, const char* dst);
+    void PollBenchSerial();
+#endif
     unsigned long lastNotifyCheck = 0;
 
     // Special-aircraft detection. Every class is derived offline from the live
@@ -489,6 +649,7 @@ private:
     void PushClaimToast(const String& text);
     void UpdateClaimToast();
     void DrawClaimToast(BandCanvas& backbuffer) const;
+    void DrawFollowDeclineToast(BandCanvas& backbuffer) const; // swipe with nothing to draw
     // Claim everything a tapped aircraft is carrying (type, airline, country,
     // route airports) and queue the confirmation. Safe to call every frame the
     // card is open: it no-ops once the type is claimed.
@@ -636,14 +797,127 @@ private:
     // so a photo-less card reads as designed rather than broken. Varied by emitter category.
     void DrawAircraftSilhouette(BandCanvas& backbuffer, int cx, int cy, const TrackedAircraft& tracked) const;
     void DrawAircraftTrail(BandCanvas& backbuffer, const TrackedAircraft& tracked, int headX, int headY, float brightness = 1.0f) const;
+    // Follow Mode stage 1. DrawFollowTrack is const-except-for-instrumentation,
+    // so it is not const: it writes the timing counters that are its whole point.
+    void DrawFollowTrack(BandCanvas& backbuffer);
+    void DrawFollowHud(BandCanvas& backbuffer) const;
+    bool MatchesFollow(const TrackedAircraft& tracked) const;
+    void UpdateFollowTrack();
+    // One screen slot, several faces (C6). DrawFollow is the router (§7.1); the
+    // faces below are chosen by regime and state and never by the customer.
+    void DrawFollow(BandCanvas& backbuffer);
+    void DrawFollowLocalFace(BandCanvas& backbuffer);
+    /// EVERYTHING A ROUTE FACE NEEDS, PASSED IN RATHER THAN READ OFF THIS
+    /// OBJECT.
+    ///
+    /// The two faces used to read `followRouteOrigin`, `followRouteDest`,
+    /// `followTarget` and the machine's state directly, which gave each of them
+    /// exactly one possible caller: Follow. That is the wrong shape regardless
+    /// of what else gets built -- a renderer that can only draw one subject is a
+    /// renderer with its subject hardcoded.
+    ///
+    /// The device-level things a face reads (`lat`/`lon`, `radarUpDeg`,
+    /// `rangeUnit`) stay as members on purpose. Those are display CONFIGURATION
+    /// -- how this panel is oriented and what units this owner reads -- not
+    /// facts about the subject, and threading them through would be noise.
+    struct RouteView {
+        follow::Endpoint org{};      // resolved origin; .known false = code only
+        follow::Endpoint dst{};      // resolved destination
+        String origCode;             // the STRINGS, which draw even when unresolved
+        String destCode;
+        String label;                // callsign or tail, already uppercased
+        float  acLat = 0.0f;
+        float  acLon = 0.0f;
+        bool   havePos = false;
+        float  gsKt = 0.0f;
+        uint32_t sinceSec = 0;       // since the last fix, for SIGNAL_LOST
+        follow::State st = follow::State::Idle;
+        float  altMslFt = NAN;       // NaN = nothing reportable
+        /// Codes are known but their coordinates are not YET -- an ap: lookup is
+        /// in flight. Distinct from "unresolvable": one resolves shortly, the
+        /// other never will, and telling the customer they are the same thing is
+        /// how a working feature looks broken for two seconds.
+        bool   resolving = false;
+    };
+
+    /// The airline default (§8): route arc, bearing wedge, centre stack.
+    void DrawRouteArc(BandCanvas& backbuffer, const RouteView& v);
+    /// Build a RouteView from the CURRENT follow state. The one place that
+    /// knows Follow's members feed the faces, so a second caller (a
+    /// session-set target) supplies its own view instead of mutating these.
+    RouteView FollowRouteView() const;
+    /// C4's pre-departure face -- the state the owner sees FIRST.
+    void DrawFollowWaitingFace(BandCanvas& backbuffer);
+    /// §9's globe, long-haul only. Uses include/GlobeProjection.h, the
+    /// projection and coastline set extracted from src/anim/ (§7.2).
+    void DrawRouteGlobe(BandCanvas& backbuffer, const RouteView& v);
+    /// §7.1's inference: an aircraft that stays inside the home radius is
+    /// local, one that leaves it is not. Arithmetic in FollowArc.h.
+    follow::Regime FollowRegime() const;
+    /// Both route codes resolved against the baked table (§8's degradation:
+    /// unresolved codes still DRAW, they just cannot place a marker).
+    bool FollowRouteKnown() const { return !followRouteOrigin.isEmpty() &&
+                                          !followRouteDest.isEmpty(); }
+    /// The view the local face draws: home at the centre, rings auto-fitted to
+    /// the track's extent. Pure arithmetic lives in include/FollowGeometry.h.
+    follow::LocalView BuildLocalView() const;
+    std::pair<int, int> ProjectLocal(float pLat, float pLon, const follow::LocalView& v) const;
+    /// The followed contact, if it is in the table this pass. Null is the normal
+    /// case at pattern altitude, not an error -- see FollowTrack.h.
+    const TrackedAircraft* FollowedAircraft() const;
+    /// The target actually in force: a session follow overrides the configured
+    /// one for as long as it is set.
+    String EffectiveFollowTarget() const {
+        return followSessionTarget.isEmpty() ? followTarget : followSessionTarget;
+    }
+    bool FollowSessionActive() const { return !followSessionTarget.isEmpty(); }
+    /// Swipe down on a card: follow that aircraft for this session.
+    void SetSessionFollow(const TrackedAircraft& tracked);
+    /// Swipe down on the follow face: stop, and let the configured target resume.
+    void ClearSessionFollow();
+    /// §13.3 + docs/tap-to-peek.md: the followed flight's route, drawn on the
+    /// RADAR face so it is visible the whole flight without taking the screen.
+    void DrawFollowRouteStrip(BandCanvas& backbuffer);
+    /// Empty follow field -> the screen does not exist (§13.3).
+    bool FollowScreenVisible() const { return !EffectiveFollowTarget().isEmpty(); }
+    /// Next/previous VISIBLE screen. dir is +1 or -1.
+    void AdvanceScreen(int dir);
+    /// Everything that happens on a follow STATE CHANGE: freeze the finished
+    /// flight (11), start a new one, and surface the screen for a dwell (13.3).
+    void HandleFollowTransition();
+    /// The ONE sanctioned outbound use of the follow target (17 / C3).
+    bool SendFollowAlert(follow::State was, follow::State now);
+    void DrawFollowPostFlightCard(BandCanvas& backbuffer);
+    /// Ellipsise `t` to the chord of the round panel at row `yTop`.
+    /// A round screen has no edge to clip against -- glyphs just run off the
+    /// curve, and text clipped by the bezel looks identical to a bug.
+    String FitToDisc(BandCanvas& backbuffer, const String& t, int yTop, int lineH,
+                     int availOverride = -1) const;
+    /// 7.1: LANDED until the next takeoff shows the card, not the live face.
+    bool ShowPostFlightCard() const;
+    /// The nearest airport code to home, from the data already on the device.
+    void ResolveHomeField();
     void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
+    /// The one-glyph preview of which Follow face this card opens onto.
+    void DrawFollowFaceGlyph(BandCanvas& backbuffer, const TrackedAircraft& tracked);
+    /// The glyph's TAP TARGET, in screen pixels, written by the function that
+    /// draws it so the pixels and the hit test cannot disagree -- the same rule
+    /// the reset menu's rows follow. -1 means "not drawn this frame, not
+    /// tappable", which is the state for a contact with no face to open.
+    int followGlyphX0 = -1, followGlyphY0 = -1, followGlyphX1 = -1, followGlyphY1 = -1;
+    /// Open Follow on the carded aircraft. ONE entry path, shared by the glyph
+    /// tap and the swipe-down alias. True if the gesture was consumed.
+    bool OpenFollowFromCard();
 
     void DrawRadar(BandCanvas& backbuffer, bool firstPass);
     void DrawList(BandCanvas& backbuffer);
     void DrawStats(BandCanvas& backbuffer);
     void DrawScreenIndicator(BandCanvas& backbuffer) const;
     void DrawClock(BandCanvas& backbuffer) const;
+    /// Minutes until the followed flight arrives, or -1 if unknowable.
+    int  FollowMinutesToArrival() const;
+    int  FollowMinutesToArrival(const RouteView& v) const;
     void DrawNightClock(BandCanvas& backbuffer) const; // big 7-seg face replacing an empty night radar
     std::vector<String> SortedAircraftByDistance();
 
@@ -720,8 +994,14 @@ private:
     bool RequestCloudAirports();                // loop: queue a /api/v1/blipscope/airports fetch on the fetch task
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
+    // loop: queue a /api/v1/blipscope/enrich lookup.
+    // acTrack/hasTrack feed the proxy's route CACHE KEY (routeCacheKey() in
+    // enrich.ts), not the plausibility check. Defaulted off so a call site
+    // without a usable track says so by omission and gets the legacy key,
+    // rather than sending 0 and claiming due north.
     void RequestCloudEnrich(const String& icao24, const String& callsign,
-                            float acLat, float acLon); // loop: queue a /api/v1/blipscope/enrich lookup
+                            float acLat, float acLon,
+                            float acTrack = 0.0f, bool hasTrack = false);
     // Apply one enrichment payload to a tracked aircraft (shared by the network
     // result and the LRU-cache hit paths); notes the logbook like adsbdb did.
     void ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e);

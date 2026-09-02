@@ -211,13 +211,12 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
 
         with state.lock:
             state.done.add(mac)
-            with cfg.log.open("a", newline="", encoding="utf-8") as f:
-                w = csv.writer(f)
-                if state.new_log:
-                    w.writerow(["utc", "env", "mac", "device_id"])
-                    state.new_log = False
-                w.writerow([datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                            cfg.env, mac, dev_id])
+            # One implementation of the record write, shared with the single-board
+            # script -- it manages the header, matches the file's column width and
+            # reads the row back. A second copy here would be the one that goes
+            # stale, which is the same reason the pre-commit hook and the CI check
+            # share an allowlist file instead of each keeping a list.
+            pd.append_log(cfg.log, cfg.env, mac, dev_id)
             n = len(state.done) - state.preexisting
         return port, "OK", f"{mac} -> {dev_id}   [{n}" + (f"/{cfg.count}]" if cfg.count else "]")
     except Exception as e:
@@ -228,12 +227,11 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
 
 
 class State:
-    def __init__(self, done: set[str], new_log: bool):
+    def __init__(self, done: set[str]):
         self.lock = threading.Lock()
         self.done = done
         self.inflight: set[str] = set()
         self.preexisting = len(done)
-        self.new_log = new_log
 
 
 def main() -> None:
@@ -274,9 +272,12 @@ def main() -> None:
     cfg.verify_url, cfg.cloud_url = args.verify_url, args.cloud_url
     cfg.count, cfg.dry_run, cfg.force = args.count, args.dry_run, args.force
     cfg.log = Path(args.log)
+    # Before the build, and long before any board is written to. At batch scale
+    # this is the difference between finding out now and finding out on board 50.
+    pd.log_preflight(cfg.log)
 
     done = already_done(cfg.log)
-    state = State(done, new_log=not cfg.log.exists())
+    state = State(done)
     if done:
         print(f"  {len(done)} board(s) already in {cfg.log.name} -- they will be skipped if re-plugged")
 

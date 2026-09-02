@@ -38,6 +38,32 @@ jobs:
       - name: Every config page is a single whole form
         run: python scripts/check-config-form.py
 
+  # Follow Mode's privacy invariant (docs/follow-mode-consolidated.md 17): the
+  # aircraft a customer named must not leave the device, except in the ntfy body
+  # they opted into by naming it. A tail number tied to a named person is not a
+  # type code, and a rule that lives only in a comment gets violated in six
+  # months by someone who does not know it exists.
+  #
+  # This is the WEAKER form and is labelled as such in the script's own header --
+  # it reads the source, not the artifact. It earns its place anyway: it found a
+  # Serial.printf of the target that had shipped in the stage-1 commit, in a file
+  # whose header says the target must never be printed.
+  #
+  # --selftest first, same reasoning as config-form above, and more sharply here:
+  # this checker has been wrong three times, and each time a passing run and a
+  # clean codebase looked identical.
+  follow-privacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove the guard catches a leak, including the multi-line shape
+        run: python scripts/check_follow_privacy.py --selftest
+      - name: The follow target reaches exactly one outbound sink
+        run: python scripts/check_follow_privacy.py
+
   # The ICAO country table is binary-searched, so "sorted and non-overlapping" is a
   # correctness precondition rather than a style rule -- and breaking it produces no
   # compiler error, just a few addresses that silently resolve to the wrong country
@@ -112,6 +138,19 @@ jobs:
       - name: Prove the gate's matrix parser before the gate is trusted
         run: bash scripts/check-adsbdb-out.sh --selftest
 
+  # The other half of the same idea, for the OTA gate rather than the images.
+  #
+  # Its failure mode is also silence: if the matrix parser returns no slugs, the
+  # publish check has nothing to require and passes vacuously -- which would let
+  # version.txt ship while a shipping SKU sat failed. Floor + anchor + selftest,
+  # run here on every push so matrix drift surfaces long before a release night.
+  publish-receipts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the publish-receipt gate, both directions
+        run: bash scripts/check-publish-receipts.sh --selftest
+
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -167,6 +206,20 @@ jobs:
           # the very change that sweep was checking. An env nothing builds is an env
           # that rots silently, and this row is what stops that.
           - { env: blipscope-pro-s3-175-amoled }
+          # The flight-animation harness. Slug-less, and added 2026-08-27 when the
+          # globe projection was extracted out of src/anim/ for Follow (§7.2).
+          #
+          # THE SAFETY NET THAT WAS ASSUMED TO COVER THIS DOES NOT. missileer-s3-146
+          # is in this matrix and builds green, but every EAM env applies
+          # ${filters.anim_off}, so src/anim/ IS NOT IN THE MISSILEER IMAGE AT ALL --
+          # confirmed by grepping its ELF for FlightAnimation/kCoast/GOLF-07 (all
+          # absent) against an anchor that is present. A refactor of the animation
+          # module could therefore break every env that actually contains it while
+          # the Missileer row stayed green, which is the same shape as the 1.75"
+          # AMOLED above: an env nothing builds is an env that rots silently.
+          #
+          # animtest-s3-128 is the only env that compiles AND renders src/anim/.
+          - { env: animtest-s3-128 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -216,14 +269,65 @@ jobs:
         run: |
           tag="${{ github.event.release.tag_name }}"
           gh release upload "$tag" "firmware-${{ matrix.slug }}.bin" --clobber
+      # PUBLICATION RECEIPT -- evidence about THIS run, not about the release.
+      #
+      # Written only after the launch gate AND the upload above have both
+      # succeeded. "firmware-<slug>.bin exists on the release" would NOT do:
+      # that is equally true of a stale asset from an earlier run whose gate
+      # failed, which is precisely the state version.txt must refuse to bless.
+      #
+      # The discriminator is matrix.slug -- the same field that decides whether
+      # this leg publishes anything at all. A harness row emits no receipt
+      # because none is expected of it, and that is what stops it withholding
+      # the fleet's OTA gate. See scripts/check-publish-receipts.sh.
+      - name: Publication receipt
+        if: github.event_name == 'release' && matrix.slug
+        run: |
+          mkdir -p receipts
+          echo "${{ matrix.slug }} published from ${{ github.sha }}" > "receipts/${{ matrix.slug }}"
+      - name: Upload publication receipt
+        if: github.event_name == 'release' && matrix.slug
+        uses: actions/upload-artifact@v4
+        with:
+          name: pubok-${{ matrix.slug }}
+          path: receipts/${{ matrix.slug }}
 
   version:
-    # Publish the shared version gate once per release, after all SKUs build.
-    if: github.event_name == 'release'
+    # Publish the shared version gate once per release -- but ONLY once every
+    # PUBLISHING SKU has actually published.
+    #
+    # `needs: build` is kept for ORDERING (wait for the matrix to finish) and
+    # always() stops the matrix AGGREGATE from deciding anything. GitHub hands a
+    # dependent job one result for every leg, so before this change a slug-less
+    # harness env could withhold version.txt from the entire fleet: on
+    # 2026-09-01 animtest-s3-128 failed the adsbdb gate's anchor control, this
+    # job was skipped, and v9's OTA gate 404'd while ten verified binaries sat
+    # on the release.
+    #
+    # THE DIRECTION IS PRESERVED AND IS THE ENTIRE POINT. A slug-FUL leg that
+    # fails leaves no receipt, the check below fails, and version.txt does NOT
+    # advance -- devices must never be pointed at an image no launch gate
+    # certified. Only harness legs stopped being load-bearing.
+    if: always() && github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Before its verdict is used, same rule as the adsbdb gate: a check that
+      # cannot be shown to fail is not evidence.
+      - name: Prove the receipt gate can fail before trusting it
+        run: bash scripts/check-publish-receipts.sh --selftest
+      # No receipts at all must FAIL, not vacuously pass. If this step errors
+      # because nothing matched, that is the safe direction and version.txt
+      # stays put.
+      - name: Collect publication receipts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pubok-*
+          merge-multiple: true
+          path: receipts
+      - name: Every publishing SKU must have published
+        run: bash scripts/check-publish-receipts.sh receipts
       - name: Extract FW_VERSION -> version.txt
         run: |
           v=$(grep -oP 'FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)

@@ -136,6 +136,15 @@ E3 the 88 resident hexes, if the enrichment overlay is ever revisited (see
 1,994).
 E4 #131 config-page frame spike, filed and unprioritised.
 
+E5 **OPEN ANOMALY (2026-08-27): three info-field keys flipped on COM4 across a
+flash**, with the migration and a partition difference both eliminated and only
+`/save` able to write them. Fixed forward and the board's config verified against
+the `defaultOn` table before the #264 soak started. Not reproduced, so not an
+issue yet -- but an NVS change with no identified writer is a nothing until it is
+a #245. Timestamps, what was eliminated, the two surviving hypotheses and the
+trigger for treating it as real:
+[docs/nvs-config-flip-2026-08-27.md](docs/nvs-config-flip-2026-08-27.md).
+
 ### Already done — carried on lists but true in the tree
 
 Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:
@@ -976,3 +985,19 @@ afternoon.
   for all three. There is no database left to ask and no override that can honestly be
   written. **A customer who watches one of them fly over every week is the only remaining
   source of that identification.**
+
+### Tap-to-peek — DESIGN LOCKED 2026-08-28, build deferred
+
+A card's flight shown on the globe/arc transiently: swipe down on the detail
+card, ~12 s dwell, any touch dismisses. Design settled in
+[docs/tap-to-peek.md](docs/tap-to-peek.md) and not to be reopened.
+
+Gated on two things, one of which is a measurement rather than a decision:
+Follow's merge (every reusable piece is on `feat/follow-mode`), and the
+`[follow] arc=` frame-cost reading — the globe draws on its own screen in Follow
+but on the RADAR path in a peek, so an expensive globe surfaces here first.
+
+Carries one permanent finding worth knowing before proposing any gesture:
+**long-press is unavailable on this hardware.** The CST816D may report no change
+interrupt under a static contact, which is why the reset menu was converted from
+a hold to discrete taps.
