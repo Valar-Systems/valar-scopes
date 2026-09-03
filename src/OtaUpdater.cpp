@@ -226,7 +226,21 @@ const char* ResetReasonName()
         case ESP_RST_DEEPSLEEP:return "DEEPSLEEP";
         case ESP_RST_EXT:      return "EXT";
         case ESP_RST_SDIO:     return "SDIO";
-        default:               return "UNKNOWN";
+        case ESP_RST_USB:      return "USB";       // esptool on a native-USB S3
+        case ESP_RST_JTAG:     return "JTAG";
+        case ESP_RST_EFUSE:    return "EFUSE";
+        case ESP_RST_PWR_GLITCH: return "PWR_GLITCH";
+        case ESP_RST_CPU_LOCKUP: return "CPU_LOCKUP";
+        // ESP_RST_UNKNOWN and anything a future IDF adds. THE NUMBER IS PRINTED,
+        // not swallowed: five real reasons -- USB, JTAG, EFUSE, PWR_GLITCH and
+        // CPU_LOCKUP -- were being reported as a bare "UNKNOWN" by an earlier
+        // version of this switch, which is how a diagnostic quietly becomes a
+        // shrug. A reason this code does not know should still name itself.
+        default: {
+            static char buf[16];
+            snprintf(buf, sizeof(buf), "UNKNOWN_%d", (int)esp_reset_reason());
+            return buf;
+        }
     }
 }
 

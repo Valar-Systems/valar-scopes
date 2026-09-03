@@ -518,6 +518,51 @@ candidate and not the published release. Both also logged
 `[ota] channel=s3-128 current=9 latest=9`: the boot check ran and correctly did
 nothing, which is the expected null already observed once.
 
+### READING THIS RUN: AE SILENCE IS UNINFORMATIVE
+
+**Do not read a quiet Analytics Engine tomorrow as a good sign. It is not a sign
+at all.** `NoteOtaAttempt` runs only once the version check has found something
+NEWER. With no v10 published the boot check finds `latest=9 <= 9` and returns
+before that line, so a completely successful run writes NO ota row -- exactly the
+same emptiness a total failure would produce.
+
+**Serial is the only instrument for this run.** The captures are
+`bench-logs/run2-com16-2026-09-03.log` and `bench-logs/run2-com119-2026-09-03.log`,
+and the pass condition is read from them, not from KV and not from AE. Instrument
+A will also stay flat: fw stays 9 either way, so no `changes[]` entry can appear.
+
+This is the Run 1 lesson inverted. There, absence in AE was evidence once the
+probe was proven able to see presence. Here absence is structural, so it carries
+nothing, and the difference is worth stating because the two runs look identical
+from the query side.
+
+### Reset-reason mapping, verified against the enum rather than assumed
+
+Checked before the window closes, because the pass condition greps for a literal
+string and a mapping gap would make it miss on a technicality.
+
+`esp_reset_reason_t` in this build's ESP-IDF (esp32s3 esp_system.h) has **16
+values**. `ESP_RST_SW` is present and documented as *"Software reset via
+esp_restart"*, which is what `ESP.restart()` calls -- so the deferral path does
+map to a literal `SW` and `grep 'reset reason=SW'` is sound.
+
+**The check also found a gap.** The first mapping handled 11 of the 16 and sent
+the other five -- `USB`, `JTAG`, `EFUSE`, `PWR_GLITCH`, `CPU_LOCKUP` -- to a bare
+`UNKNOWN`. `ESP_RST_USB` ("Reset by USB peripheral") is almost certainly what the
+post-esptool boot actually was, so the `reset reason=UNKNOWN` in both subjects'
+boot logs is a SWALLOWED USB reset, not a genuinely indeterminate one.
+`CPU_LOCKUP` and `PWR_GLITCH` are precisely the causes worth naming for an
+unexplained reboot like COM4's on 09-03.
+
+Fixed: all 16 handled, and the default now prints `UNKNOWN_<n>` so a reason this
+code does not know still names itself instead of shrugging.
+
+**THE SUBJECTS DO NOT HAVE THIS FIX** -- they were flashed before it, and they are
+not being reflashed for it. Tomorrow they will print the 11-case mapping. That is
+harmless for the pass condition (`SW` is in both), but a fall-through will read
+`UNKNOWN` rather than `UNKNOWN_<n>`, and nobody should read that as the new
+behaviour.
+
 ### OTA_FAULT_AT_PCT -- RUN, and it found something
 
 Run 2026-09-03 on `blipscope-s3-128-otafault` (FW_VERSION temporarily 5, pinned to
@@ -551,6 +596,13 @@ connect on fd 48, errno: 118, "Host is unreachable"
 **It watches ASSOCIATION; the failure is REACHABILITY.** A board in that state
 stays dark until a human power-cycles it -- and nothing on its screen or in its
 telemetry would say why, because it cannot reach the Worker to report anything.
+
+**PROMOTED TO THE TOP OF v11, at or above the quiet-hour reboot.** It composes
+badly with reboot-then-fetch specifically: a board in this state cannot update,
+cannot report, and cannot be reached by the fix pipeline -- the three things the
+new design depends on. A device that is merely slow to update is a nuisance; one
+that is invisible to every recovery channel at once is the failure mode this
+whole programme exists to prevent.
 
 The trigger was an artificial disconnect, so the *frequency* in the field is
 unknown. The *state* is not artificial: associated-but-unroutable is what a router
