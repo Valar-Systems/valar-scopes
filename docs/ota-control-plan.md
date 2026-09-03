@@ -501,6 +501,63 @@ and `reset=SW`, which is the fleet-wide version of the same observation.
 | no deferred line at 25 h | timer regression. Report verbatim |
 | none of the above | **the instrument is unreliable at this scale -- stop and decide.** Do not improvise a reading |
 
+### CLOCK STARTED
+
+| | |
+|---|---|
+| WINDOW_START | **2026-09-03T20:04:35Z** (both boards' boot, from their own captures) |
+| subjects | COM16, COM119 (bench boards; ids live in KV, not in the tree) |
+| control | COM4 -- untouched, in-field v9 |
+| image | v10 candidate, FW_VERSION 9, sha b6d3e74e..., hash-verified on both |
+| daily timer due | **2026-09-04T20:04:35Z** |
+| captures | `bench-logs/run2-com16-2026-09-03.log`, `bench-logs/run2-com119-2026-09-03.log` |
+
+Both boot logs carry `[boot] reset reason=UNKNOWN` -- the line does not exist in
+v9, so its presence is the positive confirmation that the subjects are running the
+candidate and not the published release. Both also logged
+`[ota] channel=s3-128 current=9 latest=9`: the boot check ran and correctly did
+nothing, which is the expected null already observed once.
+
+### OTA_FAULT_AT_PCT -- RUN, and it found something
+
+Run 2026-09-03 on `blipscope-s3-128-otafault` (FW_VERSION temporarily 5, pinned to
+the `ota-preflight-v6` PRE-RELEASE so `/latest` and the fleet were never involved).
+
+**What passed.** The boot check fetched on a fresh heap (`largest=139252`), the
+download ran, the injection fired at 50%, and `httpUpdate` failed cleanly:
+
+```
+[ota-fault] INJECTING link loss at pct=50
+[ota] update failed (6): Update error: Stream Read Timeout
+```
+
+No crash, no panic, no reboot loop. The request bus was RELEASED -- the device kept
+issuing TLS attempts afterwards (`tls=31/0`), so it was not wedged holding it.
+
+**WHAT FAILED, and it is the reason to run rehearsals rather than reason about
+them.** The device never came back. 72 consecutive `Host is unreachable` failures
+over 9.3 minutes, 14.3 minutes uptime, **zero reboots and the WiFi watchdog never
+armed**.
+
+The watchdog's trigger is `WiFi.status() != WL_CONNECTED`, gated on having been
+connected once. After `WiFi.disconnect(false, false)` the stack apparently keeps
+reporting `WL_CONNECTED` while the link cannot route:
+
+```
+DNS Failed for 'scopes.valarsystems.com' with error '-54'
+connect on fd 48, errno: 118, "Host is unreachable"
+```
+
+**It watches ASSOCIATION; the failure is REACHABILITY.** A board in that state
+stays dark until a human power-cycles it -- and nothing on its screen or in its
+telemetry would say why, because it cannot reach the Worker to report anything.
+
+The trigger was an artificial disconnect, so the *frequency* in the field is
+unknown. The *state* is not artificial: associated-but-unroutable is what a router
+that has lost its upstream, or a stale DHCP lease, produces. Filed, not fixed --
+it is adjacent to reboot-then-fetch, not part of it, and Run 2 must not be
+reopened to carry it.
+
 ### Coupled task, same session
 
 `OTA_FAULT_AT_PCT` has never been run -- built, correct by inspection, never
