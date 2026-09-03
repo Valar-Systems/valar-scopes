@@ -27,6 +27,67 @@ constexpr int FW_VERSION = 9;
 // request bus so no background poll can be mid-handshake while the update allocates.
 void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http);
 
+// ---------------------------------------------------------------------------
+// REBOOT-THEN-FETCH. The daily check cannot run at long uptime, and this is why.
+//
+// Measured on the bench 2026-09-03 (bench-logs/ota-watch-com16-2026-09-02.log):
+// the daily timer fired at 48 h uptime and the version check died before it was
+// sent --
+//
+//     [health] ALLOC FAILED: 16717 B (caps 0x804) in heap_caps_calloc
+//     [E][ssl_client.cpp:41] (-32512) SSL - Memory allocation failed
+//     [ota] version check failed: HTTP -1 connection refused
+//
+// -- because the largest free block was 1,140 B against a 16,717 B handshake.
+// Total free heap was fine (8,788 B free, and megabytes of PSRAM); it is
+// CONTIGUITY that decays with uptime, and mbedTLS needs one large block.
+//
+// So the fix is not to fight the fragmentation but to sidestep it: an always-on
+// device has one moment of guaranteed-clean heap per boot, and the boot check
+// already runs there. THE SAME CODE SUCCEEDS AT BOOT AND FAILS AT 48 H, which is
+// the whole finding -- COM4 updated 8->9 unattended on a fresh heap the same day
+// COM16 failed on a fragmented one, at preLargest 31,732 B versus 1,140 B.
+//
+// This is a real behaviour change for a desk radar: it reboots to update. That is
+// seconds of downtime once a day at most (see the cap below), against an update
+// path that otherwise NEVER completes on a unit that is never power-cycled.
+
+/**
+ * Arm a reboot so the update check runs at boot, on a clean heap.
+ *
+ * Sets an NVS flag and restarts. Does NOT return on success -- the device is
+ * already rebooting. Returns false (and returns normally) when refused.
+ *
+ * REFUSES MORE OFTEN THAN IT ACCEPTS, deliberately. At most one flag-triggered
+ * reboot per 24 h, persisted as wall-clock in NVS so it survives the reboot it
+ * is rate-limiting. Without that a boot-time crash between the flag and the
+ * check would produce a device that reboots forever, which is a far worse
+ * failure than a missed update.
+ *
+ * `largestBlock` is logged, not tested: the caller has already decided. It is
+ * there so a serial capture shows WHY the reboot happened and can be read
+ * against the numbers above.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+bool DeferUpdateCheckToReboot(uint32_t largestBlock);
+
+/**
+ * Was this boot armed by DeferUpdateCheckToReboot?
+ *
+ * CLEARS THE FLAG BEFORE RETURNING, and the ordering is the loop guard: the
+ * flag is consumed before the check it requested has run, so a crash, a WDT or
+ * a panic anywhere inside that check cannot leave the flag standing and re-arm
+ * the next boot. A missed update is recoverable; a reboot cycle on a customer's
+ * desk is not.
+ *
+ * The boot check runs every boot regardless -- this only reports whether THIS
+ * boot was asked for, so the serial log can say so.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+bool ConsumeDeferredCheckFlag();
+
 // Which OTA slot is this image running from, and is it marked valid yet?
 //
 // Printed unprompted every boot, for the same reason BuildIdentity prints the env: after

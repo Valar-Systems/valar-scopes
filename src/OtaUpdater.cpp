@@ -25,6 +25,22 @@ namespace {
 // httpUpdate.update() ever runs to record the happy path in RAM.
 constexpr const char* OTA_MEM_NS = "ota-mem";
 
+// NVS namespace for the reboot-then-fetch handshake. SEPARATE from ota-mem on
+// purpose: that one is a telemetry record cleared on read, this one is control
+// state that must survive a reboot and a rate-limit window. Mixing them would
+// let a dropped telemetry read clear a reboot cap.
+constexpr const char* OTA_BOOT_NS = "ota-boot";
+
+// One flag-triggered reboot per 24 h. Matches the daily timer's own cadence, so
+// the cap costs nothing in the healthy case and bounds the damage in every
+// unhealthy one.
+constexpr uint32_t REBOOT_MIN_INTERVAL_S = 24UL * 60UL * 60UL;
+
+// 2026 in epoch seconds. time(nullptr) returns a small number until NTP lands,
+// and an unsynced clock must not be read as "the cap expired long ago" -- that
+// is the reading that produces a reboot loop, so an unsynced clock REFUSES.
+constexpr uint32_t CLOCK_SANE_EPOCH = 1735689600UL; // 2025-01-01T00:00:00Z
+
 // Pre-arm the record BEFORE the download begins, as "incomplete". Whatever
 // happens next leaves a truthful record: success reboots (the new firmware
 // finalises it), failure rewrites it in this same boot, and a WDT/power-loss
@@ -134,6 +150,67 @@ void drawProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
 }
 
 } // namespace
+
+// ---------------------------------------------------------------------------
+// REBOOT-THEN-FETCH. Declared in OtaUpdater.h; EXTERNAL LINKAGE ON PURPOSE --
+// main.cpp calls both. They sit outside the anonymous namespace above, which
+// is where the constants they use belong and where these must not.
+
+bool ConsumeDeferredCheckFlag()
+{
+    Preferences p;
+    if (!p.begin(OTA_BOOT_NS, false))
+        return false;
+    const bool pending = p.getBool("pending", false);
+    // CLEARED BEFORE THE CHECK RUNS, not after. See the header: everything after
+    // this line can crash without arming another reboot.
+    if (pending)
+        p.putBool("pending", false);
+    p.end();
+    return pending;
+}
+
+bool DeferUpdateCheckToReboot(uint32_t largestBlock)
+{
+    const time_t nowT = time(nullptr);
+    const uint32_t now = (nowT > 0) ? (uint32_t)nowT : 0;
+
+    if (now < CLOCK_SANE_EPOCH) {
+        Serial.printf("[ota] update check deferral refused: clock not synced "
+                      "(largest=%u); the daily cap cannot be enforced without it\n",
+                      (unsigned)largestBlock);
+        return false;
+    }
+
+    Preferences p;
+    if (!p.begin(OTA_BOOT_NS, false)) {
+        Serial.println("[ota] update check deferral refused: NVS unavailable");
+        return false;
+    }
+    const uint32_t last = p.getUInt("lastReb", 0);
+    if (last != 0 && now >= last && (now - last) < REBOOT_MIN_INTERVAL_S) {
+        p.end();
+        Serial.printf("[ota] update check deferral refused: last reboot %lus ago, "
+                      "cap is %lus (largest=%u)\n",
+                      (unsigned long)(now - last), (unsigned long)REBOOT_MIN_INTERVAL_S,
+                      (unsigned)largestBlock);
+        return false;
+    }
+
+    // Stamp the cap BEFORE the flag. If power is lost between the two writes the
+    // device wakes with the cap set and the flag clear -- one missed update. The
+    // other order wakes it with a flag and no cap, which is the reboot loop.
+    p.putUInt("lastReb", now);
+    p.putBool("pending", true);
+    p.end();
+
+    Serial.printf("[ota] update check deferred to reboot (largest=%u)\n",
+                  (unsigned)largestBlock);
+    Serial.flush();
+    delay(150); // let the line reach a serial capture before the reset
+    ESP.restart();
+    return true; // not reached
+}
 
 void LogOtaSlot(const char* when)
 {

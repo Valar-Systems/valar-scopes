@@ -385,7 +385,16 @@ void setup()
   configTime(0, 0, "pool.ntp.org");
 
   // self-update from the latest GitHub release before normal startup; reboots
-  // into the new firmware if one is newer than this build
+  // into the new firmware if one is newer than this build.
+  //
+  // THIS IS NOW THE ONLY PATH THAT TOUCHES THE NETWORK FOR AN UPDATE. The heap is
+  // clean here and nowhere else: measured 31,732 B largest block at boot against
+  // 1,140 B at 48 h uptime, versus a 16,717 B TLS handshake. The loop paths below
+  // arm a reboot and land here instead of failing on a fragmented heap.
+  //
+  // The flag is consumed BEFORE the check, so a crash inside it cannot re-arm.
+  if (ConsumeDeferredCheckFlag())
+    Serial.println("[ota] this boot was armed by a deferred update check");
   MaybeUpdateFirmware(tft, backbuffer, http);
 
   // begin background server for configuration
@@ -499,11 +508,22 @@ void loop()
     }
   }
 
-  // re-check for firmware updates once a day for always-on devices
+  // Re-check for firmware updates once a day for always-on devices -- by REBOOTING
+  // INTO the check rather than running it here.
+  //
+  // Running it here is what Run 1 proved does not work. At 48 h uptime the version
+  // check never reached the wire: mbedTLS asked for 16,717 contiguous bytes, the
+  // largest free block was 1,140, and the whole update path ended at
+  // `[ota] version check failed: HTTP -1`. An always-on device never leaves that
+  // state on its own, so the daily timer was firing into a heap that could not
+  // serve it -- for the life of the unit.
+  //
+  // The stamp is taken BEFORE the deferral so a refusal (see the 24 h cap) costs
+  // one attempt per day rather than one per loop iteration.
   static unsigned long lastOtaCheck = 0;
   if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
     lastOtaCheck = millis();
-    MaybeUpdateFirmware(tft, backbuffer, http);
+    DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
   }
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
@@ -578,8 +598,11 @@ void loop()
   // The fleet config raised the firmware floor past this build: run the normal
   // OTA check now rather than waiting out the daily timer. Same code path as
   // the daily check; a same-or-older published release is simply a no-op.
+  // Same reboot-then-fetch route as the daily timer, and for the same reason: this
+  // fires from a cloud-config poll on a device that has been up for days, which is
+  // exactly the heap the direct call cannot survive.
   if (appManager.ConsumeOtaCheckRequest())
-    MaybeUpdateFirmware(tft, backbuffer, http);
+    DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
 #endif
 #endif
 }
