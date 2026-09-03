@@ -278,18 +278,28 @@ export function recordOtaMem(env: Env, raw: string | null, model: string, dev?: 
   try {
     if (raw.length > 128) return; // nothing legitimate approaches this
     const parts = raw.split(",");
-    if (parts.length !== 5) return;
+    // FIVE OR SIX. Firmware before 2026-09-03 sends five; the reboot-then-fetch
+    // build appends a reset reason. Both are recorded, because refusing the old
+    // arity would silently drop every row from every device that has not updated
+    // yet -- and this parser exists to observe exactly those devices.
+    if (parts.length !== 5 && parts.length !== 6) return;
     const nums = parts.slice(0, 4).map((p) => Number(p.trim()));
     // Reject NaN/Infinity/negatives and anything past a u32: these are a version
     // int and two heap sizes, all small and non-negative by construction.
     if (nums.some((n) => !Number.isFinite(n) || n < 0 || n > 0xffffffff)) return;
     const result = (parts[4] ?? "").trim().slice(0, 24).replace(/[^\w.-]/g, "");
+    // Same sanitising as `result`, and same reason: device-supplied input never
+    // reaches storage unshaped. Absent on five-field reports, which is not an
+    // error -- it is an older device, and "" is the honest value for it.
+    const reset = (parts[5] ?? "").trim().slice(0, 16).replace(/[^\w.-]/g, "");
     if (!result) return;
     const [fwFrom, fwTo, preLargest, postLargest] = nums as [number, number, number, number];
     // blob4 = the device, so a failed update names the unit to go and look at
     // instead of just a model. Appended, for the same reason as record()'s.
     env.METRICS?.writeDataPoint({
-      blobs: ["ota", result, model, dev ?? ""],
+      // blob5 = why the device booted, so a fleet-wide answer to "did it reboot,
+      // and was it ours" no longer needs a serial cable.
+      blobs: ["ota", result, model, dev ?? "", reset],
       doubles: [fwFrom, fwTo, preLargest, postLargest],
       indexes: ["ota"], // own index: OTA points query separately from per-request ones
     });

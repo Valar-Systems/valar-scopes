@@ -96,6 +96,20 @@ bool ConsumeDeferredCheckFlag();
 // it woke up in. `when` labels the call site ("boot", "post-update").
 void LogOtaSlot(const char* when);
 
+/**
+ * Why this boot happened, as a short stable token: POWERON, SW (a deliberate
+ * ESP.restart(), which is what the deferred update check does), PANIC, INT_WDT,
+ * TASK_WDT, WDT, BROWNOUT, DEEPSLEEP, EXT, SDIO or UNKNOWN.
+ *
+ * WHY IT IS TELEMETRY AND NOT JUST A LOG LINE. The update path now turns on
+ * reboots, so "did it reboot, and was it ours" became a fleet-wide question --
+ * and on 2026-09-03 we could not answer it for COM4, whose pre-check reboot was
+ * provable only from a fresh-heap preLargest. A device with no serial cable
+ * cannot be asked. So it rides the OTA memory report, beside the heap numbers,
+ * where it costs one field on a request already being made.
+ */
+const char* ResetReasonName();
+
 // The one-shot OTA memory report, rendered as the X-Blip-OTA-Mem header value:
 //
 //     <fwFrom>,<fwTo>,<preLargest>,<postLargest>,<result>

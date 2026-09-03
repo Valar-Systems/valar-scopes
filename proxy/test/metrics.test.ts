@@ -24,7 +24,7 @@ describe("recordOtaMem", () => {
     recordOtaMem(env, "4,5,46068,71668,ok", "s3-128", "0123456789abcdef");
     expect(writeDataPoint).toHaveBeenCalledTimes(1);
     expect(writeDataPoint).toHaveBeenCalledWith({
-      blobs: ["ota", "ok", "s3-128", "0123456789abcdef"],
+      blobs: ["ota", "ok", "s3-128", "0123456789abcdef", ""],
       doubles: [4, 5, 46068, 71668],
       indexes: ["ota"],
     });
@@ -53,7 +53,7 @@ describe("recordOtaMem", () => {
 
   it.each([
     ["wrong arity (short)", "4,5,46068,ok"],
-    ["wrong arity (long)", "4,5,1,2,ok,extra"],
+    ["wrong arity (long)", "4,5,1,2,ok,SW,extra"],
     ["non-numeric heap", "4,5,not-a-number,71668,ok"],
     ["negative heap", "4,5,-1,71668,ok"],
     ["past u32", "4,5,4294967296,71668,ok"],
@@ -63,6 +63,34 @@ describe("recordOtaMem", () => {
     const { env, writeDataPoint } = envWithSpy();
     recordOtaMem(env, raw, "s3-128");
     expect(writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  // SIX FIELDS: the reboot-then-fetch firmware appends a reset reason. Both
+  // arities are pinned here because the device and this parser are two sides of
+  // one contract, and a parser that accepts a different arity than the device
+  // emits is the silent-drift shape this repo keeps meeting -- a six-field report
+  // against a five-field parser is not a degraded row, it is NO row.
+  it("accepts the six-field report and records the reset reason", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordOtaMem(env, "8,9,31732,58356,ok,SW", "s3-128", "0123456789abcdef");
+    expect(writeDataPoint).toHaveBeenCalledWith({
+      blobs: ["ota", "ok", "s3-128", "0123456789abcdef", "SW"],
+      doubles: [8, 9, 31732, 58356],
+      indexes: ["ota"],
+    });
+  });
+
+  it("still records a five-field report from older firmware, with no reason", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordOtaMem(env, "7,8,31732,81908,ok", "s3-128");
+    expect(writeDataPoint).toHaveBeenCalledTimes(1);
+    expect(writeDataPoint.mock.calls[0]?.[0].blobs[4]).toBe("");
+  });
+
+  it("sanitises the reset reason like every other device-supplied token", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordOtaMem(env, '8,9,1,2,ok,PANIC"; DROP', "s3-128");
+    expect(writeDataPoint.mock.calls[0]?.[0].blobs[4]).toBe("PANICDROP");
   });
 
   it("strips anything unexpected out of the result token", () => {

@@ -429,7 +429,95 @@ section says it is.
 A reading before ~18:11Z tomorrow carries no information about whether OTA works. The
 only readings that can is the one after the boards' scheduled check.
 
-## Run 2 — does it refuse a bad image (~25 hours, one device)
+## Run 2 — does reboot-then-fetch work (~25 hours, two devices)
+
+**Pre-registered 2026-09-03, before anything is flashed. Run 1's defect is fixed;
+this run tests the fix, not the original claim.**
+
+### What Run 1 established (so this run does not re-litigate it)
+
+The daily timer fires correctly and the update dies before the wire. Caught in the
+act, `bench-logs/ota-watch-com16-2026-09-02.log` at 2026-09-03T18:12:20Z:
+
+```
+[health] ALLOC FAILED: 16717 B (caps 0x804) in heap_caps_calloc (#1352)
+[E][ssl_client.cpp:41] (-32512) SSL - Memory allocation failed
+[ota] version check failed: HTTP -1 connection refused
+```
+
+16,717 contiguous bytes wanted, 1,140 available. Free heap was 8,788 B with 8 MB
+of PSRAM idle -- **contiguity, not capacity**, and it decays with uptime. The
+same code succeeds at boot: COM4 updated 8->9 unattended the same day at
+`preLargest` 31,732 B, the fresh-boot figure.
+
+### The change under test
+
+The daily timer and the cloud `minFw` path no longer fetch. They set an NVS flag
+and reboot; the boot check -- unchanged, and now the only fetcher -- runs against
+a clean heap.
+
+### Invalidation conditions
+
+Run 1's conditions carry over, with one addition and one removal:
+
+- **ADDED: the Worker must accept the six-field `X-Blip-OTA-Mem` header before any
+  device sends one.** `recordOtaMem` previously required exactly five fields, so a
+  six-field report reaches a stale Worker and is dropped ENTIRELY -- not degraded,
+  dropped. Deploying the parser first is a precondition of the run, because the
+  instrument is how the run is read.
+- **REMOVED: "no human intervention" no longer means "no reboots".** The device
+  now reboots itself on purpose. A reboot is the mechanism under test, not a
+  contaminant. Human-initiated resets, cables and power cycles are still
+  invalidating.
+
+### Subjects
+
+COM16 and one other bench board, flashed with the v10 candidate (FW_VERSION still
+9, no release published). No-reset serial watchers on both, same log discipline as
+Run 1: `dtr=0`/`rts=0`, timestamped, size-capped.
+
+### Expected sequence, per board, within ~24 h
+
+1. `[ota] update check deferred to reboot (largest=N)` from the daily timer
+2. a reboot, and `[boot] reset reason=SW` on the far side of it
+3. the boot check fetches version.txt on a fresh heap
+4. **`latest=9 <= 9`, so it does nothing** -- and that null result is the point
+
+**THE NULL RESULT IS THE EVIDENCE, and saying so in advance is why this is written
+down.** With no v10 published there is nothing to download, so a run that ends in
+"no update" has still exercised every step except the download: the timer, the
+deferral, the flag, the reboot, the cap, the boot check, and the fetch on a clean
+heap. AE should also gain a `NoteOtaAttempt` row with a fresh-boot `preLargest`
+and `reset=SW`, which is the fleet-wide version of the same observation.
+
+### Outcomes, committed before the result
+
+| observation | conclusion |
+|---|---|
+| deferred line -> reboot -> boot check reaches the fetch, on both boards | **PASS.** Cut the v10 release; the fleet updating for real is the final confirmation |
+| deferred line but no reboot | defect in the new code. Report the serial verbatim; do not retry |
+| a reboot loop | defect in the loop guards. The flag is cleared before the check and the cap is stamped before the flag, so a loop means one of those is wrong. Report verbatim |
+| `deferral refused: clock not synced` on a board with working NTP | defect in the clock guard. Report verbatim |
+| no deferred line at 25 h | timer regression. Report verbatim |
+| none of the above | **the instrument is unreliable at this scale -- stop and decide.** Do not improvise a reading |
+
+### Coupled task, same session
+
+`OTA_FAULT_AT_PCT` has never been run -- built, correct by inspection, never
+observed failing. With the reboot path live it now exercises the recovery the
+field will actually depend on, so it is run once against this build and the
+result recorded here. A rehearsal you reasoned about tests your model; one you
+ran tests the code.
+
+---
+
+## Run 3 — does it refuse a bad image (~25 hours, one device)
+
+> **RENUMBERED 2026-09-03, and the old number is left named here on purpose.**
+> This was "Run 2" until reboot-then-fetch needed a run of its own. Anything
+> written before that date calling this "Run 2" means THIS section -- the
+> bad-image refusal -- not the reboot mechanism. Referring to a section by
+> ordinal is how that ambiguity got created; the title is the stable handle.
 
 Run only after Run 1 passes. Use **one device you are willing to lose**, on shipping
 firmware at version *N+1*.

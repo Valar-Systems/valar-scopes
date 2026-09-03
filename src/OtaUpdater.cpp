@@ -56,6 +56,7 @@ void NoteOtaAttempt(int fwTo, uint32_t preLargest)
     p.putUInt("pre", preLargest);
     p.putUInt("post", 0); // 0 = not measured yet; filled at report time
     p.putString("res", "incomplete");
+    p.putString("rst", ResetReasonName()); // why the boot that is attempting this happened
     p.end();
 }
 
@@ -210,6 +211,23 @@ bool DeferUpdateCheckToReboot(uint32_t largestBlock)
     delay(150); // let the line reach a serial capture before the reset
     ESP.restart();
     return true; // not reached
+}
+
+const char* ResetReasonName()
+{
+    switch (esp_reset_reason()) {
+        case ESP_RST_POWERON:  return "POWERON";
+        case ESP_RST_SW:       return "SW";        // ESP.restart() -- ours
+        case ESP_RST_PANIC:    return "PANIC";
+        case ESP_RST_INT_WDT:  return "INT_WDT";
+        case ESP_RST_TASK_WDT: return "TASK_WDT";
+        case ESP_RST_WDT:      return "WDT";
+        case ESP_RST_BROWNOUT: return "BROWNOUT";
+        case ESP_RST_DEEPSLEEP:return "DEEPSLEEP";
+        case ESP_RST_EXT:      return "EXT";
+        case ESP_RST_SDIO:     return "SDIO";
+        default:               return "UNKNOWN";
+    }
 }
 
 void LogOtaSlot(const char* when)
@@ -385,6 +403,7 @@ String TakeOtaMemReport()
     const uint32_t pre  = p.getUInt("pre", 0);
     uint32_t       post = p.getUInt("post", 0);
     String         res  = p.getString("res", "");
+    String         rst  = p.getString("rst", "UNKNOWN");
 
     // Finalise the happy path. The old firmware could not: a successful update
     // reboots inside httpUpdate.update(), so the pre-armed "incomplete" record
@@ -399,5 +418,10 @@ String TakeOtaMemReport()
     p.clear(); // fire-once: cleared whether or not the request that carries it lands
     p.end();
 
-    return String(from) + "," + String(to) + "," + String(pre) + "," + String(post) + "," + res;
+    // SIX FIELDS SINCE 2026-09-03. The Worker accepts 5 or 6 (proxy/src/metrics.ts):
+    // a device on older firmware keeps sending 5 and keeps being recorded, and the
+    // parser must be deployed BEFORE any device sends 6 or every row is dropped
+    // silently -- the arity-drift shape this repo keeps meeting.
+    return String(from) + "," + String(to) + "," + String(pre) + "," + String(post)
+           + "," + res + "," + rst;
 }

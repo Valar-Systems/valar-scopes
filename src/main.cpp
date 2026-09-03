@@ -124,6 +124,7 @@ void setup()
   // OTA the device is the only thing that can tell you the update stuck rather than being
   // rolled back, and it must say so unprompted.
   LogOtaSlot("boot");
+  Serial.printf("[boot] reset reason=%s\n", ResetReasonName());
 
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
