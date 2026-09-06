@@ -563,6 +563,32 @@ harmless for the pass condition (`SW` is in both), but a fall-through will read
 `UNKNOWN` rather than `UNKNOWN_<n>`, and nobody should read that as the new
 behaviour.
 
+### v10 ROLLOUT -- pre-registered 2026-09-06T20:46Z, before any firing
+
+v10 live at **2026-09-06T20:45:44Z** (poller-observed 9 -> 404 -> 10). Asset sha
+f387590e..., six discriminators present behind a valid anchor, `version` job
+SUCCEEDED -- the publish-receipt gate's permissive direction working on a real
+release with `animtest` red.
+
+Next firings: COM16 ~20:03Z and COM119 ~20:33Z on 09-07 (COM119's timer restarted
+when its stalled watcher was cleared). Expected per board: defer -> reboot
+(`reset reason=SW`) -> boot check finds `latest=10` -> download and apply. These
+will be the first AE rows ever to carry a reset reason, since v9 and earlier do
+not send the field.
+
+**COM4 IS THE CONTROL, AND ITS PREDICTED OUTCOME IS THAT NOTHING HAPPENS.** It runs
+v9, which has no reboot-then-fetch, so its daily timer takes the OLD direct-fetch
+path on a heap that has been fragmenting since 2026-09-03. It should fail exactly
+as Run 1 did. v10 boards succeeding while the v9 board fails, same day and same
+network, is a stronger statement than either observation alone.
+
+| COM4 observation | reading |
+|---|---|
+| still on v9 after 09-07 | **the predicted outcome.** No action for several days |
+| reaches v10 with a FRESH-BOOT `preLargest` (~31 KB) | something rebooted it independently; it took the boot-check path. Diagnosis reconfirmed, not contradicted |
+| reaches v10 with a FRAGMENTED `preLargest` (~12-17 KB) | the old direct path won the heap lottery that firing. Also consistent -- it is a lottery, which is the whole complaint |
+| reaches v10 and no AE row appears | **stop.** The instrument disagrees with Instrument A and neither can be trusted until that is explained |
+
 ### OTA_FAULT_AT_PCT -- RUN, and it found something
 
 Run 2026-09-03 on `blipscope-s3-128-otafault` (FW_VERSION temporarily 5, pinned to
