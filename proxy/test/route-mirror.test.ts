@@ -146,11 +146,11 @@ describe("the CC0 route mirror survives the direction-of-travel key", () => {
     expect([body.o, body.d]).toEqual(["", ""]);
   });
 
-  // NOT ASSERTED HERE, AND THE ABSENCE IS DELIBERATE: that a mirror row is
-  // withheld from an aircraft flying the RETURN leg. It is not. A reversal
-  // preserves geography, so routeContradicted() cannot see one, and the mirror
-  // holds a single unordered row per callsign for the bucket to have nothing to
-  // separate. Writing a passing test around that would imply a guarantee the
-  // code does not make. See the note in resolveRoute() for the decision this
-  // needs.
+  // THE RETURN LEG IS ASSERTED IN test/route-reversal.test.ts, not here.
+  // When this file was written it was not asserted anywhere and this comment
+  // said so, because a reversal preserves geography and no distance test can
+  // see one. The rule that closes it compares the TRACK against the bearing to
+  // the destination and WITHHOLDS -- it never swaps. Kept as a pointer rather
+  // than deleted: the next person to read this file will wonder about exactly
+  // this case, and an absent answer reads as an unconsidered one.
 });

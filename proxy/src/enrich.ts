@@ -239,21 +239,84 @@ function gcKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
 /// UNKNOWN CODES ARE NOT CONTRADICTIONS. If either endpoint is missing from the
 /// airport table there is nothing to measure, and refusing on absence of
 /// evidence would blank every route through a field we do not carry.
-async function routeContradicted(
+/// AND THE SECOND QUESTION, WHICH THE FIRST ONE STRUCTURALLY CANNOT ASK.
+///
+/// A REVERSAL preserves geography. ASA537 flies SEA->BUR and BUR->SEA down the
+/// same corridor, so a distance test -- this one, a position tile, a cached
+/// plausibility verdict, any of them -- sees an identical picture on both legs.
+/// The mirror holds ONE row per callsign, so on the return leg it hands back the
+/// outbound endpoints and every geometric check above passes.
+///
+/// The track is the one piece of evidence that distinguishes them, and we
+/// already have it. Not the o->d great-circle bearing, which drifts along a long
+/// route and is wrong near either end: the bearing from the aircraft's OWN
+/// position to the stated destination. An aircraft on the leg is flying roughly
+/// towards d; one on the return leg is flying away from it.
+///
+/// WITHHOLD, NEVER SWAP. Swapping would show a confidently wrong card whenever
+/// the guess is wrong, and this is a guess -- a departure turn, a hold, a
+/// re-route or radar vectoring all point the nose somewhere other than the
+/// destination for a while. Blanking costs a field for a few minutes and
+/// self-corrects on the next poll; swapping prints a route no aircraft flew.
+/// That asymmetry is the whole argument, and it is the same one the block
+/// comment on TRACK_BUCKETS makes against a swap-detector.
+///
+/// THE THRESHOLDS ARE DELIBERATELY TIMID, because the failure this guards is
+/// cosmetic and the failure it could CAUSE is a blank card on a correct route.
+/// 135 deg means "flying substantially away from d", not merely "off the
+/// airway"; and inside 75 km of the destination the bearing swings hard while
+/// the aircraft manoeuvres to land, exactly when the route is certainly right.
+const REVERSED_MIN_DEG = 135;
+const ARRIVAL_SKIP_KM = 75;
+
+type RouteVerdict = "ok" | "not_for_position" | "reversed";
+
+/// Bearing from a to b, degrees true, 0..360.
+function bearingDeg(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const rad = Math.PI / 180;
+  const dLon = (bLon - aLon) * rad;
+  const y = Math.sin(dLon) * Math.cos(bLat * rad);
+  const x =
+    Math.cos(aLat * rad) * Math.sin(bLat * rad) -
+    Math.sin(aLat * rad) * Math.cos(bLat * rad) * Math.cos(dLon);
+  // Normalised the long way round: `%` follows the sign of the DIVIDEND in JS,
+  // so a negative atan2 result would otherwise stay negative. Same reason
+  // trackBucket() spells it out -- see the cross-language rounding entry in
+  // CLAUDE.md.
+  return ((Math.atan2(y, x) / rad) % 360 + 360) % 360;
+}
+
+/// Smallest angle between two bearings, 0..180.
+function angDiff(a: number, b: number): number {
+  const d = ((a - b) % 360 + 360) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/// One pass over both endpoints, answering both questions. Merged rather than
+/// left as two functions because each needs the SAME two `ap:` reads, and a
+/// second copy of them would double the KV cost of every route served.
+async function routeVerdict(
   env: Env,
   o: string,
   d: string,
   lat: number,
   lon: number,
-): Promise<boolean> {
+  trk: number | undefined,
+): Promise<RouteVerdict> {
   const [op, dp] = await Promise.all([airportLatLon(env, o), airportLatLon(env, d)]);
-  if (!op || !dp) return false;
+  if (!op || !dp) return "ok";
   const routeKm = gcKm(op[0], op[1], dp[0], dp[1]);
-  if (routeKm <= 1) return false;
+  if (routeKm <= 1) return "ok";
+
   const toO = gcKm(lat, lon, op[0], op[1]);
   const toD = gcKm(lat, lon, dp[0], dp[1]);
   const MARGIN_KM = 100;
-  return toO > routeKm + MARGIN_KM && toD > routeKm + MARGIN_KM;
+  if (toO > routeKm + MARGIN_KM && toD > routeKm + MARGIN_KM) return "not_for_position";
+
+  if (trk !== undefined && Number.isFinite(trk) && toD > ARRIVAL_SKIP_KM) {
+    if (angDiff(trk, bearingDeg(lat, lon, dp[0], dp[1])) > REVERSED_MIN_DEG) return "reversed";
+  }
+  return "ok";
 }
 
 /* ===========================================================================
@@ -441,13 +504,23 @@ async function resolveRoute(
     // geometric and local -- which is also what makes it free of an upstream
     // that might be wrong.
     if (lat !== undefined && lon !== undefined && cached.o && cached.d) {
-      const bad = await routeContradicted(env, cached.o, cached.d, lat, lon);
-      if (bad) {
+      const verdict = await routeVerdict(env, cached.o, cached.d, lat, lon, trk);
+      if (verdict !== "ok") {
         // NOT DELETED. The entry is correct for the aircraft it was cached
-        // from, and another unit may be looking at that one right now; deleting
-        // would turn one wrong answer into a cache stampede on every device
-        // tracking the real flight. Withheld from THIS caller only.
-        console.log(`route_stale cs=${cs} ${cached.o}->${cached.d} not_for_position`);
+        // from -- and a mirror row is correct FULL STOP, it is simply the other
+        // leg -- so another unit may be looking at the matching flight right
+        // now. Deleting would turn one withheld field into a cache stampede.
+        // Withheld from THIS caller only.
+        //
+        // The reason is in the line because the two are acted on differently:
+        // `not_for_position` means the entry is wrong for this aircraft, while
+        // `reversed` means it is the right flight number on the opposite leg,
+        // and only the second one tells us anything about how often the mirror
+        // needs a direction it does not carry. Counting these is the whole
+        // reason the reason is printed rather than a single route_stale line --
+        // an instrument that cannot distinguish its two causes answers neither
+        // question.
+        console.log(`route_stale cs=${cs} ${cached.o}->${cached.d} ${verdict}`);
         return { o: "", d: "" };
       }
     }
