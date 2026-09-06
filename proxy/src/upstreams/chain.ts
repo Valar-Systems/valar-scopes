@@ -214,7 +214,24 @@ export function enabledFeeds(env: Env): UpstreamAircraftFeed[] {
 }
 
 export function feedHealth(env: Env): { id: string; enabled: boolean; state: "closed" | "open" }[] {
-  return FEEDS.map((f) => ({ id: f.id, enabled: f.enabled(env), state: breakerState(f.id) }));
+  // THE ROUTE SOURCES BELONG HERE TOO. /healthz listed the four AIRCRAFT feeds
+  // and nothing else, so during a five-day fleet-wide route blackout it read
+  // `"ok":true` with every upstream `"closed"` -- accurately, about a subsystem
+  // that was not the one failing. A health endpoint that cannot express a
+  // subsystem's failure is not neutral about it; it actively reassures.
+  //
+  // NOT added to upstreamOverallState() in config.ts, deliberately: that field
+  // tells a DEVICE whether the position picture is trustworthy, and a dead route
+  // source must not make a device believe the sky is down.
+  return [
+    ...FEEDS.map((f) => ({ id: f.id, enabled: f.enabled(env), state: breakerState(f.id) })),
+    { id: ROUTE_BREAKER_ID, enabled: true, state: breakerState(ROUTE_BREAKER_ID) },
+    {
+      id: ADSBDB_BREAKER_ID,
+      enabled: env.ROUTE_ADSBDB_ENABLED !== "false",
+      state: breakerState(ADSBDB_BREAKER_ID),
+    },
+  ];
 }
 
 // Measured against adsb.lol: quiet tiles answer in ~0.5 s, but busy-basin
@@ -314,6 +331,13 @@ function logUpstream(
       ...(ageS !== undefined ? { ageS } : {}),
     }),
   );
+}
+
+// A source that was NOT CALLED, and why. Distinct evt from "upstream" because it
+// is not an attempt and must never be counted as one: the whole point is that a
+// skip currently looks identical to an attempt that was never needed.
+function logSkip(id: string, op: string, reason: string): void {
+  console.log(JSON.stringify({ evt: "upstream_skip", id, op, reason }));
 }
 
 // ---- degraded-feed threshold (the stale-200 failover fix) --------------------
@@ -521,7 +545,10 @@ async function fetchRouteAdsbLol(
   lat: number | undefined,
   lon: number | undefined,
 ): Promise<RouteResult | null> {
-  if (!breakerAllows(ROUTE_BREAKER_ID)) return null;
+  if (!breakerAllows(ROUTE_BREAKER_ID)) {
+    logSkip(ROUTE_BREAKER_ID, "route", "breaker_open");
+    return null;
+  }
   const { url, init } = routesetRequest(env, callsign, lat, lon);
   const started = Date.now();
   try {
@@ -569,8 +596,18 @@ async function fetchRouteAdsbLol(
 }
 
 async function fetchRouteAdsbdb(env: Env, callsign: string): Promise<RouteResult | null> {
-  if (env.ROUTE_ADSBDB_ENABLED === "false") return null;
-  if (!breakerAllows(ADSBDB_BREAKER_ID)) return null;
+  // A DISABLED SOURCE MUST SAY SO. Silence here is why a fleet-wide route
+  // blackout read as "adsbdb is fine, nobody asked it": the tail showed adsb.lol
+  // being tried and nothing at all about the fallback, which looks exactly like
+  // a fallback that was never needed.
+  if (env.ROUTE_ADSBDB_ENABLED === "false") {
+    logSkip(ADSBDB_BREAKER_ID, "route", "disabled_by_config");
+    return null;
+  }
+  if (!breakerAllows(ADSBDB_BREAKER_ID)) {
+    logSkip(ADSBDB_BREAKER_ID, "route", "breaker_open");
+    return null;
+  }
   const started = Date.now();
   try {
     let json: unknown;
