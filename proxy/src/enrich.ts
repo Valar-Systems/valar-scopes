@@ -331,7 +331,21 @@ export function trackBucket(trk: number | undefined): string {
  * MEMORY, AND NOT A DATE. Do not retire this on a recollection that "the fleet
  * has updated". Run:
  *
- *     npx wrangler kv key list --prefix fw: --binding ENRICH_KV --env production
+ *     npx wrangler kv key list --prefix fw: --binding ENRICH_KV --env production --remote
+ *
+ * `--remote` IS NOT OPTIONAL AND ITS ABSENCE IS SILENT. wrangler v4's kv
+ * commands read the LOCAL miniflare store by default: without that flag this
+ * returns `[]` and exits 0 against a namespace holding hundreds of thousands of
+ * keys. Measured on 4.35.0, 2026-09-06 -- an unprefixed listing of the whole
+ * production namespace came back empty while the REST API returned rows.
+ *
+ * Which makes the un-flagged form the worst possible instrument for THIS
+ * question, and the reason the flag was added to this line rather than left to
+ * be remembered: an empty listing reads as "no device is on old firmware", which
+ * is exactly the condition for retiring the fallback below -- and that fallback
+ * is now what makes 619,103 mirror rows reachable at all. A wrong answer, in the
+ * reassuring direction, on the one command whose result removes the code that
+ * keeps routes working.
  *
  * A fw: row is written per device by Instrument A (src/fleet.ts) on the
  * authenticated path, so that listing IS the enrolled fleet. While ANY row sits

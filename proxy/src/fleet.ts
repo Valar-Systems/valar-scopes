@@ -49,8 +49,14 @@
 // reported status=active while lacking the scope). A KV key can be read with the
 // same credential the deploy already uses:
 //
-//     npx wrangler kv key list --prefix fw: --env production
-//     npx wrangler kv key get fw:<device> --env production
+//     npx wrangler kv key list --prefix fw: --env production --remote
+//     npx wrangler kv key get fw:<device> --env production --remote
+//
+// `--remote` or the answer is a confident lie: wrangler v4's kv commands read
+// the LOCAL store by default, so without it the list returns `[]` and exits 0
+// no matter what production holds. scripts/reconcile-fleet.py passes it; these
+// two lines did not, and they are what someone reaches for when reconcile is
+// not to hand.
 //
 // COST. A device polls every ~5 s. Writing every request would be ~17k writes
 // per device per day for a value that changes about twice a year, so a write
