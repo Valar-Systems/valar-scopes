@@ -14,7 +14,7 @@
 // clips rather than scales and would render a square as its own top-left corner.
 // Moving this number below 7, or shipping a build that reports 7 without the
 // full-bleed card in it, hands those devices a broken photo.
-constexpr int FW_VERSION = 9;
+constexpr int FW_VERSION = 10;
 
 // Check GitHub Releases for a newer firmware and self-update if one is published.
 // Blocking; on success the device flashes the new image and reboots into it. The
