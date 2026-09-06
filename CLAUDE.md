@@ -371,6 +371,120 @@ before it helps has already failed the case it was written for** — this file's
 own opening entry says a check that runs beats a rule that is written, and this
 is that principle turned on documentation itself.
 
+## Standing practice: a justification is a claim about code you are not editing
+
+**Two commits, each correct, each reviewed, five days apart. Between them the
+fleet lost every origin and destination for five days, and no test, no gate and
+no health check went red.**
+
+| | |
+|---|---|
+| **2026-08-26** `a9594ab` | adsbdb leaves the route chain (`ROUTE_ADSBDB_ENABLED="false"`). adsb.lol's routeset had already gone to 201-with-an-empty-body, so the 619,103 `rt:<CALLSIGN>` CC0 mirror rows became the **only** route source. |
+| **2026-09-01** `c5d8c84` | the route cache key gains a direction-of-travel bucket, `rt:<cs>:<bucket>`, for any caller sending `trk`. |
+
+The ingest writes `rt:<cs>` and nothing else, so `rt:AAL1719:1` is a key no
+writer has ever produced. Every lookup missed, asked an upstream that answers
+with an empty body, and fell through to a fallback that was switched off.
+
+**The defect is visible in the second commit, in prose, and it is not a mistake
+about the code it is in.** Its rationale reads:
+
+> *"a miss is a fresh fetch with the true position, which returns the right
+> answer. Being wrong here costs one upstream request and never a wrong route."*
+
+That argument is sound, load-bearing, and was **false when it was written** —
+its premise is a claim about the *fetch path*, made in the *cache-key* code, and
+the fetch path had been switched off five days earlier by the same author.
+
+**So the tell is grep-able and it is not "look for bugs".** It is a
+justification that asserts something about a component the diff does not touch:
+
+- *"a miss is a fresh fetch"* — a claim about the chain, written in the cache
+- *"the breaker never skips the terminal feed"* — a claim about the loop, quoted in a feed table
+- *"a wrong key merely misses"* — true only while something answers a miss
+
+Every one of those is a coupling with no check on it. **When you write a
+sentence beginning "this is safe because <other subsystem> does X", you have
+just created a dependency that nothing will re-verify** — the other subsystem's
+tests keep passing while it changes X, because X was never its promise.
+
+Two things follow, and the second is cheap enough that there is no excuse:
+
+- **Name the premise where the premise lives, not only where it is relied on.**
+  `ROUTE_ADSBDB_ENABLED = "false"` in `wrangler.toml` now carries the note that
+  a route miss no longer reaches an upstream at all — so the next person to
+  reason "a miss is harmless" reads it at the place that makes it false.
+- **Prefer a premise you can assert over one you can state.** The test that
+  would have caught this is not clever: seed a mirror row, ask for it the way
+  the firmware asks, assert it comes back. It is `test/route-mirror.test.ts` and
+  it takes forty lines.
+
+**AND THE TEST SUITE ENCODED THE OUTAGE AS THE REQUIREMENT.** `routekey.test.ts`
+asserted, correctly for the population it had in mind:
+
+```ts
+expect(routeCacheKey("ASA537", t)).not.toBe("rt:ASA537");
+```
+
+Green throughout. It proves the key *function* separates two keys — a real
+property, and not the property "the data is still reachable". Same family as
+the editor-anchor row above: **a guard that answers a narrower question than its
+name suggests**, passing perfectly while the thing it appears to protect is
+gone. The reason it read as protective is that `rt:` held **two populations** —
+a TTL'd runtime cache of one leg, and a static schedule mirror with one row per
+callsign — and the commit reasoned about the namespace as if it held only the
+first.
+
+> When one key prefix holds two kinds of thing, a change to the key shape is a
+> change to both, and only one of them has tests.
+
+### The half that made it invisible: green about the subsystem that isn't failing
+
+`/healthz` returned `ok:true` with four upstreams `closed` every day of the
+blackout. **Every word of that was accurate.** It reported the *aircraft feeds*,
+which were genuinely fine; it had never reported the two route breakers at all,
+so there was no field in which a route failure could appear.
+
+That is worse than a missing instrument, because a health endpoint is read as a
+statement about the *system*. A subsystem it cannot express is not merely
+unmonitored — it is actively vouched for by the green next to it.
+
+And underneath, three different states shared one observation:
+
+| state | what the log showed |
+|---|---|
+| a breaker latched open | nothing |
+| a source disabled by config | nothing |
+| a source that answered fine and was never needed | nothing |
+
+**Silence is not a reading.** A `wrangler tail` showing route attempts to
+adsb.lol and *nothing whatsoever* about adsbdb is equally consistent with all
+three, and separating them needed the source rather than the logs.
+
+So the durable half of that fix is not the one-line fallback. It is:
+
+- `evt:"breaker"` on **transition only** — `open` / `reopened` / `closed`, with
+  the failure count. Per-call would bury the signal it exists to surface, so the
+  test asserts it fires **once** across four requests.
+- `evt:"upstream_skip"` with a **reason** — `disabled_by_config`, `breaker_open`
+  — because "was not called" and "was called and answered" must not look alike.
+- the route breakers **in `/healthz`**, where `adsbdb_route enabled=false` is now
+  a fact anyone can see instead of one that lived only in `wrangler.toml`.
+- `route_stale` printing its **verdict** rather than a fixed string, so
+  `reversed` and `not_for_position` can be counted separately. An instrument
+  that cannot separate its two causes answers neither question.
+
+Both new lines were **watched firing** against a deliberately tripped breaker
+before being believed — see the rehearsal rules below; and both appeared in the
+first production tail after the deploy, which is the only evidence that counts.
+
+**The generalisation, and it is the entry above turned inside out.** That one is
+about an instrument nobody reads. This is about a subsystem no instrument can
+express — and it is harder to notice, because there is no unread number to find
+later. Ask of any health surface: *which failures can this go red for?* If the
+answer does not include the subsystem you are changing, you are adding code
+whose failure mode is a green light.
+
 ## Standing practice: a finding without a named-and-eliminated alternative is not finished
 
 Distinct from every entry above, which are about code structure. This one is

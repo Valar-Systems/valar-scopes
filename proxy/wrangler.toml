@@ -273,6 +273,23 @@ UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 # code path is still present and unchanged, deliberately, so the mirror can soak
 # under real customer traffic with a one-line escape hatch. Deleting the fallback
 # code is a LATER change, once the soak has said something.
+#
+# WHAT THIS LINE ALSO DID, WHICH IS NOT OBVIOUS FROM IT AND COST FIVE DAYS.
+# Setting this to "false" made a route cache MISS terminal. adsb.lol's routeset
+# answers 201 with an empty body, so with the fallback off there is nothing
+# behind the mirror: a miss is a blank card, permanently, not a slower answer.
+#
+# Five days later c5d8c84 changed the route cache key to carry a direction
+# bucket, arguing -- correctly, about code it was not editing -- that "a miss is
+# a fresh fetch with the true position, which returns the right answer". That
+# premise had expired HERE, on 08-26. The mirror is keyed `rt:<cs>` with no
+# bucket, so every trk-bearing lookup missed it and the fleet had no routes at
+# all until 2026-09-06.
+#
+# So before reasoning that some route change "only costs an extra fetch", read
+# this value. While it is "false" there is no extra fetch to cost -- and see
+# test/route-mirror.test.ts, which pins the mirror's reachability through the
+# key the firmware actually sends and pins THIS value while doing it.
 ROUTE_ADSBDB_ENABLED = "false"
 # Tracks the relay tile TTL, which moves 8 s -> 30 s for the 50-board pilot. The rule is
 # N >= 2 x TTL + 25 s (DEFAULT_FEED_MAX_AGE_MS in upstreams/chain.ts), so 30 s needs
