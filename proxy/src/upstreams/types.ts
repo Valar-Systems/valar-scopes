@@ -40,19 +40,49 @@ export function breakerAllows(id: string): boolean {
   return Date.now() - b.openedAt >= OPEN_COOLDOWN_MS; // half-open: one probe through
 }
 
+// A BREAKER THAT CHANGES STATE SILENTLY IS A DECISION NOBODY CAN OBSERVE.
+//
+// Every other upstream event is logged (`evt: "upstream"` in chain.ts), but a
+// breaker OPENING logged nothing and an open breaker's skip logged nothing
+// either -- so the whole-fleet symptom of a latched breaker is an ABSENCE of
+// log lines, which is also what a code path that never runs looks like, and
+// what a feed nobody calls looks like. Three different states, one observation.
+//
+// That cost real time on 2026-09-06: the production tail showed route fetches to
+// adsb.lol and nothing whatsoever about adsbdb, and distinguishing "adsbdb is
+// switched off" from "adsbdb's breaker is open" from "adsbdb answered" needed
+// the source rather than the logs.
+//
+// Logged on TRANSITION only, not per call: a breaker's state changes at most
+// twice per cooldown, so this cannot become a hot path, and a per-call log would
+// bury the transition it exists to surface.
+function logBreaker(id: string, state: string, consecutiveFailures: number): void {
+  console.log(JSON.stringify({ evt: "breaker", id, state, consecutiveFailures }));
+}
+
 export function breakerRecord(id: string, ok: boolean): void {
   let b = breakers.get(id);
   if (!b) {
     b = { consecutiveFailures: 0, openedAt: null };
     breakers.set(id, b);
   }
+  const wasOpen = b.openedAt !== null;
   if (ok) {
+    const failures = b.consecutiveFailures;
     b.consecutiveFailures = 0;
     b.openedAt = null;
+    if (wasOpen) logBreaker(id, "closed", failures);
     return;
   }
   b.consecutiveFailures++;
-  if (b.consecutiveFailures >= FAILURE_THRESHOLD) b.openedAt = Date.now(); // (re)open; a failed probe re-arms the cooldown
+  if (b.consecutiveFailures >= FAILURE_THRESHOLD) {
+    b.openedAt = Date.now(); // (re)open; a failed probe re-arms the cooldown
+    // "reopened" is distinct from "open" on purpose: it is the half-open probe
+    // failing, which is the signal that an outage is CONTINUING rather than a
+    // fresh one starting. Collapsing them would make a 3-hour outage and three
+    // separate blips look identical.
+    logBreaker(id, wasOpen ? "reopened" : "open", b.consecutiveFailures);
+  }
 }
 
 export function breakerState(id: string): "closed" | "open" {

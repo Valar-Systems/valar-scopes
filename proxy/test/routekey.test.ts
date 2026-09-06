@@ -111,9 +111,25 @@ describe("degenerate inputs cost a fetch, never a wrong route", () => {
   });
 
   it("a device sending a track never collides with the legacy key", () => {
-    // Mixing old and new firmware must not let a directionless entry satisfy a
-    // directional lookup -- that would silently restore the bug for any fleet
-    // running both.
+    // WHAT THIS TEST PROVES, AND WHAT IT NO LONGER PROVES.
+    //
+    // It proves the KEY FUNCTION separates the two: a directional lookup never
+    // computes the legacy key. That is still true and still worth pinning.
+    //
+    // It does NOT prove that a directionless entry cannot satisfy a directional
+    // lookup, and as of 2026-09-06 one can -- resolveRoute() falls back to the
+    // bare `rt:<cs>` on a bucketed miss. The original wording of this comment
+    // said that fallback "would silently restore the bug", and that reasoning
+    // held only while `rt:<cs>` contained nothing but runtime-cached legs. It
+    // also holds 619,103 CC0 MIRROR rows, ingested 2026-08-26, which became the
+    // fleet's only route source on the same day -- so the separation this test
+    // asserts made every one of them unreachable and the fleet had no routes at
+    // all for five days. See test/route-mirror.test.ts.
+    //
+    // The residual risk is named rather than hidden: a mirror row served to an
+    // aircraft flying the RETURN leg shows reversed endpoints, because a single
+    // schedule row has no direction to bucket. That is the pre-09-01 behaviour,
+    // it is not fixed, and the note in resolveRoute() says what fixing it needs.
     for (let t = 0; t < 360; t += 15) {
       expect(routeCacheKey("ASA537", t)).not.toBe("rt:ASA537");
     }

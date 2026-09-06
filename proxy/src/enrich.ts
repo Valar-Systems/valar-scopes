@@ -375,7 +375,39 @@ async function resolveRoute(
 ): Promise<RouteEntry> {
   if (!cs) return { o: "", d: "" };
   const rtKey = routeCacheKey(cs, trk);
-  const cached = await env.ENRICH_KV.get<RouteEntry>(rtKey, "json");
+
+  // TWO POPULATIONS LIVE UNDER `rt:`, AND THE BUCKETED KEY ONLY EVER ADDRESSED ONE.
+  //
+  //   the RUNTIME CACHE -- an upstream answer for one leg, written with a TTL,
+  //   which is what the direction bucket above exists to separate; and
+  //
+  //   the CC0 MIRROR -- 619,103 `rt:<CALLSIGN>` rows written by
+  //   scripts/ingest-routes.ts without a TTL and without a bucket. A static
+  //   schedule table, one row per callsign.
+  //
+  // The bucket was introduced for the first and silently orphaned the second:
+  // `rt:ASA537:1` is a key no writer has ever produced. That would have cost one
+  // redundant fetch per lookup -- the argument made in the block comment above,
+  // "a miss is a fresh fetch with the true position, which returns the right
+  // answer" -- except that PREMISE HAD ALREADY EXPIRED five days earlier. On
+  // 2026-08-26 the mirror became the ONLY route source (ROUTE_ADSBDB_ENABLED
+  // went to "false"; adsb.lol's routeset had already gone to 201-with-an-empty-
+  // body), so a miss stopped being a fetch and became a blank card, for every
+  // aircraft, on every device that sends a track. Which is all of them.
+  //
+  // Measured in production 2026-09-06: nine consecutive enrich requests, nine
+  // upstream route fetches, zero KV hits -- while `rt:AAL1719` and `rt:ASA773`
+  // sat in KV with the right answers in them.
+  //
+  // So the bucketed key is consulted first (it is the fresher, leg-specific
+  // answer when it exists) and the mirror is the floor beneath it. The mirror
+  // row goes through the same geometric check as any cached entry -- see the
+  // limits of that check in the note on the withheld path below.
+  const mirrorKey = `rt:${cs}`;
+  let cached = await env.ENRICH_KV.get<RouteEntry>(rtKey, "json");
+  if (!cached && rtKey !== mirrorKey) {
+    cached = await env.ENRICH_KV.get<RouteEntry>(mirrorKey, "json");
+  }
   if (cached) {
     // THE CACHED BRANCH IS CHECKED TOO, WHICH IT WAS NOT.
     //
@@ -405,6 +437,25 @@ async function resolveRoute(
         return { o: "", d: "" };
       }
     }
+    // WHAT THIS CHECK STILL CANNOT SEE, STATED SO IT IS NOT MISTAKEN FOR COVER.
+    // A REVERSAL preserves geography, so a corridor test is blind to it (the
+    // block comment on TRACK_BUCKETS says exactly this). A mirror row is a
+    // single unordered schedule entry, so an aircraft flying the return leg is
+    // served the outbound endpoints and the check passes. That is not a
+    // regression introduced here -- it is how the mirror behaved from
+    // 2026-08-26, when it became the sole source, through 2026-09-01 -- but it
+    // is NOT fixed by this fallback either, and the bucket does not fix it for
+    // mirror rows because there is only ever one row to bucket.
+    //
+    // The fix, when it is chosen, is to disambiguate against the TRACK: we hold
+    // both endpoints' coordinates in `ap:` already, so the bearing from o to d
+    // is computable and comparable to trk. That is a heuristic, and the comment
+    // on TRACK_BUCKETS rejects heuristics FOR THE CACHE KEY on the grounds that
+    // a wrong guess shows a confident wrong card while a wrong key merely
+    // misses. That argument does not transfer unexamined to a source with one
+    // row per callsign, where the alternative to guessing is not a fetch -- it
+    // is a blank. Deciding between "reversed sometimes" and "blank on the return
+    // leg" is a product call and is deliberately not made here.
     return cached;
   }
 
