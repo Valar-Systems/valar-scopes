@@ -72,6 +72,41 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http);
  */
 bool DeferUpdateCheckToReboot(uint32_t largestBlock);
 
+// Why a deferred reboot was armed. Persisted alongside the flag, because after
+// the reboot the two causes are otherwise indistinguishable: both are
+// ESP_RST_SW with `pending` set, and "the daily update check" and "the network
+// was unreachable for eight minutes" are very different things to see in a
+// fleet-wide reset-reason histogram.
+constexpr uint8_t REBOOT_CAUSE_OTA_CHECK = 1;
+constexpr uint8_t REBOOT_CAUSE_NET_WEDGE = 2;
+
+/**
+ * Arm a deferred reboot, recording WHY.
+ *
+ * The one implementation of the 24 h cap; DeferUpdateCheckToReboot is a wrapper.
+ * That is deliberate and load-bearing: the reachability watchdog
+ * (src/NetWatchdog.cpp) is the second caller, and giving it its own cap would be
+ * two guards on one rule -- with the second always the stale one. Sharing the
+ * cap is also exactly the safety property the watchdog needs, since it means an
+ * unreachable network can never reboot a board more often than an ordinary
+ * update check already does.
+ *
+ * Returns false when the cap, an unsynced clock or unavailable NVS refuses; does
+ * not return at all when it succeeds. A caller MUST handle the false case --
+ * see the Backoff stage in NetWatchPolicy.h, which is where a refusal leads.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock);
+
+/**
+ * The cause of the reboot that armed THIS boot, or 0. Clears it on read, the
+ * same one-shot discipline as ConsumeDeferredCheckFlag.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+uint8_t ConsumeDeferredRebootCause();
+
 /**
  * Was this boot armed by DeferUpdateCheckToReboot?
  *

@@ -710,3 +710,150 @@ All of the following, or it does not:
 - [ ] The device keeps reporting to the Worker after the refusal
 
 Anything short of all six means you are shipping fifty units you may not be able to fix.
+
+---
+
+# Run 4 — does the reachability watchdog fire, escalate, and know when to stop
+
+**Status: PRE-REGISTERED 2026-09-07, NOT YET RUN.** Written before the bench
+rehearsal, deliberately, and before any board is touched. The v10 firings
+(~20:04Z COM16, ~20:34Z COM119) come first and nothing here may disturb them.
+
+## Why there is a Run 4 at all
+
+Run 2's `OTA_FAULT_AT_PCT` rehearsal was run to prove the update path refuses a
+bad image. It did — and it also produced a defect nobody was looking for:
+
+> After the injected disconnect, COM16 logged **75 consecutive**
+> `start_ssl_client(): connect on fd 48, errno: 118, "Host is unreachable"` from
+> **19:52:50Z to 20:02:27Z** — 9 min 37 s in which every request failed at the
+> transport layer. `WiFi.status()` returned `WL_CONNECTED` throughout, the
+> 10-minute supervisor in `main.cpp` never armed, **zero reboots occurred**, and
+> uptime climbed to 14.3 min.
+>
+> `bench-logs/ota-fault-com16-2026-09-03.log`
+
+The existing supervisor watches **association**. The failure is **reachability**.
+It is the `getMaxAllocHeap` shape again: a guard that runs on every path and
+measures a property the failure does not disturb.
+
+The 24 h reboot already bounds this — a customer loses a day, not a device. This
+watchdog is what turns a dark day into a dark few minutes.
+
+## What is being tested, and where each half is proved
+
+| half | instrument | why there |
+|---|---|---|
+| the DECISIONS (thresholds, ladder order, backoff, the WL_CONNECTED control) | `test/host/test_net_watch_policy.cpp` | case counts and 30-minute timings no bench run covers in an afternoon |
+| the ACTIONS (reconnect, radio reset, reboot, and that the board comes back) | this run | a host test cannot prove `WiFi.mode(WIFI_OFF)` recovers a real radio |
+
+Splitting them is the point. **Neither instrument can see the other's failure** —
+see the standing entry in CLAUDE.md on knowing which instrument can see the
+failure you have.
+
+## The ladder, as built
+
+```
+trigger:  >= 10 consecutive transport failures AND >= 5 min, BOTH
+  1 reconnect     WiFi.disconnect(false) + reconnect()
+  2 radio-reset   radio off/on + fresh begin()          (after 90 s grace)
+  3 reboot        the OTA deferred-reboot NVS path      (after 90 s grace)
+  then backoff    re-arm at rung 1 every 30 min, display keeps running
+```
+
+Rung 3 **shares the OTA 24 h cap**. A refusal is a designed path, not an error:
+it leads to backoff.
+
+## Pre-registered outcomes
+
+Written before the run. Each row is what the observation MEANS, decided now.
+
+### O1 — the ladder fires at all
+
+| observation | verdict |
+|---|---|
+| `[netwd] reconnect` appears ≥5 min after the fault, with `failRun>=10` | **(a) PASS** — the trigger works on evidence |
+| it appears in under 5 min, or with `failRun<10` | **(b) FAIL** — a threshold is not being enforced; do not ship |
+| nothing appears within 15 min | **(c) FAIL** — the recorder is not seeing failures; check `RecordOutcome` is on the path taken |
+| it appears with `assoc=0` | **(d) WRONG FAULT** — the injection dropped the association, so this is the OLD watchdog's case and Run 4 has not tested anything. Re-inject. |
+
+**(d) is the one to watch for and the reason it is written down.** The whole
+defect is *associated* but unroutable. A fault injection that knocks the board
+off the AP reproduces a different bug and would pass this run while proving
+nothing — the same shape as a rehearsal whose sabotage never applied.
+
+### O2 — escalation order and timing
+
+| observation | verdict |
+|---|---|
+| `reconnect` → `radio-reset` → `reboot`, each ≥90 s apart, in that order | **(a) PASS** |
+| any rung skipped or out of order | **(b) FAIL** — the ladder is not walking |
+| two rungs inside the same 90 s | **(c) FAIL** — the grace is not being applied; escalation is spending expensive rungs on a network that may be recovering |
+
+### O3 — the 24 h cap holds
+
+Run with a reboot already stamped inside the window (the v10 firings will have
+stamped one; that is why this run comes after them).
+
+| observation | verdict |
+|---|---|
+| `[ota] net deferral refused: last reboot …` then `[netwd] reboot refused … backing off` | **(a) PASS** — capped, and it backed off rather than retrying |
+| the board reboots | **(b) FAIL, STOP** — an unreachable network can reboot-loop a customer's device. This is the most serious possible outcome of Run 4 |
+| `[netwd] reboot` with no `[ota]` line either way | **(c) FAIL** — the two are not composed; the watchdog has its own cap or none |
+
+### O4 — a network that stays dead
+
+Leave the fault in for 45 min after the ladder exhausts.
+
+| observation | verdict |
+|---|---|
+| one `ladder exhausted` line, then silence, then exactly one re-arm at `reconnect` at ~30 min | **(a) PASS** |
+| repeated rungs during the quiet window | **(b) FAIL** — backoff is not quiet |
+| re-arm at `reboot` rather than `reconnect` | **(c) FAIL** — it re-arms at the expensive end |
+| the display stops updating or the board resets | **(d) FAIL** — a dead network must not take the UI with it |
+
+### O5 — recovery
+
+| observation | verdict |
+|---|---|
+| within one tick of the fault being lifted: `[netwd] traffic recovered; ladder stood down` | **(a) PASS** |
+| no line, but traffic resumes | **(b) PARTIAL** — works, but the instrument is silent about it; fix before shipping since this is the line that says the feature did something |
+| the ladder keeps escalating after traffic returns | **(c) FAIL** |
+
+### O6 — the telemetry reaches the fleet
+
+| observation | verdict |
+|---|---|
+| after a watchdog reboot, the AE row's reset field reads `SW_NETWD` | **(a) PASS** — fleet-wide "how often does this fire in real homes" is answerable |
+| it reads `SW` | **(b) FAIL** — indistinguishable from the daily update reboot, which is the whole reason the suffix exists |
+| no row at all | **(c) INCONCLUSIVE, NOT PASS** — an OTA attempt has to follow the reboot for a row to be written. Re-run with an update pending; do not read silence as success |
+
+### O7 — none of the above
+
+**A legitimate pre-registered outcome.** If the observations do not fit any row
+here, the instrument is unreliable at this scale: **stop, and decide.** Do not
+improvise a reading — the `+6` download_count paragraph in CLAUDE.md is what
+that costs.
+
+## Method
+
+1. Flash the v11 candidate to **one** board. COM4 stays untouched as the
+   in-field control.
+2. Confirm from the boot log that the ladder printed — `[netwd] armed:` plus the
+   three rungs. **A stage that never fires must be distinguishable from a stage
+   that cannot**, and this line is what makes that true.
+3. Inject the fault the way Run 2 did, and **verify from the log that
+   `assoc=1`** before believing anything (outcome O1d).
+4. Observe O1, O2, O3 in one pass; O4 by leaving the fault in; O5 by lifting it.
+5. O6 needs a published update pending after the reboot.
+
+## What Run 4 does NOT establish
+
+- That the thresholds are right **for real homes**. Ten failures over five
+  minutes is a judgement graded against one rehearsal, not a population. The AE
+  reset field is what turns that into data, and it needs weeks, not a run.
+- That the radio reset fixes any wedge other than the injected one. It is the
+  cheapest thing that plausibly clears an unroutable association; that is the
+  argument for trying it, not evidence that it works in general.
+- Anything about boards that never associate. That is the old supervisor's job
+  and it is deliberately still there.

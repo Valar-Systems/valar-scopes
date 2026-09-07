@@ -56,7 +56,15 @@ void NoteOtaAttempt(int fwTo, uint32_t preLargest)
     p.putUInt("pre", preLargest);
     p.putUInt("post", 0); // 0 = not measured yet; filled at report time
     p.putString("res", "incomplete");
-    p.putString("rst", ResetReasonName()); // why the boot that is attempting this happened
+    // Why the boot that is attempting this happened. A watchdog-armed reboot is
+    // ESP_RST_SW exactly like the daily update check, so the cause is appended
+    // rather than inferred: "SW" and "SW_NETWD" are different facts about a
+    // customer's home. Suffixed rather than sent as a new field on purpose --
+    // this rides the existing 6-field report and needs no Worker arity change,
+    // and "_" survives the Worker's [^\w.-] sanitiser and its 16-char cap.
+    String rst = ResetReasonName();
+    if (ConsumeDeferredRebootCause() == REBOOT_CAUSE_NET_WEDGE) rst += "_NETWD";
+    p.putString("rst", rst);
     p.end();
 }
 
@@ -171,29 +179,66 @@ bool ConsumeDeferredCheckFlag()
     return pending;
 }
 
+// THE CAUSE OF THE LAST DEFERRED REBOOT, read once at boot and cleared.
+//
+// Two callers now arm this path -- the daily update check and the reachability
+// watchdog -- and they must share ONE 24 h cap, not have one each. Two guards on
+// one rule is two rules, and the second is always the stale one (CLAUDE.md).
+// Sharing the cap is also the safety property the watchdog needs: an unreachable
+// network cannot reboot a board more often than an ordinary update check can.
+//
+// The cause is recorded rather than inferred, because after the reboot the two
+// are indistinguishable -- both are ESP_RST_SW with the pending flag set.
+uint8_t ConsumeDeferredRebootCause()
+{
+    // IDEMPOTENT WITHIN A BOOT, and that is not an optimisation. Two readers
+    // want this value -- NetWatchdog::Begin() to say why the board restarted,
+    // and NoteOtaAttempt() to stamp it into the telemetry -- and a one-shot
+    // read would silently give the second one zero depending on which ran
+    // first. The NVS row is still cleared exactly once.
+    static uint8_t cached = 0;
+    static bool    read   = false;
+    if (read) return cached;
+    read = true;
+    Preferences p;
+    if (!p.begin(OTA_BOOT_NS, false))
+        return 0;
+    cached = p.getUChar("cause", 0);
+    if (cached != 0)
+        p.putUChar("cause", 0);
+    p.end();
+    return cached;
+}
+
 bool DeferUpdateCheckToReboot(uint32_t largestBlock)
 {
+    return DeferRebootWithCause(REBOOT_CAUSE_OTA_CHECK, largestBlock);
+}
+
+bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock)
+{
+    const char* why = (cause == REBOOT_CAUSE_NET_WEDGE) ? "net" : "update check";
     const time_t nowT = time(nullptr);
     const uint32_t now = (nowT > 0) ? (uint32_t)nowT : 0;
 
     if (now < CLOCK_SANE_EPOCH) {
-        Serial.printf("[ota] update check deferral refused: clock not synced "
+        Serial.printf("[ota] %s deferral refused: clock not synced "
                       "(largest=%u); the daily cap cannot be enforced without it\n",
-                      (unsigned)largestBlock);
+                      why, (unsigned)largestBlock);
         return false;
     }
 
     Preferences p;
     if (!p.begin(OTA_BOOT_NS, false)) {
-        Serial.println("[ota] update check deferral refused: NVS unavailable");
+        Serial.printf("[ota] %s deferral refused: NVS unavailable\n", why);
         return false;
     }
     const uint32_t last = p.getUInt("lastReb", 0);
     if (last != 0 && now >= last && (now - last) < REBOOT_MIN_INTERVAL_S) {
         p.end();
-        Serial.printf("[ota] update check deferral refused: last reboot %lus ago, "
+        Serial.printf("[ota] %s deferral refused: last reboot %lus ago, "
                       "cap is %lus (largest=%u)\n",
-                      (unsigned long)(now - last), (unsigned long)REBOOT_MIN_INTERVAL_S,
+                      why, (unsigned long)(now - last), (unsigned long)REBOOT_MIN_INTERVAL_S,
                       (unsigned)largestBlock);
         return false;
     }
@@ -202,11 +247,12 @@ bool DeferUpdateCheckToReboot(uint32_t largestBlock)
     // device wakes with the cap set and the flag clear -- one missed update. The
     // other order wakes it with a flag and no cap, which is the reboot loop.
     p.putUInt("lastReb", now);
+    p.putUChar("cause", cause);
     p.putBool("pending", true);
     p.end();
 
-    Serial.printf("[ota] update check deferred to reboot (largest=%u)\n",
-                  (unsigned)largestBlock);
+    Serial.printf("[ota] %s deferred to reboot (cause=%u largest=%u)\n",
+                  why, (unsigned)cause, (unsigned)largestBlock);
     Serial.flush();
     delay(150); // let the line reach a serial capture before the reset
     ESP.restart();

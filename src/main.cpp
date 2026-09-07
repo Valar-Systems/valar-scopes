@@ -20,6 +20,7 @@
 #include "HttpRequestManager.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "OtaUpdater.h"
+#include "NetWatchdog.h"
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
 // sightings radar, the FEATURE_FISHING (Reelscope) console, the FEATURE_CLAUDESCOPE usage gauge,
@@ -125,6 +126,7 @@ void setup()
   // rolled back, and it must say so unprompted.
   LogOtaSlot("boot");
   Serial.printf("[boot] reset reason=%s\n", ResetReasonName());
+  netwatch::Begin(); // prints the reachability ladder, and why this boot happened
 
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
@@ -474,6 +476,16 @@ void loop()
     delay(1000); // let the HTTP response flush, and let the user read the screen
     ESP.restart();
   }
+
+  // REACHABILITY WATCHDOG. The block below watches ASSOCIATION; this one watches
+  // whether traffic actually moves, and they are not the same failure. On
+  // 2026-09-03 COM16 spent 9 min 37 s failing every single request with
+  // "Host is unreachable" while WiFi.status() returned WL_CONNECTED throughout --
+  // so the supervisor below never armed, and the board sat dark until the daily
+  // reboot. Both are kept, because neither subsumes the other: this one cannot
+  // see a device that never associates, and that one cannot see a device that
+  // associates and reaches nothing.
+  netwatch::Tick();
 
   // RUNTIME WIFI WATCHDOG. Losing the network after boot recovered nowhere: the
   // IDF's auto-reconnect retries forever, setup() has already returned, and the
