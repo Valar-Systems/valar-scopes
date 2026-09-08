@@ -1031,3 +1031,67 @@ genuine `ESP_RST_UNKNOWN` renders **`UNKNOWN_0`** via the default branch. COM4's
 
 The two are distinguishable, which is fortunate rather than designed. Anyone
 building a fleet-wide histogram of this field must not merge them.
+
+---
+
+## O5 — closed as PARTIAL, deliberately, 2026-09-08
+
+Accepted as argued rather than left open. The mechanism is observed on hardware
+twice (the failure run begins exactly 6 s after the last successful request, both
+runs), the `recovered` state transition is pinned in three host-test cases, and
+the only way to observe it on the bench would be a hand-built partial POST to the
+config form — which posts the WHOLE form and would rewrite every toggle on the
+board. Not worth a board's saved state for a log line already covered. Recorded
+here as a known, reasoned gap and not as an outstanding action.
+
+## O6 — PRE-REGISTERED 2026-09-08, to run after 20:33:40Z
+
+**FIRST, THE THING THAT NEARLY MADE THIS UNRUNNABLE, AND IS A DEFECT IN ITS OWN
+RIGHT.**
+
+`NoteOtaAttempt()` — the only writer of the `ota-mem` record that carries `rst` —
+is called at OtaUpdater.cpp:381, **inside the `newer firmware available` branch,
+immediately before the download**. No available update means no attempt, no
+record, no AE row, and therefore no reset reason. Ever.
+
+So the reboot cause reaches the fleet **only on boots that also perform an
+update**. A customer's board that wedges and reboots nightly while already on the
+latest firmware reports nothing at all — which is exactly the "how often does
+this fire in real homes" question the field wants answered.
+
+That is a design defect in the telemetry, introduced when the cause was suffixed
+onto the existing OTA report to avoid a Worker arity change. The avoidance was
+correct about arity and wrong about coupling: it tied *why the board rebooted* to
+*whether the board updated*. **It must be fixed before v11 ships**, on a path
+that reports every boot rather than every updating boot. Filed here rather than
+in a comment because the instrument is useless in the field until it is.
+
+**The run is still worth doing**, because it proves the rung-3 execution path
+end to end — the ladder actually rebooting, the flag surviving, the cause
+persisting across the reboot, and the suffix arriving intact. It just needs a
+pending update to carry the row, which the bench already has a pattern for
+(`-DOTA_RELEASE_BASE` pinned at a prerelease tag, invisible to `releases/latest`
+and therefore to the fleet).
+
+### Setup
+
+One bench build combining both: the TEST-NET-1 backend (so the ladder fires) and
+`OTA_RELEASE_BASE` pinned at a prerelease advertising a version above 10 (so the
+post-reboot check finds something to download). COM119's cap expires
+2026-09-08T20:33:40Z; the run must start after that or rung 3 is refused again.
+
+### Pre-registered readings
+
+| observation | verdict |
+|---|---|
+| AE row appears, `reset` reads exactly **`SW_NETWD`**, `preLargest` in the fresh-boot band (~150 k) | **(a) O6 CLOSED** — rung 3 executes, the cause survives the reboot, the suffix arrives intact |
+| the board reboots (serial shows the reboot and `[netwd] this boot was armed by the REACHABILITY watchdog`) but **no AE row appears** | **(b) FAIL — the telemetry path drops it.** Fix before v11. Distinguish from the no-pending-update case above by confirming the download actually started |
+| row appears but `reset` reads bare **`SW`** | **(c) FAIL, and specifically the SUFFIX is lost** — `ConsumeDeferredRebootCause()` returned 0 when `NoteOtaAttempt` read it, i.e. the caching is not doing its job or the NVS write did not land |
+| row appears but `reset` reads bare **`UNKNOWN`** | **(d) FAIL, and specifically the CAUSE was not persisted** — the key was absent entirely, so `getString` fell to its default. A different bug from (c) and they must not be merged |
+| row appears but `reset` reads **`UNKNOWN_0`** | **(e) the chip reported ESP_RST_UNKNOWN** — a real but different observation; the reboot was not a clean `ESP.restart()`. Investigate before reading anything else |
+| the ladder never reaches rung 3 (traffic recovered, or the cap still refuses) | **(f) THE RUN DID NOT HAPPEN.** Not a pass and not a failure. Check the cap stamp and re-run |
+| none of the above | **(g) stop and decide.** The instrument is unreliable at this scale |
+
+(c), (d) and (e) are separated on purpose: all three present as "the reset field
+is not what I expected", and they have three different causes and three different
+fixes. A table that collapsed them would guarantee an improvised reading.
