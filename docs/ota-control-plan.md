@@ -790,6 +790,31 @@ nothing — the same shape as a rehearsal whose sabotage never applied.
 | any rung skipped or out of order | **(b) FAIL** — the ladder is not walking |
 | two rungs inside the same 90 s | **(c) FAIL** — the grace is not being applied; escalation is spending expensive rungs on a network that may be recovering |
 
+### O2(d) — AMENDMENT, ADDED BEFORE THE RUN, NOT AFTER
+
+**The rehearsal's fault does not survive its own remedy, and I noticed while
+setting the run up rather than while reading its output.**
+
+`OTA_FAULT_AT_PCT` injects `WiFi.disconnect(false, false)`. Rung 1 of the ladder
+is `WiFi.disconnect(false)` + `reconnect()` — the *same operation*. So the most
+likely outcome is that rung 1 clears the injected fault and the ladder never
+reaches rungs 2 or 3.
+
+| observation | verdict |
+|---|---|
+| `reconnect` then `recovered`, no further rungs | **(d) PARTIAL — O1 and O5 established, O2/O3/O4 NOT.** A good product result (the cheapest rung fixes the observed defect) and a weak test result. It is not a pass for the ladder as a whole |
+
+**This is not a reason to postpone the run.** O1 and O5 are the two outcomes
+that matter most — does the trigger fire on traffic evidence, and does one
+success stand the ladder down — and only hardware can answer them. But O2/O3/O4
+need a fault that OUTLIVES a reconnect and a radio reset, which means blocking
+the board at the router (Daniel's access, not mine), not a fault the firmware
+injects into itself.
+
+Recorded here so that a run which stops at rung 1 is read as *this table
+predicted that*, rather than as either a pass or a failure. A partial result
+named in advance is evidence; the same result explained afterwards is not.
+
 ### O3 — the 24 h cap holds
 
 Run with a reboot already stamped inside the window (the v10 firings will have
@@ -847,6 +872,44 @@ that costs.
 4. Observe O1, O2, O3 in one pass; O4 by leaving the fault in; O5 by lifting it.
 5. O6 needs a published update pending after the reboot.
 
+## COM4 and the v9 stranding: why there is no rescue test to run
+
+**Decided 2026-09-08, after all three bench boards were disconnected and COM4's
+fragmented heap was destroyed by the power loss.**
+
+COM4 sat on v9 for five days while v10 was published and discoverable, with ~4
+daily timer firings that produced no AE row at all — the version check died
+before the wire, so `NoteOtaAttempt` never ran and the absence IS the record.
+That is the stranding, and it is now permanently documented by:
+
+- `fw:<COM4>` in ENRICH_KV: `changes[]` showing 8→9 on 2026-09-03 and nothing
+  after it while two other boards took 9→10 on 09-07;
+- the AE `ota` rows: nothing for that device since 2026-09-03.
+
+**THE OPTION THAT WAS OFFERED AND IS INCOHERENT: keep a v9 board stranded so it
+can verify that v11's quiet-hour reboot rescues it.** It cannot, and the reason
+is definitional rather than practical:
+
+> Stranding *is* the inability to receive an OTA. A stranded v9 board therefore
+> cannot receive **v11** either. There is no version we can ship that reaches a
+> board in that state.
+
+The only rescue for a stranded v9 board is a power cycle — which is exactly what
+happened here, and the board's arrival on v10 within about a minute of reconnect
+is one more confirmation that the BOOT check path works on a clean heap while the
+daily-timer path does not.
+
+And boards on v10 and later are **immune by construction**: reboot-then-fetch
+means the check always runs on a fresh heap, so they cannot enter the state that
+would need rescuing. The quiet-hour reboot in v11 is defence in depth for a
+failure v10 already closed, not a cure for a population that can still be
+reached.
+
+**So the population that needs the fix cannot receive it, and the population
+that can receive it does not need it.** That is not an argument against shipping
+the quiet-hour reboot; it is the reason no live subject is required to justify
+it, and the reason this plan does not schedule one.
+
 ## What Run 4 does NOT establish
 
 - That the thresholds are right **for real homes**. Ten failures over five
@@ -857,3 +920,114 @@ that costs.
   argument for trying it, not evidence that it works in general.
 - Anything about boards that never associate. That is the old supervisor's job
   and it is deliberately still there.
+
+---
+
+## Run 4 — RESULT, 2026-09-08
+
+Board: COM119. COM16 untouched; COM4 untouched (and separately confirmed the
+boot path by arriving on v10 within ~2 min of an unplanned power cycle).
+
+**Run twice.** The first attempt reached the backoff window and was cut short
+when all three boards were physically disconnected at ~02:08:46Z. The second is
+the record; the first agreed with it at every rung, which is worth more than
+either alone.
+
+| | run 1 | run 2 |
+|---|---|---|
+| reconnect | `failRun=61 run=301s` | `failRun=60 run=301s` |
+| radio-reset | +90 s, `failRun=78` | +91 s, `failRun=78` |
+| reboot (refused) | +91 s, `failRun=96` | +90 s, `failRun=96` |
+| backoff | +91 s, `failRun=114` `cycles=1` | +90 s, `failRun=114` `cycles=1` |
+| re-arm | (cut short) | +30 min 5 s, at `reconnect`, `cycles=1` |
+
+### Verdicts
+
+| outcome | verdict | evidence |
+|---|---|---|
+| **O1 trigger** | **(a) PASS** | fired at `run=301s`, not at failure 10 (reached ~50 s in) — the WINDOW was binding, which is the "both conditions" rule doing visible work |
+| **O1(d) wrong fault** | **excluded** | `assoc=1` on every escalation line, through a reconnect AND a full radio reset |
+| **O2 order/timing** | **(a) PASS** | reconnect → radio-reset → reboot → backoff, 90-91 s apart, in order |
+| **O2(d) fault too weak** | **not triggered** | the amendment predicted rung 1 might clear an injected `WiFi.disconnect`; the TEST-NET-1 fault outlived every rung, so the full ladder was observable |
+| **O3 the 24 h cap** | **(a) PASS** | `net deferral refused: last reboot 19900s ago, cap is 86400s` — 19,900 s back is the v10 firing to the second. **No reboot.** `largest=65524`, so the refusal was the cap and not memory |
+| **O4 dead network** | **(a) PASS** | one `ladder exhausted`, 30 min silence, exactly one re-arm at the CHEAPEST rung. Display steady at 33.7 ms and heap flat throughout; zero reboots |
+| **O5 recovery** | **PARTIAL — mechanism yes, transition no** | see below |
+| **O6 telemetry** | **(c) INCONCLUSIVE, NOT PASS** | see below |
+| **O7 none-of-the-above** | not needed | every observation fell inside the table |
+
+### The control that makes O4 mean anything
+
+`failRun` climbed **114 → 167** across the quiet window. Failures were being
+recorded the whole time, so the silence was the policy DECLINING TO ACT rather
+than an absence of input.
+
+That distinction is not academic: run 1's watcher expired against a log that had
+stopped because the board lost power, and its output — six ladder lines then
+nothing for 35 minutes — is *indistinguishable by shape* from a healthy backoff.
+A dead capture and a working backoff both look like silence. Only the climbing
+counter separates them, and any future reading of a quiet window must cite it.
+
+### O5 — what was and was not established
+
+**Established, twice:** the run begins only after the last recorded SUCCESS.
+Run 1's boot OTA check (to GitHub, which stayed reachable) succeeded at
+01:57:11Z and the failure run began at 01:57:17Z; run 2, 02:17:17Z and
+02:17:23Z. Six seconds both times. `RecordOutcome(true)` demonstrably works on
+hardware and gates the run.
+
+**Not established:** the `recovered` state transition itself. With the backend
+baked to an unroutable address, no runtime action can restore traffic without a
+reboot — and the one runtime lever, the config form, POSTS THE WHOLE FORM, so a
+hand-built partial POST would rewrite every toggle on the board (see the
+standing entry in CLAUDE.md on defaults being frozen by a whole-form save). That
+is not a risk worth taking against a bench board's saved state for a line the
+host suite already pins in three separate cases.
+
+### O6 — why it cannot be run in the same pass as O3
+
+O6 needs a watchdog reboot to actually happen. O3 needs the cap to refuse one.
+**They are mutually exclusive by construction**, and the pre-registration says so
+— O6(c) is the honest verdict, not a failure. COM119's cap expires
+2026-09-08T20:33:40Z; a second pass after that would produce a real
+`SW_NETWD` row. Not scheduled here.
+
+### A method limitation, stated rather than glossed
+
+**The `[netwd] armed:` boot banner was never captured.** The reset-on-attach
+pulse does not work on this board — it is native USB CDC, so DTR/RTS do not map
+to EN/GPIO0 — and both attaches landed a few seconds into an already-running
+boot. Step 2 of the method was therefore satisfied by grepping the flashed ELF
+plus the live `[source] https://192.0.2.1` line proving which image was running,
+NOT by the boot line. Weaker than intended. The banner's purpose — telling a
+stage that never fired from one that cannot fire — is unaffected in the field,
+where boards boot without a debugger attached.
+
+### The fault, and why it is not the rehearsal's
+
+`OTA_FAULT_AT_PCT` was unusable: it fires only mid-download, and the pinned
+pre-release advertises version 6 against a candidate on 10, so `latest > current`
+is false and no download starts. It worked on 2026-09-03 only because the board
+was on 5 then (the AE row reads `incomplete 5>6`).
+
+Substituted: `[env:blipscope-s3-128-netfault]`, the backend pointed at TEST-NET-1
+(`192.0.2.1`), composed from the URL-free `*_hw` section as the `[cloud]` section
+requires. Verified on the artifact — the feed base went 2 occurrences to 1 with
+`192.0.2.1` appearing only in the fault build, the residual being the enrolment
+URL present in both.
+
+**This reproduces the STATE the watchdog triggers on, not the original CAUSE.**
+The observable is identical (negative response code, board associated); the
+error text differs (`connection refused` here, `Host is unreachable` in the
+rehearsal). The watchdog acts on the sign of the response code, so the
+substitution is sound — but it is a substitution and is recorded as one.
+
+### Reset reason: `UNKNOWN` and `UNKNOWN_0` are different facts
+
+`TakeOtaMemReport` reads `p.getString("rst", "UNKNOWN")`, so a bare **`UNKNOWN`
+means the firmware that wrote the record predates reset-reason logging**
+(170d35f, 2026-09-03 — after the v9 tag), NOT that the chip could not say. A
+genuine `ESP_RST_UNKNOWN` renders **`UNKNOWN_0`** via the default branch. COM4's
+9→10 row carries bare `UNKNOWN` for exactly this reason.
+
+The two are distinguishable, which is fortunate rather than designed. Anyone
+building a fleet-wide histogram of this field must not merge them.
