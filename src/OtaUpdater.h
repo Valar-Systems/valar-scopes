@@ -186,3 +186,17 @@ String TakeOtaMemReport();
  * LOOP TASK ONLY.
  */
 String TakeBootReasonReport();
+
+/**
+ * Report whether the check-in that carried the boot reason was ACKNOWLEDGED.
+ *
+ * `delivered` must mean the Worker answered 2xx -- not merely that the socket
+ * opened. recordBoot() is authenticated-only, so a 401 arrives at the Worker and
+ * still writes no row; treating it as delivered would drop the reason.
+ *
+ * Call on EVERY fetch result, success or failure: the failure path is what
+ * releases the in-flight guard so the next check-in may carry it again.
+ *
+ * LOOP TASK ONLY.
+ */
+void AckBootReasonReport(bool delivered);

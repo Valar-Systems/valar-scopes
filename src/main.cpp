@@ -582,9 +582,13 @@ void loop()
     // stores its offset under "tz-offset", while the sibling editions use their
     // own keys (fi-tz-offset, cl-tz-offset, sc-tz-offset...). On those builds
     // this reads empty and the quiet hour lands at 03:00 UTC instead of 03:00
-    // local -- still strictly better than the uptime drift it replaces, but not
-    // the intended behaviour. Closing it means one shared key or one shared
-    // accessor, and is tracked in docs/v11-quiet-hour-plan.md.
+    // local -- still better than the uptime drift it replaces, but not the
+    // intended behaviour.
+    //
+    // POST-LAUNCH BACKLOG, not an oversight: all 50 launch units are the radar
+    // edition, so no customer can meet this and it is bench-only. It becomes
+    // real the moment one non-radar edition ships -- a shipping decision, not a
+    // date. See "Post-launch backlog" in docs/v11-quiet-hour-plan.md.
     const String tzStr = configServer.GetStoredString("tz-offset");
     const long tzSec = tzStr.isEmpty() ? 0L : (long)(tzStr.toFloat() * 3600.0f);
     const quiet::Decision d = quiet::Step(qs, (uint32_t)time(nullptr), tzSec, millis());

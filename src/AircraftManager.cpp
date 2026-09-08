@@ -2784,6 +2784,16 @@ void AircraftManager::ConsumeFetchResult()
 
     fetchInFlight = false;
 
+    // Release (or clear) the boot-reason report. Called on EVERY result: on
+    // success it retires the reason, on failure it only drops the in-flight
+    // guard so the NEXT check-in may carry it again. A no-op when this request
+    // was not the one carrying it.
+    //
+    // `res->ok` is the right predicate rather than "the socket opened":
+    // recordBoot() is authenticated-only, so a 401 reaches the Worker and still
+    // writes no row -- and `ok` is false for a cloud auth rejection.
+    AckBootReasonReport(res->ok);
+
 #ifdef FEATURE_CLOUD_FEED
     if (res->kind == FetchKind::CloudConfig) {
         if (res->ok) {

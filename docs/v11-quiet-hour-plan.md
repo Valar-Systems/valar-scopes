@@ -272,11 +272,20 @@ room through the 10:00Z reboot.
 - **Q2 (unsynced-clock fallback).** The bench boards sync NTP within seconds of
   boot, so the fallback branch is unreachable here. It is covered by the host
   suite and by no bench observation, and that is stated rather than implied.
-- **The sibling editions' offset.** `tz-offset` is the radar's key; the other
-  editions store theirs under their own (`fi-tz-offset`, `cl-tz-offset`, ...),
-  so on those builds the quiet hour resolves to 03:00 UTC. Known, commented at
-  the call site, and NOT fixed in v11 — closing it needs one shared key or one
-  shared accessor across eight manager classes.
+- **The sibling editions' offset — POST-LAUNCH BACKLOG, ruled out of v11 scope
+  2026-09-08.** `tz-offset` is the radar's key; the siblings store theirs under
+  their own (`fi-tz-offset`, `cl-tz-offset`, ...), so on those builds the quiet
+  hour resolves to 03:00 UTC — 19:00–20:00 Pacific, the exact complaint this
+  feature removes.
+
+  **All 50 launch units are the radar edition** (confirmed by Daniel), so no
+  customer can meet this. It is a BENCH-ONLY limitation, and scoping it into v11
+  would mean touching eight manager classes to fix something nobody can
+  encounter.
+
+  It becomes real the moment ONE non-radar edition ships, and the trigger is
+  therefore a shipping decision rather than a date. Closing it needs either one
+  shared config key or one shared accessor. See "Post-launch backlog" below.
 
 ## Operational item for Daniel — NOT a v11 gate
 
@@ -299,3 +308,22 @@ Once this path is live AND the firmware sends it, a future O6-style check needs
 **no prerelease scaffold**: the reason arrives on an ordinary check-in whether or
 not an update was available. The pinned-prerelease setup in the O6 plan is a
 workaround for the OTA-report coupling and expires with it.
+
+---
+
+## Post-launch backlog
+
+Not v11. Recorded here rather than in a comment because a limitation that lives
+only beside the code that causes it is one nobody finds when the condition that
+makes it matter finally arrives.
+
+| item | becomes real when | closing it |
+|---|---|---|
+| **Sibling-edition quiet hour** — the seven non-radar editions resolve the quiet hour at 03:00 UTC because `tz-offset` is the radar's key | the first non-radar unit ships to a customer | one shared tz key, or one accessor across the eight manager classes |
+| **Retire the OTA-report `rst` suffix** — superseded by `X-Blip-Boot` on every boot | the fleet is entirely on v11+, read from the `fw:` listing, NOT from memory | delete the suffix and its parser branch; keep the tests for the old arity until the listing is clean |
+| **Derive the header names from the firmware** — `test/header-contracts.test.ts` transcribes `X-Blip-Boot`/`X-Blip-Usage`/`X-Blip-OTA-Mem` rather than deriving them | now — the firmware half exists as of `b01524b` | `smoke-prod.sh` greps them out of `CloudFeed.cpp` and fetches each against the live Worker, as it already does for the enrol URLs |
+
+The third is doable immediately and is the strong form of a check that currently
+exists only in its weak form. It is listed here rather than done inside v11
+because it touches the production smoke test, and that is not a thing to change
+in the same window as a release.
