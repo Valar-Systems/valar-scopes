@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "BrightnessCarry.h"
+#include "LocalOffset.h"
 #include "FollowLabel.h"
 #include "DiscGeometry.h"
 #include "DisplayUnits.h"
@@ -1247,10 +1248,14 @@ void AircraftManager::Initialise()
     rotCos = cosf(rotRad);
     rotSin = sinf(rotRad);
 
-    // clock offset: default to the nominal zone from longitude (15 deg/hour)
+    // Clock offset: explicit setting, else the nominal zone from longitude.
+    // THE RULE LIVES IN include/LocalOffset.h AND THIS IS A CALLER, not a copy.
+    // It used to be spelled out here, and when the quiet-hour scheduler needed
+    // the same quantity in main.cpp it was re-derived WITHOUT the fallback --
+    // resolving every unset board to UTC and scheduling its 03:00 reboot at
+    // 20:00 Pacific. One derivation, two callers, so that cannot recur.
     const String tzStr = configServer.GetStoredString("tz-offset");
-    utcOffsetSec = tzStr.isEmpty() ? (long)lround(lon / 15.0) * 3600
-                                   : (long)(tzStr.toFloat() * 3600.0f);
+    utcOffsetSec = localoffset::Resolve(tzStr.c_str(), lon);
 
     lastBrightnessCheck = 0; // re-evaluate dimming promptly after a reload
 

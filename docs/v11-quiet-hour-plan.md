@@ -328,6 +328,86 @@ room through the 10:00Z reboot.
   therefore a shipping decision rather than a date. Closing it needs either one
   shared config key or one shared accessor. See "Post-launch backlog" below.
 
+## The tz defect, and the boot print that caught it on its first firing
+
+**Found 2026-09-08 at 22:47:59Z, by the line added earlier the same day to make
+the schedule visible before it fires.**
+
+```
+[quiet] armed: reboot at local 03:00, tz-offset=0 (+0 s) -- local hour now 22
+```
+
+Local hour 22 while the board's wall clock read 15:47. `tz-offset` was unset, and
+the quiet-hour path resolved that to **UTC** — so its "03:00 local" reboot was
+scheduled for 03:00 UTC, **20:00 Pacific**, in front of the customer. The exact
+complaint the feature was built to remove, on all 50 launch units.
+
+### It was a code defect, not a config question
+
+`AircraftManager.cpp` has always resolved this correctly:
+
+```cpp
+utcOffsetSec = tzStr.isEmpty() ? (long)lround(lon / 15.0) * 3600
+                               : (long)(tzStr.toFloat() * 3600.0f);
+```
+
+The quiet-hour scheduler needed the same quantity in `main.cpp`, where the app
+manager is a different class per edition. It was **re-derived**, kept the
+explicit branch, and dropped the fallback:
+
+```cpp
+const long tzSec = tz.isEmpty() ? 0L : (long)(tz.toFloat() * 3600.0f);
+```
+
+Second path, narrower than the first — and written the same day an entry about
+that family went into CLAUDE.md. Not a copy that drifted; **a copy that was born
+wrong**, and invisible because both branches look complete.
+
+### The fix is one derivation, and BOTH the decision and the print read it
+
+`include/LocalOffset.h` is now the only implementation, with
+`AircraftManager` and `main.cpp` as callers. In `main.cpp` a single
+`QuietHourOffsetSec()` feeds the boot print **and** the firing decision.
+
+That pairing is the point rather than tidiness: fixing only the print would have
+produced **an instrument reporting correctly while the behaviour stayed wrong**,
+which is worse than the honest zero it replaced — the failure would then have
+been invisible to the one line built to expose it.
+
+Longitude is required for the radar to function, so the fallback is available on
+every working unit. It is nominal solar time and can be ~2 h off a political
+zone; a clock cannot tolerate that and a once-a-day reboot schedule can. Worst
+realistic case moves 03:00 to somewhere between midnight and 06:00. Zero puts it
+at 20:00 for the entire western hemisphere.
+
+### Pre-registered, then rehearsed red
+
+A board with `tz-offset` unset must print a **non-zero** resolved offset matching
+its longitude, and a local hour matching wall clock. Bend is -121.29, so -8 h,
+and the print's "local hour now 22" must become **14**.
+
+`test/host/test_local_offset.cpp` pins that, and the sabotage was run twice:
+returning `0L` outright fails to COMPILE (`lon` unused under `-Werror`), which
+proves the edit landed but not that the test detects behaviour; a second version
+that still reads `lon` and returns 0 compiles and fails **ten assertions**,
+including the named control that the fallback is not zero.
+
+### Third instance this session of an observability line earning its place on its first firing
+
+1. `evt:"upstream_skip"` with a reason — added because a disabled source and a
+   latched breaker were both silence; it distinguished them in the first
+   production tail after deploy.
+2. `[netwd] armed:` printing the full ladder every boot — so a stage that never
+   fires can be told from one that cannot.
+3. **This one.** `[quiet] armed:` existed only because "it did not fire" could
+   not otherwise be told from "it is set for a different hour" without losing a
+   day. It caught a shipped-defect-in-waiting the first time it ran, roughly
+   seven hours after being written.
+
+None of the three found what it was aimed at. Each found something else, on the
+first firing, because it made a previously invisible quantity visible at a moment
+somebody was already looking.
+
 ## Operational item for Daniel — NOT a v11 gate
 
 **The operator device key on this workstation is stale.** Production returns 401;

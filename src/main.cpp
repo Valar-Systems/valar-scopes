@@ -22,6 +22,7 @@
 #include "OtaUpdater.h"
 #include "NetWatchdog.h"
 #include "BrightnessCarry.h"
+#include "LocalOffset.h"
 #include "QuietHourPolicy.h"
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
@@ -88,6 +89,20 @@ AircraftManager appManager(configServer, authHandler, http, tft);
 #define BLIPSCOPE_RADAR_EDITION 1
 #endif
 
+// The offset the quiet-hour schedule runs on: explicit `tz-offset`, else the
+// nominal zone from longitude (include/LocalOffset.h). ONE function, called by
+// both the boot print and the firing decision -- see the note at the call site.
+//
+// Read from config rather than from `appManager` because that is a different
+// class per edition; the LIMITATION that the siblings key their offset
+// differently is unchanged and recorded in docs/v11-quiet-hour-plan.md.
+static long QuietHourOffsetSec()
+{
+  const String tz  = configServer.GetStoredString("tz-offset");
+  const String lon = configServer.GetStoredString("longitude");
+  return localoffset::Resolve(tz.c_str(), lon.toFloat());
+}
+
 void setup()
 {
   Serial.begin(115200); // non-blocking; the wait for a CDC *host* happens after the splash below
@@ -136,7 +151,7 @@ void setup()
   // single most likely way for this to fire at the wrong time.
   {
     const String tz = configServer.GetStoredString("tz-offset");
-    const long   tzSec = tz.isEmpty() ? 0L : (long)(tz.toFloat() * 3600.0f);
+    const long   tzSec = QuietHourOffsetSec();
     const uint32_t nowEpoch = (uint32_t)time(nullptr);
     Serial.printf("[quiet] armed: reboot at local %02d:00, tz-offset=%s (%+ld s)"
                   " -- local hour now %d%s\n",
@@ -589,9 +604,12 @@ void loop()
     // edition, so no customer can meet this and it is bench-only. It becomes
     // real the moment one non-radar edition ships -- a shipping decision, not a
     // date. See "Post-launch backlog" in docs/v11-quiet-hour-plan.md.
-    const String tzStr = configServer.GetStoredString("tz-offset");
-    const long tzSec = tzStr.isEmpty() ? 0L : (long)(tzStr.toFloat() * 3600.0f);
-    const quiet::Decision d = quiet::Step(qs, (uint32_t)time(nullptr), tzSec, millis());
+    // THE SAME RESOLVED VALUE THE BOOT PRINT REPORTS. Deliberately one helper
+    // rather than two call sites that agree today: an instrument that reports a
+    // different number from the one the decision uses is worse than no
+    // instrument, because it reports correctly while the behaviour is wrong.
+    const quiet::Decision d =
+        quiet::Step(qs, (uint32_t)time(nullptr), QuietHourOffsetSec(), millis());
     if (d != quiet::Decision::None) {
       Serial.printf("[quiet] %s -> deferring update check to reboot\n",
                     quiet::DecisionName(d));
