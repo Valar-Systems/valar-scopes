@@ -141,43 +141,6 @@ describe("the OTA suffix is NOT removed in this change", () => {
   });
 });
 
-/* ----------------------------------------------------------------------------
- * THE HEADER NAME IS A CONTRACT, AND EVERY TEST ABOVE WOULD PASS WITHOUT IT.
- *
- * The cases above call recordBoot() directly, so a typo in the header name in
- * index.ts -- X-Blip-Boot vs X-Blip-Reset vs a missing call entirely -- passes
- * all ten of them while the feature is completely dead in production. That is
- * the enrolment-404 shape: sixteen green tests around a URL the tests chose.
- *
- * So this one goes through the Worker and names the header as the wire does.
- *
- * IT IS STILL THE WEAK FORM, and says so. The firmware half does not exist yet
- * (Worker first, deployed and soaked before anything sends the field), so this
- * TRANSCRIBES the header name rather than deriving it from the other side. When
- * the firmware lands, smoke-prod.sh should grep the header out of
- * OtaUpdater.cpp the way it already greps the enrol URLs out of
- * ConfigurationWebServer.cpp -- that is the strong form, and this is a
- * placeholder for it.
- * ------------------------------------------------------------------------- */
-describe("the X-Blip-Boot header is actually read by the Worker", () => {
-  it("a request carrying it produces a boot point", async () => {
-    const { call, apiRequest } = await import("./helpers");
-    const writeDataPoint = vi.fn();
-    await call(apiRequest("/v1/config", { "X-Blip-Boot": "SW_NETWD" }), {
-      METRICS: { writeDataPoint } as unknown as Env["METRICS"],
-    });
-    const boot = writeDataPoint.mock.calls.map((c) => c[0]).filter((p) => p.indexes?.[0] === "boot");
-    expect(boot).toHaveLength(1);
-    expect(boot[0].blobs[1]).toBe("SW_NETWD");
-  });
-
-  it("CONTROL: the same request without the header produces none", async () => {
-    const { call, apiRequest } = await import("./helpers");
-    const writeDataPoint = vi.fn();
-    await call(apiRequest("/v1/config"), {
-      METRICS: { writeDataPoint } as unknown as Env["METRICS"],
-    });
-    const boot = writeDataPoint.mock.calls.map((c) => c[0]).filter((p) => p.indexes?.[0] === "boot");
-    expect(boot).toHaveLength(0);
-  });
-});
+// The header NAME is asserted at the wire in test/header-contracts.test.ts,
+// together with X-Blip-Usage and X-Blip-OTA-Mem. Kept in one file on purpose:
+// three places that know a header name is two places that go stale.

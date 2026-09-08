@@ -485,6 +485,61 @@ later. Ask of any health surface: *which failures can this go red for?* If the
 answer does not include the subsystem you are changing, you are adding code
 whose failure mode is a green light.
 
+## Standing practice: a dropped row is a gap; a truncated row is a lie
+
+Sits next to the void-firing-instrument entry because it is the same subject —
+what an instrument records — from the other end. That one is about a signal
+nobody reads. This is about a signal that is READ AND WRONG, and wrong in the
+one direction nothing downstream can detect.
+
+**The instance (2026-09-08).** A new telemetry field carrying why a board
+booted. Every value the firmware can emit is a short enum token — `POWERON`,
+`SW`, `SW_NETWD`, `UNKNOWN_16` at its longest. The first draft sanitised it with
+
+```ts
+const reason = raw.trim().slice(0, 16).replace(/[^\w.-]/g, "");
+```
+
+`.slice(0, 16)` is the reflex, it appears all over this Worker, and here it is
+wrong. A 20-character value does not become invalid — it becomes
+`UNKNOWN_12345678`, which has the exact shape of a real reason, lands in the
+same column as real reasons, and will be counted alongside them by anyone
+building a histogram forever after.
+
+> **A dropped row is a gap. A truncated row is a lie with a plausible shape.**
+
+And only one of those is detectable later. A gap shows up as a count that is
+lower than expected — visible, arguable, chaseable. An invented category shows
+up as data.
+
+**The rule: when a field is drawn from a KNOWN SET, validate against the set's
+shape and REJECT what does not fit. Do not coerce it into fitting.** Truncating,
+clamping and defaulting are all the same move — they take something that was
+not a member and hand back something that is.
+
+Note the family this joins. `ProgressAlong`'s `min(1, x)` destroys the evidence
+that an aircraft is not between two endpoints; `getMaxAllocHeap` reports a
+number that was never true; a truncated enum manufactures a category. **Every
+one of them converts "this input is impossible" into "here is a plausible
+value", which is the most expensive exchange in this file.**
+
+The tell is the same each time and it is greppable: `.slice(`, `min(`, `?? `,
+`|| default`. At each, ask **what did the out-of-range value know?** — and if
+the honest answer is "that it was never one of ours", the honest output is
+nothing.
+
+**The caveat that makes it usable rather than absolute.** Truncation is correct
+for genuinely free-form fields where a prefix is still a true prefix — a long
+error string, a user-supplied label. The distinction is whether the field has a
+SET. `result` in the same parser is truncated at 24 and that is fine, because it
+is descriptive text and half of it is still half of it. `reason` is an enum, and
+half an enum member is a different enum member.
+
+**Found by a test I wrote wrong.** The case asserted a 40-char input truncating
+to 16; it failed, because a separate length guard rejected it first. Chasing why
+the two limits disagreed is what surfaced the question of whether truncation was
+ever right here. A test that had agreed with the code would have shipped it.
+
 ## Standing practice: a finding without a named-and-eliminated alternative is not finished
 
 Distinct from every entry above, which are about code structure. This one is
@@ -1064,6 +1119,46 @@ Cheap tell, worth running: **a rule that fires identically on a device-initiated
 and a customer-initiated path is almost certainly wrong on one of them.** The two
 have different owners, and a rule about who may take something cannot be
 indifferent to who is doing the taking.
+
+## Standing practice: when the question is "what is true?", only read-only commands are allowed
+
+**Earned its place twice in one session, both times the same shape: reaching for
+a state-mutating command to answer an observational question.**
+
+| what I wanted to know | what I ran | what it did |
+|---|---|---|
+| is this host-test failure pre-existing? | `git stash push` (matched no untracked paths, so created NO stash) then `git stash pop` | popped a **June 2026 stash**, conflicting five unrelated files |
+| how do I start a branch from main? | `git checkout main -- .` | reverted the whole tree, **destroying uncommitted work** in two files |
+
+Both questions had read-only answers available. The first was already answered by
+CI, which had shown that job red on main all week. The second needed
+`git switch -c` and nothing else.
+
+**The rule, stated so it can be checked while typing rather than in hindsight:**
+
+> If you are asking **what is true**, the command must be read-only.
+> `log`, `diff`, `show`, `status`, `ls-tree`, `cat-file`, `rev-parse` — and a
+> **worktree** when an experiment genuinely needs a tree of its own.
+> Mutations happen only when the answer is already known and the mutation is the
+> intended change.
+
+**Why this is not "be careful with git".** Care is what everyone believes they
+are already exercising; both commands above were typed deliberately by someone
+who knew what git does. The failure is not carelessness, it is CATEGORY: a
+question got answered with an action. The check is therefore not "am I being
+careful" but the far cheaper "is this command a question or a change?" — which
+has an answer before you press enter.
+
+**The two that bite hardest here**, because their names do not sound
+destructive: `git checkout <ref> -- .` reverts EVERY tracked file in the tree,
+and `git stash push -- <paths>` silently matches nothing when the paths are
+untracked, which leaves the next `pop` operating on somebody else's stash.
+
+**And the generalisation beyond git**, since the same swap is available
+everywhere: reading a secret to check it is set (see the presence-check entry),
+flashing a board to find out what is on it, deploying to see whether a change
+works. Each has a read-only form — a boolean, a build stamp, a test — and each
+read-only form is cheaper than the recovery from getting the mutation wrong.
 
 ## Standing practice: an alarm raised from memory or from prose is not an alarm
 

@@ -1,3 +1,130 @@
+# v11 — quiet-hour reboot with brightness carryover
+
+**PRE-REGISTERED 2026-09-08, BEFORE ANY CODE WAS WRITTEN.** The point of writing
+this first is that the outcomes cannot then be chosen to fit whatever the build
+turns out to do.
+
+## What ships in v11
+
+1. **The reachability watchdog** — verified in Run 4 (O1–O4 pass, O5 partial by
+   argument, O6 pending). No further work.
+2. **The quiet-hour reboot** — this document.
+3. **The reset-reason reporting fix** — see the blocker below. NOT optional.
+
+## The blocker that must land with it
+
+The reboot cause currently reaches Analytics Engine only on boots that also
+**perform an update**, because `NoteOtaAttempt()` — the only writer of the record
+carrying `rst` — runs inside the "newer firmware available" branch. A board that
+wedges and reboots nightly while already on the latest firmware reports nothing.
+
+v11 makes that worse, not better: a quiet-hour reboot is a *daily* event on
+*every* board, and almost none of those boots will have an update to fetch. So
+v11 would ship a fleet that reboots itself nightly and cannot say why to anyone.
+
+**The reset reason must move to a path that reports every boot before v11
+ships.** Its verification is pre-registered separately once the shape is chosen;
+it is named here so it cannot be quietly dropped.
+
+## Why a quiet hour at all
+
+The daily check is currently `millis() - lastOtaCheck > 24h` — uptime-based, so
+it **drifts**: a board that boots at 14:00 reboots at 14:00 every day
+thereafter, in the middle of the day, in front of the customer. Run 2 and the v10
+rollout both fired at ~20:04Z and ~20:34Z for exactly this reason.
+
+A reboot is about 60 s of black screen — measured at 58 s and 59 s, defer to
+running-v10. Once a day, unattended, that is fine at 03:00 and not fine at 20:00.
+
+## Design
+
+**Schedule.** When the clock is synced, fire on the **edge** into a fixed local
+quiet hour: `localHour != lastLocalHour && localHour == QUIET_HOUR`. Edge-
+triggered rather than level-triggered so it attempts once per day rather than
+every loop iteration for an hour — the same pattern the alert paths use
+("edge-seeded at boot so the backlog never fires"). Local time comes from the
+existing `tz-offset` config, which already falls back to a longitude estimate.
+
+**The 24 h cap is unchanged and still shared.** It dedupes the edge and remains
+the one implementation — the watchdog's rung 3, the quiet-hour reboot and the old
+timer all go through `DeferRebootWithCause`.
+
+**An unsynced clock falls back to the current drifting behaviour**, deliberately.
+An unsynced board cannot know what hour it is locally, and refusing to check for
+updates at all would be worse than checking at a bad time. Note this is the
+opposite disposition to `DeferRebootWithCause`, which REFUSES on an unsynced
+clock — there, the risk is an unbounded reboot loop; here, the risk is a board
+that silently stops taking updates. Same input, different worst case, so
+different default.
+
+**Brightness carryover.** Night dim is *derived*, not stored: `configuredBrightness`
+is the day level and the night level is computed as `/5` on a 20 s cadence. On
+boot the panel is set to `configuredBrightness` — full day brightness — and the
+dim only reasserts on the next evaluation. At 03:00 that is a bright flash in a
+dark room, caused by the very feature meant to be invisible.
+
+So the **applied** brightness is stashed at deferral and reapplied at boot before
+anything is drawn.
+
+## Pre-registered outcomes
+
+### Q1 — the schedule fires once, at the right hour
+
+| observation | verdict |
+|---|---|
+| exactly one deferral per day, in local hour `QUIET_HOUR` | **(a) PASS** |
+| more than one attempt per day reaching NVS | **(b) FAIL** — level-triggered, not edge-triggered; an NVS-wear bug as well as a logic one |
+| fires in the wrong local hour | **(c) FAIL** — check the sign of `utcOffsetSec` before blaming the schedule; a west-of-Greenwich sign error puts it exactly `2 x offset` hours out, which is the tell |
+| never fires on a synced board | **(d) FAIL** |
+
+### Q2 — an unsynced clock falls back rather than refusing
+
+| observation | verdict |
+|---|---|
+| clock unsynced, the 24 h-from-boot timer still fires | **(a) PASS** |
+| nothing fires at all | **(b) FAIL** — the board has stopped taking updates entirely, which is worse than the drift this feature removes |
+| both paths fire | **(c) FAIL** — two schedules on one cap |
+
+### Q3 — brightness carryover. TWO INSTRUMENTS, because neither sees the other's failure
+
+**Q3a (serial — a population):** the first `setBrightness` after a quiet-hour
+reboot equals the value applied before it, and no full-brightness call precedes
+it.
+
+| observation | verdict |
+|---|---|
+| stashed value reapplied, and it is the first brightness call of the boot | **(a) PASS** |
+| reapplied, but after a `configuredBrightness` call | **(b) FAIL** — the flash happens and is then corrected, which is the bug |
+| not reapplied | **(c) FAIL** |
+
+**Q3b (glass — a rendering):** a person watches a dimmed board through a
+quiet-hour reboot and reports whether the screen brightens at any point.
+
+**Q3a cannot answer Q3b.** A log can prove the value and the ordering; it cannot
+prove the panel did not flash, because the backlight may power on at full before
+any `setBrightness` runs at all — a visible flash with a perfectly clean log.
+**Q3b requires a person watching in a dark room** and is not satisfied by any
+amount of serial evidence. Recorded now because it will be tempting to call Q3a
+sufficient.
+
+### Q4 — the cap still holds
+
+| observation | verdict |
+|---|---|
+| one reboot per 24 h across all three callers | **(a) PASS** |
+| the quiet hour gets its own cap | **(b) FAIL** — two guards on one rule |
+
+### Q5 — none of the above
+
+**Stop and decide.** Do not improvise a reading.
+
+## What the host suite must cover, and what it cannot
+
+**Host** (a pure schedule policy, mirroring `NetWatchPolicy.h`): the hour edge,
+midnight wrap, the unsynced fallback, a negative `tz-offset`, and that a board
+sitting inside the quiet hour for a full hour attempts exactly once.
+
+**Not host-testable:** whether the panel flashes. See Q3b.
 
 ---
 
@@ -43,6 +170,61 @@ So the ordering guarantee is **partially unmet** and the options are:
 
 **Not chosen here.** Recorded so the gap is visible rather than discovered later
 as a green check that never ran.
+
+### GATE B1 — first contact. PRE-REGISTERED 2026-09-08, before the firmware exists
+
+**Decision: option 2, tightened.** The first firmware to send `X-Blip-Boot` will
+be the v11 candidate on a bench board, and that flash is not merely *allowed* to
+be the parser's first test — it **is** the test, named, watched, and scored
+against readings written now.
+
+That is what separates this from the arity trap. There, device and Worker changed
+together and nobody was looking; the failure surfaced later as absent data that
+looked like a quiet fleet. Here the Worker shipped first and alone, and the first
+device to speak to it does so **with a production tail already running and the
+outcomes already written down**. The exposure is identical; the observation is
+not.
+
+**Method.** Start `wrangler tail --env production` BEFORE the flash and leave it
+running. Flash the v11 candidate to one bench board. The board must boot with **no
+update available** — that is the whole point, and it is the default state since
+the bench boards sit at `latest`.
+
+| observation | verdict |
+|---|---|
+| a `boot`-indexed AE row appears, `reason` matching the board's actual reset, on a boot with **no update available** | **(a) PASS — gate closed.** This is the exact case the old design silently dropped |
+| the board boots and the tail shows its request returning **200**, but no `boot` row appears | **(b) PARSER OR FIELD DEFECT.** The device spoke and the Worker did not record. Check the header name against the firmware source first — that is the failure the wire tests exist for, and if it got past them the transcription drifted |
+| the tail shows **no request carrying the header at all** | **(c) FIRMWARE-SIDE DEFECT.** The Worker is not implicated; the device never sent it. Distinguishes cleanly from (b) precisely because the tail shows the request either way |
+| a row appears but the reason is wrong for the boot that happened (e.g. `SW` after a power cycle) | **(d) FAIL** — the value is being produced, but from the wrong source. See the `UNKNOWN` vs `UNKNOWN_0` split in the O6 table for how these differ |
+| rows appear for boots that did not happen, or more than one per boot | **(e) FAIL** — the one-shot discipline is broken; this is a fleet-wide AE cost bug as well as a data one |
+| none of the above | **(f) stop and decide** |
+
+**(b) and (c) are the pair worth having.** Without the tail they are the same
+observation — "no row" — and they have opposite owners. The tail is what makes
+the gate diagnostic rather than merely pass/fail, and it costs one terminal
+window opened before the flash instead of after.
+
+**Follow-on, not part of the gate:** once firmware exists that sends the header,
+`smoke-prod.sh` should grep the three header names out of the firmware source and
+assert them against the live Worker, the way it already greps the enrol URLs.
+That converts `test/header-contracts.test.ts` from a transcription into a
+derivation. It cannot be written until the other side exists, which is why it is
+here and not done.
+
+## Operational item for Daniel — NOT a v11 gate
+
+**The operator device key on this workstation is stale.** Production returns 401;
+the `enr:dev:` row is present and a control device's row is present too, so the
+device is enrolled and the key no longer matches — consistent with the
+2026-08-31 rotation.
+
+Minting a replacement touches `DEVICE_KEY_SECRET`, which is Daniel's alone to
+handle, and it must arrive **by file, never through chat**.
+
+**It does not gate v11.** It costs the ability to run `smoke-prod.sh` and to make
+authenticated probes by hand — both real, neither on the release path. Recorded
+separately so it is not carried as release risk, and so it does not quietly
+become the reason a check gets skipped.
 
 ### And a note for O6
 
