@@ -162,3 +162,27 @@ const char* ResetReasonName();
 // LOOP TASK ONLY (it touches NVS). Callers hand the string to the fetch task
 // inside the request, exactly like cloudBase/cloudKey.
 String TakeOtaMemReport();
+
+/**
+ * The X-Blip-Boot header value: why this boot happened, ONCE per boot.
+ *
+ * Returns the reset reason on the first call and "" on every call after it, so
+ * it rides exactly one check-in and never repeats.
+ *
+ * WHY THIS EXISTS BESIDE TakeOtaMemReport RATHER THAN INSIDE IT. That report is
+ * written by NoteOtaAttempt(), which runs only in the "newer firmware available"
+ * branch -- so a board already on the latest firmware has never been able to
+ * report a reboot at all. Tolerable while reboots were rare; not tolerable once
+ * the quiet-hour reboot makes one a DAILY event on EVERY board, almost none of
+ * which will have an update to fetch. The suffix inside the OTA report stays for
+ * now: one migration at a time, and it is the only reason field older Workers
+ * understand.
+ *
+ * NOT persisted and NOT cleared from NVS -- the reason comes from
+ * esp_reset_reason(), which is valid for the whole boot, so "once" only needs a
+ * RAM flag. The deferred-reboot CAUSE is read from NVS (and cached there), which
+ * is what turns a bare SW into SW_NETWD.
+ *
+ * LOOP TASK ONLY.
+ */
+String TakeBootReasonReport();

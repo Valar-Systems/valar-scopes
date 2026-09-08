@@ -43,7 +43,8 @@ String NormalizeBaseUrl(String url)
 }
 
 std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem,
-                                               const String& usage)
+                                               const String& usage,
+                                               const String& bootReason)
 {
     std::vector<std::pair<String, String>> h = {
         { "X-Blip-Key", key },
@@ -72,6 +73,11 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
     // and commas by construction, asserted in test/host/test_usage_report.cpp.
     if (!usage.isEmpty())
         h.push_back({ "X-Blip-Usage", usage });
+    // Why this boot happened, on the first check-in after it and never again.
+    // Rides the same request as the two above; see OtaUpdater.h's
+    // TakeBootReasonReport for why it is not folded into the OTA report.
+    if (!bootReason.isEmpty())
+        h.push_back({ "X-Blip-Boot", bootReason });
     return h;
 }
 

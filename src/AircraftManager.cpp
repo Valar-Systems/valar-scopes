@@ -1,4 +1,5 @@
 #include "AircraftManager.h"
+#include "BrightnessCarry.h"
 #include "FollowLabel.h"
 #include "DiscGeometry.h"
 #include "DisplayUnits.h"
@@ -331,6 +332,8 @@ struct FetchRequest {
                                      // Read (and cleared) on the LOOP task at request
                                      // build time -- TakeOtaMemReport touches NVS, and
                                      // this task owns that, like every other snapshot here.
+    String bootReason;               // X-Blip-Boot value, "" after the first check-in
+                                     // of a boot. Same loop-task rule as the two below.
     String usage;                    // X-Blip-Usage value, "" unless a report is due.
                                      // Same rule and the same reason as otaMem: taken on
                                      // the LOOP task at request build time, because the
@@ -1224,7 +1227,12 @@ void AircraftManager::Initialise()
     configuredBrightness = brightnessStr.isEmpty()
         ? 255 : (uint8_t)constrain(brightnessStr.toInt(), 10, 255);
     tft.setBrightness(configuredBrightness);
+    // The dim pass records every change it makes; this path changes the level
+    // WITHOUT going through it (a config save, or boot), so it records too.
+    // Missing this is the classic second-path defect: the carried value would be
+    // correct all day and stale for exactly the customer who just edited it.
     currentBrightness = configuredBrightness;
+    brightcarry::Remember(configuredBrightness);
 
     const String autoDimStr = configServer.GetStoredString("autodim");
     autoDim = autoDimStr.isEmpty() ? true : (autoDimStr == "true");
@@ -2429,7 +2437,7 @@ void AircraftManager::RunFetchTask()
             JsonDocument cfgDoc;
             const HttpResult r = http.GetJson(CloudFeed::ConfigUrl(req->cloudBase), cfgDoc,
                                               std::vector<std::pair<String, String>>{},
-                                              CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage));
+                                              CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage, req->bootReason));
             if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
                 CloudFeed::ParseConfig(cfgDoc, res->config)) {
                 res->ok = true;
@@ -2519,7 +2527,7 @@ void AircraftManager::RunFetchTask()
                   { "lon", String(req->lon, 4) },
                   { "r", String((int)lround(req->rangeKm)) },
                   { "limit", String(BLIPS_LIMIT) } },
-                CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage));
+                CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage, req->bootReason));
         }
 #endif
         else {
@@ -2678,6 +2686,7 @@ void AircraftManager::RequestFetch()
         req->cloudKey = cloudKey;
         req->rangeKm = rangeKmCfg;
         req->otaMem = TakeOtaMemReport(); // "" unless an OTA happened; clears on read
+        req->bootReason = TakeBootReasonReport(); // one-shot per boot
         req->usage  = usageStore.Take(millis()); // "" unless an hour has passed
     } else
 #endif
@@ -2722,6 +2731,7 @@ bool AircraftManager::RequestCloudConfig()
     // Whichever check-in is built first after an OTA carries the report; the
     // config fetch is normally it (boot runs it ahead of the first feed poll).
     req->otaMem = TakeOtaMemReport();
+    req->bootReason = TakeBootReasonReport(); // one-shot; "" after the first check-in
     // NOT req->usage. The config fetch runs at boot and on every config reload,
     // which is exactly when a bench session reloads it repeatedly -- and the
     // usage take COMMITS its delta, so a report riding this request would be
@@ -4065,6 +4075,12 @@ void AircraftManager::UpdateBrightness()
     if (target != currentBrightness) {
         tft.setBrightness(target);
         currentBrightness = target;
+        // Carried across a reboot so the next boot's FIRST light matches this,
+        // instead of flashing full-bright at 03:00. Written here rather than at
+        // the reboot because this is where the value is known, and because then
+        // every reboot benefits -- quiet hour, watchdog, crash, power cut --
+        // without each one having to remember to participate. ~2 writes/day.
+        brightcarry::Remember(target);
         Serial.printf("[dim] brightness -> %u (%s)\n",
                       target, target < configuredBrightness ? "night" : "day");
     }

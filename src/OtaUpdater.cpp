@@ -448,6 +448,21 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
     http.ReleaseBus();
 }
 
+String TakeBootReasonReport()
+{
+    // Once per boot. A RAM flag is enough: esp_reset_reason() does not change
+    // during a boot, so there is nothing to persist and nothing to clear.
+    static bool taken = false;
+    if (taken) return String();
+    taken = true;
+    String r = ResetReasonName();
+    // Same composition as the OTA report's rst field, so the two agree on an
+    // updating boot -- which is the cross-check that makes running both paths
+    // during the transition worth anything.
+    if (ConsumeDeferredRebootCause() == REBOOT_CAUSE_NET_WEDGE) r += "_NETWD";
+    return r;
+}
+
 String TakeOtaMemReport()
 {
     Preferences p;

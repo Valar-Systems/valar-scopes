@@ -108,7 +108,8 @@ String NormalizeBaseUrl(String url);
 // is due. Anonymous COUNTS of feature use -- never what the use was about; see
 // include/UsageReport.h, whose builder cannot carry text at all.
 std::vector<std::pair<String, String>> Headers(const String& key, const String& otaMem = "",
-                                               const String& usage = "");
+                                               const String& usage = "",
+                                               const String& bootReason = "");
 
 String BlipsUrl(const String& base);
 String EnrichUrl(const String& base, const String& icao24);

@@ -211,6 +211,73 @@ That converts `test/header-contracts.test.ts` from a transcription into a
 derivation. It cannot be written until the other side exists, which is why it is
 here and not done.
 
+## GATE B2 — the v11 candidate flash. PRE-REGISTERED 2026-09-08, BEFORE FLASHING
+
+**One flash, four gates.** This is also Gate B1 (the first `X-Blip-Boot` sender),
+so the production tail starts BEFORE the flash, per B1's method.
+
+### What is observable immediately, and what has to wait
+
+Bend is UTC-7, so local 03:00 is **10:00Z** — roughly eighteen hours after a
+flash this evening. Splitting the readings by when they can be taken, so that
+"we did not see it" is never confused with "it cannot be seen yet":
+
+| reading | when |
+|---|---|
+| B1 boot-reason row | first check-in, seconds after boot |
+| **B2a** the schedule prints what it resolved | boot log |
+| **B2b** brightness carried (serial) | boot log, and only meaningful after a boot that happened while dimmed |
+| **B2c** the quiet hour actually fires | the 10:00Z window, next morning |
+| **B2d** the cap still holds | same window |
+| **B3** no visible flash (glass) | Daniel, in the dark, at the 10:00Z window |
+
+### B2a — the schedule says what it resolved, at boot
+
+Added for exactly this: without it the schedule is invisible until it fires, and
+"it did not fire" cannot be told from "it is set for a different hour" without
+losing a day to find out.
+
+| observation | verdict |
+|---|---|
+| `[quiet] armed: reboot at local 03:00, tz-offset=-7 (-25200 s) -- local hour now N` where N matches wall-clock Bend | **(a) PASS** |
+| `tz-offset=unset` | **(b) NOT A CODE FAILURE — a CONFIG one.** The board would reboot at 03:00 UTC = 20:00 local, which is the exact complaint this feature exists to fix. Set the offset on the board and re-read before proceeding |
+| local hour disagrees with wall clock | **(c) FAIL** — check the sign of the offset first; a west-of-Greenwich sign error lands exactly `2 x offset` hours out |
+| `clock unsynced` on the line | **(d) INCONCLUSIVE** — re-read after NTP lands; the fallback is correct behaviour, not a result |
+
+### B2b — brightness carried across the reboot (serial)
+
+Only meaningful for a reboot that happens **while the board is dimmed**, which
+the 10:00Z window supplies and a manual evening flash does not.
+
+| observation | verdict |
+|---|---|
+| the first brightness applied after the reboot equals the level in force before it, and no full-bright value precedes it | **(a) PASS** |
+| the dim level appears only after a `255` | **(b) FAIL** — the flash happens and is then corrected, which IS the bug |
+| nothing carried; comes up at 255 | **(c) FAIL** — `brightcarry::Recall()` returned 0, so nothing ever wrote it. Check both apply sites record |
+
+### B3 — no visible flash (glass, Daniel)
+
+**Serial cannot answer this and B2b passing does not close it.** The backlight
+can come up at full before any `setBrightness` executes at all — a real flash
+with a perfectly clean log. Requires a person watching a dimmed board in a dark
+room through the 10:00Z reboot.
+
+| observation | verdict |
+|---|---|
+| the screen goes dark and returns dim, no brightening at any point | **(a) PASS — B3 closed** |
+| any brightening, however brief | **(b) FAIL** — and B2b's verdict is then irrelevant; the panel is the authority |
+
+### What this flash does NOT establish
+
+- **Q2 (unsynced-clock fallback).** The bench boards sync NTP within seconds of
+  boot, so the fallback branch is unreachable here. It is covered by the host
+  suite and by no bench observation, and that is stated rather than implied.
+- **The sibling editions' offset.** `tz-offset` is the radar's key; the other
+  editions store theirs under their own (`fi-tz-offset`, `cl-tz-offset`, ...),
+  so on those builds the quiet hour resolves to 03:00 UTC. Known, commented at
+  the call site, and NOT fixed in v11 — closing it needs one shared key or one
+  shared accessor across eight manager classes.
+
 ## Operational item for Daniel — NOT a v11 gate
 
 **The operator device key on this workstation is stale.** Production returns 401;
