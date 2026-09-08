@@ -171,6 +171,47 @@ So the ordering guarantee is **partially unmet** and the options are:
 **Not chosen here.** Recorded so the gap is visible rather than discovered later
 as a green check that never ran.
 
+### Why the boot reason is retired on DELIVERY, when its neighbours are not
+
+**Recorded here, beside the gate that reads it, because the next person to touch
+this will notice it is the odd one out and will be right to ask.**
+
+Its two neighbours are deliberately best-effort, and correctly so:
+
+- `UsageStore::Take` commits its delta BEFORE the request leaves
+  (`reported = total; Persist()`), so a failed check-in loses that hour;
+- `TakeOtaMemReport` clears on read and says so in its header: *"a report lost to
+  a failed request is not retried"*.
+
+Both are right. A lost usage delta heals in the next hour's report; a lost OTA
+report is re-covered by the next update cycle. Neither loss is systematic.
+
+**This field's loss WOULD be systematic, and that is the whole argument.** A boot
+reason occurs once per boot and is gone if dropped — and the boots most worth
+reporting are the ones that follow a network problem, whose first check-in is
+therefore the one most likely to fail.
+
+> A best-effort boot reason loses **precisely the population it exists to
+> measure**, and reports a healthy-looking fleet while doing it.
+
+That is the same defect as the OTA-report coupling this path was built to escape,
+one layer further out: there the reason only arrived when an update did; here it
+would only arrive when the network was already fine. Both are silent, both bias
+the data toward "nothing is wrong", and neither shows up as an error anywhere.
+
+**The rule this generalises to**, worth applying to any future telemetry: it is
+safe to drop a sample at random, and never safe to drop one *because of the
+condition being sampled*. Ask of any best-effort field — **what makes delivery
+fail, and is it correlated with what I am measuring?** For a usage counter the
+answer is no. For anything that reports a fault, it is almost always yes.
+
+**Caught by a live attempt, not by review.** The defect was in the code as
+written and was found when Daniel paused a board's traffic at the router: the
+reporting boot's first check-in would have failed while the pause was still on,
+and a correct reboot would have produced no row at all. `include/BootReportPolicy.h`
+and its host test are the fix; the retry's own hazard (two rows for one boot) is
+pinned separately, so neither flag covers for the other.
+
 ### GATE B1 — first contact. PRE-REGISTERED 2026-09-08, before the firmware exists
 
 **Decision: option 2, tightened.** The first firmware to send `X-Blip-Boot` will
