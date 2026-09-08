@@ -308,6 +308,60 @@ export function recordOtaMem(env: Env, raw: string | null, model: string, dev?: 
   }
 }
 
+// X-Blip-Boot: "<resetReason>", sent by a device on its FIRST authenticated
+// check-in after a boot and never again for that boot.
+//
+// WHY THIS EXISTS AS A SEPARATE PATH, when recordOtaMem already carries a reset
+// reason: because that one only exists when an update was ATTEMPTED.
+// NoteOtaAttempt() runs inside the "newer firmware available" branch, so a board
+// already on the latest firmware writes no record, sends no report, and reports
+// no reason. Ever.
+//
+// That was tolerable while reboots were rare. It stops being tolerable in v11,
+// where the quiet-hour reboot makes a reboot a DAILY event on EVERY board and
+// almost none of those boots have an update to fetch -- so the fleet would
+// reboot itself nightly and be unable to say why. It is already wrong today for
+// the reachability watchdog, whose whole purpose is to answer "how often does
+// this fire in real homes".
+//
+// The OTA-report suffix is deliberately NOT removed alongside this. One
+// migration at a time: this path has to be deployed, soaked and seen working
+// before any firmware depends on it, and until then the suffix is the only
+// reason field that exists in the field. The two overlap on updating boots,
+// which is a rounding error against the volume this adds, and the overlap is a
+// useful cross-check while both are live.
+//
+// Same discipline as its neighbours: device-supplied, so validated to a fixed
+// shape before storage, dropped silently when off-shape, and never
+// console.logged so request-log cost is unchanged.
+export function recordBoot(env: Env, raw: string | null, model: string, fw: string, dev?: string): void {
+  if (!raw) return; // absent = firmware that predates this path. Not an error.
+  try {
+    if (raw.length > 32) return; // a reset reason is a short token by construction
+    // ONE FIELD, NOT A CSV. A single value cannot acquire an arity bug, and the
+    // adjacent facts a reader wants -- which device, which model, which firmware
+    // -- are already on the authenticated request and need no re-sending. Adding
+    // a second field later is a deliberate change with its own tests, not
+    // something a device can do to us by sending a comma.
+    const reason = raw.trim().replace(/[^\w.-]/g, "");
+    // REJECTED, NOT TRUNCATED, and the distinction matters. Every reason the
+    // firmware can emit is short -- the longest is "UNKNOWN_16" at ten
+    // characters -- so nothing legitimate approaches 16. Slicing an over-long
+    // value would store a PREFIX that reads exactly like a real reason,
+    // inventing a category out of something that was never one of ours. A
+    // dropped row is a gap; a truncated row is a lie with a plausible shape, and
+    // only one of those is detectable later.
+    if (!reason || reason.length > 16) return;
+    env.METRICS?.writeDataPoint({
+      blobs: ["boot", reason, model, fw, dev ?? ""],
+      doubles: [],
+      indexes: ["boot"], // own index: boot points query separately from everything else
+    });
+  } catch {
+    // never let telemetry break serving
+  }
+}
+
 // X-Blip-Usage: "<cardOpens>,<radar>,<list>,<stats>,<follow>,<claims>,<followEnabled>,<uptimeHours>"
 // sent by a device at most once an hour on a check-in it was making anyway
 // (include/UsageReport.h). Anonymous COUNTS of feature use.

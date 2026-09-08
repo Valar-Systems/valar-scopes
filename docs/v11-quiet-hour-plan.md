@@ -125,3 +125,110 @@ midnight wrap, the unsynced fallback, a negative `tz-offset`, and that a board
 sitting inside the quiet hour for a full hour attempts exactly once.
 
 **Not host-testable:** whether the panel flashes. See Q3b.
+
+---
+
+## Boot-reason path — Worker half DEPLOYED 2026-09-08, live check BLOCKED
+
+`recordBoot()` + `X-Blip-Boot`, merged as `1cd5c00` and deployed to production
+(`/healthz` confirms the commit). 417 tests pass, including the pass condition
+stated as an assertion: **a boot with no update available produces a reason row.**
+
+Post-deploy regression check against live fleet traffic: 19 Worker invocations,
+all `ok`, every request 200.
+
+### What is NOT verified, and why it stops here
+
+The pre-registered requirement was *deployed and verified live before any
+firmware sends the field.* The first half is done. **The second cannot be.**
+
+`recordBoot` is called only on the authenticated path — deliberately, matching
+`recordUsage`, so an anonymous caller cannot spend the Analytics Engine budget.
+Verifying it live therefore needs an authenticated request carrying the header,
+and:
+
+- the operator device key on this machine is **stale** — production returns 401.
+  Discriminated rather than assumed: the `enr:dev:` row for that device is
+  PRESENT, and a known-good bench device's row is PRESENT too (the control), so
+  the device is enrolled and the KEY is what no longer matches. Consistent with
+  the 2026-08-31 rotation;
+- deriving a fresh one needs `DEVICE_KEY_SECRET`, a Worker secret that cannot be
+  read back;
+- and no bench board can send the header, because the firmware half does not
+  exist yet — which is the whole point of doing the Worker first.
+
+So the ordering guarantee is **partially unmet** and the options are:
+
+1. **Issue a working device key.** Closes the live check properly, before any
+   flash, exactly as specified. Daniel's to issue, by file, never through chat.
+2. **Accept the live check happening when the firmware lands.** The first board
+   to send the header is then simultaneously the first test of the parser. That
+   is weaker — it is the arity trap's shape, with device and Worker changing
+   together — but the blast radius is small: a parser that drops rows loses
+   telemetry, it does not break serving, and `recordBoot` is wrapped so it
+   cannot.
+
+**Not chosen here.** Recorded so the gap is visible rather than discovered later
+as a green check that never ran.
+
+### GATE B1 — first contact. PRE-REGISTERED 2026-09-08, before the firmware exists
+
+**Decision: option 2, tightened.** The first firmware to send `X-Blip-Boot` will
+be the v11 candidate on a bench board, and that flash is not merely *allowed* to
+be the parser's first test — it **is** the test, named, watched, and scored
+against readings written now.
+
+That is what separates this from the arity trap. There, device and Worker changed
+together and nobody was looking; the failure surfaced later as absent data that
+looked like a quiet fleet. Here the Worker shipped first and alone, and the first
+device to speak to it does so **with a production tail already running and the
+outcomes already written down**. The exposure is identical; the observation is
+not.
+
+**Method.** Start `wrangler tail --env production` BEFORE the flash and leave it
+running. Flash the v11 candidate to one bench board. The board must boot with **no
+update available** — that is the whole point, and it is the default state since
+the bench boards sit at `latest`.
+
+| observation | verdict |
+|---|---|
+| a `boot`-indexed AE row appears, `reason` matching the board's actual reset, on a boot with **no update available** | **(a) PASS — gate closed.** This is the exact case the old design silently dropped |
+| the board boots and the tail shows its request returning **200**, but no `boot` row appears | **(b) PARSER OR FIELD DEFECT.** The device spoke and the Worker did not record. Check the header name against the firmware source first — that is the failure the wire tests exist for, and if it got past them the transcription drifted |
+| the tail shows **no request carrying the header at all** | **(c) FIRMWARE-SIDE DEFECT.** The Worker is not implicated; the device never sent it. Distinguishes cleanly from (b) precisely because the tail shows the request either way |
+| a row appears but the reason is wrong for the boot that happened (e.g. `SW` after a power cycle) | **(d) FAIL** — the value is being produced, but from the wrong source. See the `UNKNOWN` vs `UNKNOWN_0` split in the O6 table for how these differ |
+| rows appear for boots that did not happen, or more than one per boot | **(e) FAIL** — the one-shot discipline is broken; this is a fleet-wide AE cost bug as well as a data one |
+| none of the above | **(f) stop and decide** |
+
+**(b) and (c) are the pair worth having.** Without the tail they are the same
+observation — "no row" — and they have opposite owners. The tail is what makes
+the gate diagnostic rather than merely pass/fail, and it costs one terminal
+window opened before the flash instead of after.
+
+**Follow-on, not part of the gate:** once firmware exists that sends the header,
+`smoke-prod.sh` should grep the three header names out of the firmware source and
+assert them against the live Worker, the way it already greps the enrol URLs.
+That converts `test/header-contracts.test.ts` from a transcription into a
+derivation. It cannot be written until the other side exists, which is why it is
+here and not done.
+
+## Operational item for Daniel — NOT a v11 gate
+
+**The operator device key on this workstation is stale.** Production returns 401;
+the `enr:dev:` row is present and a control device's row is present too, so the
+device is enrolled and the key no longer matches — consistent with the
+2026-08-31 rotation.
+
+Minting a replacement touches `DEVICE_KEY_SECRET`, which is Daniel's alone to
+handle, and it must arrive **by file, never through chat**.
+
+**It does not gate v11.** It costs the ability to run `smoke-prod.sh` and to make
+authenticated probes by hand — both real, neither on the release path. Recorded
+separately so it is not carried as release risk, and so it does not quietly
+become the reason a check gets skipped.
+
+### And a note for O6
+
+Once this path is live AND the firmware sends it, a future O6-style check needs
+**no prerelease scaffold**: the reason arrives on an ordinary check-in whether or
+not an update was available. The pinned-prerelease setup in the O6 plan is a
+workaround for the OTA-report coupling and expires with it.

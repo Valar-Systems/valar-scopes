@@ -14,7 +14,7 @@ import {
 } from "./leaderboard";
 import { FONTS } from "./fonts.generated";
 import { indexHtml, supportHtml, notfoundHtml } from "./pages.generated";
-import { record, recordOtaMem, recordUsage, setDeviceAttribution, type RequestMetric } from "./metrics";
+import { record, recordOtaMem, recordUsage, setDeviceAttribution, type RequestMetric, recordBoot } from "./metrics";
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
@@ -333,6 +333,12 @@ async function route(
   // budget. Counts only -- what a device DOES, never what it does it to. See
   // recordUsage() and include/UsageReport.h.
   recordUsage(env, request.headers.get("X-Blip-Usage"), meta.model, meta.fw ?? "", meta.dev);
+  // Why the device last booted, on its first check-in after a boot and never
+  // again for that boot. SEPARATE from the reset reason inside X-Blip-OTA-Mem,
+  // which only exists when an update was attempted -- so a board already on the
+  // latest firmware has never been able to report a reboot at all. See
+  // recordBoot() for why that stops being tolerable in v11.
+  recordBoot(env, request.headers.get("X-Blip-Boot"), meta.model, meta.fw ?? "", meta.dev);
 
   // Dispatch on the normalized suffix: one call site per handler, reached
   // identically from /api/v1/blipscope/<x> and the deprecated /v1/<x>. Same
