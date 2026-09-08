@@ -1095,3 +1095,70 @@ post-reboot check finds something to download). COM119's cap expires
 (c), (d) and (e) are separated on purpose: all three present as "the reset field
 is not what I expected", and they have three different causes and three different
 fixes. A table that collapsed them would guarantee an improvised reading.
+
+---
+
+## O6 — BLOCKED, and not for the reason the pre-registration anticipated
+
+**Found 2026-09-08T16:15Z, three hours before the scheduled setup.**
+
+The pre-registration assumed O6's only obstacle was that the AE row needed an
+update to ride on, and prescribed a pinned prerelease as the scaffold. That
+obstacle is real and the scaffold would work. **It is not the binding one.**
+
+> **A watchdog reboot requires a BROKEN network. Reporting that reboot requires a
+> WORKING one. With the fault baked into the firmware, the two are mutually
+> exclusive.**
+
+The ladder only reaches rung 3 after ten minutes of failing traffic. The reset
+reason — by either path, the OTA report or the new `X-Blip-Boot` header — rides a
+cloud check-in to `CLOUD_FEED_BASE`, which is exactly the address the fault env
+points at TEST-NET-1. After the reboot the board comes up on the same image, with
+the same unroutable backend, and can tell nobody anything.
+
+**Confirmed against Run 4's own capture rather than by reading the code:** across
+the entire run the board made ZERO successful cloud check-ins. Its only
+successful requests were OTA version checks, which go to GitHub and carry no
+telemetry headers.
+
+And `ConsumeDeferredRebootCause()` clears on read at `netwatch::Begin()`, so the
+cause is consumed by the very boot that cannot report it. Reflashing a working
+build afterwards does not recover it — that is a different boot, with its own
+reason.
+
+### What this needs
+
+**A REMOVABLE fault.** Something that can be lifted after the reboot so the board
+can report. The firmware cannot supply one: the backend URL is a build flag, and
+the one runtime lever (the config form) posts the whole form and would rewrite
+every toggle on the board.
+
+The natural instrument is **router-side**: block the board's MAC from the WAN,
+let the ladder run, and unblock after the reboot. That is Daniel's access, not
+mine, and it is also a strictly better fault than TEST-NET-1 — it is the real
+failure mode (associated, no upstream) rather than a substitute for it.
+
+### What can close WITHOUT it, tonight
+
+**Gate B1 and B2a**, on the v11 candidate with the REAL backend. Every boot
+produces a reason row now, so the first check-in after the flash closes B1 — the
+whole point of the every-boot path is that it needs no scaffold at all.
+
+### What stays open, and how narrow it is
+
+Only this: the `_NETWD` suffix observed END TO END in Analytics Engine. Its parts
+are each already evidenced —
+
+- rung 3 executing and the cause persisting: Run 4, `[netwd] reboot` followed by
+  the cap's refusal, twice;
+- the cause surviving a reboot and being read back: `netwatch::Begin()`'s
+  "this boot was armed by the REACHABILITY watchdog" line, which is the same NVS
+  read the telemetry uses;
+- the suffix reaching AE intact: `test/bootreason.test.ts`, both generations.
+
+What has never been observed is the three joined on one board. That is a real
+gap and a small one, and it is NOT a reason to hold v11 — the watchdog's own
+behaviour is verified (O1–O4), and this is about the instrument that counts it.
+
+**Not rescheduled here.** It needs the router, and that is a question for Daniel
+rather than a slot in this plan.
