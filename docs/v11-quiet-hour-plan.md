@@ -408,6 +408,52 @@ None of the three found what it was aimed at. Each found something else, on the
 first firing, because it made a previously invisible quantity visible at a moment
 somebody was already looking.
 
+## GATE B3 — the dark-room look. PRE-REGISTERED 2026-09-08, BEFORE ANYONE WATCHES
+
+**The only reading in this plan that no log can take.** Serial can prove the
+value applied and the order it was applied in; it cannot prove the panel did not
+flash, because the backlight can come up at full before any `setBrightness`
+executes — a visible flash with a perfectly clean log. So B2b passing does not
+close B3, and B3 failing overrides B2b.
+
+### Setup
+
+A bench build with `-DBLIPSCOPE_QUIET_HOUR=<evening hour>` so the reboot happens
+when somebody is awake to watch it. The build announces itself:
+
+```
+[quiet] armed: reboot at local 04:00  ** BENCH OVERRIDE **, tz-offset=...
+```
+
+The board must be **night-dimmed at the moment of the reboot** — auto-dim on, and
+either genuinely after dusk or with the configured brightness low enough that the
+dim level is visibly different. **A reboot observed at full brightness proves
+nothing**, because there is no step to see; that is a void run, not a pass.
+
+### Readings
+
+| observation | verdict |
+|---|---|
+| the screen goes dark and returns at the SAME dim level — no perceptible brightness step at any point | **(a) PASS — B3 closed** |
+| any flash to full, however brief, at any point in the reboot | **(b) FAIL** — and B2b's serial verdict is irrelevant; the panel is the authority on this one |
+| a step that is visible but not to full (e.g. dim → half → dim) | **(c) FAIL, and a DIFFERENT bug from (b)** — something is applying a third value. Do not merge with (b): they have different causes |
+| the board was not dimmed when it rebooted | **(d) VOID — not a pass.** Nothing was under test. Re-run after dusk or with a lower configured brightness |
+
+### Why (c) is listed separately
+
+The tempting summary of (b) and (c) is "it flashed". They are different defects:
+(b) is the carried value never being applied, (c) is it being applied and then
+overridden by something else. Collapsing them would send the fix at the wrong
+one — the same reason `route_stale` prints its verdict rather than a fixed
+string.
+
+### What B3 does NOT establish
+
+That the carried value is CORRECT — only that no step is visible. A board that
+carried the wrong dim level and came up steadily at that wrong level passes B3
+and fails B2b. The two gates are complementary and neither substitutes for the
+other, which is the whole reason there are two.
+
 ## Operational item for Daniel — NOT a v11 gate
 
 **The operator device key on this workstation is stale.** Production returns 401;

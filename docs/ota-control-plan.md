@@ -1162,3 +1162,55 @@ behaviour is verified (O1–O4), and this is about the instrument that counts it
 
 **Not rescheduled here.** It needs the router, and that is a question for Daniel
 rather than a slot in this plan.
+
+---
+
+## Run 4 addendum — the anti-loop guard, observed in its real scenario
+
+**UNREGISTERED PASS, found by reading the capture rather than by being asked
+for. Strengthens O3.**
+
+O3 was designed and scored against a MANUFACTURED cap: the stamp came from the
+v10 rollout hours earlier, so the refusal was arranged. On 2026-09-08 the live
+router pause produced the real thing, unprompted:
+
+```
+22:47:58  [netwd] reboot        failRun=75  run=482s   <- rung 3, cap ALLOWED it
+22:47:58  [ota] net deferred to reboot (cause=2 largest=31732)
+22:47:59  [boot] reset reason=SW
+          ... the network is STILL paused, so the ladder runs again ...
+22:53:09  [netwd] reconnect     failRun=63  run=300s
+22:54:39  [netwd] radio-reset   failRun=81  run=390s
+22:56:09  [netwd] reboot        failRun=99  run=480s
+22:56:09  [ota] net deferral refused: last reboot 490s ago, cap is 86400s
+22:56:09  [netwd] reboot refused (cap/clock/NVS) -- backing off instead
+22:57:39  [netwd] ladder exhausted; slow retry every 1800s
+23:09:55  [netwd] traffic recovered; ladder stood down
+```
+
+**The board rebooted, came back to the same dead network, walked the whole ladder
+a second time, and was refused 490 s after its own reboot.** That is the exact
+scenario the cap exists for — a wedge that survives the remedy — and it had never
+been observed, only constructed. The display ran at 45-46 ms throughout.
+
+Two further results in the same capture, neither asked for:
+
+- **Q1 fired on hardware.** At `2026-09-09T02:59:59Z`,
+  `[quiet] quiet-hour -> deferring update check to reboot` — the schedule
+  triggered, exactly once, at local hour 3.
+- **Q4 held across a SECOND caller.** That quiet-hour attempt was refused by the
+  same cap (`last reboot 15121s ago`), so one 24 h budget was observed governing
+  the reachability watchdog AND the quiet hour — which is what Q4 asks and what
+  no constructed test had shown.
+
+**And the tz defect was caught HAPPENING, not merely predicted.** 02:59:59Z is
+19:59:59 PDT. The board attempted its "quiet hour" reboot at 8pm, in front of
+where a customer would be sitting. The boot print had flagged the cause hours
+earlier; the capture then recorded the consequence.
+
+**The lesson is about where results come from.** None of this was in a table.
+It came from reading a capture that had been left running for a different
+purpose, which is the same reason the OTA_FAULT_AT_PCT rehearsal found the
+reachability defect it was not looking for. A run whose log is only grepped for
+its pre-registered strings answers exactly the questions it was asked and no
+others.

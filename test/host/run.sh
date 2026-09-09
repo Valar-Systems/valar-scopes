@@ -272,6 +272,26 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+echo "== QuietHourPolicy (bench override) =="
+# The SAME header, built a second time with the flag set. A compile-time
+# constant can only be tested by building twice, and the value is deliberately
+# compile-time: a shipping build must contain no path that can move the reboot
+# to 20:00, however well guarded.
+if ! "$CXX" $FLAGS $INCLUDES -DBLIPSCOPE_QUIET_HOUR=20       "$ROOT/test/host/test_quiet_hour_override.cpp"       -o "$OUT/test_quiet_hour_override.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the quiet-hour-override test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_quiet_hour_override.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+echo
 echo "== BootReportPolicy =="
 # One boot, one report, DELIVERED not merely sent. Host-tested because the case
 # that matters -- first check-in fails, second succeeds -- needs a network

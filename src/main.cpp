@@ -153,9 +153,13 @@ void setup()
     const String tz = configServer.GetStoredString("tz-offset");
     const long   tzSec = QuietHourOffsetSec();
     const uint32_t nowEpoch = (uint32_t)time(nullptr);
-    Serial.printf("[quiet] armed: reboot at local %02d:00, tz-offset=%s (%+ld s)"
+    Serial.printf("[quiet] armed: reboot at local %02d:00%s, tz-offset=%s (%+ld s)"
                   " -- local hour now %d%s\n",
-                  quiet::QUIET_HOUR, tz.isEmpty() ? "unset" : tz.c_str(), tzSec,
+                  quiet::QUIET_HOUR,
+                  // LOUD, because a capture read weeks later must not mistake a
+                  // bench hour for the shipping one.
+                  quiet::QUIET_HOUR_IS_OVERRIDE ? "  ** BENCH OVERRIDE **" : "",
+                  tz.isEmpty() ? "unset" : tz.c_str(), tzSec,
                   nowEpoch < quiet::CLOCK_SANE_EPOCH ? -1
                       : quiet::LocalHour(nowEpoch, tzSec),
                   nowEpoch < quiet::CLOCK_SANE_EPOCH

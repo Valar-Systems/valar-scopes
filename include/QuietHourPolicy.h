@@ -55,8 +55,30 @@
 
 namespace quiet {
 
-/** Local hour at which the daily reboot is preferred. */
-constexpr int QUIET_HOUR = 3;
+/**
+ * Local hour at which the daily reboot is preferred.
+ *
+ * BENCH-OVERRIDABLE via -DBLIPSCOPE_QUIET_HOUR=<0..23>, because verifying this
+ * otherwise means being awake at 03:00, and the one reading that cannot be taken
+ * from a log -- whether the panel flashes -- needs a person in a dark room.
+ *
+ * QUIET_HOUR_IS_OVERRIDE is true whenever the flag is DEFINED, even if it is set
+ * to 3. The question a reader has is "am I looking at a bench build?", not "is
+ * the number different" -- and an override that happens to match the default is
+ * exactly the case where a silent one would mislead. It is printed in the
+ * `[quiet] armed:` line so a test hour can never be mistaken for the shipping
+ * one in a capture read weeks later.
+ */
+#ifdef BLIPSCOPE_QUIET_HOUR
+constexpr int  QUIET_HOUR = BLIPSCOPE_QUIET_HOUR;
+constexpr bool QUIET_HOUR_IS_OVERRIDE = true;
+#else
+constexpr int  QUIET_HOUR = 3;
+constexpr bool QUIET_HOUR_IS_OVERRIDE = false;
+#endif
+static_assert(QUIET_HOUR >= 0 && QUIET_HOUR <= 23,
+              "BLIPSCOPE_QUIET_HOUR must be a local hour 0..23 -- anything else "
+              "never matches, so the schedule would silently never fire");
 
 /**
  * Minimum real time between fires, independent of what local time says.
