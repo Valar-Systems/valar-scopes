@@ -86,6 +86,58 @@ int main()
     check(!NeedsLogbookReset(4), "a FUTURE rev must NOT be cleared");
     check(!NeedsLogbookReset(CONFIG_REV), "CONFIG_REV must satisfy the logbook predicate");
 
+    // ---- rev 5: tz-offset "0" manufactured by the old form ------------------
+    //
+    // The old config page defaulted this field to the zone derived from the
+    // STORED longitude, which on a factory-fresh device is "" -> 0. The
+    // customer's first save (the one that sets their location) posted that 0
+    // back as if it were a decision. Three of three bench boards carried one.
+    {
+        const long BEND = -8 * 3600;   // what the longitude fallback gives at -121.29
+        const long UTC0 = 0;           // ...and at Greenwich
+
+        check(NeedsTzOffsetAutoMigration(4, "0", BEND),
+              "a stored 0 that disagrees with the location is migrated");
+        check(NeedsTzOffsetAutoMigration(0, "0", BEND),
+              "...including on a device that has never been migrated at all");
+
+        // THE CONTROL, AND THE WHOLE REASON THE PREDICATE TAKES AN OFFSET.
+        // A stored 0 is CORRECT for the UK, Portugal, Iceland, West Africa --
+        // and there the fallback returns 0 too, so the migration would change
+        // nothing while carrying all of the risk. Without this condition it
+        // would clear a genuinely-meant value from every UTC user.
+        check(!NeedsTzOffsetAutoMigration(4, "0", UTC0),
+              "CONTROL: a stored 0 that AGREES with the location is left alone");
+
+        // An explicit non-zero was unambiguously typed -- the old form never
+        // manufactured one, because a manufactured value was always 0.
+        check(!NeedsTzOffsetAutoMigration(4, "-7", BEND), "an explicit -7 is a choice, untouched");
+        check(!NeedsTzOffsetAutoMigration(4, "5.5", BEND), "...as is a half-hour zone");
+
+        // Never saved: nothing to undo, and removing an absent key is not free --
+        // it logs a NOT_FOUND on every affected boot.
+        check(!NeedsTzOffsetAutoMigration(4, nullptr, BEND), "an absent key is already auto");
+        check(!NeedsTzOffsetAutoMigration(4, "", BEND),
+              "an empty value is not the string \"0\"");
+
+        // ONE SHOT, same discipline as the logbook migration: from rev 5 the form
+        // no longer manufactures zeros, so a stored 0 means what it says.
+        check(!NeedsTzOffsetAutoMigration(5, "0", BEND), "rev 5 is current -- must NOT re-fire");
+        check(!NeedsTzOffsetAutoMigration(6, "0", BEND), "a FUTURE rev must NOT re-fire");
+        check(!NeedsTzOffsetAutoMigration(CONFIG_REV, "0", BEND),
+              "CONFIG_REV must satisfy the tz predicate");
+
+        // Positive zones too -- the condition is "differs from zero", not "is
+        // negative", and Asia/Australia is the half of the planet a sign
+        // assumption would silently skip.
+        check(NeedsTzOffsetAutoMigration(4, "0", 10 * 3600),
+              "a stored 0 in Sydney (+10) is migrated too");
+    }
+
+    // The earlier migrations must not re-fire at the new revision.
+    check(!NeedsInfoFieldReset(CONFIG_REV), "rev 5: the info-field reset is done");
+    check(!NeedsLocalDetailsMigration(CONFIG_REV), "rev 5: the local-details migration is done");
+
     if (failures == 0) std::printf("test_config_migration: all checks passed\n");
     else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);
     return failures == 0 ? 0 : 1;

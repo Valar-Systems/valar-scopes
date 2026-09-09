@@ -35,8 +35,9 @@ namespace configmigration {
  *   2          info-type / info-operator default ON (#238)
  *   3          spotting logbook default ON (v8)
  *   4          local-details "adsbdb" -> "cloud" (adsbdb left the stack)
+ *   5          tz-offset "0" manufactured by the old config form -> auto (v11)
  */
-constexpr int CONFIG_REV = 4;
+constexpr int CONFIG_REV = 5;
 
 /**
  * The firmware default for the spotting logbook.
@@ -137,6 +138,49 @@ constexpr bool NeedsLogbookReset(int storedRev) { return storedRev < 3; }
  * is legible in the config page rather than by a parse failure.
  */
 constexpr bool NeedsLocalDetailsMigration(int storedRev) { return storedRev < 4; }
+
+/**
+ * Was this device's `tz-offset` of "0" MANUFACTURED by the old config form
+ * rather than chosen?
+ *
+ * THE DEFECT (v11, 2026-09-09). The clock-offset field used to default to the
+ * zone derived from the STORED longitude. On a factory-fresh device the location
+ * is not set yet, so longitude is "" and `"".toFloat()` is 0 -- the field
+ * rendered `0`. The customer's first save is the SAME save that sets their
+ * location, and it posted that 0 back as though it were a decision. Every unit
+ * configured in one pass therefore froze `tz-offset="0"`, LocalOffset::Resolve
+ * correctly honoured it, and the longitude fallback could never run. A 03:00
+ * "local" quiet-hour reboot landed at 03:00 UTC = 20:00 Pacific.
+ *
+ * The form is fixed, but a fixed form only reaches devices that have not saved
+ * yet -- this file's whole subject. Three of three bench boards carried a stored
+ * "0", which is the evidence that the installed population needs reaching.
+ *
+ * WHY THE `derivedOffsetSec != 0` CONDITION IS THE ENTIRE DESIGN. A stored "0"
+ * is genuinely correct for the UK, Portugal, Iceland, West Africa -- and for
+ * those users the longitude fallback ALSO returns 0, so the two answers agree
+ * and the migration would be a no-op with a risk attached. Requiring the derived
+ * offset to DIFFER means this only ever fires where the stored value and the
+ * device's own location disagree, which is exactly the signature of a value
+ * nobody typed.
+ *
+ * The cost, stated rather than hidden, because it is the same shape as the
+ * logbook migration above: someone who deliberately set UTC while living at a
+ * different longitude gets it cleared, once. They can set it again, and from rev
+ * 5 onward the form no longer manufactures zeros, so a stored "0" means what it
+ * says.
+ *
+ * REMOVE, don't overwrite -- absence is how "auto" is represented, and it is the
+ * only state the longitude fallback can reach.
+ */
+inline bool NeedsTzOffsetAutoMigration(int storedRev, const char* storedTz,
+                                       long derivedOffsetSec)
+{
+    if (storedRev >= 5) return false;                 // one-shot
+    if (storedTz == nullptr) return false;            // never saved: nothing to undo
+    if (strcmp(storedTz, "0") != 0) return false;     // an explicit non-zero is a choice
+    return derivedOffsetSec != 0;                     // agrees with location -> leave alone
+}
 
 /**
  * Run any pending migrations against the "config" namespace.
