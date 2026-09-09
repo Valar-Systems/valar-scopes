@@ -686,7 +686,7 @@ R"(
                     </label>
                     <label class="field mt">
                         <span>Clock UTC offset (hrs):</span>
-                        <input name="tz-offset" type="number" min="-12" max="14" step="0.5" value='%TZ_OFFSET%' class="w6">
+                        <input name="tz-offset" type="number" min="-12" max="14" step="0.5" value='%TZ_OFFSET%' placeholder='%TZ_AUTO%' class="w6">
                     </label>
                     <label class="field mt">
                         <span>Screen-top bearing (window-up, &deg;):</span>
@@ -2348,10 +2348,36 @@ void ConfigurationWebServer::Initialise() {
         const String autoDimEnabled = HtmlEscape(prefs.getString("autodim", "true"));
         const String nightClockOn = HtmlEscape(prefs.isKey("night-clock") ? prefs.getString("night-clock", "false") : "false");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
-        // default the clock offset to the nominal zone from longitude (15 deg/hour)
+        // AUTO IS THE ABSENCE OF THE KEY, NOT A ZERO. (v11, 2026-09-09.)
+        //
+        // This used to default the FIELD to the nominal zone from longitude, which
+        // reads as helpful and shipped a defect: `longitude` is the STORED one, so
+        // on a factory-fresh device it is "" and `"".toFloat()` is 0. The field
+        // rendered `0`, and the customer's first save -- the same save that sets
+        // their location -- posted that 0 back as an explicit choice. From then on
+        // `tz-offset` was explicitly zero forever, LocalOffset.h correctly honoured
+        // it, and the longitude fallback could never run. A 03:00 "local" quiet-hour
+        // reboot landed at 03:00 UTC = 20:00 Pacific, which is the exact complaint
+        // the quiet hour was built to remove.
+        //
+        // So the field is EMPTY when the key is absent, and the derived value is
+        // shown as a PLACEHOLDER instead. A placeholder is not submitted, so an
+        // untouched field posts "" and the save below leaves the key absent. The
+        // customer still sees what auto resolves to, which is the half that made
+        // the old default worth having -- they can see what they would be
+        // overriding before they override it.
+        //
+        // AN EXPLICIT "0" REMAINS COMPLETELY VALID and is stored like any other
+        // value: somebody genuinely at UTC must be able to say so. What is fixed is
+        // that a 0 nobody typed is no longer manufactured on their behalf.
         const String tzOffset = prefs.isKey("tz-offset")
-            ? prefs.getString("tz-offset", "0")
-            : String((int)round(longitude.toFloat() / 15.0));
+            ? HtmlEscape(prefs.getString("tz-offset", ""))
+            : String("");
+        const int    tzAutoZone = (int)lround(longitude.toFloat() / 15.0);
+        const String tzAuto = longitude.length() == 0
+            ? String("Auto - set your location")
+            : String("Auto - UTC") + (tzAutoZone >= 0 ? "+" : "") + String(tzAutoZone)
+                  + " from location";
         const String radarUp = HtmlEscape(prefs.isKey("radar-up") ? prefs.getString("radar-up", "0") : "0");
         const String watchlist = HtmlEscape(prefs.getString("watchlist", ""));
         const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
@@ -2704,7 +2730,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -2749,6 +2775,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "TZ_OFFSET")      return tzOffset;
+                if (var == "TZ_AUTO")        return tzAuto;
                 if (var == "RADAR_UP")       return radarUp;
                 if (var == "NIGHT_CLOCK")    return nightClockOn == "true" ? "checked" : "";
                 if (var == "WATCHLIST")      return watchlist;
@@ -3135,7 +3162,20 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("radius");
         TrySaveParam("radius-unit");
         TrySaveParam("brightness");
-        TrySaveParam("tz-offset");
+        // tz-offset is NOT a TrySaveParam, because "auto" has to be representable.
+        // An empty field means auto, and auto is the ABSENCE of the key -- storing
+        // "" would work for LocalOffset::Resolve (it treats "" and absent alike) but
+        // would make isKey() true, so the page would render an empty box with no
+        // placeholder and the state would no longer be readable. Absence is the
+        // representation; keep it exact.
+        if (const auto* tzParam = request->getParam("tz-offset", true)) {
+            const String tzValue = tzParam->value();
+            if (tzValue.length() == 0) {
+                if (prefs.isKey("tz-offset")) prefs.remove("tz-offset");
+            } else {
+                prefs.putString("tz-offset", tzValue);
+            }
+        }
         TrySaveParam("watchlist");
         TrySaveParam("ntfy-topic");
         // Regenerate LAST, so it beats whatever was sitting in the box -- the
@@ -3669,6 +3709,15 @@ void ConfigurationWebServer::RequestReset(factoryreset::Tier tier)
     // the flag as "at least this much" costs nothing and removes the one
     // ordering in which a factory reset is downgraded to a wifi reset.
     resetTierRequested = (uint8_t)factoryreset::Larger((factoryreset::Tier)resetTierRequested, tier);
+}
+
+bool ConfigurationWebServer::HasStoredKey(const char* key)
+{
+    Preferences prefs;
+    prefs.begin("config", true);
+    const bool present = prefs.isKey(key);
+    prefs.end();
+    return present;
 }
 
 const String ConfigurationWebServer::GetStoredString(const char* key)

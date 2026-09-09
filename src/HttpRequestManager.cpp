@@ -1,4 +1,5 @@
 #include "HttpRequestManager.h"
+#include "NetWatchdog.h"
 
 namespace {
 // Hard ceiling on any JSON body parsed off the socket. Every legitimate feed here is
@@ -273,6 +274,12 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
         http.end(); // close the dead socket so the retry's begin() handshakes anew
     }
     result.statusCode = responseCode;
+    // Reachability evidence. `responseCode > 0` means the ROUND TRIP completed,
+    // whatever the server said -- deliberately NOT result.success, which in
+    // GetSecure is 200-only and in GetJson also needs the parse to work. A 404
+    // and a malformed body both reached the network; counting them as
+    // unreachability would walk a healthy board up the ladder to a reboot.
+    netwatch::RecordOutcome(responseCode > 0);
 
     if (responseCode > 0) {
         result.success = true;
@@ -335,6 +342,12 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
         http.end(); // close the dead socket so the retry's begin() handshakes anew
     }
     result.statusCode = responseCode;
+    // Reachability evidence. `responseCode > 0` means the ROUND TRIP completed,
+    // whatever the server said -- deliberately NOT result.success, which in
+    // GetSecure is 200-only and in GetJson also needs the parse to work. A 404
+    // and a malformed body both reached the network; counting them as
+    // unreachability would walk a healthy board up the ladder to a reboot.
+    netwatch::RecordOutcome(responseCode > 0);
 
     if (responseCode > 0) {
         // Attribution first: valid even on the paths that bail out below.
@@ -471,6 +484,12 @@ HttpResult HttpRequestManager::GetSecure(const String& url, const char* caCert,
 
     const int responseCode = httpTls.GET();
     result.statusCode = responseCode;
+    // Reachability evidence. `responseCode > 0` means the ROUND TRIP completed,
+    // whatever the server said -- deliberately NOT result.success, which in
+    // GetSecure is 200-only and in GetJson also needs the parse to work. A 404
+    // and a malformed body both reached the network; counting them as
+    // unreachability would walk a healthy board up the ladder to a reboot.
+    netwatch::RecordOutcome(responseCode > 0);
 
     if (responseCode == HTTP_CODE_OK) {
         result.success = true;
@@ -525,6 +544,12 @@ HttpResult HttpRequestManager::Post(const String& url, const String& body, const
     // send request and handle response
     int responseCode = http.POST(body);
     result.statusCode = responseCode;
+    // Reachability evidence. `responseCode > 0` means the ROUND TRIP completed,
+    // whatever the server said -- deliberately NOT result.success, which in
+    // GetSecure is 200-only and in GetJson also needs the parse to work. A 404
+    // and a malformed body both reached the network; counting them as
+    // unreachability would walk a healthy board up the ladder to a reboot.
+    netwatch::RecordOutcome(responseCode > 0);
 
     if (responseCode > 0) {
         result.success = true;

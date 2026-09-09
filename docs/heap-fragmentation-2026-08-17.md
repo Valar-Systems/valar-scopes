@@ -151,3 +151,69 @@ flat for 12 minutes under a 25-airport / 48 km sky). The cross-over — pushing 
 Weak signal already in hand, offered as a hint not a result: at 11:59 the poll rate dropped
 3× (5 s → 15 s idle transition) and the decline did not visibly slow. Weak because the
 series is not monotonic — it recovers to 27,636 at 11:57 before falling again.
+
+## Addendum 2026-09-09: a same-boot pair at 1 minute and 9.6 hours
+
+**One board, one boot, both ends of the series in one capture file** — which is
+what makes this worth more than another spot reading. COM119, `blipscope-s3-128`
+v11 candidate, production backend, Bend sky (`ap=41`).
+
+The board rebooted at **05:33Z** when an overnight host restart power-cycled USB.
+Nothing was attached to drain its serial output, so the USB-CDC FIFO held roughly
+the first minute of post-boot lines and everything after that was dropped. When a
+recorder attached at 15:07:29Z the stale FIFO flushed first and then caught up to
+live, putting **t+1 min and t+9.6 h in the same file**:
+
+| uptime | `largest` | `free` | `rej` | `tls=H/R` |
+|---|---|---|---|---|
+| **~1 min** (device clock 05:34) | **31,732** | 71,512 | 0 | 2/30 |
+| **~9.6 h** (device clock 15:07) | **8,692** | 29,024 | 70 | 11/1,272 |
+| ~9.9 h (device clock 15:23) | 13,300 | 31,404 | 97 | 15/1,375 |
+
+Three things this adds to the series:
+
+- **31,732 at boot is the same number `.32` held flat for 12 minutes** in the
+  original run above, on a different board and a different image five months
+  earlier. The fresh-boot contiguous block is reproducible; what varies is how
+  fast it goes.
+- **8,692 is below the TLS handshake requirement.** `rej` — trial-allocation
+  refusals from `heaphealth::CanHandshake()` — reached 97, so enrichment was
+  being declined outright. `allocFail=0` and `hardFail=0` throughout: the gate is
+  doing its job and the degradation is the bounded, cards-only one this document
+  describes, not a crash.
+- **Still not monotonic.** The `largest` series across the live window runs
+  `8692, 25588, 8692, 30708, 13300, 31732, 14324, 13300, 17396, 13300` — it
+  recovers fully to 31,732 and falls again. Consistent with the "1 KB
+  quantisation, in both directions" signature above, and a reminder that a single
+  sample of this quantity is nearly meaningless.
+
+**This is the number the daily reboot exists for**, and it is why the v11
+quiet-hour work is a reliability feature rather than a cosmetic one: the update
+check needs the same contiguous block enrichment could not get, so a unit left to
+fragment loses the remote path by which it could be repaired.
+
+### The trap this capture set, and nearly caught us with
+
+The recorder stamps each line with the **host** wall clock at write time. So the
+stale FIFO backlog was written as:
+
+```
+2026-09-09T15:07:29Z [perf] 2026-09-09T05:34:08Z polls=12 ...
+2026-09-09T15:07:29Z [health] frame ... largest=31732 ... tls=2/30 ...
+```
+
+Read casually, the top of that file says **a healthy 31,732 at 15:07** — the
+board looks fine. The device's own timestamp in the `[perf]` line says 05:34, and
+`tls=2/30` says thirty requests since boot. Four device-minutes were emitted
+inside one host second.
+
+The discriminator that settles it is the **counter discontinuity**: `tls=2/80`
+followed immediately by `tls=11/1272`. A counter cannot jump 1,192 requests
+between consecutive health lines, so the two sides of that jump are not the same
+moment, whatever the host stamps claim.
+
+**Same family as the moving-anchor entry in CLAUDE.md, one layer down.** There, a
+live log appended while being read, so two reads disagreed. Here a single read
+contains two eras, both truthfully stamped by instruments that disagree about
+what time it is. The rule generalises: *when a capture and the device both carry
+a clock, believe the device's, and use a monotonic counter to find the seam.*

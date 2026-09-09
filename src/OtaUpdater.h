@@ -14,7 +14,7 @@
 // clips rather than scales and would render a square as its own top-left corner.
 // Moving this number below 7, or shipping a build that reports 7 without the
 // full-bleed card in it, hands those devices a broken photo.
-constexpr int FW_VERSION = 10;
+constexpr int FW_VERSION = 11;
 
 // Check GitHub Releases for a newer firmware and self-update if one is published.
 // Blocking; on success the device flashes the new image and reboots into it. The
@@ -72,6 +72,41 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http);
  */
 bool DeferUpdateCheckToReboot(uint32_t largestBlock);
 
+// Why a deferred reboot was armed. Persisted alongside the flag, because after
+// the reboot the two causes are otherwise indistinguishable: both are
+// ESP_RST_SW with `pending` set, and "the daily update check" and "the network
+// was unreachable for eight minutes" are very different things to see in a
+// fleet-wide reset-reason histogram.
+constexpr uint8_t REBOOT_CAUSE_OTA_CHECK = 1;
+constexpr uint8_t REBOOT_CAUSE_NET_WEDGE = 2;
+
+/**
+ * Arm a deferred reboot, recording WHY.
+ *
+ * The one implementation of the 24 h cap; DeferUpdateCheckToReboot is a wrapper.
+ * That is deliberate and load-bearing: the reachability watchdog
+ * (src/NetWatchdog.cpp) is the second caller, and giving it its own cap would be
+ * two guards on one rule -- with the second always the stale one. Sharing the
+ * cap is also exactly the safety property the watchdog needs, since it means an
+ * unreachable network can never reboot a board more often than an ordinary
+ * update check already does.
+ *
+ * Returns false when the cap, an unsynced clock or unavailable NVS refuses; does
+ * not return at all when it succeeds. A caller MUST handle the false case --
+ * see the Backoff stage in NetWatchPolicy.h, which is where a refusal leads.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock);
+
+/**
+ * The cause of the reboot that armed THIS boot, or 0. Clears it on read, the
+ * same one-shot discipline as ConsumeDeferredCheckFlag.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+uint8_t ConsumeDeferredRebootCause();
+
 /**
  * Was this boot armed by DeferUpdateCheckToReboot?
  *
@@ -127,3 +162,41 @@ const char* ResetReasonName();
 // LOOP TASK ONLY (it touches NVS). Callers hand the string to the fetch task
 // inside the request, exactly like cloudBase/cloudKey.
 String TakeOtaMemReport();
+
+/**
+ * The X-Blip-Boot header value: why this boot happened, ONCE per boot.
+ *
+ * Returns the reset reason on the first call and "" on every call after it, so
+ * it rides exactly one check-in and never repeats.
+ *
+ * WHY THIS EXISTS BESIDE TakeOtaMemReport RATHER THAN INSIDE IT. That report is
+ * written by NoteOtaAttempt(), which runs only in the "newer firmware available"
+ * branch -- so a board already on the latest firmware has never been able to
+ * report a reboot at all. Tolerable while reboots were rare; not tolerable once
+ * the quiet-hour reboot makes one a DAILY event on EVERY board, almost none of
+ * which will have an update to fetch. The suffix inside the OTA report stays for
+ * now: one migration at a time, and it is the only reason field older Workers
+ * understand.
+ *
+ * NOT persisted and NOT cleared from NVS -- the reason comes from
+ * esp_reset_reason(), which is valid for the whole boot, so "once" only needs a
+ * RAM flag. The deferred-reboot CAUSE is read from NVS (and cached there), which
+ * is what turns a bare SW into SW_NETWD.
+ *
+ * LOOP TASK ONLY.
+ */
+String TakeBootReasonReport();
+
+/**
+ * Report whether the check-in that carried the boot reason was ACKNOWLEDGED.
+ *
+ * `delivered` must mean the Worker answered 2xx -- not merely that the socket
+ * opened. recordBoot() is authenticated-only, so a 401 arrives at the Worker and
+ * still writes no row; treating it as delivered would drop the reason.
+ *
+ * Call on EVERY fetch result, success or failure: the failure path is what
+ * releases the in-flight guard so the next check-in may carry it again.
+ *
+ * LOOP TASK ONLY.
+ */
+void AckBootReasonReport(bool delivered);

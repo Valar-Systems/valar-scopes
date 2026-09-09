@@ -1,4 +1,5 @@
 #include "ConfigMigration.h"
+#include "LocalOffset.h"
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -60,6 +61,30 @@ void configmigration::Apply()
             Serial.printf("[cfg-migrate] rev %d -> %d: local-details migrated to cloud "
                           "(details now come from the proxy)\n",
                           stored, CONFIG_REV);
+        }
+    }
+
+    {
+        // tz-offset "0" manufactured by the old form -> auto (absent key).
+        //
+        // The derived offset comes from localoffset::Resolve with an EMPTY tz, so
+        // the migration asks the same question the fallback will answer rather
+        // than reimplementing 15-degrees-per-hour here. One derivation, which is
+        // the rule that LocalOffset.h exists to enforce -- a second copy is how
+        // the original defect got in.
+        const String tz = prefs.isKey("tz-offset") ? prefs.getString("tz-offset", "")
+                                                   : String();
+        const String lon = prefs.isKey("longitude") ? prefs.getString("longitude", "")
+                                                    : String();
+        const long derived = localoffset::Resolve("", lon.toFloat());
+        if (prefs.isKey("tz-offset")
+            && NeedsTzOffsetAutoMigration(stored, tz.c_str(), derived)) {
+            prefs.remove("tz-offset");
+            // Printed under [quiet] rather than [cfg-migrate] deliberately: this is
+            // read while asking "why did it reboot then", and that reader is
+            // grepping for quiet, not for migrations.
+            Serial.printf("[quiet] migrated tz-offset \"0\" -> auto (derived %+ld s)\n",
+                          derived);
         }
     }
 

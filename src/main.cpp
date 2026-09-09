@@ -20,6 +20,10 @@
 #include "HttpRequestManager.h"
 #include "OpenSkyAuthTokenHandler.h"
 #include "OtaUpdater.h"
+#include "NetWatchdog.h"
+#include "BrightnessCarry.h"
+#include "LocalOffset.h"
+#include "QuietHourPolicy.h"
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
 // sightings radar, the FEATURE_FISHING (Reelscope) console, the FEATURE_CLAUDESCOPE usage gauge,
@@ -85,6 +89,20 @@ AircraftManager appManager(configServer, authHandler, http, tft);
 #define BLIPSCOPE_RADAR_EDITION 1
 #endif
 
+// The offset the quiet-hour schedule runs on: explicit `tz-offset`, else the
+// nominal zone from longitude (include/LocalOffset.h). ONE function, called by
+// both the boot print and the firing decision -- see the note at the call site.
+//
+// Read from config rather than from `appManager` because that is a different
+// class per edition; the LIMITATION that the siblings key their offset
+// differently is unchanged and recorded in docs/v11-quiet-hour-plan.md.
+static long QuietHourOffsetSec()
+{
+  const String tz  = configServer.GetStoredString("tz-offset");
+  const String lon = configServer.GetStoredString("longitude");
+  return localoffset::Resolve(tz.c_str(), lon.toFloat());
+}
+
 void setup()
 {
   Serial.begin(115200); // non-blocking; the wait for a CDC *host* happens after the splash below
@@ -125,6 +143,36 @@ void setup()
   // rolled back, and it must say so unprompted.
   LogOtaSlot("boot");
   Serial.printf("[boot] reset reason=%s\n", ResetReasonName());
+  netwatch::Begin(); // prints the reachability ladder, and why this boot happened
+  // The quiet-hour schedule, printed at boot for the same reason the ladder is:
+  // otherwise it is invisible until 03:00 local, and "it did not fire" cannot be
+  // told from "it is configured for a different hour" without waiting a day to
+  // find out. Prints the offset it resolved, because a wrong tz-offset is the
+  // single most likely way for this to fire at the wrong time.
+  {
+    const String tz = configServer.GetStoredString("tz-offset");
+    const long   tzSec = QuietHourOffsetSec();
+    const uint32_t nowEpoch = (uint32_t)time(nullptr);
+    Serial.printf("[quiet] armed: reboot at local %02d:00%s, tz-offset=%s (%+ld s)"
+                  " -- local hour now %d%s\n",
+                  quiet::QUIET_HOUR,
+                  // LOUD, because a capture read weeks later must not mistake a
+                  // bench hour for the shipping one.
+                  quiet::QUIET_HOUR_IS_OVERRIDE ? "  ** BENCH OVERRIDE **" : "",
+                  // THREE STATES, NOT TWO. "unset" means the key is ABSENT,
+                  // which is how "auto" is represented and is what makes the
+                  // longitude fallback run. "empty" means the key is PRESENT and
+                  // blank -- it resolves identically, so it is invisible in
+                  // behaviour, and it is a state the config page must never
+                  // produce. Collapsing them would leave the config fix's whole
+                  // invariant unobservable from a capture.
+                  tz.isEmpty() ? (configServer.HasStoredKey("tz-offset") ? "empty" : "unset")
+                               : tz.c_str(), tzSec,
+                  nowEpoch < quiet::CLOCK_SANE_EPOCH ? -1
+                      : quiet::LocalHour(nowEpoch, tzSec),
+                  nowEpoch < quiet::CLOCK_SANE_EPOCH
+                      ? " (clock unsynced -- falling back to the 24 h timer)" : "");
+  }
 
   // Give the Task Watchdog headroom over a single synchronous network call. The OpenSky
   // and adsbdb fetches run TLS handshakes that take the lwIP core lock and don't yield;
@@ -156,9 +204,21 @@ void setup()
   // RGB panel that means the framebuffer/bus init failed -> nothing scans out).
   const bool panelOk = tft.init();
   tft.invertDisplay(BLIPSCOPE_DISP_INVERT); // per-variant: the GC9A01 boots inverted, the ST7701 doesn't
-  // drive the backlight via PWM (configured in LGFX.h) so it's dimmable; full
-  // brightness for the boot screen until AircraftManager applies the saved level
-  tft.setBrightness(255);
+  // Drive the backlight via PWM (configured in LGFX.h) so it's dimmable.
+  //
+  // BEFORE FIRST LIGHT, AND THAT IS THE WHOLE POINT. This used to be a hardcoded
+  // 255 with a comment saying "full brightness for the boot screen until
+  // AircraftManager applies the saved level" -- accurate, and a bright flash in a
+  // dark room every time the board reboots. Night dim is DERIVED (configured
+  // level / 5, re-evaluated on a 20 s cadence), so nothing persisted what the
+  // panel was actually showing and the first splash always painted at full.
+  //
+  // The quiet-hour reboot makes that a nightly event at 03:00, so the applied
+  // level is now carried across the reboot and applied HERE -- above the first
+  // DrawSplash, not after it, because a correction that arrives on the next dim
+  // pass is a flash that already happened.
+  const uint8_t carried = brightcarry::Recall();
+  tft.setBrightness(carried ? carried : 255);
 
   // The full-frame backbuffer only fits on boards with PSRAM (480x480x8bpp ~= 230 KB); banded
   // SKUs keep it in internal RAM so a TLS handshake still has contiguous heap. setPsram() must
@@ -475,6 +535,16 @@ void loop()
     ESP.restart();
   }
 
+  // REACHABILITY WATCHDOG. The block below watches ASSOCIATION; this one watches
+  // whether traffic actually moves, and they are not the same failure. On
+  // 2026-09-03 COM16 spent 9 min 37 s failing every single request with
+  // "Host is unreachable" while WiFi.status() returned WL_CONNECTED throughout --
+  // so the supervisor below never armed, and the board sat dark until the daily
+  // reboot. Both are kept, because neither subsumes the other: this one cannot
+  // see a device that never associates, and that one cannot see a device that
+  // associates and reaches nothing.
+  netwatch::Tick();
+
   // RUNTIME WIFI WATCHDOG. Losing the network after boot recovered nowhere: the
   // IDF's auto-reconnect retries forever, setup() has already returned, and the
   // loop never looked at WiFi.status() -- so a password changed while the device
@@ -521,10 +591,42 @@ void loop()
   //
   // The stamp is taken BEFORE the deferral so a refusal (see the 24 h cap) costs
   // one attempt per day rather than one per loop iteration.
-  static unsigned long lastOtaCheck = 0;
-  if (millis() - lastOtaCheck > 24UL * 60UL * 60UL * 1000UL) {
-    lastOtaCheck = millis();
-    DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
+  // AT A LOCAL QUIET HOUR, not 24 h after boot. The uptime timer drifted: a board
+  // that booted at 14:00 rebooted at 14:00 every day thereafter, in front of the
+  // customer, for ~60 s of black screen. See include/QuietHourPolicy.h for why
+  // the two classic local-time hazards -- an hour that happens twice, an hour
+  // that never happens -- both arrive here as a `tz-offset` edit rather than as
+  // a clock event, and how each is answered.
+  //
+  // The policy PROPOSES; DeferRebootWithCause DISPOSES. The 24 h cap and the
+  // unsynced-clock refusal stay in that one place, shared with the reachability
+  // watchdog's rung 3, so there is one implementation of each rather than two.
+  {
+    static quiet::State qs;
+    // The offset is read from config rather than from the app manager, because
+    // `appManager` is a different class per edition and an accessor would mean
+    // touching all eight. KNOWN LIMITATION, stated rather than hidden: the radar
+    // stores its offset under "tz-offset", while the sibling editions use their
+    // own keys (fi-tz-offset, cl-tz-offset, sc-tz-offset...). On those builds
+    // this reads empty and the quiet hour lands at 03:00 UTC instead of 03:00
+    // local -- still better than the uptime drift it replaces, but not the
+    // intended behaviour.
+    //
+    // POST-LAUNCH BACKLOG, not an oversight: all 50 launch units are the radar
+    // edition, so no customer can meet this and it is bench-only. It becomes
+    // real the moment one non-radar edition ships -- a shipping decision, not a
+    // date. See "Post-launch backlog" in docs/v11-quiet-hour-plan.md.
+    // THE SAME RESOLVED VALUE THE BOOT PRINT REPORTS. Deliberately one helper
+    // rather than two call sites that agree today: an instrument that reports a
+    // different number from the one the decision uses is worse than no
+    // instrument, because it reports correctly while the behaviour is wrong.
+    const quiet::Decision d =
+        quiet::Step(qs, (uint32_t)time(nullptr), QuietHourOffsetSec(), millis());
+    if (d != quiet::Decision::None) {
+      Serial.printf("[quiet] %s -> deferring update check to reboot\n",
+                    quiet::DecisionName(d));
+      DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
+    }
   }
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
