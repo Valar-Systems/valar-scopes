@@ -629,13 +629,32 @@ either "close enough" or "sign error" depending on which way the wind is blowing
 | local hour == wall clock exactly | **(d) STOP** — it should be one behind. Something is applying DST, which this firmware has none of; the `configTime(0,0,...)` premise would be void |
 | anything else | **(e) STOP.** Do not improvise |
 
-### Rehearse red
+### Rehearse red — REGISTERED BEFORE RUNNING
 
-Restore the old behaviour — put back the unconditional `TrySaveParam("tz-offset")`
-and the longitude-derived `value=` — rebuild, walk the same first-run path, and
-confirm the print returns to `tz-offset=0 (+0 s)`. A fix whose sabotage does not
-visibly change the reading did not apply, and this whole gate would then be
-measuring nothing.
+Restore the old behaviour and confirm the print returns to `tz-offset=0 (+0 s)`.
+A fix whose sabotage does not visibly change the reading did not apply, and this
+gate would then be measuring nothing.
+
+**The sabotage has to reproduce the FIRST-RUN CONDITION, not just the old code,
+and that is the part worth stating.** The original defect needed the location to
+be unset AT RENDER TIME — that is what made `"".toFloat()` zero and put a `0` in
+the box. This bench board has a location, so simply reverting the two lines would
+render `-8`, post `-8`, store `-8`, and print `-8 (-28800 s)`: a reading identical
+in every visible respect to the PASS above, from thoroughly broken code.
+
+That is this repo's self-camouflaging failure exactly — the sabotage would look
+like the fix working. So the sabotage forces the first-run condition too, by
+computing the old default from an empty longitude rather than the stored one.
+
+Registered expectations for the red build, before it is flashed:
+
+| observation | meaning |
+|---|---|
+| page renders `value='0'` | the old default is back and manufacturing a zero |
+| after an untouched whole-form save, `tz-offset=0 (+0 s)` | **RED CONFIRMED** — the sabotage applied and the fix is what prevents it |
+| `local hour now` == the UTC hour (16 at 09:1x PDT) | corroborates: offset 0 means local IS UTC |
+| `tz-offset=unset` still | **SABOTAGE DID NOT APPLY** — the rehearsal is broken, not the code |
+| `tz-offset=-8 (-28800 s)` | the first-run condition was NOT forced; the reading is worthless because it matches the PASS |
 
 ### Consequence for B3, and the restore that has to follow
 
