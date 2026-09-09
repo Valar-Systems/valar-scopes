@@ -950,6 +950,28 @@ migration having worked; it cannot confirm it.** That is a limit of the
 instrument, not a gap to close by inference — confirming it would need the boot
 reason to carry the resolved offset, which it does not.
 
+### DO NOT PUBLISH BEFORE B3 — it is a requirement, not just an order of business
+
+"After B3" reads like sequencing politeness. It is not: **publishing first would
+corrupt B3.**
+
+COM119's quiet hour fires at 22:00 PDT, and what that does is arm a deferred
+reboot whose whole purpose is to run the update check on the way back up. So if
+a v11 Release exists at that moment, the sequence Daniel is watching becomes:
+
+1. the quiet-hour reboot — the one B3 is actually about;
+2. the board comes up, checks for updates, finds v11;
+3. it downloads and flashes it, and reboots AGAIN, about a minute later.
+
+The reading B3 exists to take is whether the panel flashes to full brightness
+across a reboot. A second, longer, OTA-driven reboot arriving right behind the
+first one makes that observation ambiguous at exactly the moment it cannot be
+repeated — it needs a person in a dark room, and the window is once a night.
+
+So the Release is created **after** B3 reports, on Daniel's word. Written down
+because the constraint lives in a different subsystem from the gate it protects,
+which is the shape this repo keeps getting caught by.
+
 ### Publish-time gate inherited from RELEASING.md
 
 v11 is >= 7, so the **photo square library must be published before the release**.
