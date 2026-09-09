@@ -1858,7 +1858,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // equilibrium question, and a spot reading taken with the case open on a
     // bench answers nothing about a sealed enclosure.
     const float dieC = temperatureRead();
-    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u resid=%+.1fms  heap free=%u largest=%u free8=%u psram_free=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  die=%.1fC  interval=%lums%s\n",
+    Serial.printf("[health] frame avg=%.1fms p95=%.1fms max=%.1fms  n=%u ap=%u resid=%+.1fms  heap free=%u largest=%u free8=%u psram_free=%u tlsOk=%d rej=%lu ball=%d/%lu  allocFail=%lu hardFail=%lu  tls=%lu/%lu  tlsmem=%lu/%lu/%lu  die=%.1fC  interval=%lums  bright=%u/%u%s%s\n",
                   avgMs, p95Ms, maxMs, (unsigned)trackedAircraft.size(), apCount, residualMs,
                   (unsigned)heapFree, (unsigned)largest, (unsigned)free8, (unsigned)psramFree, tlsOk,
                   (unsigned long)heaphealth::TrialRejectionCount(),
@@ -1876,7 +1876,18 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned long)tlsalloc::InternalAllocs(),
                   (unsigned long)tlsalloc::PsramFallbacks(),
                   dieC,
-                  CurrentPollIntervalMs(), IsDataStale() ? "  DATA STALE" : "");
+                  CurrentPollIntervalMs(),
+                  // bright=<applied>/<configured>, and NIGHT when the auto-dim is
+                  // what put it there. The [dim] line already reports every change,
+                  // but it is EDGE-triggered: a board dimmed four hours ago prints
+                  // nothing, so "is it dimmed right now?" could not be answered
+                  // without scrolling back or waiting for a transition. That is
+                  // exactly the question asked at the moment of a reboot, so it
+                  // belongs on the line that prints periodically rather than on the
+                  // one that prints on change.
+                  (unsigned)currentBrightness, (unsigned)configuredBrightness,
+                  (autoDim && nightNow) ? " NIGHT" : "",
+                  IsDataStale() ? "  DATA STALE" : "");
 
     // ---- Follow Mode stage 1: the §18.1 measurement -------------------------
     //
