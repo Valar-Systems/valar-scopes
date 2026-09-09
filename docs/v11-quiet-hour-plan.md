@@ -333,7 +333,9 @@ room through the 10:00Z reboot.
 ### What this flash does NOT establish
 
 - **Q2 (unsynced-clock fallback).** The bench boards sync NTP within seconds of
-  boot, so the fallback branch is unreachable here. It is covered by the host
+  boot, so the fallback branch was UNOBSERVED here until a capture was attached
+  early enough to catch it (it was, 2026-09-09 — see Q2 below; "unreachable" was
+  the wrong word). It is covered by the host
   suite and by no bench observation, and that is stated rather than implied.
 - **The sibling editions' offset — POST-LAUNCH BACKLOG, ruled out of v11 scope
   2026-09-08.** `tz-offset` is the radar's key; the siblings store theirs under
@@ -477,7 +479,22 @@ None of the three found what it was aimed at. Each found something else, on the
 first firing, because it made a previously invisible quantity visible at a moment
 somebody was already looking.
 
-## B2a RESULT: PASS, 2026-09-09 08:42 PDT
+## B2a RESULT, 2026-09-09 08:42 PDT: EXPLICIT PATH OBSERVED; FALLBACK HOST-TESTED ONLY
+
+**The registered reading did not run.** B2a was registered against an unset
+`tz-offset` resolving to -28800 from longitude. What ran was the EXPLICIT path:
+Daniel set -7 and the board honoured it. Those are different branches of
+`localoffset::Resolve`, and only one of them was exercised on hardware.
+
+The row is therefore NOT relabelled and the gate is NOT closed:
+
+| branch | status |
+|---|---|
+| explicit `tz-offset` honoured | **observed on hardware** |
+| unset — longitude fallback | **host-tested only** (`test_local_offset.cpp`) |
+
+The real B2a is registered below as **B2a-REAL**, and it reaches the fallback
+through the customer's own first-run path rather than in isolation.
 
 Daniel power-cycled COM119 (`Blipscope-31D918`, 192.168.86.32) and set the clock
 offset to -7. The capture caught **both** boots, which is more than was asked for
@@ -493,14 +510,15 @@ and is the reason two separate things got closed at once:
         -- local hour now 8
 ```
 
-The second boot is the config save restarting the board, and it is **outcome (a)**
-of the re-registered table:
+The second boot is the config save restarting the board. It satisfies every
+literal cell of row (a) EXCEPT the one the row existed to exercise — the offset
+came from an explicit setting, not from the longitude fallback:
 
 | registered | observed |
 |---|---|
 | hour 22 | 22 |
 | `** BENCH OVERRIDE **` present | present |
-| explicit offset honoured | `-7 (-25200 s)` |
+| ~~unset -> `-28800 s` from longitude~~ | **NOT RUN** — `-7 (-25200 s)`, explicit |
 | local hour matches wall clock | 8, against a wall clock of 08:43 PDT |
 
 **Row (d), the anchor control for the flash itself, is excluded**: the marker is
@@ -520,10 +538,15 @@ This document said of Q2:
 > The bench boards sync NTP within seconds of boot, so the fallback branch is
 > unreachable here. It is covered by the host suite and by no bench observation.
 
-That is now **partially false, and in the useful direction.** The POWERON boot
+**"Unreachable" was the wrong word, and the note above is corrected to
+"unobserved until a capture was attached early enough."** The POWERON boot
 printed `local hour now -1 (clock unsynced -- falling back to the 24 h timer)`.
-The branch was never unreachable — it is reachable for the few seconds before NTP
-lands, and no capture had ever been attached early enough to see it.
+The branch was always reachable — it is live for the few seconds before NTP
+lands. Nothing about the system changed; only the instrument's position did.
+
+That is not pedantry. **"Unreachable" is a claim about the SYSTEM and closes the
+question. "Unobserved" is a claim about the INSTRUMENT and leaves it open** — which
+was the true state, and the one that eventually got the reading.
 
 What this closes and what it does not: the **print** is confirmed, so the policy
 does take the fallback path on a real unsynced clock. The **firing** is still
@@ -540,6 +563,71 @@ Stated separately because they are different claims.
 is what makes B2b readable tonight without scrolling for an edge-triggered
 `[dim]` line, and it is what would have answered the "is it actually dimmed?"
 question objectively yesterday.
+
+## B2a-REAL — PRE-REGISTERED 2026-09-09 09:0x PDT, BEFORE THE FIX IS FLASHED
+
+One verification closing both open items: the config-page blocker (auto must be
+an absent key) and the fallback branch B2a never exercised. Reaching the fallback
+**through the customer's own first-run path** rather than by hand is the point — a
+fallback that only works when a developer clears a key is not the fallback the
+fleet gets.
+
+### The procedure, which is the customer's
+
+1. **Clear** `tz-offset`: load the page, empty the field, save. (This is also the
+   first exercise of the new remove-on-empty path.)
+2. **Confirm absent, not "":** reload the page. The box must be EMPTY and show the
+   placeholder. A stored `""` would render an empty box with NO placeholder, so
+   the two states are distinguishable by eye — which is why absence was chosen
+   as the representation rather than an empty string.
+3. **Walk the first-run save with the field UNTOUCHED**: re-post the whole form
+   exactly as rendered, including the `cfg-form` marker that makes it a
+   whole-form save. This is the step that used to manufacture `"0"`.
+4. **Reboot** and read `[quiet] armed:`.
+
+Step 3 must be a WHOLE-FORM post. `SaveToggle` writes `"false"` for any absent
+checkbox when `cfg-form` is present, so a partial post would be a different code
+path from the customer's and would prove nothing about theirs.
+
+### THE ARITHMETIC TRAP, REGISTERED BEFORE THE READING RATHER THAN EXPLAINED AFTER
+
+The instruction for this gate says "a local hour matching wall clock". **It will
+not match, and that is a PASS.** Bend is on PDT (UTC-7) in September. The
+longitude fallback is nominal solar time and knows nothing about DST:
+
+    lround(-121.29 / 15) = -8  ->  -28800 s  ->  UTC-8, i.e. PST
+
+So the printed local hour will be **exactly one hour BEHIND the wall clock** all
+of September. That is `LocalOffset.h` behaving as documented ("nominal solar
+time ... can be off by up to ~2 h against a political zone (and ignores DST)"),
+not a sign error and not a defect.
+
+Writing it down now because this is precisely the moment the repo's own rule
+warns about: seeing `local hour now 8` against a 09:00 wall clock, and improvising
+either "close enough" or "sign error" depending on which way the wind is blowing.
+
+| observation | verdict |
+|---|---|
+| `tz-offset=unset (-28800 s)`, local hour == wall-clock hour **minus 1** | **(a) PASS** — fallback reached through the customer's path |
+| `tz-offset=0 (+0 s)` | **(b) FAIL** — the fix did not take; the save still manufactures a zero |
+| `tz-offset=unset` but `(+0 s)` | **(c) FAIL, DIFFERENT DEFECT** — the key is absent and `Resolve` still returned 0, which would mean the longitude is missing or unparseable, not the form |
+| local hour == wall clock exactly | **(d) STOP** — it should be one behind. Something is applying DST, which this firmware has none of; the `configTime(0,0,...)` premise would be void |
+| anything else | **(e) STOP.** Do not improvise |
+
+### Rehearse red
+
+Restore the old behaviour — put back the unconditional `TrySaveParam("tz-offset")`
+and the longitude-derived `value=` — rebuild, walk the same first-run path, and
+confirm the print returns to `tz-offset=0 (+0 s)`. A fix whose sabotage does not
+visibly change the reading did not apply, and this whole gate would then be
+measuring nothing.
+
+### Consequence for B3, and the restore that has to follow
+
+**Clearing `tz-offset` moves tonight's reboot.** At -28800 s, quiet hour 22 fires
+at 22:00 PST = **23:00 PDT**, an hour after Daniel is watching. So B2a-REAL runs
+NOW, and `tz-offset` is set back to `-7` before this evening. Recorded because an
+un-restored bench state is how a gate gets watched at the wrong hour.
 
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
