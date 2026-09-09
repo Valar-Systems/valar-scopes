@@ -120,6 +120,11 @@ if (-not $free) {
 }
 
 # ---- 3. the upload, BARE, tee'd ---------------------------------------------
+# NOTE: this log is UTF-16. Tee-Object -FilePath has no -Encoding parameter under
+# Windows PowerShell 5.1 (it arrived in PS 6), and adding one throws a parameter
+# binding error that leaves $LASTEXITCODE unset -- which the gate below then reads
+# as a failure and refuses to flash on. Tried 2026-09-09; reverted. Decode when
+# reading: `io.open(path, encoding="utf-16")`, or `iconv -f UTF-16`.
 Say "uploading env=$PioEnv -> $Port  (log: $uploadLog)"
 Push-Location $repo
 & pio run -e $PioEnv -t upload --upload-port $Port 2>&1 | Tee-Object -FilePath $uploadLog

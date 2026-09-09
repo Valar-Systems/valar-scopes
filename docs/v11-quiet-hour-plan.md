@@ -793,6 +793,95 @@ board's longitude to ~0 does that. Registered expectation: **no migration line,
 `tz-offset=0` retained**, proving the migration is conditional on disagreement
 rather than firing on any stored zero.
 
+## GATE M1 RESULT: PASS, 2026-09-09 09:2x PDT
+
+| reading | observed | verdict |
+|---|---|---|
+| COM4 boot 1 | `[quiet] migrated tz-offset "0" -> auto (derived -28800 s)` | **(a) PASS** |
+| COM4 boot 2 | no migration line; `[quiet] armed: ... tz-offset=unset (-28800 s) — local hour now 8` | **(b) PASS** — one-shot holds |
+| COM16, not flashed | still `value='0'`, no placeholder | **control holds** — the migration moved COM4's zero, not something ambient |
+
+The migrating boot's `[quiet] armed:` line said `tz-offset=0 (+0 s)` as
+registered — `Apply()` runs after that print. Only the print lags; the firing
+decision reads the offset live.
+
+### Red rehearsal on hardware: CONFIRMED, and it is a true control
+
+The host suite proves the predicate, and its `derivedOffsetSec != 0` condition
+was sabotaged and **watched failing** — exactly one check, the named UTC-user
+control. But a host test cannot prove that `Apply()` feeds the predicate the
+REAL derived offset; a wiring bug there is invisible to it.
+
+So COM16 was given London's longitude (`-0.1`, derived 0) while keeping its
+stored `"0"`, and flashed with the same image:
+
+| | COM4 | COM16 |
+|---|---|---|
+| stored `tz-offset` | `"0"` | `"0"` |
+| longitude | -121.2858 — derived **-28800** | -0.1 — derived **0** |
+| result | **migrated** | **declined**, `tz-offset=0` retained |
+
+Same firmware, same stored value, one variable changed, outcome flips. The boot
+demonstrably ran past the migration point (`config server listening`, `[cloud]
+config rev=2`), so this is a decision rather than a boot that never got there.
+
+COM16 was then restored (longitude back, zero cleared) and ends at
+`tz-offset=unset (-28800 s)`. Its intermediate placeholder read `Auto - UTC+0
+from location` at London and `Auto - UTC-8` after restoring, which incidentally
+confirms the placeholder tracks the location.
+
+## METHOD, not just result: two things worth reusing from this gate
+
+Recorded here because both are general, and both were nearly missed.
+
+### 1. If the verification cannot be written, that is a finding about the code
+
+Halfway through B2a-REAL the check could not be expressed. "Auto" is the ABSENCE
+of a key, and **nothing could observe absence**: the config page renders
+`value=''` for an absent key and a stored `""` alike, the placeholder shows
+either way, and `GetStoredString` returns `""` for both.
+
+The reflex is to work around it — infer absence from behaviour, or accept a
+weaker check. The right move was to treat the difficulty as the signal:
+**the invariant the fix turned on was invisible from every surface**, so the gate
+would have "passed" while unable to distinguish the fix from a save that stored
+`""` instead of removing the key.
+
+`HasStoredKey()` and the `unset` / `empty` / `<value>` split exist because
+writing the verification forced the question. Generalised:
+
+> When a check is awkward to write, ask whether the awkwardness is yours or the
+> system's. A property that cannot be observed from outside is not a property
+> anyone can rely on — including the next person to change it.
+
+Note the shape it would have failed in: silently, in the reassuring direction,
+with a green gate. `empty` behaves identically to `unset` TODAY, which is exactly
+why it needed a name — a second undistinguished representation of one behaviour is
+how the next divergence gets in without anyone noticing.
+
+### 2. A sabotage must restore the CONDITION, not just the code
+
+The obvious red rehearsal for the config fix was to revert the two lines. **It
+would have produced a PASS-shaped reading from thoroughly broken code.**
+
+The original defect needed the location unset AT RENDER TIME — that is what made
+`"".toFloat()` zero and put a `0` in the box. The bench board has a location, so
+a plain revert renders `-8`, stores `-8`, and prints `-8 (-28800 s)`: identical
+in every visible respect to the fixed build's `unset (-28800 s)` reading, because
+both resolve to the same offset by different routes.
+
+So the sabotage forced the condition too, computing the old default from an empty
+longitude. Only then did the print return to `0 (+0 s)`.
+
+> A sabotage reproduces the STATE the defect needed, not only the lines that
+> exploited it. Revert the code and you test the code path; restore the state and
+> you test the defect.
+
+The same idea produced M1's device-level control: don't sabotage the migration,
+**change the one input the decision turns on** and require the outcome to flip.
+A control that varies the input is stronger than one that breaks the code,
+because it leaves the artifact under test intact.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device

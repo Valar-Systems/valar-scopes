@@ -83,8 +83,7 @@ void configmigration::Apply()
             // Printed under [quiet] rather than [cfg-migrate] deliberately: this is
             // read while asking "why did it reboot then", and that reader is
             // grepping for quiet, not for migrations.
-            Serial.printf("[quiet] migrated tz-offset \"0\" -> auto (derived %+ld s)
-",
+            Serial.printf("[quiet] migrated tz-offset \"0\" -> auto (derived %+ld s)\n",
                           derived);
         }
     }

@@ -61,4 +61,9 @@ $sp.Close(); $sp.Dispose()
 $txt = $sb.ToString()
 Write-Host "[reset-read] $($txt.Length) bytes"
 if ($SaveTo -ne '') { Set-Content -Path $SaveTo -Value $txt -Encoding UTF8; Write-Host "[reset-read] saved: $SaveTo" }
-$txt -split "`n" | Where-Object { $_ -match '\[build\] env=|\[boot\] reset reason|\[quiet\] armed|\[netwd\] armed|IP=|rst:0x' }
+# MATCH THE WHOLE TAG, NOT THE EXPECTED SENTENCE. This filter used to name
+# '[quiet] armed' specifically, and on 2026-09-09 it silently swallowed
+# '[quiet] migrated ...' -- the one line the run existed to see. A filter written
+# against the output you expect is blindest exactly when something new appears,
+# which is the case you are usually running for.
+$txt -split "`n" | Where-Object { $_ -match '\[build\] env=|\[boot\]|\[quiet\]|\[netwd\]|\[cfg-migrate\]|IP=|rst:0x' }

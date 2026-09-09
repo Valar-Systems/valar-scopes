@@ -247,6 +247,37 @@ pio run -e blipscope-s3-128 -t upload --upload-port COM<n>
 > grep -ac 'scopes-staging'             .pio/build/blipscope-s3-128/firmware.elf   # 0
 > ```
 
+> **v11 OR LATER ONLY, and this one is not about the backend.** Flash a build that
+> contains the v11 config fix; do not ship a board from an older image and rely on
+> OTA to catch up.
+>
+> Every build before v11 had a config page whose clock-offset field defaulted to
+> the zone derived from the STORED longitude — which on a factory-fresh board is
+> empty, so the field rendered `0`. **The first save is the same save that sets
+> the location**, so it posted that `0` back as though the customer had chosen it,
+> and from then on the device was pinned to UTC: a 03:00 "local" quiet-hour reboot
+> landing at 03:00 UTC, which is 20:00 Pacific — a black screen in front of the
+> customer, every evening.
+>
+> Three of three bench boards carried that zero. It is what §7 provisioning does
+> by default, not an edge case.
+>
+> v11 fixes the form AND migrates a manufactured zero on first boot
+> (`cfg-rev` 5), so a board flashed with v11 is safe whether it is provisioned
+> before or after. **A board provisioned on an older image and updated later is
+> also repaired**, by the migration — but only once it takes the update, and it will
+> reboot at 20:00 local until it does. Flashing v11 in the first place avoids the
+> window entirely.
+>
+> ```sh
+> grep -ac 'migrated tz-offset' .pio/build/blipscope-s3-128/firmware.elf   # >= 1
+> ```
+>
+> That string exists only in the migration added in v11, so it separates a v11+
+> image from an older one without trusting the version number. If it returns 0,
+> the tree is older than v11 — see the "flash from a checkout of main" note above,
+> which is the usual cause.
+
 Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi associates with
 **zero reason-204**, and the OTA line reports the expected channel/version:
 
