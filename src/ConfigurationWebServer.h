@@ -83,6 +83,16 @@ public:
     [[nodiscard]] bool IsListening() const { return listening; }
     [[nodiscard]] const String GetStoredString(const char* key);
 
+    // Is the key PRESENT in NVS, regardless of its value?
+    //
+    // GetStoredString returns "" for BOTH an absent key and one stored as an
+    // empty string, which is exactly the distinction `tz-offset` now depends on:
+    // "auto" is represented by ABSENCE, and a stored "" would be a different
+    // state that resolves identically and reads identically. Without this, the
+    // property the config fix turns on is unobservable -- a fix whose key
+    // invariant cannot be seen from outside is one nobody can verify.
+    [[nodiscard]] bool HasStoredKey(const char* key);
+
     // Returns true at most once per save, clearing the flag. Lets the main loop
     // reload settings in-place instead of rebooting the device.
     bool ConsumeConfigChanged();

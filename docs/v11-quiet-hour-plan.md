@@ -576,10 +576,25 @@ fleet gets.
 
 1. **Clear** `tz-offset`: load the page, empty the field, save. (This is also the
    first exercise of the new remove-on-empty path.)
-2. **Confirm absent, not "":** reload the page. The box must be EMPTY and show the
-   placeholder. A stored `""` would render an empty box with NO placeholder, so
-   the two states are distinguishable by eye — which is why absence was chosen
-   as the representation rather than an empty string.
+2. **Confirm absent, not "":** and this needed an instrument that did not exist.
+   The page renders `value=''` for BOTH an absent key and one stored as `""`, and
+   the placeholder shows either way, so the two are indistinguishable from the
+   page. `GetStoredString` collapses them too. **The invariant the whole config
+   fix turns on was unobservable from outside**, which is this repo's oldest
+   failure mode wearing a new hat: a fix whose key property cannot be seen is one
+   nobody can verify, and a verification that cannot fail proves nothing.
+
+   So `ConfigurationWebServer::HasStoredKey()` was added and the boot print now
+   reports THREE states rather than two:
+
+   | print | meaning |
+   |---|---|
+   | `tz-offset=unset` | key ABSENT — "auto"; the longitude fallback runs |
+   | `tz-offset=empty` | key PRESENT and blank — resolves identically, so invisible in behaviour; a state the page must never produce |
+   | `tz-offset=<value>` | an explicit setting |
+
+   `unset` keeps the exact token this gate was pre-registered against, so the
+   registration below is unaffected by the added discrimination.
 3. **Walk the first-run save with the field UNTOUCHED**: re-post the whole form
    exactly as rendered, including the `cfg-form` marker that makes it a
    whole-form save. This is the step that used to manufacture `"0"`.

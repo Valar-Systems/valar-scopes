@@ -3711,6 +3711,15 @@ void ConfigurationWebServer::RequestReset(factoryreset::Tier tier)
     resetTierRequested = (uint8_t)factoryreset::Larger((factoryreset::Tier)resetTierRequested, tier);
 }
 
+bool ConfigurationWebServer::HasStoredKey(const char* key)
+{
+    Preferences prefs;
+    prefs.begin("config", true);
+    const bool present = prefs.isKey(key);
+    prefs.end();
+    return present;
+}
+
 const String ConfigurationWebServer::GetStoredString(const char* key)
 {
     Preferences prefs;

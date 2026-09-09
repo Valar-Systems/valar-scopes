@@ -159,7 +159,15 @@ void setup()
                   // LOUD, because a capture read weeks later must not mistake a
                   // bench hour for the shipping one.
                   quiet::QUIET_HOUR_IS_OVERRIDE ? "  ** BENCH OVERRIDE **" : "",
-                  tz.isEmpty() ? "unset" : tz.c_str(), tzSec,
+                  // THREE STATES, NOT TWO. "unset" means the key is ABSENT,
+                  // which is how "auto" is represented and is what makes the
+                  // longitude fallback run. "empty" means the key is PRESENT and
+                  // blank -- it resolves identically, so it is invisible in
+                  // behaviour, and it is a state the config page must never
+                  // produce. Collapsing them would leave the config fix's whole
+                  // invariant unobservable from a capture.
+                  tz.isEmpty() ? (configServer.HasStoredKey("tz-offset") ? "empty" : "unset")
+                               : tz.c_str(), tzSec,
                   nowEpoch < quiet::CLOCK_SANE_EPOCH ? -1
                       : quiet::LocalHour(nowEpoch, tzSec),
                   nowEpoch < quiet::CLOCK_SANE_EPOCH
