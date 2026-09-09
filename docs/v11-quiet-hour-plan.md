@@ -740,6 +740,59 @@ configured, which is a fact about stock rather than code. The migration option i
 written up under the blocker below; it is not implemented, and v11 scope as given
 covers the first-run path only.
 
+## GATE M1 — the tz-offset migration. PRE-REGISTERED 2026-09-09, BEFORE FLASHING
+
+### Which board, and why COM16 is deliberately NOT flashed
+
+Read off the two boards' own config pages before choosing:
+
+| board | `tz-offset` field | longitude | stored "0"? |
+|---|---|---|---|
+| COM16 (`31E794`, .62) | `value='0'` | -121.2858 | **yes** |
+| COM4 (.63) | `value='0'` | -121.2858 | **yes** |
+
+Both qualify, because on the OLD firmware an ABSENT key renders the
+longitude-derived `-8`; a rendered `0` can therefore only be a stored one. Three
+of three bench boards carry it, which is the evidence that the installed
+population needs reaching at all.
+
+**COM4 is the subject. COM16 is left untouched as a negative control** — if
+COM4's zero disappears and COM16's does not, the migration is what moved it
+rather than anything ambient. COM119 is out of scope: it is armed for B3 tonight
+and must not be disturbed.
+
+### Registered readings
+
+| observation | verdict |
+|---|---|
+| first boot prints `[quiet] migrated tz-offset "0" -> auto (derived -28800 s)` exactly once | **(a) PASS** |
+| second boot prints NO migration line, and `[quiet] armed:` shows `tz-offset=unset (-28800 s)` | **(b) PASS — the one-shot holds** |
+| the migration line appears on EVERY boot | **(c) FAIL** — `cfg-rev` is not being written, so this would re-fire forever |
+| no migration line and `tz-offset=0` still | **(d) FAIL** — the predicate did not fire; check the derived offset first, since a longitude that fails to parse yields 0 and correctly suppresses it |
+| `tz-offset=empty` rather than `unset` | **(e) FAIL** — the key was written blank instead of removed. Behaviourally identical, which is exactly why the print distinguishes them |
+| COM16's stored "0" also disappears | **(f) STOP** — impossible; nothing was flashed to it. Something else is writing config |
+| anything else | **(g) STOP.** Do not improvise |
+
+**On the migrating boot the `[quiet] armed:` line above the migration line still
+says `tz-offset=0 (+0 s)`, and that is correct rather than a bug.**
+`configmigration::Apply()` runs after that print, and its position is
+load-bearing (it must follow `configServer.Initialise()`). Only the PRINT lags;
+the firing decision calls `QuietHourOffsetSec()` live on every tick, so the
+schedule is right immediately. Registered so the stale line is not read as a
+failure on the one boot it appears.
+
+### Rehearse red: force the derived offset to 0
+
+The host suite already proves the UTC-user control by sabotage — removing the
+`derivedOffsetSec != 0` condition fails exactly one check, the named control, and
+it was watched failing.
+
+On hardware the equivalent is to make the DERIVED offset zero while the stored
+value stays "0", so the two agree and the migration must decline. Setting the
+board's longitude to ~0 does that. Registered expectation: **no migration line,
+`tz-offset=0` retained**, proving the migration is conditional on disagreement
+rather than firing on any stored zero.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device
