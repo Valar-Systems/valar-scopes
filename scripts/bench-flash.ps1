@@ -53,14 +53,49 @@ $uploadLog = "$repo\bench-logs\flash-$Label-$stamp.txt"
 
 function Say($t) { Write-Host "[bench-flash] $t" }
 
-# ---- 1. stop anything holding the port ------------------------------------
-Say "stopping any bench-capture holding $Port"
-Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
-    Where-Object { $_.CommandLine -like '*bench-capture*' } |
+# ---- 1. stop OUR recorders that name THIS port ------------------------------
+# TWO CONDITIONS, both required, and the second is the safety one.
+#
+#   * it must be one of OUR bench recorders by name. bench-capture.ps1 is not
+#     the only one -- an ota_watch.py from an earlier run is what actually held
+#     COM119 on 2026-09-09, and a matcher that knew only about bench-capture
+#     would have refused the flash without being able to clear it.
+#   * its command line must name THE TARGET PORT. COM5 belongs to a different
+#     project and must never be touched; scoping the kill to $Port means this
+#     cannot reach it however the process list is spelled, rather than relying
+#     on an exclusion someone has to remember to maintain.
+#
+# Anything else holding the port is left alone and reported by the poll below,
+# because killing a process we did not start is not this script's business.
+Say "stopping our recorders that name $Port"
+$killed = 0
+# EXCLUDE SELF AND PARENT, and match the SCRIPT FILENAME rather than a bare word.
+# A dry run of this matcher killed itself: the test command's own command line
+# quoted the strings "ota_watch" and "COM119", so the process doing the matching
+# matched. That is not a curiosity -- any shell command that MENTIONS this
+# script's targets becomes a target, which includes the automation running it.
+#
+# So: require the filename WITH ITS EXTENSION (an invocation, not a mention),
+# require $Port as a standalone argument rather than a substring, and never
+# consider this process or the one that launched it. The residual hazard is a
+# command line that genuinely spells out `bench-capture.ps1 ... COM119` without
+# being one -- rare, and it now has to try.
+$self   = $PID
+$parent = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID").ParentProcessId
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe' OR Name='python.exe'" |
+    Where-Object {
+        $_.CommandLine -and
+        $_.ProcessId -ne $self -and
+        $_.ProcessId -ne $parent -and
+        $_.CommandLine -match '(bench-capture\.ps1|ota_watch\.py)' -and
+        $_.CommandLine -match ("(^|[\s'`"])" + [regex]::Escape($Port) + "([\s'`"]|$)")
+    } |
     ForEach-Object {
-        Say "  killing pid $($_.ProcessId)"
+        Say "  killing pid $($_.ProcessId)  ($($_.Name))"
         Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        $killed++
     }
+if ($killed -eq 0) { Say "  none found" }
 
 # ---- 2. WAIT FOR THE HANDLE, by opening it ---------------------------------
 # A poll, not a sleep: the only proof the handle is free is that we can take it.
@@ -79,7 +114,8 @@ for ($i = 0; $i -lt 20; $i++) {
 if (-not $free) {
     Say "REFUSING TO FLASH: $Port never became openable."
     Say "  A flash into a held port fails in ~10 s with a message that reads"
-    Say "  like a build error. Find the holder before retrying."
+    Say "  like a build error. Something we do not recognise is holding it:"
+    Say "    Get-CimInstance Win32_Process | ? { \$_.CommandLine -match '$Port' }"
     exit 3
 }
 
