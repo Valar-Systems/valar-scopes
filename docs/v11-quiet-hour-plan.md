@@ -882,6 +882,82 @@ The same idea produced M1's device-level control: don't sabotage the migration,
 A control that varies the input is stronger than one that breaks the code,
 because it leaves the artifact under test intact.
 
+## GATE F1 — the v11 fleet rollout. PRE-REGISTERED 2026-09-09, BEFORE PUBLISHING
+
+**Staged, not published.** `FW_VERSION` is 11 and merged to `main`; the GitHub
+Release is deliberately NOT created. Creating it is the single action that
+publishes, and it happens **only on Daniel's word after tonight's B3 result**.
+
+### Release-artifact checks, run on the v11 shipping build
+
+| # | check | result |
+|---|---|---|
+| 1 | shipping ELF contains `** BENCH OVERRIDE **` | **0** — the claim |
+| 2 | **positive control**: the SAME grep on the bench ELF | **1** — so the grep finds this string when it is there |
+| 3 | anchor: shipping ELF contains `[quiet] armed` | 1 — the ELF is readable and holds quiet-hour strings |
+| 4 | anchor: shipping ELF contains `migrated tz-offset` | 1 — the v11 discriminator |
+| 5 | `scopes.valarsystems.com` | 3 |
+| 6 | `scopes-staging` | 0 |
+| 7 | negative control: a string that cannot exist | 0 — proves 0 is a reachable answer |
+
+Check 2 is the one that earns the others. A bare "0 occurrences" is equally
+consistent with "absent" and "my grep cannot see into this file", and separating
+those two is the whole job of a release check.
+
+**The override cannot escape by the other route either:** no `-quiethour` or
+`-netfault` env appears in the CI matrix at all, so no bench env can produce a
+`firmware-<slug>.bin`. Two independent exclusions — one on the artifact, one on
+the pipeline.
+
+### The three bench boards — serial available
+
+| observation | verdict |
+|---|---|
+| each of COM4 / COM16 / COM119 takes v11 within 24 h of publish, via the deferred-reboot path | **(a) PASS** |
+| `changes[]` in the `fw:` ledger shows `10 -> 11` for each | **(b) PASS** — corroborates from the Worker side |
+| a boot row per device with **reset `SW`** | **(c) PASS** — a deferred reboot is a software restart; `POWERON` would mean somebody pulled power and the OTA path stays unproven |
+| a device still on 10 after 24 h | **(d) FAIL** — check its contiguous heap FIRST: the update check needs the same large block enrichment does, so a fragmented unit loses the remote repair path. That is the `rej=97` finding, not a new one |
+| `changes[]` shows `11 -> 10` | **(e) STOP** — a rollback, not a slow update |
+
+### The friend's board — NO serial, so the reading is indirect
+
+The only instrument is the boot-reason telemetry, and its evidence is a **timing
+shift**. v10 has no local schedule at all, so its daily reboot drifts on the
+uptime timer and its rows land wherever that unit happened to start. Under v11
+the reboot is pinned to 03:00 LOCAL.
+
+| observation | verdict |
+|---|---|
+| daily reason rows stop drifting and settle **near 10:00Z** | **(a) PASS** — 03:00 PDT is 10:00Z; the schedule is local-correct |
+| rows settle near **03:00Z** | **(b) FAIL** — pinned to UTC, so that board is resolving offset 0 |
+| rows keep drifting after its fw row shows 11 | **(c) FAIL** — v11 installed and the schedule not running |
+| rows settle at some other FIXED hour | **(d) NOT A FAILURE — READ THE LONGITUDE.** 10:00Z assumes the board is Pacific. Any fixed hour means the schedule works; WHICH hour is set by that unit's own location |
+| anything else | **(e) STOP** |
+
+**WHAT (a) DOES NOT PROVE, stated now rather than argued later.** Rows settling
+at 10:00Z is consistent with TWO worlds: the migration cleared a manufactured
+`"0"`, **or** that board already carried a correct explicit offset and the
+migration correctly declined. Both produce an identical reading, and nothing
+available remotely separates them — there is no serial, and the migration line
+is not telemetry.
+
+So the honest claim from (a) is *"the schedule is local-correct on that unit"*,
+**not** *"the migration ran there"*.
+
+The asymmetry is what makes the reading worth taking anyway: outcome (b), rows at
+03:00Z, WOULD prove the board is still pinned to UTC. **It can falsify the
+migration having worked; it cannot confirm it.** That is a limit of the
+instrument, not a gap to close by inference — confirming it would need the boot
+reason to carry the resolved offset, which it does not.
+
+### Publish-time gate inherited from RELEASING.md
+
+v11 is >= 7, so the **photo square library must be published before the release**.
+It has been since v7, but that gate is stated per-release for a reason:
+publishing against an unpublished library removes photographs from every card in
+the fleet, by OTA, in one action, with no error anywhere. Re-run the dry run
+before creating the tag.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device

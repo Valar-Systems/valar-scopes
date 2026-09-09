@@ -251,22 +251,35 @@ pio run -e blipscope-s3-128 -t upload --upload-port COM<n>
 > contains the v11 config fix; do not ship a board from an older image and rely on
 > OTA to catch up.
 >
-> Every build before v11 had a config page whose clock-offset field defaulted to
-> the zone derived from the STORED longitude — which on a factory-fresh board is
+> **What v10 actually does, stated precisely, because the two failure modes are
+> easy to conflate.** v10 has no local-time schedule at all — `QuietHourPolicy.h`
+> does not exist on it. Its update check is `millis() - lastOtaCheck > 24h`,
+> which is uptime-based and therefore **DRIFTS**: a board that boots at 14:00
+> reboots at 14:00 every day thereafter, wherever that lands. A v10 board does
+> **not** reboot at 20:00; it reboots at whatever time its clock happened to
+> start. That drift is the defect v11's quiet hour exists to remove.
+>
+> **The manufactured zero is a separate defect, and it only bites in v11.** Every
+> build before v11 had a config page whose clock-offset field defaulted to the
+> zone derived from the STORED longitude — which on a factory-fresh board is
 > empty, so the field rendered `0`. **The first save is the same save that sets
-> the location**, so it posted that `0` back as though the customer had chosen it,
-> and from then on the device was pinned to UTC: a 03:00 "local" quiet-hour reboot
-> landing at 03:00 UTC, which is 20:00 Pacific — a black screen in front of the
-> customer, every evening.
+> the location**, so it posted that `0` back as though the customer had chosen
+> it. On v10 that stored zero changes nothing, because nothing reads a local
+> offset for scheduling. On v11 it would pin the device to UTC and put the 03:00
+> "local" reboot at 03:00 UTC = 20:00 Pacific — which is why the form fix and the
+> migration are part of v11 rather than follow-ups to it.
 >
 > Three of three bench boards carried that zero. It is what §7 provisioning does
 > by default, not an edge case.
 >
-> v11 fixes the form AND migrates a manufactured zero on first boot
-> (`cfg-rev` 5), so a board flashed with v11 is safe whether it is provisioned
-> before or after. **A board provisioned on an older image and updated later is
-> also repaired**, by the migration — but only once it takes the update, and it will
-> reboot at 20:00 local until it does. Flashing v11 in the first place avoids the
+> **No board ever experiences the 20:00 mode.** `configmigration::Apply()` runs in
+> `setup()`, before any quiet-hour decision is taken in `loop()`, so on the first
+> boot of a v11 image the manufactured zero is already gone by the time anything
+> schedules a reboot.
+>
+> So the choice this note is really about is **drift**: a board shipped on v10
+> drifts in front of its customer until the OTA lands, and is then repaired — form
+> and stored value both — on the first v11 boot. Flashing v11 here avoids that
 > window entirely.
 >
 > ```sh
