@@ -477,6 +477,70 @@ None of the three found what it was aimed at. Each found something else, on the
 first firing, because it made a previously invisible quantity visible at a moment
 somebody was already looking.
 
+## B2a RESULT: PASS, 2026-09-09 08:42 PDT
+
+Daniel power-cycled COM119 (`Blipscope-31D918`, 192.168.86.32) and set the clock
+offset to -7. The capture caught **both** boots, which is more than was asked for
+and is the reason two separate things got closed at once:
+
+```
+[boot] reset reason=POWERON
+[quiet] armed: reboot at local 22:00  ** BENCH OVERRIDE **, tz-offset=0 (+0 s)
+        -- local hour now -1 (clock unsynced -- falling back to the 24 h timer)
+
+[boot] reset reason=USB
+[quiet] armed: reboot at local 22:00  ** BENCH OVERRIDE **, tz-offset=-7 (-25200 s)
+        -- local hour now 8
+```
+
+The second boot is the config save restarting the board, and it is **outcome (a)**
+of the re-registered table:
+
+| registered | observed |
+|---|---|
+| hour 22 | 22 |
+| `** BENCH OVERRIDE **` present | present |
+| explicit offset honoured | `-7 (-25200 s)` |
+| local hour matches wall clock | 8, against a wall clock of 08:43 PDT |
+
+**Row (d), the anchor control for the flash itself, is excluded**: the marker is
+present and the hour is not 3, so the image running is the one that was uploaded
+and not the pre-flash image. That mattered more than usual here — two later
+upload attempts failed, and a failed flash is silent from the serial side.
+
+Firing arithmetic, stated rather than assumed: offset -25200 s means `LocalHour`
+reaches 22 when UTC reaches 05:00, i.e. **05:00Z on 2026-09-10 = 22:00 PDT
+tonight**. The 24 h cap expires 22:47:58Z today, about six hours before that, so
+the cap cannot refuse it.
+
+### Q2's unsynced-clock branch was observed on hardware, by accident
+
+This document said of Q2:
+
+> The bench boards sync NTP within seconds of boot, so the fallback branch is
+> unreachable here. It is covered by the host suite and by no bench observation.
+
+That is now **partially false, and in the useful direction.** The POWERON boot
+printed `local hour now -1 (clock unsynced -- falling back to the 24 h timer)`.
+The branch was never unreachable — it is reachable for the few seconds before NTP
+lands, and no capture had ever been attached early enough to see it.
+
+What this closes and what it does not: the **print** is confirmed, so the policy
+does take the fallback path on a real unsynced clock. The **firing** is still
+unobserved, and remains so, because the clock synced before any decision was due.
+Stated separately because they are different claims.
+
+### And the new brightness field is live
+
+```
+[health] frame ... interval=5000ms  bright=255/255
+```
+
+255/255 with no `NIGHT` marker, at 08:43 in daylight, which is correct. The field
+is what makes B2b readable tonight without scrolling for an edge-triggered
+`[dim]` line, and it is what would have answered the "is it actually dimmed?"
+question objectively yesterday.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device
