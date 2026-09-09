@@ -477,6 +477,98 @@ None of the three found what it was aimed at. Each found something else, on the
 first firing, because it made a previously invisible quantity visible at a moment
 somebody was already looking.
 
+## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
+
+**The longitude fallback added in `77e822d` is unreachable on any device
+configured the ordinary way.** The fix is correct; almost nothing reaches it.
+
+### How it surfaced
+
+B2a was re-registered with four outcomes and a "none of the above -> STOP". The
+hour-22 flash produced:
+
+```
+[quiet] armed: reboot at local 22:00  ** BENCH OVERRIDE **, tz-offset=0 (+0 s) -- local hour now 15
+```
+
+Not (a): the offset is `0`, not `-28800`. Not (c) either, and this is the whole
+point — (c) was `(0 s)` **with `unset`**, and the line says `tz-offset=0`. The
+print renders `tz.isEmpty() ? "unset" : tz.c_str()`, so a literal `0` means the
+key is **present and explicitly zero**, which `LocalOffset.h` deliberately
+honours ("a customer who typed something meant something", pinned in
+`test_local_offset.cpp`). The code did exactly what it should. The registered set
+was incomplete, the escape hatch caught it, and that is the mechanism working.
+
+### The defect, which is in the config page and not in the policy
+
+`ConfigurationWebServer.cpp` renders the field from the STORED longitude:
+
+```cpp
+const String longitude = prefs.getString("longitude", "");   // line 2285
+...
+const String tzOffset = prefs.isKey("tz-offset")
+    ? prefs.getString("tz-offset", "0")
+    : String((int)round(longitude.toFloat() / 15.0));        // line 2352
+```
+
+On a factory-fresh device the location has not been set yet, so `longitude` is
+`""`, `"".toFloat()` is `0.0`, and the field renders **`0`**. Then:
+
+1. the customer opens the config page for the first time;
+2. they type their location — the same form, the same page load;
+3. they press Save. The form posts every field, including the `tz-offset` they
+   never looked at, carrying the `0` that was rendered before their location
+   existed;
+4. `TrySaveParam("tz-offset")` writes `"0"` unconditionally;
+5. from that moment `tz-offset` is explicitly zero, forever.
+
+No JS recomputes the field when the location changes — checked, there is no
+assignment to it anywhere in the page.
+
+**So the ordinary first-run flow bakes in UTC.** Quiet hour 03:00 "local" becomes
+03:00 UTC = **20:00 PDT**, which is the exact complaint this feature was built to
+remove, and the same 20:00 the v10 rollout hit.
+
+### Naming the alternative, and why it does not save us
+
+*Could the bench board's `"0"` have come from someone typing it, or from a save
+made after the location was set?* Possibly — a save with a location present would
+have rendered and stored `-8`. But the finding does not rest on how this board
+got its value: the first-run path above is established by **reading the code**,
+and the board is corroboration rather than proof. The alternative explains one
+device; it does not explain away a code path every new customer walks.
+
+### What this does NOT mean
+
+- **Not a regression from `77e822d`.** Before that commit `main.cpp` resolved
+  unset to `0L`, so this class of device behaved identically. The commit fixed a
+  genuine second-path defect and is worth keeping.
+- **Not a policy bug.** `QuietHourPolicy.h` and `LocalOffset.h` both behave
+  correctly on every input. Honouring an explicit zero is right.
+- **The config page's DEFAULT is right too** — the nominal zone from longitude is
+  exactly what `LocalOffset.h` computes. It is evaluated at the wrong moment.
+
+This is the CLAUDE.md entry *a default only reaches keys that were never saved*,
+with a twist: there the default was frozen at its correct value, and here it is
+frozen at a value that was only ever a placeholder for missing input.
+
+### The options, none of them chosen yet
+
+| | change | reaches already-configured units? |
+|---|---|---|
+| **1** | render the field EMPTY when the key is absent, with an `auto (from your location)` placeholder; an empty post stores `""` and `Resolve` takes the longitude branch | no |
+| **2** | recompute the field in JS when lat/lon change | no |
+| **3** | 1 or 2, plus a `ConfigMigration` that DELETES a `tz-offset` of exactly `"0"` on units whose longitude implies a different zone | yes |
+
+Option 3 is the only one that helps a customer who has already configured a
+device, and it is the one that needs a decision rather than an implementation:
+deleting a stored `0` overrides someone who genuinely meant UTC. The saving grace
+is that for a genuine UTC user the longitude fallback returns ~0 anyway (London
+is lon ~0), so the two answers agree precisely where the risk is.
+
+**Not implemented pending a scope call.** It affects the 50 launch units only if
+any of them have already been through first-run configuration.
+
 ## GATE B3 — the dark-room look. PRE-REGISTERED 2026-09-08, BEFORE ANYONE WATCHES
 
 **The only reading in this plan that no log can take.** Serial can prove the
