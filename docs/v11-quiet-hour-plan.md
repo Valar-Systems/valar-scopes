@@ -972,6 +972,88 @@ So the Release is created **after** B3 reports, on Daniel's word. Written down
 because the constraint lives in a different subsystem from the gate it protects,
 which is the shape this repo keeps getting caught by.
 
+### THE PUBLISH RUNBOOK — one sequence, on Daniel's word, morning of 2026-09-10
+
+Written out so publishing is a single pass with nothing to decide mid-flight.
+**Precondition: Daniel has reported B3.** Nothing below runs before that.
+
+**1. The photo-square hard gate (RELEASING.md).** v11 is >= 7, so this applies.
+Publishing against an unpublished square library removes photographs from every
+card in the fleet by OTA, in one action, with no error anywhere.
+
+```sh
+cd proxy && npx tsx scripts/ingest-photos.ts --dry-run --env production
+```
+
+If it prints *"could not read the published manifest"*, **STOP** — the count that
+follows is a comparison against nothing and reads the same in both worlds. A
+clean dry run showing no pending square work is the pass.
+
+**2. Create the Release.** This is the publishing action, and the only one.
+
+```sh
+gh release create v11 --title "v11 — ..." --notes-file <notes>
+```
+
+CI then builds every matrix SKU, attaches `firmware-<slug>.bin` for each, and
+attaches `version.txt` containing `FW_VERSION`. Do not hand-upload assets; the
+workflow names them to match what devices request.
+
+**3. Verify the flip, on the artifact devices actually read.** Not the release
+page, not the badge — the URL the firmware polls:
+
+```sh
+curl -s -L https://github.com/Valar-Systems/valar-scopes/releases/latest/download/version.txt
+```
+
+| reading | meaning |
+|---|---|
+| `11` | published and discoverable — F1's clock starts here |
+| `10` | CI has not finished, or `version` was skipped. Check the publish receipts before assuming lag |
+| 404 | the `version` job did not run. This is the v9 failure — a slug-less leg blocking the fleet's gate |
+
+Read it **twice, a minute apart**, before believing it. A single read of a
+propagating system is a coin flip.
+
+**4. F1 reads over the following 24 h**, per the pre-registration above. Bench
+boards from serial plus the `fw:` ledger; the remote board from boot-row timing
+only, with the confirm/falsify asymmetry already stated.
+
+**5. Hold the bench watchers through the whole window.**
+
+| label | port | board |
+|---|---|---|
+| `b3-overnight` | COM119 | `Blipscope-31D918` |
+| `f1-com4` | COM4 | `Blipscope-31E9D8` |
+| `f1-com16` | COM16 | `Blipscope-31E794` |
+
+Each mapping was read from a boot banner on that exact port on 2026-09-09 after
+a flash to it. **They are detached processes: they survive this session but NOT a
+host restart** — which is exactly what killed the previous set overnight.
+
+That is survivable rather than fatal, and the reason is worth stating: **F1's
+primary evidence is server-side.** The `fw:` ledger's `changes[]` and the boot
+rows in Analytics Engine are written by the Worker and outlive any local process.
+The serial captures are corroboration and per-event detail. Losing a watcher
+costs the detail, not the gate.
+
+### One pre-publish observation that F1 outcome (d) should be read against
+
+COM4 is currently sitting at `largest=10740` with `[health] BUDGET BROKEN` and
+`rej=98` — below the contiguous block a TLS handshake needs, with enrichment
+already being declined.
+
+Registered now, before publish, so it is not improvised later: **this is not
+expected to block its update, and if it does, that is a real finding.** v10's
+whole design is reboot-THEN-fetch precisely for this — the reboot defragments,
+and the fetch happens on a fresh heap. So a fragmented board should still take
+the OTA.
+
+F1 outcome (d) therefore sharpens: a device still on 10 after 24 h is a failure
+whose first question is not "was it fragmented" but **"did it reboot at all"**. If
+it rebooted and still could not fetch, reboot-then-fetch has not solved what it
+was built to solve, and that outranks v11.
+
 ### Publish-time gate inherited from RELEASING.md
 
 v11 is >= 7, so the **photo square library must be published before the release**.
