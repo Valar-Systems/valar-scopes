@@ -281,9 +281,31 @@ losing a day to find out.
 | observation | verdict |
 |---|---|
 | `[quiet] armed: reboot at local 03:00, tz-offset=-7 (-25200 s) -- local hour now N` where N matches wall-clock Bend | **(a) PASS** |
-| `tz-offset=unset` | **(b) NOT A CODE FAILURE — a CONFIG one.** The board would reboot at 03:00 UTC = 20:00 local, which is the exact complaint this feature exists to fix. Set the offset on the board and re-read before proceeding |
+| `tz-offset=unset` | **(b) SUPERSEDED 2026-09-08 — see the re-registration below.** This row was written when `main.cpp` resolved an unset zone to `0L`, and it correctly called that a config problem. The `LocalOffset.h` fix makes an unset zone fall back to the longitude, so "unset" is now a normal, correct state and this verdict would mis-read it as a defect |
 | local hour disagrees with wall clock | **(c) FAIL** — check the sign of the offset first; a west-of-Greenwich sign error lands exactly `2 x offset` hours out |
 | `clock unsynced` on the line | **(d) INCONCLUSIVE** — re-read after NTP lands; the fallback is correct behaviour, not a result |
+
+#### B2a RE-REGISTERED 2026-09-09, for the bench-hour-22 flash
+
+Two things moved since the table above was written: the tz fallback landed
+(`77e822d`), and the quiet hour became bench-overridable (`31360f9`). The bench
+board has **no `tz-offset` set** and is at longitude -121.29, so the expected
+line changes shape entirely. Registered before the flash:
+
+| observation | verdict |
+|---|---|
+| `tz-offset=unset (-28800 s)`, hour 22, `** BENCH OVERRIDE **` present, and `local hour now N` matching wall-clock Bend | **(a) PASS** |
+| `(-25200 s)` — i.e. -7 h | **(b) NOT A PASS, AND NOT A FAILURE EITHER.** It means `tz-offset` survived as `-7` rather than being unset, so the fallback branch was never exercised and B2a establishes nothing about it. Read the config, then decide |
+| `(0 s)` with `unset` | **(c) FAIL** — the fallback did not land on the artifact. The host suite passes, so this is a build/flash problem, not a logic one: confirm which image is running before touching the code |
+| hour 3, or no `** BENCH OVERRIDE **` | **(d) FAIL — THE FLASH DID NOT TAKE.** The shipping default is 3 and the marker is absent only when the flag is undefined. This is the reading that catches "the upload failed and the old image is still running", which has happened twice on this board |
+| anything else | **(e) STOP.** Do not improvise a reading at the moment the result is visible |
+
+Note that **(d) is the anchor control for the flash itself.** It is the only row
+that distinguishes a new image from the old one, which matters more than usual
+here: the previous two upload attempts on this board both failed, and a failed
+flash is silent from the serial side — the board keeps running and keeps
+logging.
+
 
 ### B2b — brightness carried across the reboot (serial)
 
@@ -327,6 +349,53 @@ room through the 10:00Z reboot.
   It becomes real the moment ONE non-radar edition ships, and the trigger is
   therefore a shipping decision rather than a date. Closing it needs either one
   shared config key or one shared accessor. See "Post-launch backlog" below.
+
+## The flash procedure itself was the defect: an unconditional watcher
+
+**Recorded because this is a recurring shape, not a one-off clumsiness.** It cost
+this gate a full day.
+
+The bench sequence is three steps: kill the serial recorder, upload, start the
+recorder again. On 2026-09-08 the third step ran **unconditionally**, and that is
+the whole bug:
+
+| | what happened |
+|---|---|
+| attempt 1 | upload failed. The recorder was started anyway and took `COM119` |
+| attempt 2 | failed *because* of the recorder attempt 1 had started — a held port fails esptool in ~10 s |
+| after | the board was left wedged; B2a and B3 both slipped a day |
+| recovery | an **accidental** one. An overnight computer restart power-cycled USB and freed it |
+
+**The second attempt was worse than the first, and the first attempt is what made
+it so.** A failed flash is not self-limiting here — it actively degrades the
+conditions for the retry.
+
+Three separate things in this repo already knew a piece of this and none of them
+ran:
+
+- `scripts/bench-capture.ps1` documents the kill-and-wait half in a comment
+  ending *"Bit me twice."* It covers the step **before** the upload. Nothing
+  covered the step after.
+- CLAUDE.md's *"a plausible measurement from a build that never landed"* says
+  outright: **read the flash's exit status and stop on it.**
+- The same file's oldest rule says a check that runs beats a rule that is
+  written.
+
+So the fix is not another paragraph. It is
+[scripts/bench-flash.ps1](../scripts/bench-flash.ps1), which owns the whole
+sequence and **gates the recorder launch on `$LASTEXITCODE`**. On a non-zero
+exit it prints why, leaves the port free, and exits with the upload's own status.
+It also refuses to start at all if the port never becomes openable — a poll that
+takes the handle, not a sleep, because killing the holder returns before Windows
+releases it.
+
+**Which entry in CLAUDE.md this is.** It is *"when you add a second path,
+enumerate what the FIRST one establishes"*, with the paths being the two
+outcomes of a command rather than two call sites. The success path establishes
+"a new image is on the board, and the port is free for a recorder". The failure
+path establishes **neither**, and the code ran as though it established both.
+`bench-capture.ps1`'s comment is the tell the table describes: a hazard stated in
+prose on one path, beside another path that does not mention it.
 
 ## The tz defect, and the boot print that caught it on its first firing
 
