@@ -663,6 +663,83 @@ at 22:00 PST = **23:00 PDT**, an hour after Daniel is watching. So B2a-REAL runs
 NOW, and `tz-offset` is set back to `-7` before this evening. Recorded because an
 un-restored bench state is how a gate gets watched at the wrong hour.
 
+## B2a-REAL RESULT: PASS, 2026-09-09 09:04 PDT — fallback reached through the customer's path
+
+Both open items closed by one verification, run on COM119 against the fix.
+
+### The readings, in order
+
+| step | reading |
+|---|---|
+| page renders, `tz-offset` explicit | `value='-7'  placeholder='Auto - UTC-8 from location'` |
+| clear the field, whole-form save | `value=''`, key REMOVED |
+| boot print after the clear | `tz-offset=unset (-28800 s) — local hour now 8` |
+| **whole-form save, field UNTOUCHED** | posted `tz-offset=''` across 37 fields with `cfg-form` |
+| **boot print after that save** | `tz-offset=unset (-28800 s) — local hour now 8` |
+
+Wall clock at the reading was **09:04 PDT**, printed local hour **8**: one hour
+behind, which is registered outcome **(a) PASS** and not a defect. The fallback
+is nominal solar time and ignores DST, so at Bend in September it is PST while
+the civil clock is PDT. Registered before the reading precisely so this could not
+be improvised either way.
+
+`unset` rather than `empty` is the load-bearing half: the key is ABSENT, so the
+untouched save wrote nothing. Under the old code the same click stored `"0"`.
+
+### Red rehearsal: CONFIRMED
+
+The sabotage restored the unconditional `TrySaveParam` and the old
+longitude-derived `value=`, with the first-run condition forced (the default
+computed from an empty longitude, since this board has a location):
+
+| observation | registered as |
+|---|---|
+| page rendered `value='0'` on an ABSENT key | the old default manufacturing a zero |
+| untouched whole-form save then stored it | the defect, reproduced |
+| `tz-offset=0 (+0 s) — local hour now 16` | **RED CONFIRMED**; 16 is the UTC hour at 09:1x PDT |
+
+So the fix is load-bearing: remove it and the same customer click puts UTC back.
+The sabotage was reverted with `git checkout -- <one path>`, and its absence
+checked by grepping for its markers rather than assumed.
+
+### What the verification COULD NOT SEE until an instrument was added
+
+Halfway through, the check could not be written. "Auto" is the ABSENCE of the
+key, and nothing could observe absence: the page renders `value=''` for both an
+absent key and a stored `""`, the placeholder shows either way, and
+`GetStoredString` returns `""` for both. **The invariant the fix turns on was
+invisible from every surface.**
+
+`HasStoredKey()` was added and the boot print now separates `unset` / `empty` /
+`<value>`. Worth recording as its own event: the fix was already correct, and the
+gate would have "passed" without being able to tell the passing world from one
+where the save stored `""` instead of removing the key. That is a check that
+cannot detect its own failure — caught here only because writing the verification
+forced the question.
+
+### Final bench state, and the restore
+
+`tz-offset` set back to `-7`, confirmed on the artifact:
+
+```
+[quiet] armed: reboot at local 22:00  ** BENCH OVERRIDE **, tz-offset=-7 (-25200 s) -- local hour now 9
+```
+
+Local hour 9 against a 09:09 PDT wall clock — matching exactly, because an
+explicit -7 IS PDT. So 22:00 local is 22:00 PDT and B3 is armed for tonight.
+Recorder `b3-overnight` attached.
+
+### STILL OPEN: already-configured units keep their zero
+
+The fix reaches devices that have not yet been saved. **Any unit already through
+first-run configuration still holds an explicit `tz-offset="0"`** and will still
+reboot at 03:00 UTC. This bench board did, until it was cleared by hand above.
+
+Whether the 50 launch units need a migration depends on whether any has been
+configured, which is a fact about stock rather than code. The migration option is
+written up under the blocker below; it is not implemented, and v11 scope as given
+covers the first-run path only.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device
