@@ -77,6 +77,25 @@ bool DeferUpdateCheckToReboot(uint32_t largestBlock);
 // ESP_RST_SW with `pending` set, and "the daily update check" and "the network
 // was unreachable for eight minutes" are very different things to see in a
 // fleet-wide reset-reason histogram.
+// BENCH-OVERRIDABLE, same discipline as BLIPSCOPE_QUIET_HOUR and
+// BLIPSCOPE_FORCE_NIGHT. An on-demand B3 run needs the deferral to be ACCEPTED
+// rather than refused, and the cap legitimately refuses: the board reboots once
+// a day and the gate may need two runs in one afternoon.
+//
+// The override shortens the cap. It does NOT bypass the check -- the same
+// comparison runs, the same NVS stamp is written, the same refusal path exists
+// -- because the point of the run is to exercise the real deferral, and a
+// bypass would make the gate test a code path no customer has.
+//
+// Announced in the boot log and provably absent from the shipping ELF.
+#ifdef BLIPSCOPE_REBOOT_MIN_S
+constexpr uint32_t REBOOT_MIN_INTERVAL_S = BLIPSCOPE_REBOOT_MIN_S;
+constexpr bool REBOOT_CAP_IS_OVERRIDE = true;
+#else
+constexpr uint32_t REBOOT_MIN_INTERVAL_S = 24UL * 60UL * 60UL;
+constexpr bool REBOOT_CAP_IS_OVERRIDE = false;
+#endif
+
 constexpr uint8_t REBOOT_CAUSE_OTA_CHECK = 1;
 constexpr uint8_t REBOOT_CAUSE_NET_WEDGE = 2;
 

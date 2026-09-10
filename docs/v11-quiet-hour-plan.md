@@ -1062,6 +1062,214 @@ publishing against an unpublished library removes photographs from every card in
 the fleet, by OTA, in one action, with no error anywhere. Re-run the dry run
 before creating the tag.
 
+## B3 WAS VOIDED BY THE TOOL THAT VERIFIED IT — 2026-09-10
+
+**Gate B3 ran on 2026-09-09 at 22:00 PDT against a board that was never dim.**
+The quiet hour fired correctly and the reboot went through the deferred path, so
+the log looks like a clean run. It was not a reading, because the precondition
+was gone.
+
+```
+[quiet] quiet-hour -> deferring update check to reboot
+rst:0xc (RTC_SW_CPU_RST)     [boot] reset reason=SW
+[quiet] armed: ... local hour now 22
+```
+
+Across 3,030 health lines that night: every one `bright=255/255`, **zero `[dim]`
+lines, zero `NIGHT` markers**. B3 outcome (d), VOID.
+
+### The cause was the verification tooling, not the firmware
+
+Three whole-form POSTs were sent to COM119 the previous afternoon to drive
+B2a-REAL through the customer's path. They turned off **all 43 toggles**,
+`autodim` among them.
+
+| board | whole-form POSTs | checkboxes checked after |
+|---|---|---|
+| COM119 | 3 | **0 / 43** |
+| COM16 | 2 | **0 / 43** |
+| COM4 | **none** | **16 / 43** |
+
+COM4 is what settles it: same batch, same firmware, same sky, never POSTed, and
+it still had its toggles. And COM119 provably dimmed before the POSTs —
+`[dim] brightness -> 51 (night)` at 2026-09-09T02:30:16Z.
+
+### The mechanism, and why the mitigation did not help
+
+The hazard was **known and explicitly mitigated**. A PARTIAL post is unsafe:
+`SaveToggle()` writes `"false"` for any absent checkbox when the `cfg-form`
+marker is present. That was reasoned about out loud, and a whole-form post was
+chosen precisely to avoid it.
+
+The whole-form post was built by parsing the rendered page with an attribute
+regex requiring `name=value`. **The page renders a BARE `checked` attribute.** So
+no checkbox was ever seen as checked, all 43 were omitted from the body, and
+`SaveToggle` wrote `"false"` for every one.
+
+> A mitigation was built, believed, and never verified to do the thing it
+> claimed.
+
+That is the entry *when you add a second path, enumerate what the FIRST one
+establishes*, turned on a tool rather than on shipping code. "Whole-form" was
+believed to establish "every control is represented". It established only "the
+`cfg-form` marker is present".
+
+### THE DISPROOF WAS IN ITS OWN OUTPUT, ON EVERY RUN
+
+Each POST printed:
+
+```
+posting 37 fields; cfg-form=True
+```
+
+37, on a form with **43 checkboxes plus ~20 other inputs**. The correct number is
+53. The tool was reporting, every single time, that it was submitting fewer
+fields than the form has checkboxes — which is only possible if it was sending
+none of them.
+
+**The number was printed, read past, and used as evidence the post had worked.**
+Same family as the void-firing-instrument entry, with the shortest possible
+distance between the signal and the reader: it was on screen, in the output of
+the command being run, at the moment of running it.
+
+The tell generalises: **when a tool prints a count, the count has to be checked
+against something.** A bare number is decoration. `posting 37 fields` means
+nothing; `posting 53 fields; checkboxes 16 -> 16` cannot be wrong quietly.
+
+### What replaced it
+
+[scripts/bench-config.py](../scripts/bench-config.py), with the parse fixed
+(optional attribute values, so bare booleans are captured) and two guards, both
+watched firing:
+
+- **Guard 1 — read the form back and assert.** After every POST it re-reads the
+  rendered page and compares the checked set against what was intended, naming
+  any box that did not stick.
+- **Guard 2 — refuse a drop to zero.** A post that would leave 0 boxes checked
+  from a nonzero baseline is refused with exit 3 unless `--allow-zero-checked` is
+  passed. Unchecking everything is the shape of a parse bug, not an intention.
+
+Rehearsed red: asking it to clear COM119 returns *"REFUSED: this post would leave
+0/43 checked, down from 16"*, exits 3, and the board reads 16/43 afterwards —
+the refusal happens before the POST, not after.
+
+### Restored
+
+All three boards read **16/43** with `autodim` on, confirmed by reading each
+rendered form back rather than by trusting the writer. Daniel confirms COM4's
+set is the bench standard and nothing on COM119 was deliberately different.
+
+### What this cost, and what it did not
+
+- **B3 must be re-run.** The 2026-09-09 window is gone.
+- **B2b is unreadable from that night** — no dim to carry.
+- **M1 and B2a-REAL stand.** Both read `tz-offset`, a text field the old parser
+  handled correctly, and both were confirmed from the device's own boot print on
+  serial rather than from the form.
+- **v11 is unaffected.** This is bench configuration state; no shipped code is
+  involved.
+
+## GATE B3 RESULT: FAIL then PASS, 2026-09-10 — and the defect it caught
+
+**B3 found a release blocker on its first valid run.** Brightness carryover, one
+of the three things v11 ships, did not work on any reboot.
+
+### Run 1, 12:00 PDT — FAIL
+
+Daniel, on glass: *"the startup screen remained dim, but then the radar got very
+bright for the first 3 seconds, then went dim."*
+
+B3 outcome **(b) FAIL** (any brightening, however brief) and B2b outcome **(b)
+FAIL** (the dim level appears only after a 255). The serial signature was a
+`[dim] brightness -> 51 (night)` line AFTER the reboot — that line only prints on
+a CHANGE, so its presence proves the panel had been moved off 51.
+
+**The split in his description is what localised it.** The splash is drawn before
+`AircraftManager::Initialise` and the radar after, so "splash dim, radar bright"
+points at exactly one line.
+
+### Two causes, and fixing either alone would have shipped a flash
+
+| | cause | why it survives the other fix |
+|---|---|---|
+| 1 | `Initialise` ran `tft.setBrightness(configuredBrightness)`, discarding the carried level `main.cpp` had already applied at first light | the obvious one |
+| 2 | `synced && isNightNow(...)` — an unsynced clock produced `night=false`, so the target became full brightness | fires on any cold boot before NTP lands, with cause 1 fixed |
+| 3 | the 20 s guard ignored `lastBrightnessCheck = 0` | `now - 0 < 20000` is true at boot, so the first evaluation waited until 20 s uptime. **That delay was the width of the flash** |
+
+Cause 2 is the [`ProgressAlong` clamp](../CLAUDE.md) shape: converting *"I do not
+know"* into a plausible, reassuring value. An unsynced clock is not evidence of
+daytime. With no verdict the panel now keeps whatever first light applied.
+
+Cause 3 is prose that did not run, twice over: two call sites set
+`lastBrightnessCheck = 0` meaning "evaluate now", one of them with the comment
+*"re-evaluate dimming promptly after a reload"*, and the guard honoured neither.
+
+**The carry's own comment already promised the fixed behaviour** — *"every reboot
+benefits: quiet hour, watchdog, crash, power cut"* — which is what makes this a
+broken promise rather than a missing feature. Daniel stated the requirement
+independently as *"the screen should never brighten even during reset when it's
+in dim mode on"*, and that is strictly wider than B3 was registered for. **The
+registration was too narrow**: it scoped the reading to the quiet-hour reboot,
+when `Initialise` runs on every boot. His prep-reset flashing is what showed the
+scope was wrong.
+
+### Run 2, 13:30 PDT — PASS
+
+Same board, same bench build, the fix in:
+
+```
+[quiet] quiet-hour -> deferring update check to reboot
+[ota] update check deferred to reboot (cause=1 largest=11764)
+[boot] reset reason=SW
+[ota] this boot was armed by a deferred update check
+```
+
+| reading | source | result |
+|---|---|---|
+| no brightening at any point | Daniel, dark room | **(a) PASS** |
+| `[dim]` lines after the reboot | serial | **0** — the panel was never changed |
+| first brightness after the reboot | serial | `bright=51/255 NIGHT` |
+| a plain reset also stays dim | Daniel, 13:27 | **PASS** — the wider requirement |
+
+**Zero `[dim]` lines is the discriminator, and it is worth keeping.** Before the
+fix every boot printed exactly one, because the correction had something to
+correct. Afterwards there is nothing to print. An absence is a weak signal in
+general; it is a strong one here because the paired presence was observed on the
+same board, same build, minutes earlier.
+
+### What this says about the gate
+
+B3 is the one reading in this programme a log cannot take, and it earned that
+description. No test went red. No instrument reported anything wrong. The
+`[dim]` line that gave the mechanism away reads as normal, healthy output — it
+only becomes evidence once you know the panel should not have needed correcting.
+
+It was found because a person looked at glass, and the fix was localised in
+minutes because that person described **what** brightened (the radar, not the
+splash) rather than only **that** it brightened.
+
+### Process notes from the two failed attempts
+
+Both cost Daniel a wait, and both were mine:
+
+- **2026-09-09 22:00 — VOID.** My whole-form POSTs had turned off `autodim`; the
+  board was never dim. See the entry above.
+- **2026-09-10 12:30 — never fired.** I set `tz-offset=-6.25` and read it as
+  6h25m; it is 6h**15**m, so the flash-boot landed at local 13:03, INSIDE the
+  target hour, and the policy correctly seeded `lastFiredDay` and refused all
+  day. The guard was right and I aimed it at the wrong minute.
+
+The second is why the third attempt computed the offset with the machine and
+asserted both halves before touching the board:
+
+```
+20:30:00Z + (-7.5h) -> local 13:00   (hour must be 13)      OK
+at boot ~20:27Z     -> local 12:57   (hour must NOT be 13)  OK
+```
+
+and then confirmed it against the boot print rather than the intent:
+`tz-offset=-7.5 (-27000 s) -- local hour now 12`.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device

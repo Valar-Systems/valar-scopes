@@ -36,9 +36,13 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe' 
     } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
 $free = $false
-for ($i = 0; $i -lt 20; $i++) {
+# 45 x 800ms = 36s. Was 20 x 500ms = 10s, and that refused a legitimate reset on
+# 2026-09-10 because Windows had not released the COM handle yet. bench-flash.ps1
+# had the same bug and was widened that morning; this copy was not, which is the
+# two-guards-on-one-rule shape -- the second copy is always the stale one.
+for ($i = 0; $i -lt 45; $i++) {
     try { $t = New-Object System.IO.Ports.SerialPort $Port,115200; $t.Open(); $t.Close(); $t.Dispose(); $free = $true; break }
-    catch { Start-Sleep -Milliseconds 500 }
+    catch { Start-Sleep -Milliseconds 800 }
 }
 if (-not $free) { Write-Host "[reset-read] port $Port never freed"; exit 3 }
 

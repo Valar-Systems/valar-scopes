@@ -35,7 +35,6 @@ constexpr const char* OTA_BOOT_NS = "ota-boot";
 // One flag-triggered reboot per 24 h. Matches the daily timer's own cadence, so
 // the cap costs nothing in the healthy case and bounds the damage in every
 // unhealthy one.
-constexpr uint32_t REBOOT_MIN_INTERVAL_S = 24UL * 60UL * 60UL;
 
 // 2026 in epoch seconds. time(nullptr) returns a small number until NTP lands,
 // and an unsynced clock must not be read as "the cap expired long ago" -- that
