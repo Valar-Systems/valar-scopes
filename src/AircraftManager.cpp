@@ -1,6 +1,7 @@
 #include "AircraftManager.h"
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
+#include "BrightnessLog.h"
 #include "LocalOffset.h"
 #include "FollowLabel.h"
 #include "DiscGeometry.h"
@@ -1254,6 +1255,7 @@ void AircraftManager::Initialise()
         // Nothing carried (a factory-fresh unit): main.cpp lit 255, so the base
         // level still has to be applied. This can only ever dim DOWN from 255,
         // never up, so it cannot produce the flash.
+        brightlog::Applied("init/base-no-carry", configuredBrightness);
         tft.setBrightness(configuredBrightness);
         currentBrightness = configuredBrightness;
         brightcarry::Remember(configuredBrightness);
@@ -4147,6 +4149,7 @@ void AircraftManager::UpdateBrightness()
         target = configuredBrightness;
 
     if (target != currentBrightness) {
+        brightlog::Applied(target < configuredBrightness ? "dim/night" : "dim/day", target);
         tft.setBrightness(target);
         currentBrightness = target;
         // Carried across a reboot so the next boot's FIRST light matches this,

@@ -22,6 +22,7 @@
 #include "OtaUpdater.h"
 #include "NetWatchdog.h"
 #include "BrightnessCarry.h"
+#include "BrightnessLog.h"
 #include "LocalOffset.h"
 #include "QuietHourPolicy.h"
 #include "NightOverride.h"
@@ -232,6 +233,8 @@ void setup()
   // DrawSplash, not after it, because a correction that arrives on the next dim
   // pass is a flash that already happened.
   const uint8_t carried = brightcarry::Recall();
+  brightlog::Applied(carried ? "first-light/carry" : "first-light/default",
+                     carried ? carried : 255);
   tft.setBrightness(carried ? carried : 255);
 
   // The full-frame backbuffer only fits on boards with PSRAM (480x480x8bpp ~= 230 KB); banded
