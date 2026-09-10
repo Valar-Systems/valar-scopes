@@ -100,7 +100,15 @@ if ($killed -eq 0) { Say "  none found" }
 # ---- 2. WAIT FOR THE HANDLE, by opening it ---------------------------------
 # A poll, not a sleep: the only proof the handle is free is that we can take it.
 $free = $false
-for ($i = 0; $i -lt 20; $i++) {
+# 45 x 800ms = 36s. Was 20 (16s) and that was NOT enough: on 2026-09-10 the
+# recorder process was already gone -- the CIM listing that showed it was stale
+# -- and Windows still held the COM handle past the 16s window. The script
+# refused, correctly, and the port opened on the first try 20s later.
+#
+# The refusal was the right behaviour and the window was the wrong length, which
+# are different bugs. Widening it costs nothing on the happy path (it exits on
+# the first success) and removes a refusal that is pure false alarm.
+for ($i = 0; $i -lt 45; $i++) {
     try {
         $sp = New-Object System.IO.Ports.SerialPort $Port, 115200
         $sp.Open(); $sp.Close(); $sp.Dispose()
@@ -115,7 +123,9 @@ if (-not $free) {
     Say "REFUSING TO FLASH: $Port never became openable."
     Say "  A flash into a held port fails in ~10 s with a message that reads"
     Say "  like a build error. Something we do not recognise is holding it:"
-    Say "    Get-CimInstance Win32_Process | ? { \$_.CommandLine -match '$Port' }"
+    Say "    Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -match '$Port' }"
+    Say "  NOTE a CIM listing can be STALE -- a pid shown there may already be gone."
+    Say "  Re-check with Get-Process before hunting for a holder that does not exist."
     exit 3
 }
 

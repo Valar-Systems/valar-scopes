@@ -24,6 +24,7 @@
 #include "BrightnessCarry.h"
 #include "LocalOffset.h"
 #include "QuietHourPolicy.h"
+#include "NightOverride.h"
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
 // sightings radar, the FEATURE_FISHING (Reelscope) console, the FEATURE_CLAUDESCOPE usage gauge,
@@ -144,6 +145,19 @@ void setup()
   LogOtaSlot("boot");
   Serial.printf("[boot] reset reason=%s\n", ResetReasonName());
   netwatch::Begin(); // prints the reachability ladder, and why this boot happened
+  // Bench overrides, announced together and LOUDLY. Not "is the number
+  // different" but "am I looking at a bench build?" -- a capture read weeks
+  // later must not mistake a permanently-dim panel or a minutes-long reboot cap
+  // for a shipping defect.
+  //
+  // `if constexpr` rather than a runtime test: the discarded branch is never
+  // instantiated, so these strings cannot reach a shipping image by an
+  // optimiser's choice. The release check greps the ELF to confirm it.
+  if constexpr (nightoverride::FORCE_NIGHT || REBOOT_CAP_IS_OVERRIDE) {
+    Serial.printf("[bench] ** BENCH OVERRIDE **  force-night=%d  reboot-cap=%lus\n",
+                  (int)nightoverride::FORCE_NIGHT,
+                  (unsigned long)REBOOT_MIN_INTERVAL_S);
+  }
   // The quiet-hour schedule, printed at boot for the same reason the ladder is:
   // otherwise it is invisible until 03:00 local, and "it did not fire" cannot be
   // told from "it is configured for a different hour" without waiting a day to

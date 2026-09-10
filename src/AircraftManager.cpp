@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "BrightnessCarry.h"
+#include "NightOverride.h"
 #include "LocalOffset.h"
 #include "FollowLabel.h"
 #include "DiscGeometry.h"
@@ -1227,13 +1228,37 @@ void AircraftManager::Initialise()
     const String brightnessStr = configServer.GetStoredString("brightness");
     configuredBrightness = brightnessStr.isEmpty()
         ? 255 : (uint8_t)constrain(brightnessStr.toInt(), 10, 255);
-    tft.setBrightness(configuredBrightness);
-    // The dim pass records every change it makes; this path changes the level
-    // WITHOUT going through it (a config save, or boot), so it records too.
-    // Missing this is the classic second-path defect: the carried value would be
-    // correct all day and stale for exactly the customer who just edited it.
-    currentBrightness = configuredBrightness;
-    brightcarry::Remember(configuredBrightness);
+    // DO NOT RE-APPLY THE BASE LEVEL HERE. This line used to be
+    // `tft.setBrightness(configuredBrightness)`, and it is what made every
+    // reboot flash: main.cpp has already put the CARRIED level on the panel at
+    // first light, and this threw it away and went to full brightness until the
+    // first dim evaluation caught up ~3 s later. Observed on glass 2026-09-10
+    // ("the startup screen remained dim, then the radar got very bright for the
+    // first 3 seconds") -- the split is the giveaway, because the splash is
+    // drawn before this runs and the radar after.
+    //
+    // The requirement is the one the carry already promised in its own comment
+    // below: the screen never brightens across a reboot while it is dimmed. Not
+    // "not during the quiet hour" -- during ANY reboot, including a button
+    // press, a watchdog, or a power cut.
+    //
+    // So adopt what is already lit rather than imposing a level. UpdateBrightness
+    // owns every change from here, and lastBrightnessCheck = 0 makes it evaluate
+    // on the very next tick rather than up to 20 s later.
+    const uint8_t carriedLevel = brightcarry::Recall();
+    if (carriedLevel != 0) {
+        // main.cpp applied exactly this at first light; record it as the truth
+        // about the panel so UpdateBrightness can see whether a change is needed.
+        currentBrightness = carriedLevel;
+    } else {
+        // Nothing carried (a factory-fresh unit): main.cpp lit 255, so the base
+        // level still has to be applied. This can only ever dim DOWN from 255,
+        // never up, so it cannot produce the flash.
+        tft.setBrightness(configuredBrightness);
+        currentBrightness = configuredBrightness;
+        brightcarry::Remember(configuredBrightness);
+    }
+    lastBrightnessCheck = 0; // evaluate as soon as there is a verdict to act on
 
     const String autoDimStr = configServer.GetStoredString("autodim");
     autoDim = autoDimStr.isEmpty() ? true : (autoDimStr == "true");
@@ -4077,14 +4102,37 @@ void AircraftManager::DrawNightClock(BandCanvas& backbuffer) const
 void AircraftManager::UpdateBrightness()
 {
     const unsigned long now = millis();
-    if (now - lastBrightnessCheck < 20000) return; // re-evaluate every 20s
+    // `lastBrightnessCheck = 0` means DUE NOW, and two call sites already set it
+    // meaning exactly that ("re-evaluate dimming promptly after a reload"). The
+    // old guard did not honour it: at boot, millis() is a few thousand and
+    // `now - 0 < 20000` is true, so the first evaluation was delayed until 20 s
+    // uptime. That delay is the width of the flash.
+    if (lastBrightnessCheck != 0 && now - lastBrightnessCheck < 20000)
+        return; // otherwise re-evaluate every 20s
     lastBrightnessCheck = now;
 
     uint8_t target = configuredBrightness;
 
     const time_t utc = time(nullptr);
     const bool synced = utc > 1600000000; // NTP has set the clock (>~2020)
-    const bool night = synced && isNightNow(lat, lon, utc);
+
+    // AN UNSYNCED CLOCK IS NOT EVIDENCE OF DAYTIME.
+    //
+    // This used to read `synced && isNightNow(...)`, so before NTP lands the
+    // verdict was "day" and the target became full brightness -- the second
+    // cause of the reboot flash, and the one that would have survived fixing
+    // Initialise alone. It is the shape CLAUDE.md calls out at ProgressAlong's
+    // clamp: converting "I do not know" into a plausible, reassuring value.
+    //
+    // With no clock there is no verdict, so make no change. Whatever first light
+    // put on the panel -- the carried level, or the base level on a fresh unit --
+    // stays until the clock can actually answer the question.
+    if (!synced && !nightoverride::FORCE_NIGHT) return;
+    // The override supplies the CONDITION only; the `autoDim && night` rule
+    // below is untouched production logic, so a board with auto-dim off still
+    // does not dim and the bench run is invalid for the same reason a real
+    // night would be. See include/NightOverride.h.
+    const bool night = nightoverride::Resolve(synced && isNightNow(lat, lon, utc));
     nightNow = night; // cached for NightClockActive (same 20 s cadence)
     if (autoDim && night) {
         target = configuredBrightness / 5; // ~20% of day level at night
