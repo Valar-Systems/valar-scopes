@@ -1270,6 +1270,69 @@ at boot ~20:27Z     -> local 12:57   (hour must NOT be 13)  OK
 and then confirmed it against the boot print rather than the intent:
 `tz-offset=-7.5 (-27000 s) -- local hour now 12`.
 
+## B3 CLOSED ON THE SHIPPING ARTIFACT, 2026-09-10
+
+The 13:30 PASS was on `blipscope-s3-128-b3`, a build carrying three overrides.
+Identical code, but not the artifact that ships. This closes it on the plain
+`blipscope-s3-128` image built from `main` at `263a13e`.
+
+| | |
+|---|---|
+| board | COM119, shipping build, zero `[bench]` lines |
+| reboot | a plain reset — the WIDER requirement, not the quiet hour |
+| glass (Daniel) | *"the brightness stayed dim"* |
+| serial | `[bright] first-light/carry -> 51`, and nothing else |
+| values above 51 | **0** |
+| first reported | `bright=51/255 NIGHT` |
+
+Exactly one apply, all boot. On the pre-fix build there would have been a second
+at 255.
+
+### The specified test could not have failed, and why
+
+The instruction was to set configured brightness to 40 and reset. **That test
+passes on the broken firmware too.** In daylight the dim pass sets
+`target = configuredBrightness`, so the carry converges to 40 as well — and the
+flash requires `carried < configured`. With both at 40 there is nothing to flash
+to. It would have produced a confident PASS from a build that still had the
+defect.
+
+(Also `bright=40/255` is not a state the board can report: the field is
+`applied/configured`, so a slider at 40 reads `bright=40/40`. It did.)
+
+### What was run instead, and why it keeps every constraint
+
+Same shipping artifact, same daylight, same real reset, same `[bright]` lines as
+evidence — with the one missing ingredient supplied by **moving the board's
+location to where it was solar midnight** (46.7 E, computed from the UTC hour).
+That is a pure config change through production code paths: `isNightNow` returns
+true, the dim pass drops the panel to `255/5 = 51`, and the carry records it.
+
+```
+[bright] first-light/carry -> 255     boot, daytime carry
+[bright] dim/day -> 40                configured = 40
+[bright] dim/night -> 51              after the location move, configured back to 255
+bright=51/255 NIGHT
+```
+
+`51 < 255` is exactly the condition the defect needed, so the reading can now go
+either way. **Forcing night by geography rather than by a build flag is the
+generalisable trick**: it needs no bench binary, so the artifact under test stays
+the one that ships.
+
+The board was restored afterwards — Bend, brightness 255, `n=41 ap=41`. The empty
+radar Daniel saw mid-test was the location change, not a fault, and it is
+recorded here because an unexplained empty radar is exactly the kind of thing
+that gets diagnosed for an hour later.
+
+### What serial still cannot see
+
+The backlight can be at full from power-on until the FIRST apply executes —
+hardware and boot order, not a value anyone wrote. A clean `[bright]` log is
+consistent with a panel that flashed before any of this code ran. **Serial proves
+no software-commanded brightening; only glass proves no brightening.** Both were
+taken here, which is why the gate is closed rather than merely green.
+
 ## V11 BLOCKER, found 2026-09-09 by B2a landing on its escape hatch
 
 **The longitude fallback added in `77e822d` is unreachable on any device
