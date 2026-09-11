@@ -185,5 +185,46 @@ while ($true) {
         try { $sp.Close() } catch {}
         $sp.Dispose()
     }
-    Start-Sleep -Seconds ([Math]::Min(5 * [Math]::Max($failStreak, 1), 30))
+    # ---- DO NOT REOPEN INTO A BOOT WINDOW -------------------------------------
+    #
+    # THE INSTRUMENT WAS CHANGING THE EXPERIMENT (found 2026-09-10, COM3). A board
+    # cycling through the Wi-Fi setup portal reboots every few minutes. Each reboot
+    # drops the native-USB CDC, ReadLine throws, this loop caught it, waited FIVE
+    # SECONDS and reopened -- landing inside the boot window, which resets the board
+    # (rst:0x15 USB_UART_CHIP_RESET; see the header, no DTR/RTS combination avoids
+    # it). That reset caused another reboot, which caused another detach, and the
+    # recorder sat in a loop resetting the device it was supposed to be observing.
+    #
+    # It was caught only because the firmware's own self-heal line
+    # ("restarting to retry saved credentials") was ABSENT from a log full of
+    # reboots -- the reboots were not the firmware's. A measurement of the retry
+    # interval taken from that log would have been of the recorder, not the board.
+    #
+    # So: if the port DISAPPEARED, the device re-enumerated, i.e. it is booting.
+    # Wait for it to come back and then hold off past the boot window before
+    # opening. The cost is missing the first few seconds of that boot. The cost of
+    # the old behaviour was a board that never finished booting at all, which is
+    # strictly worse -- and silently so, because the log looks busy either way.
+    $reEnumerated = -not ([System.IO.Ports.SerialPort]::GetPortNames() -contains $port)
+    if ($reEnumerated) {
+        Write-Mark $sw "port vanished -- device is re-enumerating; holding off past the boot window"
+        for ($w = 0; $w -lt 60; $w++) {
+            if ([System.IO.Ports.SerialPort]::GetPortNames() -contains $port) { break }
+            Start-Sleep -Seconds 1
+        }
+        Start-Sleep -Seconds 20   # boot guard: open() before this resets the board
+    } else {
+        Start-Sleep -Seconds ([Math]::Min(5 * [Math]::Max($failStreak, 1), 30))
+    }
+
+    # ---- and say so loudly if we might be the cause ---------------------------
+    # Three detaches inside five minutes is the signature of the reset loop above.
+    # Better to shout in the ledger than to keep producing plausible data.
+    $script:detachTimes = @($script:detachTimes | Where-Object { $_ -gt (Get-Date).AddMinutes(-5) })
+    $script:detachTimes += (Get-Date)
+    if ($script:detachTimes.Count -ge 3) {
+        Write-Mark $sw ("WARNING: {0} detaches in 5 min -- THIS RECORDER MAY BE RESETTING THE BOARD. " +
+                        "Treat reboot counts in this ledger as suspect until ruled out." -f $script:detachTimes.Count)
+        Start-Sleep -Seconds 60
+    }
 }

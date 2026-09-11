@@ -45,6 +45,53 @@ detection, both debounce gates, the banner's priority over the stale ladder, the
 page's third state, one-action re-verification, and in-place recovery. Testing A3
 separately would test it twice and the cheaper test would be the less faithful one.
 
+### A2. v12 — the setup screen must say when it is RETRYING, not just "SETUP"
+
+**Found 2026-09-10 while verifying the move-house behaviour on a bench board.**
+The firmware behaviour is correct and deliberate; the SCREEN is what misleads.
+
+A configured scope whose network is missing at boot falls back to the setup
+hotspot and keeps retrying the saved credentials on a ~4.8 minute cycle, joining
+on its own when the network returns. Verified on hardware: credentials are
+retained (`Connecting to SAVED AP:` on every retry) and the cycle is
+`~105 s of join attempts + 181 s of portal + reboot`.
+
+But `setAPCallback` draws the SAME screen in both cases:
+
+```cpp
+DrawCenteredScreen(..., "- SETUP -", "Connect to this Wi-Fi hotspot:", WiFiManagerName());
+```
+
+So a customer whose router is slow after a power cut sees a device asking to be
+set up from scratch. **The reasonable conclusion is that it forgot the network,
+or is broken** — and the reasonable response is to re-run setup, which is
+exactly the thing they do not need to do. Worse, re-running setup is a
+whole-form save, which is its own hazard.
+
+The device already KNOWS which case it is in: `haveSavedCredentials()` is
+checked a few lines earlier to decide whether to arm the 180 s timeout. That
+same bit should pick the wording.
+
+**Proposed, roughly:**
+
+| state | screen |
+|---|---|
+| no saved credentials (first setup) | `- SETUP -` / `Connect to this Wi-Fi hotspot:` / `<name>` — unchanged |
+| saved credentials, network absent | `- NO WI-FI -` / `Retrying <ssid> every few minutes` / `Or connect to <name> to change it` |
+
+The second wording has to carry BOTH facts: that it is retrying on its own, and
+that the hotspot is still there if they genuinely do want to change networks.
+Dropping the hotspot mention would trade one confusion for another.
+
+**A countdown would be better still and is NOT proposed**, because the retry is
+a reboot cycle rather than a timer the screen can watch — the display is gone
+during the part that matters. A countdown that is wrong is worse than a
+sentence that is vague.
+
+Customer-facing docs now say "up to five minutes" (README + support page), which
+is the mitigation until this ships. Documentation is the weak form; this is the
+check that runs.
+
 ### B. Photos
 
 | # | Item | State |
