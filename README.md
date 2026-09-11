@@ -227,6 +227,22 @@ On first boot, your Valar Scope broadcasts its own WiFi hotspot. Each device has
 
 If the hotspot doesn't appear straight away, give it a moment. If it still hasn't shown up after 30 seconds, leave the WiFi settings on your device and go back in to force a refresh.
 
+### Moving it, or a router that comes back slowly
+
+Your scope remembers your Wi-Fi. If it boots and your network isn't there yet —
+after a power cut, a router reboot, or because you've carried it to another room
+or another house — it does **not** forget your details and it does **not** need
+setting up again.
+
+It falls back to showing its setup hotspot, but it keeps retrying your saved
+network in the background, roughly every five minutes. As soon as your network
+is back it joins on its own, with nothing for you to do.
+
+**So if you plug it in somewhere and it shows the setup screen, give it up to
+five minutes before doing anything.** Most of the time it sorts itself out.
+Only go through setup again if you're genuinely moving it to a *different*
+network with a different name or password.
+
 ### Configuration
 
 Once it's on your network, the config page is reachable from any device on the same network at the address shown on screen — `http://<device-name>.local` (for example `http://blipscope-a1b2c3.local`).
