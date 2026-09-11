@@ -10067,17 +10067,30 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         backbuffer.setTextSize(2);
         centered(title, 36);
         y = 70;
-        if (tracked.photoRepresentative) {
-            // Provenance for the stock library: this is a generic shot of the TYPE,
-            // not this airframe (a per-hex override is uncaptioned). It moved here
-            // from the photo page with the other category-descriptive fields --
-            // it describes where the picture came from, which is the same kind of
-            // fact as "Type:" and belongs beside it.
-            backbuffer.setTextSize(1);
-            backbuffer.setTextColor(lgfx::color888(0, 130, 0));
-            centered("representative photo", 58);
-            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-        }
+        // NO PROVENANCE CAPTION HERE, and that has now been decided twice.
+        //
+        // It first moved TO this page from the photo card, with the other
+        // category-descriptive fields, on reasoning that still reads well: "where
+        // the picture came from" is the same kind of fact as "Type:", so it looked
+        // like it belonged beside it.
+        //
+        // THE ASA713 LIVERY CASE MOVED IT BACK. A stock shot of the TYPE can wear
+        // another operator's paint, so a card can show Alaska livery for a flight
+        // that is not Alaska's. An owner who reads the aircraft off the PICTURE has
+        // already been misled by the time any caption on another page could reach
+        // them -- and they have no reason to tap, because nothing looked wrong.
+        //
+        // THE RULE, written out so this is not "tidied" back a third time:
+        // provenance lives on the page that shows the photograph, because that is
+        // the page where a livery can be misread as identity. It is drawn once, by
+        // CaptionForDisc on the full-bleed card above, in both its long and short
+        // forms.
+        //
+        // A second copy here cannot add anything: this page is unreachable without
+        // the photo page having been rendered first. `detailPage` only leaves 0 at
+        // the tap handler, which is gated on `hasPhoto` -- with no photo the same
+        // tap closes the card instead. So the owner has necessarily already seen
+        // the caption that matters.
     }
 
     backbuffer.setTextSize(1);
