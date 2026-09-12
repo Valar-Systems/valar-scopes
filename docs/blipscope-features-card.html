@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blipscope — Collecting &amp; Features Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#15171a; --ink-soft:#4a4f57; --ink-faint:#878d96;
+    --rule:#d9dade; --paper:#ffffff; --chassis:#1c1e21;
+    --amber:#c8811a; --live:#1f7a4d; --gold:#c9a227; --gold-fill:#ffd200;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#8d9096;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
+       padding:24px;display:flex;flex-direction:column;align-items:center;gap:20px}
+  .card{width:4in;height:6in;background:var(--paper);position:relative;overflow:hidden;
+        padding:0.32in 0.32in 0.28in;display:flex;flex-direction:column}
+  @media print{ body{background:#fff;padding:0;gap:0} .card{page-break-after:always}
+                .screen-only{display:none} }
+
+  .masthead{border-bottom:1.5px solid var(--chassis);padding-bottom:8px;margin-bottom:12px}
+  .wordmark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;
+            letter-spacing:.12em;line-height:1;color:var(--chassis)}
+  .tagline{font-size:8.2px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--ink-faint);margin-top:5px;font-weight:500}
+
+  .pull{font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:500;
+        line-height:1.42;color:var(--chassis);margin-bottom:11px}
+  .pull em{font-style:normal;color:var(--gold)}
+
+  .b-head{font-family:'Space Grotesk',sans-serif;font-size:8.6px;font-weight:700;
+          letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+          padding-bottom:4px;border-bottom:1px solid var(--rule);margin-bottom:6px}
+  .sec{margin-bottom:7px}
+  p{font-size:9.7px;line-height:1.47;color:var(--ink-soft)}
+  p + p{margin-top:5px}
+  strong{font-weight:600;color:var(--ink)}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:8.8px;color:var(--ink);
+        background:#f1f2f4;padding:1px 4px;white-space:nowrap}
+
+  .step{display:grid;grid-template-columns:16px 1fr;gap:8px;margin-bottom:8px}
+  .num{font-family:'JetBrains Mono',monospace;font-size:8.6px;font-weight:500;
+       color:var(--paper);background:var(--chassis);height:15px;width:15px;
+       display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .step p{font-size:9.7px}
+
+  .chips{margin:7px 0 6px}
+  .chip{display:inline-block;margin:2px 3px 2px 0;padding:1.5px 7px;border-radius:9px;
+        font-size:8.4px;font-family:'JetBrains Mono',monospace;letter-spacing:.01em}
+  .chip.claimed{background:var(--gold-fill);color:#141414;border:1px solid var(--gold-fill)}
+  .chip.unclaimed{background:transparent;color:#969696;border:1px solid #b8bcc2}
+  .legend{font-size:8.2px;color:var(--ink-faint);line-height:1.5}
+
+  .feat{display:grid;grid-template-columns:72px 1fr;gap:7px;margin-bottom:4.5px;align-items:start}
+  .feat .k{font-size:8.8px;font-weight:600;color:var(--ink);line-height:1.4}
+  .feat .v{font-size:9.1px;line-height:1.42;color:var(--ink-soft)}
+
+  .where{margin-top:auto;border-top:1px solid var(--rule);padding-top:9px}
+  .where p{font-size:9px;color:var(--ink-soft);line-height:1.5}
+
+  .foot{margin-top:auto;border-top:1.5px solid var(--chassis);padding-top:9px}
+  .foot-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .foot .links{font-size:9.2px;line-height:1.6;color:var(--ink)}
+  .foot .links span{color:var(--ink-faint)}
+  .foot .origin{font-family:'Space Grotesk',sans-serif;font-size:8.2px;font-weight:500;
+                letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-top:7px}
+  .qr-slot{width:0.72in;height:0.72in;flex:none;border:1px dashed var(--rule);
+           display:flex;align-items:center;justify-content:center;text-align:center;
+           font-size:6.2px;line-height:1.3;color:var(--ink-faint);letter-spacing:.04em}
+  .label{font-family:'JetBrains Mono',monospace;font-size:9px;color:#fff;
+         background:rgba(0,0,0,.35);padding:2px 8px;letter-spacing:.1em}
+</style>
+</head>
+<body>
+
+<div class="screen-only label">FRONT — COLLECTING</div>
+
+<div class="card" data-document-role="page" data-label="Collecting">
+  <div class="masthead">
+    <div class="wordmark">COLLECTING</div>
+    <div class="tagline">Every aircraft you spot, kept</div>
+  </div>
+
+  <p class="pull">Seeing an aircraft is your antenna.<br><em>Claiming it is you.</em></p>
+
+  <p style="margin-bottom:10px">Blipscope logs what flies over on its own. That measures your sky.
+  What <strong>scores</strong> is what you deliberately look at.</p>
+
+  <div class="step"><div class="num">1</div><div>
+    <p>Turn on the <strong>Spotting logbook</strong> on your device's settings page.</p></div></div>
+
+  <div class="step"><div class="num">2</div><div>
+    <p><strong>Tap any aircraft</strong> on the radar. That one tap claims its type, its operator,
+    its country of registry and both route airports at once.</p></div></div>
+
+  <div class="step"><div class="num">3</div><div>
+    <p>A first-ever sighting flashes a gold <strong>NEW</strong>. A claim confirms with
+    <strong>CLAIMED #47</strong> &mdash; your running total.</p></div></div>
+
+  <div class="sec" style="margin-top:2px">
+    <div class="b-head">Your collection</div>
+    <p>Open your device's address in a browser and it lands on <strong>Collection</strong>:
+    Types, Operators, Countries and Airports, each counted as
+    <span class="mono">N claimed of M seen</span>.</p>
+    <div class="chips">
+      <span class="chip claimed">B738 ×12</span><span class="chip claimed">C172 ×4</span><span
+      class="chip unclaimed">BE20</span><span class="chip unclaimed">PC12</span>
+    </div>
+    <p class="legend">Gold is claimed. Outlined is seen, still yours to take.</p>
+  </div>
+
+  <div class="sec">
+    <div class="b-head">Records it keeps for you</div>
+    <p>Your <strong>Highest</strong>, <strong>Fastest</strong> and <strong>Closest</strong> contact
+    ever &mdash; each with the callsign and the date it was set. Plus a running count of every
+    contact the scope has ever seen.</p>
+  </div>
+
+  <div class="where">
+    <p>A C-5 that crossed at 3 a.m. is <em>seen</em> but unclaimed &mdash; and it stays claimable
+    until the next one comes. That's the reason to glance up.</p>
+  </div>
+</div>
+
+<div class="screen-only label">BACK — SWITCH IT ON</div>
+
+<div class="card" data-document-role="page" data-label="Features">
+  <div class="sec">
+    <div class="b-head">Spotting leaderboard &mdash; optional</div>
+    <p>Pick a spotter name and your claim count ranks against every other opted-in scope; rarer
+    types score higher. It sends your name, counts and type list &mdash; never your location.
+    <strong>Off until you turn it on.</strong></p>
+  </div>
+
+  <div class="sec">
+    <div class="b-head">Alerts you can switch on</div>
+    <div class="feat"><div class="k">Watchlist</div><div class="v">Callsigns, tails, ICAO hexes or whole type codes. Your phone buzzes when one goes over.</div></div>
+    <div class="feat"><div class="k">Look up!</div><div class="v">A cyan ring when something crosses inside a distance you set.</div></div>
+    <div class="feat"><div class="k">Military</div><div class="v">Orange pulsing ring, plus an optional phone alert.</div></div>
+    <div class="feat"><div class="k">Emergency</div><div class="v">Red ring for a 7500 / 7600 / 7700 squawk. On by default.</div></div>
+    <div class="feat"><div class="k">Follow one</div><div class="v">Draws its track; alerts on takeoff, landing and signal loss.</div></div>
+  </div>
+
+  <div class="sec">
+    <div class="b-head">Make the screen yours</div>
+    <p>Sweep, fade, trails, altitude colour, airports and the MIL / HELI / SPC highlights toggle
+    individually, in km or miles. Set the <strong>screen-top bearing</strong> so the top of the
+    display matches your window &mdash; and it becomes a clock when the sky empties.</p>
+  </div>
+
+  <div class="sec">
+    <div class="b-head">For the rest of the house</div>
+    <p><strong>Home Assistant / MQTT</strong> publishes aircraft count, nearest flight and
+    overhead / military flags with auto-discovery. Or point it at <strong>your own receiver</strong>
+    &mdash; one-second updates, no internet needed.</p>
+  </div>
+
+  <div class="foot">
+    <div class="foot-row">
+      <div>
+        <div class="links">
+          Everything here is on your device's<br>settings page.<br>
+          <span>Guide</span> valarsystems.com/blipscope
+        </div>
+        <div class="origin">Valar Systems · Bend, Oregon</div>
+      </div>
+      <div class="qr-slot">QR<br>valarsystems.com<br>/blipscope</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
