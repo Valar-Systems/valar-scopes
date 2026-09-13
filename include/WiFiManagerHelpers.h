@@ -7,6 +7,9 @@
 #include "DeviceIdentity.h"
 #include "Layout.h"
 #include "BootScreen.h"
+#ifdef BLIPSCOPE_JOIN_DIAG
+#include "JoinDiagScreen.h"
+#endif
 
 namespace WiFiManagerHelpers
 {
@@ -405,6 +408,20 @@ namespace WiFiManagerHelpers
         });
 
         wm.setAPCallback([&tft, &backbuffer](WiFiManager* wifiManager) {
+#ifdef BLIPSCOPE_JOIN_DIAG
+            // BENCH DIAGNOSTIC BUILD: the portal opening IS the failure signal, so
+            // this is the moment to scan and put the evidence on the glass.
+            //
+            // Rendering HERE rather than from loop() is forced, not preferred:
+            // wm.autoConnect() blocks setup() for the whole join, and a failed join
+            // reboots without ever reaching loop(). This callback runs on the MAIN
+            // task, so the actual constraint -- no SPI from the WiFi event task --
+            // is kept. See include/JoinDiagScreen.h.
+            joindiag::ScanTarget();
+            joindiag::Draw(tft, joindiag::CycleCount());
+            joindiag::LogSerial(joindiag::CycleCount());
+            return;
+#endif
             // Composed through the backbuffer so it renders on the SPD2010 (direct per-glyph writes
             // don't); direct on every other SKU. See BootScreen.h.
             DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),

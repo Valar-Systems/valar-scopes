@@ -25,6 +25,9 @@
 #include "BrightnessLog.h"
 #include "LocalOffset.h"
 #include "QuietHourPolicy.h"
+#ifdef BLIPSCOPE_JOIN_DIAG
+#include "JoinDiagScreen.h"   // bench-only Wi-Fi join diagnostic; see the header
+#endif
 #include "NightOverride.h"
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
@@ -145,6 +148,16 @@ void setup()
   // rolled back, and it must say so unprompted.
   LogOtaSlot("boot");
   Serial.printf("[boot] reset reason=%s\n", ResetReasonName());
+#ifdef BLIPSCOPE_JOIN_DIAG
+  // Bench diagnostic build. The cycle counter is the ONLY persistent state it
+  // keeps, and it exists because RAM does not survive the reboot-retry: without
+  // it every cycle shows ~2 minutes elapsed and a twelve-minute run is
+  // indistinguishable from a thirty-second one, which is how this started.
+  {
+    const uint16_t cyc = joindiag::BumpCycle();
+    Serial.printf("[jdiag] ** WIFI JOIN DIAGNOSTIC BUILD -- NEVER SHIPS ** cycle=%u\n", cyc);
+  }
+#endif
   netwatch::Begin(); // prints the reachability ladder, and why this boot happened
   // Bench overrides, announced together and LOUDLY. Not "is the number
   // different" but "am I looking at a bench build?" -- a capture read weeks
@@ -344,15 +357,27 @@ void setup()
         break;
       case ARDUINO_EVENT_WIFI_STA_CONNECTED:
         Serial.printf("[WiFi] Associated with \"%s\", waiting for IP...\n", WiFi.SSID().c_str());
+#ifdef BLIPSCOPE_JOIN_DIAG
+        joindiag::RecordAssociated(WiFi.SSID().c_str()); // POD write only
+#endif
         break;
       case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         Serial.printf("[WiFi] CONNECTED  IP=%s  RSSI=%d dBm\n",
                       WiFi.localIP().toString().c_str(), WiFi.RSSI());
+#ifdef BLIPSCOPE_JOIN_DIAG
+        joindiag::RecordGotIp(); // POD write only
+#endif
         break;
       case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
         const auto reason = (wifi_err_reason_t)info.wifi_sta_disconnected.reason;
         Serial.printf("[WiFi] DISCONNECTED  reason=%d (%s)\n",
                       reason, WiFi.disconnectReasonName(reason));
+#ifdef BLIPSCOPE_JOIN_DIAG
+        // RECORD ONLY. Rendering from here would put a blocking SPI write on the
+        // WiFi event task and perturb the timing this exists to measure.
+        joindiag::RecordDisconnect((uint8_t)reason,
+                                   WiFi.disconnectReasonName(reason), millis());
+#endif
         if (reason == WIFI_REASON_NO_AP_FOUND)
           Serial.println("       SSID not found: check spelling/range. The ESP32-C3 is 2.4GHz-only and cannot see 5GHz networks.");
         else if (reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
