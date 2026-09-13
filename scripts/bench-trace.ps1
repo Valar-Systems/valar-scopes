@@ -124,13 +124,21 @@ try {
             $line = $pending.Substring(0, $i).TrimEnd("`r")
             $pending = $pending.Substring($i + 1)
             if ($line.Trim() -ne '') { W $line }
-            if (-not $selfReset -and $line -match 'rst:0x15|USB_UART_CHIP_RESET') {
+            # MATCH THE ROM BANNER, NOT ONLY THE REASON LINE. Keying solely on
+            # rst:0x15 assumes the board survives long enough to announce why it
+            # reset -- the ROM prints "ESP-ROM:esp32s3-..." FIRST and the rst:
+            # line several lines later. On 2026-09-13 COM6 printed the banner and
+            # hung before the reason, and this detector called the run "clean":
+            # a guard answering a narrower question than its name suggests, found
+            # within the hour of writing it. Any boot at all within seconds of our
+            # own open is the thing worth flagging; the cause line is a bonus.
+            if (-not $selfReset -and $line -match 'rst:0x15|USB_UART_CHIP_RESET|ESP-ROM:esp32') {
                 $since = ((Get-Date) - $attachedAt).TotalSeconds
                 if ($since -le $SELF_RESET_WINDOW_SEC) {
                     $selfReset = $true
                     W ""
-                    W "!!! SELF-INFLICTED RESET -- THIS TRACE IS CONTAMINATED !!!"
-                    W "!!! rst:0x15 (host-caused) ${since}s after our own open."
+                    W "!!! BOARD BOOTED ${since}s AFTER OUR OWN OPEN -- TRACE CONTAMINATED !!!"
+                    W "!!! matched: $line"
                     W "!!! The board did not do this; we did. Anything measured from"
                     W "!!! here -- uptime, cycle count, scan results, retry timing --"
                     W "!!! is about a boot THIS SCRIPT caused. Discard and re-run."
