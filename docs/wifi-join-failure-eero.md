@@ -223,3 +223,74 @@ fully clicked, the answer is in hand without running anything.
 ## Result
 
 *(to be filled in from the capture — left empty deliberately)*
+
+## RESULT, 2026-09-13: ALL FOUR BOARDS JOINED. Recorded against the pre-registration.
+
+**The observation, in the owner's words:** *"so i added each device to the network
+and they all connected right away at his house."* Four boards, the same eero
+network that rejected one of them, no failures.
+
+**Which pre-registered row this is.** Outcome **(f)** — *a success is a finding
+about non-determinism, not a clearance.* It was written down before the trip
+precisely so that a clean run could not be read as an all-clear afterwards, and
+that is the only reason this section can be trusted: the meaning was fixed while
+the result was still unknown.
+
+### The question that has to be answered first: did we change the join?
+
+**No, and it is checkable rather than assertable.** The diagnostic image is built
+from the exact v11 commit `fff4d66`. Across the whole join path:
+
+    git diff --stat fff4d66..HEAD -- src/main.cpp include/WiFiManagerHelpers.h
+      include/WiFiManagerHelpers.h | 17 +++++++++++++++++
+      src/main.cpp                 | 44 ++++++++++++++++++++++++++++++++++++++++++
+      2 files changed, 61 insertions(+)
+
+**61 insertions, zero deletions, zero modifications.** Every hunk sits behind
+`#ifdef BLIPSCOPE_JOIN_DIAG`, and the single insertion inside the join helper runs
+in `setAPCallback` — which fires *after* `autoConnect()` has already failed for
+that cycle. Nothing reorders, retimes or retries the join.
+
+So "we fixed it" is not on the table. Whatever differed, differed outside our code.
+
+### Four explanations. None is eliminated, and saying so is the finding.
+
+| # | explanation | what would kill it | status |
+|---|---|---|---|
+| (1) | **the original failure was a premature verdict** — called after ~30 s on a device whose full retry round is ~5 min | a timestamped record of the original attempt lasting past one full cycle | **live, and the best-supported** |
+| (2) | **the network changed** — eero firmware update, reboot, or a different band-steering decision | the eero firmware version, then vs now (page 1 of the field guide asked for it) | **live** — not captured this trip |
+| (3) | **intermittent RF/mechanical** — a marginal u.FL seat reseated by handling and transport | the antenna photographs, before power | **live** — not captured this trip |
+| (4) | **provisioning differed** — the owner entered the credentials this time; the friend did originally | a reason code from the original failure; a typo yields 202 AUTH_FAIL, not silence | **live** |
+
+**(1) is the leading hypothesis on the evidence available**, for one structural
+reason: the join path is byte-for-byte unchanged, the known-good board has never
+failed at either location, and a network that rejected Blipscopes as a class
+should have rejected it too. But "best-supported" is not "established", and the
+three others are live because **the observations that would separate them were
+not taken** — the boards joined, so there was nothing alarming to photograph.
+
+**That is itself the lesson, and it is the same one as the no-render paths: a
+clean run produces no evidence.** The pre-flight captures (eero firmware, antenna
+photos) are the ones that must happen *before* anyone knows whether they will be
+needed, because after a success nobody takes them.
+
+### What this DOES settle
+
+The strong form of the hardware hypothesis — *"326E64 cannot join this network"* —
+**is dead.** It just did, four times over, alongside three siblings. Any surviving
+hardware explanation has to be intermittent, and an intermittent fault is a much
+weaker claim than the one we set out to test.
+
+### What it does NOT settle, restated so it cannot drift
+
+**326E64 is not cleared.** Outcome (f) was pre-registered for exactly this.
+
+### The product defect that is real regardless of which explanation wins
+
+A failure was declared in ~30 seconds against a device whose retry cycle is ~5
+minutes, and **the device gave the owner nothing to read in the meantime.** That
+is true under all four explanations above and it is fixable without knowing which
+one is right. It is the v12 persistent join-failure store: the device must say
+*"still trying, attempt 3, last reason 204"* on its own glass, unprompted. Until
+it does, every slow join is indistinguishable from a dead unit to the person
+holding it — and they will unplug it long before it succeeds.

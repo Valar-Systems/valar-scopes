@@ -87,6 +87,10 @@ inline void ScanTarget()
     s.scanAtMs = millis();
 
     const int n = WiFi.scanNetworks(false /*async*/, true /*show hidden*/);
+    // Record the TOTAL before any filtering. A zero here is a fact about the
+    // radio; a zero after the SSID filter is a fact about the neighbourhood, and
+    // the two must never share an observation. See State::scanTotal.
+    s.scanTotal = (uint8_t)(n < 0 ? 0 : (n > 255 ? 255 : n));
     if (n <= 0) return;
 
     for (int i = 0; i < n && s.bssCount < MAX_BSSIDS; ++i) {
@@ -204,8 +208,21 @@ inline void Draw(LGFX& tft, uint16_t cycle)
     // ---- the scan ----------------------------------------------------------
     if (!s.scanDone) { DrawRow(tft, "scan pending", y, lgfx::color888(120, 120, 120)); return; }
     if (!s.ssidSeen) {
-        DrawRow(tft, "SSID NOT FOUND IN SCAN", y, lgfx::color888(255, 80, 80)); y += H;
-        DrawRow(tft, "(radio cannot see it)", y, lgfx::color888(255, 80, 80));
+        // TWO DIFFERENT FINDINGS, AND THEY USED TO SHARE ONE SCREEN. The old copy
+        // said "SSID NOT FOUND IN SCAN / (radio cannot see it)" in both cases --
+        // asserting a deaf radio even when the radio had just scanned a dozen APs
+        // and simply not found this one. Whoever photographs this is going to
+        // write down what it says, so it has to say only what is known.
+        if (s.scanTotal == 0) {
+            DrawRow(tft, "SCAN RETURNED NOTHING", y, lgfx::color888(255, 80, 80)); y += H;
+            DrawRow(tft, "not one AP of any name.", y, lgfx::color888(255, 80, 80)); y += H;
+            DrawRow(tft, "RX path suspect: antenna", y, lgfx::color888(255, 80, 80));
+        } else {
+            DrawRow(tft, "THIS NETWORK NOT IN RANGE", y, lgfx::color888(255, 200, 0)); y += H;
+            DrawRow(tft, String("radio saw ") + s.scanTotal + " other AP" +
+                         (s.scanTotal == 1 ? "" : "s") + ",", y, lgfx::color888(255, 200, 0)); y += H;
+            DrawRow(tft, "so the radio is receiving.", y, lgfx::color888(255, 200, 0));
+        }
         return;
     }
     if (s.seen5 && !s.seen24) {
@@ -258,8 +275,11 @@ inline void LogSerial(uint16_t cycle)
         Serial.printf("[jdiag]   #%u reason=%u (%s) at %lums\n",
                       e->attempt, e->reason, e->name, (unsigned long)e->atMs);
     }
-    Serial.printf("[jdiag]   scan: seen=%d 2.4GHz=%d 5GHz=%d nodes=%u\n",
-                  (int)s.ssidSeen, (int)s.seen24, (int)s.seen5, s.bssCount);
+    // scanned= is the total the radio returned; nodes= is how many of those carry
+    // the target SSID. Printing only the latter made "not here" and "deaf" the
+    // same line -- see State::scanTotal.
+    Serial.printf("[jdiag]   scan: seen=%d 2.4GHz=%d 5GHz=%d scanned=%u nodes=%u\n",
+                  (int)s.ssidSeen, (int)s.seen24, (int)s.seen5, s.scanTotal, s.bssCount);
     for (int i = 0; i < s.bssCount; ++i) {
         const Bss& b = s.bss[i];
         Serial.printf("[jdiag]   bss %02X:%02X:%02X:%02X:%02X:%02X ch=%u band=%s rssi=%d enc=%s\n",

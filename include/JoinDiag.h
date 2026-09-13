@@ -69,7 +69,20 @@ struct State {
 
     // ---- what the radio can hear -------------------------------------------
     Bss      bss[MAX_BSSIDS];
-    uint8_t  bssCount = 0;
+    uint8_t  bssCount = 0;          // APs MATCHING the target SSID (<= MAX_BSSIDS)
+    // TOTAL APs the scan returned, matching or not, saturating at 255.
+    //
+    // This is the field that separates the instrument's two silences, and it was
+    // missing. bssCount counts only BSSIDs whose SSID equals the target, so
+    // "your network is not here" and "this radio is deaf" BOTH render as zero --
+    // and the screen then asserts "(radio cannot see it)", which is the one of
+    // the two readings the data does not support. Observed on 2026-09-13: a board
+    // holding an away-from-home SSID reported nodes=0 and was very nearly read as
+    // an RF fault, when it was simply correct.
+    //
+    // scanTotal>0 with bssCount==0  -> the radio scanned fine; the SSID is absent
+    // scanTotal==0                  -> the scan itself returned nothing: RX suspect
+    uint8_t  scanTotal = 0;
     bool     scanDone = false;
     bool     ssidSeen = false;      // found at all, on any band
     bool     seen24 = false;        // found on a 2.4 GHz channel (1..14)

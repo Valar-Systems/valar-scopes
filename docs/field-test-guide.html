@@ -103,7 +103,15 @@
   <tr><td class="mono">#4 r=204 <br>4WAY_HANDSHAKE_TIMEOUT</td><td><strong>The one we're hunting.</strong> It started the handshake and it didn't finish.</td></tr>
   <tr><td class="mono">ONLY ON 5GHz</td><td><strong>Stop &mdash; that's the answer.</strong> These boards are 2.4&nbsp;GHz only. Note it and move on.</td></tr>
   <tr><td class="mono">..38:2A c6/2.4 -61dB</td><td>One of their access points: last digits, channel, band, signal. Weaker than about &minus;75 is poor.</td></tr>
+  <tr><td class="mono">THIS NETWORK NOT IN RANGE<br>radio saw 9 other APs</td><td>The board is receiving fine &mdash; their network just isn't reachable from where it's sitting. <strong>Move it closer and retry.</strong> Not a fault.</td></tr>
+  <tr><td class="mono">SCAN RETURNED NOTHING<br>not one AP of any name</td><td><strong>Serious.</strong> The radio heard nothing at all, in a house full of Wi-Fi. Suspect the antenna. Photograph this screen.</td></tr>
 </table>
+
+<div class="warn">
+  <strong>Those last two rows look alike and mean opposite things.</strong> Both say the board
+  didn't find their network &mdash; but one adds that it heard <em>other</em> networks, which proves
+  the radio works. Read the second line before writing anything down.
+</div>
 
 <div class="warn">
   <strong>A blank or "Connecting to Wi-Fi..." screen is NOT a result.</strong>
