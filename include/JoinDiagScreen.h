@@ -4,7 +4,8 @@
 #include <Preferences.h>
 #include "JoinDiag.h"
 #include "LGFX.h"
-#include "Layout.h"   // ChordWidthPx: this is a ROUND disc
+#include "Layout.h"
+#include "DeviceIdentity.h"   // ChordWidthPx: this is a ROUND disc
 
 /* ===========================================================================
  * WI-FI JOIN DIAGNOSTICS -- the glass half. BENCH BUILD ONLY.
@@ -148,6 +149,18 @@ inline void Draw(LGFX& tft, uint16_t cycle)
     // characters; both of these are shorter than that with room to spare.
     DrawRow(tft, "** WIFI DIAG **", y, lgfx::color888(255, 200, 0)); y += H;
     DrawRow(tft, "NOT SHIPPING", y, lgfx::color888(255, 200, 0)); y += H + 2;
+
+    // WHICH BOARD AM I. Omitted from the first version, and that made the whole
+    // A/B unusable: four identical boards on a bench, four identical screens,
+    // no way to tell which reading belongs to which unit. An instrument that
+    // cannot identify its own subject produces data that cannot be attributed --
+    // which is worse than no data, because it looks attributable.
+    //
+    // Drawn in white directly under the banner so it is the first thing read in
+    // a photograph, and it is the last six hex of the MAC -- the same string as
+    // the setup hotspot and the mDNS name, so one identifier covers every way
+    // of referring to the board.
+    DrawRow(tft, DeviceIdentity::Name(), y, lgfx::color888(255, 255, 255)); y += H + 2;
     DrawRow(tft, String("cyc ") + cycle + "  up " + (up / 60) + "m" + (up % 60) +
                  "s  try " + s.attempts, y, lgfx::color888(0, 255, 0)); y += H;
     DrawRow(tft, String("SSID ") + (s.ssid[0] ? s.ssid : "(not set)"), y,
@@ -163,9 +176,27 @@ inline void Draw(LGFX& tft, uint16_t cycle)
         for (int i = 0; i < 3; ++i) {
             const Event* e = Nth(i);
             if (!e) break;
-            DrawRow(tft, String("#") + e->attempt + " r=" + e->reason + " " + e->name,
-                    y, lgfx::color888(255, 80, 80));
-            y += H;
+            // WRAP, DO NOT TRIM. The reason NAME is the payload of this whole
+            // instrument, and the longest one it can print --
+            // 4WAY_HANDSHAKE_TIMEOUT, 22 characters -- is also the one most
+            // likely to appear at the failing site. Trimming it would silently
+            // produce "4WAY_HANDSHAKE_TIM", which is the truncated-banner
+            // mistake again on the row that matters most.
+            //
+            // So: try one line, and if the chord cannot carry it, put the code
+            // on one row and the name on its own. Two legible rows beat one
+            // plausible-looking lie.
+            const String head = String("#") + e->attempt + " r=" + e->reason;
+            const String one = head + " " + e->name;
+            if (tft.textWidth(one) <= ChordWidthPx(y, tft.fontHeight())) {
+                DrawRow(tft, one, y, lgfx::color888(255, 80, 80));
+                y += H;
+            } else {
+                DrawRow(tft, head, y, lgfx::color888(255, 80, 80));
+                y += H;
+                DrawRow(tft, e->name, y, lgfx::color888(255, 80, 80));
+                y += H;
+            }
         }
     }
     y += 2;
@@ -200,7 +231,15 @@ inline void Draw(LGFX& tft, uint16_t cycle)
                      (Is24(b.channel) ? "/2.4 " : "/5 ") + b.rssi + "dB",
                 y, lgfx::color888(0, 200, 0));
         y += H;
-        if (y > 205) break;
+        // SAY SO IF THE LIST IS CUT. Reason rows now wrap, so a 204 costs two
+        // rows each and can push the scan off the bottom. A list that simply
+        // stops looks like a complete list of fewer nodes -- which on a mesh is
+        // exactly the wrong conclusion.
+        if (y > 205 && i + 1 < s.bssCount) {
+            DrawRow(tft, String("+") + (s.bssCount - i - 1) + " more not shown",
+                    y, lgfx::color888(150, 150, 0));
+            break;
+        }
     }
 }
 

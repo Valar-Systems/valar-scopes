@@ -377,6 +377,25 @@ void setup()
         // WiFi event task and perturb the timing this exists to measure.
         joindiag::RecordDisconnect((uint8_t)reason,
                                    WiFi.disconnectReasonName(reason), millis());
+        // THE SSID MUST BE CAPTURED ON FAILURE, NOT ON ASSOCIATION. It was only
+        // recorded in STA_CONNECTED, which never fires when auth fails -- so the
+        // screen read "SSID (not set)" on exactly the boards this instrument
+        // exists for.
+        //
+        // AND NOT FROM WiFi.SSID() EITHER: that reports the ASSOCIATED AP, so it
+        // is empty for precisely the failures being diagnosed. Tried it, watched
+        // it still print "(none)" against four real AUTH_FAILs.
+        //
+        // The disconnect EVENT carries the SSID it was attempting, which is the
+        // authoritative source and is already in hand here.
+        {
+          const auto& d = info.wifi_sta_disconnected;
+          char attempted[33];
+          const size_t n = d.ssid_len < 32 ? d.ssid_len : 32;
+          memcpy(attempted, d.ssid, n);
+          attempted[n] = 0;
+          joindiag::RecordTargetSsid(attempted);
+        }
 #endif
         if (reason == WIFI_REASON_NO_AP_FOUND)
           Serial.println("       SSID not found: check spelling/range. The ESP32-C3 is 2.4GHz-only and cannot see 5GHz networks.");
