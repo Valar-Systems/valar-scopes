@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blipscope Wi-Fi Field Test</title>
+<style>
+  @page { size: letter; margin: 14mm; }
+  body { font: 10.5pt/1.45 "Segoe UI", Arial, sans-serif; color: #111; max-width: 190mm; margin: 0 auto; }
+  h1 { font-size: 17pt; margin: 0 0 2mm; border-bottom: 2px solid #111; padding-bottom: 2mm; }
+  h2 { font-size: 12.5pt; margin: 6mm 0 2mm; background: #111; color: #fff; padding: 1.5mm 3mm; }
+  h3 { font-size: 11pt; margin: 4mm 0 1.5mm; }
+  .sub { color: #555; font-size: 9.5pt; margin-bottom: 4mm; }
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 9.5pt; }
+  th, td { border: 1px solid #999; padding: 1.6mm 2.4mm; text-align: left; vertical-align: top; }
+  th { background: #eee; }
+  code, .mono { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; }
+  .box { border: 1.5px solid #111; padding: 3mm 4mm; margin: 3mm 0; }
+  .warn { border-left: 5px solid #111; background: #f4f4f4; padding: 2.5mm 4mm; margin: 3mm 0; }
+  ol, ul { margin: 1.5mm 0 3mm; padding-left: 6mm; }
+  li { margin: 1.2mm 0; }
+  .rec { border: 1px solid #999; padding: 2mm; min-height: 9mm; }
+  .pagebreak { page-break-before: always; }
+  .tick { font-family: Consolas, monospace; letter-spacing: 2px; }
+  .small { font-size: 9pt; color: #444; }
+</style>
+</head>
+<body>
+
+<h1>Blipscope Wi-Fi Field Test</h1>
+<div class="sub">
+  Diagnostic firmware &mdash; <span class="mono">blipscope-s3-128-joindiag</span>, built from v11.
+  <strong>These boards are test units and must be re-flashed to shipping firmware before going near a customer.</strong>
+</div>
+
+<div class="box">
+  <strong>What you are trying to find out:</strong> whether the board that failed here is
+  <em>broken</em>, or whether <em>this network</em> rejects Blipscopes. One board can't tell you.
+  Four boards, all at the same place, can.
+</div>
+
+<h2>Before you leave</h2>
+<table>
+  <tr><th style="width:34mm">Board (on screen)</th><th style="width:26mm">What it is</th><th>Why it's coming</th></tr>
+  <tr><td class="mono">Blipscope-326E64</td><td><strong>THE SUSPECT</strong></td><td>The board that actually failed here. Everything hinges on this one.</td></tr>
+  <tr><td class="mono">Blipscope-31E794</td><td><strong>KNOWN GOOD</strong></td><td>Has joined reliably for weeks. If this one fails too, the network is at fault.</td></tr>
+  <tr><td class="mono">Blipscope-31DF20</td><td>New, same batch</td><td>Tests whether the whole production batch is affected.</td></tr>
+  <tr><td class="mono">Blipscope-31C2C8</td><td>New, same batch</td><td>Second sample of the batch.</td></tr>
+</table>
+
+<ul>
+  <li><strong>Take:</strong> 4 boards, 4 USB power sources (chargers or a battery pack), this sheet, a pen, a phone.</li>
+  <li><strong>You do NOT need a laptop.</strong> Everything appears on the boards' screens.</li>
+  <li><strong>Each board names itself on screen</strong> in white, under the yellow banner. That's how you tell them apart.</li>
+</ul>
+
+<div class="warn">
+  <strong>Before powering anything &mdash; the 2-minute check that could save the trip.</strong><br>
+  Look at each board's antenna: the <strong>ANT1/RF1 0-ohm link</strong> and whether the
+  <strong>u.FL connector is fully clicked down</strong>. Photograph all four.
+  If a link is in the wrong position or a u.FL is loose, <em>that is the answer</em> &mdash; stop and come home.
+</div>
+
+<h2>Ask the owner first</h2>
+<p>Write these down &mdash; or photograph the eero app screens:</p>
+<table>
+  <tr><td style="width:52mm">eero model</td><td class="rec"></td></tr>
+  <tr><td>Firmware version</td><td class="rec"></td></tr>
+  <tr><td>How many eero units</td><td class="rec"></td></tr>
+  <tr><td>Encryption, 2.4&nbsp;GHz / 5&nbsp;GHz</td><td class="rec"></td></tr>
+  <tr><td>Network name (SSID)</td><td class="rec"></td></tr>
+</table>
+
+<h2 class="pagebreak">RUN A &mdash; their network exactly as it is</h2>
+<p>Do all four boards. Same procedure each time.</p>
+<ol>
+  <li><strong>Power the board.</strong> Wait for the yellow <span class="mono">** WIFI DIAG **</span> banner.</li>
+  <li><strong>On your phone,</strong> open Wi-Fi settings and connect to the hotspot matching the
+      name on that board's screen (e.g. <span class="mono">Blipscope-326E64</span>).</li>
+  <li>A setup page opens automatically. If not, browse to <span class="mono">192.168.4.1</span></li>
+  <li><strong>Enter their network name and password.</strong> Save.</li>
+  <li><strong>Now wait 12 minutes.</strong> Leave it alone. See the timing box below.</li>
+  <li><strong>Photograph the screen</strong> and fill in the row on page 3.</li>
+</ol>
+
+<div class="warn">
+  <strong>Twelve minutes, and don't cut it short.</strong> This is the whole reason the test exists &mdash;
+  the original problem was called a failure after 30 seconds.<br><br>
+  The board tries for about <strong>1.5 minutes</strong>, shows the setup screen for <strong>3 minutes</strong>,
+  then restarts and tries again. One full round is about <strong>5 minutes</strong>.
+  <strong>You need at least two full rounds</strong> to tell "failed" from "still trying".<br><br>
+  The <span class="mono">cyc</span> number on screen counts rounds. <strong>Wait until it reaches at least 3.</strong>
+</div>
+
+<h3>Reading the screen</h3>
+<table>
+  <tr><th style="width:46mm">On screen</th><th>Means</th></tr>
+  <tr><td class="mono">Blipscope-326E64</td><td>Which board this is. Always check this before writing anything down.</td></tr>
+  <tr><td class="mono">cyc 3 up 2m10s try 7</td><td>3 rounds done, 2m10s this round, 7 join attempts.</td></tr>
+  <tr><td class="mono">SSID TheirNetwork</td><td>The network it is trying. Check it's the right one &mdash; a typo looks like a fault.</td></tr>
+  <tr><td class="mono">assoc Y &nbsp; ip Y</td><td><strong>It worked.</strong> Joined and got an address.</td></tr>
+  <tr><td class="mono">#4 r=201 NO_AP_FOUND</td><td>Can't see the network at all.</td></tr>
+  <tr><td class="mono">#4 r=202 AUTH_FAIL</td><td>Password rejected. Re-check what you typed.</td></tr>
+  <tr><td class="mono">#4 r=204 <br>4WAY_HANDSHAKE_TIMEOUT</td><td><strong>The one we're hunting.</strong> It started the handshake and it didn't finish.</td></tr>
+  <tr><td class="mono">ONLY ON 5GHz</td><td><strong>Stop &mdash; that's the answer.</strong> These boards are 2.4&nbsp;GHz only. Note it and move on.</td></tr>
+  <tr><td class="mono">..38:2A c6/2.4 -61dB</td><td>One of their access points: last digits, channel, band, signal. Weaker than about &minus;75 is poor.</td></tr>
+</table>
+
+<div class="warn">
+  <strong>A blank or "Connecting to Wi-Fi..." screen is NOT a result.</strong>
+  For the first ~1.5 minutes of every round that's normal. If it stays blank for more than
+  3 minutes, or <span class="mono">cyc</span> never changes, something went wrong with the test &mdash;
+  note it as "no data", not as a failure.
+</div>
+
+<h2 class="pagebreak">RUN B &mdash; with 5 GHz paused</h2>
+<p>Only after Run A is finished and written down.</p>
+<ol>
+  <li>Ask the owner to open the <strong>eero app</strong> and go to:<br>
+      <span class="mono">Settings &rarr; Troubleshooting &rarr; "My device won't connect" &rarr; "My device is 2.4&nbsp;GHz only"</span><br>
+      and <strong>pause 5 GHz and 6 GHz</strong>. This lasts 30 minutes.</li>
+  <li><strong>Note the time you started</strong> &mdash; everything must happen inside that window.</li>
+  <li>Power-cycle all four boards (unplug, plug back in).</li>
+  <li>Same as Run A: wait for <span class="mono">cyc 3</span>, photograph, record.</li>
+  <li><strong>Ask the owner to restore the setting</strong> when you're done. Don't leave their network changed.</li>
+</ol>
+
+<h2>Record your results</h2>
+<p class="small">Circle JOINED or FAILED. If failed, write the <span class="mono">r=</span> number and name.</p>
+<table>
+  <tr><th style="width:34mm">Board</th><th style="width:20mm">Run</th><th style="width:28mm">Result</th><th style="width:16mm">cyc</th><th>Reason code / notes</th></tr>
+  <tr><td class="mono">326E64 (suspect)</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">31E794 (known good)</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">31DF20</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">31C2C8</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">326E64 (suspect)</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">31E794 (known good)</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">31DF20</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">31C2C8</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+</table>
+
+<h3>What the combinations mean</h3>
+<table>
+  <tr><th style="width:70mm">If&hellip;</th><th>Then</th></tr>
+  <tr><td>Suspect fails, <strong>known-good joins</strong></td><td><strong>The board is faulty.</strong> Hardware &mdash; check its antenna. Question answered.</td></tr>
+  <tr><td>Suspect + both new boards fail, <strong>known-good joins</strong></td><td><strong>Batch defect.</strong> Affects the other 45 units. Important finding.</td></tr>
+  <tr><td><strong>All four fail</strong></td><td>Their network. The hardware theory is dead.</td></tr>
+  <tr><td>Run A fails, <strong>Run B joins</strong></td><td><strong>Band steering.</strong> The mesh wasn't giving the board 2.4 GHz.</td></tr>
+  <tr><td>Suspect joins fine</td><td>Intermittent &mdash; <strong>not a clean bill of health.</strong> Note it and run again.</td></tr>
+</table>
+
+<div class="box">
+  <strong>Bring home:</strong> photographs of every screen (each one names its own board),
+  photographs of the four antennas, this sheet filled in, and the eero details from page 1.
+</div>
+
+<p class="small" style="margin-top:6mm">
+  Photograph screens straight on and close enough to read the small text &mdash; the photo is the evidence.
+</p>
+
+</body>
+</html>
