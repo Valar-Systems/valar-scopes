@@ -160,6 +160,34 @@ thrown away, and it would have to be caught on the next unit that fails, before
 anyone reflashes it. Worth a line in the support notes: **a board that fails to
 join in the field should be captured before it is reflashed.**
 
+## A CLEAN SCAN DOES NOT CLEAR THIS BOARD — correction, 2026-09-12
+
+The diagnostic's first run on COM6 returned six APs at -51 to -65 dBm, and that
+was described in passing as showing "the radio and scan path are demonstrably
+healthy on this board."
+
+**The second half of that is wrong, and it is the precise inference
+[INCOMING-INSPECTION.md](../INCOMING-INSPECTION.md) section 4 exists to forbid.**
+
+Section 4's whole point is that near-identical RSSI across boards proves nothing,
+because **RX was never the problem**. The chip-antenna defect fails on **TX** —
+the handshake frames the device SENDS to the AP. Section 4's own rejected board
+scanned, associated, and read -64 dBm. A clean scan is therefore consistent with
+BOTH a healthy board AND the specific defect under investigation, so it
+discriminates nothing.
+
+Stated precisely, and this is all the scan supports:
+
+- **What it establishes:** the diagnostic reports correctly — the scan path, the
+  BSSID enumeration, the band classification and `WiFi.encryptionType()` all
+  work. That is what makes the instrument worth carrying.
+- **What it does NOT establish:** anything about COM6's TRANSMIT path, which is
+  the open question.
+
+**The hardware branch is not closed by a scan and must not be recorded as
+closed.** Only the bench A/B below speaks to TX, by counting reason-204 retries
+— a failure of handshake frames going OUT.
+
 ## BENCH A/B — PRE-REGISTERED 2026-09-12, BEFORE RUNNING
 
 The suspect is on the bench, so this runs before any trip.
