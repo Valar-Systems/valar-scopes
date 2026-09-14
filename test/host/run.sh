@@ -156,6 +156,27 @@ if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_follow_routing.cpp"    
   cat "$OUT/build.log"
   exit 2
 fi
+# --- the setup-portal timeout ladder, added 2026-09-14 ----------------------
+#
+# A board carried to a DIFFERENT house could not be re-provisioned: the setup
+# hotspot vanished every ~5 min as it rebooted to retry a network that was no
+# longer in range. The timeout cannot simply be removed -- it is what makes a
+# power cut survivable -- so it escalates. Both directions are one edit apart,
+# and the test names the consequence of each rather than the number.
+echo
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_portal_timeout_policy.cpp"       -o "$OUT/test_portal_timeout_policy.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the portal timeout policy test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_portal_timeout_policy.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fails=$((fails+1))
+
 "$OUT/test_follow_routing.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then

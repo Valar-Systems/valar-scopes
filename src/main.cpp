@@ -455,6 +455,12 @@ void setup()
       // credentials from the top, which is the whole point -- it is what lets a
       // unit that came up before its router heal itself a few minutes later
       // instead of parking in setup mode until a human intervenes.
+      //
+      // COUNT IT FIRST. The counter is what stretches the portal on later boots
+      // for a device that has MOVED (PortalTimeoutPolicy.h), and it has to be
+      // written before the restart it is counting -- a count kept in RAM would
+      // reset on exactly the event it exists to measure.
+      WiFiManagerHelpers::RecordJoinOutcome(false);
       Serial.println("[WiFi] no network and nobody at the portal -- restarting to retry saved credentials");
       DrawSplash(tft, backbuffer, "No Wi-Fi", "Retrying...");
       delay(1500);
@@ -485,6 +491,13 @@ void setup()
   // and silences it. The device is USB/mains powered, so the extra ~20-30 mA is
   // a non-issue, and latency/throughput actually improve.
   if (connected) {
+    // A JOIN CLEARS THE PORTAL LADDER, unconditionally and from any depth. Without
+    // this a board that struggled once would keep the stretched portal forever and
+    // never return to the fast router-reboot self-heal. Note it is deliberately
+    // NOT folded into RememberFastAp(): that one refuses a weak link, and a weak
+    // join is still a join as far as "this device is in the right house" goes.
+    WiFiManagerHelpers::RecordJoinOutcome(true);
+
     // Remember this AP for the next boot's fast join -- but only if the link was
     // solid (a weak connect clears the hint instead; see RememberFastAp).
     WiFiManagerHelpers::RememberFastAp();
