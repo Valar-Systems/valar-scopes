@@ -25,6 +25,9 @@
 #include "BrightnessLog.h"
 #include "LocalOffset.h"
 #include "QuietHourPolicy.h"
+#ifdef BLIPSCOPE_JOIN_DIAG
+#include "JoinDiagScreen.h"   // bench-only Wi-Fi join diagnostic; see the header
+#endif
 #include "NightOverride.h"
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
@@ -145,6 +148,16 @@ void setup()
   // rolled back, and it must say so unprompted.
   LogOtaSlot("boot");
   Serial.printf("[boot] reset reason=%s\n", ResetReasonName());
+#ifdef BLIPSCOPE_JOIN_DIAG
+  // Bench diagnostic build. The cycle counter is the ONLY persistent state it
+  // keeps, and it exists because RAM does not survive the reboot-retry: without
+  // it every cycle shows ~2 minutes elapsed and a twelve-minute run is
+  // indistinguishable from a thirty-second one, which is how this started.
+  {
+    const uint16_t cyc = joindiag::BumpCycle();
+    Serial.printf("[jdiag] ** WIFI JOIN DIAGNOSTIC BUILD -- NEVER SHIPS ** cycle=%u\n", cyc);
+  }
+#endif
   netwatch::Begin(); // prints the reachability ladder, and why this boot happened
   // Bench overrides, announced together and LOUDLY. Not "is the number
   // different" but "am I looking at a bench build?" -- a capture read weeks
@@ -344,15 +357,46 @@ void setup()
         break;
       case ARDUINO_EVENT_WIFI_STA_CONNECTED:
         Serial.printf("[WiFi] Associated with \"%s\", waiting for IP...\n", WiFi.SSID().c_str());
+#ifdef BLIPSCOPE_JOIN_DIAG
+        joindiag::RecordAssociated(WiFi.SSID().c_str()); // POD write only
+#endif
         break;
       case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         Serial.printf("[WiFi] CONNECTED  IP=%s  RSSI=%d dBm\n",
                       WiFi.localIP().toString().c_str(), WiFi.RSSI());
+#ifdef BLIPSCOPE_JOIN_DIAG
+        joindiag::RecordGotIp(); // POD write only
+#endif
         break;
       case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
         const auto reason = (wifi_err_reason_t)info.wifi_sta_disconnected.reason;
         Serial.printf("[WiFi] DISCONNECTED  reason=%d (%s)\n",
                       reason, WiFi.disconnectReasonName(reason));
+#ifdef BLIPSCOPE_JOIN_DIAG
+        // RECORD ONLY. Rendering from here would put a blocking SPI write on the
+        // WiFi event task and perturb the timing this exists to measure.
+        joindiag::RecordDisconnect((uint8_t)reason,
+                                   WiFi.disconnectReasonName(reason), millis());
+        // THE SSID MUST BE CAPTURED ON FAILURE, NOT ON ASSOCIATION. It was only
+        // recorded in STA_CONNECTED, which never fires when auth fails -- so the
+        // screen read "SSID (not set)" on exactly the boards this instrument
+        // exists for.
+        //
+        // AND NOT FROM WiFi.SSID() EITHER: that reports the ASSOCIATED AP, so it
+        // is empty for precisely the failures being diagnosed. Tried it, watched
+        // it still print "(none)" against four real AUTH_FAILs.
+        //
+        // The disconnect EVENT carries the SSID it was attempting, which is the
+        // authoritative source and is already in hand here.
+        {
+          const auto& d = info.wifi_sta_disconnected;
+          char attempted[33];
+          const size_t n = d.ssid_len < 32 ? d.ssid_len : 32;
+          memcpy(attempted, d.ssid, n);
+          attempted[n] = 0;
+          joindiag::RecordTargetSsid(attempted);
+        }
+#endif
         if (reason == WIFI_REASON_NO_AP_FOUND)
           Serial.println("       SSID not found: check spelling/range. The ESP32-C3 is 2.4GHz-only and cannot see 5GHz networks.");
         else if (reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
@@ -411,6 +455,12 @@ void setup()
       // credentials from the top, which is the whole point -- it is what lets a
       // unit that came up before its router heal itself a few minutes later
       // instead of parking in setup mode until a human intervenes.
+      //
+      // COUNT IT FIRST. The counter is what stretches the portal on later boots
+      // for a device that has MOVED (PortalTimeoutPolicy.h), and it has to be
+      // written before the restart it is counting -- a count kept in RAM would
+      // reset on exactly the event it exists to measure.
+      WiFiManagerHelpers::RecordJoinOutcome(false);
       Serial.println("[WiFi] no network and nobody at the portal -- restarting to retry saved credentials");
       DrawSplash(tft, backbuffer, "No Wi-Fi", "Retrying...");
       delay(1500);
@@ -441,6 +491,13 @@ void setup()
   // and silences it. The device is USB/mains powered, so the extra ~20-30 mA is
   // a non-issue, and latency/throughput actually improve.
   if (connected) {
+    // A JOIN CLEARS THE PORTAL LADDER, unconditionally and from any depth. Without
+    // this a board that struggled once would keep the stretched portal forever and
+    // never return to the fast router-reboot self-heal. Note it is deliberately
+    // NOT folded into RememberFastAp(): that one refuses a weak link, and a weak
+    // join is still a join as far as "this device is in the right house" goes.
+    WiFiManagerHelpers::RecordJoinOutcome(true);
+
     // Remember this AP for the next boot's fast join -- but only if the link was
     // solid (a weak connect clears the hint instead; see RememberFastAp).
     WiFiManagerHelpers::RememberFastAp();

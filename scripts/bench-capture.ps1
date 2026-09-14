@@ -223,8 +223,8 @@ while ($true) {
     $script:detachTimes = @($script:detachTimes | Where-Object { $_ -gt (Get-Date).AddMinutes(-5) })
     $script:detachTimes += (Get-Date)
     if ($script:detachTimes.Count -ge 3) {
-        Write-Mark $sw ("WARNING: {0} detaches in 5 min -- THIS RECORDER MAY BE RESETTING THE BOARD. " +
-                        "Treat reboot counts in this ledger as suspect until ruled out." -f $script:detachTimes.Count)
+        Write-Mark $sw ("WARNING: " + $script:detachTimes.Count + " detaches in 5 min -- THIS RECORDER MAY BE " +
+                        "RESETTING THE BOARD. Treat reboot counts in this ledger as suspect until ruled out.")
         Start-Sleep -Seconds 60
     }
 }

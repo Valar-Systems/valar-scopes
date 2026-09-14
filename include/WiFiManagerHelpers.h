@@ -7,6 +7,12 @@
 #include "DeviceIdentity.h"
 #include "Layout.h"
 #include "BootScreen.h"
+// NOT inside the diag guard below: the portal ladder ships. (It was briefly put
+// there by an edit whose anchor matched exactly once -- in the wrong block.)
+#include "PortalTimeoutPolicy.h"
+#ifdef BLIPSCOPE_JOIN_DIAG
+#include "JoinDiagScreen.h"
+#endif
 
 namespace WiFiManagerHelpers
 {
@@ -71,6 +77,43 @@ namespace WiFiManagerHelpers
         constexpr char     FAST_NS[]      = "wifi-fast";
         constexpr int32_t  FAST_MIN_RSSI  = -70;  // don't pin a node we barely heard
         constexpr uint32_t FAST_JOIN_MS   = 6000; // then give up and scan properly
+
+        // Its OWN namespace, deliberately NOT the fast-AP one above: ForgetFastAp()
+        // calls p.clear(), and a counter living there would be wiped by every weak
+        // connect -- silently returning a moved board to the vanishing-hotspot
+        // behaviour this counter exists to end.
+        constexpr const char* JOIN_NS = "wifi-join";
+    }
+
+    /// Consecutive boots that failed to join, persisted because the evidence has
+    /// to survive the very reboot it is counting.
+    inline uint8_t JoinFailureCount()
+    {
+        Preferences p;
+        if (!p.begin(detail::JOIN_NS, true)) return 0;
+        const uint8_t n = p.getUChar("fails", 0);
+        p.end();
+        return n;
+    }
+
+    inline void SetJoinFailureCount(uint8_t n)
+    {
+        Preferences p;
+        if (!p.begin(detail::JOIN_NS, false)) return;
+        p.putUChar("fails", n);
+        p.end();
+    }
+
+    /// Call with the outcome of every join attempt. A success clears the ladder.
+    inline void RecordJoinOutcome(bool joined)
+    {
+        const uint8_t before = JoinFailureCount();
+        const uint8_t after  = portaltimeout::NextFailureCount(before, joined);
+        if (after != before) SetJoinFailureCount(after);
+        if (joined && before > 0)
+            Serial.printf("[WiFi] joined -- clearing %u consecutive failures; "
+                          "portal returns to the %u s retry\n",
+                          (unsigned)before, (unsigned)portaltimeout::FAST_TIMEOUT_S);
     }
 
     inline void ForgetFastAp()
@@ -386,10 +429,24 @@ namespace WiFiManagerHelpers
         // is connected to the setup hotspot (WiFiManager checks
         // WiFi_softap_num_stations()), so a customer typing their password is never
         // cut off mid-setup even on the timed path.
+        // ESCALATION, added 2026-09-14. The 180 s above is right for a router that
+        // is merely slow to come back, and WRONG for a board that has been carried
+        // to a different house -- there the hotspot the new owner is hunting for
+        // vanishes every five minutes and the device reads as broken. The two look
+        // identical at the first failure and obvious after several, so the timeout
+        // stretches once failures pile up. See PortalTimeoutPolicy.h; it still
+        // times out, so the self-heal above is preserved.
         if (haveSavedCredentials()) {
-            wm.setConfigPortalTimeout(180);
+            const uint8_t fails = JoinFailureCount();
+            const uint16_t timeout = portaltimeout::TimeoutSeconds(true, fails);
+            wm.setConfigPortalTimeout(timeout);
             wm.setAPClientCheck(true);
-            Serial.println("[WiFi] credentials saved: portal will time out after 180 s and retry them");
+            Serial.printf("[WiFi] credentials saved: portal times out after %u s "
+                          "and retries them (%u consecutive failures)\n",
+                          (unsigned)timeout, (unsigned)fails);
+            if (timeout != portaltimeout::FAST_TIMEOUT_S)
+                Serial.println("[WiFi]   repeated failures -- holding the setup hotspot "
+                               "up longer in case this device has MOVED");
         } else {
             wm.setConfigPortalTimeout(0); // explicit: never drop the hotspot during first setup
             Serial.println("[WiFi] no saved credentials: portal stays up indefinitely for first setup");
@@ -405,6 +462,20 @@ namespace WiFiManagerHelpers
         });
 
         wm.setAPCallback([&tft, &backbuffer](WiFiManager* wifiManager) {
+#ifdef BLIPSCOPE_JOIN_DIAG
+            // BENCH DIAGNOSTIC BUILD: the portal opening IS the failure signal, so
+            // this is the moment to scan and put the evidence on the glass.
+            //
+            // Rendering HERE rather than from loop() is forced, not preferred:
+            // wm.autoConnect() blocks setup() for the whole join, and a failed join
+            // reboots without ever reaching loop(). This callback runs on the MAIN
+            // task, so the actual constraint -- no SPI from the WiFi event task --
+            // is kept. See include/JoinDiagScreen.h.
+            joindiag::ScanTarget();
+            joindiag::Draw(tft, joindiag::CycleCount());
+            joindiag::LogSerial(joindiag::CycleCount());
+            return;
+#endif
             // Composed through the backbuffer so it renders on the SPD2010 (direct per-glyph writes
             // don't); direct on every other SKU. See BootScreen.h.
             DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),

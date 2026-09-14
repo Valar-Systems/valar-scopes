@@ -314,6 +314,43 @@ So: a rule added to this file is the weakest form of the fix. Prefer a check tha
 runs -- a refusal, a test, a `--tol=` the caller must state. Where that is not
 possible, the entry at least gives the next person the shape to recognise.
 
+## Standing practice: the capture rig has now cost three measurements
+
+Not a caution. A tally, because the guard that catches this is worth less than
+not having it, and it has happened three times:
+
+| when | what the recorder did | what it cost |
+|---|---|---|
+| COM4 soak | appended while being read | an anchor that reported 5132 / 5135 / 5136 for one quantity |
+| 2026-09-09, COM119 | a watcher launched after a FAILED flash took the port | the retry failed because of the first attempt; board wedged overnight |
+| 2026-09-10, COM3 | reopened 5 s after a reboot, INTO the boot window, resetting the board | a ledger full of reboots that were the recorder's, nearly read as the firmware's retry interval |
+| 2026-09-12, COM6 | same reopen loop, during a negative control | the control could not be delivered; the AP vanished mid-test |
+
+**The mechanism is narrower than "recorders disturb boards", and naming it
+correctly is what made a fix possible.** DTR/RTS is not the culprit: both
+asserted does not reset a running board, and dtr/rts false is safe throughout.
+**The REOPEN is.** A board that reboots drops its native-USB CDC, the read
+throws, an auto-reattaching recorder reopens, and an `open()` landing inside the
+boot window resets the chip (`rst:0x15`; no handshake combination avoids it).
+That reset causes another reboot, and the loop sustains itself.
+
+So there are two rigs, and picking the wrong one is what costs a measurement:
+
+- [`bench-capture.ps1`](scripts/bench-capture.ps1) — long-lived, re-attaching,
+  for soaks where a gap matters more than an intervention. It now waits out
+  re-enumeration and shouts into the ledger if it detaches three times in five
+  minutes.
+- [`bench-trace.ps1`](scripts/bench-trace.ps1) — **a single open that is never
+  repeated.** On a read error it STOPS and says so. Use this whenever the board
+  is expected to reboot, or whenever the measurement is about the board's own
+  timing. A gap in the trace is a fact about the board; a reattach is an
+  intervention in it.
+
+**The tell that catches it after the fact:** reboots in a ledger with no
+corresponding cause line from the firmware. On 2026-09-10 the give-away was that
+`restarting to retry saved credentials` never appeared in a log full of restarts
+— so the restarts were not the firmware's.
+
 ## Standing practice: an instrument that fires correctly into a void
 
 Two failure modes already have entries here: **a guard with a path around it**
