@@ -71,6 +71,9 @@ namespace WiFiManagerHelpers
      * password. Both flags now mean what their names say.
      */
     inline bool& CredentialsSubmittedFlag() { static bool submitted = false; return submitted; }
+    /// Bumped on every submit. The portal loop renders ONE verdict per attempt,
+    /// and this is how it tells a new attempt from a new reason code.
+    inline uint32_t& SubmitCountRef() { static uint32_t n = 0; return n; }
     inline bool  CredentialsSubmitted()     { return CredentialsSubmittedFlag(); }
 
     inline bool& PortalProvisionedFlag() { static bool provisioned = false; return provisioned; }
@@ -234,7 +237,8 @@ namespace WiFiManagerHelpers
     {
         const bool  neverTimeout = (timeoutSec == portaltimeout::NEVER);
         uint32_t    deadline     = millis() + (uint32_t)timeoutSec * 1000UL;
-        uint8_t     shownReason  = 0;
+        uint32_t    shownForSubmit = 0;   // which attempt we have already judged
+        bool        verdictShown   = false;
         uint32_t    lastStations = 0;
 
         Serial.printf("[WiFi] portal loop: timeout=%s, rendering failures as they happen\n",
@@ -265,12 +269,43 @@ namespace WiFiManagerHelpers
             // arrive during ordinary scanning, and accusing someone of a wrong
             // password before they have typed one would be worse than silence.
             const uint8_t reason = joinfail::LastReason();
-            if (CredentialsSubmitted() && reason != 0 && reason != shownReason) {
-                shownReason = reason;
+            // A NEW ATTEMPT RESETS THE VERDICT; a new reason code does not.
+            // Keying on the reason meant our OWN tidy-up disconnect below
+            // produced a second event (ASSOC_LEAVE) that was classified as
+            // Unknown and overwrote "WRONG PASSWORD" with "COULD NOT CONNECT".
+            // The fix broke the message the fix existed to deliver.
+            if (SubmitCountRef() != shownForSubmit) {
+                shownForSubmit = SubmitCountRef();
+                verdictShown = false;
+            }
+            if (CredentialsSubmitted() && !verdictShown && reason != 0) {
+                verdictShown = true;
                 PersistJoinFailure(reason);
                 const joinfail::Advice a = joinfail::AdviceFor(joinfail::Classify(reason));
                 Serial.printf("[WiFi] portal attempt FAILED: reason=%u -> \"%s\"\n",
                               (unsigned)reason, a.l0);
+
+                // QUIET THE STA, OR THE HOTSPOT THEY MUST COME BACK TO IS UNUSABLE.
+                //
+                // The ESP32 has ONE radio shared by AP and STA. After a rejected
+                // password the driver auto-reconnects forever, and every retry
+                // drags the AP onto the STA's channel -- which knocks associating
+                // clients off. Measured on the bench: 8 disconnects and 9x
+                // reason=202 in 35 seconds, with this loop's own client check
+                // watching a phone drop and rejoin repeatedly. An iPhone took
+                // MINUTES to join the setup AP, catching a gap between retries.
+                //
+                // So the failure screen was only half the fix. Telling someone to
+                // rejoin this hotspot while our own retry loop is making it
+                // unjoinable is worse than saying nothing: it sends them at a
+                // door we are holding shut.
+                //
+                // eraseap=false -- the credentials STAY stored. This stops the
+                // retrying, not the remembering; the next submit calls
+                // WiFi.begin() again and revives both.
+                WiFi.setAutoReconnect(false);
+                WiFi.disconnect(false /*wifioff*/, false /*eraseap*/);
+                Serial.println("[WiFi] STA retry stopped so the setup hotspot stays joinable");
                 // Amber, not red: the owner has not broken anything and this is
                 // recoverable from the page they are already looking at.
                 DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
@@ -643,6 +678,9 @@ namespace WiFiManagerHelpers
         wm.setPreSaveConfigCallback([]() {
             Serial.println("[WiFi] portal: credentials submitted, attempting to connect...");
             CredentialsSubmittedFlag() = true;
+            ++SubmitCountRef();
+            // Judge THIS attempt on its own failure, not on a stale one.
+            joinfail::Reset();
         });
 
         wm.setSaveConfigCallback([]() {
