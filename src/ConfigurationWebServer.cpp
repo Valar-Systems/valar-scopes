@@ -113,7 +113,12 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.grow{flex:1})" \
     R"(.w4{width:4.5rem}.w6{width:6rem}.w8{width:8rem})" \
     R"(.mt{margin-top:.75rem})" \
-    R"(.hint{display:block;font-size:.78rem;color:var(--dim);line-height:1.45})" \
+    R"(.hint{display:block;font-size:.85rem;color:var(--dim);line-height:1.5;)" \
+    /* A system sans for PROSE ONLY. Monospace is right for IPs, hexes and
+       coordinates and wrong for 79 paragraphs of explanation: ~15% wider
+       and materially less legible at small sizes. Values keep the mono
+       face; the sentences that explain them do not. */ \
+    R"(font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif})" \
     R"(.hint a{color:inherit})" \
     R"(.btn{background:var(--btn);color:#000;border:none;padding:.6rem 1.6rem;cursor:pointer})" \
     R"(.btn-line{background:transparent;border:1px solid var(--line);color:var(--ink);padding:.4rem .8rem;cursor:pointer;white-space:nowrap})" \
@@ -122,7 +127,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(#result{font-size:.8rem})" \
     R"(.status{display:flex;flex-wrap:wrap;gap:.3rem 1.2rem;font-size:.78rem;color:var(--dim);margin-bottom:1rem})" \
     R"(.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;font-size:.78rem;color:var(--dim);margin-top:1.1rem})" \
-    R"(@media(min-width:640px){body{font-size:.875rem;padding:2.5rem 1rem}.wrap{padding:1.25rem}.field{flex-direction:row;align-items:center;gap:.5rem}.row{flex-direction:row}.row>*{flex:1}.grid2{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:repeat(3,1fr)}.grid4{grid-template-columns:repeat(4,1fr)}input,select,textarea{padding:.25rem .45rem}input[type=checkbox]{width:.95rem;height:.95rem}.btn{padding:.45rem 1.4rem}})" \
+    R"(@media(min-width:640px){body{font-size:.9rem;padding:2.5rem 1rem}.wrap{padding:1.25rem}.field{flex-direction:row;align-items:center;gap:.5rem}.row{flex-direction:row}.row>*{flex:1}.grid2{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:repeat(3,1fr)}.grid4{grid-template-columns:repeat(4,1fr)}input,select,textarea{padding:.25rem .45rem}input[type=checkbox]{width:.95rem;height:.95rem}.btn{padding:.45rem 1.4rem}})" \
     R"(</style>)"
 
 // Shared page behaviour: async save into the sticky bar, the Reset WiFi confirm,
@@ -347,7 +352,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              stray percent sign collides with this page's PLACEHOLDER template engine and shreds the whole
              form (write it as &#37; in visible text - and keep it out of comments too, like this one). -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#15803d;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#16a34a;--btn:#22c55e}</style>
 )" CONFIG_SHELL_CSS R"(
         <!-- Sidebar layout. Radar-only on purpose: the other seven editions have short
              single-screen forms a nav would only get in the way of, and this block is
@@ -1246,7 +1251,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope EAM</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#15803d;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#16a34a;--btn:#22c55e}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
