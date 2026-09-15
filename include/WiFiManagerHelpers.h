@@ -51,6 +51,28 @@ namespace WiFiManagerHelpers
      * during a setup flow that already involves joining a hotspot and typing a
      * password.
      */
+    /**
+     * Has a human SUBMITTED credentials this boot? NOT the same question as
+     * PortalProvisioned(), and conflating them cost a bench cycle.
+     *
+     * WiFiManager fires _savewificallback ONLY on a successful connect:
+     *
+     *     uint8_t res = connectWifi(_ssid, _pass, _connectonsave) == WL_CONNECTED;
+     *     if (res || (!_connectonsave)) { ... _savewificallback(); ... }
+     *     DEBUG_WM(F("[ERROR] Connect to new AP Failed"));   // falls straight through
+     *
+     * So PortalProvisioned() means "the portal SUCCEEDED" -- and gating a
+     * FAILURE message on it means the message can only appear when there was no
+     * failure. Observed on the bench: the loop ran, the client check worked,
+     * reason=202 was classified three times, and the screen never changed.
+     *
+     * _presavewificallback fires in handleWifiSave BEFORE any connect attempt,
+     * which is the question actually being asked -- did somebody just type a
+     * password. Both flags now mean what their names say.
+     */
+    inline bool& CredentialsSubmittedFlag() { static bool submitted = false; return submitted; }
+    inline bool  CredentialsSubmitted()     { return CredentialsSubmittedFlag(); }
+
     inline bool& PortalProvisionedFlag() { static bool provisioned = false; return provisioned; }
     inline bool  PortalProvisioned()     { return PortalProvisionedFlag(); }
 
@@ -243,7 +265,7 @@ namespace WiFiManagerHelpers
             // arrive during ordinary scanning, and accusing someone of a wrong
             // password before they have typed one would be worse than silence.
             const uint8_t reason = joinfail::LastReason();
-            if (PortalProvisioned() && reason != 0 && reason != shownReason) {
+            if (CredentialsSubmitted() && reason != 0 && reason != shownReason) {
                 shownReason = reason;
                 PersistJoinFailure(reason);
                 const joinfail::Advice a = joinfail::AdviceFor(joinfail::Classify(reason));
@@ -616,6 +638,13 @@ namespace WiFiManagerHelpers
         // that the portal was used at all -- setup() has to restart afterwards, and
         // this is the only reliable way to know the portal actually ran. See
         // PortalProvisioned() for why the restart is not optional.
+        // FIRES ON SUBMIT, not on success -- see CredentialsSubmitted(). This is
+        // what tells RunPortalLoop that a failure is now worth reporting.
+        wm.setPreSaveConfigCallback([]() {
+            Serial.println("[WiFi] portal: credentials submitted, attempting to connect...");
+            CredentialsSubmittedFlag() = true;
+        });
+
         wm.setSaveConfigCallback([]() {
             Serial.println("[WiFi] Portal saved credentials, attempting to connect...");
             PortalProvisionedFlag() = true;
