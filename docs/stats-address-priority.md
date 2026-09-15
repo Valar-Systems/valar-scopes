@@ -131,6 +131,70 @@ whatever the final merged image is, not on an image taken before these land.
 draws the representative-photo caption, so the existing product photography
 remains accurate. The reshoot moves to whenever v12 publishes.
 
+## The Connect screen, and the first-run landing rule (v12 design, not yet built)
+
+The four fixes in this document are one piece of work, not four patches: every
+one of them is the device knowing where it can be reached and failing to say so.
+The Connect screen is where that stops being a per-screen decision.
+
+### The screen
+
+Fourth in the carousel -- Radar, List, Stats, **Connect** -- with its own dot.
+Contents in declared priority order, consumed from the SAME named table the
+Stats rows use, so the drop order is a decision recorded once rather than a
+per-screen accident:
+
+1. **QR encoding `http://<ip>`**
+2. **the IP as readable text**
+3. **the device name**
+4. **the device ID**
+
+The device ID earns its place independently of the QR. It is a salted hash by
+design and today it appears **only on the config page** -- so a customer who
+cannot reach that page cannot tell us which unit they have. That happened.
+
+**The IP stays as readable text under the QR even when the QR renders.** Some
+phones are locked down, some people would rather type, and a code that will not
+scan with no visible fallback is the same dead end one layer further in.
+
+### The landing rule
+
+> **Joined Wi-Fi and no location set -> land on Connect with the QR up, not on
+> Radar. Once a location exists, Radar landing resumes.**
+
+The predicate is `hasLocation`, which already exists
+(`AircraftManager.cpp`: `latStr.length() > 0 && lonStr.length() > 0`) and is
+already what the config page's own checklist tests (`stNeedLoc`). **Both sides
+therefore agree by construction rather than by maintenance** -- which is the
+whole point of reusing it instead of writing a second rule that reads the same
+two fields and drifts. There is an existing `if (!hasLocation) DrawNoLocation()`
+path; this replaces where that lands rather than adding a parallel notion of
+"unconfigured".
+
+**It persists. It is not a toast.** It stays until the owner acts or swipes off
+it. The argument is three paragraphs up this document: the 8-second wrong-password
+screen was technically a notification and practically invisible, because a person
+mid-setup is looking at their phone. A first-run pointer that expires has the same
+defect with a longer fuse.
+
+### The AP trap, which will otherwise read as a broken code
+
+A phone still joined to the device's **setup AP** is on `192.168.4.x` and cannot
+reach a `192.168.1.x` QR. It will scan perfectly and fail to load, which is the
+worst of both worlds: the owner concludes the code is broken, or the product is.
+
+So the screen carries one line: **"make sure your phone is back on your home
+Wi-Fi."** It costs a row and removes a failure mode that is invisible from our
+side and infuriating from theirs.
+
+### The portal hand-off
+
+On the portal's save/confirmation page: **"your device will show a code to
+scan."** At that moment the LAN address does not exist yet -- the device has not
+joined, has no lease, and anything we printed would be a guess. A pointer to
+where the answer will appear is the most the portal can honestly give, and it is
+enough, because the next thing the owner looks at is the device.
+
 ## The class: an expected consequence that existed nowhere in the product
 
 The field unit's NEEDS VERIFY was **the expected v10 -> v11 key migration**. Not a
