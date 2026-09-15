@@ -57,6 +57,29 @@ int main()
         check(b.Take() == 124, "the row after it gets no extra gap");
     }
 
+    // ---- a heading must not be able to strand itself -----------------------
+    // Seen on glass: "AIRCRAFT OF THE DAY" rendered with nothing beneath it,
+    // because the block was guarded on ONE row -- exactly enough to draw a title
+    // and lose the row that gives it meaning.
+    {
+        Budget b{ CEIL - LH, LH, CEIL, 0 };       // room for exactly one row
+        check(b.Fits(), "one row fits");
+        check(!b.FitsRows(2), "...but a heading plus its content does NOT");
+
+        Budget c{ CEIL - 2 * LH, LH, CEIL, 0 };
+        check(c.FitsRows(2), "two rows fit when there is room for two");
+        check(!c.FitsRows(3), "...and three do not");
+    }
+
+    // A pending gap counts against a multi-row block too -- a block that would
+    // fit only by ignoring its own leading gap does not fit.
+    {
+        Budget b{ CEIL - 2 * LH, LH, CEIL, 0 };
+        check(b.FitsRows(2), "two rows fit with no gap queued");
+        b.Gap(6);
+        check(!b.FitsRows(2), "...and not once a 6 px gap is queued ahead of them");
+    }
+
     // ---- CONTROL: the budget can actually refuse ---------------------------
     // Without this, a Take() that always succeeded would satisfy the positive
     // cases above and the whole guard would be decorative.
@@ -85,10 +108,16 @@ int main()
     }
 
     // ---- the reserved count is what the renderer derives its ceiling from ---
-    check(statsrows::RESERVED_ROWS == 2, "two reserved rows: Reset-WiFi and the address");
-    // If a row is ever added to or removed from the reserved set, this is the
-    // line that should fail first -- before anyone finds out on glass.
-    check(statsrows::ClockTopFor(210, LH) == 172, "the s3-128 ceiling is unchanged by this refactor");
+    //
+    // THESE TWO FIRED, AND THAT IS THE RECORD WORTH KEEPING. They were written
+    // pinning RESERVED_ROWS == 2 and a ceiling of 172. When the address and the
+    // reset control moved to the Connect screen they failed immediately -- on
+    // the host, before a board was flashed, which is the whole reason a
+    // geometry constant has a test at all. Updated, and still a tripwire.
+    check(statsrows::RESERVED_ROWS == 0, "Stats reserves nothing: address and reset live on Connect");
+    check(statsrows::ClockTopFor(210, LH) == 208, "the s3-128 ceiling is the clock row less the 2 px gap");
+    // The budget the face actually got back by reserving nothing: two rows.
+    check(statsrows::ClockTopFor(210, LH) - 172 == 2 * LH, "reserving nothing returned exactly two rows");
 
     if (failures == 0) std::printf("  ok\n");
     else               std::printf("  %d failure(s)\n", failures);

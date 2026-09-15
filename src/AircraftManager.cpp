@@ -22,9 +22,7 @@
 #include "DeviceIdentity.h"
 #include "Layout.h"
 #include "StatsRowPriority.h"  // what this face drops when it fills, decided once
-#ifdef BLIPSCOPE_QR_SIZE_PROBE
 #include "QrRender.h"
-#endif
 #include "Board.h"
 #include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
 #include "TouchWatchdog.h" // CST816 supervisor; inert unless variant::TOUCH_WATCHDOG
@@ -3172,6 +3170,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     switch (screen) {
         case Screen::List:   DrawList(backbuffer);   break;
         case Screen::Stats:  DrawStats(backbuffer);  break;
+        case Screen::Connect: DrawConnect(backbuffer); break;
         case Screen::Follow: DrawFollow(backbuffer); break;
         case Screen::Radar:
         default:
@@ -3191,7 +3190,13 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
             break;
     }
     DrawScreenIndicator(backbuffer);
-    DrawClock(backbuffer);
+    // NO CLOCK ON CONNECT. DrawClock owns y=SCREEN_SIZE-30, and Connect needs
+    // that row for the reset control -- drawn over each other they produced
+    // "[ R0s09 ]" on glass, which is two correct strings and one unreadable row.
+    // A utility screen that exists to get an unreachable device back does not
+    // need to tell the time; the other three faces still do.
+    if (screen != Screen::Connect)
+        DrawClock(backbuffer);
     DrawVisualAlert(backbuffer); // military/emergency ring pulse / flash, over any screen
     DrawRankToast(backbuffer);   // transient "RANK UP" banner after a leaderboard climb
     DrawClaimToast(backbuffer);  // transient "CLAIMED <type> #N" after a tap-to-claim
@@ -3728,7 +3733,8 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
 
     // TODAY -- contacts since local midnight, peak simultaneous count, busiest
     // hour + an hourly sparkline. RAM-only session stats (see the members).
-    if (todayContacts > 0) {
+    // Heading + at least one content row, or not at all. See Budget::FitsRows.
+    if (todayContacts > 0 && (budget.y = y, budget.FitsRows(2))) {
         gap(6);
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         line("TODAY");
@@ -3755,13 +3761,23 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
                                     h == busiest ? lgfx::color888(0, 255, 0)
                                                  : lgfx::color888(0, 120, 0));
             }
-            gap(16);
+            // NOT gap(). THIS IS A SPACE RESERVATION FOR CONTENT ALREADY DRAWN,
+            // not a gap queued before the next row -- the bars occupy y..y+10
+            // and this is what steps past them. Converting it to a deferred gap
+            // (2026-09-15) made the next row draw straight THROUGH the
+            // sparkline, seen on glass as a bar through "AIRCRAFT OF THE DAY".
+            //
+            // The distinction is the whole point of the gap mechanism and is
+            // easy to miss: `y +=` appears identically in both roles. A gap is
+            // deferred because it may buy nothing; a reservation is immediate
+            // because the pixels are already on the screen.
+            y += 16;
         }
     }
 
     // AIRCRAFT OF THE DAY -- the day's single most notable catch (see
     // ConsiderAircraftOfDay). Only shows once something's been logged today.
-    if (!aotdCallsign.isEmpty() && y + lh <= clockTop) {
+    if (!aotdCallsign.isEmpty() && (budget.y = y, budget.FitsRows(2))) {
         gap(6);
         backbuffer.setTextColor(lgfx::color888(255, 210, 0)); // gold: a highlight
         line("AIRCRAFT OF THE DAY");
@@ -3772,7 +3788,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     }
 
     // spotting logbook totals (the persistent "lifelist")
-    if (logbookEnabled) {
+    if (logbookEnabled && (budget.y = y, budget.FitsRows(2))) {
         gap(6);
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         line("LIFELIST");
@@ -3818,7 +3834,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
 #ifdef FEATURE_CLOUD_FEED
     // LEADERBOARD -- this device's public standing, once a submit has returned
     // one. Opt-in; shown only when enabled and a rank has arrived.
-    if (lbEnabled && lbHaveStanding && y + lh <= clockTop) {
+    if (lbEnabled && lbHaveStanding && (budget.y = y, budget.FitsRows(2))) {
         gap(6);
         backbuffer.setTextColor(lgfx::color888(255, 210, 0)); // gold: a score
         line("LEADERBOARD");
@@ -3911,126 +3927,126 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         // destructive happens on this screen at all now -- which is what makes a
         // single stray contact here harmless (#165's accident lands on a menu
         // with a large Cancel, not on a wipe).
-        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-        centered(String("[ Reset ]"), wifiRowTop);
-        // Tap target = the drawn row, padded to a fingertip. Derived from the same
-        // constant the text uses, so the hit box cannot drift from the pixels.
-        resetRowY0 = wifiRowTop - 8;
-        resetRowY1 = wifiRowTop + lh;
+        // MOVED TO CONNECT (2026-09-15). The reset control and the address are
+        // the same job -- "my device is unreachable, get me back in" -- and they
+        // were on different screens. Connect now carries both, which is also
+        // what lets Stats reserve NOTHING and stop evicting its own content.
     }
 
-    // THIS DEVICE -- how to reach the config page. THE IP IS THE RESERVED ROW
-    // AND THE NAME YIELDS TO IT; see include/StatsRowPriority.h for the decision
-    // and what it costs. The previous arrangement was the wrong way round: its
-    // own comment named .local as the address that fails on Android and many
-    // Windows setups, and then gave that row the guarantee.
+    // THIS DEVICE -- the name only. The IP moved to the Connect screen, which
+    // has room for it, a QR of it, and the device id beside it. Keeping a second
+    // copy here was how the two drifted in the first place.
     gap(6);
-#ifdef BLIPSCOPE_QR_SIZE_PROBE
-    // Flash-budget measurement only. Forces the QR encoder to link so the delta
-    // is real; an unreferenced library is removed and would measure as nothing.
-    {
-        static bool once = false;
-        if (!once) {
-            once = true;
-            const bool ok = qr::Draw(backbuffer, "http://192.168.100.100",
-                                     SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2, 6);
-            Serial.printf("[qr-probe] draw=%d
-", (int)ok);
-        }
-    }
-#endif
-#ifdef BLIPSCOPE_STATS_GEOM_PROBE
-    // TEMPORARY OBSERVATION, not a fix.
-    //
-    // THE QUESTION IS NOT "does the guard fail" -- the state table already says
-    // it does. It is WHEN a device in ordinary traffic crosses over, because
-    // that is what says whether this bites a customer in week one or month six,
-    // and therefore how much of the fleet is already past the threshold.
-    //
-    // So the flip is captured with the state that caused it -- uptime, today's
-    // contacts, lifelist size -- and PERSISTED. Persistence is what removes the
-    // recorder from the critical path: this rig has disturbed this very board
-    // three times, so a finding that only exists in a serial stream nobody can
-    // safely keep attached for days is a finding waiting to be lost. Written
-    // once, reprinted every boot, recoverable by attaching whenever.
-    {
-        constexpr const char* PROBE_NS = "geomprobe";
-        const bool ipNow = (y + lh <= clockTop);
-        static uint32_t lastGeomProbe = 0;
-        static int      prevIp = -1;          // -1 = no frame seen yet
-        static bool     bootPrinted = false;
-
-        if (!bootPrinted) {
-            bootPrinted = true;
-            Preferences p;
-            if (p.begin(PROBE_NS, true)) {
-                if (p.isKey("upS"))
-                    Serial.printf("[stats-geom] STORED FLIP: uptime=%lus today=%u lifelist=%u types=%u "
-                                  "yAtAddr=%d (recorded on an earlier boot)\n",
-                                  (unsigned long)p.getUInt("upS", 0), p.getUShort("today", 0),
-                                  p.getUShort("life", 0), p.getUShort("types", 0),
-                                  (int)p.getShort("yAt", 0));
-                else
-                    Serial.println("[stats-geom] STORED FLIP: none yet -- still in the empty-device state");
-                p.end();
-            }
-        }
-
-        // THE FLIP, 1 -> 0, recorded once. Only the FIRST crossing is kept: a
-        // device that oscillates around the boundary would otherwise overwrite
-        // the crossing time with a much later one and destroy the answer.
-        if (prevIp == 1 && !ipNow) {
-            Preferences p;
-            if (p.begin(PROBE_NS, false)) {
-                if (!p.isKey("upS")) {
-                    p.putUInt("upS", millis() / 1000);
-                    p.putUShort("today", (uint16_t)todayContacts);
-                    p.putUShort("life", (uint16_t)logbook.Contacts());
-                    p.putUShort("types", (uint16_t)logbook.ClaimedTypeCount());
-                    p.putShort("yAt", (int16_t)y);
-                    Serial.printf("[stats-geom] *** FLIP 1->0 *** uptime=%lus today=%u lifelist=%u "
-                                  "types=%u yAtAddr=%d clockTop=%d -- the IP row is now evicted\n",
-                                  (unsigned long)(millis() / 1000), (unsigned)todayContacts,
-                                  (unsigned)logbook.Contacts(), (unsigned)logbook.ClaimedTypeCount(),
-                                  y, clockTop);
-                }
-                p.end();
-            }
-        }
-        prevIp = ipNow ? 1 : 0;
-
-        if (millis() - lastGeomProbe > 5000) {
-            lastGeomProbe = millis();
-            Serial.printf("[stats-geom] up=%lus fontH=%d lh=%d clockTop=%d | yAtAddr=%d needs<=%d | "
-                          "ipDrawn=%d | today=%u lifelist=%u types=%u\n",
-                          (unsigned long)(millis() / 1000), (int)backbuffer.fontHeight(), lh,
-                          clockTop, y, clockTop - lh, (int)ipNow,
-                          (unsigned)todayContacts, (unsigned)logbook.Contacts(),
-                          (unsigned)logbook.ClaimedTypeCount());
-        }
-    }
-#endif
-    // SPACE-GUARDED: the .local name, drawn immediately above the IP whenever
-    // there is room. It is not dropped from the face -- on a quiet device both
-    // appear, which is what we want, since both are useful. It has simply
-    // stopped being the one that survives when only one can.
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     line(DeviceIdentity::Name() + ".local");
+}
 
-    // RESERVED, not space-guarded -- statsrows::Row::Address, the highest
-    // priority row after the Reset-WiFi control. Drawn unconditionally in its own
-    // row directly above it, so no amount of traffic can delete the one string
-    // that actually reaches the config page on every platform.
+
+/**
+ * CONNECT -- how to reach this device, on the device.
+ *
+ * THE FAILURE THIS ANSWERS. A customer whose board says NEEDS VERIFY has to open
+ * the config page to fix it, and until now the address for that page lived on
+ * the Stats face where it was space-guarded and evicted by any device with a
+ * lifelist. The error and its remedy were on different screens, and the remedy's
+ * location was the first thing crowded out. See docs/stats-address-priority.md.
+ *
+ * PRIORITY ORDER, the same one declared in StatsRowPriority.h so the drop order
+ * is stated once rather than emerging from the order these lines happen to be
+ * written: the QR, then the address as text, then the name, then the device id.
+ *
+ * THE DEVICE ID EARNS ITS PLACE INDEPENDENTLY of the QR. It is a salted hash and
+ * it appears nowhere else on the device -- only on the config page. So a
+ * customer who cannot reach that page cannot tell us which unit they hold. That
+ * happened this week, and it cost an afternoon of reading enrolment dates to
+ * work out which board was which.
+ */
+void AircraftManager::DrawConnect(BandCanvas& backbuffer)
+{
+    constexpr int cx = SCREEN_SIZE_DIV_2;
+    backbuffer.fillScreen(lgfx::color888(0, 0, 0));
+    backbuffer.setTextSize(1);
+    const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+
+    auto centred = [&](const String& s, int y, uint32_t colour) {
+        const String fit = FitToDisc(backbuffer, s, y, lineH);
+        if (fit.isEmpty()) return;
+        backbuffer.setTextColor(colour);
+        backbuffer.drawString(fit, cx - (int)backbuffer.textWidth(fit) / 2, y);
+    };
+
+    // AP MODE IS A FIRST-CLASS STATE, not an empty screen. With no link the
+    // device is serving its portal at 192.168.4.1, which is a real address the
+    // owner can reach right now. A blank face would say nothing, and a stale LAN
+    // IP that no longer routes would be worse than nothing.
+    const bool joined = (WiFi.status() == WL_CONNECTED)
+                        && (WiFi.localIP() != IPAddress((uint32_t)0));
+    const String addr = joined ? WiFi.localIP().toString() : String("192.168.4.1");
+    const String url  = "http://" + addr;
+
+    // FIVE PIXELS PER MODULE, AND THE FIRST ATTEMPT AT FOUR IS WHY.
     //
-    // WiFi.localIP() is 0.0.0.0 when there is no link, and printing that would be
-    // worse than printing nothing: it looks like an address and cannot be one.
-    // The row is left to the name in that case, which at least names the hotspot.
-    const IPAddress ip = WiFi.localIP();
-    backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-    if (ip != IPAddress((uint32_t)0))
-        centered(ip.toString(), addrRowTop);
-    else
-        centered(DeviceIdentity::Name() + ".local", addrRowTop);
+    // At 4 px a phone LOCKED ON to the symbol -- it drew a box around it -- and
+    // then offered nothing. That is the signature of the finder patterns
+    // resolving while the data grid does not: a finder is 7 modules (28 px at
+    // that size) and easy, while the data modules were 4 px and below what the
+    // camera could separate. A QR that is detected but not decoded is worse than
+    // none, because it looks like it ought to work.
+    //
+    // The arithmetic bounds the fix. A v2 symbol is 25 modules plus the
+    // mandatory 4-module quiet zone each side = 33. The largest square inside a
+    // 240 px circle is 169 px, so 5 px (165) is the LARGEST that fits the disc
+    // -- 6 px (198) would put the corners, and with them the finder patterns,
+    // off the glass.
+    //
+    // WHAT THAT COSTS, stated rather than quietly dropped: the symbol now spans
+    // y 37..202, so only one text row fits below it and one above. The device
+    // name loses its place here; the address and the device id keep theirs,
+    // which is the priority order in StatsRowPriority.h. The name is on the
+    // Stats face and is the setup hotspot's SSID; the id is on neither.
+    // FOUR PIXELS PER MODULE. The earlier failure here was NOT size -- it was a
+    // version-1 symbol carrying an overflowed payload, which no amount of pixels
+    // could have fixed (see QrRender.h). With the encoding correct, 132 px scans,
+    // and the smaller symbol buys back the rows that make this screen useful
+    // when a camera will not cooperate at all.
+    const int qrPx = 4;
+    const bool drew = qr::Draw(backbuffer, url.c_str(), cx, 90, qrPx);
+
+    if (!drew) {
+        // No half-drawn symbol. The text becomes the whole screen.
+        centred("CONNECT", 70, lgfx::color888(0, 255, 0));
+        centred(url, 100, lgfx::color888(0, 255, 0));
+        centred(DeviceIdentity::LeaderboardId(), 120, lgfx::color888(0, 140, 0));
+    } else {
+        // THE ADDRESS AS TEXT, ALWAYS -- never only as a code. Some phones are
+        // locked down, some people would rather type, and a code that will not
+        // scan with no visible fallback is the same dead end one layer in.
+        centred(url, 164, lgfx::color888(0, 255, 0));
+
+        // The device id appears NOWHERE else on the device -- only on the config
+        // page, which is the page an unreachable customer cannot open. That is
+        // why it earns a row here on its own merits, QR or no QR.
+        centred(DeviceIdentity::LeaderboardId(), 180, lgfx::color888(0, 140, 0));
+
+        // THE AP TRAP. A phone still joined to the device's own setup hotspot is
+        // on 192.168.4.x and cannot reach a 192.168.1.x address. It scans the
+        // code perfectly and fails to load it, and the owner concludes the code
+        // is broken -- or the product is.
+        if (joined)
+            centred("phone on home wifi?", 194, lgfx::color888(150, 150, 0));
+    }
+
+    // THE RESET CONTROL, moved here from Stats. It belongs with the address:
+    // both answer "my device is unreachable". A TAP opens a menu rather than
+    // doing anything -- nothing destructive happens on this screen, so a stray
+    // contact lands on a menu with a large Cancel rather than on a wipe.
+    const int resetY = 210;
+    backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    centred("[ Reset ]", resetY, lgfx::color888(0, 200, 0));
+    // Tap target = the drawn row, padded to a fingertip, derived from the same
+    // constant the text uses so the hit box cannot drift from the pixels.
+    resetRowY0 = resetY - 8;
+    resetRowY1 = resetY + lineH;
 }
 
 void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
@@ -8357,8 +8373,8 @@ void AircraftManager::HandleTap(int tx, int ty)
     // destructive -- see the header note; that is the whole point of the menu
     // existing. Swallowed here rather than falling through, so the tap cannot
     // also be reinterpreted as some other screen's gesture.
-    if (screen == Screen::Stats && resetRowY0 >= 0 && ty >= resetRowY0 && ty <= resetRowY1) {
-        Serial.println("[reset] menu opened from the Stats row");
+    if (screen == Screen::Connect && resetRowY0 >= 0 && ty >= resetRowY0 && ty <= resetRowY1) {
+        Serial.println("[reset] menu opened from the Connect row");
         resetMenu = ResetMenu::Choosing;
         return;
     }
@@ -8471,6 +8487,14 @@ void AircraftManager::EnterScreen(Screen s)
         case Screen::Radar:  usageStore.ScreenRadar();  break;
         case Screen::List:   usageStore.ScreenList();   break;
         case Screen::Stats:  usageStore.ScreenStats();  break;
+        // Connect is deliberately NOT counted. Adding a counter widens the
+        // usage wire format, which requires updating README.md and the
+        // support page in the same commit or a published privacy statement
+        // becomes false. That is a decision to take on its own, not a side
+        // effect of adding a screen -- so this is VISIBLY not counted
+        // rather than quietly missing, which is what EnterScreen's own
+        // comment asks for.
+        case Screen::Connect: break;
         case Screen::Follow: usageStore.ScreenFollow(); break;
     }
 }

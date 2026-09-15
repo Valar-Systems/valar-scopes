@@ -36,12 +36,9 @@ namespace statsrows {
  * settled by where the code happened to go.
  */
 enum class Row {
-    // ---- RESERVED: guaranteed a row, whatever else is on screen -----------
-    ResetWifi,      ///< how to get the device back onto a network
-    Address,        ///< the IP -- how to reach it once it is on one
-
     // ---- SPACE-GUARDED: drawn in this order, dropped from the bottom ------
-    HostName,       ///< the .local name; see WHAT LOSES below
+    // (Nothing is reserved on this face any more -- see RESERVED_ROWS.)
+    HostName,       ///< the .local name
     AircraftCount,
     HighFastNear,
     Today,
@@ -59,7 +56,17 @@ enum class Row {
  * 300-line draw function -- which is how the ceiling and the reserved set
  * drifted apart in the first place.
  */
-constexpr int RESERVED_ROWS = 2;   // ResetWifi + Address
+// ZERO, since 2026-09-15. Both reserved rows moved to the Connect screen: the
+// address and the reset control are the same job -- "my device is unreachable,
+// get me back in" -- and Connect has room for the QR, the address, the device id
+// and the control together. Stats reserves nothing and therefore evicts nothing;
+// the ~106 px budget became the whole face below the clock.
+//
+// The ORDER below still matters and is still the point. A face that reserves
+// nothing today can reserve something tomorrow, and the question "what should
+// this displace?" must keep having a written answer rather than being settled by
+// where the code happened to go.
+constexpr int RESERVED_ROWS = 0;
 
 /**
  * The ceiling every space-guarded row obeys: the first y a row may NOT occupy.
@@ -104,6 +111,20 @@ struct Budget {
 
     /// Would a row fit, gap included?
     bool Fits() const { return y + pendingGap + lh <= ceiling; }
+
+    /**
+     * Would `n` rows fit? Ask this before starting a block that has a HEADING.
+     *
+     * A block guarded on one row can render its title and then lose the row that
+     * gives the title meaning -- observed on glass as "AIRCRAFT OF THE DAY" with
+     * nothing beneath it. A stranded heading is worse than an absent section: it
+     * promises content, occupies the budget that would have carried it, and
+     * reads as a fault rather than as a face that is simply full.
+     *
+     * The same shape as everything else on this face: a guard that establishes
+     * something true but narrower than what the caller needs.
+     */
+    bool FitsRows(int n) const { return y + pendingGap + n * lh <= ceiling; }
 
     /**
      * Claim a row. Returns the y to draw at, or -1 when there is no room.
