@@ -10,6 +10,7 @@
 // NOT inside the diag guard below: the portal ladder ships. (It was briefly put
 // there by an edit whose anchor matched exactly once -- in the wrong block.)
 #include "PortalTimeoutPolicy.h"
+#include "JoinFailure.h"       // the setup screen names the last failure
 #ifdef BLIPSCOPE_JOIN_DIAG
 #include "JoinDiagScreen.h"
 #endif
@@ -104,12 +105,55 @@ namespace WiFiManagerHelpers
         p.end();
     }
 
+    /* ---- THE LAST FAILURE, KEPT WHERE SOMEONE WILL ACTUALLY SEE IT ---------
+     *
+     * The on-screen "WRONG PASSWORD" after a failed provisioning lasts 8 s and
+     * is then replaced by the generic setup screen. THAT IS A TOAST NOBODY SEES:
+     * a person mid-setup is looking at their phone, not at the glass, and by the
+     * time they look up the device has rebooted and the diagnosis is gone. It
+     * would be the same defect this whole investigation was about -- the device
+     * knowing exactly what was wrong and telling nobody -- rebuilt smaller.
+     *
+     * So the reason is persisted and rendered on the SETUP screen itself, which
+     * is the screen they are looking at when they come back to try again. It
+     * survives the reboot, and it is cleared by a successful join rather than by
+     * a timer, so it can never outlive the problem it describes.
+     */
+    inline void PersistJoinFailure(uint8_t reason)
+    {
+        Preferences p;
+        if (!p.begin(detail::JOIN_NS, false)) return;
+        p.putUChar("lastfail", reason);
+        p.end();
+    }
+
+    inline uint8_t LastPersistedJoinReason()
+    {
+        Preferences p;
+        if (!p.begin(detail::JOIN_NS, true)) return 0;
+        const uint8_t r = p.getUChar("lastfail", 0);
+        p.end();
+        return r;
+    }
+
+    inline void ClearPersistedJoinFailure()
+    {
+        Preferences p;
+        if (!p.begin(detail::JOIN_NS, false)) return;
+        if (p.isKey("lastfail")) p.remove("lastfail");
+        p.end();
+    }
+
     /// Call with the outcome of every join attempt. A success clears the ladder.
     inline void RecordJoinOutcome(bool joined)
     {
         const uint8_t before = JoinFailureCount();
         const uint8_t after  = portaltimeout::NextFailureCount(before, joined);
         if (after != before) SetJoinFailureCount(after);
+        // A join proves the stored credentials work, so the stored complaint
+        // about them must go with it -- otherwise the setup screen keeps
+        // accusing a password that is now demonstrably correct.
+        if (joined) ClearPersistedJoinFailure();
         if (joined && before > 0)
             Serial.printf("[WiFi] joined -- clearing %u consecutive failures; "
                           "portal returns to the %u s retry\n",
@@ -478,6 +522,21 @@ namespace WiFiManagerHelpers
 #endif
             // Composed through the backbuffer so it renders on the SPD2010 (direct per-glyph writes
             // don't); direct on every other SKU. See BootScreen.h.
+            //
+            // THE LAST FAILURE REPLACES THE TITLE when there is one. Three lines
+            // is all this screen has, and "- SETUP -" is the least informative of
+            // them to someone who has already tried once and failed -- they know
+            // it is the setup screen; what they do not know is why the last
+            // attempt did not work. The hotspot name stays on the bottom row
+            // either way, because that is the thing they have to act on.
+            const uint8_t failReason = LastPersistedJoinReason();
+            if (failReason != 0) {
+                const joinfail::Advice a = joinfail::AdviceFor(joinfail::Classify(failReason));
+                DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
+                                   lgfx::color888(255, 176, 0),   // amber: something went wrong
+                                   a.l0, "Rejoin this hotspot:", WiFiManagerName().c_str());
+                return;
+            }
             DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
                                "- SETUP -", "Connect to this Wi-Fi hotspot:", WiFiManagerName().c_str());
             }

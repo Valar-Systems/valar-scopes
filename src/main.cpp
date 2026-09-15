@@ -25,10 +25,22 @@
 #include "BrightnessLog.h"
 #include "LocalOffset.h"
 #include "QuietHourPolicy.h"
+#include "JoinFailure.h"      // ships: why a join failed, said on the glass
 #ifdef BLIPSCOPE_JOIN_DIAG
 #include "JoinDiagScreen.h"   // bench-only Wi-Fi join diagnostic; see the header
 #endif
 #include "NightOverride.h"
+
+// JoinFailure.h duplicates the SDK's reason codes so it can stay pure and be
+// host-tested. That duplication is a transcription, and a transcription is the
+// weak form of a contract -- so it is asserted against the real enum HERE, where
+// esp_wifi_types.h is in scope. If the IDF ever renumbers one, this fails the
+// BUILD rather than quietly turning "wrong password" into the wrong sentence.
+static_assert(joinfail::R_AUTH_EXPIRE            == WIFI_REASON_AUTH_EXPIRE, "");
+static_assert(joinfail::R_4WAY_HANDSHAKE_TIMEOUT == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT, "");
+static_assert(joinfail::R_NO_AP_FOUND            == WIFI_REASON_NO_AP_FOUND, "");
+static_assert(joinfail::R_AUTH_FAIL              == WIFI_REASON_AUTH_FAIL, "");
+static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOUT, "");
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
 // sightings radar, the FEATURE_FISHING (Reelscope) console, the FEATURE_CLAUDESCOPE usage gauge,
@@ -372,6 +384,10 @@ void setup()
         const auto reason = (wifi_err_reason_t)info.wifi_sta_disconnected.reason;
         Serial.printf("[WiFi] DISCONNECTED  reason=%d (%s)\n",
                       reason, WiFi.disconnectReasonName(reason));
+        // RECORD ONLY -- one byte, no SPI, no allocation. The loop task turns
+        // this into a sentence on the glass after a failed portal provisioning;
+        // see JoinFailure.h for why the screen and not the setup page.
+        joinfail::RecordReason((uint8_t)reason);
 #ifdef BLIPSCOPE_JOIN_DIAG
         // RECORD ONLY. Rendering from here would put a blocking SPI write on the
         // WiFi event task and perturb the timing this exists to measure.
@@ -462,8 +478,38 @@ void setup()
       // reset on exactly the event it exists to measure.
       WiFiManagerHelpers::RecordJoinOutcome(false);
       Serial.println("[WiFi] no network and nobody at the portal -- restarting to retry saved credentials");
-      DrawSplash(tft, backbuffer, "No Wi-Fi", "Retrying...");
-      delay(1500);
+
+      // SAY WHY, BUT ONLY TO SOMEONE WHO IS STANDING THERE.
+      //
+      // The generic "No Wi-Fi / Retrying..." is the same nine words for a typo,
+      // an out-of-range network and a failing antenna -- which is how a customer
+      // typing the wrong password produced a two-day hardware investigation.
+      // The reason was diagnosed correctly within seconds and printed only to
+      // serial. See JoinFailure.h.
+      //
+      // GATED ON PortalProvisioned(), and that is the load-bearing part. It is
+      // true only when a human has just typed a password into the portal THIS
+      // boot. On the far commoner path -- a power cut, the router still coming
+      // up, nobody in the room -- the saved credentials are almost certainly
+      // fine, and flashing "WRONG PASSWORD" at an empty room would be both
+      // false and alarming. Same reason code, opposite meaning, decided by who
+      // asked.
+      if (WiFiManagerHelpers::PortalProvisioned()) {
+        const joinfail::Advice a = joinfail::AdviceFor(joinfail::LastCause());
+        Serial.printf("[WiFi] portal provisioning FAILED: reason=%u -> \"%s\"\n",
+                      (unsigned)joinfail::LastReason(), a.l0);
+        // PERSIST BEFORE SHOWING. The splash below lasts 8 s and is then replaced
+        // by the setup screen -- a toast timed to land while the owner is still
+        // looking at their phone. Persisting it puts the same answer on the setup
+        // screen they come back to, so the diagnosis outlives the moment nobody
+        // was watching. Cleared by a successful join, never by a timer.
+        WiFiManagerHelpers::PersistJoinFailure(joinfail::LastReason());
+        DrawSplash(tft, backbuffer, a.l0, a.l1, a.l2);
+        delay(8000);   // still shown, for whoever IS looking
+      } else {
+        DrawSplash(tft, backbuffer, "No Wi-Fi", "Retrying...");
+        delay(1500);
+      }
       ESP.restart();
     }
   }

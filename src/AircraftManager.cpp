@@ -1723,6 +1723,34 @@ void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
         backbuffer.setTextSize(1);
         backbuffer.setTextColor(colour);
         backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, 14);
+
+        // THE REMEDY GOES WITH THE ERROR, IN THE SAME GLANCE.
+        //
+        // The fix for this state is a button on the config page, and until now
+        // this screen named the problem while the page's ADDRESS lived on a
+        // different screen -- where it is space-guarded and evicted by any device
+        // with a lifelist (see docs/stats-address-priority.md). So the product
+        // told the owner something was wrong and put the way to fix it somewhere
+        // they could not reliably reach. A red warning whose remedy is elsewhere
+        // is half a message.
+        //
+        // The IP and not the .local name, deliberately: the owner is holding the
+        // device, so the IP needs no disambiguation, and it resolves on Android
+        // and the Windows setups where mDNS does not. The name is recoverable
+        // from the quick-start card and from the setup hotspot's SSID; the IP is
+        // recoverable from nowhere but the router.
+        const IPAddress ip = WiFi.localIP();
+        if (ip != IPAddress((uint32_t)0)) {
+            const int lineH = backbuffer.fontHeight() > 0 ? backbuffer.fontHeight() : 8;
+            const int y2 = 14 + lineH + 2;
+            const String url = ip.toString();
+            // The chord at this height is narrow -- it is near the top of a round
+            // disc -- so the row goes through the same width rule as everything
+            // else rather than trusting that an IP happens to be short.
+            if ((int)backbuffer.textWidth(url) <= ChordWidthPx(y2, lineH)) {
+                backbuffer.drawString(url, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(url) / 2, y2);
+            }
+        }
         return;
     }
 #endif
@@ -3864,6 +3892,77 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // forgot the name can read it here. The IP stays space-guarded as the mDNS
     // fallback (Android and some Windows setups will not resolve .local).
     y += 6;
+#ifdef BLIPSCOPE_STATS_GEOM_PROBE
+    // TEMPORARY OBSERVATION, not a fix.
+    //
+    // THE QUESTION IS NOT "does the guard fail" -- the state table already says
+    // it does. It is WHEN a device in ordinary traffic crosses over, because
+    // that is what says whether this bites a customer in week one or month six,
+    // and therefore how much of the fleet is already past the threshold.
+    //
+    // So the flip is captured with the state that caused it -- uptime, today's
+    // contacts, lifelist size -- and PERSISTED. Persistence is what removes the
+    // recorder from the critical path: this rig has disturbed this very board
+    // three times, so a finding that only exists in a serial stream nobody can
+    // safely keep attached for days is a finding waiting to be lost. Written
+    // once, reprinted every boot, recoverable by attaching whenever.
+    {
+        constexpr const char* PROBE_NS = "geomprobe";
+        const bool ipNow = (y + lh <= clockTop);
+        static uint32_t lastGeomProbe = 0;
+        static int      prevIp = -1;          // -1 = no frame seen yet
+        static bool     bootPrinted = false;
+
+        if (!bootPrinted) {
+            bootPrinted = true;
+            Preferences p;
+            if (p.begin(PROBE_NS, true)) {
+                if (p.isKey("upS"))
+                    Serial.printf("[stats-geom] STORED FLIP: uptime=%lus today=%u lifelist=%u types=%u "
+                                  "yAtAddr=%d (recorded on an earlier boot)\n",
+                                  (unsigned long)p.getUInt("upS", 0), p.getUShort("today", 0),
+                                  p.getUShort("life", 0), p.getUShort("types", 0),
+                                  (int)p.getShort("yAt", 0));
+                else
+                    Serial.println("[stats-geom] STORED FLIP: none yet -- still in the empty-device state");
+                p.end();
+            }
+        }
+
+        // THE FLIP, 1 -> 0, recorded once. Only the FIRST crossing is kept: a
+        // device that oscillates around the boundary would otherwise overwrite
+        // the crossing time with a much later one and destroy the answer.
+        if (prevIp == 1 && !ipNow) {
+            Preferences p;
+            if (p.begin(PROBE_NS, false)) {
+                if (!p.isKey("upS")) {
+                    p.putUInt("upS", millis() / 1000);
+                    p.putUShort("today", (uint16_t)todayContacts);
+                    p.putUShort("life", (uint16_t)logbook.Contacts());
+                    p.putUShort("types", (uint16_t)logbook.ClaimedTypeCount());
+                    p.putShort("yAt", (int16_t)y);
+                    Serial.printf("[stats-geom] *** FLIP 1->0 *** uptime=%lus today=%u lifelist=%u "
+                                  "types=%u yAtAddr=%d clockTop=%d -- the IP row is now evicted\n",
+                                  (unsigned long)(millis() / 1000), (unsigned)todayContacts,
+                                  (unsigned)logbook.Contacts(), (unsigned)logbook.ClaimedTypeCount(),
+                                  y, clockTop);
+                }
+                p.end();
+            }
+        }
+        prevIp = ipNow ? 1 : 0;
+
+        if (millis() - lastGeomProbe > 5000) {
+            lastGeomProbe = millis();
+            Serial.printf("[stats-geom] up=%lus fontH=%d lh=%d clockTop=%d | yAtAddr=%d needs<=%d | "
+                          "ipDrawn=%d | today=%u lifelist=%u types=%u\n",
+                          (unsigned long)(millis() / 1000), (int)backbuffer.fontHeight(), lh,
+                          clockTop, y, clockTop - lh, (int)ipNow,
+                          (unsigned)todayContacts, (unsigned)logbook.Contacts(),
+                          (unsigned)logbook.ClaimedTypeCount());
+        }
+    }
+#endif
     if (y + lh <= clockTop) {
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
         line(WiFi.localIP().toString());
