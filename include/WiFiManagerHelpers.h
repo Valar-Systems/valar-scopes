@@ -51,6 +51,31 @@ namespace WiFiManagerHelpers
      * during a setup flow that already involves joining a hotspot and typing a
      * password.
      */
+    /**
+     * Has a human SUBMITTED credentials this boot? NOT the same question as
+     * PortalProvisioned(), and conflating them cost a bench cycle.
+     *
+     * WiFiManager fires _savewificallback ONLY on a successful connect:
+     *
+     *     uint8_t res = connectWifi(_ssid, _pass, _connectonsave) == WL_CONNECTED;
+     *     if (res || (!_connectonsave)) { ... _savewificallback(); ... }
+     *     DEBUG_WM(F("[ERROR] Connect to new AP Failed"));   // falls straight through
+     *
+     * So PortalProvisioned() means "the portal SUCCEEDED" -- and gating a
+     * FAILURE message on it means the message can only appear when there was no
+     * failure. Observed on the bench: the loop ran, the client check worked,
+     * reason=202 was classified three times, and the screen never changed.
+     *
+     * _presavewificallback fires in handleWifiSave BEFORE any connect attempt,
+     * which is the question actually being asked -- did somebody just type a
+     * password. Both flags now mean what their names say.
+     */
+    inline bool& CredentialsSubmittedFlag() { static bool submitted = false; return submitted; }
+    /// Bumped on every submit. The portal loop renders ONE verdict per attempt,
+    /// and this is how it tells a new attempt from a new reason code.
+    inline uint32_t& SubmitCountRef() { static uint32_t n = 0; return n; }
+    inline bool  CredentialsSubmitted()     { return CredentialsSubmittedFlag(); }
+
     inline bool& PortalProvisionedFlag() { static bool provisioned = false; return provisioned; }
     inline bool  PortalProvisioned()     { return PortalProvisionedFlag(); }
 
@@ -85,6 +110,17 @@ namespace WiFiManagerHelpers
         // behaviour this counter exists to end.
         constexpr const char* JOIN_NS = "wifi-join";
     }
+
+    /**
+     * The timeout the ladder chose for THIS boot, cached rather than re-derived.
+     *
+     * RunPortalLoop needs the same number ConfigureWiFiManager decided on. Asking
+     * PortalTimeoutPolicy a second time would compute it from the failure counter
+     * again -- and the counter is written during the boot, so a second derivation
+     * is a second answer waiting to happen. One decision, stored, read.
+     */
+    inline uint16_t& PortalTimeoutRef() { static uint16_t t = portaltimeout::NEVER; return t; }
+    inline uint16_t  CurrentPortalTimeout() { return PortalTimeoutRef(); }
 
     /// Consecutive boots that failed to join, persisted because the evidence has
     /// to survive the very reboot it is counting.
@@ -158,6 +194,132 @@ namespace WiFiManagerHelpers
             Serial.printf("[WiFi] joined -- clearing %u consecutive failures; "
                           "portal returns to the %u s retry\n",
                           (unsigned)before, (unsigned)portaltimeout::FAST_TIMEOUT_S);
+    }
+
+
+    /**
+     * Run the config portal ourselves, so the device can SPEAK during it.
+     *
+     * WHY THIS EXISTS. WiFiManager's blocking portal does not return from
+     * autoConnect() when a save fails to connect -- it logs "Connect to new AP
+     * Failed" and stays in its own loop. So the wrong-password screen, which
+     * lives after autoConnect() returns, rendered ~180 s later at portal
+     * TIMEOUT rather than at the moment of failure. Measured on the bench: the
+     * board classified a wrong password correctly in 5 seconds and said nothing
+     * for three minutes, by which time the owner has given up. That is the same
+     * defect the whole feature exists to fix, one layer further in.
+     *
+     * setConfigPortalBlocking(false) + process() hands the loop back to us. The
+     * important part is what that does NOT change: this function still does not
+     * return until the device is joined or the portal has timed out, so setup()
+     * keeps its contract exactly and nothing downstream has to learn about a
+     * "no network yet" state. The only new thing is that we own the moment
+     * between attempts, which is the moment worth drawing in.
+     *
+     * TWO RESPONSIBILITIES COME WITH THE LOOP, and both were WiFiManager's:
+     *
+     *   1. THE TIMEOUT. WiFiManager.h says setConfigPortalTimeout is "not used
+     *      if setConfigPortalBlocking" -- so the portal ladder in
+     *      PortalTimeoutPolicy.h is only honoured because this loop enforces it.
+     *      Taking the loop without taking the timeout would leave every device
+     *      in setup mode forever, which is the failure the ladder exists to stop.
+     *
+     *   2. THE CLIENT CHECK. setAPClientCheck(true) suspended the timeout while
+     *      someone was connected to the hotspot, so a customer typing a password
+     *      is never cut off mid-setup. That is re-implemented here against
+     *      softAPgetStationNum(); dropping it would reintroduce exactly the
+     *      vanishing-hotspot problem in the one moment it hurts most.
+     *
+     * Returns true if the device joined.
+     */
+    inline bool RunPortalLoop(WiFiManager& wm, LGFX& tft, LGFX_Sprite& backbuffer,
+                              uint16_t timeoutSec)
+    {
+        const bool  neverTimeout = (timeoutSec == portaltimeout::NEVER);
+        uint32_t    deadline     = millis() + (uint32_t)timeoutSec * 1000UL;
+        uint32_t    shownForSubmit = 0;   // which attempt we have already judged
+        bool        verdictShown   = false;
+        uint32_t    lastStations = 0;
+
+        Serial.printf("[WiFi] portal loop: timeout=%s, rendering failures as they happen\n",
+                      neverTimeout ? "never (first setup)" : String(timeoutSec).c_str());
+
+        for (;;) {
+            wm.process();
+
+            if (WiFi.status() == WL_CONNECTED)
+                return true;
+
+            // SOMEONE IS AT THE HOTSPOT -- do not time out underneath them. This
+            // is setAPClientCheck's job, which we inherited along with the loop.
+            const uint32_t stations = WiFi.softAPgetStationNum();
+            if (stations > 0) {
+                deadline = millis() + (uint32_t)timeoutSec * 1000UL;
+                if (lastStations == 0)
+                    Serial.println("[WiFi] a phone joined the setup hotspot -- timeout suspended");
+            } else if (lastStations > 0) {
+                Serial.println("[WiFi] setup hotspot empty again -- timeout running");
+            }
+            lastStations = stations;
+
+            // THE POINT OF THE WHOLE CHANGE: say why, NOW, not in three minutes.
+            //
+            // Gated on PortalProvisioned() so it fires only once a human has
+            // actually submitted credentials this boot. Disconnect reasons also
+            // arrive during ordinary scanning, and accusing someone of a wrong
+            // password before they have typed one would be worse than silence.
+            const uint8_t reason = joinfail::LastReason();
+            // A NEW ATTEMPT RESETS THE VERDICT; a new reason code does not.
+            // Keying on the reason meant our OWN tidy-up disconnect below
+            // produced a second event (ASSOC_LEAVE) that was classified as
+            // Unknown and overwrote "WRONG PASSWORD" with "COULD NOT CONNECT".
+            // The fix broke the message the fix existed to deliver.
+            if (SubmitCountRef() != shownForSubmit) {
+                shownForSubmit = SubmitCountRef();
+                verdictShown = false;
+            }
+            if (CredentialsSubmitted() && !verdictShown && reason != 0) {
+                verdictShown = true;
+                PersistJoinFailure(reason);
+                const joinfail::Advice a = joinfail::AdviceFor(joinfail::Classify(reason));
+                Serial.printf("[WiFi] portal attempt FAILED: reason=%u -> \"%s\"\n",
+                              (unsigned)reason, a.l0);
+
+                // QUIET THE STA, OR THE HOTSPOT THEY MUST COME BACK TO IS UNUSABLE.
+                //
+                // The ESP32 has ONE radio shared by AP and STA. After a rejected
+                // password the driver auto-reconnects forever, and every retry
+                // drags the AP onto the STA's channel -- which knocks associating
+                // clients off. Measured on the bench: 8 disconnects and 9x
+                // reason=202 in 35 seconds, with this loop's own client check
+                // watching a phone drop and rejoin repeatedly. An iPhone took
+                // MINUTES to join the setup AP, catching a gap between retries.
+                //
+                // So the failure screen was only half the fix. Telling someone to
+                // rejoin this hotspot while our own retry loop is making it
+                // unjoinable is worse than saying nothing: it sends them at a
+                // door we are holding shut.
+                //
+                // eraseap=false -- the credentials STAY stored. This stops the
+                // retrying, not the remembering; the next submit calls
+                // WiFi.begin() again and revives both.
+                WiFi.setAutoReconnect(false);
+                WiFi.disconnect(false /*wifioff*/, false /*eraseap*/);
+                Serial.println("[WiFi] STA retry stopped so the setup hotspot stays joinable");
+                // Amber, not red: the owner has not broken anything and this is
+                // recoverable from the page they are already looking at.
+                DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
+                                   lgfx::color888(255, 176, 0),
+                                   a.l0, a.l1, WiFiManagerName().c_str());
+            }
+
+            if (!neverTimeout && (int32_t)(millis() - deadline) >= 0) {
+                Serial.println("[WiFi] portal timed out with nobody using it");
+                return false;
+            }
+
+            delay(10);   // yields to the WiFi/async tasks; process() is not a spin
+        }
     }
 
     inline void ForgetFastAp()
@@ -480,11 +642,21 @@ namespace WiFiManagerHelpers
         // identical at the first failure and obvious after several, so the timeout
         // stretches once failures pile up. See PortalTimeoutPolicy.h; it still
         // times out, so the self-heal above is preserved.
+        // NON-BLOCKING: we run the portal loop ourselves (see RunPortalLoop) so
+        // the device can say why an attempt failed AT THE MOMENT IT FAILS. The
+        // timeout and the client check are still set for documentation and for
+        // any path that does not go through our loop, but WiFiManager.h is
+        // explicit that setConfigPortalTimeout is "not used if
+        // setConfigPortalBlocking" -- RunPortalLoop is what actually enforces
+        // the ladder, and it says so.
+        wm.setConfigPortalBlocking(false);
+
         if (haveSavedCredentials()) {
             const uint8_t fails = JoinFailureCount();
             const uint16_t timeout = portaltimeout::TimeoutSeconds(true, fails);
             wm.setConfigPortalTimeout(timeout);
             wm.setAPClientCheck(true);
+            PortalTimeoutRef() = timeout;   // what RunPortalLoop will enforce
             Serial.printf("[WiFi] credentials saved: portal times out after %u s "
                           "and retries them (%u consecutive failures)\n",
                           (unsigned)timeout, (unsigned)fails);
@@ -493,6 +665,7 @@ namespace WiFiManagerHelpers
                                "up longer in case this device has MOVED");
         } else {
             wm.setConfigPortalTimeout(0); // explicit: never drop the hotspot during first setup
+            PortalTimeoutRef() = portaltimeout::NEVER;
             Serial.println("[WiFi] no saved credentials: portal stays up indefinitely for first setup");
         }
 
@@ -500,6 +673,16 @@ namespace WiFiManagerHelpers
         // that the portal was used at all -- setup() has to restart afterwards, and
         // this is the only reliable way to know the portal actually ran. See
         // PortalProvisioned() for why the restart is not optional.
+        // FIRES ON SUBMIT, not on success -- see CredentialsSubmitted(). This is
+        // what tells RunPortalLoop that a failure is now worth reporting.
+        wm.setPreSaveConfigCallback([]() {
+            Serial.println("[WiFi] portal: credentials submitted, attempting to connect...");
+            CredentialsSubmittedFlag() = true;
+            ++SubmitCountRef();
+            // Judge THIS attempt on its own failure, not on a stale one.
+            joinfail::Reset();
+        });
+
         wm.setSaveConfigCallback([]() {
             Serial.println("[WiFi] Portal saved credentials, attempting to connect...");
             PortalProvisionedFlag() = true;

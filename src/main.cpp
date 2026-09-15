@@ -463,6 +463,15 @@ void setup()
   bool connected = WiFiManagerHelpers::TryFastJoin();
   if (!connected) {
     connected = wm.autoConnect(WiFiManagerHelpers::WiFiManagerName().c_str());
+    // NON-BLOCKING: autoConnect returns immediately now, having started the
+    // portal if it could not join. The wait happens in OUR loop below, which is
+    // what lets the device draw the reason for a failed attempt WHILE the portal
+    // stays open -- rather than three minutes later, after the owner has gone.
+    // See WiFiManagerHelpers::RunPortalLoop for the two responsibilities that
+    // came with taking the loop: the timeout and the AP client check.
+    if (!connected)
+      connected = WiFiManagerHelpers::RunPortalLoop(
+          wm, tft, backbuffer, WiFiManagerHelpers::CurrentPortalTimeout());
     Serial.printf("[WiFi] autoConnect() returned %s\n",
                   connected ? "true (connected)" : "false (portal timed out / not connected)");
     if (!connected) {
