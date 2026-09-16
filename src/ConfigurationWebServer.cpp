@@ -86,15 +86,17 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 //    template engine, which owns '%' (see the favicon comment below). Widths come
 //    from flex/grid stretch and rem units, never CSS percentages.
 //  - Each page sets its palette BEFORE the CSS block via
-//    <style>:root{--ink:..;--line:..;--dim:..;--btn:..}</style>
-//    (--ink body text, --line borders/frames, --dim hint text, --btn save button).
+//    <style>:root{--ink:..;--line:..;--dim:..;--btn:..;--text:..}</style>
+//    (--ink headings/links/accent, --text label + field text, --line borders/frames,
+//     --dim hint text, --btn save button). THREE TONES: near-white labels, green
+//     headings, muted hints -- all three >= 4.5:1 on #111827.
 #define CONFIG_SHELL_CSS \
     R"(<style>)" \
     R"(*{box-sizing:border-box})" \
-    R"(body{margin:0;padding:1rem;background:#111827;color:var(--ink);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;min-height:100vh})" \
+    R"(body{margin:0;padding:1rem;background:#111827;color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;min-height:100vh})" \
     R"(a{color:var(--ink)})" \
     R"(.wrap{max-width:42rem;margin:0 auto;border:1px solid var(--line);padding:1rem})" \
-    R"(legend{padding:0 .5rem})" \
+    R"(legend{padding:0 .5rem;color:var(--ink)})" \
     R"(form{display:flex;flex-direction:column;gap:1rem})" \
     R"(fieldset,details{border:1px solid var(--line);padding:.75rem;margin:0;min-width:0})" \
     R"(summary{cursor:pointer;-webkit-user-select:none;user-select:none})" \
@@ -108,7 +110,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.row{display:flex;flex-direction:column;gap:1rem})" \
     R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
     R"(.grid3,.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .9rem})" \
-    R"(input,select,textarea,button{font:inherit;color:var(--ink);background:#111827;border:1px solid var(--line);padding:.5rem .6rem;min-width:0})" \
+    R"(input,select,textarea,button{font:inherit;color:var(--text);background:#111827;border:1px solid var(--line);padding:.5rem .6rem;min-width:0})" \
     R"(input[type=checkbox]{width:1.05rem;height:1.05rem;padding:0;margin:0;accent-color:var(--btn);flex:none})" \
     R"(input[type=range]{border:none;padding:0;accent-color:var(--btn);flex:1})" \
     R"(:focus-visible{outline:2px solid var(--ink);outline-offset:1px})" \
@@ -360,7 +362,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              stray percent sign collides with this page's PLACEHOLDER template engine and shreds the whole
              form (write it as &#37; in visible text - and keep it out of comments too, like this one). -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
         <!-- Sidebar layout. Radar-only on purpose: the other seven editions have short
              single-screen forms a nav would only get in the way of, and this block is
@@ -655,7 +657,6 @@ R"(
 
                 <div class="sec" data-sec="display">
                 <fieldset>
-                    <legend>Display</legend>
                     <div class="grid3">
                         <label class="check"><input name="scanline" type="checkbox" %SCANLINE%><span>Radar sweep</span></label>
                         <label class="check"><input name="fade" type="checkbox" %FADE%><span>Sweep fade</span></label>
@@ -705,7 +706,6 @@ R"(
                 <div class="sec" data-sec="labels">
 
                 <fieldset>
-                    <legend>Labels</legend>
                     <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
                          It sat inside <summary>, so one row carried two different actions
                          ~20 px apart: expand the section, or switch the whole feature off.
@@ -725,7 +725,6 @@ R"(
                 <div class="sec" data-sec="alerts">
 
                 <fieldset>
-                    <legend>Watchlist &amp; alerts</legend>
                     <label class="stack">
                         <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
                         <textarea name="watchlist" rows="2">%WATCHLIST%</textarea>
@@ -793,7 +792,6 @@ R"(
                      The two read differently and are configured for different
                      reasons, so they get different boxes. (spec 14) -->
                 <fieldset>
-                    <legend>Follow one aircraft</legend>
                     <label class="field">
                         <span>Follow (tail / callsign / ICAO hex):</span>
                         <input name="follow" value='%FOLLOW%' class="grow">
@@ -1234,7 +1232,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope EAM</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1396,7 +1394,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Spacescope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,12,28)'/><circle cx='8' cy='8' r='2' fill='rgb(120,200,255)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(120,200,255)' stroke-width='0.8'/><circle cx='13' cy='4' r='1' fill='rgb(255,255,255)'/></svg>">
-        <style>:root{--ink:#7dd3fc;--line:#38bdf8;--dim:#0284c7;--btn:#38bdf8}</style>
+        <style>:root{--ink:#7dd3fc;--line:#38bdf8;--dim:#7fa8bd;--btn:#38bdf8;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1496,7 +1494,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Seismic</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(24,14,4)'/><path d='M1 8 L4 8 L5 3 L7 13 L9 6 L10.5 8 L15 8' fill='none' stroke='rgb(255,170,0)' stroke-width='1.2'/></svg>">
-        <style>:root{--ink:#fcd34d;--line:#fbbf24;--dim:#d97706;--btn:#fbbf24}</style>
+        <style>:root{--ink:#fcd34d;--line:#fbbf24;--dim:#d97706;--btn:#fbbf24;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1600,7 +1598,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Birding</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,20,8)'/><circle cx='6.5' cy='7' r='3' fill='rgb(150,220,130)'/><circle cx='7.5' cy='6.2' r='0.7' fill='rgb(8,20,8)'/><path d='M9 7 L13 6 L10 8 Z' fill='rgb(255,215,90)'/></svg>">
-        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#7f9e91;--btn:#4ade80}</style>
+        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#7f9e91;--btn:#4ade80;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1711,7 +1709,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Reelscope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(4,16,22)'/><path d='M2 8 Q5 4 9 8 Q5 12 2 8 Z' fill='rgb(120,220,255)'/><circle cx='4' cy='7.4' r='0.6' fill='rgb(4,16,22)'/><path d='M9 8 L13 5 L12 8 L13 11 Z' fill='rgb(120,230,140)'/></svg>">
-        <style>:root{--ink:#a5f3fc;--line:#06b6d4;--dim:#0891b2;--btn:#22d3ee}</style>
+        <style>:root{--ink:#a5f3fc;--line:#06b6d4;--dim:#0891b2;--btn:#22d3ee;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1910,7 +1908,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Claudescope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(28,18,12)'/><g stroke='rgb(217,119,87)' stroke-width='1.4' stroke-linecap='round'><path d='M8 3 L8 13'/><path d='M3.7 5.5 L12.3 10.5'/><path d='M3.7 10.5 L12.3 5.5'/></g></svg>">
-        <style>:root{--ink:#fed7aa;--line:#fb923c;--dim:#ea580c;--btn:#fb923c}</style>
+        <style>:root{--ink:#fed7aa;--line:#fb923c;--dim:#ea580c;--btn:#fb923c;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -2001,7 +1999,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Speedscope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(20,14,2)'/><path d='M2 12 A6 6 0 0 1 14 12' fill='none' stroke='rgb(255,176,40)' stroke-width='1.4'/><line x1='8' y1='12' x2='12' y2='6' stroke='rgb(255,60,40)' stroke-width='1.4'/><circle cx='8' cy='12' r='1' fill='rgb(255,176,40)'/></svg>">
-        <style>:root{--ink:#fde68a;--line:#f59e0b;--dim:#d97706;--btn:#fbbf24}</style>
+        <style>:root{--ink:#fde68a;--line:#f59e0b;--dim:#d97706;--btn:#fbbf24;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
