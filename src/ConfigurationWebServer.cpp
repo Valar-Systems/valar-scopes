@@ -380,10 +380,10 @@ static const char CONFIG_HTML[] PROGMEM = R"(
           .wrap{max-width:54rem}
           .shell{display:grid;grid-template-columns:170px 1fr;gap:1.1rem;align-items:start}
           .side{display:flex;flex-direction:column;gap:.2rem;position:sticky;top:.5rem}
-          .navb{text-align:left;background:none;border:1px solid transparent;color:var(--dim);
+          .navb{text-align:left;background:none;border:1px solid var(--dim);color:var(--dim);
                 padding:.45rem .6rem;border-radius:6px;cursor:pointer;font:inherit;line-height:1.3}
           .navb:hover{color:var(--ink)}
-          .navb.on{color:var(--ink);border-color:var(--line);background:rgba(34,197,94,.10);font-weight:600}
+          .navb.on{color:var(--ink);border-color:var(--line);background:rgba(34,197,94,.22);font-weight:600}
           .content{min-width:0}
           .sec{display:none}
           .sec.on{display:block}
@@ -394,7 +394,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              to the device trying to set their location. */
           @media(max-width:700px){
             .shell{grid-template-columns:1fr;gap:.6rem}
-            .side{flex-direction:row;flex-wrap:wrap;position:static;gap:.35rem;padding-bottom:.3rem}
+            .side{flex-direction:row;flex-wrap:wrap;position:static;gap:.35rem;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:.55rem 0;margin:0 0 .85rem}
             /* WRAP, DO NOT SCROLL. This was overflow-x:auto with flex:0 0 auto --
                a horizontal scroller by design. Measured at 390 px the four buttons
                need 446 px in a 324 px rail, so two sat off the right edge (right
@@ -421,7 +421,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <nav class="side" id="side">
                     <button type="button" class="navb" data-go="location">Location</button>
                     <button type="button" class="navb" data-go="display">Display</button>
-                    <button type="button" class="navb" data-go="card">Aircraft card</button>
+                    <button type="button" class="navb" data-go="labels">Labels</button>
                     <button type="button" class="navb" data-go="alerts">Alerts</button>
                     <button type="button" class="navb" data-go="follow">Follow</button>
                     <button type="button" class="navb" data-go="network">Network</button>
@@ -616,26 +616,9 @@ R"(
                             <span>Cloud server:</span>
                             <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
                         </label>
-                        <span class="hint">
-                            For self-hosting, or for pointing this board at a staging server.
-                            Leave blank to use the built-in default.
-                        </span>
+                        <span class="hint">For self-hosting or a staging server. Blank uses the built-in default.</span>
                     </details>
-                    <span class="hint">
-                        Managed Blipscope feed &mdash; no account needed.
-                        Your access key is set during assembly: leave it as it is, and if
-                        it ever gets changed by mistake, clear the box and save to restore it.
-                        Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
-                        and <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>.
-                        adsb.lol data &copy; adsb.lol contributors, licensed under
-                        <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
-                        Military airframe data from the <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics aircraft database</a>,
-                        licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>.
-                        Curated military airframe data from <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>,
-                        licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
-                        Aircraft photographs from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>.
-                        %CREDITS_LINK%
-                    </span>
+                    <span class="hint">Managed Blipscope feed &mdash; no account needed. Your access key is set during assembly; if it is ever changed by mistake, clear the box and save.<br>Data: <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> &copy; contributors, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics</a>, <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>; <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; photos from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>. %CREDITS_LINK%</span>
                 </div>
 )"
 #endif
@@ -656,10 +639,7 @@ R"(
                         <span>Receiver URL:</span>
                         <input name="local-url" value='%LOCAL_URL%' placeholder="http://192.168.1.50/data/aircraft.json" class="grow">
                     </label>
-                    <span class="hint">
-                        dump1090-fa / readsb / PiAware / tar1090. Enter the device's IP (e.g. 192.168.1.50)
-                        or the full aircraft.json URL. No API limits &mdash; the radar updates once a second.
-                    </span>
+                    <span class="hint">dump1090-fa / readsb / PiAware / tar1090. Enter the IP (e.g. 192.168.1.50) or the full aircraft.json URL. No API limits.</span>
                     <label class="field">
                         <span>Aircraft details:</span>
                         <select name="local-details" id="local-details" class="grow">
@@ -668,22 +648,7 @@ R"(
                             <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
                         </select>
                     </label>
-                    <span class="hint">
-                        Your receiver supplies the positions either way; this only decides where the
-                        detail card (type, airline, route, photo) comes from. There is deliberately
-                        no default &mdash; it is your call, and it will never change on its own.
-                        <b>Until you choose, details stay off.</b><br>
-                        <b>Blipscope Cloud</b> &mdash; sends the tapped aircraft's ICAO hex, callsign
-                        and position, plus your device model, firmware version and access key. Your
-                        receiver's address is never sent, and neither is your own location &mdash;
-                        but an aircraft you tapped is by definition near you, so
-                        <i>treat this as coarse location rather than none</i>. One internet host,
-                        and the only option with photos.<br>
-                        <b>Off</b> &mdash; contacts nothing at all. The card shows only what your own
-                        receiver reported. Your radar is unaffected either way: positions come from
-                        your own receiver, so an internet outage empties the cards and leaves the
-                        radar running.
-                    </span>
+                    <span class="hint">Positions always come from your receiver; this only chooses where the detail card (type, airline, route, photo) comes from, and there is no default. <b>Until you choose, details stay off.</b><br><b>Blipscope Cloud</b> &mdash; sends the tapped aircraft's ICAO hex, callsign and position, plus your device model, firmware version and access key. Not your receiver's address and not your location &mdash; but <i>a tapped aircraft is near you, so treat it as coarse location</i>. The only option with photos.<br><b>Off</b> &mdash; contacts nothing. The card shows only what your receiver reported. Either way the radar keeps running.</span>
                 </div>
 
                 </div><!-- /sec -->
@@ -737,10 +702,10 @@ R"(
 
                 </div><!-- /sec -->
 
-                <div class="sec" data-sec="card">
+                <div class="sec" data-sec="labels">
 
                 <fieldset>
-                    <legend>Aircraft info text</legend>
+                    <legend>Labels</legend>
                     <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
                          It sat inside <summary>, so one row carried two different actions
                          ~20 px apart: expand the section, or switch the whole feature off.
@@ -748,7 +713,8 @@ R"(
                          that is the report that prompted this. Full width, labelled, above
                          the grid it governs. class="master" carries over the auto-open the
                          summary checkbox used to provide. -->
-                    <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show aircraft info on the card</span></label>
+                    <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show labels next to each aircraft</span></label>
+                    <span class="hint">What&rsquo;s written beside each blip on the radar.</span>
                     <div id="info-fields" class="grid3">
                         %INFO_FIELDS%
                     </div>
@@ -772,15 +738,8 @@ R"(
                          and not only on the support page. The first is the mistake somebody
                          is about to make while looking at this box; the second is the one
                          they cannot detect afterwards. -->
-                    <span class="hint mt">
-                        Alerts need a trigger &mdash; tick one below, or add something to the watch
-                        list. A topic on its own sends nothing.
-                    </span>
-                    <span class="hint">
-                        Anyone who knows this topic can read your alerts. Treat it like a
-                        password, not a name. This device generated a private one for you;
-                        you can replace it, but a short name is a name other people guess.
-                    </span>
+                    <span class="hint mt">Alerts need a trigger &mdash; tick one below, or add to the watch list.</span>
+                    <span class="hint">Anyone with this topic can read your alerts. Treat it like a password; a short name is one people guess.</span>
                     <!-- The honest advice on a leaked topic is to change it, so the
                          device offers the change rather than leaving the customer to
                          invent a replacement -- which is how a 50-bit topic becomes
@@ -795,11 +754,7 @@ R"(
                         <label class="check"><input name="emg-alert" type="checkbox" %EMG_ALERT%><span>Alert on emergency squawk (ntfy)</span></label>
                         <label class="check"><input name="tones" type="checkbox" %TONES%><span>Alert tones (speaker models)</span></label>
                     </div>
-                    <span class="hint mt">
-                        Detected offline from the live feed &mdash; no account or lookup needed. On the radar:
-                        military = orange &ldquo;MIL&rdquo;, special flights (rescue / police / NASA / Boeing / Airbus test &hellip;) = blue &ldquo;SPC&rdquo;,
-                        helicopters = violet &ldquo;HELI&rdquo;.
-                    </span>
+                    <span class="hint mt">Detected from the live feed. On the radar: orange &ldquo;MIL&rdquo;, blue &ldquo;SPC&rdquo; (rescue, police, NASA, test), violet &ldquo;HELI&rdquo;.</span>
                     <div class="row mt">
                         <label class="field">
                             <span>Military visual alert:</span>
@@ -819,19 +774,13 @@ R"(
                         </label>
                     </div>
                     <label class="check mt"><input name="visual-night" type="checkbox" %VISUAL_NIGHT%><span>Visual alerts override night dimming</span></label>
-                    <span class="hint mt">
-                        On-screen attention when a military or emergency-squawk (7500/7600/7700) contact is in range:
-                        a colour-pulsing ring at the screen edge (orange = military, red = emergency), or a brief
-                        full-screen flash when it first appears &mdash; a few gentle pulses, then the ring.
-                    </span>
+                    <span class="hint mt">Edge ring while a military (orange) or emergency-squawk (red) contact is in range, with a brief flash when it arrives.</span>
                     <div class="field mt">
                         <label class="check"><input name="lookup" type="checkbox" %LOOKUP%><span>&ldquo;Look up!&rdquo; overhead alert within</span></label>
                         <input name="lookup-dist" type="number" min="0.5" step="0.5" value='%LOOKUP_DIST%' class="w6">
                         <label class="check"><input name="lookup-alert" type="checkbox" %LOOKUP_ALERT%><span>also ntfy</span></label>
                     </div>
-                    <span class="hint mt">
-                        Flashes a cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance (in your radar's units) of your location &mdash; glance up and spot it.
-                    </span>
+                    <span class="hint mt">Cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance.</span>
                 </fieldset>
 
                 </div><!-- /sec -->
@@ -849,18 +798,8 @@ R"(
                         <span>Follow (tail / callsign / ICAO hex):</span>
                         <input name="follow" value='%FOLLOW%' class="grow">
                     </label>
-                    <span class="hint mt">
-                        Names ONE aircraft &mdash; a tail number, a callsign, or an ICAO hex
-                        address. Leave it empty and nothing changes: the Follow screen does not
-                        exist until you put something here.
-                    </span>
-                    <span class="hint">
-                        The Follow screen shows where it is relative to your field, the path
-                        it has flown, and &mdash; in plain words &mdash; whether it is airborne,
-                        down, or simply somewhere the ground receivers do not reach. Coverage
-                        near the ground is patchy everywhere; that is expected and the screen
-                        says so rather than reporting it as a fault.
-                    </span>
+                    <span class="hint mt">Names ONE aircraft &mdash; tail number, callsign, or ICAO hex. Leave it empty and there is no Follow screen.</span>
+                    <span class="hint">Shows where it is, where it has been, and whether it is airborne, down, or simply out of receiver coverage.</span>
                     <div class="grid2 mt">
                         <label class="check"><input name="follow-track" type="checkbox" %FOLLOW_TRACK%><span>Draw the flight track</span></label>
                         <label class="check"><input name="follow-up" type="checkbox" %FOLLOW_UP%><span>Alert when it takes off (ntfy)</span></label>
@@ -870,21 +809,9 @@ R"(
                     <!-- The asymmetry IS the argument (15), and it is worth explaining
                          rather than just defaulting: a missed lost-alert costs mild
                          worry, an unwanted one costs panic. -->
-                    <span class="hint mt">
-                        Take-off and landing alerts are on because a landing message only makes
-                        sense if you also got the take-off. The signal-lost alert is off: losing
-                        the signal is normal and usually means nothing, and a phone alert saying
-                        so at the wrong moment is frightening. The screen always shows it either way.
-                    </span>
-                    <span class="hint">
-                        Alerts carry the aircraft you named, so keep the topic above private.
-                        Nothing else this device sends anywhere &mdash; not the feed, not the
-                        leaderboard &mdash; ever includes it.
-                    </span>
-                    <span class="hint">
-                        Flying with a pilot? Set the distance unit above to <b>nmi</b> &mdash;
-                        it is the unit they will use.
-                    </span>
+                    <span class="hint mt">Take-off and landing travel together; a landing alert only makes sense with its take-off. Signal-lost is off &mdash; losing signal is normal.</span>
+                    <span class="hint">Alerts name the aircraft, so keep the topic private.</span>
+                    <span class="hint">Flying with a pilot? Set the distance unit to nmi.</span>
                 </fieldset>
 
                 </div><!-- /sec -->
@@ -958,10 +885,7 @@ R"(
                             <label class="check"><input name="mqtt-disco" type="checkbox" %MQTT_DISCO%><span>HA auto-discovery</span></label>
                         </div>
                     </div>
-                    <span class="hint mt">
-                        Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; (count, nearest aircraft, overhead &amp; military flags)
-                        to your broker every few seconds. With auto-discovery on, Home Assistant creates the sensors automatically.
-                    </span>
+                    <span class="hint mt">Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; (count, nearest, overhead &amp; military flags) to your broker. With auto-discovery, Home Assistant creates the sensors.</span>
                 </details>
 
                 </div><!-- /sec -->
@@ -969,7 +893,7 @@ R"(
                 <!-- Every section that contains a control needs the savebar. Moving
                      the logbook/leaderboard blocks to Collection without adding it
                      here left that tab with toggles and no way to apply them. -->
-                <div class="sec" data-sec="location display card alerts follow network collection">
+                <div class="sec" data-sec="location display labels alerts follow network collection">
                 <div class="savebar">
                     <input type="submit" value="Save" class="btn">
                     <span id="result"></span>
@@ -1292,7 +1216,7 @@ R"(
             // the moment somebody decides the page is broken. A #hash still wins, so
             // links into a section keep working.
             const startFromHash = (location.hash || '').replace('#', '');
-            const valid = ['location', 'display', 'card', 'alerts', 'follow', 'network', 'collection', 'about'];
+            const valid = ['location', 'display', 'labels', 'alerts', 'follow', 'network', 'collection', 'about'];
             showSection(valid.indexOf(startFromHash) >= 0 ? startFromHash
                         : (document.body.dataset.start || 'collection'));
         </script>
