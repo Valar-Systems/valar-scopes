@@ -419,9 +419,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
 
             <div class="shell">
                 <nav class="side" id="side">
-                    <button type="button" class="navb" data-go="collection">Collection</button>
-                    <button type="button" class="navb" data-go="location">Location &amp; Radar</button>
+                    <button type="button" class="navb" data-go="location">Location</button>
+                    <button type="button" class="navb" data-go="display">Display</button>
+                    <button type="button" class="navb" data-go="card">Aircraft card</button>
+                    <button type="button" class="navb" data-go="alerts">Alerts</button>
+                    <button type="button" class="navb" data-go="follow">Follow</button>
                     <button type="button" class="navb" data-go="network">Network</button>
+                    <button type="button" class="navb" data-go="collection">Collection</button>
                     <button type="button" class="navb" data-go="about">About</button>
                 </nav>
                 <div class="content">
@@ -684,7 +688,7 @@ R"(
 
                 </div><!-- /sec -->
 
-                <div class="sec" data-sec="location">
+                <div class="sec" data-sec="display">
                 <fieldset>
                     <legend>Display</legend>
                     <div class="grid3">
@@ -731,8 +735,12 @@ R"(
                     </span>
                 </fieldset>
 
-                <details class="auto">
-                    <summary>Aircraft info text</summary>
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="card">
+
+                <fieldset>
+                    <legend>Aircraft info text</legend>
                     <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
                          It sat inside <summary>, so one row carried two different actions
                          ~20 px apart: expand the section, or switch the whole feature off.
@@ -744,10 +752,14 @@ R"(
                     <div id="info-fields" class="grid3">
                         %INFO_FIELDS%
                     </div>
-                </details>
+                </fieldset>
 
-                <details class="auto">
-                    <summary>Watchlist &amp; alerts</summary>
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="alerts">
+
+                <fieldset>
+                    <legend>Watchlist &amp; alerts</legend>
                     <label class="stack">
                         <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
                         <textarea name="watchlist" rows="2">%WATCHLIST%</textarea>
@@ -820,15 +832,19 @@ R"(
                     <span class="hint mt">
                         Flashes a cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance (in your radar's units) of your location &mdash; glance up and spot it.
                     </span>
-                </details>
+                </fieldset>
+
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="follow">
 
                 <!-- FOLLOW MODE. Its own block, deliberately not folded into
                      "Watchlist & alerts": a watchlist is a category of aircraft you
                      find interesting, and this is one aeroplane with a person in it.
                      The two read differently and are configured for different
                      reasons, so they get different boxes. (spec 14) -->
-                <details class="auto">
-                    <summary>Follow one aircraft</summary>
+                <fieldset>
+                    <legend>Follow one aircraft</legend>
                     <label class="field">
                         <span>Follow (tail / callsign / ICAO hex):</span>
                         <input name="follow" value='%FOLLOW%' class="grow">
@@ -869,7 +885,7 @@ R"(
                         Flying with a pilot? Set the distance unit above to <b>nmi</b> &mdash;
                         it is the unit they will use.
                     </span>
-                </details>
+                </fieldset>
 
                 </div><!-- /sec -->
 
@@ -953,7 +969,7 @@ R"(
                 <!-- Every section that contains a control needs the savebar. Moving
                      the logbook/leaderboard blocks to Collection without adding it
                      here left that tab with toggles and no way to apply them. -->
-                <div class="sec" data-sec="collection location network">
+                <div class="sec" data-sec="location display card alerts follow network collection">
                 <div class="savebar">
                     <input type="submit" value="Save" class="btn">
                     <span id="result"></span>
@@ -1276,7 +1292,7 @@ R"(
             // the moment somebody decides the page is broken. A #hash still wins, so
             // links into a section keep working.
             const startFromHash = (location.hash || '').replace('#', '');
-            const valid = ['collection', 'location', 'network', 'about'];
+            const valid = ['location', 'display', 'card', 'alerts', 'follow', 'network', 'collection', 'about'];
             showSection(valid.indexOf(startFromHash) >= 0 ? startFromHash
                         : (document.body.dataset.start || 'collection'));
         </script>
