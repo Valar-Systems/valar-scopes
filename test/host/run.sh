@@ -169,6 +169,27 @@ if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_portal_timeout_policy.cpp"   
   cat "$OUT/build.log"
   exit 2
 fi
+# --- why a join failed, said on the glass (2026-09-14) ----------------------
+#
+# A customer typed the wrong Wi-Fi password; the device diagnosed it correctly
+# within seconds and printed it only to serial, then showed the same generic
+# "No Wi-Fi / Retrying..." it shows for every other cause. Two days of hardware
+# investigation followed. The mapping's two error directions cost very
+# differently, so the test asserts causes, not strings.
+echo
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_join_failure.cpp"       -o "$OUT/test_join_failure.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the join failure test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_join_failure.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fails=$((fails+1))
+
 "$OUT/test_portal_timeout_policy.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
