@@ -121,6 +121,14 @@ inline Advice AdviceFor(Cause c)
 inline volatile uint8_t& LastReasonRef() { static volatile uint8_t r = 0; return r; }
 inline volatile bool&    HaveReasonRef() { static volatile bool h = false; return h; }
 
+/**
+ * Forget any recorded reason. Called when a human submits credentials, so an
+ * attempt is judged on ITS OWN failure and not on a stale one from the attempt
+ * before it -- and so a disconnect WE cause while tidying up cannot be mistaken
+ * for the customer's fault.
+ */
+inline void Reset() { HaveReasonRef() = false; LastReasonRef() = 0; }
+
 /// WiFi event task only.
 inline void RecordReason(uint8_t reason)
 {
