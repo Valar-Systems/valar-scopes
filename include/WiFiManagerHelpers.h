@@ -397,7 +397,83 @@ namespace WiFiManagerHelpers
         // `[WiFi] DISCONNECTED reason=N` line, not WiFiManager's.
         wm.setDebugOutput(true, WM_DEBUG_NOTIFY);
         wm.setTitle("Blipscope - Setup WiFi");
-        wm.setCustomHeadElement("<style>body{background:#111;color:#00ff00;font-family:monospace;} div:has(> a){background:#00ff00;} a:hover{color:#111;}</style>");
+
+        /* ------------------------------------------------------------------
+         * THE PORTAL IS THE FIRST SCREEN A CUSTOMER EVER SEES, and it was the
+         * least considered page in the product: two lines of CSS and no copy at
+         * all. Three specific problems, each fixed below.
+         *
+         * 1. #00ff00 ON #111 IS 13.9:1, AND THAT IS THE PROBLEM. Maximum
+         *    contrast at full saturation BLOOMS on a phone OLED -- letters
+         *    halate into each other, worst at the low brightness someone uses
+         *    indoors. It also reads as a hacker tool rather than a product on
+         *    the one screen that introduces it. The palette now matches the
+         *    config page exactly (#22c55e on #111827, 8.0:1), so a customer
+         *    going portal -> config page does not watch the brand change
+         *    underneath them.
+         *
+         * 2. `div:has(> a)` IS A SILENT FAILURE IN THE ONE BROWSER WE DO NOT
+         *    CHOOSE. A captive portal renders in the OS mini-browser, and older
+         *    Android WebViews do not support :has() -- CSS fails silently, so
+         *    those users got unstyled markup with nothing to indicate why.
+         *    It was targeting the scan-result rows, which are
+         *    `<div><a data-ssid=...>` -- so `a[data-ssid]` says the same thing
+         *    precisely, and is supported everywhere :has() is not.
+         *
+         * 3. NO FONT SIZE AND NO COPY. WiFiManager's default type is small on a
+         *    phone, and its own text ("Configure WiFi", "Save") is developer
+         *    facing. A customer who typed a password wrong got "Saving
+         *    Credentials / Trying to connect" and no error, ever -- which is
+         *    how a typo turned into a two-day hardware investigation.
+         *
+         * Selectors are taken from wm_strings_en.h rather than guessed: buttons
+         * are real <button> elements, rows are <div><a data-ssid>, messages are
+         * .msg, and .D/.S/.q/.h are WiFiManager's own classes.
+         * ------------------------------------------------------------------ */
+        wm.setCustomHeadElement(
+            R"(<meta name="viewport" content="width=device-width,initial-scale=1">)"
+            R"(<style>)"
+            R"(:root{--bg:#111827;--ink:#22c55e;--dim:#4ade80;--warn:#fbbf24})"
+            R"(*{box-sizing:border-box})"
+            R"(body{background:var(--bg);color:var(--ink);margin:0;padding:1rem;)"
+            R"(font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;line-height:1.5})"
+            R"(.wrap{max-width:26rem;margin:0 auto})"
+            R"(h1,h2,h3{font-size:1.15rem;margin:.6rem 0})"
+            /* Real buttons, full width, thumb-sized. The default is a small
+               inline control that is easy to miss and easier to mis-tap. */
+            R"(button{width:100%;background:var(--ink);color:#000;border:0;border-radius:5px;)"
+            R"(padding:.85rem 1rem;font:inherit;font-weight:700;cursor:pointer})"
+            R"(button.D{background:#ef4444;color:#fff})"
+            R"(input{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--ink);)"
+            R"(border-radius:5px;padding:.75rem;font:inherit})"
+            R"(input:focus{outline:2px solid var(--dim);outline-offset:1px})"
+            R"(a{color:var(--ink);text-decoration:none})"
+            /* The scan list: one tappable row per network, instead of a solid
+               green block that reads as a banner rather than a choice. */
+            R"(a[data-ssid]{display:block;padding:.7rem .2rem;font-size:1.05rem;border-bottom:1px solid #1f3a2b})"
+            R"(.q{display:inline-block;margin-left:.4rem;color:var(--dim);font-size:.85rem})"
+            R"(.h{display:none})"
+            R"(.msg{border:1px solid var(--ink);border-left:4px solid var(--ink);border-radius:5px;)"
+            R"(padding:.85rem;color:var(--dim);line-height:1.55})"
+            R"(.msg.D{border-color:#ef4444;border-left-color:#ef4444;color:#fca5a5})"
+            R"(.msg.S{border-color:var(--dim);border-left-color:var(--dim)})"
+            R"(</style>)");
+
+        /* THE COPY THE PORTAL NEVER HAD. Three numbered steps and the one
+         * sentence that would have saved the customer this was written for:
+         * that a wrong password is a thing that happens, is survivable, and is
+         * retried from this same page. WiFiManager says "If it fails reconnect
+         * to AP to try again" only AFTER a save, in small text, on a page the
+         * phone has often already navigated away from. */
+        wm.setCustomMenuHTML(
+            R"(<div class="msg" style="margin-bottom:1rem">)"
+            R"(<b>Set up your Blipscope</b><br>)"
+            R"(1. Tap <b>Configure WiFi</b> below<br>)"
+            R"(2. Choose your home network and enter its password<br>)"
+            R"(3. Give it about 30 seconds to join<br><br>)"
+            R"(If it doesn't join, the password is the usual reason &mdash; )"
+            R"(reconnect to this hotspot and try again.)"
+            R"(</div>)");
 
         // unique DHCP/mDNS hostname so the router lists each board distinctly
         wm.setHostname(DeviceIdentity::Name().c_str());
