@@ -435,12 +435,6 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="sec" data-sec="collection">
                     <div class="stand">%LB_STANDING%</div>
                     <div id="col"><span class="hint">Loading your collection&hellip;</span></div>
-                    <div class="hint mt">
-                        Seeing an aircraft is your antenna's doing. Claiming it is yours &mdash; open a
-                        contact's card on the device and one tap claims its type, operator, country and
-                        route airports at once. Only claims score.
-                        <a href="/logbook.json?download=1">Download a copy</a> of everything below.
-                    </div>
                 </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -618,9 +612,9 @@ R"(
                             <span>Cloud server:</span>
                             <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
                         </label>
-                        <span class="hint">For self-hosting or a staging server. Blank uses the built-in default.</span>
+                        <span class="hint">For self-hosting or a staging server. Blank uses the default.</span>
                     </details>
-                    <span class="hint">Managed Blipscope feed &mdash; no account needed. Your access key is set during assembly; if it is ever changed by mistake, clear the box and save.<br>Data: <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> &copy; contributors, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics</a>, <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>; <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; photos from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>. %CREDITS_LINK%</span>
+                    <span class="hint">Managed Blipscope feed, no account needed. The access key is set during assembly; if it is ever changed by mistake, clear the box and save. Sources and licences are under About.</span>
                 </div>
 )"
 #endif
@@ -641,7 +635,7 @@ R"(
                         <span>Receiver URL:</span>
                         <input name="local-url" value='%LOCAL_URL%' placeholder="http://192.168.1.50/data/aircraft.json" class="grow">
                     </label>
-                    <span class="hint">dump1090-fa / readsb / PiAware / tar1090. Enter the IP (e.g. 192.168.1.50) or the full aircraft.json URL. No API limits.</span>
+                    <span class="hint">dump1090-fa / readsb / PiAware / tar1090. Enter the IP or the aircraft.json URL.</span>
                     <label class="field">
                         <span>Aircraft details:</span>
                         <select name="local-details" id="local-details" class="grow">
@@ -650,7 +644,7 @@ R"(
                             <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
                         </select>
                     </label>
-                    <span class="hint">Positions always come from your receiver; this only chooses where the detail card (type, airline, route, photo) comes from, and there is no default. <b>Until you choose, details stay off.</b><br><b>Blipscope Cloud</b> &mdash; sends the tapped aircraft's ICAO hex, callsign and position, plus your device model, firmware version and access key. Not your receiver's address and not your location &mdash; but <i>a tapped aircraft is near you, so treat it as coarse location</i>. The only option with photos.<br><b>Off</b> &mdash; contacts nothing. The card shows only what your receiver reported. Either way the radar keeps running.</span>
+                    <span class="hint">Positions always come from your receiver; this only chooses where card details (type, airline, route, photo) come from. No default &mdash; <b>until you choose, details stay off.</b><br><b>Blipscope Cloud</b> sends the tapped aircraft's hex, callsign and position, plus your device model, firmware and access key; never your receiver's address or your location &mdash; though <i>a tapped aircraft is near you, so treat it as coarse location</i>. Only Cloud has photos.<br><b>Off</b> contacts nothing; the card shows what your receiver reported.</span>
                 </div>
 
                 </div><!-- /sec -->
@@ -824,15 +818,7 @@ R"(
 
                 <details class="auto">
                     <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
-                    <span class="hint">
-                        Keeps a running &ldquo;lifelist&rdquo; of every unique aircraft type, airline, country,
-                        and route airport you've seen overhead (shown on the Stats screen), with first-seen dates,
-                        per-type counts, and lifetime records. Anything you haven't claimed yet shows a gold
-                        &ldquo;NEW&rdquo; on the radar &mdash; <b>tap it to claim it</b>. Seeing an aircraft is
-                        your antenna's doing; claiming it is yours, and only claims score.
-                        It looks up each contact's type/airline, so it adds a little network traffic.
-                        Download a copy any time: <a href="/logbook.json?download=1">logbook.json</a>.
-                    </span>
+                    <span class="hint">A lifelist of every aircraft type, airline, country and route airport seen overhead, on the Stats screen. Unclaimed ones show a gold &ldquo;NEW&rdquo; &mdash; tap to claim. Adds a little network traffic. Download: <a href="/logbook.json?download=1" target="_blank" rel="noopener">logbook.json</a>.</span>
                 </details>
 
                 <details class="auto">
@@ -841,12 +827,7 @@ R"(
                         <span>Spotter name:</span>
                         <input name="lb-name" value='%LB_NAME%' maxlength="24" placeholder="e.g. Redmond Radar" class="grow">
                     </label>
-                    <span class="hint mt">
-                        Opt in to the public %LB_LINK% &mdash;
-                        compete on unique types, airlines, and countries seen overhead. <b>Counts only leave your device</b>
-                        (plus your type list, for rarity scoring): never your location, never which flights you saw. Off by default;
-                        requires the Blipscope Cloud feed. First device to claim a name owns it.
-                    </span>
+                    <span class="hint mt">Opt in to the public %LB_LINK%. Only counts and your type list leave the device &mdash; never your location, never which flights you saw. First device to claim a name owns it.</span>
                 </details>
 
                 </div><!-- /sec -->
@@ -883,7 +864,7 @@ R"(
                             <label class="check"><input name="mqtt-disco" type="checkbox" %MQTT_DISCO%><span>HA auto-discovery</span></label>
                         </div>
                     </div>
-                    <span class="hint mt">Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; (count, nearest, overhead &amp; military flags) to your broker. With auto-discovery, Home Assistant creates the sensors.</span>
+                    <span class="hint mt">Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; to your broker. Home Assistant finds the sensors via auto-discovery.</span>
                 </details>
 
                 </div><!-- /sec -->
@@ -900,6 +881,8 @@ R"(
             </form>
 
                 <div class="sec" data-sec="about">
+                <span class="hint">Aircraft data: <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> &copy; contributors, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics</a>, <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>; <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; photos from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>. %CREDITS_LINK%</span>
+
                     <div class="grid2">
                         <div class="kv"><span>Device</span><b>%DEVICE_NAME%.local</b></div>
                         <div class="kv"><span>Address</span><b>%DEVICE_IP%</b></div>
@@ -910,10 +893,7 @@ R"(
                         <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
                         %CREDITS_LINK%
                     </div>
-                    <div class="hint mt">
-                        Reset WiFi makes the device forget this network and restart into its setup
-                        portal. Your location, settings and spotting logbook are kept.
-                    </div>
+                    <div class="hint mt">Forgets this network and restarts into setup. Location, settings and logbook are kept.</div>
                     <div class="mt"><button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button></div>
 
                     <!-- ------------------------------------------------------------------
@@ -931,19 +911,10 @@ R"(
                          to save a copy is worth anything.
                          ------------------------------------------------------------------ -->
                     <hr class="mt" style="border:0;border-top:1px solid #333;margin:18px 0">
-                    <div class="hint">
-                        <b style="color:#ff4d4d">Factory reset</b> erases everything this device
-                        knows about you &mdash; your spotting logbook, location and radius,
-                        leaderboard opt-in and display name, and the WiFi network. It restarts
-                        into setup mode. This cannot be undone.
-                    </div>
+                    <div class="hint">Erases everything this device knows about you &mdash; logbook, location, leaderboard opt-in and name, and the WiFi network &mdash; and restarts into setup. This cannot be undone.</div>
                     <div class="mt"><button type="button" id="factoryopen" class="btn-danger">Factory reset&hellip;</button></div>
                     <div id="factorypanel" class="mt" style="display:none;border:1px solid #ff4d4d;border-radius:6px;padding:12px">
-                        <div class="hint">
-                            <b>Save your logbook first.</b>
-                            <a href="/logbook.json?download=1">Download a copy</a> &mdash; once this
-                            device is erased there is no other copy of it.
-                        </div>
+                        <div class="hint">Save your logbook first: once erased there is no other copy.</div>
                         <div class="hint mt">Type <b>RESET</b> to enable the button:</div>
                         <input type="text" id="factoryword" autocomplete="off" autocapitalize="characters"
                                spellcheck="false" placeholder="RESET" style="max-width:10em">
