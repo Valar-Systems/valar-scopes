@@ -1238,8 +1238,29 @@ R"(
             const secs = document.querySelectorAll('.sec');
             const navs = document.querySelectorAll('.navb');
             function showSection(name) {
+                let hit = false;
                 for (const el of secs) {
-                    el.classList.toggle('on', (el.dataset.sec || '').split(' ').indexOf(name) >= 0);
+                    const on = (el.dataset.sec || '').split(' ').indexOf(name) >= 0;
+                    if (on) hit = true;
+                    el.classList.toggle('on', on);
+                }
+                // NOTHING MATCHED, so every section is now off and the page is BLANK.
+                // That happens when data-start, a #hash or a nav button names a group
+                // no section carries -- i.e. a rename that touched one of the four
+                // writers of these names and not the others. The worst case is not
+                // hypothetical and it lands on the worst customer: a first-run device
+                // has no location saved, so the landing group is the "no location"
+                // literal, and a blank page is then the first thing anyone ever sees.
+                //
+                // scripts/check-config-form.py fails CI on the same mistake. This is
+                // the other half, and it is not redundant with it: CI protects the
+                // code we are about to ship, this protects a device already in a
+                // customer's house running a build from before the check existed.
+                if (!hit && navs.length) {
+                    name = navs[0].dataset.go;
+                    for (const el of secs) {
+                        el.classList.toggle('on', (el.dataset.sec || '').split(' ').indexOf(name) >= 0);
+                    }
                 }
                 for (const b of navs) b.classList.toggle('on', b.dataset.go === name);
                 if (name === 'collection') loadCollection();
