@@ -104,6 +104,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.field>span:first-child{flex:none})" \
     R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
     R"(.check{display:flex;align-items:center;gap:.5rem})" \
+    R"(.switch{width:100%;justify-content:flex-start;padding:.65rem .7rem;border:1px solid var(--line);border-radius:5px;margin-bottom:.8rem})" \
     R"(.row{display:flex;flex-direction:column;gap:1rem})" \
     R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
     R"(.grid3,.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .9rem})" \
@@ -339,7 +340,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(fetch('/enroll-key',{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){)" \
     R"(if(r.ok){location.reload()}else{enrolling=false;r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
-    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
+    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox],.master input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"
 
 // HTML stored in flash
@@ -359,7 +360,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              stray percent sign collides with this page's PLACEHOLDER template engine and shreds the whole
              form (write it as &#37; in visible text - and keep it out of comments too, like this one). -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#16a34a;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e}</style>
 )" CONFIG_SHELL_CSS R"(
         <!-- Sidebar layout. Radar-only on purpose: the other seven editions have short
              single-screen forms a nav would only get in the way of, and this block is
@@ -393,8 +394,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              to the device trying to set their location. */
           @media(max-width:700px){
             .shell{grid-template-columns:1fr;gap:.6rem}
-            .side{flex-direction:row;overflow-x:auto;position:static;gap:.3rem;padding-bottom:.3rem}
-            .navb{white-space:nowrap;flex:0 0 auto;padding:.4rem .7rem}
+            .side{flex-direction:row;flex-wrap:wrap;position:static;gap:.35rem;padding-bottom:.3rem}
+            /* WRAP, DO NOT SCROLL. This was overflow-x:auto with flex:0 0 auto --
+               a horizontal scroller by design. Measured at 390 px the four buttons
+               need 446 px in a 324 px rail, so two sat off the right edge (right
+               edges 479 and 406) behind a scrollbar nobody looks for.
+               THE DOCUMENT NEVER OVERFLOWED, so a documentElement.scrollWidth
+               check passes in both worlds; the assertion has to be per-element. */
+            .navb{white-space:nowrap;flex:0 1 auto;padding:.45rem .7rem;border-radius:999px}
           }
         </style>
     </head>
@@ -725,7 +732,15 @@ R"(
                 </fieldset>
 
                 <details class="auto">
-                    <summary>Aircraft info text <input name="infotext" type="checkbox" %INFOTEXT%></summary>
+                    <summary>Aircraft info text</summary>
+                    <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
+                         It sat inside <summary>, so one row carried two different actions
+                         ~20 px apart: expand the section, or switch the whole feature off.
+                         A customer looking for "turn all this off" could not find it --
+                         that is the report that prompted this. Full width, labelled, above
+                         the grid it governs. class="master" carries over the auto-open the
+                         summary checkbox used to provide. -->
+                    <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show aircraft info on the card</span></label>
                     <div id="info-fields" class="grid3">
                         %INFO_FIELDS%
                     </div>
@@ -1258,7 +1273,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope EAM</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#16a34a;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1624,7 +1639,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Birding</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,20,8)'/><circle cx='6.5' cy='7' r='3' fill='rgb(150,220,130)'/><circle cx='7.5' cy='6.2' r='0.7' fill='rgb(8,20,8)'/><path d='M9 7 L13 6 L10 8 Z' fill='rgb(255,215,90)'/></svg>">
-        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#16a34a;--btn:#4ade80}</style>
+        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#7f9e91;--btn:#4ade80}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
