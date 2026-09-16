@@ -730,29 +730,23 @@ R"(
                         <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
                         <textarea name="watchlist" rows="2">%WATCHLIST%</textarea>
                     </label>
-                    <label class="field mt">
-                        <span>ntfy.sh topic (phone alerts):</span>
-                        <input name="ntfy-topic" value='%NTFY_TOPIC%' class="grow">
-                    </label>
-                    <!-- Both of these are learned AT THIS FIELD, which is why they are here
-                         and not only on the support page. The first is the mistake somebody
-                         is about to make while looking at this box; the second is the one
-                         they cannot detect afterwards. -->
-                    <span class="hint mt">
-                        Alerts need a trigger &mdash; tick one below, or add something to the watch
-                        list. A topic on its own sends nothing.
-                    </span>
-                    <span class="hint">
-                        Anyone who knows this topic can read your alerts. Treat it like a
-                        password, not a name. This device generated a private one for you;
-                        you can replace it, but a short name is a name other people guess.
-                    </span>
-                    <!-- The honest advice on a leaked topic is to change it, so the
-                         device offers the change rather than leaving the customer to
-                         invent a replacement -- which is how a 50-bit topic becomes
-                         "planes2". Regenerated on the DEVICE with esp_random(), not in
-                         the browser, so it is the same generator that made the first one. -->
-                    <label class="check mt"><input name="ntfy-regen" type="checkbox"><span>Generate a new topic when I save (re-subscribe your phone afterwards)</span></label>
+                    <!-- THE NTFY TOPIC FIELD IS DELIBERATELY NOT RENDERED (2026-09-16).
+                         Removed from the page as clutter, NOT removed from the product:
+                         the topic is still generated, still stored, and the alert code
+                         is untouched.
+
+                         SAFE TO HIDE BECAUSE OF HOW IT SAVES. TrySaveParam returns
+                         without writing when a parameter is absent from the POST, so an
+                         existing customer's topic SURVIVES every future save of this
+                         page. That is not true of checkboxes -- SaveToggle writes an
+                         explicit "false" for any checkbox missing from a whole-form
+                         POST -- which is why the (ntfy) alert toggles below are still
+                         rendered. Hiding one of those would silently and permanently
+                         turn it off for everyone on their next save.
+
+                         The regenerate control goes with it: it is an action on a value
+                         nobody can now see, and it is a one-shot (absent == do nothing),
+                         so removing it stores nothing and loses nothing. -->
                     <div class="grid2 mt">
                         <label class="check"><input name="mil-show" type="checkbox" %MIL_SHOW%><span>Highlight military</span></label>
                         <label class="check"><input name="mil-alert" type="checkbox" %MIL_ALERT%><span>Alert on military (ntfy)</span></label>
