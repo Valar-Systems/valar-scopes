@@ -1237,6 +1237,10 @@ R"(
             // scripts/check-config-form.py fails the build if anything starts to.
             const secs = document.querySelectorAll('.sec');
             const navs = document.querySelectorAll('.navb');
+            // Where showSection lands when a name matches nothing. Location,
+            // because the device this protects is a first-run one with no
+            // location saved -- which is why its landing group broke at all.
+            const FALLBACK_SECTION = 'location';
             function showSection(name) {
                 let hit = false;
                 for (const el of secs) {
@@ -1245,11 +1249,15 @@ R"(
                     el.classList.toggle('on', on);
                 }
                 // Nothing matched: every section is off and the page is BLANK.
-                // A group was renamed in one of the four places that name them.
+                // A group was renamed in one of the places that name them.
                 // Why this is a real hazard, and its CI half, are in the header of
                 // scripts/check-config-form.py -- this comment ships to the phone.
                 if (!hit && navs.length) {
-                    name = navs[0].dataset.go;
+                    let fb = '';
+                    for (const el of secs) {
+                        if ((el.dataset.sec || '').split(' ').indexOf(FALLBACK_SECTION) >= 0) fb = FALLBACK_SECTION;
+                    }
+                    name = fb || navs[0].dataset.go;
                     for (const el of secs) {
                         el.classList.toggle('on', (el.dataset.sec || '').split(' ').indexOf(name) >= 0);
                     }

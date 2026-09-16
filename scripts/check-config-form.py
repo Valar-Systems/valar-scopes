@@ -175,6 +175,11 @@ def source_pages() -> list[tuple[str, str]]:
 #   2. HTML  data-sec="..."                                        (what exists)
 #   3. HTML  data-go="..."                                         (the nav buttons)
 #   4. JS    const valid = [...]                                   (what a #hash may name)
+#   5. JS    const FALLBACK_SECTION = '...'                        (where a miss lands)
+#
+# The count is deliberately not written as a number below. It was four until the
+# runtime fallback needed a preferred group, which made it five in the same
+# commit that introduced it.
 #
 # Rename a group in one and the others keep compiling, keep passing, and keep
 # looking right in the editor. The worst case is silent and lands on the worst
@@ -189,6 +194,7 @@ SEC_ATTR_RE = re.compile(r"""\bdata-sec\s*=\s*['"]([^'"]*)['"]""", re.I)
 GO_ATTR_RE = re.compile(r"""\bdata-go\s*=\s*['"]([^'"]*)['"]""", re.I)
 START_ATTR_RE = re.compile(r"""\bdata-start\s*=\s*['"]([^'"]*)['"]""", re.I)
 VALID_ARR_RE = re.compile(r"""\bvalid\s*=\s*\[([^\]]*)\]""")
+FALLBACK_RE = re.compile(r"""\bFALLBACK_SECTION\s*=\s*['"]([^'"]*)['"]""")
 STR_LIT_RE = re.compile(r"""['"]([A-Za-z0-9_.-]+)['"]""")
 # Only ASSIGNMENTS. `return startSection;` and a lambda capture list both mention
 # the name and neither decides its value -- matching those would drag in whatever
@@ -240,6 +246,16 @@ def check_section_vocabulary(html: str, start_names: list[str], label: str) -> l
     for n in sorted(groups):
         if n not in gos:
             problems.append(f'section group "{n}" has no nav button, so nothing can reach it')
+
+    fm = FALLBACK_RE.search(html)
+    if fm and fm.group(1) not in groups:
+        # Lower severity than the others on purpose: a stale fallback name
+        # degrades to the first nav group rather than blanking. Still an error --
+        # the whole point is that these names do not drift apart silently.
+        problems.append(
+            f'the runtime fallback prefers "{fm.group(1)}", which no data-sec '
+            f"carries, so a miss lands on the first tab instead"
+        )
 
     vm = VALID_ARR_RE.search(html)
     if vm:
@@ -332,13 +348,21 @@ SELFTEST_VOCAB = [
      ["collection"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\',\'follow\'];</script></body>', "allow-list names"),
     ("nav group missing from the #hash allow-list",
      ["collection"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\'];</script></body>', "missing from the #hash allow-list"),
+    ("runtime fallback prefers a group nothing carries",
+     ["collection"],
+     '<body data-start="%START_SECTION%"><nav class="side">'
+     '<button class="navb" data-go="collection">C</button></nav>'
+     '<section class="sec" data-sec="collection"></section>'
+     "<script>const FALLBACK_SECTION = 'location';"
+     "const valid = ['collection'];</script></body>",
+     "runtime fallback prefers"),
     ("data-start set but the page carries no sections at all",
      ["collection"], '<body data-start="%START_SECTION%"><nav class="side"></nav></body>',
      "renders blank"),
 ]
 
 SELFTEST_VOCAB_OK = [
-    ("all four vocabularies agree", ["collection", "location"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\'];</script></body>'),
+    ("every vocabulary agrees", ["collection", "location"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\'];</script></body>'),
     # An edition with no nav at all must not be flagged -- EAM/Space/Seismic and
     # friends have single-screen forms and no landing machinery. If this starts
     # failing, the rule has grown teeth it was never meant to have.
