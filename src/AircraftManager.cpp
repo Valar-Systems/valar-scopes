@@ -21,6 +21,10 @@
 #include "IcaoCountry.h"      // origin country from the ICAO address, for feeds that omit it
 #include "DeviceIdentity.h"
 #include "Layout.h"
+#include "StatsRowPriority.h"  // what this face drops when it fills, decided once
+#ifdef BLIPSCOPE_QR_SIZE_PROBE
+#include "QrRender.h"
+#endif
 #include "Board.h"
 #include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
 #include "TouchWatchdog.h" // CST816 supervisor; inert unless variant::TOUCH_WATCHDOG
@@ -3656,16 +3660,43 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // the IP sitting ABOVE the name when there is room for it, which reads slightly
     // out of order -- accepted deliberately, because the alternative is spending a
     // second guaranteed row on the less useful of the two on a 240 px panel.
-    const int hostRowTop = wifiRowTop - lh;
-    const int clockTop = hostRowTop;   // the ceiling every optional block below obeys
+    // THE CEILING COMES FROM THE PRIORITY TABLE, not from an arithmetic edit
+    // here. statsrows::RESERVED_ROWS is the single statement of how many rows
+    // are held back, so reserving another one is a one-line change in that
+    // header rather than three numbers in the middle of a 300-line function --
+    // which is how the ceiling and the reserved set drifted apart before.
+    const int addrRowTop = wifiRowTop - lh;                         // the IP (reserved)
+    const int clockTop   = statsrows::ClockTopFor(clockRow, lh);
 
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-    // Space-guarded: a line that would reach the reserved row is dropped, so the
-    // block order below is also the priority order on the small 240 px panels.
+
+    // ---- THE GAP BUG: whitespace was charged for content never drawn -------
+    //
+    // `line()` is guarded and will not advance y past the ceiling. The block
+    // gaps were bare `y += 6` statements and were NOT, so a block whose heading
+    // did not fit still consumed its gap -- spending budget on a row that was
+    // never rendered, and pushing y past the ceiling using whitespace alone.
+    //
+    // The gap is now PENDING until something actually draws. Deferring it is the
+    // fix rather than guarding it, because a guarded gap still has to guess
+    // whether the next line will fit; a deferred one simply never applies unless
+    // it does. Latent anywhere this pattern is used, not only here.
+    // ONE implementation of the budget, in the header, host-tested. These are
+    // thin wrappers so the existing call sites read unchanged; `y` is kept in
+    // step because several blocks still test it directly.
+    statsrows::Budget budget{ y, lh, clockTop, 0 };
+    // RE-SYNC FROM `y` ON EVERY CALL. A few blocks still advance `y` directly
+    // (the hourly sparkline), and a budget that assumed it owned `y` would drift
+    // silently past them -- which is the same class of bug as the one being
+    // fixed. The pending gap lives in the struct and survives the sync.
+    auto gap = [&](int px) { budget.y = y; budget.Gap(px); };
+
     auto line = [&](const String& s) {
-        if (y + lh > clockTop) return;
-        centered(s, y);
-        y += lh;
+        budget.y = y;
+        const int at = budget.Take();
+        if (at < 0) return;          // no room even with the gap; gap stays queued
+        centered(s, at);
+        y = budget.y;
     };
 
     // Ellipsise a string that will not fit the round face at row `yTop`.
@@ -3698,7 +3729,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // TODAY -- contacts since local midnight, peak simultaneous count, busiest
     // hour + an hourly sparkline. RAM-only session stats (see the members).
     if (todayContacts > 0) {
-        y += 6;
+        gap(6);
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         line("TODAY");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
@@ -3724,14 +3755,14 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
                                     h == busiest ? lgfx::color888(0, 255, 0)
                                                  : lgfx::color888(0, 120, 0));
             }
-            y += 16;
+            gap(16);
         }
     }
 
     // AIRCRAFT OF THE DAY -- the day's single most notable catch (see
     // ConsiderAircraftOfDay). Only shows once something's been logged today.
     if (!aotdCallsign.isEmpty() && y + lh <= clockTop) {
-        y += 6;
+        gap(6);
         backbuffer.setTextColor(lgfx::color888(255, 210, 0)); // gold: a highlight
         line("AIRCRAFT OF THE DAY");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
@@ -3742,7 +3773,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
 
     // spotting logbook totals (the persistent "lifelist")
     if (logbookEnabled) {
-        y += 6;
+        gap(6);
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
         line("LIFELIST");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
@@ -3788,7 +3819,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // LEADERBOARD -- this device's public standing, once a submit has returned
     // one. Opt-in; shown only when enabled and a rank has arrived.
     if (lbEnabled && lbHaveStanding && y + lh <= clockTop) {
-        y += 6;
+        gap(6);
         backbuffer.setTextColor(lgfx::color888(255, 210, 0)); // gold: a score
         line("LEADERBOARD");
         backbuffer.setTextColor(lgfx::color888(0, 200, 0));
@@ -3823,7 +3854,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         const bool stale = IsDataStale();
 
         if (y + lh <= clockTop) {
-            y += 6;
+            gap(6);
             backbuffer.setTextColor(stale ? lgfx::color888(255, 176, 0)   // amber: worth a look
                                           : lgfx::color888(0, 255, 0));
             line(String("FEED ") + src + " " + ageStr + (stale ? " STALE" : ""));
@@ -3839,7 +3870,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
     // the Stats screen something board-specific. Signed degrees: P = pitch, R = roll.
     if constexpr (variant::HAS_IMU) {
         if (imuValid) {
-            y += 6;
+            gap(6);
             backbuffer.setTextColor(lgfx::color888(0, 200, 0));
             char buf[24];
             snprintf(buf, sizeof(buf), "Tilt P%+d R%+d", (int)lroundf(imuPitch), (int)lroundf(imuRoll));
@@ -3860,7 +3891,7 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         // The SSID line is a nicety and stays space-guarded -- it answers "is it
         // even on my WiFi?", but it is not the thing that must survive.
         if (y + lh <= clockTop) {
-            y += 6;
+            gap(6);
             backbuffer.setTextColor(up ? lgfx::color888(0, 255, 0) : lgfx::color888(255, 176, 0));
             String ssid = up ? WiFi.SSID() : String();
             if (up && ssid.isEmpty()) ssid = "(unnamed)";
@@ -3888,10 +3919,26 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         resetRowY1 = wifiRowTop + lh;
     }
 
-    // THIS DEVICE -- the config page is at http://<name>.local, so a customer who
-    // forgot the name can read it here. The IP stays space-guarded as the mDNS
-    // fallback (Android and some Windows setups will not resolve .local).
-    y += 6;
+    // THIS DEVICE -- how to reach the config page. THE IP IS THE RESERVED ROW
+    // AND THE NAME YIELDS TO IT; see include/StatsRowPriority.h for the decision
+    // and what it costs. The previous arrangement was the wrong way round: its
+    // own comment named .local as the address that fails on Android and many
+    // Windows setups, and then gave that row the guarantee.
+    gap(6);
+#ifdef BLIPSCOPE_QR_SIZE_PROBE
+    // Flash-budget measurement only. Forces the QR encoder to link so the delta
+    // is real; an unreferenced library is removed and would measure as nothing.
+    {
+        static bool once = false;
+        if (!once) {
+            once = true;
+            const bool ok = qr::Draw(backbuffer, "http://192.168.100.100",
+                                     SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2, 6);
+            Serial.printf("[qr-probe] draw=%d
+", (int)ok);
+        }
+    }
+#endif
 #ifdef BLIPSCOPE_STATS_GEOM_PROBE
     // TEMPORARY OBSERVATION, not a fix.
     //
@@ -3963,16 +4010,27 @@ void AircraftManager::DrawStats(BandCanvas& backbuffer)
         }
     }
 #endif
-    if (y + lh <= clockTop) {
-        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-        line(WiFi.localIP().toString());
-    }
+    // SPACE-GUARDED: the .local name, drawn immediately above the IP whenever
+    // there is room. It is not dropped from the face -- on a quiet device both
+    // appear, which is what we want, since both are useful. It has simply
+    // stopped being the one that survives when only one can.
+    backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    line(DeviceIdentity::Name() + ".local");
 
-    // RESERVED, not space-guarded -- see hostRowTop. Drawn unconditionally in its
-    // own row directly above the Reset WiFi control, so no amount of traffic can
-    // delete the one string that gets a customer to the config page.
+    // RESERVED, not space-guarded -- statsrows::Row::Address, the highest
+    // priority row after the Reset-WiFi control. Drawn unconditionally in its own
+    // row directly above it, so no amount of traffic can delete the one string
+    // that actually reaches the config page on every platform.
+    //
+    // WiFi.localIP() is 0.0.0.0 when there is no link, and printing that would be
+    // worse than printing nothing: it looks like an address and cannot be one.
+    // The row is left to the name in that case, which at least names the hotspot.
+    const IPAddress ip = WiFi.localIP();
     backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-    centered(DeviceIdentity::Name() + ".local", hostRowTop);
+    if (ip != IPAddress((uint32_t)0))
+        centered(ip.toString(), addrRowTop);
+    else
+        centered(DeviceIdentity::Name() + ".local", addrRowTop);
 }
 
 void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
