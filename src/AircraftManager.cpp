@@ -4928,7 +4928,11 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
 // truncation. `cache` is the proxy's own attribution (HIT/STALE/MISS).
 void AircraftManager::ReportPerf()
 {
-    if (perf.polls == 0 && perf.enrichReqs == 0)
+    // NON-ICAO NEEDS NO REQUEST, so a window can be entirely non-ICAO with
+    // enrichReqs == 0 -- exactly the case these counters were added for.
+    // Guarding on requests alone would suppress the line carrying the answer.
+    if (perf.polls == 0 && perf.enrichReqs == 0 && perf.enrichNonIcao == 0 &&
+        perf.enrichCached == 0)
         return; // nothing happened; a line of zeros is noise
 
     const unsigned long windowMs = 60000UL;
@@ -4950,7 +4954,8 @@ void AircraftManager::ReportPerf()
     Serial.printf("[perf] %s polls=%lu busy=%lu%%(fetch=%lu%% enrich=%lu%%) "
                   "parse=%lums/poll bytes=%lu/poll ac=%lu/%lu "
                   "lag=avg%lums,max%lums gapMax=%lums episodes=%lu "
-                  "cache=H%lu/S%lu/M%lu enrichReqs=%lu\n",
+                  "cache=H%lu/S%lu/M%lu enrichReqs=%lu "
+                  "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu enrichCached=%lu\n",
                   stamp,
                   (unsigned long)perf.polls,
                   busyMs * 100UL / windowMs,
@@ -4965,7 +4970,11 @@ void AircraftManager::ReportPerf()
                   (unsigned long)perf.episodes,
                   (unsigned long)perf.cacheHit, (unsigned long)perf.cacheStale,
                   (unsigned long)perf.cacheMiss,
-                  (unsigned long)perf.enrichReqs);
+                  (unsigned long)perf.enrichReqs,
+                  (unsigned long)perf.enrichOk,
+                  (unsigned long)perf.enrichEmpty,
+                  (unsigned long)perf.enrichNonIcao,
+                  (unsigned long)perf.enrichCached);
 
     perf = PerfWindow{}; // windows are independent; a running total hides the episode
 }
@@ -8856,14 +8865,14 @@ void AircraftManager::ProcessDetailLookups()
             // real traffic removed, not a micro-optimisation. The card shows
             // exactly what it would have shown anyway.
             if (SpecialAircraft::IsNonIcaoAddress(selectedIcao)) {
-                ApplyEnrichment(tracked, CloudFeed::Enrichment{});
+                ApplyEnrichment(tracked, CloudFeed::Enrichment{}, EnrichOutcome::NonIcao);
                 return;
             }
             // The LRU keeps the last few enrichments across aircraft eviction, so
             // re-inspecting a contact that flapped out of range is instant and
             // network-free. On a hit, fall through to the photo step below.
             if (const CloudFeed::Enrichment* cached = enrichCache.Find(selectedIcao)) {
-                ApplyEnrichment(tracked, *cached);
+                ApplyEnrichment(tracked, *cached, EnrichOutcome::Cached);
             } else {
                 String callsign = tracked.state.callsign;
                 callsign.trim();
@@ -9062,8 +9071,18 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
         enrichInFlight = true;
 }
 
-void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e)
+void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e,
+                                      EnrichOutcome outcome)
 {
+    // Counted HERE rather than at the call sites: every path that settles an
+    // enrichment goes through this function, so one increment cannot be missed
+    // by a path that forgets to add its own.
+    switch (outcome) {
+        case EnrichOutcome::Ok:      perf.enrichOk++;      break;
+        case EnrichOutcome::Empty:   perf.enrichEmpty++;   break;
+        case EnrichOutcome::NonIcao: perf.enrichNonIcao++; break;
+        case EnrichOutcome::Cached:  perf.enrichCached++;  break;
+    }
     tracked.metadataState = TrackedAircraft::MetadataState::Fetched;
     tracked.typeCode = e.typeCode;
     tracked.typeName = e.typeName;
@@ -9205,14 +9224,14 @@ void AircraftManager::ConsumeEnrichResults()
                     e.routeDest    = res->routeDest;
                     e.photoPath          = res->photoPath;
                     e.photoRepresentative = res->photoRepresentative;
-                    ApplyEnrichment(t, e);
+                    ApplyEnrichment(t, e, EnrichOutcome::Ok);
                     enrichCache.Insert(res->icao24, e); // re-taps after eviction stay instant
                 } else if (t.enrichAttempts + 1 >= 3) {
                     // Three all-empty/failed answers: accept "unknown aircraft"
                     // rather than polling the proxy forever. (Empty responses are
                     // ambiguous between a warming cache and a truly unknown hex;
                     // by the third answer the proxy has long finished warming.)
-                    ApplyEnrichment(t, CloudFeed::Enrichment{});
+                    ApplyEnrichment(t, CloudFeed::Enrichment{}, EnrichOutcome::Empty);
                 } else {
                     t.enrichAttempts++;
                     t.metadataState = TrackedAircraft::MetadataState::NotFetched;
@@ -10459,7 +10478,7 @@ void AircraftManager::ProcessMetadataLookups()
                 continue;
             // A cache hit costs nothing -- apply it and keep scanning.
             if (const CloudFeed::Enrichment* cached = enrichCache.Find(icao)) {
-                ApplyEnrichment(tracked, *cached);
+                ApplyEnrichment(tracked, *cached, EnrichOutcome::Cached);
                 continue;
             }
         }
