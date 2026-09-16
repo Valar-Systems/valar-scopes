@@ -182,6 +182,26 @@ if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_join_failure.cpp"       -o "$
   cat "$OUT/build.log"
   exit 2
 fi
+# --- the Stats face's vertical budget (2026-09-15) --------------------------
+#
+# Rows were guarded; the inter-block gaps were not. A block whose heading did
+# not fit still spent its 6 px, so whitespace was charged for content never
+# drawn and y could pass the ceiling on gaps alone. Three different rows have
+# been silently deleted by this budget over the face's life.
+echo
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_stats_row_budget.cpp"       -o "$OUT/test_stats_row_budget.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the stats row budget test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_stats_row_budget.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fails=$((fails+1))
+
 "$OUT/test_join_failure.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then

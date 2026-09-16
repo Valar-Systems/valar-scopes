@@ -102,8 +102,12 @@ private:
     // screens rather than counting a fixed number. A collection customer who
     // never uses this must not inherit a dead screen, and a fixed `% 4` is
     // exactly how they would.
-    enum class Screen { Radar, List, Stats, Follow };
-    static constexpr int SCREEN_COUNT = 4;
+    // Connect sits BEFORE Follow deliberately: AdvanceScreen walks the enum in
+    // order and skips only Follow, and DrawScreenIndicator derives its dot count
+    // from SCREEN_COUNT - 1. Inserting here makes the carousel Radar -> List ->
+    // Stats -> Connect and gives it a dot, with no edit to either.
+    enum class Screen { Radar, List, Stats, Connect, Follow };
+    static constexpr int SCREEN_COUNT = 5;
 
     /// Switch screens, and count it.
     ///
@@ -913,6 +917,7 @@ private:
     void DrawRadar(BandCanvas& backbuffer, bool firstPass);
     void DrawList(BandCanvas& backbuffer);
     void DrawStats(BandCanvas& backbuffer);
+    void DrawConnect(BandCanvas& backbuffer);
     void DrawScreenIndicator(BandCanvas& backbuffer) const;
     void DrawClock(BandCanvas& backbuffer) const;
     /// Minutes until the followed flight arrives, or -1 if unknowable.
