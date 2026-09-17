@@ -134,6 +134,93 @@ inline bool Parse(const String& raw, bool isLat, double& out)
     return true;
 }
 
+// A pasted blob -> one lat and one lon, or false.
+//
+// THE SERVER-SIDE TWIN OF bpPair() IN THE PAGE JS, and it exists for the reason
+// the header above already gives: the browser half is what a customer sees, and
+// a JS-disabled client, a bookmarklet or a curl one-liner POSTs straight to
+// /save. Until this existed, a pasted "44.058, -121.315" was understood by the
+// page and rejected by the device -- Parse() refuses a comma outright, which is
+// correct for ONE coordinate and useless for a pair.
+//
+// SEPARATORS ARE TRIED STRONGEST FIRST, exactly as bpPair does:
+//   1. an explicit comma
+//   2. a pair of hemisphere letters, split just after the first
+//   3. an even count of numeric terms, split down the middle (this is what
+//      covers pasted DMS, where "44 3 29 N 121 18 55 W" has six terms)
+// Each candidate is validated with the SAME Parse() used for a single box, so a
+// split that produces nonsense is discarded rather than stored. If none of the
+// three validates, this returns false and the caller reports it -- a pair we
+// cannot read with certainty must fail the value, never guess at it.
+inline bool SplitPair(const String& raw, double& latOut, double& lonOut)
+{
+    const String s = Fold(raw);
+    if (s.isEmpty()) return false;
+
+    String candA[3], candB[3];
+    int nc = 0;
+
+    const int comma = s.indexOf(',');
+    if (comma > 0) {
+        candA[nc] = s.substring(0, comma);
+        candB[nc] = s.substring(comma + 1);
+        nc++;
+    }
+
+    int hemiCount = 0, firstHemi = -1;
+    for (unsigned int i = 0; i < s.length(); i++) {
+        if (isHemi(s[i])) {
+            if (firstHemi < 0) firstHemi = static_cast<int>(i);
+            hemiCount++;
+        }
+    }
+    if (hemiCount == 2 && firstHemi >= 0 && nc < 3) {
+        candA[nc] = s.substring(0, firstHemi + 1);
+        candB[nc] = s.substring(firstHemi + 1);
+        nc++;
+    }
+
+    // Offsets at which each numeric term ENDS, so the middle can be found
+    // without re-searching the string for a substring that may repeat -- "44 44"
+    // would make indexOf find the first term twice.
+    int ends[8];
+    int nterm = 0;
+    {
+        unsigned int i = 0;
+        const unsigned int n = s.length();
+        while (i < n && nterm < 8) {
+            const char c = s[i];
+            if (c == '-' || c == '+' || isdigit(static_cast<unsigned char>(c))) {
+                if (c == '-' || c == '+') i++;
+                int digits = 0;
+                while (i < n && (isdigit(static_cast<unsigned char>(s[i])) || s[i] == '.')) {
+                    if (s[i] != '.') digits++;
+                    i++;
+                }
+                if (digits > 0) ends[nterm++] = static_cast<int>(i);
+            } else {
+                i++;
+            }
+        }
+    }
+    if (nterm >= 2 && (nterm % 2) == 0 && nc < 3) {
+        const int k = ends[nterm / 2 - 1];
+        candA[nc] = s.substring(0, k);
+        candB[nc] = s.substring(k);
+        nc++;
+    }
+
+    for (int q = 0; q < nc; q++) {
+        double a = 0.0, b = 0.0;
+        if (Parse(candA[q], true, a) && Parse(candB[q], false, b)) {
+            latOut = a;
+            lonOut = b;
+            return true;
+        }
+    }
+    return false;
+}
+
 // Canonical stored form: 6 dp is ~11 cm, far past anything a desk radar can use,
 // and trailing zeros are noise in a text box the customer reads back.
 inline String Format(double v)

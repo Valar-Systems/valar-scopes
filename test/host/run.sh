@@ -284,6 +284,36 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# --- the coordinate boxes a customer actually types into (2026-09-17) -------
+#
+# Found by the fresh-boot acceptance stalling at step 2 on an iPhone: the lat/lon
+# boxes carried inputmode="decimal", whose keypad has no minus key -- and the
+# hint beneath them said "No minus key? Write 121.315 W", on a keypad with no W
+# either. The advice was unreachable on the one device it addressed.
+#
+# ONE EXTRA -I, AND IT IS NOT ON $INCLUDES. include/CoordParse.h is the single
+# parser the device and a curl POST both go through, and it traffics in Arduino
+# String. Rather than transcribe its logic into a pure header -- creating a
+# second implementation of the thing whose whole value is being the only one --
+# this binary alone gets a minimal String. No other host test can reach it, so
+# nothing else quietly acquires an Arduino surface.
+echo
+echo "== coordinate parsing (the iOS minus) =="
+SHIM_INCLUDES="-I$ROOT/test/host/arduino_shim"
+if ! "$CXX" $FLAGS $INCLUDES $SHIM_INCLUDES "$ROOT/test/host/test_coord_parse.cpp" \
+      -o "$OUT/test_coord_parse.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the coordinate test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_coord_parse.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 "$OUT/test_registration.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then

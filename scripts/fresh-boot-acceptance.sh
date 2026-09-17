@@ -246,13 +246,71 @@ grep -aq "\[logbook\] loaded 0 types" "$LOG"; check "step 1: the reset emptied t
 grep -aq "\[claim\] .* claimed" "$LOG"; check "step 3: a claim landed" $? \
   "No [claim] line. Nothing was claimed, so steps 4-6 prove nothing."
 
-# THE FIX ITSELF. A persist must appear AFTER the first claim -- before this
-# change the first write could not happen until ten minutes of uptime had passed.
-CLAIM_LINE="$(grep -an "\[claim\] .* claimed" "$LOG" | head -1 | cut -d: -f1)"
-PERSIST_LINE="$(grep -an "\[logbook\] persisted" "$LOG" | head -1 | cut -d: -f1)"
-if [ -n "$CLAIM_LINE" ] && [ -n "$PERSIST_LINE" ] && [ "$PERSIST_LINE" -gt "$CLAIM_LINE" ]; then r=0; else r=1; fi
-check "step 4: the book was PERSISTED after the claim" $r \
-  "No [logbook] persisted after the first [claim]. The Collection page reads NVS, so it would have shown nothing."
+# THE FIX ITSELF. A persist must appear AFTER the first claim, and SOON -- before
+# the 2026-08-21 fix the first write could not happen until ten minutes of uptime
+# had passed, so a factory-fresh unit was invisible to its own Collection page for
+# exactly as long as a new owner would be staring at it.
+#
+# THIS CHECK WAS WRONG UNTIL 2026-09-17 AND FAILED A HEALTHY BOARD. It took the
+# first persist in the WHOLE FILE and required it to come after the first claim:
+#
+#     PERSIST_LINE="$(grep -an "persisted" | head -1 ...)"   # first ANYWHERE
+#     [ "$PERSIST_LINE" -gt "$CLAIM_LINE" ]
+#
+# Any persist before the first claim -- a periodic write while contacts
+# accumulate, or a logbook toggled off and on during setup -- fails that forever,
+# however well the device behaves. On 326E64 the first persist was at line 297 and
+# the first claim at line 318, so the gate went red while the log plainly showed a
+# persist 18 s after the claim carrying the claimed type.
+#
+# The check's NAME was right and its CODE asked a narrower question. That is this
+# repo's most repeated defect, and here it sat inside the gate guarding the
+# defect the whole procedure exists for -- which is the worst place for it, since
+# a step that is red on a good board trains everyone to read past it.
+#
+# So: the first persist AFTER the claim, and within a time bound. The bound is
+# what keeps the original ten-minute failure failing; without it, a persist at
+# +10 min still satisfies "after".
+LB_WINDOW_S=60
+
+# "HH:MM:SS" -> seconds since midnight.
+ts_secs() {
+  local t="${1%% *}" h m s
+  h="${t%%:*}"; t="${t#*:}"; m="${t%%:*}"; s="${t##*:}"
+  case "$h$m$s" in *[!0-9]*) echo ""; return 1 ;; esac
+  echo $((10#$h * 3600 + 10#$m * 60 + 10#$s))
+}
+
+CLAIM_HIT="$(grep -an "\[claim\] .* claimed" "$LOG" | head -1)"
+CLAIM_LINE="${CLAIM_HIT%%:*}"
+r=1; LB_WHY="No [claim] line, so there is nothing to have persisted after."
+if [ -n "$CLAIM_LINE" ]; then
+  # Strictly after the claim LINE, not merely somewhere in the file.
+  PERSIST_HIT="$(grep -an "\[logbook\] persisted" "$LOG" \
+                 | awk -F: -v c="$CLAIM_LINE" '$1 > c' | head -1)"
+  if [ -z "$PERSIST_HIT" ]; then
+    LB_WHY="No [logbook] persisted AFTER the first [claim] (line $CLAIM_LINE). The Collection page reads NVS, so it would have shown nothing."
+  else
+    PERSIST_LINE="${PERSIST_HIT%%:*}"
+    CLAIM_TS="$(ts_secs "$(sed -n "${CLAIM_LINE}p" "$LOG" | cut -d' ' -f1)")"
+    PERSIST_TS="$(ts_secs "$(sed -n "${PERSIST_LINE}p" "$LOG" | cut -d' ' -f1)")"
+    if [ -z "$CLAIM_TS" ] || [ -z "$PERSIST_TS" ]; then
+      # Unstamped log: fall back to ordering alone rather than inventing a delay.
+      r=0
+      LB_WHY=""
+    else
+      DELAY=$((PERSIST_TS - CLAIM_TS))
+      # A capture that crosses midnight wraps; a negative delay means the next day.
+      [ "$DELAY" -lt 0 ] && DELAY=$((DELAY + 86400))
+      if [ "$DELAY" -le "$LB_WINDOW_S" ]; then
+        r=0
+      else
+        LB_WHY="The first persist after the claim came ${DELAY}s later, past the ${LB_WINDOW_S}s bound. This is the 2026-08-21 shape: the book is written eventually, and the Collection page is empty for the whole window a new owner is looking at it."
+      fi
+    fi
+  fi
+fi
+check "step 4: the book was PERSISTED within ${LB_WINDOW_S}s of the claim" $r "$LB_WHY"
 
 grep -aq "\[logbook\] disabled -- flushing before logging stops" "$LOG"; check "step 5: disabling FLUSHED first" $? \
   "The disable edge did not flush. Anything claimed since the last write was stranded in RAM."

@@ -735,10 +735,36 @@ void AircraftManager::Initialise()
     // Left stale, a customer who moved the device would keep the old field's
     // code under the marker the whole local face is built around.
     followHomeCodeResolved = false;
-    // Said out loud, because "the screen is asking me to set a location" is a
-    // support conversation and this is the line that answers it in one look.
-    if (!hasLocation)
-        Serial.println("[config] no location set -- the radar screen will prompt for it");
+    // FIRST-RUN LANDING. A device that has never been told where it is used to
+    // boot to the Radar face and draw DrawNoLocation over it: the right words on
+    // the wrong screen. The QR that opens the config page lives on Connect, one
+    // swipe away, and a new owner has no reason to know that -- so the face that
+    // ASKS for a location now also carries the way to provide one.
+    //
+    // The rule was in the v12 design and only ever existed as prose. Prose does
+    // not run, and a photograph of a first boot is what found it.
+    //
+    // BOOT ONLY. Initialise() re-runs on every config save, so an unguarded rule
+    // here would yank the face back to Connect while somebody was looking at the
+    // device -- the device taking the screen from its owner, which is exactly
+    // what spec 13.3 forbids and what the Follow dwell got wrong on the swipe
+    // path. A customer who swipes away from Connect stays away from it.
+    if (!hasLocation) {
+        // Said out loud, because "the screen is asking me to set a location" is a
+        // support conversation and this is the line that answers it in one look.
+        Serial.println("[config] no location set -- landing on Connect, which carries the QR");
+        if (!bootLandingDone) {
+            screen = Screen::Connect;
+            tookScreenForSetup = true;
+        }
+    } else if (tookScreenForSetup && screen == Screen::Connect) {
+        // Setup is done and this screen was ours, not the customer's, so give it
+        // back rather than making them find their way off it.
+        Serial.println("[config] location saved -- returning to the radar");
+        screen = Screen::Radar;
+        tookScreenForSetup = false;
+    }
+    bootLandingDone = true;
 
     // "radius" is stored as a real-world distance (km or mi). Convert it into
     // separate latitude/longitude degree spans: 1 deg latitude is ~111 km
@@ -4072,6 +4098,26 @@ void AircraftManager::DrawConnect(BandCanvas& backbuffer)
     // could have fixed (see QrRender.h). With the encoding correct, 132 px scans,
     // and the smaller symbol buys back the rows that make this screen useful
     // when a camera will not cooperate at all.
+    // THE HEADLINE, AND ONLY WHEN IT IS THE ANSWER. With no location set this is
+    // now the BOOT screen, so it has to say what the device wants rather than
+    // only how to reach the page. With a location set, Connect is the "my device
+    // is unreachable" utility screen it has always been and needs no headline.
+    //
+    // y=14 IS MEASURED, NOT CHOSEN. The row is 8 px tall, the disc leaves 108 px
+    // of chord there, "SET YOUR LOCATION" is 102 px at text size 1, and the QR
+    // below starts at y=24. Six pixels of margin is thin enough to be worth a
+    // fallback: FitToDisc returns empty rather than truncating, so a string that
+    // does not fit is not drawn AT ALL -- and an invisible headline on the one
+    // screen whose whole job is to ask for something is the defect this change
+    // exists to fix, reintroduced one layer down.
+    if (!hasLocation) {
+        const int titleY = 14;
+        String title = "SET YOUR LOCATION";
+        if (FitToDisc(backbuffer, title, titleY, lineH).isEmpty())
+            title = "SET LOCATION";           // 72 px, fits from y=8
+        centred(title, titleY, lgfx::color888(255, 176, 0));
+    }
+
     const int qrPx = 4;
     const bool drew = qr::Draw(backbuffer, url.c_str(), cx, 90, qrPx);
 
