@@ -3281,6 +3281,13 @@ float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
 
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
+    // One frame's worth of label boxes. Reset on the first pass only: with
+    // BANDED_RENDER false there is exactly one pass, but resetting per band
+    // would undercount on any future SKU that brings banding back.
+    if (firstPass) {
+        labelRectCount = 0;
+        perf.labelFrames++;
+    }
     DrawRadarCircles(backbuffer);
     DrawStaleIndicator(backbuffer); // escalating banner: STALE -> STALE <age> -> NO DATA <age>
 
@@ -3357,8 +3364,28 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         if (displayTrails)
             DrawAircraftTrail(backbuffer, tracked, x, y, blip);
 
-        if (displayInfoText)
+        if (displayInfoText) {
             DrawAircraftInfo(backbuffer, x, y, tracked, blip);
+            // COUNTED INCREMENTALLY, against the boxes already placed this frame.
+            // The running total equals the pairwise intersection count and needs no
+            // hook at the end of a loop that has several exits.
+            //
+            // The box comes from AircraftLabelBox, which since the three-line cap
+            // shares LabelLayout with the draw path -- so this measures the
+            // rectangles actually drawn, not a second opinion about them.
+            int bx, by, bw, bh;
+            if (firstPass && labelRectCount < LABEL_RECT_CAP &&
+                AircraftLabelBox(tracked, x, y, bx, by, bw, bh)) {
+                const LabelRect r{ (int16_t)bx, (int16_t)by,
+                                   (int16_t)(bx + bw), (int16_t)(by + bh) };
+                for (int i = 0; i < labelRectCount; ++i) {
+                    const LabelRect& o = labelRects[i];
+                    if (r.x0 < o.x1 && o.x0 < r.x1 && r.y0 < o.y1 && o.y0 < r.y1)
+                        perf.labelOverlapSum++;
+                }
+                labelRects[labelRectCount++] = r;
+            }
+        }
 
         if (isEmergencySquawk(tracked.state.squawk)) {
             DrawEmergencyAlert(backbuffer, x, y, tracked);
@@ -5009,7 +5036,8 @@ void AircraftManager::ReportPerf()
                   "parse=%lums/poll bytes=%lu/poll ac=%lu/%lu "
                   "lag=avg%lums,max%lums gapMax=%lums episodes=%lu "
                   "cache=H%lu/S%lu/M%lu enrichReqs=%lu "
-                  "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu/%lu enrichCached=%lu\n",
+                  "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu/%lu enrichCached=%lu "
+                  "labelOverlaps=%lu\n",
                   stamp,
                   (unsigned long)perf.polls,
                   busyMs * 100UL / windowMs,
@@ -5029,7 +5057,10 @@ void AircraftManager::ReportPerf()
                   (unsigned long)perf.enrichEmpty,
                   (unsigned long)perf.enrichNonIcaoTail,
                   (unsigned long)perf.enrichNonIcao,
-                  (unsigned long)perf.enrichCached);
+                  (unsigned long)perf.enrichCached,
+                  // mean per frame; 0 frames means labels were off all window
+                  perf.labelFrames ? (unsigned long)(perf.labelOverlapSum / perf.labelFrames)
+                                   : 0UL);
 
     perf = PerfWindow{}; // windows are independent; a running total hides the episode
 }
