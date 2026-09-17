@@ -1057,28 +1057,20 @@ R"(
             // measured on a real board, 314 shouty against 163 mixed. The registry
             // sends "ALASKA AIRLINES INC" while other sources send "Air Canada".
             //
+            // UPPERCASE, WITH NO EXCEPTIONS. The first version title-cased and kept a
+            // list of tokens that should stay capitalised -- LLC, USDA, and so on.
+            // That list is always one short: it turned "SRC LEASING LLC" into "Src
+            // Leasing LLC" and would have needed an entry for every acronym the FAA
+            // registry has ever emitted. One rule that is occasionally ugly beats a
+            // list that is occasionally wrong, and it cannot rot.
+            //
             // RENDER-ONLY, and that is load-bearing rather than tidy. The stored name
             // IS the logbook's map key -- claims are filed under that exact spelling
             // (see adoptTruncatedOperator in Logbook.cpp, and the re-keying migration
             // the 24 -> 40 widening needed). Touching the key would orphan every claim
-            // filed under the old spelling. This changes the label and nothing else.
-            //
-            // Only names with NO lowercase are touched, so "US Air Force", "Air Canada"
-            // and "Jazz Aviation LP" are left exactly as they arrived. A token keeps
-            // its capitals when it contains a digit ("N9FX") or is an acronym people
-            // read as letters; "INC", "CO" and "LTD" are words and title-case cleanly.
-            const CASE_KEEP = ['LLC','LLP','PLC','LP','NA','DBA','USA','US','USAF',
-                               'USDA','FAA','NASA','UPS','FBO','TR','II','III','IV'];
-            const tidyCase = function (name) {
-                if (/[a-z]/.test(name)) return name;   // already mixed: leave it alone
-                return name.split(' ').map(function (w) {
-                    if (!w) return w;
-                    const bare = w.replace(/[^A-Z0-9]/g, '');
-                    if (/[0-9]/.test(w)) return w;
-                    if (CASE_KEEP.indexOf(bare) >= 0) return w;
-                    return w.charAt(0) + w.slice(1).toLowerCase();
-                }).join(' ');
-            };
+            // filed under the old spelling. This changes the label and nothing else,
+            // which is also why it cannot fix the duplicate entries it reveals.
+            const tidyCase = function (name) { return name.toUpperCase(); };
             // A flex-grow pair rather than a width percentage: the page is a C++ raw
             // string literal and the template processor claims the percent sign.
             const bar = function (claimed, total) {
