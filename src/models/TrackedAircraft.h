@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CardCopy.h"
+
 #include "Aircraft.h"
 
 struct TrackedAircraft {
@@ -35,6 +37,12 @@ struct TrackedAircraft {
     // asking). Bounded retries tell them apart; at the cap the empty answer is
     // accepted as Fetched.
     uint8_t enrichAttempts = 0;
+    // WHY this contact has no identity, for the card to say out loud. Set
+    // wherever an enrichment is settled, so the two states that used to look
+    // identical -- a relayed track id that can never resolve, and a lookup
+    // that came back empty and might -- stop rendering as the same blank
+    // space. See include/CardCopy.h.
+    cardcopy::Absence absence = cardcopy::Absence::None;
     bool watchNotified = false;     // a flyover alert has been sent for this tracking session
     bool overheadNotified = false;  // a "look up" overhead alert has been sent this session
     bool milFlashFired = false;     // visual-alert flash burst fired for this military contact
