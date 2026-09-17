@@ -107,7 +107,6 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
     R"(.check{display:flex;align-items:center;gap:.5rem})" \
     R"(.presets{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:0 0 .75rem})" \
-    R"(#info-fields.off{opacity:.4})" \
     R"(.preset.on{border-color:var(--ink);background:rgba(34,197,94,.22);font-weight:600})" \
     R"(.preset-state{font-size:.78rem;color:var(--dim);border:1px dashed var(--dim);border-radius:999px;padding:.3rem .6rem})" \
     R"(.preset-state.on{color:var(--ink);border-color:var(--ink);border-style:solid})" \
@@ -713,10 +712,8 @@ R"(
                     <input name="infotext" id="infotext" type="checkbox" %INFOTEXT% hidden>
                     <span class="hint">What&rsquo;s written beside each blip on the radar. The radar draws <b>at most three lines</b> per aircraft; everything else is on the card you get by tapping one.</span>
                     <!-- Nothing is applied on load -- see the script. "None" is the
-                         FLAG and not a preset: it toggles the labels and
-                         deliberately does not touch the field boxes, so a selection
-                         survives being hidden and comes back intact. "Custom" stays
-                         a state rather than a button. -->
+                         EMPTY preset: it unticks every field, which is what the word
+                         says. "Custom" stays a state rather than a button. -->
                     <div class="presets">
                         <button type="button" class="btn-line preset" data-preset="none">None</button>
                         <button type="button" class="btn-line preset" data-preset="info-type">Basic</button>
@@ -1011,19 +1008,23 @@ R"(
             dataSource.addEventListener('change', syncDataSource);
             syncDataSource();
 
-            // THE GRID'S DIMMING LIVES WITH THE PRESET ROW NOW -- see the `.off`
-            // class in the preset script. There used to be a second dimmer here
-            // that wrote style.opacity INLINE and listened for `change` on the
-            // master checkbox.
+            // THERE IS NO DIMMER HERE ANY MORE, and the story is worth the six
+            // lines because the shape recurs.
             //
-            // It did not merely duplicate the new one, it DEFEATED it. An inline
-            // style outranks any stylesheet rule, so its "opacity: 1" from page
-            // load beat `#info-fields.off{opacity:.4}` forever -- and setting
-            // .checked from script fires no `change` event, so it never revised
-            // its own answer. Tapping None set the flag, added the class, lit the
-            // chip, and changed nothing the customer could see.
+            // A dimmer used to live here: it greyed the field grid when the master
+            // toggle was off, by writing style.opacity INLINE and listening for
+            // `change` on the checkbox. When the preset row replaced the master
+            // switch it got a second dimmer, a class. The two did not merely
+            // duplicate each other -- the old one DEFEATED the new one, twice over:
+            // an inline style outranks any stylesheet rule, and setting .checked
+            // from script fires no `change`, so its "opacity: 1" from page load
+            // stood forever. Tapping None set the flag, added the class, lit the
+            // chip, and changed nothing the customer could see. It was reported as
+            // "the None chip is not working", which it was, for a reason no part of
+            // the new code contained.
             //
-            // Two mechanisms for one job, and the older one won silently.
+            // Both are gone now: None unticks the boxes instead, so the state is
+            // legible without anything needing to be dimmed at all.
 
             // ---- collection view -------------------------------------------------
             // THE DEVICE SHIPS DATA; THE BROWSER RENDERS IT. Building this list as
@@ -1247,7 +1248,7 @@ R"(
             }
             // PRESETS for the label fields. The asymmetry is the whole design:
             //
-            //   refresh()  READS the flag and the boxes, and lights what matches
+            //   refresh()  READS the boxes and lights whichever chip matches
             //   click      WRITES them, and only ever from a tap
             //
             // refresh() runs on load; nothing else does. A preset applied at render
@@ -1257,11 +1258,15 @@ R"(
             // defaultOn reaching a device that has already saved, which this
             // codebase paid for once in #238.
             //
-            // "NONE" IS THE FLAG, NOT A PRESET, and the distinction is the point of
-            // it. It clears infotext and does NOT touch a single field box, so a
-            // customer who switches labels off keeps the selection they built and
-            // gets it back intact when they switch them on. A preset that cleared
-            // the boxes would be indistinguishable on screen and destructive.
+            // "NONE" IS THE EMPTY PRESET. It unticks every field, which is what a
+            // customer reading the word expects to see happen. An earlier version
+            // kept the selection and greyed the grid instead, so that switching
+            // labels off and on again returned the exact set -- that round trip is
+            // deliberately gone, because "None" that leaves thirteen ticks on screen
+            // reads as a control that did not work, and it was reported as one.
+            //
+            // The flag follows the boxes rather than leading them: infotext is false
+            // exactly when nothing is ticked. One state on screen, not two.
             const presetBtns = document.querySelectorAll('.preset');
             const customChip = document.getElementById('preset-custom');
             const flag = document.getElementById('infotext');
@@ -1271,57 +1276,33 @@ R"(
                     return Array.prototype.slice.call(
                         grid.querySelectorAll('input[type=checkbox]'));
                 };
-                // null means "this chip is the flag", not "this chip selects nothing"
                 const keysOf = function (b) {
                     return b.dataset.preset === 'none'
-                        ? null : b.dataset.preset.split(' ').filter(Boolean);
+                        ? [] : b.dataset.preset.split(' ').filter(Boolean);
                 };
                 const ticked = function () {
                     return boxes().filter(function (i) { return i.checked; })
                                   .map(function (i) { return i.name; }).sort().join(' ');
                 };
                 const refresh = function () {
-                    const off = !flag.checked;
-                    // OPACITY, NEVER `disabled`. CSS visibility does not remove a
-                    // field from FormData but `disabled` does, which would turn a
-                    // whole-form POST into a partial one and silently clear every
-                    // toggle on every other tab. check-config-form.py fails the
-                    // build if anything here ever starts disabling inputs.
-                    grid.classList.toggle('off', off);
                     const now = ticked();
+                    flag.checked = now.length > 0;
                     let matched = false;
                     for (const b of presetBtns) {
-                        const keys = keysOf(b);
-                        if (keys === null) { b.classList.toggle('on', off); continue; }
-                        const hit = !off && keys.slice().sort().join(' ') === now;
+                        const hit = keysOf(b).slice().sort().join(' ') === now;
                         if (hit) matched = true;
                         b.classList.toggle('on', hit);
                     }
-                    // Custom describes the SELECTION, so it says nothing while the
-                    // labels are off -- None already answers that question.
-                    customChip.classList.toggle('on', !off && !matched);
+                    customChip.classList.toggle('on', !matched);
                 };
                 for (const b of presetBtns) {
                     b.addEventListener('click', function () {
                         const keys = keysOf(b);
-                        // NONE TOGGLES. One-way, there is no way back that does not
-                        // damage the selection: the only other controls that set the
-                        // flag are the presets, which overwrite every box, and the
-                        // boxes themselves, so a customer whose selection was "ICAO
-                        // address only" would have to tap ICAO address -- switching
-                        // off the one field they wanted -- to get their labels back.
-                        // Tapping None again restores exactly what was there.
-                        if (keys === null) { flag.checked = !flag.checked; refresh(); return; }
-                        flag.checked = true;
                         for (const i of boxes()) i.checked = keys.indexOf(i.name) >= 0;
                         refresh();
                     });
                 }
-                // Touching any field means you want labels. Otherwise a customer
-                // would tick boxes under a greyed grid and see nothing change.
-                for (const i of boxes()) {
-                    i.addEventListener('change', function () { flag.checked = true; refresh(); });
-                }
+                for (const i of boxes()) i.addEventListener('change', refresh);
                 refresh();   // reflect only -- reads state, writes no checkbox
             }
 
