@@ -78,7 +78,21 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # churn prompted a look. A gesture-set target is exactly as sensitive as a
 # configured one: §17 is about the VALUE leaving the device, and says nothing
 # about how it got there.
-TARGET_TOKENS = ("followTarget", "followSessionTarget")
+# EffectiveFollowTarget() is the THIRD way to hold the value and the second
+# time this list has been too narrow. The note above records the first:
+# followSessionTarget was invisible here for the whole session-follow build.
+# This one arrived the opposite way round -- the members stopped being read
+# directly because the accessor concentrated the session-vs-configured
+# decision in one place, which is strictly SAFER code, and three functions
+# silently left this scanner's view while still handling the value.
+# DrawFollowLocalFace still passes it to SanitiseLabel; it simply no longer
+# names a member to do it.
+#
+# So the rule this encodes is about the VALUE, not the spelling: anything
+# that can hold the target belongs here, however it obtained it. A guard
+# whose name says "touches the target" and whose test says "mentions this
+# identifier" goes quiet exactly when someone improves the code.
+TARGET_TOKENS = ("followTarget", "followSessionTarget", "EffectiveFollowTarget")
 
 # Anything that puts bytes on a wire or a console. Serial is on the list because
 # 17 names it: "serial output (the Wi-Fi password incident is the precedent)".
@@ -149,10 +163,17 @@ ALLOWED_TOUCH = {
     "AircraftManager::DrawRadar",            # the followed-contact ring
     "EffectiveFollowTarget",                 # inline in the header: the ONE place
                                              # that decides which target is in
-                                             # force. Concentrating it here is why
+                                             # force. This used to add that
+                                             # concentrating it here meant
                                              # UpdateFollowTrack, FollowRouteView
-                                             # and FollowScreenVisible no longer
-                                             # touch a target at all.
+                                             # and FollowScreenVisible "no longer
+                                             # touch a target at all". That was
+                                             # never true -- they went on handling
+                                             # the value through this accessor and
+                                             # merely stopped naming a member, so
+                                             # the scanner lost sight of them and
+                                             # the note recorded the blindness as
+                                             # safety. They are listed below.
     "AircraftManager::SetSessionFollow",     # the gesture. Reviewed 2026-08-28:
                                              # stores to RAM only -- never NVS --
                                              # and its serial line prints the
@@ -162,6 +183,19 @@ ALLOWED_TOUCH = {
                                              # shipping image, verified by grepping
                                              # the blipscope-s3-128 ELF. Sets a canned
                                              # target; prints a precomputed length.
+    # --- reached through EffectiveFollowTarget(), not a member -------------
+    # Restored 2026-09-17 when the accessor joined TARGET_TOKENS. Reviewed then,
+    # and the two kinds are worth keeping apart: an EMPTINESS test can never leak
+    # a value, while handling the string is the thing 17 is actually about.
+    "AircraftManager::UpdateFollowTrack",    # emptiness only: `!...isEmpty()`
+    "FollowScreenVisible",                   # emptiness only, one line in the
+                                             # header -- unprefixed, like the other
+                                             # header inlines above, because that is
+                                             # how the scanner names them
+    "AircraftManager::FollowRouteView",      # HANDLES THE VALUE -- SanitiseLabel()
+                                             # into a local buffer for the glass,
+                                             # same category as DrawFollowLocalFace.
+                                             # No sink in the function.
     "FollowSessionActive",                   # inline in the header: an emptiness
                                              # test, never the value.
     "<file scope>",                          # the member DECLARATIONS in
