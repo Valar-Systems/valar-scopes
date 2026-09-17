@@ -436,11 +436,6 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 </nav>
                 <div class="content">
 
-                <div class="sec" data-sec="collection">
-                    <div class="stand">%LB_STANDING%</div>
-                    <div id="col"><span class="hint">Loading your collection&hellip;</span></div>
-                </div>
-
             <form id="cfg" action="/save" method="POST">
                 <input type="hidden" name="cfg-form" value="1">
 
@@ -837,6 +832,14 @@ R"(
                      -- no markup moves and the form stays one whole-form POST. -->
                 <div class="sec" data-sec="collection">
 
+                <div class="stand">%LB_STANDING%</div>
+
+                <!-- THE CALLOUT IS STATIC NOW, not generated into #col. It has to sit
+                     ABOVE the two switches, and #col is rendered below them -- so
+                     leaving it inside the fetched markup would have put it six
+                     screens from the thing it introduces. -->
+                <span class="hint">Seeing an aircraft is your antenna. Claiming it is you &mdash; open a contact&rsquo;s card on the device to claim its type, operator, country and airports at once.</span>
+
                 <details class="auto">
                     <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
                     <span class="hint">A lifelist of every aircraft type, airline, country and route airport seen overhead, on the Stats screen. Unclaimed ones show a gold &ldquo;NEW&rdquo; &mdash; tap to claim. Adds a little network traffic. Download: <a href="/logbook.json?download=1" target="_blank" rel="noopener">logbook.json</a>.</span>
@@ -850,6 +853,12 @@ R"(
                     </label>
                     <span class="hint mt">Opt in to the public %LB_LINK%. Only counts and your type list leave the device &mdash; never your location, never which flights you saw. First device to claim a name owns it.</span>
                 </details>
+
+                <!-- THE WALL GOES LAST. It was ~460 chips ABOVE the two settings it
+                     belongs to, putting the logbook switch at y=5,390 px on a phone --
+                     six screens down, with Save below that. Display-only markup, so it
+                     is safe inside the form: it contributes no named control. -->
+                <div id="col"><span class="hint">Loading your collection&hellip;</span></div>
 
                 </div><!-- /sec -->
 
@@ -1044,6 +1053,32 @@ R"(
                     'border:1px solid ' + bd + ';border-radius:10px;font-size:.78rem;' +
                     'background:' + bg + ';color:' + fg + '">' + esc(label) + '</span>';
             };
+            // OPERATOR NAMES ARRIVE IN MIXED CASE and the wall reads as two lists:
+            // measured on a real board, 314 shouty against 163 mixed. The registry
+            // sends "ALASKA AIRLINES INC" while other sources send "Air Canada".
+            //
+            // RENDER-ONLY, and that is load-bearing rather than tidy. The stored name
+            // IS the logbook's map key -- claims are filed under that exact spelling
+            // (see adoptTruncatedOperator in Logbook.cpp, and the re-keying migration
+            // the 24 -> 40 widening needed). Touching the key would orphan every claim
+            // filed under the old spelling. This changes the label and nothing else.
+            //
+            // Only names with NO lowercase are touched, so "US Air Force", "Air Canada"
+            // and "Jazz Aviation LP" are left exactly as they arrived. A token keeps
+            // its capitals when it contains a digit ("N9FX") or is an acronym people
+            // read as letters; "INC", "CO" and "LTD" are words and title-case cleanly.
+            const CASE_KEEP = ['LLC','LLP','PLC','LP','NA','DBA','USA','US','USAF',
+                               'USDA','FAA','NASA','UPS','FBO','TR','II','III','IV'];
+            const tidyCase = function (name) {
+                if (/[a-z]/.test(name)) return name;   // already mixed: leave it alone
+                return name.split(' ').map(function (w) {
+                    if (!w) return w;
+                    const bare = w.replace(/[^A-Z0-9]/g, '');
+                    if (/[0-9]/.test(w)) return w;
+                    if (CASE_KEEP.indexOf(bare) >= 0) return w;
+                    return w.charAt(0) + w.slice(1).toLowerCase();
+                }).join(' ');
+            };
             // A flex-grow pair rather than a width percentage: the page is a C++ raw
             // string literal and the template processor claims the percent sign.
             const bar = function (claimed, total) {
@@ -1058,7 +1093,7 @@ R"(
             // Logbook.h's MAX_OP_LEN / MAX_CN_LEN by hand -- the page is a C++ raw
             // string literal, so the constants cannot be interpolated in, and the
             // percent sign the template processor would need is already claimed.
-            const section = function (title, items, keyName, claimedN, truncAt) {
+            const section = function (title, items, keyName, claimedN, truncAt, nameCase) {
                 if (!items || !items.length) return '';
                 // "N claimed of M seen", never a bare "N of M". M is how many
                 // entries this device has STORED, which is not the same as what
@@ -1075,43 +1110,61 @@ R"(
                     if (a.claimed !== b.claimed) return a.claimed ? -1 : 1;
                     return String(a[keyName]).localeCompare(String(b[keyName]));
                 });
-                h += '<div>';
-                for (const it of sorted) {
+                // ONE CHIP, built once, so the claimed list and the collapsed
+                // remainder cannot drift apart in how they render.
+                //
+                // MARK A TRUNCATED NAME. Names are cut to MAX_OP_LEN / MAX_CN_LEN
+                // at STORE time, so the full text is already gone by the time it
+                // reaches here -- "CSC DELAWARE TRUST CO TR" is genuinely all the
+                // device has. An ellipsis is the honest option left: the reader can
+                // see the name is clipped instead of being shown a wrong one as if
+                // it were complete. Length-equals-cap is a heuristic, so a name that
+                // happens to be exactly cap characters gets a spurious ellipsis --
+                // a strictly smaller error than the current one, and cosmetic in a
+                // way the current one is not.
+                const chipFor = function (it) {
                     const when = it.claimed ? ('claimed ' + (it.claimedOn || 'date unknown'))
                         : ('seen ' + (it.first || 'date unknown') + ' - not claimed yet');
                     const n = it.count ? (' x' + it.count) : '';
-                    // MARK A TRUNCATED NAME. Names are cut to MAX_OP_LEN /
-                    // MAX_CN_LEN at STORE time, so the full text is already gone
-                    // by the time it reaches here -- "CSC DELAWARE TRUST CO TR" is
-                    // genuinely all the device has. An ellipsis is the honest
-                    // option left: the reader can see the name is clipped instead
-                    // of being shown a wrong one as if it were complete.
-                    //
-                    // Length-equals-cap is a heuristic, so a name that happens to
-                    // be exactly cap characters gets a spurious ellipsis. That is
-                    // a strictly smaller error than the current one, and it is
-                    // cosmetic in a way the current one is not.
-                    //
-                    // The widening this used to defer -- "the stored name IS the
-                    // map key, so changing the cut re-spells every entry and
-                    // orphans the claims filed under the old spelling" -- was done
-                    // in v5, 24 -> 40, with the lazy re-keying migration that makes
-                    // it safe (adoptTruncatedOperator in Logbook.cpp). The ellipsis
-                    // stays, because 40 still clips some registered owners; it just
-                    // fires far less often now.
                     let name = String(it[keyName]);
+                    if (nameCase) name = tidyCase(name);
                     if (truncAt && name.length >= truncAt) name += '…';
-                    h += chip(name + n, it.claimed, when);
+                    return chip(name + n, it.claimed, when);
+                };
+                // CLAIMED IN FULL, THE REST BEHIND ONE LINE. On a real board this is
+                // 49 claimed against 428 unclaimed -- 90 percent of the wall is grey
+                // chips for things nobody has done yet, and they were burying the two
+                // settings and the Save button under six screens.
+                //
+                // A plain <details> rather than a JS toggle: it is closed by default,
+                // keyboard-operable for free, and the auto-open pass only touches
+                // details.auto, so nothing will expand these behind the customer's
+                // back.
+                const mine = sorted.filter(function (i) { return i.claimed; });
+                const rest = sorted.filter(function (i) { return !i.claimed; });
+                h += '<div>';
+                for (const it of mine) h += chipFor(it);
+                h += '</div>';
+                if (rest.length) {
+                    h += '<details><summary class="hint" style="cursor:pointer">and ' +
+                        rest.length + ' more seen</summary><div>';
+                    for (const it of rest) h += chipFor(it);
+                    h += '</div></details>';
                 }
-                return h + '</div>';
+                return h;
             };
             const loadCollection = function () {
                 if (colLoaded) return;
                 colLoaded = true;
                 fetch('/logbook.json').then(function (r) { return r.json(); }).then(function (d) {
                     const c = d.counts || {}, k = d.claimed || {};
-                    let h = '<div class="hint">Seeing an aircraft is your antenna. Claiming it is you &mdash; ' +
-                        'open a contact\'s card on the device to claim its type, operator, country and airports at once.</div>';
+                    // THE HEADLINE GOES FIRST. It was the LAST line on the page,
+                    // under ~460 chips. It is the one number that answers "is this
+                    // thing working at all", so it sits above the bars it sums up.
+                    // The callout that used to open this block is static markup now,
+                    // above the two switches -- see the section html.
+                    let h = '<div class="hint" style="margin-bottom:.3rem"><b>' +
+                        (d.contacts || 0) + '</b> contacts seen in total.</div>';
                     h += section('Types', d.types, 'code', k.types || 0, 0);
                     // "Operators", not "Airlines". The registry returns the
                     // REGISTERED OWNER, and outside airline traffic that is a person or a
@@ -1121,7 +1174,7 @@ R"(
                     // key stays `airlines`: it is the wire field the leaderboard
                     // submit sends, so renaming it is a Worker change, not a copy
                     // change.
-                    h += section('Operators', d.airlines, 'name', k.airlines || 0, 40); // MAX_OP_LEN
+                    h += section('Operators', d.airlines, 'name', k.airlines || 0, 40, true); // MAX_OP_LEN
                     h += section('Countries', d.countries, 'name', k.countries || 0, 32); // MAX_CN_LEN
                     h += section('Airports', d.airports, 'code', k.airports || 0, 0);
                     const rec = d.records || {};
@@ -1130,7 +1183,6 @@ R"(
                     if (rec.fast) bits.push('Fastest ' + esc(rec.fast.callsign) + ' ' + rec.fast.value + ' ' + esc(rec.fast.unit));
                     if (rec.near) bits.push('Closest ' + esc(rec.near.callsign) + ' ' + rec.near.value + ' ' + esc(rec.near.unit));
                     if (bits.length) h += '<div style="margin:.9rem 0 .2rem"><b>Records</b></div><div class="hint">' + bits.join('<br>') + '</div>';
-                    h += '<div class="hint" style="margin-top:.9rem">' + (d.contacts || 0) + ' contacts seen in total.</div>';
                     if (!d.types || !d.types.length) {
                         /* NEVER TELL SOMEONE TO ENABLE WHAT IS ALREADY ENABLED.
                            This used to print "Turn on the spotting logbook above"
