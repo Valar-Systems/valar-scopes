@@ -376,7 +376,13 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
                font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem}
           h1{font-size:1.1rem;margin:0 0 .2rem;color:#22c55e}
           p{margin:.2rem 0 1rem;color:#7f9e91;font-size:.85rem;max-width:34rem}
-          canvas,img{display:block;width:100%;max-width:320px;height:auto;
+          /* THE CANVAS IS NOT STYLED, and that is load-bearing. It carries the
+             `hidden` attribute, which works through the USER-AGENT rule
+             [hidden]{display:none} -- and ANY author rule beats the user-agent
+             origin whatever its specificity. Styling `canvas` here with
+             display:block re-showed it, so the page rendered the frame twice. */
+          [hidden]{display:none}
+          img{display:block;width:100%;max-width:320px;height:auto;
                  image-rendering:pixelated;border:1px solid #22c55e;border-radius:50%}
           #hint{font-size:.8rem;color:#7f9e91;margin:.5rem 0 0}
           .row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.9rem}
@@ -403,9 +409,22 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
             <button id="save" type="button">Save image</button>
             <span id="note">loading&hellip;</span>
         </div>
-        <p id="hint">On a phone: press and hold the picture, then Save to Photos.
-           The button below is for a desktop browser &mdash; it may ask you to
-           confirm, so tap Keep.</p>
+        <!-- BOTH PLATFORMS SPELLED OUT, and no UA sniffing. On iOS the long-press
+             saves with no download event at all. On Android, "Download image"
+             still goes through the download manager, so Chrome's plain-HTTP
+             policy still applies and the warning can still appear -- naming that
+             is the difference between a customer tapping Keep and a customer
+             deciding the tool is broken.
+
+             Sniffing the UA to show one line would be wrong twice over: it gets
+             it wrong on desktop Safari and on every browser that lies, and it
+             hides the instruction the customer actually needs when it guesses. -->
+        <p id="hint"><b>iPhone / iPad:</b> press and hold the picture, then
+           <b>Save to Photos</b>.<br>
+           <b>Android:</b> press and hold, then <b>Download image</b>. If Chrome
+           warns about an insecure download, tap <b>Keep</b> &mdash; the device is
+           on your own network and the picture is the one above.<br>
+           On a computer, use the <b>Save image</b> button.</p>
         <script>
         const cv = document.getElementById('c');
         const note = document.getElementById('note');
@@ -1059,7 +1078,7 @@ R"(
                          is. Named here rather than kept for the bench, because the
                          three display faults that prompted it were all reported by
                          customers. -->
-                    <span class="hint mt">Screen copy: <a href="/diag/fb.html">%DEVICE_NAME%.local/diag/fb.html</a> shows exactly what the device is displaying. Press and hold the picture to save it, then send it to support.</span>
+                    <span class="hint mt">Screen copy: <a href="/diag/fb.html">%DEVICE_NAME%.local/diag/fb.html</a> shows exactly what the device is displaying. Press and hold the picture to save it (iPhone: Save to Photos; Android: Download image, then Keep if Chrome warns), and send it to support.</span>
                     <div class="foot mt">
                         <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
                         %CREDITS_LINK%
