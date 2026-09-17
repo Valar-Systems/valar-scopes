@@ -107,10 +107,10 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
     R"(.check{display:flex;align-items:center;gap:.5rem})" \
     R"(.presets{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:0 0 .75rem})" \
+    R"(#info-fields.off{opacity:.4})" \
     R"(.preset.on{border-color:var(--ink);background:rgba(34,197,94,.22);font-weight:600})" \
     R"(.preset-state{font-size:.78rem;color:var(--dim);border:1px dashed var(--dim);border-radius:999px;padding:.3rem .6rem})" \
     R"(.preset-state.on{color:var(--ink);border-color:var(--ink);border-style:solid})" \
-    R"(.switch{width:100%;justify-content:flex-start;padding:.65rem .7rem;border:1px solid var(--line);border-radius:5px;margin-bottom:.8rem})" \
     R"(.row{display:flex;flex-direction:column;gap:1rem})" \
     R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
     R"(.grid3,.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .9rem})" \
@@ -346,7 +346,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(fetch('/enroll-key',{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){)" \
     R"(if(r.ok){location.reload()}else{enrolling=false;r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
-    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox],.master input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
+    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"
 
 // HTML stored in flash
@@ -699,30 +699,28 @@ R"(
                 <div class="sec" data-sec="labels">
 
                 <fieldset>
-                    <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
-                         It sat inside <summary>, so one row carried two different actions
-                         ~20 px apart: expand the section, or switch the whole feature off.
-                         A customer looking for "turn all this off" could not find it --
-                         that is the report that prompted this. Full width, labelled, above
-                         the grid it governs. class="master" carries over the auto-open the
-                         summary checkbox used to provide. -->
-                    <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show labels next to each aircraft</span></label>
-                    <span class="hint">What&rsquo;s written beside each blip on the radar.</span>
-                    <!-- PRESETS ABOVE THE GRID. Fifteen checkboxes is a question nobody
-                         wants asked one field at a time; these answer it in one tap and
-                         leave the grid for people who care which.
+                    <!-- THE FLAG, NOT A SWITCH. This was a full-width labelled
+                         toggle above the grid; it is the "None" chip in the row below
+                         now, because a switch and a preset row were two controls
+                         answering one question, and customers read the row first.
 
-                         NOTHING IS APPLIED ON LOAD. A preset is a CUSTOMER ACTION, never
-                         a default -- the page posts the whole form, so a preset applied
-                         at render would silently rewrite a saved selection the moment
-                         somebody opened the page to look at something else. "Custom" is
-                         therefore a STATE, not a button: it lights when the ticks match
-                         no preset, which is the honest thing to show and the only one
-                         that cannot destroy a choice. -->
+                         STILL A CHECKBOX, hidden rather than replaced: an unchecked
+                         checkbox is absent from the POST and SaveToggle writes
+                         "false" for it, which is the existing semantics exactly. A
+                         hidden input carrying "true"/"false" would be a different
+                         contract with the save path. Same NVS key, no firmware
+                         change, no migration. -->
+                    <input name="infotext" id="infotext" type="checkbox" %INFOTEXT% hidden>
+                    <span class="hint">What&rsquo;s written beside each blip on the radar. The radar draws <b>at most three lines</b> per aircraft; everything else is on the card you get by tapping one.</span>
+                    <!-- Nothing is applied on load -- see the script. "None" is the
+                         FLAG and not a preset: it toggles the labels and
+                         deliberately does not touch the field boxes, so a selection
+                         survives being hidden and comes back intact. "Custom" stays
+                         a state rather than a button. -->
                     <div class="presets">
-                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-speed info-baroalt">Basic</button>
-                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-reg info-route info-speed info-baroalt">Spotter</button>
-                        <button type="button" class="btn-line preset" data-preset="*">Everything</button>
+                        <button type="button" class="btn-line preset" data-preset="none">None</button>
+                        <button type="button" class="btn-line preset" data-preset="info-type">Basic</button>
+                        <button type="button" class="btn-line preset" data-preset="info-type info-callsign">Spotter</button>
                         <span class="preset-state" id="preset-custom">Custom</span>
                     </div>
                     <div id="info-fields" class="grid3">
@@ -1243,54 +1241,83 @@ R"(
             for (const b of navs) {
                 b.addEventListener('click', function () { showSection(b.dataset.go); });
             }
-            // PRESETS for the label fields. The whole point is the asymmetry
-            // between the two things this code does:
+            // PRESETS for the label fields. The asymmetry is the whole design:
             //
-            //   refresh()  READS the checkboxes and lights whichever preset matches
-            //   click      WRITES the checkboxes, and only ever from a tap
+            //   refresh()  READS the flag and the boxes, and lights what matches
+            //   click      WRITES them, and only ever from a tap
             //
             // refresh() runs on load; nothing else does. A preset applied at render
             // would rewrite a saved selection for anyone who opened the page to look
-            // at something else -- and because the form posts in full, the next Save
-            // would make that silent rewrite permanent. That is the same shape as a
-            // defaultOn reaching a device that already saved, which this codebase has
-            // already paid for once.
+            // at something else, and because the form posts in full the next Save
+            // would make that silent rewrite permanent -- the same shape as a
+            // defaultOn reaching a device that has already saved, which this
+            // codebase paid for once in #238.
+            //
+            // "NONE" IS THE FLAG, NOT A PRESET, and the distinction is the point of
+            // it. It clears infotext and does NOT touch a single field box, so a
+            // customer who switches labels off keeps the selection they built and
+            // gets it back intact when they switch them on. A preset that cleared
+            // the boxes would be indistinguishable on screen and destructive.
             const presetBtns = document.querySelectorAll('.preset');
             const customChip = document.getElementById('preset-custom');
-            if (presetBtns.length && customChip) {
+            const flag = document.getElementById('infotext');
+            const grid = document.getElementById('info-fields');
+            if (presetBtns.length && customChip && flag && grid) {
                 const boxes = function () {
                     return Array.prototype.slice.call(
-                        document.querySelectorAll('#info-fields input[type=checkbox]'));
+                        grid.querySelectorAll('input[type=checkbox]'));
                 };
+                // null means "this chip is the flag", not "this chip selects nothing"
                 const keysOf = function (b) {
-                    // "*" means every field there is, so Everything cannot go stale
-                    // when a field is added -- a hardcoded list silently would.
-                    return b.dataset.preset === '*'
-                        ? boxes().map(function (i) { return i.name; })
-                        : b.dataset.preset.split(' ').filter(Boolean);
+                    return b.dataset.preset === 'none'
+                        ? null : b.dataset.preset.split(' ').filter(Boolean);
                 };
                 const ticked = function () {
                     return boxes().filter(function (i) { return i.checked; })
                                   .map(function (i) { return i.name; }).sort().join(' ');
                 };
                 const refresh = function () {
+                    const off = !flag.checked;
+                    // OPACITY, NEVER `disabled`. CSS visibility does not remove a
+                    // field from FormData but `disabled` does, which would turn a
+                    // whole-form POST into a partial one and silently clear every
+                    // toggle on every other tab. check-config-form.py fails the
+                    // build if anything here ever starts disabling inputs.
+                    grid.classList.toggle('off', off);
                     const now = ticked();
                     let matched = false;
                     for (const b of presetBtns) {
-                        const on = keysOf(b).slice().sort().join(' ') === now;
-                        if (on) matched = true;
-                        b.classList.toggle('on', on);
+                        const keys = keysOf(b);
+                        if (keys === null) { b.classList.toggle('on', off); continue; }
+                        const hit = !off && keys.slice().sort().join(' ') === now;
+                        if (hit) matched = true;
+                        b.classList.toggle('on', hit);
                     }
-                    customChip.classList.toggle('on', !matched);
+                    // Custom describes the SELECTION, so it says nothing while the
+                    // labels are off -- None already answers that question.
+                    customChip.classList.toggle('on', !off && !matched);
                 };
                 for (const b of presetBtns) {
                     b.addEventListener('click', function () {
-                        const want = keysOf(b);
-                        for (const i of boxes()) i.checked = want.indexOf(i.name) >= 0;
+                        const keys = keysOf(b);
+                        // NONE TOGGLES. One-way, there is no way back that does not
+                        // damage the selection: the only other controls that set the
+                        // flag are the presets, which overwrite every box, and the
+                        // boxes themselves, so a customer whose selection was "ICAO
+                        // address only" would have to tap ICAO address -- switching
+                        // off the one field they wanted -- to get their labels back.
+                        // Tapping None again restores exactly what was there.
+                        if (keys === null) { flag.checked = !flag.checked; refresh(); return; }
+                        flag.checked = true;
+                        for (const i of boxes()) i.checked = keys.indexOf(i.name) >= 0;
                         refresh();
                     });
                 }
-                for (const i of boxes()) i.addEventListener('change', refresh);
+                // Touching any field means you want labels. Otherwise a customer
+                // would tick boxes under a greyed grid and see nothing change.
+                for (const i of boxes()) {
+                    i.addEventListener('change', function () { flag.checked = true; refresh(); });
+                }
                 refresh();   // reflect only -- reads state, writes no checkbox
             }
 
