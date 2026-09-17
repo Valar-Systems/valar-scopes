@@ -234,7 +234,7 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
-[ "$rc" -ne 0 ] && fails=$((fails+1))
+[ "$rc" -ne 0 ] && fail=1
 
 "$OUT/test_join_failure.exe"
 rc=$?
@@ -242,7 +242,7 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
-[ "$rc" -ne 0 ] && fails=$((fails+1))
+[ "$rc" -ne 0 ] && fail=1
 
 "$OUT/test_card_copy.exe"
 rc=$?
@@ -250,7 +250,7 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
-[ "$rc" -ne 0 ] && fails=$((fails+1))
+[ "$rc" -ne 0 ] && fail=1
 
 "$OUT/test_label_lines.exe"
 rc=$?
@@ -258,7 +258,31 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
-[ "$rc" -ne 0 ] && fails=$((fails+1))
+[ "$rc" -ne 0 ] && fail=1
+
+# --- what actually collides on the radar (2026-09-17) ----------------------
+#
+# The first version of this counter measured label boxes only. A frame saved
+# off /diag/fb was then read, and the heaviest collisions in it were the gold
+# NEW flags and a NEAR tag lying across a neighbour callsign -- so the
+# instrument was firing correctly and measuring the smaller half of the
+# problem. Badges are in the same count now, and the fixture pins the actual
+# draw-site arithmetic rather than asserting that "some overlap was found".
+echo
+echo "== overlap count (labels AND badges) =="
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_overlap_count.cpp" \
+      -o "$OUT/test_overlap_count.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the overlap count test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_overlap_count.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
 
 "$OUT/test_registration.exe"
 rc=$?
@@ -266,7 +290,7 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
-[ "$rc" -ne 0 ] && fails=$((fails+1))
+[ "$rc" -ne 0 ] && fail=1
 
 "$OUT/test_portal_timeout_policy.exe"
 rc=$?
@@ -274,7 +298,7 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
-[ "$rc" -ne 0 ] && fails=$((fails+1))
+[ "$rc" -ne 0 ] && fail=1
 
 "$OUT/test_follow_routing.exe"
 rc=$?

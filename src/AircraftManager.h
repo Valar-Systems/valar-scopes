@@ -26,6 +26,7 @@
 #include "FollowRouting.h" // which face, and whether a swipe can produce one
 #include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
+#include "OverlapCount.h" // what collides with what on the radar (pure)
 
 class AircraftManager
 {
@@ -244,13 +245,17 @@ private:
     // all enrichment network traffic when the user shows none of those fields.
     bool metadataNeeded = false;
 
-    // Label boxes already placed in the CURRENT frame, for the overlap count.
-    // Fixed capacity rather than a vector: this is touched once per contact per
-    // frame on the render path, and MAX_AIRCRAFT bounds it anyway.
-    struct LabelRect { int16_t x0, y0, x1, y1; };
-    static constexpr int LABEL_RECT_CAP = 48;
-    LabelRect labelRects[LABEL_RECT_CAP];
-    int labelRectCount = 0;
+    // Everything with TEXT on it already placed in the CURRENT frame: label
+    // boxes AND badge rectangles. Fixed capacity rather than a vector -- this is
+    // touched once per drawn string per frame on the render path.
+    //
+    // THE CAP IS SIZED SO IT CANNOT BE REACHED, asserted against MAX_AIRCRAFT
+    // where both are visible (see AircraftManager.cpp). The old 48 was chosen
+    // when only labels were counted and would now truncate a busy sky -- which
+    // would report FEWER collisions exactly when there are most, the one error
+    // direction that reads as good news.
+    static constexpr int OVERLAP_RECT_CAP = 192;
+    overlapcount::Frame<OVERLAP_RECT_CAP> overlapFrame;
     unsigned long lastMetadataLookup = 0;
 
     // Watchlist: aircraft whose callsign/icao/registration/type starts with one
@@ -648,8 +653,22 @@ private:
         //
         // Reported ALONGSIDE ac, not instead of it: the useful object is the curve
         // of overlaps against contact count, and either number alone says nothing.
+        // COUNTS BADGES TOO since v12: the NEW flag, the MIL/SPC/HELI tag and
+        // the NEAR/HIGH/FAST stack are rectangles with text on them and they
+        // are what a read of a real saved frame found colliding. A reading
+        // taken before v12 is NOT comparable with one taken after.
         uint32_t labelOverlapSum = 0;    // pairwise intersections, summed over frames
         uint32_t labelFrames = 0;        // frames that counted -- the divisor
+        uint32_t labelOverlapsMax = 0;   // worst single frame in the window
+        // AREA AS WELL AS COUNT. A two-pixel clip and a badge printed straight
+        // through a callsign are both "an overlap"; only one is worth
+        // decluttering for, and the mean box area below is what turns px^2 into
+        // a fraction of a label.
+        uint64_t labelOverlapPxSum = 0;  // summed intersection AREA, px^2
+        uint32_t labelOverlapPxMax = 0;  // worst single frame, px^2
+        uint64_t labelBoxPxSum = 0;      // area of the label boxes themselves
+        uint32_t labelBoxes = 0;         // ... and how many, for the mean
+        uint32_t labelRectDropped = 0;   // rectangles past OVERLAP_RECT_CAP
         unsigned long fetchBusyMs = 0;   // wall time inside position fetches
         unsigned long enrichBusyMs = 0;  // wall time inside enrichment requests
         unsigned long parseMs = 0;       // of fetchBusyMs, time consuming the body

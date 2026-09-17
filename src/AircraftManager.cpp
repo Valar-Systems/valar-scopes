@@ -3281,11 +3281,21 @@ float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
 
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
-    // One frame's worth of label boxes. Reset on the first pass only: with
+    // THE COLLISION FRAME CANNOT SATURATE, and this is the only place both
+    // numbers are visible. Per airborne contact the radar draws at most three
+    // rectangles with text on them -- the label box, the NEW flag, the
+    // MIL/SPC/HELI tag -- and the NEAR/HIGH/FAST stack is at most three in the
+    // whole frame, since each of those names a single contact. If MAX_AIRCRAFT
+    // grows, this fails the build rather than quietly under-counting a busy sky.
+    static_assert(OVERLAP_RECT_CAP >= 3 * (int)MAX_AIRCRAFT + 3,
+                  "OVERLAP_RECT_CAP can saturate: raise it, or the counter "
+                  "under-reports exactly when the sky is busiest");
+
+    // One frame's worth of drawn rectangles. Reset on the first pass only: with
     // BANDED_RENDER false there is exactly one pass, but resetting per band
     // would undercount on any future SKU that brings banding back.
     if (firstPass) {
-        labelRectCount = 0;
+        overlapFrame.Reset();
         perf.labelFrames++;
     }
     DrawRadarCircles(backbuffer);
@@ -3340,6 +3350,23 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         }
     }
 
+    // DRAWS AND RECORDS IN ONE CALL, so a badge cannot reach the glass without
+    // entering the collision count. The shape this replaces -- draw in one
+    // place, measure in another -- is the one this project keeps paying for: a
+    // second path that does not go through the guard. Here there is no second
+    // path, because there is only the one call, and it takes the same x/y the
+    // string is printed at rather than a re-derivation of them.
+    auto badge = [&](const char* text, int bx, int by, uint32_t colour) {
+        backbuffer.setTextSize(1);
+        backbuffer.setTextColor(colour);
+        const int bw = (int)backbuffer.textWidth(text);
+        const int bh = (int)backbuffer.fontHeight();
+        backbuffer.drawString(text, bx, by);
+        if (firstPass)
+            overlapFrame.Add(overlapcount::Rect{ (int16_t)bx, (int16_t)by,
+                                                 (int16_t)(bx + bw), (int16_t)(by + bh) });
+    };
+
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.state.onGround) continue;
 
@@ -3366,24 +3393,19 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 
         if (displayInfoText) {
             DrawAircraftInfo(backbuffer, x, y, tracked, blip);
-            // COUNTED INCREMENTALLY, against the boxes already placed this frame.
-            // The running total equals the pairwise intersection count and needs no
-            // hook at the end of a loop that has several exits.
-            //
             // The box comes from AircraftLabelBox, which since the three-line cap
             // shares LabelLayout with the draw path -- so this measures the
             // rectangles actually drawn, not a second opinion about them.
             int bx, by, bw, bh;
-            if (firstPass && labelRectCount < LABEL_RECT_CAP &&
-                AircraftLabelBox(tracked, x, y, bx, by, bw, bh)) {
-                const LabelRect r{ (int16_t)bx, (int16_t)by,
-                                   (int16_t)(bx + bw), (int16_t)(by + bh) };
-                for (int i = 0; i < labelRectCount; ++i) {
-                    const LabelRect& o = labelRects[i];
-                    if (r.x0 < o.x1 && o.x0 < r.x1 && r.y0 < o.y1 && o.y0 < r.y1)
-                        perf.labelOverlapSum++;
-                }
-                labelRects[labelRectCount++] = r;
+            if (firstPass && AircraftLabelBox(tracked, x, y, bx, by, bw, bh)) {
+                overlapFrame.Add(overlapcount::Rect{ (int16_t)bx, (int16_t)by,
+                                                     (int16_t)(bx + bw), (int16_t)(by + bh) });
+                // THE DENOMINATOR #310 NEEDS. An overlap of 300 px means nothing
+                // until you know whether a label is 400 px or 1,200. Badge
+                // rectangles are deliberately outside this average: the
+                // threshold is about how much of the TEXT is covered.
+                perf.labelBoxPxSum += (uint64_t)bw * (uint64_t)bh;
+                perf.labelBoxes++;
             }
         }
 
@@ -3423,9 +3445,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.drawLine(x + 9, y,     x,     y + 9, col);
             backbuffer.drawLine(x,     y + 9, x - 9, y,     col);
             backbuffer.drawLine(x - 9, y,     x,     y - 9, col);
-            backbuffer.setTextSize(1);
-            backbuffer.setTextColor(col);
-            backbuffer.drawString(SpecialAircraft::Tag(sc), x + 11, y - 3);
+            badge(SpecialAircraft::Tag(sc), x + 11, y - 3, col);
         }
 
         // Claimable: a gold NEW flag plus a ring, meaning "this TYPE is not in your
@@ -3437,9 +3457,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // so on a board where enrichment is heap-gated (the C3) most blips carry
         // no badge and the reveal-on-tap path is what makes the mechanic work.
         if (logbookEnabled && tracked.claimable) {
-            backbuffer.setTextSize(1);
-            backbuffer.setTextColor(lgfx::color888(255, 215, 0));
-            backbuffer.drawString("NEW", x + 11, y + 6);
+            badge("NEW", x + 11, y + 6, lgfx::color888(255, 215, 0));
             backbuffer.drawCircle(x, y, 7, lgfx::color888(255, 215, 0));
         }
 
@@ -3453,9 +3471,10 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             int tagY = y - 4;
             auto highlight = [&](const String& tag) {
                 backbuffer.drawCircle(x, y, 7, HL);
+                // setTextSize BEFORE textWidth: the width is measured in the
+                // font the tag will actually be drawn in.
                 backbuffer.setTextSize(1);
-                backbuffer.setTextColor(HL);
-                backbuffer.drawString(tag, x - (int)backbuffer.textWidth(tag) - 9, tagY);
+                badge(tag.c_str(), x - (int)backbuffer.textWidth(tag) - 9, tagY, HL);
                 tagY -= 9;
             };
             if (icao == nearestIcao) highlight("NEAR");
@@ -3515,6 +3534,21 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.setTextColor(PIN);
             backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y + 13);
         }
+    }
+
+    // THE FRAME IS FINISHED BEING WRITTEN ON -- harvest it. Per frame rather
+    // than incrementally, because a MAX needs a frame to be a unit: summing as
+    // we go yields a window total and no way to ask which single frame was
+    // worst, and "the worst frame in five minutes" is the number a declutter
+    // threshold actually gets set from.
+    if (firstPass) {
+        const uint32_t pairs = overlapFrame.Pairs();
+        const uint32_t px    = overlapFrame.Px();
+        perf.labelOverlapSum   += pairs;
+        perf.labelOverlapPxSum += px;
+        if (pairs > perf.labelOverlapsMax)  perf.labelOverlapsMax  = pairs;
+        if (px    > perf.labelOverlapPxMax) perf.labelOverlapPxMax = px;
+        perf.labelRectDropped  += overlapFrame.Dropped();
     }
 
     // Follow Mode stage 1: the draw-cost readout, last so it sits on top of the
@@ -5037,7 +5071,9 @@ void AircraftManager::ReportPerf()
                   "lag=avg%lums,max%lums gapMax=%lums episodes=%lu "
                   "cache=H%lu/S%lu/M%lu enrichReqs=%lu "
                   "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu/%lu enrichCached=%lu "
-                  "labelOverlaps=%lu\n",
+                  "labelOverlaps=%lu labelOverlapsMax=%lu "
+                  "labelOverlapPx=%lu labelOverlapPxMax=%lu "
+                  "labelAreaPx=%lu labelRectDrop=%lu\n",
                   stamp,
                   (unsigned long)perf.polls,
                   busyMs * 100UL / windowMs,
@@ -5058,9 +5094,20 @@ void AircraftManager::ReportPerf()
                   (unsigned long)perf.enrichNonIcaoTail,
                   (unsigned long)perf.enrichNonIcao,
                   (unsigned long)perf.enrichCached,
-                  // mean per frame; 0 frames means labels were off all window
+                  // means per frame; 0 frames means labels were off all window
                   perf.labelFrames ? (unsigned long)(perf.labelOverlapSum / perf.labelFrames)
-                                   : 0UL);
+                                   : 0UL,
+                  (unsigned long)perf.labelOverlapsMax,
+                  perf.labelFrames ? (unsigned long)(perf.labelOverlapPxSum / perf.labelFrames)
+                                   : 0UL,
+                  (unsigned long)perf.labelOverlapPxMax,
+                  perf.labelBoxes ? (unsigned long)(perf.labelBoxPxSum / perf.labelBoxes)
+                                  : 0UL,
+                  // Printed even when it is 0, which the static_assert above
+                  // guarantees it is. Silence is not a reading -- a field that
+                  // only appears when something is wrong is a field nobody
+                  // learns to look for.
+                  (unsigned long)perf.labelRectDropped);
 
     perf = PerfWindow{}; // windows are independent; a running total hides the episode
 }
