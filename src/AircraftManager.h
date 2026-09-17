@@ -243,6 +243,14 @@ private:
     // True when at least one enabled field needs the adsbdb lookup; lets us skip
     // all enrichment network traffic when the user shows none of those fields.
     bool metadataNeeded = false;
+
+    // Label boxes already placed in the CURRENT frame, for the overlap count.
+    // Fixed capacity rather than a vector: this is touched once per contact per
+    // frame on the render path, and MAX_AIRCRAFT bounds it anyway.
+    struct LabelRect { int16_t x0, y0, x1, y1; };
+    static constexpr int LABEL_RECT_CAP = 48;
+    LabelRect labelRects[LABEL_RECT_CAP];
+    int labelRectCount = 0;
     unsigned long lastMetadataLookup = 0;
 
     // Watchlist: aircraft whose callsign/icao/registration/type starts with one
@@ -633,6 +641,15 @@ private:
         // feature reuses the same predicate so the two cannot disagree.
         uint32_t enrichNonIcaoTail = 0;  // ... of which the callsign is a tail number
         uint32_t enrichCached = 0;       // served from the LRU, no request
+        // HOW OFTEN LABELS LAND ON EACH OTHER. The count is pairwise rectangle
+        // intersections among the label boxes drawn in one frame, summed over the
+        // window and reported as a mean, because a single frame is a sample of a
+        // moving sky rather than a property of the display.
+        //
+        // Reported ALONGSIDE ac, not instead of it: the useful object is the curve
+        // of overlaps against contact count, and either number alone says nothing.
+        uint32_t labelOverlapSum = 0;    // pairwise intersections, summed over frames
+        uint32_t labelFrames = 0;        // frames that counted -- the divisor
         unsigned long fetchBusyMs = 0;   // wall time inside position fetches
         unsigned long enrichBusyMs = 0;  // wall time inside enrichment requests
         unsigned long parseMs = 0;       // of fetchBusyMs, time consuming the body
