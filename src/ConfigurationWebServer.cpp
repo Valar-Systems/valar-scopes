@@ -391,6 +391,7 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
         <canvas id="c" width="240" height="240"></canvas>
         <div class="row">
             <button id="again" type="button">Refresh</button>
+            <button id="save" type="button">Save image</button>
             <span id="note">loading&hellip;</span>
         </div>
         <script>
@@ -434,6 +435,41 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
             ctx.putImageData(img, 0, 0);
             note.textContent = w + '×' + h + (torn ? ' — torn (caught mid-redraw)' : '');
         }
+        // SAVE, because "screenshot this" is one more step than it sounds on a
+        // phone and produces a picture of a browser rather than of the device.
+        // The canvas already holds the decoded frame, so this costs no second
+        // fetch and no device work at all.
+        //
+        // The filename carries a local timestamp: support ends up with several of
+        // these from one customer, and a folder of blipscope-screen.png
+        // followed by the same name with a 2 after it tells nobody
+        // which is which. It is the browser's own clock, which is a fact it has --
+        // the device's time is not in the response and would be invented here.
+        document.getElementById('save').addEventListener('click', function () {
+            if (!cv.toBlob) { note.textContent = 'this browser cannot save the image'; return; }
+            cv.toBlob(function (b) {
+                if (!b) { note.textContent = 'could not build the image'; return; }
+                const d = new Date();
+                const two = function (n) { return (n < 10 ? '0' : '') + n; };
+                const stamp = d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate())
+                            + '-' + two(d.getHours()) + two(d.getMinutes()) + two(d.getSeconds());
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(b);
+                a.download = 'blipscope-screen-' + stamp + '.png';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                // Revoked on a timer rather than immediately: Safari reads the
+                // object URL after the click returns, and revoking synchronously
+                // gives a saved file of zero bytes.
+                setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+                // NOT "saved": the page hands the browser a PNG and cannot see
+                // what it does with it. On a phone the file lands in Downloads
+                // with no visible confirmation, so the useful half of this
+                // sentence is WHERE to look, not a claim about what happened.
+                note.textContent = a.download + ' — check your downloads';
+            }, 'image/png');
+        });
         document.getElementById('again').addEventListener('click', function () { load(true); });
         load(true);
         </script>
