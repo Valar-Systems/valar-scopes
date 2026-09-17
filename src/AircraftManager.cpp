@@ -9,6 +9,7 @@
 #include "RouteLabel.h"
 #include "ConfigMigration.h"
 #include "TlsAllocator.h"
+#include "Registration.h"
 
 #include <algorithm>
 #include <cmath>
@@ -4955,7 +4956,7 @@ void AircraftManager::ReportPerf()
                   "parse=%lums/poll bytes=%lu/poll ac=%lu/%lu "
                   "lag=avg%lums,max%lums gapMax=%lums episodes=%lu "
                   "cache=H%lu/S%lu/M%lu enrichReqs=%lu "
-                  "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu enrichCached=%lu\n",
+                  "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu/%lu enrichCached=%lu\n",
                   stamp,
                   (unsigned long)perf.polls,
                   busyMs * 100UL / windowMs,
@@ -4973,6 +4974,7 @@ void AircraftManager::ReportPerf()
                   (unsigned long)perf.enrichReqs,
                   (unsigned long)perf.enrichOk,
                   (unsigned long)perf.enrichEmpty,
+                  (unsigned long)perf.enrichNonIcaoTail,
                   (unsigned long)perf.enrichNonIcao,
                   (unsigned long)perf.enrichCached);
 
@@ -8865,6 +8867,22 @@ void AircraftManager::ProcessDetailLookups()
             // real traffic removed, not a micro-optimisation. The card shows
             // exactly what it would have shown anyway.
             if (SpecialAircraft::IsNonIcaoAddress(selectedIcao)) {
+                // MEASURING THE FEATURE BEFORE BUILDING IT. Many of these relayed
+                // contacts broadcast their REGISTRATION as the callsign, and a tail
+                // resolves perfectly well -- N998JS did, by hand, after its hex came
+                // back unknown. So count how many we are refusing that we could have
+                // answered. enrichNonIcaoTail / enrichNonIcao is the ratio that
+                // decides whether enrich-by-registration earns its traffic; a bench
+                // session cannot produce it, only days of real sky can.
+                //
+                // The predicate does not normalise, deliberately, so the caller does:
+                // a callsign that needed cleaning up to look like a tail is the kind
+                // of near-miss that must not inflate the numerator.
+                String cs = tracked.state.callsign;
+                cs.trim();
+                cs.toUpperCase();
+                if (registration::LooksLikeRegistration(cs.c_str()))
+                    perf.enrichNonIcaoTail++;
                 ApplyEnrichment(tracked, CloudFeed::Enrichment{}, EnrichOutcome::NonIcao);
                 return;
             }

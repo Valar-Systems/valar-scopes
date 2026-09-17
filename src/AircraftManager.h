@@ -626,6 +626,12 @@ private:
         uint32_t enrichOk = 0;           // returned usable fields
         uint32_t enrichEmpty = 0;        // returned nothing; stopped asking
         uint32_t enrichNonIcao = 0;      // settled offline, never asked
+        // THE NUMERATOR. enrichNonIcao is the denominator: of the contacts we
+        // refuse to look up, how many broadcast a tail we COULD look up by?
+        // That ratio decides whether enrich-by-registration is worth building,
+        // and nothing measured it -- so it ships before the feature, and the
+        // feature reuses the same predicate so the two cannot disagree.
+        uint32_t enrichNonIcaoTail = 0;  // ... of which the callsign is a tail number
         uint32_t enrichCached = 0;       // served from the LRU, no request
         unsigned long fetchBusyMs = 0;   // wall time inside position fetches
         unsigned long enrichBusyMs = 0;  // wall time inside enrichment requests

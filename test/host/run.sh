@@ -182,6 +182,18 @@ if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_join_failure.cpp"       -o "$
   cat "$OUT/build.log"
   exit 2
 fi
+# --- the tail-number predicate (2026-09-16) --------------------------------
+#
+# Ships BEFORE the feature that needs it, to measure whether that feature is
+# worth building: enrichNonIcaoTail counts non-ICAO contacts whose callsign is a
+# tail, and the ratio against enrichNonIcao decides it. The predicate and the
+# feature share this function so the number and the behaviour cannot disagree
+# about what counts as a tail.
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_registration.cpp"       -o "$OUT/test_registration.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the registration predicate test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
 # --- the Stats face's vertical budget (2026-09-15) --------------------------
 #
 # Rows were guarded; the inter-block gaps were not. A block whose heading did
@@ -203,6 +215,14 @@ fi
 [ "$rc" -ne 0 ] && fails=$((fails+1))
 
 "$OUT/test_join_failure.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fails=$((fails+1))
+
+"$OUT/test_registration.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
