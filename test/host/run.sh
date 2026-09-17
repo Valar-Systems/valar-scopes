@@ -195,6 +195,17 @@ fi
 # ranking live in one pure function because TWO callers walk the field table --
 # the draw loop and the collision box -- and a cap applied to one leaves the
 # other reserving height for lines nobody draws.
+# --- the detail card's absence copy (2026-09-17) ---------------------------
+#
+# The digit rule is asserted, not commented: the one screen whose job is to
+# explain an absence is the worst place to invent a number. Paired with a
+# control that it still says something, because 'contains no digit' is
+# trivially satisfied by an empty string.
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_card_copy.cpp"       -o "$OUT/test_card_copy.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the card copy test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
 if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_label_lines.cpp"       -o "$OUT/test_label_lines.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the label lines test did not compile"
   cat "$OUT/build.log"
@@ -226,6 +237,14 @@ fi
 [ "$rc" -ne 0 ] && fails=$((fails+1))
 
 "$OUT/test_join_failure.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fails=$((fails+1))
+
+"$OUT/test_card_copy.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."

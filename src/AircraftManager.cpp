@@ -9148,6 +9148,18 @@ void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed:
     // Counted HERE rather than at the call sites: every path that settles an
     // enrichment goes through this function, so one increment cannot be missed
     // by a path that forgets to add its own.
+    // WHY the card has nothing to show, decided here because this is the one
+    // place every settled enrichment passes through. Derived from the PAYLOAD
+    // as well as the outcome: a cache hit can carry an empty record, and that
+    // is a failed lookup rather than a hit.
+    if (outcome == EnrichOutcome::NonIcao) {
+        tracked.absence = cardcopy::Absence::Relayed;
+    } else if (e.typeCode.isEmpty() && e.typeName.isEmpty() &&
+               e.operatorName.isEmpty() && e.registration.isEmpty()) {
+        tracked.absence = cardcopy::Absence::NotFound;
+    } else {
+        tracked.absence = cardcopy::Absence::None;
+    }
     switch (outcome) {
         case EnrichOutcome::Ok:      perf.enrichOk++;      break;
         case EnrichOutcome::Empty:   perf.enrichEmpty++;   break;
@@ -10425,6 +10437,22 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     if (!tracked.typeCode.isEmpty())     line("Type: " + tracked.typeCode);
     if (!showPhoto && !tracked.typeName.isEmpty()) line(tracked.typeName); // full model, data page only
     if (!tracked.operatorName.isEmpty()) line(tracked.operatorName);
+
+    // SAY WHY THERE IS NOTHING, rather than leaving the space blank. A relayed
+    // contact will never resolve and a failed lookup might, and before this
+    // they rendered identically -- which cost an afternoon establishing that
+    // the backend was fine and the device had asked and been answered.
+    //
+    // Dimmer than the data it replaces: it is an explanation, not a field.
+    // line() drops what will not fit, which is why the copy is short lines in
+    // priority order rather than one sentence.
+    if (tracked.absence != cardcopy::Absence::None) {
+        const char* why[cardcopy::MAX_LINES];
+        const int n = cardcopy::Lines(tracked.absence, why);
+        backbuffer.setTextColor(lgfx::color888(0, 130, 0));
+        for (int i = 0; i < n; ++i) line(why[i]);
+        backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    }
 
     // the photo page hides the full telemetry for space; the data page (and
     // photo-less aircraft) show everything
