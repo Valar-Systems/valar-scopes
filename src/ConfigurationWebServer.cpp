@@ -1303,7 +1303,27 @@ R"(
                     });
                 }
                 for (const i of boxes()) i.addEventListener('change', refresh);
-                refresh();   // reflect only -- reads state, writes no checkbox
+
+                // THE ONE TIME THIS PAGE WRITES A CHECKBOX ON LOAD, and it is
+                // here to stop the page lying rather than to set a preference.
+                //
+                // A device saved before this change can hold infotext=false with
+                // fields still ticked. The radar draws NOTHING in that state --
+                // displayInfoText gates both the draw and the tap target -- while
+                // the page would show five ticks and light Custom. The customer
+                // would be looking at a list of fields their radar is not drawing,
+                // and at chips describing a selection that has no effect.
+                //
+                // So when the SERVED flag is false, the boxes are cleared to match
+                // what the radar was actually showing: nothing. It reads the
+                // attribute, not the property, because the attribute is what the
+                // device sent. Nothing is persisted until the customer saves, and
+                // it cannot fire twice -- after one save the flag follows the
+                // boxes and the two can no longer disagree.
+                if (!flag.hasAttribute('checked')) {
+                    for (const i of boxes()) i.checked = false;
+                }
+                refresh();
             }
 
             // The landing section is decided ON THE DEVICE and arrives in the markup
