@@ -126,6 +126,14 @@ private:
     /// parameter that could carry a callsign, a tail number or a follow target.
     usage::Store usageStore;
     Screen screen = Screen::Radar;
+    // FIRST-RUN LANDING STATE. `bootLandingDone` separates the first Initialise()
+    // from the ones that re-run on every config save; `tookScreenForSetup`
+    // records that the DEVICE chose Connect, so it knows it may hand the screen
+    // back once a location exists. A screen the customer swiped to is never
+    // taken away -- that is the distinction spec 13.3 turns on, and the reason
+    // Follow's dwell was wrong on the swipe path.
+    bool bootLandingDone = false;
+    bool tookScreenForSetup = false;
 
     // Stats-screen "Reset" row -- the entry point to the reset menu below. Its
     // drawn bounds are recorded each frame rather than computed twice, because

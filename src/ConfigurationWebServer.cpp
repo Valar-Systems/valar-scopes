@@ -601,14 +601,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Right-click your spot in Google Maps and copy the numbers, then paste into either box &mdash; both fill in. &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Right-click your spot in Google Maps and copy the numbers, then paste into either box &mdash; both fill in. &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <details class="auto">
                     <summary>Saved locations (home / work)</summary>
@@ -1543,14 +1543,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Optional. Used for propagation day/night and the command-post bearing/distance. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Optional. Used for propagation day/night and the command-post bearing/distance. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <details class="auto">
                     <summary>Command-post watch</summary>
@@ -1699,14 +1699,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Optional, but unlocks the location-aware screens: next visible ISS pass, local aurora odds, and the solar night auto-dim. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <details class="auto">
                     <summary>Alerts (ntfy)</summary>
@@ -1799,14 +1799,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Your location centres the quake radar, the "near me" feed and alerts, and the solar night auto-dim. Without it you still get the worldwide list and stats. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Your location centres the quake radar, the "near me" feed and alerts, and the solar night auto-dim. Without it you still get the worldwide list and stats. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <fieldset>
                     <legend>Radar</legend>
@@ -1912,14 +1912,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Your location centres the sightings radar, the nearby feeds, and alerts. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Your location centres the sightings radar, the nearby feeds, and alerts. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <fieldset>
                     <legend>Search</legend>
@@ -2024,14 +2024,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Location drives on-device solunar/sun/moon, the keyless weather feed, and the night auto-dim. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <fieldset>
                     <legend>Freshwater (USGS)</legend>
@@ -2219,14 +2219,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="row">
                     <label class="field">
                         <span>Latitude:</span>
-                        <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                     </label>
                     <label class="field">
                         <span>Longitude:</span>
-                        <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                     </label>
                 </div>
-                <span class="hint">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                <span class="hint">Optional. Location drives only the night auto-dim and the local clock; usage numbers work without it. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
                 <details class="auto">
                     <summary>Alerts (ntfy)</summary>
@@ -2353,14 +2353,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     <div class="row mt">
                         <label class="field">
                             <span>Latitude:</span>
-                            <input name="latitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                            <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
                         </label>
                         <label class="field">
                             <span>Longitude:</span>
-                            <input name="longitude" type="text" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                            <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
                         </label>
                     </div>
-                    <span class="hint mt">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot). Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. No minus key? Write &ldquo;121.315 W&rdquo;.</span>
+                    <span class="hint mt">Location is optional &mdash; it only drives the night auto-dim (sunset/sunrise at your spot). Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
                     <label class="field mt">
                         <span>Brightness:</span>
                         <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
@@ -3391,9 +3391,26 @@ void ConfigurationWebServer::Initialise() {
             }
             double v = 0.0;
             if (!CoordParse::Parse(raw, isLat, v)) {
-                if (badCoord.isEmpty()) badCoord = paramName;
-                Serial.printf("[POST] rejected %s: could not parse a coordinate\n", paramName);
-                return false;
+                // A PASTED PAIR IN ONE BOX. The page JS splits "44.058, -121.315"
+                // across both fields before it ever reaches here, so this is again
+                // the JS-less browser / curl path -- where Parse() refuses the
+                // comma outright, and the save failed while the customer was
+                // looking at a value the page would have understood perfectly.
+                //
+                // Takes only the half that belongs to THIS box. Writing the
+                // sibling from here would let one field overwrite another the
+                // customer had just typed correctly; filling both boxes is the
+                // page JS's job, and it already does it.
+                double pairLat = 0.0, pairLon = 0.0;
+                if (CoordParse::SplitPair(raw, pairLat, pairLon)) {
+                    v = isLat ? pairLat : pairLon;
+                    Serial.printf("[POST] %s: read a pasted pair, kept the %s half\n",
+                                  paramName, isLat ? "latitude" : "longitude");
+                } else {
+                    if (badCoord.isEmpty()) badCoord = paramName;
+                    Serial.printf("[POST] rejected %s: could not parse a coordinate\n", paramName);
+                    return false;
+                }
             }
             prefs.putString(paramName, CoordParse::Format(v));
             return true;
@@ -4124,4 +4141,4 @@ const String ConfigurationWebServer::GetStoredString(const char* key)
     const String value = prefs.isKey(key) ? prefs.getString(key, "") : String();
     prefs.end();
     return value;
-}
+}

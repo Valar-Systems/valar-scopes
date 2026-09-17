@@ -74,8 +74,16 @@ are versioned and released **together** from a single commit, and each device se
 
    The sequence, in order, because several assertions depend on the order:
    factory reset → join Wi-Fi and set a location → claim an aircraft → open
-   Collection **within a minute** → toggle the logbook off (what you claimed must
-   survive) → **pull the power** → reboot.
+   Collection **within a minute** → **pull the power** (with the logbook still
+   ON) → reboot → *then* toggle the logbook off and check Collection again.
+
+   **The power cut comes BEFORE the logbook is switched off, and that order is
+   the whole assertion.** This prose said the reverse until 2026-09-17, while
+   the script it describes has always had it this way round. Cutting power while
+   logging is ON is what exercises the defect below; power-cutting an already
+   disabled logbook proves only that a flush-on-disable worked, which is a
+   weaker claim wearing the same name. The script is authoritative --- run it,
+   do not work from this paragraph.
 
    The last one is the one that matters most: after a real power cut the book
    must come back non-empty. That is the difference between a collection and a
