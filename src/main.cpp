@@ -5,6 +5,7 @@
 
 #include "LGFX.h"
 #include "Layout.h"
+#include "FrameBuffer.h"
 #include "BootScreen.h"
 #include "SplashScreen.h"
 #include "Board.h"
@@ -74,6 +75,21 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
+
+// The borrowed view the /diag/fb handler reads. No second allocation: on every
+// SKU BANDED_RENDER is false, so this sprite IS the whole 240x240 RGB565 frame
+// already sitting in PSRAM. See include/FrameBuffer.h for why the sequence
+// counter exists instead of a lock.
+namespace {
+LGFX_Sprite*           g_fbSprite = nullptr;
+volatile uint32_t      g_fbSeq    = 0;
+}  // namespace
+namespace framebuf {
+LGFX_Sprite* Backbuffer() { return g_fbSprite; }
+uint32_t     Sequence()   { return g_fbSeq; }
+void         FrameDone()  { ++g_fbSeq; }
+void         Register(LGFX_Sprite* sprite) { g_fbSprite = sprite; }
+}  // namespace framebuf
 
 WiFiManager wm;
 ConfigurationWebServer configServer;
@@ -290,6 +306,9 @@ void setup()
     backbuffer.setColorDepth(8);
   }
   void* spriteBuf = backbuffer.createSprite(SCREEN_SIZE, BAND_H);
+  // Published only once it exists; the handler checks for nullptr, so a
+  // failed allocation is a 503 rather than a crash.
+  if (spriteBuf) framebuf::Register(&backbuffer);
 
   // FIRST PIXELS EVER DRAWN. Everything above this point is panel/bus bring-up, so this
   // is the earliest the wordmark can physically appear -- ~100-150 ms after reset, and
@@ -813,6 +832,11 @@ void loop()
   // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
   // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).
   board::DisplayFlush(tft);
+
+  // AFTER the flush, so a reader that samples the counter either side of its
+  // copy is comparing against completed frames rather than against a frame
+  // still being assembled.
+  framebuf::FrameDone();
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
   appManager.RecordFrameUs(micros() - frameStartUs);

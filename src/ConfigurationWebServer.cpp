@@ -17,6 +17,9 @@
 #endif
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
+#include "FrameBuffer.h"
+#include <esp_heap_caps.h>
+#include <memory>
 #include "Logbook.h"              // radar-only; serves the spotting lifelist as /logbook.json
 #endif
 
@@ -354,6 +357,90 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+// The viewer page for /diag/fb. Its own literal rather than part of CONFIG_HTML:
+// it takes no %PLACEHOLDER% substitution, so it is served with send_P and the
+// percent sign is an ordinary character here.
+//
+// DECODING HAPPENS IN THE BROWSER. The device sends 115,200 bytes exactly as
+// they sit in PSRAM and spends no CPU on encoding; the phone that asked turns
+// RGB565 into pixels. A PNG encoder on the S3 would cost flash and frame time to
+// save bandwidth on a LAN that has plenty.
+static const char FB_VIEWER_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Blipscope screen</title>
+        <style>
+          body{margin:0;padding:1rem;background:#111827;color:#e6edea;
+               font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem}
+          h1{font-size:1.1rem;margin:0 0 .2rem;color:#22c55e}
+          p{margin:.2rem 0 1rem;color:#7f9e91;font-size:.85rem;max-width:34rem}
+          canvas{display:block;width:100%;max-width:320px;height:auto;
+                 image-rendering:pixelated;border:1px solid #22c55e;border-radius:50%}
+          .row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.9rem}
+          button{font:inherit;color:#e6edea;background:transparent;border:1px solid #22c55e;
+                 padding:.45rem .8rem;border-radius:999px;cursor:pointer}
+          #note{font-size:.8rem;color:#7f9e91}
+        </style>
+    </head>
+    <body>
+        <h1>Blipscope screen</h1>
+        <p>A copy of what the device is showing right now. Save or screenshot this
+           and send it to support.</p>
+        <canvas id="c" width="240" height="240"></canvas>
+        <div class="row">
+            <button id="again" type="button">Refresh</button>
+            <span id="note">loading&hellip;</span>
+        </div>
+        <script>
+        const cv = document.getElementById('c');
+        const note = document.getElementById('note');
+        // ONE RETRY, NOT A LOOP. A torn frame is caught mid-redraw, so asking
+        // again almost always lands on a whole one -- but a device redrawing
+        // continuously could tear every time, and a page that retried until it
+        // got a clean frame would hang instead of showing a slightly torn one.
+        async function load(retry) {
+            note.textContent = 'fetching…';
+            let r;
+            try { r = await fetch('/diag/fb', {cache: 'no-store'}); }
+            catch (e) { note.textContent = 'could not reach the device'; return; }
+            if (!r.ok) { note.textContent = 'device said ' + r.status; return; }
+            const w = parseInt(r.headers.get('X-Blipscope-Frame-Width') || '240', 10);
+            const h = parseInt(r.headers.get('X-Blipscope-Frame-Height') || '240', 10);
+            const torn = r.headers.get('X-Blipscope-Frame-Torn') === 'true';
+            const buf = new Uint8Array(await r.arrayBuffer());
+            if (buf.length < w * h * 2) {
+                note.textContent = 'short frame: ' + buf.length + ' of ' + (w * h * 2) + ' bytes';
+                return;
+            }
+            if (torn && retry) { load(false); return; }
+            cv.width = w; cv.height = h;
+            const ctx = cv.getContext('2d');
+            const img = ctx.createImageData(w, h);
+            // RGB565 little-endian -> RGBA. The 5- and 6-bit channels are scaled
+            // by replicating their high bits, so full-scale stays full-scale:
+            // 0x1F becomes 255, not 248.
+            // BIG-ENDIAN: the sprite holds pixels in the panel's byte order, so the
+            // high byte comes first. See the header comment on the /diag/fb route.
+            for (let i = 0, p = 0; i < w * h; i++, p += 4) {
+                const v = (buf[i * 2] << 8) | buf[i * 2 + 1];
+                const r5 = (v >> 11) & 0x1F, g6 = (v >> 5) & 0x3F, b5 = v & 0x1F;
+                img.data[p]     = (r5 << 3) | (r5 >> 2);
+                img.data[p + 1] = (g6 << 2) | (g6 >> 4);
+                img.data[p + 2] = (b5 << 3) | (b5 >> 2);
+                img.data[p + 3] = 255;
+            }
+            ctx.putImageData(img, 0, 0);
+            note.textContent = w + '×' + h + (torn ? ' — torn (caught mid-redraw)' : '');
+        }
+        document.getElementById('again').addEventListener('click', function () { load(true); });
+        load(true);
+        </script>
+    </body>
+</html>
+)";
+
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -914,6 +1001,13 @@ R"(
                         <div class="kv"><span>WiFi signal</span><b>%WIFI_RSSI% dBm</b></div>
                         <div class="kv"><span>Firmware</span><b>v%FW_VERSION%</b></div>
                     </div>
+                    <!-- THE SENTENCE SUPPORT NEEDS TO BE ABLE TO SAY. A customer who
+                         can find this page can answer "what does your screen look
+                         like" without owning a camera or knowing what a framebuffer
+                         is. Named here rather than kept for the bench, because the
+                         three display faults that prompted it were all reported by
+                         customers. -->
+                    <span class="hint mt">Screen copy: <a href="/diag/fb.html">%DEVICE_NAME%.local/diag/fb.html</a> shows exactly what the device is displaying. Support may ask you to open it and send a screenshot.</span>
                     <div class="foot mt">
                         <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
                         %CREDITS_LINK%
@@ -3768,6 +3862,93 @@ void ConfigurationWebServer::Initialise() {
     // The stream owns an open read-only Preferences handle, so it is kept in a
     // shared_ptr the lambda captures by value: ESPAsyncWebServer calls the filler
     // repeatedly and then drops it, which is exactly when the handle should close.
+    // ---- /diag/fb : the glass, as bytes ----------------------------------
+    //
+    // Three display defects in one week were settled by pointing a phone camera
+    // at a 1.28 inch circle. This is the instrument that should have existed:
+    // the backbuffer, straight off the device, decoded by whoever asked.
+    //
+    // UNCONDITIONAL, deliberately. It exposes only what is already on the glass,
+    // over the same unauthenticated LAN server that already serves the config
+    // page and the logbook, and it is a support tool before it is a bench one --
+    // "open <device>.local/diag/fb.html and send me that" is a sentence support
+    // can say to anybody.
+    //
+    // IT SNAPSHOTS RATHER THAN STREAMING THE LIVE SPRITE, and the reason is the
+    // header. The frame is drawn on the loop task while this runs on async_tcp,
+    // so a read can straddle a redraw. The torn/not-torn answer therefore has to
+    // be known BEFORE the first byte of the body leaves, because that is when
+    // headers are written -- streaming the sprite directly would mean deciding
+    // whether the frame tore only after it was already sent.
+    //
+    // So: sample the counter, copy 115 KB PSRAM-to-PSRAM, sample again. The copy
+    // is the thing bracketed, not the socket write. No lock anywhere: holding the
+    // draw loop for the length of a network write would trade a cosmetic fault
+    // for a real one.
+    server.on("/diag/fb", HTTP_GET, [](AsyncWebServerRequest* request) {
+        LGFX_Sprite* fb = framebuf::Backbuffer();
+        if (fb == nullptr || fb->getBuffer() == nullptr) {
+            // Before setup() finished, or createSprite failed. 503 rather than a
+            // crash, and rather than an empty 200 that would read as a black screen.
+            request->send(503, "text/plain", "framebuffer not available");
+            return;
+        }
+        const size_t total = (size_t)fb->bufferLength();
+        const int    w     = fb->width();
+        const int    h     = fb->height();
+
+        uint8_t* snap = (uint8_t*)heap_caps_malloc(total, MALLOC_CAP_SPIRAM);
+        if (snap == nullptr) {
+            request->send(503, "text/plain", "out of PSRAM for a frame snapshot");
+            return;
+        }
+        const uint32_t seqBefore = framebuf::Sequence();
+        memcpy(snap, fb->getBuffer(), total);
+        const uint32_t seqAfter = framebuf::Sequence();
+        const bool torn = (seqBefore != seqAfter);
+
+        // shared_ptr with a PSRAM-aware deleter: the chunk callback outlives this
+        // scope, and the buffer must not leak if the client disconnects mid-send.
+        std::shared_ptr<uint8_t> buf(snap, [](uint8_t* p) { heap_caps_free(p); });
+        auto sent = std::make_shared<size_t>(0);
+
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "application/octet-stream",
+            [buf, total, sent](uint8_t* out, size_t maxLen, size_t) -> size_t {
+                const size_t left = total - *sent;
+                const size_t n = left < maxLen ? left : maxLen;
+                if (n > 0) {
+                    memcpy(out, buf.get() + *sent, n);
+                    *sent += n;
+                }
+                return n;
+            });
+        // Dimensions and pixel format travel with the bytes: a raw dump whose
+        // geometry has to be known in advance is a dump that goes wrong silently
+        // the day a SKU with a different panel asks for it.
+        r->addHeader("X-Blipscope-Frame-Width", String(w));
+        r->addHeader("X-Blipscope-Frame-Height", String(h));
+        // BIG-ENDIAN, and this was wrong on the first try. LovyanGFX keeps sprite
+        // pixels in the PANEL's byte order, not the CPU's, so a 16bpp sprite on an
+        // SPI display is MSB-first. Decoded little-endian the whole radar came back
+        // RED instead of green -- green 0x07E0 read backwards is 0xE007, which is a
+        // strong red with a little blue, and looks exactly like a plausible
+        // colour-scheme bug rather than a byte-order one.
+        //
+        // Caught by this endpoint on its first real use, which is the argument for
+        // it: a camera would have shown green and agreed with the wrong header.
+        r->addHeader("X-Blipscope-Frame-Format", "RGB565BE");
+        r->addHeader("X-Blipscope-Frame-Torn", torn ? "true" : "false");
+        r->addHeader("X-Blipscope-Frame-Seq", String(seqAfter));
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+
+    // ---- /diag/fb.html : the same thing, for a person --------------------
+    server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send_P(200, "text/html", FB_VIEWER_HTML);
+    });
+
     server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
         // Ask the loop task to flush a dirty logbook. It cannot help THIS
         // response -- the stream below is already reading NVS on this task -- but

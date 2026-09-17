@@ -660,6 +660,16 @@ export const supportHtml = `<!DOCTYPE html>
 <h2 id="problems">Troubleshooting</h2>
 
     <div class="fix">
+      <div class="q">Support asked me to send a picture of my screen</div>
+      <p>You don't need a camera. Open
+         <code>http://&lt;device-name&gt;.local/diag/fb.html</code> in a browser on
+         the same network — it shows a copy of exactly what the device is
+         displaying, right then. Screenshot that and send it.</p>
+      <p>The page only ever shows what is already on the glass, and nothing
+         leaves your network to produce it.</p>
+    </div>
+
+    <div class="fix">
       <div class="q">The setup hotspot never appears</div>
       <p>Give it a moment — it is not instant. If it still hasn't shown up after
          about 30 seconds, leave your phone's Wi-Fi settings screen and go back
