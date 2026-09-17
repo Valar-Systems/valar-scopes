@@ -1011,15 +1011,19 @@ R"(
             dataSource.addEventListener('change', syncDataSource);
             syncDataSource();
 
-            // dim the per-field list when the master Aircraft Info toggle is off.
-            // purely cosmetic -- the inputs stay enabled so their state still saves.
-            const infoMaster = document.querySelector('input[name="infotext"]');
-            const infoFields = document.getElementById('info-fields');
-            function syncInfoFields() {
-                infoFields.style.opacity = infoMaster.checked ? '1' : '0.4';
-            }
-            infoMaster.addEventListener('change', syncInfoFields);
-            syncInfoFields();
+            // THE GRID'S DIMMING LIVES WITH THE PRESET ROW NOW -- see the `.off`
+            // class in the preset script. There used to be a second dimmer here
+            // that wrote style.opacity INLINE and listened for `change` on the
+            // master checkbox.
+            //
+            // It did not merely duplicate the new one, it DEFEATED it. An inline
+            // style outranks any stylesheet rule, so its "opacity: 1" from page
+            // load beat `#info-fields.off{opacity:.4}` forever -- and setting
+            // .checked from script fires no `change` event, so it never revised
+            // its own answer. Tapping None set the flag, added the class, lit the
+            // chip, and changed nothing the customer could see.
+            //
+            // Two mechanisms for one job, and the older one won silently.
 
             // ---- collection view -------------------------------------------------
             // THE DEVICE SHIPS DATA; THE BROWSER RENDERS IT. Building this list as
