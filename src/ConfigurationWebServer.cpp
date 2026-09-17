@@ -106,6 +106,10 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.field>span:first-child{flex:none})" \
     R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
     R"(.check{display:flex;align-items:center;gap:.5rem})" \
+    R"(.presets{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:0 0 .75rem})" \
+    R"(.preset.on{border-color:var(--ink);background:rgba(34,197,94,.22);font-weight:600})" \
+    R"(.preset-state{font-size:.78rem;color:var(--dim);border:1px dashed var(--dim);border-radius:999px;padding:.3rem .6rem})" \
+    R"(.preset-state.on{color:var(--ink);border-color:var(--ink);border-style:solid})" \
     R"(.switch{width:100%;justify-content:flex-start;padding:.65rem .7rem;border:1px solid var(--line);border-radius:5px;margin-bottom:.8rem})" \
     R"(.row{display:flex;flex-direction:column;gap:1rem})" \
     R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
@@ -709,6 +713,23 @@ R"(
                          summary checkbox used to provide. -->
                     <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show labels next to each aircraft</span></label>
                     <span class="hint">What&rsquo;s written beside each blip on the radar.</span>
+                    <!-- PRESETS ABOVE THE GRID. Fifteen checkboxes is a question nobody
+                         wants asked one field at a time; these answer it in one tap and
+                         leave the grid for people who care which.
+
+                         NOTHING IS APPLIED ON LOAD. A preset is a CUSTOMER ACTION, never
+                         a default -- the page posts the whole form, so a preset applied
+                         at render would silently rewrite a saved selection the moment
+                         somebody opened the page to look at something else. "Custom" is
+                         therefore a STATE, not a button: it lights when the ticks match
+                         no preset, which is the honest thing to show and the only one
+                         that cannot destroy a choice. -->
+                    <div class="presets">
+                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-speed info-baroalt">Basic</button>
+                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-reg info-route info-speed info-baroalt">Spotter</button>
+                        <button type="button" class="btn-line preset" data-preset="*">Everything</button>
+                        <span class="preset-state" id="preset-custom">Custom</span>
+                    </div>
                     <div id="info-fields" class="grid3">
                         %INFO_FIELDS%
                     </div>
@@ -1178,6 +1199,57 @@ R"(
             for (const b of navs) {
                 b.addEventListener('click', function () { showSection(b.dataset.go); });
             }
+            // PRESETS for the label fields. The whole point is the asymmetry
+            // between the two things this code does:
+            //
+            //   refresh()  READS the checkboxes and lights whichever preset matches
+            //   click      WRITES the checkboxes, and only ever from a tap
+            //
+            // refresh() runs on load; nothing else does. A preset applied at render
+            // would rewrite a saved selection for anyone who opened the page to look
+            // at something else -- and because the form posts in full, the next Save
+            // would make that silent rewrite permanent. That is the same shape as a
+            // defaultOn reaching a device that already saved, which this codebase has
+            // already paid for once.
+            const presetBtns = document.querySelectorAll('.preset');
+            const customChip = document.getElementById('preset-custom');
+            if (presetBtns.length && customChip) {
+                const boxes = function () {
+                    return Array.prototype.slice.call(
+                        document.querySelectorAll('#info-fields input[type=checkbox]'));
+                };
+                const keysOf = function (b) {
+                    // "*" means every field there is, so Everything cannot go stale
+                    // when a field is added -- a hardcoded list silently would.
+                    return b.dataset.preset === '*'
+                        ? boxes().map(function (i) { return i.name; })
+                        : b.dataset.preset.split(' ').filter(Boolean);
+                };
+                const ticked = function () {
+                    return boxes().filter(function (i) { return i.checked; })
+                                  .map(function (i) { return i.name; }).sort().join(' ');
+                };
+                const refresh = function () {
+                    const now = ticked();
+                    let matched = false;
+                    for (const b of presetBtns) {
+                        const on = keysOf(b).slice().sort().join(' ') === now;
+                        if (on) matched = true;
+                        b.classList.toggle('on', on);
+                    }
+                    customChip.classList.toggle('on', !matched);
+                };
+                for (const b of presetBtns) {
+                    b.addEventListener('click', function () {
+                        const want = keysOf(b);
+                        for (const i of boxes()) i.checked = want.indexOf(i.name) >= 0;
+                        refresh();
+                    });
+                }
+                for (const i of boxes()) i.addEventListener('change', refresh);
+                refresh();   // reflect only -- reads state, writes no checkbox
+            }
+
             // The landing section is decided ON THE DEVICE and arrives in the markup
             // (body[data-start]), not computed here: a first-run customer with no
             // location set must land on Location & Radar, and doing that in JS would
