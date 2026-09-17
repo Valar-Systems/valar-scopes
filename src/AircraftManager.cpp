@@ -10,6 +10,7 @@
 #include "ConfigMigration.h"
 #include "TlsAllocator.h"
 #include "Registration.h"
+#include "LabelLines.h"
 
 #include <algorithm>
 #include <cmath>
@@ -4468,53 +4469,105 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
     return { static_cast<int>(x), static_cast<int>(y) };
 }
 
-void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness) const
+// Scratch size for the per-field arrays. AIRCRAFT_INFO_FIELD_COUNT is
+// `extern const size_t`, so it is not a compile-time constant and cannot size a
+// stack array. The table is 15 entries; 32 is headroom with the bound stated
+// rather than assumed.
+static constexpr size_t LABEL_MAX_FIELDS = 32;
+
+int AircraftManager::LabelLayout(const TrackedAircraft& tracked, int x, int y,
+                                 int* idxOut, int* xOut, int* yOut, int* wOut) const
 {
+    tft.setTextSize(1);
     const int lineHeight = tft.fontHeight() + 1;
 
+    const size_t count = AIRCRAFT_INFO_FIELD_COUNT < LABEL_MAX_FIELDS
+                             ? AIRCRAFT_INFO_FIELD_COUNT : LABEL_MAX_FIELDS;
+
+    // ENABLED **AND** NON-EMPTY. A field that is ticked but formats to "" for
+    // this contact -- no squawk reported, no route known -- must not spend one
+    // of the three lines on a blank.
+    const char* keys[LABEL_MAX_FIELDS];
+    bool willDraw[LABEL_MAX_FIELDS];
+    for (size_t i = 0; i < count; ++i) {
+        keys[i] = AIRCRAFT_INFO_FIELDS[i].key;
+        const bool on = i < infoFieldEnabled.size() && infoFieldEnabled[i];
+        willDraw[i] = on && !AIRCRAFT_INFO_FIELDS[i].format(tracked).isEmpty();
+    }
+
+    int chosen[labellines::MAX_LINES];
+    const int n = labellines::Select(keys, willDraw, (int)count, chosen);
+
+    // THE DISC, WHICH THIS NEVER ASKED ABOUT BEFORE. The label was drawn at
+    // x + 5 with no bounds test of any kind, so a contact near the rim put its
+    // text off the glass and the customer read "ates", "/min", "000 ft".
+    // ChordWidthPx has said "the rule lives here, once, and every caller goes
+    // through it" for a long time; the radar label was simply never a caller.
+    // That is the second time that exact sentence has been true of it.
+    //
+    // DROP, NEVER TRUNCATE, matching the Stats rows sixteen hundred lines up:
+    // a cut number is a wrong number and an absent one is visibly absent. "ates"
+    // is precisely the lie truncation tells.
+    int placed = 0;
+    for (int k = 0; k < n; ++k) {
+        const String text = AIRCRAFT_INFO_FIELDS[chosen[k]].format(tracked);
+        const int rowY = y + 5 + lineHeight * k;
+        const int avail = ChordWidthPx(rowY, lineHeight);
+        if (avail <= 0) continue;                       // row is off the glass entirely
+        const int w = (int)tft.textWidth(text);
+        if (w > avail) continue;                        // cannot fit at this height
+        const int xMin = SCREEN_SIZE_DIV_2 - avail / 2;
+        const int xMax = SCREEN_SIZE_DIV_2 + avail / 2;
+        int lx = x + 5;
+        if (lx < xMin) lx = xMin;
+        if (lx + w > xMax) lx = xMax - w;
+        idxOut[placed] = chosen[k];
+        xOut[placed]   = lx;
+        yOut[placed]   = rowY;
+        wOut[placed]   = w;
+        ++placed;
+    }
+    return placed;
+}
+
+void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness) const
+{
     backbuffer.setTextSize(1);
     // fades with the rest of the contact; scaleColor's brightness floor keeps it legible
     backbuffer.setTextColor(scaleColor(lgfx::color888(0, 128, 0), brightness));
 
-    // Stack only the enabled fields; a field that formats to "" (e.g. no squawk
-    // reported) is skipped so it doesn't leave a blank gap between lines.
-    int line = 0;
-    for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
-        if (i >= infoFieldEnabled.size() || !infoFieldEnabled[i])
-            continue;
-
-        const String text = AIRCRAFT_INFO_FIELDS[i].format(tracked);
-        if (text.isEmpty())
-            continue;
-
-        backbuffer.drawString(text, x + 5, y + 5 + lineHeight * line);
-        ++line;
-    }
+    int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
+    int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
+    const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
+    for (int k = 0; k < n; ++k)
+        backbuffer.drawString(AIRCRAFT_INFO_FIELDS[idx[k]].format(tracked), lx[k], ly[k]);
 }
 
 bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, int y,
                                        int& bx, int& by, int& bw, int& bh) const
 {
     if (!displayInfoText) return false;
+
+    int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
+    int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
+    const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
+    if (n == 0) return false;
+
+    // Built from the SAME placements the draw loop will use, including the clamp
+    // -- so a label pushed right by the curve takes its collision box with it.
     tft.setTextSize(1);
     const int lineHeight = tft.fontHeight() + 1;
-    // Same field walk as DrawAircraftInfo: count the non-empty enabled lines and the widest.
-    int lines = 0, maxW = 0;
-    for (size_t i = 0; i < AIRCRAFT_INFO_FIELD_COUNT; ++i) {
-        if (i >= infoFieldEnabled.size() || !infoFieldEnabled[i])
-            continue;
-        const String text = AIRCRAFT_INFO_FIELDS[i].format(tracked);
-        if (text.isEmpty())
-            continue;
-        const int w = tft.textWidth(text);
-        if (w > maxW) maxW = w;
-        ++lines;
+    int x0 = lx[0], x1 = lx[0] + lw[0];
+    for (int k = 1; k < n; ++k) {
+        if (lx[k] < x0) x0 = lx[k];
+        if (lx[k] + lw[k] > x1) x1 = lx[k] + lw[k];
     }
-    if (lines == 0) return false;
-    bx = x + 5;                 // first line drawn at x+5, y+5; lines stack by lineHeight
-    by = y + 5;
-    bw = maxW;
-    bh = lineHeight * lines;
+    bx = x0;
+    by = ly[0];
+    bw = x1 - x0;
+    // Rows can be SKIPPED, so the span is measured from the rows that survived
+    // rather than counted as n * lineHeight.
+    bh = ly[n - 1] + lineHeight - ly[0];
     return true;
 }
 

@@ -189,6 +189,17 @@ fi
 # tail, and the ratio against enrichNonIcao decides it. The predicate and the
 # feature share this function so the number and the behaviour cannot disagree
 # about what counts as a tail.
+# --- the radar label's line cap and order (2026-09-17) ----------------------
+#
+# Fifteen fields can be ticked and three fit on a 240 px disc. The cap and the
+# ranking live in one pure function because TWO callers walk the field table --
+# the draw loop and the collision box -- and a cap applied to one leaves the
+# other reserving height for lines nobody draws.
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_label_lines.cpp"       -o "$OUT/test_label_lines.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the label lines test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
 if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_registration.cpp"       -o "$OUT/test_registration.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the registration predicate test did not compile"
   cat "$OUT/build.log"
@@ -215,6 +226,14 @@ fi
 [ "$rc" -ne 0 ] && fails=$((fails+1))
 
 "$OUT/test_join_failure.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fails=$((fails+1))
+
+"$OUT/test_label_lines.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."

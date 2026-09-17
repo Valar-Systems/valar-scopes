@@ -17,6 +17,9 @@
 #endif
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
+#include "FrameBuffer.h"
+#include <esp_heap_caps.h>
+#include <memory>
 #include "Logbook.h"              // radar-only; serves the spotting lifelist as /logbook.json
 #endif
 
@@ -110,7 +113,6 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.preset.on{border-color:var(--ink);background:rgba(34,197,94,.22);font-weight:600})" \
     R"(.preset-state{font-size:.78rem;color:var(--dim);border:1px dashed var(--dim);border-radius:999px;padding:.3rem .6rem})" \
     R"(.preset-state.on{color:var(--ink);border-color:var(--ink);border-style:solid})" \
-    R"(.switch{width:100%;justify-content:flex-start;padding:.65rem .7rem;border:1px solid var(--line);border-radius:5px;margin-bottom:.8rem})" \
     R"(.row{display:flex;flex-direction:column;gap:1rem})" \
     R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
     R"(.grid3,.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .9rem})" \
@@ -346,7 +348,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(fetch('/enroll-key',{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){)" \
     R"(if(r.ok){location.reload()}else{enrolling=false;r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
-    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox],.master input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
+    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"
 
 // HTML stored in flash
@@ -355,6 +357,90 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+// The viewer page for /diag/fb. Its own literal rather than part of CONFIG_HTML:
+// it takes no %PLACEHOLDER% substitution, so it is served with send_P and the
+// percent sign is an ordinary character here.
+//
+// DECODING HAPPENS IN THE BROWSER. The device sends 115,200 bytes exactly as
+// they sit in PSRAM and spends no CPU on encoding; the phone that asked turns
+// RGB565 into pixels. A PNG encoder on the S3 would cost flash and frame time to
+// save bandwidth on a LAN that has plenty.
+static const char FB_VIEWER_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Blipscope screen</title>
+        <style>
+          body{margin:0;padding:1rem;background:#111827;color:#e6edea;
+               font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem}
+          h1{font-size:1.1rem;margin:0 0 .2rem;color:#22c55e}
+          p{margin:.2rem 0 1rem;color:#7f9e91;font-size:.85rem;max-width:34rem}
+          canvas{display:block;width:100%;max-width:320px;height:auto;
+                 image-rendering:pixelated;border:1px solid #22c55e;border-radius:50%}
+          .row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.9rem}
+          button{font:inherit;color:#e6edea;background:transparent;border:1px solid #22c55e;
+                 padding:.45rem .8rem;border-radius:999px;cursor:pointer}
+          #note{font-size:.8rem;color:#7f9e91}
+        </style>
+    </head>
+    <body>
+        <h1>Blipscope screen</h1>
+        <p>A copy of what the device is showing right now. Save or screenshot this
+           and send it to support.</p>
+        <canvas id="c" width="240" height="240"></canvas>
+        <div class="row">
+            <button id="again" type="button">Refresh</button>
+            <span id="note">loading&hellip;</span>
+        </div>
+        <script>
+        const cv = document.getElementById('c');
+        const note = document.getElementById('note');
+        // ONE RETRY, NOT A LOOP. A torn frame is caught mid-redraw, so asking
+        // again almost always lands on a whole one -- but a device redrawing
+        // continuously could tear every time, and a page that retried until it
+        // got a clean frame would hang instead of showing a slightly torn one.
+        async function load(retry) {
+            note.textContent = 'fetching…';
+            let r;
+            try { r = await fetch('/diag/fb', {cache: 'no-store'}); }
+            catch (e) { note.textContent = 'could not reach the device'; return; }
+            if (!r.ok) { note.textContent = 'device said ' + r.status; return; }
+            const w = parseInt(r.headers.get('X-Blipscope-Frame-Width') || '240', 10);
+            const h = parseInt(r.headers.get('X-Blipscope-Frame-Height') || '240', 10);
+            const torn = r.headers.get('X-Blipscope-Frame-Torn') === 'true';
+            const buf = new Uint8Array(await r.arrayBuffer());
+            if (buf.length < w * h * 2) {
+                note.textContent = 'short frame: ' + buf.length + ' of ' + (w * h * 2) + ' bytes';
+                return;
+            }
+            if (torn && retry) { load(false); return; }
+            cv.width = w; cv.height = h;
+            const ctx = cv.getContext('2d');
+            const img = ctx.createImageData(w, h);
+            // RGB565 little-endian -> RGBA. The 5- and 6-bit channels are scaled
+            // by replicating their high bits, so full-scale stays full-scale:
+            // 0x1F becomes 255, not 248.
+            // BIG-ENDIAN: the sprite holds pixels in the panel's byte order, so the
+            // high byte comes first. See the header comment on the /diag/fb route.
+            for (let i = 0, p = 0; i < w * h; i++, p += 4) {
+                const v = (buf[i * 2] << 8) | buf[i * 2 + 1];
+                const r5 = (v >> 11) & 0x1F, g6 = (v >> 5) & 0x3F, b5 = v & 0x1F;
+                img.data[p]     = (r5 << 3) | (r5 >> 2);
+                img.data[p + 1] = (g6 << 2) | (g6 >> 4);
+                img.data[p + 2] = (b5 << 3) | (b5 >> 2);
+                img.data[p + 3] = 255;
+            }
+            ctx.putImageData(img, 0, 0);
+            note.textContent = w + '×' + h + (torn ? ' — torn (caught mid-redraw)' : '');
+        }
+        document.getElementById('again').addEventListener('click', function () { load(true); });
+        load(true);
+        </script>
+    </body>
+</html>
+)";
+
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -699,30 +785,26 @@ R"(
                 <div class="sec" data-sec="labels">
 
                 <fieldset>
-                    <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
-                         It sat inside <summary>, so one row carried two different actions
-                         ~20 px apart: expand the section, or switch the whole feature off.
-                         A customer looking for "turn all this off" could not find it --
-                         that is the report that prompted this. Full width, labelled, above
-                         the grid it governs. class="master" carries over the auto-open the
-                         summary checkbox used to provide. -->
-                    <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show labels next to each aircraft</span></label>
-                    <span class="hint">What&rsquo;s written beside each blip on the radar.</span>
-                    <!-- PRESETS ABOVE THE GRID. Fifteen checkboxes is a question nobody
-                         wants asked one field at a time; these answer it in one tap and
-                         leave the grid for people who care which.
+                    <!-- THE FLAG, NOT A SWITCH. This was a full-width labelled
+                         toggle above the grid; it is the "None" chip in the row below
+                         now, because a switch and a preset row were two controls
+                         answering one question, and customers read the row first.
 
-                         NOTHING IS APPLIED ON LOAD. A preset is a CUSTOMER ACTION, never
-                         a default -- the page posts the whole form, so a preset applied
-                         at render would silently rewrite a saved selection the moment
-                         somebody opened the page to look at something else. "Custom" is
-                         therefore a STATE, not a button: it lights when the ticks match
-                         no preset, which is the honest thing to show and the only one
-                         that cannot destroy a choice. -->
+                         STILL A CHECKBOX, hidden rather than replaced: an unchecked
+                         checkbox is absent from the POST and SaveToggle writes
+                         "false" for it, which is the existing semantics exactly. A
+                         hidden input carrying "true"/"false" would be a different
+                         contract with the save path. Same NVS key, no firmware
+                         change, no migration. -->
+                    <input name="infotext" id="infotext" type="checkbox" %INFOTEXT% hidden>
+                    <span class="hint">What&rsquo;s written beside each blip on the radar. The radar draws <b>at most three lines</b> per aircraft; everything else is on the card you get by tapping one.</span>
+                    <!-- Nothing is applied on load -- see the script. "None" is the
+                         EMPTY preset: it unticks every field, which is what the word
+                         says. "Custom" stays a state rather than a button. -->
                     <div class="presets">
-                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-speed info-baroalt">Basic</button>
-                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-reg info-route info-speed info-baroalt">Spotter</button>
-                        <button type="button" class="btn-line preset" data-preset="*">Everything</button>
+                        <button type="button" class="btn-line preset" data-preset="none">None</button>
+                        <button type="button" class="btn-line preset" data-preset="info-type">Basic</button>
+                        <button type="button" class="btn-line preset" data-preset="info-type info-callsign">Spotter</button>
                         <span class="preset-state" id="preset-custom">Custom</span>
                     </div>
                     <div id="info-fields" class="grid3">
@@ -919,6 +1001,13 @@ R"(
                         <div class="kv"><span>WiFi signal</span><b>%WIFI_RSSI% dBm</b></div>
                         <div class="kv"><span>Firmware</span><b>v%FW_VERSION%</b></div>
                     </div>
+                    <!-- THE SENTENCE SUPPORT NEEDS TO BE ABLE TO SAY. A customer who
+                         can find this page can answer "what does your screen look
+                         like" without owning a camera or knowing what a framebuffer
+                         is. Named here rather than kept for the bench, because the
+                         three display faults that prompted it were all reported by
+                         customers. -->
+                    <span class="hint mt">Screen copy: <a href="/diag/fb.html">%DEVICE_NAME%.local/diag/fb.html</a> shows exactly what the device is displaying. Support may ask you to open it and send a screenshot.</span>
                     <div class="foot mt">
                         <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
                         %CREDITS_LINK%
@@ -1013,15 +1102,23 @@ R"(
             dataSource.addEventListener('change', syncDataSource);
             syncDataSource();
 
-            // dim the per-field list when the master Aircraft Info toggle is off.
-            // purely cosmetic -- the inputs stay enabled so their state still saves.
-            const infoMaster = document.querySelector('input[name="infotext"]');
-            const infoFields = document.getElementById('info-fields');
-            function syncInfoFields() {
-                infoFields.style.opacity = infoMaster.checked ? '1' : '0.4';
-            }
-            infoMaster.addEventListener('change', syncInfoFields);
-            syncInfoFields();
+            // THERE IS NO DIMMER HERE ANY MORE, and the story is worth the six
+            // lines because the shape recurs.
+            //
+            // A dimmer used to live here: it greyed the field grid when the master
+            // toggle was off, by writing style.opacity INLINE and listening for
+            // `change` on the checkbox. When the preset row replaced the master
+            // switch it got a second dimmer, a class. The two did not merely
+            // duplicate each other -- the old one DEFEATED the new one, twice over:
+            // an inline style outranks any stylesheet rule, and setting .checked
+            // from script fires no `change`, so its "opacity: 1" from page load
+            // stood forever. Tapping None set the flag, added the class, lit the
+            // chip, and changed nothing the customer could see. It was reported as
+            // "the None chip is not working", which it was, for a reason no part of
+            // the new code contained.
+            //
+            // Both are gone now: None unticks the boxes instead, so the state is
+            // legible without anything needing to be dimmed at all.
 
             // ---- collection view -------------------------------------------------
             // THE DEVICE SHIPS DATA; THE BROWSER RENDERS IT. Building this list as
@@ -1243,31 +1340,39 @@ R"(
             for (const b of navs) {
                 b.addEventListener('click', function () { showSection(b.dataset.go); });
             }
-            // PRESETS for the label fields. The whole point is the asymmetry
-            // between the two things this code does:
+            // PRESETS for the label fields. The asymmetry is the whole design:
             //
-            //   refresh()  READS the checkboxes and lights whichever preset matches
-            //   click      WRITES the checkboxes, and only ever from a tap
+            //   refresh()  READS the boxes and lights whichever chip matches
+            //   click      WRITES them, and only ever from a tap
             //
             // refresh() runs on load; nothing else does. A preset applied at render
             // would rewrite a saved selection for anyone who opened the page to look
-            // at something else -- and because the form posts in full, the next Save
-            // would make that silent rewrite permanent. That is the same shape as a
-            // defaultOn reaching a device that already saved, which this codebase has
-            // already paid for once.
+            // at something else, and because the form posts in full the next Save
+            // would make that silent rewrite permanent -- the same shape as a
+            // defaultOn reaching a device that has already saved, which this
+            // codebase paid for once in #238.
+            //
+            // "NONE" IS THE EMPTY PRESET. It unticks every field, which is what a
+            // customer reading the word expects to see happen. An earlier version
+            // kept the selection and greyed the grid instead, so that switching
+            // labels off and on again returned the exact set -- that round trip is
+            // deliberately gone, because "None" that leaves thirteen ticks on screen
+            // reads as a control that did not work, and it was reported as one.
+            //
+            // The flag follows the boxes rather than leading them: infotext is false
+            // exactly when nothing is ticked. One state on screen, not two.
             const presetBtns = document.querySelectorAll('.preset');
             const customChip = document.getElementById('preset-custom');
-            if (presetBtns.length && customChip) {
+            const flag = document.getElementById('infotext');
+            const grid = document.getElementById('info-fields');
+            if (presetBtns.length && customChip && flag && grid) {
                 const boxes = function () {
                     return Array.prototype.slice.call(
-                        document.querySelectorAll('#info-fields input[type=checkbox]'));
+                        grid.querySelectorAll('input[type=checkbox]'));
                 };
                 const keysOf = function (b) {
-                    // "*" means every field there is, so Everything cannot go stale
-                    // when a field is added -- a hardcoded list silently would.
-                    return b.dataset.preset === '*'
-                        ? boxes().map(function (i) { return i.name; })
-                        : b.dataset.preset.split(' ').filter(Boolean);
+                    return b.dataset.preset === 'none'
+                        ? [] : b.dataset.preset.split(' ').filter(Boolean);
                 };
                 const ticked = function () {
                     return boxes().filter(function (i) { return i.checked; })
@@ -1275,23 +1380,44 @@ R"(
                 };
                 const refresh = function () {
                     const now = ticked();
+                    flag.checked = now.length > 0;
                     let matched = false;
                     for (const b of presetBtns) {
-                        const on = keysOf(b).slice().sort().join(' ') === now;
-                        if (on) matched = true;
-                        b.classList.toggle('on', on);
+                        const hit = keysOf(b).slice().sort().join(' ') === now;
+                        if (hit) matched = true;
+                        b.classList.toggle('on', hit);
                     }
                     customChip.classList.toggle('on', !matched);
                 };
                 for (const b of presetBtns) {
                     b.addEventListener('click', function () {
-                        const want = keysOf(b);
-                        for (const i of boxes()) i.checked = want.indexOf(i.name) >= 0;
+                        const keys = keysOf(b);
+                        for (const i of boxes()) i.checked = keys.indexOf(i.name) >= 0;
                         refresh();
                     });
                 }
                 for (const i of boxes()) i.addEventListener('change', refresh);
-                refresh();   // reflect only -- reads state, writes no checkbox
+
+                // THE ONE TIME THIS PAGE WRITES A CHECKBOX ON LOAD, and it is
+                // here to stop the page lying rather than to set a preference.
+                //
+                // A device saved before this change can hold infotext=false with
+                // fields still ticked. The radar draws NOTHING in that state --
+                // displayInfoText gates both the draw and the tap target -- while
+                // the page would show five ticks and light Custom. The customer
+                // would be looking at a list of fields their radar is not drawing,
+                // and at chips describing a selection that has no effect.
+                //
+                // So when the SERVED flag is false, the boxes are cleared to match
+                // what the radar was actually showing: nothing. It reads the
+                // attribute, not the property, because the attribute is what the
+                // device sent. Nothing is persisted until the customer saves, and
+                // it cannot fire twice -- after one save the flag follows the
+                // boxes and the two can no longer disagree.
+                if (!flag.hasAttribute('checked')) {
+                    for (const i of boxes()) i.checked = false;
+                }
+                refresh();
             }
 
             // The landing section is decided ON THE DEVICE and arrives in the markup
@@ -3736,6 +3862,93 @@ void ConfigurationWebServer::Initialise() {
     // The stream owns an open read-only Preferences handle, so it is kept in a
     // shared_ptr the lambda captures by value: ESPAsyncWebServer calls the filler
     // repeatedly and then drops it, which is exactly when the handle should close.
+    // ---- /diag/fb : the glass, as bytes ----------------------------------
+    //
+    // Three display defects in one week were settled by pointing a phone camera
+    // at a 1.28 inch circle. This is the instrument that should have existed:
+    // the backbuffer, straight off the device, decoded by whoever asked.
+    //
+    // UNCONDITIONAL, deliberately. It exposes only what is already on the glass,
+    // over the same unauthenticated LAN server that already serves the config
+    // page and the logbook, and it is a support tool before it is a bench one --
+    // "open <device>.local/diag/fb.html and send me that" is a sentence support
+    // can say to anybody.
+    //
+    // IT SNAPSHOTS RATHER THAN STREAMING THE LIVE SPRITE, and the reason is the
+    // header. The frame is drawn on the loop task while this runs on async_tcp,
+    // so a read can straddle a redraw. The torn/not-torn answer therefore has to
+    // be known BEFORE the first byte of the body leaves, because that is when
+    // headers are written -- streaming the sprite directly would mean deciding
+    // whether the frame tore only after it was already sent.
+    //
+    // So: sample the counter, copy 115 KB PSRAM-to-PSRAM, sample again. The copy
+    // is the thing bracketed, not the socket write. No lock anywhere: holding the
+    // draw loop for the length of a network write would trade a cosmetic fault
+    // for a real one.
+    server.on("/diag/fb", HTTP_GET, [](AsyncWebServerRequest* request) {
+        LGFX_Sprite* fb = framebuf::Backbuffer();
+        if (fb == nullptr || fb->getBuffer() == nullptr) {
+            // Before setup() finished, or createSprite failed. 503 rather than a
+            // crash, and rather than an empty 200 that would read as a black screen.
+            request->send(503, "text/plain", "framebuffer not available");
+            return;
+        }
+        const size_t total = (size_t)fb->bufferLength();
+        const int    w     = fb->width();
+        const int    h     = fb->height();
+
+        uint8_t* snap = (uint8_t*)heap_caps_malloc(total, MALLOC_CAP_SPIRAM);
+        if (snap == nullptr) {
+            request->send(503, "text/plain", "out of PSRAM for a frame snapshot");
+            return;
+        }
+        const uint32_t seqBefore = framebuf::Sequence();
+        memcpy(snap, fb->getBuffer(), total);
+        const uint32_t seqAfter = framebuf::Sequence();
+        const bool torn = (seqBefore != seqAfter);
+
+        // shared_ptr with a PSRAM-aware deleter: the chunk callback outlives this
+        // scope, and the buffer must not leak if the client disconnects mid-send.
+        std::shared_ptr<uint8_t> buf(snap, [](uint8_t* p) { heap_caps_free(p); });
+        auto sent = std::make_shared<size_t>(0);
+
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "application/octet-stream",
+            [buf, total, sent](uint8_t* out, size_t maxLen, size_t) -> size_t {
+                const size_t left = total - *sent;
+                const size_t n = left < maxLen ? left : maxLen;
+                if (n > 0) {
+                    memcpy(out, buf.get() + *sent, n);
+                    *sent += n;
+                }
+                return n;
+            });
+        // Dimensions and pixel format travel with the bytes: a raw dump whose
+        // geometry has to be known in advance is a dump that goes wrong silently
+        // the day a SKU with a different panel asks for it.
+        r->addHeader("X-Blipscope-Frame-Width", String(w));
+        r->addHeader("X-Blipscope-Frame-Height", String(h));
+        // BIG-ENDIAN, and this was wrong on the first try. LovyanGFX keeps sprite
+        // pixels in the PANEL's byte order, not the CPU's, so a 16bpp sprite on an
+        // SPI display is MSB-first. Decoded little-endian the whole radar came back
+        // RED instead of green -- green 0x07E0 read backwards is 0xE007, which is a
+        // strong red with a little blue, and looks exactly like a plausible
+        // colour-scheme bug rather than a byte-order one.
+        //
+        // Caught by this endpoint on its first real use, which is the argument for
+        // it: a camera would have shown green and agreed with the wrong header.
+        r->addHeader("X-Blipscope-Frame-Format", "RGB565BE");
+        r->addHeader("X-Blipscope-Frame-Torn", torn ? "true" : "false");
+        r->addHeader("X-Blipscope-Frame-Seq", String(seqAfter));
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+
+    // ---- /diag/fb.html : the same thing, for a person --------------------
+    server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send_P(200, "text/html", FB_VIEWER_HTML);
+    });
+
     server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
         // Ask the loop task to flush a dirty logbook. It cannot help THIS
         // response -- the stream below is already reading NVS on this task -- but

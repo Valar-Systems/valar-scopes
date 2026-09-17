@@ -805,6 +805,21 @@ private:
     // position form too, so taps land on the blip as drawn, not where it really is.
     std::pair<float, float> RadarBlipPosition(const TrackedAircraft& tracked) const;
     float RadarBlipBrightness(const TrackedAircraft& tracked) const;
+    // WHERE THE LABEL'S LINES ACTUALLY LAND -- chosen, capped and clipped once,
+    // for both callers.
+    //
+    // DrawAircraftInfo draws them and AircraftLabelBox measures them, and before
+    // this they walked the field table separately: AircraftLabelBox's own comment
+    // said "Same field walk as DrawAircraftInfo". Two walks of one rule is two
+    // rules, and the second is the one that goes stale -- a cap applied only in
+    // the draw loop would leave the collision box reserving height for lines
+    // nobody draws, which is the Stats sparkline defect exactly.
+    //
+    // Fills idxOut/xOut/yOut/wOut with up to labellines::MAX_LINES entries and
+    // returns how many. A row that cannot fit inside the disc at its height is
+    // NOT returned, so a caller cannot place what the disc will not hold.
+    int LabelLayout(const TrackedAircraft& tracked, int x, int y,
+                    int* idxOut, int* xOut, int* yOut, int* wOut) const;
     void DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness = 1.0f) const;
     // Screen box of the info label as DrawAircraftInfo lays it out (below-right of the marker
     // at x,y). Returns false when no label is drawn. Used by the tap hit-test so a tap on the
