@@ -1,0 +1,8 @@
+12:00:00 [build] env=blipscope-s3-128 fw=v12 features=cloud
+11:59:00 [reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac
+11:59:01 [logbook] loaded 0 types (0 claimed), 0 airlines (0), 0 countries (0), 0 contacts
+11:59:30 [logbook] persisted (0/3 types claimed, 2 airlines, 2 countries, 37 contacts; 177 B blobs, 2269 NVS entries free)
+12:00:00 [claim] SR22 claimed (1/6 types)
+12:00:18 [logbook] persisted (1/6 types claimed, 3 airlines, 2 countries, 40 contacts; 200 B blobs, 2265 NVS entries free)
+12:01:00 [logbook] disabled -- flushing before logging stops
+12:02:00 [logbook] loaded 6 types (1 claimed), 3 airlines (1), 2 countries (1), 40 contacts
