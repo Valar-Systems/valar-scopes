@@ -398,6 +398,52 @@ are safe to keep.
    that is the phantom-release class the C3 had (see §3). The gesture tolerates gaps under
    250 ms, so it will still pass; the number is the early warning, not the failure.
 
+5. **Detail cards actually fill in.** Leave the board running until contacts appear, then
+   **tap one** and read its card.
+
+   **Expect a type** — "Boeing 737-800", "Cessna 172" — not a callsign on its own. And in the
+   ledger, on the boot after provisioning:
+
+   ```
+   [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
+   ```
+
+   **Why a unit test cannot replace this, and why it is per-unit rather than a bench check.**
+   Provisioning writes four NVS keys and none of them is the detail-card source:
+   `config` (namespace), `cloud-key`, `cloud-key-fac`, and `cloud-url` only when one is passed.
+   The source is therefore *unset* on every board that leaves the bench, and an unset
+   `local-details` resolves to **Off**
+   ([AircraftManager.cpp §"Detail-card source for a local receiver"](src/AircraftManager.cpp)).
+
+   Cards still work, because `UseCloudEnrich()` returns `true` on its **first line** —
+   `if (useCloudSource) return true;` — and `useCloudSource` is `!useLocalSource && dataSource
+   != "opensky"`, which an unwritten `data-source` satisfies. The `localDetails` term sits on the
+   line below and is never reached. That consent gate binds only a customer who has explicitly
+   chosen *My own ADS-B receiver*.
+
+   **That is a code read, and a code read is what this whole section exists to distrust.** If the
+   default ever flips — a new `data-source` value, a migration, a reordered branch — every unit
+   ships with a radar that draws blips and cards that say nothing, and **nothing anywhere would
+   report it**: no log line, no health check, no failing test. The device is working exactly as
+   configured. One tap per board is the cheapest possible observation of it.
+
+   **A failure looks like:** `[source]` naming OpenSky or a local receiver instead of Blipscope
+   Cloud, or a card that shows the callsign and nothing else.
+
+   > **One legitimate confound, so this does not quarantine good boards.** A *relayed* contact
+   > (TIS-B/ADS-R) carries a track id rather than an ICAO address, no registry can answer for it,
+   > and its card is empty by design — callsign only. That is not a failure. Tap a different
+   > contact, or check the `[perf]` line in the ledger:
+   >
+   > ```
+   > [perf] ... enrichReqs=8 enrichOk=8 enrichEmpty=0 enrichNonIcao=0/0 enrichCached=0
+   > ```
+   >
+   > `enrichOk` rising is the board asking and being answered. `enrichReqs=0` while contacts are
+   > tracked is the real failure — enrichment never attempted, which is what a wrong source
+   > produces. `enrichNonIcao=<tail>/<total>` counts the relayed contacts and is the confound
+   > made countable.
+
 ---
 
 ## 8. Board #1 only — one OTA from a virgin second slot
@@ -493,8 +539,9 @@ A batch is **accepted** only when, across the sampled boards:
 4. RF = `FEED_TERMINATION` + YF0026-class antenna, **zero reason-204** (100%)
 5. Touch INT/RST behave per §5 (first 5, then spot-check)
 6. First-run per §7: portal provisioning completes, `curl http://<ip>/` returns **200** on the
-   first boot after setup with no power cycle, and the boot touch-to-forget reaches
-   `hold completed` with `misses=0` (100%)
+   first boot after setup with no power cycle, the boot touch-to-forget reaches
+   `hold completed` with `misses=0`, and a tapped aircraft's card **shows a type** with the
+   boot line reading `[source] Blipscope Cloud:` (100%)
 7. **Board #1 only** — §8: one OTA from a virgin `app1` completes, the slot switches, and the
    new image is still `running=app1 state=VALID` after a power cycle. Board #1 does not rejoin
    the batch until this passes; the other 49 do not repeat it
@@ -506,6 +553,7 @@ assumption the rest are fine — these are per-batch factory-config properties, 
 ## Record for each batch
 
 Keep with the batch: supplier + PO, date, quantity, the measured identity quad, 0xFE pre/write/
-readback, `0xF9`/`0xFA`/`0xFB`/`0xFC` values, RSSI + reason-204 count, and the pass/fail call.
+readback, `0xF9`/`0xFA`/`0xFB`/`0xFC` values, RSSI + reason-204 count, the §7.5 detail-card
+result per unit (type shown / `[source]` line), and the pass/fail call.
 This is the evidence trail for the next supplier conversation — the antenna requirement was won
 with exactly this kind of measured A/B.
