@@ -94,6 +94,26 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # identifier" goes quiet exactly when someone improves the code.
 TARGET_TOKENS = ("followTarget", "followSessionTarget", "EffectiveFollowTarget")
 
+# HOW MANY FUNCTIONS THIS FILE IS CURRENTLY WATCHING. A literal, deliberately.
+#
+# The review-list comparison below already fails when a function stops touching
+# the target -- that is what went red on 2026-09-17. But it compares two things
+# that are BOTH EDITABLE: if a refactor moves the value behind a new accessor and
+# the same commit drops the now-unfound function from ALLOWED_TOUCH, the scan and
+# the list shrink in lockstep, every check passes, and this file goes quiet at
+# lower coverage. That is precisely the tempting fix that was refused when this
+# last happened, and refusing it cannot depend on someone remembering to refuse
+# it again.
+#
+# A number cannot be satisfied by editing the list. Lowering it is a separate,
+# visible act with a diff somebody has to justify in review.
+#
+# It has moved once: 13 -> 19, when EffectiveFollowTarget joined TARGET_TOKENS and
+# six functions came back into view. Raising it is routine -- a new function
+# touches the target, so add it to ALLOWED_TOUCH and bump this. Lowering it is the
+# thing that wants an argument.
+EXPECTED_TOUCH = 19
+
 # Anything that puts bytes on a wire or a console. Serial is on the list because
 # 17 names it: "serial output (the Wi-Fi password incident is the precedent)".
 SINK_RE = re.compile("|".join([
@@ -368,6 +388,30 @@ def report(touching, sinking, line_leaks=(), quiet=False):
             + "\n  On-device use is fine -- add it to ALLOWED_TOUCH with a reason, so the"
               "\n  list keeps saying what was looked at."
         )
+
+    # 3. THE PINNED COUNT -- the one check here that no list edit can satisfy.
+    if len(touching) != EXPECTED_TOUCH:
+        if len(touching) < EXPECTED_TOUCH:
+            gone = sorted(ALLOWED_TOUCH - set(touching))
+            detail = ("\n    ".join(gone) if gone else
+                      "(the review list still matches the scan exactly, so the shrink is"
+                      "\n     invisible to every other check here -- this is the lockstep case)")
+            fails.append(
+                "COVERAGE FELL: this scanner watched %d target-handling functions and now"
+                "\n  sees %d.\n    %s"
+                "\n  Either coverage genuinely narrowed -- say why and lower EXPECTED_TOUCH in"
+                "\n  the same commit -- or the value moved behind a name TARGET_TOKENS does not"
+                "\n  know, which has now happened twice. A list edit cannot quiet this one,"
+                "\n  which is the entire point of its being a number."
+                % (EXPECTED_TOUCH, len(touching), detail)
+            )
+        else:
+            fails.append(
+                "COVERAGE ROSE: %d target-handling functions, EXPECTED_TOUCH says %d."
+                "\n  Routine -- add the new one to ALLOWED_TOUCH with a reason and bump the"
+                "\n  number, so it keeps meaning what it says."
+                % (len(touching), EXPECTED_TOUCH)
+            )
 
     # THE ANCHOR CONTROL. A shrinking list is not an improvement: it is the shape
     # of a broken scanner, and this one has been broken twice. Both times this

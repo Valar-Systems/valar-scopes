@@ -86,15 +86,17 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 //    template engine, which owns '%' (see the favicon comment below). Widths come
 //    from flex/grid stretch and rem units, never CSS percentages.
 //  - Each page sets its palette BEFORE the CSS block via
-//    <style>:root{--ink:..;--line:..;--dim:..;--btn:..}</style>
-//    (--ink body text, --line borders/frames, --dim hint text, --btn save button).
+//    <style>:root{--ink:..;--line:..;--dim:..;--btn:..;--text:..}</style>
+//    (--ink headings/links/accent, --text label + field text, --line borders/frames,
+//     --dim hint text, --btn save button). THREE TONES: near-white labels, green
+//     headings, muted hints -- all three >= 4.5:1 on #111827.
 #define CONFIG_SHELL_CSS \
     R"(<style>)" \
     R"(*{box-sizing:border-box})" \
-    R"(body{margin:0;padding:1rem;background:#111827;color:var(--ink);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;min-height:100vh})" \
+    R"(body{margin:0;padding:1rem;background:#111827;color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;min-height:100vh})" \
     R"(a{color:var(--ink)})" \
     R"(.wrap{max-width:42rem;margin:0 auto;border:1px solid var(--line);padding:1rem})" \
-    R"(legend{padding:0 .5rem})" \
+    R"(legend{padding:0 .5rem;color:var(--ink)})" \
     R"(form{display:flex;flex-direction:column;gap:1rem})" \
     R"(fieldset,details{border:1px solid var(--line);padding:.75rem;margin:0;min-width:0})" \
     R"(summary{cursor:pointer;-webkit-user-select:none;user-select:none})" \
@@ -104,10 +106,15 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.field>span:first-child{flex:none})" \
     R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
     R"(.check{display:flex;align-items:center;gap:.5rem})" \
+    R"(.presets{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:0 0 .75rem})" \
+    R"(.preset.on{border-color:var(--ink);background:rgba(34,197,94,.22);font-weight:600})" \
+    R"(.preset-state{font-size:.78rem;color:var(--dim);border:1px dashed var(--dim);border-radius:999px;padding:.3rem .6rem})" \
+    R"(.preset-state.on{color:var(--ink);border-color:var(--ink);border-style:solid})" \
+    R"(.switch{width:100%;justify-content:flex-start;padding:.65rem .7rem;border:1px solid var(--line);border-radius:5px;margin-bottom:.8rem})" \
     R"(.row{display:flex;flex-direction:column;gap:1rem})" \
     R"(.grid2{display:grid;grid-template-columns:1fr;gap:.5rem .9rem})" \
     R"(.grid3,.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .9rem})" \
-    R"(input,select,textarea,button{font:inherit;color:var(--ink);background:#111827;border:1px solid var(--line);padding:.5rem .6rem;min-width:0})" \
+    R"(input,select,textarea,button{font:inherit;color:var(--text);background:#111827;border:1px solid var(--line);padding:.5rem .6rem;min-width:0})" \
     R"(input[type=checkbox]{width:1.05rem;height:1.05rem;padding:0;margin:0;accent-color:var(--btn);flex:none})" \
     R"(input[type=range]{border:none;padding:0;accent-color:var(--btn);flex:1})" \
     R"(:focus-visible{outline:2px solid var(--ink);outline-offset:1px})" \
@@ -339,7 +346,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(fetch('/enroll-key',{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){)" \
     R"(if(r.ok){location.reload()}else{enrolling=false;r.text().then(function(t){alert('Could not save the key: '+t)})}})});)" \
     R"(document.querySelectorAll('summary input').forEach(function(i){i.addEventListener('click',function(e){e.stopPropagation()})});)" \
-    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
+    R"(document.querySelectorAll('details.auto').forEach(function(d){if(d.open)return;var m=d.querySelector('summary input[type=checkbox],.master input[type=checkbox]');if(m){if(m.checked)d.open=true;return}var any=false;d.querySelectorAll('textarea,input[type=password],input[type=text],input:not([type])').forEach(function(i){var v=(i.value||'').trim();if(v&&!/^\*+$/.test(v))any=true});if(any)d.open=true});)" \
     R"(</script>)"
 
 // HTML stored in flash
@@ -359,7 +366,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              stray percent sign collides with this page's PLACEHOLDER template engine and shreds the whole
              form (write it as &#37; in visible text - and keep it out of comments too, like this one). -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#16a34a;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
         <!-- Sidebar layout. Radar-only on purpose: the other seven editions have short
              single-screen forms a nav would only get in the way of, and this block is
@@ -379,10 +386,10 @@ static const char CONFIG_HTML[] PROGMEM = R"(
           .wrap{max-width:54rem}
           .shell{display:grid;grid-template-columns:170px 1fr;gap:1.1rem;align-items:start}
           .side{display:flex;flex-direction:column;gap:.2rem;position:sticky;top:.5rem}
-          .navb{text-align:left;background:none;border:1px solid transparent;color:var(--dim);
+          .navb{text-align:left;background:none;border:1px solid var(--dim);color:var(--dim);
                 padding:.45rem .6rem;border-radius:6px;cursor:pointer;font:inherit;line-height:1.3}
           .navb:hover{color:var(--ink)}
-          .navb.on{color:var(--ink);border-color:var(--line);background:rgba(34,197,94,.10);font-weight:600}
+          .navb.on{color:var(--ink);border-color:var(--line);background:rgba(34,197,94,.22);font-weight:600}
           .content{min-width:0}
           .sec{display:none}
           .sec.on{display:block}
@@ -393,8 +400,14 @@ static const char CONFIG_HTML[] PROGMEM = R"(
              to the device trying to set their location. */
           @media(max-width:700px){
             .shell{grid-template-columns:1fr;gap:.6rem}
-            .side{flex-direction:row;overflow-x:auto;position:static;gap:.3rem;padding-bottom:.3rem}
-            .navb{white-space:nowrap;flex:0 0 auto;padding:.4rem .7rem}
+            .side{flex-direction:row;flex-wrap:wrap;position:static;gap:.35rem;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:.55rem 0;margin:0 0 .85rem}
+            /* WRAP, DO NOT SCROLL. This was overflow-x:auto with flex:0 0 auto --
+               a horizontal scroller by design. Measured at 390 px the four buttons
+               need 446 px in a 324 px rail, so two sat off the right edge (right
+               edges 479 and 406) behind a scrollbar nobody looks for.
+               THE DOCUMENT NEVER OVERFLOWED, so a documentElement.scrollWidth
+               check passes in both worlds; the assertion has to be per-element. */
+            .navb{white-space:nowrap;flex:0 1 auto;padding:.45rem .7rem;border-radius:999px}
           }
         </style>
     </head>
@@ -412,9 +425,13 @@ static const char CONFIG_HTML[] PROGMEM = R"(
 
             <div class="shell">
                 <nav class="side" id="side">
-                    <button type="button" class="navb" data-go="collection">Collection</button>
-                    <button type="button" class="navb" data-go="location">Location &amp; Radar</button>
+                    <button type="button" class="navb" data-go="location">Location</button>
+                    <button type="button" class="navb" data-go="display">Display</button>
+                    <button type="button" class="navb" data-go="labels">Labels</button>
+                    <button type="button" class="navb" data-go="alerts">Alerts</button>
+                    <button type="button" class="navb" data-go="follow">Follow</button>
                     <button type="button" class="navb" data-go="network">Network</button>
+                    <button type="button" class="navb" data-go="collection">Collection</button>
                     <button type="button" class="navb" data-go="about">About</button>
                 </nav>
                 <div class="content">
@@ -422,12 +439,6 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 <div class="sec" data-sec="collection">
                     <div class="stand">%LB_STANDING%</div>
                     <div id="col"><span class="hint">Loading your collection&hellip;</span></div>
-                    <div class="hint mt">
-                        Seeing an aircraft is your antenna's doing. Claiming it is yours &mdash; open a
-                        contact's card on the device and one tap claims its type, operator, country and
-                        route airports at once. Only claims score.
-                        <a href="/logbook.json?download=1">Download a copy</a> of everything below.
-                    </div>
                 </div>
 
             <form id="cfg" action="/save" method="POST">
@@ -605,26 +616,9 @@ R"(
                             <span>Cloud server:</span>
                             <input name="cloud-url" value='%CLOUD_URL%' placeholder="built-in default" class="grow">
                         </label>
-                        <span class="hint">
-                            For self-hosting, or for pointing this board at a staging server.
-                            Leave blank to use the built-in default.
-                        </span>
+                        <span class="hint">For self-hosting or a staging server. Blank uses the default.</span>
                     </details>
-                    <span class="hint">
-                        Managed Blipscope feed &mdash; no account needed.
-                        Your access key is set during assembly: leave it as it is, and if
-                        it ever gets changed by mistake, clear the box and save to restore it.
-                        Aircraft data from <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>
-                        and <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>.
-                        adsb.lol data &copy; adsb.lol contributors, licensed under
-                        <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
-                        Military airframe data from the <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics aircraft database</a>,
-                        licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>.
-                        Curated military airframe data from <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>,
-                        licensed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.
-                        Aircraft photographs from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>.
-                        %CREDITS_LINK%
-                    </span>
+                    <span class="hint">Managed Blipscope feed, no account needed. The access key is set during assembly; if it is ever changed by mistake, clear the box and save. Sources and licences are under About.</span>
                 </div>
 )"
 #endif
@@ -645,10 +639,7 @@ R"(
                         <span>Receiver URL:</span>
                         <input name="local-url" value='%LOCAL_URL%' placeholder="http://192.168.1.50/data/aircraft.json" class="grow">
                     </label>
-                    <span class="hint">
-                        dump1090-fa / readsb / PiAware / tar1090. Enter the device's IP (e.g. 192.168.1.50)
-                        or the full aircraft.json URL. No API limits &mdash; the radar updates once a second.
-                    </span>
+                    <span class="hint">dump1090-fa / readsb / PiAware / tar1090. Enter the IP or the aircraft.json URL.</span>
                     <label class="field">
                         <span>Aircraft details:</span>
                         <select name="local-details" id="local-details" class="grow">
@@ -657,29 +648,13 @@ R"(
                             <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
                         </select>
                     </label>
-                    <span class="hint">
-                        Your receiver supplies the positions either way; this only decides where the
-                        detail card (type, airline, route, photo) comes from. There is deliberately
-                        no default &mdash; it is your call, and it will never change on its own.
-                        <b>Until you choose, details stay off.</b><br>
-                        <b>Blipscope Cloud</b> &mdash; sends the tapped aircraft's ICAO hex, callsign
-                        and position, plus your device model, firmware version and access key. Your
-                        receiver's address is never sent, and neither is your own location &mdash;
-                        but an aircraft you tapped is by definition near you, so
-                        <i>treat this as coarse location rather than none</i>. One internet host,
-                        and the only option with photos.<br>
-                        <b>Off</b> &mdash; contacts nothing at all. The card shows only what your own
-                        receiver reported. Your radar is unaffected either way: positions come from
-                        your own receiver, so an internet outage empties the cards and leaves the
-                        radar running.
-                    </span>
+                    <span class="hint">Positions always come from your receiver; this only chooses where card details (type, airline, route, photo) come from. No default &mdash; <b>until you choose, details stay off.</b><br><b>Blipscope Cloud</b> sends the tapped aircraft's hex, callsign and position, plus your device model, firmware and access key; never your receiver's address or your location &mdash; though <i>a tapped aircraft is near you, so treat it as coarse location</i>. Only Cloud has photos.<br><b>Off</b> contacts nothing; the card shows what your receiver reported.</span>
                 </div>
 
                 </div><!-- /sec -->
 
-                <div class="sec" data-sec="location">
+                <div class="sec" data-sec="display">
                 <fieldset>
-                    <legend>Display</legend>
                     <div class="grid3">
                         <label class="check"><input name="scanline" type="checkbox" %SCANLINE%><span>Radar sweep</span></label>
                         <label class="check"><input name="fade" type="checkbox" %FADE%><span>Sweep fade</span></label>
@@ -724,15 +699,47 @@ R"(
                     </span>
                 </fieldset>
 
-                <details class="auto">
-                    <summary>Aircraft info text <input name="infotext" type="checkbox" %INFOTEXT%></summary>
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="labels">
+
+                <fieldset>
+                    <!-- THE MASTER TOGGLE IS NOT A CHECKBOX BESIDE THE DISCLOSURE ARROW.
+                         It sat inside <summary>, so one row carried two different actions
+                         ~20 px apart: expand the section, or switch the whole feature off.
+                         A customer looking for "turn all this off" could not find it --
+                         that is the report that prompted this. Full width, labelled, above
+                         the grid it governs. class="master" carries over the auto-open the
+                         summary checkbox used to provide. -->
+                    <label class="check switch master"><input name="infotext" type="checkbox" %INFOTEXT%><span>Show labels next to each aircraft</span></label>
+                    <span class="hint">What&rsquo;s written beside each blip on the radar.</span>
+                    <!-- PRESETS ABOVE THE GRID. Fifteen checkboxes is a question nobody
+                         wants asked one field at a time; these answer it in one tap and
+                         leave the grid for people who care which.
+
+                         NOTHING IS APPLIED ON LOAD. A preset is a CUSTOMER ACTION, never
+                         a default -- the page posts the whole form, so a preset applied
+                         at render would silently rewrite a saved selection the moment
+                         somebody opened the page to look at something else. "Custom" is
+                         therefore a STATE, not a button: it lights when the ticks match
+                         no preset, which is the honest thing to show and the only one
+                         that cannot destroy a choice. -->
+                    <div class="presets">
+                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-speed info-baroalt">Basic</button>
+                        <button type="button" class="btn-line preset" data-preset="info-callsign info-type info-operator info-reg info-route info-speed info-baroalt">Spotter</button>
+                        <button type="button" class="btn-line preset" data-preset="*">Everything</button>
+                        <span class="preset-state" id="preset-custom">Custom</span>
+                    </div>
                     <div id="info-fields" class="grid3">
                         %INFO_FIELDS%
                     </div>
-                </details>
+                </fieldset>
 
-                <details class="auto">
-                    <summary>Watchlist &amp; alerts</summary>
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="alerts">
+
+                <fieldset>
                     <label class="stack">
                         <span>Watch (callsign / tail / ICAO / type, comma-separated):</span>
                         <textarea name="watchlist" rows="2">%WATCHLIST%</textarea>
@@ -745,15 +752,8 @@ R"(
                          and not only on the support page. The first is the mistake somebody
                          is about to make while looking at this box; the second is the one
                          they cannot detect afterwards. -->
-                    <span class="hint mt">
-                        Alerts need a trigger &mdash; tick one below, or add something to the watch
-                        list. A topic on its own sends nothing.
-                    </span>
-                    <span class="hint">
-                        Anyone who knows this topic can read your alerts. Treat it like a
-                        password, not a name. This device generated a private one for you;
-                        you can replace it, but a short name is a name other people guess.
-                    </span>
+                    <span class="hint mt">Alerts need a trigger &mdash; tick one below, or add to the watch list.</span>
+                    <span class="hint">Anyone with this topic can read your alerts. Treat it like a password; a short name is one people guess.</span>
                     <!-- The honest advice on a leaked topic is to change it, so the
                          device offers the change rather than leaving the customer to
                          invent a replacement -- which is how a 50-bit topic becomes
@@ -768,11 +768,7 @@ R"(
                         <label class="check"><input name="emg-alert" type="checkbox" %EMG_ALERT%><span>Alert on emergency squawk (ntfy)</span></label>
                         <label class="check"><input name="tones" type="checkbox" %TONES%><span>Alert tones (speaker models)</span></label>
                     </div>
-                    <span class="hint mt">
-                        Detected offline from the live feed &mdash; no account or lookup needed. On the radar:
-                        military = orange &ldquo;MIL&rdquo;, special flights (rescue / police / NASA / Boeing / Airbus test &hellip;) = blue &ldquo;SPC&rdquo;,
-                        helicopters = violet &ldquo;HELI&rdquo;.
-                    </span>
+                    <span class="hint mt">Detected from the live feed. On the radar: orange &ldquo;MIL&rdquo;, blue &ldquo;SPC&rdquo; (rescue, police, NASA, test), violet &ldquo;HELI&rdquo;.</span>
                     <div class="row mt">
                         <label class="field">
                             <span>Military visual alert:</span>
@@ -792,44 +788,31 @@ R"(
                         </label>
                     </div>
                     <label class="check mt"><input name="visual-night" type="checkbox" %VISUAL_NIGHT%><span>Visual alerts override night dimming</span></label>
-                    <span class="hint mt">
-                        On-screen attention when a military or emergency-squawk (7500/7600/7700) contact is in range:
-                        a colour-pulsing ring at the screen edge (orange = military, red = emergency), or a brief
-                        full-screen flash when it first appears &mdash; a few gentle pulses, then the ring.
-                    </span>
+                    <span class="hint mt">Edge ring while a military (orange) or emergency-squawk (red) contact is in range, with a brief flash when it arrives.</span>
                     <div class="field mt">
                         <label class="check"><input name="lookup" type="checkbox" %LOOKUP%><span>&ldquo;Look up!&rdquo; overhead alert within</span></label>
                         <input name="lookup-dist" type="number" min="0.5" step="0.5" value='%LOOKUP_DIST%' class="w6">
                         <label class="check"><input name="lookup-alert" type="checkbox" %LOOKUP_ALERT%><span>also ntfy</span></label>
                     </div>
-                    <span class="hint mt">
-                        Flashes a cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance (in your radar's units) of your location &mdash; glance up and spot it.
-                    </span>
-                </details>
+                    <span class="hint mt">Cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance.</span>
+                </fieldset>
+
+                </div><!-- /sec -->
+
+                <div class="sec" data-sec="follow">
 
                 <!-- FOLLOW MODE. Its own block, deliberately not folded into
                      "Watchlist & alerts": a watchlist is a category of aircraft you
                      find interesting, and this is one aeroplane with a person in it.
                      The two read differently and are configured for different
                      reasons, so they get different boxes. (spec 14) -->
-                <details class="auto">
-                    <summary>Follow one aircraft</summary>
+                <fieldset>
                     <label class="field">
                         <span>Follow (tail / callsign / ICAO hex):</span>
                         <input name="follow" value='%FOLLOW%' class="grow">
                     </label>
-                    <span class="hint mt">
-                        Names ONE aircraft &mdash; a tail number, a callsign, or an ICAO hex
-                        address. Leave it empty and nothing changes: the Follow screen does not
-                        exist until you put something here.
-                    </span>
-                    <span class="hint">
-                        The Follow screen shows where it is relative to your field, the path
-                        it has flown, and &mdash; in plain words &mdash; whether it is airborne,
-                        down, or simply somewhere the ground receivers do not reach. Coverage
-                        near the ground is patchy everywhere; that is expected and the screen
-                        says so rather than reporting it as a fault.
-                    </span>
+                    <span class="hint mt">Names ONE aircraft &mdash; tail number, callsign, or ICAO hex. Leave it empty and there is no Follow screen.</span>
+                    <span class="hint">Shows where it is, where it has been, and whether it is airborne, down, or simply out of receiver coverage.</span>
                     <div class="grid2 mt">
                         <label class="check"><input name="follow-track" type="checkbox" %FOLLOW_TRACK%><span>Draw the flight track</span></label>
                         <label class="check"><input name="follow-up" type="checkbox" %FOLLOW_UP%><span>Alert when it takes off (ntfy)</span></label>
@@ -839,22 +822,10 @@ R"(
                     <!-- The asymmetry IS the argument (15), and it is worth explaining
                          rather than just defaulting: a missed lost-alert costs mild
                          worry, an unwanted one costs panic. -->
-                    <span class="hint mt">
-                        Take-off and landing alerts are on because a landing message only makes
-                        sense if you also got the take-off. The signal-lost alert is off: losing
-                        the signal is normal and usually means nothing, and a phone alert saying
-                        so at the wrong moment is frightening. The screen always shows it either way.
-                    </span>
-                    <span class="hint">
-                        Alerts carry the aircraft you named, so keep the topic above private.
-                        Nothing else this device sends anywhere &mdash; not the feed, not the
-                        leaderboard &mdash; ever includes it.
-                    </span>
-                    <span class="hint">
-                        Flying with a pilot? Set the distance unit above to <b>nmi</b> &mdash;
-                        it is the unit they will use.
-                    </span>
-                </details>
+                    <span class="hint mt">Take-off and landing travel together; a landing alert only makes sense with its take-off. Signal-lost is off &mdash; losing signal is normal.</span>
+                    <span class="hint">Alerts name the aircraft, so keep the topic private.</span>
+                    <span class="hint">Flying with a pilot? Set the distance unit to nmi.</span>
+                </fieldset>
 
                 </div><!-- /sec -->
 
@@ -868,15 +839,7 @@ R"(
 
                 <details class="auto">
                     <summary>Spotting logbook <input name="logbook" type="checkbox" %LOGBOOK%></summary>
-                    <span class="hint">
-                        Keeps a running &ldquo;lifelist&rdquo; of every unique aircraft type, airline, country,
-                        and route airport you've seen overhead (shown on the Stats screen), with first-seen dates,
-                        per-type counts, and lifetime records. Anything you haven't claimed yet shows a gold
-                        &ldquo;NEW&rdquo; on the radar &mdash; <b>tap it to claim it</b>. Seeing an aircraft is
-                        your antenna's doing; claiming it is yours, and only claims score.
-                        It looks up each contact's type/airline, so it adds a little network traffic.
-                        Download a copy any time: <a href="/logbook.json?download=1">logbook.json</a>.
-                    </span>
+                    <span class="hint">A lifelist of every aircraft type, airline, country and route airport seen overhead, on the Stats screen. Unclaimed ones show a gold &ldquo;NEW&rdquo; &mdash; tap to claim. Adds a little network traffic. Download: <a href="/logbook.json?download=1" target="_blank" rel="noopener">logbook.json</a>.</span>
                 </details>
 
                 <details class="auto">
@@ -885,12 +848,7 @@ R"(
                         <span>Spotter name:</span>
                         <input name="lb-name" value='%LB_NAME%' maxlength="24" placeholder="e.g. Redmond Radar" class="grow">
                     </label>
-                    <span class="hint mt">
-                        Opt in to the public %LB_LINK% &mdash;
-                        compete on unique types, airlines, and countries seen overhead. <b>Counts only leave your device</b>
-                        (plus your type list, for rarity scoring): never your location, never which flights you saw. Off by default;
-                        requires the Blipscope Cloud feed. First device to claim a name owns it.
-                    </span>
+                    <span class="hint mt">Opt in to the public %LB_LINK%. Only counts and your type list leave the device &mdash; never your location, never which flights you saw. First device to claim a name owns it.</span>
                 </details>
 
                 </div><!-- /sec -->
@@ -927,10 +885,7 @@ R"(
                             <label class="check"><input name="mqtt-disco" type="checkbox" %MQTT_DISCO%><span>HA auto-discovery</span></label>
                         </div>
                     </div>
-                    <span class="hint mt">
-                        Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; (count, nearest aircraft, overhead &amp; military flags)
-                        to your broker every few seconds. With auto-discovery on, Home Assistant creates the sensors automatically.
-                    </span>
+                    <span class="hint mt">Publishes a retained &ldquo;&lt;base&gt;/summary&rdquo; to your broker. Home Assistant finds the sensors via auto-discovery.</span>
                 </details>
 
                 </div><!-- /sec -->
@@ -938,7 +893,7 @@ R"(
                 <!-- Every section that contains a control needs the savebar. Moving
                      the logbook/leaderboard blocks to Collection without adding it
                      here left that tab with toggles and no way to apply them. -->
-                <div class="sec" data-sec="collection location network">
+                <div class="sec" data-sec="location display labels alerts follow network collection">
                 <div class="savebar">
                     <input type="submit" value="Save" class="btn">
                     <span id="result"></span>
@@ -947,6 +902,8 @@ R"(
             </form>
 
                 <div class="sec" data-sec="about">
+                <span class="hint">Aircraft data: <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>; <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> &copy; contributors, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; <a href="https://github.com/Mictronics/aircraft-database" target="_blank" rel="noopener">Mictronics</a>, <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noopener">ODC-By 1.0</a>; <a href="https://github.com/sdr-enthusiasts/plane-alert-db" target="_blank" rel="noopener">plane-alert-db</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>; photos from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>. %CREDITS_LINK%</span>
+
                     <div class="grid2">
                         <div class="kv"><span>Device</span><b>%DEVICE_NAME%.local</b></div>
                         <div class="kv"><span>Address</span><b>%DEVICE_IP%</b></div>
@@ -957,10 +914,7 @@ R"(
                         <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
                         %CREDITS_LINK%
                     </div>
-                    <div class="hint mt">
-                        Reset WiFi makes the device forget this network and restart into its setup
-                        portal. Your location, settings and spotting logbook are kept.
-                    </div>
+                    <div class="hint mt">Forgets this network and restarts into setup. Location, settings and logbook are kept.</div>
                     <div class="mt"><button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button></div>
 
                     <!-- ------------------------------------------------------------------
@@ -978,19 +932,10 @@ R"(
                          to save a copy is worth anything.
                          ------------------------------------------------------------------ -->
                     <hr class="mt" style="border:0;border-top:1px solid #333;margin:18px 0">
-                    <div class="hint">
-                        <b style="color:#ff4d4d">Factory reset</b> erases everything this device
-                        knows about you &mdash; your spotting logbook, location and radius,
-                        leaderboard opt-in and display name, and the WiFi network. It restarts
-                        into setup mode. This cannot be undone.
-                    </div>
+                    <div class="hint">Erases everything this device knows about you &mdash; logbook, location, leaderboard opt-in and name, and the WiFi network &mdash; and restarts into setup. This cannot be undone.</div>
                     <div class="mt"><button type="button" id="factoryopen" class="btn-danger">Factory reset&hellip;</button></div>
                     <div id="factorypanel" class="mt" style="display:none;border:1px solid #ff4d4d;border-radius:6px;padding:12px">
-                        <div class="hint">
-                            <b>Save your logbook first.</b>
-                            <a href="/logbook.json?download=1">Download a copy</a> &mdash; once this
-                            device is erased there is no other copy of it.
-                        </div>
+                        <div class="hint">Save your logbook first: once erased there is no other copy.</div>
                         <div class="hint mt">Type <b>RESET</b> to enable the button:</div>
                         <input type="text" id="factoryword" autocomplete="off" autocapitalize="characters"
                                spellcheck="false" placeholder="RESET" style="max-width:10em">
@@ -1222,9 +1167,30 @@ R"(
             // scripts/check-config-form.py fails the build if anything starts to.
             const secs = document.querySelectorAll('.sec');
             const navs = document.querySelectorAll('.navb');
+            // Where showSection lands when a name matches nothing. Location,
+            // because the device this protects is a first-run one with no
+            // location saved -- which is why its landing group broke at all.
+            const FALLBACK_SECTION = 'location';
             function showSection(name) {
+                let hit = false;
                 for (const el of secs) {
-                    el.classList.toggle('on', (el.dataset.sec || '').split(' ').indexOf(name) >= 0);
+                    const on = (el.dataset.sec || '').split(' ').indexOf(name) >= 0;
+                    if (on) hit = true;
+                    el.classList.toggle('on', on);
+                }
+                // Nothing matched: every section is off and the page is BLANK.
+                // A group was renamed in one of the places that name them.
+                // Why this is a real hazard, and its CI half, are in the header of
+                // scripts/check-config-form.py -- this comment ships to the phone.
+                if (!hit && navs.length) {
+                    let fb = '';
+                    for (const el of secs) {
+                        if ((el.dataset.sec || '').split(' ').indexOf(FALLBACK_SECTION) >= 0) fb = FALLBACK_SECTION;
+                    }
+                    name = fb || navs[0].dataset.go;
+                    for (const el of secs) {
+                        el.classList.toggle('on', (el.dataset.sec || '').split(' ').indexOf(name) >= 0);
+                    }
                 }
                 for (const b of navs) b.classList.toggle('on', b.dataset.go === name);
                 if (name === 'collection') loadCollection();
@@ -1233,6 +1199,57 @@ R"(
             for (const b of navs) {
                 b.addEventListener('click', function () { showSection(b.dataset.go); });
             }
+            // PRESETS for the label fields. The whole point is the asymmetry
+            // between the two things this code does:
+            //
+            //   refresh()  READS the checkboxes and lights whichever preset matches
+            //   click      WRITES the checkboxes, and only ever from a tap
+            //
+            // refresh() runs on load; nothing else does. A preset applied at render
+            // would rewrite a saved selection for anyone who opened the page to look
+            // at something else -- and because the form posts in full, the next Save
+            // would make that silent rewrite permanent. That is the same shape as a
+            // defaultOn reaching a device that already saved, which this codebase has
+            // already paid for once.
+            const presetBtns = document.querySelectorAll('.preset');
+            const customChip = document.getElementById('preset-custom');
+            if (presetBtns.length && customChip) {
+                const boxes = function () {
+                    return Array.prototype.slice.call(
+                        document.querySelectorAll('#info-fields input[type=checkbox]'));
+                };
+                const keysOf = function (b) {
+                    // "*" means every field there is, so Everything cannot go stale
+                    // when a field is added -- a hardcoded list silently would.
+                    return b.dataset.preset === '*'
+                        ? boxes().map(function (i) { return i.name; })
+                        : b.dataset.preset.split(' ').filter(Boolean);
+                };
+                const ticked = function () {
+                    return boxes().filter(function (i) { return i.checked; })
+                                  .map(function (i) { return i.name; }).sort().join(' ');
+                };
+                const refresh = function () {
+                    const now = ticked();
+                    let matched = false;
+                    for (const b of presetBtns) {
+                        const on = keysOf(b).slice().sort().join(' ') === now;
+                        if (on) matched = true;
+                        b.classList.toggle('on', on);
+                    }
+                    customChip.classList.toggle('on', !matched);
+                };
+                for (const b of presetBtns) {
+                    b.addEventListener('click', function () {
+                        const want = keysOf(b);
+                        for (const i of boxes()) i.checked = want.indexOf(i.name) >= 0;
+                        refresh();
+                    });
+                }
+                for (const i of boxes()) i.addEventListener('change', refresh);
+                refresh();   // reflect only -- reads state, writes no checkbox
+            }
+
             // The landing section is decided ON THE DEVICE and arrives in the markup
             // (body[data-start]), not computed here: a first-run customer with no
             // location set must land on Location & Radar, and doing that in JS would
@@ -1240,7 +1257,7 @@ R"(
             // the moment somebody decides the page is broken. A #hash still wins, so
             // links into a section keep working.
             const startFromHash = (location.hash || '').replace('#', '');
-            const valid = ['collection', 'location', 'network', 'about'];
+            const valid = ['location', 'display', 'labels', 'alerts', 'follow', 'network', 'collection', 'about'];
             showSection(valid.indexOf(startFromHash) >= 0 ? startFromHash
                         : (document.body.dataset.start || 'collection'));
         </script>
@@ -1258,7 +1275,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope EAM</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(17,24,39)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(34,197,94)' stroke-width='1'/><circle cx='8' cy='8' r='1.7' fill='rgb(34,197,94)'/></svg>">
-        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#16a34a;--btn:#22c55e}</style>
+        <style>:root{--ink:#22c55e;--line:#22c55e;--dim:#7f9e91;--btn:#22c55e;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1420,7 +1437,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Spacescope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,12,28)'/><circle cx='8' cy='8' r='2' fill='rgb(120,200,255)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(120,200,255)' stroke-width='0.8'/><circle cx='13' cy='4' r='1' fill='rgb(255,255,255)'/></svg>">
-        <style>:root{--ink:#7dd3fc;--line:#38bdf8;--dim:#0284c7;--btn:#38bdf8}</style>
+        <style>:root{--ink:#7dd3fc;--line:#38bdf8;--dim:#7fa8bd;--btn:#38bdf8;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1520,7 +1537,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Seismic</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(24,14,4)'/><path d='M1 8 L4 8 L5 3 L7 13 L9 6 L10.5 8 L15 8' fill='none' stroke='rgb(255,170,0)' stroke-width='1.2'/></svg>">
-        <style>:root{--ink:#fcd34d;--line:#fbbf24;--dim:#d97706;--btn:#fbbf24}</style>
+        <style>:root{--ink:#fcd34d;--line:#fbbf24;--dim:#d97706;--btn:#fbbf24;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1624,7 +1641,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Blipscope Birding</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,20,8)'/><circle cx='6.5' cy='7' r='3' fill='rgb(150,220,130)'/><circle cx='7.5' cy='6.2' r='0.7' fill='rgb(8,20,8)'/><path d='M9 7 L13 6 L10 8 Z' fill='rgb(255,215,90)'/></svg>">
-        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#16a34a;--btn:#4ade80}</style>
+        <style>:root{--ink:#86efac;--line:#22c55e;--dim:#7f9e91;--btn:#4ade80;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1735,7 +1752,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Reelscope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(4,16,22)'/><path d='M2 8 Q5 4 9 8 Q5 12 2 8 Z' fill='rgb(120,220,255)'/><circle cx='4' cy='7.4' r='0.6' fill='rgb(4,16,22)'/><path d='M9 8 L13 5 L12 8 L13 11 Z' fill='rgb(120,230,140)'/></svg>">
-        <style>:root{--ink:#a5f3fc;--line:#06b6d4;--dim:#0891b2;--btn:#22d3ee}</style>
+        <style>:root{--ink:#a5f3fc;--line:#06b6d4;--dim:#0891b2;--btn:#22d3ee;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -1934,7 +1951,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Claudescope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(28,18,12)'/><g stroke='rgb(217,119,87)' stroke-width='1.4' stroke-linecap='round'><path d='M8 3 L8 13'/><path d='M3.7 5.5 L12.3 10.5'/><path d='M3.7 10.5 L12.3 5.5'/></g></svg>">
-        <style>:root{--ink:#fed7aa;--line:#fb923c;--dim:#ea580c;--btn:#fb923c}</style>
+        <style>:root{--ink:#fed7aa;--line:#fb923c;--dim:#ea580c;--btn:#fb923c;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>
@@ -2025,7 +2042,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Configure Speedscope</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(20,14,2)'/><path d='M2 12 A6 6 0 0 1 14 12' fill='none' stroke='rgb(255,176,40)' stroke-width='1.4'/><line x1='8' y1='12' x2='12' y2='6' stroke='rgb(255,60,40)' stroke-width='1.4'/><circle cx='8' cy='12' r='1' fill='rgb(255,176,40)'/></svg>">
-        <style>:root{--ink:#fde68a;--line:#f59e0b;--dim:#d97706;--btn:#fbbf24}</style>
+        <style>:root{--ink:#fde68a;--line:#f59e0b;--dim:#d97706;--btn:#fbbf24;--text:#e6edea}</style>
 )" CONFIG_SHELL_CSS R"(
     </head>
     <body>

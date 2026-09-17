@@ -164,6 +164,111 @@ def source_pages() -> list[tuple[str, str]]:
     return pages
 
 
+# ---------------------------------------------------------------------------
+# THE SECTION VOCABULARY: four writers, one set of names.
+#
+# showSection(name) turns a section on by matching `name` against data-sec. It
+# establishes that a name was REQUESTED; it establishes nothing about whether any
+# section CARRIES it. Four independent places produce names that reach it:
+#
+#   1. C++   startSection -> %START_SECTION% -> body[data-start]   (the landing tab)
+#   2. HTML  data-sec="..."                                        (what exists)
+#   3. HTML  data-go="..."                                         (the nav buttons)
+#   4. JS    const valid = [...]                                   (what a #hash may name)
+#   5. JS    const FALLBACK_SECTION = '...'                        (where a miss lands)
+#
+# The count is deliberately not written as a number below. It was four until the
+# runtime fallback needed a preferred group, which made it five in the same
+# commit that introduced it.
+#
+# Rename a group in one and the others keep compiling, keep passing, and keep
+# looking right in the editor. The worst case is silent and lands on the worst
+# customer: a FIRST-RUN device has no location, so startSection is the "no
+# location" literal, and if that name matches nothing every section is toggled
+# off and the page renders BLANK on first boot.
+#
+# This is the "second path" family -- a guard that runs on every path and checks
+# a narrower question than its name suggests. The fix is not a comment next to
+# the literal; it is this, which fails CI.
+SEC_ATTR_RE = re.compile(r"""\bdata-sec\s*=\s*['"]([^'"]*)['"]""", re.I)
+GO_ATTR_RE = re.compile(r"""\bdata-go\s*=\s*['"]([^'"]*)['"]""", re.I)
+START_ATTR_RE = re.compile(r"""\bdata-start\s*=\s*['"]([^'"]*)['"]""", re.I)
+VALID_ARR_RE = re.compile(r"""\bvalid\s*=\s*\[([^\]]*)\]""")
+FALLBACK_RE = re.compile(r"""\bFALLBACK_SECTION\s*=\s*['"]([^'"]*)['"]""")
+STR_LIT_RE = re.compile(r"""['"]([A-Za-z0-9_.-]+)['"]""")
+# Only ASSIGNMENTS. `return startSection;` and a lambda capture list both mention
+# the name and neither decides its value -- matching those would drag in whatever
+# string literals happened to sit before the next semicolon.
+ASSIGN_RE = re.compile(r"\bstartSection\s*=\s*([^;]*);")
+
+
+def start_section_literals(text: str) -> list[str]:
+    """Every string literal that can reach %START_SECTION%.
+
+    Returns [] if it cannot find an assignment at all -- the caller must treat
+    that as REFUSE, never as pass. "Found no bad names" and "could not look" are
+    the same output otherwise, and the second is the likelier shape of a broken
+    probe.
+    """
+    lits: list[str] = []
+    for m in ASSIGN_RE.finditer(text):
+        lits += STR_LIT_RE.findall(m.group(1))
+    return lits
+
+
+def check_section_vocabulary(html: str, start_names: list[str], label: str) -> list[str]:
+    problems: list[str] = []
+    if not START_ATTR_RE.search(html):
+        return problems  # this edition has no nav/landing machinery at all
+
+    groups: set[str] = set()
+    for m in SEC_ATTR_RE.finditer(html):
+        groups.update(m.group(1).split())
+    gos = {m.group(1).strip() for m in GO_ATTR_RE.finditer(html) if m.group(1).strip()}
+
+    if not groups:
+        problems.append(
+            "this page sets data-start but carries NO data-sec section, so "
+            "showSection() turns every section off and the page renders blank."
+        )
+        return problems
+
+    for n in sorted(set(start_names)):
+        if n not in groups:
+            problems.append(
+                f'the landing section can be "{n}", which no data-sec carries. '
+                f"A device that picks it renders a BLANK page. Sections are: "
+                f"{sorted(groups)}"
+            )
+    for n in sorted(gos):
+        if n not in groups:
+            problems.append(f'nav button data-go="{n}" matches no data-sec -- tapping it blanks the page')
+    for n in sorted(groups):
+        if n not in gos:
+            problems.append(f'section group "{n}" has no nav button, so nothing can reach it')
+
+    fm = FALLBACK_RE.search(html)
+    if fm and fm.group(1) not in groups:
+        # Lower severity than the others on purpose: a stale fallback name
+        # degrades to the first nav group rather than blanking. Still an error --
+        # the whole point is that these names do not drift apart silently.
+        problems.append(
+            f'the runtime fallback prefers "{fm.group(1)}", which no data-sec '
+            f"carries, so a miss lands on the first tab instead"
+        )
+
+    vm = VALID_ARR_RE.search(html)
+    if vm:
+        valid = STR_LIT_RE.findall(vm.group(1))
+        for n in valid:
+            if n not in groups:
+                problems.append(f'the #hash allow-list names "{n}", which no data-sec carries')
+        for n in sorted(gos):
+            if n not in valid:
+                problems.append(f'nav group "{n}" is missing from the #hash allow-list, so #{n} silently does nothing')
+    return problems
+
+
 # A checker that has never failed is not a checker; it is a comment that costs
 # CPU. Each case below is a real way the sidebar could break the whole-form POST,
 # and the self-test asserts the rule fires rather than that the page passes.
@@ -228,6 +333,43 @@ SELFTEST_OK = [
 ]
 
 
+
+# The vocabulary rule gets its own cases: it spans FOUR writers, and each one is a
+# separate way to render the page blank. Every case below is a rename that
+# compiles, passes every other check, and looks right in the editor.
+SELFTEST_VOCAB = [
+    ("landing section names a group nothing carries (BLANK on first boot)",
+     ["collection", "display"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\'];</script></body>', "renders a BLANK page"),
+    ("nav button points at no section",
+     ["collection"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button><button class="navb" data-go="alerts">A</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\',\'alerts\'];</script></body>', "blanks the page"),
+    ("section group no nav button can reach",
+     ["collection"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\'];</script></body>', "has no nav button"),
+    ("#hash allow-list names a group nothing carries",
+     ["collection"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\',\'follow\'];</script></body>', "allow-list names"),
+    ("nav group missing from the #hash allow-list",
+     ["collection"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\'];</script></body>', "missing from the #hash allow-list"),
+    ("runtime fallback prefers a group nothing carries",
+     ["collection"],
+     '<body data-start="%START_SECTION%"><nav class="side">'
+     '<button class="navb" data-go="collection">C</button></nav>'
+     '<section class="sec" data-sec="collection"></section>'
+     "<script>const FALLBACK_SECTION = 'location';"
+     "const valid = ['collection'];</script></body>",
+     "runtime fallback prefers"),
+    ("data-start set but the page carries no sections at all",
+     ["collection"], '<body data-start="%START_SECTION%"><nav class="side"></nav></body>',
+     "renders blank"),
+]
+
+SELFTEST_VOCAB_OK = [
+    ("every vocabulary agrees", ["collection", "location"], '<body data-start="%START_SECTION%"><nav class="side"><button class="navb" data-go="collection">C</button><button class="navb" data-go="location">L</button></nav><section class="sec" data-sec="collection"></section><section class="sec" data-sec="location"></section><script>const valid = [\'collection\',\'location\'];</script></body>'),
+    # An edition with no nav at all must not be flagged -- EAM/Space/Seismic and
+    # friends have single-screen forms and no landing machinery. If this starts
+    # failing, the rule has grown teeth it was never meant to have.
+    ("an edition with no data-start is none of this rule's business",
+     ["collection"], '<body><input name="lat"></body>'),
+]
+
 def selftest() -> int:
     bad = 0
     for label, html, expect in SELFTEST:
@@ -243,6 +385,26 @@ def selftest() -> int:
         if problems:
             bad += 1
             print(f"        expected no problems, got: {problems}")
+    for label, starts, html, expect in SELFTEST_VOCAB:
+        problems = check_section_vocabulary(html, starts, label)
+        hit = any(expect in p for p in problems)
+        print(f"{'ok  ' if hit else 'FAIL'}  detects: {label}")
+        if not hit:
+            bad += 1
+            print(f"        expected a problem containing {expect!r}, got: {problems}")
+    for label, starts, html in SELFTEST_VOCAB_OK:
+        problems = check_section_vocabulary(html, starts, label)
+        print(f"{'ok  ' if not problems else 'FAIL'}  allows: {label}")
+        if problems:
+            bad += 1
+            print(f"        expected no problems, got: {problems}")
+    # The extractor must be able to REFUSE. A source with no assignment has to
+    # come back empty so main() can exit 2 rather than certify nothing.
+    blind = start_section_literals("int main() { return 0; }")
+    print(f"{'ok  ' if not blind else 'FAIL'}  refuses: no startSection assignment yields no literals")
+    if blind:
+        bad += 1
+
     print()
     print("self-test PASSED" if not bad else f"self-test FAILED ({bad} case(s))")
     return 1 if bad else 0
@@ -269,10 +431,31 @@ def main() -> int:
             print("no CONFIG_HTML literals found -- has the file moved?", file=sys.stderr)
             return 2
 
+    # The section vocabulary spans the C++ side too, which is not inside any
+    # CONFIG_HTML literal -- so it is read here rather than inside check().
+    if rendered:
+        starts = []          # taken per page from the rendered data-start below
+    else:
+        cpp_text = open(SRC, encoding="utf-8", errors="replace").read()
+        starts = start_section_literals(cpp_text)
+        if not starts:
+            print(
+                "could not find a startSection assignment in %s -- REFUSING to "
+                "certify the section vocabulary. This is not a pass: 'found no bad "
+                "names' and 'could not look' produce the same output otherwise."
+                % SRC,
+                file=sys.stderr,
+            )
+            return 2
+
     failed = 0
     total = 0
     for label, html in pages:
-        problems = check(html, label, rendered)
+        page_starts = starts
+        if rendered:
+            m = START_ATTR_RE.search(html)
+            page_starts = [m.group(1)] if m else []
+        problems = check(html, label, rendered) + check_section_vocabulary(html, page_starts, label)
         total += len(html)
         # The size goes in the normal output so the trend is visible in every CI
         # run rather than measured by hand when someone gets suspicious. Each page
@@ -290,9 +473,10 @@ def main() -> int:
     print()
     print(f"CONFIG_HTML total: {total:,} B of flash across {len(pages)} page(s)")
     if failed:
-        print(f"{failed} of {len(pages)} page(s) violate the single-whole-form rule.")
+        print(f"{failed} of {len(pages)} page(s) FAILED -- see each '-' line above.")
+        print("The rule is either the single-whole-form POST or the section vocabulary.")
         return 1
-    print(f"all {len(pages)} page(s) hold the single-whole-form invariants.")
+    print(f"all {len(pages)} page(s) hold the whole-form + section-vocabulary invariants.")
     return 0
 
 

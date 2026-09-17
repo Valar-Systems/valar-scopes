@@ -619,6 +619,20 @@ private:
     struct PerfWindow {
         uint32_t polls = 0;              // completed position fetches
         uint32_t enrichReqs = 0;         // enrichment requests issued
+        // OUTCOMES, not attempts. enrichReqs answers "did we ask"; on 2026-09-16
+        // an empty detail card could not be diagnosed because nothing answered
+        // "what came back". enrichNonIcao needs no request at all, which is why
+        // it is counted here and not derived from enrichReqs.
+        uint32_t enrichOk = 0;           // returned usable fields
+        uint32_t enrichEmpty = 0;        // returned nothing; stopped asking
+        uint32_t enrichNonIcao = 0;      // settled offline, never asked
+        // THE NUMERATOR. enrichNonIcao is the denominator: of the contacts we
+        // refuse to look up, how many broadcast a tail we COULD look up by?
+        // That ratio decides whether enrich-by-registration is worth building,
+        // and nothing measured it -- so it ships before the feature, and the
+        // feature reuses the same predicate so the two cannot disagree.
+        uint32_t enrichNonIcaoTail = 0;  // ... of which the callsign is a tail number
+        uint32_t enrichCached = 0;       // served from the LRU, no request
         unsigned long fetchBusyMs = 0;   // wall time inside position fetches
         unsigned long enrichBusyMs = 0;  // wall time inside enrichment requests
         unsigned long parseMs = 0;       // of fetchBusyMs, time consuming the body
@@ -1009,7 +1023,22 @@ private:
                             float acTrack = 0.0f, bool hasTrack = false);
     // Apply one enrichment payload to a tracked aircraft (shared by the network
     // result and the LRU-cache hit paths); notes the logbook like adsbdb did.
-    void ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e);
+    // WHY THE OUTCOME IS A PARAMETER AND NOT DERIVED FROM `e`.
+    // Two of the call sites pass an all-empty Enrichment for completely
+    // different reasons -- a non-ICAO track ID settled offline without ever
+    // asking, and a real request that came back empty three times -- and those
+    // are the two states this counter exists to tell apart. Deriving the
+    // outcome from the payload would make them identical again, which is the
+    // whole defect. Mandatory, so a future call site cannot quietly skip it:
+    // the compiler refuses rather than the count silently under-reporting.
+    enum class EnrichOutcome : uint8_t {
+        Ok,       // a request returned usable fields
+        Empty,    // a request returned nothing, and we stopped asking
+        NonIcao,  // settled offline: a TIS-B/ADS-R track id no registry holds
+        Cached,   // served from the LRU -- no request was issued
+    };
+    void ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e,
+                         EnrichOutcome outcome);
     // Background-enrichment gate for the current cloud enrich level: Full = any
     // aircraft, Watchlist = only watchlist-prefix matches on hex/callsign (the
     // fields available pre-enrichment), Off = none.

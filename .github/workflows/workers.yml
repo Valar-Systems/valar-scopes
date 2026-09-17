@@ -18,6 +18,36 @@ on:
     paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml"]
 
 jobs:
+  # The published photo manifest and the repo's manifest.json must name the same
+  # photos. On 2026-09-16 they did not: the repo said 237, production said 238,
+  # and the live credits page credited a photograph no device could fetch,
+  # because nothing anywhere compared the two. This is that comparison.
+  #
+  # READ-ONLY -- two KV gets. It is a separate job rather than a step in `test`
+  # so a network or credential problem reads as "the drift check could not run"
+  # instead of "the Worker suite failed", which are different facts.
+  manifest-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # SKIPPED LOUDLY, NEVER SILENTLY, when the token is absent -- a PR from a
+      # fork gets no secrets, and a check that quietly passes in that case is
+      # worse than one that is not there, because the green is read as an answer.
+      # Same pattern as refresh-data.yml.
+      - name: repo manifest vs published manifest
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning title=manifest drift not checked::CLOUDFLARE_API_TOKEN is not set, so the repo manifest was NOT compared against production."
+            echo '`CLOUDFLARE_API_TOKEN` is missing, so the photo manifest drift check did not run.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python proxy/scripts/check-manifest-drift.py
+
   test:
     runs-on: ubuntu-latest
     strategy:
