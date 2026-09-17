@@ -19,6 +19,7 @@
 #include <cstring>
 #include <initializer_list>
 #include "../../include/CardCopy.h"
+#include "../../include/DiscGeometry.h"
 
 static int failures = 0;
 
@@ -99,6 +100,34 @@ int main()
             }
         }
         check(true, "every case returns a count within the buffer");
+    }
+
+    // --- EVERY LINE MUST FIT, or line() drops it and nobody is told -------
+    //
+    // Two assertions, because one is not enough. The first checks the copy
+    // against MAX_CHARS. The second checks MAX_CHARS against the actual disc,
+    // using the same ChordWidthPx the renderer uses -- otherwise a constant
+    // copied from a measurement drifts as the geometry moves and the first
+    // assertion quietly starts comparing the copy to a fiction.
+    {
+        const int avail = discgeom::ChordWidthPx(cardcopy::ROW_Y, cardcopy::LINE_H, 240);
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "MAX_CHARS=%d costs %d px; the chord at y=%d is %d px",
+                 cardcopy::MAX_CHARS, cardcopy::MAX_CHARS * cardcopy::CHAR_W,
+                 cardcopy::ROW_Y, avail);
+        check(cardcopy::MAX_CHARS * cardcopy::CHAR_W <= avail, msg);
+
+        for (cardcopy::Absence a : { cardcopy::Absence::Relayed,
+                                     cardcopy::Absence::NotFound }) {
+            const char* buf[cardcopy::MAX_LINES];
+            const int n = cardcopy::Lines(a, buf);
+            for (int i = 0; i < n; ++i) {
+                const int len = (int)std::strlen(buf[i]);
+                snprintf(msg, sizeof(msg), "fits (%2d of %d chars)", len, cardcopy::MAX_CHARS);
+                check(len <= cardcopy::MAX_CHARS, msg);
+            }
+        }
     }
 
     printf(failures ? "\ncard copy: %d FAILURE(S)\n" : "\ncard copy: all good\n", failures);

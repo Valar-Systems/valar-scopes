@@ -46,6 +46,26 @@ enum class Absence : uint8_t {
 /// The most lines any absence explains itself in.
 constexpr int MAX_LINES = 4;
 
+/* ---- HOW LONG A LINE MAY BE, and why this is a constant rather than a habit.
+ *
+ * The card's line() DROPS anything that will not fit, silently and by design --
+ * dropping beats truncating, because a cut word is a wrong word. The cost is
+ * that an over-long string does not look wrong in the source, does not warn,
+ * and does not appear. A forty-five character first line was written for this
+ * very feature and would have vanished without a trace.
+ *
+ * So the limit is stated here beside the strings, and the host test asserts BOTH
+ * halves: that every string fits MAX_CHARS, and that MAX_CHARS itself still fits
+ * the disc. The second half matters because a number copied from a measurement
+ * goes stale the moment the geometry moves, and then the first half is checking
+ * the copy against a fiction.
+ */
+constexpr int CHAR_W    = 6;    ///< advance per character at card text size
+constexpr int LINE_H    = 10;   ///< card line height, for the chord lookup
+constexpr int ROW_Y     = 160;  ///< the LOWEST row this block realistically reaches;
+                                ///< the chord is narrowest there, so it decides
+constexpr int MAX_CHARS = 33;
+
 /// Fill `out` with up to MAX_LINES short lines, most important first, and
 /// return how many. Returns 0 for Absence::None -- an aircraft with a type and
 /// an operator needs no explanation, and adding one would be noise on the
