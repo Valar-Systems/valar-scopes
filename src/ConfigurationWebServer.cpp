@@ -376,8 +376,9 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
                font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem}
           h1{font-size:1.1rem;margin:0 0 .2rem;color:#22c55e}
           p{margin:.2rem 0 1rem;color:#7f9e91;font-size:.85rem;max-width:34rem}
-          canvas{display:block;width:100%;max-width:320px;height:auto;
+          canvas,img{display:block;width:100%;max-width:320px;height:auto;
                  image-rendering:pixelated;border:1px solid #22c55e;border-radius:50%}
+          #hint{font-size:.8rem;color:#7f9e91;margin:.5rem 0 0}
           .row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.9rem}
           button{font:inherit;color:#e6edea;background:transparent;border:1px solid #22c55e;
                  padding:.45rem .8rem;border-radius:999px;cursor:pointer}
@@ -388,12 +389,23 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
         <h1>Blipscope screen</h1>
         <p>A copy of what the device is showing right now. Save or screenshot this
            and send it to support.</p>
-        <canvas id="c" width="240" height="240"></canvas>
+        <!-- THE IMAGE IS WHAT A PHONE CAN SAVE. A canvas long-presses to
+             nothing, and the Save button hits Chrome's "Insecure download
+             blocked" on an http origin -- reported from a real phone. An <img>
+             with a data: URL needs no download event at all, so long-press
+             offers "Save to Photos" with no warning.
+
+             The canvas still does the decoding; it is simply not displayed. -->
+        <canvas id="c" width="240" height="240" hidden></canvas>
+        <img id="shot" alt="the device screen" width="240" height="240">
         <div class="row">
             <button id="again" type="button">Refresh</button>
             <button id="save" type="button">Save image</button>
             <span id="note">loading&hellip;</span>
         </div>
+        <p id="hint">On a phone: press and hold the picture, then Save to Photos.
+           The button below is for a desktop browser &mdash; it may ask you to
+           confirm, so tap Keep.</p>
         <script>
         const cv = document.getElementById('c');
         const note = document.getElementById('note');
@@ -433,6 +445,10 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
                 img.data[p + 3] = 255;
             }
             ctx.putImageData(img, 0, 0);
+            // toDataURL, not toBlob: a blob: URL still behaves like a download
+            // when saved, which is the thing being avoided. A data: URL is just
+            // an image as far as the long-press menu is concerned.
+            document.getElementById('shot').src = cv.toDataURL('image/png');
             note.textContent = w + '×' + h + (torn ? ' — torn (caught mid-redraw)' : '');
         }
         // SAVE, because "screenshot this" is one more step than it sounds on a
@@ -1043,7 +1059,7 @@ R"(
                          is. Named here rather than kept for the bench, because the
                          three display faults that prompted it were all reported by
                          customers. -->
-                    <span class="hint mt">Screen copy: <a href="/diag/fb.html">%DEVICE_NAME%.local/diag/fb.html</a> shows exactly what the device is displaying. Support may ask you to open it and send a screenshot.</span>
+                    <span class="hint mt">Screen copy: <a href="/diag/fb.html">%DEVICE_NAME%.local/diag/fb.html</a> shows exactly what the device is displaying. Press and hold the picture to save it, then send it to support.</span>
                     <div class="foot mt">
                         <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
                         %CREDITS_LINK%
