@@ -3620,6 +3620,21 @@ void ConfigurationWebServer::Initialise() {
             // Rebuilt wholesale from the checkboxes, so it carries the same
             // partial-POST hazard as the toggles: without the whole form this
             // would collapse the screen list to "clock". Guarded the same way.
+            //
+            // DECLARED HERE, IN THE ONLY BRANCH THAT USES IT. #286 replaced the
+            // toggle mechanism this flag used to serve, converted the radar
+            // path's two uses, and left this one referencing a variable that no
+            // longer existed -- so every edition compiled except Space, and the
+            // only build that compiles every edition is a release. It went
+            // unseen from 2026-08-31 until the v12 tag, with a red leg on every
+            // push run to main in between that nothing read.
+            //
+            // NOT haveVocab, which is the nearest variable in scope and would
+            // have compiled: that answers "which toggles does this page know
+            // about" and is appended by JS. This asks "whole form or fragment",
+            // and every edition page posts the hidden cfg-form input including
+            // a JS-less one, which sends no cfg-toggles at all.
+            const bool wholeForm = request->hasParam("cfg-form", true);
             if (wholeForm)
                 prefs.putString("space-screens", csv.isEmpty() ? String("clock") : csv);
         }

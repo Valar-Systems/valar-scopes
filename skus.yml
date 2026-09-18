@@ -1,0 +1,64 @@
+# THE ONE PLACE A LEG'S STATUS IS DECLARED.
+#
+# WHY THIS FILE EXISTS. On 2026-09-17 the v12 release matrix carried ten
+# publishing slugs. Nine of them named hardware no customer owns. One of those
+# nine -- Orbitscope on a 1.46" panel -- failed to compile, so its launch-gate
+# receipt was never written, so the publish gate correctly refused to advance
+# version.txt, so `releases/latest/download/version.txt` returned 404 and EVERY
+# DEVICE IN THE FLEET lost OTA discovery. A product that does not exist took the
+# fleet's update channel down.
+#
+# The gate was right. The coupling was wrong: a leg that publishes nothing must
+# not be able to withhold publication, and a leg that publishes a binary earns
+# that power only because a customer can actually be running it.
+#
+# THE RULE, AND IT IS ENFORCED RATHER THAN DOCUMENTED:
+#
+#   status: shipping    MUST carry a slug. CI attaches firmware-<slug>.bin, a
+#                       device can request it, and if this leg fails its gate
+#                       the fleet's version.txt does NOT advance.
+#
+#   status: build-only  MUST NOT carry a slug. Compiled on every run so the tree
+#                       cannot rot, publishes no asset, and CANNOT withhold
+#                       version.txt however badly it fails.
+#
+# `scripts/skus.py --validate` refuses a build-only row with a slug and a
+# shipping row without one. It runs in CI before anything is built, so the
+# contradiction is a build error rather than a silent re-arming of a
+# fleet-blocking leg.
+#
+# PROMOTING A SKU IS DELIBERATE AND VISIBLE: change `status` here, add the slug,
+# and the diff says plainly that a new leg can now hold the fleet's updates
+# hostage. That is the sentence somebody should have to read.
+#
+# The workflow matrix, scripts/check_release_envs.mjs and
+# scripts/check-publish-receipts.sh all derive from this file. There is no
+# second list.
+
+skus:
+  # ---- SHIPPING ------------------------------------------------------------
+  # A customer can buy this today and a device in the field runs it.
+  - { env: blipscope-s3-128, status: shipping, slug: s3-128 }
+
+  # ---- BUILD-ONLY ----------------------------------------------------------
+  # Compiled so the tree does not rot. No slug, no asset, no fleet, no veto.
+  #
+  # Pro 2.1 is build-only PENDING A DECISION, not because it is known not to
+  # ship. When it ships, this row gains `status: shipping` and a slug.
+  - { env: blipscope-pro-s3-21, status: build-only }
+
+  # Every 1.46" panel row. The panel does not exist as a product, so nothing
+  # below can be in anyone's hands.
+  - { env: blipscope-s3-146, status: build-only }
+  - { env: missileer-s3-146, status: build-only }
+  - { env: orbitscope-s3-146, status: build-only }
+  - { env: quakescope-s3-146, status: build-only }
+  - { env: quillscope-s3-146, status: build-only }
+  - { env: reelscope-s3-146, status: build-only }
+  - { env: claudescope-s3-146, status: build-only }
+  - { env: speedscope-s3-146, status: build-only }
+
+  # Bring-up and harness envs. Never had slugs; listed so the matrix has one
+  # source rather than this file plus a remainder hidden in the workflow.
+  - { env: blipscope-pro-s3-175-amoled, status: build-only }
+  - { env: animtest-s3-128, status: build-only }

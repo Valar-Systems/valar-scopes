@@ -151,75 +151,42 @@ jobs:
       - name: Prove the publish-receipt gate, both directions
         run: bash scripts/check-publish-receipts.sh --selftest
 
+  # ---------------------------------------------------------------------------
+  # skus.yml is the one place a leg's status is declared. Validated here, BEFORE
+  # anything is compiled, so a contradiction -- a build-only leg carrying a slug,
+  # a shipping leg without one -- stops the run immediately instead of surfacing
+  # as a mystery at publish time.
+  skus:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      # The validator's own selftest runs FIRST, and its failure is a RIG
+      # failure: a checker that cannot refuse is indistinguishable from a file
+      # that is correct.
+      - name: The validator must be able to refuse
+        run: python3 scripts/skus.py --selftest
+      - name: Validate skus.yml
+        run: python3 scripts/skus.py --validate
+      - id: gen
+        name: Emit the build matrix
+        run: echo "matrix=$(python3 scripts/skus.py --matrix-json)" >> "$GITHUB_OUTPUT"
+
   build:
     runs-on: ubuntu-latest
+    needs: skus
     strategy:
       fail-fast: false
-      matrix:
-        # One entry per SKU. `env` = PlatformIO env; `slug` MUST equal variant::SLUG in
-        # the variant header (it names the OTA asset). Add S3 SKUs here as they come online.
-        include:
-          - { env: blipscope-pro-s3-21,  slug: s3-21 }
-          - { env: blipscope-s3-146,     slug: s3-146 }
-          # FEATURE_EAM product (Missileer): same boards, EAM monitor firmware, own OTA channel
-          # (firmware-eam-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: missileer-s3-146, slug: eam-s3-146 }
-          # FEATURE_SPACE product (Orbitscope): same boards, own OTA channel
-          # (firmware-space-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: orbitscope-s3-146, slug: space-s3-146 }
-          # FEATURE_SEISMIC product (Quakescope): same boards, own OTA channel
-          # (firmware-seismic-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: quakescope-s3-146, slug: seismic-s3-146 }
-          # FEATURE_BIRDING product (Quillscope): same boards, own OTA channel
-          # (firmware-birding-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: quillscope-s3-146, slug: birding-s3-146 }
-          # FEATURE_FISHING product (Reelscope): same boards, own OTA channel
-          # (firmware-fishing-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: reelscope-s3-146, slug: fishing-s3-146 }
-          # FEATURE_CLAUDESCOPE product (Claudescope): same boards, own OTA channel
-          # (firmware-claudescope-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: claudescope-s3-146, slug: claudescope-s3-146 }
-          # FEATURE_SPEED product (Speedscope, MiniSpeedCam companion): same boards, own OTA
-          # channel (firmware-speed-<slug>.bin -- the slug must match FW_OTA_PREFIX + variant::SLUG).
-          - { env: speedscope-s3-146, slug: speed-s3-146 }
-          # Kit S3: row activated 2026-07-15, on the wedge gate passing -- two clean
-          # endurance runs (34 h 26 m / 38 h 35 m, zero device-attributed failures) and
-          # the OTA path proven twice end-to-end. Per-batch acceptance for this SKU's
-          # hardware lives in INCOMING-INSPECTION.md (the touch IC's factory config and
-          # the u.FL antenna build are both silent, per-batch substitution risks).
-          - { env: blipscope-s3-128, slug: s3-128 }
-          # ---- COMPILE-ONLY ROWS -------------------------------------------------
-          # A row with NO `slug` is built and scanned but publishes nothing: no
-          # firmware-<slug>.bin, no CI artifact, no release asset. It exists because
-          # "does it still compile" and "does it ship" are different questions, and
-          # only the second one needs a slug.
-          #
-          # The 1.75" AMOLED is here rather than in the published rows above because
-          # its variant header says, in capitals, that the pin map is UNVERIFIED
-          # against the board wiki -- so it must not be flashed, let alone published
-          # to an OTA channel. It also has no cloud feed, which check_release_envs
-          # would correctly reject if it were a publishing row.
-          #
-          # What being absent from CI cost: the env stopped compiling and nobody
-          # knew. It was found by hand, during a sweep that built all eleven images
-          # rather than the ten CI knew about, and the break had been introduced by
-          # the very change that sweep was checking. An env nothing builds is an env
-          # that rots silently, and this row is what stops that.
-          - { env: blipscope-pro-s3-175-amoled }
-          # The flight-animation harness. Slug-less, and added 2026-08-27 when the
-          # globe projection was extracted out of src/anim/ for Follow (§7.2).
-          #
-          # THE SAFETY NET THAT WAS ASSUMED TO COVER THIS DOES NOT. missileer-s3-146
-          # is in this matrix and builds green, but every EAM env applies
-          # ${filters.anim_off}, so src/anim/ IS NOT IN THE MISSILEER IMAGE AT ALL --
-          # confirmed by grepping its ELF for FlightAnimation/kCoast/GOLF-07 (all
-          # absent) against an anchor that is present. A refactor of the animation
-          # module could therefore break every env that actually contains it while
-          # the Missileer row stayed green, which is the same shape as the 1.75"
-          # AMOLED above: an env nothing builds is an env that rots silently.
-          #
-          # animtest-s3-128 is the only env that compiles AND renders src/anim/.
-          - { env: animtest-s3-128 }
+      # THE MATRIX IS skus.yml. It used to be an inline list here, and on
+      # 2026-09-17 nine of its ten rows carried slugs naming hardware no
+      # customer owns. One failed to compile, its receipt was never written, and
+      # the publish gate correctly withheld version.txt -- so the whole fleet
+      # lost OTA discovery over a product that does not exist.
+      #
+      # `slug` is still the discriminator every step below reads. It is simply
+      # no longer typed in two places that can disagree.
+      matrix: ${{ fromJSON(needs.skus.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -251,6 +218,27 @@ jobs:
           name: gatelogs-${{ matrix.env }}
           path: .pio/gatelogs/
           if-no-files-found: ignore
+      # A RED SHIPPING LEG HAS TO REACH A PERSON. A red BUILD-ONLY leg must not.
+      #
+      # `matrix.slug` is the discriminator, and it comes from skus.yml -- so a
+      # build-only leg cannot raise this however badly it fails, and nobody has
+      # to maintain a list of which legs are noisy. That distinction is the
+      # whole lesson of 2026-09-17: orbitscope was red on every push to main for
+      # weeks, GitHub emailed about it every time, and the alerts trained
+      # everyone to read past a failing matrix.
+      - name: Mark that a SHIPPING leg failed
+        if: failure() && matrix.slug
+        run: |
+          mkdir -p shipfail
+          echo "${{ matrix.env }} (${{ matrix.slug }}) failed on ${{ github.sha }}" \
+            > "shipfail/${{ matrix.slug }}"
+      - name: Upload the shipping-failure marker
+        if: failure() && matrix.slug
+        uses: actions/upload-artifact@v4
+        with:
+          name: shipfail-${{ matrix.slug }}
+          path: shipfail/
+          retention-days: 7
       # Everything below publishes, so everything below is skipped on a
       # compile-only row.
       - name: Name binary by slug
@@ -291,6 +279,52 @@ jobs:
         with:
           name: pubok-${{ matrix.slug }}
           path: receipts/${{ matrix.slug }}
+
+  # ---------------------------------------------------------------------------
+  # A SHIPPING LEG WENT RED ON main. Tell somebody.
+  #
+  # Scoped to push-on-main deliberately: a release failure already stops
+  # version.txt and is loud by construction, whereas a push failure is the one
+  # that sits unread for weeks. This is the reader the ledger keeps asking for --
+  # an instrument nobody reads is worth less than none, because the green beside
+  # it vouches for the thing it cannot see.
+  ship-alert:
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shipfail-*
+          merge-multiple: true
+          path: shipfail
+        continue-on-error: true
+      - name: Notify if a shipping SKU is broken on main
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          shopt -s nullglob
+          legs=(shipfail/*)
+          if [ ${#legs[@]} -eq 0 ]; then
+            echo "No shipping leg failed. (Build-only legs are deliberately silent.)"
+            exit 0
+          fi
+          body="Blipscope: a SHIPPING SKU is broken on main."
+          for f in "${legs[@]}"; do body="$body"$'\n'"$(cat "$f")"; done
+          body="$body"$'\n'"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          echo "$body"
+          # A MISSING TOPIC MUST BE LOUD. Silently not alerting is the exact
+          # failure this job exists to end, so an unset secret fails the job
+          # rather than letting the run go green with nobody told.
+          if [ -z "${NTFY_TOPIC:-}" ]; then
+            echo "::error::A shipping SKU failed and NTFY_TOPIC is not set, so nobody was told." >&2
+            exit 1
+          fi
+          curl -sS --fail -H "Title: Blipscope shipping SKU red on main" \
+               -H "Priority: high" -H "Tags: rotating_light" \
+               -d "$body" "https://ntfy.sh/$NTFY_TOPIC"
+          echo "alert sent"
+          exit 1   # the run stays red: the leg really is broken
 
   version:
     # Publish the shared version gate once per release -- but ONLY once every
