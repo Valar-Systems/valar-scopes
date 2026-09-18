@@ -40,12 +40,34 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
-MATRIX=".github/workflows/firmware.yml"
+# Named only for the messages below: the shipping set comes from skus.py.
+MATRIX="skus.yml"
 
 # A FLOOR, not a transcribed list. A parser returning zero slugs would make this
 # check vacuously pass -- the same failure mode that let the square-photo probe
 # report an empty library as healthy.
-MIN_PUBLISHED_SLUGS=8
+# WHICH LEGS MUST PUBLISH: asked of skus.yml, through its own parser.
+#
+# This was an inline list here for about an hour, and an inline list is the
+# thing skus.yml exists to abolish: a classification in two places is two
+# classifications, and the second is always the stale one. What stops a
+# build-only leg from regaining a slug is scripts/skus.py --validate, which
+# refuses that contradiction before anything is compiled.
+SKUS_PY="$(dirname "$0")/skus.py"
+if [ ! -f "$SKUS_PY" ]; then
+  echo "FATAL: scripts/skus.py is missing; the shipping set cannot be determined." >&2
+  exit 2
+fi
+PY_BIN=""
+for c in python3 python py; do
+  p="$(command -v "$c" 2>/dev/null)" || continue
+  [ -n "$p" ] || continue
+  if "$p" -c "pass" >/dev/null 2>&1; then PY_BIN="$p"; break; fi
+done
+if [ -z "$PY_BIN" ]; then
+  echo "FATAL: no working python; cannot read skus.yml." >&2
+  exit 2
+fi
 
 # The anchor: the default SKU's slug. A parse without it is not a parse of this
 # matrix, however many rows came back.
@@ -55,7 +77,9 @@ ANCHOR_SLUG="s3-128"
 # (the leading `-` is anchored). Rows with no `slug:` are excluded BY DESIGN --
 # that exclusion is the discriminator this whole script turns on.
 parse_matrix_slugs() {
-  sed -n 's/^[[:space:]]*-[[:space:]]*{[[:space:]]*env:[^,}]*,[[:space:]]*slug:[[:space:]]*\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*/\1/p' "$1"
+  # $1 is accepted and ignored: the shipping set lives in skus.yml now, and
+  # the signature is kept so the selftest below still reads as a unit test.
+  "$PY_BIN" "$SKUS_PY" --shipping-slugs
 }
 
 # Compare WHOLE LISTS, never a substring. A `case "$got" in *token*)` assertion
@@ -85,19 +109,16 @@ if [ "${1:-}" = "--selftest" ]; then
     printf '      - name: a step, not a row, mentioning env: foxtrot and slug: nope\n'
   } > "$tmp"
 
-  # alpha + echo publish; bravo is slug-less; charlie/delta are commented out;
-  # the step name is not a row at all.
-  want="s3-128 s3-21"
-  got="$(parse_matrix_slugs "$tmp" | join_ws)"
-  if [ "$got" = "$want" ]; then
-    printf '  PASS  fixture parses to exactly: %s\n' "$got"
+  # THE PARSER'S OWN SELFTEST, delegated rather than duplicated. skus.py proves
+  # it refuses a build-only leg with a slug, a shipping leg without one, a file
+  # that ships nothing, duplicates, and an unreadable row.
+  rm -f "$tmp"
+  if "$PY_BIN" "$SKUS_PY" --selftest >/dev/null 2>&1; then
+    printf '  PASS  skus.py validator selftest (it can refuse)\n'
   else
-    printf '  FAIL  fixture parse mismatch\n'
-    printf '          want: [%s]\n' "$want"
-    printf '          got:  [%s]\n' "$got"
+    printf '  FAIL  skus.py validator selftest did not pass -- this is the RIG\n'
     rc=1
   fi
-  rm -f "$tmp"
 
   # THE CONTROL THAT MATTERS: prove a missing receipt is DETECTED. A checker that
   # cannot fail is not evidence, and this failure direction is the one that stops
@@ -136,10 +157,10 @@ if [ "${1:-}" = "--selftest" ]; then
   real="$(parse_matrix_slugs "$MATRIX" | join_ws)"
   n=0
   for s in $real; do n=$((n + 1)); done
-  if [ "$n" -ge "$MIN_PUBLISHED_SLUGS" ]; then
-    printf '  PASS  %s parses to %d publishing slug(s), floor %d\n' "$MATRIX" "$n" "$MIN_PUBLISHED_SLUGS"
+  if [ -n "$real" ]; then
+    printf '  PASS  skus.yml ships exactly: %s\n' "$real"
   else
-    printf '  FAIL  parsed only %d publishing slug(s), floor %d\n' "$n" "$MIN_PUBLISHED_SLUGS"
+    printf '  FAIL  skus.yml yielded NO shipping slug; the gate would pass vacuously\n'
     rc=1
   fi
   case " $real " in
@@ -167,9 +188,10 @@ FLAT="$(printf '%s' "$SLUGS" | join_ws)"
 n=0
 for s in $SLUGS; do n=$((n + 1)); done
 
-if [ "$n" -lt "$MIN_PUBLISHED_SLUGS" ]; then
-  echo "FATAL: parsed only $n publishing slug(s) from $MATRIX, floor is $MIN_PUBLISHED_SLUGS." >&2
-  echo "       Whatever was parsed, it is not this project's build matrix." >&2
+if [ -z "$FLAT" ]; then
+  echo "FATAL: skus.yml yielded no shipping slug at all." >&2
+  echo "  With nothing expected, 'every shipping leg published' is vacuously true" >&2
+  echo "  and version.txt would advance for a release nothing certified." >&2
   exit 2
 fi
 

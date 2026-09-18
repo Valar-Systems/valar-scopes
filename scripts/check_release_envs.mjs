@@ -17,7 +17,7 @@
 //   3. Nothing tied the CI matrix to the flags. Two files had to agree and neither
 //      mentioned the other.
 //
-// WHAT IT ASSERTS, for every radar SKU in .github/workflows/firmware.yml:
+// WHAT IT ASSERTS, for every radar SKU declared in skus.yml:
 //   - FEATURE_CLOUD_FEED survives flag resolution (-D/-U, last one wins)
 //   - CLOUD_FEED_BASE resolves to the PRODUCTION host, never staging
 // Edition SKUs (Missileer/Orbitscope/...) are skipped: they are different products and
@@ -96,7 +96,7 @@ export function resolveMacro(flags, name) {
   return { defined, value };
 }
 
-// ---- firmware.yml matrix ----------------------------------------------------
+// ---- skus.yml, the one classification ----------------------------------------------------
 // Two kinds of row, and the difference is the whole contract:
 //
 //   { env: X, slug: Y }   PUBLISHED  -- CI names firmware-Y.bin and attaches it to
@@ -111,16 +111,23 @@ export function resolveMacro(flags, name) {
 // Compile-only rows are returned with `slug: null` rather than dropped, because a
 // row this parser cannot see is a row nothing checks -- including the "is it even
 // in platformio.ini" assertion below, which applies to both kinds.
+// READS skus.yml, NOT THE WORKFLOW. The workflow's matrix is now generated from
+// skus.yml (scripts/skus.py --matrix-json), so parsing the workflow would be
+// reading a derived artifact and would go blank the day the generation changes
+// shape. The classification lives in one file; this asks that file.
+//
+// Rows are { env, slug } exactly as before -- `slug: null` for build-only --
+// so everything downstream of this function is unchanged.
 export function matrixEnvs(yaml) {
-  return [...yaml.matchAll(/^\s*-\s*\{\s*env:\s*([A-Za-z0-9_-]+)\s*(,\s*slug:\s*([A-Za-z0-9_-]+))?/gm)]
-    .map((m) => ({ env: m[1], slug: m[3] ?? null }));
+  return [...yaml.matchAll(/^\s*-\s*\{\s*env:\s*([A-Za-z0-9_.-]+)\s*,\s*status:\s*([a-z-]+)\s*(?:,\s*slug:\s*([A-Za-z0-9_.-]+)\s*)?\}/gm)]
+    .map((m) => ({ env: m[1], status: m[2], slug: m[3] ?? null }));
 }
 
 export function check(iniText, yamlText) {
   const ini = parseIni(iniText);
   const problems = [];
   const rows = matrixEnvs(yamlText);
-  if (rows.length === 0) problems.push("no matrix rows found in firmware.yml -- the parser or the file changed shape");
+  if (rows.length === 0) problems.push("no rows found in skus.yml -- the parser or the file changed shape");
 
   // Two published rows sharing a slug is silent and serious: CI writes both to
   // firmware-<slug>.bin and `gh release upload --clobber` keeps whichever
@@ -169,7 +176,7 @@ export function check(iniText, yamlText) {
 
 // ---- selftest ---------------------------------------------------------------
 const GOOD_YAML = `        include:
-          - { env: blipscope-s3-128, slug: s3-128 }
+          - { env: blipscope-s3-128, status: shipping, slug: s3-128 }
 `;
 const GOOD_INI = `[common]
 build_flags = -DBASE
@@ -215,7 +222,7 @@ function selftest() {
     ["a later -U undefining the base is caught",
       GOOD_INI + "    -UCLOUD_FEED_BASE\n", GOOD_YAML, 1],
     ["a matrix env missing from platformio.ini is caught",
-      GOOD_INI, GOOD_YAML + "          - { env: ghost-s3-999, slug: s3-999 }\n", 1],
+      GOOD_INI, GOOD_YAML + "          - { env: ghost-s3-999, status: shipping, slug: s3-999 }\n", 1],
     // The shape platformio.ini actually uses: flags composed from ${section.option}
     // rather than written inline. A resolver that only expanded `.build_flags` saw no
     // cloud flags here and called the correct tree broken -- so both directions are
@@ -229,25 +236,25 @@ function selftest() {
     // by CI is to lie about its backend, which is worse than not building it.
     ["a compile-only row (no slug) is not required to carry a cloud feed",
       GOOD_INI.replace("    -DFEATURE_CLOUD_FEED\n", "").replace(/    -DCLOUD_FEED_BASE=.*\n/, ""),
-      `        include:\n          - { env: blipscope-s3-128 }\n`, 0],
+      `        include:\n          - { env: blipscope-s3-128, status: build-only }\n`, 0],
     // ...but it is still a row CI will try to build, so a typo in the env name is
     // caught for both kinds. This is the half that would go missing if the parser
     // simply skipped slug-less rows instead of returning them with slug: null.
     ["a compile-only row missing from platformio.ini is still caught",
-      GOOD_INI, `        include:\n          - { env: ghost-s3-999 }\n`, 1],
+      GOOD_INI, `        include:\n          - { env: ghost-s3-999, status: build-only }\n`, 1],
     // The published row and the compile-only row must not be confusable: give the
     // SAME env a slug and the cloud check comes back.
     ["adding a slug to that row brings the cloud check back",
       GOOD_INI.replace("    -DFEATURE_CLOUD_FEED\n", "").replace(/    -DCLOUD_FEED_BASE=.*\n/, ""),
-      `        include:\n          - { env: blipscope-s3-128, slug: s3-128 }\n`, 1],
+      `        include:\n          - { env: blipscope-s3-128, status: shipping, slug: s3-128 }\n`, 1],
     // ---- slug collisions ------------------------------------------------------
     ["two rows claiming the same slug is caught",
       GOOD_INI + `[env:blipscope-s3-146]\nextends = env:blipscope-s3-128\n`,
-      GOOD_YAML + `          - { env: blipscope-s3-146, slug: s3-128 }\n`, 1],
+      GOOD_YAML + `          - { env: blipscope-s3-146, status: shipping, slug: s3-128 }\n`, 1],
     // Compile-only rows have no slug, so any number of them must NOT collide.
     ["two compile-only rows do not collide with each other",
       GOOD_INI + `[env:blipscope-s3-146]\nextends = env:blipscope-s3-128\n`,
-      GOOD_YAML + `          - { env: blipscope-s3-146 }\n`, 0],
+      GOOD_YAML + `          - { env: blipscope-s3-146, status: build-only }\n`, 0],
     // Must NOT fire on other products, which legitimately have no cloud feed.
     ["an edition SKU is skipped, not flagged",
       GOOD_INI.replace("    -DFEATURE_CLOUD_FEED\n", "    -DFEATURE_EAM\n").replace(/    -DCLOUD_FEED_BASE=.*\n/, ""),
@@ -269,7 +276,7 @@ if (process.argv.includes("--selftest")) {
 } else {
   const problems = check(
     readFileSync("platformio.ini", "utf8"),
-    readFileSync(".github/workflows/firmware.yml", "utf8"),
+    readFileSync("skus.yml", "utf8"),
   );
   if (problems.length) {
     console.error("Release envs do not match what we ship:\n");
