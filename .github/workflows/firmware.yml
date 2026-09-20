@@ -349,6 +349,19 @@ jobs:
       - uses: actions/checkout@v4
       # Before its verdict is used, same rule as the adsbdb gate: a check that
       # cannot be shown to fail is not evidence.
+      # WHAT ACTUALLY FIRED. The whole prerelease-then-promote design rests on
+      # `release: types: [published]` firing when a release is created as a
+      # PRERELEASE. That was first confirmed by a run APPEARING after a scratch
+      # tag -- an ordinal argument, not an observation of the event. This prints
+      # the event itself, so the next person reads what fired instead of
+      # inferring it from the existence of a run.
+      - name: Record the triggering event
+        run: |
+          echo "event_name         = ${{ github.event_name }}"
+          echo "action             = ${{ github.event.action }}"
+          echo "release.tag_name   = ${{ github.event.release.tag_name }}"
+          echo "release.prerelease = ${{ github.event.release.prerelease }}"
+          echo "release.draft      = ${{ github.event.release.draft }}"
       - name: Prove the receipt gate can fail before trusting it
         run: bash scripts/check-publish-receipts.sh --selftest
       # No receipts at all must FAIL, not vacuously pass. If this step errors
@@ -381,7 +394,22 @@ jobs:
           echo "::error::$tag did not certify. Demoting it to a prerelease so that"
           echo "::error::releases/latest stops pointing at it and devices keep discovering"
           echo "::error::the last release that passed."
-          gh release edit "$tag" --prerelease --latest=false
+          # ONE SWITCH, MEASURED. Both `--prerelease` and `--latest=false` were
+          # applied here, so a pass proved nothing about which one did the work.
+          # Isolated on a live release 2026-09-20, one switch at a time:
+          #
+          #   --prerelease alone     -> latest moved away      LOAD-BEARING
+          #   --latest=false alone   -> latest did NOT move     INERT
+          #   --prerelease=false     -> latest moved back      LOAD-BEARING
+          #   --latest alone         -> latest did NOT move     INERT
+          #
+          # `--latest=false` was decoration beside the switch doing the job. An
+          # edit that dropped the wrong one would fail SILENTLY on release night,
+          # leaving a failed release as `latest` with no version.txt -- the exact
+          # outage this step exists to undo. Same shape as the config page's None
+          # chip, where an inline opacity and a class both appeared to dim and
+          # only one of them did.
+          gh release edit "$tag" --prerelease
           gh release view "$tag" --json isPrerelease -q '"demoted: prerelease=\(.isPrerelease)"'
       - name: Extract FW_VERSION -> version.txt
         run: |
@@ -420,6 +448,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.event.release.tag_name }}"
-          gh release edit "$tag" --prerelease=false --latest
+          # `--prerelease=false` is the switch; `--latest` was inert beside it.
+          # See the measurement recorded on the demote step above.
+          gh release edit "$tag" --prerelease=false
           gh release view "$tag" --json isPrerelease -q '"promoted: prerelease=\(.isPrerelease)"'
           echo "version.txt is live at releases/latest/download/version.txt"

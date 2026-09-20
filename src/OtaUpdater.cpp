@@ -1,3 +1,6 @@
+#if defined(BLIPSCOPE_VARIANT_S3_128)
+#error "SCRATCH TAG ONLY -- a deliberate failure of the SHIPPING leg, to make the\n publish gate refuse and the demote path actually run. Never merged."
+#endif
 #include "OtaUpdater.h"
 #include "LGFX.h"
 #include "Layout.h"
