@@ -43,7 +43,7 @@
 # =============================================================================
 # WHERE THE ENV LIST COMES FROM
 #
-# It is PARSED from .github/workflows/firmware.yml. It used to be transcribed
+# It is PARSED from skus.yml, via scripts/skus.py. It used to be transcribed
 # here under a comment reading "if CI gains a row and this does not, that SKU
 # ships unscanned" -- which is a rule in a comment, and this repo has a long
 # record of those not holding. The set of flashable images is DEFINED by the CI
@@ -58,12 +58,42 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
-MATRIX=".github/workflows/firmware.yml"
+MATRIX="skus.yml"
 
-# A sanity FLOOR, not a transcribed list. "Everything is missing" is the most
-# likely shape of a broken parser and the one that reads as success, so the
-# cheapest guard against it is a number the real matrix comfortably clears.
-MIN_MATRIX_ENVS=8
+# THE ENV LIST COMES FROM skus.yml, through its own parser.
+#
+# This was the LAST reader of the inline matrix in .github/workflows/firmware.yml,
+# and it is what turned a classification change into a fleet outage on
+# 2026-09-17: the matrix moved to skus.yml, this file kept parsing the workflow,
+# found no rows, and refused to scan. Every leg's launch gate then failed, no
+# publication receipt was written, version.txt was withheld, and
+# releases/latest/download/version.txt returned 404 for the whole fleet.
+#
+# THE REFUSAL WAS CORRECT and survives below -- a short list reports the SKUs it
+# missed as neither pass nor fail, which is the untrustworthy verdict rather than
+# a failure. What was wrong is that four consumers were updated from a REMEMBERED
+# list and a fifth was not. That list is now swept, not remembered:
+# `python scripts/skus.py --check-readers` fails when a new reader appears.
+#
+# The numeric floor is gone with the inline rows. A floor is the right guard
+# against a parser that has silently stopped matching; it is the wrong shape when
+# the count is a property of skus.yml, which validates itself and refuses a file
+# that declares nothing. Emptiness plus the anchor is what remains, and both are
+# stronger than a magic number.
+SKUS_PY="$(dirname "$0")/skus.py"
+PY_BIN=""
+for c in python3 python py; do
+  p="$(command -v "$c" 2>/dev/null)" || continue
+  [ -n "$p" ] || continue
+  # FOUND IS NOT WORKING: on Windows `python3` resolves to a Store alias that
+  # exists, is executable, and only prints an advertisement.
+  if "$p" -c "pass" >/dev/null 2>&1; then PY_BIN="$p"; break; fi
+done
+if [ -z "$PY_BIN" ] || [ ! -f "$SKUS_PY" ]; then
+  echo "FATAL: no working python, or scripts/skus.py is missing." >&2
+  echo "       Refusing to scan rather than scanning a short list." >&2
+  exit 2
+fi
 
 # The anchor: the default SKU. A parse that does not contain it is not a parse of
 # this matrix, however many rows it returned. Renaming the default SKU is
@@ -78,7 +108,9 @@ ANCHOR_ENV="blipscope-s3-128"
 # scanned but never published. An image you can flash is an image that must be
 # clean, whether or not a release ever carries it.
 parse_matrix_envs() {
-  sed -n 's/^[[:space:]]*-[[:space:]]*{[[:space:]]*env:[[:space:]]*\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*/\1/p' "$1"
+  # $1 is accepted and ignored: the env list lives in skus.yml now. The signature
+  # is kept so the selftest below still exercises this function as a unit.
+  "$PY_BIN" "$SKUS_PY" --all-envs | tr " " "\n" | sed "/^$/d"
 }
 
 # ---------------------------------------------------------------------------
@@ -178,12 +210,15 @@ selftest() {
   rm -f "$tmp"
 
   rc=0
-  if [ "$got" = "$want" ]; then
-    printf '  PASS  fixture parses to exactly: %s\n' "$got"
+  # THE FIXTURE CASE BELONGS TO skus.py NOW, delegated rather than duplicated.
+  # This function no longer parses anything -- it asks skus.py -- so a local
+  # fixture would be a test of a pipe. skus.py's own selftest proves it refuses
+  # a build-only leg carrying a slug, a shipping leg without one, a file that
+  # ships nothing at all, duplicate envs, duplicate slugs, and an unreadable row.
+  if "$PY_BIN" "$SKUS_PY" --selftest >/dev/null 2>&1; then
+    printf '  PASS  skus.py validator selftest (it can refuse)\n'
   else
-    printf '  FAIL  fixture parse mismatch\n'
-    printf '          want: [%s]\n' "$want"
-    printf '          got:  [%s]\n' "$got"
+    printf '  FAIL  skus.py validator selftest did not pass -- this is the RIG\n'
     rc=1
   fi
 
@@ -200,10 +235,10 @@ selftest() {
   [ "$shape_ok" -eq 1 ] && printf '  PASS  every parsed token is a well-formed env name\n'
   n=0
   for e in $real; do n=$((n + 1)); done
-  if [ "$n" -ge "$MIN_MATRIX_ENVS" ]; then
-    printf '  PASS  %s parses to %d env(s), floor %d\n' "$MATRIX" "$n" "$MIN_MATRIX_ENVS"
+  if [ "$n" -gt 0 ]; then
+    printf '  PASS  %s parses to %d env(s)\n' "$MATRIX" "$n"
   else
-    printf '  FAIL  %s parses to only %d env(s), floor %d\n' "$MATRIX" "$n" "$MIN_MATRIX_ENVS"
+    printf '  FAIL  %s parsed NOTHING -- refusing is correct, scanning would not be\n' "$MATRIX"
     rc=1
   fi
   case " $(printf '%s ' $real)" in
@@ -248,8 +283,8 @@ fi
 ENVS="$(parse_matrix_envs "$MATRIX")"
 n_matrix=0
 for e in $ENVS; do n_matrix=$((n_matrix + 1)); done
-if [ "$n_matrix" -lt "$MIN_MATRIX_ENVS" ]; then
-  echo "FATAL: parsed only $n_matrix env(s) from $MATRIX, floor is $MIN_MATRIX_ENVS." >&2
+if [ "$n_matrix" -eq 0 ]; then
+  echo "FATAL: parsed no envs at all from $MATRIX." >&2
   echo "       Refusing to scan -- a short list reports the SKUs it missed as neither pass nor fail." >&2
   exit 2
 fi

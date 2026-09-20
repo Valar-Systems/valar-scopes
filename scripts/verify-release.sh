@@ -106,7 +106,7 @@ else
       # (Seen for real: v4 predates the multi-SKU asset naming, so a v6-vs-v4 run
       # "passed" with no information in it at all.)
       note "$PREV has 0 firmware binaries, so the count comparison proves NOTHING here."
-      note "this release has $N_NOW -- eyeball it against the CI matrix in firmware.yml by hand"
+      note "this release has $N_NOW -- eyeball it against the shipping legs in skus.yml by hand"
     elif [ "$N_NOW" -lt "$N_PREV" ] 2>/dev/null; then
       bad "$N_NOW firmware binaries, DOWN from $N_PREV on $PREV -- a SKU stopped building"
       printf '%s\n' "$ASSETS" | sed 's/^/          /'

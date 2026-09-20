@@ -14,6 +14,7 @@ this stays dependency-free and so the rows remain greppable by eye.
   python scripts/skus.py --shipping-slugs   # space-separated, for the gate
   python scripts/skus.py --shipping-envs
   python scripts/skus.py --all-envs
+  python scripts/skus.py --check-readers   # who else reads the build matrix?
   python scripts/skus.py --selftest         # prove the validator can refuse
 """
 import json
@@ -114,6 +115,85 @@ def validate(rows):
 def load(path=DEFAULT):
     with open(path, encoding="utf-8") as fh:
         return validate(parse(fh.read()))
+
+
+# ---------------------------------------------------------------------------
+# WHO ELSE READS THE BUILD MATRIX? Swept, not remembered.
+#
+# On 2026-09-17 the matrix moved from .github/workflows/firmware.yml into
+# skus.yml. Four consumers were updated from a list someone had in mind, and a
+# fifth -- scripts/check-adsbdb-out.sh -- was not. It kept parsing the workflow,
+# found no rows, refused to scan, and every leg's launch gate failed. No receipt
+# was written, version.txt was withheld, and the whole fleet lost OTA discovery
+# over a product that does not exist.
+#
+# The lesson is not "remember the fifth one". A named list is a snapshot of who
+# was reading at the moment somebody wrote it down, and the reader set is
+# whatever is actually there. So this sweeps, and fails when the set changes.
+#
+# EVERY ENTRY BELOW IS PROSE. Nothing in this list parses the workflow any more:
+# they are comments, docs, and one rule repeated in platformio.ini. A NEW file
+# mentioning firmware.yml is not necessarily wrong -- it is unreviewed, which is
+# the thing that cost the fleet an afternoon.
+ALLOWED_MENTIONS = {
+    ".github/workflows/workers.yml",     # a comment about what firmware.yml covers
+    "scripts/check-adsbdb-out.sh",       # comments recording why the parser moved
+    "platformio.ini",                    # the "the env IS the product" rule, x3
+    "RELEASING.md",                      # release prose
+    "docs/ota-control-plan.md",          # plan prose
+}
+
+SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")
+
+
+def _walk(root):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for fn in filenames:
+            yield os.path.join(dirpath, fn)
+
+
+def check_readers(root="."):
+    """Fail when a file starts referring to the workflow matrix unreviewed."""
+    found, unreadable = set(), []
+    for path in _walk(root):
+        rel = os.path.relpath(path, root).replace(os.sep, "/")
+        if rel == "scripts/skus.py":
+            continue                      # this file names the file it guards
+        try:
+            with open(path, encoding="utf-8", errors="strict") as fh:
+                text = fh.read()
+        except (UnicodeDecodeError, OSError):
+            continue                      # binaries are not readers
+        if "firmware.yml" in text:
+            found.add(rel)
+        # The floor shape that made the outage silent: a magic minimum row count.
+        if "MIN_MATRIX_ENVS" in text or "MIN_PUBLISHED_SLUGS" in text:
+            unreadable.append(rel)
+
+    problems = []
+    new = sorted(found - ALLOWED_MENTIONS)
+    if new:
+        problems.append(
+            "these files reference firmware.yml and are not on the reviewed list:\n"
+            + "".join("    %s\n" % f for f in new)
+            + "  If one of them PARSES the matrix, point it at skus.py instead -- a\n"
+              "  second parser is how the fleet lost OTA discovery on 2026-09-17.\n"
+              "  If it is only prose, add it to ALLOWED_MENTIONS in scripts/skus.py.")
+    gone = sorted(ALLOWED_MENTIONS - found)
+    if gone:
+        problems.append(
+            "these are on the reviewed list but no longer mention firmware.yml:\n"
+            + "".join("    %s\n" % f for f in gone)
+            + "  Drop them from ALLOWED_MENTIONS -- a stale allowlist hides the next\n"
+              "  arrival behind an entry nobody re-checked.")
+    if unreadable:
+        problems.append(
+            "a MIN_* row-count floor is back in:\n"
+            + "".join("    %s\n" % f for f in sorted(unreadable))
+            + "  A floor guards a parser that stopped matching; it is the wrong shape\n"
+              "  when the count is a property of skus.yml, which refuses an empty file.")
+    return problems
 
 
 def _selftest():
@@ -224,6 +304,16 @@ def main(argv):
         return 0
     if mode == "--all-envs":
         print(" ".join(r["env"] for r in rows))
+        return 0
+    if mode == "--check-readers":
+        problems = check_readers(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if problems:
+            print("SKU READER SWEEP FAILED\n", file=sys.stderr)
+            for pr in problems:
+                print("  " + pr, file=sys.stderr)
+            return 1
+        print("reader sweep OK: %d reviewed mention(s), no parser but skus.py."
+              % len(ALLOWED_MENTIONS))
         return 0
 
     print("unknown mode: %s" % mode, file=sys.stderr)

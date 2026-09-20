@@ -361,13 +361,65 @@ jobs:
           merge-multiple: true
           path: receipts
       - name: Every publishing SKU must have published
+        id: receipts
         run: bash scripts/check-publish-receipts.sh receipts
+      # THE RECOVERY, AUTOMATED. On 2026-09-17 and again on 2026-09-18 a release
+      # was published as a FULL release, its matrix failed, this gate correctly
+      # withheld version.txt -- and because the release was already `latest`,
+      # releases/latest/download/version.txt returned 404 for every device in the
+      # fleet. Both times the gate was right and the fleet went dark anyway,
+      # because the damage happened at CREATE time, before any job could run.
+      #
+      # Demoting restores `latest` to the last release that WAS certified, which
+      # is the recovery that was performed by hand on both occasions.
+      - name: Gate failed -- demote this release so `latest` moves back
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          echo "::error::$tag did not certify. Demoting it to a prerelease so that"
+          echo "::error::releases/latest stops pointing at it and devices keep discovering"
+          echo "::error::the last release that passed."
+          gh release edit "$tag" --prerelease --latest=false
+          gh release view "$tag" --json isPrerelease -q '"demoted: prerelease=\(.isPrerelease)"'
       - name: Extract FW_VERSION -> version.txt
         run: |
-          v=$(grep -oP 'FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          # ANCHORED ON THE DECLARATION, AND EXACTLY ONE. The previous pattern
+          # took the first FW_VERSION-ish match anywhere in the file, which is
+          # correct today and silently wrong the day a comment or a second
+          # constant mentions it above line 17 -- and what it would publish is
+          # the number every device in the fleet compares against its own.
+          decls=$(grep -cP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*[0-9]+\s*;' src/OtaUpdater.h || true)
+          if [ "$decls" -ne 1 ]; then
+            echo "::error::expected exactly one 'constexpr int FW_VERSION' declaration in"
+            echo "::error::src/OtaUpdater.h, found $decls. Refusing to guess which one the"
+            echo "::error::fleet should be pointed at."
+            exit 1
+          fi
+          v=$(grep -oP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          case "$v" in
+            ''|*[!0-9]*) echo "::error::FW_VERSION parsed as '$v', which is not a number"; exit 1 ;;
+          esac
           echo "FW_VERSION=$v"
           echo "$v" > version.txt
       - name: Publish version.txt
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" version.txt --clobber
+      # PROMOTION IS THE LAST ACT, and it happens only here: every shipping SKU
+      # left a receipt, and version.txt is on the release. Until this step runs,
+      # the release is a prerelease and `latest` is somebody else -- so a device
+      # can never be pointed at an image whose gate did not pass.
+      #
+      # Creating a release as a full release is therefore a process error, not a
+      # shortcut: it moves `latest` before anything has been verified. See
+      # RELEASING.md.
+      - name: Certified -- promote this release to latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          gh release edit "$tag" --prerelease=false --latest
+          gh release view "$tag" --json isPrerelease -q '"promoted: prerelease=\(.isPrerelease)"'
+          echo "version.txt is live at releases/latest/download/version.txt"
