@@ -1,4 +1,22 @@
 <!DOCTYPE html>
+<!-- FEATURES CARD - 4x6in, overflow:hidden, so copy that does not fit is ABSENT
+     rather than wrong, and absence on a printed card cannot be seen.
+
+     HEADROOM: 66 px between the last flowed line ("your own receiver", bottom
+     444.4) and the pinned "Guide" line (top 510.5), on a 576 px face. Measured
+     2026-09-18 by per-element diff, not by a summary number.
+
+     THE ALERTS BLOCK DESCRIBES THE DEVICE, NOT A PHONE. Phone delivery is being
+     removed; a printed card outlives firmware, so a card that omits a feature is
+     conservative today and correct later, while one that promises a feature we
+     remove is false in every box already shipped. Nothing here claims a sound:
+     the shipping board sets HAS_AUDIO = false.
+
+     DO NOT trust "it looked fine". Two earlier checks passed this card and
+     neither could have failed - one measured a full-height frame div, the other
+     the pinned footer. Run:  node scripts/check-print-cards.mjs
+-->
+
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -188,11 +206,11 @@
 
   <div class="sec">
     <div class="b-head">Alerts you can switch on</div>
-    <div class="feat"><div class="k">Watchlist</div><div class="v">Callsigns, tails, ICAO hexes or whole type codes. Your phone buzzes when one goes over.</div></div>
-    <div class="feat"><div class="k">Look up!</div><div class="v">A cyan ring when something crosses inside a distance you set.</div></div>
-    <div class="feat"><div class="k">Military</div><div class="v">Orange pulsing ring, plus an optional phone alert.</div></div>
+    <div class="feat"><div class="k">Watchlist</div><div class="v">Callsigns, tails, ICAO hexes or whole type codes. An amber ring and its callsign, held on screen while it passes.</div></div>
+    <div class="feat"><div class="k">Look up!</div><div class="v">A pulsing cyan ring and LOOK UP when something crosses inside a distance you set.</div></div>
+    <div class="feat"><div class="k">Military</div><div class="v">Orange pulsing ring and a MIL tag, spotted from the ICAO address.</div></div>
     <div class="feat"><div class="k">Emergency</div><div class="v">Red ring for a 7500 / 7600 / 7700 squawk. On by default.</div></div>
-    <div class="feat"><div class="k">Follow one</div><div class="v">Draws its track; alerts on takeoff, landing and signal loss.</div></div>
+    <div class="feat"><div class="k">Follow one</div><div class="v">Draws its track, and the screen says when it takes off, lands or goes quiet.</div></div>
   </div>
 
   <div class="sec">
