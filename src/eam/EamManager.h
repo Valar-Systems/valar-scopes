@@ -100,6 +100,16 @@ private:
     // ---- touch / gestures ----
     bool wasTouched = false;
     int touchStartX = 0, touchStartY = 0;
+    // FEATURE_USB_OPEN: a long press (held >= LONG_PRESS_MS, moved < 40 px) opens
+    // the shown message on the computer; it fires once, while still held, and the
+    // release that follows is neither a tap nor a swipe.
+    static constexpr unsigned long LONG_PRESS_MS = 1000;
+    unsigned long touchDownMs = 0;
+    bool longPressFired = false;
+    unsigned long usbToastUntilMs = 0;
+    String usbToast;
+    String ShownMessageId() const;   // the ticker's message id, or "" when none is shown
+    void OpenOnComputer();
     int touchLastX = 0, touchLastY = 0;
     enum class Swipe { Up, Down, Left, Right };
 

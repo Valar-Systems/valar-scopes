@@ -162,7 +162,13 @@ void setup()
   // ate a diagnostic line outright, leaving mangled half-merged output in the
   // ledger. 4 KB absorbs the burst, so a host that is draining loses nothing and
   // the timeout only ever bites when nothing is reading at all.
+#if ARDUINO_USB_MODE
+  // HWCDC (USB-Serial/JTAG) only. Under ARDUINO_USB_MODE=0 (TinyUSB, the
+  // missileer-s3-128 USB keyboard build) Serial is USBCDC, whose TX buffer is
+  // TinyUSB's compile-time CFG_TUD_CDC_TX_BUFSIZE and cannot be resized here --
+  // so a boot burst can still be dropped on that build when nothing is reading.
   Serial.setTxBufferSize(4096);
+#endif
   Serial.setTxTimeoutMs(2);
 #endif
 

@@ -7,6 +7,7 @@
 
 #include "Layout.h"
 #include "EamModels.h"
+#include "UsbOpen.h"
 
 // Backend base URL default. Normally injected per-env as a build flag (-DEAM_FEED_BASE=...);
 // guarded so a stray build without the flag still compiles. The runtime value ("eam-base-url")
@@ -25,6 +26,7 @@ constexpr unsigned long INTERACT_HOLD_MS = 30000; // pause auto-rotate this long
 
 void EamManager::Initialise()
 {
+    usbopen::Begin();
     backendBaseUrl = configServer.GetStoredString("eam-base-url");
     if (backendBaseUrl.isEmpty())
         backendBaseUrl = EAM_FEED_BASE;
@@ -150,6 +152,7 @@ void EamManager::Update()
 
     UpdateBrightness();
     HandleTouch();
+    usbopen::Pump();
     AutoRotate();
 
     // rotate the clock's ambient stat line slowly
@@ -182,6 +185,32 @@ void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
     }
 
     DrawScreenDots(backbuffer, rot);
+
+    // "opening on computer" confirmation after a long press (FEATURE_USB_OPEN).
+    if ((long)(usbToastUntilMs - millis()) > 0)
+        CenterText(backbuffer, usbToast, (int)(SCREEN_SIZE * 0.80), palette.accent);
+}
+
+String EamManager::ShownMessageId() const
+{
+    // "The message currently shown" is the ticker's: it is the only screen that
+    // shows one message. Every other screen is an aggregate, and opens the root.
+    if (current == Screen::Ticker && !feed.Latest().empty()) return feed.Latest().front().id;
+    return String();
+}
+
+void EamManager::OpenOnComputer()
+{
+#if defined(FEATURE_USB_OPEN)
+    const usbopen::Os os = usbopen::OsFromConfig(configServer.GetStoredString("eam-usb-os"));
+    // "When nothing is shown": the archive root (default) or nothing at all.
+    const bool emptyOpensArchive = configServer.GetStoredString("eam-usb-empty") != "none";
+    const String url = usbopen::PlanUrl(os, ShownMessageId(), emptyOpensArchive);
+    const bool started = usbopen::Request(os, url);
+    usbToast = started ? "opening on computer" : (os == usbopen::Os::Off ? "usb open is off" : "nothing to open");
+    usbToastUntilMs = millis() + 1500;
+    Serial.printf("[usb-open] long press: shown='%s' started=%d\n", ShownMessageId().c_str(), started ? 1 : 0);
+#endif
 }
 
 bool EamManager::HasData(Screen s) const
@@ -244,15 +273,24 @@ void EamManager::HandleTouch()
 
     const unsigned long now = millis();
     if (touched) {
-        if (!wasTouched) { wasTouched = true; touchStartX = tx; touchStartY = ty; }
+        if (!wasTouched) { wasTouched = true; touchStartX = tx; touchStartY = ty; touchDownMs = now; longPressFired = false; }
         touchLastX = tx;
         touchLastY = ty;
         lastInteractionMs = now;
+#if defined(FEATURE_USB_OPEN)
+        // LONG PRESS: held still for a second opens the shown message on the computer.
+        if (!longPressFired && now - touchDownMs >= LONG_PRESS_MS
+            && abs(touchLastX - touchStartX) < 40 && abs(touchLastY - touchStartY) < 40) {
+            longPressFired = true;
+            OpenOnComputer();
+        }
+#endif
         return;
     }
     if (!wasTouched) return;
     wasTouched = false;
     lastInteractionMs = now;
+    if (longPressFired) return;   // the long press was the gesture; its release is not a tap/swipe
 
     const int dx = touchLastX - touchStartX;
     const int dy = touchLastY - touchStartY;

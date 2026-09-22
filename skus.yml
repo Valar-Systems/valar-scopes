@@ -51,6 +51,8 @@ skus:
   # below can be in anyone's hands.
   - { env: blipscope-s3-146, status: build-only }
   - { env: missileer-s3-146, status: build-only }
+  # missileer-s3-128: bring-up (USB keyboard, FEATURE_USB_OPEN, TinyUSB mode); no slug until it ships.
+  - { env: missileer-s3-128, status: build-only }
   - { env: orbitscope-s3-146, status: build-only }
   - { env: quakescope-s3-146, status: build-only }
   - { env: quillscope-s3-146, status: build-only }

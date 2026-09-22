@@ -314,6 +314,21 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+echo
+echo "== USB open-on-computer planner (what the keyboard may type) =="
+if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_usb_open.cpp"       -o "$OUT/test_usb_open.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the USB open test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_usb_open.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 "$OUT/test_registration.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
