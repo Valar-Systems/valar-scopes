@@ -110,6 +110,36 @@ jobs:
   # themselves into a build that never contacts the proxy. A non-cloud image does not
   # error; it goes quiet, which reads as an idle device rather than a fault.
   # --selftest first, same reasoning as the two checks above.
+  # WHO ELSE READS THE BUILD MATRIX -- swept, not remembered. On 2026-09-17 the
+  # matrix moved into skus.yml, four consumers were updated from a list someone
+  # had in mind, and the fifth kept parsing the workflow, found no rows, and
+  # refused to scan -- which withheld version.txt and cost the fleet OTA
+  # discovery. This fails when a file starts reading the workflow unreviewed,
+  # when a MIN_* row-count floor comes back, or when an allowlist entry goes
+  # stale, because a list that accumulates dead entries decays back into the
+  # hand-maintained one that failed.
+  sku-readers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the checker catches each violation
+        run: python3 scripts/skus.py --check-readers-selftest
+      - name: No unreviewed reader of the build matrix
+        run: python3 scripts/skus.py --check-readers
+
+  # The commit a release is TAGGED from supplies the workflow that release runs,
+  # so a tag cut before the promote step lands builds and then stays a
+  # prerelease forever. RELEASING.md runs this against the exact commit before
+  # the tag is pushed; here it keeps main itself from losing the step.
+  tag-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the checker catches each violation
+        run: bash scripts/check-tag-workflow.sh --selftest
+      - name: This commit uploads version.txt, then promotes
+        run: bash scripts/check-tag-workflow.sh HEAD
+
   release-envs:
     runs-on: ubuntu-latest
     steps:
@@ -381,7 +411,22 @@ jobs:
           echo "::error::$tag did not certify. Demoting it to a prerelease so that"
           echo "::error::releases/latest stops pointing at it and devices keep discovering"
           echo "::error::the last release that passed."
-          gh release edit "$tag" --prerelease --latest=false
+          # ONE SWITCH, MEASURED. This step used to apply `--prerelease` AND
+          # `--latest=false`, so a pass said nothing about which one did the work.
+          # Isolated on a live release on 2026-09-20, one switch at a time:
+          #
+          #   --prerelease alone      -> latest moved away     LOAD-BEARING
+          #   --latest=false alone    -> latest did NOT move    INERT
+          #   --prerelease=false      -> latest moved back     LOAD-BEARING
+          #   --latest alone          -> latest did NOT move    INERT
+          #
+          # `--latest` was decoration beside the switch doing the job. An edit that
+          # kept it and dropped `--prerelease` would fail SILENTLY on release night,
+          # leaving a failed release as `latest` with no version.txt -- the outage
+          # this step exists to undo. Same shape as the config page's None chip,
+          # where an inline opacity and a class both appeared to dim it and only
+          # one of them did.
+          gh release edit "$tag" --prerelease
           gh release view "$tag" --json isPrerelease -q '"demoted: prerelease=\(.isPrerelease)"'
       - name: Extract FW_VERSION -> version.txt
         run: |
@@ -420,6 +465,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.event.release.tag_name }}"
-          gh release edit "$tag" --prerelease=false --latest
+          # `--prerelease=false` is the switch; `--latest` was measured inert.
+          # The four-row isolation is recorded on the demote step above.
+          gh release edit "$tag" --prerelease=false
           gh release view "$tag" --json isPrerelease -q '"promoted: prerelease=\(.isPrerelease)"'
           echo "version.txt is live at releases/latest/download/version.txt"

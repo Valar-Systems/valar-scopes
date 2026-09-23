@@ -141,6 +141,7 @@ ALLOWED_MENTIONS = {
     "platformio.ini",                    # the "the env IS the product" rule, x3
     "RELEASING.md",                      # release prose
     "docs/ota-control-plan.md",          # plan prose
+    "scripts/check-tag-workflow.sh",     # reads the VERSION JOB, not the matrix
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")
@@ -153,7 +154,7 @@ def _walk(root):
             yield os.path.join(dirpath, fn)
 
 
-def check_readers(root="."):
+def check_readers(root=".", allowed=None):
     """Fail when a file starts referring to the workflow matrix unreviewed."""
     found, unreadable = set(), []
     for path in _walk(root):
@@ -172,7 +173,8 @@ def check_readers(root="."):
             unreadable.append(rel)
 
     problems = []
-    new = sorted(found - ALLOWED_MENTIONS)
+    allowed = ALLOWED_MENTIONS if allowed is None else allowed
+    new = sorted(found - allowed)
     if new:
         problems.append(
             "these files reference firmware.yml and are not on the reviewed list:\n"
@@ -180,7 +182,7 @@ def check_readers(root="."):
             + "  If one of them PARSES the matrix, point it at skus.py instead -- a\n"
               "  second parser is how the fleet lost OTA discovery on 2026-09-17.\n"
               "  If it is only prose, add it to ALLOWED_MENTIONS in scripts/skus.py.")
-    gone = sorted(ALLOWED_MENTIONS - found)
+    gone = sorted(allowed - found)
     if gone:
         problems.append(
             "these are on the reviewed list but no longer mention firmware.yml:\n"
@@ -194,6 +196,45 @@ def check_readers(root="."):
             + "  A floor guards a parser that stopped matching; it is the wrong shape\n"
               "  when the count is a property of skus.yml, which refuses an empty file.")
     return problems
+
+
+def _readers_selftest():
+    """Prove the sweep refuses in each direction, in a throwaway tree."""
+    import tempfile
+    rc = 0
+
+    def tree(files):
+        d = tempfile.mkdtemp(prefix="skureaders-")
+        for rel, text in files.items():
+            p = os.path.join(d, *rel.split("/"))
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        return d
+
+    def case(name, files, allowed, want_ok, expect_in):
+        nonlocal rc
+        problems = check_readers(tree(files), allowed)
+        ok = not problems
+        msg = "\n".join(problems)
+        if ok != want_ok or (expect_in and expect_in not in msg):
+            print("  FAIL  %s" % name)
+            rc = 1
+        else:
+            print("  ok    %s" % name)
+
+    reviewed = {"docs/a.md": "see firmware.yml"}
+    case("a reviewed set passes", reviewed, {"docs/a.md"}, True, "")
+    case("a NEW file mentioning the workflow is REFUSED",
+         dict(reviewed, **{"scripts/new.sh": 'MATRIX=".github/workflows/firmware.yml"'}),
+         {"docs/a.md"}, False, "scripts/new.sh")
+    case("a MIN_ row-count floor is REFUSED",
+         dict(reviewed, **{"scripts/old.sh": "MIN_MATRIX_ENVS=8"}),
+         {"docs/a.md"}, False, "floor")
+    case("a STALE allowlist entry is REFUSED",
+         reviewed, {"docs/a.md", "docs/gone.md"}, False, "docs/gone.md")
+    print("SELFTEST PASSED" if rc == 0 else "SELFTEST FAILED")
+    return rc
 
 
 def _selftest():
@@ -305,6 +346,8 @@ def main(argv):
     if mode == "--all-envs":
         print(" ".join(r["env"] for r in rows))
         return 0
+    if mode == "--check-readers-selftest":
+        return _readers_selftest()
     if mode == "--check-readers":
         problems = check_readers(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if problems:
