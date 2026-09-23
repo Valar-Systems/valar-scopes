@@ -3,3 +3,6 @@ node_modules/
 .dev.vars
 dist/
 coverage/
+
+# The photo dashboard's record of main as it last saw it (scripts/photo-dashboard.ts).
+.photo-dashboard-base.json

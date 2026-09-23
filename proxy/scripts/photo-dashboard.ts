@@ -1,39 +1,59 @@
 /**
- * photo-dashboard.ts -- local curation dashboard for the stock-photo library.
+ * photo-dashboard.ts -- local curation dashboard for the stock-photo library,
+ * and the ONE CLICK that puts a photo on devices.
  *
  *   npm run dashboard          # then open http://127.0.0.1:8123
  *
- * Browse every manifest entry with the EXACT 150x100 crop the device will show,
- * search Wikimedia Commons for replacements (license-checked live against the
- * same per-layer gate the ingest enforces), preview a candidate's crop before
- * committing, swap it into photos/manifest.json + photos/src/, and publish to
- * staging with one click (which just runs the normal ingest -- gate and all).
+ * Browse every manifest entry as the 240 px square the Kit S3 draws, search
+ * Wikimedia Commons for replacements (licence-checked live against the same
+ * per-layer gate the ingest enforces), preview a candidate's square before
+ * committing, and PUBLISH TO DEVICES: the dashboard commits the changed rows to
+ * main (photos only, fast-forward only), and the `photos` workflow writes
+ * production behind its verifier. The status panel reads that run's verdict
+ * back from the commit. See "Photo publish pipeline: design".
  *
- * Deliberately LOCAL-ONLY (binds 127.0.0.1): photo writes must flow through the
- * manifest + license gate (the manifest generates the credits page), so there is
- * no KV-direct "swap" and no admin surface on the public Worker.
+ * THE DASHBOARD NEVER WRITES KV. It writes the repo; CI turns the repo into
+ * production. It needs a GitHub token (Contents read/write + Actions read, this
+ * repo only) in a file only Daniel can read -- see TOKEN_FILE. The value is
+ * never logged, only its presence.
+ *
+ * Deliberately LOCAL-ONLY (binds 127.0.0.1).
  */
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import http from "node:http";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import {
   classifyLicense,
-  isBaselineJpeg,
+  renderCreditsHtml,
   validateEntry,
   type ManifestEntry,
 } from "../src/photolicense";
+import {
+  NotFastForward,
+  commitToMain,
+  commitsForPath,
+  fileAt,
+  mainHead,
+  publishCheck,
+  recentPhotoRuns,
+  type FileChange,
+  type Gh,
+} from "./github-api";
+import { renderSquares } from "./photo-render";
+import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, validateRows } from "./publish-plan";
 import { RateLimited, wikimediaFetch } from "./wikimedia-fetch";
 
-const PORT = 8123;
+const PORT = Number(process.env.PHOTO_DASHBOARD_PORT ?? 8123);
 const PHOTOS_DIR = "photos";
 const MANIFEST_PATH = join(PHOTOS_DIR, "manifest.json");
 const UA = "BlipscopePhotoDashboard/1.0 (local curation tool)";
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
+const REPO = process.env.BLIPSCOPE_REPO ?? "Valar-Systems/valar-scopes";
 
-// Device sprite dims -- keep in sync with PHOTO_W/PHOTO_H in src/AircraftManager.cpp.
-const PHOTO_W = 150;
-const PHOTO_H = 100;
+// The panel size previews render at: the Kit S3, the default SKU.
+const PREVIEW_SIZE = 240;
 
 // ---------------------------------------------------------------- helpers
 
@@ -53,16 +73,61 @@ async function loadSharp() {
   }
 }
 
-// The exact bytes the ingest would upload for this source file -- crop preview
-// and published blob can never disagree because they share the encode settings.
-async function deviceCrop(srcPath: string): Promise<Buffer> {
+// The square a Kit S3 draws, from the SAME renderer the ingest uploads with --
+// so the preview is those bytes, not an approximation of them.
+async function devicePreview(src: Buffer, row: { kind: string; target: string; focus?: [number, number]; zoom?: number }): Promise<Buffer> {
   const sharp = await loadSharp();
-  const jpeg = await sharp(readFileSync(srcPath))
-    .resize(PHOTO_W, PHOTO_H, { fit: "cover" })
-    .jpeg({ progressive: false, quality: 82 }) // NO mozjpeg (forces progressive; undecodable on-device)
-    .toBuffer();
-  if (!isBaselineJpeg(jpeg)) throw new Error("encode produced a non-baseline JPEG");
-  return jpeg;
+  const [sq] = await renderSquares(sharp, src, row, [PREVIEW_SIZE]);
+  return sq!.buf;
+}
+
+// ---------------------------------------------------------------- the token
+
+// Daniel's, alone: a fine-grained token for this repo only (Contents read/write,
+// Actions read -- nothing wider; Retry is a commit, not a dispatch, so it needs
+// no Actions write), in a file under his profile. Refused when
+// missing, and refused when it sits inside a git working tree, where one
+// `git add -A` would commit it.
+const TOKEN_FILE = process.env.BLIPSCOPE_GH_TOKEN_FILE ?? join(homedir(), ".config", "blipscope", "github-token");
+
+function insideGitTree(p: string): boolean {
+  let d = dirname(resolve(p));
+  for (;;) {
+    if (existsSync(join(d, ".git"))) return true;
+    const up = dirname(d);
+    if (up === d) return false;
+    d = up;
+  }
+}
+
+function loadToken(): { gh?: Gh; reason?: string } {
+  if (!existsSync(TOKEN_FILE)) return { reason: `no GitHub token file at ${TOKEN_FILE}` };
+  if (insideGitTree(TOKEN_FILE)) return { reason: `the token file ${TOKEN_FILE} is inside a git working tree; move it out` };
+  const token = readFileSync(TOKEN_FILE, "utf8").trim();
+  if (!token) return { reason: `the token file ${TOKEN_FILE} is empty` };
+  return { gh: { repo: REPO, token } };
+}
+
+// ---------------------------------------------------------------- the base
+
+// main's manifest as this dashboard last saw it. A local row counts as an edit
+// only if it differs from here, so a stale checkout can never publish someone
+// else's newer row back to an older one (publish-plan.ts). Kept beside the
+// photos, gitignored, and first seeded from the checkout's own HEAD.
+const BASE_FILE = ".photo-dashboard-base.json";
+
+function loadBase(): ManifestEntry[] {
+  if (existsSync(BASE_FILE)) return JSON.parse(readFileSync(BASE_FILE, "utf8")) as ManifestEntry[];
+  try {
+    const head = execSync("git show HEAD:proxy/photos/manifest.json", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return JSON.parse(head) as ManifestEntry[];
+  } catch {
+    return readManifest();
+  }
+}
+
+function saveBase(m: ManifestEntry[]): void {
+  writeFileSync(BASE_FILE, JSON.stringify(m) + "\n");
 }
 
 // Every Wikimedia call retries once on 429 -- see wikimedia-fetch.ts for why.
@@ -220,6 +285,147 @@ async function commonsFileInfo(title: string): Promise<Candidate | null> {
   return null;
 }
 
+// ---------------------------------------------------------------- publish
+
+interface PublishResult {
+  status: number;
+  body: Record<string, unknown>;
+}
+
+const sameRow = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+// Commit this dashboard's edits to main, and nothing else. Every refusal happens
+// BEFORE the commit: malformed rows (A17), a dropped row, a row someone else
+// changed on main since (A6), a path outside proxy/photos (A15). A race with
+// another publish (A5) re-reads main and tries again; the ref update is
+// fast-forward only, so a lost race can never discard the other commit.
+async function publishToDevices(note = ""): Promise<PublishResult> {
+  const { gh, reason } = loadToken();
+  if (!gh) return { status: 401, body: { error: `Publish is off: ${reason}.` } };
+
+  const local = readManifest();
+  const problems = validateRows(local);
+  if (problems.length) {
+    return {
+      status: 422,
+      body: { error: `refused before committing: ${problems.map((p) => `${p.target} (${p.errors.join("; ")})`).join(", ")}`, rows: problems },
+    };
+  }
+  const base = loadBase();
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const head = await mainHead(gh);
+    const currentBytes = await fileAt(gh, `${PHOTOS_PREFIX}manifest.json`, head);
+    if (!currentBytes) return { status: 500, body: { error: "main has no proxy/photos/manifest.json" } };
+    const current = JSON.parse(currentBytes.toString("utf8")) as ManifestEntry[];
+    const plan = planPublish(base, current, local);
+    if (plan.removed.length) {
+      return { status: 422, body: { error: `refused: this publish would remove ${plan.removed.join(", ")}. A photo publish never removes a row.` } };
+    }
+    if (plan.conflicts.length) {
+      return {
+        status: 409,
+        body: { error: `refused: ${plan.conflicts.join(", ")} changed on main since this dashboard loaded ${plan.conflicts.length > 1 ? "them" : "it"}. Reload and re-pick.`, conflicts: plan.conflicts },
+      };
+    }
+    if (!plan.changed.length) return { status: 200, body: { nothing: true, message: "Nothing to publish: main already has every row shown here." } };
+
+    // The commit: the merged manifest, credits rendered from it (the same
+    // function CI uses, so the file cannot disagree with production), and the
+    // source image of every changed row.
+    const files: FileChange[] = [
+      { path: `${PHOTOS_PREFIX}manifest.json`, bytes: Buffer.from(JSON.stringify(plan.merged, null, 2) + "\n") },
+      { path: `${PHOTOS_PREFIX}credits.html`, bytes: Buffer.from(renderCreditsHtml(plan.merged.map(({ file, ...rest }) => rest))) },
+    ];
+    for (const t of plan.changed) {
+      const row = plan.merged.find((e) => e.target === t)!;
+      files.push({ path: `${PHOTOS_PREFIX}${row.file}`, bytes: readFileSync(join(PHOTOS_DIR, row.file!)) });
+    }
+    // TEST SEAM for A15, off unless set in the dashboard's own environment: add
+    // a path the guard must refuse, to show the refusal happens before commit.
+    if (process.env.PHOTO_DASHBOARD_TEST_EXTRA_PATH) {
+      files.push({ path: process.env.PHOTO_DASHBOARD_TEST_EXTRA_PATH, bytes: Buffer.from("test\n") });
+    }
+    try {
+      assertPhotoPaths(files.map((f) => f.path));
+    } catch (err) {
+      return { status: 422, body: { error: String(err instanceof Error ? err.message : err) } };
+    }
+
+    const message =
+      `photos: ${plan.changed.join(", ")}${note ? ` -- ${note}` : ""}\n\n` +
+      `Published from the photo dashboard. Rows changed: ${plan.changed.length}.\n` +
+      `The photos workflow publishes this commit to production and reports the\n` +
+      `verdict on it as the photos-publish check run.\n`;
+    try {
+      const sha = await commitToMain(gh, head, files, message);
+      saveBase(plan.merged);
+      writeManifest(plan.merged);
+      writeFileSync(join(PHOTOS_DIR, "credits.html"), files[1]!.bytes!);
+      console.log(`[publish] ${sha.slice(0, 7)}: ${plan.changed.join(", ")}`);
+      return { status: 200, body: { sha, changed: plan.changed, attempt } };
+    } catch (err) {
+      if (err instanceof NotFastForward) {
+        console.log(`[publish] main moved during commit (attempt ${attempt}); re-reading main`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  return { status: 409, body: { error: "main kept moving while publishing; nothing was committed. Try again." } };
+}
+
+// Put a row back to the version it had before its latest change, from the
+// repo's own history, and publish that. The previous blob is still in KV (the
+// ingest never deletes), so the same bytes produce the same key: nothing new.
+async function revertRow(target: string): Promise<PublishResult> {
+  const { gh, reason } = loadToken();
+  if (!gh) return { status: 401, body: { error: `Revert is off: ${reason}.` } };
+  const path = `${PHOTOS_PREFIX}manifest.json`;
+  const head = await mainHead(gh);
+  const current = JSON.parse((await fileAt(gh, path, head))!.toString("utf8")) as ManifestEntry[];
+  const now = current.find((e) => e.target === target);
+  if (!now) return { status: 404, body: { error: `${target} is not in main's manifest` } };
+  for (const sha of await commitsForPath(gh, path)) {
+    const m = JSON.parse((await fileAt(gh, path, sha))!.toString("utf8")) as ManifestEntry[];
+    const then = m.find((e) => e.target === target);
+    if (!then || sameRow(then, now)) continue;
+    const src = await fileAt(gh, `${PHOTOS_PREFIX}${then.file}`, sha);
+    if (!src) return { status: 500, body: { error: `${then.file} is missing at ${sha.slice(0, 7)}` } };
+    // Stage it exactly as a Replace would, against main as it is now.
+    saveBase(current);
+    const local = current.map((e) => (e.target === target ? then : e));
+    writeFileSync(join(PHOTOS_DIR, then.file!), src);
+    writeManifest(local);
+    return publishToDevices(`revert ${target} to its version at ${sha.slice(0, 7)}`);
+  }
+  return { status: 404, body: { error: `no earlier version of ${target} in the last 30 photo commits` } };
+}
+
+// What the fleet has, read back from the runs and the verdicts on their
+// commits. Newest first; the dashboard shows the first prominently.
+async function publishStatus(): Promise<PublishResult> {
+  const { gh, reason } = loadToken();
+  if (!gh) return { status: 200, body: { tokenPresent: false, reason, runs: [] } };
+  const runs = await recentPhotoRuns(gh);
+  const out = [];
+  for (const r of runs) {
+    const check = r.status === "completed" ? await publishCheck(gh, r.sha, r.createdAt, r.updatedAt) : null;
+    let detail: Record<string, unknown> = {};
+    try { detail = check?.text ? JSON.parse(check.text) : {}; } catch { /* a check without our JSON */ }
+    const state =
+      r.status !== "completed" ? (r.status === "queued" || r.status === "waiting" || r.status === "pending" ? "QUEUED" : "RUNNING")
+      : r.conclusion === "cancelled" ? "SUPERSEDED"
+      : (detail.verdict as string | undefined) ?? (r.conclusion === "success" ? "LIVE" : "FAILED");
+    out.push({
+      runId: r.id, sha: r.sha, event: r.event, state, url: r.url, createdAt: r.createdAt, updatedAt: r.updatedAt,
+      title: check?.title ?? "", reason: detail.reason ?? "", liveAt: detail.liveAt ?? "",
+      live: detail.live ?? [], failed: detail.failed ?? [], notReached: detail.notReached ?? [],
+      verifyMs: detail.verifyMs ?? null, pointersChecked: detail.pointersChecked ?? null,
+    });
+  }
+  return { status: 200, body: { tokenPresent: true, runs: out } };
+}
+
 // ---------------------------------------------------------------- routes
 
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
@@ -240,21 +446,24 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
       });
     });
 
-  // GET /api/manifest -- entries + per-row gate verdict + pending-publish flag
+  // GET /api/manifest -- entries + per-row gate verdict + whether it differs from main as last seen
   if (url.pathname === "/api/manifest") {
+    const base = new Map(loadBase().map((e) => [`${e.kind}:${e.target}`, e]));
     const entries = readManifest().map((e) => ({
       ...e,
       valid: validateEntry(e),
+      unpublished: !sameRow(base.get(`${e.kind}:${e.target}`), e),
     }));
-    return json(200, { entries, photoW: PHOTO_W, photoH: PHOTO_H });
+    const t = loadToken();
+    return json(200, { entries, previewSize: PREVIEW_SIZE, tokenPresent: !!t.gh, tokenReason: t.reason ?? "" });
   }
 
-  // GET /api/current/<target> -- the device crop of the entry's local source
+  // GET /api/current/<target> -- the square a Kit S3 draws for this row
   const cur = url.pathname.match(/^\/api\/current\/([A-Za-z0-9~]+)$/);
   if (cur) {
     const entry = readManifest().find((e) => e.target === cur[1]);
     if (!entry?.file) return json(404, { error: "no local source for entry" });
-    return jpeg(await deviceCrop(join(PHOTOS_DIR, entry.file)));
+    return jpeg(await devicePreview(readFileSync(join(PHOTOS_DIR, entry.file)), entry));
   }
 
   // GET /api/search?q=... -- the Wikipedia lead image first (curated pick),
@@ -272,17 +481,12 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     return json(200, { candidates });
   }
 
-  // POST /api/preview {url} -- device crop of a candidate before committing
+  // POST /api/preview {url, target} -- the square a candidate would become
   if (url.pathname === "/api/preview" && req.method === "POST") {
-    const { url: imgUrl } = await readBody();
+    const { url: imgUrl, target } = await readBody();
     if (typeof imgUrl !== "string" || !/^https:\/\/upload\.wikimedia\.org\//.test(imgUrl))
       return json(400, { error: "only upload.wikimedia.org sources" });
-    const sharp = await loadSharp();
-    const buf = await sharp(await fetchBytes(imgUrl))
-      .resize(PHOTO_W, PHOTO_H, { fit: "cover" })
-      .jpeg({ progressive: false, quality: 82 })
-      .toBuffer();
-    return jpeg(buf);
+    return jpeg(await devicePreview(await fetchBytes(imgUrl), { kind: "type", target: String(target ?? "PREVIEW") }));
   }
 
   // POST /api/replace {target, kind?, layer?, title} -- swap (or add) an entry's
@@ -324,18 +528,54 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     return json(200, { ok: true, entry });
   }
 
-  // POST /api/publish -- run the normal ingest against staging (gate included)
+  // POST /api/publish -- commit this dashboard's edits to main (see publishToDevices)
   if (url.pathname === "/api/publish" && req.method === "POST") {
-    try {
-      const out = execSync("npx tsx scripts/ingest-photos.ts --env staging", {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        timeout: 300_000,
-      });
-      return json(200, { ok: true, output: out });
-    } catch (err: any) {
-      return json(500, { ok: false, output: `${err.stdout ?? ""}\n${err.stderr ?? ""}\n${err.message}` });
+    const r = await publishToDevices();
+    return json(r.status, r.body);
+  }
+
+  // POST /api/revert {target}
+  if (url.pathname === "/api/revert" && req.method === "POST") {
+    const { target } = await readBody();
+    if (typeof target !== "string" || !target) return json(400, { error: "missing target" });
+    const r = await revertRow(target);
+    return json(r.status, r.body);
+  }
+
+  // GET /api/publishes -- the recent runs and their verdicts
+  if (url.pathname === "/api/publishes") {
+    const r = await publishStatus();
+    return json(r.status, r.body);
+  }
+
+  // POST /api/retry -- a fresh publish of main as it stands.
+  //
+  // A COMMIT, NOT A DISPATCH OR A RE-RUN. A re-run replays the old run's commit
+  // (refused as stale, correctly) and its inputs (a planted test failure would
+  // plant again). A dispatch needs Actions WRITE, which the dashboard's token
+  // deliberately does not have. A commit touching proxy/photos/.publish-retry
+  // needs only Contents write, triggers the workflow on main's whole manifest,
+  // is main's newest photo commit so the stale guard passes, and leaves a diff
+  // and a date like every other publish.
+  if (url.pathname === "/api/retry" && req.method === "POST") {
+    const { gh, reason } = loadToken();
+    if (!gh) return json(401, { error: `Retry is off: ${reason}.` });
+    const path = `${PHOTOS_PREFIX}.publish-retry`;
+    assertPhotoPaths([path]);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const head = await mainHead(gh);
+      const stamp = `Retry of the photo publish, requested from the dashboard at ${new Date().toISOString()}.\n`;
+      try {
+        const sha = await commitToMain(gh, head, [{ path, bytes: Buffer.from(stamp) }],
+          "photos: retry publish (photo dashboard)\n\nRe-runs the photos workflow on main's whole manifest.\n");
+        console.log(`[retry] ${sha.slice(0, 7)}`);
+        return json(200, { ok: true, sha });
+      } catch (err) {
+        if (err instanceof NotFastForward) continue;
+        throw err;
+      }
     }
+    return json(409, { error: "main kept moving; nothing was committed. Try again." });
   }
 
   json(404, { error: "not_found" });
@@ -351,19 +591,26 @@ const PAGE = `<!doctype html>
   :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#3fb950;--warn:#d29922;--err:#f85149}
   *{box-sizing:border-box}
   body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
-  header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+  header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5;flex-wrap:wrap}
   h1{font-size:15px;margin:0} .dim{color:var(--dim)}
   button{background:#21262d;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
   button:hover{border-color:var(--dim)} button.primary{background:var(--acc);border-color:var(--acc);color:#04170a;font-weight:600}
   button:disabled{opacity:.5;cursor:default}
   main{max-width:1100px;margin:0 auto;padding:20px}
+  #status{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px}
+  #status .head{font-size:15px;font-weight:600} #status .rows{font-size:12px;margin-top:6px}
+  #status.live{border-color:var(--acc)} #status.live .head{color:var(--acc)}
+  #status.bad{border-color:var(--err)} #status.bad .head{color:var(--err)}
+  #status.busy{border-color:var(--warn)} #status.busy .head{color:var(--warn)}
+  #history{font-size:12px;margin-top:8px} #history div{margin-top:2px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;gap:12px}
-  .card img{width:150px;height:100px;border-radius:4px;border:1px solid var(--line);image-rendering:pixelated;flex:none}
+  .card.unpub{border-color:var(--warn)}
+  .card img{width:120px;height:120px;border-radius:50%;border:1px solid var(--line);flex:none}
   .meta{min-width:0} .meta b{font-size:16px}
   .badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid var(--line);color:var(--dim);margin-right:4px}
   .badge.ok{color:var(--acc);border-color:var(--acc)} .badge.warn{color:var(--warn);border-color:var(--warn)} .badge.err{color:var(--err);border-color:var(--err)}
-  .credit{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+  .credit{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
   #picker{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;overflow:auto;z-index:10}
   #picker.open{display:flex}
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:5vh 16px;padding:18px;width:min(980px,94vw)}
@@ -376,8 +623,7 @@ const PAGE = `<!doctype html>
   .cand .t{font-size:11px;color:var(--dim);margin-top:4px;height:2.6em;overflow:hidden}
   #confirm{display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
   #confirm.open{display:flex;gap:16px;align-items:center}
-  #confirm img{width:150px;height:100px;border-radius:4px;border:1px solid var(--acc);image-rendering:pixelated}
-  #log{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;background:#0d1117;border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:14px;display:none;max-height:260px;overflow:auto}
+  #confirm img{width:160px;height:160px;border-radius:50%;border:1px solid var(--acc)}
   .addrow{display:flex;gap:8px;margin:18px 0 6px}
   .addrow input,.addrow select{background:#0d1117;border:1px solid var(--line);border-radius:6px;color:var(--fg);padding:7px 10px}
 </style></head><body>
@@ -385,16 +631,17 @@ const PAGE = `<!doctype html>
   <h1>Blipscope photo curation</h1>
   <span class="dim" id="count"></span>
   <span style="flex:1"></span>
-  <button class="primary" id="publish">Publish to staging</button>
+  <span class="dim" id="tokenNote"></span>
+  <button class="primary" id="publish" disabled>Publish to devices</button>
 </header>
 <main>
+  <div id="status"><div class="head">Loading publish status…</div><div class="rows dim"></div><div id="history" class="dim"></div></div>
   <div class="grid" id="entries"></div>
   <div class="addrow">
     <input id="newTarget" placeholder="New type code (e.g. B738) or hex" style="width:220px">
     <select id="newLayer"><option value="auto">auto</option><option value="mil-tier">mil-tier</option></select>
     <button id="addBtn">Add + pick photo…</button>
   </div>
-  <div id="log"></div>
 </main>
 
 <div id="picker"><div class="sheet">
@@ -407,10 +654,10 @@ const PAGE = `<!doctype html>
     <input id="q" placeholder="Search Wikimedia Commons…">
     <button id="searchBtn">Search</button>
   </div>
-  <div class="dim" id="pickHint" style="margin-bottom:10px">Greyed-out results fail the license gate (reason on hover). Click a result to preview its exact device crop.</div>
+  <div class="dim" id="pickHint" style="margin-bottom:10px">Greyed-out results fail the license gate (reason on hover). Click a result to see the exact square a device draws.</div>
   <div class="cands" id="cands"></div>
   <div id="confirm">
-    <img id="cropPrev" alt="device crop preview">
+    <img id="cropPrev" alt="device preview">
     <div style="min-width:0">
       <div id="confTitle" style="font-size:13px"></div>
       <div class="dim" id="confLicense"></div>
@@ -420,26 +667,88 @@ const PAGE = `<!doctype html>
 </div></div>
 
 <script>
-let pickTarget = null, pickLayer = "auto", picked = null;
+let pickTarget = null, pickLayer = "auto", picked = null, clickedAt = 0, unpublished = 0;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 async function load() {
   const r = await fetch("/api/manifest"); const d = await r.json();
-  document.getElementById("count").textContent = d.entries.length + " entries";
+  unpublished = d.entries.filter(e => e.unpublished).length;
+  document.getElementById("count").textContent = d.entries.length + " entries" + (unpublished ? " · " + unpublished + " not yet published" : "");
+  const btn = document.getElementById("publish");
+  btn.disabled = !d.tokenPresent || !unpublished;
+  btn.title = d.tokenPresent ? (unpublished ? "" : "Nothing to publish") : d.tokenReason;
+  document.getElementById("tokenNote").textContent = d.tokenPresent ? "" : "Publish off: " + d.tokenReason;
   const grid = document.getElementById("entries"); grid.innerHTML = "";
   for (const e of d.entries) {
-    const div = document.createElement("div"); div.className = "card";
-    const licBadge = e.valid.ok ? '<span class="badge ok">' + e.license + '</span>'
-                                : '<span class="badge err" title="' + e.valid.errors.join("; ") + '">gate: FAIL</span>';
+    const div = document.createElement("div"); div.className = "card" + (e.unpublished ? " unpub" : "");
+    const licBadge = e.valid.ok ? '<span class="badge ok">' + esc(e.license) + '</span>'
+                                : '<span class="badge err" title="' + esc(e.valid.errors.join("; ")) + '">gate: FAIL</span>';
     div.innerHTML =
-      '<img src="/api/current/' + e.target + '?t=' + Date.now() + '" onerror="this.style.opacity=.2">' +
-      '<div class="meta"><b>' + e.target + '</b> <span class="badge">' + e.kind + '</span>' +
-      '<span class="badge">' + e.layer + '</span> ' + licBadge +
-      '<div class="credit" title="' + e.credit + '">' + e.credit + '</div>' +
-      '<div class="credit">' + e.author + '</div>' +
-      '<div style="margin-top:8px"><button onclick="openPicker(\\'' + e.target + '\\',\\'' + e.layer + '\\')">Replace…</button> ' +
-      '<a class="dim" style="font-size:12px" href="' + e.source + '" target="_blank">source ↗</a></div></div>';
+      '<img src="/api/current/' + esc(e.target) + '?t=' + Date.now() + '" onerror="this.style.opacity=.2">' +
+      '<div class="meta"><b>' + esc(e.target) + '</b> <span class="badge">' + esc(e.kind) + '</span>' +
+      '<span class="badge">' + esc(e.layer) + '</span> ' + licBadge +
+      (e.unpublished ? '<span class="badge warn">not yet published</span>' : '') +
+      '<div class="credit" title="' + esc(e.credit) + '">' + esc(e.credit) + '</div>' +
+      '<div class="credit">' + esc(e.author) + '</div>' +
+      '<div style="margin-top:8px"><button data-t="' + esc(e.target) + '" data-l="' + esc(e.layer) + '" class="rep">Replace…</button> ' +
+      '<button data-t="' + esc(e.target) + '" class="rev" title="Put back the previous photo, and publish">Revert</button> ' +
+      '<a class="dim" style="font-size:12px" href="' + esc(e.source) + '" target="_blank">source ↗</a></div></div>';
     grid.appendChild(div);
   }
+  grid.querySelectorAll(".rep").forEach(b => b.onclick = () => openPicker(b.dataset.t, b.dataset.l));
+  grid.querySelectorAll(".rev").forEach(b => b.onclick = () => revert(b.dataset.t));
+}
+
+// The status panel: what the fleet has, from the runs and their verdicts.
+async function status() {
+  const r = await fetch("/api/publishes"); const d = await r.json();
+  const box = document.getElementById("status"), head = box.querySelector(".head"), rows = box.querySelector(".rows");
+  if (!d.tokenPresent) { box.className = "bad"; head.textContent = "Publishing is off"; rows.textContent = d.reason || ""; return false; }
+  const runs = d.runs || [];
+  const top = runs[0];
+  let busy = false;
+  if (!top) { box.className = ""; head.textContent = "No publish has run yet."; rows.textContent = ""; }
+  else {
+    const when = new Date(top.state === "LIVE" && top.liveAt ? top.liveAt : top.updatedAt).toLocaleString();
+    const took = clickedAt && top.state === "LIVE" && top.liveAt ? " · " + Math.round((Date.parse(top.liveAt) - clickedAt) / 1000) + " s from click" : "";
+    if (top.state === "LIVE") { box.className = "live"; head.textContent = "Live on devices at " + when + took; rows.textContent = "Published " + (top.live.length ? top.live.join(", ") : "(no rows changed)") + " · " + top.pointersChecked + " pointers verified in " + top.verifyMs + " ms · devices pick it up within about a minute"; }
+    else if (top.state === "QUEUED" || top.state === "RUNNING") { busy = true; box.className = "busy"; head.textContent = (top.state === "QUEUED" ? "Queued" : "Publishing") + "… (" + top.sha.slice(0,7) + ")"; rows.textContent = "Started " + new Date(top.createdAt).toLocaleTimeString(); }
+    else if (top.state === "SUPERSEDED") { busy = runs.some(x => x.state === "QUEUED" || x.state === "RUNNING"); box.className = "busy"; head.textContent = "Superseded by a newer publish"; rows.textContent = "Its rows are included in the next run."; }
+    else {
+      box.className = "bad";
+      const label = top.state === "UNTRUSTWORTHY" ? "Not published: the verifier could not see production (instrument blind)" : top.state === "STALE" ? "Refused: a newer photo commit is on main" : "Publish FAILED";
+      head.innerHTML = esc(label) + ' <button id="retry">Retry</button> <a class="dim" href="' + esc(top.url) + '" target="_blank">run ↗</a>';
+      rows.innerHTML = esc(top.reason) + "<br>Live now: " + esc(top.live.join(", ") || "none") + (top.failed.length ? " · Failed: " + esc(top.failed.join(", ")) : "") + (top.notReached.length ? " · Not reached: " + esc(top.notReached.join(", ")) : "");
+      document.getElementById("retry").onclick = retry;
+    }
+  }
+  document.getElementById("history").innerHTML = runs.slice(1, 6).map(x => '<div>' + esc(new Date(x.createdAt).toLocaleString()) + ' · ' + esc(x.sha.slice(0,7)) + ' · ' + esc(x.state) + (x.live.length ? ' · ' + esc(x.live.join(", ")) : '') + '</div>').join("");
+  return busy;
+}
+
+async function poll() { const busy = await status().catch(() => false); setTimeout(poll, busy ? 4000 : 20000); }
+
+async function publish() {
+  const btn = document.getElementById("publish"); btn.disabled = true; btn.textContent = "Publishing…";
+  clickedAt = Date.now();
+  const r = await fetch("/api/publish", { method: "POST" }); const d = await r.json();
+  btn.textContent = "Publish to devices";
+  if (!r.ok) alert(d.error || ("HTTP " + r.status));
+  else if (d.nothing) alert(d.message);
+  await load(); await status();
+}
+async function revert(target) {
+  if (!confirm("Put " + target + " back to its previous photo and publish that?")) return;
+  clickedAt = Date.now();
+  const r = await fetch("/api/revert", { method: "POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ target }) });
+  const d = await r.json(); if (!r.ok) alert(d.error || ("HTTP " + r.status));
+  await load(); await status();
+}
+async function retry() {
+  clickedAt = Date.now();
+  const r = await fetch("/api/retry", { method: "POST" }); const d = await r.json();
+  if (!r.ok) alert(d.error || ("HTTP " + r.status));
+  setTimeout(status, 3000);
 }
 
 function openPicker(target, layer) {
@@ -465,8 +774,8 @@ async function doSearch() {
     div.className = "cand" + (ok ? "" : " rejected");
     div.title = ok ? c.license + " — " + c.artist : "REJECTED: " + c.rejectReason;
     const lead = c.wikiLead ? '<span class="badge ok">★ Wikipedia lead</span> ' : "";
-    div.innerHTML = '<img loading="lazy" src="' + c.thumb + '"><div class="t">' + lead + c.title.replace("File:","") +
-      '<br><span class="' + (ok ? "" : "dim") + '">' + c.license + (ok ? "" : " — " + c.rejectReason) + '</span></div>';
+    div.innerHTML = '<img loading="lazy" src="' + esc(c.thumb) + '"><div class="t">' + lead + esc(c.title.replace("File:","")) +
+      '<br><span class="' + (ok ? "" : "dim") + '">' + esc(c.license) + (ok ? "" : " — " + esc(c.rejectReason)) + '</span></div>';
     if (ok) div.onclick = () => preview(c);
     box.appendChild(div);
   }
@@ -478,14 +787,15 @@ async function preview(c) {
   document.getElementById("confirm").classList.add("open");
   document.getElementById("confTitle").textContent = c.title;
   document.getElementById("confLicense").textContent = c.license + " — " + c.artist;
-  const img = document.getElementById("cropPrev"); img.src = ""; img.alt = "cropping…";
-  const r = await fetch("/api/preview", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ url: c.full }) });
+  const img = document.getElementById("cropPrev"); img.src = ""; img.alt = "rendering…";
+  const r = await fetch("/api/preview", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ url: c.full, target: pickTarget }) });
   if (r.ok) img.src = URL.createObjectURL(await r.blob());
   else img.alt = "preview failed: " + ((await r.json().catch(() => ({}))).error || ("HTTP " + r.status));
 }
 
 document.getElementById("searchBtn").onclick = doSearch;
 document.getElementById("q").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
+document.getElementById("publish").onclick = publish;
 
 document.getElementById("useBtn").onclick = async () => {
   if (!picked) return;
@@ -505,16 +815,7 @@ document.getElementById("addBtn").onclick = () => {
   openPicker(t, document.getElementById("newLayer").value);
 };
 
-document.getElementById("publish").onclick = async () => {
-  const btn = document.getElementById("publish"); btn.disabled = true; btn.textContent = "Publishing…";
-  const log = document.getElementById("log"); log.style.display = "block"; log.textContent = "Running ingest --env staging…";
-  const r = await fetch("/api/publish", { method: "POST" });
-  const d = await r.json();
-  log.textContent = d.output || JSON.stringify(d);
-  btn.disabled = false; btn.textContent = "Publish to staging";
-};
-
-load();
+load(); poll();
 </script>
 </body></html>`;
 
@@ -538,5 +839,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
+  // Presence only. The value is never printed, anywhere.
+  const t = loadToken();
   console.log(`Photo dashboard: http://127.0.0.1:${PORT}`);
+  console.log(`github token: ${t.gh ? "present" : `absent (${t.reason})`}`);
 });

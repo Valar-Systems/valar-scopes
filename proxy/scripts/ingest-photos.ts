@@ -22,41 +22,18 @@ import { execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execWithRetry } from "./exec-retry";
-import { cropRect, scrimRGBA, subjectCrop, type Framing, type SubjectBox } from "../src/framing";
+import { execWithRetry, sleepSync } from "./exec-retry";
+import { bulkGet, kvTargetFromWranglerToml, listKeys, readControls } from "./kv-rest";
+import { renderRect, renderSquares } from "./photo-render";
+import { KeyNotAllowed, assertAllowedKey, expectedPointers, preflight, verify } from "./publish-guard";
 import {
   MANIFEST_KEY,
   deriveBlobKey,
-  isBaselineJpeg,
   pointerKey,
   renderCreditsHtml,
   validateEntry,
   type ManifestEntry,
 } from "../src/photolicense";
-
-// LEGACY slot dims. Every device shipped up to FW 6 draws a 150x100 photo into a
-// fixed slot, and its drawJpg call site passes no scale -- maxWidth/maxHeight
-// CLIP rather than shrink -- so anything larger renders as its own top-left
-// corner. This variant must keep existing, unchanged, for as long as one of those
-// devices is in the field. Baseline (non-progressive) JPEG only: the on-device
-// decoder (LovyanGFX drawJpg via TJpgDec) cannot decode progressive.
-const PHOTO_W = 150;
-const PHOTO_H = 100;
-
-// SQUARE (full-bleed) dims, one per distinct panel size across the SKUs. The
-// card became the whole disc in FW 7 (issue #209), so the artifact is the panel:
-// 240 = Kit S3 / the retired C3 form factor, 412 = the 1.46B, 480 = the Pro 2.1.
-//
-// Emitted per size rather than emitted once and scaled on-device. drawJpg CAN
-// scale (the float scale_x/scale_y overload; the jpeg_div_t one is deprecated),
-// so this is a choice: upscaling a 240 artifact to 480 throws away exactly the
-// detail a bigger panel exists to show, and the crop aspect is identical across
-// sizes so there is nothing else to gain by sharing one.
-const SQUARE_SIZES = [240, 412, 480] as const;
-
-// Where the subject sits vertically in the square. Below 0.5 lifts it, keeping
-// the aeroplane clear of the callsign band along the bottom.
-const SQUARE_PLACE = 0.38;
 
 interface Args {
   env?: string;
@@ -68,6 +45,10 @@ interface Args {
   /** --dry-run only: write the first N changed rows' squares here to be looked at. */
   sampleOut?: string;
   sampleCount: number;
+  /** Write a machine-readable status (verdict, rows live/failed/not reached) here on every exit. */
+  statusOut?: string;
+  /** Prove the allowlist refuses <key> before wrangler is reached; writes nothing. */
+  selftestAllowlist?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -97,8 +78,11 @@ function parseArgs(argv: string[]): Args {
     // hand-edited key, a namespace restored from elsewhere).
     else if (v === "--force") a.force = true;
     else if (v === "--photos-dir") a.photosDir = argv[++i] ?? a.photosDir;
+    else if (v === "--status-out") a.statusOut = argv[++i];
+    else if (v === "--selftest-allowlist") a.selftestAllowlist = argv[++i];
     else throw new Error(`unknown argument: ${v}`);
   }
+  if (a.selftestAllowlist) return a;
   if (!a.checkOnly && !a.dryRun && !a.env) {
     throw new Error("an upload run needs --env <name> (or use --check / --dry-run)");
   }
@@ -117,12 +101,34 @@ function q(s: string): string {
 // blip) partway through the ~136 writes a full ingest makes -- and without a
 // retry that aborts the whole idempotent run. Retry with backoff and a NATIVE
 // wait; see exec-retry.ts for why the wait used to be the thing that failed.
-function wranglerPut(env: string, key: string, opts: { value?: string; path?: string }): void {
+//
+// THE ALLOWLIST RUNS FIRST, before the command is even built: the photo job may
+// write only photo:* and pptr:* (publish-guard.ts), because both namespaces on
+// the account also hold route, airport, config and device data.
+//
+// `exec` is injectable so the allowlist self-test can prove wrangler was never
+// reached, and so a planted failure (PHOTO_INGEST_PLANT_FAIL) goes through the
+// real retry path.
+type Exec = (cmd: string) => void;
+const realExec: Exec = (c) => { execSync(c, { stdio: "inherit" }); };
+function wranglerPut(env: string, key: string, opts: { value?: string; path?: string }, exec: Exec = realExec): void {
+  assertAllowedKey(key);
   const parts = ["npx", "wrangler", "kv", "key", "put", q(key)];
   if (opts.value !== undefined) parts.push(q(opts.value));
   if (opts.path !== undefined) parts.push("--path", q(opts.path));
   parts.push("--binding=ENRICH_KV", `--env=${env}`, "--remote");
-  execWithRetry((c) => { execSync(c, { stdio: "inherit" }); }, parts.join(" "), `put ${key}`);
+  execWithRetry(exec, parts.join(" "), `put ${key}`);
+}
+
+// A test seam that can only make a publish FAIL, never pass: the named row's
+// blob write throws on every attempt, through the real retry. Set from the
+// photos workflow's manual-dispatch input for acceptance tests A4/A14.
+function execFor(target: string): Exec {
+  const planted = process.env.PHOTO_INGEST_PLANT_FAIL;
+  if (planted && planted === target) {
+    return () => { throw new Error(`planted failure for ${target} (PHOTO_INGEST_PLANT_FAIL)`); };
+  }
+  return realExec;
 }
 
 // The manifest already published to KV, or null when there is none / it cannot be
@@ -182,82 +188,32 @@ function alreadyPublished(
   return want.every((k) => had[k] === squareKeys[k]);
 }
 
-// Where the aeroplane is, as a normalised box.
-//
-// The background is estimated PER ROW, from the outer pixels at each end of that
-// row. Per row because sky is a vertical gradient: one global background colour
-// scores the top of the frame as subject and reports 40% on a picture that is
-// nothing but sky. Rows and columns carrying only a trickle of hits are dropped,
-// so the box tracks the aeroplane rather than every non-sky pixel -- haze, a
-// distant treeline, a watermark.
-//
-// Detection is deliberately dumb and local: no model, no network, nothing to
-// version. It is checked by rendering the whole library and looking, which is
-// how the fill cap was chosen.
-const DETECT_W = 240;   // detection resolution -- the box is normalised, so this need not be large
-const DETECT_EDGE = 6;  // pixels sampled at each end of a row for the background
-const DETECT_DIST = 42; // RGB distance beyond which a pixel counts as subject
-async function detectSubjectBox(
-  sharp: typeof import("sharp"),
-  src: Buffer,
-): Promise<SubjectBox> {
-  const { data, info } = await sharp(src)
-    .resize(DETECT_W, null, { fit: "inside" })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const { width: w, height: h, channels: c } = info;
-  const med = (xs: number[]) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
-  const col = new Array<number>(w).fill(0);
-  const row = new Array<number>(h).fill(0);
-  for (let y = 0; y < h; y++) {
-    const rs: number[] = [], gs: number[] = [], bs: number[] = [];
-    for (let k = 0; k < DETECT_EDGE; k++) {
-      for (const x of [k, w - 1 - k]) {
-        const i = (y * w + x) * c;
-        rs.push(data[i] ?? 0); gs.push(data[i + 1] ?? 0); bs.push(data[i + 2] ?? 0);
-      }
-    }
-    const br = med(rs), bg = med(gs), bb = med(bs);
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * c;
-      const dr = (data[i] ?? 0) - br, dg = (data[i + 1] ?? 0) - bg, db = (data[i + 2] ?? 0) - bb;
-      if (Math.sqrt(dr * dr + dg * dg + db * db) > DETECT_DIST) { col[x]!++; row[y]!++; }
-    }
-  }
-  const tC = Math.max(2, h * 0.02), tR = Math.max(2, w * 0.02);
-  let x0 = 0, x1 = w - 1, y0 = 0, y1 = h - 1;
-  while (x0 < x1 && (col[x0] ?? 0) < tC) x0++;
-  while (x1 > x0 && (col[x1] ?? 0) < tC) x1--;
-  while (y0 < y1 && (row[y0] ?? 0) < tR) y0++;
-  while (y1 > y0 && (row[y1] ?? 0) < tR) y1--;
-  return { x0: x0 / w, x1: x1 / w, y0: y0 / h, y1: y1 / h };
-}
-
-// The source region to take for one entry, honouring its framing judgement.
-// Kept next to the resize it feeds so the two cannot drift; the geometry itself
-// is in src/framing.ts, where vitest can reach it without sharp.
-//
-// `place` is 0.5 for the rectangle (nothing is drawn over it) and lower for the
-// square, where text lands on the lower third and the aeroplane must sit above it.
-async function extractFor(
-  sharp: typeof import("sharp"),
-  src: Buffer,
-  outW: number,
-  outH: number,
-  e: { focus?: [number, number]; zoom?: number; target: string },
-  place?: number,
-) {
-  const meta = await sharp(src).metadata();
-  const w = meta.width ?? 0;
-  const h = meta.height ?? 0;
-  if (!w || !h) throw new Error(`${e.target}: source has no dimensions`);
-  const framing: Framing = { focus: e.focus, zoom: e.zoom, place };
-  return cropRect(w, h, outW, outH, framing);
-}
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // --selftest-allowlist <key>: drive the REAL wranglerPut with a spy in place
+  // of the shell. A refused key must throw before the spy is ever called; an
+  // allowed key must reach the spy -- the control that proves the spy can see a
+  // call at all. Nothing touches KV either way.
+  if (args.selftestAllowlist) {
+    const calls: string[] = [];
+    const spy: Exec = (c) => { calls.push(c); };
+    let refused = false;
+    try {
+      wranglerPut("production", args.selftestAllowlist, { value: "selftest" }, spy);
+    } catch (err) {
+      refused = err instanceof KeyNotAllowed;
+      console.log(`allowlist: ${String(err instanceof Error ? err.message : err)}`);
+    }
+    wranglerPut("production", "pptr:t:ALLOWLIST-SELFTEST", { value: "selftest" }, spy);
+    const reachedForForbidden = calls.some((c) => c.includes(`"${args.selftestAllowlist}"`));
+    const reachedForAllowed = calls.some((c) => c.includes('"pptr:t:ALLOWLIST-SELFTEST"'));
+    console.log(`"${args.selftestAllowlist}": refused=${refused} reached wrangler=${reachedForForbidden}; ` +
+      `CONTROL pptr:t:ALLOWLIST-SELFTEST reached wrangler=${reachedForAllowed}`);
+    process.exit(refused && !reachedForForbidden && reachedForAllowed ? 0 : 1);
+  }
+
   const manifestPath = join(args.photosDir, "manifest.json");
   const raw = readFileSync(manifestPath, "utf8");
   const entries = JSON.parse(raw) as ManifestEntry[];
@@ -342,6 +298,19 @@ async function main(): Promise<void> {
     }
   }
 
+  // ---- PLAN: render every row and derive every key. Nothing is written yet. ----
+  //
+  // Planning the whole run before the first write is what lets a failure say
+  // exactly which rows are live, which failed and which were never reached --
+  // the status a publish must report instead of "something went wrong".
+  interface Planned {
+    e: ManifestEntry;
+    jpeg: Buffer;
+    squareBufs: { size: number; key: string; buf: Buffer }[];
+    blobKey: string;
+    squareKeys: Record<string, string>;
+  }
+  const toWrite: Planned[] = [];
   let resized = 0, squaresMade = 0, noSource = 0, skipped = 0, changed = 0, sampled = 0;
   for (const e of entries) {
     if (!e.file) {
@@ -350,90 +319,20 @@ async function main(): Promise<void> {
       continue;
     }
     const src = readFileSync(join(args.photosDir, e.file));
-    // Resize to the exact sprite, cover-crop, baseline JPEG, metadata (EXIF) dropped.
-    // NO mozjpeg: sharp's `mozjpeg: true` preset force-enables PROGRESSIVE encoding
-    // (overriding `progressive: false`), and the on-device decoder (TJpgDec via
-    // LovyanGFX drawJpg) cannot decode progressive -- the failure is a silent
-    // "No photo available" after a successful 200 (found the hard way on the bench).
-    //
-    // THE OUTPUT SIZE IS FIXED AT PHOTO_W x PHOTO_H AND MUST STAY THERE. The
-    // firmware calls drawJpg with maxWidth/maxHeight equal to its 150x100 sprite,
-    // and those arguments CLIP rather than scale -- so an image any larger would
-    // render as its own top-left corner on every device in the field, silently and
-    // on the first card the owner opened. The full-bleed 240x240 variant therefore
-    // ships as a SEPARATE artifact behind --square, not as a change to this one.
-    // See src/framing.ts.
-    const jpeg = await sharp(src)
-      .extract(await extractFor(sharp, src, PHOTO_W, PHOTO_H, e))
-      .resize(PHOTO_W, PHOTO_H, { fit: "cover" })
-      .jpeg({ progressive: false, quality: 82 })
-      .toBuffer();
-
-    // The full-bleed square variants: one per panel size, cover-cropped to 1:1
-    // with the subject lifted clear of the callsign band, and the graded scrim
-    // COMPOSITED IN AT INGEST rather than drawn on-device. Baking it is what lets
-    // the contrast guarantee be a measurement on a real artifact instead of a
-    // property of renderer code -- and the device cannot cheaply alpha-blend a
-    // gradient over a JPEG it has just decoded into an 8bpp sprite anyway.
-    const squares: { size: number; buf: Buffer }[] = [];
-    if (args.square) {
-      // Detect once per photo; the box does not depend on the panel size.
-      // A hand-placed `focus`/`zoom` still wins -- an operator who has looked at
-      // the picture beats a heuristic that has not.
-      const box = e.focus || e.zoom ? null : await detectSubjectBox(sharp, src);
-      const meta = await sharp(src).metadata();
-      const rect = box
-        ? subjectCrop(box, meta.width ?? 1, meta.height ?? 1)
-        : await extractFor(sharp, src, 1, 1, e, SQUARE_PLACE);
-
-      for (const size of SQUARE_SIZES) {
-        const scrim = Buffer.from(scrimRGBA(size, size));
-        const crop = await sharp(src).extract(rect).toBuffer();
-        // Fit the WHOLE crop inside the square, then fill the remainder with a
-        // blurred, darkened cover of the same crop. Never letterboxed, never
-        // clipped beyond what subjectCrop already decided to give up -- and the
-        // fill measured BETTER for text contrast than the photograph it replaced
-        // (9.0:1 worst case against a 4.5:1 target; see the sourcing playbook).
-        const fitted = await sharp(crop).resize(size, size, { fit: "inside" }).toBuffer();
-        const fm = await sharp(fitted).metadata();
-        const bg = await sharp(crop)
-          .resize(size, size, { fit: "cover" })
-          .blur(Math.max(4, Math.round(size / 13)))
-          .modulate({ brightness: 0.5 })
-          .toBuffer();
-        const buf = await sharp(bg)
-          .composite([
-            {
-              input: fitted,
-              left: Math.round((size - (fm.width ?? size)) / 2),
-              top: Math.round((size - (fm.height ?? size)) / 2),
-            },
-            { input: scrim, raw: { width: size, height: size, channels: 4 }, blend: "over" },
-          ])
-          .jpeg({ progressive: false, quality: 82 })
-          .toBuffer();
-        if (!isBaselineJpeg(buf))
-          throw new Error(`${e.kind}:${e.target}: square ${size} is not baseline JPEG; aborting`);
-        squares.push({ size, buf });
-      }
-    }
-
-    // Hard assertion: refuse to upload anything but a baseline JPEG (SOF0/SOF1).
-    // SOF2 = progressive = undecodable on-device; guard here so no encoder-option
-    // drift can ever ship a poison blob again.
-    if (!isBaselineJpeg(jpeg)) {
-      throw new Error(`${e.kind}:${e.target}: encoded JPEG is not baseline (progressive?); aborting`);
-    }
+    // Rendering lives in photo-render.ts so the dashboard's preview is these
+    // exact bytes. Both renders refuse anything but a baseline JPEG (SOF2 =
+    // progressive = undecodable on-device). THE RECTANGLE STAYS 150x100: the
+    // firmware's drawJpg clips rather than scales, so any larger image would
+    // render as its own top-left corner on every legacy device.
+    const jpeg = await renderRect(sharp, src, e);
+    const squares = args.square ? await renderSquares(sharp, src, e) : [];
 
     resized++;
     squaresMade += squares.length;
     const blobKey = await deriveBlobKey(e.target, new Uint8Array(jpeg));
     e.blobKey = blobKey;
-    const ptr = pointerKey(e.kind, e.target);
 
-    // Every key this row would write, derived BEFORE any upload decision. Hashing
-    // is free next to a KV round trip, and the skip check needs the square keys as
-    // much as the rectangle's.
+    // Every key this row would write, derived BEFORE any upload decision.
     const squareKeys: Record<string, string> = {};
     const squareBufs: { size: number; key: string; buf: Buffer }[] = [];
     for (const s of squares) {
@@ -444,18 +343,12 @@ async function main(): Promise<void> {
     e.squareKeys = squareKeys;
 
     const sq = squares.map((s) => `${s.size}:${s.buf.length}B`).join(" ");
+    const unchanged = alreadyPublished(priorByTarget.get(`${e.kind}:${e.target}`), blobKey, squareKeys);
     if (args.dryRun || !args.env) {
-      // Say which of the two things this row is. The count of CHANGED rows is
-      // the number the operator is deciding on -- "would a real run rewrite the
-      // library, or is it already current?" -- so it must be distinguishable
-      // here and not only in an upload run that has already happened.
-      const unchanged = alreadyPublished(priorByTarget.get(`${e.kind}:${e.target}`), blobKey, squareKeys);
       if (unchanged) skipped++;
       else changed++;
       // Optional: write the artifacts this run WOULD publish, so they can be
-      // looked at before the library is rewritten. The real pipeline's bytes,
-      // not a reimplementation of it -- a sample generated by separate code
-      // proves the separate code works.
+      // looked at before the library is rewritten -- the real pipeline's bytes.
       if (args.sampleOut && !unchanged && sampled < args.sampleCount) {
         mkdirSync(args.sampleOut, { recursive: true });
         for (const s of squares) {
@@ -469,77 +362,215 @@ async function main(): Promise<void> {
       );
       continue;
     }
-
-    // ALREADY THERE: nothing to do. Content-addressed keys make this provable
-    // rather than a guess -- identical keys mean identical bytes, so the writes
-    // would be no-ops. The row still goes into the republished manifest.
-    if (alreadyPublished(priorByTarget.get(`${e.kind}:${e.target}`), blobKey, squareKeys)) {
+    // ALREADY THERE: content-addressed keys make "unchanged" provable -- the
+    // writes would be byte-identical no-ops. The row still goes into the manifest.
+    if (unchanged) {
       skipped++;
       continue;
     }
-    console.log(`${e.kind}:${e.target} -> ${blobKey} (${jpeg.length} B)${sq ? `  square ${sq}` : ""}`);
-
-    const blobPath = join(tmp, `${blobKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
-    writeFileSync(blobPath, jpeg);
-    wranglerPut(args.env, blobKey, { path: blobPath }); // immutable blob
-    wranglerPut(args.env, ptr, { value: blobKey }); // pointer flip
-
-    // Square variants LAST, and each blob strictly before its pointer. A run
-    // interrupted anywhere leaves the legacy pointer already flipped and correct,
-    // and a square pointer that exists always resolves to a blob that exists --
-    // so a half-finished ingest degrades to "some devices still get rectangles",
-    // never to a dangling pointer or a clipped card.
-    for (const s of squareBufs) {
-      // The TARGET, not `${target}-s${size}`. Blob keys are validated on serve by
-      // BLOB_KEY_RE (photo:<target>-<hash8>, target alphanumeric), and a size
-      // suffix puts a second dash in the target segment -- which the regex
-      // rejects, so resolvePhoto drops the square and falls back to the rectangle
-      // SILENTLY, with a 200 on the wire and nothing in any log. Caught only by
-      // reading a key the ingest had actually written; the unit tests passed
-      // because their fixtures were hand-written keys of the right shape rather
-      // than keys this code produces.
-      //
-      // No suffix is needed anyway: the blobs are content-addressed, so three
-      // sizes of one type hash to three different keys on their own, and the
-      // POINTER key already carries the size.
-      const sPath = join(tmp, `${s.key.replace(/[^a-z0-9]/gi, "_")}.jpg`);
-      writeFileSync(sPath, s.buf);
-      wranglerPut(args.env, s.key, { path: sPath });
-      wranglerPut(args.env, pointerKey(e.kind, e.target, s.size), { value: s.key });
-    }
+    toWrite.push({ e, jpeg, squareBufs, blobKey, squareKeys });
   }
 
-  // A LAST LINE THAT STATES WHAT ACTUALLY HAPPENED (#207). The per-row output is
-  // 213 lines long, so anything important said at the top is gone by the end. The
-  // counts are what a reader would otherwise have to reconstruct by scrolling --
-  // and "0 resized" is the shape of every silent-skip bug this script has had.
+  // A LAST LINE THAT STATES WHAT ACTUALLY HAPPENED (#207).
   console.log(
     `summary: ${resized} resized, ${squaresMade} square variant(s), ` +
       `${noSource} row(s) with no source file` +
       (args.dryRun ? `, ${changed} CHANGED vs the published manifest, ${skipped} already current` : "") +
       (!args.dryRun && skipped ? `, ${skipped} unchanged and SKIPPED (${skipped * 4} KV writes avoided)` : "") +
+      (!args.dryRun && args.env ? `, ${toWrite.length} to write` : "") +
       (args.sampleOut ? `, ${sampled} sample row(s) written to ${args.sampleOut}` : "") +
       (args.square ? "" : "  [--no-square: square variants were NOT built]") +
       (args.force ? "  [--force: skip check bypassed]" : "") +
       (args.dryRun ? "  [--dry-run: nothing was written to KV]" : ""),
   );
 
-  // --- publish the public manifest (drop local file paths) + credits page ---
+  // --- the public manifest (drop local file paths) + credits page ---
   const publicManifest: ManifestEntry[] = entries.map(({ file, ...rest }) => rest);
   const creditsHtml = renderCreditsHtml(publicManifest);
   writeFileSync(join(args.photosDir, "credits.html"), creditsHtml);
   console.log(`wrote ${join(args.photosDir, "credits.html")}`);
 
-  if (!args.dryRun && args.env) {
-    const manifestJson = JSON.stringify(publicManifest);
-    const manifestFile = join(tmp, "manifest.json");
-    writeFileSync(manifestFile, manifestJson);
-    wranglerPut(args.env, MANIFEST_KEY, { path: manifestFile });
-    console.log(`published ${MANIFEST_KEY} (${publicManifest.length} entries) + credits.html`);
+  if (args.dryRun || !args.env) return;
+  const env = args.env;
+  const status = newStatus(env);
+  status.skipped = skipped;
+  status.toWrite = toWrite.map((p) => p.e.target);
+
+  // ---- PREFLIGHT: can the verifier see KV, and would any row be lost? ----
+  //
+  // BEFORE ANY WRITE. A blind verifier cannot certify what follows, so a dead
+  // or wrong token stops the run here with nothing written (A11) -- reported as
+  // UNTRUSTWORTHY, never as a list of "missing" keys.
+  //
+  // PHOTO_VERIFY_TOKEN overrides the read token only, and only ever makes the
+  // run refuse: it is the seam for acceptance test A11.
+  const target = kvTargetFromWranglerToml("wrangler.toml", env,
+    // `||`, not `??`: the workflow passes an EMPTY string when the A11 input is
+    // off, and an empty token would blind the verifier on every normal publish.
+    process.env.PHOTO_VERIFY_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "");
+  const pre0 = await readControls(target, MANIFEST_KEY);
+  let publishedRows: { kind: string; target: string }[] | null = null;
+  if (pre0.knownPresentReadsBack) {
+    try {
+      const v = await bulkGet(target, [MANIFEST_KEY]);
+      publishedRows = JSON.parse(v[MANIFEST_KEY] ?? "[]") as ManifestEntry[];
+    } catch {
+      pre0.knownPresentReadsBack = false;
+    }
   }
+  const pre = preflight({ controls: pre0, published: publishedRows, next: entries });
+  if (pre.verdict !== "PASS") {
+    status.verdict = pre.verdict === "UNTRUSTWORTHY" ? "UNTRUSTWORTHY" : "FAILED";
+    status.reason = pre.reasons.join(" ") + (pre0.error ? ` (${pre0.error})` : "");
+    status.notReached = status.toWrite;
+    finish(args, status, pre.verdict === "UNTRUSTWORTHY" ? 3 : 1);
+  }
+  console.log(`preflight: verifier sees ${env} KV; ${publishedRows?.length ?? 0} published row(s), none dropped`);
+
+  // ---- WRITES: changed rows only, in manifest order, blob before pointer. ----
+  let writeFailed = false;
+  for (let i = 0; i < toWrite.length; i++) {
+    const p = toWrite[i]!;
+    const exec = execFor(p.e.target);
+    try {
+      console.log(`${p.e.kind}:${p.e.target} -> ${p.blobKey} (${p.jpeg.length} B)`);
+      const blobPath = join(tmp, `${p.blobKey.replace(/[^a-z0-9]/gi, "_")}.jpg`);
+      writeFileSync(blobPath, p.jpeg);
+      wranglerPut(env, p.blobKey, { path: blobPath }, exec); // immutable blob
+      wranglerPut(env, pointerKey(p.e.kind, p.e.target), { value: p.blobKey }, exec); // pointer flip
+      // Square variants LAST, each blob strictly before its pointer: an
+      // interrupted run degrades to "some devices still get the old square",
+      // never to a pointer naming a blob that does not exist. The blob key is
+      // photo:<target>-<hash8> with NO size suffix -- BLOB_KEY_RE rejects a
+      // second dash, which silently drops the square on serve.
+      for (const s of p.squareBufs) {
+        const sPath = join(tmp, `${s.key.replace(/[^a-z0-9]/gi, "_")}.jpg`);
+        writeFileSync(sPath, s.buf);
+        wranglerPut(env, s.key, { path: sPath }, exec);
+        wranglerPut(env, pointerKey(p.e.kind, p.e.target, s.size), { value: s.key }, exec);
+      }
+      status.live.push(p.e.target);
+    } catch (err) {
+      // The rows before this one are LIVE -- their pointers flipped. Name this
+      // one and the rest, stop writing, and STILL VERIFY: the status should say
+      // what KV actually holds, not only what this loop believes it wrote.
+      // The manifest is not written either way.
+      writeFailed = true;
+      status.failed = [p.e.target];
+      status.notReached = toWrite.slice(i + 1).map((q) => q.e.target);
+      status.reason = `write failed on ${p.e.kind}:${p.e.target}: ${String(err instanceof Error ? err.message : err).slice(0, 300)}`;
+      break;
+    }
+  }
+
+  // ---- VERIFY: every row, every key, read back. ----
+  //
+  // KV is eventually consistent, so a pointer written seconds ago can read
+  // stale. Re-read up to five times, 15 s apart, before calling a mismatch a
+  // failure -- and report how many reads it took. After a write failure the
+  // mismatches are expected (they are the failed and unreached rows), so one
+  // read is enough to report them.
+  const tv = Date.now();
+  let res = null as ReturnType<typeof verify> | null;
+  for (let attempt = 1; attempt <= (writeFailed ? 1 : 5); attempt++) {
+    const controls = await readControls(target, MANIFEST_KEY);
+    let pointers: Record<string, string | null> = {};
+    let blobs = new Set<string>();
+    try {
+      pointers = await bulkGet(target, expectedPointers(publicManifest).map(([k]) => k));
+      blobs = await listKeys(target, "photo:");
+    } catch (err) {
+      controls.knownPresentReadsBack = false;
+      controls.error = String(err instanceof Error ? err.message : err);
+    }
+    res = verify({ controls, manifest: publicManifest, pointers, blobsPresent: blobs });
+    status.verifyReads = attempt;
+    if (res.verdict !== "FAIL") break;
+    if (attempt < 5) {
+      console.log(`verify read ${attempt}: ${res.reasons.join("; ").slice(0, 200)} -- re-reading in 15 s`);
+      sleepSync(15_000);
+    }
+  }
+  status.verifyMs = Date.now() - tv;
+  status.pointersChecked = res!.pointersChecked;
+  if (writeFailed) {
+    // Refused whatever verify said: a publish that hit an error is not
+    // certified, even if KV happens to look complete. Retry converges.
+    status.verdict = res!.verdict === "UNTRUSTWORTHY" ? "UNTRUSTWORTHY" : "FAILED";
+    status.reason += ` Verifier: ${res!.verdict === "PASS" ? "every key reads back, but the run hit an error; not certified" : res!.reasons.join(" ")}`;
+    finish(args, status, 1);
+  }
+  if (res!.verdict !== "PASS") {
+    status.verdict = res!.verdict === "UNTRUSTWORTHY" ? "UNTRUSTWORTHY" : "FAILED";
+    status.reason = res!.reasons.join(" ");
+    finish(args, status, res!.verdict === "UNTRUSTWORTHY" ? 3 : 1);
+  }
+  console.log(`verify: ${res!.pointersChecked}/${res!.pointersChecked} pointers and every blob they name, ` +
+    `in ${status.verifyMs} ms over ${status.verifyReads} read(s)`);
+
+  // ---- MANIFEST LAST: the record of what is live, written only on PASS. ----
+  const manifestFile = join(tmp, "manifest.json");
+  writeFileSync(manifestFile, JSON.stringify(publicManifest));
+  wranglerPut(env, MANIFEST_KEY, { path: manifestFile });
+  status.manifestWritten = true;
+  status.verdict = "LIVE";
+  status.liveAt = new Date().toISOString();
+  console.log(`published ${MANIFEST_KEY} (${publicManifest.length} entries) + credits.html`);
+  finish(args, status, 0);
 }
 
+// ---------------------------------------------------------------- status
+
+interface PublishStatus {
+  v: 1;
+  env: string;
+  sha: string;
+  verdict: "LIVE" | "FAILED" | "UNTRUSTWORTHY" | "RUNNING";
+  reason: string;
+  toWrite: string[];
+  live: string[];
+  failed: string[];
+  notReached: string[];
+  skipped: number;
+  pointersChecked: number;
+  verifyMs: number;
+  verifyReads: number;
+  manifestWritten: boolean;
+  liveAt: string;
+  finishedAt: string;
+}
+
+function newStatus(env: string): PublishStatus {
+  return {
+    v: 1, env, sha: process.env.GITHUB_SHA ?? "", verdict: "RUNNING", reason: "",
+    toWrite: [], live: [], failed: [], notReached: [], skipped: 0,
+    pointersChecked: 0, verifyMs: 0, verifyReads: 0, manifestWritten: false, liveAt: "", finishedAt: "",
+  };
+}
+
+// Every exit goes through here, so a publish can never end without saying what
+// happened -- the six-week silence was a publish that reported nothing.
+function finish(args: Args, status: PublishStatus, code: number): never {
+  status.finishedAt = new Date().toISOString();
+  const line = `publish ${status.env}: ${status.verdict}` +
+    (status.reason ? ` -- ${status.reason}` : "") +
+    ` | live: ${status.live.join(",") || "none"}` +
+    (status.failed.length ? ` | failed: ${status.failed.join(",")}` : "") +
+    (status.notReached.length ? ` | not reached: ${status.notReached.join(",")}` : "");
+  (code === 0 ? console.log : console.error)(line);
+  if (args.statusOut) writeFileSync(args.statusOut, JSON.stringify(status, null, 2) + "\n");
+  // NOT process.exit(). With fetch's sockets still closing, process.exit() on
+  // Windows trips a libuv assertion (UV_HANDLE_CLOSING) and the process dies
+  // with 127 instead of the verdict's code -- observed on the first A11 smoke.
+  // Setting exitCode and unwinding lets the event loop drain and exit cleanly.
+  process.exitCode = code;
+  throw new Finished();
+}
+
+class Finished extends Error {}
+
 main().catch((err) => {
+  if (err instanceof Finished) return; // finish() already reported and set exitCode
   console.error(String(err instanceof Error ? err.stack : err));
-  process.exit(1);
+  process.exitCode = 1;
 });

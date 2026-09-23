@@ -563,7 +563,9 @@ npx wrangler secret put ADSB_LOL_API_KEY --env production    # once issued (laun
 npm run deploy:production
 
 # 4. Seed the KV-backed datasets into the fresh production namespace:
-npm run ingest -- --env production            # 68 stock photos + manifest/credits
+npm run ingest -- --env production            # stock photos: BOOTSTRAP ONLY -- after this,
+                                              # production photos change only through CI
+                                              # (see "Publishing photos" below)
 npm run ingest:mildb -- --env production      # ~17k military airframes
 npm run ingest:airports -- --env production   # ~9.4k airport tiles
 
@@ -1130,6 +1132,30 @@ floor, KV side-table hit, prefix fill.
 > backs off on Wikimedia 429s. Remaining: further long tail ranked by
 > proxy-log traffic (extend `photos/picksheet.json`, re-run harvest +
 > ingest), and production ingest at launch.
+
+#### Publishing photos (from 2026-09-23)
+
+**One click in the photo dashboard reaches devices; nothing else writes
+production photos.** `npm run dashboard`, pick, then **Publish to devices**.
+
+1. The dashboard commits the changed rows to **main** -- `proxy/photos/**`
+   only, fast-forward only, refusing a malformed row, a dropped row, or a row
+   someone else changed since it loaded.
+2. [`.github/workflows/photos.yml`](../.github/workflows/photos.yml) runs the
+   ingest against production: preflight (can the verifier see KV?), changed
+   rows only (blob before pointer), then **every** row and key read back, and
+   `photo:manifest` written last and only on PASS. The ingest may write
+   `photo:*` and `pptr:*` keys only.
+3. The verdict lands on the commit as the `photos-publish` check run, and the
+   dashboard shows it: "live on devices at <time>", or the failure with the
+   rows live / failed / not reached, and a Retry.
+
+Staging mirrors production after each LIVE run; it is no longer a publish
+target. The dashboard needs Daniel's fine-grained GitHub token (this repo:
+Contents read/write, Actions read) in
+`%USERPROFILE%\.config\blipscope\github-token`; it logs only whether the token
+is present. Design, failure table and acceptance: the "Photo publish pipeline:
+design" doc.
 
 **Harvest-phase checklist (when content population begins):**
 
