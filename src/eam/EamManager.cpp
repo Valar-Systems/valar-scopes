@@ -9,6 +9,15 @@
 #include "EamModels.h"
 #include "UsbOpen.h"
 
+#if defined(FEATURE_EAM_GAME)
+#include <esp_timer.h>
+#include <sys/time.h>
+
+#include "ClockSync.h"
+#include "../game/DrawDrill.h"
+#include "../game/DrillPolicy.h"
+#endif
+
 // Backend base URL default. Normally injected per-env as a build flag (-DEAM_FEED_BASE=...);
 // guarded so a stray build without the flag still compiles. The runtime value ("eam-base-url")
 // overrides it, so nothing real is baked in here.
@@ -123,6 +132,16 @@ void EamManager::Initialise()
 
     logbook.Begin();
 
+#if defined(FEATURE_EAM_GAME)
+    // The arming gate needs the AGE of the clock sync, not just "after 2020".
+    clocksync::Begin();
+    game::KeyTurnParams kp;
+    kp.cx = SCREEN_SIZE_DIV_2;
+    kp.cy = SCREEN_SIZE_DIV_2;
+    kp.r_min = SCREEN_SIZE * 30 / 100;   // outer 40 % of the radius is "the bezel"; 13-D tunable
+    keyTurn = game::KeyTurnGesture(kp);
+#endif
+
     currentBrightness = configuredBrightness;
     tft.setBrightness(currentBrightness);
     lastBrightnessCheck = 0;
@@ -146,7 +165,18 @@ void EamManager::Update()
         tickerScroll = 0;
     }
 
+#if defined(FEATURE_EAM_GAME)
+    std::vector<eam::Msg> fresh;
+    UpdateLogbook(&fresh);
+    // BACKLOG IS NEVER OFFERED. Only messages first seen LIVE -- i.e. on the poll that
+    // raised the new-arrival edge, which is never the first poll after boot -- reach the
+    // drill (missileer-game-ui-review.md §6.6 "Backlog: edge-seeded"). A fresh device's
+    // empty logbook would otherwise offer a day-old NAM.
+    if (!newEam) fresh.clear();
+    UpdateDrill(fresh, feed.ConsumeReconnected());
+#else
     UpdateLogbook();
+#endif
     CheckAlerts(newEam);
     ntfy.Pump(http);
 
@@ -164,6 +194,14 @@ void EamManager::Update()
 
 void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
 {
+#if defined(FEATURE_EAM_GAME)
+    // THE DRILL FACE IS A MODE, not a rotation screen (missileer-game-ui-review.md:
+    // "the launch face must be an overlay + a mode"). While it is up nothing else draws.
+    if (drillScreen) {
+        game::DrawDrill(backbuffer, palette, drill.Get(), drill.Cfg(), NowUs());
+        return;
+    }
+#endif
     std::vector<Screen> rot = BuildRotation();
     // Keep `current` valid against the live rotation set (data can come and go).
     bool inRot = false;
@@ -189,6 +227,15 @@ void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
     // "opening on computer" confirmation after a long press (FEATURE_USB_OPEN).
     if ((long)(usbToastUntilMs - millis()) > 0)
         CenterText(backbuffer, usbToast, (int)(SCREEN_SIZE * 0.80), palette.accent);
+
+#if defined(FEATURE_EAM_GAME)
+    // Offered: a STATIC banner over whatever screen is up; the carousel keeps running
+    // beneath it (Fable, 2026-09-23).
+    if (drill.Get().phase == game::Phase::Offered) {
+        const bool decoded = game::AutoDecoded(offeredAtUs, NowUs(), feed.GameCfg().autoDecodeS);
+        game::DrawOfferBanner(backbuffer, palette, drill.Get(), decoded);
+    }
+#endif
 }
 
 String EamManager::ShownMessageId() const
@@ -256,6 +303,9 @@ void EamManager::AdvanceRotation(int dir)
 
 void EamManager::AutoRotate()
 {
+#if defined(FEATURE_EAM_GAME)
+    if (drillScreen) return; // the drill face is a mode; the carousel waits under it
+#endif
     if (millis() - lastInteractionMs < INTERACT_HOLD_MS) return; // user is driving
     if (millis() - lastAdvanceMs < AUTO_DWELL_MS) return;
     AdvanceRotation(+1);
@@ -270,6 +320,17 @@ void EamManager::HandleTouch()
     const TouchPoll poll = ReadTouch(tft, http, tx, ty);
     if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
     const bool touched = (poll == TouchPoll::Touched);
+
+#if defined(FEATURE_EAM_GAME)
+    if (drillScreen) {
+        // Inside the drill: taps and the key turn only. Swipes are blocked
+        // (missileer-game-ui-review.md §6.2) and the USB long press is not armed.
+        HandleDrillTouch(touched, tx, ty);
+        lastInteractionMs = millis();
+        wasTouched = false;
+        return;
+    }
+#endif
 
     const unsigned long now = millis();
     if (touched) {
@@ -294,7 +355,20 @@ void EamManager::HandleTouch()
 
     const int dx = touchLastX - touchStartX;
     const int dy = touchLastY - touchStartY;
-    if (abs(dx) < 40 && abs(dy) < 40) return; // tap: just holds auto-rotate (handled above)
+    if (abs(dx) < 40 && abs(dy) < 40) {
+#if defined(FEATURE_EAM_GAME)
+        // THE BANNER TAP IS THE RITUAL BEAT (§5 line 234): it runs the decoder.
+        // PlayerOpen -> Printing, and the drill face comes up.
+        if (drill.Get().phase == game::Phase::Offered
+            && game::BannerRect(SCREEN_SIZE).Contains(touchStartX, touchStartY)) {
+            drill.Step(game::Event::PlayerOpen, NowUs());
+            drillScreen = true;
+            keyTurn.Reset();
+            Serial.printf("[drill] open %s\n", drillMsgId.c_str());
+        }
+#endif
+        return; // tap: just holds auto-rotate (handled above)
+    }
     if (abs(dx) >= abs(dy))
         AdvanceRotation(dx < 0 ? +1 : -1);    // swipe left -> next, right -> prev
 }
@@ -310,6 +384,12 @@ void EamManager::UpdateBrightness()
         if (utc > 1600000000) // NTP synced
             night = SunElevationDeg(deviceLat, deviceLon, utc) < -0.833f;
     }
+#if defined(FEATURE_EAM_GAME)
+    // Auto-dim is inhibited for a committed sortie's lifetime (ui-review §6.3).
+    if (drill.Get().committed && drill.Get().phase != game::Phase::Complete
+        && drill.Get().phase != game::Phase::Aborted)
+        night = false;
+#endif
     nightDim = night;
 
     uint8_t target = configuredBrightness;
@@ -395,13 +475,16 @@ void EamManager::CenterText(BandCanvas& c, const String& s, int y, uint32_t colo
     c.drawString(s, SCREEN_SIZE_DIV_2 - c.textWidth(s) / 2, y);
 }
 
-void EamManager::UpdateLogbook()
+void EamManager::UpdateLogbook(std::vector<eam::Msg>* fresh)
 {
     const time_t nowUtc = time(nullptr);
     const long nowEpoch = (nowUtc > 1600000000) ? (long)nowUtc : 0;
 
-    for (const eam::Msg& m : feed.Latest())
-        logbook.NoteEam(m.id, m.heardAtEpoch);
+    for (const eam::Msg& m : feed.Latest()) {
+        // NEW TO THIS DEVICE = not in the logbook (the brief's definition of a new EAM).
+        const bool isNew = logbook.NoteEam(m.id, m.heardAtEpoch);
+        if (isNew && fresh && m.type == eam::MsgType::Eam) fresh->push_back(m);
+    }
 
     for (const eam::Codeword& cw : feed.Codewords()) {
         long ep = eam::Iso8601ToEpoch(cw.lastSeen);
@@ -499,3 +582,204 @@ void EamManager::SendNtfy(const String& title, const String& body, const String&
     // is therefore safe -- a throttled alert is delivered later, not lost.
     ntfy.Send(title, body, tags, priority);
 }
+
+#if defined(FEATURE_EAM_GAME)
+// =========================================================================== the drill
+// Everything below gathers inputs and feeds DrillMachine. Every DECISION is in
+// src/game/DrillPolicy.h (pure, host-tested); if a branch here starts deciding
+// something, it belongs there instead.
+
+uint64_t EamManager::NowUs()
+{
+    return (uint64_t)esp_timer_get_time();
+}
+
+int64_t EamManager::UtcMsNow()
+{
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    return (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+bool EamManager::ClockFreshNow() const
+{
+    return game::ClockFresh(clocksync::HaveSync(), NowUs(), clocksync::LastSyncMonoUs(),
+                            feed.GameCfg().maxClockSyncAgeS);
+}
+
+game::Config EamManager::DrillConfig() const
+{
+    // The served rules, fixed for the life of one drill: a drill runs under the rules in
+    // force when it was offered.
+    game::Config c;
+    const eam::GameConfig& gc = feed.GameCfg();
+    if (gc.windowUs) c.window_us = gc.windowUs;
+    c.bucket_us = gc.bucketUs;  // 0 = unknown: the figure says so rather than guessing
+    c.key_confirm_us = keyTurn.Params().confirm_us;
+    return c;
+}
+
+void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnected)
+{
+    const uint64_t now = NowUs();
+    const eam::GameConfig& gc = feed.GameCfg();
+
+    // HOLD: no game surfaces at all (§1.2). A live drill is dropped, not suspended --
+    // the flag exists to stand a fleet down.
+    if (gc.valid && gc.hold) {
+        if (drill.Get().phase != game::Phase::Idle) {
+            Serial.println("[drill] HOLD set: drill dropped");
+            drill.Reset();
+        }
+        drillScreen = false;
+        return;
+    }
+
+    if (reconnected) drill.Step(game::Event::FeedReconnected, now);
+
+    // Oldest first: the feed is newest-first, and "the first MessageArrived" is the
+    // earliest heard. Later ones in the same poll are OtherMessageArrived.
+    for (auto it = fresh.rbegin(); it != fresh.rend(); ++it) {
+        const eam::Msg& m = *it;
+        game::OfferInput in;
+        in.drill_idle = drill.Get().phase == game::Phase::Idle;
+        in.hold = gc.valid && gc.hold;
+        in.have_config = gc.valid;
+        if (gc.valid)
+            in.derivation = game::Derive(m.id.c_str(), m.id.length(), m.heardAt.c_str(), gc.params);
+        in.clock_fresh = ClockFreshNow();
+        in.now_utc_ms = UtcMsNow();
+        in.ack_cutoff_s = gc.ackCutoffS;
+
+        const game::OfferDecision d = game::DecideOffer(in);
+        switch (d) {
+            case game::OfferDecision::Offer: {
+                drill = game::DrillMachine(DrillConfig());
+                game::EventArgs a;
+                a.cls = in.derivation.cls;
+                drill.Step(game::Event::MessageArrived, now, a);
+                offeredAtUs = now;
+                endedAtUs = 0;
+                drillMsgId = m.id;
+                drillDerivation = in.derivation;
+                Serial.printf("[drill] offer %s class=%d t_at_ms=%lld epoch=%u\n", m.id.c_str(),
+                              (int)in.derivation.cls, (long long)in.derivation.t_at_ms,
+                              (unsigned)gc.params.epoch);
+                break;
+            }
+            case game::OfferDecision::Busy:
+                // NOT queued: it stays in the ticker and the logbook, worked or not.
+                drill.Step(game::Event::OtherMessageArrived, now);
+                break;
+            default:
+                Serial.printf("[drill] not offered %s (decision %d)\n", m.id.c_str(), (int)d);
+                break;
+        }
+    }
+
+    drill.Step(game::Event::Tick, now);
+
+    // Complete/Aborted -> Idle on a dismiss tap (OnDrillTap) or after 60 s.
+    const game::Phase ph = drill.Get().phase;
+    if (ph == game::Phase::Complete || ph == game::Phase::Aborted) {
+        if (endedAtUs == 0) endedAtUs = now;
+        if (game::EndedDwellOver(endedAtUs, now)) {
+            drill.Reset();
+            drillScreen = false;
+            endedAtUs = 0;
+        }
+    } else {
+        endedAtUs = 0;
+    }
+    if (drill.Get().phase == game::Phase::Idle) drillScreen = false;
+}
+
+void EamManager::HandleDrillTouch(bool touched, int x, int y)
+{
+    const uint64_t now = NowUs();
+    const game::Phase ph = drill.Get().phase;
+
+    // THE KEY TURN: every sample goes to the recogniser while armed or in the window,
+    // EXCEPT a press that starts on ABORT, which stays a tap.
+    const bool keyPhase = ph == game::Phase::Armed || ph == game::Phase::Window;
+    const bool pressOnAbort = drillPressed
+        ? game::AbortRect(SCREEN_SIZE).Contains(drillPressX, drillPressY)
+        : (touched && game::AbortRect(SCREEN_SIZE).Contains(x, y));
+    if (keyPhase && !pressOnAbort) {
+        switch (keyTurn.Sample(touched, x, y, now)) {
+            case game::KeyEvent::Arc:     drill.Step(game::Event::PlayerKeyArc, now); break;
+            case game::KeyEvent::Confirm: drill.Step(game::Event::PlayerKeyTurn, now);
+                                          Serial.printf("[drill] key turn, deviation_us=%lld\n",
+                                                        (long long)drill.Get().deviation_us);
+                                          break;
+            case game::KeyEvent::Release: drill.Step(game::Event::PlayerKeyRelease, now); break;
+            case game::KeyEvent::None:    break;
+        }
+    } else if (!keyPhase) {
+        keyTurn.Reset();
+    }
+
+    // Taps: down, then up within 40 px and 1 s. No holds anywhere but the key turn.
+    if (touched) {
+        if (!drillPressed) {
+            drillPressed = true;
+            drillPressX = x;
+            drillPressY = y;
+            drillPressMs = millis();
+        }
+        drillLastX = x;
+        drillLastY = y;
+        return;
+    }
+    if (!drillPressed) return;
+    drillPressed = false;
+    if (abs(drillLastX - drillPressX) < 40 && abs(drillLastY - drillPressY) < 40
+        && millis() - drillPressMs < 1000) {
+        OnDrillTap(drillPressX, drillPressY);
+    }
+}
+
+void EamManager::OnDrillTap(int x, int y)
+{
+    const uint64_t now = NowUs();
+    const game::Phase ph = drill.Get().phase;
+
+    if (ph == game::Phase::Complete || ph == game::Phase::Aborted) {
+        drill.Reset();          // dismiss: back to Idle
+        drillScreen = false;
+        endedAtUs = 0;
+        return;
+    }
+    if (game::AbortRect(SCREEN_SIZE).Contains(x, y)) {
+        drill.Step(game::Event::PlayerAbort, now);
+        Serial.printf("[drill] abort %s\n", drillMsgId.c_str());
+        return;
+    }
+    switch (ph) {
+        case game::Phase::Decoded:
+        case game::Phase::Authenticate:
+            drill.Step(game::Event::PlayerAck, now);
+            break;
+        case game::Phase::WarPlan:
+            drill.Step(game::Event::PlayerConfirmWarPlan, now);
+            break;
+        case game::Phase::Enable: {
+            // ARMING NEEDS A SYNCED CLOCK (Fable, 2026-09-23). T is placed on the
+            // monotonic clock only with a fresh sync; otherwise the machine is given no
+            // T and refuses in place with "clock not synced".
+            uint64_t t = 0;
+            if (drillDerivation.t_at_ms > 0 && ClockFreshNow())
+                t = game::MonoForUtcMs(drillDerivation.t_at_ms, UtcMsNow(), now);
+            drill.SetT(t);
+            drill.Step(game::Event::PlayerEnable, now);
+            Serial.printf("[drill] enable: %s (sync age %llds)\n", t ? "armed" : "refused, clock",
+                          clocksync::HaveSync()
+                              ? (long long)((now - clocksync::LastSyncMonoUs()) / 1000000ull)
+                              : -1LL);
+            break;
+        }
+        default:
+            break; // Printing, Armed, Window, Committed, Terminal: taps do nothing
+    }
+}
+#endif

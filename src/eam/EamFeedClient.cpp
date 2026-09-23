@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "../game/DrillPolicy.h"  // ConfigPollIntervalS
+
 // The fetch request/result envelopes live in namespace eam; bring them in for this unit so the
 // worker/scheduler code below reads cleanly.
 using eam::EamFetchRequest;
@@ -76,6 +78,10 @@ void EamFeedClient::Configure(const Config& newCfg)
     feeds[F_ICBM].intervalMs        = (uint32_t)(ICBM_MS * sc);
     feeds[F_ABNCP].intervalMs       = (uint32_t)(abncpProvider->IntervalMs() * sc);
     feeds[F_MILAIR].intervalMs      = (uint32_t)(MILAIR_MS * sc);
+    // NOT scaled: the /config cadence is the server's (its Cache-Control max-age,
+    // applied on each fetch), because it is how fast the HOLD kill switch reaches the
+    // fleet. This is only the first-fetch placeholder until a response says otherwise.
+    feeds[F_CONFIG].intervalMs      = game::ConfigPollIntervalS(nullptr) * 1000u;
 
     // Stage the first poll of each endpoint shortly after (re)config, fanned out by ~400 ms so
     // they don't all hit the single TLS client at once.
@@ -177,6 +183,15 @@ bool EamFeedClient::BuildRequest(int feedIdx, EamFetchRequest& req) const
             req.endpoint = eam::EamEndpoint::MilAir;
             req.url = base + "/status/milair";
             return true;
+        case F_CONFIG:
+#if defined(FEATURE_EAM_GAME)
+            // The same base, the same worker, the same TLS client as every other endpoint.
+            req.endpoint = eam::EamEndpoint::GameConfig;
+            req.url = base + "/api/v1/missileer/config";
+            return true;
+#else
+            return false; // not a game build: make no call
+#endif
         default:
             return false;
     }
@@ -195,6 +210,7 @@ int EamFeedClient::FeedForEndpoint(eam::EamEndpoint e)
         case eam::EamEndpoint::Abncp:        return F_ABNCP;
         case eam::EamEndpoint::AbncpOpenSky: return F_ABNCP;
         case eam::EamEndpoint::MilAir:       return F_MILAIR;
+        case eam::EamEndpoint::GameConfig:   return F_CONFIG;
     }
     return F_LATEST;
 }
@@ -214,6 +230,9 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
         feeds[f].nextDueMs = now + backoff;
         return;
     }
+
+    // The feed dropped and came back: /eam/latest answers again after failing.
+    if (f == F_LATEST && feeds[f].failCount > 0) reconnectEdge = true;
 
     feeds[f].failCount = 0;
     feeds[f].nextDueMs = now + feeds[f].intervalMs;
@@ -254,6 +273,13 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
             milair = res.milair;
             if (milair.aircraft.size() > MILAIR_RETAIN) milair.aircraft.resize(MILAIR_RETAIN);
             break;
+        case eam::EamEndpoint::GameConfig:
+            gameConfig = res.gameConfig;
+            // HONOUR Cache-Control (Fable, 2026-09-23): the next fetch is when the
+            // server said this answer goes stale, clamped (see ConfigPollIntervalS).
+            feeds[f].intervalMs = game::ConfigPollIntervalS(res.cacheControl.c_str()) * 1000u;
+            feeds[f].nextDueMs = now + feeds[f].intervalMs;
+            break;
     }
 }
 
@@ -279,6 +305,13 @@ void EamFeedClient::MergeLatest(std::vector<eam::Msg>& incoming)
     }
 
     latest = std::move(merged);
+}
+
+bool EamFeedClient::ConsumeReconnected()
+{
+    if (!reconnectEdge) return false;
+    reconnectEdge = false;
+    return true;
 }
 
 bool EamFeedClient::ConsumeNewLatest()
@@ -367,6 +400,12 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
             break;
         case eam::EamEndpoint::MilAir:
             parsed = eam::ParseMilAir(root, res.milair, MILAIR_RETAIN);
+            break;
+        case eam::EamEndpoint::GameConfig:
+            // Strict: the pre-ppm shape parses as not-ok, so a stale server leaves the
+            // device with no config and it refuses to derive.
+            parsed = eam::ParseGameConfig(root, res.gameConfig);
+            res.cacheControl = r.cacheControl;
             break;
     }
     res.ok = parsed;

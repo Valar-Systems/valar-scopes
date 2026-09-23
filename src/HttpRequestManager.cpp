@@ -322,7 +322,10 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     // from. Collecting them costs two header slots and turns "was the feed dry, or
     // did the device stop asking?" from a cross-system log join into a field on
     // the result.
-    static const char* kCollectHeaders[] = { "Transfer-Encoding", "X-Cache", "X-Upstream" };
+    // Cache-Control: the Missileer /config poll honours the server's max-age
+    // (Fable, 2026-09-23) -- it is the HOLD kill-switch cadence, so the device
+    // must follow the number the server chose rather than a baked one.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding", "X-Cache", "X-Upstream", "Cache-Control" };
     const unsigned long reqStartMs = millis();
     int responseCode = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -332,7 +335,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         http.setConnectTimeout(5000);
         http.setTimeout(5000);
-        http.collectHeaders(kCollectHeaders, 3);
+        http.collectHeaders(kCollectHeaders, 4);
         for (const auto& header : headers)
             http.addHeader(header.first, header.second);
         responseCode = http.GET();
@@ -353,6 +356,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
         // Attribution first: valid even on the paths that bail out below.
         result.cacheState = http.header("X-Cache");
         result.upstream = http.header("X-Upstream");
+        result.cacheControl = http.header("Cache-Control");
         DeserializationError err;
         const unsigned long parseStartMs = millis();
         const int bodyLen = http.getSize();

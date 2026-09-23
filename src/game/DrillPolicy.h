@@ -132,6 +132,36 @@ inline Rect AbortRect(int screen) {
   return Rect{screen * 36 / 100, screen * 80 / 100, screen * 28 / 100, screen * 10 / 100};
 }
 
+// ---------------------------------------------------------------------------
+// The /config poll cadence
+// ---------------------------------------------------------------------------
+
+/// Seconds until /config is fetched again, from its Cache-Control header:
+/// `max-age` honoured (Fable, 2026-09-23), clamped to [10 s, 1 h] so a typo on
+/// the server can neither hammer it nor strand the HOLD kill switch for a day.
+/// Absent or unparseable: 300 s.
+inline uint32_t ConfigPollIntervalS(const char* cache_control) {
+  const uint32_t kDefault = 300, kMin = 10, kMax = 3600;
+  if (cache_control == nullptr) return kDefault;
+  const char* key = "max-age=";
+  const size_t key_len = 8;
+  for (const char* p = cache_control; *p; p += 1) {
+    size_t i = 0;
+    // Case-insensitive: only letters fold (c | 0x20), so '-' and '=' match exactly.
+    while (i < key_len && p[i] != 0
+           && (p[i] == key[i] || (key[i] >= 'a' && key[i] <= 'z' && (p[i] | 0x20) == key[i]))) {
+      i += 1;
+    }
+    if (i != key_len) continue;
+    const char* d = p + i;
+    if (*d < '0' || *d > '9') return kDefault;
+    uint32_t v = 0;
+    while (*d >= '0' && *d <= '9' && v < 100000u) v = v * 10 + static_cast<uint32_t>(*d++ - '0');
+    return v < kMin ? kMin : v > kMax ? kMax : v;
+  }
+  return kDefault;
+}
+
 }  // namespace game
 
 #endif  // BLIPSCOPE_GAME_DRILLPOLICY_H

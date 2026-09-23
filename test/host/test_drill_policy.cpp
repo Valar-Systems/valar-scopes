@@ -255,8 +255,22 @@ static void KeyTurn() {
   }
 }
 
+static void ConfigPoll() {
+  CASE("the /config poll honours Cache-Control max-age, clamped");
+  CHECK(ConfigPollIntervalS("public, max-age=30") == 30, "max-age=30 not honoured");
+  CHECK(ConfigPollIntervalS("MAX-AGE=45") == 45, "case matters and should not");
+  CHECK(ConfigPollIntervalS("max-age=0") == 10, "max-age=0 would hammer the server");
+  CHECK(ConfigPollIntervalS("max-age=86400") == 3600, "a day would strand the HOLD switch");
+  CHECK(ConfigPollIntervalS("no-store") == 300, "absent max-age is not the default");
+  CHECK(ConfigPollIntervalS("") == 300, "empty header is not the default");
+  CHECK(ConfigPollIntervalS(nullptr) == 300, "null header is not the default");
+  CHECK(ConfigPollIntervalS("max-age=abc") == 300, "garbage is not the default");
+  CHECK(ConfigPollIntervalS("max_age=30") == 300, "'_' matched '-'");
+}
+
 int main() {
   std::printf("DrillPolicy + KeyTurn host tests\n");
+  ConfigPoll();
   Clock();
   Offer();
   Timers();

@@ -58,6 +58,9 @@ public:
     const std::vector<eam::Launch>& Launches() const { return launches; }
     const eam::Abncp& Abncp() const { return abncp; }
     const eam::MilAir& MilAir() const { return milair; }
+    // The Missileer game's served parameters (FEATURE_EAM_GAME builds only; never valid
+    // otherwise). The last good fetch is kept across failures: a config in hand stays in hand.
+    const eam::GameConfig& GameCfg() const { return gameConfig; }
 
     // Non-null while the selected ABNCP source can't poll (e.g. OpenSky creds blank).
     const char* AbncpInertReason() const { return abncpProvider ? abncpProvider->InertReason() : nullptr; }
@@ -66,9 +69,13 @@ public:
     // later, the ntfy alert). Consuming clears it.
     bool ConsumeNewLatest();
 
+    // Edge: true once when /eam/latest succeeds after one or more failures -- the feed
+    // dropped and came back. Drives the drill's FeedReconnected (which it must survive).
+    bool ConsumeReconnected();
+
 private:
     // One scheduled endpoint. ABNCP's interval/endpoint come from the provider.
-    enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_STATS, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_MILAIR, F_COUNT };
+    enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_STATS, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_MILAIR, F_CONFIG, F_COUNT };
     struct Feed {
         uint32_t intervalMs = 0;
         uint32_t nextDueMs = 0;
@@ -93,9 +100,11 @@ private:
     std::vector<eam::Launch> launches;
     eam::Abncp abncp;
     eam::MilAir milair;
+    eam::GameConfig gameConfig;
 
     String lastTopId;          // top-of-feed EAM id last seen, for new-arrival detection
     bool newLatestEdge = false;
+    bool reconnectEdge = false;
 
     // worker task
     TaskHandle_t taskHandle = nullptr;
