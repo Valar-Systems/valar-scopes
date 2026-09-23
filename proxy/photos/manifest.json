@@ -102,10 +102,10 @@
   {
     "target": "C30J",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:C-130J_Super_Hercules_conducts_cargo_operations_(9778593).jpg",
-    "author": "U.S. Air Force AFCENT by Senior Airman Brooklyn Golightly",
-    "credit": "C-130J Super Hercules conducts cargo operations (9778593)",
-    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:Hercules_C130J_MOD_45110507.jpg",
+    "author": "Sgt Jack Pritchard RAF",
+    "credit": "Hercules C130J MOD 45110507",
+    "license": "OGL v1.0",
     "layer": "mil-tier",
     "autoPicked": false,
     "file": "src/c30j.jpg"
@@ -135,9 +135,9 @@
   {
     "target": "H60",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:UH-60_Black_Hawk_Flight_(8298582).jpg",
-    "author": "U.S. Army photo by Staff Sgt. Catessa Palone",
-    "credit": "UH-60 Black Hawk Flight (8298582)",
+    "source": "https://commons.wikimedia.org/wiki/File:National-Guard-UH-60-Black-Hawk-operations-at-Fort-McCoy.jpg",
+    "author": "147th Aviation Regiment",
+    "credit": "National-Guard-UH-60-Black-Hawk-operations-at-Fort-McCoy",
     "license": "Public domain",
     "layer": "mil-tier",
     "autoPicked": false,
@@ -217,9 +217,9 @@
   {
     "target": "H64",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:AH-64_Apache_Flight_Formation_(6331400).jpg",
-    "author": "U.S. Army photo by Charles Rosemond",
-    "credit": "AH-64 Apache Flight Formation (6331400)",
+    "source": "https://commons.wikimedia.org/wiki/File:AH-64D_Apache_Longbow.jpg",
+    "author": "\"Photo Courtesy of U.S. Army\" - by Tech. Sgt. Andy Dunaway",
+    "credit": "AH-64D Apache Longbow",
     "license": "Public domain",
     "layer": "mil-tier",
     "autoPicked": false,
@@ -228,9 +228,9 @@
   {
     "target": "TEX2",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:96th_Flying_Training_Squadron_T-6A_Texan_II_in_flight_at_Laughlin_Air_Force_Base,_Texas,_June_5,_2025.jpg",
-    "author": "Senior Airman Keira Rossman",
-    "credit": "96th Flying Training Squadron T-6A Texan II in flight at Laughlin Air Force Base, Texas, June 5, 2025",
+    "source": "https://commons.wikimedia.org/wiki/File:T-6A_Texan_II.jpg",
+    "author": "U.S. Air Force photo by Master Sgt. David Richards",
+    "credit": "T-6A Texan II",
     "license": "Public domain",
     "layer": "mil-tier",
     "autoPicked": false,
@@ -239,10 +239,10 @@
   {
     "target": "H47",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:CH-47F_Chinook_PEO_AVN_DVIDS591778.jpg",
-    "author": "Mark Marcus",
-    "credit": "CH-47F Chinook PEO AVN DVIDS591778",
-    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:CH-47_assigned_to_3rd_General_Support_Aviation_Battalion,_82nd_Combat_Aviation_Brigade.jpg",
+    "author": "Sgt. Steven Galimore",
+    "credit": "CH-47 assigned to 3rd General Support Aviation Battalion, 82nd Combat Aviation Brigade",
+    "license": "CC0",
     "layer": "mil-tier",
     "autoPicked": false,
     "file": "src/h47.jpg"
@@ -329,13 +329,14 @@
   {
     "target": "E75S",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Delta_Connection_Embraer_175_N241JQ_landing_in_Boston_July_2025.jpg",
-    "author": "4300streetcar",
-    "credit": "Delta Connection Embraer 175 N241JQ landing in Boston July 2025",
-    "license": "CC BY 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:KLM_Cityhopper_-_Embraer_190LR_-_AN2571563.jpg",
+    "author": "Richard Vandervord",
+    "credit": "KLM Cityhopper - Embraer 190LR - AN2571563",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
-    "file": "src/e75s.jpg"
+    "file": "src/e75s.jpg",
+    "changesNoted": "resized for device display"
   },
   {
     "target": "B737",
@@ -538,13 +539,14 @@
   {
     "target": "PC12",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:NASA_Pilatus_PC-12_soars_over_NASA%E2%80%99s_Armstrong_Flight_Research_Center_in_Edwards,_California_on_Sept_18,_2024_(AFRC2024-0143-05).jpg",
-    "author": "NASA Armstrong Flight Research Center / NASA/Jim Ross",
-    "credit": "NASA Pilatus PC-12 soars over NASA’s Armstrong Flight Research Center in Edwards, California on Sept 18, 2024 (AFRC2024-0143-05)",
-    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:Antwerp_Pilatus_PC-12_during_Stampe_Fly_In_2019_11.jpg",
+    "author": "Ad Meskens\nYou are free to use this picture for any purpose as long as you credit its author, Ad Meskens.\nExample:  © Ad Meskens / Wikimedia Commons\n  If you use this work outside of the Wikimedia projects, a message or a copy is very much appreciated.\n\n\tThis image is not in the public domain. A statement such as \"From Wikimedia Commons\" or similar is not by itself sufficient. If you do not provide clear attribution to the author you do not comply with the terms of the file's license and you may not use this file. If you are unable or unwilling to provide attribution you should contact Ad Meskens to negotiate a different license.",
+    "credit": "Antwerp Pilatus PC-12 during Stampe Fly In 2019 11",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
-    "file": "src/pc12.jpg"
+    "file": "src/pc12.jpg",
+    "changesNoted": "resized for device display"
   },
   {
     "target": "BE20",
@@ -655,22 +657,22 @@
   {
     "target": "AT72",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:ATR_72_G-FBXA_MG_9799.jpg",
-    "author": "Ronnie Robertson",
-    "credit": "ATR 72 G-FBXA MG 9799",
-    "license": "CC BY-SA 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:HOP_AT72_F-GVZP_29sep14_LFBO.jpg",
+    "author": "Gyrostat",
+    "credit": "HOP AT72 F-GVZP 29sep14 LFBO",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
     "file": "src/at72.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized for device display"
   },
   {
     "target": "E145",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Embraer_ERJ_145_(US_Airways_Express)_DCA_(2478068087).jpg",
-    "author": "Shawn from Airdrie, Canada",
-    "credit": "Embraer ERJ 145 (US Airways Express) DCA (2478068087)",
-    "license": "CC BY-SA 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Flybe_erj145_g-erja_arp.jpg",
+    "author": "Adrian Pingstone",
+    "credit": "Flybe erj145 g-erja arp",
+    "license": "Public domain",
     "layer": "auto",
     "autoPicked": false,
     "file": "src/e145.jpg",
@@ -2272,13 +2274,14 @@
   {
     "target": "S92",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Sikorsky_S-92_inflight_over_Riyadh_at_night.jpg",
-    "author": "Ahmed Hader",
-    "credit": "Sikorsky S-92 inflight over Riyadh at night",
-    "license": "CC BY 3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:S92_-_RIAT_2019_(48607663141).jpg",
+    "author": "Airwolfhound from  Hertfordshire, UK",
+    "credit": "S92 - RIAT 2019 (48607663141)",
+    "license": "CC BY-SA 2.0",
     "layer": "auto",
-    "autoPicked": true,
-    "file": "src/s92.jpg"
+    "autoPicked": false,
+    "file": "src/s92.jpg",
+    "changesNoted": "resized for device display"
   },
   {
     "target": "A400",
@@ -2423,10 +2426,10 @@
   {
     "target": "AT8T",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Kennedy_Aviation_(VH-XAV)_Air_Tractor_AT-802_taxiing_at_Wagga_Wagga_Airport.jpg",
-    "author": "Bidgee",
-    "credit": "Kennedy Aviation (VH-XAV) Air Tractor AT-802 taxiing at Wagga Wagga Airport",
-    "license": "CC BY-SA 3.0 au",
+    "source": "https://commons.wikimedia.org/wiki/File:Air_tractor_arrendado_por_CONAF_(modified).jpg",
+    "author": "Daniel VA",
+    "credit": "Air tractor arrendado por CONAF (modified)",
+    "license": "CC BY-SA 4.0",
     "layer": "auto",
     "autoPicked": false,
     "focus": [
@@ -2435,15 +2438,15 @@
     ],
     "zoom": 1.15,
     "file": "src/at8t.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized for device display"
   },
   {
     "target": "U21",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Beechcraft_King_Air_U-21_Ute_(52464779014).jpg",
-    "author": "Eric Friedebach",
-    "credit": "Beechcraft King Air U-21 Ute (52464779014)",
-    "license": "CC BY 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Beechcraft_B200GT_King_Air_%E2%80%98ZK460_U%E2%80%99_(45384633184).jpg",
+    "author": "Alan Wilson from Stilton, Peterborough, Cambs, UK",
+    "credit": "Beechcraft B200GT King Air ‘ZK460 U’ (45384633184)",
+    "license": "CC BY-SA 2.0",
     "layer": "auto",
     "autoPicked": false,
     "focus": [
@@ -2451,7 +2454,8 @@
       0.58
     ],
     "zoom": 1.04,
-    "file": "src/u21.jpg"
+    "file": "src/u21.jpg",
+    "changesNoted": "resized for device display"
   },
   {
     "target": "PA44",
@@ -2662,9 +2666,9 @@
   {
     "target": "U2",
     "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:TU-2S_Dragon_Lady_returns_to_life_(8310083).jpg",
-    "author": "U.S. Air Force 412TW by Lindsey Iniguez",
-    "credit": "TU-2S Dragon Lady returns to life (8310083)",
+    "source": "https://commons.wikimedia.org/wiki/File:Usaf.u2.750pix.jpg",
+    "author": "United States Department of the Air Force",
+    "credit": "Usaf.u2.750pix",
     "license": "Public domain",
     "layer": "mil-tier",
     "autoPicked": false,
