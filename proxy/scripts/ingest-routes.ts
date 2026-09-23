@@ -91,6 +91,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { putWithBackoff } from "./chunk-retry";
+import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
 import { q, sh } from "./shquote";
 
@@ -608,30 +610,21 @@ async function main() {
     //
     // Backoff is long because a 524 means the far side is already struggling;
     // hammering it is how a transient failure becomes a sustained one.
+    //
+    // The loop lives in chunk-retry.ts so it can be proven to retry; the wait
+    // between attempts is native (it was `execSync("sleep N")`, inside the
+    // catch, where a sleep that threw escaped the retry entirely).
     const BACKOFF_S = [5, 15, 45, 120];
-    let lastErr = "";
-    let ok = false;
-    for (let attempt = 0; attempt <= BACKOFF_S.length && !ok; attempt++) {
-      try {
-        execSync(
-          ["npx", "wrangler", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
-            `--env=${args.env}`, "--remote"].join(" "),
-          { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
-        );
-        ok = true;
-      } catch (e) {
-        const err = e as { stdout?: string; stderr?: string };
-        lastErr = `${err.stdout ?? ""}\n${err.stderr ?? ""}`.trim();
-        const wait = BACKOFF_S[attempt];
-        if (wait === undefined) break;
-        retries++;
-        // PRINTED WHOLE, not grepped for an expected shape. The failure output is
-        // the one thing guaranteed not to look the way you predicted.
-        console.log(`  chunk failed (attempt ${attempt + 1}), retrying in ${wait}s`);
-        console.log(`  --- wrangler output ---\n${lastErr.slice(0, 600)}\n  -----------------------`);
-        execSync(`sleep ${wait}`, { stdio: "ignore" });
-      }
-    }
+    const put = putWithBackoff(
+      (c) => { execSync(c, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); },
+      ["npx", "wrangler", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
+        `--env=${args.env}`, "--remote"].join(" "),
+      BACKOFF_S,
+      sleepSync,
+    );
+    const ok = put.ok;
+    const lastErr = put.lastErr;
+    retries += put.retries;
     if (!ok) {
       console.error(`REFUSING: chunk at offset ${i} failed every retry. Nothing further is`);
       console.error("written and the meta key is untouched, so this run reads as the failure");
@@ -678,7 +671,7 @@ async function main() {
       const secs = Math.round((Date.now() - startedAt) / 1000);
       console.log(`sentinel: ${sentinelCs} -> ${got.o}-${got.d} on attempt ${attempt} after ${secs}s (PROVENANCE PROVED)`);
     } else if (attempt < 8) {
-      execSync("sleep 15", { stdio: "ignore" });
+      sleepSync(15_000); // native: `execSync("sleep 15")` needed Git's sleep.exe on PATH
     }
   }
   if (!sentinelSeen) {

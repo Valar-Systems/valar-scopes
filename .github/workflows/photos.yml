@@ -1,0 +1,124 @@
+# Publish stock photos to production -- the ONLY writer of production photo keys.
+#
+# The photo dashboard commits proxy/photos/** to main; this turns that commit
+# into production, so the repo's manifest.json is the single source of truth and
+# an ingest can never revert a dashboard publish. See "Photo publish pipeline:
+# design" for the failure table this implements.
+#
+# ORDER (the ingest enforces it, not this file): preflight (can the verifier
+# see KV? would a row be dropped?) -> changed rows only, blob before pointer ->
+# verify every row and every key -> photo:manifest last, only on PASS. The
+# ingest may write photo:* and pptr:* keys only (publish-guard.ts).
+#
+# EVERY RUN REPORTS ON ITS COMMIT. A check run named `photos-publish` carries
+# the verdict and the rows live / failed / not reached, and it is what the
+# dashboard shows. A publish that reports nothing is how the last one hid for
+# six weeks.
+name: photos
+
+on:
+  push:
+    branches: [main]
+    paths: ["proxy/photos/**"]
+  # Manual dispatch runs main as it stands. Its inputs are TEST SEAMS that can
+  # only make a publish refuse, never make one pass: they exist for acceptance
+  # tests A4, A11 and A14 and are off by default.
+  workflow_dispatch:
+    inputs:
+      plant_fail_target:
+        description: "TEST ONLY: make this row's blob write fail on every attempt (A4/A14)"
+        required: false
+        default: ""
+      dead_verify_token:
+        description: "TEST ONLY: verify with a dead token (A11)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  checks: write
+
+# One publish at a time. GitHub keeps ONE pending run and cancels older pending
+# ones -- safe because every run ingests main's whole manifest, which already
+# carries the cancelled commit's rows.
+concurrency:
+  group: photos-production
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: photos-production
+    defaults:
+      run:
+        working-directory: proxy
+    env:
+      SHA: ${{ github.sha }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A STALE RUN MUST NOT WRITE LAST. A manual re-run of an old commit would
+      # otherwise put production back to an older manifest. The newest commit
+      # touching proxy/photos on main must be this run's own newest one.
+      - name: Refuse a stale run
+        id: fresh
+        run: |
+          git fetch -q origin main
+          newest=$(git rev-list -1 origin/main -- photos)
+          mine=$(git rev-list -1 "$SHA" -- photos)
+          if [ "$newest" != "$mine" ]; then
+            echo "::error title=stale photo run::main's newest photo commit is ${newest:0:7}; this run is for ${mine:0:7}. Refusing to write."
+            printf '{"v":1,"env":"production","sha":"%s","verdict":"STALE","reason":"a newer photo commit (%s) is on main; this run would put production back. Nothing was written.","toWrite":[],"live":[],"failed":[],"notReached":[],"skipped":0,"pointersChecked":0,"verifyMs":0,"verifyReads":0,"manifestWritten":false,"liveAt":"","finishedAt":"%s"}\n' \
+              "$SHA" "${newest:0:7}" "$(date -u +%FT%TZ)" > ../publish-status.json
+            exit 1
+          fi
+          echo "fresh: ${mine:0:7} is main's newest photo commit"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm ci
+
+      - name: Publish to production
+        id: prod
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Test seams, from a dispatch input OR a repo variable (a dashboard
+          # publish arrives as a push, which has no inputs). Both can only make a
+          # run refuse. Unset = normal publish.
+          PHOTO_INGEST_PLANT_FAIL: ${{ inputs.plant_fail_target || vars.PHOTO_INGEST_PLANT_FAIL }}
+          PHOTO_VERIFY_TOKEN: ${{ (inputs.dead_verify_token || vars.PHOTO_TEST_DEAD_VERIFY_TOKEN == 'true') && 'dead-token-acceptance-A11' || '' }}
+        run: npx tsx scripts/ingest-photos.ts --env production --status-out ../publish-status.json
+
+      # The verdict, on the commit, whatever happened above.
+      - name: Report on the commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f=../publish-status.json
+          if [ ! -s "$f" ]; then
+            printf '{"v":1,"env":"production","sha":"%s","verdict":"FAILED","reason":"the publish job failed before the ingest reported (see the run log)","toWrite":[],"live":[],"failed":[],"notReached":[],"skipped":0,"pointersChecked":0,"verifyMs":0,"verifyReads":0,"manifestWritten":false,"liveAt":"","finishedAt":"%s"}\n' "$SHA" "$(date -u +%FT%TZ)" > "$f"
+          fi
+          verdict=$(node -p "require('$f').verdict")
+          title=$(node -p "const s=require('$f'); s.verdict==='LIVE' ? 'LIVE on devices at '+s.liveAt+' ('+s.pointersChecked+' pointers verified in '+s.verifyMs+' ms)' : s.verdict+': '+s.reason.slice(0,200)")
+          summary=$(node -p "const s=require('$f'); ['Verdict: **'+s.verdict+'**', s.reason && 'Reason: '+s.reason, 'Live: '+(s.live.join(', ')||'none'), s.failed.length && 'Failed: '+s.failed.join(', '), s.notReached.length && 'Not reached: '+s.notReached.join(', '), 'Unchanged and skipped: '+s.skipped, 'Verify: '+s.pointersChecked+' pointers in '+s.verifyMs+' ms over '+s.verifyReads+' read(s)'].filter(Boolean).join('\n\n')")
+          conclusion=$([ "$verdict" = "LIVE" ] && echo success || echo failure)
+          jq -n --arg sha "$SHA" --arg c "$conclusion" --arg t "$title" --arg s "$summary" --rawfile x "$f" \
+            '{name:"photos-publish", head_sha:$sha, status:"completed", conclusion:$c, output:{title:$t, summary:$s, text:$x}}' \
+          | gh api "repos/$REPO/check-runs" --input - > /dev/null
+          echo "$title" >> "$GITHUB_STEP_SUMMARY"
+          echo "reported: $verdict"
+
+      # Staging MIRRORS production and never leads it: same commit, only after a
+      # LIVE production run, and it cannot fail the publish.
+      - name: Mirror to staging
+        if: steps.prod.outcome == 'success'
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx tsx scripts/ingest-photos.ts --env staging --status-out ../mirror-status.json
