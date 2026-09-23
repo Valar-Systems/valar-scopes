@@ -218,7 +218,11 @@ bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
         for (JsonObjectConst a : root["aircraft"].as<JsonArrayConst>()) {
             if (out.aircraft.size() >= 8) break; // a handful of command posts at most; bound a hostile reply
             AbncpAircraft ac;
-            ac.type = a["type"].as<String>();
+            // NULL-CHECKED: the backend sends type null for an aircraft whose
+            // upstream row has no type (valar-eam-feed #68). as<String>() would
+            // turn that null into the TEXT "null" (ArduinoJson 7 serializes a
+            // non-string); `| ""` keeps it empty = unknown.
+            ac.type = a["type"] | "";
             ac.callsign = a["callsign"].as<String>();
             ac.hex = a["hex"].as<String>();
             ac.heardAt = a["heard_at"].as<String>();
@@ -274,11 +278,13 @@ bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap)
         for (JsonObjectConst a : root["aircraft"].as<JsonArrayConst>()) {
             if (out.aircraft.size() >= cap) break;
             MilAircraft ac;
-            ac.type = a["type"].as<String>();
+            // NULL-CHECKED, as in ParseAbncpBackend: type and category are null for
+            // an aircraft of unknown type, and as<String>() would render "null".
+            ac.type = a["type"] | "";
             ac.callsign = a["callsign"].as<String>();
             ac.hex = a["hex"].as<String>();
             ac.heardAt = a["heard_at"].as<String>();
-            ac.category = a["category"].as<String>();
+            ac.category = a["category"] | "";
             if (a["lat"].is<float>() && a["lon"].is<float>()) {
                 ac.hasPos = true;
                 ac.lat = a["lat"].as<double>();
