@@ -1,55 +1,114 @@
 #!/usr/bin/env bash
-# Is the commit you are about to tag able to promote its own release?
+# Is the commit you are about to tag able to promote its own release, and only
+# behind the human gate?
 #
 #   scripts/check-tag-workflow.sh [<commit>]    # default HEAD
 #   scripts/check-tag-workflow.sh --selftest    # prove it can refuse
 #
-# Exit 0 the commit can promote; 1 it cannot; 2 the rig is broken.
+# Exit 0 the commit can promote, gated; 1 it cannot; 2 the rig is broken.
 #
 # WHY THIS RUNS BEFORE THE TAG, NOT AFTER. A release event executes the
 # workflow file from the TAGGED COMMIT, not from main -- observed on a scratch
-# tag on 2026-09-20, where promote/demote steps that existed only on that commit
-# ran. So a tag cut before the promote step is merged carries a workflow with no
-# promote step at all: the release is created as a prerelease, builds, passes
-# its gate, and then sits as a prerelease forever with nothing to advance it.
+# tag on 2026-09-20. So a tag cut from a commit with the wrong promotion shape
+# runs that shape, whatever main says by then.
 #
-# That failure is SAFE -- `latest` never moves -- and that is exactly what makes
-# it expensive. Its only symptom is that nothing happens, which is the hardest
-# thing there is to diagnose on release night.
+# WHAT IT CHECKS. Promotion (`gh release edit ... --prerelease=false`) lives in
+# its own `promote` job, and:
+#   - that job has `needs: version`, so it cannot start before the receipt gate
+#     and the version.txt upload have finished;
+#   - it has `environment: release`, the environment with a required reviewer,
+#     so it cannot start until a person approves it after flashing a bench board;
+#   - it carries no status function (always(), failure(), cancelled()). Without
+#     one GitHub applies success(), so a failed `version` can never reach it;
+#   - it reads version.txt from the release's own download URL before promoting,
+#     which is where the ordering is actually proven now;
+#   - and the promotion switch appears NOWHERE ELSE in the file. A second copy
+#     left in `version` would promote ungated, with the gated job beside it
+#     looking correct.
+# The `version` job must still upload version.txt.
 #
-# WHAT IT CHECKS, and deliberately not more: the version job uploads version.txt
-# and then promotes with `--prerelease=false`, IN THAT ORDER. Promotion is the
-# last act; if it ever came first, `latest` would move before version.txt was
-# on the release, and releases/latest/download/version.txt would 404 for the
-# whole fleet -- the shape of both outages of 2026-09-17/18.
+# Line order used to be the proof, when promotion was the last step of
+# `version`. It is not any more: two jobs have no line order GitHub respects,
+# only `needs:`.
+#
+# The parse is by indentation (jobs at two spaces, job keys at four), with
+# full-line comments stripped first so prose that mentions always() does not
+# count. Equivalent YAML spellings it does not recognise (`environment:` with a
+# `name:` child, for example) are REFUSED, which is the safe direction.
 
 set -u
 export MSYS_NO_PATHCONV=1   # git show <rev>:<path> is mangled by MSYS otherwise
 
 WF=".github/workflows/firmware.yml"
 
+# Prints one job's lines (header excluded) from comment-stripped text on stdin.
+job_body() {
+  awk -v name="$1" '
+    /^  [A-Za-z0-9_-]+:[ \t]*$/ { injob = ($0 ~ "^  " name ":[ \t]*$"); next }
+    /^[^ ]/                     { injob = 0 }
+    injob                       { print }
+  '
+}
+
+# Everything EXCEPT the promote job, from comment-stripped text on stdin.
+outside_promote() {
+  awk '
+    /^  [A-Za-z0-9_-]+:[ \t]*$/ { inp = ($0 ~ /^  promote:[ \t]*$/); if (!inp) print; next }
+    /^[^ ]/                     { inp = 0 }
+    !inp                        { print }
+  '
+}
+
 # Reads workflow text on stdin. Prints a verdict line; returns 0/1.
 check_text() {
-  local text up pr
-  text="$(cat)"
-  up="$(printf '%s\n' "$text" | grep -n 'gh release upload .*version\.txt' | head -1 | cut -d: -f1)"
-  pr="$(printf '%s\n' "$text" | grep -n 'gh release edit .*--prerelease=false' | head -1 | cut -d: -f1)"
-  if [ -z "$pr" ]; then
-    echo "REFUSE: no promote step (gh release edit ... --prerelease=false)."
-    echo "        A release tagged here would build and then stay a prerelease forever."
+  local text promote version outside
+  text="$(grep -v '^[[:space:]]*#' | tr -d '\r')"
+  promote="$(printf '%s\n' "$text" | job_body promote)"
+  version="$(printf '%s\n' "$text" | job_body version)"
+  outside="$(printf '%s\n' "$text" | outside_promote)"
+
+  if ! printf '%s\n' "$text" | grep -qE '^  promote:[[:space:]]*$'; then
+    echo "REFUSE: no \`promote\` job. Promotion must be its own job behind the"
+    echo "        release environment, not a step anywhere else."
     return 1
   fi
-  if [ -z "$up" ]; then
-    echo "REFUSE: no version.txt upload step, so promotion would advance a release"
-    echo "        that devices cannot read a version from."
+  if printf '%s\n' "$outside" | grep -q -- '--prerelease=false'; then
+    echo "REFUSE: the promotion switch (--prerelease=false) appears OUTSIDE the"
+    echo "        promote job. That copy runs without the human gate."
     return 1
   fi
-  if [ "$pr" -le "$up" ]; then
-    echo "REFUSE: promotion (line $pr) comes BEFORE the version.txt upload (line $up)."
-    echo "        latest would move while version.txt is absent -- a fleet-wide 404."
+  if ! printf '%s\n' "$promote" | grep -q 'gh release edit .*--prerelease=false'; then
+    echo "REFUSE: the promote job does not run gh release edit ... --prerelease=false."
+    echo "        A release tagged here would build and stay a prerelease forever."
     return 1
   fi
-  echo "ok: version.txt uploaded at line $up, promoted at line $pr -- promotion is last."
+  if ! printf '%s\n' "$promote" | grep -qE '^    needs:[[:space:]]*(version|\[[[:space:]]*version[[:space:]]*\])[[:space:]]*$'; then
+    echo "REFUSE: the promote job lacks \`needs: version\`. It could start before"
+    echo "        the receipt gate passed and version.txt was uploaded."
+    return 1
+  fi
+  if ! printf '%s\n' "$promote" | grep -qE '^    environment:[[:space:]]*release[[:space:]]*$'; then
+    echo "REFUSE: the promote job lacks \`environment: release\`. Nothing would"
+    echo "        wait for a person before the fleet moves."
+    return 1
+  fi
+  if printf '%s\n' "$promote" | grep -qE 'always\(\)|failure\(\)|cancelled\(\)'; then
+    echo "REFUSE: the promote job uses a status function (always/failure/cancelled)."
+    echo "        A failed \`version\` job could then reach promotion."
+    return 1
+  fi
+  if ! printf '%s\n' "$promote" | grep -q 'releases/download/'; then
+    echo "REFUSE: the promote job does not read version.txt from the release's own"
+    echo "        download URL before promoting."
+    return 1
+  fi
+  if ! printf '%s\n' "$version" | grep -q 'gh release upload .*version\.txt'; then
+    echo "REFUSE: the version job does not upload version.txt, so promotion would"
+    echo "        advance a release that devices cannot read a version from."
+    return 1
+  fi
+  echo "ok: promote needs version, runs in environment release, has no status function"
+  echo "    and checks its own version.txt; version uploads version.txt; nothing else promotes."
   return 0
 }
 
@@ -60,16 +119,59 @@ if [ "${1:-}" = "--selftest" ]; then
     printf '%s\n' "$3" | check_text >/dev/null; got=$?
     if [ "$got" -eq "$2" ]; then echo "  ok    $1"; else echo "  FAIL  $1 (exit $got, wanted $2)"; rc=1; fi
   }
-  expect "upload then promote is accepted" 0 \
-'      run: gh release upload "$t" version.txt --clobber
-      run: gh release edit "$t" --prerelease=false'
-  expect "no promote step is REFUSED" 1 \
-'      run: gh release upload "$t" version.txt --clobber'
-  expect "promote before upload is REFUSED" 1 \
-'      run: gh release edit "$t" --prerelease=false
-      run: gh release upload "$t" version.txt --clobber'
+  V='  version:
+    if: always() && github.event_name == "release"
+    needs: build
+    steps:
+      - run: gh release upload "$t" version.txt --clobber
+      - if: failure()
+        run: gh release edit "$t" --prerelease'
+  P='  promote:
+    if: github.event_name == "release"
+    needs: version
+    environment: release
+    steps:
+      - run: curl -fsSL "https://github.com/$R/releases/download/$t/version.txt"
+      - run: gh release edit "$t" --prerelease=false'
+  PROMOTE_IN_VERSION='      - run: gh release edit "$t" --prerelease=false'
+  good="jobs:
+$V
+
+$P"
+  # Controls first: the accepted shapes must stay accepted, or every REFUSE
+  # below could be passing because the checker refuses everything.
+  expect "the gated shape is accepted" 0 "$good"
+  expect "a comment mentioning always() in promote does not count" 0 \
+    "$(printf '%s\n' "$good" | sed 's/^    needs: version$/    # never always() here\n    needs: version/')"
+  expect "needs: [version] is accepted" 0 \
+    "$(printf '%s\n' "$good" | sed 's/^    needs: version$/    needs: [version]/')"
+
+  expect "promotion inside version, no promote job (the 496b249 shape) is REFUSED" 1 "jobs:
+$V
+$PROMOTE_IN_VERSION"
+  expect "promotion in version AS WELL AS a promote job is REFUSED" 1 "jobs:
+$V
+$PROMOTE_IN_VERSION
+
+$P"
+  expect "promote without needs is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | grep -v '^    needs: version$')"
+  expect "promote needing something else is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/^    needs: version$/    needs: build/')"
+  expect "promote without environment is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | grep -v '^    environment: release$')"
+  expect "promote in another environment is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/^    environment: release$/    environment: staging/')"
+  expect "promote with always() is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/^    if: github/    if: always() \&\& github/')"
+  expect "promote with !cancelled() is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/^    if: github/    if: !cancelled() \&\& github/')"
+  expect "promote without the switch is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | grep -v 'prerelease=false')"
+  expect "promote reading latest instead of its own URL is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's#releases/download/\$t#releases/latest/download#')"
   expect "no version.txt upload is REFUSED" 1 \
-'      run: gh release edit "$t" --prerelease=false'
+    "$(printf '%s\n' "$good" | grep -v 'gh release upload')"
   [ "$rc" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$rc"
 fi

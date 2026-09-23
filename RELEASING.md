@@ -104,24 +104,32 @@ are versioned and released **together** from a single commit, and each device se
    bash scripts/check-tag-workflow.sh <commit-you-will-tag>
    ```
 
-   It must print `ok: … promotion is last.` A release event runs the workflow
-   from the TAGGED commit, not from `main` -- observed 2026-09-20. A tag cut from
-   a commit without the promote step builds, passes its gate, and then stays a
-   prerelease forever with nothing to advance it. That failure is safe (`latest`
-   never moves) and its only symptom is that nothing happens, which is the worst
-   thing to diagnose on release night. Refused means do not tag.
+   It must print `ok: promote needs version, runs in environment release …`.
+   A release event runs the workflow from the TAGGED commit, not from `main` --
+   observed 2026-09-20. A tag cut from a commit without the gated `promote` job
+   either stays a prerelease forever (no promotion at all) or promotes without
+   anyone flashing a board first (promotion inside `version`, the shape main had
+   up to 496b249). Refused means do not tag.
 4. **Create the release as a PRERELEASE** (`gh release create <tag> --prerelease …`).
    Publishing it triggers the workflow, which:
    - builds every SKU in `skus.yml`,
    - attaches each **shipping** SKU as `firmware-<slug>.bin`,
    - checks every shipping SKU left a receipt,
    - uploads `version.txt` containing `FW_VERSION`,
-   - and only then **promotes the release to latest**.
+   - and then **pauses at `promote`**, the job that moves `latest`, until a
+     reviewer approves it in the `release` environment. Before promoting, the job
+     reads version.txt from the release's own URL and refuses unless it equals
+     `FW_VERSION`.
 
    **Never create it as a full release.** That moves `latest` before anything has
    been verified; on 2026-09-17 and 2026-09-18 it made
    `releases/latest/download/version.txt` return 404 for every device, twice.
-5. Devices pick up the update on their next daily check (or reboot).
+5. When the run pauses at `promote -- waiting for review`, download
+   firmware-s3-128.bin from the prerelease, flash the bench board, confirm the
+   About tab shows the version and the serial log shows
+   [ota] ... current=<v> latest=<previous> (already up to date), then approve the
+   deployment in the Actions run.
+6. Devices pick up the update on their next daily check (or reboot).
 
 > Don't hand-upload assets — the workflow names them so they match what devices request.
 
