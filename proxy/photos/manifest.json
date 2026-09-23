@@ -2007,18 +2007,6 @@
     "zoom": 1.1
   },
   {
-    "target": "LJ60",
-    "kind": "type",
-    "source": "https://commons.wikimedia.org/wiki/File:Learjet_60_AN1661740.jpg",
-    "author": "Igor Dvurekov",
-    "credit": "Learjet 60 AN1661740",
-    "license": "CC BY-SA 3.0",
-    "layer": "auto",
-    "autoPicked": true,
-    "file": "src/lj60.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
-  },
-  {
     "target": "LJ75",
     "kind": "type",
     "source": "https://commons.wikimedia.org/wiki/File:Learjet_75_N446LJ_at_PRG_01.JPG",
