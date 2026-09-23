@@ -2003,7 +2003,8 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/h25b.jpg"
+    "file": "src/h25b.jpg",
+    "zoom": 1.1
   },
   {
     "target": "LJ60",
