@@ -1915,7 +1915,8 @@
     "license": "Public domain",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/f900.jpg"
+    "file": "src/f900.jpg",
+    "zoom": 1.1
   },
   {
     "target": "FA7X",
