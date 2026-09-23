@@ -1852,8 +1852,7 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/md88.jpg",
-    "zoom": 1.1
+    "file": "src/md88.jpg"
   },
   {
     "target": "MD90",
@@ -1864,8 +1863,7 @@
     "license": "Public domain",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/md90.jpg",
-    "zoom": 1.1
+    "file": "src/md90.jpg"
   },
   {
     "target": "BE40",
@@ -1877,8 +1875,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/be40.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "CL30",
@@ -1890,8 +1887,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/cl30.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "CL60",
@@ -1903,8 +1899,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/cl60.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "F900",
@@ -1915,8 +1910,7 @@
     "license": "Public domain",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/f900.jpg",
-    "zoom": 1.1
+    "file": "src/f900.jpg"
   },
   {
     "target": "FA7X",
@@ -1928,8 +1922,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/fa7x.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "FA8X",
@@ -1940,8 +1933,7 @@
     "license": "CC BY 4.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/fa8x.jpg",
-    "zoom": 1.1
+    "file": "src/fa8x.jpg"
   },
   {
     "target": "GALX",
@@ -1953,8 +1945,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/galx.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "GL5T",
@@ -1966,8 +1957,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/gl5t.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "GL7T",
@@ -1979,8 +1969,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/gl7t.jpg",
-    "changesNoted": "resized and crop-fitted for device display",
-    "zoom": 1.1
+    "changesNoted": "resized and crop-fitted for device display"
   },
   {
     "target": "GLF4",
@@ -1991,8 +1980,7 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/glf4.jpg",
-    "zoom": 1.1
+    "file": "src/glf4.jpg"
   },
   {
     "target": "H25B",
@@ -2003,8 +1991,7 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/h25b.jpg",
-    "zoom": 1.1
+    "file": "src/h25b.jpg"
   },
   {
     "target": "LJ60",
