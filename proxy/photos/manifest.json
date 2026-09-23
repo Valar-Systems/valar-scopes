@@ -1991,7 +1991,8 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/glf4.jpg"
+    "file": "src/glf4.jpg",
+    "zoom": 1.1
   },
   {
     "target": "H25B",
