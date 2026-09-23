@@ -1635,6 +1635,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                     <span class="hint mt">ids: ticker, tempo, activity, codewords, abncp, milair, prop, icbm, ref, clock. Empty rotates all. Activity and milair appear only when their feed has data; the clock always shows when nothing else does.</span>
                 </details>
 
+                %USB_OPEN%
                 <details>
                     <summary>Logbook</summary>
                     <span class="hint">Download the EAMs &amp; Skyking codewords this device has logged (codewords carry timestamps).</span>
@@ -2836,6 +2837,29 @@ void ConfigurationWebServer::Initialise() {
         const String eamScreens = prefs.isKey("eam-screens")
             ? prefs.getString("eam-screens", "")
             : String("ticker,tempo,activity,codewords,abncp,milair,prop,icbm,ref,clock");
+#if defined(FEATURE_USB_OPEN)
+        // "Open on computer" (FEATURE_USB_OPEN, src/eam/UsbOpen.h). Built here rather
+        // than in the page literal so a build without the USB keyboard shows nothing.
+        const String usbOs = prefs.isKey("eam-usb-os") ? prefs.getString("eam-usb-os", "windows") : String("windows");
+        const String usbEmpty = prefs.isKey("eam-usb-empty") ? prefs.getString("eam-usb-empty", "archive") : String("archive");
+        auto sel = [](bool on) { return on ? " selected" : ""; };
+        const String usbOpenHtml = String(
+            "<fieldset><legend>Open on computer (USB)</legend>"
+            "<span class=\"hint\">Plug the device into a computer by USB and long-press the screen: it types the "
+            "archive link for the message on screen into the computer's launcher. It types only that fixed link "
+            "and the message id, on a US keyboard layout.</span>"
+            "<div class=\"row mt\"><label class=\"field\"><span>Computer:</span><select name=\"eam-usb-os\" class=\"grow\">")
+            + "<option value=\"windows\"" + sel(usbOs != "mac" && usbOs != "linux" && usbOs != "off") + ">Windows (Win+R)</option>"
+            + "<option value=\"mac\"" + sel(usbOs == "mac") + ">macOS (Cmd+Space)</option>"
+            + "<option value=\"linux\"" + sel(usbOs == "linux") + ">Linux (Alt+F2)</option>"
+            + "<option value=\"off\"" + sel(usbOs == "off") + ">Off</option>"
+            + "</select></label><label class=\"field\"><span>When no message is shown:</span><select name=\"eam-usb-empty\" class=\"grow\">"
+            + "<option value=\"archive\"" + sel(usbEmpty != "none") + ">Open the archive</option>"
+            + "<option value=\"none\"" + sel(usbEmpty == "none") + ">Do nothing</option>"
+            + "</select></label></div></fieldset>";
+#else
+        const String usbOpenHtml;
+#endif
 #elif defined(FEATURE_SPACE)
         // FEATURE_SPACE: load the Spacescope config fields. isKey() guards keep not-yet-saved
         // reads from logging NVS NOT_FOUND; the backend base-URL default is the SPACE_FEED_BASE
@@ -3114,7 +3138,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens]
+            [deviceName, deviceIp, wifiRssi, eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens, usbOpenHtml]
             (const String& var) -> String {
                 if (var == "EAM_BASE_URL")   return eamBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -3138,6 +3162,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
                 if (var == "EAM_SCREENS")    return eamScreens;
+                if (var == "USB_OPEN")       return usbOpenHtml;
                 if (var == "FW_VERSION")     return String(FW_VERSION);
                 // Free function, so no capture list changes -- every edition's
                 // processor answers this identically. See BuildIdentity.h.
@@ -3582,6 +3607,8 @@ void ConfigurationWebServer::Initialise() {
         TrySaveParam("eam-refresh");
         TrySaveParam("brightness");
         TrySaveParam("eam-screens");
+        TrySaveParam("eam-usb-os");      // FEATURE_USB_OPEN; absent from the form otherwise
+        TrySaveParam("eam-usb-empty");
 
         // OpenSky secret: don't overwrite the stored value with the masked placeholder
         const auto* eamSecret = request->getParam("opensky-secret", true);
