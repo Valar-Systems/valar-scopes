@@ -122,6 +122,10 @@ export interface CheckRun {
   completedAt: string | null;
 }
 
+// Readable with a fine-grained token that has NO Checks permission, because the
+// repo is public (measured 2026-09-23: 200). If the repo ever goes private this
+// call needs Checks read, or the status must move to the Actions runs endpoint.
+//
 // The verdict a given RUN reported. Two runs can share a commit (a failed push
 // run, then a Retry dispatched while main has not moved), so the check run is
 // matched to the run by time -- it must complete inside that run's window --
@@ -157,10 +161,3 @@ export async function recentPhotoRuns(gh: Gh, n = 8): Promise<Run[]> {
   }));
 }
 
-// RETRY IS A FRESH RUN OF MAIN, not a re-run. A re-run replays the old run's
-// commit and inputs: an old commit is refused as stale (correctly), and a run
-// that failed on a planted test failure would plant it again. A new dispatch
-// ingests main's whole manifest, which is exactly what converging needs.
-export async function dispatchPhotos(gh: Gh): Promise<void> {
-  await call(gh, "POST", "/actions/workflows/photos.yml/dispatches", { ref: "main" });
-}

@@ -1152,7 +1152,7 @@ production photos.** `npm run dashboard`, pick, then **Publish to devices**.
 
 Staging mirrors production after each LIVE run; it is no longer a publish
 target. The dashboard needs Daniel's fine-grained GitHub token (this repo:
-Contents read/write, Actions read/write, Checks read) in
+Contents read/write, Actions read) in
 `%USERPROFILE%\.config\blipscope\github-token`; it logs only whether the token
 is present. Design, failure table and acceptance: the "Photo publish pipeline:
 design" doc.

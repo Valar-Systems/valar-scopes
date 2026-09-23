@@ -13,9 +13,9 @@
  * back from the commit. See "Photo publish pipeline: design".
  *
  * THE DASHBOARD NEVER WRITES KV. It writes the repo; CI turns the repo into
- * production. It needs a GitHub token (contents + actions + checks, this repo
- * only) in a file only Daniel can read -- see TOKEN_FILE. The value is never
- * logged, only its presence.
+ * production. It needs a GitHub token (Contents read/write + Actions read, this
+ * repo only) in a file only Daniel can read -- see TOKEN_FILE. The value is
+ * never logged, only its presence.
  *
  * Deliberately LOCAL-ONLY (binds 127.0.0.1).
  */
@@ -34,7 +34,6 @@ import {
   NotFastForward,
   commitToMain,
   commitsForPath,
-  dispatchPhotos,
   fileAt,
   mainHead,
   publishCheck,
@@ -85,7 +84,8 @@ async function devicePreview(src: Buffer, row: { kind: string; target: string; f
 // ---------------------------------------------------------------- the token
 
 // Daniel's, alone: a fine-grained token for this repo only (Contents read/write,
-// Actions read/write, Checks read), in a file under his profile. Refused when
+// Actions read -- nothing wider; Retry is a commit, not a dispatch, so it needs
+// no Actions write), in a file under his profile. Refused when
 // missing, and refused when it sits inside a git working tree, where one
 // `git add -A` would commit it.
 const TOKEN_FILE = process.env.BLIPSCOPE_GH_TOKEN_FILE ?? join(homedir(), ".config", "blipscope", "github-token");
@@ -548,12 +548,34 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     return json(r.status, r.body);
   }
 
-  // POST /api/retry -- a fresh run of main (see dispatchPhotos for why not a re-run)
+  // POST /api/retry -- a fresh publish of main as it stands.
+  //
+  // A COMMIT, NOT A DISPATCH OR A RE-RUN. A re-run replays the old run's commit
+  // (refused as stale, correctly) and its inputs (a planted test failure would
+  // plant again). A dispatch needs Actions WRITE, which the dashboard's token
+  // deliberately does not have. A commit touching proxy/photos/.publish-retry
+  // needs only Contents write, triggers the workflow on main's whole manifest,
+  // is main's newest photo commit so the stale guard passes, and leaves a diff
+  // and a date like every other publish.
   if (url.pathname === "/api/retry" && req.method === "POST") {
     const { gh, reason } = loadToken();
     if (!gh) return json(401, { error: `Retry is off: ${reason}.` });
-    await dispatchPhotos(gh);
-    return json(200, { ok: true });
+    const path = `${PHOTOS_PREFIX}.publish-retry`;
+    assertPhotoPaths([path]);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const head = await mainHead(gh);
+      const stamp = `Retry of the photo publish, requested from the dashboard at ${new Date().toISOString()}.\n`;
+      try {
+        const sha = await commitToMain(gh, head, [{ path, bytes: Buffer.from(stamp) }],
+          "photos: retry publish (photo dashboard)\n\nRe-runs the photos workflow on main's whole manifest.\n");
+        console.log(`[retry] ${sha.slice(0, 7)}`);
+        return json(200, { ok: true, sha });
+      } catch (err) {
+        if (err instanceof NotFastForward) continue;
+        throw err;
+      }
+    }
+    return json(409, { error: "main kept moving; nothing was committed. Try again." });
   }
 
   json(404, { error: "not_found" });
