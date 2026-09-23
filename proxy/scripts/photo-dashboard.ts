@@ -23,6 +23,7 @@ import {
   validateEntry,
   type ManifestEntry,
 } from "../src/photolicense";
+import { RateLimited, wikimediaFetch } from "./wikimedia-fetch";
 
 const PORT = 8123;
 const PHOTOS_DIR = "photos";
@@ -64,16 +65,15 @@ async function deviceCrop(srcPath: string): Promise<Buffer> {
   return jpeg;
 }
 
+// Every Wikimedia call retries once on 429 -- see wikimedia-fetch.ts for why.
+const wm = (url: string) => wikimediaFetch(url, UA, { log: console.log });
+
 async function fetchJson(url: string): Promise<unknown> {
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  return res.json();
+  return (await wm(url)).json();
 }
 
 async function fetchBytes(url: string): Promise<Buffer> {
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  return Buffer.from(await (await wm(url)).arrayBuffer());
 }
 
 function stripHtml(s: string): string {
@@ -457,6 +457,7 @@ async function doSearch() {
   const box = document.getElementById("cands");
   box.innerHTML = '<span class="dim">Searching…</span>';
   const r = await fetch("/api/search?q=" + encodeURIComponent(q)); const d = await r.json();
+  if (!r.ok) { box.innerHTML = ""; const s = document.createElement("span"); s.className = "dim"; s.textContent = "Search failed: " + (d.error || ("HTTP " + r.status)); box.appendChild(s); return; }
   box.innerHTML = "";
   for (const c of d.candidates) {
     const ok = pickLayer === "mil-tier" ? c.acceptedIn["mil-tier"] : c.acceptedIn.auto;
@@ -480,6 +481,7 @@ async function preview(c) {
   const img = document.getElementById("cropPrev"); img.src = ""; img.alt = "cropping…";
   const r = await fetch("/api/preview", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ url: c.full }) });
   if (r.ok) img.src = URL.createObjectURL(await r.blob());
+  else img.alt = "preview failed: " + ((await r.json().catch(() => ({}))).error || ("HTTP " + r.status));
 }
 
 document.getElementById("searchBtn").onclick = doSearch;
@@ -490,7 +492,10 @@ document.getElementById("useBtn").onclick = async () => {
   const r = await fetch("/api/replace", { method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ target: pickTarget, layer: pickLayer, title: picked.title }) });
   const d = await r.json();
-  if (!r.ok) { alert("Rejected: " + (d.details ? d.details.join("; ") : d.error)); return; }
+  // Only a 422 is a verdict on the photo. Everything else is a failure to get it.
+  if (r.status === 422) { alert("Rejected by the license gate: " + (d.details ? d.details.join("; ") : d.error)); return; }
+  if (r.status === 429) { alert("Not saved. " + d.error); return; }
+  if (!r.ok) { alert("Failed: " + (d.error || ("HTTP " + r.status))); return; }
   closePicker(); load();
 };
 
@@ -526,7 +531,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/")) return await handleApi(req, res, url);
     res.writeHead(404); res.end("not found");
   } catch (err) {
-    res.writeHead(500, { "Content-Type": "application/json" });
+    // 429 stays 429 so the page can tell "try again" from "this is broken".
+    res.writeHead(err instanceof RateLimited ? 429 : 500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: String(err instanceof Error ? err.message : err) }));
   }
 });
