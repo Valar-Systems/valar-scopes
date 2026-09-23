@@ -1,0 +1,107 @@
+# Render drift: is what devices are served still what main renders? READ-ONLY.
+#
+# Two halves, two numbers, never summed (proxy/scripts/photo-drift.ts):
+#   (a) render vs published manifest -- ingest-photos --dry-run --env production
+#   (b) published manifest vs live pointers -- verify-photos
+# The job log, the step summary and a `photo-drift` check run on main carry both
+# numbers AND the rule for reading them; the photo dashboard shows the last run.
+#
+# READ-ONLY BY CONSTRUCTION, not by care:
+#   - the only Cloudflare credential is CLOUDFLARE_KV_READ_TOKEN, a KV-READ token,
+#     exposed as PHOTO_KV_READ_TOKEN. The photo write token is never referenced
+#     here, and proxy/scripts/check-drift-workflow.mjs (run in workers.yml) fails
+#     the build if it ever is;
+#   - both scripts read KV over REST (kv-rest.ts has no put), and a dry run never
+#     reaches the ingest's writer.
+#
+# A HALF THAT CANNOT READ KV FAILS THE JOB (exit 3). It is never reported as 0,
+# and never as "every row CHANGED" -- which is what a renderer change looks like.
+name: photo-drift
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily
+  workflow_run:
+    workflows: [photos]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+# Its OWN group. Never photos-production: GitHub keeps one pending run per group
+# and cancels the older pending one, so a drift run queued there could cancel a
+# waiting publish.
+concurrency:
+  group: photo-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: proxy
+    env:
+      PHOTO_KV_READ_TOKEN: ${{ secrets.CLOUDFLARE_KV_READ_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm ci
+
+      # One bit, never the value. A missing secret fails loudly HERE, and both
+      # halves are recorded as unreadable with the reason -- not left to read as
+      # a dead token three steps later.
+      - name: Read token present?
+        id: token
+        run: |
+          if [ -n "$PHOTO_KV_READ_TOKEN" ]; then echo "CLOUDFLARE_KV_READ_TOKEN: present"; exit 0; fi
+          echo "CLOUDFLARE_KV_READ_TOKEN: absent"
+          echo "::error title=photo-drift::CLOUDFLARE_KV_READ_TOKEN is not set -- nothing was measured"
+          r="CLOUDFLARE_KV_READ_TOKEN is not set"
+          printf '{"v":1,"mode":"dry-run","verdict":"UNREADABLE","reason":"%s","total":0,"changed":0,"same":0,"changedRows":[],"publishedNotInRepo":[],"finishedAt":""}\n' "$r" > ../drift-a.json
+          printf '{"v":1,"mode":"verify","verdict":"UNREADABLE","reason":"%s","rows":0,"pointersChecked":0,"rowsDisagreeing":[],"finishedAt":""}\n' "$r" > ../drift-b.json
+          exit 3
+
+      # Each half records its own status; the report step decides. A half that
+      # exits non-zero is not allowed to stop the other from being measured.
+      - name: "(a) render vs published manifest"
+        if: steps.token.outcome == 'success'
+        continue-on-error: true
+        run: npx tsx scripts/ingest-photos.ts --dry-run --env production --status-out ../drift-a.json
+
+      - name: "(b) published manifest vs live pointers"
+        if: steps.token.outcome == 'success'
+        continue-on-error: true
+        run: npx tsx scripts/verify-photos.ts --env production --status-out ../drift-b.json
+
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set +e
+          npx tsx scripts/drift-report.ts ../drift-a.json ../drift-b.json ../drift-report.json | tee ../drift-report.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          f=../drift-report.json
+          if [ ! -s "$f" ]; then
+            printf '{"v":1,"verdict":"FAILED","a":{"label":"(a)","count":null,"rows":[],"meaning":"the report did not run"},"b":{"label":"(b)","count":null,"rows":[],"meaning":"the report did not run"},"finishedAt":"%s"}\n' "$(date -u +%FT%TZ)" > "$f"
+            code=3
+          fi
+          sha=$(git rev-parse HEAD)
+          title=$(node -p "const r=require('$f'); const s=h=>h.count===null?'FAILED':h.count; r.verdict+': (a) '+s(r.a)+' · (b) '+s(r.b)")
+          conclusion=$([ "$code" = "0" ] && echo success || echo failure)
+          jq -n --arg sha "$sha" --arg c "$conclusion" --arg t "$title" --rawfile s ../drift-report.txt --rawfile x "$f" \
+            '{name:"photo-drift", head_sha:$sha, status:"completed", conclusion:$c, output:{title:$t, summary:("```\n"+$s+"```"), text:$x}}' \
+          | gh api "repos/$REPO/check-runs" --input - > /dev/null
+          { echo '```'; cat ../drift-report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"

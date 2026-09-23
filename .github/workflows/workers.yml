@@ -13,9 +13,9 @@ name: workers
 on:
   push:
     branches: [main]
-    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml"]
+    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
   pull_request:
-    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml"]
+    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
 
 jobs:
   # The published photo manifest and the repo's manifest.json must name the same
@@ -89,6 +89,13 @@ jobs:
         run: node scripts/embed-fonts.mjs --check
 
       - run: npm run typecheck
+
+      # The render-drift job must stay read-only: one KV-READ secret, dry runs
+      # only, never the publish's write token. A YAML claim, so a check that runs;
+      # the selftest proves each refusal can fire before the real file is judged.
+      - name: photo-drift.yml is read-only
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-drift-workflow.mjs --selftest && node scripts/check-drift-workflow.mjs
 
       # `npm run typecheck` covers src/ and test/ ONLY. Everything in proxy/scripts/
       # -- the ingest tools, the harvest tool, derive-device-key, check_release_envs

@@ -34,6 +34,14 @@ export function kvTargetFromWranglerToml(tomlPath: string, env: string, token: s
   return { accountId: account, namespaceId: id, token };
 }
 
+// The token for a READ. PHOTO_KV_READ_TOKEN is the KV-read-only token the
+// render-drift job runs with -- that job sets no write token at all. Anywhere
+// else (a publish, a local run) the ordinary CLOUDFLARE_API_TOKEN reads too.
+// `||`, not `??`: an empty variable must fall through, not blind the read.
+export function readToken(): string {
+  return process.env.PHOTO_KV_READ_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "";
+}
+
 const base = (t: KvTarget) =>
   `https://api.cloudflare.com/client/v4/accounts/${t.accountId}/storage/kv/namespaces/${t.namespaceId}`;
 
@@ -53,6 +61,15 @@ export async function bulkGet(t: KvTarget, keys: string[]): Promise<Record<strin
     Object.assign(out, d.result.values);
   }
   return out;
+}
+
+/** One key's value, or null when the key does not exist. Throws on any other failure. */
+export async function getValue(t: KvTarget, key: string): Promise<string | null> {
+  const r = await fetch(`${base(t)}/values/${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${t.token}` } });
+  if (r.status === 404) return null;
+  const text = await r.text();
+  if (!r.ok) throw new Error(`KV read of ${key} failed: HTTP ${r.status} ${text.slice(0, 200)}`);
+  return text;
 }
 
 /** Every key name under a prefix. Throws on any API failure. */

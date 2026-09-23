@@ -35,11 +35,14 @@ import {
   commitsForPath,
   fileAt,
   mainHead,
+  checkForRun,
   publishCheck,
   recentPhotoRuns,
+  recentRuns,
   type FileChange,
   type Gh,
 } from "./github-api";
+import { driftPanel } from "./photo-drift";
 import { renderSquares } from "./photo-render";
 import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, validateRows } from "./publish-plan";
 import { RetryCeiling, withRefRetry } from "./publish-retry";
@@ -424,8 +427,12 @@ async function publishStatus(): Promise<PublishResult> {
     const check = await publishCheck(gh, r.sha, r.createdAt, r.status === "completed" ? r.updatedAt : new Date().toISOString());
     let detail: Record<string, unknown> = {};
     try { detail = check?.text ? JSON.parse(check.text) : {}; } catch { /* a check without our JSON */ }
+    // STALE is what the stale guard reported before 2026-09-23: a run refused
+    // because a newer photo commit was on main. Nothing failed -- the newer run
+    // carries its rows -- so it reads as SUPERSEDED, never as a red failure.
+    const posted = detail.verdict as string | undefined;
     const state =
-      (detail.verdict as string | undefined)
+      (posted === "STALE" ? "SUPERSEDED" : posted)
       ?? (r.status !== "completed" ? (r.status === "queued" || r.status === "waiting" || r.status === "pending" ? "QUEUED" : "RUNNING")
         : r.conclusion === "cancelled" ? "SUPERSEDED"
         : "FAILED"); // completed with no verdict posted: the job died before reporting
@@ -437,6 +444,19 @@ async function publishStatus(): Promise<PublishResult> {
     });
   }
   return { status: 200, body: { tokenPresent: true, runs: out } };
+}
+
+// The last render-drift run (photo-drift.yml): its two counts and when. Read the
+// same way as a publish -- the run from the Actions runs endpoint, its report
+// from the check run it posted -- and a run that posted nothing reads FAILED.
+async function driftStatus(): Promise<PublishResult> {
+  const { gh, reason } = loadToken();
+  if (!gh) return { status: 200, body: { tokenPresent: false, reason } };
+  const [run] = await recentRuns(gh, "photo-drift.yml", 1);
+  if (!run) return { status: 200, body: { tokenPresent: true, ...driftPanel(null, null) } };
+  const check = await checkForRun(gh, "photo-drift", run.sha, run.createdAt,
+    run.status === "completed" ? run.updatedAt : new Date().toISOString());
+  return { status: 200, body: { tokenPresent: true, url: run.url, ...driftPanel(run, check?.text ?? null) } };
 }
 
 // ---------------------------------------------------------------- routes
@@ -561,6 +581,12 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     return json(r.status, r.body);
   }
 
+  // GET /api/drift -- the last render-drift run's two counts
+  if (url.pathname === "/api/drift") {
+    const r = await driftStatus();
+    return json(r.status, r.body);
+  }
+
   // POST /api/retry -- a fresh publish of main as it stands.
   //
   // A COMMIT, NOT A DISPATCH OR A RE-RUN. A re-run replays the old run's commit
@@ -615,6 +641,11 @@ const PAGE = `<!doctype html>
   #status.bad{border-color:var(--err)} #status.bad .head{color:var(--err)}
   #status.busy{border-color:var(--warn)} #status.busy .head{color:var(--warn)}
   #history{font-size:12px;margin-top:8px} #history div{margin-top:2px}
+  #drift{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:-8px 0 16px;font-size:13px}
+  #drift .rows{font-size:12px;margin-top:4px}
+  #drift.clean{border-color:var(--acc)} #drift.clean b{color:var(--acc)}
+  #drift.bad{border-color:var(--err)} #drift.bad b{color:var(--err)}
+  #drift.busy{border-color:var(--warn)} #drift.busy b{color:var(--warn)}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;gap:12px}
   .card.unpub{border-color:var(--warn)}
@@ -648,6 +679,7 @@ const PAGE = `<!doctype html>
 </header>
 <main>
   <div id="status"><div class="head">Loading publish status…</div><div class="rows dim"></div><div id="history" class="dim"></div></div>
+  <div id="drift"><b>Render drift</b> <span class="dim">loading…</span><div class="rows dim"></div></div>
   <div class="grid" id="entries"></div>
   <div class="addrow">
     <input id="newTarget" placeholder="New type code (e.g. B738) or hex" style="width:220px">
@@ -717,7 +749,10 @@ async function status() {
   const box = document.getElementById("status"), head = box.querySelector(".head"), rows = box.querySelector(".rows");
   if (!d.tokenPresent) { box.className = "bad"; head.textContent = "Publishing is off"; rows.textContent = d.reason || ""; return false; }
   const runs = d.runs || [];
-  const top = runs[0];
+  // The headline is the newest run that did something. A SUPERSEDED run (a
+  // re-run of an old commit, or one a newer commit overtook) wrote nothing, so
+  // it must not hide the verdict of the run that did.
+  const top = runs.find(x => x.state !== "SUPERSEDED") || runs[0];
   let busy = false;
   if (!top) { box.className = ""; head.textContent = "No publish has run yet."; rows.textContent = ""; }
   else {
@@ -728,17 +763,34 @@ async function status() {
     else if (top.state === "SUPERSEDED") { busy = runs.some(x => x.state === "QUEUED" || x.state === "RUNNING"); box.className = "busy"; head.textContent = "Superseded by a newer publish"; rows.textContent = "Its rows are included in the next run."; }
     else {
       box.className = "bad";
-      const label = top.state === "UNTRUSTWORTHY" ? "Not published: the verifier could not see production (instrument blind)" : top.state === "STALE" ? "Refused: a newer photo commit is on main" : "Publish FAILED";
+      const label = top.state === "UNTRUSTWORTHY" ? "Not published: the verifier could not see production (instrument blind)" : "Publish FAILED";
       head.innerHTML = esc(label) + ' <button id="retry">Retry</button> <a class="dim" href="' + esc(top.url) + '" target="_blank">run ↗</a>';
       rows.innerHTML = esc(top.reason) + "<br>Live now: " + esc(top.live.join(", ") || "none") + (top.failed.length ? " · Failed: " + esc(top.failed.join(", ")) : "") + (top.notReached.length ? " · Not reached: " + esc(top.notReached.join(", ")) : "");
       document.getElementById("retry").onclick = retry;
     }
   }
-  document.getElementById("history").innerHTML = runs.slice(1, 6).map(x => '<div>' + esc(new Date(x.createdAt).toLocaleString()) + ' · ' + esc(x.sha.slice(0,7)) + ' · ' + esc(x.state) + (x.live.length ? ' · ' + esc(x.live.join(", ")) : '') + '</div>').join("");
+  document.getElementById("history").innerHTML = runs.filter(x => x !== top).slice(0, 5).map(x => '<div>' + esc(new Date(x.createdAt).toLocaleString()) + ' · ' + esc(x.sha.slice(0,7)) + ' · ' + esc(x.state === "SUPERSEDED" ? "superseded (nothing written; a newer run carries its rows)" : x.state) + (x.live.length ? ' · ' + esc(x.live.join(", ")) : '') + '</div>').join("");
   return busy;
 }
 
-async function poll() { const busy = await status().catch(() => false); setTimeout(poll, busy ? 4000 : 20000); }
+// The drift panel: the last render-drift run's two numbers and when. A count
+// that could not be read shows as FAILED -- never as 0.
+async function drift() {
+  const r = await fetch("/api/drift"); const d = await r.json();
+  const box = document.getElementById("drift");
+  if (!d.tokenPresent) { box.className = ""; box.innerHTML = "<b>Render drift</b> <span class=\\"dim\\">not shown: " + esc(d.reason) + "</span>"; return; }
+  const n = v => v === null || v === undefined ? "FAILED" : String(v);
+  const when = d.at ? new Date(d.at).toLocaleString() : "";
+  const link = d.url ? ' <a class="dim" href="' + esc(d.url) + '" target="_blank">run ↗</a>' : "";
+  box.className = d.state === "CLEAN" ? "clean" : d.state === "DRIFT" || d.state === "FAILED" ? "bad" : d.state === "RUNNING" ? "busy" : "";
+  const head = d.state === "NONE" ? "no drift check has run yet"
+    : d.state === "RUNNING" ? "checking…"
+    : d.state + " · (a) render vs published manifest: " + n(d.a) + " · (b) published manifest vs live pointers: " + n(d.b) + " · " + when;
+  const detail = d.state === "CLEAN" || d.state === "NONE" || d.state === "RUNNING" ? "" : [d.meaningA, d.meaningB].filter(Boolean).map(esc).join("<br>");
+  box.innerHTML = "<b>Render drift</b> <span>" + esc(head) + "</span>" + link + '<div class="rows dim">' + detail + "</div>";
+}
+
+async function poll() { const busy = await status().catch(() => false); drift().catch(() => {}); setTimeout(poll, busy ? 4000 : 20000); }
 
 async function publish() {
   const btn = document.getElementById("publish"); btn.disabled = true; btn.textContent = "Publishing…";

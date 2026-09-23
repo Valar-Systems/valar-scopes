@@ -1157,6 +1157,51 @@ Contents read/write, Actions read) in
 is present. Design, failure table and acceptance: the "Photo publish pipeline:
 design" doc.
 
+**Superseded runs are not failures.** A run whose commit is no longer main's
+newest photo commit writes nothing (it would put production back) and reports
+`SUPERSEDED` with a **neutral** check; the newer commit's run publishes main's
+whole manifest, including its rows. The dashboard shows it greyed in the history
+and keeps the newest run that did something as the headline. (Runs before
+2026-09-23 reported this as `STALE` and went red; the dashboard reads those as
+SUPERSEDED too.)
+
+**The ref-update retry cap is exactly enough for three concurrent publishers.**
+A dashboard publish moves main fast-forward only; a publish that loses the race
+re-reads main, re-plans and tries again -- 3 attempts, 1 s then 3 s apart
+([`publish-retry.ts`](scripts/publish-retry.ts)). With three people publishing
+at the same moment the last one wins on its third attempt; a fourth concurrent
+publisher can exhaust the cap and gets "nothing was committed: gave up after 3
+attempts" -- nothing is lost, and clicking Publish again succeeds. Raise
+`REF_RETRY_ATTEMPTS` if the curation team grows past three. The cap also bounds
+a revoked token, which fails the ref update every time.
+
+**Check runs and repo visibility.** The dashboard reads each publish's verdict
+from its `photos-publish` check run (and the drift run's from `photo-drift`).
+Its token has **no Checks permission** -- the UI does not offer one -- and those
+reads work only because **this repo is public** (measured 2026-09-23: HTTP 200).
+If the repo goes private, the status panels go blank with a 403/404. The fix is
+then to move the verdict onto something `Actions: read` covers (a run artifact),
+**not** to widen the token.
+
+**Render drift ([`photo-drift.yml`](../.github/workflows/photo-drift.yml)) --
+daily and after every photos run, read-only.** Two numbers, never summed:
+
+- **(a) render vs published manifest** -- `ingest-photos --dry-run --env
+  production`: rows whose fresh render differs from what `photo:manifest` says
+  is live.
+- **(b) published manifest vs live pointers** -- `verify-photos`: rows whose
+  pointers, or the blobs they name, disagree with `photo:manifest`.
+
+Reading (a): **0** = clean. **A few** (up to 10) = the rows are listed; usually
+photo commits on main not yet live. **All** = the renderer or sharp/libvips
+changed, not the photos -- check `package-lock.json` first and do not publish to
+"fix" it. **Anything between**, or **FAILED**, is outside the rule: stop and
+look. The same rule prints in the job log, the check run and the dashboard. A
+half that cannot read KV is **FAILED** (exit 3), never 0 and never "every row
+CHANGED". The job holds one credential, `CLOUDFLARE_KV_READ_TOKEN` (a Cloudflare
+token with **Workers KV Storage: Read** only); `scripts/check-drift-workflow.mjs`
+fails CI if it ever references the write token.
+
 **Harvest-phase checklist (when content population begins):**
 
 1. **First-article discipline (like hardware).** Seed **3–5 hand-picked photos

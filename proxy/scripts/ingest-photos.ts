@@ -23,7 +23,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execWithRetry, sleepSync } from "./exec-retry";
-import { bulkGet, kvTargetFromWranglerToml, listKeys, readControls } from "./kv-rest";
+import { bulkGet, getValue, kvTargetFromWranglerToml, listKeys, readControls, readToken } from "./kv-rest";
 import { renderRect, renderSquares } from "./photo-render";
 import { KeyNotAllowed, assertAllowedKey, expectedPointers, preflight, verify } from "./publish-guard";
 import {
@@ -146,15 +146,19 @@ function execFor(target: string): Exec {
 // actually being served, and those diverge the moment anyone ingests from
 // somewhere else. When it cannot be read the answer is to upload everything --
 // the expensive direction is the safe one.
-function fetchPublishedManifest(env: string): ManifestEntry[] | null {
+//
+// READ OVER REST, not wrangler, since 2026-09-23: the render-drift job
+// (photo-drift.yml) runs this with a KV-READ-only token (PHOTO_KV_READ_TOKEN)
+// and no write token at all, and a REST read is what that token can do.
+async function fetchPublishedManifest(env: string): Promise<ManifestEntry[] | null> {
   try {
-    const out = execSync(
-      `npx wrangler kv key get ${q(MANIFEST_KEY)} --binding=ENRICH_KV --env=${env} --remote --text`,
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 },
-    );
-    const start = out.indexOf("[");
-    if (start < 0) return null;
-    const parsed: unknown = JSON.parse(out.slice(start));
+    const target = kvTargetFromWranglerToml("wrangler.toml", env, readToken());
+    const text = await getValue(target, MANIFEST_KEY);
+    if (text === null) {
+      console.warn(`  manifest read failed: ${MANIFEST_KEY} does not exist in ${env}`);
+      return null;
+    }
+    const parsed: unknown = JSON.parse(text);
     return Array.isArray(parsed) ? (parsed as ManifestEntry[]) : null;
   } catch (err) {
     // SAY WHY. This returned a bare null, and the caller then printed "could not
@@ -163,10 +167,7 @@ function fetchPublishedManifest(env: string): ManifestEntry[] | null {
     // failure. Those want four different responses, and the run continues in a
     // mode ("upload every row") that looks like a decision rather than a
     // fallback, so nothing downstream reveals which one happened.
-    const e = err as { message?: string; status?: number; stderr?: string };
-    console.warn(`  manifest read failed: ${e.message ?? String(err)}`);
-    if (e.status !== undefined) console.warn(`  wrangler exit status: ${e.status}`);
-    if (e.stderr) console.warn(`  wrangler stderr: ${String(e.stderr).slice(0, 800)}`);
+    console.warn(`  manifest read failed: ${String(err instanceof Error ? err.message : err)}`);
     return null;
   }
 }
@@ -287,10 +288,21 @@ async function main(): Promise<void> {
   // Read-only, so it costs one KV GET and changes nothing.
   const priorByTarget = new Map<string, ManifestEntry>();
   if (args.env && !args.force) {
-    const prior = fetchPublishedManifest(args.env);
+    const prior = await fetchPublishedManifest(args.env);
     if (prior) {
       for (const p of prior) priorByTarget.set(`${p.kind}:${p.target}`, p);
       console.log(`published manifest read: ${prior.length} rows already in ${args.env}`);
+    } else if (args.dryRun) {
+      // A DRY RUN THAT CANNOT READ THE PUBLISHED MANIFEST HAS NO ANSWER. It used to
+      // fall through to the branch below and compare every row against nothing,
+      // printing N of N CHANGED -- exactly what a renderer or sharp change prints,
+      // so a dead token read as "the whole library drifted". An upload run may
+      // fall back to uploading everything (the safe direction); a measurement may
+      // not fall back to anything. Exit 3, the same code as UNTRUSTWORTHY.
+      console.error(`could not read the published manifest from ${args.env} -- REFUSING: ` +
+        `a dry run compared against nothing would report every row CHANGED`);
+      finishDryRun(args, { ...newDryRunStatus(args.env), verdict: "UNREADABLE",
+        reason: `could not read ${MANIFEST_KEY} from ${args.env} (see the log above for why)` }, 3);
     } else {
       // Say so. A silent fall-through to "upload everything" is the same shape as
       // a silent skip, just expensive instead of wrong.
@@ -312,6 +324,7 @@ async function main(): Promise<void> {
   }
   const toWrite: Planned[] = [];
   let resized = 0, squaresMade = 0, noSource = 0, skipped = 0, changed = 0, sampled = 0;
+  const changedRows: string[] = [];
   for (const e of entries) {
     if (!e.file) {
       console.warn(`skip ${e.kind}:${e.target}: no source file`);
@@ -346,7 +359,7 @@ async function main(): Promise<void> {
     const unchanged = alreadyPublished(priorByTarget.get(`${e.kind}:${e.target}`), blobKey, squareKeys);
     if (args.dryRun || !args.env) {
       if (unchanged) skipped++;
-      else changed++;
+      else { changed++; changedRows.push(`${e.kind}:${e.target}`); }
       // Optional: write the artifacts this run WOULD publish, so they can be
       // looked at before the library is rewritten -- the real pipeline's bytes.
       if (args.sampleOut && !unchanged && sampled < args.sampleCount) {
@@ -390,6 +403,16 @@ async function main(): Promise<void> {
   writeFileSync(join(args.photosDir, "credits.html"), creditsHtml);
   console.log(`wrote ${join(args.photosDir, "credits.html")}`);
 
+  if (args.dryRun && args.env && !args.force) {
+    // What the render-drift job reads. Published rows the repo no longer has are
+    // a difference too -- a dry run renders only the repo's rows, so it would
+    // otherwise never mention them.
+    const here = new Set(entries.map((e) => `${e.kind}:${e.target}`));
+    finishDryRun(args, {
+      ...newDryRunStatus(args.env), verdict: "READ", total: resized, changed, same: skipped,
+      changedRows, publishedNotInRepo: [...priorByTarget.keys()].filter((k) => !here.has(k)),
+    }, 0);
+  }
   if (args.dryRun || !args.env) return;
   const env = args.env;
   const status = newStatus(env);
@@ -563,6 +586,42 @@ function finish(args: Args, status: PublishStatus, code: number): never {
   // Windows trips a libuv assertion (UV_HANDLE_CLOSING) and the process dies
   // with 127 instead of the verdict's code -- observed on the first A11 smoke.
   // Setting exitCode and unwinding lets the event loop drain and exit cleanly.
+  process.exitCode = code;
+  throw new Finished();
+}
+
+// A dry run's status: what the render-drift job reads as its half (a). Only
+// written with --env (without one there is nothing to compare against).
+interface DryRunStatus {
+  v: 1;
+  mode: "dry-run";
+  env: string;
+  sha: string;
+  /** READ: the comparison happened. UNREADABLE: it could not, and nothing below is a count. */
+  verdict: "READ" | "UNREADABLE";
+  reason: string;
+  total: number;
+  changed: number;
+  same: number;
+  changedRows: string[];
+  publishedNotInRepo: string[];
+  finishedAt: string;
+}
+
+function newDryRunStatus(env: string): DryRunStatus {
+  return {
+    v: 1, mode: "dry-run", env, sha: process.env.GITHUB_SHA ?? "", verdict: "READ", reason: "",
+    total: 0, changed: 0, same: 0, changedRows: [], publishedNotInRepo: [], finishedAt: "",
+  };
+}
+
+function finishDryRun(args: Args, status: DryRunStatus, code: number): never {
+  status.finishedAt = new Date().toISOString();
+  (code === 0 ? console.log : console.error)(
+    `dry-run ${status.env}: ${status.verdict}` + (status.reason ? ` -- ${status.reason}` : "") +
+      (status.verdict === "READ" ? ` | ${status.changed} of ${status.total} CHANGED, ${status.publishedNotInRepo.length} published row(s) not in the repo` : ""),
+  );
+  if (args.statusOut) writeFileSync(args.statusOut, JSON.stringify(status, null, 2) + "\n");
   process.exitCode = code;
   throw new Finished();
 }
