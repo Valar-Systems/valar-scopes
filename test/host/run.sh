@@ -559,6 +559,25 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+echo
+echo "== DrillPolicy + KeyTurn (the decisions around the drill) =="
+# Whether a message is offered, the clock gate, T on the monotonic clock, the
+# touch targets, and the key-turn recogniser -- pulled OUT of EamManager (an
+# Arduino TU that cannot run here) so they can be graded. Same narrow -I.
+if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/src/game/KeyTurn.cpp"       "$ROOT/test/host/test_drill_policy.cpp"       -o "$OUT/test_drill_policy.exe" 2>"$OUT/build_policy.log"; then
+  echo "FAIL: the drill policy tests did not compile"
+  cat "$OUT/build_policy.log"
+  exit 2
+fi
+"$OUT/test_drill_policy.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the drill policy test binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 echo "== Derive (device/server agreement on class and T) =="
 #
 # Same shape as GameFormat, for the derivation. The fixture is emitted by
@@ -619,7 +638,7 @@ if [ -z "$XCXX" ] || [ ! -x "$XCXX" ]; then
   fail=1
 else
   echo "cross:    $XCXX"
-  for tu in DrillMachine GameFormat Derive; do
+  for tu in DrillMachine GameFormat Derive KeyTurn; do
     if "$XCXX" $FLAGS $INCLUDES -c "$ROOT/src/game/$tu.cpp" \
          -o "$OUT/$tu.target.o" 2>"$OUT/target.log"; then
       echo "ok   $tu.cpp compiles for the ESP32-S3 with the same narrow includes"
@@ -766,7 +785,7 @@ strip_comments() {
 }
 : > "$OUT/symbols.log"
 for f in "$ROOT/src/game/DrillMachine.cpp" "$ROOT/src/game/DrillMachine.h" \
-         "$ROOT/src/game/GameFormat.cpp" "$ROOT/src/game/GameFormat.h"          "$ROOT/src/game/Derive.cpp" "$ROOT/src/game/Derive.h"; do
+         "$ROOT/src/game/GameFormat.cpp" "$ROOT/src/game/GameFormat.h"          "$ROOT/src/game/Derive.cpp" "$ROOT/src/game/Derive.h"          "$ROOT/src/game/KeyTurn.cpp" "$ROOT/src/game/KeyTurn.h"          "$ROOT/src/game/DrillPolicy.h"; do
   strip_comments "$f" \
     | grep -nE '\b(millis|micros|delay|delayMicroseconds|analogRead|digitalWrite)[[:space:]]*\(|\bSerial\.|\bESP\.|\bString[[:space:]]+[a-zA-Z_]' \
     | sed "s|^|$(basename "$f"):|" >> "$OUT/symbols.log"

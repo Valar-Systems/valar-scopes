@@ -72,6 +72,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "Derive.h"  // MsgClass. Pure, like this file.
+
 namespace game {
 
 /// Where the drill is. Ordered by progress through §3's six steps.
@@ -83,6 +85,11 @@ enum class Phase : uint8_t {
   Offered,
   /// §3 step 1 — the paper strip printing. Animates; entered only on PlayerOpen.
   Printing,
+  /// §3 step 1 for a NAM or FDM: the print IS the decode, and this is the class
+  /// reveal (§5 "Banner tap runs the decoder ... then the class reveal").
+  /// STATIC. Left only by PlayerAck (§5's CONFIRM COPY) or PlayerAbort.
+  /// Fable, 2026-09-23.
+  Decoded,
   /// §3 step 1 — the padlocked SAS safe. Awaiting the player's ack.
   Authenticate,
   /// §3 step 2 — confirm or adjust the war plan. Locks at T-X.
@@ -119,7 +126,9 @@ enum class Event : uint8_t {
   PlayerConfirmWarPlan,
   /// The player enabled. §3 step 3, solo path.
   PlayerEnable,
-  /// The key turned. §3 step 4 — the instant that is measured.
+  /// The key turn is CONFIRMED (the hold after the arc completed). §3 step 4.
+  /// The instant SCORED is the arc's completion if a PlayerKeyArc preceded
+  /// this, else this event's own instant (Fable, 2026-09-23: "arc completes").
   PlayerKeyTurn,
   /// The player abandoned the drill.
   PlayerAbort,
@@ -127,6 +136,42 @@ enum class Event : uint8_t {
   FeedReconnected,
   /// A different message arrived mid-drill. Must not disturb this one.
   OtherMessageArrived,
+  /// The press-drag along the bezel reached the end of its arc, finger still
+  /// down. Records the SCORED instant; nothing is decided until the hold
+  /// confirms it (PlayerKeyTurn) or the finger lifts (PlayerKeyRelease).
+  PlayerKeyArc,
+  /// The finger lifted before the hold confirmed the turn. The turn is void and
+  /// the player may try again while the window is open.
+  PlayerKeyRelease,
+  /// The server resolved this drill's vote (polled from /votes/live). Carries
+  /// the outcome in EventArgs. Valid ONLY from Committed; ignored everywhere
+  /// else (Fable, 2026-09-23). Not a player event: rail 1 holds because
+  /// Committed is reachable only through PlayerKeyTurn.
+  VoteResolved,
+};
+
+/// How the server resolved the vote. Only the four the ruling names.
+enum class VoteOutcome : uint8_t {
+  None = 0,
+  /// A crew seconded it: the launch proceeds. -> Terminal.
+  Seconded,
+  /// Launched (seconded, or the dead-man timer expired unopposed). -> Terminal.
+  Launched,
+  /// A squadron-mate inhibited it. -> Aborted, with the reason.
+  Inhibited,
+  /// The execution failed (missed or outside the window). -> Aborted, with the reason.
+  Failed,
+};
+
+/// What an event carries, for the two events that carry anything.
+struct EventArgs {
+  /// MessageArrived: the class DERIVED for the message (src/game/Derive.h).
+  /// Defaults to NAM, the class that cannot reach an execution, so a caller
+  /// that forgets to say gets "nothing happens" rather than a launch drill.
+  MsgClass cls = MsgClass::Nam;
+  /// VoteResolved: the outcome, and the server's reason text (may be null).
+  VoteOutcome outcome = VoteOutcome::None;
+  const char* reason = nullptr;
 };
 
 /// The published rules, supplied rather than invented (rail 3).
@@ -137,6 +182,10 @@ struct Config {
   uint32_t terminal_us = 30000000u;
   /// How long the paper strip takes to print. Cosmetic; not a published rule.
   uint32_t print_us = 1200000u;
+  /// How long the hold after the arc must last to confirm the key turn.
+  /// §13-D TUNABLE (gestures are tunables; Fable, 2026-09-23), not a published
+  /// rule. Here only so a pending turn can be expired if its release is lost.
+  uint32_t key_confirm_us = 300000u;
 
   /// The scoring bucket, in microseconds. ZERO MEANS UNKNOWN, and unknown is
   /// not zero-the-number -- it is "the server has not told us yet".
@@ -182,6 +231,14 @@ struct State {
 
   /// True while the drill is committed and a miss is now a logged failure (§4).
   bool committed = false;
+
+  /// The class this drill was offered with. Decides where the print leads.
+  MsgClass cls = MsgClass::Nam;
+
+  /// A key arc has completed and its hold has not yet confirmed or released.
+  bool key_pending = false;
+  /// When that arc completed: the instant that will be scored.
+  uint64_t key_arc_us = 0;
   /// Why the drill ended, when it ended badly. Empty otherwise.
   ///
   /// A fixed buffer, not a String: this TU allocates nothing.
@@ -194,7 +251,7 @@ class DrillMachine {
   explicit DrillMachine(const Config& cfg) : cfg_(cfg) {}
 
   /// Feed one event at one instant. The only way state changes.
-  void Step(Event ev, uint64_t now_us);
+  void Step(Event ev, uint64_t now_us, const EventArgs& args = EventArgs());
 
   /// Arm a drill against a T. Called when the message's T is known.
   ///
@@ -214,7 +271,8 @@ class DrillMachine {
   static bool IsPlayerEvent(Event e) {
     return e == Event::PlayerOpen || e == Event::PlayerAck
         || e == Event::PlayerConfirmWarPlan || e == Event::PlayerEnable
-        || e == Event::PlayerKeyTurn || e == Event::PlayerAbort;
+        || e == Event::PlayerKeyTurn || e == Event::PlayerAbort
+        || e == Event::PlayerKeyArc || e == Event::PlayerKeyRelease;
   }
 
   /// Test/reset hook. Cheap because there is no state outside `st_`.
@@ -223,6 +281,10 @@ class DrillMachine {
  private:
   void Enter(Phase p, uint64_t now_us);
   void SetNote(const char* s);
+  /// Settle a confirmed key turn scored at `turn_us`.
+  void ResolveTurn(uint64_t turn_us, uint64_t now_us);
+  /// True while a pending arc still holds the window open for its hold.
+  bool PendingHolds(uint64_t now_us);
 
   Config cfg_;
   State st_;
