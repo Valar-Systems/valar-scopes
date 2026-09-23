@@ -428,6 +428,7 @@ async function main(): Promise<void> {
   console.log(`preflight: verifier sees ${env} KV; ${publishedRows?.length ?? 0} published row(s), none dropped`);
 
   // ---- WRITES: changed rows only, in manifest order, blob before pointer. ----
+  let writeFailed = false;
   for (let i = 0; i < toWrite.length; i++) {
     const p = toWrite[i]!;
     const exec = execFor(p.e.target);
@@ -450,13 +451,15 @@ async function main(): Promise<void> {
       }
       status.live.push(p.e.target);
     } catch (err) {
-      // The rows before this one are LIVE -- their pointers flipped. Say so,
-      // name this one, name the rest, and stop: the manifest is not written.
-      status.verdict = "FAILED";
+      // The rows before this one are LIVE -- their pointers flipped. Name this
+      // one and the rest, stop writing, and STILL VERIFY: the status should say
+      // what KV actually holds, not only what this loop believes it wrote.
+      // The manifest is not written either way.
+      writeFailed = true;
       status.failed = [p.e.target];
       status.notReached = toWrite.slice(i + 1).map((q) => q.e.target);
       status.reason = `write failed on ${p.e.kind}:${p.e.target}: ${String(err instanceof Error ? err.message : err).slice(0, 300)}`;
-      finish(args, status, 1);
+      break;
     }
   }
 
@@ -464,10 +467,12 @@ async function main(): Promise<void> {
   //
   // KV is eventually consistent, so a pointer written seconds ago can read
   // stale. Re-read up to five times, 15 s apart, before calling a mismatch a
-  // failure -- and report how many reads it took.
+  // failure -- and report how many reads it took. After a write failure the
+  // mismatches are expected (they are the failed and unreached rows), so one
+  // read is enough to report them.
   const tv = Date.now();
   let res = null as ReturnType<typeof verify> | null;
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  for (let attempt = 1; attempt <= (writeFailed ? 1 : 5); attempt++) {
     const controls = await readControls(target, MANIFEST_KEY);
     let pointers: Record<string, string | null> = {};
     let blobs = new Set<string>();
@@ -488,6 +493,13 @@ async function main(): Promise<void> {
   }
   status.verifyMs = Date.now() - tv;
   status.pointersChecked = res!.pointersChecked;
+  if (writeFailed) {
+    // Refused whatever verify said: a publish that hit an error is not
+    // certified, even if KV happens to look complete. Retry converges.
+    status.verdict = res!.verdict === "UNTRUSTWORTHY" ? "UNTRUSTWORTHY" : "FAILED";
+    status.reason += ` Verifier: ${res!.verdict === "PASS" ? "every key reads back, but the run hit an error; not certified" : res!.reasons.join(" ")}`;
+    finish(args, status, 1);
+  }
   if (res!.verdict !== "PASS") {
     status.verdict = res!.verdict === "UNTRUSTWORTHY" ? "UNTRUSTWORTHY" : "FAILED";
     status.reason = res!.reasons.join(" ");

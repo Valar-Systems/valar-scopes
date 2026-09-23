@@ -46,7 +46,7 @@ import { renderSquares } from "./photo-render";
 import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, validateRows } from "./publish-plan";
 import { RateLimited, wikimediaFetch } from "./wikimedia-fetch";
 
-const PORT = 8123;
+const PORT = Number(process.env.PHOTO_DASHBOARD_PORT ?? 8123);
 const PHOTOS_DIR = "photos";
 const MANIFEST_PATH = join(PHOTOS_DIR, "manifest.json");
 const UA = "BlipscopePhotoDashboard/1.0 (local curation tool)";
