@@ -18,8 +18,19 @@
 #     and the version.txt upload have finished;
 #   - it has `environment: release`, the environment with a required reviewer,
 #     so it cannot start until a person approves it after flashing a bench board;
-#   - it carries no status function (always(), failure(), cancelled()). Without
-#     one GitHub applies success(), so a failed `version` can never reach it;
+#   - its `if:` has always() or !cancelled() AND `needs.version.result ==
+#     'success'`. The property is "only a successful `version` reaches promote",
+#     and it fails in BOTH directions without both halves:
+#       * no status function: GitHub applies an implicit success() over EVERY
+#         ancestor job, so a red slug-less harness leg in the build matrix skips
+#         promotion forever. Observed 2026-09-22 on 12ec327 (scratch run
+#         35816020466): `version` passed, `promote` skipped, no review asked.
+#         An explicit success() is the same thing, and failure() would promote
+#         only when something upstream HAD failed, so neither counts;
+#       * a status function but no result check: a failed `version` reaches
+#         promotion.
+#     The previous rule here BANNED status functions. It encoded the first
+#     failure as the requirement and could not see it;
 #   - it reads version.txt from the release's own download URL before promoting,
 #     which is where the ordering is actually proven now;
 #   - and the promotion switch appears NOWHERE ELSE in the file. A second copy
@@ -92,9 +103,21 @@ check_text() {
     echo "        wait for a person before the fleet moves."
     return 1
   fi
-  if printf '%s\n' "$promote" | grep -qE 'always\(\)|failure\(\)|cancelled\(\)'; then
-    echo "REFUSE: the promote job uses a status function (always/failure/cancelled)."
-    echo "        A failed \`version\` job could then reach promotion."
+  local cond
+  cond="$(printf '%s\n' "$promote" | grep -E '^    if:' | head -1)"
+  # Only always() and !cancelled() take the ancestry out of the decision. An
+  # explicit success() is as ancestry-wide as the implicit one, and failure()
+  # would promote only when something upstream had failed.
+  if ! printf '%s\n' "$cond" | grep -qE 'always\(\)|!cancelled\(\)' \
+     || printf '%s\n' "$cond" | grep -qE '(^|[^.a-z])(success|failure)\(\)'; then
+    echo "REFUSE: the promote job's if: lacks always() or !cancelled() (or also uses"
+    echo "        success()/failure()), so the build matrix's ancestry decides. A red"
+    echo "        harness leg then skips promotion forever (seen on 12ec327, 2026-09-22)."
+    return 1
+  fi
+  if ! printf '%s\n' "$cond" | grep -qE "needs\.version\.result[[:space:]]*==[[:space:]]*'success'"; then
+    echo "REFUSE: the promote job's if: takes the ancestry out of the decision but has"
+    echo "        no needs.version.result == 'success'. A failed \`version\` could reach promotion."
     return 1
   fi
   if ! printf '%s\n' "$promote" | grep -q 'releases/download/'; then
@@ -107,8 +130,8 @@ check_text() {
     echo "        advance a release that devices cannot read a version from."
     return 1
   fi
-  echo "ok: promote needs version, runs in environment release, has no status function"
-  echo "    and checks its own version.txt; version uploads version.txt; nothing else promotes."
+  echo "ok: promote needs version, runs in environment release, is reached only by a"
+  echo "    successful version, checks its own version.txt; nothing else promotes."
   return 0
 }
 
@@ -127,7 +150,7 @@ if [ "${1:-}" = "--selftest" ]; then
       - if: failure()
         run: gh release edit "$t" --prerelease'
   P='  promote:
-    if: github.event_name == "release"
+    if: ${{ !cancelled() && github.event_name == '"'release'"' && needs.version.result == '"'success'"' }}
     needs: version
     environment: release
     steps:
@@ -162,10 +185,22 @@ $P"
     "$(printf '%s\n' "$good" | grep -v '^    environment: release$')"
   expect "promote in another environment is REFUSED" 1 \
     "$(printf '%s\n' "$good" | sed 's/^    environment: release$/    environment: staging/')"
-  expect "promote with always() is REFUSED" 1 \
-    "$(printf '%s\n' "$good" | sed 's/^    if: github/    if: always() \&\& github/')"
-  expect "promote with !cancelled() is REFUSED" 1 \
-    "$(printf '%s\n' "$good" | sed 's/^    if: github/    if: !cancelled() \&\& github/')"
+  # The if: line, both directions. The property is "only a successful version
+  # reaches promote", so each way of losing either half is its own case.
+  expect "always() with the result check is accepted" 0 \
+    "$(printf '%s\n' "$good" | sed 's/!cancelled()/always()/')"
+  expect "no status function (the 12ec327 shape: ancestry skips it) is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed "s/^    if: .*/    if: github.event_name == 'release'/")"
+  expect "explicit success() instead of !cancelled() is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/!cancelled()/success()/')"
+  expect "failure() instead of !cancelled() is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/!cancelled()/failure()/')"
+  expect "!cancelled() AND success() together is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/!cancelled()/!cancelled() \&\& success()/')"
+  expect "status function without the result check is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed "s/ \&\& needs.version.result == 'success'//")"
+  expect "a result check on the wrong job is REFUSED" 1 \
+    "$(printf '%s\n' "$good" | sed 's/needs.version.result/needs.build.result/')"
   expect "promote without the switch is REFUSED" 1 \
     "$(printf '%s\n' "$good" | grep -v 'prerelease=false')"
   expect "promote reading latest instead of its own URL is REFUSED" 1 \
