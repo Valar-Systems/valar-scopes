@@ -14,6 +14,12 @@
 #include "EamLogbook.h"
 #include "EamTheme.h"
 
+#if defined(FEATURE_EAM_GAME)
+#include "../game/Derive.h"
+#include "../game/DrillMachine.h"
+#include "../game/KeyTurn.h"
+#endif
+
 // FEATURE_EAM top-level controller -- the EAM (Emergency Action Message) monitor app.
 //
 // Sibling to AircraftManager, selected at compile time in main.cpp: same lifecycle
@@ -140,7 +146,9 @@ private:
     float GlowFactor() const { return nightDim ? 0.5f : 1.0f; }
 
     // logbook + alerts
-    void UpdateLogbook();                 // note seen EAMs/codewords (loop task)
+    // Note seen EAMs/codewords (loop task). Appends to `fresh` every EAM that was NEW to
+    // the logbook on this call (newest first, as the feed orders them).
+    void UpdateLogbook(std::vector<eam::Msg>* fresh = nullptr);
     void CheckAlerts(bool newEamArrived); // evaluate the three ntfy triggers
     void SendNtfy(const String& title, const String& body, const String& tags, int priority);
 
@@ -149,4 +157,30 @@ private:
     static String TimeAgo(long epoch);                 // "4m ago" from a UTC epoch, "" if 0/unsynced
     static String FormatCountdown(long secondsLeft);   // "T-01:23:45" / "T-2d 03:14"
     void CenterText(BandCanvas& c, const String& s, int y, uint32_t color);
+
+#if defined(FEATURE_EAM_GAME)
+    // ---- the REACT drill (src/game/) ----
+    // One drill at a time, owned here and driven by the loop task. DrillMachine decides,
+    // DrawDrill draws, and every decision around them (offer, clock gate, T, targets)
+    // is src/game/DrillPolicy.h -- pure and host-tested. Rulings: Fable, 2026-09-23.
+    game::DrillMachine drill;
+    game::KeyTurnGesture keyTurn;
+    bool drillScreen = false;         // the drill face is up (a mode, never a rotation screen)
+    uint64_t offeredAtUs = 0;         // monotonic instant of the offer (auto-decode clock)
+    uint64_t endedAtUs = 0;           // when Complete/Aborted was first seen (60 s dwell)
+    String drillMsgId;                // the message this drill is working
+    game::Derivation drillDerivation; // its derivation, as offered
+    bool drillPressed = false;        // tap tracking on the drill face
+    int drillPressX = 0, drillPressY = 0;
+    int drillLastX = 0, drillLastY = 0;
+    unsigned long drillPressMs = 0;
+
+    void UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnected);
+    void HandleDrillTouch(bool touched, int x, int y);
+    void OnDrillTap(int x, int y);
+    game::Config DrillConfig() const;
+    static uint64_t NowUs();
+    static int64_t UtcMsNow();
+    bool ClockFreshNow() const;
+#endif
 };

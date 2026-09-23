@@ -5,6 +5,7 @@
 #include <Arduino.h>
 
 #include "../eam/EamTheme.h"
+#include "DrillPolicy.h"
 #include "Layout.h"
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,7 @@ const char* PhaseName(Phase p) {
     case Phase::Idle:         return "idle";
     case Phase::Offered:      return "offered";
     case Phase::Printing:     return "printing";
+    case Phase::Decoded:      return "decoded";
     case Phase::Authenticate: return "authenticate";
     case Phase::WarPlan:      return "warplan";
     case Phase::Enable:       return "enable";
@@ -127,6 +129,23 @@ void DrawSafe(BandCanvas& c, const eam::Palette& palette, const State& st) {
   (void)st;
 }
 
+const char* ClassWord(MsgClass c) {
+  switch (c) {
+    case MsgClass::Nam:       return "NAM";
+    case MsgClass::Fdm:       return "FDM";
+    case MsgClass::Execution: return "EXECUTION";
+  }
+  return "?";
+}
+
+/// The ABORT target. Visible in every live phase (Fable, 2026-09-23: "no hidden
+/// gesture"); the rect is DrillPolicy's, which is also what the touch handler hits.
+void DrawAbort(BandCanvas& c, const eam::Palette& palette) {
+  const Rect r = AbortRect(SCREEN_SIZE);
+  c.drawRoundRect(r.x, r.y, r.w, r.h, 4, palette.dim);          SS_RECT("abort", r.x, r.y, r.w, r.h);
+  Centre(c, "ABORT", r.y + (r.h - 8) / 2, palette.dim);
+}
+
 /// The bezel arc — §3 step 4's key turn lives on it, and the window is shown on
 /// it so the two are the same object rather than two things to correlate.
 void DrawBezel(BandCanvas& c, const eam::Palette& palette, const State& st) {
@@ -173,6 +192,15 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
       DrawStrip(c, palette, st, nowUs);                                   SS_NUM("print_permille", st.progress_permille);
       break;
 
+    case Phase::Decoded:
+      // §5: the class reveal. STATIC. The NAM line is the design doc's own
+      // ("Nothing happens. True to life."); the FDM's assignment is EamManager's
+      // war-plan state, not the drill's, so this says only that it moved.
+      Centre(c, ClassWord(st.cls), kC - 20, palette.accent);     SS_TEXT("class", ClassWord(st.cls));
+      Centre(c, st.cls == MsgClass::Nam ? "NOTHING HAPPENS" : "WAR PLAN UPDATED", kC - 2, palette.dim);
+      Centre(c, "TAP TO CONFIRM COPY", kC + 18, palette.dim);    SS_TEXT("prompt", "TAP TO CONFIRM COPY");
+      break;
+
     case Phase::Authenticate:
       DrawSafe(c, palette, st);
       break;
@@ -185,7 +213,13 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
 
     case Phase::Enable:
       Centre(c, "ENABLE", kC - 6, palette.accent);               SS_TEXT("body", "ENABLE");
-      Centre(c, "HOLD TO ARM", kC + 12, palette.dim);            SS_TEXT("prompt", "HOLD TO ARM");
+      // A TAP, not a hold: the key turn is the drill's only hold (Fable,
+      // 2026-09-23; §13's CST816 auto-sleep note).
+      Centre(c, "TAP TO ARM", kC + 12, palette.dim);             SS_TEXT("prompt", "TAP TO ARM");
+      // The machine's refusal, verbatim (e.g. "clock not synced").
+      if (st.note[0] != '\0') {
+        Centre(c, st.note, kC + 28, palette.alert);              SS_TEXT("note", st.note);
+      }
       break;
 
     case Phase::Armed: {
@@ -256,6 +290,7 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
 
     case Phase::Complete:
       Centre(c, "COMPLETE", kC, palette.dim);                    SS_TEXT("body", "COMPLETE");
+      Centre(c, "TAP TO DISMISS", kC + 18, palette.faint);       SS_TEXT("prompt", "TAP TO DISMISS");
       break;
 
     case Phase::Aborted:
@@ -265,12 +300,30 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
       if (st.note[0] != '\0') {
         Centre(c, st.note, kC + 10, palette.faint);              SS_TEXT("note", st.note);
       }
+      Centre(c, "TAP TO DISMISS", kC + 28, palette.faint);       SS_TEXT("prompt", "TAP TO DISMISS");
       break;
+  }
+
+  // ABORT in every live phase of the drill screen.
+  if (st.phase != Phase::Idle && st.phase != Phase::Offered && st.phase != Phase::Complete
+      && st.phase != Phase::Aborted) {
+    DrawAbort(c, palette);
   }
 
   SS_FLAG("committed", st.committed);
   SS_FLAG("executed", st.executed);
   SS_END();
+}
+
+void DrawOfferBanner(BandCanvas& c, const eam::Palette& palette, const State& st, bool autoDecoded) {
+  const Rect r = BannerRect(SCREEN_SIZE);
+  c.fillRoundRect(r.x, r.y, r.w, r.h, 5, palette.bg);
+  c.drawRoundRect(r.x, r.y, r.w, r.h, 5, palette.accent);        SS_RECT("offer_banner", r.x, r.y, r.w, r.h);
+  c.setTextSize(1);
+  // Until auto-decode the class is NOT shown: the tap is the decode (§5).
+  const char* line = autoDecoded ? ClassWord(st.cls) : "EAM WAITING";
+  Centre(c, line, r.y + 5, palette.accent);                      SS_TEXT("offer", line);
+  Centre(c, "TAP TO DECODE", r.y + r.h - 13, palette.dim);
 }
 
 }  // namespace game

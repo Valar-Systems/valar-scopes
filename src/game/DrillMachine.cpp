@@ -41,7 +41,44 @@ void DrillMachine::Enter(Phase p, uint64_t now_us) {
   st_.progress_permille = 0;
 }
 
-void DrillMachine::Step(Event ev, uint64_t now_us) {
+/// A pending arc outlives its hold by at most this much before it is treated as
+/// released. Only a lost release (a touch-controller dropout) ever reaches it.
+static const uint64_t kKeyPendingSlackUs = 1000000u;
+
+bool DrillMachine::PendingHolds(uint64_t now_us) {
+  if (!st_.key_pending) return false;
+  if (now_us > st_.key_arc_us + cfg_.key_confirm_us + kKeyPendingSlackUs) {
+    st_.key_pending = false;
+    return false;
+  }
+  return true;
+}
+
+void DrillMachine::ResolveTurn(uint64_t turn_us, uint64_t now_us) {
+  // THE MEASUREMENT. The scored instant is when the arc COMPLETED, not when the
+  // hold confirmed it (Fable, 2026-09-23). Signed, against T, in microseconds,
+  // and that is all this file does with it (rail 3).
+  st_.key_pending = false;
+  st_.deviation_us = static_cast<int64_t>(turn_us) - static_cast<int64_t>(st_.t_at_us);
+  st_.executed = true;
+  if (turn_us < st_.t_at_us) {
+    // EARLY. Recorded rather than ignored: a key turned before the window is a
+    // real thing the player did, and silently discarding it would let the
+    // device show nothing happening while the player is certain they acted.
+    SetNote("keyed before the window");
+    Enter(Phase::Aborted, now_us);
+    return;
+  }
+  if (turn_us > st_.t_at_us + cfg_.window_us) {
+    SetNote("keyed after the window");
+    Enter(Phase::Aborted, now_us);
+    return;
+  }
+  st_.until_window_us = 0;
+  Enter(Phase::Committed, now_us);
+}
+
+void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
   // -----------------------------------------------------------------------
   // RAIL 1, ENFORCED HERE RATHER THAN REMEMBERED.
   //
@@ -81,7 +118,9 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
   switch (st_.phase) {
     case Phase::Idle:
       if (ev == Event::MessageArrived) {
-        // STATIC. This is the state a traffic burst produces.
+        // STATIC. This is the state a traffic burst produces. The class rides
+        // in with the arrival and decides only where the print leads.
+        st_.cls = args.cls;
         Enter(Phase::Offered, now_us);
       }
       return;
@@ -91,14 +130,25 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
       if (ev == Event::PlayerOpen) Enter(Phase::Printing, now_us);
       return;
 
-    case Phase::Printing:
+    case Phase::Printing: {
+      // THE PRINT IS THE DECODE (§3 step 1): the class is revealed when it
+      // finishes. Execution traffic goes on to authenticate; a NAM or FDM stops
+      // at the static reveal (Fable, 2026-09-23).
+      const Phase next = st_.cls == MsgClass::Execution ? Phase::Authenticate : Phase::Decoded;
       if (ev == Event::Tick) {
         st_.progress_permille = Permille(now_us - phase_since_us_, cfg_.print_us);
         // The print finishing on its own is fine: a human started it.
-        if (st_.progress_permille >= 1000) Enter(Phase::Authenticate, now_us);
+        if (st_.progress_permille >= 1000) Enter(next, now_us);
       } else if (ev == Event::PrintFinished) {
-        Enter(Phase::Authenticate, now_us);
+        Enter(next, now_us);
       }
+      return;
+    }
+
+    case Phase::Decoded:
+      // STATIC. §5 "CONFIRM COPY" is the ack; nothing else moves it (abort is
+      // handled above).
+      if (ev == Event::PlayerAck) Enter(Phase::Complete, now_us);
       return;
 
     case Phase::Authenticate:
@@ -119,19 +169,35 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
       // Solo path (rail 2). The two-person split-knowledge minigame is not
       // here and must not be added before the arm runs measure whether the
       // panel can hold a finger for 10 s.
-      if (ev == Event::PlayerEnable) Enter(Phase::Armed, now_us);
+      if (ev == Event::PlayerEnable) {
+        // NO T, NO ARMING. The caller supplies T only with a clock sync younger
+        // than the served maximum (Fable, 2026-09-23): an unsynced countdown is
+        // a fabricated T on screen. Refused in place, with the reason, so the
+        // player can try again once the clock is good.
+        if (st_.t_at_us == 0) {
+          SetNote("clock not synced");
+          return;
+        }
+        st_.note[0] = '\0';
+        Enter(Phase::Armed, now_us);
+      }
       return;
 
     case Phase::Armed: {
+      if (ev == Event::PlayerKeyArc) {
+        st_.key_pending = true;
+        st_.key_arc_us = now_us;
+        return;
+      }
+      if (ev == Event::PlayerKeyRelease) {
+        st_.key_pending = false;
+        return;
+      }
       if (ev == Event::PlayerKeyTurn) {
-        // EARLY. The window has not opened, so this is not an execution.
-        // Recorded rather than ignored: a key turned before the window is a
-        // real thing the player did, and silently discarding it would let the
-        // device show nothing happening while the player is certain they acted.
-        st_.deviation_us = static_cast<int64_t>(now_us) - static_cast<int64_t>(st_.t_at_us);
-        st_.executed = true;
-        SetNote("keyed before the window");
-        Enter(Phase::Aborted, now_us);
+        // Usually EARLY (the window has not opened), which ResolveTurn records
+        // and ends. A turn at or after T that arrived before the Tick that would
+        // have opened the window is scored as what it is, not as early.
+        ResolveTurn(st_.key_pending ? st_.key_arc_us : now_us, now_us);
         return;
       }
       if (ev != Event::Tick) return;
@@ -140,7 +206,7 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
       // (§6's ~2-minute tier) can be opened late. `>= t_at_us` catches both the
       // ordinary arrival at T and the case where the drill armed after it, and
       // the window's own expiry below then closes it honestly.
-      if (now_us > st_.t_at_us + cfg_.window_us) {
+      if (now_us > st_.t_at_us + cfg_.window_us && !PendingHolds(now_us)) {
         // T IS NOT MERELY PAST, THE WINDOW HAS ALREADY CLOSED. Falling into
         // Window here would offer a key turn that could never be on time and
         // would then abort a tick later — the device showing an open window
@@ -157,16 +223,20 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
     }
 
     case Phase::Window: {
+      if (ev == Event::PlayerKeyArc) {
+        st_.key_pending = true;
+        st_.key_arc_us = now_us;
+        return;
+      }
+      if (ev == Event::PlayerKeyRelease) {
+        st_.key_pending = false;
+        return;
+      }
       if (ev == Event::PlayerKeyTurn) {
-        // THE MEASUREMENT. Signed, against T, in microseconds, and that is all
-        // this file does with it (rail 3). Negative would mean early, which is
-        // unreachable from here by construction — the window opens at T — but
-        // the arithmetic is signed anyway so the field means one thing
-        // everywhere it appears, including from Armed above.
-        st_.deviation_us = static_cast<int64_t>(now_us) - static_cast<int64_t>(st_.t_at_us);
-        st_.executed = true;
-        st_.until_window_us = 0;
-        Enter(Phase::Committed, now_us);
+        // Scored at the arc if one is pending -- which may even be before T, if
+        // the arc completed in Armed and the hold confirmed it after the window
+        // opened. ResolveTurn calls that early, because it was.
+        ResolveTurn(st_.key_pending ? st_.key_arc_us : now_us, now_us);
         return;
       }
       if (ev != Event::Tick) return;
@@ -175,7 +245,11 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
       // STRICTLY PAST THE CLOSE. At exactly closes_at the window is still open:
       // a 2-second window means [T, T+2s], and treating the final instant as
       // shut would make the published constant 2 s minus one tick.
-      if (now_us > closes_at) {
+      //
+      // A PENDING ARC HOLDS IT OPEN for its hold: an arc completed inside the
+      // window is on time, and closing on it while the finger is still down
+      // confirming would score the player late for the confirmation time.
+      if (now_us > closes_at && !PendingHolds(now_us)) {
         SetNote("window closed, no key");
         Enter(Phase::Aborted, now_us);
       }
@@ -202,11 +276,34 @@ void DrillMachine::Step(Event ev, uint64_t now_us) {
       // server already owns, which is how the deviation curve would drift if
       // it were duplicated here.
       //
-      // So the honest state is: committed, and waiting. D7 wires the
-      // resolution in and Phase::Terminal is entered from it.
+      // So the honest state is: committed, and waiting. The resolution arrives
+      // as VoteResolved, polled from /votes/live (Fable, 2026-09-23, which
+      // KEEPS this ruling and retracts local entry into Terminal):
+      //   seconded / launched -> Terminal
+      //   inhibited / failed  -> Aborted, with the reason
+      // Rail 1 holds because Committed is reachable only through PlayerKeyTurn.
       // ---------------------------------------------------------------------
       if (ev == Event::Tick) {
         st_.until_impact_us = 0;
+        return;
+      }
+      if (ev == Event::VoteResolved) {
+        switch (args.outcome) {
+          case VoteOutcome::Seconded:
+          case VoteOutcome::Launched:
+            Enter(Phase::Terminal, now_us);
+            return;
+          case VoteOutcome::Inhibited:
+            SetNote(args.reason && args.reason[0] ? args.reason : "inhibited");
+            Enter(Phase::Aborted, now_us);
+            return;
+          case VoteOutcome::Failed:
+            SetNote(args.reason && args.reason[0] ? args.reason : "execution failed");
+            Enter(Phase::Aborted, now_us);
+            return;
+          case VoteOutcome::None:
+            return;
+        }
       }
       return;
 

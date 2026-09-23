@@ -49,6 +49,14 @@ namespace game {
 void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, const Config& cfg,
                uint64_t nowUs);
 
+/// The Offered banner, drawn OVER whatever monitor screen is showing (Fable,
+/// 2026-09-23: "a static banner over the current screen, screens keep
+/// rotating"). STATIC -- rail 1: Offered says only that something is waiting.
+/// `autoDecoded` is §5's unattended auto-decode, a display property: once true
+/// the banner names the class. Hit-tested by EamManager against the SAME rect
+/// (DrillPolicy.h BannerRect), so what is drawn is what is tapped.
+void DrawOfferBanner(BandCanvas& c, const eam::Palette& palette, const State& st, bool autoDecoded);
+
 }  // namespace game
 
 #endif  // BLIPSCOPE_GAME_DRAWDRILL_H
