@@ -1864,7 +1864,8 @@
     "license": "Public domain",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/md90.jpg"
+    "file": "src/md90.jpg",
+    "zoom": 1.1
   },
   {
     "target": "BE40",
