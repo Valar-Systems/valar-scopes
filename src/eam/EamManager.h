@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <vector>
 #include <set>
+#include <map>
 
 #include "ConfigurationWebServer.h"
 #include "OpenSkyAuthTokenHandler.h"
@@ -170,6 +171,10 @@ private:
     uint64_t endedAtUs = 0;           // when Complete/Aborted was first seen (60 s dwell)
     String drillMsgId;                // the message this drill is working
     game::Derivation drillDerivation; // its derivation, as offered
+    // Messages whose offer was WITHDRAWN at the ack cutoff: they stay in the ticker with
+    // their class shown (Fable, 2026-09-23). Bounded; oldest dropped.
+    std::map<String, game::MsgClass> withdrawnClass;
+    static constexpr size_t WITHDRAWN_KEEP = 20;
     bool drillPressed = false;        // tap tracking on the drill face
     int drillPressX = 0, drillPressY = 0;
     int drillLastX = 0, drillLastY = 0;

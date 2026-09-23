@@ -624,14 +624,19 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
     const uint64_t now = NowUs();
     const eam::GameConfig& gc = feed.GameCfg();
 
-    // HOLD: no game surfaces at all (§1.2). A live drill is dropped, not suspended --
-    // the flag exists to stand a fleet down.
+    // HOLD: no game surfaces at all (§1.2). A live drill ENDS -- Aborted, reason
+    // "hold" -- rather than pausing: one bit reverts the fleet to pure monitoring, and
+    // a pause would imply resumption (Fable, 2026-09-23). The ended drill then returns
+    // to Idle on the usual 60 s dwell, with its face closed meanwhile.
     if (gc.valid && gc.hold) {
-        if (drill.Get().phase != game::Phase::Idle) {
-            Serial.println("[drill] HOLD set: drill dropped");
-            drill.Reset();
-        }
+        const game::Phase before = drill.Get().phase;
+        drill.Step(game::Event::Hold, now);
+        if (drill.Get().phase != before) Serial.println("[drill] HOLD set: drill aborted (hold)");
         drillScreen = false;
+        if (drill.Get().phase == game::Phase::Aborted) {
+            if (endedAtUs == 0) endedAtUs = now;
+            if (game::EndedDwellOver(endedAtUs, now)) { drill.Reset(); endedAtUs = 0; }
+        }
         return;
     }
 
@@ -657,6 +662,11 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
                 drill = game::DrillMachine(DrillConfig());
                 game::EventArgs a;
                 a.cls = in.derivation.cls;
+                // WITHDRAWN AT THE ACK CUTOFF (Fable, 2026-09-23). DecideOffer only
+                // offers an execution with a fresh clock, so this conversion is honest.
+                if (in.derivation.cls == game::MsgClass::Execution)
+                    a.withdraw_at_us = game::MonoForUtcMs(
+                        in.derivation.t_at_ms - (int64_t)gc.ackCutoffS * 1000, in.now_utc_ms, now);
                 drill.Step(game::Event::MessageArrived, now, a);
                 offeredAtUs = now;
                 endedAtUs = 0;
@@ -677,7 +687,15 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
         }
     }
 
+    const game::Phase beforeTick = drill.Get().phase;
     drill.Step(game::Event::Tick, now);
+    if (beforeTick == game::Phase::Offered && drill.Get().withdrawn) {
+        // Offered -> Idle at the ack cutoff: the message stays in the ticker, class shown.
+        if (withdrawnClass.size() >= WITHDRAWN_KEEP) withdrawnClass.erase(withdrawnClass.begin());
+        withdrawnClass[drillMsgId] = drill.Get().cls;
+        Serial.printf("[drill] offer withdrawn at the ack cutoff: %s\n", drillMsgId.c_str());
+        drill.Reset();
+    }
 
     // Complete/Aborted -> Idle on a dismiss tap (OnDrillTap) or after 60 s.
     const game::Phase ph = drill.Get().phase;

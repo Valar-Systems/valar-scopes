@@ -67,8 +67,21 @@ void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
     CenterText(c, header, (int)(SCREEN_SIZE * 0.12), palette.dim);
 
     // NEW pulse (blink) just under the header.
-    if ((long)(newPulseUntilMs - millis()) > 0 && ((millis() / 250) % 2 == 0))
+    const bool pulsing = (long)(newPulseUntilMs - millis()) > 0;
+    if (pulsing && ((millis() / 250) % 2 == 0))
         CenterText(c, "NEW", (int)(SCREEN_SIZE * 0.20), palette.accent);
+#if defined(FEATURE_EAM_GAME)
+    // A message whose drill offer was WITHDRAWN at the ack cutoff keeps its class on the
+    // ticker (Fable, 2026-09-23): it was decoded, it just can no longer be committed.
+    if (!pulsing) {
+        auto it = withdrawnClass.find(m.id);
+        if (it != withdrawnClass.end()) {
+            const char* cls = it->second == game::MsgClass::Execution ? "EXECUTION"
+                            : it->second == game::MsgClass::Fdm ? "FDM" : "NAM";
+            CenterText(c, cls, (int)(SCREEN_SIZE * 0.20), palette.dim);
+        }
+    }
+#endif
     // Copy-quality badges. PARTIAL WINS when both are set: "we are missing some
     // of this" is the more actionable of the two, and the line only fits one.
     if (m.partial)
