@@ -5,17 +5,19 @@
  * API), move main FAST-FORWARD ONLY, and read back the publish's run and its
  * `photos-publish` check run. The token is passed in and never logged.
  */
-const API = "https://api.github.com";
+import { RefUpdateRejected } from "./publish-retry";
 
-export class NotFastForward extends Error {}
+const API = "https://api.github.com";
 
 export interface Gh {
   repo: string; // "owner/name"
   token: string;
+  /** Injectable for tests; defaults to the global fetch. */
+  fetchImpl?: typeof fetch;
 }
 
-async function call<T>(gh: Gh, method: string, path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`${API}/repos/${gh.repo}${path}`, {
+function request(gh: Gh, method: string, path: string, body?: unknown): Promise<Response> {
+  return (gh.fetchImpl ?? fetch)(`${API}/repos/${gh.repo}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${gh.token}`,
@@ -25,13 +27,22 @@ async function call<T>(gh: Gh, method: string, path: string, body?: unknown): Pr
     },
     body: body ? JSON.stringify(body) : undefined,
   });
+}
+
+async function call<T>(gh: Gh, method: string, path: string, body?: unknown): Promise<T> {
+  const r = await request(gh, method, path, body);
   const text = await r.text();
-  if (!r.ok) {
-    // A ref update that is not a fast-forward is 422 "Update is not a fast forward".
-    if (r.status === 422 && /fast.?forward/i.test(text)) throw new NotFastForward(text.slice(0, 200));
-    throw new Error(`GitHub ${method} ${path}: HTTP ${r.status} ${text.slice(0, 300)}`);
-  }
+  if (!r.ok) throw new Error(`GitHub ${method} ${path}: HTTP ${r.status} ${text.slice(0, 300)}`);
   return (text ? JSON.parse(text) : {}) as T;
+}
+
+// Move main to `sha`, fast-forward only. ANY non-2xx is a RefUpdateRejected,
+// whatever the body says -- the retry decision belongs to the fact that main did
+// not move, not to GitHub's wording (see publish-retry.ts for how that bit us).
+export async function updateMainRef(gh: Gh, sha: string): Promise<void> {
+  const r = await request(gh, "PATCH", "/git/refs/heads/main", { sha, force: false });
+  const text = await r.text().catch(() => "");
+  if (!r.ok) throw new RefUpdateRejected(r.status, text);
 }
 
 export async function mainHead(gh: Gh): Promise<string> {
@@ -74,7 +85,8 @@ export interface FileChange {
 
 // One commit on top of `parent` containing exactly `files`, then main moved to
 // it -- fast-forward only, so a publish that raced another one fails with
-// NotFastForward instead of silently discarding the other's commit.
+// RefUpdateRejected (retried by the caller) instead of discarding the other's
+// commit. Any other step's failure is a plain Error and is not retried.
 export async function commitToMain(gh: Gh, parent: string, files: FileChange[], message: string): Promise<string> {
   const parentCommit = await call<{ tree: { sha: string } }>(gh, "GET", `/git/commits/${parent}`);
   const tree = [];
@@ -91,7 +103,7 @@ export async function commitToMain(gh: Gh, parent: string, files: FileChange[], 
   }
   const t = await call<{ sha: string }>(gh, "POST", "/git/trees", { base_tree: parentCommit.tree.sha, tree });
   const c = await call<{ sha: string }>(gh, "POST", "/git/commits", { message, tree: t.sha, parents: [parent] });
-  await call(gh, "PATCH", "/git/refs/heads/main", { sha: c.sha, force: false });
+  await updateMainRef(gh, c.sha);
   return c.sha;
 }
 

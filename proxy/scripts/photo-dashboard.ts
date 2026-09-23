@@ -31,7 +31,6 @@ import {
   type ManifestEntry,
 } from "../src/photolicense";
 import {
-  NotFastForward,
   commitToMain,
   commitsForPath,
   fileAt,
@@ -43,6 +42,7 @@ import {
 } from "./github-api";
 import { renderSquares } from "./photo-render";
 import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, validateRows } from "./publish-plan";
+import { RetryCeiling, withRefRetry } from "./publish-retry";
 import { RateLimited, wikimediaFetch } from "./wikimedia-fetch";
 
 const PORT = Number(process.env.PHOTO_DASHBOARD_PORT ?? 8123);
@@ -312,7 +312,22 @@ async function publishToDevices(note = ""): Promise<PublishResult> {
     };
   }
   const base = loadBase();
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  // Each attempt re-reads main and re-plans (so a conflict introduced by the
+  // publish we raced is caught), and only a rejected ref update is retried --
+  // bounded, see publish-retry.ts. Refusals are RETURNED, never retried.
+  try {
+    const { value } = await withRefRetry((attempt) => publishAttempt(gh, base, local, note, attempt), { log: console.log });
+    return value;
+  } catch (err) {
+    if (err instanceof RetryCeiling) {
+      return { status: 503, body: { error: `nothing was committed: ${err.message}` } };
+    }
+    throw err;
+  }
+}
+
+async function publishAttempt(gh: Gh, base: ManifestEntry[], local: ManifestEntry[], note: string, attempt: number): Promise<PublishResult> {
+  {
     const head = await mainHead(gh);
     const currentBytes = await fileAt(gh, `${PHOTOS_PREFIX}manifest.json`, head);
     if (!currentBytes) return { status: 500, body: { error: "main has no proxy/photos/manifest.json" } };
@@ -356,22 +371,15 @@ async function publishToDevices(note = ""): Promise<PublishResult> {
       `Published from the photo dashboard. Rows changed: ${plan.changed.length}.\n` +
       `The photos workflow publishes this commit to production and reports the\n` +
       `verdict on it as the photos-publish check run.\n`;
-    try {
-      const sha = await commitToMain(gh, head, files, message);
-      saveBase(plan.merged);
-      writeManifest(plan.merged);
-      writeFileSync(join(PHOTOS_DIR, "credits.html"), files[1]!.bytes!);
-      console.log(`[publish] ${sha.slice(0, 7)}: ${plan.changed.join(", ")}`);
-      return { status: 200, body: { sha, changed: plan.changed, attempt } };
-    } catch (err) {
-      if (err instanceof NotFastForward) {
-        console.log(`[publish] main moved during commit (attempt ${attempt}); re-reading main`);
-        continue;
-      }
-      throw err;
-    }
+    // A RefUpdateRejected thrown here is retried by withRefRetry; anything
+    // else propagates and fails the publish.
+    const sha = await commitToMain(gh, head, files, message);
+    saveBase(plan.merged);
+    writeManifest(plan.merged);
+    writeFileSync(join(PHOTOS_DIR, "credits.html"), files[1]!.bytes!);
+    console.log(`[publish] ${sha.slice(0, 7)}: ${plan.changed.join(", ")} (attempt ${attempt})`);
+    return { status: 200, body: { sha, changed: plan.changed, attempt } };
   }
-  return { status: 409, body: { error: "main kept moving while publishing; nothing was committed. Try again." } };
 }
 
 // Put a row back to the version it had before its latest change, from the
@@ -409,13 +417,18 @@ async function publishStatus(): Promise<PublishResult> {
   const runs = await recentPhotoRuns(gh);
   const out = [];
   for (const r of runs) {
-    const check = r.status === "completed" ? await publishCheck(gh, r.sha, r.createdAt, r.updatedAt) : null;
+    // The verdict is read as soon as the run POSTS it (the check run, written
+    // after the verifier), not when the whole run completes -- the staging
+    // mirror runs after it and used to delay "live" by about a minute. This
+    // is still the verifier's verdict, never a step status.
+    const check = await publishCheck(gh, r.sha, r.createdAt, r.status === "completed" ? r.updatedAt : new Date().toISOString());
     let detail: Record<string, unknown> = {};
     try { detail = check?.text ? JSON.parse(check.text) : {}; } catch { /* a check without our JSON */ }
     const state =
-      r.status !== "completed" ? (r.status === "queued" || r.status === "waiting" || r.status === "pending" ? "QUEUED" : "RUNNING")
-      : r.conclusion === "cancelled" ? "SUPERSEDED"
-      : (detail.verdict as string | undefined) ?? (r.conclusion === "success" ? "LIVE" : "FAILED");
+      (detail.verdict as string | undefined)
+      ?? (r.status !== "completed" ? (r.status === "queued" || r.status === "waiting" || r.status === "pending" ? "QUEUED" : "RUNNING")
+        : r.conclusion === "cancelled" ? "SUPERSEDED"
+        : "FAILED"); // completed with no verdict posted: the job died before reporting
     out.push({
       runId: r.id, sha: r.sha, event: r.event, state, url: r.url, createdAt: r.createdAt, updatedAt: r.updatedAt,
       title: check?.title ?? "", reason: detail.reason ?? "", liveAt: detail.liveAt ?? "",
@@ -562,20 +575,19 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     if (!gh) return json(401, { error: `Retry is off: ${reason}.` });
     const path = `${PHOTOS_PREFIX}.publish-retry`;
     assertPhotoPaths([path]);
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      const head = await mainHead(gh);
-      const stamp = `Retry of the photo publish, requested from the dashboard at ${new Date().toISOString()}.\n`;
-      try {
-        const sha = await commitToMain(gh, head, [{ path, bytes: Buffer.from(stamp) }],
+    try {
+      const { value: sha, attempts } = await withRefRetry(async () => {
+        const head = await mainHead(gh);
+        const stamp = `Retry of the photo publish, requested from the dashboard at ${new Date().toISOString()}.\n`;
+        return commitToMain(gh, head, [{ path, bytes: Buffer.from(stamp) }],
           "photos: retry publish (photo dashboard)\n\nRe-runs the photos workflow on main's whole manifest.\n");
-        console.log(`[retry] ${sha.slice(0, 7)}`);
-        return json(200, { ok: true, sha });
-      } catch (err) {
-        if (err instanceof NotFastForward) continue;
-        throw err;
-      }
+      }, { log: console.log });
+      console.log(`[retry] ${sha.slice(0, 7)} (attempt ${attempts})`);
+      return json(200, { ok: true, sha, attempt: attempts });
+    } catch (err) {
+      if (err instanceof RetryCeiling) return json(503, { error: `nothing was committed: ${err.message}` });
+      throw err;
     }
-    return json(409, { error: "main kept moving; nothing was committed. Try again." });
   }
 
   json(404, { error: "not_found" });
