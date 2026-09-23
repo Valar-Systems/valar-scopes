@@ -44,7 +44,7 @@ import {
 } from "./github-api";
 import { driftPanel } from "./photo-drift";
 import { renderSquares } from "./photo-render";
-import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, validateRows } from "./publish-plan";
+import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, runState, validateRows } from "./publish-plan";
 import { RetryCeiling, withRefRetry } from "./publish-retry";
 import { RateLimited, wikimediaFetch } from "./wikimedia-fetch";
 
@@ -427,15 +427,7 @@ async function publishStatus(): Promise<PublishResult> {
     const check = await publishCheck(gh, r.sha, r.createdAt, r.status === "completed" ? r.updatedAt : new Date().toISOString());
     let detail: Record<string, unknown> = {};
     try { detail = check?.text ? JSON.parse(check.text) : {}; } catch { /* a check without our JSON */ }
-    // STALE is what the stale guard reported before 2026-09-23: a run refused
-    // because a newer photo commit was on main. Nothing failed -- the newer run
-    // carries its rows -- so it reads as SUPERSEDED, never as a red failure.
-    const posted = detail.verdict as string | undefined;
-    const state =
-      (posted === "STALE" ? "SUPERSEDED" : posted)
-      ?? (r.status !== "completed" ? (r.status === "queued" || r.status === "waiting" || r.status === "pending" ? "QUEUED" : "RUNNING")
-        : r.conclusion === "cancelled" ? "SUPERSEDED"
-        : "FAILED"); // completed with no verdict posted: the job died before reporting
+    const state = runState(detail.verdict as string | undefined, r); // STALE reads SUPERSEDED -- see runState
     out.push({
       runId: r.id, sha: r.sha, event: r.event, state, url: r.url, createdAt: r.createdAt, updatedAt: r.updatedAt,
       title: check?.title ?? "", reason: detail.reason ?? "", liveAt: detail.liveAt ?? "",
@@ -452,7 +444,16 @@ async function publishStatus(): Promise<PublishResult> {
 async function driftStatus(): Promise<PublishResult> {
   const { gh, reason } = loadToken();
   if (!gh) return { status: 200, body: { tokenPresent: false, reason } };
-  const [run] = await recentRuns(gh, "photo-drift.yml", 1);
+  let run;
+  try {
+    [run] = await recentRuns(gh, "photo-drift.yml", 1);
+  } catch (err) {
+    // 404: the workflow is not on main yet -- nothing has run. Anything else is
+    // the DASHBOARD failing to read, which is not a count either.
+    if (String(err).includes("HTTP 404")) return { status: 200, body: { tokenPresent: true, ...driftPanel(null, null) } };
+    return { status: 200, body: { tokenPresent: true, ...driftPanel(null, null), state: "FAILED",
+      meaningA: `the dashboard could not read the drift run: ${String(err instanceof Error ? err.message : err).slice(0, 200)}` } };
+  }
   if (!run) return { status: 200, body: { tokenPresent: true, ...driftPanel(null, null) } };
   const check = await checkForRun(gh, "photo-drift", run.sha, run.createdAt,
     run.status === "completed" ? run.updatedAt : new Date().toISOString());

@@ -105,3 +105,20 @@ export function planPublish(base: ManifestEntry[], current: ManifestEntry[], loc
   }
   return { merged, changed, conflicts, removed };
 }
+
+// ---------------------------------------------------------------- run state
+
+// What the dashboard calls one photos run. The posted verdict wins; without one,
+// the run's own status. STALE is what the stale guard posted before 2026-09-23:
+// a run refused because a newer photo commit was on main. Nothing failed -- the
+// newer run carries its rows -- so it reads SUPERSEDED, like a cancelled run,
+// and never as a red failure.
+export function runState(posted: string | undefined, run: { status: string; conclusion: string | null }): string {
+  if (posted === "STALE") return "SUPERSEDED";
+  if (posted) return posted;
+  if (run.status !== "completed") {
+    return run.status === "queued" || run.status === "waiting" || run.status === "pending" ? "QUEUED" : "RUNNING";
+  }
+  if (run.conclusion === "cancelled") return "SUPERSEDED";
+  return "FAILED"; // completed with no verdict posted: the job died before reporting
+}

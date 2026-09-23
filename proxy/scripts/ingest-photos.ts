@@ -150,16 +150,19 @@ function execFor(target: string): Exec {
 // READ OVER REST, not wrangler, since 2026-09-23: the render-drift job
 // (photo-drift.yml) runs this with a KV-READ-only token (PHOTO_KV_READ_TOKEN)
 // and no write token at all, and a REST read is what that token can do.
+let manifestReadError = ""; // why the last fetchPublishedManifest returned null
 async function fetchPublishedManifest(env: string): Promise<ManifestEntry[] | null> {
+  const fail = (why: string) => {
+    manifestReadError = why;
+    console.warn(`  manifest read failed: ${why}`);
+    return null;
+  };
   try {
     const target = kvTargetFromWranglerToml("wrangler.toml", env, readToken());
     const text = await getValue(target, MANIFEST_KEY);
-    if (text === null) {
-      console.warn(`  manifest read failed: ${MANIFEST_KEY} does not exist in ${env}`);
-      return null;
-    }
+    if (text === null) return fail(`${MANIFEST_KEY} does not exist in ${env}`);
     const parsed: unknown = JSON.parse(text);
-    return Array.isArray(parsed) ? (parsed as ManifestEntry[]) : null;
+    return Array.isArray(parsed) ? (parsed as ManifestEntry[]) : fail(`${MANIFEST_KEY} is not a JSON array`);
   } catch (err) {
     // SAY WHY. This returned a bare null, and the caller then printed "could not
     // read the published manifest" -- which is true, uninformative, and identical
@@ -167,8 +170,7 @@ async function fetchPublishedManifest(env: string): Promise<ManifestEntry[] | nu
     // failure. Those want four different responses, and the run continues in a
     // mode ("upload every row") that looks like a decision rather than a
     // fallback, so nothing downstream reveals which one happened.
-    console.warn(`  manifest read failed: ${String(err instanceof Error ? err.message : err)}`);
-    return null;
+    return fail(String(err instanceof Error ? err.message : err).slice(0, 300));
   }
 }
 
@@ -302,7 +304,7 @@ async function main(): Promise<void> {
       console.error(`could not read the published manifest from ${args.env} -- REFUSING: ` +
         `a dry run compared against nothing would report every row CHANGED`);
       finishDryRun(args, { ...newDryRunStatus(args.env), verdict: "UNREADABLE",
-        reason: `could not read ${MANIFEST_KEY} from ${args.env} (see the log above for why)` }, 3);
+        reason: `could not read ${MANIFEST_KEY} from ${args.env}: ${manifestReadError}` }, 3);
     } else {
       // Say so. A silent fall-through to "upload everything" is the same shape as
       // a silent skip, just expensive instead of wrong.
