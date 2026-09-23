@@ -128,16 +128,17 @@ jobs:
         run: python3 scripts/skus.py --check-readers
 
   # The commit a release is TAGGED from supplies the workflow that release runs,
-  # so a tag cut before the promote step lands builds and then stays a
-  # prerelease forever. RELEASING.md runs this against the exact commit before
-  # the tag is pushed; here it keeps main itself from losing the step.
+  # so a tag cut from the wrong shape runs that shape: no promote job means a
+  # prerelease forever, and an ungated one moves the fleet with nobody looking.
+  # RELEASING.md runs this against the exact commit before the tag is pushed;
+  # here it keeps main itself from losing the gate.
   tag-workflow:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Prove the checker catches each violation
         run: bash scripts/check-tag-workflow.sh --selftest
-      - name: This commit uploads version.txt, then promotes
+      - name: This commit promotes only from the gated promote job
         run: bash scripts/check-tag-workflow.sh HEAD
 
   release-envs:
@@ -452,21 +453,62 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" version.txt --clobber
-      # PROMOTION IS THE LAST ACT, and it happens only here: every shipping SKU
-      # left a receipt, and version.txt is on the release. Until this step runs,
-      # the release is a prerelease and `latest` is somebody else -- so a device
-      # can never be pointed at an image whose gate did not pass.
-      #
-      # Creating a release as a full release is therefore a process error, not a
-      # shortcut: it moves `latest` before anything has been verified. See
-      # RELEASING.md.
-      - name: Certified -- promote this release to latest
+
+  promote:
+    # PROMOTION WAITS FOR A PERSON. `version` has certified the release and put
+    # version.txt on it; this job moves `latest`, which is the moment the fleet
+    # starts downloading. The `release` environment has a required reviewer, so
+    # the run pauses here until Daniel has flashed one bench board from the
+    # exact asset on the prerelease and approved it (RELEASING.md step 5).
+    # Rejecting leaves the release a prerelease and `latest` where it was.
+    #
+    # The `if:` carries NO status function on purpose. Without one GitHub applies
+    # success(), so a failed or skipped `version` can never reach this job. A
+    # function that runs anyway after a failure would re-open the route the
+    # receipt gate closes. scripts/check-tag-workflow.sh refuses it.
+    if: github.event_name == 'release'
+    needs: version
+    environment: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # ORDER IS PROVEN HERE, NOT BY WHERE A LINE SITS. This reads version.txt
+      # from THIS release's own download URL, the same file the fleet will get
+      # through `latest` once the next step runs, and requires it to equal
+      # FW_VERSION in the tagged source. If it is missing or wrong, promotion
+      # does not happen. `latest` is not read here: until promotion it points
+      # at the previous release, and a match there would prove nothing.
+      - name: version.txt on this release must equal FW_VERSION
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          decls=$(grep -cP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*[0-9]+\s*;' src/OtaUpdater.h || true)
+          if [ "$decls" -ne 1 ]; then
+            echo "::error::expected exactly one FW_VERSION declaration, found $decls"
+            exit 1
+          fi
+          want=$(grep -oP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/version.txt"
+          if ! got=$(curl -fsSL "$url"); then
+            echo "::error::$url did not answer. Refusing to promote a release whose"
+            echo "::error::version.txt cannot be read."
+            exit 1
+          fi
+          got=$(printf '%s' "$got" | tr -d '[:space:]')
+          echo "tagged FW_VERSION=$want  $url=$got"
+          if [ "$got" != "$want" ]; then
+            echo "::error::version.txt on $tag reads '$got' but the tagged source says $want."
+            echo "::error::Refusing to promote."
+            exit 1
+          fi
+      - name: Promote this release to latest
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.event.release.tag_name }}"
           # `--prerelease=false` is the switch; `--latest` was measured inert.
-          # The four-row isolation is recorded on the demote step above.
+          # The four-row isolation is recorded on the demote step in `version`.
           gh release edit "$tag" --prerelease=false
-          gh release view "$tag" --json isPrerelease -q '"promoted: prerelease=\(.isPrerelease)"'
-          echo "version.txt is live at releases/latest/download/version.txt"
+      - name: Report the result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "${{ github.event.release.tag_name }}" --json isPrerelease

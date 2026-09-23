@@ -141,7 +141,7 @@ ALLOWED_MENTIONS = {
     "platformio.ini",                    # the "the env IS the product" rule, x3
     "RELEASING.md",                      # release prose
     "docs/ota-control-plan.md",          # plan prose
-    "scripts/check-tag-workflow.sh",     # reads the VERSION JOB, not the matrix
+    "scripts/check-tag-workflow.sh",     # reads the version + promote jobs, not the matrix
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")
