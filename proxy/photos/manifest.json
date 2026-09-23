@@ -1841,7 +1841,8 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/md83.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display",
+    "zoom": 1.1
   },
   {
     "target": "MD88",
