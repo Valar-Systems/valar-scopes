@@ -1928,7 +1928,8 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/fa7x.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display",
+    "zoom": 1.1
   },
   {
     "target": "FA8X",
@@ -1939,7 +1940,8 @@
     "license": "CC BY 4.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/fa8x.jpg"
+    "file": "src/fa8x.jpg",
+    "zoom": 1.1
   },
   {
     "target": "GALX",
@@ -1951,7 +1953,8 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/galx.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display",
+    "zoom": 1.1
   },
   {
     "target": "GL5T",
@@ -1963,7 +1966,8 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/gl5t.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display",
+    "zoom": 1.1
   },
   {
     "target": "GL7T",
@@ -1975,7 +1979,8 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/gl7t.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display",
+    "zoom": 1.1
   },
   {
     "target": "GLF4",
