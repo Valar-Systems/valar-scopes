@@ -65,3 +65,35 @@ Every regeneration stamps `source_url`, `fetched_at`, `config_epoch`, and
 `server_commit`. `server_commit` is currently **NULL** with its reason recorded:
 the deployed `/status` carries no commit field yet. That is the honest value —
 not a blank, and not a guess.
+
+## `derivation_fixture.h`
+
+**Generated. Do not edit by hand — regenerate.**
+
+This fixture holds the server's own output for the class and T derivation. It
+comes from valar-eam-feed's `src/game/derive.ts` (spec:
+`docs/game-derivation.md`), which is the function POST /votes re-derives with.
+The server refuses any vote whose class or T disagrees (`derivation_mismatch`).
+[`../host/test_derive.cpp`](../host/test_derive.cpp) grades
+`src/game/Derive.cpp` against it, with whole-value equality on every field.
+
+Its cases were chosen at the edges where a port can disagree:
+
+- a class draw exactly on a cumulative boundary, which falls into the next bucket;
+- T at minS and at maxS−1;
+- the minute ceiling, both on a boundary and 0.5 s / 59.5 s past one;
+- a non-ASCII msg_id.
+
+The server's test suite asserts that coverage by property.
+
+The parameters are the server checkout's defaults, and they're emitted into
+the header beside the cases. On the device they come from `/config` at runtime.
+
+### Regenerating
+
+```sh
+cd ../valar-eam-feed
+npx tsx scripts/emit-derivation-fixture.ts   --out    test/fixtures/derivation.json   --header ../valar-scopes/test/fixtures/derivation_fixture.h
+# drift check (exit 1 on drift):
+npx tsx scripts/emit-derivation-fixture.ts --check   --out    test/fixtures/derivation.json   --header ../valar-scopes/test/fixtures/derivation_fixture.h
+```
