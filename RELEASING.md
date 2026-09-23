@@ -97,13 +97,31 @@ are versioned and released **together** from a single commit, and each device se
 
 1. **Bump the version:** edit `FW_VERSION` in `src/OtaUpdater.h` (one number, all SKUs).
    If this takes the number to 7 or above, the gate directly above applies.
-2. Commit + merge to `main`.
-3. **Create a GitHub Release** with a tag (e.g. `v5`). Publishing it triggers
-   [.github/workflows/firmware.yml](.github/workflows/firmware.yml), which:
-   - builds every SKU in the matrix,
-   - attaches each as `firmware-<slug>.bin`,
-   - attaches a `version.txt` containing `FW_VERSION`.
-4. Devices pick up the update on their next daily check (or reboot).
+2. Commit + merge to `main`. **Tag from the merge commit, never before it.**
+3. **Before pushing the tag, run the pre-tag check against that exact commit:**
+
+   ```sh
+   bash scripts/check-tag-workflow.sh <commit-you-will-tag>
+   ```
+
+   It must print `ok: … promotion is last.` A release event runs the workflow
+   from the TAGGED commit, not from `main` -- observed 2026-09-20. A tag cut from
+   a commit without the promote step builds, passes its gate, and then stays a
+   prerelease forever with nothing to advance it. That failure is safe (`latest`
+   never moves) and its only symptom is that nothing happens, which is the worst
+   thing to diagnose on release night. Refused means do not tag.
+4. **Create the release as a PRERELEASE** (`gh release create <tag> --prerelease …`).
+   Publishing it triggers the workflow, which:
+   - builds every SKU in `skus.yml`,
+   - attaches each **shipping** SKU as `firmware-<slug>.bin`,
+   - checks every shipping SKU left a receipt,
+   - uploads `version.txt` containing `FW_VERSION`,
+   - and only then **promotes the release to latest**.
+
+   **Never create it as a full release.** That moves `latest` before anything has
+   been verified; on 2026-09-17 and 2026-09-18 it made
+   `releases/latest/download/version.txt` return 404 for every device, twice.
+5. Devices pick up the update on their next daily check (or reboot).
 
 > Don't hand-upload assets — the workflow names them so they match what devices request.
 
@@ -302,8 +320,10 @@ A new SKU needs three entries that stay in sync:
 
 1. `variant::SLUG` in its `include/variants/<sku>.h`
 2. an `[env:*]` in `platformio.ini`, named `<product>-<board>` (e.g. `blipscope-s3-146`, `quakescope-s3-146`)
-3. its `{ env, slug }` row in the `matrix.include` of `.github/workflows/firmware.yml` — `slug`
-   MUST equal `FW_OTA_PREFIX` + `variant::SLUG` (it names the OTA asset devices download)
+3. its row in `skus.yml` -- `status: shipping` with a `slug` only if a customer can
+   actually be running it; otherwise `status: build-only` and no slug. The slug MUST
+   equal `FW_OTA_PREFIX` + `variant::SLUG` (it names the OTA asset devices download).
+   The matrix is generated from this file; there is no second list.
 
 Add all three, and the next release automatically builds and publishes that SKU's binary.
 

@@ -110,6 +110,36 @@ jobs:
   # themselves into a build that never contacts the proxy. A non-cloud image does not
   # error; it goes quiet, which reads as an idle device rather than a fault.
   # --selftest first, same reasoning as the two checks above.
+  # WHO ELSE READS THE BUILD MATRIX -- swept, not remembered. On 2026-09-17 the
+  # matrix moved into skus.yml, four consumers were updated from a list someone
+  # had in mind, and the fifth kept parsing the workflow, found no rows, and
+  # refused to scan -- which withheld version.txt and cost the fleet OTA
+  # discovery. This fails when a file starts reading the workflow unreviewed,
+  # when a MIN_* row-count floor comes back, or when an allowlist entry goes
+  # stale, because a list that accumulates dead entries decays back into the
+  # hand-maintained one that failed.
+  sku-readers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the checker catches each violation
+        run: python3 scripts/skus.py --check-readers-selftest
+      - name: No unreviewed reader of the build matrix
+        run: python3 scripts/skus.py --check-readers
+
+  # The commit a release is TAGGED from supplies the workflow that release runs,
+  # so a tag cut before the promote step lands builds and then stays a
+  # prerelease forever. RELEASING.md runs this against the exact commit before
+  # the tag is pushed; here it keeps main itself from losing the step.
+  tag-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the checker catches each violation
+        run: bash scripts/check-tag-workflow.sh --selftest
+      - name: This commit uploads version.txt, then promotes
+        run: bash scripts/check-tag-workflow.sh HEAD
+
   release-envs:
     runs-on: ubuntu-latest
     steps:
@@ -361,13 +391,82 @@ jobs:
           merge-multiple: true
           path: receipts
       - name: Every publishing SKU must have published
+        id: receipts
         run: bash scripts/check-publish-receipts.sh receipts
+      # THE RECOVERY, AUTOMATED. On 2026-09-17 and again on 2026-09-18 a release
+      # was published as a FULL release, its matrix failed, this gate correctly
+      # withheld version.txt -- and because the release was already `latest`,
+      # releases/latest/download/version.txt returned 404 for every device in the
+      # fleet. Both times the gate was right and the fleet went dark anyway,
+      # because the damage happened at CREATE time, before any job could run.
+      #
+      # Demoting restores `latest` to the last release that WAS certified, which
+      # is the recovery that was performed by hand on both occasions.
+      - name: Gate failed -- demote this release so `latest` moves back
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          echo "::error::$tag did not certify. Demoting it to a prerelease so that"
+          echo "::error::releases/latest stops pointing at it and devices keep discovering"
+          echo "::error::the last release that passed."
+          # ONE SWITCH, MEASURED. This step used to apply `--prerelease` AND
+          # `--latest=false`, so a pass said nothing about which one did the work.
+          # Isolated on a live release on 2026-09-20, one switch at a time:
+          #
+          #   --prerelease alone      -> latest moved away     LOAD-BEARING
+          #   --latest=false alone    -> latest did NOT move    INERT
+          #   --prerelease=false      -> latest moved back     LOAD-BEARING
+          #   --latest alone          -> latest did NOT move    INERT
+          #
+          # `--latest` was decoration beside the switch doing the job. An edit that
+          # kept it and dropped `--prerelease` would fail SILENTLY on release night,
+          # leaving a failed release as `latest` with no version.txt -- the outage
+          # this step exists to undo. Same shape as the config page's None chip,
+          # where an inline opacity and a class both appeared to dim it and only
+          # one of them did.
+          gh release edit "$tag" --prerelease
+          gh release view "$tag" --json isPrerelease -q '"demoted: prerelease=\(.isPrerelease)"'
       - name: Extract FW_VERSION -> version.txt
         run: |
-          v=$(grep -oP 'FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          # ANCHORED ON THE DECLARATION, AND EXACTLY ONE. The previous pattern
+          # took the first FW_VERSION-ish match anywhere in the file, which is
+          # correct today and silently wrong the day a comment or a second
+          # constant mentions it above line 17 -- and what it would publish is
+          # the number every device in the fleet compares against its own.
+          decls=$(grep -cP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*[0-9]+\s*;' src/OtaUpdater.h || true)
+          if [ "$decls" -ne 1 ]; then
+            echo "::error::expected exactly one 'constexpr int FW_VERSION' declaration in"
+            echo "::error::src/OtaUpdater.h, found $decls. Refusing to guess which one the"
+            echo "::error::fleet should be pointed at."
+            exit 1
+          fi
+          v=$(grep -oP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          case "$v" in
+            ''|*[!0-9]*) echo "::error::FW_VERSION parsed as '$v', which is not a number"; exit 1 ;;
+          esac
           echo "FW_VERSION=$v"
           echo "$v" > version.txt
       - name: Publish version.txt
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" version.txt --clobber
+      # PROMOTION IS THE LAST ACT, and it happens only here: every shipping SKU
+      # left a receipt, and version.txt is on the release. Until this step runs,
+      # the release is a prerelease and `latest` is somebody else -- so a device
+      # can never be pointed at an image whose gate did not pass.
+      #
+      # Creating a release as a full release is therefore a process error, not a
+      # shortcut: it moves `latest` before anything has been verified. See
+      # RELEASING.md.
+      - name: Certified -- promote this release to latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          # `--prerelease=false` is the switch; `--latest` was measured inert.
+          # The four-row isolation is recorded on the demote step above.
+          gh release edit "$tag" --prerelease=false
+          gh release view "$tag" --json isPrerelease -q '"promoted: prerelease=\(.isPrerelease)"'
+          echo "version.txt is live at releases/latest/download/version.txt"
