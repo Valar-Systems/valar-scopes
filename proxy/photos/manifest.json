@@ -1903,7 +1903,8 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/cl60.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display",
+    "zoom": 1.1
   },
   {
     "target": "F900",
