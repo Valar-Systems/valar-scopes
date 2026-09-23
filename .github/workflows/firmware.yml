@@ -462,11 +462,21 @@ jobs:
     # exact asset on the prerelease and approved it (RELEASING.md step 5).
     # Rejecting leaves the release a prerelease and `latest` where it was.
     #
-    # The `if:` carries NO status function on purpose. Without one GitHub applies
-    # success(), so a failed or skipped `version` can never reach this job. A
-    # function that runs anyway after a failure would re-open the route the
-    # receipt gate closes. scripts/check-tag-workflow.sh refuses it.
-    if: github.event_name == 'release'
+    # THE PROPERTY IS "ONLY A SUCCESSFUL `version` REACHES THIS JOB", and it is
+    # stated as `needs.version.result == 'success'`, not left to a default.
+    #
+    # The default is wrong here. An `if:` with no status function gets an
+    # implicit success(), and that success() is over EVERY ancestor, not only
+    # `needs:`. The build matrix is an ancestor, and a slug-less harness leg
+    # failing there skipped this job on 2026-09-22 (scratch run 35816020466):
+    # `version` passed, `promote` was skipped without waiting for review, and a
+    # real release would have stayed a prerelease forever. That is the same
+    # coupling the `version` job's always() exists to break (see its v9 note).
+    #
+    # So `!cancelled()` stops the ancestry deciding, and the explicit result
+    # check keeps a failed or skipped `version` out. Both halves are required by
+    # scripts/check-tag-workflow.sh.
+    if: ${{ !cancelled() && github.event_name == 'release' && needs.version.result == 'success' }}
     needs: version
     environment: release
     runs-on: ubuntu-latest
