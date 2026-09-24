@@ -238,6 +238,47 @@ jobs:
       # here instead of as a planted string in a shipped binary.
       - name: adsbdb launch gate (${{ matrix.env }})
         run: bash scripts/check-adsbdb-out.sh ${{ matrix.env }}
+      # THE FACTORY IMAGE IS PUBLISHED FROM CI, AND THAT IS A SAFETY CONTROL, NOT A
+      # CONVENIENCE. The local build path (provision-batch.py, a bench `pio run`) can
+      # bake a -DCLOUD_FEED_KEY="..." flag into the image -- platformio.ini invites
+      # one -- and every board flashed from that image would carry the key. CI never
+      # sets it: no workflow here names CLOUD_FEED_KEY or PLATFORMIO_BUILD_FLAGS.
+      # So valar-flasher flashes THIS image, and the scan below runs on it before
+      # anything from this leg is uploaded, the OTA binary included.
+      #
+      # flash_manifest.py reads every offset from the built artifact and PROVES the
+      # regions, laid on 0xFF, reproduce the factory image byte for byte with none
+      # touching NVS. That is what lets the flasher update a customer's board over
+      # USB without erasing its settings.
+      - name: Factory image, flash manifest and region files
+        if: matrix.slug
+        run: |
+          python3 scripts/flash_manifest.py --selftest
+          v=$(grep -oP '^\s*constexpr\s+int\s+FW_VERSION\s*=\s*\K[0-9]+' src/OtaUpdater.h)
+          python3 scripts/flash_manifest.py --build ".pio/build/${{ matrix.env }}" \
+            --slug "${{ matrix.slug }}" --env "${{ matrix.env }}" \
+            --boot-app0 "$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" \
+            --out publish --fw-version "$v" --commit "${{ github.sha }}"
+      # NO SECRET IN THE IMAGE. The key names, token prefixes and Bearer are a hit on
+      # sight. A 64-hex run (device-key shape) or a 40-char token-shaped run is a hit
+      # unless it is found verbatim in a PUBLIC input of this build -- frameworks
+      # carry both shapes as public data, and a key baked in by a build flag is in
+      # none of them. The repo's only traced file is the public CA roots -- a string
+      # that lives elsewhere in the repo is not "public" merely by being committed. Three controls run first (anchor found, a planted key
+      # flagged, a planted 40-char run untraced); a failed control is exit 3,
+      # untrustworthy, and fails this leg like a hit does. Prints counts, classes and
+      # offsets only -- never a matched string. factory-scan-<slug>.json carries the
+      # traced runs' sha256s so valar-flasher can run the same scan before a write.
+      - name: No secret in the factory image
+        if: matrix.slug
+        run: |
+          python3 scripts/scan_image.py --selftest
+          python3 scripts/scan_image.py "publish/firmware-${{ matrix.slug }}.factory.bin" \
+            --anchor "[build] env=" \
+            --trace include/OtaCerts.h \
+            --trace ".pio/libdeps/${{ matrix.env }}" \
+            --trace "$HOME/.platformio/packages" \
+            --emit "publish/factory-scan-${{ matrix.slug }}.json"
       # The gate prints the tail of the failing build's log inline, which is
       # usually enough. This keeps the whole thing when it is not: a control that
       # comes back blind is exactly the case where the interesting line is above
@@ -280,14 +321,23 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.slug }}
-          path: firmware-${{ matrix.slug }}.bin
+          path: |
+            firmware-${{ matrix.slug }}.bin
+            publish/
       - name: Attach to release
         if: github.event_name == 'release' && matrix.slug
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.event.release.tag_name }}"
-          gh release upload "$tag" "firmware-${{ matrix.slug }}.bin" --clobber
+          s="${{ matrix.slug }}"
+          gh release upload "$tag" "firmware-$s.bin" --clobber
+          # The flasher's set. firmware-$s.bin above is the manifest's app region
+          # (flash_manifest.py proved the bytes equal), so it is not uploaded twice.
+          gh release upload "$tag" --clobber \
+            "publish/firmware-$s.factory.bin" "publish/flash-manifest-$s.json" \
+            "publish/bootloader-$s.bin" "publish/partitions-$s.bin" "publish/boot_app0-$s.bin" \
+            "publish/factory-scan-$s.json"
       # PUBLICATION RECEIPT -- evidence about THIS run, not about the release.
       #
       # Written only after the launch gate AND the upload above have both

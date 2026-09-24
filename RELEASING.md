@@ -113,7 +113,14 @@ are versioned and released **together** from a single commit, and each device se
 4. **Create the release as a PRERELEASE** (`gh release create <tag> --prerelease …`).
    Publishing it triggers the workflow, which:
    - builds every SKU in `skus.yml`,
-   - attaches each **shipping** SKU as `firmware-<slug>.bin`,
+   - attaches each **shipping** SKU as `firmware-<slug>.bin`, plus valar-flasher's set:
+     `firmware-<slug>.factory.bin`, `flash-manifest-<slug>.json`, the region files
+     (`bootloader-`, `partitions-`, `boot_app0-<slug>.bin`) and `factory-scan-<slug>.json`.
+     Every one of them is uploaded only after `scripts/scan_image.py` passes on the
+     factory image. **CI is the only place a factory image for customers is built**:
+     a local build can carry a `-DCLOUD_FEED_KEY` flag into every board, and CI never
+     sets one. The manifest is proven to reproduce the factory image byte for byte,
+     with no region touching NVS (`scripts/flash_manifest.py`),
    - checks every shipping SKU left a receipt,
    - uploads `version.txt` containing `FW_VERSION`,
    - and then **pauses at `promote`**, the job that moves `latest`, until a
