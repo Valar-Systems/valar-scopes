@@ -573,7 +573,7 @@ static void RailExhaustive() {
       Event::PlayerAck, Event::PlayerConfirmWarPlan, Event::PlayerEnable,
       Event::PlayerKeyTurn, Event::PlayerAbort, Event::FeedReconnected,
       Event::OtherMessageArrived, Event::PlayerKeyArc, Event::PlayerKeyRelease,
-      Event::VoteResolved};
+      Event::VoteResolved, Event::Hold};
   const uint32_t kEv = static_cast<uint32_t>(sizeof(events) / sizeof(events[0]));
   int transitions = 0, terminals = 0, printings = 0, committeds = 0, violations = 0;
   for (int seq = 0; seq < 20000; seq += 1) {
@@ -586,6 +586,7 @@ static void RailExhaustive() {
       game::EventArgs a;
       a.cls = static_cast<game::MsgClass>(Rnd(3));
       a.outcome = static_cast<game::VoteOutcome>(Rnd(5));
+      a.withdraw_at_us = Rnd(3) == 0 ? 0 : now + Rnd(20) * S;
       now += Rnd(4) == 0 ? Rnd(3000000) : Rnd(200000);
       // HALF THE STEPS ARE GUIDED toward the next phase, or the sweep never
       // gets deep enough for its checks to mean anything (the first version
@@ -638,6 +639,91 @@ static void RailExhaustive() {
               printings, committeds, terminals);
 }
 
+// ---------------------------------------------------------------------------
+// Fable, 2026-09-23 (#332 confirmations): withdrawal at the ack cutoff, HOLD.
+// ---------------------------------------------------------------------------
+
+static game::EventArgs ExecUntil(uint64_t withdraw_at) {
+  game::EventArgs a = Exec();
+  a.withdraw_at_us = withdraw_at;
+  return a;
+}
+
+static void Withdrawal() {
+  const uint64_t cutoff = 40 * S;
+
+  CASE("withdraw: an Offered execution goes back to Idle at its ack cutoff");
+  {
+    DrillMachine m;
+    m.Step(Event::MessageArrived, 0, ExecUntil(cutoff));
+    m.Step(Event::Tick, cutoff - 1);
+    CHECK(m.Get().phase == Phase::Offered, "withdrawn before the cutoff");
+    m.Step(Event::Tick, cutoff);
+    CHECK(m.Get().phase == Phase::Idle, "still offered at the cutoff");
+    CHECK(m.Get().withdrawn, "the withdrawal is not recorded");
+    CHECK(m.Get().cls == game::MsgClass::Execution, "the class was lost (the ticker shows it)");
+    CHECK(std::strstr(m.Get().note, "ack cutoff") != nullptr, "the withdrawal is not explained");
+    CHECK(!m.Get().committed, "a withdrawn offer claims a commitment");
+  }
+
+  CASE("withdraw: from any later phase, nothing -- the server owns the outcome");
+  {
+    DrillMachine p;  // Printing, opened just before the cutoff
+    p.Step(Event::MessageArrived, 0, ExecUntil(cutoff));
+    p.Step(Event::PlayerOpen, cutoff - S);
+    p.Step(Event::Tick, cutoff + S);
+    CHECK(p.Get().phase != Phase::Idle && p.Get().phase != Phase::Offered,
+          "a drill the player had opened was withdrawn");
+    DrillMachine a;  // Authenticate / WarPlan / Enable
+    a.Step(Event::MessageArrived, 0, ExecUntil(cutoff));
+    a.Step(Event::PlayerOpen, 0);
+    a.Step(Event::PrintFinished, 0);
+    a.Step(Event::PlayerAck, 1 * S);
+    for (uint64_t now = cutoff - S; now < cutoff + 60 * S; now += S) a.Step(Event::Tick, now);
+    CHECK(a.Get().phase == Phase::WarPlan, "a committed drill was withdrawn at the cutoff");
+    CHECK(a.Get().committed, "the commitment was withdrawn");
+  }
+
+  CASE("withdraw: NAM/FDM (no T, withdraw_at 0) are never withdrawn");
+  {
+    DrillMachine n;
+    n.Step(Event::MessageArrived, 0);
+    for (uint64_t now = 0; now < 10000 * S; now += 100 * S) n.Step(Event::Tick, now);
+    CHECK(n.Get().phase == Phase::Offered, "a NAM offer was withdrawn");
+  }
+}
+
+static void HoldEndsTheDrill() {
+  CASE("HOLD: every live phase -> Aborted, reason hold");
+  const uint64_t t = 100 * S;
+  DrillMachine live[9];
+  int n = 0;
+  { DrillMachine m; m.Step(Event::MessageArrived, 0, Exec()); live[n++] = m; }                                   // Offered
+  { DrillMachine m = live[0]; m.Step(Event::PlayerOpen, 0); live[n++] = m; }                                     // Printing
+  { DrillMachine m; m.Step(Event::MessageArrived, 0); m.Step(Event::PlayerOpen, 0); m.Step(Event::PrintFinished, 0); live[n++] = m; }  // Decoded
+  { DrillMachine m = live[1]; m.Step(Event::PrintFinished, 0); live[n++] = m; }                                  // Authenticate
+  { DrillMachine m = live[3]; m.Step(Event::PlayerAck, 0); live[n++] = m; }                                      // WarPlan
+  { DrillMachine m = live[4]; m.Step(Event::PlayerConfirmWarPlan, 0); live[n++] = m; }                           // Enable
+  live[n++] = ArmedAt(t);
+  live[n++] = WindowAt(t);
+  live[n++] = CommittedAt(t);
+  for (int i = 0; i < n; i += 1) {
+    DrillMachine m = live[i];
+    m.Step(Event::Hold, t + 5 * S);
+    CHECK(m.Get().phase == Phase::Aborted, "a live drill survived HOLD");
+    CHECK(std::strcmp(m.Get().note, "hold") == 0, "the reason is not 'hold'");
+  }
+
+  CASE("HOLD: Idle, Complete and Aborted are untouched");
+  DrillMachine idle;
+  idle.Step(Event::Hold, 0);
+  CHECK(idle.Get().phase == Phase::Idle, "HOLD moved an idle machine");
+  DrillMachine done = CommittedAt(t);
+  done.Step(Event::VoteResolved, t + S, Resolved(game::VoteOutcome::Inhibited, "not our call"));
+  done.Step(Event::Hold, t + 2 * S);
+  CHECK(std::strcmp(done.Get().note, "not our call") == 0, "HOLD rewrote how an ended drill ended");
+}
+
 int main() {
   std::printf("DrillMachine host tests\n");
   RailNothingAnimatesWithoutAHuman();
@@ -650,6 +736,8 @@ int main() {
   ArmingNeedsAT();
   KeyArc();
   VoteResolution();
+  Withdrawal();
+  HoldEndsTheDrill();
   RailExhaustive();
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   if (g_checks < 40) {

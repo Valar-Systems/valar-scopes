@@ -109,6 +109,17 @@ void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
   // decides whether to queue it.
   if (ev == Event::OtherMessageArrived) return;
 
+  // HOLD (Fable, 2026-09-23): any live drill ends, Aborted with reason "hold".
+  // Idle stays Idle and an ended drill stays ended.
+  if (ev == Event::Hold) {
+    if (st_.phase != Phase::Idle && st_.phase != Phase::Complete
+        && st_.phase != Phase::Aborted) {
+      SetNote("hold");
+      Enter(Phase::Aborted, now_us);
+    }
+    return;
+  }
+
   // A FEED RECONNECT IS NOT A GAME EVENT. The drill runs on the device's own
   // monotonic clock against a T that was already derived; losing and regaining
   // the feed changes neither. Explicitly a no-op rather than falling through,
@@ -121,13 +132,31 @@ void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
         // STATIC. This is the state a traffic burst produces. The class rides
         // in with the arrival and decides only where the print leads.
         st_.cls = args.cls;
+        st_.withdraw_at_us = args.withdraw_at_us;
+        st_.withdrawn = false;
         Enter(Phase::Offered, now_us);
       }
       return;
 
     case Phase::Offered:
       // The only way forward is a human opening it.
-      if (ev == Event::PlayerOpen) Enter(Phase::Printing, now_us);
+      if (ev == Event::PlayerOpen) {
+        Enter(Phase::Printing, now_us);
+        return;
+      }
+      // WITHDRAWN AT THE ACK CUTOFF (Fable, 2026-09-23). A banner inviting a
+      // commit the server will refuse with past_ack_cutoff is a fabricated
+      // opportunity; §13's late-copy valve is a device-side rule about what to
+      // OFFER. Back to Idle, and nothing else: past Offered the player has
+      // already acted and the server owns the outcome.
+      if (ev == Event::Tick && st_.withdraw_at_us != 0 && now_us >= st_.withdraw_at_us) {
+        const MsgClass cls = st_.cls;
+        st_ = State();
+        st_.cls = cls;
+        st_.withdrawn = true;
+        SetNote("past ack cutoff");
+        Enter(Phase::Idle, now_us);
+      }
       return;
 
     case Phase::Printing: {

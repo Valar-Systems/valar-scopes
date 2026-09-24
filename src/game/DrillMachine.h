@@ -148,6 +148,10 @@ enum class Event : uint8_t {
   /// else (Fable, 2026-09-23). Not a player event: rail 1 holds because
   /// Committed is reachable only through PlayerKeyTurn.
   VoteResolved,
+  /// The served HOLD flag was set (§1.2). Any live drill -> Aborted, reason "hold"
+  /// (Fable, 2026-09-23: one bit reverts the fleet to pure monitoring; a pause
+  /// would imply resumption). Not a player event, and it animates nothing.
+  Hold,
 };
 
 /// How the server resolved the vote. Only the four the ruling names.
@@ -169,6 +173,9 @@ struct EventArgs {
   /// Defaults to NAM, the class that cannot reach an execution, so a caller
   /// that forgets to say gets "nothing happens" rather than a launch drill.
   MsgClass cls = MsgClass::Nam;
+  /// MessageArrived: the monotonic instant the offer is WITHDRAWN -- the ack
+  /// cutoff (served ackCutoffS before T). 0 = never (NAM/FDM carry no T).
+  uint64_t withdraw_at_us = 0;
   /// VoteResolved: the outcome, and the server's reason text (may be null).
   VoteOutcome outcome = VoteOutcome::None;
   const char* reason = nullptr;
@@ -234,6 +241,10 @@ struct State {
 
   /// The class this drill was offered with. Decides where the print leads.
   MsgClass cls = MsgClass::Nam;
+  /// While Offered: when the offer is withdrawn (0 = never). See EventArgs.
+  uint64_t withdraw_at_us = 0;
+  /// True once an offer has been withdrawn (the drill is then Idle again).
+  bool withdrawn = false;
 
   /// A key arc has completed and its hold has not yet confirmed or released.
   bool key_pending = false;
