@@ -100,10 +100,24 @@ page from this HTTP page and gets a value back (`window.open` → `/blipscope/en
    to keep it."* If `acc` is over 1,000 m (a desktop with no GPS locating by IP), it adds *"This is
    only accurate to about N km. Check it on a map before saving."*
 
-**Privacy, by construction.** The helper page is static HTML. It makes no request, and is served
-with `Content-Security-Policy: connect-src 'none'; form-action 'none'`, so the browser itself
-refuses any attempt by it to send the position anywhere. Coordinates travel by `postMessage`,
-never in a URL, so they never reach a Worker log or the analytics. The helper stores nothing.
+**Requirement: the coordinates never leave the browser in a network request.** They travel
+exactly one way, helper → opener by `postMessage`. The helper page makes **no network request
+that contains them**: no fetch, XHR, beacon, WebSocket, form post, image or script URL, and no
+navigation, including its own `window.close()` path. So they never reach a Worker log, the
+analytics, or any third party. The helper stores nothing (no cookie, no storage).
+
+That is enforced twice, and the test below is the one that counts:
+
+- **By the browser.** The helper is served with
+  `Content-Security-Policy: default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…';
+  form-action 'none'; base-uri 'none'`. `default-src 'none'` covers images and fonts as well as
+  `connect-src`, so no subresource of any kind can load. `connect-src 'none'` alone would have
+  left `new Image().src = "…?lat="` open. A navigation (`location = …`) is not something CSP can
+  block, which is why the test watches navigations too.
+- **By a test that watches the wire** (below). A header can be removed or relaxed in one edit;
+  the test fails regardless of how a leak is written.
+
+**The gps-coordinates.org paste fallback stays**, unchanged, in every failure line below.
 
 **When it fails, the fields are never touched.** Each case is one sentence, shown on the helper
 page (when it is open) and echoed on the config page via `bpSay`:
@@ -133,18 +147,44 @@ records that gps-coordinates.org's 15-decimal output is why the fields are plain
   through `CoordParse::SplitPair`. Each line must parse, and must land within 0.00005 of the
   source position. Control: a line with lat 90.0001 is appended in-test and must be **rejected**,
   so the test proves it can fail.
-- **Proxy (vitest).** `/blipscope/locate` returns 200 with the CSP header above. The page contains
-  no `fetch(`, `XMLHttpRequest`, `sendBeacon` or `<form`. The origin rule accepts
+- **Proxy (vitest).** `/blipscope/locate` returns 200 with the CSP header above, and
+  `default-src 'none'` in particular. The page source contains no `fetch(`, `XMLHttpRequest`,
+  `sendBeacon`, `WebSocket` or `<form`. That is the weaker, source-reading form; the wire test
+  below is the one that counts. The origin rule accepts
   `http://blipscope.local` and `http://192.168.4.1`, and refuses `https://evil.example`,
   `http://blipscope.local.evil.example` and `http://8.8.8.8`. The four failure sentences are
   present.
+- **No request carries the coordinates (headless Chromium, `scripts/check-locate-page.mjs`, a
+  CI job).** The helper page is loaded from the built Worker with `navigator.geolocation` stubbed
+  to a **sentinel** position. The sentinel is obviously not a place: lat `11.1111111`,
+  lon `-22.2222222`, labelled as fake in the script. Every request the page makes is intercepted
+  at the protocol level (CDP `Fetch` + `Network`, which sees fetch, XHR, `sendBeacon`,
+  WebSocket frames, image/script/style loads, form posts and navigations). The test **fails** if
+  the sentinel appears in any request's URL, headers or body, in any encoding it could plausibly
+  take:
+  - raw and 4-decimal forms (`11.1111`, `-22.2222`);
+  - integer micro-degrees;
+  - URL-encoded, and base64 of any of the above.
+
+  It prints a count, e.g. `requests 1, carrying the position 0`, not just `PASS`.
+  - **Anchor control, required, or the result means nothing:** the `postMessage` captured on
+    the stub opener **must** carry the sentinel. "No request contained it" is otherwise equally
+    true of a page that never received a position at all.
+  - **Planted control:** a copy of the helper with one line added,
+    `navigator.sendBeacon("/x", JSON.stringify(pos))`, must turn the check **red**. It is run in
+    CI on every commit, beside the real check, so a matcher that has stopped matching fails
+    loudly. A second plant, `new Image().src = "/p?" + lat`, must be red too; that one also
+    proves the `default-src` half.
 - **Contract (`smoke-prod.sh`).** Extend the enrol-URL check, which already greps the URLs out of
   `ConfigurationWebServer.cpp`, to grep the locate URL the same way and fetch it from production,
   asserting 200 and the CSP header. A route typo then fails on the firmware's own string. That is
   the enrolment 404 lesson.
 - **Sabotage, one per feature, each shown red then green.** Formatter emits 3 decimal places →
   the host round-trip fails. The origin regex drops its `$` anchor → the `.local.evil.example`
-  case fails. The CSP header is removed → the vitest and the prod smoke both fail.
+  case fails. The CSP header is removed → the vitest and the prod smoke both fail. The helper
+  posts the position to `/x` after a successful fix → the no-request check goes red. It must go
+  red **with the CSP header also removed**, which proves the wire test catches the leak on its own
+  and is not merely re-reporting the header.
 
 **Glass, once, before merge:** a phone on the LAN (iOS Safari and Android Chrome), permission
 granted and then denied. Fill, echo, and "nothing saved until Save" are confirmed on the device
