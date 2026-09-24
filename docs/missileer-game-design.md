@@ -831,6 +831,54 @@ choreography of the four-hand split, exercise codenames, payload roster.
 | Self-crewing | Allowed, publicly attributed (default adopted) |
 | Augmentee | Allowed, logged as AUGMENTEE in credits (default adopted) |
 
+### Measured on the bench — touch report interval and the 10 s hold (2026-09-24)
+
+**Board:** the Missileer board, a Kit S3 1.28" with a CST816T, USB serial `90706931E9D8`.
+**Firmware:** valar-scopes `feat/game-client` @ `325cb69`, built with `-DKEYTOUCH_BENCH -UFEATURE_USB_OPEN`.
+**Estimator:** INT-driven only, with no timer reads. The ISR stamps each falling edge of the
+chip's INT line with `esp_timer`, and the interval is edge to edge while the finger is down
+(`src/eam/KeyTouchSampler.cpp`, `src/game/TouchCadence.h`).
+
+**The chip, as shipped** (read at boot):
+- `IrqCtl` (0xFA) = `0x20`: change-only, one pulse on press and one on release. The firmware
+  now writes `0x60` (EnTouch|EnChange, one pulse per report) and reads it back.
+- `NorScanPer` (0xEE) = 1.
+- `AutoReset` (0xFB) = 50 s and `LongPressTime` (0xFC) = 60 s.
+- `DisAutoSleep` (0xFE) = 1.
+
+**Report interval** (Daniel: bezel drags with lifts, then holds; 5,357 intervals over two windows):
+
+| window | intervals | mean | min | p95 | max | silences | drops |
+|---|---|---|---|---|---|---|---|
+| 1 | 1,173 | 13.68 ms | 13.09 ms | 14.00 ms | 17.93 ms | 0 | 0 |
+| 2 | 4,184 | 13.75 ms | 13.09 ms | 15.00 ms | 34.49 ms | 0 | 0 |
+
+**The panel reports every ~13.7 ms (about 73 Hz).** That is the resolution a key turn is
+scored at on this board, replacing the ~48 ms render pass it was read at before. Each I2C read
+of a report took 408–416 µs on average, 2.6 ms at worst.
+
+**The 10 s hold: held.** One touch lasted **10,228 ms** with no release inside it and no
+silences. That covers every candidate for the breaks seen in bench run 1:
+- **AutoReset: ruled out by the register.** It is 50 s, and LongPressTime 60 s, both far past a
+  10 s hold. No change is needed in the game build.
+- **HID typing: ruled out for run 1's first break.** That break (17:29:10.911, ~0.2 s) came
+  1.5 s before any typing started. Run 1's samples never stalled while it typed (worst gaps
+  20.16 and 20.00 ms). Run 2 had the long press compiled out and held for 10.2 s.
+- **Phantom releases from timer polling: the remaining explanation for run 1.** Run 1 read the
+  chip on a 20 ms timer (the chip was in change-only mode, so there were no reports to read
+  on), which is the between-report read the variant notes record as returning zero contacts
+  mid-touch. Reading only on the chip's report signal, run 2 recorded the 10.2 s touch whole.
+
+**Not yet attributed:** three gaps between touches in run 2 were shorter than 250 ms (107, 214
+and 226 ms, at 18:34:02–18:34:10 UTC), and run 1's break was ~0.2 s. Whether those were
+Daniel lifting mid-drag or the panel dropping the finger is not in this log; it needs Daniel's
+account of those seconds, or a run with a timed, known lift.
+
+**Release debounce: no constant yet.** The data it will come from is the release log (`[keytouch]
+release: held=… gap=…`, every release). Run 2's shortest gap is 107 ms, and whether that was a
+real lift is the open question above. A debounce shorter than a real lift misses nothing; one
+longer than a real lift merges two strokes, so it waits until the short gaps are attributed.
+
 ### Remaining — build tasks, not decisions
 
 1. **Deputy hold gesture prototype** (gates crew layer): test firmware — draw switch, 10 s
