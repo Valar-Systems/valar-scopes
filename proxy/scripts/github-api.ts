@@ -137,14 +137,20 @@ export interface CheckRun {
 // Readable with a fine-grained token that has NO Checks permission, because the
 // repo is public (measured 2026-09-23: 200). If the repo ever goes private this
 // call needs Checks read, or the status must move to the Actions runs endpoint.
+// See "Check runs and repo visibility" in proxy/README.md.
 //
 // The verdict a given RUN reported. Two runs can share a commit (a failed push
 // run, then a Retry dispatched while main has not moved), so the check run is
 // matched to the run by time -- it must complete inside that run's window --
 // never taken as "the first one on the commit".
 export async function publishCheck(gh: Gh, sha: string, runStart: string, runEnd: string): Promise<CheckRun | null> {
+  return checkForRun(gh, "photos-publish", sha, runStart, runEnd);
+}
+
+/** The named check run that one run posted on `sha`, matched by time (see above). */
+export async function checkForRun(gh: Gh, name: string, sha: string, runStart: string, runEnd: string): Promise<CheckRun | null> {
   const r = await call<{ check_runs: { conclusion: string | null; status: string; completed_at: string | null; output: { title: string | null; text: string | null } }[] }>(
-    gh, "GET", `/commits/${sha}/check-runs?check_name=photos-publish&filter=all`,
+    gh, "GET", `/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all`,
   );
   const lo = Date.parse(runStart), hi = Date.parse(runEnd) + 120_000;
   const c = r.check_runs.find((x) => x.completed_at && Date.parse(x.completed_at) >= lo && Date.parse(x.completed_at) <= hi);
@@ -164,8 +170,13 @@ export interface Run {
 
 /** The photos workflow's most recent runs, any trigger, newest first. */
 export async function recentPhotoRuns(gh: Gh, n = 8): Promise<Run[]> {
+  return recentRuns(gh, "photos.yml", n);
+}
+
+/** One workflow's most recent runs on main, any trigger, newest first (Actions read). */
+export async function recentRuns(gh: Gh, workflowFile: string, n = 8): Promise<Run[]> {
   const r = await call<{ workflow_runs: { id: number; head_sha: string; event: string; status: string; conclusion: string | null; html_url: string; created_at: string; updated_at: string }[] }>(
-    gh, "GET", `/actions/workflows/photos.yml/runs?branch=main&per_page=${n}`,
+    gh, "GET", `/actions/workflows/${workflowFile}/runs?branch=main&per_page=${n}`,
   );
   return r.workflow_runs.map((w) => ({
     id: w.id, sha: w.head_sha, event: w.event, status: w.status, conclusion: w.conclusion,

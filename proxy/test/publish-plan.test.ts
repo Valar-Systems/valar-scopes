@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PathOutsidePhotos, assertPhotoPaths, planPublish, validateRows } from "../scripts/publish-plan";
+import { PathOutsidePhotos, assertPhotoPaths, planPublish, runState, validateRows } from "../scripts/publish-plan";
 import type { ManifestEntry } from "../src/photolicense";
 
 const row = (target: string, source = "https://commons.wikimedia.org/wiki/File:A.jpg"): ManifestEntry =>
@@ -81,5 +81,26 @@ describe("planPublish", () => {
     const p = planPublish(base, base, [...base, row("K35R")]);
     expect(p.changed).toEqual(["K35R"]);
     expect(p.merged.at(-1)!.target).toBe("K35R");
+  });
+});
+
+describe("runState: superseded runs are not failures", () => {
+  const done = (conclusion: string) => ({ status: "completed", conclusion });
+  it("a pre-2026-09-23 STALE verdict (run 1947c37, conclusion failure) reads SUPERSEDED", () => {
+    expect(runState("STALE", done("failure"))).toBe("SUPERSEDED");
+  });
+  it("the new SUPERSEDED verdict and a cancelled run read SUPERSEDED", () => {
+    expect(runState("SUPERSEDED", done("success"))).toBe("SUPERSEDED");
+    expect(runState(undefined, done("cancelled"))).toBe("SUPERSEDED");
+  });
+  it("CONTROL: real failures stay failures", () => {
+    expect(runState("FAILED", done("failure"))).toBe("FAILED");
+    expect(runState("UNTRUSTWORTHY", done("failure"))).toBe("UNTRUSTWORTHY");
+    expect(runState(undefined, done("failure"))).toBe("FAILED");
+    expect(runState("LIVE", done("success"))).toBe("LIVE");
+  });
+  it("unfinished runs with no verdict are QUEUED or RUNNING", () => {
+    expect(runState(undefined, { status: "queued", conclusion: null })).toBe("QUEUED");
+    expect(runState(undefined, { status: "in_progress", conclusion: null })).toBe("RUNNING");
   });
 });
