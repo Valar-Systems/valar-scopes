@@ -187,6 +187,27 @@ void GameClient::Execute(int64_t devUs, bool ok)
     executeDueUs = 0;
 }
 
+void GameClient::Abort()
+{
+    if (!enabled) return;
+    switch (commitState) {
+        case CommitState::Due:
+            commitState = CommitState::None;  // never sent: there is no vote to abort
+            return;
+        case CommitState::InFlight:
+            abortGen = drillGen;               // abort it when the id comes back
+            break;
+        case CommitState::Done:
+            if (!voteId.isEmpty()) abortVoteId = voteId;
+            break;
+        default:
+            return;                            // None/Stale/Refused: nothing on the server
+    }
+    abortTries = 0;
+    executeDue = false;                        // an abort is the last word on this vote
+    Serial.printf("[game] abort %s\n", voteId.isEmpty() ? "(on commit)" : voteId.c_str());
+}
+
 void GameClient::EndDrill()
 {
     drillGen += 1;
@@ -234,12 +255,22 @@ void GameClient::Poll(uint64_t nowUs)
         inFlight = false;
         // A result for a drill that has since ended is dropped -- except a claim,
         // which belongs to the device, not the drill.
-        if (res->kind == Kind::Claim || reqGen == drillGen) Apply(*res, nowUs);
+        if (res->kind == Kind::Commit && reqGen == abortGen && !res->voteId.isEmpty()) {
+            // The player aborted while this commit was in flight: abort the vote it made.
+            abortVoteId = res->voteId;
+            abortGen = 0xFFFFFFFFu;
+        }
+        if (res->kind == Kind::Claim || res->kind == Kind::Abort || reqGen == drillGen) Apply(*res, nowUs);
         delete res;
     }
     if (inFlight) return;
 
-    // Priority: the execute (time-bound at the server), the commit, the seat, the poll.
+    // Priority: an abort, the execute (time-bound at the server), the commit, the seat, the poll.
+    if (!abortVoteId.isEmpty() && !token.isEmpty()) {
+        if (Send(Kind::Abort, "/votes/" + abortVoteId + "/abort", "{}"))
+            Serial.printf("[game] abort -> POST /votes/%s/abort\n", abortVoteId.c_str());
+        return;
+    }
     if (executeDue && !voteId.isEmpty() && nowUs >= executeDueUs) {
         char body[96];
         if (BuildExecuteBody(deviationUs, enableOk, body, sizeof(body)) &&
@@ -351,6 +382,14 @@ void GameClient::Apply(const Result& res, uint64_t nowUs)
                 return;
             }
             Resolve(VoteOutcome::Failed, res.error.isEmpty() ? "execute refused" : res.error.c_str());
+            return;
+
+        case Kind::Abort:
+            Serial.printf("[game] abort -> HTTP %d %s (%ums)\n", res.status, res.error.c_str(),
+                          (unsigned)res.requestMs);
+            // Sent, refused as already_resolved, or given up after retries: done either way.
+            if (reply == Reply::Retry && ++abortTries < kMaxTries) return;  // keep abortVoteId
+            abortVoteId = "";
             return;
 
         case Kind::Status: {

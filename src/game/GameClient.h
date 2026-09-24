@@ -69,6 +69,11 @@ public:
     /// The key turn was measured: POST /votes/:id/execute (after the commit, if
     /// that is still in flight).
     void Execute(int64_t deviationUs, bool enableOk);
+    /// The player aborted after the ack (§4: acking commits you). POST
+    /// /votes/:id/abort, so the server learns of it now rather than at the deadline.
+    /// A commit not yet sent is simply cancelled; one in flight is aborted when its
+    /// vote id arrives -- even if the drill has been dismissed by then.
+    void Abort();
     /// The drill is over locally (dismissed, withdrawn, a new offer): stop polling.
     void EndDrill();
 
@@ -81,7 +86,7 @@ public:
     bool TakeResolution(VoteOutcome& outcome, const char*& reason);
 
 private:
-    enum class Kind : uint8_t { Claim, Commit, Execute, Status };
+    enum class Kind : uint8_t { Claim, Commit, Execute, Status, Abort };
     enum class CommitState : uint8_t { None, Due, InFlight, Done, Stale, Refused };
 
     struct Request {
@@ -131,6 +136,12 @@ private:
     bool statusInFlight = false;
     uint32_t drillGen = 0;    // results of an ended drill are discarded
     uint32_t reqGen = 0;
+
+    // An abort to send: the vote id, or the drill generation whose in-flight commit is
+    // to be aborted when its id comes back. Survives EndDrill on purpose.
+    String abortVoteId;
+    uint32_t abortGen = 0xFFFFFFFFu;
+    uint32_t abortTries = 0;
 
     bool resolutionReady = false;
     VoteOutcome resolution = VoteOutcome::None;

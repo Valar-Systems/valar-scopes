@@ -143,8 +143,9 @@ Resolution ResolveOutcome(const char* outcome, bool seconded, const char* inhibi
     r.outcome = VoteOutcome::Failed;
     r.reason = "execution failed";
   } else if (Eq(outcome, "ABORTED")) {
+    // The crew stopped it: the drill's Aborted, never Failed (Fable, 2026-09-24).
     r.resolved = true;
-    r.outcome = VoteOutcome::Failed;
+    r.outcome = VoteOutcome::Aborted;
     r.reason = "aborted";
   } else if (Eq(outcome, "PREEMPTED")) {
     r.resolved = true;

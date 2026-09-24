@@ -889,6 +889,7 @@ void EamManager::OnDrillTap(int x, int y)
     }
     if (game::AbortRect(SCREEN_SIZE).Contains(x, y)) {
         drill.Step(game::Event::PlayerAbort, now);
+        gameClient.Abort();  // after the ack the server holds a vote: POST /votes/:id/abort now
         Serial.printf("[drill] abort %s\n", drillMsgId.c_str());
         return;
     }

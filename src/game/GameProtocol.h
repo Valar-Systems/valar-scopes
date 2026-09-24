@@ -62,10 +62,10 @@ struct Resolution {
   const char* reason = nullptr;
 };
 
-/// Map the server's vote outcome onto the four the drill knows (Fable,
-/// 2026-09-23). LAUNCHED with a seconder is Seconded; LAUNCHED alone is the
-/// dead-man timer. ABORTED and PREEMPTED are not in the ruling's four: both
-/// end the drill, so both are Failed, with the server's word as the reason.
+/// Map the server's vote outcome onto the drill's. LAUNCHED with a seconder is
+/// Seconded; LAUNCHED alone is the dead-man timer. PREEMPTED is Failed with the
+/// server's word; ABORTED is the drill's Aborted -- a player who stops a drill is
+/// never shown FAILED (Fable, 2026-09-24).
 /// An unknown outcome string resolves nothing (keep polling) rather than
 /// guessing a launch.
 Resolution ResolveOutcome(const char* outcome, bool seconded, const char* inhibit_reason);

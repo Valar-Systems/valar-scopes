@@ -109,11 +109,11 @@ static void Outcomes() {
   CHECK(r.resolved && r.outcome == VoteOutcome::Inhibited && std::strcmp(r.reason, "wrong target") == 0, "reason");
   r = ResolveOutcome("INHIBITED", false, "");
   CHECK(r.reason != nullptr && std::strcmp(r.reason, "inhibited") == 0, "empty reason");
-  CASE("outcomes: FAILED, ABORTED, PREEMPTED all end as Failed with the server's word");
+  CASE("outcomes: FAILED and PREEMPTED end as Failed; ABORTED is Aborted, never Failed");
   r = ResolveOutcome("FAILED", false, nullptr);
   CHECK(r.resolved && r.outcome == VoteOutcome::Failed, "FAILED");
   r = ResolveOutcome("ABORTED", false, nullptr);
-  CHECK(r.resolved && r.outcome == VoteOutcome::Failed && std::strcmp(r.reason, "aborted") == 0, "ABORTED");
+  CHECK(r.resolved && r.outcome == VoteOutcome::Aborted && std::strcmp(r.reason, "aborted") == 0, "ABORTED");
   r = ResolveOutcome("PREEMPTED", false, nullptr);
   CHECK(r.resolved && r.outcome == VoteOutcome::Failed && std::strcmp(r.reason, "preempted") == 0, "PREEMPTED");
   CASE("outcomes: an unknown word resolves nothing (never guesses a launch)");

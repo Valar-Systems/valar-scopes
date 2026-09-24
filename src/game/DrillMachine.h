@@ -165,6 +165,9 @@ enum class VoteOutcome : uint8_t {
   Inhibited,
   /// The execution failed (missed or outside the window). -> Aborted, with the reason.
   Failed,
+  /// The crew stopped the drill (the server's ABORTED). -> Aborted, and NEVER shown as a
+  /// failure: a player who stops a drill is never shown FAILED (Fable, 2026-09-24).
+  Aborted,
 };
 
 /// What an event carries, for the two events that carry anything.

@@ -330,6 +330,11 @@ void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
             SetNote(args.reason && args.reason[0] ? args.reason : "execution failed");
             Enter(Phase::Aborted, now_us);
             return;
+          case VoteOutcome::Aborted:
+            // Stopped by the crew, not failed: the note never says "failed".
+            SetNote("aborted");
+            Enter(Phase::Aborted, now_us);
+            return;
           case VoteOutcome::None:
             return;
         }
