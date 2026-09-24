@@ -153,8 +153,16 @@ int CenterWrap(BandCanvas& c, const String& s, int y, uint32_t col, int maxLines
             ++end;
         }
         if (lastFit < 0) lastFit = (end > n ? n : end);  // one word wider than the line: draw it
-        if (line == maxLines - 1) lastFit = n;           // the last line takes the rest
-        const String part = s.substring(start, lastFit);
+        String part = s.substring(start, lastFit);
+        if (line == maxLines - 1 && lastFit < n) {
+            // THE LAST LINE IS CUT, not overflowed: the rest of the text used to be drawn
+            // whole here and ran off the round edge (the propagation reason, first capture).
+            part = s.substring(start);
+            while (part.length() > 0 && c.textWidth(part + "...") > maxW) part.remove(part.length() - 1);
+            part.trim();
+            part += "...";
+            lastFit = n;
+        }
         c.drawString(part, SCREEN_SIZE_DIV_2 - c.textWidth(part) / 2, y);
         y += lh;
         start = lastFit;
@@ -713,7 +721,7 @@ void EamManager::DrawSolar(BandCanvas& c)
         cell(xl, y2, "R", sw.rScale, sw.rScale >= 3 ? palette.alert : sw.rScale >= 1 ? palette.warn : palette.fg);
         cell(xr, y2, "G", sw.gScale, sw.gScale >= 3 ? palette.alert : sw.gScale >= 1 ? palette.warn : palette.fg);
     }
-    if (p.source.length()) CenterWrap(c, p.source, (int)(SCREEN_SIZE * 0.80), palette.faint, 1);
+    if (p.source.length()) CenterWrap(c, p.source, (int)(SCREEN_SIZE * 0.72), palette.faint, 2);
 }
 
 void EamManager::DrawQuiet(BandCanvas& c)
