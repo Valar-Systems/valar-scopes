@@ -1,5 +1,7 @@
 import type { DeviceRow } from "./types";
-import type { FleetTotals, FwRow, OtaRow, SilentRow, UsageRow } from "./analytics";
+import type { BootRow, DeviceSummary, FleetTotals, FwRow, FwSpan, LedgerRow, OtaRow, SilentRow, UpstreamRow, UsageRow } from "./analytics";
+import type { Funnel } from "./funnel";
+import { EXPECTED_BOOT_REASONS, isFlaggedBoot, triageCount, type TriageItem } from "./triage";
 
 // The page. Server-rendered, no client framework, no external assets -- this is
 // an ops tool that must work when something else is broken.
@@ -51,6 +53,12 @@ const esc = (s: unknown): string =>
 
 const n = (v: number): string => v.toLocaleString("en-US");
 
+// EVERY device id on every page renders through this, so every one links to its
+// /device/<id> page. The id is escaped as text AND checked to the id shape before
+// it can become part of a URL; anything else renders as plain text.
+export const devLink = (id: string): string =>
+  /^[0-9a-f]{8,32}$/.test(id) ? `<a href="/device/${id}" style="color:inherit"><code>${id}</code></a>` : `<code>${esc(id)}</code>`;
+
 function ago(iso: string): string {
   const t = Date.parse(iso.endsWith("Z") || iso.includes("+") ? iso : `${iso}Z`);
   if (!Number.isFinite(t)) return "?";
@@ -83,6 +91,8 @@ export function page(opts: {
     ["/ota", "OTA"],
     ["/gaps", "Enrichment gaps"],
     ["/usage", "Usage"],
+    ["/funnel", "Funnel"],
+    ["/upstreams", "Upstreams"],
   ];
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -120,6 +130,7 @@ export function fleetBody(
   totals: FleetTotals,
   hours: number,
   flash: string,
+  triage = "",
 ): string {
   const errPct = totals.requests ? (totals.errors / totals.requests) * 100 : 0;
   const revoked = rows.filter((r) => r.revoked).length;
@@ -143,7 +154,7 @@ export function fleetBody(
         .map((r) => {
           const errPctRow = r.requests ? (r.errors / r.requests) * 100 : 0;
           return `<tr class="${r.revoked ? "rev" : ""}">
-        <td><code>${esc(r.dev)}</code>${r.name ? ` <span class="mute">${esc(r.name)}</span>` : ""}</td>
+        <td>${devLink(r.dev)}${r.name ? ` <span class="mute">${esc(r.name)}</span>` : ""}</td>
         <td>${esc(r.model)}</td>
         <td class="n">${esc(r.fw)}</td>
         <td>${seenPill(r.lastSeen)}</td>
@@ -173,6 +184,7 @@ export function fleetBody(
 
   return `
   ${flash}
+  ${triage}
   ${cards}
   <section>
     <h2>Devices</h2>
@@ -231,7 +243,7 @@ export function otaBody(rows: OtaRow[]): string {
         .map(
           (r) => `<tr>
       <td>${seenPill(r.when)}</td>
-      <td><code>${esc(r.dev)}</code></td>
+      <td>${devLink(r.dev)}</td>
       <td>${esc(r.model)}</td>
       <td>v${r.fwFrom} &rarr; v${r.fwTo}</td>
       <td><span class="pill ${cls(r.result)}">${esc(r.result)}</span></td>
@@ -294,7 +306,7 @@ export function usageBody(
     ? rows
         .map(
           (r) => `<tr>
-      <td><code>${esc(r.dev)}</code></td>
+      <td>${devLink(r.dev)}</td>
       <td>${esc(r.model)}</td>
       <td class="n">${esc(r.fw)}</td>
       <td>${seenPill(r.lastReport)}</td>
@@ -320,7 +332,7 @@ export function usageBody(
     const list = silent.rows.length
       ? silent.rows
           .map(
-            (r) => `<tr><td><code>${esc(r.dev)}</code></td><td>${esc(r.firstEnrolled.slice(0, 10))}</td>
+            (r) => `<tr><td>${devLink(r.dev)}</td><td>${esc(r.firstEnrolled.slice(0, 10))}</td>
         <td>${esc(r.lastEnrolled.slice(0, 10))}</td><td class="n">${n(r.enrollments)}</td></tr>`,
           )
           .join("")
@@ -344,7 +356,7 @@ export function usageBody(
       <thead><tr>
         <th>Device</th><th>Model</th><th>FW</th><th>Last report</th><th class="n">Reports</th>
         <th class="n">Card opens</th><th class="n">Radar</th><th class="n">List</th><th class="n">Stats</th>
-        <th class="n">Follow</th><th class="n">Claims</th><th>Follow set</th><th class="n">Up (h)</th>
+        <th class="n">Follow</th><th class="n">Claims</th><th>Follow set<br><span class="warn" style="text-transform:none">unreliable before v15</span></th><th class="n">Up (h)</th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table></div>
@@ -353,7 +365,7 @@ export function usageBody(
       whether or not anyone looks at it. <b>Card opens</b> is the interaction number &mdash; a detail card
       only opens on a tap. <b>Radar / List / Stats / Follow</b> count switches TO each screen, and
       <b>Claims</b> count logbook claims; these say THAT a feature was used, never what it was used on.
-      <b>Follow set</b> is whether a follow target is configured at the latest report (a flag, not a name).
+      <b>Follow set</b> is whether a follow target is configured at the latest report (a flag, not a name). <b>Unreliable before v15:</b> firmware below 15 never set this flag, so every report from it says "off" whatever the device's configuration (docs/RELEASE-v15.md item 2).
       <b>Up (h)</b> is hours since boot at the latest report &mdash; a gauge, so it is never summed.
       Card opens here is the device's own count; the Fleet page's <b>Cards</b> counts photo fetches, a
       lower bound: a photo is fetched once per aircraft, so a reopened card or an aircraft with no stock
@@ -364,4 +376,144 @@ export function usageBody(
     <h2>Enrolled but silent &mdash; last ${days} days</h2>
     ${silentHtml}
   </section>`;
+}
+
+// ================================================================ Phase 1b
+
+// The triage list, top of the Fleet page. Every item is a count and the ids
+// behind it; zero renders as "nothing" -- a positive statement, not a blank.
+export function triageBody(items: TriageItem[]): string {
+  const li = items
+    .map((i) => {
+      const count = triageCount(i);
+      const body =
+        i.key === "drift"
+          ? i.note
+            ? `<span class="bad">${esc(i.note)}</span>`
+            : `<span class="mute">nothing</span>`
+          : count === 0
+            ? `<span class="mute">nothing</span>`
+            : i.devices.map((d, k) => `${devLink(d)} <span class="mute">${esc(i.detail[k] ?? "")}</span>`).join("<br>");
+      return `<tr><td class="n ${count ? "bad" : "mute"}">${count}</td><td>${esc(i.title)}<br><span class="mute" style="font-size:.7rem">${esc(i.window)}</span></td><td>${body}</td></tr>`;
+    })
+    .join("");
+  return `<section><h2>Triage</h2><div class="scroll"><table><tbody>${li}</tbody></table></div>
+    <p class="note">Counts and device health only &mdash; never what a device was used on. Boot reasons flagged:
+      anything but ${EXPECTED_BOOT_REASONS.map((r) => `<code>${r}</code>`).join(", ")} (a crash, a watchdog, a brownout,
+      or one of our own recovery reboots such as <code>SW_NETWD</code>).</p></section>`;
+}
+
+export function deviceBody(d: {
+  dev: string;
+  name?: string;
+  hours: number;
+  summary: DeviceSummary | null;
+  ledger: LedgerRow | null;
+  revoked: boolean;
+  firmware: FwSpan[];
+  boots: BootRow[];
+  ota: OtaRow[];
+  usage: UsageRow | null;
+}): string {
+  const s = d.summary;
+  const errPct = s && s.requests ? (s.errors / s.requests) * 100 : 0;
+  const facts = [
+    ["Model", s ? esc(s.model) : "<span class=\"mute\">no requests in 90 days</span>"],
+    ["Firmware", s ? `v${esc(s.fw)}` : "?"],
+    ["First seen", s ? `${esc(s.firstSeen)} <span class="mute">(within the 90 days retained)</span>` : "&mdash;"],
+    ["Last seen", s ? seenPill(s.lastSeen) : "&mdash;"],
+    ["Enrolled", d.ledger ? `${esc(d.ledger.firstEnrolled.slice(0, 10))} <span class="mute">(${n(d.ledger.enrollments)} enrolment(s); last enrolment is not last seen)</span>` : "<span class=\"mute\">not in the enrolment ledger</span>"],
+    [`Requests, last ${d.hours}h`, s ? `${n(s.requests)} &middot; <span class="${errPct > 2 ? "bad" : ""}">${errPct.toFixed(1)}% errors</span>` : "0"],
+  ]
+    .map(([k, v]) => `<tr><th style="text-align:left">${k}</th><td>${v}</td></tr>`)
+    .join("");
+  const fw = d.firmware.length
+    ? d.firmware.map((f) => `<tr><td>v${esc(f.fw)}</td><td>${esc(f.first)}</td><td>${esc(f.last)}</td><td class="n">${n(f.requests)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="mute">No requests in 90 days.</td></tr>`;
+  const boots = d.boots.length
+    ? d.boots.map((b) => `<tr><td>${esc(b.at)}</td><td><span class="pill ${isFlaggedBoot(b.reason) ? "bad" : "ok"}">${esc(b.reason)}</span></td></tr>`).join("")
+    : `<tr><td colspan="2" class="mute">No boot reports in 90 days.</td></tr>`;
+  const ota = d.ota.length
+    ? d.ota.map((o) => `<tr><td>${esc(o.when)}</td><td>v${o.fwFrom} &rarr; v${o.fwTo}</td><td><span class="pill ${o.result === "ok" ? "ok" : "bad"}">${esc(o.result)}</span></td></tr>`).join("")
+    : `<tr><td colspan="3" class="mute">No OTA attempts in 90 days.</td></tr>`;
+  const u = d.usage;
+  const usage = u
+    ? `<tr><td class="n">${n(u.reports)}</td><td class="n"><b>${n(u.cardOpens)}</b></td><td class="n">${n(u.radar)}</td><td class="n">${n(u.list)}</td>
+        <td class="n">${n(u.stats)}</td><td class="n">${n(u.follow)}</td><td class="n">${n(u.claims)}</td>
+        <td>${u.followEnabled ? "on" : "off"}</td><td class="n">${n(u.uptimeHours)}</td></tr>`
+    : `<tr><td colspan="9" class="mute">No usage reports in the last ${d.hours}h.</td></tr>`;
+  return `
+  <section><h2>${devLink(d.dev)}${d.name ? ` <span class="mute">${esc(d.name)}</span>` : ""}
+      ${d.revoked ? `<span class="pill bad">revoked</span>` : `<span class="pill ok">active</span>`}</h2>
+    <div class="scroll"><table><tbody>${facts}</tbody></table></div>
+    <form method="POST" action="/revoke" style="margin:.6rem 0 0">
+      <input type="hidden" name="dev" value="${esc(d.dev)}">
+      <input type="hidden" name="to" value="${d.revoked ? "0" : "1"}">
+      <input type="hidden" name="hours" value="${d.hours}">
+      <button class="${d.revoked ? "restore" : "revoke"}"
+        ${d.revoked ? "" : `onclick="return confirm('Revoke ${esc(d.dev)}? It will start getting 401s within ~60s and its screen will empty out.')"`}>
+        ${d.revoked ? "Restore" : "Revoke"}</button>
+    </form></section>
+  <section><h2>Usage &mdash; last ${d.hours}h</h2><div class="scroll"><table>
+    <thead><tr><th class="n">Reports</th><th class="n">Card opens</th><th class="n">Radar</th><th class="n">List</th><th class="n">Stats</th>
+      <th class="n">Follow</th><th class="n">Claims</th><th>Follow set<br><span class="warn" style="text-transform:none">unreliable before v15</span></th><th class="n">Up (h)</th></tr></thead>
+    <tbody>${usage}</tbody></table></div>
+    <p class="note">Same semantics as the Usage page: the six counters are deltas, summed; the Follow flag and uptime are read at the latest report.</p></section>
+  <section><h2>Firmware transitions</h2><div class="scroll"><table>
+    <thead><tr><th>FW</th><th>First seen on it</th><th>Last seen on it</th><th class="n">Requests</th></tr></thead><tbody>${fw}</tbody></table></div></section>
+  <section><h2>Boot history</h2><div class="scroll"><table>
+    <thead><tr><th>When</th><th>Reason</th></tr></thead><tbody>${boots}</tbody></table></div></section>
+  <section><h2>OTA history</h2><div class="scroll"><table>
+    <thead><tr><th>When</th><th>Version</th><th>Result</th></tr></thead><tbody>${ota}</tbody></table></div></section>`;
+}
+
+const h = (v: number | null): string => (v === null ? "&mdash;" : `${v.toFixed(1)} h`);
+
+export function funnelBody(f: Funnel): string {
+  const rows = f.rows.length
+    ? f.rows
+        .map((r) => `<tr><td>${devLink(r.dev)}</td><td>${esc(r.enrolledAt.slice(0, 16))}</td><td>${esc(r.firstBlips.slice(0, 16)) || "<span class=\"mute\">&mdash;</span>"}</td>
+          <td class="n">${h(r.gapEnrolToBlipsH)}</td><td>${esc(r.firstCard.slice(0, 16)) || "<span class=\"mute\">&mdash;</span>"}</td>
+          <td class="n">${h(r.gapBlipsToCardH)}</td><td class="mute">${esc(r.flag)}</td></tr>`)
+        .join("")
+    : `<tr><td colspan="7" class="mute">No enrolled devices.</td></tr>`;
+  const stuck = (ids: string[]) => (ids.length ? ids.map(devLink).join(" ") : `<span class="mute">nothing</span>`);
+  return `
+  <div class="cards">
+    <div class="card"><div class="n">${h(f.medianEnrolToBlipsH)}</div><div class="l">Median: enrolled &rarr; first /blips</div></div>
+    <div class="card"><div class="n">${h(f.medianBlipsToCardH)}</div><div class="l">Median: first /blips &rarr; first card</div></div>
+    <div class="card"><div class="n">${n(f.rows.length)}</div><div class="l">Enrolled devices</div></div>
+  </div>
+  <section><h2>Stuck at a stage</h2><div class="scroll"><table><tbody>
+    <tr><td>Enrolled, never requested /blips</td><td>${stuck(f.stuck.enrolled)}</td></tr>
+    <tr><td>Requested /blips, never opened a card</td><td>${stuck(f.stuck.blips)}</td></tr>
+  </tbody></table></div></section>
+  <section><h2>Per device</h2><div class="scroll"><table>
+    <thead><tr><th>Device</th><th>Enrolled</th><th>First /blips</th><th class="n">Gap</th><th>First card open</th><th class="n">Gap</th><th>Not measurable because</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <p class="note"><b>First card open is the first photo fetch</b> (<code>/photo</code>): a device fetches a photo when a detail
+      card is opened on an aircraft that has a stock photo. It is read from request points, not the usage report &mdash;
+      <b>pre-v9 devices can't reach the last stage</b> here. Everything is limited to the ~90 days Analytics Engine keeps:
+      a device <b>enrolled before that window</b>, or one that <b>requested before it enrolled</b> (the shared-key era before
+      2026-08-13), shows its dates but is excluded from the medians.</p></section>`;
+}
+
+export function upstreamsBody(rows: UpstreamRow[], hours: number): string {
+  const body = rows.length
+    ? rows
+        .map((r) => {
+          const pct = r.requests ? (r.errors / r.requests) * 100 : 0;
+          return `<tr><td><code>${esc(r.upstream)}</code></td><td class="n">${n(r.requests)}</td>
+            <td class="n ${pct > 2 ? "bad" : ""}">${pct.toFixed(2)}%</td><td class="n">${n(r.p50)} ms</td><td class="n">${n(r.p95)} ms</td></tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="5" class="mute">No upstream calls in this window.</td></tr>`;
+  return `<section><h2>Fleet vs upstream &mdash; last ${hours}h, worst first</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Upstream</th><th class="n">Requests</th><th class="n">Error rate</th><th class="n">p50</th><th class="n">p95</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+    <p class="note">This is the <b>fleet vs upstream</b> answer: requests the device Worker answered by calling each
+      upstream. <b>Error rate</b> is the share of those requests on which the <i>device</i> got a status &ge; 400 &mdash; the
+      upstream's own status is not recorded. Latency is the upstream call's own time. Worst first: highest error rate,
+      then slowest p95.</p></section>`;
 }

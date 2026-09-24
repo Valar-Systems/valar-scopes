@@ -1,15 +1,31 @@
 import { verifyAccess } from "./access";
 import {
+  BLIPS_ROUTES,
+  PHOTO_ROUTES,
+  RETENTION_HOURS,
   clampHours,
+  deviceBoots,
+  deviceFirmware,
+  deviceOta,
+  deviceSummary,
   enrichGaps,
   enrolledButSilent,
   firmwareSpread,
+  firstRequestTimes,
   fleetRows,
   fleetTotals,
+  isDeviceId,
+  latestBoots,
+  otaNotOk,
   otaOutcomes,
+  readLedger,
   seenDevices,
+  upstreams,
   usageRows,
 } from "./analytics";
+import { readDrift } from "./drift";
+import { computeFunnel, sortUpstreams } from "./funnel";
+import { computeTriage } from "./triage";
 import { readRevoked, setRevoked } from "./revoke";
 import {
   errorPage,
@@ -19,7 +35,11 @@ import {
   fleetBody,
   gapsBody,
   otaBody,
+  deviceBody,
+  funnelBody,
   page,
+  triageBody,
+  upstreamsBody,
   usageBody,
 } from "./render";
 import type { DeviceRow, Env } from "./types";
@@ -139,7 +159,20 @@ export default {
       }
 
       if (url.pathname === "/") {
-        const [rawRows, totals] = await Promise.all([fleetRows(env, hours), fleetTotals(env, hours)]);
+        const [rawRows, totals, triage] = await Promise.all([
+          fleetRows(env, hours),
+          fleetTotals(env, hours),
+          // The triage list has its OWN stated windows (7 d, 30 d, retention),
+          // independent of the table's. A triage failure is shown as one, in
+          // place, rather than taking the fleet table down with it.
+          (async () => {
+            const [ledger, seen7d, seenRetention, boots, otaBad, drift] = await Promise.all([
+              readLedger(env), seenDevices(env, 168), seenDevices(env, RETENTION_HOURS),
+              latestBoots(env, 720), otaNotOk(env, 720), readDrift(env),
+            ]);
+            return triageBody(computeTriage({ ledger, seen7d, seenRetention, latestBoots: boots, otaNotOk: otaBad, drift }));
+          })().catch((err: unknown) => `<section class="err"><h2>Triage</h2>could not be computed: ${String(err instanceof Error ? err.message : err).replace(/[<>&"']/g, "")}</section>`),
+        ]);
         const rows = await withNames(await withRevocation(rawRows, env), env);
         const flash = flashFor(
           url.searchParams.get("m"),
@@ -151,7 +184,7 @@ export default {
             email: who.email,
             hours,
             active: "/",
-            body: fleetBody(rows, totals, hours, flash),
+            body: fleetBody(rows, totals, hours, flash, triage),
           }),
         );
       }
@@ -190,6 +223,44 @@ export default {
             body: gapsBody(await enrichGaps(env, hours)),
           }),
         );
+      }
+
+      // One device. Every id anywhere in the dashboard links here. A malformed id,
+      // or one with no ledger row and nothing reported in the retention window, is
+      // a 404 -- never an empty page that looks like a device with no data.
+      const devMatch = url.pathname.startsWith("/device/") ? [url.pathname, url.pathname.slice("/device/".length)] : null;
+      if (devMatch) {
+        const dev = decodeURIComponent(devMatch[1] ?? "").toLowerCase();
+        if (!isDeviceId(dev)) return html(errorPage("No such device."), 404);
+        const h = url.searchParams.has("hours") ? hours : 720;
+        const [summary, firmware, boots, ota, usage, ledger, denied, lb] = await Promise.all([
+          deviceSummary(env, dev, h), deviceFirmware(env, dev), deviceBoots(env, dev), deviceOta(env, dev),
+          usageRows(env, h, dev), env.ENRICH_KV.get<{ firstAt?: string; lastAt?: string; enrollments?: number }>(`enr:dev:${dev}`, "json"),
+          readRevoked(env), env.ENRICH_KV.get<{ name?: string }>(`lb:dev:${dev}`, "json").catch(() => null),
+        ]);
+        if (!summary && !ledger && boots.length === 0 && ota.length === 0 && usage.length === 0) {
+          return html(errorPage("No such device: not enrolled, and nothing reported in 90 days."), 404);
+        }
+        return html(page({
+          title: "Device", email: who.email, hours: h, active: "/",
+          body: deviceBody({
+            dev, name: lb?.name, hours: h, summary, revoked: denied.has(dev), firmware, boots, ota, usage: usage[0] ?? null,
+            ledger: ledger ? { dev, firstEnrolled: ledger.firstAt ?? "", lastEnrolled: ledger.lastAt ?? "", enrollments: ledger.enrollments ?? 0 } : null,
+          }),
+        }));
+      }
+
+      // Setup funnel: enrolment -> first /blips -> first card (first photo fetch).
+      if (url.pathname === "/funnel") {
+        const [ledger, fb, fc] = await Promise.all([readLedger(env), firstRequestTimes(env, BLIPS_ROUTES), firstRequestTimes(env, PHOTO_ROUTES)]);
+        const f = computeFunnel(ledger, fb, fc, Date.now() - RETENTION_HOURS * 3600000);
+        return html(page({ title: "Setup funnel", email: who.email, hours, active: "/funnel", body: funnelBody(f) }));
+      }
+
+      // Fleet vs upstream: one line per upstream, worst first.
+      if (url.pathname === "/upstreams") {
+        const rows = sortUpstreams(await upstreams(env, hours));
+        return html(page({ title: "Upstream health", email: who.email, hours, active: "/upstreams", body: upstreamsBody(rows, hours) }));
       }
 
       // Per-device usage counters (the hourly usage index) and the enrolled-but-

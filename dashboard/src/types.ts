@@ -11,6 +11,11 @@ export interface Env {
   CF_API_TOKEN?: string; // secret
   AE_DATASET?: string; // defaults to blipscope_proxy
 
+  // Render-drift status is read from GitHub (the photo-drift workflow's check run).
+  // The repo is public, so no token is needed; GITHUB_TOKEN only lifts rate limits.
+  GITHUB_REPO?: string; // defaults to Valar-Systems/valar-scopes
+  GITHUB_TOKEN?: string; // optional secret
+
   // The SAME namespace the device Worker binds as ENRICH_KV. The dashboard reads
   // leaderboard rows for device names and reads/writes the cfg:revoked entry.
   ENRICH_KV: KVNamespace;

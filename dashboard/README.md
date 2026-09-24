@@ -20,13 +20,16 @@ device Worker needed was to its telemetry (see *What made this possible*).
 
 | Page | Answers |
 |---|---|
-| **Fleet** | Which devices are alive, how much each is used, error rate, staleness. Revoke / restore. |
+| **Fleet** | A **triage list** first -- enrolled but silent 7 days, last boot a crash/watchdog/brownout, OTA not ok, enrolled but never requested, render drift not CLEAN -- each a count with the ids behind it. Then which devices are alive, how much each is used, error rate, staleness. Revoke / restore. |
+| **Device** (`/device/<id>`) | One unit: model, firmware and its transitions, first/last seen, boot and OTA history, requests and error rate, usage counters, Revoke / Restore. Every device id on every page links here; an unknown id is a 404. |
+| **Funnel** | Setup: enrolment -> first `/blips` -> first card open (first photo fetch), per device and as medians, with who is stuck at each stage. |
+| **Upstreams** | Fleet vs upstream: per upstream, requests, the device-facing error rate, and p50/p95 latency, worst first. |
 | **Firmware** | Who is on which version, per model — *did that OTA actually land?* |
 | **OTA** | Every update attempt with its result, naming the exact unit that failed. |
 | **Enrichment gaps** | What the fleet looked up that we couldn't answer, ranked by real demand. |
 | **Usage** | Per device, over 7 or 30 days: card opens, switches to each screen, logbook claims, whether Follow is set, uptime, report count -- and which **enrolled devices made no request at all**. |
 
-`/fleet.json` and `/usage.json` mirror the tables for piping elsewhere.
+`/fleet.json` and `/usage.json` mirror the tables for piping elsewhere. Every SQL statement any page issues is run against the live engine by `npm run smoke:analytics` (and in CI); vitest cannot see what the engine rejects.
 
 ### Requests are not attention
 

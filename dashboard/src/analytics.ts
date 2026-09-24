@@ -284,8 +284,11 @@ export interface UsageRow {
 
 export const USAGE_POINTS = "blob1 = 'usage'";
 
-export async function usageRows(env: Env, hours: number): Promise<UsageRow[]> {
+export async function usageRows(env: Env, hours: number, dev?: string): Promise<UsageRow[]> {
   const ds = dataset(env);
+  // One device (the per-device page) or all of them -- the SAME query either way,
+  // so /device/<id> can never disagree with /usage about what a counter means.
+  const oneDevice = dev === undefined ? "" : `AND blob4 = '${deviceIdLiteral(dev)}'`;
   const sql = `
     SELECT
       blob4 AS dev,
@@ -305,6 +308,7 @@ export async function usageRows(env: Env, hours: number): Promise<UsageRow[]> {
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
       AND ${USAGE_POINTS}
       AND blob4 != ''
+      ${oneDevice}
     GROUP BY dev
     ORDER BY card_opens DESC, reports DESC
     LIMIT 500`;
@@ -358,6 +362,15 @@ export interface SilentRow {
 }
 
 const DEVICE_ID = /^[0-9a-f]{8,32}$/;
+export const isDeviceId = (s: string): boolean => DEVICE_ID.test(s);
+
+// A device id about to be interpolated into SQL. Validated to the id shape --
+// lowercase hex, 8-32 chars -- so nothing else can reach the query text; anything
+// else throws rather than being quoted or escaped into place.
+export function deviceIdLiteral(s: string): string {
+  if (!DEVICE_ID.test(s)) throw new Error("not a device id");
+  return s;
+}
 
 // The enrolment ledger (proxy/src/enroll.ts): one `enr:dev:<id>` row per device
 // that ever enrolled. Its lastAt is the last ENROLMENT, not the last time the
@@ -398,4 +411,203 @@ export async function enrolledButSilent(
     }),
   );
   return { rows, total: silent.length, enrolled: ids.length };
+}
+
+// ================================================================ Phase 1b
+
+// Analytics Engine keeps points for about three months. "Ever" on these pages
+// means "in that window", and every page that says ever says which window.
+export const RETENTION_HOURS = 2160; // 90 days
+
+// ---------------------------------------------------------------- ledger
+
+export interface LedgerRow {
+  dev: string;
+  firstEnrolled: string; // ISO; the FIRST enrolment -- never read as "last seen"
+  lastEnrolled: string;
+  enrollments: number;
+}
+
+// Every enrolled id with its ledger dates. The ledger is KV (enr:dev:<id>); its
+// lastAt is the last ENROLMENT, never the last time a device was heard from.
+export async function readLedger(env: Env, cap = 500): Promise<LedgerRow[]> {
+  const ids: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.ENRICH_KV.list({ prefix: "enr:dev:", cursor });
+    for (const k of page.keys) {
+      const id = k.name.slice("enr:dev:".length);
+      if (DEVICE_ID.test(id)) ids.push(id);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  if (ids.length > cap) throw new Error(`ledger has ${ids.length} ids, over the ${cap} this page reads -- refusing to show a partial fleet`);
+  return Promise.all(
+    ids.sort().map(async (dev) => {
+      const r = await env.ENRICH_KV.get<{ firstAt?: string; lastAt?: string; enrollments?: number }>(`enr:dev:${dev}`, "json").catch(() => null);
+      return { dev, firstEnrolled: r?.firstAt ?? "", lastEnrolled: r?.lastAt ?? "", enrollments: typeof r?.enrollments === "number" ? r.enrollments : 0 };
+    }),
+  );
+}
+
+// ---------------------------------------------------------------- boots / OTA
+
+export interface BootRow { dev: string; reason: string; at: string }
+
+// Each device's MOST RECENT boot reason in the window.
+export async function latestBoots(env: Env, hours: number): Promise<BootRow[]> {
+  const ds = dataset(env);
+  const sql = `
+    SELECT blob5 AS dev, argMax(blob2, timestamp) AS reason, MAX(timestamp) AS at
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND blob1 = 'boot' AND blob5 != ''
+    GROUP BY dev
+    LIMIT 1000`;
+  const out = await runSql<{ dev: string; reason: string; at: string }>(env, sql);
+  return out.data.map((r) => ({ dev: r.dev, reason: r.reason, at: r.at }));
+}
+
+// OTA attempts whose result is anything but "ok" -- "fail-<err>", "incomplete".
+export async function otaNotOk(env: Env, hours: number): Promise<OtaRow[]> {
+  const ds = dataset(env);
+  const sql = `
+    SELECT blob4 AS dev, blob3 AS model, blob2 AS result,
+           double1 AS fw_from, double2 AS fw_to, timestamp AS when
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND blob1 = 'ota' AND blob2 != 'ok'
+    ORDER BY when DESC
+    LIMIT 200`;
+  const out = await runSql<{ dev: string; model: string; result: string; fw_from: number | string; fw_to: number | string; when: string }>(env, sql);
+  return out.data.map((r) => ({
+    dev: r.dev || "(unattributed)", model: r.model || "?", result: r.result,
+    fwFrom: num(r.fw_from), fwTo: num(r.fw_to), when: r.when,
+  }));
+}
+
+// ---------------------------------------------------------------- one device
+
+export interface DeviceSummary {
+  model: string;
+  fw: string;
+  firstSeen: string; // within RETENTION_HOURS
+  lastSeen: string;
+  requests: number; // within the page's window
+  errors: number;
+}
+
+export async function deviceSummary(env: Env, dev: string, hours: number): Promise<DeviceSummary | null> {
+  const ds = dataset(env);
+  const id = deviceIdLiteral(dev);
+  const sql = `
+    SELECT argMax(blob4, timestamp) AS model, argMax(blob6, timestamp) AS fw,
+           MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen,
+           SUM(IF(timestamp > NOW() - INTERVAL '${hours}' HOUR, double4, 0.0)) AS requests,
+           SUM(IF(timestamp > NOW() - INTERVAL '${hours}' HOUR AND double1 >= 400, double4, 0.0)) AS errors,
+           count() AS points
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR AND ${REQUEST_POINTS} AND blob5 = '${id}'`;
+  const out = await runSql<Record<string, string | number>>(env, sql);
+  const r = out.data[0];
+  if (!r || num(r.points) === 0) return null;
+  return {
+    model: String(r.model || "?"), fw: String(r.fw || "?"),
+    firstSeen: String(r.first_seen), lastSeen: String(r.last_seen),
+    requests: num(r.requests), errors: num(r.errors),
+  };
+}
+
+export interface FwSpan { fw: string; first: string; last: string; requests: number }
+
+// Every firmware the device has reported, in the order it first appeared.
+export async function deviceFirmware(env: Env, dev: string): Promise<FwSpan[]> {
+  const ds = dataset(env);
+  const id = deviceIdLiteral(dev);
+  const sql = `
+    SELECT blob6 AS fw, MIN(timestamp) AS first, MAX(timestamp) AS last, SUM(double4) AS requests
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR AND ${REQUEST_POINTS} AND blob5 = '${id}'
+    GROUP BY fw
+    ORDER BY first`;
+  const out = await runSql<{ fw: string; first: string; last: string; requests: number | string }>(env, sql);
+  return out.data.map((r) => ({ fw: r.fw || "?", first: r.first, last: r.last, requests: num(r.requests) }));
+}
+
+export async function deviceBoots(env: Env, dev: string): Promise<BootRow[]> {
+  const ds = dataset(env);
+  const id = deviceIdLiteral(dev);
+  const sql = `
+    SELECT blob5 AS dev, blob2 AS reason, timestamp AS at
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR AND blob1 = 'boot' AND blob5 = '${id}'
+    ORDER BY at DESC
+    LIMIT 100`;
+  const out = await runSql<{ dev: string; reason: string; at: string }>(env, sql);
+  return out.data.map((r) => ({ dev: r.dev, reason: r.reason, at: r.at }));
+}
+
+export async function deviceOta(env: Env, dev: string): Promise<OtaRow[]> {
+  const ds = dataset(env);
+  const id = deviceIdLiteral(dev);
+  const sql = `
+    SELECT blob4 AS dev, blob3 AS model, blob2 AS result,
+           double1 AS fw_from, double2 AS fw_to, timestamp AS when
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR AND blob1 = 'ota' AND blob4 = '${id}'
+    ORDER BY when DESC
+    LIMIT 100`;
+  const out = await runSql<{ dev: string; model: string; result: string; fw_from: number | string; fw_to: number | string; when: string }>(env, sql);
+  return out.data.map((r) => ({
+    dev: r.dev, model: r.model || "?", result: r.result, fwFrom: num(r.fw_from), fwTo: num(r.fw_to), when: r.when,
+  }));
+}
+
+// ---------------------------------------------------------------- funnel
+
+export const BLIPS_ROUTES = ["/api/v1/blipscope/blips", "/v1/blips"] as const;
+export const PHOTO_ROUTES = ["/api/v1/blipscope/photo", "/v1/photo"] as const;
+
+// Each device's FIRST request to one of `routes` within retention. Both path
+// families, for the same reason the fleet table matches both (see above).
+export async function firstRequestTimes(env: Env, routes: readonly string[]): Promise<Map<string, string>> {
+  const ds = dataset(env);
+  for (const r of routes) if (!/^\/[a-z0-9/_:]+$/.test(r)) throw new Error("bad route literal");
+  const sql = `
+    SELECT blob5 AS dev, MIN(timestamp) AS first
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR
+      AND blob1 IN (${routes.map((r) => `'${r}'`).join(", ")}) AND blob5 != ''
+    GROUP BY dev
+    LIMIT ${SEEN_CAP}`;
+  const out = await runSql<{ dev: string; first: string }>(env, sql);
+  if (out.data.length >= SEEN_CAP) throw new Error(`first-request list hit its ${SEEN_CAP}-row cap; refusing to show a truncated funnel`);
+  return new Map(out.data.map((r) => [r.dev, r.first]));
+}
+
+// ---------------------------------------------------------------- upstreams
+
+export interface UpstreamRow { upstream: string; requests: number; errors: number; p50: number; p95: number }
+
+// Requests the device Worker answered by calling an upstream (blob3 names it).
+// `errors` is the status the DEVICE got (double1 >= 400) on those requests -- the
+// upstream's own status is not recorded -- so this is "how the fleet fared when
+// this upstream was the one asked", not the upstream's error rate in isolation.
+// Latency is double3 (upstream ms). quantileWeighted needs an INTEGER weight
+// (a Double weight is a 422 type error, probed live 2026-09-24): toUInt32(double4)
+// is the sampling weight -- always 1 on upstream rows today, since only cache
+// hits, which have no upstream, are sampled.
+export async function upstreams(env: Env, hours: number): Promise<UpstreamRow[]> {
+  const ds = dataset(env);
+  const sql = `
+    SELECT blob3 AS upstream, SUM(double4) AS requests,
+           SUM(IF(double1 >= 400, double4, 0.0)) AS errors,
+           quantileWeighted(0.5, double3, toUInt32(double4)) AS p50,
+           quantileWeighted(0.95, double3, toUInt32(double4)) AS p95
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob3 != ''
+    GROUP BY upstream
+    LIMIT 100`;
+  const out = await runSql<Record<string, string | number>>(env, sql);
+  return out.data.map((r) => ({
+    upstream: String(r.upstream), requests: num(r.requests), errors: num(r.errors), p50: num(r.p50), p95: num(r.p95),
+  }));
 }
