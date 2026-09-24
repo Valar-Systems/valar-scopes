@@ -120,5 +120,9 @@ reset reason, whether a touch occurred, and how long this boot has run wedge-fre
 
 Touch is checked on every unit today: §6's "touch registers a tap" and §7's touch-and-hold Wi-Fi
 reset. Neither catches this failure, because it only appears after **10 minutes untouched** and an
-inspection is shorter. §6 of `INCOMING-INSPECTION.md` gains an 11-minute untouched soak for it,
-run as a batch step (a whole tray at once, not one unit at a time).
+inspection is shorter.
+
+**Decided: no per-unit gate for it.** An inspection soak would only cover the first minutes of a
+unit's life. This cap covers a wedge at any time in the field, by stopping the reboots and telling
+the customer, with the Device ID and support address on screen. The quick tap test stays.
+`INCOMING-INSPECTION.md` §6 says so.
