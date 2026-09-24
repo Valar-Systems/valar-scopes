@@ -18,6 +18,15 @@ pio run -e <env> -t upload -t monitor         # build+flash+monitor a specific S
 pio run -e missileer-s3-146 -t upload         # flash Missileer, the EAM monitor (same S3 board; see FEATURE_EAM)
 ```
 
+### Bench boards: which port is which (standing, 2026-09-24)
+
+| Port | Board | Rule |
+|---|---|---|
+| **COM15** | the **Missileer** board | Flash any time without asking: game client, display work, touch measurements. `pio run -e missileer-s3-128 -t upload --upload-port COM15` |
+| **COM6** | the **Blipscope** board | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+
+A board that answers nothing on serial is not a free board: check this table first.
+
 In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-reset: hold **BOOT**, tap **RESET**, release **BOOT**.
 
 - Partitions: `min_spiffs.csv` (firmware is large; OTA needs the room).
