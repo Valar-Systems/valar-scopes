@@ -5,7 +5,7 @@ import { driftState, type DriftStatus } from "../src/drift";
 import { computeFunnel, median, sortUpstreams } from "../src/funnel";
 import worker from "../src/index";
 import { devLink, triageBody } from "../src/render";
-import { EXPECTED_BOOT_REASONS, FLAGGED_BOOT_REASONS, computeTriage, isFlaggedBoot, triageCount, type TriageInput } from "../src/triage";
+import { EXPECTED_BOOT_REASONS, FLAGGED_BOOT_REASONS, OTA_TRIAGE_HOURS, computeTriage, isFlaggedBoot, triageCount, type TriageInput } from "../src/triage";
 import type { Env } from "../src/types";
 
 // Allowlisted fake ids only (scripts/device-id-allowlist.txt).
@@ -23,6 +23,7 @@ const healthy = (): TriageInput => ({
   latestBoots: [boot(A, "SW"), boot(B, "POWERON"), boot(C, "USB")],
   otaNotOk: [],
   drift: CLEAN,
+  nowMs: Date.parse("2026-09-24T09:24:07Z"), // 6 h after the CLEAN run: fresh, pinned
 });
 const item = (t: TriageInput, key: string) => computeTriage(t).find((i) => i.key === key)!;
 
@@ -30,7 +31,9 @@ describe("triage: each item has a fixture that fills it and a control that keeps
   it("CONTROL: a healthy fleet has all five items at zero, rendered as 'nothing'", () => {
     const items = computeTriage(healthy());
     expect(items.map(triageCount)).toEqual([0, 0, 0, 0, 0]);
-    expect(triageBody(items).match(/>nothing</g)?.length).toBe(5);
+    // four plain "nothing"s, and the drift line's "nothing (CLEAN · last run …)"
+    expect(triageBody(items).match(/>nothing</g)?.length).toBe(4);
+    expect(triageBody(items)).toContain(">nothing (CLEAN · last run 6 h ago)<");
   });
 
   it("1. enrolled, no request in 7 days -- by last request, not the ledger", () => {
@@ -63,6 +66,35 @@ describe("triage: each item has a fixture that fills it and a control that keeps
       expect(triageCount(item({ ...healthy(), drift: { state, detail: "x", at: "" } }, "drift")), state).toBe(1);
     }
     expect(triageCount(item(healthy(), "drift"))).toBe(0);
+  });
+});
+
+describe("triage item 5: the drift run's age, amber when stale, red when failed", () => {
+  const at = CLEAN.at;
+  const hAfter = (h: number) => Date.parse(at) + h * 3600000;
+  it("CONTROL: a fresh CLEAN run is 'nothing', and the line still shows its age", () => {
+    const i = item({ ...healthy(), nowMs: hAfter(6) }, "drift");
+    expect(triageCount(i)).toBe(0);
+    expect(i.detail[0]).toBe("CLEAN · last run 6 h ago");
+    expect(triageBody(computeTriage({ ...healthy(), nowMs: hAfter(6) }))).toContain("nothing (CLEAN · last run 6 h ago)");
+  });
+  it("a CLEAN run over 26 h old is amber, and says it is stale", () => {
+    const i = item({ ...healthy(), nowMs: hAfter(26.5) }, "drift");
+    expect([triageCount(i), i.level]).toEqual([1, "amber"]);
+    expect(i.note).toContain("stale: over 26 h");
+    expect(item({ ...healthy(), nowMs: hAfter(25.5) }, "drift").level).toBe(undefined);
+  });
+  it("a failed or unreadable job is red, whatever its age", () => {
+    for (const state of ["FAILED", "UNREADABLE"] as const) {
+      expect(item({ ...healthy(), drift: { ...CLEAN, state }, nowMs: hAfter(1) }, "drift").level, state).toBe("red");
+    }
+  });
+});
+
+describe("triage item 3: a fixed 7-day window", () => {
+  it("says so on its line, independent of the page window", () => {
+    expect(OTA_TRIAGE_HOURS).toBe(168);
+    expect(item(healthy(), "otaFail").window).toBe("7 days, fixed -- whatever window the page is showing");
   });
 });
 

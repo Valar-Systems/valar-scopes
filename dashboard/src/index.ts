@@ -25,7 +25,7 @@ import {
 } from "./analytics";
 import { readDrift } from "./drift";
 import { computeFunnel, sortUpstreams } from "./funnel";
-import { computeTriage } from "./triage";
+import { OTA_TRIAGE_HOURS, computeTriage } from "./triage";
 import { readRevoked, setRevoked } from "./revoke";
 import {
   errorPage,
@@ -168,7 +168,7 @@ export default {
           (async () => {
             const [ledger, seen7d, seenRetention, boots, otaBad, drift] = await Promise.all([
               readLedger(env), seenDevices(env, 168), seenDevices(env, RETENTION_HOURS),
-              latestBoots(env, 720), otaNotOk(env, 720), readDrift(env),
+              latestBoots(env, 720), otaNotOk(env, OTA_TRIAGE_HOURS), readDrift(env),
             ]);
             return triageBody(computeTriage({ ledger, seen7d, seenRetention, latestBoots: boots, otaNotOk: otaBad, drift }));
           })().catch((err: unknown) => `<section class="err"><h2>Triage</h2>could not be computed: ${String(err instanceof Error ? err.message : err).replace(/[<>&"']/g, "")}</section>`),

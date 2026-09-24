@@ -3,6 +3,8 @@ import {
   FEW_MAX,
   combine,
   driftPanel,
+  DRIFT_STALE_HOURS,
+  driftFreshness,
   exitCodeFor,
   formatReport,
   interpretA,
@@ -130,5 +132,26 @@ describe("driftPanel: a failed run shows as failed, not as 0", () => {
   it("an in-progress run with no report yet is RUNNING; no run at all is NONE", () => {
     expect(driftPanel({ ...done, status: "in_progress", conclusion: null }, null).state).toBe("RUNNING");
     expect(driftPanel(null, null).state).toBe("NONE");
+  });
+});
+
+describe("driftFreshness: amber when stale, red when the job failed", () => {
+  const now = Date.parse("2026-09-25T12:00:00Z");
+  const hoursAgo = (h: number) => new Date(now - h * 3600000).toISOString();
+  it("CONTROL: a CLEAN run from this morning is ok, with its age", () => {
+    const f = driftFreshness("CLEAN", hoursAgo(5.4), now);
+    expect([f.level, f.label]).toEqual(["ok", "last run 5.4 h ago"]);
+  });
+  it("the threshold is 26 h, not 24 -- a late daily run is not stale", () => {
+    expect(DRIFT_STALE_HOURS).toBe(26);
+    expect(driftFreshness("CLEAN", hoursAgo(25.9), now).level).toBe("ok");
+    expect(driftFreshness("CLEAN", hoursAgo(26.1), now).level).toBe("amber");
+  });
+  it("a failed job is red whatever its age -- red wins over amber", () => {
+    expect(driftFreshness("FAILED", hoursAgo(1), now).level).toBe("red");
+    expect(driftFreshness("FAILED", hoursAgo(40), now).level).toBe("red");
+  });
+  it("no run at all has no age and says so", () => {
+    expect(driftFreshness("NONE", "", now)).toEqual({ level: "ok", ageHours: null, label: "no run yet" });
   });
 });
