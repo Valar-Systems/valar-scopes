@@ -1200,7 +1200,9 @@ look. The same rule prints in the job log, the check run and the dashboard. A
 half that cannot read KV is **FAILED** (exit 3), never 0 and never "every row
 CHANGED". The job holds one credential, `CLOUDFLARE_KV_READ_TOKEN` (a Cloudflare
 token with **Workers KV Storage: Read** only); `scripts/check-drift-workflow.mjs`
-fails CI if it ever references the write token.
+fails CI if it ever references the write token. Read-only is a property of the
+**workflow**, not the scripts: `readToken()` falls back to `CLOUDFLARE_API_TOKEN`,
+so the same scripts run anywhere else with whatever token that environment holds.
 
 **Harvest-phase checklist (when content population begins):**
 
