@@ -18,6 +18,8 @@ pio run -e <env> -t upload -t monitor         # build+flash+monitor a specific S
 pio run -e missileer-s3-146 -t upload         # flash Missileer, the EAM monitor (same S3 board; see FEATURE_EAM)
 ```
 
+In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-reset: hold **BOOT**, tap **RESET**, release **BOOT**.
+
 ### Bench boards: which port is which (standing, 2026-09-24)
 
 | Port | Board | Rule |
@@ -26,8 +28,6 @@ pio run -e missileer-s3-146 -t upload         # flash Missileer, the EAM monitor
 | **COM6** | the **Blipscope** board | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
 
 A board that answers nothing on serial is not a free board: check this table first.
-
-In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-reset: hold **BOOT**, tap **RESET**, release **BOOT**.
 
 - Partitions: `min_spiffs.csv` (firmware is large; OTA needs the room).
 - A pre-build script ([scripts/patch_async_buff.py](scripts/patch_async_buff.py)) re-applies a guard to ESPAsyncWebServer in `.pio/` (gitignored) so `-DASYNC_RESPONCE_BUFF_SIZE=1024` survives a fresh lib install. If the config web page silently stops sending after a clean `.pio/`, that patch didn't take.
