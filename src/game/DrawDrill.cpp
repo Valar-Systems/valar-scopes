@@ -7,6 +7,7 @@
 #include "../eam/EamTheme.h"
 #include "DrillPolicy.h"
 #include "Layout.h"
+#include "SevenSegment.h"
 
 // ---------------------------------------------------------------------------
 // The screen-state hooks. Compiled to nothing without the flag, so the shipping
@@ -91,7 +92,8 @@ void DrawStrip(BandCanvas& c, const eam::Palette& palette, const State& st, uint
   const int fullH = 96;
   const int h = (fullH * st.progress_permille) / 1000;
   const int x = kC - w / 2;
-  const int y = 44;
+  // Below the clock-age digits (ClockAgeTop + SCREEN_SIZE/10), which own the top.
+  const int y = SCREEN_SIZE / 8 + SCREEN_SIZE / 10 + 8;
 
   c.fillRoundRect(x, y, w, h, 3, palette.faint);                SS_RECT("strip", x, y, w, h);
   c.drawRoundRect(x, y, w, h, 3, palette.dim);
@@ -160,10 +162,44 @@ void DrawBezel(BandCanvas& c, const eam::Palette& palette, const State& st) {
   }
 }
 
+/// THE CLOCK'S SYNC AGE, in seven-segment digits and nothing else (Fable,
+/// 2026-09-23, game-client PR: "DrawDrill shows the age in seven-segment digits,
+/// with no small-text status line"). Whole seconds since the last SNTP sync, no
+/// leading zeros, centred under EXERCISE. Glyphs SCREEN_SIZE/10 tall -- the
+/// floor the display ruling sets for any number a player reads. Never synced
+/// (-1): two unlit digits, the panel showing it has no reading rather than a 0
+/// that would read as "just synced". Locked palette: lit = dim, ghost = faint.
+void DrawClockAge(BandCanvas& c, const eam::Palette& palette, int32_t ageS) {
+  const int h = SCREEN_SIZE / 10;
+  const int w = h * 6 / 10;
+  const int gap = h / 8;
+  const int y = SCREEN_SIZE / 8;
+  int digits[4];
+  int n = 0;
+  if (ageS < 0) {
+    digits[0] = digits[1] = -1;  // out of range: DrawSevenSeg paints ghost only
+    n = 2;
+  } else {
+    int v = ageS > 9999 ? 9999 : ageS;
+    int rev[4];
+    do {
+      rev[n++] = v % 10;
+      v /= 10;
+    } while (v != 0 && n < 4);
+    for (int i = 0; i < n; i += 1) digits[i] = rev[n - 1 - i];
+  }
+  int x = kC - (n * w + (n - 1) * gap) / 2;
+  for (int i = 0; i < n; i += 1) {
+    eam::DrawSevenSeg(c, x, y, w, h, digits[i], palette.dim, palette.faint, palette.dim);
+    x += w + gap;
+  }
+  SS_NUM("clock_age_s", ageS);
+}
+
 }  // namespace
 
 void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, const Config& cfg,
-               uint64_t nowUs) {
+               uint64_t nowUs, int32_t clockAgeS) {
   static uint32_t frame = 0;  // LOG SEQUENCE ONLY. Never read by any draw call.
   SS_BEGIN(frame++, PhaseName(st.phase));
 
@@ -174,6 +210,7 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
   // it. Amber is EXERCISE and nothing else, anywhere.
   c.setTextSize(1);
   Centre(c, "EXERCISE", 16, palette.alert);                      SS_TEXT("exercise", "EXERCISE");
+  DrawClockAge(c, palette, clockAgeS);
 
   switch (st.phase) {
     case Phase::Idle:

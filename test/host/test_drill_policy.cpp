@@ -70,13 +70,18 @@ static OfferInput Ready(const Derivation& d) {
 }
 
 static void Offer() {
-  CASE("offer: NAM and FDM are offered with no clock at all (no T to check)");
+  CASE("offer: NAM and FDM are offered on a fresh clock");
+  CHECK(DecideOffer(Ready(Derived(MsgClass::Nam))) == OfferDecision::Offer, "a NAM was not offered");
+  CHECK(DecideOffer(Ready(Derived(MsgClass::Fdm))) == OfferDecision::Offer, "an FDM was not offered");
+
+  CASE("offer: NO class is offered on a stale clock (game-client PR ruling)");
+  // Reverses the #332 behaviour, where a NAM or FDM was offered on any clock.
   OfferInput nam = Ready(Derived(MsgClass::Nam));
   nam.clock_fresh = false;
-  CHECK(DecideOffer(nam) == OfferDecision::Offer, "a NAM was not offered");
+  CHECK(DecideOffer(nam) == OfferDecision::ClockUnsynced, "a NAM was offered on a stale clock");
   OfferInput fdm = Ready(Derived(MsgClass::Fdm));
   fdm.clock_fresh = false;
-  CHECK(DecideOffer(fdm) == OfferDecision::Offer, "an FDM was not offered");
+  CHECK(DecideOffer(fdm) == OfferDecision::ClockUnsynced, "an FDM was offered on a stale clock");
 
   CASE("offer: an execution before its ack cutoff is offered");
   CHECK(DecideOffer(Ready(Derived(MsgClass::Execution, 1000000 + 61000))) == OfferDecision::Offer,
@@ -126,6 +131,16 @@ static void UsbLongPress() {
                            Phase::WarPlan, Phase::Enable, Phase::Armed, Phase::Window,
                            Phase::Committed, Phase::Terminal};
   for (Phase p : inDrill) CHECK(!UsbLongPressArmed(p), "armed inside the drill");
+}
+
+static void ClockAge() {
+  CASE("clock age: whole seconds since the sync, -1 with none, saturating at 9999");
+  CHECK(ClockAgeS(false, 100 * S, 0) == -1, "no sync did not read -1");
+  CHECK(ClockAgeS(true, 100 * S, 40 * S) == 60, "a 60 s old sync did not read 60");
+  CHECK(ClockAgeS(true, 100 * S + 999999, 40 * S) == 60, "the age rounded up, not down");
+  CHECK(ClockAgeS(true, 40 * S, 40 * S) == 0, "a sync this instant did not read 0");
+  CHECK(ClockAgeS(true, 40 * S, 41 * S) == -1, "a sync in the future read as an age");
+  CHECK(ClockAgeS(true, 20000 * S, 0) == 9999, "an ancient sync did not saturate at 9999");
 }
 
 static void Timers() {
@@ -285,6 +300,7 @@ int main() {
   Clock();
   Offer();
   UsbLongPress();
+  ClockAge();
   Timers();
   Targets();
   KeyTurn();

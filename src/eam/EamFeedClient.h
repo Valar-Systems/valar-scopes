@@ -73,6 +73,9 @@ public:
     // dropped and came back. Drives the drill's FeedReconnected (which it must survive).
     bool ConsumeReconnected();
 
+    // Fetch /config on the next Poll(): the game server answered 409 stale_config.
+    void RefetchConfigNow();
+
 private:
     // One scheduled endpoint. ABNCP's interval/endpoint come from the provider.
     enum FeedIdx : uint8_t { F_LATEST, F_SKYKINGS, F_TEMPO, F_STATS, F_CODEWORDS, F_PROPAGATION, F_ICBM, F_ABNCP, F_MILAIR, F_CONFIG, F_COUNT };

@@ -3,6 +3,9 @@
 #include <algorithm>
 
 #include "../game/DrillPolicy.h"  // ConfigPollIntervalS
+#if defined(FEATURE_EAM_GAME)
+#include "../game/GameClient.h"   // ApiBase: /config comes from the server votes go to
+#endif
 
 // The fetch request/result envelopes live in namespace eam; bring them in for this unit so the
 // worker/scheduler code below reads cleanly.
@@ -185,9 +188,15 @@ bool EamFeedClient::BuildRequest(int feedIdx, EamFetchRequest& req) const
             return true;
         case F_CONFIG:
 #if defined(FEATURE_EAM_GAME)
-            // The same base, the same worker, the same TLS client as every other endpoint.
+            // The same worker and client as every other endpoint. The base is the
+            // GAME server's when one is set (GAME_API_BASE, a local dev server): the
+            // epoch a vote is committed under must be that server's, or every commit
+            // is stale_config. Otherwise the feed's own base, as before.
             req.endpoint = eam::EamEndpoint::GameConfig;
-            req.url = base + "/api/v1/missileer/config";
+            req.url = (game::GameClient::ApiBase()[0] != '\0'
+                           ? StripTrailingSlash(game::GameClient::ApiBase())
+                           : base)
+                      + "/api/v1/missileer/config";
             return true;
 #else
             return false; // not a game build: make no call
@@ -305,6 +314,14 @@ void EamFeedClient::MergeLatest(std::vector<eam::Msg>& incoming)
     }
 
     latest = std::move(merged);
+}
+
+void EamFeedClient::RefetchConfigNow()
+{
+    // Due now, ahead of every other feed (PickDueFeed takes the most overdue, and a
+    // fresh due time of `now - interval` makes this one it). No backoff carried over.
+    feeds[F_CONFIG].failCount = 0;
+    feeds[F_CONFIG].nextDueMs = millis() - feeds[F_CONFIG].intervalMs;
 }
 
 bool EamFeedClient::ConsumeReconnected()

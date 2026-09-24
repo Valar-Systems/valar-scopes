@@ -140,6 +140,8 @@ void EamManager::Initialise()
     kp.cy = SCREEN_SIZE_DIV_2;
     kp.r_min = SCREEN_SIZE * 30 / 100;   // outer 40 % of the radius is "the bezel"; 13-D tunable
     keyTurn = game::KeyTurnGesture(kp);
+    keyTouch.Begin(tft);
+    gameClient.Begin();
 #endif
 
     currentBrightness = configuredBrightness;
@@ -198,7 +200,9 @@ void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
     // THE DRILL FACE IS A MODE, not a rotation screen (missileer-game-ui-review.md:
     // "the launch face must be an overlay + a mode"). While it is up nothing else draws.
     if (drillScreen) {
-        game::DrawDrill(backbuffer, palette, drill.Get(), drill.Cfg(), NowUs());
+        const uint64_t now = NowUs();
+        game::DrawDrill(backbuffer, palette, drill.Get(), drill.Cfg(), now,
+                        game::ClockAgeS(clocksync::HaveSync(), now, clocksync::LastSyncMonoUs()));
         return;
     }
 #endif
@@ -317,15 +321,42 @@ void EamManager::HandleTouch()
     // single-core C3; ungated on dual-core S3, where gating on the HTTP mutex
     // (held for the whole of every fetch) would silently drop taps.
     int32_t tx = 0, ty = 0;
+#if defined(FEATURE_EAM_GAME)
+    // Every touch read goes through the key-window sampler's bus lock: while the key
+    // window is open its task owns the reads, and UpdateDrill has already fed its
+    // samples to the drill.
+    bool touched;
+    if (keyTouch.Active()) {
+        if (drillScreen) {
+            lastInteractionMs = millis();
+            wasTouched = false;
+            return;
+        }
+        // KEYTOUCH_BENCH only (the sampler runs outside a drill): the newest sample
+        // stands in for this pass's read.
+        KeyTouchSampler::Sample s;
+        while (keyTouch.Next(UINT64_MAX, s)) {
+            benchTouched = s.touched;
+            benchX = s.x;
+            benchY = s.y;
+        }
+        touched = benchTouched;
+        tx = benchX;
+        ty = benchY;
+    } else {
+        touched = keyTouch.ReadDirect(tx, ty);
+    }
+#else
     const TouchPoll poll = ReadTouch(tft, http, tx, ty);
     if (poll == TouchPoll::Skipped) return; // C3 only: request mid-flight
     const bool touched = (poll == TouchPoll::Touched);
+#endif
 
 #if defined(FEATURE_EAM_GAME)
     if (drillScreen) {
         // Inside the drill: taps and the key turn only. Swipes are blocked
         // (missileer-game-ui-review.md §6.2) and the USB long press is not armed.
-        HandleDrillTouch(touched, tx, ty);
+        HandleDrillTouch(touched, tx, ty, NowUs());
         lastInteractionMs = millis();
         wasTouched = false;
         return;
@@ -639,9 +670,10 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
         drill.Step(game::Event::Hold, now);
         if (drill.Get().phase != before) Serial.println("[drill] HOLD set: drill aborted (hold)");
         drillScreen = false;
+        keyTouch.SetActive(false);
         if (drill.Get().phase == game::Phase::Aborted) {
             if (endedAtUs == 0) endedAtUs = now;
-            if (game::EndedDwellOver(endedAtUs, now)) { drill.Reset(); endedAtUs = 0; }
+            if (game::EndedDwellOver(endedAtUs, now)) { EndDrill(); endedAtUs = 0; }
         }
         return;
     }
@@ -678,6 +710,9 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
                 endedAtUs = 0;
                 drillMsgId = m.id;
                 drillDerivation = in.derivation;
+                drillHeardAt = m.heardAt;
+                executeSent = false;
+                gameClient.StartDrill(m.id, in.derivation.cls, in.derivation.t_at_ms);
                 Serial.printf("[drill] offer %s class=%d t_at_ms=%lld epoch=%u\n", m.id.c_str(),
                               (int)in.derivation.cls, (long long)in.derivation.t_at_ms,
                               (unsigned)gc.params.epoch);
@@ -693,6 +728,10 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
         }
     }
 
+    // THE KEY WINDOW'S SAMPLES, in time order, BEFORE the tick: a turn made inside
+    // the window must be scored before the tick that would close it.
+    DrainKeySamples(now);
+
     const game::Phase beforeTick = drill.Get().phase;
     drill.Step(game::Event::Tick, now);
     if (beforeTick == game::Phase::Offered && drill.Get().withdrawn) {
@@ -700,15 +739,17 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
         if (withdrawnClass.size() >= WITHDRAWN_KEEP) withdrawnClass.erase(withdrawnClass.begin());
         withdrawnClass[drillMsgId] = drill.Get().cls;
         Serial.printf("[drill] offer withdrawn at the ack cutoff: %s\n", drillMsgId.c_str());
-        drill.Reset();
+        EndDrill();
     }
+
+    UpdateVotes(now);
 
     // Complete/Aborted -> Idle on a dismiss tap (OnDrillTap) or after 60 s.
     const game::Phase ph = drill.Get().phase;
     if (ph == game::Phase::Complete || ph == game::Phase::Aborted) {
         if (endedAtUs == 0) endedAtUs = now;
         if (game::EndedDwellOver(endedAtUs, now)) {
-            drill.Reset();
+            EndDrill();
             drillScreen = false;
             endedAtUs = 0;
         }
@@ -718,9 +759,81 @@ void EamManager::UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnecte
     if (drill.Get().phase == game::Phase::Idle) drillScreen = false;
 }
 
-void EamManager::HandleDrillTouch(bool touched, int x, int y)
+void EamManager::DrainKeySamples(uint64_t upToUs)
 {
-    const uint64_t now = NowUs();
+    const game::Phase ph = drill.Get().phase;
+    keyTouch.SetActive(drillScreen && (ph == game::Phase::Armed || ph == game::Phase::Window));
+    if (!keyTouch.Active() || !drillScreen) return;
+    KeyTouchSampler::Sample s;
+    while (keyTouch.Next(upToUs, s)) {
+        // Monotonic: a report stamped just before the last pass's drain but queued
+        // after it is moved up to that instant (by at most one I2C read).
+        const uint64_t t = s.tUs < lastKeySampleUs ? lastKeySampleUs : s.tUs;
+        lastKeySampleUs = t;
+        HandleDrillTouch(s.touched, s.x, s.y, t);
+    }
+}
+
+void EamManager::UpdateVotes(uint64_t now)
+{
+    gameClient.Poll(now);
+    if (!gameClient.Enabled()) return;
+    const game::State& st = drill.Get();
+
+    // The key turn was measured: send it, whether the device scored it in or out of
+    // the window -- the server records a failed execution's timing too.
+    if (st.executed && !executeSent) {
+        executeSent = true;
+        gameClient.Execute(st.deviation_us, true);  // solo path: the player's own enable (rail 2)
+    }
+
+    // 409 stale_config: refetch /config now, then re-derive. Same class and T under
+    // the new epoch -> commit again under it; anything else -> the vote is refused.
+    const eam::GameConfig& gc = feed.GameCfg();
+    if (gameClient.ConsumeConfigRefetch()) {
+        staleEpoch = gc.params.epoch;
+        feed.RefetchConfigNow();
+        Serial.printf("[game] stale_config under epoch %u: refetching /config\n", (unsigned)staleEpoch);
+    }
+    if (gameClient.AwaitingRefetch() && gc.valid && gc.params.epoch != staleEpoch) {
+        const game::Derivation d = game::Derive(drillMsgId.c_str(), drillMsgId.length(),
+                                                drillHeardAt.c_str(), gc.params);
+        if (d.status == game::DeriveStatus::Ok && d.cls == drillDerivation.cls
+            && d.t_at_ms == drillDerivation.t_at_ms) {
+            gameClient.RecommitAfterRefetch(gc.params.epoch);
+        } else {
+            gameClient.RefuseStale();
+        }
+    }
+
+    // The server's resolution -> VoteResolved. Only Committed takes it; it is held
+    // until then (a commit refused early surfaces once the key has turned).
+    if (st.phase == game::Phase::Committed) {
+        game::VoteOutcome o;
+        const char* reason = nullptr;
+        if (gameClient.TakeResolution(o, reason)) {
+            game::EventArgs a;
+            a.outcome = o;
+            a.reason = reason;
+            drill.Step(game::Event::VoteResolved, now, a);
+            Serial.printf("[drill] vote resolved -> %s\n",
+                          drill.Get().phase == game::Phase::Terminal ? "terminal" : "aborted");
+        }
+    }
+}
+
+void EamManager::EndDrill()
+{
+    drill.Reset();
+    gameClient.EndDrill();
+    keyTouch.SetActive(false);
+    executeSent = false;
+}
+
+void EamManager::HandleDrillTouch(bool touched, int x, int y, uint64_t tUs)
+{
+    // The SAMPLE's instant: in the key window, the panel report's edge time.
+    const uint64_t now = tUs;
     const game::Phase ph = drill.Get().phase;
 
     // THE KEY TURN: every sample goes to the recogniser while armed or in the window,
@@ -769,7 +882,7 @@ void EamManager::OnDrillTap(int x, int y)
     const game::Phase ph = drill.Get().phase;
 
     if (ph == game::Phase::Complete || ph == game::Phase::Aborted) {
-        drill.Reset();          // dismiss: back to Idle
+        EndDrill();             // dismiss: back to Idle
         drillScreen = false;
         endedAtUs = 0;
         return;
@@ -783,6 +896,9 @@ void EamManager::OnDrillTap(int x, int y)
         case game::Phase::Decoded:
         case game::Phase::Authenticate:
             drill.Step(game::Event::PlayerAck, now);
+            // §4 "Acking commits you": the ack out of Authenticate is the vote's commit.
+            if (ph == game::Phase::Authenticate && drill.Get().phase == game::Phase::WarPlan)
+                gameClient.Commit(feed.GameCfg().params.epoch);
             break;
         case game::Phase::WarPlan:
             drill.Step(game::Event::PlayerConfirmWarPlan, now);

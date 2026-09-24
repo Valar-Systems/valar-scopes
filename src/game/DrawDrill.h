@@ -46,8 +46,11 @@ namespace game {
 /// between them that was never exercised. The bucket now arrives from the
 /// server through Config, and test/host/test_game_format.cpp grades the result
 /// against strings the server itself produced.
+///
+/// `clockAgeS` is the SNTP sync's age in whole seconds (DrillPolicy ClockAgeS;
+/// -1 = never synced), shown in seven-segment digits under EXERCISE.
 void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, const Config& cfg,
-               uint64_t nowUs);
+               uint64_t nowUs, int32_t clockAgeS);
 
 /// The Offered banner, drawn OVER whatever monitor screen is showing (Fable,
 /// 2026-09-23: "a static banner over the current screen, screens keep

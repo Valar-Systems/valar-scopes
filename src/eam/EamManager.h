@@ -19,6 +19,8 @@
 #include "../game/Derive.h"
 #include "../game/DrillMachine.h"
 #include "../game/KeyTurn.h"
+#include "../game/GameClient.h"
+#include "KeyTouchSampler.h"
 #endif
 
 // FEATURE_EAM top-level controller -- the EAM (Emergency Action Message) monitor app.
@@ -37,6 +39,9 @@ public:
                HttpRequestManager& httpManager, LGFX& tftGfx)
         : configServer(config), authHandler(auth), http(httpManager), tft(tftGfx),
           feed(httpManager, auth)
+#if defined(FEATURE_EAM_GAME)
+          , gameClient(httpManager)
+#endif
     {
     }
     ~EamManager() = default;
@@ -179,9 +184,24 @@ private:
     int drillPressX = 0, drillPressY = 0;
     int drillLastX = 0, drillLastY = 0;
     unsigned long drillPressMs = 0;
+    String drillHeardAt;              // the message's heard_at, to re-derive after a refetch
+    bool executeSent = false;         // this drill's measured key turn went to the game client
+    uint32_t staleEpoch = 0;          // the epoch a commit was refused under (409 stale_config)
+
+    // Touch at the panel's report rate during the key window (Armed/Window).
+    KeyTouchSampler keyTouch;
+    uint64_t lastKeySampleUs = 0;     // samples reach the drill in time order, never backwards
+    bool benchTouched = false;        // KEYTOUCH_BENCH: the last sample, for the ordinary handler
+    int32_t benchX = 0, benchY = 0;
+
+    // The drill's votes (src/game/GameClient.h). Inert without GAME_API_BASE.
+    game::GameClient gameClient;
 
     void UpdateDrill(const std::vector<eam::Msg>& fresh, bool reconnected);
-    void HandleDrillTouch(bool touched, int x, int y);
+    void DrainKeySamples(uint64_t upToUs);
+    void UpdateVotes(uint64_t now);
+    void EndDrill();
+    void HandleDrillTouch(bool touched, int x, int y, uint64_t tUs);
     void OnDrillTap(int x, int y);
     game::Config DrillConfig() const;
     static uint64_t NowUs();
