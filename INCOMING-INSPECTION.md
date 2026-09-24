@@ -303,6 +303,8 @@ Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi 
 **This boot is where §4's serial half gets recorded** — the RSSI reading and the zero-reason-204
 criterion. Watch it here; the probe build could not produce it.
 
+**Then leave it untouched for 11 minutes on serial: it must not reboot (no second `[build]` banner), and the last `[health] touch-wd` line must read `wedges=0` and `rebootRec=0`.** A tap proves touch works now; only this catches a controller that wedges and triggers the 10-minute touch-wedge reboot ([docs/v15-touch-wedge-cap.md](docs/v15-touch-wedge-cap.md)).
+
 ---
 
 ## 7. First-run acceptance — the path every board takes exactly once (100%)
@@ -557,3 +559,5 @@ readback, `0xF9`/`0xFA`/`0xFB`/`0xFC` values, RSSI + reason-204 count, the §7.5
 result per unit (type shown / `[source]` line), and the pass/fail call.
 This is the evidence trail for the next supplier conversation — the antenna requirement was won
 with exactly this kind of measured A/B.
+
+**Before any unit ships: record its Device ID (shown on its config page) against the order number in Daniel's private sheet** — never in this repo.
