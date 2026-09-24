@@ -340,7 +340,13 @@ void EamManager::HandleTouch()
         lastInteractionMs = now;
 #if defined(FEATURE_USB_OPEN)
         // LONG PRESS: held still for a second opens the shown message on the computer.
-        if (!longPressFired && now - touchDownMs >= LONG_PRESS_MS
+        // NOT during a drill, Offered through Terminal (DrillPolicy UsbLongPressArmed): the
+        // drill face already skips this path, and the Offered banner sits over the carousel.
+        bool armed = true;
+#if defined(FEATURE_EAM_GAME)
+        armed = game::UsbLongPressArmed(drill.Get().phase);
+#endif
+        if (armed && !longPressFired && now - touchDownMs >= LONG_PRESS_MS
             && abs(touchLastX - touchStartX) < 40 && abs(touchLastY - touchStartY) < 40) {
             longPressFired = true;
             OpenOnComputer();
