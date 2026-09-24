@@ -149,6 +149,8 @@ class Cli(Rig):
         self.assertEqual(rc, 0, out)
         dev_id = po.pd.device_id(MAC, SALT)
         self.assertTrue(out.strip().endswith(f"RESULT OK {dev_id}"), out)
+        steps = [l for l in out.splitlines() if l.startswith("STEP ")]
+        self.assertEqual(steps, ["STEP write", "STEP verify"])
         rows = self.log.read_text().splitlines()
         self.assertEqual(len(rows), 2)                       # header + this board
         self.assertIn(dev_id, rows[1])

@@ -26,7 +26,8 @@ The MAC comes from the caller (it already read it to decide whether to skip the
 board); it is validated, never trusted blindly. DEVICE_KEY_SECRET comes from the
 environment only -- never an argument, never a file -- and is never printed.
 
-Last line of output is machine-readable for a caller:
+Output a caller can read: `STEP write` then `STEP verify` as the board moves
+through them, and a last line of
     RESULT OK <device_id>        |   RESULT FAIL <reason>
 """
 from __future__ import annotations
@@ -67,12 +68,13 @@ def verify(base: str, key: str, dev_id: str) -> int:
 
 def provision(port: str, mac: str, *, esptool_cmd: list, dashed: bool, baud: int, salt: str,
               secret: str, nvs_offset: str, nvs_size: int, cloud_url: str | None = None,
-              verify_url: str | None = None, build_nvs=None, verify_fn=None) -> tuple:
+              verify_url: str | None = None, build_nvs=None, verify_fn=None, on_step=None) -> tuple:
     """(status, dev_id, detail) with status "OK" or "FAIL". Never raises: a board
     that fails must not take a batch down with it. `build_nvs` and `verify_fn` are
     injectable so the pipeline can be tested without PlatformIO or the network."""
     build_nvs = build_nvs or pd.build_nvs
     verify_fn = verify_fn or verify
+    on_step = on_step or (lambda step: None)
     mac = (mac or "").strip().lower().replace("-", ":")
     if not MAC_RE.match(mac):
         return "FAIL", "", "not a MAC address"
@@ -84,6 +86,7 @@ def provision(port: str, mac: str, *, esptool_cmd: list, dashed: bool, baud: int
         with tempfile.TemporaryDirectory() as td:
             nvs_bin = str(build_nvs(key, cloud_url, Path(td), nvs_size))
             for step, sub in (("nvs write", write), ("nvs verify", check)):
+                on_step("write" if step == "nvs write" else "verify")
                 cmd = esptool_cmd + ["--port", port, "--baud", str(baud), sub, nvs_offset, nvs_bin]
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
                 if r.returncode != 0:
@@ -134,7 +137,8 @@ def main(argv=None) -> int:
         return result(False, "setup failed (see the line above)")
     status, dev_id, detail = provision(a.port, a.mac, esptool_cmd=esptool_cmd, dashed=dashed, baud=a.baud,
                                       salt=salt, secret=secret, nvs_offset=nvs_offset, nvs_size=nvs_size,
-                                      cloud_url=a.cloud_url, verify_url=a.verify_url)
+                                      cloud_url=a.cloud_url, verify_url=a.verify_url,
+                                      on_step=lambda step: print(f"STEP {step}", flush=True))
     if status != "OK":
         return result(False, detail)
     try:
