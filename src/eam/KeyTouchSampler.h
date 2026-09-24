@@ -15,8 +15,13 @@
 // revision a read BETWEEN reports intermittently returns zero contacts mid-touch
 // (include/variants/s3_128.h, BLIPSCOPE_TOUCH_PIN_INT: the phantom-release bug of
 // the blind-polling build). The report edge is the fastest real rate there is.
-// With no edge for kIdleReadMs the task reads anyway, so a static finger (which the
-// chip may stop reporting) and a lift are still seen.
+//
+// READ ONLY ON INT. The first bench run (2026-09-24, COM15) found the chip's IrqCtl in
+// change-only mode -- 0-2 INT edges per touch -- so a 20 ms timer fallback produced
+// every sample and "measured" its own period. Begin() now logs the chip's IrqCtl,
+// scan period and self-reset timers, then sets IrqCtl to a pulse per report
+// (EnTouch|EnChange). There is no timer read at all: a touched finger that goes
+// kSilenceMs without a report is COUNTED (silences), never polled.
 //
 // ONE READER AT A TIME. The touch I2C transaction is not safe from two tasks, so
 // every read -- the loop's ordinary HandleTouch poll included -- goes through
@@ -41,8 +46,8 @@ public:
     struct Sample {
         bool touched;
         int16_t x, y;
-        uint64_t tUs;     // esp_timer time of the report edge (or of the read, on an idle read)
-        bool onEdge;      // true: read on an INT report edge; false: the idle fallback read
+        uint64_t tUs;     // esp_timer time of the report's INT edge
+        bool onEdge;      // always true now (no timer reads); kept for the log/consumers
     };
 
     void Begin(LGFX& tft);
@@ -58,7 +63,7 @@ public:
     bool Next(uint64_t upToUs, Sample& out);
 
 private:
-    static constexpr uint32_t kIdleReadMs = 20;
+    static constexpr uint32_t kSilenceMs = 100;
     static constexpr int kQueueDepth = 64;
 
     LGFX* tft = nullptr;
@@ -70,8 +75,8 @@ private:
     // Stats for the current window. Written by the task only; read by the loop
     // after SetActive(false) has handed them over under the mutex.
     game::TouchCadence edgeCadence;   // report edge to report edge, while touched
-    game::TouchCadence sampleCadence; // every sample the key turn saw, while touched
-    uint32_t edges = 0, idleReads = 0, drops = 0, touchedSamples = 0;
+    uint32_t edges = 0, silences = 0, drops = 0, touchedSamples = 0;
+    uint8_t irqWanted = 0;
     uint64_t readUsSum = 0;
     uint32_t readUsMax = 0;
     uint64_t windowStartUs = 0;
@@ -80,6 +85,8 @@ private:
     static void Trampoline(void* arg);
     void Run();
     void LogWindow();
+    void ResetStats();
+    void ConfigureChip();
 };
 
 #endif // FEATURE_EAM_GAME
