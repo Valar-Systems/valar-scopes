@@ -50,7 +50,8 @@ private:
     // reorder in config. Clock is the idle screen and is always available; Reference is a static
     // help card (also always available). Activity / MilAir appear only when their feed has data.
     enum class Screen : uint8_t {
-        Ticker, Tempo, Activity, Codewords, Abncp, MilAir, Propagation, Icbm, Reference, Clock, COUNT
+        Ticker, LastMsg, Tempo, Channels, Activity, Codewords, CwMonth, Abncp, MilAir, Propagation,
+        Solar, Icbm, Reference, Quiet, Logbook, Clock, COUNT
     };
 
     ConfigurationWebServer& configServer;
@@ -141,6 +142,14 @@ private:
     void DrawIcbm(BandCanvas& c);
     void DrawReference(BandCanvas& c);
     void DrawClock(BandCanvas& c);
+    // The numbers the one-subject rule moved off other screens, each on its own
+    // (display PR, Fable 2026-09-24: nothing removed is lost).
+    void DrawLastMsg(BandCanvas& c);     // the ticker's frequency, length, age
+    void DrawChannels(BandCanvas& c);    // the tempo screen's per-channel counts
+    void DrawCwMonth(BandCanvas& c);     // the codewords screen's month tally
+    void DrawSolar(BandCanvas& c);       // the propagation screen's solar indices
+    void DrawQuiet(BandCanvas& c);       // the clock's "quiet gap" ambient line
+    void DrawLogbook(BandCanvas& c);     // the clock's "N logged" ambient line
 
     // brightness
     void UpdateBrightness();

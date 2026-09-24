@@ -7,9 +7,21 @@
 #include "EamModels.h"
 #include "SevenSegment.h"
 
-// The seven EAM screens. Member functions of EamManager (split out of EamManager.cpp to keep the
+// The EAM screens. Member functions of EamManager (split out of EamManager.cpp to keep the
 // controller readable). Everything draws through BandCanvas in absolute screen coordinates and
 // degrades to a "no data" line when its endpoint is empty/down.
+//
+// THE DISPLAY RULES (Fable, 2026-09-23, display PR):
+//   - No text at size 1. The 6x8 font is 8 px tall on a 1.28" panel; nothing a person is meant
+//     to read is drawn at that size any more. Text is size 2.
+//   - One subject per screen. What a screen is ABOUT stays; a second subject sharing the glass
+//     (the tempo screen's frequency strip, the propagation screen's solar indices) is gone.
+//   - Every number a player reads is SEVEN-SEGMENT, drawn with the Zulu clock's own glyph
+//     (DrawSegText below -> eam::DrawSevenSeg), at the clock's scale where the screen has
+//     room and never smaller than SCREEN_SIZE/10.
+//   - The palette is locked. A number keeps the colour it had as text; its unlit ghost and
+//     its bloom are that colour scaled with eam::ScaleColor, exactly as the clock derives its
+//     own (ClockGhost ~ 0.06 of ClockLit, ClockBloom ~ 0.38). No new colour exists.
 
 namespace {
 
@@ -28,48 +40,190 @@ void RangeBearing(double lat1, double lon1, double lat2, double lon2, double& km
     brgDeg = b;
 }
 
-// "this-day in HFGCS heritage" sample lines. SAMPLE DATA -- ship empty or move to a bundled JSON;
-// here just to exercise the idle clock's ambient line.
-const char* const kHeritageSample[] = {
-    "1961: SAC airborne alert begins",
-    "1991: HFGCS keeps the watch",
+// ---- seven-segment numbers -------------------------------------------------------------------
+
+// The floor for any number a player reads.
+int SegMinH() { return SCREEN_SIZE / 10; }
+
+// The Zulu clock's glyph height: one definition, read by DrawClock and by every screen that
+// shows its number "at the clock's scale". A row of [dd:dd:dd] sized to ~94% of the panel.
+int ClockDigitH()
+{
+    int digitH = (int)(SCREEN_SIZE * (SCREEN_SIZE >= 360 ? 0.30f : 0.24f));
+    const int digitW = (int)(digitH * 0.60f);
+    const int colonW = (int)(digitW * 0.55f);
+    const int gap = (int)(digitW * 0.16f);
+    const int rowW = 6 * digitW + 2 * colonW + 7 * gap;
+    const int maxW = (int)(SCREEN_SIZE * 0.94f);
+    if (rowW > maxW) digitH = (int)(digitH * ((float)maxW / rowW));
+    return digitH;
+}
+
+// Glyph metrics for height h, in the clock's proportions.
+struct SegMetrics {
+    int w, gap, colonW, dotW;
 };
+SegMetrics MetricsFor(int h)
+{
+    SegMetrics m;
+    m.w = (int)(h * 0.60f);
+    m.gap = (int)(m.w * 0.16f);
+    if (m.gap < 2) m.gap = 2;
+    m.colonW = (int)(m.w * 0.55f);
+    m.dotW = eam::SevenSegThickness(h);
+    return m;
+}
+
+// Width of `s` drawn by DrawSegText at height h. Digits, ':', '.', ' '; any other character
+// is an UNLIT digit (ghost only) -- the panel showing it has no reading.
+int SegTextWidth(const char* s, int h)
+{
+    const SegMetrics m = MetricsFor(h);
+    int w = 0, n = 0;
+    for (const char* p = s; *p; ++p, ++n) {
+        if (n) w += m.gap;
+        w += *p == ':' ? m.colonW : *p == '.' ? m.dotW : *p == ' ' ? m.w / 2 : m.w;
+    }
+    return w;
+}
+
+// The largest height <= want (and >= the floor) at which `s` fits in maxW.
+int FitSegH(const char* s, int want, int maxW)
+{
+    int h = want;
+    while (h > SegMinH() && SegTextWidth(s, h) > maxW) h -= 1;
+    return h < SegMinH() ? SegMinH() : h;
+}
+
+// `s` in seven-segment glyphs, centred on cx, top at y, glyph height h, lit in `lit`.
+void DrawSegText(BandCanvas& c, const char* s, int cx, int y, int h, uint32_t lit)
+{
+    const SegMetrics m = MetricsFor(h);
+    const uint32_t ghost = eam::ScaleColor(lit, 0.06f);
+    const uint32_t bloom = eam::ScaleColor(lit, 0.38f);
+    int x = cx - SegTextWidth(s, h) / 2;
+    for (const char* p = s; *p; ++p) {
+        const char ch = *p;
+        if (ch == ':') {
+            eam::DrawColon(c, x, y, m.colonW, h, true, lit, ghost);
+            x += m.colonW + m.gap;
+        } else if (ch == '.') {
+            c.fillRect(x, y + h - m.dotW, m.dotW, m.dotW, lit);
+            x += m.dotW + m.gap;
+        } else if (ch == ' ') {
+            x += m.w / 2 + m.gap;
+        } else {
+            eam::DrawSevenSeg(c, x, y, m.w, h, (ch >= '0' && ch <= '9') ? ch - '0' : -1, lit, ghost, bloom);
+            x += m.w + m.gap;
+        }
+    }
+}
+
+// ---- size-2 text on a round panel -------------------------------------------------------------
+
+// Usable width of the round panel across the band [y, y+h), less a margin.
+int ChordW(int y, int h)
+{
+    const int r = SCREEN_SIZE_DIV_2;
+    auto at = [&](int yy) {
+        const int dy = abs(yy - r);
+        return dy >= r ? 0 : (int)(2.0f * sqrtf((float)(r * r - dy * dy)));
+    };
+    const int w = min(at(y), at(y + h));
+    return w > 16 ? w - 16 : 0;
+}
+
+// `s` centred at y, word-wrapped to the panel's width at each line, at most maxLines lines.
+// Returns the y below the last line drawn.
+int CenterWrap(BandCanvas& c, const String& s, int y, uint32_t col, int maxLines)
+{
+    c.setTextColor(col);
+    const int lh = c.fontHeight() + 2;
+    int start = 0;
+    const int n = (int)s.length();
+    for (int line = 0; line < maxLines && start < n; ++line) {
+        while (start < n && s[start] == ' ') ++start;
+        const int maxW = ChordW(y, lh);
+        int end = start, lastFit = -1;
+        while (end <= n) {
+            if (end == n || s[end] == ' ') {
+                if (c.textWidth(s.substring(start, end)) <= maxW) lastFit = end;
+                else break;
+            }
+            ++end;
+        }
+        if (lastFit < 0) lastFit = (end > n ? n : end);  // one word wider than the line: draw it
+        String part = s.substring(start, lastFit);
+        if (line == maxLines - 1 && lastFit < n) {
+            // THE LAST LINE IS CUT, not overflowed: the rest of the text used to be drawn
+            // whole here and ran off the round edge (the propagation reason, first capture).
+            part = s.substring(start);
+            while (part.length() > 0 && c.textWidth(part + "...") > maxW) part.remove(part.length() - 1);
+            part.trim();
+            part += "...";
+            lastFit = n;
+        }
+        c.drawString(part, SCREEN_SIZE_DIV_2 - c.textWidth(part) / 2, y);
+        y += lh;
+        start = lastFit;
+    }
+    return y;
+}
+
+void CenterAt(BandCanvas& c, const String& s, int y, uint32_t col)
+{
+    c.setTextColor(col);
+    c.drawString(s, SCREEN_SIZE_DIV_2 - c.textWidth(s) / 2, y);
+}
+
+// Bearing and range on one row -- two seven-segment numbers with their unit words under them.
+void DrawBearingRange(BandCanvas& c, double brgDeg, double km, int y, uint32_t col, uint32_t labelCol)
+{
+    char b[12], r[12];
+    snprintf(b, sizeof(b), "%03d", (int)(brgDeg + 0.5) % 360);
+    snprintf(r, sizeof(r), "%d", (int)(km + 0.5) > 9999 ? 9999 : (int)(km + 0.5));
+    const int h = SegMinH();
+    const int bx = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 5;
+    const int rx = SCREEN_SIZE_DIV_2 + SCREEN_SIZE / 6;
+    DrawSegText(c, b, bx, y, h, col);
+    DrawSegText(c, r, rx, y, h, col);
+    c.setTextColor(labelCol);
+    c.drawString("BRG", bx - c.textWidth("BRG") / 2, y + h + 4);
+    c.drawString("KM", rx - c.textWidth("KM") / 2, y + h + 4);
+}
 
 } // namespace
 
 void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
 {
+    // SUBJECT: the newest message. Its heard time (Zulu, seven-segment) heads it; the frequency
+    // and length that shared the old 8 px header are gone with it.
     const std::vector<eam::Msg>& latest = feed.Latest();
-    c.setTextSize(1);
+    c.setTextSize(2);
     if (latest.empty()) {
-        CenterText(c, "EAM TICKER", SCREEN_SIZE_DIV_2 - 10, palette.dim);
-        CenterText(c, "no data", SCREEN_SIZE_DIV_2 + 6, palette.faint);
+        CenterText(c, "EAM TICKER", SCREEN_SIZE_DIV_2 - 18, palette.dim);
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2 + 4, palette.faint);
         return;
     }
 
     const eam::Msg& m = latest.front();
     const int lh = c.fontHeight() + 2;
 
-    // Header band: frequency . time-ago . length.
-    String header;
-    if (m.frequencyKhz) header += String(m.frequencyKhz) + " kHz";
-    const String ago = TimeAgo(m.heardAtEpoch);
-    if (ago.length()) header += (header.length() ? "  -  " : "") + ago;
-    // "340+ ch" ON A PARTIAL COPY, and the trailing + is doing real work.
-    //
-    // The length is the one number on this screen a reader can trust, which is
-    // exactly why it must not overstate. The backend flags a copy whose character
-    // count cannot be accounted for by the length of audio it came from; those
-    // characters are a FLOOR, not a total, and rendering a bare "340 ch" asserts a
-    // complete message we do not have. Same rule the public archive follows.
-    header += (header.length() ? "  -  " : "")
-              + (String(m.charCount) + (m.partial ? "+ ch" : " ch"));
-    CenterText(c, header, (int)(SCREEN_SIZE * 0.12), palette.dim);
+    const int timeY = (int)(SCREEN_SIZE * 0.08);
+    if (m.heardAtEpoch > 1600000000) {
+        const time_t t = (time_t)m.heardAtEpoch;
+        struct tm tmv;
+        gmtime_r(&t, &tmv);
+        char hm[12];
+        snprintf(hm, sizeof(hm), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
+        DrawSegText(c, hm, SCREEN_SIZE_DIV_2, timeY, SegMinH(), palette.dim);
+    }
 
-    // NEW pulse (blink) just under the header.
+    // NEW pulse (blink) just under the heard time.
+    const int flagY = timeY + SegMinH() + 6;
     const bool pulsing = (long)(newPulseUntilMs - millis()) > 0;
     if (pulsing && ((millis() / 250) % 2 == 0))
-        CenterText(c, "NEW", (int)(SCREEN_SIZE * 0.20), palette.accent);
+        CenterText(c, "NEW", flagY, palette.accent);
 #if defined(FEATURE_EAM_GAME)
     // A message whose drill offer was WITHDRAWN at the ack cutoff keeps its class on the
     // ticker (Fable, 2026-09-23): it was decoded, it just can no longer be committed.
@@ -78,27 +232,27 @@ void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
         if (it != withdrawnClass.end()) {
             const char* cls = it->second == game::MsgClass::Execution ? "EXECUTION"
                             : it->second == game::MsgClass::Fdm ? "FDM" : "NAM";
-            CenterText(c, cls, (int)(SCREEN_SIZE * 0.20), palette.dim);
+            CenterText(c, cls, flagY, palette.dim);
         }
     }
 #endif
     // Copy-quality badges. PARTIAL WINS when both are set: "we are missing some
     // of this" is the more actionable of the two, and the line only fits one.
+    const int badgeY = (int)(SCREEN_SIZE * 0.80);
+    const bool badge = m.partial || m.malformed;
     if (m.partial)
-        CenterText(c, "partial copy", SCREEN_SIZE - 26, palette.accent);
+        CenterText(c, "partial copy", badgeY, palette.accent);
     else if (m.malformed)
-        CenterText(c, "+/- copy?", SCREEN_SIZE - 26, palette.faint);
+        CenterText(c, "+/- copy?", badgeY, palette.faint);
 
-    const int bodyTop = (int)(SCREEN_SIZE * 0.28);
-    const int bodyBot = (int)(SCREEN_SIZE * 0.90);
+    const int bodyTop = flagY + lh + 4;
+    const int bodyBot = badge ? badgeY - 4 : (int)(SCREEN_SIZE * 0.88);
 
     // Skyking: codeword headline instead of a group body.
     if (m.type == eam::MsgType::Skyking) {
-        c.setTextSize(2);
-        CenterText(c, "SKYKING", SCREEN_SIZE_DIV_2 - 22, palette.accent);
+        CenterText(c, "SKYKING", SCREEN_SIZE_DIV_2 - 18, palette.accent);
         const String code = m.codeword.length() ? m.codeword : String("--");
-        CenterText(c, code, SCREEN_SIZE_DIV_2 + 8, palette.fg);
-        c.setTextSize(1);
+        CenterText(c, code, SCREEN_SIZE_DIV_2 + 6, palette.fg);
         return;
     }
 
@@ -122,16 +276,18 @@ void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
     c.setTextColor(palette.fg);
     for (int i = 0; i < (int)groups.size(); ++i) {
         const int y = bodyTop + i * lh - offset;
-        if (y < bodyTop - lh || y > bodyBot) continue;
+        if (y < bodyTop || y + lh > bodyBot) continue;
         c.drawString(groups[i], SCREEN_SIZE_DIV_2 - c.textWidth(groups[i]) / 2, y);
     }
 }
 
 void EamManager::DrawTempo(BandCanvas& c)
 {
-    c.setTextSize(1);
+    // SUBJECT: today's tempo -- the dial, today's count, the level. (The per-channel frequency
+    // strip that shared this screen was a second subject and is gone.)
+    c.setTextSize(2);
     const eam::Tempo& t = feed.Tempo();
-    CenterText(c, "EAM TEMPO", (int)(SCREEN_SIZE * 0.12), palette.dim);
+    CenterText(c, "EAM TEMPO", (int)(SCREEN_SIZE * 0.08), palette.dim);
     if (!t.valid) {
         CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
         return;
@@ -142,11 +298,12 @@ void EamManager::DrawTempo(BandCanvas& c)
     if (t.level == "elevated") col = palette.warn;
     else if (t.level == "high") col = palette.alert;
 
-    // Dial: a 240-degree sweep, value = ratio vs baseline (capped at 3x = full).
+    // Dial: a 240-degree sweep, value = ratio vs baseline (capped at 3x = full). The dial IS the
+    // ratio; the "~1.4x normal" line it used to carry said the same thing in 8 px.
     const int cx = SCREEN_SIZE_DIV_2;
-    const int cy = (int)(SCREEN_SIZE * 0.52);
-    const int r1 = (int)(SCREEN_SIZE * 0.34);
-    const int r0 = (int)(SCREEN_SIZE * 0.25);
+    const int cy = (int)(SCREEN_SIZE * 0.54);
+    const int r1 = (int)(SCREEN_SIZE * 0.36);
+    const int r0 = (int)(SCREEN_SIZE * 0.27);
     const float start = 150.0f, sweep = 240.0f;
     float frac = t.ratio > 0 ? t.ratio / 3.0f : 0.0f;
     if (frac > 1.0f) frac = 1.0f;
@@ -155,63 +312,22 @@ void EamManager::DrawTempo(BandCanvas& c)
     if (frac > 0.0f)
         c.fillArc(cx, cy, r0, r1, start, start + sweep * frac, col);
 
-    // Centre readout: today's count, the level, and the ratio.
-    c.setTextSize(3);
-    CenterText(c, String(t.countToday), cy - 12, col);
-    c.setTextSize(1);
+    // Centre: today's count at the clock's scale, the level word beneath.
+    const String n = String(t.countToday);
+    const int h = FitSegH(n.c_str(), ClockDigitH(), 2 * r0 - 16);
+    DrawSegText(c, n.c_str(), cx, cy - h / 2 - 10, h, col);
     String lvl = t.level;
     lvl.toUpperCase();
-    CenterText(c, lvl, cy + 18, col);
-    if (t.ratio > 0) {
-        char rb[16];
-        snprintf(rb, sizeof(rb), "~%.1fx normal", t.ratio);
-        CenterText(c, rb, cy + 18 + c.fontHeight() + 4, palette.dim);
-    }
-
-    // Frequency activity strip: today's count per HFGCS channel (from /eam/stats), busiest
-    // highlighted. If the propagation screen suggested a channel, mark it (accent caret + label) so
-    // you can see at a glance whether the hot freq is the one conditions actually favour. Sits in
-    // the dial's open bottom; absent until the stats poll lands.
-    const std::vector<eam::FreqCount>& byFreq = feed.Stats().byFreq;
-    if (!byFreq.empty()) {
-        const int suggested = feed.Propagation().valid ? feed.Propagation().suggestedKhz : 0;
-        int maxCount = 1, busiestKhz = 0, busiestCount = -1;
-        for (const eam::FreqCount& fc : byFreq) {
-            if (fc.count > maxCount) maxCount = fc.count;
-            if (fc.count > busiestCount) { busiestCount = fc.count; busiestKhz = fc.khz; }
-        }
-
-        const int n = (int)byFreq.size();
-        const int slot = (int)(SCREEN_SIZE * 0.15f);
-        const int barW = (int)(slot * 0.46f);
-        const int maxBarH = (int)(SCREEN_SIZE * 0.11f);
-        const int baseY = (int)(SCREEN_SIZE * 0.86f);
-        int sx = SCREEN_SIZE_DIV_2 - (n * slot) / 2 + (slot - barW) / 2;
-        for (const eam::FreqCount& fc : byFreq) {
-            const int bh = (fc.count * maxBarH) / maxCount;
-            const bool busiest = fc.khz == busiestKhz && busiestCount > 0;
-            const bool isSuggested = suggested && fc.khz == suggested;
-            const int cxBar = sx + barW / 2;
-            c.fillRect(sx, baseY - bh, barW, bh > 0 ? bh : 1, busiest ? col : palette.faint);
-            if (isSuggested) // accent caret above the favoured channel
-                c.fillTriangle(cxBar - 4, baseY - maxBarH - 8, cxBar + 4, baseY - maxBarH - 8,
-                               cxBar, baseY - maxBarH - 2, palette.accent);
-            char fl[8];
-            snprintf(fl, sizeof(fl), "%.1f", fc.khz / 1000.0);
-            c.setTextColor(isSuggested ? palette.accent : palette.dim);
-            c.drawString(fl, cxBar - c.textWidth(fl) / 2, baseY + 3);
-            sx += slot;
-        }
-    }
+    CenterText(c, lvl, cy + h / 2 - 4, col);
 }
 
 void EamManager::DrawActivity(BandCanvas& c)
 {
-    // 24 hour-of-day buckets (current UTC day) as a polar histogram native to the round panel:
-    // hour 0 at 12 o'clock, growing clockwise; the current UTC hour is marked in accent.
-    c.setTextSize(1);
+    // SUBJECT: today's EAMs by UTC hour, as a polar histogram native to the round panel: hour 0
+    // at 12 o'clock, growing clockwise; the current hour marked in accent; today's total at the hub.
+    c.setTextSize(2);
     const eam::Stats& st = feed.Stats();
-    CenterText(c, "EAM ACTIVITY - 24H UTC", (int)(SCREEN_SIZE * 0.09), palette.dim);
+    CenterText(c, "EAMS TODAY", (int)(SCREEN_SIZE * 0.07), palette.dim);
     if (!st.valid || !st.hasByHour) {
         CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
         return;
@@ -221,9 +337,9 @@ void EamManager::DrawActivity(BandCanvas& c)
     for (int i = 0; i < 24; ++i) { if (st.byHour[i] > maxCount) maxCount = st.byHour[i]; total += st.byHour[i]; }
 
     const int cx = SCREEN_SIZE_DIV_2;
-    const int cy = (int)(SCREEN_SIZE * 0.53f);
+    const int cy = (int)(SCREEN_SIZE * 0.56f);
     const int r0 = (int)(SCREEN_SIZE * 0.17f);
-    const int rMax = (int)(SCREEN_SIZE * 0.40f);
+    const int rMax = (int)(SCREEN_SIZE * 0.36f);
     const int span = rMax - r0;
 
     const time_t nowUtc = time(nullptr);
@@ -243,28 +359,19 @@ void EamManager::DrawActivity(BandCanvas& c)
         }
     }
 
-    // cardinal hour labels for orientation (00 top, 06 right, 12 bottom, 18 left)
-    auto label = [&](const char* s, float deg) {
-        const float a = deg * (float)M_PI / 180.0f;
-        const int lx = cx + (int)((rMax + 10) * cosf(a));
-        const int ly = cy + (int)((rMax + 10) * sinf(a));
-        c.setTextColor(palette.faint);
-        c.drawString(s, lx - c.textWidth(s) / 2, ly - c.fontHeight() / 2);
-    };
-    label("00", 270); label("06", 0); label("12", 90); label("18", 180);
-
-    // hub readout: today's total
-    c.setTextSize(2);
-    CenterText(c, String(total), cy - 8, palette.fg);
-    c.setTextSize(1);
-    CenterText(c, "today", cy + 10, palette.faint);
+    // Hub: today's total, as large as the hub allows.
+    const String n = String(total);
+    const int h = FitSegH(n.c_str(), ClockDigitH(), 2 * r0 - 12);
+    DrawSegText(c, n.c_str(), cx, cy - h / 2, h, palette.fg);
 }
 
 void EamManager::DrawCodewords(BandCanvas& c)
 {
-    c.setTextSize(1);
+    // SUBJECT: the recent SKYKING codewords, newest first; a NEW one in accent. (The per-word
+    // repeat counts and the month tally were second subjects in 8 px and are gone.)
+    c.setTextSize(2);
     const std::vector<eam::Codeword>& cws = feed.Codewords();
-    CenterText(c, "SKYKING CODEWORDS", (int)(SCREEN_SIZE * 0.12), palette.dim);
+    CenterText(c, "CODEWORDS", (int)(SCREEN_SIZE * 0.10), palette.dim);
     if (cws.empty()) {
         CenterText(c, "none recently", SCREEN_SIZE_DIV_2, palette.faint);
         return;
@@ -272,41 +379,24 @@ void EamManager::DrawCodewords(BandCanvas& c)
 
     const int lh = c.fontHeight() + 6;
     int y = (int)(SCREEN_SIZE * 0.24);
-    const int bot = SCREEN_SIZE - 24;
-    const int x = (int)(SCREEN_SIZE * 0.14);
-
+    const int bot = (int)(SCREEN_SIZE * 0.86);
     for (const eam::Codeword& cw : cws) {
-        if (y > bot) break;
-        const bool isNew = newCodewords.count(cw.codeword) > 0;
-        c.setTextColor(palette.fg);
-        c.drawString(cw.codeword, x, y);
-        if (isNew) {
-            c.setTextColor(palette.accent);
-            c.drawString("NEW", SCREEN_SIZE - x - c.textWidth("NEW"), y);
-        } else if (cw.count > 0) {
-            c.setTextColor(palette.faint);
-            const String cnt = "x" + String(cw.count);
-            c.drawString(cnt, SCREEN_SIZE - x - c.textWidth(cnt), y);
-        }
+        if (y + lh > bot) break;
+        CenterText(c, cw.codeword, y, newCodewords.count(cw.codeword) > 0 ? palette.accent : palette.fg);
         y += lh;
     }
-
-    const time_t nowUtc = time(nullptr);
-    const long nowEpoch = (nowUtc > 1600000000) ? (long)nowUtc : 0;
-    char seen[28];
-    snprintf(seen, sizeof(seen), "seen this month: %u", (unsigned)logbook.CodewordsThisMonth(nowEpoch));
-    CenterText(c, seen, SCREEN_SIZE - 16, palette.faint);
 }
 
 void EamManager::DrawAbncp(BandCanvas& c)
 {
-    c.setTextSize(1);
-    CenterText(c, "COMMAND POST WATCH", (int)(SCREEN_SIZE * 0.12), palette.dim);
+    // SUBJECT: whether a command post is up, and where.
+    c.setTextSize(2);
+    CenterText(c, "COMMAND POST", (int)(SCREEN_SIZE * 0.12), palette.dim);
 
     const char* inert = feed.AbncpInertReason();
     if (inert) {
-        CenterText(c, "OpenSky", SCREEN_SIZE_DIV_2 - 8, palette.faint);
-        CenterText(c, inert, SCREEN_SIZE_DIV_2 + 8, palette.warn);
+        CenterText(c, "OpenSky", SCREEN_SIZE_DIV_2 - 26, palette.faint);
+        CenterWrap(c, inert, SCREEN_SIZE_DIV_2 - 4, palette.warn, 3);
         return;
     }
 
@@ -317,11 +407,9 @@ void EamManager::DrawAbncp(BandCanvas& c)
     }
 
     if (!a.airborne || a.aircraft.empty()) {
-        c.setTextSize(2);
-        CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 14, palette.dim);
-        c.setTextSize(1);
-        CenterText(c, "no command post broadcasting", SCREEN_SIZE_DIV_2 + 14, palette.faint);
-        CenterText(c, "(only sees ADS-B transmitters)", SCREEN_SIZE_DIV_2 + 14 + c.fontHeight() + 2, palette.faint);
+        CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 30, palette.dim);
+        const int y = CenterWrap(c, "no command post broadcasting", SCREEN_SIZE_DIV_2 - 4, palette.faint, 2);
+        CenterText(c, "(ADS-B only)", y + 4, palette.faint);
         return;
     }
 
@@ -333,88 +421,64 @@ void EamManager::DrawAbncp(BandCanvas& c)
     else if (up->type == "E-6B") headline = "E-6B UP";
     else if (up->type.length()) headline = up->type + " UP";
 
-    c.setTextSize(2);
-    CenterText(c, headline, (int)(SCREEN_SIZE * 0.34), palette.alert);
-    c.setTextSize(1);
-
-    int y = SCREEN_SIZE_DIV_2 + 10;
-    if (up->callsign.length()) { CenterText(c, up->callsign, y, palette.fg); y += c.fontHeight() + 4; }
+    int y = CenterWrap(c, headline, (int)(SCREEN_SIZE * 0.25), palette.alert, 2) + 6;
+    if (up->callsign.length()) { CenterText(c, up->callsign, y, palette.fg); y += c.fontHeight() + 8; }
 
     if (up->hasPos && hasLatLon) {
         double km, brg;
         RangeBearing(deviceLat, deviceLon, up->lat, up->lon, km, brg);
-        char bd[28];
-        snprintf(bd, sizeof(bd), "BRG %03d  %d km", (int)(brg + 0.5), (int)(km + 0.5));
-        CenterText(c, bd, y, palette.dim);
+        DrawBearingRange(c, brg, km, y, palette.dim, palette.faint);
     } else if (up->hex.length()) {
         String h = up->hex; h.toUpperCase();
-        CenterText(c, h, y, palette.dim);
+        CenterText(c, h, y, palette.dim);  // an identifier, not a quantity: stays text
     }
 }
 
 void EamManager::DrawMilAir(BandCanvas& c)
 {
-    // Notable military aircraft up now. Same tile language as the command-post watch, and the same
-    // honest caveat: this only sees aircraft transmitting ADS-B.
-    c.setTextSize(1);
-    CenterText(c, "MIL AIR", (int)(SCREEN_SIZE * 0.12), palette.dim);
+    // SUBJECT: notable military aircraft up now -- how many, and one at a time which. Same honest
+    // caveat as the command-post watch: this only sees aircraft transmitting ADS-B.
+    c.setTextSize(2);
+    CenterText(c, "MIL AIR UP", (int)(SCREEN_SIZE * 0.10), palette.dim);
 
     const eam::MilAir& m = feed.MilAir();
     if (!m.valid || m.count <= 0) {
-        c.setTextSize(2);
-        CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 14, palette.dim);
-        c.setTextSize(1);
-        CenterText(c, "no notable mil air", SCREEN_SIZE_DIV_2 + 14, palette.faint);
-        CenterText(c, "(only sees ADS-B transmitters)", SCREEN_SIZE_DIV_2 + 14 + c.fontHeight() + 2, palette.faint);
+        CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 30, palette.dim);
+        const int y = CenterWrap(c, "no notable mil air", SCREEN_SIZE_DIV_2 - 4, palette.faint, 2);
+        CenterText(c, "(ADS-B only)", y + 4, palette.faint);
         return;
     }
 
-    c.setTextSize(3);
-    CenterText(c, String(m.count), (int)(SCREEN_SIZE * 0.30), palette.fg);
-    c.setTextSize(1);
-    CenterText(c, m.count == 1 ? "aircraft up" : "aircraft up", (int)(SCREEN_SIZE * 0.30) + 30, palette.faint);
+    const String cnt = String(m.count);
+    const int countY = (int)(SCREEN_SIZE * 0.19);
+    const int h = FitSegH(cnt.c_str(), ClockDigitH() * 85 / 100, ChordW(countY, ClockDigitH()));
+    DrawSegText(c, cnt.c_str(), SCREEN_SIZE_DIV_2, countY, h, palette.fg);
 
-    // Rotate a window of three through the list so a busy picture isn't truncated silently.
-    const int per = 3;
+    // ONE aircraft at a time, rotating every 3 s, so a busy picture is never truncated silently.
     const int n = (int)m.aircraft.size();
-    const int pages = (n + per - 1) / per;
-    const int start = (n > per) ? (int)((millis() / 3000) % pages) * per : 0;
-
-    int y = (int)(SCREEN_SIZE * 0.50);
-    const int lh = c.fontHeight() + 7;
-    const int xL = (int)(SCREEN_SIZE * 0.12);
-    for (int i = start; i < start + per && i < n; ++i) {
-        const eam::MilAircraft& a = m.aircraft[i];
+    if (n > 0) {
+        const eam::MilAircraft& a = m.aircraft[(millis() / 3000) % n];
         // category is the backend's human label (e.g. "AWACS (E-3)"); fall back to raw type.
         const String label = a.category.length() ? a.category : a.type;
         String line = label.length() ? label : (a.callsign.length() ? a.callsign : (a.hex.length() ? a.hex : String("unknown")));
-        if (label.length() && a.callsign.length()) line = label + "  " + a.callsign;
-        c.setTextColor(palette.fg);
-        c.drawString(line, xL, y);
+        if (label.length() && a.callsign.length()) line = label + " " + a.callsign;
+        const int y = CenterWrap(c, line, countY + h + 10, palette.fg, 2) + 4;
         if (a.hasPos && hasLatLon) {
             double km, brg;
             RangeBearing(deviceLat, deviceLon, a.lat, a.lon, km, brg);
-            char bd[20];
-            snprintf(bd, sizeof(bd), "%03d  %dkm", (int)(brg + 0.5), (int)(km + 0.5));
-            c.setTextColor(palette.dim);
-            c.drawString(bd, SCREEN_SIZE - xL - c.textWidth(bd), y);
+            DrawBearingRange(c, brg, km, y, palette.dim, palette.faint);
         }
-        y += lh;
     }
-    if (n > per) {
-        char more[40];
-        const int last = (start + per < n) ? start + per : n;
-        snprintf(more, sizeof(more), "%d-%d of %d", start + 1, last, n);
-        CenterText(c, more, SCREEN_SIZE - 30, palette.faint);
-    }
-    CenterText(c, "(ADS-B only)", SCREEN_SIZE - 16, palette.faint);
+    CenterText(c, "ADS-B ONLY", (int)(SCREEN_SIZE * 0.84), palette.faint);
 }
 
 void EamManager::DrawPropagation(BandCanvas& c)
 {
-    c.setTextSize(1);
+    // SUBJECT: the best HFGCS frequency now. A space-weather event that degrades HF is said in
+    // words above it; the solar indices and their source line were a second subject.
+    c.setTextSize(2);
     const eam::Propagation& p = feed.Propagation();
-    CenterText(c, "HF PROPAGATION", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    CenterText(c, "BEST HF FREQ", (int)(SCREEN_SIZE * 0.12), palette.dim);
     if (!p.valid) {
         CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
         return;
@@ -426,50 +490,34 @@ void EamManager::DrawPropagation(BandCanvas& c)
     if (sw.valid && (sw.hfDegraded || sw.gScale >= 1)) {
         const bool severe = sw.rScale >= 3 || sw.gScale >= 3;
         const uint32_t bcol = severe ? palette.alert : palette.warn;
-        String banner;
-        if (sw.hfDegraded) {
-            banner = "RADIO BLACKOUT";
-            if (sw.rScale >= 1) banner += " R" + String(sw.rScale);
-            banner += " - HF DEGRADED";
-            if (sw.xrayClass.length()) banner += " (" + sw.xrayClass + ")";
-        } else {
-            banner = "GEO STORM G" + String(sw.gScale);
-            if (sw.kp >= 0) banner += " - Kp " + String(sw.kp);
-        }
+        const String banner = sw.hfDegraded ? "HF DEGRADED" : "GEO STORM";
         const int bw = c.textWidth(banner) + 16;
         const int bx = SCREEN_SIZE_DIV_2 - bw / 2;
-        const int by = (int)(SCREEN_SIZE * 0.165f);
+        const int by = (int)(SCREEN_SIZE * 0.21f);
         const int bh = c.fontHeight() + 8;
         c.fillRoundRect(bx, by, bw, bh, 4, eam::ScaleColor(bcol, 0.18f));
-        c.setTextColor(bcol);
-        c.drawString(banner, SCREEN_SIZE_DIV_2 - c.textWidth(banner) / 2, by + 4);
+        CenterAt(c, banner, by + 4, bcol);
     }
 
-    CenterText(c, "Best HFGCS freq now", (int)(SCREEN_SIZE * 0.26), palette.faint);
+    const int freqY = (int)(SCREEN_SIZE * 0.35);
     if (p.suggestedKhz) {
-        c.setTextSize(3);
-        CenterText(c, String(p.suggestedKhz), (int)(SCREEN_SIZE * 0.34), palette.accent);
-        c.setTextSize(1);
-        CenterText(c, "kHz", (int)(SCREEN_SIZE * 0.34) + 30, palette.faint);
+        const String khz = String(p.suggestedKhz);
+        const int h = FitSegH(khz.c_str(), ClockDigitH(), ChordW(freqY, ClockDigitH()));
+        DrawSegText(c, khz.c_str(), SCREEN_SIZE_DIV_2, freqY, h, palette.accent);
+        CenterText(c, "kHz", freqY + h + 6, palette.faint);
         if (p.suggestedReason.length())
-            CenterText(c, p.suggestedReason, (int)(SCREEN_SIZE * 0.58), palette.dim);
+            CenterWrap(c, p.suggestedReason, freqY + h + 6 + c.fontHeight() + 8, palette.dim, 2);
     } else {
-        c.setTextSize(1);
-        CenterText(c, "no suggestion", (int)(SCREEN_SIZE * 0.36), palette.faint);
+        CenterText(c, "no suggestion", SCREEN_SIZE_DIV_2, palette.faint);
     }
-
-    char sk[28];
-    snprintf(sk, sizeof(sk), "SFI %d   K %d", p.sfi, p.kIndex);
-    CenterText(c, sk, (int)(SCREEN_SIZE * 0.72), palette.fg);
-    if (p.source.length())
-        CenterText(c, "Solar data: " + p.source, SCREEN_SIZE - 16, palette.faint);
 }
 
 void EamManager::DrawIcbm(BandCanvas& c)
 {
-    c.setTextSize(1);
+    // SUBJECT: the next ICBM test window, and how long until it opens.
+    c.setTextSize(2);
     const std::vector<eam::Launch>& ls = feed.Launches();
-    CenterText(c, "ICBM TEST WINDOW", (int)(SCREEN_SIZE * 0.12), palette.dim);
+    CenterText(c, "ICBM TEST", (int)(SCREEN_SIZE * 0.10), palette.dim);
     if (ls.empty()) { // rotation hides this screen, but guard anyway
         CenterText(c, "no upcoming", SCREEN_SIZE_DIV_2, palette.faint);
         return;
@@ -477,53 +525,63 @@ void EamManager::DrawIcbm(BandCanvas& c)
 
     const eam::Launch& l = ls.front();
     if (l.designation.length())
-        CenterText(c, l.designation, (int)(SCREEN_SIZE * 0.30), palette.fg);
+        CenterWrap(c, l.designation, (int)(SCREEN_SIZE * 0.23), palette.fg, 1);
 
     const time_t nowUtc = time(nullptr);
-    String big;
-    if (l.windowStartEpoch <= 0 || nowUtc <= 1600000000) big = "T- --:--:--";
-    else if (nowUtc >= l.windowStartEpoch) big = "IN WINDOW";
-    else big = FormatCountdown((long)(l.windowStartEpoch - nowUtc));
-    c.setTextSize(2);
-    CenterText(c, big, SCREEN_SIZE_DIV_2 - 6, nowUtc >= l.windowStartEpoch && l.windowStartEpoch > 0 ? palette.alert : palette.accent);
-    c.setTextSize(1);
+    const int cdY = (int)(SCREEN_SIZE * 0.36);
+    if (l.windowStartEpoch > 0 && nowUtc > 1600000000 && nowUtc >= l.windowStartEpoch) {
+        CenterText(c, "IN WINDOW", SCREEN_SIZE_DIV_2 - 8, palette.alert);
+    } else if (l.windowStartEpoch <= 0 || nowUtc <= 1600000000) {
+        // Unknown: unlit digits, not a made-up 00:00:00.
+        const int h = FitSegH("??:??:??", ClockDigitH(), ChordW(cdY, ClockDigitH()));
+        DrawSegText(c, "??:??:??", SCREEN_SIZE_DIV_2, cdY, h, palette.accent);
+    } else {
+        const long left = (long)(l.windowStartEpoch - nowUtc);
+        const long days = left / 86400;
+        char buf[16];
+        if (days > 0) {
+            // A day or more out: the days, and the word, rather than an hours figure nobody reads.
+            snprintf(buf, sizeof(buf), "%ld", days > 999 ? 999L : days);
+            DrawSegText(c, buf, SCREEN_SIZE_DIV_2, cdY, ClockDigitH(), palette.accent);
+            CenterText(c, days == 1 ? "DAY" : "DAYS", cdY + ClockDigitH() + 6, palette.faint);
+        } else {
+            snprintf(buf, sizeof(buf), "%02ld:%02ld:%02ld", left / 3600, (left % 3600) / 60, left % 60);
+            const int h = FitSegH(buf, ClockDigitH(), ChordW(cdY, ClockDigitH()));
+            DrawSegText(c, buf, SCREEN_SIZE_DIV_2, cdY, h, palette.accent);
+        }
+    }
 
     if (l.site.length())
-        CenterText(c, l.site, (int)(SCREEN_SIZE * 0.72), palette.dim);
-    if (l.source.length())
-        CenterText(c, l.source, SCREEN_SIZE - 16, palette.faint);
+        CenterWrap(c, l.site, (int)(SCREEN_SIZE * 0.68), palette.dim, 2);
 }
 
 void EamManager::DrawReference(BandCanvas& c)
 {
-    // "What am I looking at" card -- static, no feed dependency, so it's always available.
-    c.setTextSize(1);
-    CenterText(c, "HFGCS REFERENCE", (int)(SCREEN_SIZE * 0.10), palette.accent);
+    // SUBJECT: the four primary HFGCS frequencies -- static, no feed dependency, always available.
+    c.setTextSize(2);
+    CenterText(c, "HFGCS", (int)(SCREEN_SIZE * 0.10), palette.accent);
+    CenterText(c, "primary kHz", (int)(SCREEN_SIZE * 0.22), palette.faint);
 
-    const int lh = c.fontHeight() + 4;
-    int y = (int)(SCREEN_SIZE * 0.20);
-
-    CenterText(c, "Primary freqs (kHz)", y, palette.faint); y += lh;
-    CenterText(c, "4724   8992", y, palette.fg); y += lh;
-    CenterText(c, "11175   15016", y, palette.fg); y += lh + 6;
-
-    CenterText(c, "EAM - coded action message", y, palette.dim); y += lh;
-    CenterText(c, "SKYKING - priority, no reply", y, palette.dim); y += lh + 6;
-
-    CenterText(c, "Tempo = today vs baseline", y, palette.faint); y += lh;
-    CenterText(c, "quiet/normal/elevated/high", y, palette.dim);
+    const char* row1 = "4724 8992";
+    const char* row2 = "11175 15016";
+    const int y1 = (int)(SCREEN_SIZE * 0.36);
+    const int h = FitSegH(row2, ClockDigitH() * 7 / 10, ChordW(y1, ClockDigitH()));
+    DrawSegText(c, row1, SCREEN_SIZE_DIV_2, y1, h, palette.fg);
+    DrawSegText(c, row2, SCREEN_SIZE_DIV_2, y1 + h + h / 2, h, palette.fg);
 }
 
 void EamManager::DrawClock(BandCanvas& c)
 {
     // Six red 7-seg digits HH:MM:SS, 24h UTC, no date. Real segments with a faint ghost; lit
     // segments get a bloom, dimmed at night. Steady colons unless the blink toggle is on.
+    // SUBJECT: the time, and nothing else -- the rotating 8 px ambient line is gone. Before the
+    // first SNTP sync the digits are UNLIT rather than a made-up 00:00:00.
     const time_t nowUtc = time(nullptr);
     struct tm tmv;
     gmtime_r(&nowUtc, &tmv);
     const bool synced = nowUtc > 1600000000;
-    const int hh = synced ? tmv.tm_hour : 0;
-    const int mm = synced ? tmv.tm_min : 0;
+    const int hh = synced ? tmv.tm_hour : -1;
+    const int mm = synced ? tmv.tm_min : -1;
     const int ss = synced ? tmv.tm_sec : 0;
 
     const float glow = GlowFactor();
@@ -531,23 +589,13 @@ void EamManager::DrawClock(BandCanvas& c)
     const uint32_t bloom = eam::ScaleColor(eam::ClockBloom(), glow);
     const uint32_t ghost = eam::ClockGhost();
 
-    // Size a single row of [d d : d d : d d] to fit ~94% of the panel width.
-    int digitH = (int)(SCREEN_SIZE * (SCREEN_SIZE >= 360 ? 0.30f : 0.24f));
-    int digitW = (int)(digitH * 0.60f);
-    int colonW = (int)(digitW * 0.55f);
-    int gap = (int)(digitW * 0.16f);
-    int rowW = 6 * digitW + 2 * colonW + 7 * gap;
-    const int maxW = (int)(SCREEN_SIZE * 0.94f);
-    if (rowW > maxW) {
-        const float sc = (float)maxW / rowW;
-        digitH = (int)(digitH * sc);
-        digitW = (int)(digitW * sc);
-        colonW = (int)(colonW * sc);
-        gap = (int)(gap * sc);
-        rowW = 6 * digitW + 2 * colonW + 7 * gap;
-    }
+    const int digitH = ClockDigitH();
+    const int digitW = (int)(digitH * 0.60f);
+    const int colonW = (int)(digitW * 0.55f);
+    const int gap = (int)(digitW * 0.16f);
+    const int rowW = 6 * digitW + 2 * colonW + 7 * gap;
     int x = SCREEN_SIZE_DIV_2 - rowW / 2;
-    const int y = SCREEN_SIZE_DIV_2 - digitH / 2 - 8;
+    const int y = SCREEN_SIZE_DIV_2 - digitH / 2;
 
     // Dark rounded bezel frame.
     const int pad = (int)(digitH * 0.18f);
@@ -556,29 +604,150 @@ void EamManager::DrawClock(BandCanvas& c)
     c.drawRoundRect(x - pad, y - pad, rowW + 2 * pad, digitH + 2 * pad, pad,
                     eam::ScaleColor(lgfx::color888(60, 12, 8), glow));
 
-    const bool colonLit = colonBlink ? (ss % 2 == 0) : true;
+    const bool colonLit = synced && (colonBlink ? (ss % 2 == 0) : true);
     auto digit = [&](int d) { eam::DrawSevenSeg(c, x, y, digitW, digitH, d, lit, ghost, bloom); x += digitW + gap; };
     auto colon = [&]() { eam::DrawColon(c, x, y, colonW, digitH, colonLit, lit, ghost); x += colonW + gap; };
 
-    digit(hh / 10); digit(hh % 10); colon();
-    digit(mm / 10); digit(mm % 10); colon();
-    digit(ss / 10); digit(ss % 10);
+    digit(synced ? hh / 10 : -1); digit(synced ? hh % 10 : -1); colon();
+    digit(synced ? mm / 10 : -1); digit(synced ? mm % 10 : -1); colon();
+    digit(synced ? ss / 10 : -1); digit(synced ? ss % 10 : -1);
+}
 
-    // Ambient line below: rotates the day's count, the logbook odometer, and a (sample) heritage note.
-    c.setTextSize(1);
-    const eam::Tempo& t = feed.Tempo();
-    const eam::Stats& st = feed.Stats();
-    std::vector<String> amb;
-    if (t.valid) amb.push_back(String(t.countToday) + " EAMs today");
-    if (st.valid && st.longestQuietMin >= 0) {
-        const int q = st.longestQuietMin;
-        amb.push_back("quiet gap " + (q >= 60 ? (String(q / 60) + "h " + String(q % 60) + "m") : (String(q) + "m")));
+// ---- the numbers the one-subject rule moved off other screens (nothing removed is lost) -------
+
+void EamManager::DrawLastMsg(BandCanvas& c)
+{
+    // SUBJECT: the newest message's particulars -- the frequency it came in on, its length,
+    // and how long ago. (These shared the ticker's 8 px header before.)
+    c.setTextSize(2);
+    CenterText(c, "LAST EAM", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    const std::vector<eam::Msg>& latest = feed.Latest();
+    if (latest.empty()) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
     }
-    if (logbook.EamCount() > 0) amb.push_back(String(logbook.EamCount()) + " logged");
-    for (int i = 0; i < (int)(sizeof(kHeritageSample) / sizeof(kHeritageSample[0])); ++i)
-        amb.push_back(kHeritageSample[i]);
-    String ambient = amb.empty() ? String() : amb[ambientIndex % (int)amb.size()];
-    if (!synced) ambient = "waiting for time sync";
-    if (ambient.length())
-        CenterText(c, ambient, y + digitH + pad + 12, palette.faint);
+    const eam::Msg& m = latest.front();
+    const int h = SegMinH() * 13 / 10;
+    int y = (int)(SCREEN_SIZE * 0.22);
+    if (m.frequencyKhz) {
+        DrawSegText(c, String(m.frequencyKhz).c_str(), SCREEN_SIZE_DIV_2, y, h, palette.fg);
+        CenterText(c, "kHz", y + h + 4, palette.faint);
+    }
+    y += h + 26;
+    // "340+" ON A PARTIAL COPY: the characters are a floor, not a total (see the ticker's
+    // old header comment); the + is text beside the digits, since no segment draws it.
+    DrawSegText(c, String(m.charCount).c_str(), SCREEN_SIZE_DIV_2, y, h, palette.fg);
+    CenterText(c, m.partial ? "chars (floor)" : "chars", y + h + 4, palette.faint);
+    y += h + 26;
+    const time_t nowUtc = time(nullptr);
+    if (m.heardAtEpoch > 0 && nowUtc > 1600000000 && nowUtc >= m.heardAtEpoch) {
+        const long mins = (long)(nowUtc - m.heardAtEpoch) / 60;
+        char buf[12];
+        snprintf(buf, sizeof(buf), "%ld", mins > 9999 ? 9999L : mins);
+        DrawSegText(c, buf, SCREEN_SIZE_DIV_2, y, SegMinH(), palette.dim);
+        CenterText(c, "min ago", y + SegMinH() + 4, palette.faint);
+    }
+}
+
+void EamManager::DrawChannels(BandCanvas& c)
+{
+    // SUBJECT: today's EAMs per HFGCS channel; the busiest in the tempo colour, the channel
+    // propagation favours in accent. (The tempo screen's old frequency strip.)
+    c.setTextSize(2);
+    CenterText(c, "BY CHANNEL", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    const std::vector<eam::FreqCount>& byFreq = feed.Stats().byFreq;
+    if (byFreq.empty()) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    const int suggested = feed.Propagation().valid ? feed.Propagation().suggestedKhz : 0;
+    int busiestKhz = 0, busiestCount = -1;
+    for (const eam::FreqCount& fc : byFreq)
+        if (fc.count > busiestCount) { busiestCount = fc.count; busiestKhz = fc.khz; }
+    const int h = SegMinH();
+    const int rowH = h + 8;
+    int y = (int)(SCREEN_SIZE * 0.24);
+    const int xk = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 7;   // kHz column centre
+    const int xc = SCREEN_SIZE_DIV_2 + SCREEN_SIZE / 5;   // count column centre
+    for (const eam::FreqCount& fc : byFreq) {
+        if (y + h > (int)(SCREEN_SIZE * 0.86)) break;
+        const uint32_t kcol = (suggested && fc.khz == suggested) ? palette.accent : palette.dim;
+        const uint32_t ccol = (fc.khz == busiestKhz && busiestCount > 0) ? palette.fg : palette.dim;
+        if (fc.khz > 0) DrawSegText(c, String(fc.khz).c_str(), xk, y, h, kcol);
+        else { c.setTextColor(kcol); c.drawString("other", xk - c.textWidth("other") / 2, y + (h - c.fontHeight()) / 2); }
+        DrawSegText(c, String(fc.count).c_str(), xc, y, h, ccol);
+        y += rowH;
+    }
+}
+
+void EamManager::DrawCwMonth(BandCanvas& c)
+{
+    // SUBJECT: how many distinct SKYKING codewords this device has logged this month.
+    c.setTextSize(2);
+    CenterText(c, "CODEWORDS", (int)(SCREEN_SIZE * 0.20), palette.dim);
+    const time_t nowUtc = time(nullptr);
+    const long nowEpoch = (nowUtc > 1600000000) ? (long)nowUtc : 0;
+    const String n = String((unsigned)logbook.CodewordsThisMonth(nowEpoch));
+    const int h = ClockDigitH();
+    DrawSegText(c, n.c_str(), SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - h / 2, h, palette.fg);
+    CenterText(c, "this month", SCREEN_SIZE_DIV_2 + h / 2 + 8, palette.faint);
+}
+
+void EamManager::DrawSolar(BandCanvas& c)
+{
+    // SUBJECT: the solar indices behind the propagation call -- SFI, K, and the NOAA R and G
+    // scales when known -- and whose numbers they are. (The propagation screen's old line.)
+    c.setTextSize(2);
+    const eam::Propagation& p = feed.Propagation();
+    CenterText(c, "SOLAR", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    if (!p.valid) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    const int h = SegMinH() * 13 / 10;
+    const int xl = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 5, xr = SCREEN_SIZE_DIV_2 + SCREEN_SIZE / 5;
+    auto cell = [&](int cx, int y, const char* label, int v, uint32_t col) {
+        char buf[12];
+        if (v >= 0) snprintf(buf, sizeof(buf), "%d", v); else snprintf(buf, sizeof(buf), "?");
+        DrawSegText(c, buf, cx, y, h, col);
+        c.setTextColor(palette.faint);
+        c.drawString(label, cx - c.textWidth(label) / 2, y + h + 4);
+    };
+    const int y1 = (int)(SCREEN_SIZE * 0.22), y2 = y1 + h + 30;
+    cell(xl, y1, "SFI", p.sfi, palette.fg);
+    cell(xr, y1, "K", p.kIndex, palette.fg);
+    const eam::SpaceWeather& sw = p.space;
+    if (sw.valid) {
+        cell(xl, y2, "R", sw.rScale, sw.rScale >= 3 ? palette.alert : sw.rScale >= 1 ? palette.warn : palette.fg);
+        cell(xr, y2, "G", sw.gScale, sw.gScale >= 3 ? palette.alert : sw.gScale >= 1 ? palette.warn : palette.fg);
+    }
+    if (p.source.length()) CenterWrap(c, p.source, (int)(SCREEN_SIZE * 0.72), palette.faint, 2);
+}
+
+void EamManager::DrawQuiet(BandCanvas& c)
+{
+    // SUBJECT: the longest stretch today with no EAM, as H:MM. (The clock's old ambient line.)
+    c.setTextSize(2);
+    CenterText(c, "LONGEST QUIET", (int)(SCREEN_SIZE * 0.22), palette.dim);
+    const int q = feed.Stats().longestQuietMin;
+    if (q < 0) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    char buf[12];
+    snprintf(buf, sizeof(buf), "%d:%02d", q / 60 > 99 ? 99 : q / 60, q % 60);
+    const int h = ClockDigitH();
+    DrawSegText(c, buf, SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - h / 2, h, palette.fg);
+    CenterText(c, "today, h:mm", SCREEN_SIZE_DIV_2 + h / 2 + 8, palette.faint);
+}
+
+void EamManager::DrawLogbook(BandCanvas& c)
+{
+    // SUBJECT: how many distinct EAMs this device has logged. (The clock's old ambient line.)
+    c.setTextSize(2);
+    CenterText(c, "LOGBOOK", (int)(SCREEN_SIZE * 0.22), palette.dim);
+    const String n = String((unsigned)logbook.EamCount());
+    const int h = FitSegH(n.c_str(), ClockDigitH(), ChordW(SCREEN_SIZE_DIV_2 - ClockDigitH() / 2, ClockDigitH()));
+    DrawSegText(c, n.c_str(), SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - h / 2, h, palette.fg);
+    CenterText(c, "EAMs logged", SCREEN_SIZE_DIV_2 + h / 2 + 8, palette.faint);
 }
