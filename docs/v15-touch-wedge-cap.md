@@ -120,4 +120,5 @@ reset reason, whether a touch occurred, and how long this boot has run wedge-fre
 
 Touch is checked on every unit today: §6's "touch registers a tap" and §7's touch-and-hold Wi-Fi
 reset. Neither catches this failure, because it only appears after **10 minutes untouched** and an
-inspection is shorter. §6 of `INCOMING-INSPECTION.md` gains a one-line 11-minute soak for it.
+inspection is shorter. §6 of `INCOMING-INSPECTION.md` gains an 11-minute untouched soak for it,
+run as a batch step (a whole tray at once, not one unit at a time).

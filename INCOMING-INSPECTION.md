@@ -303,7 +303,7 @@ Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi 
 **This boot is where §4's serial half gets recorded** — the RSSI reading and the zero-reason-204
 criterion. Watch it here; the probe build could not produce it.
 
-**Then leave it untouched for 11 minutes on serial: it must not reboot (no second `[build]` banner), and the last `[health] touch-wd` line must read `wedges=0` and `rebootRec=0`.** A tap proves touch works now; only this catches a controller that wedges and triggers the 10-minute touch-wedge reboot ([docs/v15-touch-wedge-cap.md](docs/v15-touch-wedge-cap.md)).
+**Then the 11-minute untouched soak — a BATCH step: run a whole tray at once, not one unit at a time.** Once every unit on the tray has passed the checks above, leave the tray powered and untouched for 11 minutes. A unit fails if it reboots in that window (its screen shows the boot splash; on serial, a second `[build]` banner) or its last `[health] touch-wd` line does not read `wedges=0` and `rebootRec=0`. A tap proves touch works now; only this catches a controller that wedges and triggers the 10-minute touch-wedge reboot ([docs/v15-touch-wedge-cap.md](docs/v15-touch-wedge-cap.md)).
 
 ---
 
