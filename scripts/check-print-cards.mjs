@@ -69,7 +69,10 @@ const REQUIRED = {
   quickstart: [
     { what: "wordmark", card: 0, sel: ".wordmark", text: "BLIPSCOPE" },
     { what: "QR", card: 1, sel: ".qr-slot", text: "valarsystems.com" },
-    { what: "data note", card: 1, sel: ".note", text: NOTE },
+    // EXACT, not "contains": the card design lives in Canva and the repo is the
+    // source of truth for the WORDING, so any change to this sentence -- here or
+    // there -- has to be a deliberate edit to NOTE, never a quiet divergence.
+    { what: "data note", card: 1, sel: ".note", text: NOTE, exact: true },
   ],
   features: [
     { what: "wordmark", card: 0, sel: ".wordmark", text: "COLLECTING" },
@@ -175,7 +178,7 @@ function problems(path, rep, pages) {
   });
   for (const e of escapees(rep)) out.push(`clipped +${(e.bottom - e.cardH).toFixed(1)}px below ${JSON.stringify(e.text)}`);
   for (const req of requiredFor(path)) {
-    const hit = rep.found.filter((f) => f.card === req.card && f.sel === req.sel && f.text.includes(req.text));
+    const hit = rep.found.filter((f) => f.card === req.card && f.sel === req.sel && (req.exact ? f.text === req.text : f.text.includes(req.text)));
     if (hit.length === 0) { out.push(`missing ${req.what}: no ${req.sel} with ${JSON.stringify(req.text)} on card ${req.card}`); continue; }
     const h = hit[0];
     if (h.bottom <= h.top || h.top < -0.5 || h.bottom > CARD_H + 0.5 || h.right > CARD_W + 0.5) {
@@ -212,6 +215,8 @@ function main() {
       ["size: the card grows to 6.5in", (s) => s.replace("width:4in;height:6in;", "width:4in;height:6.5in;")],
       ["required: the data note is deleted", (s) => s.replace(/<p class="note">[\s\S]*?<\/p>/, "")],
       ["required: the QR is deleted", (s) => s.replace(/<div class="qr-slot">[\s\S]*?<\/div>/, "")],
+      ["required: the note's wording changed by one word", (s) => s.replace("volunteer networks we help fund.", "volunteer networks we fund.")],
+      ["required: the note gains a second sentence", (s) => s.replace("we help fund.</p>", "we help fund. Thank you.</p>")],
       ["required: the note pushed off the card", (s) => s.replace("<p class=\"note\">", "<p class=\"note\" style=\"margin-top:120px\">")],
     ];
     const clean = measure(chrome, src, "clean");
