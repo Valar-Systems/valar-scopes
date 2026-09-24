@@ -208,3 +208,30 @@ export function driftPanel(
     meaningA: `the drift run ended (${run.conclusion ?? "no conclusion"}) without posting a report -- nothing was measured`,
   };
 }
+
+// ---------------------------------------------------------------- freshness
+
+/** A drift run older than this is stale: the daily job has missed at least one run. */
+export const DRIFT_STALE_HOURS = 26;
+
+export interface DriftFreshness {
+  level: "ok" | "amber" | "red";
+  ageHours: number | null; // null when there has never been a run
+  label: string; // e.g. "last run 5.4 h ago"
+}
+
+// RED if the job failed; AMBER if the last run is over DRIFT_STALE_HOURS old;
+// otherwise ok. Red wins: a failed job that is also old is a failed job.
+//
+// 26 h and not 24: the job is DAILY and GitHub runs scheduled workflows late --
+// the 06:17Z run on 2026-09-24 started at 11:44Z -- so a 24 h threshold would go
+// amber on an ordinary late start. 26 h leaves room for that and still catches a
+// day with no run at all.
+export function driftFreshness(state: string, at: string, nowMs: number): DriftFreshness {
+  const t = at ? Date.parse(at) : NaN;
+  const ageHours = Number.isFinite(t) ? Math.max(0, Math.round(((nowMs - t) / 3600000) * 10) / 10) : null;
+  const label = ageHours === null ? "no run yet" : `last run ${ageHours} h ago`;
+  if (state === "FAILED") return { level: "red", ageHours, label };
+  if (ageHours !== null && ageHours > DRIFT_STALE_HOURS) return { level: "amber", ageHours, label };
+  return { level: "ok", ageHours, label };
+}

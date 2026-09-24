@@ -389,12 +389,12 @@ export function triageBody(items: TriageItem[]): string {
       const body =
         i.key === "drift"
           ? i.note
-            ? `<span class="bad">${esc(i.note)}</span>`
-            : `<span class="mute">nothing</span>`
+            ? `<span class="${i.level === "amber" ? "warn" : "bad"}">${esc(i.note)}</span>`
+            : `<span class="mute">nothing (${esc(i.detail[0] ?? "")})</span>`
           : count === 0
             ? `<span class="mute">nothing</span>`
             : i.devices.map((d, k) => `${devLink(d)} <span class="mute">${esc(i.detail[k] ?? "")}</span>`).join("<br>");
-      return `<tr><td class="n ${count ? "bad" : "mute"}">${count}</td><td>${esc(i.title)}<br><span class="mute" style="font-size:.7rem">${esc(i.window)}</span></td><td>${body}</td></tr>`;
+      return `<tr><td class="n ${count ? (i.level === "amber" ? "warn" : "bad") : "mute"}">${count}</td><td>${esc(i.title)}<br><span class="mute" style="font-size:.7rem">${esc(i.window)}</span></td><td>${body}</td></tr>`;
     })
     .join("");
   return `<section><h2>Triage</h2><div class="scroll"><table><tbody>${li}</tbody></table></div>

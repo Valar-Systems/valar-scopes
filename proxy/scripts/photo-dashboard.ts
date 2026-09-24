@@ -42,7 +42,7 @@ import {
   type FileChange,
   type Gh,
 } from "./github-api";
-import { driftPanel } from "./photo-drift";
+import { driftFreshness, driftPanel } from "./photo-drift";
 import { renderSquares } from "./photo-render";
 import { PHOTOS_PREFIX, assertPhotoPaths, planPublish, runState, validateRows } from "./publish-plan";
 import { RetryCeiling, withRefRetry } from "./publish-retry";
@@ -457,7 +457,9 @@ async function driftStatus(): Promise<PublishResult> {
   if (!run) return { status: 200, body: { tokenPresent: true, ...driftPanel(null, null) } };
   const check = await checkForRun(gh, "photo-drift", run.sha, run.createdAt,
     run.status === "completed" ? run.updatedAt : new Date().toISOString());
-  return { status: 200, body: { tokenPresent: true, url: run.url, ...driftPanel(run, check?.text ?? null) } };
+  const panel = driftPanel(run, check?.text ?? null);
+  // Age + level: amber over 26 h, red if the job failed (photo-drift.ts driftFreshness).
+  return { status: 200, body: { tokenPresent: true, url: run.url, ...panel, freshness: driftFreshness(panel.state, panel.at, Date.now()) } };
 }
 
 // ---------------------------------------------------------------- routes
@@ -783,10 +785,13 @@ async function drift() {
   const n = v => v === null || v === undefined ? "FAILED" : String(v);
   const when = d.at ? new Date(d.at).toLocaleString() : "";
   const link = d.url ? ' <a class="dim" href="' + esc(d.url) + '" target="_blank">run ↗</a>' : "";
-  box.className = d.state === "CLEAN" ? "clean" : d.state === "DRIFT" || d.state === "FAILED" ? "bad" : d.state === "RUNNING" ? "busy" : "";
+  const fr = d.freshness || { level: "ok", label: "" };
+  // Red if the job failed, amber if the last run is over 26 h old -- a CLEAN that
+  // is two days stale is not a CLEAN anyone should lean on.
+  box.className = fr.level === "red" ? "bad" : fr.level === "amber" ? "busy" : d.state === "CLEAN" ? "clean" : d.state === "DRIFT" || d.state === "FAILED" ? "bad" : d.state === "RUNNING" ? "busy" : "";
   const head = d.state === "NONE" ? "no drift check has run yet"
     : d.state === "RUNNING" ? "checking…"
-    : d.state + " · (a) render vs published manifest: " + n(d.a) + " · (b) published manifest vs live pointers: " + n(d.b) + " · " + when;
+    : d.state + " · (a) render vs published manifest: " + n(d.a) + " · (b) published manifest vs live pointers: " + n(d.b) + " · " + when + (fr.label ? " · " + fr.label + (fr.level === "amber" ? " (stale: over 26 h)" : "") : "");
   const detail = d.state === "CLEAN" || d.state === "NONE" || d.state === "RUNNING" ? "" : [d.meaningA, d.meaningB].filter(Boolean).map(esc).join("<br>");
   box.innerHTML = "<b>Render drift</b> <span>" + esc(head) + "</span>" + link + '<div class="rows dim">' + detail + "</div>";
 }

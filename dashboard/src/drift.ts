@@ -53,3 +53,24 @@ export async function readDrift(env: Env): Promise<DriftStatus> {
     return { state: "UNREADABLE", detail: String(err instanceof Error ? err.message : err).slice(0, 160), at: "" };
   }
 }
+
+// ---------------------------------------------------------------- freshness
+
+// The SAME rule as proxy/scripts/photo-drift.ts driftFreshness (the photo
+// dashboard's panel). This Worker cannot import from proxy/scripts, so it is a
+// copy, and test/phase1b.test.ts pins the threshold and the order: RED if the job
+// failed (or could not be read), AMBER if the last run is over 26 h old, else ok.
+// 26 h, not 24: GitHub runs the daily schedule late (06:17Z started 11:44Z on
+// 2026-09-24), so 24 h would go amber on an ordinary late start.
+export const DRIFT_STALE_HOURS = 26;
+
+export interface DriftFreshness { level: "ok" | "amber" | "red"; ageHours: number | null; label: string }
+
+export function driftFreshness(s: DriftStatus, nowMs: number): DriftFreshness {
+  const t = s.at ? Date.parse(s.at) : NaN;
+  const ageHours = Number.isFinite(t) ? Math.max(0, Math.round(((nowMs - t) / 3600000) * 10) / 10) : null;
+  const label = ageHours === null ? "no run yet" : `last run ${ageHours} h ago`;
+  if (s.state === "FAILED" || s.state === "UNREADABLE") return { level: "red", ageHours, label };
+  if (ageHours !== null && ageHours > DRIFT_STALE_HOURS) return { level: "amber", ageHours, label };
+  return { level: "ok", ageHours, label };
+}
