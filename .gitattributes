@@ -1,4 +1,11 @@
-* text=auto
+# Every text file is LF in the index AND in the working tree, on every OS. With
+# autocrlf on, a Windows checkout otherwise holds CRLF copies, and any tool reading
+# the same tree from another side (WSL git, the review environment) sees every file
+# as modified -- ghost status that gets misread as real work.
+* text=auto eol=lf
+
+# cmd.exe mis-parses labels/goto in LF batch files; this one stays CRLF on disk.
+*.cmd   text eol=crlf
 
 # Shell scripts must keep LF even on Windows checkouts (autocrlf is on): bash
 # refuses a script whose shebang line ends in CRLF ("bad interpreter: ...^M"),
@@ -20,6 +27,12 @@ relay/** text eol=lf
 *.bin   binary
 *.gz    binary
 *.zip   binary
+*.pdf   binary
+*.stl   binary
+*.3mf   binary
+*.elf   binary
+*.wav   binary
+*.woff2 binary
 
 # The embedded page module is generated; keep it LF so scripts/embed-pages.mjs
 # --check compares content rather than checkout style.

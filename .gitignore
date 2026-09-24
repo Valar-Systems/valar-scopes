@@ -6,8 +6,6 @@ __pycache__/
 # Confidential business docs (pricing, margins, strategy) -- never commit to the public repo.
 business/
 
-# Stock-firmware dumps and other large bench binaries stay local (insurance copies, never shipped)
-bench-logs/*.bin
 
 # Manufacturing record written by scripts/provision-device.py: one row per board
 # with its factory MAC and derived deviceId. Not a secret (the device KEY is never
@@ -16,19 +14,14 @@ bench-logs/*.bin
 # somewhere else entirely.
 provisioned.csv
 
-# Per-run bench ledgers written by scripts/bench-capture.ps1 (machine-specific,
-# one file per capture run). The historical soak logs above stay tracked.
-#
-# The animation rig produces these by the dozen -- a single afternoon of tuning
-# LIFTOFF left 25 of them -- and they are only ever read minutes after they are
-# written. What survives a run is the numbers copied into docs/animtest-results-*.
-bench-logs/s3-128-*.log
-bench-logs/animtest-*.log
-bench-logs/gametest-*.log
-bench-logs/deto-*.log
-bench-logs/splash-*.log
-bench-logs/capture.pid
-bench-logs/capture-*.pid
+# Everything the bench writes: per-run capture ledgers (scripts/bench-capture.ps1,
+# the animation/game rigs -- one afternoon of tuning LIFTOFF left 25), capture pids,
+# stock-firmware .bin dumps. Ignored as a whole directory: the per-pattern list
+# missed new kinds and left dozens of untracked files that read as uncommitted
+# work in `git status`. The historical soak logs already tracked here stay tracked
+# (ignore rules never untrack a file); adding a new one needs `git add -f`. What
+# survives a run is the numbers copied into docs/animtest-results-*.
+bench-logs/
 
 # wrangler local state (dev server, deploy cache) -- per-machine, never shared
 .wrangler/
