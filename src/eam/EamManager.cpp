@@ -62,6 +62,12 @@ void EamManager::Initialise()
         if (id == "icbm")      { out = Screen::Icbm;        return true; }
         if (id == "ref")       { out = Screen::Reference;   return true; }
         if (id == "clock")     { out = Screen::Clock;       return true; }
+        if (id == "lastmsg")   { out = Screen::LastMsg;     return true; }
+        if (id == "channels")  { out = Screen::Channels;    return true; }
+        if (id == "cwmonth")   { out = Screen::CwMonth;     return true; }
+        if (id == "solar")     { out = Screen::Solar;       return true; }
+        if (id == "quiet")     { out = Screen::Quiet;       return true; }
+        if (id == "logbook")   { out = Screen::Logbook;     return true; }
         return false;
     };
     if (screensCfg.length()) {
@@ -218,6 +224,12 @@ void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
         case Screen::Propagation: DrawPropagation(backbuffer); break;
         case Screen::Icbm:        DrawIcbm(backbuffer); break;
         case Screen::Reference:   DrawReference(backbuffer); break;
+        case Screen::LastMsg:     DrawLastMsg(backbuffer); break;
+        case Screen::Channels:    DrawChannels(backbuffer); break;
+        case Screen::CwMonth:     DrawCwMonth(backbuffer); break;
+        case Screen::Solar:       DrawSolar(backbuffer); break;
+        case Screen::Quiet:       DrawQuiet(backbuffer); break;
+        case Screen::Logbook:     DrawLogbook(backbuffer); break;
         case Screen::Clock:
         default:                  DrawClock(backbuffer); break;
     }
@@ -277,6 +289,12 @@ bool EamManager::HasData(Screen s) const
         case Screen::Propagation: return feed.Propagation().valid;
         case Screen::Icbm:        return !feed.Launches().empty(); // hidden when no upcoming launch
         case Screen::Reference:   return true; // static help card, no feed dependency
+        case Screen::LastMsg:     return !feed.Latest().empty();
+        case Screen::Channels:    return feed.Stats().valid && !feed.Stats().byFreq.empty();
+        case Screen::CwMonth:     return true;
+        case Screen::Solar:       return feed.Propagation().valid;
+        case Screen::Quiet:       return feed.Stats().valid && feed.Stats().longestQuietMin >= 0;
+        case Screen::Logbook:     return logbook.EamCount() > 0;
         case Screen::Clock:       return true;
         default:                  return false;
     }

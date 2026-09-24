@@ -1633,7 +1633,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <span>Order &amp; enable (comma-separated; omit one to hide it):</span>
                         <input name="eam-screens" value='%EAM_SCREENS%'>
                     </label>
-                    <span class="hint mt">ids: ticker, tempo, activity, codewords, abncp, milair, prop, icbm, ref, clock. Empty rotates all. Activity and milair appear only when their feed has data; the clock always shows when nothing else does.</span>
+                    <span class="hint mt">ids: ticker, lastmsg, tempo, channels, activity, codewords, cwmonth, abncp, milair, prop, solar, icbm, ref, quiet, logbook, clock. Empty rotates all. Activity and milair appear only when their feed has data; the clock always shows when nothing else does.</span>
                 </details>
 
                 %USB_OPEN%
@@ -2837,7 +2837,7 @@ void ConfigurationWebServer::Initialise() {
         // default the field to the full ordered set so the user can see and edit it
         const String eamScreens = prefs.isKey("eam-screens")
             ? prefs.getString("eam-screens", "")
-            : String("ticker,tempo,activity,codewords,abncp,milair,prop,icbm,ref,clock");
+            : String("ticker,lastmsg,tempo,channels,activity,codewords,cwmonth,abncp,milair,prop,solar,icbm,ref,quiet,logbook,clock");
 #if defined(FEATURE_USB_OPEN)
         // "Open on computer" (FEATURE_USB_OPEN, src/eam/UsbOpen.h). Built here rather
         // than in the page literal so a build without the USB keyboard shows nothing.

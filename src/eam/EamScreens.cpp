@@ -604,3 +604,142 @@ void EamManager::DrawClock(BandCanvas& c)
     digit(synced ? mm / 10 : -1); digit(synced ? mm % 10 : -1); colon();
     digit(synced ? ss / 10 : -1); digit(synced ? ss % 10 : -1);
 }
+
+// ---- the numbers the one-subject rule moved off other screens (nothing removed is lost) -------
+
+void EamManager::DrawLastMsg(BandCanvas& c)
+{
+    // SUBJECT: the newest message's particulars -- the frequency it came in on, its length,
+    // and how long ago. (These shared the ticker's 8 px header before.)
+    c.setTextSize(2);
+    CenterText(c, "LAST EAM", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    const std::vector<eam::Msg>& latest = feed.Latest();
+    if (latest.empty()) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    const eam::Msg& m = latest.front();
+    const int h = SegMinH() * 13 / 10;
+    int y = (int)(SCREEN_SIZE * 0.22);
+    if (m.frequencyKhz) {
+        DrawSegText(c, String(m.frequencyKhz).c_str(), SCREEN_SIZE_DIV_2, y, h, palette.fg);
+        CenterText(c, "kHz", y + h + 4, palette.faint);
+    }
+    y += h + 26;
+    // "340+" ON A PARTIAL COPY: the characters are a floor, not a total (see the ticker's
+    // old header comment); the + is text beside the digits, since no segment draws it.
+    DrawSegText(c, String(m.charCount).c_str(), SCREEN_SIZE_DIV_2, y, h, palette.fg);
+    CenterText(c, m.partial ? "chars (floor)" : "chars", y + h + 4, palette.faint);
+    y += h + 26;
+    const time_t nowUtc = time(nullptr);
+    if (m.heardAtEpoch > 0 && nowUtc > 1600000000 && nowUtc >= m.heardAtEpoch) {
+        const long mins = (long)(nowUtc - m.heardAtEpoch) / 60;
+        char buf[12];
+        snprintf(buf, sizeof(buf), "%ld", mins > 9999 ? 9999L : mins);
+        DrawSegText(c, buf, SCREEN_SIZE_DIV_2, y, SegMinH(), palette.dim);
+        CenterText(c, "min ago", y + SegMinH() + 4, palette.faint);
+    }
+}
+
+void EamManager::DrawChannels(BandCanvas& c)
+{
+    // SUBJECT: today's EAMs per HFGCS channel; the busiest in the tempo colour, the channel
+    // propagation favours in accent. (The tempo screen's old frequency strip.)
+    c.setTextSize(2);
+    CenterText(c, "BY CHANNEL", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    const std::vector<eam::FreqCount>& byFreq = feed.Stats().byFreq;
+    if (byFreq.empty()) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    const int suggested = feed.Propagation().valid ? feed.Propagation().suggestedKhz : 0;
+    int busiestKhz = 0, busiestCount = -1;
+    for (const eam::FreqCount& fc : byFreq)
+        if (fc.count > busiestCount) { busiestCount = fc.count; busiestKhz = fc.khz; }
+    const int h = SegMinH();
+    const int rowH = h + 8;
+    int y = (int)(SCREEN_SIZE * 0.24);
+    const int xk = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 7;   // kHz column centre
+    const int xc = SCREEN_SIZE_DIV_2 + SCREEN_SIZE / 5;   // count column centre
+    for (const eam::FreqCount& fc : byFreq) {
+        if (y + h > (int)(SCREEN_SIZE * 0.86)) break;
+        const uint32_t kcol = (suggested && fc.khz == suggested) ? palette.accent : palette.dim;
+        const uint32_t ccol = (fc.khz == busiestKhz && busiestCount > 0) ? palette.fg : palette.dim;
+        if (fc.khz > 0) DrawSegText(c, String(fc.khz).c_str(), xk, y, h, kcol);
+        else { c.setTextColor(kcol); c.drawString("other", xk - c.textWidth("other") / 2, y + (h - c.fontHeight()) / 2); }
+        DrawSegText(c, String(fc.count).c_str(), xc, y, h, ccol);
+        y += rowH;
+    }
+}
+
+void EamManager::DrawCwMonth(BandCanvas& c)
+{
+    // SUBJECT: how many distinct SKYKING codewords this device has logged this month.
+    c.setTextSize(2);
+    CenterText(c, "CODEWORDS", (int)(SCREEN_SIZE * 0.20), palette.dim);
+    const time_t nowUtc = time(nullptr);
+    const long nowEpoch = (nowUtc > 1600000000) ? (long)nowUtc : 0;
+    const String n = String((unsigned)logbook.CodewordsThisMonth(nowEpoch));
+    const int h = ClockDigitH();
+    DrawSegText(c, n.c_str(), SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - h / 2, h, palette.fg);
+    CenterText(c, "this month", SCREEN_SIZE_DIV_2 + h / 2 + 8, palette.faint);
+}
+
+void EamManager::DrawSolar(BandCanvas& c)
+{
+    // SUBJECT: the solar indices behind the propagation call -- SFI, K, and the NOAA R and G
+    // scales when known -- and whose numbers they are. (The propagation screen's old line.)
+    c.setTextSize(2);
+    const eam::Propagation& p = feed.Propagation();
+    CenterText(c, "SOLAR", (int)(SCREEN_SIZE * 0.10), palette.dim);
+    if (!p.valid) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    const int h = SegMinH() * 13 / 10;
+    const int xl = SCREEN_SIZE_DIV_2 - SCREEN_SIZE / 5, xr = SCREEN_SIZE_DIV_2 + SCREEN_SIZE / 5;
+    auto cell = [&](int cx, int y, const char* label, int v, uint32_t col) {
+        char buf[12];
+        if (v >= 0) snprintf(buf, sizeof(buf), "%d", v); else snprintf(buf, sizeof(buf), "?");
+        DrawSegText(c, buf, cx, y, h, col);
+        c.setTextColor(palette.faint);
+        c.drawString(label, cx - c.textWidth(label) / 2, y + h + 4);
+    };
+    const int y1 = (int)(SCREEN_SIZE * 0.22), y2 = y1 + h + 30;
+    cell(xl, y1, "SFI", p.sfi, palette.fg);
+    cell(xr, y1, "K", p.kIndex, palette.fg);
+    const eam::SpaceWeather& sw = p.space;
+    if (sw.valid) {
+        cell(xl, y2, "R", sw.rScale, sw.rScale >= 3 ? palette.alert : sw.rScale >= 1 ? palette.warn : palette.fg);
+        cell(xr, y2, "G", sw.gScale, sw.gScale >= 3 ? palette.alert : sw.gScale >= 1 ? palette.warn : palette.fg);
+    }
+    if (p.source.length()) CenterWrap(c, p.source, (int)(SCREEN_SIZE * 0.80), palette.faint, 1);
+}
+
+void EamManager::DrawQuiet(BandCanvas& c)
+{
+    // SUBJECT: the longest stretch today with no EAM, as H:MM. (The clock's old ambient line.)
+    c.setTextSize(2);
+    CenterText(c, "LONGEST QUIET", (int)(SCREEN_SIZE * 0.22), palette.dim);
+    const int q = feed.Stats().longestQuietMin;
+    if (q < 0) {
+        CenterText(c, "no data", SCREEN_SIZE_DIV_2, palette.faint);
+        return;
+    }
+    char buf[12];
+    snprintf(buf, sizeof(buf), "%d:%02d", q / 60 > 99 ? 99 : q / 60, q % 60);
+    const int h = ClockDigitH();
+    DrawSegText(c, buf, SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - h / 2, h, palette.fg);
+    CenterText(c, "today, h:mm", SCREEN_SIZE_DIV_2 + h / 2 + 8, palette.faint);
+}
+
+void EamManager::DrawLogbook(BandCanvas& c)
+{
+    // SUBJECT: how many distinct EAMs this device has logged. (The clock's old ambient line.)
+    c.setTextSize(2);
+    CenterText(c, "LOGBOOK", (int)(SCREEN_SIZE * 0.22), palette.dim);
+    const String n = String((unsigned)logbook.EamCount());
+    const int h = FitSegH(n.c_str(), ClockDigitH(), ChordW(SCREEN_SIZE_DIV_2 - ClockDigitH() / 2, ClockDigitH()));
+    DrawSegText(c, n.c_str(), SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2 - h / 2, h, palette.fg);
+    CenterText(c, "EAMs logged", SCREEN_SIZE_DIV_2 + h / 2 + 8, palette.faint);
+}
