@@ -1,3 +1,4 @@
+import { refusesFakeId } from "./fakeids";
 import type { Env } from "./types";
 import { deriveDeviceKey } from "./deviceauth";
 import { isRevoked } from "./revocation";
@@ -145,6 +146,10 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   const id = String(body.id ?? "").trim().toLowerCase();
   const token = String(body.token ?? "").trim();
   if (!DEVICE_ID_RE.test(id)) return json({ error: "bad_request" }, 400);
+  // A fake-id-allowlist id never enrols in production (src/fakeids.ts), and it is
+  // refused BEFORE Turnstile so a probe costs no siteverify call. This is the
+  // path beefbeefbeefbeef took 195 times.
+  if (refusesFakeId(env, id)) return json({ error: "fake_device_id" }, 403);
   if (!token) return json({ error: "bad_request" }, 400);
 
   const remoteIp = request.headers.get("CF-Connecting-IP");
