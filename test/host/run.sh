@@ -799,6 +799,27 @@ else
 fi
 
 echo
+echo "== usage report: the Follow flag (v15 item 2) =="
+# Shim includes (UsageStore.h needs Arduino String + Preferences); the binary is
+# handed AircraftManager.cpp so it can assert the setter is actually CALLED.
+if ! "$CXX" $FLAGS -I"$ROOT/test/host/arduino_shim" "$ROOT/test/host/test_follow_flag.cpp" \
+      -o "$OUT/test_follow_flag.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the follow-flag test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_follow_flag.exe" "$ROOT/src/AircraftManager.cpp"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the follow-flag test could not see what it checks (BLIND)"
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
 else

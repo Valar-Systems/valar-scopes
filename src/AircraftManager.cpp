@@ -911,6 +911,15 @@ void AircraftManager::Initialise()
             followTarget = want;
         }
 
+        // THE USAGE REPORT'S FOLLOW FLAG (v15). Whether Follow is configured, as a
+        // boolean -- never the target (UsageStore.h, §17). Written HERE, after the
+        // one place Initialise() changes followTarget, so it covers set, cleared
+        // AND the load at boot (Initialise() runs at boot and on every config
+        // save). Until v15 nothing called SetFollowEnabled() at all, and every
+        // usage report said "not configured": 0 of 1,493 reports in 30 days.
+        // test/host/test_follow_flag.cpp fails if this call is removed.
+        usageStore.SetFollowEnabled(!followTarget.isEmpty());
+
         // THE TRAIL BUFFER BELONGS TO THE TRAIL TOGGLE, NOT TO A TARGET (#273).
         //
         // It used to belong to whoever was being followed, and that owner went
@@ -984,6 +993,8 @@ void AircraftManager::Initialise()
             followBenchArmed = false;
             if (followTarget.isEmpty()) {
                 followTarget = "bench";
+                usageStore.SetFollowEnabled(true); // a second site that sets followTarget
+
                 // NO Enable() HERE ANY MORE (#273): the buffer is allocated
                 // above from the trail toggle alone and does not wait on a
                 // target. A second enable site would re-imply the ownership
