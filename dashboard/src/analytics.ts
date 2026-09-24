@@ -101,6 +101,13 @@ const num = (v: number | string | null | undefined): number => {
 // leak in the same way: it would have to start its name with "/".
 export const REQUEST_POINTS = "blob1 LIKE '/%'";
 
+// IF() BRANCHES MUST SHARE A TYPE. Analytics Engine rejects
+// IF(cond, double4, 0) with a 422 -- "the 2nd and 3rd arguments to IF() function
+// must have the same type but instead had Double and Integer" -- so every
+// weighted sum's else-branch is 0.0. vitest cannot see this (it never runs the
+// SQL); scripts/smoke-analytics.mjs runs every statement against the live
+// endpoint (npm run smoke:analytics), and test/sql-shape.test.ts refuses the
+// known bad shapes.
 // One row per device that has checked in inside the window.
 export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
   const ds = dataset(env);
@@ -110,10 +117,10 @@ export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
       argMax(blob4, timestamp) AS model,
       argMax(blob6, timestamp) AS fw,
       SUM(double4) AS requests,
-      SUM(IF(double1 >= 400, double4, 0)) AS errors,
-      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards,
-      SUM(IF(blob1 IN ('/api/v1/blipscope/enrich', '/v1/enrich'), double4, 0)) AS enriches,
-      SUM(IF(blob2 = 'STALE', double4, 0)) AS stale_served,
+      SUM(IF(double1 >= 400, double4, 0.0)) AS errors,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0.0)) AS cards,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/enrich', '/v1/enrich'), double4, 0.0)) AS enriches,
+      SUM(IF(blob2 = 'STALE', double4, 0.0)) AS stale_served,
       MAX(timestamp) AS last_seen
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
@@ -145,15 +152,18 @@ export interface FleetTotals {
   unattributed: number;
 }
 
+// uniqExact, never uniq: Analytics Engine has no uniqExact() ("unknown function call:
+// UNIQ", live 2026-09-24). proxy/scripts/usage-stats.ts is the reference, and it
+// uses uniqExact(IF(cond, blob4, NULL)) -- so the NULL branch is the proven form.
 export async function fleetTotals(env: Env, hours: number): Promise<FleetTotals> {
   const ds = dataset(env);
   const sql = `
     SELECT
-      uniq(IF(blob5 != '', blob5, NULL)) AS devices,
+      uniqExact(IF(blob5 != '', blob5, NULL)) AS devices,
       SUM(double4) AS requests,
-      SUM(IF(double1 >= 400, double4, 0)) AS errors,
-      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards,
-      SUM(IF(blob5 = '', double4, 0)) AS unattributed
+      SUM(IF(double1 >= 400, double4, 0.0)) AS errors,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0.0)) AS cards,
+      SUM(IF(blob5 = '', double4, 0.0)) AS unattributed
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS}`;
   const out = await runSql<Record<string, number | string>>(env, sql);
@@ -178,7 +188,7 @@ export interface FwRow {
 export async function firmwareSpread(env: Env, hours: number): Promise<FwRow[]> {
   const ds = dataset(env);
   const sql = `
-    SELECT blob6 AS fw, blob4 AS model, uniq(blob5) AS devices
+    SELECT blob6 AS fw, blob4 AS model, uniqExact(blob5) AS devices
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''
     GROUP BY fw, model

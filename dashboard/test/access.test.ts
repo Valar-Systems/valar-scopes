@@ -170,6 +170,19 @@ describe("verifyAccess", () => {
     ).not.toBeNull();
   });
 
+  // Production's list is one address, and the Cloudflare identity provider
+  // asserts the account email with whatever capitalisation the account has.
+  // Case must not matter; one character of the domain must.
+  it("matches the token's email case-insensitively, and nothing near it", async () => {
+    const prod = envWith({ ACCESS_ALLOWED_EMAILS: "daniel@valarsystems.com" });
+    const as = async (email: string) => verifyAccess(req(await sign({ ...good(), email })), prod);
+    expect(await as("Daniel@valarsystems.com")).not.toBeNull();
+    expect(await as("DANIEL@VALARSYSTEMS.COM")).not.toBeNull();
+    expect(await as("daniel@valarsystems.co")).toBeNull();
+    expect(await as("daniel@valarsystems.com.evil")).toBeNull();
+    expect(await as("")).toBeNull();
+  });
+
   it("refuses garbage that is not a JWT at all", async () => {
     for (const junk of ["", "abc", "a.b", "a.b.c.d", "....", "%%%"]) {
       expect(await verifyAccess(req(junk), envWith())).toBeNull();

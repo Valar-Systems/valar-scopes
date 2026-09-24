@@ -53,9 +53,10 @@ ACCESS_TEAM_DOMAIN = "curly-cell-4838.cloudflareaccess.com"
 ACCESS_AUD = "8f26eb439a0bab1ebf7dd1c10e9c112b32e2e4fc300e720ce97d3fe0a3027718"
 CF_ACCOUNT_ID = "48822e896bb10c45aa6bfe139bcff3d1"
 # Belt-and-braces list on top of the Access policy itself: a policy widened by
-# accident still reaches nobody else. Both are Daniel's -- the PIN can arrive at
-# either, and a list naming only the other would 403 him after a good sign-in.
-ACCESS_ALLOWED_EMAILS = "danielfrenkel@gmail.com,daniel@valarsystems.com"
+# accident still reaches nobody else. One address: Daniel signs in through the
+# Cloudflare identity provider, which asserts his Cloudflare account email.
+# Compared case-insensitively (src/access.ts; test/access.test.ts).
+ACCESS_ALLOWED_EMAILS = "daniel@valarsystems.com"
 
 [[env.production.kv_namespaces]]
 binding = "ENRICH_KV"
