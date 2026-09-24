@@ -2,10 +2,13 @@ import { verifyAccess } from "./access";
 import {
   clampHours,
   enrichGaps,
+  enrolledButSilent,
   firmwareSpread,
   fleetRows,
   fleetTotals,
   otaOutcomes,
+  seenDevices,
+  usageRows,
 } from "./analytics";
 import { readRevoked, setRevoked } from "./revoke";
 import {
@@ -17,6 +20,7 @@ import {
   gapsBody,
   otaBody,
   page,
+  usageBody,
 } from "./render";
 import type { DeviceRow, Env } from "./types";
 
@@ -185,6 +189,29 @@ export default {
             active: "/gaps",
             body: gapsBody(await enrichGaps(env, hours)),
           }),
+        );
+      }
+
+      // Per-device usage counters (the hourly usage index) and the enrolled-but-
+      // silent list. Defaults to 7 days, not the fleet page's 24 h: an hourly
+      // report needs a longer window to say anything.
+      if (url.pathname === "/usage" || url.pathname === "/usage.json") {
+        const h = url.searchParams.has("hours") ? hours : 168;
+        const [rows, silent] = await Promise.all([
+          usageRows(env, h),
+          seenDevices(env, h)
+            .then((seen) => enrolledButSilent(env, seen))
+            // The silent list can fail on its own (its cap, a KV list error)
+            // without taking the usage table down with it -- and it says why.
+            .catch((err: unknown) => ({ error: String(err instanceof Error ? err.message : err) })),
+        ]);
+        if (url.pathname === "/usage.json") {
+          return new Response(JSON.stringify({ hours: h, rows, silent }, null, 2), {
+            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
+        return html(
+          page({ title: "Usage", email: who.email, hours: h, active: "/usage", body: usageBody(rows, silent, h) }),
         );
       }
 

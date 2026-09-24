@@ -111,3 +111,20 @@ jobs:
         run: npm run typecheck:scripts
 
       - run: npm test
+
+      # Every SQL statement the dashboard can issue, run against the LIVE Analytics
+      # Engine endpoint. vitest never executes the SQL, and two defects reached the
+      # browser through a green suite on 2026-09-24 (IF() branch types, and a
+      # uniq() the engine does not have). Only the engine can say what it accepts.
+      #
+      # READ-ONLY: CF_ANALYTICS_READ_TOKEN is an Account Analytics: Read token and
+      # nothing else. Presence prints one bit. ABSENT FAILS -- a smoke that quietly
+      # passes without a token is read as "the SQL is fine", which is the one thing
+      # it has not established.
+      - name: Analytics SQL smoke (live, read-only)
+        if: matrix.worker == 'dashboard'
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_ANALYTICS_READ_TOKEN }}
+        run: |
+          if [ -n "$CF_API_TOKEN" ]; then echo "CF_ANALYTICS_READ_TOKEN: present"; else echo "CF_ANALYTICS_READ_TOKEN: absent"; echo "::error title=analytics smoke::CF_ANALYTICS_READ_TOKEN is not set -- the dashboard SQL was NOT checked against the engine"; exit 1; fi
+          npm run smoke:analytics

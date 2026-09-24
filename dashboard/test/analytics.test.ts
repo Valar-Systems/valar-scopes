@@ -45,7 +45,11 @@ describe("the sampling correction", () => {
       // negated class cannot cross. Match lazily up to the weighted-sum tail
       // instead -- what this test is about is `double4` (the sampling weight)
       // rather than the shape of the predicate in front of it.
-      expect(sql).toMatch(new RegExp(`SUM\\(IF\\(.*?, double4, 0\\)\\) AS ${col}`));
+      //
+      // The else-branch is 0.0, not 0. This line used to assert `double4, 0` --
+      // the exact shape Analytics Engine rejects with a 422 (Double vs Integer)
+      // -- so the suite was requiring the SQL that broke the Fleet page live.
+      expect(sql).toMatch(new RegExp(`SUM\\(IF\\(.*?, double4, 0\\.0\\)\\) AS ${col}`));
     }
   });
 });

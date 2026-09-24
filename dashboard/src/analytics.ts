@@ -90,6 +90,24 @@ const num = (v: number | string | null | undefined): number => {
 // fleet-update cycle (that count is the deprecation instrument -- see
 // proxy/src/metrics.ts, which deliberately keeps the two as separate templates).
 
+// ONLY PER-REQUEST POINTS, positively selected. The dataset holds five families,
+// and the four added after this dashboard (enrich_gap, ota, boot, usage) put a
+// FAMILY NAME in blob1 where a request point puts its route. Every route template
+// starts with "/" (proxy/src/metrics.ts routeTemplate) and no family name does.
+// Without this, SUM(double4) over "all points" adds each hourly usage report's
+// Stats-screen count to Requests, and a boot point -- which carries the device id
+// in blob5 too -- can win argMax(blob4) and put a FIRMWARE string in the Model
+// column. A positive filter rather than a NOT IN list, so a sixth family cannot
+// leak in the same way: it would have to start its name with "/".
+export const REQUEST_POINTS = "blob1 LIKE '/%'";
+
+// IF() BRANCHES MUST SHARE A TYPE. Analytics Engine rejects
+// IF(cond, double4, 0) with a 422 -- "the 2nd and 3rd arguments to IF() function
+// must have the same type but instead had Double and Integer" -- so every
+// weighted sum's else-branch is 0.0. vitest cannot see this (it never runs the
+// SQL); scripts/smoke-analytics.mjs runs every statement against the live
+// endpoint (npm run smoke:analytics), and test/sql-shape.test.ts refuses the
+// known bad shapes.
 // One row per device that has checked in inside the window.
 export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
   const ds = dataset(env);
@@ -99,13 +117,14 @@ export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
       argMax(blob4, timestamp) AS model,
       argMax(blob6, timestamp) AS fw,
       SUM(double4) AS requests,
-      SUM(IF(double1 >= 400, double4, 0)) AS errors,
-      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards,
-      SUM(IF(blob1 IN ('/api/v1/blipscope/enrich', '/v1/enrich'), double4, 0)) AS enriches,
-      SUM(IF(blob2 = 'STALE', double4, 0)) AS stale_served,
+      SUM(IF(double1 >= 400, double4, 0.0)) AS errors,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0.0)) AS cards,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/enrich', '/v1/enrich'), double4, 0.0)) AS enriches,
+      SUM(IF(blob2 = 'STALE', double4, 0.0)) AS stale_served,
       MAX(timestamp) AS last_seen
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
+      AND ${REQUEST_POINTS}
       AND blob5 != ''
     GROUP BY dev
     ORDER BY requests DESC
@@ -133,17 +152,24 @@ export interface FleetTotals {
   unattributed: number;
 }
 
+// DISTINCT COUNTS ARE count(DISTINCT x). Established against the live engine on
+// 2026-09-24, not assumed: uniq() and uniqExact() are both "unknown function
+// call" (422) -- proxy/scripts/usage-stats.ts uses uniqExact and would fail the
+// same way -- and IF(cond, blob5, NULL) is rejected as String vs Null. So the
+// empty (unattributed) id is subtracted rather than NULLed out. Checked against a
+// GROUP BY count on a fixed window: this expression and the GROUP BY both read 4,
+// while plain count(DISTINCT blob5) read 5 (the empty id).
 export async function fleetTotals(env: Env, hours: number): Promise<FleetTotals> {
   const ds = dataset(env);
   const sql = `
     SELECT
-      uniq(IF(blob5 != '', blob5, NULL)) AS devices,
+      count(DISTINCT blob5) - MAX(IF(blob5 = '', 1, 0)) AS devices,
       SUM(double4) AS requests,
-      SUM(IF(double1 >= 400, double4, 0)) AS errors,
-      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards,
-      SUM(IF(blob5 = '', double4, 0)) AS unattributed
+      SUM(IF(double1 >= 400, double4, 0.0)) AS errors,
+      SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0.0)) AS cards,
+      SUM(IF(blob5 = '', double4, 0.0)) AS unattributed
     FROM ${ds}
-    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR`;
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS}`;
   const out = await runSql<Record<string, number | string>>(env, sql);
   const r = out.data[0] ?? {};
   return {
@@ -166,9 +192,9 @@ export interface FwRow {
 export async function firmwareSpread(env: Env, hours: number): Promise<FwRow[]> {
   const ds = dataset(env);
   const sql = `
-    SELECT blob6 AS fw, blob4 AS model, uniq(blob5) AS devices
+    SELECT blob6 AS fw, blob4 AS model, count(DISTINCT blob5) AS devices
     FROM ${ds}
-    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND blob5 != ''
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''
     GROUP BY fw, model
     ORDER BY model, fw`;
   const out = await runSql<{ fw: string; model: string; devices: number | string }>(env, sql);
@@ -223,4 +249,153 @@ export async function enrichGaps(env: Env, hours: number): Promise<{ gap: string
     LIMIT 40`;
   const out = await runSql<{ gap: string; type: string; lookups: number | string }>(env, sql);
   return out.data.map((r) => ({ gap: r.gap, type: r.type || "(none)", lookups: num(r.lookups) }));
+}
+
+// ---------------------------------------------------------------- usage
+
+// THE USAGE INDEX (proxy/src/metrics.ts recordUsage). One point per hourly report
+// from a device: blobs ["usage", model, fw, dev], doubles
+//   [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours].
+// Counts THAT a feature was used, never what it was used on -- see CLAUDE.md
+// "Usage telemetry: counts yes, subjects never".
+//
+// THREE KINDS OF NUMBER, AND ONLY ONE OF THEM IS SUMMED (include/UsageReport.h):
+//   - the six counters are DELTAS since the device's previous report -> SUM;
+//   - followEnabled is STATE (0/1) -> the value at the latest report;
+//   - uptimeHours is a GAUGE, hours since boot -> the value at the latest report.
+//     Summing it would add 1+2+3+... across a day of reports and invent weeks.
+// Usage points are not write-sampled, but Analytics Engine may sample at query
+// time, so every sum is weighted by _sample_interval like the enrich_gap query.
+export interface UsageRow {
+  dev: string;
+  model: string;
+  fw: string;
+  reports: number;
+  cardOpens: number;
+  radar: number;
+  list: number;
+  stats: number;
+  follow: number;
+  claims: number;
+  followEnabled: boolean;
+  uptimeHours: number;
+  lastReport: string;
+}
+
+export const USAGE_POINTS = "blob1 = 'usage'";
+
+export async function usageRows(env: Env, hours: number): Promise<UsageRow[]> {
+  const ds = dataset(env);
+  const sql = `
+    SELECT
+      blob4 AS dev,
+      argMax(blob2, timestamp) AS model,
+      argMax(blob3, timestamp) AS fw,
+      SUM(_sample_interval) AS reports,
+      SUM(_sample_interval * double1) AS card_opens,
+      SUM(_sample_interval * double2) AS radar,
+      SUM(_sample_interval * double3) AS list,
+      SUM(_sample_interval * double4) AS stats,
+      SUM(_sample_interval * double5) AS follow,
+      SUM(_sample_interval * double6) AS claims,
+      argMax(double7, timestamp) AS follow_enabled,
+      argMax(double8, timestamp) AS uptime_hours,
+      MAX(timestamp) AS last_report
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
+      AND ${USAGE_POINTS}
+      AND blob4 != ''
+    GROUP BY dev
+    ORDER BY card_opens DESC, reports DESC
+    LIMIT 500`;
+  const out = await runSql<Record<string, number | string>>(env, sql);
+  return out.data.map((r) => ({
+    dev: String(r.dev),
+    model: String(r.model || "?"),
+    fw: String(r.fw || "?"),
+    reports: num(r.reports),
+    cardOpens: num(r.card_opens),
+    radar: num(r.radar),
+    list: num(r.list),
+    stats: num(r.stats),
+    follow: num(r.follow),
+    claims: num(r.claims),
+    followEnabled: num(r.follow_enabled) === 1,
+    uptimeHours: num(r.uptime_hours),
+    lastReport: String(r.last_report ?? ""),
+  }));
+}
+
+// ---------------------------------------------------------------- enrolled but silent
+
+// Every device id that made ANY request in the window. A dedicated query rather
+// than fleetRows' ids, because fleetRows stops at 500 rows and a truncated "seen"
+// set would put live devices on the silent list. If this one hits its own cap it
+// REFUSES rather than guess.
+export const SEEN_CAP = 10000;
+
+export async function seenDevices(env: Env, hours: number): Promise<Set<string>> {
+  const ds = dataset(env);
+  const sql = `
+    SELECT blob5 AS dev
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''
+    GROUP BY dev
+    LIMIT ${SEEN_CAP}`;
+  const out = await runSql<{ dev: string }>(env, sql);
+  if (out.data.length >= SEEN_CAP) {
+    throw new Error(`seen-device list hit its ${SEEN_CAP}-row cap; the silent list would be wrong, so it is not shown`);
+  }
+  return new Set(out.data.map((r) => r.dev));
+}
+
+export interface SilentRow {
+  dev: string;
+  /** From the enrolment ledger: when it ENROLLED, never when it was last seen. */
+  firstEnrolled: string;
+  lastEnrolled: string;
+  enrollments: number;
+}
+
+const DEVICE_ID = /^[0-9a-f]{8,32}$/;
+
+// The enrolment ledger (proxy/src/enroll.ts): one `enr:dev:<id>` row per device
+// that ever enrolled. Its lastAt is the last ENROLMENT, not the last time the
+// device was heard from -- a single enrolment is the signature of a working unit
+// (docs/bench-key-rotation.md). So "silent" is computed here as ledger ids MINUS
+// ids that made a request in the window, and the ledger dates are shown only
+// under their own name.
+// Shown up to SILENT_SHOWN rows with the TRUE total beside them: a list that
+// stopped at N without saying so would read as "only N are silent".
+export const SILENT_SHOWN = 200;
+
+export async function enrolledButSilent(
+  env: Env,
+  seen: Set<string>,
+): Promise<{ rows: SilentRow[]; total: number; enrolled: number }> {
+  const ids: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.ENRICH_KV.list({ prefix: "enr:dev:", cursor });
+    for (const k of page.keys) {
+      const id = k.name.slice("enr:dev:".length);
+      if (DEVICE_ID.test(id)) ids.push(id);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  const silent = ids.filter((id) => !seen.has(id)).sort();
+  const rows = await Promise.all(
+    silent.slice(0, SILENT_SHOWN).map(async (id) => {
+      const r = await env.ENRICH_KV.get<{ firstAt?: string; lastAt?: string; enrollments?: number }>(
+        `enr:dev:${id}`, "json",
+      ).catch(() => null);
+      return {
+        dev: id,
+        firstEnrolled: r?.firstAt ?? "",
+        lastEnrolled: r?.lastAt ?? "",
+        enrollments: typeof r?.enrollments === "number" ? r.enrollments : 0,
+      };
+    }),
+  );
+  return { rows, total: silent.length, enrolled: ids.length };
 }

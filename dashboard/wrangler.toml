@@ -7,7 +7,7 @@
 #        It reads telemetry; it is not an account key. Scope it that narrowly.
 #
 # Vars that must be set before this is reachable (see [env.production.vars]):
-#   ACCESS_TEAM_DOMAIN, ACCESS_AUD -- with either missing the Worker refuses
+#   ACCESS_TEAM_DOMAIN, ACCESS_AUD (set below) -- with either missing the Worker refuses
 #   every request. A half-configured dashboard serves nobody rather than
 #   everybody; see src/access.ts.
 
@@ -46,12 +46,17 @@ routes = [
 
 [env.production.vars]
 AE_DATASET = "blipscope_proxy"
-# Fill both in before the first deploy (see README "Putting Access in front").
-ACCESS_TEAM_DOMAIN = "REPLACE_ME.cloudflareaccess.com"
-ACCESS_AUD = "REPLACE_ME"
+# Access (see README "Putting Access in front"). The AUD is the application's
+# identifier, not a secret: it is checked against the signed token, and knowing it
+# grants nothing without a token Access signed for this application.
+ACCESS_TEAM_DOMAIN = "curly-cell-4838.cloudflareaccess.com"
+ACCESS_AUD = "8f26eb439a0bab1ebf7dd1c10e9c112b32e2e4fc300e720ce97d3fe0a3027718"
 CF_ACCOUNT_ID = "48822e896bb10c45aa6bfe139bcff3d1"
-# Optional belt-and-braces list on top of the Access policy itself.
-# ACCESS_ALLOWED_EMAILS = "danielfrenkel@gmail.com"
+# Belt-and-braces list on top of the Access policy itself: a policy widened by
+# accident still reaches nobody else. One address: Daniel signs in through the
+# Cloudflare identity provider, which asserts his Cloudflare account email.
+# Compared case-insensitively (src/access.ts; test/access.test.ts).
+ACCESS_ALLOWED_EMAILS = "daniel@valarsystems.com"
 
 [[env.production.kv_namespaces]]
 binding = "ENRICH_KV"
