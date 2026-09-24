@@ -15,11 +15,12 @@
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
 #endif
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
-#include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
+// /diag/fb is served by every edition (see the route), so its includes are unconditional.
 #include "FrameBuffer.h"
 #include <esp_heap_caps.h>
 #include <memory>
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #include "Logbook.h"              // radar-only; serves the spotting lifelist as /logbook.json
 #endif
 
@@ -3992,6 +3993,37 @@ void ConfigurationWebServer::Initialise() {
     // The stream owns an open read-only Preferences handle, so it is kept in a
     // shared_ptr the lambda captures by value: ESPAsyncWebServer calls the filler
     // repeatedly and then drops it, which is exactly when the handle should close.
+    // ---- /diag/fb.html : the same thing, for a person --------------------
+    server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send_P(200, "text/html", FB_VIEWER_HTML);
+    });
+
+    server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        // Ask the loop task to flush a dirty logbook. It cannot help THIS
+        // response -- the stream below is already reading NVS on this task -- but
+        // it makes the next read current. Dirty-only and rate-limited on the
+        // logbook side; this end just raises the flag.
+        logbookFlushRequested = true;
+        auto stream = std::make_shared<Logbook::JsonStream>();
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "application/json",
+            [stream](uint8_t* buffer, size_t maxLen, size_t) -> size_t {
+                return stream->Read(buffer, maxLen);
+            });
+        r->addHeader("Cache-Control", "no-store");
+        // The collection view fetches this inline; the "download a copy" link
+        // asks for ?download=1 and gets the attachment disposition instead.
+        if (request->hasParam("download"))
+            r->addHeader("Content-Disposition", "attachment; filename=\"logbook.json\"");
+        request->send(r);
+    });
+#endif
+
+    // /diag/fb is served by EVERY edition, not only the radar: "UNCONDITIONAL, deliberately"
+    // below was the intent, but the route sat inside the radar-only block, so the Missileer
+    // build 404'd it -- found when its display PR needed captures (2026-09-24). The framebuffer
+    // and its sequence counter (main.cpp) are unconditional. The /diag/fb.html viewer page
+    // stays radar-only for now; its HTML literal lives in that block.
     // ---- /diag/fb : the glass, as bytes ----------------------------------
     //
     // Three display defects in one week were settled by pointing a phone camera
@@ -4073,32 +4105,6 @@ void ConfigurationWebServer::Initialise() {
         r->addHeader("Cache-Control", "no-store");
         request->send(r);
     });
-
-    // ---- /diag/fb.html : the same thing, for a person --------------------
-    server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send_P(200, "text/html", FB_VIEWER_HTML);
-    });
-
-    server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
-        // Ask the loop task to flush a dirty logbook. It cannot help THIS
-        // response -- the stream below is already reading NVS on this task -- but
-        // it makes the next read current. Dirty-only and rate-limited on the
-        // logbook side; this end just raises the flag.
-        logbookFlushRequested = true;
-        auto stream = std::make_shared<Logbook::JsonStream>();
-        AsyncWebServerResponse* r = request->beginChunkedResponse(
-            "application/json",
-            [stream](uint8_t* buffer, size_t maxLen, size_t) -> size_t {
-                return stream->Read(buffer, maxLen);
-            });
-        r->addHeader("Cache-Control", "no-store");
-        // The collection view fetches this inline; the "download a copy" link
-        // asks for ?download=1 and gets the attachment disposition instead.
-        if (request->hasParam("download"))
-            r->addHeader("Content-Disposition", "attachment; filename=\"logbook.json\"");
-        request->send(r);
-    });
-#endif
 
 #ifdef FEATURE_EAM
     // Logbook export (firmware-only; no backend). Serves the persisted EAM/codeword log straight
