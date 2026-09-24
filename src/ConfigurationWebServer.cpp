@@ -2854,7 +2854,7 @@ void ConfigurationWebServer::Initialise() {
             + "<option value=\"linux\"" + sel(usbOs == "linux") + ">Linux (Alt+F2)</option>"
             + "<option value=\"off\"" + sel(usbOs == "off") + ">Off</option>"
             + "</select></label><label class=\"field\"><span>When no message is shown:</span><select name=\"eam-usb-empty\" class=\"grow\">"
-            + "<option value=\"archive\"" + sel(usbEmpty != "none") + ">Open the archive</option>"
+            + "<option value=\"archive\"" + sel(usbEmpty != "none") + ">Open missileer.watch</option>"
             + "<option value=\"none\"" + sel(usbEmpty == "none") + ">Do nothing</option>"
             + "</select></label></div></fieldset>";
 #else
