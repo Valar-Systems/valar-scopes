@@ -146,27 +146,41 @@ parse_matrix_envs() {
 # find a plant here, check for a live process before concluding anything --
 # `ps -W | grep bash`, or Get-CimInstance Win32_Process on the command line.
 # ---------------------------------------------------------------------------
+# THE CONTROL IS PLANTED WHERE THE IMAGE COMPILES IT -- per env, not in one file.
+#
+# ConfigMigration.cpp is linked into every PRODUCT image, and it was the only plant
+# site. animtest-s3-128 is built from `-<*> +<animtest_main.cpp> +<anim/>`, so that
+# file is never compiled into it, the control was structurally absent, and the row
+# read "UNTRUSTWORTHY (control blind)" on every run -- red on main for 8+ commits,
+# and a permanently failing check teaches everyone to ignore the gate. The fix is
+# not to skip the env (it is in the CI matrix, and the gate scans every image the
+# matrix builds): it is to plant into a file that image does compile.
+# plant_target() picks the site; every site is listed here for the recovery below.
+PLANT_FILES="src/ConfigMigration.cpp src/animtest_main.cpp"
 PLANT_FILE="src/ConfigMigration.cpp"
 
 unplant() {
   if [ -f "$PLANT_FILE.gatebak" ]; then mv -f "$PLANT_FILE.gatebak" "$PLANT_FILE"; fi
 }
 
-if [ -f "$PLANT_FILE.gatebak" ]; then
-  echo "NOTE: $PLANT_FILE.gatebak exists -- a previous gate run was interrupted mid-plant." >&2
-  echo "      Restoring $PLANT_FILE before doing anything else." >&2
-  unplant
-fi
-# Prove the restore worked rather than assuming the file it put back was clean.
-# If the control is still in the source, stop: every build below would carry it,
-# and the gate would be measuring its own plant.
-if grep -q "GATE CONTROL" "$PLANT_FILE" 2>/dev/null; then
-  echo "FATAL: $PLANT_FILE still contains the gate control string, and no backup" >&2
-  echo "       was available to restore. Recover it with:" >&2
-  echo "           git checkout -- $PLANT_FILE" >&2
-  echo "       Do not build or flash from this tree until you have." >&2
-  exit 2
-fi
+for PLANT_FILE in $PLANT_FILES; do
+  if [ -f "$PLANT_FILE.gatebak" ]; then
+    echo "NOTE: $PLANT_FILE.gatebak exists -- a previous gate run was interrupted mid-plant." >&2
+    echo "      Restoring $PLANT_FILE before doing anything else." >&2
+    unplant
+  fi
+  # Prove the restore worked rather than assuming the file it put back was clean.
+  # If the control is still in the source, stop: every build below would carry it,
+  # and the gate would be measuring its own plant.
+  if grep -q "GATE CONTROL" "$PLANT_FILE" 2>/dev/null; then
+    echo "FATAL: $PLANT_FILE still contains the gate control string, and no backup" >&2
+    echo "       was available to restore. Recover it with:" >&2
+    echo "           git checkout -- $PLANT_FILE" >&2
+    echo "       Do not build or flash from this tree until you have." >&2
+    exit 2
+  fi
+done
+PLANT_FILE="src/ConfigMigration.cpp"
 
 # --- the parser's own proof ---------------------------------------------------
 # Runs in CI ahead of the builds. Every case here is a way the parse could go
@@ -333,6 +347,23 @@ EXPECTED_BARE=1
 PLANT_ANCHOR='const int stored = prefs.getInt("cfg-rev", 0);'
 PLANT_LINE='    if (stored < -12345) Serial.println("api.adsbdb.com/v0/aircraft/"); // GATE CONTROL'
 
+# Where each env's control goes. Every branch is RUNTIME-dependent, so the compiler
+# cannot fold it away and --gc-sections cannot drop it (see the header, item 2).
+plant_target() {
+  case "$1" in
+    animtest-*)
+      PLANT_FILE="src/animtest_main.cpp"
+      PLANT_ANCHOR='    Serial.begin(115200);'
+      PLANT_LINE='    if (millis() == 0xFFFFFFFFul) Serial.println("api.adsbdb.com/v0/aircraft/"); // GATE CONTROL'
+      ;;
+    *)
+      PLANT_FILE="src/ConfigMigration.cpp"
+      PLANT_ANCHOR='const int stored = prefs.getInt("cfg-rev", 0);'
+      PLANT_LINE='    if (stored < -12345) Serial.println("api.adsbdb.com/v0/aircraft/"); // GATE CONTROL'
+      ;;
+  esac
+}
+
 plant() {
   cp "$PLANT_FILE" "$PLANT_FILE.gatebak" || return 1
   "$PY" -c '
@@ -407,6 +438,7 @@ for env in $ENVS; do
   LOG_REAL="$LOGDIR/$env.real.log"
 
   # ---- 1. plant the control and require the scanner to FIND it -------------
+  plant_target "$env"
   if ! plant; then
     printf '%-30s %-8s %-9s %-6s %s\n' "$env" "ERR" "-" "-" "PLANT FAILED"
     fail=$((fail+1)); unplant; continue
