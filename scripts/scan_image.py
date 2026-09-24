@@ -16,28 +16,32 @@ WHAT IT PRINTS: terms, counts, character classes and offsets. NEVER a matched
 string -- a scanner that echoes what it found leaks the secret into the very log
 that reports it.
 
-Terms, each a hit on sight:
+A hit on sight, whatever else is known:
   * the NAMES DEVICE_KEY_SECRET and CLOUD_FEED_KEY
-  * a 64-hex run (the shape of a device key / HMAC secret)
   * a GitHub token prefix, or "Bearer <token>"
-And one shape that is only a hit when UNTRACED:
-  * a 40-char token-shaped run [A-Za-z0-9_-]{40} (a Cloudflare API token's shape).
-    Frameworks are full of these, so each is TRACED: found verbatim in a public
-    input of the build (--trace), or its sha256 listed in a report CI published
-    for this release (--public-runs). An untraced one is a hit.
+A hit UNLESS TRACED to a public input of the build:
+  * a 64-hex run -- the shape of a device key or HMAC secret
+  * a 40-char token-shaped run [A-Za-z0-9_-]{40} -- a Cloudflare API token's shape
+Frameworks carry both shapes as public data: the C3/C6 Arduino images hold six
+64-hex mbedTLS constants from Espressif's prebuilt libmbedcrypto.a, and every
+image holds framework strings of 40 chars. So each such run is TRACED -- found
+verbatim in a public build input (--trace), or its sha256 listed in a report CI
+published for this release or in a checked-in list (--public-runs) -- and only an
+untraced one is a hit. A key baked in by a build flag is in no public input.
+With neither --trace nor --public-runs, every 64-hex run is a hit (fail closed)
+and 40-char runs are counted but not judged.
 
 CONTROLS, run on every scan, before any result is believed:
   1. anchor   -- a string known to be in this image must be FOUND. "Zero hits"
                  from a scanner that cannot see the image's strings is not evidence.
-  2. planted  -- a copy with a fake 64-hex key appended must be FLAGGED.
-  3. untraced -- (when 40-char runs are being judged) a copy with a random 40-char
-                 run appended must come back UNTRACED, or the trace is accepting
-                 everything and the 40-char rule protects nothing.
+  2. planted  -- a copy with a random 64-hex key appended must be FLAGGED.
+  3. untraced -- (when a trace or list is given) a random 40-char run must come
+                 back UNTRACED, or the trace is accepting everything and neither
+                 traced rule protects anything.
 A failed control is exit 3: the scan is untrustworthy, which is not the same as clean.
 
     scan_image.py IMAGE --anchor S --trace DIR [--trace DIR ...] [--emit REPORT.json]   (CI)
-    scan_image.py IMAGE --anchor S --public-runs REPORT.json                            (flasher)
-    scan_image.py IMAGE --anchor S                     (40-char runs counted, not judged)
+    scan_image.py IMAGE --anchor S --public-runs REPORT.json [--public-runs LIST.json]  (flasher)
     scan_image.py --selftest
 
 Exit: 0 clean, 1 hit, 3 a control failed (untrustworthy), 2 usage.
@@ -53,15 +57,18 @@ import secrets
 import sys
 
 MIN_STRING = 6
-RUN40 = re.compile(rb"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40}(?![A-Za-z0-9_-])")
-DEFINITE = [
+ON_SIGHT = [
     ("name DEVICE_KEY_SECRET", re.compile(rb"DEVICE_KEY_SECRET")),
     ("name CLOUD_FEED_KEY", re.compile(rb"CLOUD_FEED_KEY")),
-    ("64-hex run", re.compile(rb"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])")),
     ("GitHub token prefix", re.compile(rb"(?:ghp_|gho_|ghu_|ghs_|github_pat_)[A-Za-z0-9_]{20,}")),
     ("Bearer token", re.compile(rb"Bearer\s+[A-Za-z0-9._-]{20,}")),
 ]
-RUN40_LABEL = "40-char token-shaped run"
+HEX64 = "64-hex run"
+RUN40 = "40-char token-shaped run"
+TRACED = [
+    (HEX64, re.compile(rb"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])")),
+    (RUN40, re.compile(rb"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40}(?![A-Za-z0-9_-])")),
+]
 TRACE_EXT = re.compile(r"\.(c|cc|cpp|h|hpp|ino|s|ld|txt|csv|json|a|in|py|mk|cmake|inc|pem|crt)$", re.I)
 TRACE_SKIP_DIRS = re.compile(r"^(\.git|docs?|examples?|tests?)$", re.I)
 
@@ -83,13 +90,11 @@ def sha(s: bytes) -> str:
 
 
 def find(data: bytes):
-    """{label: [(offset, match_bytes)]} for every term, plus the 40-char runs."""
-    out = {label: [] for label, _ in DEFINITE}
-    out[RUN40_LABEL] = []
+    """{label: [(offset, match_bytes)]} for every term."""
+    out = {label: [] for label, _ in ON_SIGHT + TRACED}
     for off, s in strings(data):
-        for label, rx in DEFINITE:
+        for label, rx in ON_SIGHT + TRACED:
             out[label] += [(off + m.start(), m.group(0)) for m in rx.finditer(s)]
-        out[RUN40_LABEL] += [(off + m.start(), m.group(0)) for m in RUN40.finditer(s)]
     return out
 
 
@@ -132,59 +137,66 @@ class Verdict:
 
 def scan(data: bytes, anchor: str, trace_roots=None, public_runs=None, name="image") -> Verdict:
     v = Verdict()
-    judging_runs = trace_roots is not None or public_runs is not None
-
+    have_source = trace_roots is not None or public_runs is not None
     real = find(data)
-    runs = {m for _, m in real[RUN40_LABEL]}
-    fake = secrets.token_urlsafe(30)[:40].encode()
-    # ONE walk of the trace roots for the image's runs AND the control's plant:
-    # the package tree is large, and walking it per question tripled the cost.
-    where = trace(runs | {fake}, trace_roots) if trace_roots is not None else {}
+    shaped = {label: {m for _, m in real[label]} for label, _ in TRACED}
+    fake_hex = secrets.token_hex(32).encode()
+    fake_run = secrets.token_urlsafe(30)[:40].encode()
+    # ONE walk of the trace roots for every run AND both controls' plants: the
+    # package tree is large, and walking it per question tripled the cost.
+    where = (trace(set().union(*shaped.values()) | {fake_hex, fake_run}, trace_roots)
+             if trace_roots is not None else {})
 
-    def untraced_of(rs: set) -> set:
+    def untraced(rs: set) -> set:
         if trace_roots is not None:
             return {r for r in rs if r not in where}
-        return {r for r in rs if sha(r) not in public_runs}
+        if public_runs is not None:
+            return {r for r in rs if sha(r) not in public_runs}
+        return set(rs)
 
     v.say(f"image: {name} ({len(data)} bytes)")
-
     # CONTROL 1: the anchor.
     ok = anchor.encode() in data
     v.say(f"CONTROL anchor {anchor!r} found: {ok}")
     v.control_failed |= not ok
-    # CONTROL 2: a planted 64-hex key must be flagged.
-    planted = find(data + b"\0" + b"ab12" * 16 + b"\0")
-    ok = len(planted["64-hex run"]) == len(real["64-hex run"]) + 1
+    # CONTROL 2: a random 64-hex key, appended to a copy, must be flagged.
+    planted = {m for _, m in find(data + b"\0" + fake_hex + b"\0")[HEX64]}
+    ok = fake_hex in planted and fake_hex in untraced(planted)
     v.say(f"CONTROL planted 64-hex key flagged: {ok}")
     v.control_failed |= not ok
     # CONTROL 3: a random 40-char run must come back untraced.
-    if judging_runs:
-        ok = fake in untraced_of({fake})
+    if have_source:
+        ok = fake_run in untraced({fake_run})
         v.say(f"CONTROL planted 40-char run comes back untraced: {ok}")
         v.control_failed |= not ok
 
-    for label, _ in DEFINITE:
+    for label, _ in ON_SIGHT:
         hits = real[label]
         v.hits += len(hits)
         v.say(f"{len(hits):5}  {label}" + (f"   HIT at {', '.join(hex(o) for o, _ in hits[:5])}" if hits else ""))
 
-    if not judging_runs:
-        v.say(f"{len(runs):5}  {RUN40_LABEL} (distinct; not judged -- no trace and no public list)")
-    else:
-        bad = untraced_of(runs)
+    public = set()
+    for label, _ in TRACED:
+        runs = shaped[label]
+        if label == RUN40 and not have_source:
+            v.say(f"{len(runs):5}  {label} (distinct; not judged -- no trace and no public list)")
+            continue
+        bad = untraced(runs)
+        public |= runs - bad
         v.hits += len(bad)
         detail = ""
         if bad:
-            offs = [hex(o) for o, m in real[RUN40_LABEL] if m in bad][:5]
+            offs = [hex(o) for o, m in real[label] if m in bad][:5]
             detail = f"   UNTRACED {len(bad)}: classes {sorted(klass(m) for m in bad)} at {', '.join(offs)}"
-        v.say(f"{len(runs):5}  {RUN40_LABEL} (distinct), {len(runs) - len(bad)} traced to public inputs{detail}")
+        v.say(f"{len(runs):5}  {label} (distinct), {len(runs) - len(bad)} traced to public inputs{detail}")
         if trace_roots is not None:
             for root in trace_roots:
                 n = sum(1 for r, w in where.items() if w == root and r in runs)
                 if n:
                     v.say(f"         {n} found verbatim under {root}")
+    if have_source:
         v.report = {"v": 1, "image_sha256": hashlib.sha256(data).hexdigest(), "anchor": anchor,
-                    "public_runs": sorted(sha(r) for r in runs - bad)}
+                    "public_runs": sorted(sha(r) for r in public)}
 
     v.say("VERDICT: " + ("UNTRUSTWORTHY -- a control failed; nothing above is evidence" if v.control_failed
                          else f"HIT -- {v.hits} finding(s); this image must not be published or flashed" if v.hits
@@ -197,40 +209,42 @@ def exit_code(v: Verdict) -> int:
 
 
 def selftest() -> int:
-    """Each rule must be able to fire. Plants never print their content."""
+    """Each rule must be able to fire, and each trace must be able to excuse and
+    to refuse. Plants never print their content."""
     anchor = "scopes.valarsystems.com"
-    base = b"\0".join([b"bootloader", anchor.encode(), b"hello world string", b"x" * 40]) + b"\0"
-    public = {sha(b"x" * 40)}
+    pub_hex, pub_run = b"c0ffee00" * 8, b"x" * 40
+    base = b"\0".join([b"bootloader", anchor.encode(), b"hello world string", pub_run, pub_hex]) + b"\0"
+    public = {sha(pub_run), sha(pub_hex)}
     cases = [
-        ("clean", base, 0),
-        ("name DEVICE_KEY_SECRET", base + b"DEVICE_KEY_SECRET=\0", 1),
-        ("name CLOUD_FEED_KEY", base + b"-DCLOUD_FEED_KEY\0", 1),
-        ("64-hex key", base + b"0123456789abcdef" * 4 + b"\0", 1),
-        ("github token", base + b"ghp_" + b"A1b2" * 8 + b"\0", 1),
-        ("bearer", base + b"Bearer " + b"Zz9_" * 8 + b"\0", 1),
-        ("untraced 40-char run", base + b"Q7" * 20 + b"\0", 1),
-        ("no anchor", base.replace(anchor.encode(), b"elsewhere.example.com"), 3),
-        ("63-hex is not a key", base + b"a" * 63 + b"\0", 0),
+        ("clean, with a listed 40-char run and a listed 64-hex run", base, public, 0),
+        ("name DEVICE_KEY_SECRET", base + b"DEVICE_KEY_SECRET=\0", public, 1),
+        ("name CLOUD_FEED_KEY", base + b"-DCLOUD_FEED_KEY\0", public, 1),
+        ("unlisted 64-hex key", base + b"0123456789abcdef" * 4 + b"\0", public, 1),
+        ("github token", base + b"ghp_" + b"A1b2" * 8 + b"\0", public, 1),
+        ("bearer", base + b"Bearer " + b"Zz9_" * 8 + b"\0", public, 1),
+        ("unlisted 40-char run", base + b"Q7" * 20 + b"\0", public, 1),
+        ("no anchor", base.replace(anchor.encode(), b"elsewhere.example.com"), public, 3),
+        ("63-hex is not a key", base + b"a" * 63 + b"\0", public, 0),
+        ("no list at all: any 64-hex is a hit (fail closed)", base, None, 1),
     ]
     bad = 0
-    for name, data, want in cases:
-        got = exit_code(scan(data, anchor, public_runs=public, name=name))
+    for name, data, pub, want in cases:
+        got = exit_code(scan(data, anchor, public_runs=pub, name=name))
         ok = got == want
         bad += not ok
         print(f"  {'PASS' if ok else 'FAIL'}  {name}: exit {got}, want {want}")
-    # Trace path: a run present in a root file is traced; one absent is not.
     import tempfile
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "lib.h"), "wb") as f:
-            f.write(b'const char* s = "' + b"x" * 40 + b'";')
-        got = exit_code(scan(base, anchor, trace_roots=[td], name="traced"))
-        ok = got == 0
-        bad += not ok
-        print(f"  {'PASS' if ok else 'FAIL'}  trace finds a run in a public input: exit {got}, want 0")
-        got = exit_code(scan(base + b"Q7" * 20 + b"\0", anchor, trace_roots=[td], name="untraced"))
-        ok = got == 1
-        bad += not ok
-        print(f"  {'PASS' if ok else 'FAIL'}  trace refuses a run in no public input: exit {got}, want 1")
+            f.write(b'const char* s = "' + pub_run + b'"; const char* h = "' + pub_hex + b'";')
+        for name, data, want in (("trace finds both shapes in a public input", base, 0),
+                                 ("trace refuses a 40-char run in no public input", base + b"Q7" * 20 + b"\0", 1),
+                                 ("trace refuses a 64-hex run in no public input",
+                                  base + b"0123456789abcdef" * 4 + b"\0", 1)):
+            got = exit_code(scan(data, anchor, trace_roots=[td], name=name))
+            ok = got == want
+            bad += not ok
+            print(f"  {'PASS' if ok else 'FAIL'}  {name}: exit {got}, want {want}")
     print("SELFTEST " + ("PASSED" if not bad else f"FAILED ({bad})"))
     return 1 if bad else 0
 
@@ -239,8 +253,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Refuse a firmware image that carries a secret.")
     ap.add_argument("image", nargs="?")
     ap.add_argument("--anchor", help="a string that must be present in this image (control)")
-    ap.add_argument("--trace", action="append", help="public build input to trace 40-char runs to (repeatable)")
-    ap.add_argument("--public-runs", help="a scan report CI published for this image's release")
+    ap.add_argument("--trace", action="append", help="public build input to trace runs to (repeatable)")
+    ap.add_argument("--public-runs", action="append",
+                    help="a scan report or checked-in list of public run sha256s (repeatable)")
     ap.add_argument("--emit", help="write the scan report (image sha256 + traced-run hashes) here")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
@@ -252,9 +267,9 @@ def main(argv=None) -> int:
     with open(a.image, "rb") as f:
         data = f.read()
     public = None
-    if a.public_runs:
-        with open(a.public_runs, encoding="utf-8") as f:
-            public = set(json.load(f).get("public_runs", []))
+    for path in a.public_runs or []:
+        with open(path, encoding="utf-8") as f:
+            public = (public or set()) | set(json.load(f).get("public_runs", []))
     v = scan(data, a.anchor, trace_roots=a.trace, public_runs=public, name=os.path.basename(a.image))
     print("\n".join(v.lines))
     if a.emit and exit_code(v) == 0 and v.report:

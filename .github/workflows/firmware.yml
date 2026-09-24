@@ -259,11 +259,12 @@ jobs:
             --slug "${{ matrix.slug }}" --env "${{ matrix.env }}" \
             --boot-app0 "$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" \
             --out publish --fw-version "$v" --commit "${{ github.sha }}"
-      # NO SECRET IN THE IMAGE. Names, 64-hex runs, token prefixes and Bearer are a
-      # hit on sight; a 40-char token-shaped run is a hit unless it is found verbatim
-      # in a PUBLIC input of this build. The repo's only traced file is the public CA
-      # roots -- a string that lives elsewhere in the repo is not "public" merely by
-      # being committed. Three controls run first (anchor found, a planted key
+      # NO SECRET IN THE IMAGE. The key names, token prefixes and Bearer are a hit on
+      # sight. A 64-hex run (device-key shape) or a 40-char token-shaped run is a hit
+      # unless it is found verbatim in a PUBLIC input of this build -- frameworks
+      # carry both shapes as public data, and a key baked in by a build flag is in
+      # none of them. The repo's only traced file is the public CA roots -- a string
+      # that lives elsewhere in the repo is not "public" merely by being committed. Three controls run first (anchor found, a planted key
       # flagged, a planted 40-char run untraced); a failed control is exit 3,
       # untrustworthy, and fails this leg like a hit does. Prints counts, classes and
       # offsets only -- never a matched string. factory-scan-<slug>.json carries the
