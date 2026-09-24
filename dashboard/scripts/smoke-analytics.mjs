@@ -92,33 +92,45 @@ if (untrustworthy) {
   process.exit(3);
 }
 
-// Every query the pages issue. The Fleet page issues rows + totals; Usage issues
-// usage rows + the seen-device set.
+// Every statement the pages issue. Each spec is [tab, name, call, windows]: most
+// take a window, some take a device id or a fixed route set. Device queries use an
+// allowlisted FAKE id (scripts/device-id-allowlist.txt) -- the engine judges the
+// SQL's shape, not its data, so a real id is not needed and must not be in the tree.
+const DEV = "0123456789abcdef";
+const RET = [q.RETENTION_HOURS ?? 2160];
 const QUERIES = [
-  ["Fleet", "fleetRows"],
-  ["Fleet", "fleetTotals"],
-  ["Firmware", "firmwareSpread"],
-  ["OTA", "otaOutcomes"],
-  ["Enrichment gaps", "enrichGaps"],
-  ["Usage", "usageRows"],
-  ["Usage", "seenDevices"],
+  ["Fleet", "fleetRows", (h) => q.fleetRows(env, h), WINDOWS],
+  ["Fleet", "fleetTotals", (h) => q.fleetTotals(env, h), WINDOWS],
+  ["Fleet", "latestBoots", (h) => q.latestBoots(env, h), WINDOWS],
+  ["Fleet", "otaNotOk", (h) => q.otaNotOk(env, h), WINDOWS],
+  ["Fleet", "seenDevices@retention", (h) => q.seenDevices(env, h), RET],
+  ["Firmware", "firmwareSpread", (h) => q.firmwareSpread(env, h), WINDOWS],
+  ["OTA", "otaOutcomes", (h) => q.otaOutcomes(env, h), WINDOWS],
+  ["Enrichment gaps", "enrichGaps", (h) => q.enrichGaps(env, h), WINDOWS],
+  ["Usage", "usageRows", (h) => q.usageRows(env, h), WINDOWS],
+  ["Usage", "seenDevices", (h) => q.seenDevices(env, h), WINDOWS],
+  ["Device", "deviceSummary", (h) => q.deviceSummary(env, DEV, h), WINDOWS],
+  ["Device", "usageRows(dev)", (h) => q.usageRows(env, h, DEV), WINDOWS],
+  ["Device", "deviceFirmware", () => q.deviceFirmware(env, DEV), RET],
+  ["Device", "deviceBoots", () => q.deviceBoots(env, DEV), RET],
+  ["Device", "deviceOta", () => q.deviceOta(env, DEV), RET],
+  ["Funnel", "firstRequest(blips)", () => q.firstRequestTimes(env, q.BLIPS_ROUTES), RET],
+  ["Funnel", "firstRequest(photo)", () => q.firstRequestTimes(env, q.PHOTO_ROUTES), RET],
+  ["Upstreams", "upstreams", (h) => q.upstreams(env, h), WINDOWS],
 ];
 
 const failed = [];
 let ran = 0;
-for (const [tab, fn] of QUERIES) {
-  if (typeof q[fn] !== "function") {
-    failed.push(`${tab}/${fn}: not exported by the module`);
-    continue;
-  }
-  for (const h of WINDOWS) {
+for (const [tab, name, call, windows] of QUERIES) {
+  for (const h of windows) {
     ran++;
     try {
-      await q[fn](env, h);
-      console.log(`ok    ${tab.padEnd(15)} ${fn.padEnd(15)} ${String(h).padStart(3)}h`);
+      if (typeof call !== "function") throw new Error("no call");
+      await call(h);
+      console.log(`ok    ${tab.padEnd(15)} ${name.padEnd(22)} ${String(h).padStart(4)}h`);
     } catch (e) {
-      failed.push(`${tab}/${fn} ${h}h: ${short(e)}`);
-      console.log(`FAIL  ${tab.padEnd(15)} ${fn.padEnd(15)} ${String(h).padStart(3)}h  ${short(e)}`);
+      failed.push(`${tab}/${name} ${h}h: ${short(e)}`);
+      console.log(`FAIL  ${tab.padEnd(15)} ${name.padEnd(22)} ${String(h).padStart(4)}h  ${short(e)}`);
     }
   }
 }

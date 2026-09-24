@@ -14,7 +14,18 @@ import type { Env } from "../src/types";
 //   3. IF(cond, x, NULL): "must have the same type but instead had String and Null".
 
 const base = { CF_ACCOUNT_ID: "acct", CF_API_TOKEN: "tok" } as Env;
-const QUERIES = ["fleetRows", "fleetTotals", "firmwareSpread", "otaOutcomes", "enrichGaps", "usageRows", "seenDevices"] as const;
+const QUERIES = ["fleetRows", "fleetTotals", "firmwareSpread", "otaOutcomes", "enrichGaps", "usageRows", "seenDevices", "latestBoots", "otaNotOk", "upstreams"] as const;
+// Statements that take something besides a window -- a device id or a route set.
+const DEV = "0123456789abcdef";
+const OTHER: ((e: Env) => Promise<unknown>)[] = [
+  (e) => q.deviceSummary(e, DEV, 24),
+  (e) => q.deviceFirmware(e, DEV),
+  (e) => q.deviceBoots(e, DEV),
+  (e) => q.deviceOta(e, DEV),
+  (e) => q.usageRows(e, 24, DEV),
+  (e) => q.firstRequestTimes(e, q.BLIPS_ROUTES),
+  (e) => q.firstRequestTimes(e, q.PHOTO_ROUTES),
+];
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -28,6 +39,7 @@ async function everyStatement(): Promise<string[]> {
     }),
   );
   for (const name of QUERIES) await (q[name] as (e: Env, h: number) => Promise<unknown>)(base, 24);
+  for (const call of OTHER) await call(base);
   return seen;
 }
 
@@ -38,7 +50,7 @@ const NULL_BRANCH = /IF\([^;]*?,\s*NULL\s*\)/i;
 
 describe("SQL shapes the engine rejects", () => {
   it("covers every query the dashboard issues", async () => {
-    expect(await everyStatement()).toHaveLength(QUERIES.length);
+    expect(await everyStatement()).toHaveLength(QUERIES.length + OTHER.length);
   });
 
   it("no IF() pairs a double column with an integer literal", async () => {
