@@ -231,6 +231,12 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 # Widget: blipscope-enroll-production, domains ["scopes.valarsystems.com"].
 TURNSTILE_SITEKEY = "0x4AAAAAAEOTkOwCSqYha96b"
 
+# Refuse device ids on the repo's fake-id allowlist (enrol AND every device-key
+# route, 403). PRODUCTION ONLY and deliberately absent from staging: staging is
+# where fixtures and probes belong. See src/fakeids.ts; the list is
+# scripts/device-id-allowlist.txt, embedded by scripts/embed-fake-ids.mjs.
+REFUSE_FAKE_DEVICE_IDS = "true"
+
 # Missileer origin -- valar-eam-feed on Render. See src/missileer.ts for why the
 # Worker proxies rather than routes, and valar-eam-feed/docs/missileer-routing.md
 # for the alternatives that were rejected.

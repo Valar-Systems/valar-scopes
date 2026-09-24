@@ -18,6 +18,7 @@ import { record, recordOtaMem, recordUsage, setDeviceAttribution, type RequestMe
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
+import { refusesFakeId } from "./fakeids";
 import { limitByIp, limitByKey } from "./ratelimit";
 import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
@@ -40,12 +41,17 @@ import { errorResponse, jsonResponse } from "./util";
 // migration untestable: while both paths work, every check passes whichever one
 // the caller happens to be exercising, which is why the cutover was verified by
 // showing a SHARED response before an enrolled one rather than the reverse.
-async function authenticate(env: Env, request: Request): Promise<{ bucket: string } | null> {
+async function authenticate(env: Env, request: Request): Promise<{ bucket: string } | { fakeId: true } | null> {
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
 
   const deviceId = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
   if (!deviceId) return null;
+
+  // An id from the repo's fake-id allowlist is an example, never a device, and
+  // production refuses it outright -- before revocation and before the key, since
+  // a valid key can be derived for ANY id. Staging is exempt (src/fakeids.ts).
+  if (refusesFakeId(env, deviceId)) return { fakeId: true };
 
   // Revocation is checked BEFORE the key path, so a revoked device is refused
   // even while its derived key remains cryptographically valid -- revocation is
@@ -299,6 +305,7 @@ async function route(
   if (ipLimited) return ipLimited;
   const auth = await authenticate(env, request);
   if (auth === null) return errorResponse(401, "unauthorized");
+  if ("fakeId" in auth) return errorResponse(403, "fake_device_id");
   // Attribute the metric to the device only now that its key has been verified;
   // see setDeviceAttribution() for why unauthenticated headers are never stored.
   setDeviceAttribution(meta, request);

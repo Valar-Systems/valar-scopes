@@ -88,6 +88,13 @@ jobs:
         if: matrix.worker == 'proxy'
         run: node scripts/embed-fonts.mjs --check
 
+      # The device Worker's fake-id guard reads an EMBEDDED copy of
+      # scripts/device-id-allowlist.txt. Adding an id to the allowlist without
+      # regenerating would let it into the repo while production still served it.
+      - name: Embedded fake-id list is up to date
+        if: matrix.worker == 'proxy'
+        run: node scripts/embed-fake-ids.mjs --check
+
       - run: npm run typecheck
 
       # The render-drift job must stay read-only: one KV-READ secret, dry runs

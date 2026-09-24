@@ -1,7 +1,8 @@
 /**
  * usage-stats.ts -- feature adoption, as a table rather than raw SQL.
  *
- *   CLOUDFLARE_API_TOKEN=... npm run stats [-- --days 7 --env production]
+ *   npm run stats [-- --days 7 --env production]
+ *   (token: ~/.config/blipscope/cf-analytics-token, else CLOUDFLARE_API_TOKEN)
  *
  * Prints two views of the same rows, because they answer different questions and
  * confusing them is easy:
@@ -35,6 +36,9 @@
  * quoting as exact activity.
  */
 import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"; // same as wrangler.toml account_id
 
@@ -87,7 +91,16 @@ async function runSql<T>(sql: string, token: string): Promise<T[]> {
   return body.data ?? [];
 }
 
+// The analytics READ token first. CLOUDFLARE_API_TOKEN is the account's write
+// token, and on 2026-09-24 it returned 403 from the Analytics Engine SQL API --
+// so the old order made this script unable to run at all. The file is the one
+// the dashboard's smoke reads (dashboard/scripts/smoke-analytics.mjs).
 function token(): string {
+  const file = join(homedir(), ".config", "blipscope", "cf-analytics-token");
+  if (existsSync(file)) {
+    const f = readFileSync(file, "utf8").trim();
+    if (f) return f;
+  }
   const t = process.env.CLOUDFLARE_API_TOKEN;
   if (t) return t;
   // Windows keeps these at the user level, where a running shell may not see
@@ -118,16 +131,22 @@ async function main(): Promise<void> {
   const where = `WHERE index1 = 'usage' AND timestamp > NOW() - INTERVAL '${args.days}' DAY`;
 
   // One row per feature: total events, and how many DISTINCT devices contributed
-  // any. uniqExact over a filtered blob4 is what makes "devices using" mean
-  // "devices that did it at least once" rather than "devices that reported".
+  // any -- "devices that did it at least once", not "devices that reported".
+  //
+  // count(DISTINCT x), NEVER uniq()/uniqExact(): Analytics Engine has neither
+  // ("unknown function call", 422 -- found by the dashboard's live smoke on
+  // 2026-09-24; this script had the same call and could not have run). It also
+  // rejects IF(cond, blob4, NULL) as String vs Null. So the non-users are mapped
+  // to '' and that one extra distinct value is subtracted whenever it occurs:
+  // '' is present exactly when some report has the counter at 0.
   const selects = FEATURES.map(
     (f) =>
       `SUM(${f.col} * _sample_interval) AS ${f.key}_total, ` +
-      `uniqExact(IF(${f.col} > 0, blob4, NULL)) AS ${f.key}_devices`,
+      `count(DISTINCT IF(${f.col} > 0, blob4, '')) - MAX(IF(${f.col} > 0, 0, 1)) AS ${f.key}_devices`,
   ).join(", ");
 
   const rows = await runSql<Record<string, string>>(
-    `SELECT ${selects}, uniqExact(blob4) AS devices, COUNT() AS reports, ` +
+    `SELECT ${selects}, count(DISTINCT blob4) AS devices, COUNT() AS reports, ` +
       `MAX(double8) AS max_uptime_h, SUM(double7 * _sample_interval) AS follow_on_reports ` +
       `FROM ${ds} ${where}`,
     t,
