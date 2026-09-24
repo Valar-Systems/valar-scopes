@@ -1,0 +1,42 @@
+name: provisioner
+
+# provision_one.py is the per-board step of manufacturing -- the key write, the
+# proof it is on the board, and the --verify-url check -- and both
+# provision-batch.py and valar-flasher's bench mode call it. Its tests run against
+# a fake esptool with a simulated flash, so they need no board, no PlatformIO and
+# no network, and they include the case this step exists for: a key that was never
+# written must not exit 0.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/provision*'
+      - 'scripts/fake_esptool.py'
+      - 'scripts/test_provision_one.py'
+      - '.github/workflows/provisioner.yml'
+  pull_request:
+    paths:
+      - 'scripts/provision*'
+      - 'scripts/fake_esptool.py'
+      - 'scripts/test_provision_one.py'
+      - '.github/workflows/provisioner.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: provision_one + provision-batch against a fake esptool
+        run: python3 scripts/test_provision_one.py
+      - name: The batch's usage names an env that exists
+        run: |
+          env=$(python3 scripts/provision-batch.py --help | grep -oE 'blipscope-[a-z0-9-]+' | head -1)
+          echo "--help names: $env"
+          grep -qx "\[env:$env\]" platformio.ini || { echo "::error::$env is not an env in platformio.ini"; exit 1; }

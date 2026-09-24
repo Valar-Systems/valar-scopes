@@ -7,7 +7,7 @@ is not the tooling, it is that a single board is idle for most of its ~60 s whil
 esptool talks to it. Run eight at once on a powered hub and the batch is ~10 min,
 and you touch the bench 7 times instead of 50.
 
-    python scripts/provision-batch.py --env blipscope-s3-128-prodburn \
+    python scripts/provision-batch.py --env blipscope-s3-128 \
         --verify-url https://scopes.valarsystems.com --count 50
 
 Plug in a hub-full, walk away, come back, swap them out. It keeps watching for
@@ -53,7 +53,6 @@ import importlib.util
 import os
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -70,6 +69,12 @@ _spec = importlib.util.spec_from_file_location(
     "provision_device", Path(__file__).parent / "provision-device.py")
 pd = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pd)
+# The per-board step (NVS key -> proof it is on the board -> --verify-url) lives in
+# provision_one.py, and this calls the same function valar-flasher's bench mode
+# does. One copy, for the same reason as above.
+_spec1 = importlib.util.spec_from_file_location("provision_one", Path(__file__).parent / "provision_one.py")
+po = importlib.util.module_from_spec(_spec1)
+_spec1.loader.exec_module(po)
 
 FACTORY_OFFSET = "0x0"
 # NVS offset/size come from the env's partition table at run time (see
@@ -139,21 +144,7 @@ def already_done(log_path: Path) -> set[str]:
     return done
 
 
-def verify(base: str, key: str, dev_id: str) -> int:
-    """HTTP status from presenting this key to the proxy. 200 = accepted.
-
-    The User-Agent is NOT decoration: Cloudflare's edge 403s the default
-    `Python-urllib/3.x` before the Worker ever sees the request, which looks
-    exactly like a rejected key and sent me chasing DEVICE_KEY_SECRET."""
-    import urllib.request
-    req = urllib.request.Request(
-        base.rstrip("/") + "/v1/config",
-        headers={"X-Blip-Key": key, "X-Blip-Device": dev_id, "X-Blip-Model": "s3-128",
-                 "User-Agent": "Blipscope-Provisioner/1"})
-    try:
-        return urllib.request.urlopen(req, timeout=30).status
-    except Exception as e:
-        return getattr(e, "code", 0)
+verify = po.verify  # kept importable under its old name
 
 
 def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
@@ -175,39 +166,30 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
 
     try:
         dev_id = pd.device_id(mac, cfg.salt)
-        key = pd.device_key(cfg.secret, dev_id)
         say(f"  [{port}] {mac} -> {dev_id}  flashing ...")
 
         if cfg.dry_run:
             return port, "DRY", f"{mac} -> {dev_id} (nothing flashed)"
 
-        with tempfile.TemporaryDirectory() as td:
-            nvs_bin = pd.build_nvs(key, cfg.cloud_url, Path(td), cfg.nvs_size)
-            write = "write-flash" if cfg.dashed else "write_flash"
-            # TWO calls, factory FIRST then NVS -- not one call with both offsets.
-            # The factory image spans 0x0..end-of-app, which contains the NVS
-            # region, and esptool 5 rejects overlapping regions within a single
-            # write_flash. Order is load-bearing: the factory image blanks NVS
-            # (0xFF gap fill), so the key must be written after it, not before.
-            for label, off, img in (("factory", FACTORY_OFFSET, str(cfg.image)),
-                                    ("nvs", cfg.nvs_offset, str(nvs_bin))):
-                cmd = cfg.esptool_cmd + ["--port", port, "--baud", str(cfg.baud),
-                                         write, off, img]
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-                if r.returncode != 0:
-                    tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
-                    return port, "FAIL", f"{mac}: {label} write failed -- " + " / ".join(tail)
+        # TWO writes, factory FIRST then NVS -- not one call with both offsets.
+        # The factory image spans 0x0..end-of-app, which contains the NVS
+        # region, and esptool 5 rejects overlapping regions within a single
+        # write_flash. Order is load-bearing: the factory image blanks NVS
+        # (0xFF gap fill), so the key must be written after it, not before.
+        write = "write-flash" if cfg.dashed else "write_flash"
+        cmd = cfg.esptool_cmd + ["--port", port, "--baud", str(cfg.baud),
+                                 write, FACTORY_OFFSET, str(cfg.image)]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
+            return port, "FAIL", f"{mac}: factory write failed -- " + " / ".join(tail)
 
-        if cfg.verify_url:
-            code = verify(cfg.verify_url, key, dev_id)
-            if code == 401:
-                # THE one that means the batch is bad: DEVICE_KEY_SECRET here does
-                # not match the Worker's, so every key in this run is worthless.
-                return port, "FAIL", f"{mac}: key REJECTED (401) -- DEVICE_KEY_SECRET does not match the Worker's"
-            if code != 200:
-                # Anything else is the check failing, not the key. Don't send the
-                # operator hunting for a secret mismatch that isn't there.
-                return port, "FAIL", f"{mac}: verify inconclusive (HTTP {code}) -- board is flashed; key not confirmed"
+        status, dev_id, detail = po.provision(
+            port, mac, esptool_cmd=cfg.esptool_cmd, dashed=cfg.dashed, baud=cfg.baud,
+            salt=cfg.salt, secret=cfg.secret, nvs_offset=cfg.nvs_offset, nvs_size=cfg.nvs_size,
+            cloud_url=cfg.cloud_url, verify_url=cfg.verify_url)
+        if status != "OK":
+            return port, "FAIL", detail
 
         with state.lock:
             state.done.add(mac)
@@ -236,7 +218,7 @@ class State:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Provision a batch of boards in parallel.")
-    ap.add_argument("--env", required=True, help="PlatformIO env, e.g. blipscope-s3-128-prodburn")
+    ap.add_argument("--env", required=True, help="PlatformIO env, e.g. blipscope-s3-128 (the release env; there is no -prodburn)")
     ap.add_argument("--jobs", type=int, default=0, help="boards in parallel (default: however many are attached, max 8)")
     ap.add_argument("--count", type=int, default=0, help="stop after this many NEW boards")
     ap.add_argument("--verify-url", help="check each minted key against this proxy base")

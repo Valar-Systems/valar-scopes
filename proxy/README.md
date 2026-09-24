@@ -711,17 +711,19 @@ reproduced). The remaining gates before cutting a firmware release are a clean
 
 ### Bench burn-in against production
 
-Before the pilot batch is flashed, burn a bench board in against the real
-backend using the throwaway envs in `platformio.ini` — they point
-`CLOUD_FEED_BASE` at production while every shipping `*-cloud` env stays on
-staging, so this is not the shipping switch:
+The `*-prodburn` envs this section used to name were collapsed on 2026-08-08
+(`668818e`): the release env **is** the production image now, so a bench board
+burns in against the real backend by flashing it directly:
 
 ```sh
-pio run -e blipscope-s3-128-prodburn -t upload   # or -s3-146-prodburn
+pio run -e blipscope-s3-128 -t upload
 ```
 
-No key is baked (repo key policy): paste the access key into the config page
-once after flashing. Delete these envs when the pilot switch happens.
+No key is baked (repo key policy): provision the board
+(`scripts/provision-device.py` / `provision-batch.py`) or paste a key into the
+config page once after flashing. Never add a local `-DCLOUD_FEED_KEY` flag to a
+build that will be flashed to more than your own bench board -- customer boards
+are flashed from the CI-published factory image, which never carries one.
 
 ### Smoke test
 
