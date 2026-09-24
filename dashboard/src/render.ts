@@ -1,5 +1,5 @@
 import type { DeviceRow } from "./types";
-import type { FleetTotals, FwRow, OtaRow } from "./analytics";
+import type { FleetTotals, FwRow, OtaRow, SilentRow, UsageRow } from "./analytics";
 
 // The page. Server-rendered, no client framework, no external assets -- this is
 // an ops tool that must work when something else is broken.
@@ -82,6 +82,7 @@ export function page(opts: {
     ["/firmware", "Firmware"],
     ["/ota", "OTA"],
     ["/gaps", "Enrichment gaps"],
+    ["/usage", "Usage"],
   ];
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -276,4 +277,91 @@ export function flashOk(msg: string): string {
 }
 export function flashErr(msg: string): string {
   return `<section class="err"><span class="pill bad">refused</span> ${esc(msg)}</section>`;
+}
+
+// The usage page: what each device reported doing, per the hourly usage index,
+// over 7 or 30 days -- and which enrolled devices said nothing at all.
+export function usageBody(
+  rows: UsageRow[],
+  silent: { rows: SilentRow[]; total: number; enrolled: number } | { error: string },
+  hours: number,
+): string {
+  const days = Math.round(hours / 24);
+  const toggle = [168, 720]
+    .map((h) => `<a href="/usage?hours=${h}" style="color:var(--${h === hours ? "ink" : "dim"})">${h / 24} days</a>`)
+    .join(" &middot; ");
+  const body = rows.length
+    ? rows
+        .map(
+          (r) => `<tr>
+      <td><code>${esc(r.dev)}</code></td>
+      <td>${esc(r.model)}</td>
+      <td class="n">${esc(r.fw)}</td>
+      <td>${seenPill(r.lastReport)}</td>
+      <td class="n">${n(r.reports)}</td>
+      <td class="n ${r.cardOpens ? "ok" : "mute"}"><b>${n(r.cardOpens)}</b></td>
+      <td class="n">${n(r.radar)}</td>
+      <td class="n">${n(r.list)}</td>
+      <td class="n">${n(r.stats)}</td>
+      <td class="n">${n(r.follow)}</td>
+      <td class="n">${n(r.claims)}</td>
+      <td>${r.followEnabled ? '<span class="pill ok">on</span>' : '<span class="mute">off</span>'}</td>
+      <td class="n">${n(r.uptimeHours)}</td>
+    </tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="13" class="mute">No usage reports in this window. Devices send one at most
+         hourly, on firmware that carries the usage report.</td></tr>`;
+
+  let silentHtml: string;
+  if ("error" in silent) {
+    silentHtml = `<p class="bad">Not shown: ${esc(silent.error)}</p>`;
+  } else {
+    const list = silent.rows.length
+      ? silent.rows
+          .map(
+            (r) => `<tr><td><code>${esc(r.dev)}</code></td><td>${esc(r.firstEnrolled.slice(0, 10))}</td>
+        <td>${esc(r.lastEnrolled.slice(0, 10))}</td><td class="n">${n(r.enrollments)}</td></tr>`,
+          )
+          .join("")
+      : `<tr><td colspan="4" class="mute">Every enrolled device made a request in this window.</td></tr>`;
+    silentHtml = `<p class="note" style="margin-top:0"><b>${n(silent.total)}</b> of ${n(silent.enrolled)} enrolled
+        devices made no request in the last ${days} days${
+          silent.total > silent.rows.length ? ` &mdash; showing the first ${n(silent.rows.length)}` : ""
+        }.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Device</th><th>First enrolled</th><th>Last enrolled</th><th class="n">Enrolments</th></tr></thead>
+        <tbody>${list}</tbody></table></div>
+      <p class="note"><b>Last enrolled is not last seen.</b> The ledger records enrolments; a working unit
+        enrols once and then just runs. "Silent" here means no request of any kind reached the device
+        Worker in the window &mdash; not that the ledger is old.</p>`;
+  }
+
+  return `
+  <section>
+    <h2>Per-device usage &mdash; last ${days} days &nbsp; <span style="text-transform:none">${toggle}</span></h2>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>Device</th><th>Model</th><th>FW</th><th>Last report</th><th class="n">Reports</th>
+        <th class="n">Card opens</th><th class="n">Radar</th><th class="n">List</th><th class="n">Stats</th>
+        <th class="n">Follow</th><th class="n">Claims</th><th>Follow set</th><th class="n">Up (h)</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+    <p class="note">
+      <b>Requests are not attention</b>, and neither are reports: a device sends one each hour it is on,
+      whether or not anyone looks at it. <b>Card opens</b> is the interaction number &mdash; a detail card
+      only opens on a tap. <b>Radar / List / Stats / Follow</b> count switches TO each screen, and
+      <b>Claims</b> count logbook claims; these say THAT a feature was used, never what it was used on.
+      <b>Follow set</b> is whether a follow target is configured at the latest report (a flag, not a name).
+      <b>Up (h)</b> is hours since boot at the latest report &mdash; a gauge, so it is never summed.
+      Card opens here is the device's own count; the Fleet page's <b>Cards</b> counts photo fetches, a
+      lower bound: a photo is fetched once per aircraft, so a reopened card or an aircraft with no stock
+      photo fetches nothing.
+    </p>
+  </section>
+  <section>
+    <h2>Enrolled but silent &mdash; last ${days} days</h2>
+    ${silentHtml}
+  </section>`;
 }

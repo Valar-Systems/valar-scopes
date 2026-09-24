@@ -24,18 +24,23 @@ device Worker needed was to its telemetry (see *What made this possible*).
 | **Firmware** | Who is on which version, per model — *did that OTA actually land?* |
 | **OTA** | Every update attempt with its result, naming the exact unit that failed. |
 | **Enrichment gaps** | What the fleet looked up that we couldn't answer, ranked by real demand. |
+| **Usage** | Per device, over 7 or 30 days: card opens, switches to each screen, logbook claims, whether Follow is set, uptime, report count -- and which **enrolled devices made no request at all**. |
 
-`/fleet.json` mirrors the fleet table for piping elsewhere.
+`/fleet.json` and `/usage.json` mirror the tables for piping elsewhere.
 
 ### Requests are not attention
 
 This is the one thing to be clear-eyed about. **A device polls on a timer whether
 or not anyone is in the room**, so `requests` measures *uptime*, not engagement.
 
-The honest interaction number is **Cards**: the firmware fetches a photo exactly
-once per aircraft when a **detail card is opened**, and that only happens on a
-tap. `/v1/enrich` is background work the device does on its own and is **not**
-interaction.
+The honest interaction number is **card opens**. The Usage page shows the
+device's own count from its hourly usage report. The Fleet page's **Cards** is the
+older proxy for it: the firmware fetches a photo once per aircraft when a
+**detail card is opened**, which only happens on a tap -- so it is a lower bound
+(a reopened card, or an aircraft with no stock photo, fetches nothing).
+`/v1/enrich` is background work the device does on its own and is **not**
+interaction. **Reports** on the Usage page are not attention either: a device sends
+one each hour it is on, watched or not.
 
 There is a second signal that exists but is not reported: the poll cadence is
 itself touch-derived (the device polls fast for 10 minutes after a touch, slower
@@ -72,7 +77,8 @@ intentional and it is tested.
 2. Policy: *Allow* → *Emails* → your address. (Not "Everyone", not "Bypass".)
 3. Copy the application's **Application Audience (AUD) tag**.
 4. Put the AUD and your team domain into `[env.production.vars]` in
-   [wrangler.toml](wrangler.toml), replacing both `REPLACE_ME`s:
+   [wrangler.toml](wrangler.toml) (done 2026-09-24 for `fleet.valarsystems.com`;
+   the AUD is an identifier, not a secret):
 
    ```toml
    ACCESS_TEAM_DOMAIN = "yourteam.cloudflareaccess.com"
@@ -170,41 +176,48 @@ looking at. There is a test that asserts it.
 
 ---
 
-## What this cannot tell you
+## Usage counters, and what this still cannot tell you
+
+**The Usage page reads the hourly usage index** (`proxy/src/metrics.ts`
+`recordUsage`, index `usage`): eight integers per report -- card opens, switches to
+Radar / List / Stats / Follow, logbook claims, a Follow-configured flag, and hours
+since boot. Six are deltas and are summed; the flag and the uptime gauge are read
+at the latest report and **never summed** (summing an hours-since-boot gauge
+invents weeks). **Enrolled but silent** is the enrolment ledger (`enr:dev:*`)
+minus every device that made any request in the window -- *not* the ledger's
+`lastAt`, which is the last enrolment, and a working unit enrols once.
 
 Worth knowing before it gets used to make product decisions:
 
-- **Which screen someone uses.** Radar vs List vs Stats, swipes, zoom changes —
-  none of it reaches the cloud.
-- **Whether the device is on but ignored.** A board on a shelf and a board being
-  watched look identical apart from the Cards column.
+- **What a screen or card was used ON.** The counts say THAT Radar was opened or a
+  card was tapped, never which aircraft, callsign or follow target.
+- **Swipes and zoom changes** beyond the four screen-switch counters.
 - **Anything about a local-receiver user.** They don't talk to the proxy at all.
 - **Who a device belongs to.** The id is a hash of the MAC; `provisioned.csv` is
   the registry that maps it to a unit.
 
-### Screen-usage telemetry is a NON-GOAL, not a backlog item
+### Screen-usage telemetry: decided NO on 2026-08-02, REVERSED on 2026-08-27
 
-**Decided 2026-08-02. Do not propose adding it.**
+**The reversal is Daniel's, deliberate, and recorded in the root
+[CLAUDE.md](../CLAUDE.md) ("Usage telemetry: counts yes, subjects never") and the
+main README's Privacy & telemetry section.** The line moved from *collect nothing*
+to *count THAT a feature was used, never WHAT it was used on*, and it is enforced
+by construction (an integers-only payload, asserted on both sides of the wire),
+not by prose. The 2026-08-02 reasons, and what became of each:
 
-The first two above are closeable — the device already makes a request we could
-hang interaction counters on, and it would be a small change. We are not going to,
-and the reason is worth writing down so this doesn't get re-litigated every time
-someone notices the gap:
+1. **Behavioural data about what happens in someone's home** -- STILL OUT. That is
+   the half of the old line that survived: which aircraft, which callsign, which
+   follow target, and any per-event timestamp stay off the wire.
+2. **"Emailing ten owners beats instrumenting them"** -- the reason that LOST. It
+   does not scale past ten, and at fleet scale a feature nobody wanted and a
+   feature nobody could find look the same.
+3. **"Blipscope doesn't track how you use it"** -- no longer a sentence we can
+   say, so the published one changed with it: the device counts THAT a feature was
+   used, never WHAT it was used on. The main
+   [README's Privacy & telemetry section](../README.md#privacy--telemetry) says so,
+   including that it is a change. Widening what is collected changes that section
+   in the same commit, or the change is not done.
 
-1. **It is behavioural data from a device in someone's home.** A screen glanced at
-   over morning coffee is not our business, and no product question here is worth
-   that trade.
-2. **At this scale it wouldn't even work well.** At 50 units, emailing ten owners
-   answers "how do people use this?" better than instrumenting all of them — with
-   more nuance, and with the *why* attached.
-3. **"Blipscope doesn't track how you use it" is a sentence worth being able to
-   keep saying**, and it is only true while it stays entirely true.
-
-This is stated on the customer-facing side too, in the main
-[README's Privacy & telemetry section](../README.md#privacy--telemetry) — so it is
-a published commitment, not an internal preference that could quietly lapse.
-
-**Cards is not an exception to this.** It isn't a counter we added; it is a
-photo fetch the device has to make to draw the card at all. If a future change
-ever made photos local, that column would simply disappear rather than being
-replaced with a reporting call.
+**Cards** on the Fleet page is still not a counter we added; it is a photo fetch
+the device has to make to draw the card at all. The Usage page's card-opens count
+IS a counter, and it is one of the eight integers the revised policy allows.
