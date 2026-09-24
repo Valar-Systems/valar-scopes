@@ -4,12 +4,14 @@ import type { Env } from "../src/types";
 
 // vitest cannot run the SQL -- only the live engine can say what it accepts, and
 // `npm run smoke:analytics` is that check. This file is the cheap half: it
-// refuses the two shapes the engine is KNOWN to reject, both found live on
+// refuses the shapes the engine is KNOWN to reject, all found live on
 // 2026-09-24, so they cannot come back through a green suite.
 //
 //   1. IF(cond, doubleN, 0): "the 2nd and 3rd arguments to IF() function must
 //      have the same type but instead had Double and Integer" (422).
-//   2. uniq(...): "unknown function call: UNIQ". uniqExact is the one it has.
+//   2. uniq(...) and uniqExact(...): both "unknown function call". The engine's
+//      distinct count is count(DISTINCT x).
+//   3. IF(cond, x, NULL): "must have the same type but instead had String and Null".
 
 const base = { CF_ACCOUNT_ID: "acct", CF_API_TOKEN: "tok" } as Env;
 const QUERIES = ["fleetRows", "fleetTotals", "firmwareSpread", "otaOutcomes", "enrichGaps", "usageRows", "seenDevices"] as const;
@@ -29,9 +31,10 @@ async function everyStatement(): Promise<string[]> {
   return seen;
 }
 
-// Integer literal else-branch after a double column: IF(..., doubleN, 0) / 0)
+// Integer literal else-branch after a double column: IF(..., doubleN, 0)
 const MIXED_IF = /IF\([^;]*?,\s*double\d+\s*,\s*-?\d+\s*\)/;
-const BARE_UNIQ = /\buniq\(/;
+const UNIQ_ANY = /\buniq(Exact)?\(/i;
+const NULL_BRANCH = /IF\([^;]*?,\s*NULL\s*\)/i;
 
 describe("SQL shapes the engine rejects", () => {
   it("covers every query the dashboard issues", async () => {
@@ -42,16 +45,24 @@ describe("SQL shapes the engine rejects", () => {
     for (const sql of await everyStatement()) expect(sql, sql).not.toMatch(MIXED_IF);
   });
 
-  it("no uniq(); uniqExact only", async () => {
-    for (const sql of await everyStatement()) expect(sql, sql).not.toMatch(BARE_UNIQ);
+  it("no uniq() or uniqExact(); count(DISTINCT x) only", async () => {
+    for (const sql of await everyStatement()) expect(sql, sql).not.toMatch(UNIQ_ANY);
   });
 
-  it("CONTROL: both patterns catch the exact SQL that failed live", () => {
+  it("no IF() with a NULL branch", async () => {
+    for (const sql of await everyStatement()) expect(sql, sql).not.toMatch(NULL_BRANCH);
+  });
+
+  it("CONTROL: every pattern catches the exact SQL that failed live", () => {
     expect("SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0)) AS cards").toMatch(MIXED_IF);
     expect("SUM(IF(double1 >= 400, double4, 0)) AS errors").toMatch(MIXED_IF);
-    expect("uniq(blob5) AS devices").toMatch(BARE_UNIQ);
-    // ...and do not fire on the fixed forms
+    expect("uniq(blob5) AS devices").toMatch(UNIQ_ANY);
+    expect("uniqExact(blob5) AS devices").toMatch(UNIQ_ANY);
+    expect("count(DISTINCT IF(blob5 != '', blob5, NULL)) AS n").toMatch(NULL_BRANCH);
+    // ...and none fires on the forms that passed live
     expect("SUM(IF(double1 >= 400, double4, 0.0)) AS errors").not.toMatch(MIXED_IF);
-    expect("uniqExact(blob5) AS devices").not.toMatch(BARE_UNIQ);
+    expect("count(DISTINCT blob5) AS devices").not.toMatch(UNIQ_ANY);
+    expect("count(DISTINCT blob5) - MAX(IF(blob5 = '', 1, 0)) AS devices").not.toMatch(NULL_BRANCH);
+    expect("count(DISTINCT blob5) - MAX(IF(blob5 = '', 1, 0)) AS devices").not.toMatch(MIXED_IF);
   });
 });

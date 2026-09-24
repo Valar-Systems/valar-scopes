@@ -152,14 +152,18 @@ export interface FleetTotals {
   unattributed: number;
 }
 
-// uniqExact, never uniq: Analytics Engine has no uniqExact() ("unknown function call:
-// UNIQ", live 2026-09-24). proxy/scripts/usage-stats.ts is the reference, and it
-// uses uniqExact(IF(cond, blob4, NULL)) -- so the NULL branch is the proven form.
+// DISTINCT COUNTS ARE count(DISTINCT x). Established against the live engine on
+// 2026-09-24, not assumed: uniq() and uniqExact() are both "unknown function
+// call" (422) -- proxy/scripts/usage-stats.ts uses uniqExact and would fail the
+// same way -- and IF(cond, blob5, NULL) is rejected as String vs Null. So the
+// empty (unattributed) id is subtracted rather than NULLed out. Checked against a
+// GROUP BY count on a fixed window: this expression and the GROUP BY both read 4,
+// while plain count(DISTINCT blob5) read 5 (the empty id).
 export async function fleetTotals(env: Env, hours: number): Promise<FleetTotals> {
   const ds = dataset(env);
   const sql = `
     SELECT
-      uniqExact(IF(blob5 != '', blob5, NULL)) AS devices,
+      count(DISTINCT blob5) - MAX(IF(blob5 = '', 1, 0)) AS devices,
       SUM(double4) AS requests,
       SUM(IF(double1 >= 400, double4, 0.0)) AS errors,
       SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0.0)) AS cards,
@@ -188,7 +192,7 @@ export interface FwRow {
 export async function firmwareSpread(env: Env, hours: number): Promise<FwRow[]> {
   const ds = dataset(env);
   const sql = `
-    SELECT blob6 AS fw, blob4 AS model, uniqExact(blob5) AS devices
+    SELECT blob6 AS fw, blob4 AS model, count(DISTINCT blob5) AS devices
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''
     GROUP BY fw, model
