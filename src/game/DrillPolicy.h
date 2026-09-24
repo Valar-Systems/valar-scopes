@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "Derive.h"
+#include "DrillMachine.h"  // Phase. Pure, like this file.
 
 namespace game {
 
@@ -110,6 +111,19 @@ inline bool AutoDecoded(uint64_t offered_at_us, uint64_t now_us, uint32_t auto_d
 constexpr uint64_t kEndedDwellUs = 60ull * 1000000ull;
 inline bool EndedDwellOver(uint64_t ended_at_us, uint64_t now_us) {
   return now_us >= ended_at_us && now_us - ended_at_us >= kEndedDwellUs;
+}
+
+// ---------------------------------------------------------------------------
+// The USB "open on computer" long press
+// ---------------------------------------------------------------------------
+
+/// The long press types a URL into the host over USB HID. It is a monitor feature
+/// and stays OUTSIDE a drill, but from Offered through Terminal it is not armed at
+/// all (Fable, 2026-09-24): a player holding the key arc -- or resting a finger on
+/// the Offered banner -- must never type into a host. Idle, Complete and Aborted
+/// are outside the drill.
+inline bool UsbLongPressArmed(Phase p) {
+  return !(p >= Phase::Offered && p <= Phase::Terminal);
 }
 
 // ---------------------------------------------------------------------------

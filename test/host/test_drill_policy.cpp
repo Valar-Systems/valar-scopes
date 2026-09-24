@@ -117,6 +117,17 @@ static void Offer() {
   CHECK(DecideOffer(h) == OfferDecision::Held, "HOLD mid-drill was not Held");
 }
 
+static void UsbLongPress() {
+  CASE("usb long press: armed outside a drill, never Offered through Terminal");
+  CHECK(UsbLongPressArmed(Phase::Idle), "Idle is outside the drill");
+  CHECK(UsbLongPressArmed(Phase::Complete), "Complete is outside the drill");
+  CHECK(UsbLongPressArmed(Phase::Aborted), "Aborted is outside the drill");
+  const Phase inDrill[] = {Phase::Offered, Phase::Printing, Phase::Decoded, Phase::Authenticate,
+                           Phase::WarPlan, Phase::Enable, Phase::Armed, Phase::Window,
+                           Phase::Committed, Phase::Terminal};
+  for (Phase p : inDrill) CHECK(!UsbLongPressArmed(p), "armed inside the drill");
+}
+
 static void Timers() {
   CASE("auto-decode is a display property after the served delay");
   CHECK(!AutoDecoded(10 * S, 10 * S + 299 * S, 300), "decoded before 300 s");
@@ -273,6 +284,7 @@ int main() {
   ConfigPoll();
   Clock();
   Offer();
+  UsbLongPress();
   Timers();
   Targets();
   KeyTurn();
