@@ -148,6 +148,13 @@ bool KeyTouchSampler::Next(uint64_t upToUs, Sample& out)
     return true;
 }
 
+// " run=A#1" in a bench build, "" otherwise: which run a log line belongs to.
+#if defined(KEYTOUCH_BENCH)
+#define RUN_TAG_DECL char runTag[16]; snprintf(runTag, sizeof runTag, " run=%c#%u", benchRun ? benchRun : '-', (unsigned)benchRunSeq)
+#else
+#define RUN_TAG_DECL const char* runTag = ""
+#endif
+
 void KeyTouchSampler::Trampoline(void* arg)
 {
     static_cast<KeyTouchSampler*>(arg)->Run();
@@ -183,9 +190,10 @@ void KeyTouchSampler::Run()
             // counted, not polled: polling between reports is what reads phantom lifts.
             if (wasTouched) silences += 1;
             if (pending && nowUs - releaseUs >= 1000000ull) {
-                Serial.printf("[keytouch] release: held=%ums gap=>1000ms next_read=%s irq_after=0x%02X\n",
+                RUN_TAG_DECL;
+                Serial.printf("[keytouch] release: held=%ums gap=>1000ms next_read=%s irq_after=0x%02X%s\n",
                               (unsigned)heldMs, nextRead == 1 ? "touched" : nextRead == 0 ? "untouched" : "none",
-                              irqAtRelease & 0xFF);
+                              irqAtRelease & 0xFF, runTag);
                 pending = false;
 #if defined(KEYTOUCH_BENCH)
                 xSemaphoreTake(busMutex, portMAX_DELAY);
@@ -218,13 +226,17 @@ void KeyTouchSampler::Run()
         if (touched && !wasTouched) {
             if (pending) {
                 if (nextRead < 0) nextRead = 1;
-                Serial.printf("[keytouch] release: held=%ums gap=%ums next_read=%s irq_after=0x%02X\n",
+                RUN_TAG_DECL;
+                Serial.printf("[keytouch] release: held=%ums gap=%ums next_read=%s irq_after=0x%02X%s\n",
                               (unsigned)heldMs, (unsigned)((t - releaseUs) / 1000ull),
-                              nextRead == 1 ? "touched" : "untouched", irqAtRelease & 0xFF);
+                              nextRead == 1 ? "touched" : "untouched", irqAtRelease & 0xFF, runTag);
                 pending = false;
             }
             pressUs = t;
         } else if (!touched && wasTouched) {
+#if defined(KEYTOUCH_BENCH)
+            if (benchRun) benchReleases += 1;
+#endif
             pending = true;
             releaseUs = t;
             heldMs = (uint32_t)((t - pressUs) / 1000ull);
@@ -246,13 +258,46 @@ void KeyTouchSampler::LogWindow()
     // touched finger went kSilenceMs without a report.
     const uint32_t reads = edges;
     const uint64_t spanMs = ((uint64_t)esp_timer_get_time() - windowStartUs) / 1000ull;
+    RUN_TAG_DECL;
     Serial.printf("[keytouch] window %llums: touched samples=%u | report interval avg=%.2fms min=%.2f "
-                  "p95=%.2f max=%.2f (n=%u) | edges=%u silences=%u drops=%u | i2c read avg=%uus max=%uus\n",
+                  "p95=%.2f max=%.2f (n=%u) | edges=%u silences=%u drops=%u | i2c read avg=%uus max=%uus%s\n",
                   (unsigned long long)spanMs, (unsigned)touchedSamples,
                   edgeCadence.MeanUs() / 1000.0, edgeCadence.MinUs() / 1000.0,
                   edgeCadence.PercentileUs(950) / 1000.0, edgeCadence.MaxUs() / 1000.0,
                   (unsigned)edgeCadence.Count(), (unsigned)edges, (unsigned)silences, (unsigned)drops,
-                  reads ? (unsigned)(readUsSum / reads) : 0u, (unsigned)readUsMax);
+                  reads ? (unsigned)(readUsSum / reads) : 0u, (unsigned)readUsMax, runTag);
 }
+
+#if defined(KEYTOUCH_BENCH)
+void KeyTouchSampler::BenchPrompt()
+{
+    Serial.println("[keytouch] RUN? type A + Enter = run A (30 s continuous drag, NO lifts); "
+                   "B + Enter = run B (ten deliberate lifts); E + Enter ends a run");
+}
+
+void KeyTouchSampler::BenchPollSerial()
+{
+    static bool prompted = false;
+    if (!prompted) { prompted = true; BenchPrompt(); }
+    while (Serial.available()) {
+        int c = Serial.read();
+        if (c >= 'a' && c <= 'z') c -= 32;
+        if (c != 'A' && c != 'B' && c != 'E') continue;   // newlines and anything else
+        if (benchRun) {
+            Serial.printf("[keytouch] RUN %c#%u END: releases=%u\n", benchRun, (unsigned)benchRunSeq,
+                          (unsigned)benchReleases);
+            benchRun = 0;
+        }
+        if (c == 'E') { BenchPrompt(); continue; }
+        benchReleases = 0;
+        benchRunSeq = benchRunSeq + 1;
+        benchRun = (char)c;
+        Serial.printf("[keytouch] RUN %c#%u START: %s -- every line until E is tagged run=%c#%u\n",
+                      (char)c, (unsigned)benchRunSeq,
+                      c == 'A' ? "30 s continuous drag, NO lifts" : "ten deliberate lifts",
+                      (char)c, (unsigned)benchRunSeq);
+    }
+}
+#endif
 
 #endif // FEATURE_EAM_GAME

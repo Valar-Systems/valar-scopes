@@ -874,10 +874,22 @@ and 226 ms, at 18:34:02–18:34:10 UTC), and run 1's break was ~0.2 s. Whether t
 Daniel lifting mid-drag or the panel dropping the finger is not in this log; it needs Daniel's
 account of those seconds, or a run with a timed, known lift.
 
-**Release debounce: no constant yet.** The data it will come from is the release log (`[keytouch]
-release: held=… gap=…`, every release). Run 2's shortest gap is 107 ms, and whether that was a
-real lift is the open question above. A debounce shorter than a real lift misses nothing; one
-longer than a real lift merges two strokes, so it waits until the short gaps are attributed.
+**Release debounce: provisional 250 ms, BOUND, NOT MEASURED** (ruled 2026-09-25).
+`KeyTurnParams::rejoin_us` (`src/game/KeyTurn.h`) is 250 ms, up from 100 ms: a lift shorter
+than that is a dropout, not a release. It is a bound chosen to cover run 2's unattributed gaps
+(107, 214 and 226 ms), not a number measured from any run. The data that will replace it is the
+release log (`[keytouch] release: held=… gap=…`, every release). A debounce shorter than a real
+lift misses nothing; one longer than a real lift merges two strokes.
+
+**The test that replaces it, in two parts.** Daniel runs both on a `KEYTOUCH_BENCH` build:
+- **Run A:** 30 s of continuous drag with no lifts. Every release in it is a dropout.
+- **Run B:** ten deliberate lifts. Every one is a real lift.
+
+Before each run the bench build prints a serial prompt. Daniel answers `A` or `B`, and `E`
+ends the run. Every release and window line is tagged with its run (`run=A#1`, `run=B#2`), and
+the end line gives the run's release count. The constant goes between run A's longest
+dropout and run B's shortest lift. **It is not set from bench run 1's data** (the timer-polling
+run above), and until both runs are in, 250 ms stands, marked as a bound.
 
 ### Remaining — build tasks, not decisions
 

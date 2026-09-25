@@ -243,7 +243,7 @@ static void KeyTurn() {
     uint64_t now = 0;
     Drag(g, 0.0f, 70.0f, now);
     CHECK(Hold(g, 100000, now) == KeyEvent::None, "confirmed after 100 ms");
-    CHECK(Lift(g, 200000, now) == KeyEvent::Release, "an early lift was not a Release");
+    CHECK(Lift(g, 300000, now) == KeyEvent::Release, "an early lift was not a Release");
     // ... and the player may try again.
     KeyEvent first = KeyEvent::None;
     Drag(g, 0.0f, 70.0f, now, 110, &first);
@@ -258,6 +258,21 @@ static void KeyTurn() {
     Hold(g, 100000, now);
     CHECK(Lift(g, 50000, now) == KeyEvent::None, "a 50 ms dropout released the turn");
     CHECK(Hold(g, 300000, now) == KeyEvent::Confirm, "the hold after a dropout did not confirm");
+  }
+
+  CASE("key: the release debounce is the provisional 250 ms bound");
+  {
+    // Bound, not measured (docs/missileer-game-design.md): bench run 2's unattributed
+    // gaps (107, 214, 226 ms) are dropouts under it; a lift of 250 ms is a release.
+    CHECK(KeyTurnParams().rejoin_us == 250000u, "rejoin_us is not the provisional 250 ms");
+    KeyTurnGesture g;
+    uint64_t now = 0;
+    Drag(g, 0.0f, 70.0f, now);
+    // Inside the 300 ms confirm the whole way: 10 + 226 + 5 ms after the arc.
+    Hold(g, 10000, now);
+    CHECK(Lift(g, 226000, now) == KeyEvent::None, "a 226 ms gap released the turn");
+    Hold(g, 5000, now);
+    CHECK(Lift(g, 255000, now) == KeyEvent::Release, "a 255 ms lift was not a Release");
   }
 
   CASE("key: counter-clockwise, too short, or off the bezel is no turn");

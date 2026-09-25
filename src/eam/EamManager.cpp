@@ -334,6 +334,9 @@ void EamManager::HandleTouch()
         }
         // KEYTOUCH_BENCH only (the sampler runs outside a drill): the newest sample
         // stands in for this pass's read.
+#if defined(KEYTOUCH_BENCH)
+        keyTouch.BenchPollSerial();   // the A/B run prompt: which run each log line is
+#endif
         KeyTouchSampler::Sample s;
         while (keyTouch.Next(UINT64_MAX, s)) {
             benchTouched = s.touched;

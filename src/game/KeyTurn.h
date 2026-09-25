@@ -41,8 +41,12 @@ struct KeyTurnParams {
   float sweep_deg = 60.0f;
   /// Hold after the arc that confirms it. §13-D tunable.
   uint32_t confirm_us = 300000u;
-  /// A lift shorter than this is a controller dropout, not a release.
-  uint32_t rejoin_us = 100000u;
+  /// A lift shorter than this is a controller dropout, not a release: the release
+  /// debounce. PROVISIONAL 250 ms -- BOUND, NOT MEASURED (docs/missileer-game-design.md,
+  /// "Release debounce"). It covers the unattributed 107/214/226 ms gaps of bench run 2.
+  /// It is replaced from the two-part bench test (run A: 30 s continuous drag, no
+  /// lifts; run B: ten deliberate lifts), never from bench run 1's data.
+  uint32_t rejoin_us = 250000u;
 };
 
 enum class KeyEvent : uint8_t { None = 0, Arc, Confirm, Release };
