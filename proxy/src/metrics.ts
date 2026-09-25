@@ -134,6 +134,8 @@ export const KNOWN_ROUTES = new Set([
   // API -- config and health
   "/api/v1/missileer/config",
   "/api/v1/missileer/status",
+  // API -- "on watch" count (valar-eam-feed #100): devices that polled /eam/latest in 10 min
+  "/api/v1/missileer/watch",
   // API -- placement (§8/§9). The wing-scoped capsule list is TEMPLATED below.
   "/api/v1/missileer/placement/wings",
   "/api/v1/missileer/seats/claim",

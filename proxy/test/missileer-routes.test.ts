@@ -58,6 +58,7 @@ const SERVICE_ROUTES: readonly ServiceRoute[] = [
 
   // -- config + health ----------------------------------------------------
   { path: "/config", example: "/api/v1/missileer/config", template: "/api/v1/missileer/config" },
+  { path: "/watch", example: "/api/v1/missileer/watch", template: "/api/v1/missileer/watch" },
   { path: "/status", example: "/api/v1/missileer/status", template: "/api/v1/missileer/status" },
 
   // -- placement (§8/§9) --------------------------------------------------
