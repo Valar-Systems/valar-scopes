@@ -37,25 +37,23 @@ constexpr uint8_t MAX_VERSION = 3;
 /// Quiet zone, in modules. Four is the specified minimum; less is out of spec.
 constexpr int QUIET = 4;
 
+/// The largest square inside the disc: side / sqrt(2). See Draw for why this, and
+/// not SCREEN_SIZE, is the bound.
+constexpr int INSCRIBED = (int)(SCREEN_SIZE * 0.7071f);
+
 /**
- * Draw `text` centred at (cx, cy).
- *
- * Returns false when the text will not fit MAX_VERSION, or when the symbol would
- * not fit the disc -- the caller then draws something else rather than a
- * truncated or overflowing code. A QR that is 90% present is not 90% useful; it
- * is a black square that wastes the owner's time.
+ * Encode `text` at the smallest version that holds it. False if it will not fit
+ * MAX_VERSION. ONE rule for the version, shared by Draw and SideFor, so a caller
+ * that lays out around the symbol before drawing it cannot disagree with the draw.
  */
-template <typename Canvas>
-bool Draw(Canvas& g, const char* text, int cx, int cy, int px, int* sideOut = nullptr)
+inline bool Encode(const char* text, QRCode& qrcode)
 {
-    if (sideOut) *sideOut = 0;
     if (text == nullptr || text[0] == '\0') return false;
 
     // Pick the smallest version that holds the text. ECC LOW on purpose: this is
     // a clean backlit screen at arm's length, not a label on a dusty crate, and
     // a lower ECC means fewer, larger modules -- which is what actually decides
     // whether a phone locks on across a room.
-    QRCode qrcode;
     // qrcode_getBufferSize() is a FUNCTION, so it cannot size a static array.
     // The size is reproduced as a constexpr -- a QR of version v is (4v+17)
     // modules square, one bit each, rounded up to bytes -- and then CHECKED
@@ -101,6 +99,38 @@ bool Draw(Canvas& g, const char* text, int cx, int cy, int px, int* sideOut = nu
     // disagrees with the version chosen above, the capacity table has drifted
     // from the library and we draw nothing rather than something undecodable.
     if (qrcode.size != 4 * version + 17) return false;
+    return true;
+}
+
+/// The side, in px INCLUDING the quiet zone, that Draw would give `text` at `px`
+/// per module -- or 0 if Draw would refuse it. For laying out around the symbol
+/// before it is drawn.
+inline int SideFor(const char* text, int px)
+{
+    QRCode qrcode;
+    if (!Encode(text, qrcode)) return 0;
+    const int side = (qrcode.size + 2 * QUIET) * px;
+    return side > INSCRIBED ? 0 : side;
+}
+
+/**
+ * Draw `text` centred at (cx, cy).
+ *
+ * Returns false when the text will not fit MAX_VERSION, or when the symbol would
+ * not fit the disc -- the caller then draws something else rather than a
+ * truncated or overflowing code. A QR that is 90% present is not 90% useful; it
+ * is a black square that wastes the owner's time.
+ *
+ * (cx, cy) off the disc's centre is the CALLER's proof to make: the bound below is
+ * the inscribed square, which only holds for a centred symbol. SetupQr.h's Place()
+ * raises the setup QR and checks its corners against the radius itself.
+ */
+template <typename Canvas>
+bool Draw(Canvas& g, const char* text, int cx, int cy, int px, int* sideOut = nullptr)
+{
+    if (sideOut) *sideOut = 0;
+    QRCode qrcode;
+    if (!Encode(text, qrcode)) return false;
 
     const int modules = qrcode.size + 2 * QUIET;
     const int side    = modules * px;
@@ -115,7 +145,6 @@ bool Draw(Canvas& g, const char* text, int cx, int cy, int px, int* sideOut = nu
     // The symbol must also be CENTRED for this bound to hold. An off-centre
     // square of the same size has a corner further from the middle and can fall
     // outside even when the arithmetic below passes.
-    constexpr int INSCRIBED = (int)(SCREEN_SIZE * 0.7071f);   // side / sqrt(2)
     if (side > INSCRIBED) return false;
 
     const int x0 = cx - side / 2;

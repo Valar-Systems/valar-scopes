@@ -64,12 +64,12 @@ int main(int argc, char** argv)
     // ---- the payload ----------------------------------------------------------
     char buf[96];
     size_t n = setupqr::WifiPayload("Blipscope-A1B2C3", buf, sizeof(buf));
-    check(std::string(buf, n) == "WIFI:T:nopass;S:Blipscope-A1B2C3;;", "the payload, exactly");
-    check(n == 34, "34 bytes: one past version 2's 32");
-    check(VersionFor(n) == 3, "P1: version 3 at ECC LOW");
+    check(std::string(buf, n) == "WIFI:S:Blipscope-A1B2C3;;", "the payload, exactly (no T: = open)");
+    check(n == 25, "25 bytes");
+    check(VersionFor(n) == 2, "version 2 at ECC LOW -- the 132 px symbol");
 
     n = setupqr::WifiPayload("a;b,c:d\\e\"f", buf, sizeof(buf));
-    check(std::string(buf, n) == "WIFI:T:nopass;S:a\\;b\\,c\\:d\\\\e\\\"f;;", "specials are escaped");
+    check(std::string(buf, n) == "WIFI:S:a\\;b\\,c\\:d\\\\e\\\"f;;", "specials are escaped");
 
     // Never a truncated payload: half an SSID is a DIFFERENT network.
     char tiny[20];
@@ -106,37 +106,55 @@ int main(int argc, char** argv)
             *h = (int)(8.0f * sc);
         };
     };
-    int placed = 0, refused = 0;
+    // The longest advice line the title can carry ("NETWORK NOT FOUND", 17 chars at
+    // scale 1): the placement is proven against it, not against "SETUP".
+    const int TITLE_W = 17 * 6, TITLE_H = 8;
+    int placed = 0, refused = 0, atTarget = 0;
     for (const std::string& p : products) {
         const std::string name = p + "-FFFFFF";                 // the widest hex
         n = setupqr::WifiPayload(name.c_str(), buf, sizeof(buf));
-        check(VersionFor(n) == 3, name + ": version 3 (" + std::to_string(n) + " B)");
+        check(VersionFor(n) == 2, name + ": version 2 (" + std::to_string(n) + " B)");
         for (int size : sizes) {
-            const int side = 37 * setupqr::ModulePx(size);        // version 3 + quiet zone
-            check(side <= (int)(size * 0.7071f), name + " @" + std::to_string(size) + ": QR inside the inscribed square");
-            const int titleY = setupqr::TitleY(size, side, 8);
-            // The longest advice line ("NETWORK NOT FOUND", 17 chars) at scale 1.
-            check(titleY >= 0 && 17 * 6 <= discgeom::ChordWidthPx(titleY, 8, size),
-                  name + " @" + std::to_string(size) + ": the title fits above the QR");
-            const float s = setupqr::PickNameScale(glcd(name), setupqr::NameY(size, side), size);
+            const std::string at = name + " @" + std::to_string(size);
+            const int side = 33 * setupqr::ModulePx(size);        // version 2 + quiet zone
+            check(side <= (int)(size * 0.7071f), at + ": QR inside the inscribed square");
+            const setupqr::Placement pl = setupqr::Place(size, side, TITLE_W, TITLE_H, glcd(name));
+            check(setupqr::CornersOnGlass(size, side, pl.raise), at + ": raised QR keeps its corners on the glass");
+            check(pl.titleY >= 0 && TITLE_W <= discgeom::ChordWidthPx(pl.titleY, TITLE_H, size),
+                  at + ": the title fits above the QR");
+            check(pl.nameY == pl.cy + side / 2 + setupqr::GAP_PX, at + ": the name sits under the QR");
+            const float s = pl.nameScale;
             if (s >= 1.0f) ++placed; else ++refused;
-            check(s >= 1.0f, name + " @" + std::to_string(size) + ": the name fits under the QR");
+            if (s >= setupqr::TARGET_SCALE) ++atTarget;
+            check(s >= 1.0f, at + ": the name fits under the QR");
             // The fallback screen puts the name at the centre row: it must fit there too.
             check(setupqr::PickNameScale(glcd(name), size / 2, size) >= 1.0f,
                   name + " @" + std::to_string(size) + ": the name fits on the fallback screen");
         }
     }
-    std::printf("  names placed %d, refused %d\n", placed, refused);
+    std::printf("  names placed %d, refused %d, at size 2: %d\n", placed, refused, atTarget);
 
-    // The prediction for the unit on the bench, stated as a number.
-    const int side240 = 37 * setupqr::ModulePx(240);
-    check(side240 == 148, "240 px: 148 px QR at 4 px/module");
-    check(setupqr::PickNameScale(glcd("Blipscope-A1B2C3"), setupqr::NameY(240, side240), 240) == 1.5f,
-          "Blipscope-A1B2C3 on 240 px: scale 1.5");
+    // P5, the unit on the bench, stated as numbers.
+    const int side240 = 33 * setupqr::ModulePx(240);
+    check(side240 == 132, "240 px: 132 px QR at 4 px/module");
+    const std::string bench = "Blipscope-A1B2C3";
+    // Centred, it does NOT fit at size 2 -- the reason the QR is raised at all.
+    const int centredNameY = 120 + side240 / 2 + setupqr::GAP_PX;
+    const int centredChord = discgeom::ChordWidthPx(centredNameY, 16, 240);
+    check(centredChord < 192, "CONTROL: centred, the size-2 name (192 px) does not fit the chord");
+    const setupqr::Placement b = setupqr::Place(240, side240, TITLE_W, TITLE_H, glcd(bench));
+    const int benchChord = discgeom::ChordWidthPx(b.nameY, 16, 240);
+    std::printf("  bench name: centred chord %d px; raised %d px -> chord %d px vs name 192 px, scale %.2f\n",
+                centredChord, b.raise, benchChord, (double)b.nameScale);
+    check(b.nameScale == 2.0f, bench + " on 240 px: size 2");
+    check(b.raise == 20, bench + " on 240 px: raised 20 px (the smallest raise that fits)");
+    check(benchChord >= 192, bench + " on 240 px: chord >= 192 px");
 
     // CONTROL: the picker can refuse. A rule that has never said no is untested.
-    check(setupqr::PickNameScale(glcd(std::string(40, 'W')), setupqr::NameY(240, side240), 240) == 0.0f,
+    check(setupqr::PickNameScale(glcd(std::string(40, 'W')), b.nameY, 240) == 0.0f,
           "CONTROL: a 40-character name reports 'does not fit'");
+    // CONTROL: the corner proof can refuse -- raised by half the panel, a corner is off the glass.
+    check(!setupqr::CornersOnGlass(240, side240, 60), "CONTROL: a 60 px raise puts a corner off the glass");
 
     std::printf(failures ? "FAILED (%d)\n" : "ok\n", failures);
     return failures ? 1 : 0;
