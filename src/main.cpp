@@ -488,6 +488,8 @@ void setup()
   bool connected = WiFiManagerHelpers::TryFastJoin();
   if (!connected) {
     connected = wm.autoConnect(WiFiManagerHelpers::WiFiManagerName().c_str());
+    // The portal is over: stop the setup screen's watcher BEFORE anything else draws.
+    WiFiManagerHelpers::StopSetupWatcher();
     Serial.printf("[WiFi] autoConnect() returned %s\n",
                   connected ? "true (connected)" : "false (portal timed out / not connected)");
     if (!connected) {

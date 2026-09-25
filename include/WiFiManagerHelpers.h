@@ -372,8 +372,150 @@ namespace WiFiManagerHelpers
         return false;
     }
 
+    // ---- the setup screen while a phone is joining (v15 item 6) -----------------
+    //
+    // FIELD RESULT 2026-09-25, iPhone: Join worked, and ~5 s passed before the setup
+    // page appeared. The QR stayed on screen the whole time, so it read as "Join did
+    // nothing" and Join was tapped again and again. So once a phone is associated the
+    // screen says so, and returns to the QR only if no phone has been associated for
+    // SETUP_QR_RETURN_MS.
+    //
+    // WHY A TASK: autoConnect() blocks setup() inside WiFiManager's portal loop, which
+    // has no per-iteration callback, so nothing on the main task runs between the
+    // first draw and the portal ending. The watcher is the ONLY drawer during that
+    // window: it starts after the AP callback's first draw, and StopSetupWatcher()
+    // (called the moment autoConnect() returns, in main.cpp) waits for it to exit
+    // before anything else draws. It redraws on a state change only.
+    //
+    // AND THE DELAY IS MEASURED, NOT GUESSED: association, DHCP and every portal
+    // request are logged with millis(), so "is the 5 s the phone or us?" is a number.
+    constexpr uint32_t SETUP_QR_RETURN_MS = 5000;
+
+    struct SetupWatch {
+        LGFX* tft = nullptr;
+        LGFX_Sprite* fb = nullptr;
+        uint32_t fg = 0;
+        const char* title = "";       // a string literal (SETUP, or joinfail advice)
+        volatile bool stop = false;
+        TaskHandle_t task = nullptr;
+        SemaphoreHandle_t done = nullptr;
+    };
+    inline SetupWatch& Watch() { static SetupWatch w; return w; }
+    inline volatile uint32_t& AssocMs() { static volatile uint32_t v = 0; return v; }
+    inline volatile uint32_t& ReqSinceAssoc() { static volatile uint32_t v = 0; return v; }
+
+    // THE ONE SEAM. The screen's state is decided from this and nothing else, so a
+    // rehearsal that makes it return 0 proves the QR never gives way to a phone.
+    inline int SetupStationCount() { return WiFi.softAPgetStationNum(); }
+
+    inline void SetupWatchTask(void*)
+    {
+        SetupWatch& w = Watch();
+        bool shownConnected = false;
+        uint32_t zeroSince = 0;
+        while (!w.stop) {
+            const int n = SetupStationCount();
+            const uint32_t now = millis();
+            if (n > 0) {
+                zeroSince = 0;
+                if (!shownConnected) {
+                    shownConnected = true;
+                    DrawPhoneConnectedScreen(*w.tft, *w.fb, w.fg);
+                    Serial.printf("[setup] t=%lu screen -> Phone connected (%lu ms after association)\n",
+                                  (unsigned long)millis(), (unsigned long)(millis() - AssocMs()));
+                }
+            } else if (shownConnected) {
+                if (zeroSince == 0) zeroSince = now ? now : 1;
+                else if (now - zeroSince > SETUP_QR_RETURN_MS) {
+                    shownConnected = false;
+                    DrawSetupQrScreen(*w.tft, *w.fb, w.fg, w.title, WiFiManagerName().c_str());
+                    Serial.printf("[setup] t=%lu screen -> QR (no phone for %lu ms)\n",
+                                  (unsigned long)now, (unsigned long)SETUP_QR_RETURN_MS);
+                }
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        xSemaphoreGive(w.done);
+        vTaskDelete(nullptr);
+    }
+
+    inline void StartSetupWatcher(LGFX& tft, LGFX_Sprite& fb, uint32_t fg, const char* title)
+    {
+        SetupWatch& w = Watch();
+        if (w.task) return;                           // one watcher per portal
+        w.tft = &tft; w.fb = &fb; w.fg = fg; w.title = title; w.stop = false;
+        if (!w.done) w.done = xSemaphoreCreateBinary();
+        if (xTaskCreatePinnedToCore(SetupWatchTask, "setupwatch", 4096, nullptr, 1, &w.task, 0) != pdPASS) {
+            w.task = nullptr;                          // the QR stays; only the feedback is lost
+            Serial.println("[setup] watcher task NOT started -- QR only, no 'Phone connected'");
+        }
+    }
+
+    /// Called the moment autoConnect() returns. Waits for the watcher to exit so it
+    /// can never draw over whatever setup() draws next.
+    inline void StopSetupWatcher()
+    {
+        SetupWatch& w = Watch();
+        if (!w.task) return;
+        w.stop = true;
+        if (xSemaphoreTake(w.done, pdMS_TO_TICKS(3000)) != pdTRUE)
+            Serial.println("[setup] watcher did not stop within 3 s");
+        w.task = nullptr;
+    }
+
+    inline void LogSetupRadioEvents()
+    {
+        static bool registered = false;
+        if (registered) return;
+        registered = true;
+        // WiFi event task: POD writes and a log line only -- never SPI.
+        // The phone's MAC is deliberately NOT logged: it is the customer's device.
+        WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t) {
+            const uint32_t now = millis();
+            switch (event) {
+                case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+                    AssocMs() = now;
+                    ReqSinceAssoc() = 0;
+                    Serial.printf("[setup] t=%lu phone ASSOCIATED\n", (unsigned long)now);
+                    break;
+                case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
+                    Serial.printf("[setup] t=%lu phone got DHCP lease (+%lu ms)\n",
+                                  (unsigned long)now, (unsigned long)(now - AssocMs()));
+                    break;
+                case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+                    Serial.printf("[setup] t=%lu phone disassociated\n", (unsigned long)now);
+                    break;
+                default:
+                    break;
+            }
+        });
+    }
+
+    /// Every portal request: when it arrived relative to association, and how long
+    /// the device took to serve it. Path and Host only -- never the query string or
+    /// the body, which carry the customer's Wi-Fi password on /wifisave.
+    inline void TimePortalRequests(WiFiManager& wm)
+    {
+        wm.setWebServerCallback([&wm]() {
+            wm.server->addMiddleware([](WebServer& srv, Middleware::Callback next) -> bool {
+                const uint32_t t0 = millis();
+                const bool r = next();
+                const uint32_t n = ++ReqSinceAssoc();
+                if (n <= 12) {
+                    Serial.printf("[portal] t=%lu req#%lu +%lu ms after association: %s%s served in %lu ms\n",
+                                  (unsigned long)t0, (unsigned long)n,
+                                  (unsigned long)(t0 - AssocMs()), srv.hostHeader().c_str(),
+                                  srv.uri().c_str(), (unsigned long)(millis() - t0));
+                }
+                return r;
+            });
+        });
+    }
+
     static void ConfigureWiFiManager(WiFiManager& wm, LGFX& tft, LGFX_Sprite& backbuffer)
     {
+        LogSetupRadioEvents();
+        TimePortalRequests(wm);
         // NOTIFY (WiFiManager's own default), never DEV. DEV level printed the
         // customer's Wi-Fi password to serial in the clear on every provision and
         // every saved-AP reconnect:
@@ -614,10 +756,12 @@ namespace WiFiManagerHelpers
                 DrawSetupQrScreen(tft, backbuffer,
                                   lgfx::color888(255, 176, 0),   // amber: something went wrong
                                   a.l0, WiFiManagerName().c_str());
+                StartSetupWatcher(tft, backbuffer, lgfx::color888(255, 176, 0), a.l0);
                 return;
             }
             DrawSetupQrScreen(tft, backbuffer, lgfx::color888(0, 255, 0),
                               "SETUP", WiFiManagerName().c_str());
+            StartSetupWatcher(tft, backbuffer, lgfx::color888(0, 255, 0), "SETUP");
             }
         );
     }

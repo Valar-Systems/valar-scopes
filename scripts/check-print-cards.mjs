@@ -66,9 +66,11 @@ const CARD_W = 384, CARD_H = 576; // 4in x 6in at 96 CSS px per inch
 // appear in the element's text (whitespace-normalised).
 const NOTE = "Aircraft data comes from volunteer networks we help fund.";
 // Step 2 since v15 item 6: the setup screen is a Wi-Fi QR, so the card tells the
-// owner to point a camera at it -- and names the fallback in the same breath.
+// owner to point a camera at it -- and names the fallback in the same breath. The
+// last sentence is a field result: on an iPhone the setup page took ~5 s after Join,
+// and with no warning Join was tapped again and again.
 // EXACT for the same reason as NOTE: Canva carries this sentence too.
-const JOIN = "Point your phone's camera at the screen and tap Join. No prompt? Join the Wi-Fi network named on the screen.";
+const JOIN = "Point your phone's camera at the screen and tap Join. No prompt? Join the Wi-Fi network named on the screen. After you tap Join, the setup page takes a few seconds to appear.";
 const REQUIRED = {
   quickstart: [
     { what: "wordmark", card: 0, sel: ".wordmark", text: "BLIPSCOPE" },
@@ -225,6 +227,7 @@ function main() {
       ["required: the note pushed off the card", (s) => s.replace("<p class=\"note\">", "<p class=\"note\" style=\"margin-top:120px\">")],
       ["required: step 2 reverts to the old hotspot wording", (s) => s.replace(/<p class="join-how">[\s\S]*?<\/p>/, '<p class="join-how">The screen shows a hotspot name. Connect to it.</p>')],
       ["required: step 2 loses its fallback sentence", (s) => s.replace(" No prompt? Join the Wi-Fi network named on the screen.", "")],
+      ["required: step 2 loses the few-seconds sentence", (s) => s.replace(" After you tap Join, the setup page takes a few seconds to appear.", "")],
     ];
     const clean = measure(chrome, src, "clean");
     if (!clean) { console.error("FAIL: probe did not run; BLIND"); return 2; }
