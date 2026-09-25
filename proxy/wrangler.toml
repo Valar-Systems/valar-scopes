@@ -9,6 +9,7 @@
 #
 # Secrets (per environment, never in this file):
 #   npx wrangler secret put DEVICE_KEY_SECRET --env staging # HMAC secret; the ONLY auth path
+#   npx wrangler secret put PROVISION_TOKEN --env staging   # bench auth for /blipscope/provision -- staging's OWN token
 #   npx wrangler secret put RELAY_KEY --env staging          # X-Relay-Key -> our egress relay (see relay/)
 #   npx wrangler secret put ADSB_LOL_API_KEY --env staging   # optional, if adsb.lol ever issues feeder keys
 #
@@ -199,6 +200,11 @@ simple = { limit = 6000, period = 60 }
 #   2. Set the secrets: npx wrangler secret put DEVICE_KEY_SECRET --env production
 #      REQUIRED -- per-device keys are the only auth path since 2026-08-13, so a
 #      missing secret 401s the whole fleet. scripts/deploy.sh refuses without it.
+#      WORKER-ONLY BY DESIGN: nobody holds a copy (docs/provisioning-mint.md); the
+#      bench mints through /blipscope/provision instead of deriving.
+#      npx wrangler secret put PROVISION_TOKEN --env production -- the bench's token
+#      for that route. Daniel generates it and keeps it in the password manager;
+#      unset, every mint is a 403 (the fleet is unaffected).
 #   3. Add scopes.valarsystems.com as a custom domain (route below; the zone must
 #      be on this Cloudflare account).
 # The RL binding namespace_ids (2101/2102) are distinct from staging's so the

@@ -759,6 +759,28 @@ fi
 contains "enrol page carries a real sitekey (TURNSTILE_SITEKEY is bound)" 200 \
   'data-sitekey="0x' "$BASE/blipscope/enroll?id=a1b2c3d4e5f6a7b8"
 
+# ---- provisioning mint (docs/provisioning-mint.md) ----------------------------
+#
+# The path is read out of the BENCH's own client (scripts/provision_one.py), for
+# the same reason the enrol URLs are read out of the firmware: a path typed here
+# would be the test's assumption, not the contract. No token is sent, so nothing
+# is minted; what is proven is that the route exists and refuses (403), and that
+# it is POST-only (a GET is 405, never a page).
+PROV_SRC="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/provision_one.py"
+MINT_PATH="$( [ -r "$PROV_SRC" ] && grep -oE '^MINT_PATH = "[^"]+"' "$PROV_SRC" | sed -E 's/.*"([^"]+)"/\1/' )"
+if [ -n "$MINT_PATH" ]; then
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 -X POST -H 'Content-Type: application/json' \
+          --data '{"mac":"02:00:00:00:00:01"}' "$BASE$MINT_PATH")"
+  printf '\n===== bench mint path %s, POST with NO token =====\nexpect HTTP 403\ngot    HTTP %s\n' "$MINT_PATH" "$code"
+  if [ "$code" = "403" ]; then printf 'RESULT: PASS\n'; pass=$((pass+1)); else printf 'RESULT: FAIL\n'; fail=$((fail+1)); fi
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "$BASE$MINT_PATH")"
+  printf '\n===== bench mint path %s, GET =====\nexpect HTTP 405\ngot    HTTP %s\n' "$MINT_PATH" "$code"
+  if [ "$code" = "405" ]; then printf 'RESULT: PASS\n'; pass=$((pass+1)); else printf 'RESULT: FAIL\n'; fail=$((fail+1)); fi
+else
+  printf '\n===== bench mint path =====\nexpect MINT_PATH in scripts/provision_one.py\nRESULT: FAIL (not found -- the bench client moved, or this pattern stopped matching)\n'
+  fail=$((fail+1))
+fi
+
 # NO SOLVE, NO KEY -- asserted against production, with a token that cannot pass.
 #
 # This is also the only thing that proves BOTH secrets are actually on the

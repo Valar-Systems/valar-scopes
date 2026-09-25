@@ -1,0 +1,27 @@
+{
+ "generatedBy": "scripts/mint-fixture.py (provision-device.py device_id + device_key)",
+ "salt": "blipscope-lb-v1",
+ "secret": "test-device-secret",
+ "cases": [
+  {
+   "mac": "02:00:00:00:00:01",
+   "deviceIdSha256": "97bd4c02a173d9bedbd9b39bfb7143aed004c4f57c0043e7cd5b456fc4b36896",
+   "key": "634a8c2ac71f5193fdef6d0520c153e21cea1bf6379415512f2257c976e01745"
+  },
+  {
+   "mac": "02:12:34:56:78:9a",
+   "deviceIdSha256": "fe02eb7caae79974f6389536b705ff0edd1a9595f7b657418f63f77fadabf996",
+   "key": "b8fe4669449713d1fcb0c167faadaff8266c140189afd883af490c3f64370bd8"
+  },
+  {
+   "mac": "06:ff:ee:dd:cc:bb",
+   "deviceIdSha256": "f595c0a4923ab3a56672c93bfe490fc6bcf4d7580d1d66e29012820f450bf79f",
+   "key": "f62d69e92f6dcd5832afd410eee901af21570bd4ecc30141cebf64bae04dae76"
+  },
+  {
+   "mac": "02:90:70:69:31:e2",
+   "deviceIdSha256": "a61db6a1171fdadf80395c23f275e508e38b87dc5c5528ba89488a0a1f7c1444",
+   "key": "17c1d25ddc5a87d61c54ab9deb2980010b9d28d347a9c957ba0cd4edbe050f2d"
+  }
+ ]
+}
