@@ -18,12 +18,25 @@ provision-batch.py calls the SAME function, `provision()`, so there is one copy:
       -> the id is RECOMPUTED here from the MAC and the firmware's salt; a mismatch
          means the Worker and the firmware disagree about the salt, so the key
          would belong to an id this board never reports -- refused, nothing written
-      -> NVS image -> write it at the nvs offset from the env's partition table
-      -> PROVE it is on the board: `verify-flash` of that same image (an on-chip
-         MD5, NOT a read_flash, whose stub bulk-read dies on this board's USB-JTAG;
-         INCOMING-INSPECTION.md)
+      -> NVS image -> write it at the nvs offset from the env's partition table,
+         with `--after no-reset`, and require write-flash's OWN on-chip check:
+         exit 0 AND the line "Hash of data verified." -- the flash MD5 of the
+         region, computed on the chip BEFORE any reset (esptool cmds.py:1552-1572)
+      -> reset via read-mac, which also re-checks the MAC: the same board answered
       -> present the key to --verify-url: 200 proves the Worker accepts it
       -> append the manufacturing record, read back
+
+WHY THE CHECK IS BEFORE THE RESET, AND NEVER A LATER COMPARE OF NVS. Step 4
+(2026-09-25) failed with the key present and correct: the write hard-reset the
+board, the firmware booted and wrote its own entries into NVS (Wi-Fi AP settings,
+PHY calibration), and a separate verify-flash of the whole partition then found a
+digest mismatch. NVS is a MUTABLE partition; a byte compare taken after the app
+has run proves nothing either way. The on-chip hash at write time is the board-side
+proof. The definitive proof is Worker-side and comes later: the board's own
+authenticated requests under its id, once it is on Wi-Fi.
+
+EVERY esptool call's full output goes to the per-board log (--esptool-log), because
+Step 4's diagnosis needed the write's output and only three lines had been kept.
 
 "Verified" means all of that. It is what DONE is allowed to claim, and exit 0 is
 reached by no other path.
@@ -119,9 +132,25 @@ def verify(base: str, key: str, dev_id: str) -> int:
         return getattr(e, "code", 0)
 
 
+HASH_OK = "Hash of data verified."
+MAC_FOUND = re.compile(r"MAC:\s*((?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2})")
+
+
+def _run_logged(cmd: list, log_file) -> tuple:
+    """(returncode, combined output). The FULL output is appended to log_file."""
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    out = (r.stdout or "") + (r.stderr or "")
+    if log_file:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"$ {' '.join(cmd[2:])}\n{out}\n[exit {r.returncode}]\n\n")
+    return r.returncode, out
+
+
 def provision(port: str, mac: str, *, esptool_cmd: list, dashed: bool, baud: int, salt: str,
               mint_fn, nvs_offset: str, nvs_size: int, cloud_url: str | None = None,
-              verify_url: str | None = None, build_nvs=None, verify_fn=None, on_step=None) -> tuple:
+              verify_url: str | None = None, build_nvs=None, verify_fn=None, on_step=None,
+              log_file=None) -> tuple:
     """(status, dev_id, detail) with status "OK" or "FAIL". Never raises: a board
     that fails must not take a batch down with it. `mint_fn(mac) -> (deviceId, key)`
     is the Worker call; `build_nvs` and `verify_fn` are injectable so the pipeline
@@ -145,18 +174,31 @@ def provision(port: str, mac: str, *, esptool_cmd: list, dashed: bool, baud: int
                                       f"salt drift between proxy/src/devicesalt.generated.ts and "
                                       f"include/DeviceIdentity.h; nothing written")
         write = "write-flash" if dashed else "write_flash"
-        check = "verify-flash" if dashed else "verify_flash"
+        no_reset = "no-reset" if dashed else "no_reset"
+        read_mac = "read-mac" if dashed else "read_mac"
         with tempfile.TemporaryDirectory() as td:
             nvs_bin = str(build_nvs(key, cloud_url, Path(td), nvs_size))
-            for step, sub in (("nvs write", write), ("nvs verify", check)):
-                on_step("write" if step == "nvs write" else "verify")
-                cmd = esptool_cmd + ["--port", port, "--baud", str(baud), sub, nvs_offset, nvs_bin]
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-                if r.returncode != 0:
-                    tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
-                    what = ("write failed" if step == "nvs write"
-                            else "key is NOT on the board (verify-flash failed)")
-                    return "FAIL", dev_id, f"{mac}: nvs {what} -- " + " / ".join(tail)
+            on_step("write")
+            # The check is write-flash's own on-chip hash, BEFORE any reset: with
+            # --after no-reset the firmware cannot run and change NVS in between.
+            rc, out = _run_logged(esptool_cmd + ["--port", port, "--baud", str(baud), "--after", no_reset,
+                                                 write, nvs_offset, nvs_bin], log_file)
+            if rc != 0:
+                tail = out.strip().splitlines()[-3:]
+                return "FAIL", dev_id, f"{mac}: nvs write failed its on-chip hash -- " + " / ".join(tail)
+            if HASH_OK not in out:
+                # esptool skips its hash check SILENTLY when the ROM cannot do MD5
+                # (cmds.py:1573), and exit 0 alone would then prove nothing.
+                return "FAIL", dev_id, f"{mac}: nvs write was NOT verified on-chip (no '{HASH_OK}') -- not trusted"
+        # Now reset, via a MAC read: it boots the firmware AND proves the board that
+        # answered is the board that was written.
+        rc, out = _run_logged(esptool_cmd + ["--port", port, read_mac], log_file)
+        seen = MAC_FOUND.findall(out)
+        if rc != 0 or not seen:
+            return "FAIL", dev_id, f"{mac}: the key is written and verified, but the reset read failed -- reseat and re-run"
+        if seen[0].replace("-", ":").lower() != mac:
+            return "FAIL", dev_id, f"{mac}: a DIFFERENT board answered after the write -- stop and check the hub"
+        on_step("verify")
         if verify_url:
             code = verify_fn(verify_url, key, dev_id)
             if code == 401:
@@ -180,6 +222,7 @@ def main(argv=None) -> int:
     ap.add_argument("--cloud-url", help="also bake this into NVS as cloud-url")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--log", default=str(REPO / "provisioned.csv"), help="manufacturing record to append")
+    ap.add_argument("--esptool-log", help="full esptool output for this board (default: provision-logs/ in this repo)")
     a = ap.parse_args(argv)
 
     def result(ok: bool, text: str) -> int:
@@ -198,11 +241,16 @@ def main(argv=None) -> int:
         esptool_cmd, dashed = pd.find_esptool()
     except SystemExit:
         return result(False, "setup failed (see the line above)")
+    from datetime import datetime, timezone
+    esptool_log = a.esptool_log or str(REPO / "provision-logs" / (
+        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{a.mac.lower().replace(':', '').replace('-', '')}.log"))
+    print(f"esptool log: {esptool_log}", flush=True)
     status, dev_id, detail = provision(a.port, a.mac, esptool_cmd=esptool_cmd, dashed=dashed, baud=a.baud,
                                       salt=salt, mint_fn=lambda m: mint(a.verify_url, token, m),
                                       nvs_offset=nvs_offset, nvs_size=nvs_size,
                                       cloud_url=a.cloud_url, verify_url=a.verify_url,
-                                      on_step=lambda step: print(f"STEP {step}", flush=True))
+                                      on_step=lambda step: print(f"STEP {step}", flush=True),
+                                      log_file=esptool_log)
     if status != "OK":
         return result(False, detail)
     try:

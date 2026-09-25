@@ -185,10 +185,14 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
             tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
             return port, "FAIL", f"{mac}: factory write failed -- " + " / ".join(tail)
 
+        # The full esptool output per board, as provision_one's CLI keeps it: Step 4's
+        # diagnosis needed the write's output and only three lines had survived.
+        log_file = REPO / "provision-logs" / (
+            f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{mac.replace(':', '')}.log")
         status, dev_id, detail = po.provision(
             port, mac, esptool_cmd=cfg.esptool_cmd, dashed=cfg.dashed, baud=cfg.baud,
             salt=cfg.salt, mint_fn=cfg.mint_fn, nvs_offset=cfg.nvs_offset, nvs_size=cfg.nvs_size,
-            cloud_url=cfg.cloud_url, verify_url=cfg.verify_url)
+            cloud_url=cfg.cloud_url, verify_url=cfg.verify_url, log_file=log_file)
         if status != "OK":
             return port, "FAIL", detail
 
