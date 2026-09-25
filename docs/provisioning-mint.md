@@ -70,6 +70,9 @@ not an exact meter.
   the returned `deviceId` against its own derivation, then writes the NVS key with
   `--after no-reset`. It requires write-flash's **own on-chip hash** ("Hash of data
   verified.") **before any reset**, then resets via `read-mac`, which re-checks the MAC.
+  "Hash of data verified." is required and its absence is a refusal, even on exit 0: on a ROM
+  that cannot compute MD5, esptool's `write_flash` catches `NotImplementedInROMError` and skips
+  the check without printing anything (esptool 5.4.0 `esptool/cmds.py:1927-1928`).
   Then it verifies the key with `/v1/config` (200). **Never a post-boot compare of NVS:** the
   firmware writes into that partition as soon as it runs. That false failure is how Step 4
   failed on 2026-09-25, with the key present and correct. The definitive proof is Worker-side:
