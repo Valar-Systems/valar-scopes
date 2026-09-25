@@ -7,12 +7,11 @@
 // compile as-is (test/host/test_usb_open.cpp). The keyboard types into whatever
 // the computer has focused, so the only characters that can ever leave the
 // device are:
-//   - the fixed, compile-time URL prefix below, and
-//   - a message id that is 1..MAX_ID_LEN characters of [A-Za-z0-9-] (anything
-//     else is dropped and the archive root is typed instead), and
+//   - the fixed, compile-time URL below, and nothing else, and
 //   - at most MAX_TYPED characters in total.
-// Nothing from the network is typed except that validated id: not the base URL
-// the config page can change, not message text, not a callsign.
+// Nothing from the network is typed: not the base URL the config page can
+// change, not message text, not a callsign, and (since 2026-09-24) not even the
+// message id -- the public site has no per-message anchor to point it at.
 //
 // Keystrokes assume a US keyboard layout on the computer (':' and '/' move on
 // AZERTY/QWERTZ); the URL is ASCII only.
@@ -20,9 +19,13 @@
 
 namespace usbopen {
 
-// The public archive. Deliberately NOT the runtime `eam-base-url`: that setting
-// is text from a web form, and nothing typed into a computer may come from it.
-static const char* const ARCHIVE_URL = "https://valar-eam-feed.onrender.com/missileer/archive";
+// THE CANONICAL PUBLIC SITE -- a LOCKED value, same status as the palette (CLAUDE.md
+// "Locked values"). missileerwatch.com 301s here. It was the Render archive page
+// (valar-eam-feed.onrender.com/missileer/archive) until 2026-09-24; that page is the
+// working tool, not what a person's long press should open (Fable, 2026-09-24).
+// Deliberately NOT the runtime `eam-base-url`: that setting is text from a web
+// form, and nothing typed into a computer may come from it.
+static const char* const SITE_URL = "https://missileer.watch/";
 static const unsigned MAX_ID_LEN = 128;
 static const unsigned MAX_TYPED = 200;
 // The launcher needs a moment to open before it takes keystrokes.
@@ -52,16 +55,13 @@ inline bool ValidId(const String& id)
     return true;
 }
 
-// The URL to type: the archive row for a valid id, else the archive root. Capped.
+// The URL to type: the public site. The shown message's id no longer rides along
+// (missileer.watch has no per-message anchor); `id` is kept so a deep link can come
+// back the day the site has one, without changing the callers.
 inline String UrlFor(const String& id)
 {
-    String url(ARCHIVE_URL);
-    if (ValidId(id)) {
-        url += "#m-";
-        url += id.c_str();
-    }
-    if (url.length() > MAX_TYPED) url = String(ARCHIVE_URL);
-    return url;
+    (void)id;
+    return String(SITE_URL);
 }
 
 // The launcher chord for each OS: a modifier held while one key is tapped.

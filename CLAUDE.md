@@ -6,6 +6,19 @@ Guidance for working in this repo. Keep it short; the code is well-commented —
 
 Blipscope: ESP32-S3 firmware for round touch LCDs — a desk flight radar fed by Blipscope Cloud (the [proxy/](proxy/) Worker), OpenSky (BYO account), or a local dump1090/readsb `aircraft.json`. PlatformIO + Arduino (pioarduino platform). Every SKU is a dual-core ESP32-S3 with PSRAM: the original single-core ESP32-C3 Kit (1.28" GC9A01 + CST816T) was retired 2026-06-29, briefly revived bench-only for the cloud-feed program, and **deleted from the tree 2026-08-09** — variant header, envs, wedge-bisection harness and its single-core capability flags with it. See [README.md](README.md) for the product/user side.
 
+## Locked values
+
+Changed only by an explicit ruling, never as a side effect of other work -- the same
+status as the locked palette.
+
+- **The canonical public URL is `https://missileer.watch/`.** `missileerwatch.com` 301s
+  to it. Anything a person is sent to -- the USB "open on computer" long press
+  (`src/eam/UsbOpenPlan.h` `SITE_URL`), a QR code, a printed card -- uses this. The
+  Render archive (`valar-eam-feed.onrender.com/missileer/archive`) is the working
+  tool and is never where a device or a card sends someone.
+- **The EAM palette** (`src/eam/EamTheme.h`): green and amber as defined; no colour
+  is added or changed.
+
 ## Build / flash / monitor
 
 Multi-SKU: one PlatformIO env per hardware variant (see [platformio.ini](platformio.ini)). The S3 1.28" Kit S3 (`blipscope-s3-128`) is the default SKU — "the default", unqualified, means this board.

@@ -22,7 +22,7 @@ static bool eq(const String& got, const char* want) { return std::strcmp(got.c_s
 int main()
 {
     using namespace usbopen;
-    const char* root = "https://valar-eam-feed.onrender.com/missileer/archive";
+    const char* root = "https://missileer.watch/";  // LOCKED (CLAUDE.md "Locked values")
 
     // The id is the only network-sourced text that can be typed, and only when clean.
     expect(ValidId("eam-f27e2d58"), "a feed id is valid");
@@ -36,17 +36,17 @@ int main()
     expect(!ValidId(String(std::string(129, 'a'))), "an id over 128 chars is refused");
     expect(ValidId(String(std::string(128, 'a'))), "an id of exactly 128 chars is valid");
 
-    // The URL: the fixed prefix, plus #m-<id> for a clean id, else the root. Never over 200.
-    expect(eq(UrlFor("eam-f27e2d58"), "https://valar-eam-feed.onrender.com/missileer/archive#m-eam-f27e2d58"),
-           "a clean id opens its archive row");
-    expect(eq(UrlFor("bad id!"), root), "a dirty id falls back to the archive root, not to its text");
-    expect(eq(UrlFor(""), root), "no id opens the archive root");
-    expect(UrlFor(String(std::string(128, 'a'))).length() <= MAX_TYPED, "the longest valid id still fits the 200-char cap");
+    // The URL: the canonical public site, whatever is shown -- never the Render archive
+    // (the working tool), never an id (the site has no per-message anchor).
+    expect(eq(UrlFor("eam-f27e2d58"), root), "a clean id opens the public site");
+    expect(eq(UrlFor("bad id!"), root), "a dirty id opens the public site, not its text");
+    expect(eq(UrlFor(""), root), "no id opens the public site");
+    expect(std::strstr(UrlFor("eam-1").c_str(), "onrender") == nullptr, "the Render archive is never typed");
+    expect(UrlFor(String(std::string(128, 'a'))).length() <= MAX_TYPED, "within the 200-char cap");
 
     // The plan: what a long press types, per setting.
-    expect(eq(PlanUrl(Os::Windows, "eam-1", true), "https://valar-eam-feed.onrender.com/missileer/archive#m-eam-1"),
-           "Windows, message shown: its row");
-    expect(eq(PlanUrl(Os::Mac, "", true), root), "nothing shown, 'open the archive': the root");
+    expect(eq(PlanUrl(Os::Windows, "eam-1", true), root), "Windows, message shown: the public site");
+    expect(eq(PlanUrl(Os::Mac, "", true), root), "nothing shown, 'open the site': the public site");
     expect(PlanUrl(Os::Linux, "", false).length() == 0, "nothing shown, 'do nothing': types nothing");
     expect(PlanUrl(Os::Windows, "bad id!", false).length() == 0, "a dirty id with 'do nothing' types nothing");
     expect(PlanUrl(Os::Off, "eam-1", true).length() == 0, "OS set to Off: types nothing, even with a message");
