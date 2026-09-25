@@ -599,22 +599,25 @@ namespace WiFiManagerHelpers
             // Composed through the backbuffer so it renders on the SPD2010 (direct per-glyph writes
             // don't); direct on every other SKU. See BootScreen.h.
             //
-            // THE LAST FAILURE REPLACES THE TITLE when there is one. Three lines
-            // is all this screen has, and "- SETUP -" is the least informative of
-            // them to someone who has already tried once and failed -- they know
-            // it is the setup screen; what they do not know is why the last
-            // attempt did not work. The hotspot name stays on the bottom row
-            // either way, because that is the thing they have to act on.
+            // THE LAST FAILURE REPLACES THE TITLE when there is one. "SETUP" is the
+            // least informative line to someone who has already tried once and
+            // failed -- they know it is the setup screen; what they do not know is
+            // why the last attempt did not work. The QR and the hotspot name stay
+            // either way, because joining the hotspot is the thing they have to do.
+            //
+            // A Wi-Fi QR since v15 (DrawSetupQrScreen, BootScreen.h): the phone's
+            // camera offers "Join", and the name below it is the fallback. The AP is
+            // OPEN (main.cpp's autoConnect has no password), hence T:nopass.
             const uint8_t failReason = LastPersistedJoinReason();
             if (failReason != 0) {
                 const joinfail::Advice a = joinfail::AdviceFor(joinfail::Classify(failReason));
-                DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0),
-                                   lgfx::color888(255, 176, 0),   // amber: something went wrong
-                                   a.l0, "Rejoin this hotspot:", WiFiManagerName().c_str());
+                DrawSetupQrScreen(tft, backbuffer,
+                                  lgfx::color888(255, 176, 0),   // amber: something went wrong
+                                  a.l0, WiFiManagerName().c_str());
                 return;
             }
-            DrawCenteredScreen(tft, backbuffer, lgfx::color888(0, 0, 0), lgfx::color888(0, 255, 0),
-                               "- SETUP -", "Connect to this Wi-Fi hotspot:", WiFiManagerName().c_str());
+            DrawSetupQrScreen(tft, backbuffer, lgfx::color888(0, 255, 0),
+                              "SETUP", WiFiManagerName().c_str());
             }
         );
     }

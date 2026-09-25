@@ -46,8 +46,9 @@ constexpr int QUIET = 4;
  * is a black square that wastes the owner's time.
  */
 template <typename Canvas>
-bool Draw(Canvas& g, const char* text, int cx, int cy, int px)
+bool Draw(Canvas& g, const char* text, int cx, int cy, int px, int* sideOut = nullptr)
 {
+    if (sideOut) *sideOut = 0;
     if (text == nullptr || text[0] == '\0') return false;
 
     // Pick the smallest version that holds the text. ECC LOW on purpose: this is
@@ -131,6 +132,9 @@ bool Draw(Canvas& g, const char* text, int cx, int cy, int px)
                        lgfx::color888(0, 0, 0));
         }
     }
+    // The side it DREW, so a caller lays out around the real symbol rather than
+    // re-deriving the version with a copy of the capacity table above.
+    if (sideOut) *sideOut = side;
     return true;
 }
 
