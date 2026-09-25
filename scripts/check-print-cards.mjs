@@ -65,9 +65,14 @@ const CARD_W = 384, CARD_H = 576; // 4in x 6in at 96 CSS px per inch
 // What each card must carry. `card` is the .card index in the file; `text` must
 // appear in the element's text (whitespace-normalised).
 const NOTE = "Aircraft data comes from volunteer networks we help fund.";
+// Step 2 since v15 item 6: the setup screen is a Wi-Fi QR, so the card tells the
+// owner to point a camera at it -- and names the fallback in the same breath.
+// EXACT for the same reason as NOTE: Canva carries this sentence too.
+const JOIN = "Point your phone's camera at the screen and tap Join. No prompt? Join the Wi-Fi network named on the screen.";
 const REQUIRED = {
   quickstart: [
     { what: "wordmark", card: 0, sel: ".wordmark", text: "BLIPSCOPE" },
+    { what: "step 2 (join)", card: 0, sel: ".join-how", text: JOIN, exact: true },
     { what: "QR", card: 1, sel: ".qr-slot", text: "valarsystems.com" },
     // EXACT, not "contains": the card design lives in Canva and the repo is the
     // source of truth for the WORDING, so any change to this sentence -- here or
@@ -218,6 +223,8 @@ function main() {
       ["required: the note's wording changed by one word", (s) => s.replace("volunteer networks we help fund.", "volunteer networks we fund.")],
       ["required: the note gains a second sentence", (s) => s.replace("we help fund.</p>", "we help fund. Thank you.</p>")],
       ["required: the note pushed off the card", (s) => s.replace("<p class=\"note\">", "<p class=\"note\" style=\"margin-top:120px\">")],
+      ["required: step 2 reverts to the old hotspot wording", (s) => s.replace(/<p class="join-how">[\s\S]*?<\/p>/, '<p class="join-how">The screen shows a hotspot name. Connect to it.</p>')],
+      ["required: step 2 loses its fallback sentence", (s) => s.replace(" No prompt? Join the Wi-Fi network named on the screen.", "")],
     ];
     const clean = measure(chrome, src, "clean");
     if (!clean) { console.error("FAIL: probe did not run; BLIND"); return 2; }
