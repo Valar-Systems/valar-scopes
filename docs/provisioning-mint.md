@@ -67,8 +67,13 @@ not an exact meter.
 ## The bench side
 
 - **`provision_one.py`** mints through the route instead of deriving. It sends the MAC, checks
-  the returned `deviceId` against its own derivation, writes and proves the NVS key, then
-  verifies the key with `/v1/config` (200) as before. `DEVICE_KEY_SECRET` is **not read
+  the returned `deviceId` against its own derivation, then writes the NVS key with
+  `--after no-reset`. It requires write-flash's **own on-chip hash** ("Hash of data
+  verified.") **before any reset**, then resets via `read-mac`, which re-checks the MAC.
+  Then it verifies the key with `/v1/config` (200). **Never a post-boot compare of NVS:** the
+  firmware writes into that partition as soon as it runs. That false failure is how Step 4
+  failed on 2026-09-25, with the key present and correct. The definitive proof is Worker-side:
+  the board's own authenticated requests under its id once it's on Wi-Fi. `DEVICE_KEY_SECRET` is **not read
   anywhere on the bench**. `provision-device.py` and `provision-batch.py` mint the same way.
   `device_key()` stays in `provision-device.py` for one purpose only: generating the
   equivalence fixture.
@@ -81,10 +86,12 @@ not an exact meter.
   `device_id()` and `device_key()` on fake MACs with a test secret and writes
   `proxy/test/fixtures/mint-equivalence.json` (`--check` in CI). The Worker must return
   identical ids and keys for those MACs.
-- **Equivalence, live, once, after deploy.**
-  - Mint for provisioned row 1's MAC. It must return the device id recorded for that row, and
-    its key must authenticate as that device (`/v1/config` 200): the same key the unit already
-    uses, with no re-provisioning.
+- **Equivalence, live, once, after deploy.** Done 2026-09-25 for **COM6**, a board
+  authenticating in production at the time, rather than row 1.
+  - COM6's own accepted requests prove its stored key is `HMAC(S_worker, id)`, so the mint
+    returning that id and a key the Worker accepts is **byte for byte the key COM6 holds**.
+  - Checked: the premise (119 requests in 30 min), the id match, `mintsToday` 1, the verify 200
+    with a wrong-key control 401, and COM6 still authenticating afterwards. All held.
   - Run outside the repo: it involves a real id.
 - **Refusals:** wrong token, missing token, and an unset `PROVISION_TOKEN` each give 403. At
   the cap, 429. A fake id gives 403. A bad MAC gives 400. The token never appears in a log line.

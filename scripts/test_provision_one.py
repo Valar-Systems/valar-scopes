@@ -61,7 +61,10 @@ class Rig(unittest.TestCase):
         self.td = tempfile.TemporaryDirectory()
         self.dir = self.td.name
         os.environ["FAKE_ESPTOOL_DIR"] = self.dir
-        for k in ("FAKE_FAIL", "FAKE_DROP_WRITES"):
+        # The fake models the REAL board by default: a hard reset boots firmware that
+        # writes into NVS. Step 4 failed on hardware because the old fake did not.
+        os.environ["FAKE_BOOT_WRITES_NVS"] = "1"
+        for k in ("FAKE_FAIL", "FAKE_DROP_WRITES", "FAKE_NO_HASH", "FAKE_MAC_SEQUENCE", "FAKE_MAC"):
             os.environ.pop(k, None)
         self.verified = []
 
@@ -81,10 +84,11 @@ class Rig(unittest.TestCase):
             return code
         return f
 
-    def run_one(self, mac=MAC, code=200, verify_url="https://proxy.example", mint_fn=fake_mint):
+    def run_one(self, mac=MAC, code=200, verify_url="https://proxy.example", mint_fn=fake_mint, log_file=None):
         return po.provision("COMX", mac, esptool_cmd=FAKE, dashed=True, baud=921600, salt=SALT,
                             mint_fn=mint_fn, nvs_offset=NVS_OFF, nvs_size=NVS_SIZE,
-                            verify_url=verify_url, build_nvs=fake_nvs, verify_fn=self.verify_ok(code))
+                            verify_url=verify_url, build_nvs=fake_nvs, verify_fn=self.verify_ok(code),
+                            log_file=log_file)
 
 
 class ProvisionOne(Rig):
@@ -92,18 +96,57 @@ class ProvisionOne(Rig):
         status, dev_id, _ = self.run_one()
         self.assertEqual(status, "OK")
         self.assertEqual(dev_id, po.pd.device_id(MAC, SALT))
-        subs = [(c["sub"], c["args"][0]) for c in self.calls()]
-        self.assertEqual(subs, [("write-flash", NVS_OFF), ("verify-flash", NVS_OFF)])
+        subs = [(c["sub"], c["args"][0] if c["args"] else "", c["after"]) for c in self.calls()]
+        # The write does NOT reset (its on-chip hash is the check); the MAC read then resets.
+        self.assertEqual(subs, [("write-flash", NVS_OFF, "no-reset"), ("read-mac", "", "hard-reset")])
+        # The key is checked in the image WRITTEN (and hash-verified on-chip), not by
+        # reading NVS back after the firmware booted -- that post-boot compare is the
+        # exact mistake Step 4 made, and this assertion made it too until the fake
+        # modelled the boot.
         key = fake_key(dev_id)
-        self.assertEqual(self.flash()[0x9000:0x9000 + 3 + len(key)], b"NVS" + key.encode())
+        written = bytes.fromhex(self.calls()[0]["written_head"][0])
+        self.assertTrue(written.startswith(b"NVS" + key.encode()))
         self.assertEqual(self.verified, [("https://proxy.example", dev_id)])
 
-    def test_a_board_that_did_not_take_the_write_fails(self):
+    def test_a_board_that_did_not_take_the_write_fails_on_the_on_chip_hash(self):
         os.environ["FAKE_DROP_WRITES"] = "1"
         status, _, detail = self.run_one()
         self.assertEqual(status, "FAIL")
-        self.assertIn("NOT on the board", detail)
+        self.assertIn("failed its on-chip hash", detail)
         self.assertEqual(self.verified, [], "must not call the key good when it is not on the board")
+
+    def test_REGRESSION_step4_firmware_writing_nvs_after_boot_is_not_a_failure(self):
+        """2026-09-25: the key was present and correct, and a post-boot compare of NVS
+        failed because the firmware had written its own entries. Must be DONE now."""
+        self.assertEqual(os.environ.get("FAKE_BOOT_WRITES_NVS"), "1", "CONTROL: the rig models the boot")
+        status, dev_id, detail = self.run_one()
+        self.assertEqual(status, "OK", detail)
+        self.assertNotEqual(self.flash()[0x9000 + 0x3000:0x9000 + 0x3010], b"\xff" * 16,
+                            "CONTROL: the firmware boot really did write into NVS")
+
+    def test_a_silently_skipped_hash_is_not_trusted(self):
+        os.environ["FAKE_NO_HASH"] = "1"
+        status, _, detail = self.run_one()
+        self.assertEqual(status, "FAIL")
+        self.assertIn("NOT verified on-chip", detail)
+        self.assertEqual(self.verified, [])
+
+    def test_a_different_board_after_the_reset_is_refused(self):
+        os.environ["FAKE_MAC_SEQUENCE"] = "02:99:99:99:99:99"
+        status, _, detail = self.run_one()
+        self.assertEqual(status, "FAIL")
+        self.assertIn("DIFFERENT board", detail)
+        self.assertEqual(self.verified, [])
+
+    def test_the_full_esptool_output_is_logged_and_the_key_is_not(self):
+        log = Path(self.dir) / "logs" / "board.log"
+        status, dev_id, _ = self.run_one(log_file=log)
+        self.assertEqual(status, "OK")
+        text = log.read_text(encoding="utf-8")
+        self.assertIn("--after no-reset write-flash", text)
+        self.assertIn("Hash of data verified.", text)
+        self.assertIn("MAC: " + MAC, text)
+        self.assertNotIn(fake_key(dev_id), text)
 
     def test_write_failure(self):
         os.environ["FAKE_FAIL"] = "write-flash"
@@ -227,7 +270,8 @@ class Cli(Rig):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
             rc = po.main(["COMX", MAC, "--env", "blipscope-s3-128", "--verify-url", "https://proxy.example",
-                          "--token-file", str(self.token_file), "--log", str(self.log), *extra])
+                          "--token-file", str(self.token_file), "--log", str(self.log),
+                          "--esptool-log", str(Path(self.dir) / "esptool.log"), *extra])
         return rc, out.getvalue()
 
     def test_ok_exits_zero_records_one_row_and_never_prints_the_token(self):
@@ -315,7 +359,7 @@ class BatchUsesTheSameFunction(Rig):
         self.assertEqual(spy, [("COMX", MAC)])
         subs = [(c["sub"], c["args"][0] if c["args"] else "") for c in self.calls()]
         self.assertEqual(subs, [("read-mac", ""), ("write-flash", "0x0"),
-                                ("write-flash", NVS_OFF), ("verify-flash", NVS_OFF)])
+                                ("write-flash", NVS_OFF), ("read-mac", "")])
 
 
 if __name__ == "__main__":

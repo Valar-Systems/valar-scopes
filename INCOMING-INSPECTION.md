@@ -328,7 +328,8 @@ writes it into NVS, proves it's on the board, and verifies it against the Worker
 | `PROVISION_TOKEN rejected (403)` | the token file doesn't match the Worker's secret | fix the file from the password manager; **every board this run will fail the same way** |
 | `daily mint cap (120) reached` | today's mints are used up | resume after the reset time shown |
 | `salt drift` | the Worker and this firmware derive different ids | **stop the batch**; nothing was written |
-| `key is NOT on the board` | the NVS write didn't take | reseat and re-run that board |
+| `nvs write failed its on-chip hash` / `NOT verified on-chip` | the NVS write didn't take, or esptool couldn't check it | reseat and re-run that board. The full esptool output is in `provision-logs/` |
+| `a DIFFERENT board answered` | the board was swapped mid-run | stop and check the hub |
 
 ## 7. First-run acceptance — the path every board takes exactly once (100%)
 
