@@ -62,6 +62,16 @@ public:
     // Loop: the oldest sample with tUs <= upToUs, if any. Samples arrive in order.
     bool Next(uint64_t upToUs, Sample& out);
 
+#if defined(KEYTOUCH_BENCH)
+    // Loop, bench only: the run prompt. Before each run Daniel answers A (30 s
+    // continuous drag, no lifts) or B (ten deliberate lifts); E ends the run. Every
+    // release and window line is tagged with the run it belongs to (run=A#1, ...;
+    // run=-#0 outside a run), so the log says which run is which. The release
+    // debounce (KeyTurnParams::rejoin_us) is set from these runs, never from bench
+    // run 1's data (docs/missileer-game-design.md, "Release debounce").
+    void BenchPollSerial();
+#endif
+
 private:
     static constexpr uint32_t kSilenceMs = 100;
     static constexpr int kQueueDepth = 64;
@@ -80,6 +90,12 @@ private:
     uint64_t readUsSum = 0;
     uint32_t readUsMax = 0;
     uint64_t windowStartUs = 0;
+#if defined(KEYTOUCH_BENCH)
+    volatile char benchRun = 0;        // 'A', 'B', or 0 outside a run
+    volatile uint16_t benchRunSeq = 0; // runs started since boot
+    uint16_t benchReleases = 0;        // releases logged in the current run (task only)
+    void BenchPrompt();
+#endif
 
     static void IRAM_ATTR OnIntEdge(void* arg);
     static void Trampoline(void* arg);
