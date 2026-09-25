@@ -25,6 +25,7 @@ const OTHER: ((e: Env) => Promise<unknown>)[] = [
   (e) => q.usageRows(e, 24, DEV),
   (e) => q.firstRequestTimes(e, q.BLIPS_ROUTES),
   (e) => q.firstRequestTimes(e, q.PHOTO_ROUTES),
+  (e) => q.firstSeenTimes(e),
 ];
 
 afterEach(() => vi.unstubAllGlobals());

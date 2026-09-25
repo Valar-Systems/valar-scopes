@@ -472,30 +472,37 @@ const h = (v: number | null): string => (v === null ? "&mdash;" : `${v.toFixed(1
 export function funnelBody(f: Funnel): string {
   const rows = f.rows.length
     ? f.rows
-        .map((r) => `<tr><td>${devLink(r.dev)}</td><td>${esc(r.enrolledAt.slice(0, 16))}</td><td>${esc(r.firstBlips.slice(0, 16)) || "<span class=\"mute\">&mdash;</span>"}</td>
+        .map((r) => `<tr><td>${devLink(r.dev)}</td><td>${r.origin === "enrolled" ? "web enrolment" : "first seen (factory)"}</td><td>${esc(r.startedAt.slice(0, 16))}</td><td>${esc(r.firstBlips.slice(0, 16)) || "<span class=\"mute\">&mdash;</span>"}</td>
           <td class="n">${h(r.gapEnrolToBlipsH)}</td><td>${esc(r.firstCard.slice(0, 16)) || "<span class=\"mute\">&mdash;</span>"}</td>
           <td class="n">${h(r.gapBlipsToCardH)}</td><td class="mute">${esc(r.flag)}</td></tr>`)
         .join("")
-    : `<tr><td colspan="7" class="mute">No enrolled devices.</td></tr>`;
+    : `<tr><td colspan="8" class="mute">No devices.</td></tr>`;
+  const nEnrolled = f.rows.filter((r) => r.origin === "enrolled").length;
   const stuck = (ids: string[]) => (ids.length ? ids.map(devLink).join(" ") : `<span class="mute">nothing</span>`);
   return `
   <div class="cards">
     <div class="card"><div class="n">${h(f.medianEnrolToBlipsH)}</div><div class="l">Median: enrolled &rarr; first /blips</div></div>
+    <div class="card"><div class="n">${h(f.medianSeenToBlipsH)}</div><div class="l">Median: first seen (factory) &rarr; first /blips</div></div>
     <div class="card"><div class="n">${h(f.medianBlipsToCardH)}</div><div class="l">Median: first /blips &rarr; first card</div></div>
-    <div class="card"><div class="n">${n(f.rows.length)}</div><div class="l">Enrolled devices</div></div>
+    <div class="card"><div class="n">${n(f.rows.length)}</div><div class="l">Devices: ${n(nEnrolled)} enrolled, ${n(f.rows.length - nEnrolled)} first seen</div></div>
   </div>
   <section><h2>Stuck at a stage</h2><div class="scroll"><table><tbody>
     <tr><td>Enrolled, never requested /blips</td><td>${stuck(f.stuck.enrolled)}</td></tr>
+    <tr><td>First seen (factory-provisioned), never requested /blips</td><td>${stuck(f.stuck.seen)}</td></tr>
     <tr><td>Requested /blips, never opened a card</td><td>${stuck(f.stuck.blips)}</td></tr>
   </tbody></table></div></section>
   <section><h2>Per device</h2><div class="scroll"><table>
-    <thead><tr><th>Device</th><th>Enrolled</th><th>First /blips</th><th class="n">Gap</th><th>First card open</th><th class="n">Gap</th><th>Not measurable because</th></tr></thead>
+    <thead><tr><th>Device</th><th>Started by</th><th>Started</th><th>First /blips</th><th class="n">Gap</th><th>First card open</th><th class="n">Gap</th><th>Not measurable because</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
     <p class="note"><b>First card open is the first photo fetch</b> (<code>/photo</code>): a device fetches a photo when a detail
       card is opened on an aircraft that has a stock photo. It is read from request points, not the usage report &mdash;
       <b>pre-v9 devices can't reach the last stage</b> here. Everything is limited to the ~90 days Analytics Engine keeps:
       a device <b>enrolled before that window</b>, or one that <b>requested before it enrolled</b> (the shared-key era before
-      2026-08-13), shows its dates but is excluded from the medians.</p></section>`;
+      2026-08-13), shows its dates but is excluded from the medians.
+      <b>Two ways in:</b> a web-enrolled device starts at its enrolment; a <b>factory-provisioned</b> unit has no enrolment
+      row, so it starts at its <b>first authenticated request</b> (the provisioner's verify at the bench). Their gaps are
+      different quantities &mdash; first seen &rarr; /blips includes shipping and setup &mdash; so each has its own median.
+      Allowlisted test ids never appear.</p></section>`;
 }
 
 export function upstreamsBody(rows: UpstreamRow[], hours: number): string {

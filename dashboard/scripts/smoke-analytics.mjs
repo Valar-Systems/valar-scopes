@@ -116,6 +116,7 @@ const QUERIES = [
   ["Device", "deviceOta", () => q.deviceOta(env, DEV), RET],
   ["Funnel", "firstRequest(blips)", () => q.firstRequestTimes(env, q.BLIPS_ROUTES), RET],
   ["Funnel", "firstRequest(photo)", () => q.firstRequestTimes(env, q.PHOTO_ROUTES), RET],
+  ["Funnel", "firstSeen", () => q.firstSeenTimes(env), RET],
   ["Upstreams", "upstreams", (h) => q.upstreams(env, h), WINDOWS],
 ];
 

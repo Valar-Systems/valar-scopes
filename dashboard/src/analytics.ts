@@ -583,6 +583,24 @@ export async function firstRequestTimes(env: Env, routes: readonly string[]): Pr
   return new Map(out.data.map((r) => [r.dev, r.first]));
 }
 
+// Each device's FIRST authenticated request of any kind within retention. For a
+// factory-provisioned unit that is the provisioner's verify request at the bench
+// -- the only record it exists, since provisioning writes no enrolment ledger row.
+// (A 401 carries no device id: blob5 is set only past authentication.)
+export async function firstSeenTimes(env: Env): Promise<Map<string, string>> {
+  const ds = dataset(env);
+  const sql = `
+    SELECT blob5 AS dev, MIN(timestamp) AS first
+    FROM ${ds}
+    WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR
+      AND blob1 LIKE '/%' AND blob5 != ''
+    GROUP BY dev
+    LIMIT ${SEEN_CAP}`;
+  const out = await runSql<{ dev: string; first: string }>(env, sql);
+  if (out.data.length >= SEEN_CAP) throw new Error(`first-seen list hit its ${SEEN_CAP}-row cap; refusing to show a truncated funnel`);
+  return new Map(out.data.map((r) => [r.dev, r.first]));
+}
+
 // ---------------------------------------------------------------- upstreams
 
 export interface UpstreamRow { upstream: string; requests: number; errors: number; p50: number; p95: number }
