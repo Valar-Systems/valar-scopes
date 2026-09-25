@@ -873,7 +873,11 @@ if ! "$CXX" $FLAGS "$ROOT/test/host/test_wifi_qr.cpp" \
   cat "$OUT/build.log"
   exit 2
 fi
-"$OUT/test_wifi_qr.exe" "$ROOT"
+# The name is set in LovyanGFX's FreeSans fonts, so the test reads THEIR glyph
+# tables rather than a transcription. They exist once any env has been built; if
+# not, the test says BLIND (exit 2) -- never a silent skip.
+GFXFF="$(ls -d "$ROOT"/.pio/libdeps/*/LovyanGFX/src/lgfx/Fonts/GFXFF 2>/dev/null | head -1)"
+"$OUT/test_wifi_qr.exe" "$ROOT" "${GFXFF:-<no LovyanGFX under .pio/libdeps: run pio run once>}"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."

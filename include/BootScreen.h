@@ -85,6 +85,29 @@ inline void ComposeFullScreen([[maybe_unused]] LGFX& tft, [[maybe_unused]] LGFX_
   }
 }
 
+// The name's style -> the panel's font and scale. The whole UI draws in the default
+// 5x7 font (nothing else calls setFont), so every caller of this puts it back.
+template <typename G>
+inline void ApplyNameStyle(G& g, setupqr::NameStyle st)
+{
+  switch (st) {
+    case setupqr::NameStyle::SansBold12: g.setFont(&lgfx::fonts::FreeSansBold12pt7b); g.setTextSize(1); break;
+    case setupqr::NameStyle::SansBold9:  g.setFont(&lgfx::fonts::FreeSansBold9pt7b);  g.setTextSize(1); break;
+    case setupqr::NameStyle::Sans9:      g.setFont(&lgfx::fonts::FreeSans9pt7b);      g.setTextSize(1); break;
+    case setupqr::NameStyle::Glcd175:    g.setFont(&lgfx::fonts::Font0); g.setTextSize(1.75f); break;
+    case setupqr::NameStyle::Glcd15:     g.setFont(&lgfx::fonts::Font0); g.setTextSize(1.5f);  break;
+    case setupqr::NameStyle::Glcd125:    g.setFont(&lgfx::fonts::Font0); g.setTextSize(1.25f); break;
+    case setupqr::NameStyle::Glcd1:      g.setFont(&lgfx::fonts::Font0); g.setTextSize(1);     break;
+  }
+}
+
+template <typename G>
+inline void RestoreDefaultFont(G& g)
+{
+  g.setFont(&lgfx::fonts::Font0);
+  g.setTextSize(1);
+}
+
 inline void DrawSetupQrScreen(LGFX& tft, LGFX_Sprite& fb, uint32_t fg, const char* title, const char* name)
 {
   const int px = setupqr::ModulePx(SCREEN_SIZE);
@@ -94,57 +117,65 @@ inline void DrawSetupQrScreen(LGFX& tft, LGFX_Sprite& fb, uint32_t fg, const cha
 
   bool drewQr = false;
   setupqr::Placement at{};
-  int nameW = 0, chordW = 0;
+  at.nameRank = -1;
+  int nameW = 0, nameH = 0, chordW = 0;
   auto paint = [&](auto& g) {
     g.fillScreen(lgfx::color888(0, 0, 0));
     g.setTextColor(fg);
-    g.setTextSize(1);
+    RestoreDefaultFont(g);
     const int c = SCREEN_SIZE / 2;
 
-    // The measurer is the panel's own: LovyanGFX's textWidth/fontHeight at each
-    // candidate scale. SetupQr.h owns the rule; the host test runs the same rule.
-    auto measure = [&](float sc, int* w, int* h) {
-      g.setTextSize(sc);
+    // The measurer is the panel's own: LovyanGFX's textWidth/fontHeight in each
+    // candidate style. SetupQr.h owns the rule; the host test runs the same rule
+    // against the fonts' own glyph tables.
+    auto measure = [&](setupqr::NameStyle st, int* w, int* h) {
+      ApplyNameStyle(g, st);
       *w = g.textWidth(name);
       *h = g.fontHeight();
     };
+    auto drawName = [&](int y) {
+      const setupqr::NameStyle st =
+          at.nameRank >= 0 ? setupqr::NAME_STYLES[at.nameRank] : setupqr::NameStyle::Glcd1;
+      ApplyNameStyle(g, st);                      // nothing fits: still drawn, smallest
+      nameW = g.textWidth(name);
+      nameH = g.fontHeight();
+      chordW = discgeom::ChordWidthPx(y, nameH, SCREEN_SIZE);
+      g.drawCenterString(name, c, y);
+    };
 
     if (side > 0) {
-      g.setTextSize(1);
+      RestoreDefaultFont(g);
       const int titleW = g.textWidth(title), titleH = g.fontHeight();
       at = setupqr::Place(SCREEN_SIZE, side, titleW, titleH, measure);
       drewQr = qr::Draw(g, payload, c, at.cy, px);
     }
     if (drewQr) {
-      g.setTextSize(1);
+      RestoreDefaultFont(g);
       g.drawCenterString(title, c, at.titleY);
-      g.setTextSize(at.nameScale > 0 ? at.nameScale : 1.0f);   // 0 = nothing fits: still draw it
-      nameW = g.textWidth(name);
-      chordW = discgeom::ChordWidthPx(at.nameY, g.fontHeight(), SCREEN_SIZE);
-      g.drawCenterString(name, c, at.nameY);
+      drawName(at.nameY);
     } else {
-      // The old screen, name larger. Title and prompt at scale 1 above the centre,
-      // the name below it at the largest scale its row can hold.
-      g.setTextSize(1);
+      // The old screen, name larger. Title and prompt in the 5x7 font above the
+      // centre, the name below it in the best style its row can hold.
+      RestoreDefaultFont(g);
       const int lh = g.fontHeight() + 10;
       g.drawCenterString(title, c, c - 2 * lh);
       g.drawCenterString("Connect to this Wi-Fi hotspot:", c, c - lh);
-      at.nameScale = setupqr::PickNameScale(measure, c, SCREEN_SIZE);
-      g.setTextSize(at.nameScale > 0 ? at.nameScale : 1.0f);
-      nameW = g.textWidth(name);
-      chordW = discgeom::ChordWidthPx(c, g.fontHeight(), SCREEN_SIZE);
-      g.drawCenterString(name, c, c);
+      at.nameRank = setupqr::PickNameRank(measure, c, SCREEN_SIZE);
+      drawName(c);
     }
-    g.setTextSize(1);   // the sprite is shared with the rest of the UI
+    RestoreDefaultFont(g);   // the sprite is shared with the rest of the UI
   };
   ComposeFullScreen(tft, fb, paint);
 
   // The version, from what was drawn: side = (4v + 17 + 2*QUIET) * px.
   const int version = drewQr ? (side / px - 17 - 2 * qr::QUIET) / 4 : 0;
+  const setupqr::NameStyle st =
+      at.nameRank >= 0 ? setupqr::NAME_STYLES[at.nameRank] : setupqr::NameStyle::Glcd1;
   Serial.printf("[setup] Wi-Fi QR %s: v%d, side %d px at %d px/module, raise %d, "
-                "name scale %.2f, name %d px, chord %d px\n",
+                "name style %s%s, name %d px (h %d), chord %d px\n",
                 drewQr ? "drawn" : "REFUSED -> three-line fallback", version, side, px,
-                at.raise, (double)at.nameScale, nameW, chordW);
+                at.raise, setupqr::StyleName(st), at.nameRank < 0 ? " (NOTHING FIT)" : "",
+                nameW, nameH, chordW);
 }
 
 // "A PHONE HAS JOINED" -- shown while the phone is associated and before its setup
@@ -152,19 +183,21 @@ inline void DrawSetupQrScreen(LGFX& tft, LGFX_Sprite& fb, uint32_t fg, const cha
 // and the captive page, and with the QR still on screen it read as "nothing
 // happened", so Join was tapped again and again. This says it worked.
 //
-// Three lines at size 2: "Setup page opening..." is 252 px at size 2, wider than the
-// whole 240 panel, so it is broken into two lines.
+// In FreeSansBold12pt7b, not the 5x7 font: "connected" has a 'c', and in the 5x7 font
+// 'c' and 'o' differ by one pixel (see SetupQr.h). "Setup page opening..." is 254 px
+// in this font, wider than the 240 panel, so it is broken into two lines.
 inline void DrawPhoneConnectedScreen(LGFX& tft, LGFX_Sprite& fb, uint32_t fg)
 {
   static const char* const LINES[] = { "Phone connected", "Setup page", "opening..." };
   ComposeFullScreen(tft, fb, [&](auto& g) {
     g.fillScreen(lgfx::color888(0, 0, 0));
     g.setTextColor(fg);
-    g.setTextSize(2);
+    g.setFont(&lgfx::fonts::FreeSansBold12pt7b);
+    g.setTextSize(1);
     const int c = SCREEN_SIZE / 2;
-    const int lh = g.fontHeight() + 8;
+    const int lh = g.fontHeight() + 2;
     for (int i = 0; i < 3; ++i)
       g.drawCenterString(LINES[i], c, c - lh - lh / 2 + i * lh + (i > 0 ? 6 : 0));
-    g.setTextSize(1);
+    RestoreDefaultFont(g);
   });
 }
