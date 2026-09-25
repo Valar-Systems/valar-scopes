@@ -859,6 +859,35 @@ elif [ "$rc" -eq 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# --- the setup screen's Wi-Fi QR (v15 item 6, 2026-09-25) --------------------
+#
+# The payload and the name's size on a ROUND disc, swept over every edition's
+# name (parsed from DeviceIdentity.h) and every panel (parsed from the variant
+# headers). A name that shrinks to nothing is invisible on the glass by
+# construction, so this is a population check the bench cannot make. Its own
+# include path: include/SetupQr.h + DiscGeometry.h, no hardware.
+echo
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_wifi_qr.cpp" \
+      -o "$OUT/test_wifi_qr.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Wi-Fi QR test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+# The name is set in LovyanGFX's FreeSans fonts, so the test reads THEIR glyph
+# tables rather than a transcription. They exist once any env has been built; if
+# not, the test says BLIND (exit 2) -- never a silent skip.
+GFXFF="$(ls -d "$ROOT"/.pio/libdeps/*/LovyanGFX/src/lgfx/Fonts/GFXFF 2>/dev/null | head -1)"
+"$OUT/test_wifi_qr.exe" "$ROOT" "${GFXFF:-<no LovyanGFX under .pio/libdeps: run pio run once>}"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the Wi-Fi QR test could not see what it sweeps (BLIND)"
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
