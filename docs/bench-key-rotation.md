@@ -12,6 +12,18 @@ in one action.** Run the real event once and the whole path is exercised end to 
 Rotation recurs (a leaked key, a compromised secret, an operator change), so this is
 written as a standing procedure with the one-time A3 assertions marked **[A3]**.
 
+> **The secret is Worker-only by design (since 2026-09-25).** Nobody holds a copy of
+> `DEVICE_KEY_SECRET`: the value in force was generated inside a session on 2026-08-31
+> and its only file deleted the same day, and the bench no longer needs it. Factory keys
+> are minted by the Worker through `POST /blipscope/provision`, authenticated by the
+> bench's own `PROVISION_TOKEN` ([docs/provisioning-mint.md](provisioning-mint.md)).
+> That makes "the secret is lost" a non-event for provisioning, not an emergency. **The
+> only way the Worker's copy could be lost** is a deleted or overwritten Cloudflare secret,
+> and **the recovery for that is this runbook**: rotate to a new value, then every device
+> re-verifies through the enrolment page, which re-derives against the new secret. The
+> step 2 advice to keep the new value in a password manager is optional after this change.
+> Nothing on the bench will ever ask for it.
+
 ---
 
 ## 0. Preconditions — do not start until all five are true

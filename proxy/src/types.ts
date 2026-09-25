@@ -18,6 +18,7 @@ export interface Env {
   // secret gets quietly re-set later and silently does nothing, and TypeScript
   // will now reject any code that reaches for it.
   DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys -- now the ONLY way in
+  PROVISION_TOKEN?: string; // bench auth for POST /blipscope/provision (src/provision.ts); unset = every mint refused
   REFUSE_FAKE_DEVICE_IDS?: string; // "true" in production ONLY: 403 for ids on the repo's fake-id allowlist (src/fakeids.ts)
   TURNSTILE_SITEKEY?: string;    // PUBLIC. Rendered into the enrol page; empty renders the page's
                                  // "cannot verify" state, which is the same state a blocked

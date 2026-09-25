@@ -8,9 +8,13 @@ into a web form 600 times is not a plan. This does the whole chain unattended:
 
     MAC (read over USB)
       -> deviceId  = SHA-256(MAC || LEADERBOARD_SALT)[:8]      (16 hex chars)
-      -> deviceKey = HMAC-SHA256(DEVICE_KEY_SECRET, deviceId)  (64 hex chars)
+      -> deviceKey = MINTED BY THE WORKER from the MAC        (64 hex chars)
       -> NVS partition image containing that key
       -> flash app + NVS
+
+KEYS ARE MINTED BY THE WORKER (docs/provisioning-mint.md): the key is
+HMAC-SHA256(DEVICE_KEY_SECRET, deviceId), and DEVICE_KEY_SECRET is Worker-only by
+design -- nobody holds a copy, and nothing on the bench reads it.
 
 The key insight that makes it unattended: LeaderboardId() is a pure function of
 the factory MAC and a compile-time salt (include/DeviceIdentity.h), and esptool
@@ -22,9 +26,8 @@ read off a serial log, or copied between windows.
     python scripts/provision-device.py --env ... --skip-app        # NVS only, app already on
     python scripts/provision-device.py --env ... --dry-run         # compute + report, flash nothing
 
-DEVICE_KEY_SECRET must be in the environment (the Worker's secret). It is never
-printed and never written to disk -- only the derived per-device key reaches the
-NVS image, and only the deviceId is logged.
+The bench's PROVISION_TOKEN is read from a file (--token-file) and never printed;
+only the minted per-device key reaches the NVS image, and only the deviceId is logged.
 
 !! FLASHING NVS ERASES ALL DEVICE CONFIG, including saved Wi-Fi credentials.
    That is correct for a factory board (the customer does Wi-Fi setup via the
@@ -241,7 +244,11 @@ def device_id(mac: str, salt: str) -> str:
 
 
 def device_key(secret: str, dev_id: str) -> str:
-    """HMAC-SHA256(secret, deviceId) hex -- what deviceauth.ts recomputes."""
+    """HMAC-SHA256(secret, deviceId) hex -- what deviceauth.ts recomputes.
+
+    FIXTURE-ONLY. The bench no longer derives keys (the Worker mints them), so the
+    one caller left is scripts/mint-fixture.py, which pins the Worker's mint to this
+    exact computation with a TEST secret."""
     return hmac.new(secret.encode("utf-8"), dev_id.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
@@ -353,16 +360,24 @@ def main() -> None:
     ap.add_argument("--env", required=True, help="PlatformIO env, e.g. blipscope-s3-128-cloud")
     ap.add_argument("--port", help="serial port (auto-detect if omitted)")
     ap.add_argument("--cloud-url", help="also bake this into NVS as cloud-url")
-    ap.add_argument("--verify-url", help="after minting, check the key against this proxy base")
+    ap.add_argument("--verify-url", required=True, help="the Worker to mint from and verify against")
+    ap.add_argument("--token-file", help="the bench's PROVISION_TOKEN (default: provision_one.DEFAULT_TOKEN_FILE)")
     ap.add_argument("--skip-app", action="store_true", help="flash NVS only (app already present)")
     ap.add_argument("--skip-nvs", action="store_true", help="do NOT touch NVS (preserves Wi-Fi)")
     ap.add_argument("--dry-run", action="store_true", help="compute and report; flash nothing")
     ap.add_argument("--log", default=str(REPO / "provisioned.csv"), help="append a record here")
     args = ap.parse_args()
 
-    secret = os.environ.get("DEVICE_KEY_SECRET", "").strip()
-    if not secret:
-        die("set DEVICE_KEY_SECRET in the environment (the Worker's secret)")
+    # Imported here, not at the top: provision_one imports THIS module.
+    import importlib.util as _ilu
+    _s = _ilu.spec_from_file_location("provision_one", Path(__file__).parent / "provision_one.py")
+    po = _ilu.module_from_spec(_s)
+    _s.loader.exec_module(po)
+    token_file = args.token_file or str(po.DEFAULT_TOKEN_FILE)
+    token = po.read_token(token_file)
+    print(f"provision token present: {token is not None}")   # a boolean, never the value
+    if not token and not args.dry_run:
+        die(f"no provisioning token at {token_file} -- set it once from the password manager")
 
     # Before anything touches hardware. --dry-run flashes nothing and so has no
     # record to keep, but every other path must be able to write one.
@@ -376,14 +391,20 @@ def main() -> None:
 
     mac = read_mac(esptool_cmd, dashed, args.port)
     dev_id = device_id(mac, salt)
-    key = device_key(secret, dev_id)
     print(f"  MAC        {mac}")
     print(f"  deviceId   {dev_id}          (salt {salt!r})")
-    print(f"  deviceKey  {'*' * 56}{key[-8:]}   (not logged)")
 
     if args.dry_run:
-        print("\n  dry run: nothing flashed\n")
+        # No mint on a dry run: it would spend one of the day's capped mints.
+        print("\n  dry run: nothing minted, nothing flashed\n")
         return
+    try:
+        minted_id, key = po.mint(args.verify_url, token, mac)
+    except po.MintError as e:
+        die(str(e))
+    if minted_id != dev_id:
+        die("the Worker's device id differs from this firmware's -- salt drift; nothing written")
+    print(f"  deviceKey  minted by the Worker (not logged)")
 
     if not args.skip_app:
         print("\n  flashing app ...")
@@ -404,9 +425,7 @@ def main() -> None:
                 die("NVS flash failed")
 
     if args.verify_url:
-        # Verifies the MINTING, not the board: a 200 proves DEVICE_KEY_SECRET here
-        # matches the Worker's, so every key from this run is valid. A 401 means
-        # the secret is wrong and the whole batch would ship unauthenticated.
+        # Verifies the key end to end: the Worker that minted it must accept it.
         import urllib.request
         # UA matters: Cloudflare 403s the default Python-urllib one at the edge,
         # which is indistinguishable from a rejected key unless you know.
@@ -421,10 +440,10 @@ def main() -> None:
         print(f"\n  verify {args.verify_url}: HTTP {code}"
               + ("  OK - key accepted" if code == 200 else "  *** KEY REJECTED ***"))
         if code != 200:
-            die("minted key was rejected -- check DEVICE_KEY_SECRET matches the Worker's")
+            die("minted key was rejected -- the verify URL is not the Worker that minted it")
 
-    # Provisioning record. deviceId only: the key is re-derivable from the secret,
-    # so there is no reason to persist it and every reason not to. append_log
+    # Provisioning record. deviceId only: the Worker can re-mint the key, so there
+    # is no reason to persist it and every reason not to. append_log
     # reads the row back and die()s if it is not there, so reaching the next line
     # means the record exists -- which is what "DONE" is now allowed to claim.
     append_log(Path(args.log), args.env, mac, dev_id)

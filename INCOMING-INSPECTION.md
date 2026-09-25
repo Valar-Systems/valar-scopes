@@ -305,6 +305,31 @@ criterion. Watch it here; the probe build could not produce it.
 
 ---
 
+### 6b. Provision the key: valar-flasher bench mode (100%)
+
+Every board leaves with its **own** device key, **minted by the Worker**. Nobody on the bench
+holds `DEVICE_KEY_SECRET`, and nothing asks for it ([docs/provisioning-mint.md](docs/provisioning-mint.md)).
+Bench mode writes the CI factory image, gets the board's key from `POST /blipscope/provision`,
+writes it into NVS, proves it's on the board, and verifies it against the Worker.
+
+- **Once per bench machine:** put the provisioning token (from the password manager) in
+  `%USERPROFILE%\.config\valar-flasher\provision-token`. Check it's there **as a boolean,
+  never by printing it**:
+  `if (Test-Path "$env:USERPROFILE\.config\valar-flasher\provision-token") { 'present' } else { 'absent' }`
+- **Run it, naming the port:**
+  `.\.venv\Scripts\python.exe .\valar_flasher.py --product Blipscope --bench --ports COM<n>`
+  (from `C:\Github\valar-flasher`). Protected boards on the same machine are refused
+  whatever you type.
+- **DONE means verified:** the key was minted, written, proven on the board, accepted by the
+  Worker, and the board's row is in `provisioned.csv`. What a red tile's reason means:
+
+| the tile's reason | meaning | next |
+|---|---|---|
+| `PROVISION_TOKEN rejected (403)` | the token file doesn't match the Worker's secret | fix the file from the password manager; **every board this run will fail the same way** |
+| `daily mint cap (120) reached` | today's mints are used up | resume after the reset time shown |
+| `salt drift` | the Worker and this firmware derive different ids | **stop the batch**; nothing was written |
+| `key is NOT on the board` | the NVS write didn't take | reseat and re-run that board |
+
 ## 7. First-run acceptance — the path every board takes exactly once (100%)
 
 Sections 1–6 all inspect a board that is **already provisioned**. The customer's first five

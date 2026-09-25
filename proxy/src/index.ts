@@ -5,6 +5,7 @@ import { handleConfig } from "./config";
 import { handleEnrich } from "./enrich";
 import { recordFleetFirmware } from "./fleet";
 import { handleEnroll } from "./enroll";
+import { handleProvision } from "./provision";
 import { enrollHtml } from "./enrollpage";
 import {
   handleLeaderboardJson,
@@ -167,7 +168,10 @@ async function route(
   // for. Listed here rather than moved above this line so that every method
   // exception in the Worker stays visible in one place.
   const isEnrollSubmit = url.pathname === `${PAGE_PREFIX}/enroll` && request.method === "POST";
-  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit) {
+  // Provisioning POSTs too, for the same reason: the board has no key yet. It is
+  // authenticated by its OWN token, not a device key (src/provision.ts).
+  const isProvisionSubmit = url.pathname === `${PAGE_PREFIX}/provision` && request.method === "POST";
+  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit && !isProvisionSubmit) {
     return errorResponse(405, "method_not_allowed");
   }
 
@@ -249,6 +253,12 @@ async function route(
   // one is already a 405 and can never be answered with a redirect the browser
   // would have to re-send a body to follow.
   if (url.pathname === "/enroll") return movedTo(url, `${PAGE_PREFIX}/enroll`);
+
+  // Worker-minted provisioning keys (docs/provisioning-mint.md). POST only: a GET
+  // is a 405, never a page, because nothing about this route is for a browser.
+  if (url.pathname === `${PAGE_PREFIX}/provision`) {
+    return request.method === "POST" ? handleProvision(request, env) : errorResponse(405, "method_not_allowed");
+  }
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
   // same as /credits (a browser follows the config page's link).

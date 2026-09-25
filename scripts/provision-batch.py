@@ -35,8 +35,9 @@ HOW IT DIFFERS FROM THE SINGLE-BOARD SCRIPT (both matter at batch scale):
   * FAILURE-ISOLATED. One board that won't talk fails alone; the other seven
     finish. Failures are listed again at the end so nothing is lost in scrollback.
 
-DEVICE_KEY_SECRET must be in the environment, exactly as for the single-board
-script. It is never printed and never written to disk.
+KEYS ARE MINTED BY THE WORKER (docs/provisioning-mint.md). Nobody on the bench
+holds DEVICE_KEY_SECRET and nothing here reads it; the bench's PROVISION_TOKEN is
+read from a file (--token-file) and never printed.
 
 !! Every board is fully erased and re-provisioned: this writes the factory image,
    so any existing Wi-Fi credentials and config are gone. That is correct for
@@ -186,7 +187,7 @@ def provision_one(port: str, cfg, state) -> tuple[str, str, str]:
 
         status, dev_id, detail = po.provision(
             port, mac, esptool_cmd=cfg.esptool_cmd, dashed=cfg.dashed, baud=cfg.baud,
-            salt=cfg.salt, secret=cfg.secret, nvs_offset=cfg.nvs_offset, nvs_size=cfg.nvs_size,
+            salt=cfg.salt, mint_fn=cfg.mint_fn, nvs_offset=cfg.nvs_offset, nvs_size=cfg.nvs_size,
             cloud_url=cfg.cloud_url, verify_url=cfg.verify_url)
         if status != "OK":
             return port, "FAIL", detail
@@ -221,7 +222,8 @@ def main() -> None:
     ap.add_argument("--env", required=True, help="PlatformIO env, e.g. blipscope-s3-128 (the release env; there is no -prodburn)")
     ap.add_argument("--jobs", type=int, default=0, help="boards in parallel (default: however many are attached, max 8)")
     ap.add_argument("--count", type=int, default=0, help="stop after this many NEW boards")
-    ap.add_argument("--verify-url", help="check each minted key against this proxy base")
+    ap.add_argument("--verify-url", required=True, help="the Worker to mint from and verify against")
+    ap.add_argument("--token-file", default=str(po.DEFAULT_TOKEN_FILE), help="the bench's PROVISION_TOKEN (file)")
     ap.add_argument("--cloud-url", help="also bake this into NVS as cloud-url")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--once", action="store_true", help="do what's attached now, then exit (no watching)")
@@ -234,9 +236,10 @@ def main() -> None:
     ap.add_argument("--log", default=str(REPO / "provisioned.csv"))
     args = ap.parse_args()
 
-    secret = os.environ.get("DEVICE_KEY_SECRET", "").strip()
-    if not secret:
-        pd.die("set DEVICE_KEY_SECRET in the environment (the Worker's secret)")
+    token = po.read_token(args.token_file)
+    print(f"provision token present: {token is not None}")   # a boolean, never the value
+    if not token:
+        pd.die(f"no provisioning token at {args.token_file} -- set it once from the password manager")
 
     print(f"\n=== batch provisioning [{args.env}] ===")
     salt = pd.salt_from_sources(args.env)
@@ -247,7 +250,8 @@ def main() -> None:
 
     class Cfg: pass
     cfg = Cfg()
-    cfg.env, cfg.salt, cfg.secret = args.env, salt, secret
+    cfg.env, cfg.salt = args.env, salt
+    cfg.mint_fn = lambda mac: po.mint(args.verify_url, token, mac)
     cfg.esptool_cmd, cfg.dashed, cfg.baud = esptool_cmd, dashed, args.baud
     cfg.nvs_offset, cfg.nvs_size = nvs_offset, nvs_size
     cfg.image = factory_image(args.env) if not args.dry_run else None

@@ -415,11 +415,16 @@ alongside an `X-Blip-Device` id. This is **fully additive**: the device-key path
 only activates when `DEVICE_KEY_SECRET` is set AND a request carries
 `X-Blip-Device`, so the live fleet (shared key only) is unaffected, and rollout
 is gradual. The server holds one secret and recomputes the expected key per
-request — no key database. Keys are minted at manufacture:
+request — no key database. Keys are minted at manufacture **by the Worker**:
+`POST /blipscope/provision`, authenticated with the bench's `PROVISION_TOKEN`, returns a
+board's key from its MAC ([docs/provisioning-mint.md](../docs/provisioning-mint.md)).
+**`DEVICE_KEY_SECRET` is Worker-only by design.** Nobody holds a copy of the production
+value, and `derive-device-key` below is only useful with a secret you set yourself (a local
+or test Worker).
 
 ```sh
-DEVICE_KEY_SECRET=… npm run derive-device-key <deviceId>   # prints the device's key
-npx wrangler secret put DEVICE_KEY_SECRET --env staging     # set the Worker's secret
+DEVICE_KEY_SECRET=… npm run derive-device-key <deviceId>   # a secret YOU hold (local/test only)
+npx wrangler secret put PROVISION_TOKEN --env staging       # the bench's token for the mint route
 ```
 
 Because minting needs the secret (unextractable from open-source firmware,
