@@ -64,12 +64,14 @@ int main(int argc, char** argv)
     // ---- the payload ----------------------------------------------------------
     char buf[96];
     size_t n = setupqr::WifiPayload("Blipscope-A1B2C3", buf, sizeof(buf));
-    check(std::string(buf, n) == "WIFI:S:Blipscope-A1B2C3;;", "the payload, exactly (no T: = open)");
-    check(n == 25, "25 bytes");
-    check(VersionFor(n) == 2, "version 2 at ECC LOW -- the 132 px symbol");
+    // T:nopass is REQUIRED: without it an iPhone camera join dropped 5 of 5 times
+    // (2026-09-25). This assertion is what stops someone trimming it to save a version.
+    check(std::string(buf, n) == "WIFI:T:nopass;S:Blipscope-A1B2C3;;", "the payload, exactly -- T:nopass kept");
+    check(n == 34, "34 bytes");
+    check(VersionFor(n) == 3, "version 3 at ECC LOW -- the 148 px symbol");
 
     n = setupqr::WifiPayload("a;b,c:d\\e\"f", buf, sizeof(buf));
-    check(std::string(buf, n) == "WIFI:S:a\\;b\\,c\\:d\\\\e\\\"f;;", "specials are escaped");
+    check(std::string(buf, n) == "WIFI:T:nopass;S:a\\;b\\,c\\:d\\\\e\\\"f;;", "specials are escaped");
 
     // Never a truncated payload: half an SSID is a DIFFERENT network.
     char tiny[20];
@@ -100,9 +102,14 @@ int main(int argc, char** argv)
     std::printf("  swept %zu editions x %zu panels\n", products.size(), sizes.size());
 
     // ---- the sweep ------------------------------------------------------------------
+    // LovyanGFX's scaled GLCD font advances a WHOLE number of pixels per glyph:
+    // floor(6 * scale). The first version of this model used 6 * scale * len and
+    // disagreed with the board -- it said 168 px for a 16-char name at 1.75, and the
+    // device's own textWidth logged 160 (16 x 10). A model that disagrees with the
+    // glass grades a layout the device does not draw.
     auto glcd = [](const std::string& s) {
         return [s](float sc, int* w, int* h) {
-            *w = (int)(6.0f * sc * (float)s.size() + 0.5f);
+            *w = (int)s.size() * (int)(6.0f * sc);
             *h = (int)(8.0f * sc);
         };
     };
@@ -113,10 +120,10 @@ int main(int argc, char** argv)
     for (const std::string& p : products) {
         const std::string name = p + "-FFFFFF";                 // the widest hex
         n = setupqr::WifiPayload(name.c_str(), buf, sizeof(buf));
-        check(VersionFor(n) == 2, name + ": version 2 (" + std::to_string(n) + " B)");
+        check(VersionFor(n) == 3, name + ": version 3 (" + std::to_string(n) + " B)");
         for (int size : sizes) {
             const std::string at = name + " @" + std::to_string(size);
-            const int side = 33 * setupqr::ModulePx(size);        // version 2 + quiet zone
+            const int side = 37 * setupqr::ModulePx(size);        // version 3 + quiet zone
             check(side <= (int)(size * 0.7071f), at + ": QR inside the inscribed square");
             const setupqr::Placement pl = setupqr::Place(size, side, TITLE_W, TITLE_H, glcd(name));
             check(setupqr::CornersOnGlass(size, side, pl.raise), at + ": raised QR keeps its corners on the glass");
@@ -132,23 +139,27 @@ int main(int argc, char** argv)
                   name + " @" + std::to_string(size) + ": the name fits on the fallback screen");
         }
     }
-    std::printf("  names placed %d, refused %d, at size 2: %d\n", placed, refused, atTarget);
+    std::printf("  names placed %d, refused %d, at the target scale: %d\n", placed, refused, atTarget);
 
-    // P5, the unit on the bench, stated as numbers.
-    const int side240 = 33 * setupqr::ModulePx(240);
-    check(side240 == 132, "240 px: 132 px QR at 4 px/module");
+    // The unit on the bench, as the device logged it with Test T (2026-09-25):
+    // "v3, side 148 px at 4 px/module, raise 7, name scale 1.75, name 160 px, chord 161 px".
+    const int side240 = 37 * setupqr::ModulePx(240);
+    check(side240 == 148, "240 px: 148 px QR at 4 px/module");
     const std::string bench = "Blipscope-A1B2C3";
-    // Centred, it does NOT fit at size 2 -- the reason the QR is raised at all.
+    int w175 = 0, h175 = 0;
+    glcd(bench)(1.75f, &w175, &h175);
+    check(w175 == 160, "the model agrees with the device: 160 px at 1.75");
+    // Centred, it does NOT fit at 1.75 -- the reason the QR is raised at all.
     const int centredNameY = 120 + side240 / 2 + setupqr::GAP_PX;
-    const int centredChord = discgeom::ChordWidthPx(centredNameY, 16, 240);
-    check(centredChord < 192, "CONTROL: centred, the size-2 name (192 px) does not fit the chord");
+    const int centredChord = discgeom::ChordWidthPx(centredNameY, h175, 240);
+    check(centredChord < w175, "CONTROL: centred, the 1.75 name does not fit the chord");
     const setupqr::Placement b = setupqr::Place(240, side240, TITLE_W, TITLE_H, glcd(bench));
-    const int benchChord = discgeom::ChordWidthPx(b.nameY, 16, 240);
-    std::printf("  bench name: centred chord %d px; raised %d px -> chord %d px vs name 192 px, scale %.2f\n",
-                centredChord, b.raise, benchChord, (double)b.nameScale);
-    check(b.nameScale == 2.0f, bench + " on 240 px: size 2");
-    check(b.raise == 20, bench + " on 240 px: raised 20 px (the smallest raise that fits)");
-    check(benchChord >= 192, bench + " on 240 px: chord >= 192 px");
+    const int benchChord = discgeom::ChordWidthPx(b.nameY, h175, 240);
+    std::printf("  bench name: centred chord %d px; raised %d px -> chord %d px vs name %d px, scale %.2f\n",
+                centredChord, b.raise, benchChord, w175, (double)b.nameScale);
+    check(b.nameScale == 1.75f, bench + " on 240 px: scale 1.75 (NAME_SCALE_240)");
+    check(b.raise == 7, bench + " on 240 px: raised 7 px, as the device logged");
+    check(benchChord == 161, bench + " on 240 px: chord 161 px, as the device logged");
 
     // CONTROL: the picker can refuse. A rule that has never said no is untested.
     check(setupqr::PickNameScale(glcd(std::string(40, 'W')), b.nameY, 240) == 0.0f,
