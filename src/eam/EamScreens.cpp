@@ -6,6 +6,7 @@
 #include "Layout.h"
 #include "EamModels.h"
 #include "SevenSegment.h"
+#include "OnWatch.h"
 
 // The seven EAM screens. Member functions of EamManager (split out of EamManager.cpp to keep the
 // controller readable). Everything draws through BandCanvas in absolute screen coordinates and
@@ -564,6 +565,36 @@ void EamManager::DrawClock(BandCanvas& c)
     digit(mm / 10); digit(mm % 10); colon();
     digit(ss / 10); digit(ss % 10);
 
+    // ON WATCH, the clock's own line (ruling 2026-09-25): under the time, the count in the
+    // clock's seven-segment digits at LABEL scale with "ON WATCH" beside it, both in the
+    // clock's red. The label is size-2 text on the 1.28" (3 on the 412 px panel); the digits
+    // are exactly that text's height, so the two read as one line. "--" (dash glyphs) until
+    // the first answer; after that the last good count, whatever later fetches do.
+    const int labelSize = SCREEN_SIZE >= 360 ? 3 : 2;
+    c.setTextSize(labelSize);
+    const char* kLabel = "ON WATCH";
+    const int segH = c.fontHeight();                  // label scale
+    const int segW = (int)(segH * 0.60f);             // the clock's digit proportions
+    const int segGap = max(2, (int)(segW * 0.16f));
+    char count[12];
+    onwatch::Text(feed.OnWatch(), count, sizeof(count));
+    const int nDigits = (int)strlen(count);
+    const int countW = nDigits * segW + (nDigits > 0 ? (nDigits - 1) * segGap : 0);
+    const int space = c.textWidth(" ");
+    const int lineW = countW + space + c.textWidth(kLabel);
+    const int lineY = y + digitH + pad + segH / 2 + 4;  // just below the bezel
+    int lx = SCREEN_SIZE_DIV_2 - lineW / 2;
+    for (int i = 0; i < nDigits; ++i) {
+        const char ch = count[i];
+        const int d = ch == '-' ? eam::DASH : ch - '0';
+        eam::DrawSevenSeg(c, lx, lineY, segW, segH, d, lit, ghost, bloom);
+        lx += segW + segGap;
+    }
+    lx += space - segGap;
+    c.setTextColor(lit);
+    c.drawString(kLabel, lx, lineY);
+    c.setTextSize(1);
+
     // Ambient line below: rotates the day's count, the logbook odometer, and a (sample) heritage note.
     c.setTextSize(1);
     const eam::Tempo& t = feed.Tempo();
@@ -580,5 +611,5 @@ void EamManager::DrawClock(BandCanvas& c)
     String ambient = amb.empty() ? String() : amb[ambientIndex % (int)amb.size()];
     if (!synced) ambient = "waiting for time sync";
     if (ambient.length())
-        CenterText(c, ambient, y + digitH + pad + 12, palette.faint);
+        CenterText(c, ambient, lineY + segH + 10, palette.faint);
 }

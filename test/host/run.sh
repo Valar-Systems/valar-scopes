@@ -689,6 +689,26 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# The Missileer clock's ON WATCH count: last value on a failed fetch, "--" only
+# before the first answer, and the server's number shown as given (it already
+# counts this device -- a local +1 would double it). Pure header, no -I needed.
+echo
+echo "== ON WATCH count (Missileer clock) =="
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_on_watch.cpp" -o "$OUT/test_on_watch.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the on-watch tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_on_watch.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
 # The Follow label sanitiser. Exists because a charset filter allowing only
 # A-Z0-9 reached a bench board and mangled every hyphenated registration:
 # G-ABCD -> GABCD. The output still LOOKS like an identifier, which is what

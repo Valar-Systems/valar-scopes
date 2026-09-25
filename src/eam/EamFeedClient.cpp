@@ -6,6 +6,7 @@
 #if defined(FEATURE_EAM_GAME)
 #include "../game/GameClient.h"   // ApiBase: /config comes from the server votes go to
 #endif
+#include "DeviceIdentity.h"        // LeaderboardId: the X-Missileer-Device value (ON WATCH)
 
 // The fetch request/result envelopes live in namespace eam; bring them in for this unit so the
 // worker/scheduler code below reads cleanly.
@@ -150,6 +151,12 @@ bool EamFeedClient::BuildRequest(int feedIdx, EamFetchRequest& req) const
             req.endpoint = eam::EamEndpoint::Latest;
             req.url = base + "/eam/latest";
             req.params.push_back({"limit", "20"});
+            // ON WATCH: the server counts distinct devices polling /eam/latest over 10 min,
+            // keyed by this header, and answers `on_watch` INCLUDING the caller. Without it
+            // this unit is served but not counted (a lone unit would read 0, not 1). The
+            // value is the salted SHA-256-of-MAC id already sent to the Blipscope Worker as
+            // X-Blip-Device -- never the raw MAC. Contract: valar-eam-feed feat/on-watch.
+            req.headers.push_back({"X-Missileer-Device", DeviceIdentity::LeaderboardId()});
             return true;
         case F_SKYKINGS:
             req.endpoint = eam::EamEndpoint::Skykings;
@@ -250,6 +257,9 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
         case eam::EamEndpoint::Latest: {
             std::vector<eam::Msg> incoming = res.messages;
             MergeLatest(incoming);
+            // Only a parsed answer reaches here; a failed fetch returned above, which is
+            // what keeps the last good count on screen (ruling: last value, "--" only never).
+            onWatch.Apply(res.onWatchPresent, res.onWatch);
             break;
         }
         case eam::EamEndpoint::Skykings:
@@ -390,6 +400,12 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
     switch (req.endpoint) {
         case eam::EamEndpoint::Latest:
             parsed = eam::ParseMessages(root, res.messages, 50);
+            // Top-level integer `on_watch` (valar-eam-feed); absent on an older server, which
+            // is "no answer", not zero -- OnWatch.h keeps the last value then.
+            if (root["on_watch"].is<long>()) {
+                res.onWatchPresent = true;
+                res.onWatch = root["on_watch"].as<long>();
+            }
             break;
         case eam::EamEndpoint::Skykings:
             parsed = eam::ParseMessages(root, res.messages, 20);

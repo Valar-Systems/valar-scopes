@@ -56,7 +56,9 @@ Flash the Missileer firmware and the same device becomes a desk readout for the 
 - an **airborne-command-post watch** (is an E-4B "Nightwatch" / E-6B Mercury up right now?);
 - **HF propagation** — the best frequency to listen on, with solar flux and K-index;
 - the next **ICBM-test ("Glory Trip") window**, with a live countdown;
-- and an idle **Zulu (UTC) clock** drawn as real seven-segment digits.
+- and an idle **Zulu (UTC) clock** drawn as real seven-segment digits, with how many Missileers are **ON WATCH** beneath it.
+
+**What ON WATCH sends.** To be counted, the device sends one header on the feed poll it already makes (`X-Missileer-Device`): a salted hash of its MAC, never the MAC itself -- the same opaque id the leaderboard uses. The feed keeps it in memory for ten minutes to count distinct devices, and neither stores nor logs it. Nothing else is added: no location, no configuration, no new connection.
 
 It reuses the same Wi-Fi setup, web config, ntfy alerts, and over-the-air updates as the radar, and runs on its own firmware update channel so the two never cross.
 
