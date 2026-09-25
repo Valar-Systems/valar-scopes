@@ -131,6 +131,20 @@ inline const char* StyleName(NameStyle st)
     return "?";
 }
 
+// THE DASH GETS ROOM. In FreeSansBold9pt7b the 'e' has no right bearing and the '-'
+// no left one, so "Blipscope-" drew the two touching (field photo 2026-09-25); the
+// dash already has 2 px before the next glyph. So DASH_PAD_PX is added before every
+// '-', and it is part of the name's measured width -- the layout makes room for it
+// rather than the padding pushing the name off the chord.
+constexpr int DASH_PAD_PX = 2;
+
+inline int DashPadPx(const char* s)
+{
+    int n = 0;
+    for (const char* p = s; p && *p; ++p) if (*p == '-') n += DASH_PAD_PX;
+    return n;
+}
+
 /// Best style in NAME_STYLES whose text fits the disc at `yTop`, as a rank (index), or
 /// -1 if none does. `measure(style, &w, &h)` reports the rendered width/height: the
 /// device passes LovyanGFX's own textWidth/fontHeight, the host test the fonts' own

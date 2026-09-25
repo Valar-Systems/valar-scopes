@@ -130,17 +130,30 @@ inline void DrawSetupQrScreen(LGFX& tft, LGFX_Sprite& fb, uint32_t fg, const cha
     // against the fonts' own glyph tables.
     auto measure = [&](setupqr::NameStyle st, int* w, int* h) {
       ApplyNameStyle(g, st);
-      *w = g.textWidth(name);
+      *w = g.textWidth(name) + setupqr::DashPadPx(name);   // the dash's room is part of the width
       *h = g.fontHeight();
     };
     auto drawName = [&](int y) {
       const setupqr::NameStyle st =
           at.nameRank >= 0 ? setupqr::NAME_STYLES[at.nameRank] : setupqr::NameStyle::Glcd1;
       ApplyNameStyle(g, st);                      // nothing fits: still drawn, smallest
-      nameW = g.textWidth(name);
+      nameW = g.textWidth(name) + setupqr::DashPadPx(name);
       nameH = g.fontHeight();
       chordW = discgeom::ChordWidthPx(y, nameH, SCREEN_SIZE);
-      g.drawCenterString(name, c, y);
+      // Centred by hand, glyph run by glyph run, so DASH_PAD_PX lands before each '-'.
+      int x = c - nameW / 2;
+      char run[48];
+      size_t k = 0;
+      for (const char* p = name;; ++p) {
+        if (*p == '-' || *p == '\0' || k + 1 >= sizeof(run)) {
+          run[k] = '\0';
+          if (k) { g.drawString(run, x, y); x += g.textWidth(run); }
+          k = 0;
+          if (*p == '\0') break;
+          if (*p == '-') { x += setupqr::DASH_PAD_PX; g.drawString("-", x, y); x += g.textWidth("-"); continue; }
+        }
+        run[k++] = *p;
+      }
     };
 
     if (side > 0) {
