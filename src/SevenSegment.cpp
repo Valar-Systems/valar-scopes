@@ -80,8 +80,8 @@ void DrawSevenSeg(BandCanvas& c, int x, int y, int w, int h, int digit,
     // Ghost every segment first so off segments stay faintly visible (the LED-panel look).
     for (int i = 0; i < 7; ++i) seg(i, ghost);
 
-    if (digit < 0 || digit > 9) return;
-    const uint8_t mask = kSegTable[digit];
+    if (digit < 0 || digit > DASH) return;
+    const uint8_t mask = digit == DASH ? 0b1000000 : kSegTable[digit]; // DASH: g alone
     // Bloom pass (slightly offset, dimmer) then the bright core.
     for (int i = 0; i < 7; ++i)
         if (mask & (1 << i)) seg(i, bloom);

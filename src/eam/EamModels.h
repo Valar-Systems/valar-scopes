@@ -219,6 +219,8 @@ struct EamFetchResult {
     EamEndpoint endpoint = EamEndpoint::Latest;
     bool ok = false;
     std::vector<Msg> messages;       // Latest / Skykings
+    bool onWatchPresent = false;     // Latest: the body carried an integer `on_watch`
+    long onWatch = -1;               // Latest: devices on watch (server includes this one)
     Tempo tempo;
     Stats stats;
     std::vector<Codeword> codewords;

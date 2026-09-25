@@ -12,6 +12,7 @@
 #include "OpenSkyAuthTokenHandler.h"
 #include "EamModels.h"
 #include "AbncpProvider.h"
+#include "OnWatch.h"
 
 // Polls the valar-eam-feed endpoints and the command-post watch, and holds the bounded, retained
 // results the screens read.
@@ -58,6 +59,9 @@ public:
     const std::vector<eam::Launch>& Launches() const { return launches; }
     const eam::Abncp& Abncp() const { return abncp; }
     const eam::MilAir& MilAir() const { return milair; }
+    // Missileers polling the feed in the last 10 min, this one included (read off /eam/latest;
+    // the last good value survives a failed fetch; never-had-one until the first). OnWatch.h.
+    const onwatch::Count& OnWatch() const { return onWatch; }
     // The Missileer game's served parameters (FEATURE_EAM_GAME builds only; never valid
     // otherwise). The last good fetch is kept across failures: a config in hand stays in hand.
     const eam::GameConfig& GameCfg() const { return gameConfig; }
@@ -104,6 +108,7 @@ private:
     eam::Abncp abncp;
     eam::MilAir milair;
     eam::GameConfig gameConfig;
+    onwatch::Count onWatch;
 
     String lastTopId;          // top-of-feed EAM id last seen, for new-arrival detection
     bool newLatestEdge = false;

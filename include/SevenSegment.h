@@ -13,7 +13,12 @@
 // product). The `eam` using-declarations below keep the EAM call sites source-compatible.
 namespace sevenseg {
 
-// Draw a single digit (0-9; any other value blanks the digit, ghost-only) in the cell at (x,y).
+// The value DrawSevenSeg draws as a dash (the middle bar alone): a reading that has never
+// arrived, e.g. the Missileer clock's ON WATCH count before its first answer.
+constexpr int DASH = 10;
+
+// Draw a single digit (0-9, or DASH; any other value blanks the digit, ghost-only) in the
+// cell at (x,y).
 void DrawSevenSeg(BandCanvas& c, int x, int y, int w, int h, int digit,
                   uint32_t lit, uint32_t ghost, uint32_t bloom);
 
@@ -31,4 +36,5 @@ namespace eam {
 using sevenseg::DrawSevenSeg;
 using sevenseg::DrawColon;
 using sevenseg::SevenSegThickness;
+using sevenseg::DASH;
 } // namespace eam
