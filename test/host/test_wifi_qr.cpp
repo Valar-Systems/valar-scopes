@@ -105,14 +105,14 @@ static void Measure(const std::string& s, setupqr::NameStyle st, int* w, int* h)
         default: break;
     }
     if (glcd > 0.0f) {
-        *w = (int)s.size() * (int)(6.0f * glcd);
+        *w = (int)s.size() * (int)(6.0f * glcd) + setupqr::DashPadPx(s.c_str());
         *h = (int)(8.0f * glcd);
         return;
     }
     const GfxMetrics& m = gfx[st];
     int sum = 0;
     for (char c : s) sum += m.adv[(unsigned char)c - 0x20];
-    *w = sum;
+    *w = sum + setupqr::DashPadPx(s.c_str());
     *h = m.height;
 }
 
@@ -221,9 +221,10 @@ int main(int argc, char** argv)
               setupqr::StyleName(setupqr::NAME_STYLE_240) + " or better, never the 5x7 font");
     }
 
-    // ---- the unit on the bench, as the DEVICE logged it (2026-09-25) ---------------
-    // "raise 8, name style FreeSansBold9pt7b, name 154 px (h 18), chord 155 px".
-    // (Predicted raise 12 / h 22 from yAdvance -- a miss, and the model was fixed.)
+    // ---- the unit on the bench -------------------------------------------------------
+    // Device, before the dash padding: "raise 8, ... name 154 px (h 18), chord 155 px"
+    // (predicted raise 12 / h 22 from yAdvance -- a miss, and the model was fixed).
+    // With DASH_PAD_PX (dash-pad-predictions): name 156 px, raise 9, chord 157 px.
     // "Blipscope-00E000" has the bench name's widths: FreeSans digits share one advance.
     check(side240 == 148, "240 px: 148 px QR at 4 px/module");
     const std::string bench = "Blipscope-00E000";
@@ -239,17 +240,17 @@ int main(int argc, char** argv)
     std::printf("  bench name: %s, %d px (h %d); centred chord %d px; raised %d px -> chord %d px\n",
                 setupqr::StyleName(b.nameRank >= 0 ? setupqr::NAME_STYLES[b.nameRank] : setupqr::NameStyle::Glcd1),
                 bw, bh, centredChord, b.raise, benchChord);
-    check(bw == 154, "bench name is 154 px in FreeSansBold9pt7b");
+    check(bw == 156, "bench name is 156 px in FreeSansBold9pt7b (154 + the dash's 2)");
     check(centredChord < bw, "CONTROL: centred, it does not fit -- the reason the QR is raised");
     check(b.nameRank == setupqr::Rank(setupqr::NameStyle::SansBold9), "bench name in FreeSansBold9pt7b");
     check(bh == 18, "bench name: fontHeight 18, as the device logged");
-    check(b.raise == 8, "bench name: raised 8 px, as the device logged");
-    check(benchChord == 155, "bench name: chord 155 px");
+    check(b.raise == 9, "bench name: raised 9 px");
+    check(benchChord == 157, "bench name: chord 157 px");
 
     // The 5x7 rung still agrees with what the device measured on 2026-09-25.
     int w175 = 0, h175 = 0;
     Measure("Blipscope-A1B2C3", setupqr::NameStyle::Glcd175, &w175, &h175);
-    check(w175 == 160, "the 5x7 model agrees with the device: 160 px at 1.75");
+    check(w175 == 160 + setupqr::DASH_PAD_PX, "the 5x7 model agrees with the device: 160 px at 1.75, + the dash's room");
 
     // CONTROL: the picker can refuse. A rule that has never said no is untested.
     check(setupqr::PickNameRank(MeasureOf{std::string(40, 'W')}, b.nameY, 240) == -1,
