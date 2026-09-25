@@ -29,8 +29,13 @@
 #
 # USAGE
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 `
-#       -PioEnv blipscope-s3-128-quiethour -Port COM119 -Label b3-com119
+#       -PioEnv missileer-s3-128 -Board missileer -Label missileer-bench
 #
+#   -Board       which bench board, by NAME. The port is resolved from the board's
+#                USB serial number (its MAC) by scripts\board-port.py -- never from
+#                a COM number, which changes whenever the firmware's USB layout does
+#                (the Missileer board was COM15, COM4 and COM17 on 2026-09-24).
+#   -DanielApproved  required for -Board blipscope: it is the soak board (CLAUDE.md).
 #   -NoCapture   flash only; do not re-attach the recorder
 #
 # THE QUIET HOUR IS NOT A PARAMETER HERE, deliberately. It lives in the env's
@@ -41,17 +46,37 @@
 # script written to close a second-path defect is not a trade worth making.
 param(
     [Parameter(Mandatory=$true)][string]$PioEnv,
-    [Parameter(Mandatory=$true)][string]$Port,
+    [Parameter(Mandatory=$true)][ValidateSet('missileer','blipscope')][string]$Board,
     [Parameter(Mandatory=$true)][string]$Label,
+    [switch]$DanielApproved,
     [switch]$NoCapture
 )
 
 $ErrorActionPreference = 'Continue'
-$repo = 'c:\Github\Blipscope'
+$repo = (Resolve-Path "$PSScriptRoot\..").Path   # the checkout this script lives in
 $stamp = Get-Date -Format 'yyyy-MM-dd-HHmm'
 $uploadLog = "$repo\bench-logs\flash-$Label-$stamp.txt"
+$resolver = "$repo\scripts\board-port.py"
 
 function Say($t) { Write-Host "[bench-flash] $t" }
+
+# ---- 0. WHICH BOARD, by serial number, and the board rules -------------------
+if ($Board -eq 'blipscope' -and -not $DanielApproved) {
+    Say "REFUSING: the Blipscope board is soaking Blipscope firmware. Ask Daniel, then"
+    Say "  re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
+    exit 4
+}
+if ($PioEnv -like 'missileer-*' -and $Board -ne 'missileer') {
+    Say "REFUSING: $PioEnv is Missileer firmware and only goes on the Missileer board."
+    exit 4
+}
+$Port = (& python $resolver $Board) 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $Port) {
+    Say "REFUSING: the $Board board is not connected (no port carries its serial)."
+    exit 5
+}
+$Port = "$Port".Trim()
+Say "$Board board is on $Port (resolved from its USB serial)"
 
 # ---- 1. stop OUR recorders that name THIS port ------------------------------
 # TWO CONDITIONS, both required, and the second is the safety one.
@@ -129,6 +154,19 @@ if (-not $free) {
     exit 3
 }
 
+# ---- 2b. the port esptool can flash ----------------------------------------
+# A TinyUSB build (the Missileer firmware) is 1200-baud-touched into ROM download
+# mode, which comes up as a DIFFERENT port carrying the same serial; a
+# USB-Serial-JTAG build is flashed where it is.
+$appPort = $Port
+$Port = (& python $resolver $Board --upload) 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $Port) {
+    Say "REFUSING: could not reach the $Board board's download port."
+    exit 5
+}
+$Port = "$Port".Trim()
+if ($Port -ne $appPort) { Say "download port: $Port (the app was on $appPort)" }
+
 # ---- 3. the upload, BARE, tee'd ---------------------------------------------
 # NOTE: this log is UTF-16. Tee-Object -FilePath has no -Encoding parameter under
 # Windows PowerShell 5.1 (it arrived in PS 6), and adding one throws a parameter
@@ -160,6 +198,15 @@ if ($NoCapture) {
 }
 
 # ---- 5. only now, the recorder ----------------------------------------------
+# The app may come back on yet another port: resolve it again, by serial.
+$Port = $null
+for ($i = 0; $i -lt 40 -and -not $Port; $i++) {
+    Start-Sleep -Milliseconds 500
+    $Port = (& python $resolver $Board) 2>$null
+    if ($LASTEXITCODE -ne 0) { $Port = $null }
+}
+if (-not $Port) { Say "WARNING: the $Board board did not come back within 20 s; no recorder."; exit 0 }
+$Port = "$Port".Trim()
 Say "attaching recorder label=$Label port=$Port"
 Start-Process powershell -WindowStyle Hidden -ArgumentList @(
     '-NoProfile','-ExecutionPolicy','Bypass',

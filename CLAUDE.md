@@ -20,6 +20,31 @@ pio run -e missileer-s3-146 -t upload         # flash Missileer, the EAM monitor
 
 In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-reset: hold **BOOT**, tap **RESET**, release **BOOT**.
 
+### Bench boards: identified by USB serial, never by COM port (standing, 2026-09-24)
+
+| Board | USB serial (its MAC) | Rule |
+|---|---|---|
+| the **Missileer** board | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
+| the **Blipscope** board | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+
+**A COM number is not an identity.** Windows numbers a port per USB interface layout, so
+the same board moves whenever its firmware's USB shape changes: the Missileer board was
+COM15 (TinyUSB CDC+HID), COM4 (ROM download mode) and COM17 (HID compiled out) in one
+day. The serial is the MAC in every mode, spelled `90:70:69:31:E9:D8` by the chip's
+USB-Serial-JTAG (ROM download mode, and `ARDUINO_USB_MODE=1` builds such as the
+Blipscope soak build) and `90706931E9D8` by TinyUSB (the Missileer builds); compare with
+the colons removed.
+
+- `python scripts/board-port.py --list` shows where each board is right now.
+- `scripts/bench-flash.ps1 -PioEnv <env> -Board missileer -Label <l>` resolves the port
+  from the serial (and 1200-baud-touches a TinyUSB board into download mode itself).
+  It refuses `-Board blipscope` without `-DanielApproved`, and refuses a `missileer-*`
+  env on any other board.
+- A bare `pio run -t upload --upload-port COMx` is how the wrong board gets flashed:
+  resolve the port first (`board-port.py missileer --upload`).
+
+A board that answers nothing on serial is not a free board: check this table first.
+
 - Partitions: `min_spiffs.csv` (firmware is large; OTA needs the room).
 - A pre-build script ([scripts/patch_async_buff.py](scripts/patch_async_buff.py)) re-applies a guard to ESPAsyncWebServer in `.pio/` (gitignored) so `-DASYNC_RESPONCE_BUFF_SIZE=1024` survives a fresh lib install. If the config web page silently stops sending after a clean `.pio/`, that patch didn't take.
 
