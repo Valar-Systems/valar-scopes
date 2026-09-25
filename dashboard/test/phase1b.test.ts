@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BootRow, LedgerRow, OtaRow } from "../src/analytics";
 import { driftState, type DriftStatus } from "../src/drift";
 import { computeFunnel, median, sortUpstreams } from "../src/funnel";
+import { FAKE_DEVICE_IDS } from "../src/fakeids.generated";
 import worker from "../src/index";
 import { devLink, triageBody } from "../src/render";
 import { EXPECTED_BOOT_REASONS, FLAGGED_BOOT_REASONS, OTA_TRIAGE_HOURS, computeTriage, isFlaggedBoot, triageCount, type TriageInput } from "../src/triage";
@@ -137,7 +138,7 @@ describe("funnel", () => {
     expect(f.rows.map((r) => [r.dev, r.stage])).toEqual([[A, "card"], [B, "blips"], [C, "enrolled"]]);
     expect(f.rows[0]!.gapEnrolToBlipsH).toBe(2);
     expect(f.rows[0]!.gapBlipsToCardH).toBe(1.5);
-    expect(f.stuck).toEqual({ enrolled: [C], blips: [B] });
+    expect(f.stuck).toEqual({ enrolled: [C], seen: [], blips: [B] });
     expect(f.medianEnrolToBlipsH).toBe(3); // (2 + 4) / 2
     expect(f.medianBlipsToCardH).toBe(1.5);
   });
@@ -151,6 +152,55 @@ describe("funnel", () => {
   it("median of an odd and an even list", () => {
     expect(median([5, 1, 3])).toBe(3);
     expect(median([])).toBe(null);
+  });
+});
+
+describe("funnel: factory-provisioned units start at first seen", () => {
+  const now = Date.parse("2026-09-24T00:00:00Z");
+  const retentionStart = now - 90 * 24 * 3600000;
+  const led: LedgerRow[] = [
+    { dev: A, firstEnrolled: "2026-09-10T00:00:00Z", lastEnrolled: "", enrollments: 1 },
+    { dev: B, firstEnrolled: "2026-09-10T00:00:00Z", lastEnrolled: "", enrollments: 1 },
+  ];
+  const D = "b2c3d4e5f6a7b8c9", E = "a1b2c3d4e5f60718", FAKE = "beefbeefbeefbeef";
+  const fb = new Map([[A, "2026-09-10 02:00:00"], [D, "2026-09-12 00:00:00"]]);
+  const fc = new Map([[A, "2026-09-10 03:30:00"]]);
+  const seen = new Map([[A, "2026-09-09 00:00:00"], [B, "2026-09-10 01:00:00"], [D, "2026-09-11 00:00:00"],
+    [E, "2026-09-20 00:00:00"], [FAKE, "2026-09-01 00:00:00"]]);
+
+  it("the ledgered rows are IDENTICAL with and without the first-seen input", () => {
+    const before = computeFunnel(led, fb, fc, retentionStart);
+    const after = computeFunnel(led, fb, fc, retentionStart, seen, new Set([FAKE]));
+    const strip = (r: { dev: string; stage: string; enrolledAt: string; gapEnrolToBlipsH: number | null; flag: string }) =>
+      [r.dev, r.stage, r.enrolledAt, r.gapEnrolToBlipsH, r.flag];
+    expect(after.rows.filter((r) => r.origin === "enrolled").map(strip)).toEqual(before.rows.map(strip));
+    expect(after.medianEnrolToBlipsH).toBe(before.medianEnrolToBlipsH);
+  });
+  it("an unledgered, seen device enters at 'first seen'; a ledgered one is not duplicated", () => {
+    const f = computeFunnel(led, fb, fc, retentionStart, seen, new Set([FAKE]));
+    expect(f.rows.map((r) => [r.dev, r.origin, r.stage])).toEqual([
+      [A, "enrolled", "card"], [B, "enrolled", "enrolled"],
+      [E, "first seen", "seen"], [D, "first seen", "blips"], // first-seen rows sort by id
+    ]);
+    expect(f.stuck.seen).toEqual([E]);
+    expect(f.stuck.enrolled).toEqual([B]);
+  });
+  it("first seen -> /blips has its own median, never pooled with enrolment's", () => {
+    const f = computeFunnel(led, fb, fc, retentionStart, seen, new Set([FAKE]));
+    expect(f.medianSeenToBlipsH).toBe(24); // D: 09-11 00:00 -> 09-12 00:00
+    expect(f.medianEnrolToBlipsH).toBe(2);  // A only; D's 24 h is not in it
+  });
+  it("an allowlisted fake id never enters -- using the generated list the proxy guard uses", () => {
+    expect(FAKE_DEVICE_IDS.has(FAKE)).toBe(true); // CONTROL: the list really holds it
+    const f = computeFunnel(led, fb, fc, retentionStart, new Map([[FAKE, "2026-09-01 00:00:00"]]), FAKE_DEVICE_IDS);
+    expect(f.rows.map((r) => r.dev)).toEqual([A, B]);
+  });
+  it("a first request at the retention edge is flagged and not measured", () => {
+    const edge = new Date(retentionStart + 3600000).toISOString().replace("T", " ").slice(0, 19);
+    const f = computeFunnel([], new Map([[E, "2026-09-21 00:00:00"]]), new Map(), retentionStart, new Map([[E, edge]]), new Set());
+    expect(f.rows[0]!.flag).toBe("first seen before retention");
+    expect(f.rows[0]!.gapEnrolToBlipsH).toBe(null);
+    expect(f.medianSeenToBlipsH).toBe(null);
   });
 });
 

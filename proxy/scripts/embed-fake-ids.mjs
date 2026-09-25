@@ -7,7 +7,9 @@
  * that may appear in the tree because they are EXAMPLES, never devices. The
  * pre-commit hook and scripts/check_device_ids.py read it to let those ids into
  * the repo; the device Worker reads this generated copy to keep them OUT of
- * production (src/fakeids.ts). A fake id that is fine in a test fixture is, by
+ * production (src/fakeids.ts), and the fleet dashboard reads a second generated
+ * copy to keep them out of its setup funnel (dashboard/src/fakeids.generated.ts).
+ * A fake id that is fine in a test fixture is, by
  * the same fact, not a device -- so a production request carrying one is a probe
  * or a test pointed at the wrong environment. On 2026-08-28..31 one was:
  * beefbeefbeefbeef enrolled 195 times and made requests with no model or fw.
@@ -24,7 +26,9 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, "..", "..", "scripts", "device-id-allowlist.txt");
-const OUT = join(HERE, "..", "src", "fakeids.generated.ts");
+// Same body, two readers: the device Worker's guard and the dashboard's funnel.
+const OUTS = [join(HERE, "..", "src", "fakeids.generated.ts"),
+              join(HERE, "..", "..", "dashboard", "src", "fakeids.generated.ts")];
 
 const ids = readFileSync(SRC, "utf8")
   .split(/\r?\n/)
@@ -41,14 +45,20 @@ const body =
   `export const FAKE_DEVICE_IDS: ReadonlySet<string> = new Set([\n${ids.map((i) => `  "${i}",`).join("\n")}\n]);\n`;
 
 if (process.argv.includes("--check")) {
-  let cur = "";
-  try { cur = readFileSync(OUT, "utf8").replace(/\r\n/g, "\n"); } catch { /* missing = stale */ }
-  if (cur !== body) {
-    console.error("src/fakeids.generated.ts is stale -- run: node scripts/embed-fake-ids.mjs");
-    process.exit(1);
+  let stale = 0;
+  for (const OUT of OUTS) {
+    let cur = "";
+    try { cur = readFileSync(OUT, "utf8").replace(/\r\n/g, "\n"); } catch { /* missing = stale */ }
+    if (cur !== body) {
+      console.error(`${OUT} is stale -- run: node scripts/embed-fake-ids.mjs`);
+      stale++;
+    }
   }
-  console.log(`fakeids.generated.ts is current (${ids.length} ids)`);
+  if (stale) process.exit(1);
+  console.log(`fakeids.generated.ts is current in both readers (${ids.length} ids)`);
 } else {
-  writeFileSync(OUT, body);
-  console.log(`wrote ${OUT} (${ids.length} ids)`);
+  for (const OUT of OUTS) {
+    writeFileSync(OUT, body);
+    console.log(`wrote ${OUT} (${ids.length} ids)`);
+  }
 }

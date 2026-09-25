@@ -12,6 +12,7 @@ import {
   enrolledButSilent,
   firmwareSpread,
   firstRequestTimes,
+  firstSeenTimes,
   fleetRows,
   fleetTotals,
   isDeviceId,
@@ -24,6 +25,7 @@ import {
   usageRows,
 } from "./analytics";
 import { readDrift } from "./drift";
+import { FAKE_DEVICE_IDS } from "./fakeids.generated";
 import { computeFunnel, sortUpstreams } from "./funnel";
 import { OTA_TRIAGE_HOURS, computeTriage } from "./triage";
 import { readRevoked, setRevoked } from "./revoke";
@@ -252,8 +254,8 @@ export default {
 
       // Setup funnel: enrolment -> first /blips -> first card (first photo fetch).
       if (url.pathname === "/funnel") {
-        const [ledger, fb, fc] = await Promise.all([readLedger(env), firstRequestTimes(env, BLIPS_ROUTES), firstRequestTimes(env, PHOTO_ROUTES)]);
-        const f = computeFunnel(ledger, fb, fc, Date.now() - RETENTION_HOURS * 3600000);
+        const [ledger, fb, fc, seen] = await Promise.all([readLedger(env), firstRequestTimes(env, BLIPS_ROUTES), firstRequestTimes(env, PHOTO_ROUTES), firstSeenTimes(env)]);
+        const f = computeFunnel(ledger, fb, fc, Date.now() - RETENTION_HOURS * 3600000, seen, FAKE_DEVICE_IDS);
         return html(page({ title: "Setup funnel", email: who.email, hours, active: "/funnel", body: funnelBody(f) }));
       }
 
