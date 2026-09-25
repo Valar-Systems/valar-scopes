@@ -395,7 +395,16 @@ void GameClient::Apply(const Result& res, uint64_t nowUs)
         case Kind::Status: {
             statusInFlight = false;
             statusDueUs = nowUs + kStatusEveryUs;
-            if (reply != Reply::Ok) return;  // keep polling; the dead-man timer resolves it
+            // No round trip, or the server unavailable: keep polling (the dead-man timer
+            // resolves the vote meanwhile). A VERDICT on the poll itself -- 404 not_found,
+            // 403 not_yours (GET /votes/:voteId, valar-eam-feed #77) -- will never turn
+            // into an outcome: end the vote with the server's word instead of polling
+            // forever.
+            if (reply == Reply::Retry) return;
+            if (reply != Reply::Ok) {
+                Resolve(VoteOutcome::Failed, res.error.isEmpty() ? "vote status refused" : res.error.c_str());
+                return;
+            }
             const Resolution r = ResolveOutcome(res.outcome.c_str(), res.seconded, res.inhibitReason.c_str());
             if (r.resolved) Resolve(r.outcome, r.reason);
             return;
