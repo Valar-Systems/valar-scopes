@@ -36,6 +36,16 @@ inline bool ClockFresh(bool have_sync, uint64_t now_mono_us, uint64_t last_sync_
   return now_mono_us - last_sync_mono_us <= static_cast<uint64_t>(max_age_s) * 1000000ull;
 }
 
+/// Whole seconds since the last SNTP sync, for the drill face's seven-segment
+/// age readout. -1 when there has been no sync (the face then shows unlit digits).
+/// Saturates at 9999: four digits is what the face has room for, and a sync
+/// that old is stale under any served maximum.
+inline int32_t ClockAgeS(bool have_sync, uint64_t now_mono_us, uint64_t last_sync_mono_us) {
+  if (!have_sync || last_sync_mono_us > now_mono_us) return -1;
+  const uint64_t s = (now_mono_us - last_sync_mono_us) / 1000000ull;
+  return s > 9999u ? 9999 : static_cast<int32_t>(s);
+}
+
 /// Where the Zulu instant `t_ms` falls on the monotonic clock, given one
 /// simultaneous reading of both clocks. Never 0 (0 means "no T" to the drill):
 /// an instant before boot maps to 1, which the drill then treats as long past.
@@ -62,10 +72,11 @@ enum class OfferDecision : uint8_t {
   NoConfig,
   /// Derive() refused (unsound params, unparseable heard_at): ordinary EAM.
   NotDerivable,
-  /// An execution with no fresh clock: whether its ack cutoff has passed cannot
-  /// be known, and "never Offered past the cutoff" is absolute, so it is not
-  /// offered. (An interpretation: the ruling gates ARMING on the clock; this
-  /// applies the same gate one step earlier because the cutoff rule needs it.)
+  /// No sync younger than the served maxClockSyncAgeS: NOT OFFERED, whatever the
+  /// class (Fable, 2026-09-23, game-client PR: "refuse to enter Offered if the
+  /// clock's last sync is older than maxClockSyncAgeS"). This widens the earlier
+  /// gate, which applied only to executions (their cutoff needs the clock) and
+  /// let a NAM or FDM through on any clock.
   ClockUnsynced,
   /// An execution whose ack cutoff (ackCutoffS before T) has passed.
   PastCutoff,
@@ -88,8 +99,8 @@ inline OfferDecision DecideOffer(const OfferInput& in) {
   if (!in.drill_idle) return OfferDecision::Busy;
   if (!in.have_config) return OfferDecision::NoConfig;
   if (in.derivation.status != DeriveStatus::Ok) return OfferDecision::NotDerivable;
-  if (in.derivation.cls != MsgClass::Execution) return OfferDecision::Offer;
   if (!in.clock_fresh) return OfferDecision::ClockUnsynced;
+  if (in.derivation.cls != MsgClass::Execution) return OfferDecision::Offer;
   const int64_t cutoff_ms = in.derivation.t_at_ms - static_cast<int64_t>(in.ack_cutoff_s) * 1000;
   if (in.now_utc_ms >= cutoff_ms) return OfferDecision::PastCutoff;
   return OfferDecision::Offer;

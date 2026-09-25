@@ -498,6 +498,12 @@ static void VoteResolution() {
     b.Step(Event::VoteResolved, t + 60 * S, Resolved(game::VoteOutcome::Failed));
     CHECK(b.Get().phase == Phase::Aborted, "a failure did not end the drill");
     CHECK(std::strstr(b.Get().note, "failed") != nullptr, "the failure is not explained");
+    DrillMachine c = CommittedAt(t);
+    c.Step(Event::VoteResolved, t + 60 * S, Resolved(game::VoteOutcome::Aborted, "execution failed"));
+    CHECK(c.Get().phase == Phase::Aborted, "an abort did not end the drill");
+    CHECK(std::strstr(c.Get().note, "fail") == nullptr && std::strstr(c.Get().note, "FAIL") == nullptr,
+          "a crew abort was shown as a failure (ruled: never)");
+    CHECK(std::strcmp(c.Get().note, "aborted") == 0, "an abort does not say aborted");
   }
 
   CASE("VoteResolved from any phase but Committed is rejected");
@@ -518,7 +524,8 @@ static void VoteResolution() {
     { DrillMachine m; m.Step(Event::MessageArrived, 0); m.Step(Event::PlayerOpen, 0); m.Step(Event::PrintFinished, 0); m.Step(Event::PlayerAck, 0); phases[n++] = m; }  // Complete
     { DrillMachine m = ArmedAt(t); m.Step(Event::PlayerAbort, 0); phases[n++] = m; }  // Aborted
     const game::VoteOutcome outs[] = {game::VoteOutcome::Seconded, game::VoteOutcome::Launched,
-                                      game::VoteOutcome::Inhibited, game::VoteOutcome::Failed};
+                                      game::VoteOutcome::Inhibited, game::VoteOutcome::Failed,
+                                      game::VoteOutcome::Aborted};
     int checked = 0;
     bool seen[16] = {false};
     for (int i = 0; i < n; i += 1) {
@@ -535,7 +542,7 @@ static void VoteResolution() {
     int distinct = 0;
     for (bool b : seen) distinct += b ? 1 : 0;
     CHECK(distinct == 12, "the setup did not reach all twelve non-Committed phases");
-    CHECK(checked == 12 * 4, "not every phase/outcome pair was tried");
+    CHECK(checked == 12 * 5, "not every phase/outcome pair was tried");
   }
 
   CASE("Committed outlives a feed reconnect and other traffic, then resolves");
