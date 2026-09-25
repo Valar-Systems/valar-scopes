@@ -498,14 +498,20 @@ namespace WiFiManagerHelpers
     {
         wm.setWebServerCallback([&wm]() {
             wm.server->addMiddleware([](WebServer& srv, Middleware::Callback next) -> bool {
+                // Captured BEFORE next(): WebServer::_handleRequest() clears the URI
+                // when the handler returns (WebServer.cpp: _currentUri = ""), and the
+                // first version of this read it afterwards and logged every request
+                // with no path -- unable to tell the captive page from /wifi's scan.
+                const String host = srv.hostHeader();
+                const String path = srv.uri();
                 const uint32_t t0 = millis();
                 const bool r = next();
                 const uint32_t n = ++ReqSinceAssoc();
                 if (n <= 12) {
                     Serial.printf("[portal] t=%lu req#%lu +%lu ms after association: %s%s served in %lu ms\n",
                                   (unsigned long)t0, (unsigned long)n,
-                                  (unsigned long)(t0 - AssocMs()), srv.hostHeader().c_str(),
-                                  srv.uri().c_str(), (unsigned long)(millis() - t0));
+                                  (unsigned long)(t0 - AssocMs()), host.c_str(), path.c_str(),
+                                  (unsigned long)(millis() - t0));
                 }
                 return r;
             });
