@@ -8568,7 +8568,7 @@ void AircraftManager::HandleTap(int tx, int ty)
     if ((long)(millis() - tapSuppressUntilMs) < 0)
         return;
 
-    // Stats screen: a tap on the "Reset" row OPENS THE MENU. It is not itself
+    // Connect screen: a tap on the "Reset" row OPENS THE MENU. It is not itself
     // destructive -- see the header note; that is the whole point of the menu
     // existing. Swallowed here rather than falling through, so the tap cannot
     // also be reinterpreted as some other screen's gesture.
