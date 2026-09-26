@@ -281,6 +281,9 @@ jobs:
         run: |
           bash scripts/check-no-bench-hooks.sh --selftest
           bash scripts/check-no-bench-hooks.sh ".pio/build/${{ matrix.env }}/firmware.bin"
+          # and the factory image the flasher writes -- every image that can reach a
+          # customer is one of these two, and both are only built on slug-ful legs
+          bash scripts/check-no-bench-hooks.sh "publish/firmware-${{ matrix.slug }}.factory.bin"
       - name: No secret in the factory image
         if: matrix.slug
         run: |
