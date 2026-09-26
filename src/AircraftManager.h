@@ -413,6 +413,9 @@ private:
     void  BenchSessionFollow(const char* label, const char* org, const char* dst);
     void PollBenchSerial();
 #endif
+#ifdef ALERT_BENCH
+    void PollAlertBench();   // bench-only synthetic emergency contact (AircraftManager.cpp)
+#endif
     unsigned long lastNotifyCheck = 0;
 
     // Special-aircraft detection. Every class is derived offline from the live
