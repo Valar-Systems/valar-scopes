@@ -141,6 +141,26 @@ jobs:
       - name: This commit promotes only from the gated promote job
         run: bash scripts/check-tag-workflow.sh HEAD
 
+  # The printed card's reset instruction, checked against the FIRMWARE, not only
+  # against itself. check-print-cards.mjs pins the card's sentences word for word,
+  # which cannot see the firmware move out from under an unchanged sentence -- how
+  # the card said "Swipe left twice to Stats, tap [ Reset Wi-Fi ]" long after the
+  # control moved to Connect, three swipes away, behind a menu. Every fact in the
+  # sentence (screen, label, menu item, left-swipe count from the carousel order)
+  # is derived from the source here; here, not in print-cards.yml, because it is a
+  # FIRMWARE change that makes the card wrong. --selftest first, as above.
+  card-gestures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the checker catches a card that disagrees with the firmware
+        run: node scripts/check-card-gestures.mjs --selftest
+      - name: The card's reset instruction matches the firmware
+        run: node scripts/check-card-gestures.mjs
+
   release-envs:
     runs-on: ubuntu-latest
     steps:
