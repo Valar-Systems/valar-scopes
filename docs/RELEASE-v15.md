@@ -190,3 +190,24 @@ records that gps-coordinates.org's 15-decimal output is why the fields are plain
 granted and then denied. Fill, echo, and "nothing saved until Save" are confirmed on the device
 page. This is the one part no host or proxy test can see: whether the popup and its opener link
 survive on a real mobile browser.
+
+## Blocker: the 50-unit bench run waits for v15's factory assets
+
+**The bench run cannot start until v15 is published with its factory assets.** No tagged release
+carries them yet:
+- v14 predates `firmware.yml`'s factory step (#347), and a re-run on the v14 tag uses v14's
+  workflow, which has no such step.
+- The only source today is the scratch prerelease `factory-manifest-scratch-2026-09-24`.
+
+**valar-flasher PR #4 (merged `a800a77`) makes this a hard gate.**
+- Bench mode refuses a prerelease unless `--allow-prerelease` is passed, both when downloading
+  and at write time.
+- It refuses a cache with no release record.
+- It refuses a manifest whose app region is not the release's own `firmware-<slug>.bin`.
+
+**Daniel's installed flasher (`C:\Github\valar-flasher`, still `615d01d`) is deliberately NOT
+updated now.** When v15 publishes factory assets:
+1. Update the installed copy to main.
+2. Remove `release_tag` from `products.local.json`, so it resolves `latest`, which is v15.
+3. Flash ONE board from v15 and confirm it: `[build] env=` banner, Worker 200 as FW 15.
+4. Only then delete the scratch prerelease, and start the 50-unit run.
