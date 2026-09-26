@@ -192,6 +192,19 @@ a #245. Timestamps, what was eliminated, the two surviving hypotheses and the
 trigger for treating it as real:
 [docs/nvs-config-flip-2026-08-27.md](docs/nvs-config-flip-2026-08-27.md).
 
+E6 **EAM edition: messages longer than 30 characters on the Latest EAM screen** (filed
+2026-09-26; backlog, NOT built now; decide with the screen redesign). Announced lengths
+heard so far are 32, 35, 45 and 75, and EAMs of 246 and 290 characters are reported (press,
+Jun 2025); the feed's sanity cap is now 500 (valar-eam-feed MAX_COPY). The screen needs a
+plan for a long `text`: paging it by touch, or the first 30 plus "+N" in the label. Check
+at the same time: the feed is parsed into an elastic ArduinoJson 7 `JsonDocument`
+([EamFeedClient.cpp](src/eam/EamFeedClient.cpp)) and `text` / `groups` are Arduino
+`String`s ([EamModels.h](src/eam/EamModels.h)), so a 500-character text is heap, not a
+fixed-buffer overflow -- but measure the heap with a long message in the feed before
+relying on that (see [docs/heap-fragmentation-2026-08-17.md](docs/heap-fragmentation-2026-08-17.md)).
+The feed keeps new per-message fields (announced_length, position notes) off /eam/latest
+until this parsing is checked.
+
 ### Already done — carried on lists but true in the tree
 
 Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:
