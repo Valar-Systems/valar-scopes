@@ -269,6 +269,21 @@ jobs:
       # untrustworthy, and fails this leg like a hit does. Prints counts, classes and
       # offsets only -- never a matched string. factory-scan-<slug>.json carries the
       # traced runs' sha256s so valar-flasher can run the same scan before a write.
+      # NO BENCH HOOK SHIPS. Bench envs compile code that fakes aircraft and
+      # overrides settings from the serial console (-DALERT_BENCH, ...). Each hook
+      # prints a unique marker; a marker in a shipping image means the hook is in
+      # it. Runs on every CI build of every slug-ful env -- push, PR and release --
+      # not once by hand. The script requires an anchor string first (a scanner
+      # that cannot read the image reports BLIND, exit 2, never "clean"), and its
+      # selftest proves a planted marker is caught.
+      - name: No bench hook in the image
+        if: matrix.slug
+        run: |
+          bash scripts/check-no-bench-hooks.sh --selftest
+          bash scripts/check-no-bench-hooks.sh ".pio/build/${{ matrix.env }}/firmware.bin"
+          # and the factory image the flasher writes -- every image that can reach a
+          # customer is one of these two, and both are only built on slug-ful legs
+          bash scripts/check-no-bench-hooks.sh "publish/firmware-${{ matrix.slug }}.factory.bin"
       - name: No secret in the factory image
         if: matrix.slug
         run: |

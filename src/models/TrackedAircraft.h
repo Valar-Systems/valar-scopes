@@ -47,6 +47,9 @@ struct TrackedAircraft {
     bool overheadNotified = false;  // a "look up" overhead alert has been sent this session
     bool milFlashFired = false;     // visual-alert flash burst fired for this military contact
     bool emgFlashFired = false;     // visual-alert flash burst fired for this emergency squawk
+                                    // -- taken only once the contact is VISIBLE (AlertEdge.h)
+    bool emgToneFired = false;      // the emergency tone has sounded -- on first sight, visible
+                                    // or not; its own flag so the flash can wait without it
     bool emgNotified = false;       // an emergency-squawk ntfy alert has been sent this session
     bool overheadToneFired = false; // the overhead alert tone has sounded this session (HAS_AUDIO)
     // MQTT event dedupe (Home Assistant "events, not state"): one bit per event
