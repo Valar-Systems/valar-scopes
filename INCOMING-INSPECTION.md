@@ -303,6 +303,8 @@ Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi 
 **This boot is where §4's serial half gets recorded** — the RSSI reading and the zero-reason-204
 criterion. Watch it here; the probe build could not produce it.
 
+**No per-unit gate for a touch controller that wedges later — on purpose.** The quick tap above proves touch works at inspection. A controller that wedges *later* (after 10 minutes, a day, a month) is handled in the field by the v15 touch-wedge cap: the device stops rebooting and tells the customer on screen, with its Device ID and the support address ([docs/v15-touch-wedge-cap.md](docs/v15-touch-wedge-cap.md)). That covers a wedge at any time, where an inspection soak would only cover the first minutes.
+
 ---
 
 ### 6b. Provision the key: valar-flasher bench mode (100%)
@@ -583,3 +585,5 @@ readback, `0xF9`/`0xFA`/`0xFB`/`0xFC` values, RSSI + reason-204 count, the §7.5
 result per unit (type shown / `[source]` line), and the pass/fail call.
 This is the evidence trail for the next supplier conversation — the antenna requirement was won
 with exactly this kind of measured A/B.
+
+**Before any unit ships: record its Device ID (shown on its config page) against the order number in Daniel's private sheet** — never in this repo.
