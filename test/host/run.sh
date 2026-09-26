@@ -859,6 +859,25 @@ elif [ "$rc" -eq 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# --- an alert is never consumed unseen (AlertEdge.h, 2026-09-26) ------------
+#
+# Emergency and military flashes share one rule for WHEN their one-shot edge is
+# spent: only once the contact is visible. The CONTROL runs the old emergency
+# rule and requires it to show nothing for a contact that starts off-screen.
+echo
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_alert_edge.cpp" -o "$OUT/test_alert_edge.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the alert-edge test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_alert_edge.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
