@@ -205,6 +205,14 @@ relying on that (see [docs/heap-fragmentation-2026-08-17.md](docs/heap-fragmenta
 The feed keeps new per-message fields (announced_length, position notes) off /eam/latest
 until this parsing is checked.
 
+E7 **EAM station: a fade mid-reading splits one reading into two groups** (filed
+2026-09-27; backlog, a known case for later grouping work, NOT built now). M20260924T222317Z:
+the detector lost the voice for 43 s inside the kph 22:20Z raw file (clips 222147Z and
+222317Z), so the first reading of one message sits in two clips and the station grouped
+them apart. It is one message and Daniel's copy is on it
+(VQGDWDQQUYJCMSFPY6MDSY6VNS6DPYGX). The boundary join (valar-eam-feed #127) only joins
+runs across raw files, so it does not reach this.
+
 ### Already done — carried on lists but true in the tree
 
 Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:
