@@ -470,7 +470,7 @@ void EamManager::DrawPropagation(BandCanvas& c)
     //
     // FIXED ON THE DEVICE, NOT TAKEN FROM THE FEED. The old line printed the backend's
     // `source` field, so the credit vanished whenever that field did. It also sat at
-    // SCREEN_SIZE - 16, where the disc is ~100 px wide on the 1.28" and ~130 px on the 1.46":
+    // SCREEN_SIZE - 16, where the disc is ~86 px wide on the 1.28" and ~113 px on the 1.46":
     // "Solar data: HamQSL / N0NBH" (156 px) ran off both sides of the curve on both panels.
     // The row is checked against the chord, and the 412 px panel gets size-2 text (the Zulu
     // clock's label rule) so the credit reads there as well as on the 1.28". It is drawn in
