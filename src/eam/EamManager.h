@@ -146,6 +146,9 @@ private:
     void DrawIcbm(BandCanvas& c);
     void DrawReference(BandCanvas& c);
     void DrawClock(BandCanvas& c);
+    // A data source's fixed credit on the row below the long-press toast, fitted to the disc
+    // (EamScreens.cpp).
+    void DrawCredit(BandCanvas& c, const char* credit);
 
     // brightness
     void UpdateBrightness();

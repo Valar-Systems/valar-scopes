@@ -66,6 +66,10 @@ public:
     // otherwise). The last good fetch is kept across failures: a config in hand stays in hand.
     const eam::GameConfig& GameCfg() const { return gameConfig; }
 
+    // True when the command-post watch reads the Valar feed's /status/abncp (adsb.fi data),
+    // false for the device-side OpenSky option. Decides the ABNCP screen's credit.
+    bool AbncpFromBackend() const { return cfg.abncpSource == AbncpSource::Backend; }
+
     // Non-null while the selected ABNCP source can't poll (e.g. OpenSky creds blank).
     const char* AbncpInertReason() const { return abncpProvider ? abncpProvider->InertReason() : nullptr; }
 
