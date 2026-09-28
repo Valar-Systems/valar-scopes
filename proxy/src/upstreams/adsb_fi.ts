@@ -6,11 +6,18 @@ import { USER_AGENT, type UpstreamAircraftFeed } from "./types";
 // staging and production; see "Upstream licensing posture" in README.md and the
 // SHIPPING ORDER block in chain.ts.
 //
-// PERMITTED COMMERCIALLY, IN WRITING (2026-08-05). Samuli granted use for our
-// stated purpose -- a paid hardware product -- "including the caching system",
-// conditional on staying within the Open Data API rate limit AND NOTHING ELSE.
-// So the operative constraint on this source is the 1 req/s per-IP budget below,
-// not a licence question.
+// PERMITTED IN WRITING (ruled 2026-09-28). The 30 July grant email, and the
+// 7 August email, cover the relay-and-cache model -- our stated purpose, a paid
+// hardware product, "including the caching system" (per the emails) -- within
+// the Open Data API rate limit; the adsb.fi sponsorship is paid (invoice 2737).
+// Missileer isn't named; Daniel is sending a one-line confirmation. So the
+// operative constraint on this source is the 1 req/s per-IP budget below, not a
+// licence question. (FEED-SOURCING.md keeps the older record of these emails,
+// with its own dates, as history.)
+//
+// V3 (Samuli asked that we use the V3 API): positions already use /v3 (below).
+// adsb.fi's docs (github.com/adsbfi/opendata) list /v3/lat/lon/dist as the ONLY
+// v3 endpoint, so hex stays on /v2/hex: there is no v3 hex path to move to.
 //
 // THIS COMMENT SAID THE OPPOSITE TWICE, and both times for the same reason, which
 // is why the correction is recorded rather than just applied:
@@ -56,10 +63,10 @@ function makeFeed(id: string, base: (env: Env) => string): UpstreamAircraftFeed 
     // (now = epoch ms) that upstreamNowMs() already handles, and caps distance at
     // 250 NM (our largest R_BUCKETS_KM bucket is 160 km ~= 86 NM, never in play).
     pointUrl: (env, lat, lon, distNm) => `${base(env)}/v3/lat/${lat}/lon/${lon}/dist/${distNm}`,
-    // Hex is unversioned-stable: /v2/hex and /v2/icao are the same endpoint. Use
-    // /v2/hex so the path matches adsb.lol's and the relay's hex location block.
-    // (/v2/icao additionally accepts comma-separated hexes -- a possible batched
-    // enrichment win if this source ever clears licensing.)
+    // Hex is unversioned-stable: /v2/hex and /v2/icao are the same endpoint, and
+    // adsb.fi documents no v3 hex endpoint. Use /v2/hex so the path matches
+    // adsb.lol's and the relay's hex location block. (/v2/icao additionally
+    // accepts comma-separated hexes -- a possible batched enrichment win.)
     hexUrl: (env, hex) => `${base(env)}/v2/hex/${hex}`,
     headers: (env) => ({ "User-Agent": USER_AGENT, ...relayHeaders(env) }),
   };
