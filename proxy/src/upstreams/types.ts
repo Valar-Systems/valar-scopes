@@ -16,6 +16,31 @@ export interface UpstreamAircraftFeed {
   pointUrl(env: Env, lat: string, lon: string, distNm: number): string;
   hexUrl(env: Env, hex: string): string;
   headers(env: Env): Record<string, string>;
+  // Set on a feed whose operator counts 4xx responses against us (adsb.fi). After
+  // ANY 4xx from it (400/401/403/404/429 ...) the chain skips this feed for this
+  // many ms -- even as the terminal feed -- and never retries a 4xx from it inside
+  // a call. See HOLD in chain.ts.
+  holdOn4xxMs?: number;
+}
+
+// ---- 4xx hold ------------------------------------------------------------------
+// Per-isolate, like the breakers below: an isolate that saw a 4xx from a held feed
+// sends it nothing more until the hold expires. Keyed by feed id, i.e. per relay,
+// because adsb.fi's limit is per IP and each relay is its own IP.
+const holds = new Map<string, number>(); // feed id -> held until (epoch ms)
+
+export function holdFeed(id: string, ms: number): void {
+  const until = Date.now() + ms;
+  if ((holds.get(id) ?? 0) < until) holds.set(id, until);
+  console.log(JSON.stringify({ evt: "hold", id, ms }));
+}
+
+export function feedHeld(id: string): boolean {
+  const until = holds.get(id);
+  if (until === undefined) return false;
+  if (Date.now() < until) return true;
+  holds.delete(id);
+  return false;
 }
 
 // ---- circuit breaker ---------------------------------------------------------
@@ -100,4 +125,5 @@ export function upstreamOverallState(ids: string[]): "ok" | "degraded" | "down" 
 // Tests only: breaker state is module-scoped and would leak across test cases.
 export function __resetBreakersForTests(): void {
   breakers.clear();
+  holds.clear();
 }

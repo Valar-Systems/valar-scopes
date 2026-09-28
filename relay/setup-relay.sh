@@ -6,10 +6,11 @@
 # WHAT IT DOES
 #   - installs nginx (apt) + unattended-upgrades
 #   - writes the caching relay vhost: proxy_cache + cache_lock, use_stale on
-#     error/timeout/429, TTL a clearly-marked tunable (CACHE_TTL, starts 6s)
+#     error/timeout/5xx (and 429 for adsb.lol only; adsb.fi 4xx are held 60 s),
+#     TTL a clearly-marked tunable (CACHE_TTL, starts 6s)
 #   - serves TWO upstreams, BOTH shipping: adsb.fi under /fi (the chain primary
 #     for positions + hex) and adsb.lol at the root (licensed fallback, and the
-#     only route source), each in its own cache zone under identical policy
+#     only route source), each in its own cache zone with the same 200 TTLs
 #   - X-Relay-Key gate: 403 unless the caller presents the key, read from a
 #     ROOT-ONLY file (never in this script or in git)
 #   - installs the Cloudflare Origin certificate for TLS (443)
@@ -209,8 +210,8 @@ NGINX
 
 # ---- adsb.fi upstream snippet (served under /fi) ----------------------------
 # Same shape as the adsb.lol snippet above: same key gate, same collapsing, same
-# use_stale, same "a 429 makes the next attempt LATER, never sooner" principle.
-# It differs in exactly three ways, all forced by the upstream:
+# "a 429 makes the next attempt LATER, never sooner" principle. It differs in
+# exactly four ways, all forced by the upstream:
 #
 #  1. PATH REWRITE. adsb.fi's API lives under /api, so /fi/v3/... -> /api/v3/....
 #     $request_uri (the CACHE KEY) keeps the original /fi/... form, so the two
@@ -221,13 +222,24 @@ NGINX
 #     from both relays (27 KB tile in ~0.30 s) vs adsb.lol's ~12 KB/s anon cap --
 #     so 30 s of patience buys nothing here; a slow response means trouble, and
 #     failing fast keeps a stuck fetch from occupying the cache lock.
+#  4. NO use_stale OVER A 4xx (ruled 2026-09-28: "on any 4xx/429 from adsb.fi,
+#     back off (no retries inside a minute)"). use_stale http_429 serves the last
+#     good copy on a 429 and DOES NOT STORE the 429, so the entry stays expired and
+#     the very next request for that key goes straight back to adsb.fi -- a seen
+#     tile re-fired a 429 on every Worker revalidation. Here the 4xx is stored
+#     instead (proxy_cache_valid 400 401 403 404 429 60s in every /fi location),
+#     so for 60 s that key answers the cached 4xx without touching adsb.fi, and the
+#     Worker's chain fails over to relay-b / adsb.lol and holds adsb.fi itself
+#     (HOLD in proxy/src/upstreams/chain.ts). 5xx/error/timeout still use_stale:
+#     adsb.fi's README doesn't count them.
 #
 # RATE LIMIT -- the binding constraint, read before touching CACHE_TTL:
-# adsb.fi's public limit is 1 req/s PER IP, and 400/401/403/404/429 responses
-# COUNT TOWARD IT (their docs), so a re-firing 429 doesn't just fail, it digs the
-# hole deeper and earns "a temporary IP address restriction". Upstream rate here
+# adsb.fi's public limit is 1 req/s PER IP. Their README: "Making excessive
+# invalid HTTP requests results in a temporary IP address restriction. Requests
+# returning a 400, 401, 403, 404, or 429 status code count toward the limit." So
+# a re-firing 4xx doesn't just fail, it digs the hole deeper. Upstream rate here
 # is (distinct hot tiles) / CACHE_TTL, so at TTL=8s the ceiling is only ~8 hot
-# tiles per relay. The hold-down below is therefore load-bearing, not courtesy.
+# tiles per relay. The 60 s 4xx hold-down below is load-bearing, not courtesy.
 cat > /etc/nginx/snippets/relay-upstream-fi.conf <<'NGINX'
 if ($relay_ok = 0) { return 403; }
 set $upstream_fi "opendata.adsb.fi";
@@ -247,7 +259,9 @@ proxy_cache_key "$request_uri";     # the ORIGINAL /fi/... uri, not the rewritte
 proxy_ignore_headers Cache-Control Expires Set-Cookie;
 proxy_cache_lock on;
 proxy_cache_lock_timeout 6s;
-proxy_cache_use_stale updating error timeout http_429 http_500 http_502 http_503 http_504;
+# NO http_429 here, unlike the adsb.lol snippet: a 4xx is stored and held 60 s
+# (see 4. above), never papered over with stale and re-fired.
+proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
 add_header X-Relay-Cache $upstream_cache_status always;
 add_header Cache-Control "no-store" always;
 proxy_connect_timeout 5s;
@@ -255,7 +269,8 @@ proxy_read_timeout 10s;
 NGINX
 
 # ---- relay vhost ------------------------------------------------------------
-log "writing relay vhost (tile TTL=$CACHE_TTL + 429 hold-down 15s, hex TTL=24h + 429 hold-down 60s)"
+log "writing relay vhost (adsb.lol: tile TTL=$CACHE_TTL + 429 hold-down 15s, hex TTL=24h + 429 hold-down 60s)"
+log "  adsb.fi (/fi, /fi25, /fi50): any 400/401/403/404/429 held 60s, never served stale"
 log "  upstreams: /fi -> opendata.adsb.fi (chain primary) | / -> api.adsb.lol (fallback + routes)"
 cat > "$SITE" <<'NGINX'
 proxy_cache_path /var/cache/nginx/adsblol levels=1:2 keys_zone=adsblol:10m
@@ -346,28 +361,28 @@ server {
     }
 
     # ---- adsb.fi under /fi -- THE CHAIN PRIMARY, live customer traffic -------
-    # Deliberately identical TTL/hold-down policy to the adsb.lol blocks above,
-    # which began as a way to make the 24 h comparison measure the UPSTREAM and
-    # not our tuning, and is now simply the shipping policy for both. Longer
-    # prefixes win in nginx, so /fi/v2/hex/ takes the metadata policy and
-    # everything else under /fi takes the live-positions policy.
+    # Same 200 TTLs as the adsb.lol blocks above (the 24 h comparison was meant to
+    # measure the UPSTREAM, not our tuning). Longer prefixes win in nginx, so
+    # /fi/v2/hex/ takes the metadata policy and everything else under /fi takes
+    # the live-positions policy.
     #
-    # THE HOLD-DOWN IS LOAD-BEARING HERE IN A WAY IT IS NOT AT THE ROOT. Our
-    # permission from adsb.fi (in writing, 2026-08-05) is conditional on staying
-    # inside their 1 req/s per-IP limit and on nothing else -- and 4xx/429s count
-    # toward that limit. So re-firing a 429 does not merely waste a request, it
-    # spends the budget the permission depends on. Do not shorten proxy_cache_valid
-    # 429 here without re-reading that grant.
+    # THE 4xx HOLD-DOWN IS NOT THE ROOT'S. Ruled 2026-09-28: "on any 4xx/429 from
+    # adsb.fi, back off (no retries inside a minute)". So EVERY /fi location holds
+    # 400/401/403/404/429 for 60 s (the root holds only 429, and only 15 s on
+    # positions), and the fi snippet does not use_stale over a 4xx (point 4 at the
+    # snippet). Our permission (the 30 July grant, 7 August email) rests on the
+    # open API rate limit, and 4xx count toward it. Do not shorten these below
+    # 60 s or add http_429 back to the fi snippet's use_stale.
     location ^~ /fi/v2/hex/ {
         include /etc/nginx/snippets/relay-upstream-fi.conf;
         proxy_cache_valid 200 24h;
-        proxy_cache_valid 429 60s;
+        proxy_cache_valid 400 401 403 404 429 60s;
     }
 
     location ^~ /fi/ {
         include /etc/nginx/snippets/relay-upstream-fi.conf;
         proxy_cache_valid 200 __CACHE_TTL__;
-        proxy_cache_valid 429 15s;
+        proxy_cache_valid 400 401 403 404 429 60s;
     }
 
     # ---- /fi50: the SLOW-TTL EXPERIMENT path (staging only) ------------------
@@ -388,7 +403,7 @@ server {
     location ^~ /fi50/ {
         include /etc/nginx/snippets/relay-upstream-fi.conf;
         proxy_cache_valid 200 __FI50_TTL__;
-        proxy_cache_valid 429 15s;
+        proxy_cache_valid 400 401 403 404 429 60s;
     }
 
     # The other half of the A/B. 25 s is what a raised rate limit (two IPs, or a
@@ -399,7 +414,7 @@ server {
     location ^~ /fi25/ {
         include /etc/nginx/snippets/relay-upstream-fi.conf;
         proxy_cache_valid 200 __FI25_TTL__;
-        proxy_cache_valid 429 15s;
+        proxy_cache_valid 400 401 403 404 429 60s;
     }
 }
 NGINX
