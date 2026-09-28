@@ -36,6 +36,14 @@ const char* const kHeritageSample[] = {
     "1991: HFGCS keeps the watch",
 };
 
+// THE adsb.fi CREDIT (ruling 2026-09-28: "Attribution: "adsb.fi" with a link to its home page
+// wherever the data is shown -- device screen (with the N0NBH credit) and any site page").
+// adsb.fi's terms (github.com/adsbfi/opendata): "You must cite adsb.fi and include a link to our
+// home page." A round panel can't carry a link, so the domain name stands in for it: "adsb.fi"
+// IS the home page's address. /status/abncp and /status/milair are both one adsb.fi /v2/mil
+// poll (valar-eam-feed AdsbMilFeedSource), so the command-post and mil-air screens carry it.
+const char kAdsbFiCredit[] = "Data: adsb.fi";
+
 } // namespace
 
 void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
@@ -317,6 +325,11 @@ void EamManager::DrawAbncp(BandCanvas& c)
         return;
     }
 
+    // "none up" is adsb.fi's answer too, so both branches below carry the credit. The OpenSky
+    // option is the user's own account, not adsb.fi, and gets no adsb.fi credit.
+    if (feed.AbncpFromBackend())
+        DrawCredit(c, kAdsbFiCredit);
+
     if (!a.airborne || a.aircraft.empty()) {
         c.setTextSize(2);
         CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 14, palette.dim);
@@ -361,6 +374,8 @@ void EamManager::DrawMilAir(BandCanvas& c)
     CenterText(c, "MIL AIR", (int)(SCREEN_SIZE * 0.12), palette.dim);
 
     const eam::MilAir& m = feed.MilAir();
+    if (m.valid)
+        DrawCredit(c, kAdsbFiCredit);
     if (!m.valid || m.count <= 0) {
         c.setTextSize(2);
         CenterText(c, "none up", SCREEN_SIZE_DIV_2 - 14, palette.dim);
@@ -403,10 +418,12 @@ void EamManager::DrawMilAir(BandCanvas& c)
         y += lh;
     }
     if (n > per) {
+        // Page counter at 0.74, above the toast (0.80) and the credit (0.84); it used to sit at
+        // SCREEN_SIZE - 30, which on the 240 px panel is the credit's next pixel row.
         char more[40];
         const int last = (start + per < n) ? start + per : n;
         snprintf(more, sizeof(more), "%d-%d of %d", start + 1, last, n);
-        CenterText(c, more, SCREEN_SIZE - 30, palette.faint);
+        CenterText(c, more, (int)(SCREEN_SIZE * 0.74f), palette.faint);
     }
     CenterText(c, "(ADS-B only)", SCREEN_SIZE - 16, palette.faint);
 }
@@ -476,13 +493,23 @@ void EamManager::DrawPropagation(BandCanvas& c)
     // clock's label rule) so the credit reads there as well as on the 1.28". It is drawn in
     // `dim`, not `faint`: faint is the colour of a label you may ignore. The row sits
     // just below the long-press toast (0.80) so the two never overlap.
-    static const char kCredit[] = "Data: N0NBH HAMQSL.com";
+    DrawCredit(c, "Data: N0NBH HAMQSL.com");
+}
+
+// The credit row, shared by every screen that shows a third party's data (the N0NBH credit
+// above; adsb.fi on the command-post and mil-air screens). One rule, from the N0NBH credit's
+// ruling: row 0.84 on the 240 px panel and 0.83 on the 412 px panel, just below the long-press
+// toast (0.80); size-2 text on the 412 px panel (the Zulu clock's label rule), dropping to size
+// 1 if the line is wider than the disc's chord at that row; `dim`, not `faint`. No screen shows
+// both HamQSL and adsb.fi data, so no screen needs two credits.
+void EamManager::DrawCredit(BandCanvas& c, const char* credit)
+{
     const bool big = SCREEN_SIZE >= 360;
-    const int creditY = (int)(SCREEN_SIZE * (big ? 0.83f : 0.84f));
+    const int y = (int)(SCREEN_SIZE * (big ? 0.83f : 0.84f));
     c.setTextSize(big ? 2 : 1);
-    if (c.textWidth(kCredit) > ChordWidthPx(creditY, c.fontHeight()))
+    if (c.textWidth(credit) > ChordWidthPx(y, c.fontHeight()))
         c.setTextSize(1);
-    CenterText(c, kCredit, creditY, palette.dim);
+    CenterText(c, credit, y, palette.dim);
     c.setTextSize(1);
 }
 
