@@ -10,7 +10,14 @@ import {
 } from "./adsbdb";
 import { adsbFi, adsbFiB } from "./adsb_fi";
 import { airplanesLive } from "./airplanes_live";
-import { breakerAllows, breakerRecord, breakerState, type UpstreamAircraftFeed } from "./types";
+import {
+  breakerAllows,
+  breakerRecord,
+  breakerState,
+  feedHeld,
+  holdFeed,
+  type UpstreamAircraftFeed,
+} from "./types";
 
 // The full set of feeds (for health reporting + enablement). Ordering for the
 // actual fetch is per-operation below. adsb_lol + adsb_lol_b are the same data
@@ -273,8 +280,10 @@ async function fetchJsonOnce(url: string, init: RequestInit, ms: number): Promis
 // serve deadline; this only lengthens background fetches.
 const DEFAULT_RETRY_DELAY_MS = 400;
 
-function retryable(err: unknown): boolean {
-  return !(err instanceof HttpStatusError) || err.status === 429 || err.status >= 500;
+// retry429 = false for a feed that counts 4xx against us (adsb.fi): see HOLD.
+function retryable(err: unknown, retry429: boolean): boolean {
+  if (!(err instanceof HttpStatusError)) return true;
+  return (retry429 && err.status === 429) || err.status >= 500;
 }
 
 async function fetchJsonWithTimeout(
@@ -283,12 +292,13 @@ async function fetchJsonWithTimeout(
   ms: number,
   retryDelayMs: number,
   attempts = 2,
+  retry429 = true,
 ): Promise<unknown> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await fetchJsonOnce(url, init, ms);
     } catch (err) {
-      if (attempt >= attempts || !retryable(err)) throw err;
+      if (attempt >= attempts || !retryable(err, retry429)) throw err;
       // Linear backoff: 1x, 2x, ... the base delay between attempts.
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
     }
@@ -338,6 +348,29 @@ function logUpstream(
 // skip currently looks identical to an attempt that was never needed.
 function logSkip(id: string, op: string, reason: string): void {
   console.log(JSON.stringify({ evt: "upstream_skip", id, op, reason }));
+}
+
+// ---- HOLD: no request to a 4xx-counting feed inside its hold -------------------
+// adsb.fi counts 400/401/403/404/429 toward a temporary IP restriction (their
+// README; quoted in adsb_fi.ts). A feed with holdOn4xxMs (adsb.fi: ADSBFI_HOLD_MS,
+// 60 s) is therefore:
+//   - never retried on a 4xx inside a call (retry429 = false; other 4xx were never
+//     retried), and
+//   - skipped by both chains for holdOn4xxMs after any 4xx, EVEN AS THE TERMINAL
+//     FEED. The "always try the terminal feed" rule is for the breaker; it does not
+//     override this. No picture for a minute beats an IP restriction.
+// 5xx, timeouts and network errors keep the old behaviour (one quick retry, then
+// the breaker): adsb.fi's README does not count them.
+function isHeld(feed: UpstreamAircraftFeed, op: string): boolean {
+  if (!feed.holdOn4xxMs || !feedHeld(feed.id)) return false;
+  logSkip(feed.id, op, "hold_4xx");
+  return true;
+}
+
+function holdOn4xx(feed: UpstreamAircraftFeed, err: unknown): void {
+  if (feed.holdOn4xxMs && err instanceof HttpStatusError && err.status >= 400 && err.status < 500) {
+    holdFeed(feed.id, feed.holdOn4xxMs);
+  }
 }
 
 // ---- degraded-feed threshold (the stale-200 failover fix) --------------------
@@ -390,6 +423,7 @@ export async function fetchPointChain(
     // failovers disabled, adsb.lol IS the terminal feed). Always try the terminal
     // feed; the per-call timeout + retry still bound its latency.
     const isTerminal = i === feeds.length - 1;
+    if (isHeld(feed, "point")) continue;
     if (!isTerminal && !breakerAllows(feed.id)) continue;
     const started = Date.now();
     try {
@@ -398,6 +432,8 @@ export async function fetchPointChain(
         { headers: feed.headers(env) },
         timeoutMs(env),
         retryDelayMs(env),
+        2,
+        !feed.holdOn4xxMs,
       )) as Record<string, unknown>;
       // Transport succeeded, so the breaker closes regardless of data age: a relay
       // serving stale-but-valid data is DEGRADED, not down. Opening the breaker here
@@ -424,6 +460,7 @@ export async function fetchPointChain(
       }
     } catch (err) {
       breakerRecord(feed.id, false);
+      holdOn4xx(feed, err);
       logUpstream(feed.id, "point", false, Date.now() - started, err);
     }
   }
@@ -447,6 +484,7 @@ export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | 
     // Same rule as the point chain: never let the breaker skip the terminal feed
     // (nothing to fall over to), only the ones that have a fallback after them.
     const isTerminal = i === feeds.length - 1;
+    if (isHeld(feed, "hex")) continue;
     if (!isTerminal && !breakerAllows(feed.id)) continue;
     const started = Date.now();
     try {
@@ -458,6 +496,7 @@ export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | 
         timeoutMs(env),
         retryDelayMs(env),
         3,
+        !feed.holdOn4xxMs,
       )) as Record<string, unknown>;
       breakerRecord(feed.id, true);
       logUpstream(feed.id, "hex", true, Date.now() - started);
@@ -465,6 +504,7 @@ export async function fetchHexChain(env: Env, hex: string): Promise<HexResult | 
       return { upstream: feed.id, raw: ac.length > 0 ? ac[0] : null };
     } catch (err) {
       breakerRecord(feed.id, false);
+      holdOn4xx(feed, err);
       logUpstream(feed.id, "hex", false, Date.now() - started, err);
     }
   }

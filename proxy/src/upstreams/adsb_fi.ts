@@ -15,9 +15,9 @@ import { USER_AGENT, type UpstreamAircraftFeed } from "./types";
 // licence question. (FEED-SOURCING.md keeps the older record of these emails,
 // with its own dates, as history.)
 //
-// V3 (Samuli asked that we use the V3 API): positions already use /v3 (below).
-// adsb.fi's docs (github.com/adsbfi/opendata) list /v3/lat/lon/dist as the ONLY
-// v3 endpoint, so hex stays on /v2/hex: there is no v3 hex path to move to.
+// ENDPOINTS: adsb.fi's README (github.com/adsbfi/opendata) deprecates only the v2
+// radius query (/v2/lat/lon/dist); V3 is that radius query alone. So positions use
+// /v3/lat/lon/dist and hex uses /v2/hex, which is current (ruled 2026-09-28).
 //
 // THIS COMMENT SAID THE OPPOSITE TWICE, and both times for the same reason, which
 // is why the correction is recorded rather than just applied:
@@ -32,10 +32,17 @@ import { USER_AGENT, type UpstreamAircraftFeed } from "./types";
 //
 // Reached through OUR relays under the /fi prefix (the relay rewrites /fi/* ->
 // opendata.adsb.fi/api/*), so adsb.fi sees one stable dedicated IP per relay and
-// gets the same request-collapsing + 429 hold-down courtesy adsb.lol gets. Their
-// public limit is 1 req/s per IP AND 4xx/429s count toward it, so never re-firing
-// a 429 is mandatory here, not merely polite.
-//
+// gets request-collapsing. Their README: "Making excessive invalid HTTP requests
+// results in a temporary IP address restriction. Requests returning a 400, 401,
+// 403, 404, or 429 status code count toward the limit." So (ruled 2026-09-28: "on
+// any 4xx/429 from adsb.fi, back off (no retries inside a minute)"):
+//   - the relay caches any 400/401/403/404/429 from adsb.fi for 60 s per key and
+//     does not serve stale over a 4xx, so the same request can't reach adsb.fi
+//     again inside the minute (relay/setup-relay.sh, the /fi locations);
+//   - the chain never retries a 4xx from this feed, and skips the feed entirely
+//     for ADSBFI_HOLD_MS after one (holdOn4xxMs; HOLD in chain.ts).
+export const ADSBFI_HOLD_MS = 60_000;
+
 // Base URLs are per-env vars, mirroring adsb_lol.ts. Unset -> the primary falls
 // back to opendata.adsb.fi DIRECT (dev/test only) and the secondary is disabled.
 const DIRECT = "https://opendata.adsb.fi/api";
@@ -69,6 +76,7 @@ function makeFeed(id: string, base: (env: Env) => string): UpstreamAircraftFeed 
     // accepts comma-separated hexes -- a possible batched enrichment win.)
     hexUrl: (env, hex) => `${base(env)}/v2/hex/${hex}`,
     headers: (env) => ({ "User-Agent": USER_AGENT, ...relayHeaders(env) }),
+    holdOn4xxMs: ADSBFI_HOLD_MS,
   };
 }
 

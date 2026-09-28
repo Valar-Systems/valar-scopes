@@ -110,9 +110,20 @@ adding a third relay IP. The design degrades by a knob, not off a cliff.
 ## Primary upstream: adsb.fi under `/fi`
 
 Each relay proxies **adsb.fi** under a `/fi` path prefix (`/fi/v3/lat/...` →
-`opendata.adsb.fi/api/v3/lat/...`), in its own cache zone but under **identical**
-TTL and 429 hold-down policy, so a comparison measures the upstream rather than
-our tuning.
+`opendata.adsb.fi/api/v3/lat/...`), in its own cache zone with the same 200 TTLs
+as adsb.lol, so a comparison measures the upstream rather than our tuning.
+
+**4xx hold-down (ruled 2026-09-28: "on any 4xx/429 from adsb.fi, back off (no
+retries inside a minute)").** adsb.fi's README: "Making excessive invalid HTTP
+requests results in a temporary IP address restriction. Requests returning a 400,
+401, 403, 404, or 429 status code count toward the limit." So every `/fi`,
+`/fi25` and `/fi50` location caches `400 401 403 404 429` for **60 s**, and the
+adsb.fi snippet does **not** `use_stale` over a 429. (With `use_stale http_429`,
+nginx serves the old copy and doesn't store the 429, so the next request for that
+key goes straight back to adsb.fi.) For that minute the key answers the cached
+4xx; the Worker's chain fails over and holds adsb.fi on its side too (`HOLD` in
+`proxy/src/upstreams/chain.ts`). The adsb.lol root keeps its old policy (429 held
+15 s on positions, 60 s on hex, stale served over a 429).
 
 **This is the serving path for positions and hex.** Since 2026-07-31 adsb.fi is
 the chain primary and adsb.lol the licensed fallback; staging and production both
