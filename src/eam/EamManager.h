@@ -147,8 +147,11 @@ private:
     void DrawReference(BandCanvas& c);
     void DrawClock(BandCanvas& c);
     // A data source's fixed credit on the row below the long-press toast, fitted to the disc
-    // (EamScreens.cpp).
-    void DrawCredit(BandCanvas& c, const char* credit);
+    // (EamScreens.cpp). `y` < 0 is that standard row; a screen whose own drawing already fills
+    // that row passes the row it made room at, which LowestCreditRow finds.
+    void DrawCredit(BandCanvas& c, const char* credit, int y = -1);
+    // The lowest row at which `credit` fits the disc at the credit's text size.
+    int LowestCreditRow(BandCanvas& c, const char* credit);
 
     // brightness
     void UpdateBrightness();
