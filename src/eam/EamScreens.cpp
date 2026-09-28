@@ -462,8 +462,28 @@ void EamManager::DrawPropagation(BandCanvas& c)
     char sk[28];
     snprintf(sk, sizeof(sk), "SFI %d   K %d", p.sfi, p.kIndex);
     CenterText(c, sk, (int)(SCREEN_SIZE * 0.72), palette.fg);
-    if (p.source.length())
-        CenterText(c, "Solar data: " + p.source, SCREEN_SIZE - 16, palette.faint);
+
+    // THE N0NBH CREDIT (ruling 2026-09-28: "hamqsl.com: keep, with the N0NBH credit shown on
+    // the device screen where the data appears"). HamQSL's own page asks for it: "Credit to
+    // HAMQSL.com would be appreciated", and "you must leave the credit to all people (me and
+    // the others) intact" -- 73 de Paul N0NBH, https://www.hamqsl.com/solar.html.
+    //
+    // FIXED ON THE DEVICE, NOT TAKEN FROM THE FEED. The old line printed the backend's
+    // `source` field, so the credit vanished whenever that field did. It also sat at
+    // SCREEN_SIZE - 16, where the disc is ~86 px wide on the 1.28" and ~113 px on the 1.46":
+    // "Solar data: HamQSL / N0NBH" (156 px) ran off both sides of the curve on both panels.
+    // The row is checked against the chord, and the 412 px panel gets size-2 text (the Zulu
+    // clock's label rule) so the credit reads there as well as on the 1.28". It is drawn in
+    // `dim`, not `faint`: faint is the colour of a label you may ignore. The row sits
+    // just below the long-press toast (0.80) so the two never overlap.
+    static const char kCredit[] = "Data: N0NBH HAMQSL.com";
+    const bool big = SCREEN_SIZE >= 360;
+    const int creditY = (int)(SCREEN_SIZE * (big ? 0.83f : 0.84f));
+    c.setTextSize(big ? 2 : 1);
+    if (c.textWidth(kCredit) > ChordWidthPx(creditY, c.fontHeight()))
+        c.setTextSize(1);
+    CenterText(c, kCredit, creditY, palette.dim);
+    c.setTextSize(1);
 }
 
 void EamManager::DrawIcbm(BandCanvas& c)
