@@ -44,6 +44,12 @@ const char* const kHeritageSample[] = {
 // poll (valar-eam-feed AdsbMilFeedSource), so the command-post and mil-air screens carry it.
 const char kAdsbFiCredit[] = "Data: adsb.fi";
 
+// THE N0NBH CREDIT, one string for both screens that show HamQSL data: the HF PROPAGATION
+// screen (the numbers themselves) and the EAM TEMPO screen (the caret on the suggested channel,
+// which is HamQSL's SFI and K run through valar-eam-feed's hfgcs.ts). The reasons it reads
+// this way are at DrawPropagation.
+const char kHamQslCredit[] = "Data: N0NBH HAMQSL.com";
+
 } // namespace
 
 void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
@@ -181,8 +187,28 @@ void EamManager::DrawTempo(BandCanvas& c)
     // highlighted. If the propagation screen suggested a channel, mark it (accent caret + label) so
     // you can see at a glance whether the hot freq is the one conditions actually favour. Sits in
     // the dial's open bottom; absent until the stats poll lands.
+    //
+    // THE CARET IS HamQSL DATA, so it carries the N0NBH credit (ruling 2026-09-28: "that's the
+    // screen where the data appears, so that's where the N0NBH credit ... go[es], small and
+    // legible"). The suggestion is valar-eam-feed's hfgcs.ts run on HamQSL's SFI and K. The rest
+    // of this screen is not third-party data: the dial is /eam/tempo and the bars are /eam/stats,
+    // both counts of messages the Valar feed heard. Nothing here is adsb.fi's, so no adsb.fi credit.
+    //
+    // The credit sits on the lowest row it fits, below the strip's labels, and the strip moved
+    // up to make that room (the labels used to be on that row). The strip's position does not
+    // depend on whether a caret is drawn, so the screen doesn't jump when the suggestion arrives.
+    // On the 240 px panel that lift would put the caret on the ratio line, so the bars give up
+    // the difference (26 -> 22 px tall there; the 412 px panel keeps its 45 px).
     const std::vector<eam::FreqCount>& byFreq = feed.Stats().byFreq;
     if (!byFreq.empty()) {
+        const int creditY = LowestCreditRow(c, kHamQslCredit);
+        const int fh = c.fontHeight();                   // size 1: the labels and the ratio line
+        const int baseY = creditY - 3 - fh - 3;          // labels at baseY + 3 end 3 px above the credit
+        const int ratioBottom = cy + 18 + fh + 4 + fh;   // first row below the ratio line
+        int maxBarH = (int)(SCREEN_SIZE * 0.11f);
+        const int room = baseY - 8 - (ratioBottom + 3); // caret top 3 px below the ratio line
+        if (room < maxBarH) maxBarH = room > 4 ? room : 4;
+        bool caretShown = false;
         const int suggested = feed.Propagation().valid ? feed.Propagation().suggestedKhz : 0;
         int maxCount = 1, busiestKhz = 0, busiestCount = -1;
         for (const eam::FreqCount& fc : byFreq) {
@@ -193,8 +219,6 @@ void EamManager::DrawTempo(BandCanvas& c)
         const int n = (int)byFreq.size();
         const int slot = (int)(SCREEN_SIZE * 0.15f);
         const int barW = (int)(slot * 0.46f);
-        const int maxBarH = (int)(SCREEN_SIZE * 0.11f);
-        const int baseY = (int)(SCREEN_SIZE * 0.86f);
         int sx = SCREEN_SIZE_DIV_2 - (n * slot) / 2 + (slot - barW) / 2;
         for (const eam::FreqCount& fc : byFreq) {
             const int bh = (fc.count * maxBarH) / maxCount;
@@ -202,15 +226,20 @@ void EamManager::DrawTempo(BandCanvas& c)
             const bool isSuggested = suggested && fc.khz == suggested;
             const int cxBar = sx + barW / 2;
             c.fillRect(sx, baseY - bh, barW, bh > 0 ? bh : 1, busiest ? col : palette.faint);
-            if (isSuggested) // accent caret above the favoured channel
+            if (isSuggested) { // accent caret above the favoured channel
                 c.fillTriangle(cxBar - 4, baseY - maxBarH - 8, cxBar + 4, baseY - maxBarH - 8,
                                cxBar, baseY - maxBarH - 2, palette.accent);
+                caretShown = true;
+            }
             char fl[8];
             snprintf(fl, sizeof(fl), "%.1f", fc.khz / 1000.0);
             c.setTextColor(isSuggested ? palette.accent : palette.dim);
             c.drawString(fl, cxBar - c.textWidth(fl) / 2, baseY + 3);
             sx += slot;
         }
+        // Only with the caret: no suggestion on the strip, no HamQSL data on the screen.
+        if (caretShown)
+            DrawCredit(c, kHamQslCredit, creditY);
     }
 }
 
@@ -493,24 +522,43 @@ void EamManager::DrawPropagation(BandCanvas& c)
     // clock's label rule) so the credit reads there as well as on the 1.28". It is drawn in
     // `dim`, not `faint`: faint is the colour of a label you may ignore. The row sits
     // just below the long-press toast (0.80) so the two never overlap.
-    DrawCredit(c, "Data: N0NBH HAMQSL.com");
+    DrawCredit(c, kHamQslCredit);
 }
 
 // The credit row, shared by every screen that shows a third party's data (the N0NBH credit
-// above; adsb.fi on the command-post and mil-air screens). One rule, from the N0NBH credit's
-// ruling: row 0.84 on the 240 px panel and 0.83 on the 412 px panel, just below the long-press
-// toast (0.80); size-2 text on the 412 px panel (the Zulu clock's label rule), dropping to size
-// 1 if the line is wider than the disc's chord at that row; `dim`, not `faint`. No screen shows
-// both HamQSL and adsb.fi data, so no screen needs two credits.
-void EamManager::DrawCredit(BandCanvas& c, const char* credit)
+// above and on EAM TEMPO; adsb.fi on the command-post and mil-air screens). One rule, from the
+// N0NBH credit's ruling: row 0.84 on the 240 px panel and 0.83 on the 412 px panel, just below
+// the long-press toast (0.80); size-2 text on the 412 px panel (the Zulu clock's label rule),
+// dropping to size 1 if the line is wider than the disc's chord at that row; `dim`, not
+// `faint`. EAM TEMPO's frequency strip already fills that row, so TEMPO passes its own `y`
+// (LowestCreditRow) and keeps the size rule. No screen shows both HamQSL and adsb.fi data, so
+// no screen needs two credits.
+void EamManager::DrawCredit(BandCanvas& c, const char* credit, int y)
 {
     const bool big = SCREEN_SIZE >= 360;
-    const int y = (int)(SCREEN_SIZE * (big ? 0.83f : 0.84f));
+    if (y < 0)
+        y = (int)(SCREEN_SIZE * (big ? 0.83f : 0.84f));
     c.setTextSize(big ? 2 : 1);
     if (c.textWidth(credit) > ChordWidthPx(y, c.fontHeight()))
         c.setTextSize(1);
     CenterText(c, credit, y, palette.dim);
     c.setTextSize(1);
+}
+
+// The lowest row at which `credit` fits the disc at DrawCredit's size for this panel: 1 on the
+// 240 px panel, 2 on the 412 px panel. Walks up from the bottom edge until the chord is wide
+// enough. For kHamQslCredit that is row 209 on the 240 px panel (132 px of text, 133 px of
+// chord) and row 344 on the 412 px panel (264 px of text, 265 px of chord).
+int EamManager::LowestCreditRow(BandCanvas& c, const char* credit)
+{
+    c.setTextSize(SCREEN_SIZE >= 360 ? 2 : 1);
+    const int w = c.textWidth(credit);
+    const int h = c.fontHeight();
+    int y = SCREEN_SIZE - h;
+    while (y > SCREEN_SIZE_DIV_2 && ChordWidthPx(y, h) < w)
+        --y;
+    c.setTextSize(1);
+    return y;
 }
 
 void EamManager::DrawIcbm(BandCanvas& c)
