@@ -241,7 +241,7 @@ framing (ruling 5, editorial line).
 
 **Early is never valid.** The window is [T, T+2 s], on the device and the server both
 (ruling 2). A report before T is a failed report, not an early one inside the window.
-The server was fixed to match (valar-eam-feed, "Execution window is [T, T+2 s]" PR).
+The server is fixed to match in valar-eam-feed #155.
 
 ---
 
@@ -419,7 +419,7 @@ This is the plan for the code pass. Nothing here changes code now.
 |---|---|---|
 | `config.ts` `decode.weights` (NAM/FDM/execution), `stormDamping` | **Remove** | Class taxonomy. |
 | `config.ts` `timing.tOffset`, `tCeilingS`, `ackCutoffS`, `lateCopyNonScorableS`, `maxClockSyncAgeS`, `executeSlackS` | **Keep** | Ours; they time the report. |
-| `config.ts` `timing.executionWindowS` = 2 | **Keep** (rename to a report window in the code pass) | Ruling 1. Shape fixed now (Part B PR). |
+| `config.ts` `timing.executionWindowS` = 2 | **Keep** (rename to a report window in the code pass) | Ruling 1. Shape fixed now (valar-eam-feed #155). |
 | `config.ts` `enableLimitS`, `deadManS`, `autoDecodeS` | **Remove** | Enable, dead-man, class reveal. |
 | `config.ts` `economy` (stand-down, regen, capsule sorties, RV count) | **Remove** | Missiles and sorties. |
 | `config.ts` `scoring.bucketS`, `clockFloorMs` | **Keep** | Bench-measured. |
@@ -428,7 +428,7 @@ This is the plan for the code pass. Nothing here changes code now.
 | `derive.ts` | **Change** | Drop the class; keep T. |
 | `votes.ts` `claim()` contract | **Keep** | Exactly-once resolution is ours and sound. |
 | `votes.ts` commit | **Change** | Commits a report, not a vote; no class, no target. |
-| `votes.ts` `executeVote` | **Change** | Becomes the report: window [T, T+2 s] (already fixed by the Part B PR), plus copy and authentication. |
+| `votes.ts` `executeVote` | **Change** | Becomes the report: window [T, T+2 s] (fixed by valar-eam-feed #155), plus copy and authentication. |
 | `votes.ts` second, inhibit, dead-man re-arm, `vote.opened` to the squadron | **Remove** | Vote/inhibit/dead-man. |
 | `votes.ts` `V1_TARGET_CLASS`, `war_plan_target`, `target_class` enum | **Remove** | Targeting. |
 | `votes.ts` preempt; outcomes `PENDING`, `FAILED`, `ABORTED`, `PREEMPTED` | **Keep** | Ours (preemption rule). `LAUNCHED`, `INHIBITED` go; `REPORTED` is added. |
