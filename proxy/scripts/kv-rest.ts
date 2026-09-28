@@ -8,6 +8,7 @@
  * pointers takes seconds instead of twenty minutes.
  */
 import { readFileSync } from "node:fs";
+import { resolveToken } from "./token-file";
 
 export interface KvTarget {
   accountId: string;
@@ -34,12 +35,15 @@ export function kvTargetFromWranglerToml(tomlPath: string, env: string, token: s
   return { accountId: account, namespaceId: id, token };
 }
 
-// The token for a READ. PHOTO_KV_READ_TOKEN is the KV-read-only token the
-// render-drift job runs with -- that job sets no write token at all. Anywhere
-// else (a publish, a local run) the ordinary CLOUDFLARE_API_TOKEN reads too.
-// `||`, not `??`: an empty variable must fall through, not blind the read.
+// The token for a READ. In CI it is PHOTO_KV_READ_TOKEN: the render-drift job's
+// KV-read-only secret (that job sets no write token at all), and the publish's
+// own secret, which photos.yml passes under this same name. By hand it is the
+// kv-read line of the file BLIPSCOPE_TOKEN_FILE names (token-file.ts). Never
+// CLOUDFLARE_API_TOKEN, which shadows `wrangler login` (CLAUDE.md). An empty
+// variable falls through to the file; with neither, this throws, naming the
+// variable and the file format.
 export function readToken(): string {
-  return process.env.PHOTO_KV_READ_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "";
+  return resolveToken("kv-read", "PHOTO_KV_READ_TOKEN").token;
 }
 
 const base = (t: KvTarget) =>

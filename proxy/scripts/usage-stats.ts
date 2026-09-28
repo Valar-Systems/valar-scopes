@@ -2,7 +2,8 @@
  * usage-stats.ts -- feature adoption, as a table rather than raw SQL.
  *
  *   npm run stats [-- --days 7 --env production]
- *   (token: ~/.config/blipscope/cf-analytics-token, else CLOUDFLARE_API_TOKEN)
+ *   (token: the analytics-read line of the file $BLIPSCOPE_TOKEN_FILE names;
+ *    see token-file.ts)
  *
  * Prints two views of the same rows, because they answer different questions and
  * confusing them is easy:
@@ -35,10 +36,7 @@
  * header says so on every run: these numbers are for comparing adoption, not for
  * quoting as exact activity.
  */
-import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { readTokenFile } from "./token-file";
 
 const ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"; // same as wrangler.toml account_id
 
@@ -91,30 +89,15 @@ async function runSql<T>(sql: string, token: string): Promise<T[]> {
   return body.data ?? [];
 }
 
-// The analytics READ token first. CLOUDFLARE_API_TOKEN is the account's write
-// token, and on 2026-09-24 it returned 403 from the Analytics Engine SQL API --
-// so the old order made this script unable to run at all. The file is the one
-// the dashboard's smoke reads (dashboard/scripts/smoke-analytics.mjs).
+// The analytics READ token: the analytics-read line of the file
+// BLIPSCOPE_TOKEN_FILE names (token-file.ts), the same line the dashboard's
+// smoke reads by hand. Never CLOUDFLARE_API_TOKEN, from the shell or from the
+// user-level registry: that is a KV-scoped token that returned 403 from the
+// Analytics Engine SQL API on 2026-09-24, and a user-level one shadows
+// `wrangler login` for every deploy (CLAUDE.md). Throws, naming the variable
+// and the file format, when the file is not there.
 function token(): string {
-  const file = join(homedir(), ".config", "blipscope", "cf-analytics-token");
-  if (existsSync(file)) {
-    const f = readFileSync(file, "utf8").trim();
-    if (f) return f;
-  }
-  const t = process.env.CLOUDFLARE_API_TOKEN;
-  if (t) return t;
-  // Windows keeps these at the user level, where a running shell may not see
-  // them -- see the memory note. Try the registry before giving up.
-  try {
-    const out = execSync(
-      'powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable(\'CLOUDFLARE_API_TOKEN\',\'User\')"',
-      { encoding: "utf8" },
-    ).trim();
-    if (out) return out;
-  } catch {
-    /* fall through to the explicit failure below */
-  }
-  throw new Error("CLOUDFLARE_API_TOKEN is not set (env or user-level).");
+  return readTokenFile("analytics-read");
 }
 
 function pad(s: string, n: number): string {

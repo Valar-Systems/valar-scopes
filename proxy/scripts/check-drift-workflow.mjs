@@ -9,7 +9,7 @@
 // production. So the claim is a check that runs in CI, not a comment:
 //
 //   1. the only secret referenced is CLOUDFLARE_KV_READ_TOKEN;
-//   2. CLOUDFLARE_API_TOKEN (which every script falls back to) is never set;
+//   2. CLOUDFLARE_API_TOKEN (the publish's write token) is never set;
 //   3. every ingest-photos invocation is a --dry-run;
 //   4. nothing calls wrangler;
 //   5. its concurrency group is not photos-production (a queued drift run there

@@ -1149,6 +1149,44 @@ leaked one credential through logs — see the Wi-Fi password incident, fixed
 forward in PR #183. That one was firmware serial output; this one was a shell.
 Same class, different surface.
 
+## Standing rule: no user-level CLOUDFLARE_API_TOKEN on the machine, ever
+
+**Why.** wrangler prefers `CLOUDFLARE_API_TOKEN` over a `wrangler login` session.
+A token scoped for something else (a KV token, say) that sits at user level
+shadows the working OAuth login in every shell, and `scripts/deploy.sh` then
+fails exactly as if there were no credential at all. That is the trap deploy.sh
+documents; four sessions went on it, each starting by checking whether the
+variable was *set*, when the question was whether it should exist.
+
+**Where by-hand tokens go instead.** The file named by `BLIPSCOPE_TOKEN_FILE`,
+set **per shell**, never at user level:
+
+```sh
+export BLIPSCOPE_TOKEN_FILE=~/.config/blipscope/tokens            # bash
+$env:BLIPSCOPE_TOKEN_FILE = "$HOME\.config\blipscope\tokens"      # PowerShell
+```
+
+The file lives outside any git working tree, is `chmod 600` on POSIX, and holds
+one `key=value` per line: `kv-read=` (Workers KV Storage: Read) and
+`analytics-read=` (Account Analytics: Read). `proxy/scripts/token-file.ts` reads
+it for `kv-rest.ts` (so `ingest-photos.ts`'s verifier and `verify-photos.ts`),
+`usage-stats.ts`, `photo-gaps.ts` and `dashboard/scripts/smoke-analytics.mjs`. It
+refuses a path inside the repo, a file others can read (it only warns on Windows,
+where it cannot tell), and a malformed line, and it never prints a value. None of
+these scripts reads `CLOUDFLARE_API_TOKEN` any more.
+
+**CI is different and stays as it is.** Workflows pass their secrets as env
+vars scoped to a step: `CLOUDFLARE_API_TOKEN` for wrangler in photos.yml and
+refresh-data.yml, `PHOTO_KV_READ_TOKEN` for the KV verifier, `CF_API_TOKEN` for
+the analytics smoke. A scoped env var in a CI step is correct; a user-level one
+on the desktop is not.
+
+Checking for one is still a boolean, never the value (the rule above):
+
+```sh
+powershell -NoProfile -Command "if ([Environment]::GetEnvironmentVariable('CLOUDFLARE_API_TOKEN','User')) { 'present' } else { 'absent' }"
+```
+
 ## Standing practice: a rule can be right in its domain and wrong one call site over
 
 **The dangerous rule is not the wrong one. It is the correct one, cited

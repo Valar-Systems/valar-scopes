@@ -1,7 +1,9 @@
 /**
  * photo-gaps.ts -- what to photograph next, ranked by what the fleet actually looks at.
  *
- *   CLOUDFLARE_API_TOKEN=... npm run photo-gaps [-- --days 7 --limit 40 --env production]
+ *   npm run photo-gaps [-- --days 7 --limit 40 --env production]
+ *   (token: the analytics-read line of the file $BLIPSCOPE_TOKEN_FILE names, see
+ *    token-file.ts; the manifest read uses your `wrangler login`)
  *
  * WHY THIS EXISTS RATHER THAN THE BARE SQL IT REPLACES.
  *
@@ -32,6 +34,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MANIFEST_KEY, type ManifestEntry } from "../src/photolicense";
+import { readTokenFile } from "./token-file";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"; // same as wrangler.toml account_id
@@ -121,9 +124,15 @@ function aliasTable(): Record<string, string> {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const token = process.env.CLOUDFLARE_API_TOKEN ?? "";
-  if (!token) {
-    console.error("CLOUDFLARE_API_TOKEN is not set (needs Account Analytics Read + Workers KV Read).");
+  // The Analytics Engine query's token: the analytics-read line of the file
+  // BLIPSCOPE_TOKEN_FILE names (token-file.ts). The manifest read below goes
+  // through wrangler and your `wrangler login`, which is why this is never
+  // CLOUDFLARE_API_TOKEN: wrangler would prefer it over the login (CLAUDE.md).
+  let token: string;
+  try {
+    token = readTokenFile("analytics-read");
+  } catch (err) {
+    console.error(String(err instanceof Error ? err.message : err));
     process.exit(2);
   }
 

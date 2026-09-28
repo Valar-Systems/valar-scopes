@@ -432,7 +432,9 @@ async function main(): Promise<void> {
   const target = kvTargetFromWranglerToml("wrangler.toml", env,
     // `||`, not `??`: the workflow passes an EMPTY string when the A11 input is
     // off, and an empty token would blind the verifier on every normal publish.
-    process.env.PHOTO_VERIFY_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "");
+    // Otherwise the ordinary read token (kv-rest.ts readToken: PHOTO_KV_READ_TOKEN
+    // in CI, the BLIPSCOPE_TOKEN_FILE kv-read line by hand).
+    process.env.PHOTO_VERIFY_TOKEN || readToken());
   const pre0 = await readControls(target, MANIFEST_KEY);
   let publishedRows: { kind: string; target: string }[] | null = null;
   if (pre0.knownPresentReadsBack) {

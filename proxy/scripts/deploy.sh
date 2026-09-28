@@ -190,8 +190,9 @@ if [ $SECRET_RC -ne 0 ]; then
     echo "      unset CLOUDFLARE_API_TOKEN          # PowerShell: Remove-Item Env:CLOUDFLARE_API_TOKEN" >&2
     echo "      scripts/deploy.sh $ENVIRONMENT" >&2
     echo "" >&2
-    echo "  On Windows it is set at user level, so a fresh shell re-inherits it --" >&2
-    echo "  clearing it in the session is the fix, not editing the registry." >&2
+    echo "  If a fresh shell re-inherits it, it is set at user level, which CLAUDE.md" >&2
+    echo "  forbids: no user-level CLOUDFLARE_API_TOKEN on this machine, ever. The" >&2
+    echo "  by-hand scripts read their tokens from the file BLIPSCOPE_TOKEN_FILE names." >&2
   else
     echo "" >&2
     echo "  CLOUDFLARE_API_TOKEN is NOT set here, so wrangler is using your login" >&2
