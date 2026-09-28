@@ -60,11 +60,13 @@
 // is graded against strings the server itself produced (src/game/GameFormat.h,
 // test/fixtures/). See valar-eam-feed docs/verification-ledger.md entry 38.
 //
-// The 2-second cooperative window IS a published constant (§12, Nuclear
-// Companion) — but it is passed in through Config rather than baked here, so
-// the device displays the rule the server is playing by. The default in
-// Config's initialiser cites its source and exists so a test can construct one
-// without ceremony.
+// The execution window is passed in through Config rather than baked here, so
+// the device displays the rule the server is playing by (served as
+// timing.executionWindowS). The defaults in Config's initialiser exist so a test
+// can construct one without ceremony. Where each number comes from is the design
+// doc's "Timings" section (docs/missileer-game-design.md): the game's timings are
+// our own, measured from our own recordings or stated as our own design choice
+// (ruled 2026-09-28).
 
 #ifndef BLIPSCOPE_GAME_DRILLMACHINE_H
 #define BLIPSCOPE_GAME_DRILLMACHINE_H
@@ -98,11 +100,11 @@ enum class Phase : uint8_t {
   Enable,
   /// Armed and waiting for the window to open. The countdown runs here.
   Armed,
-  /// The published 2-second window is OPEN. The key turn counts now.
+  /// The execution window (Config::window_us) is OPEN. The key turn counts now.
   Window,
   /// §3 step 5 — the execution registered; the fleet can second or inhibit.
   Committed,
-  /// §3 step 6 — the published 30-second terminal countdown.
+  /// §3 step 6 — the terminal countdown (Config::terminal_us).
   Terminal,
   /// The drill finished. `deviation_us` is the answer.
   Complete,
@@ -184,11 +186,28 @@ struct EventArgs {
   const char* reason = nullptr;
 };
 
-/// The published rules, supplied rather than invented (rail 3).
+/// The game's rules, supplied rather than invented here (rail 3).
 struct Config {
-  /// §12, Nuclear Companion: the cooperative concurrency window, 2 s.
+  /// The execution window, 2 s. Served as timing.executionWindowS, which
+  /// overrides this default on a device that has fetched /config.
+  ///
+  /// TODO(Daniel, open question T1 in the design doc's "Timings"): this number is
+  /// NOT FINAL and has no source yet. As a crew-concurrency window it is crew
+  /// side, which our recordings cannot show. Our recordings do measure the
+  /// reader's CHARACTER SLOT (one spoken character to the next): median 1.7 s
+  /// over 31 messages. Adopt that as a design choice (1.7 s, which moves the
+  /// scoring cap and the device/server window shape with it), own 2 s as a
+  /// design number, or drop the window framing. Kept at 2 s until ruled so
+  /// nothing on the scoring side moves by accident.
   uint32_t window_us = 2000000u;
-  /// §12, Nuclear Companion: the terminal countdown, 30 s.
+  /// The terminal countdown, 30 s. Device-only; the server does not serve it.
+  ///
+  /// TODO(Daniel, open question T2 in the design doc's "Timings"): NOT FINAL and
+  /// has no source yet. It is launch side, which our recordings cannot show. The
+  /// nearest thing on the air is the broadcast's own STANDBY PHASE (first
+  /// preamble character to MESSAGE FOLLOWS): median 33 s over 13 messages.
+  /// Adopt that as a design choice (33 s), own 30 s as a design number, or drop
+  /// the countdown.
   uint32_t terminal_us = 30000000u;
   /// How long the paper strip takes to print. Cosmetic; not a published rule.
   uint32_t print_us = 1200000u;
@@ -201,8 +220,8 @@ struct Config {
   /// not zero-the-number -- it is "the server has not told us yet".
   ///
   /// NO DEFAULT, unlike `window_us` above, and the asymmetry is the point.
-  /// The 2 s window is a §12 PUBLISHED constant: part of the fiction, and it
-  /// cannot move without a design change. The bucket is an OPERATIONAL knob
+  /// The window is a RULE of the game (design doc, "Timings"): part of the
+  /// fiction, and it cannot move without a design change. The bucket is an OPERATIONAL knob
   /// with a `GAME_SCORE_BUCKET_S` env override on the server, so a default
   /// baked here would be a second copy that drifts the first time it is tuned
   /// -- and it would drift into a plausible number rather than an error.

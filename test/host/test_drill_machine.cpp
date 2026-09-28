@@ -122,7 +122,7 @@ static void HappyPath() {
   CHECK(m.Get().deviation_us == 300000, "deviation is not +300 ms");
 }
 
-/// §12's published 2-second window, at every edge that matters.
+/// The execution window (Config::window_us, 2 s by default), at every edge that matters.
 static void TheWindow() {
   const uint64_t t = 100 * S;
 

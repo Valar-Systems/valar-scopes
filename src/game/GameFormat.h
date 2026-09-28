@@ -68,7 +68,7 @@ uint8_t BucketDecimals(uint32_t bucket_us);
 ///
 /// Returns false — and writes an empty string — when `bucket_us` is 0, which is
 /// what an unserved config looks like. THERE IS NO DEFAULT BUCKET HERE ON
-/// PURPOSE. The 2-second window has one because §12 publishes it as part of the
+/// PURPOSE. The execution window has one because it is a rule of the game, part of the
 /// fiction; the bucket is an operational knob with a `GAME_SCORE_BUCKET_S`
 /// override, so a baked default would be a second copy that drifts the first
 /// time it is tuned, and it would drift SILENTLY into a plausible number.

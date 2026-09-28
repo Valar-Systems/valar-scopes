@@ -57,9 +57,9 @@ explicitly a guess from unclassified sources — the right provenance posture).
 | 1 | Decode & authenticate EAM | Real EAM arrives → prints on screen (paper-strip animation) → device "auto-decodes" (REACT's published EWO auto-processing) → reveals message class (§5) and, for execution traffic, **T** (Zulu execution time). Player acks = commits the sortie. Authenticate visual: padlocked SAS safe, two crew locks, crack the seal. |
 | 2 | Set preparatory launch procedures | Confirm/adjust war plan: target from FDM (default) or manual override (§6). Locks at T−X. |
 | 3 | Cooperative enable | **Split-knowledge minigame**: system derives 6 characters; each crew member's device shows 3; each keys in their own 3 correctly within a time limit. Two-player, citable, already designed by Ford Aerospace. |
-| 4 | Execute launch command (four-hand) | **Commander**: key-turn (press-drag arc on bezel, hold) at exactly T. **Deputy**: cooperative switches held through the window. All inputs within the published **2-second window**. |
+| 4 | Execute launch command (four-hand) | **Commander**: key-turn (press-drag arc on bezel, hold) at exactly T. **Deputy**: cooperative switches held through the window. All inputs within the **execution window** (§12a, open question T1). |
 | 5 | Second LCC vote | Crew's execution registers a **launch vote**, visible fleet-wide. Another crew can: second it (ELC → launch proceeds), **Inhibit** it (playable verb!), or let the dead-man timer expire (launch proceeds alone). |
-| 6 | Terminal countdown | Published **30 seconds**. Then flight (§7). |
+| 6 | Terminal countdown | **30 s**, not final (§12a, open question T2). Then flight (§7). |
 
 ## 4. Scoring (settles #135's passive-scoring objection)
 
@@ -149,7 +149,7 @@ explicitly a guess from unclassified sources — the right provenance posture).
   **Rulings on the three flags (DECIDED 2026-08-05).**
 
   1. **CAP = 900 m.** Deviation only exists *inside a valid execution window*, and the window is
-     **±1 s around T** (2 s total width, §12). A key landing outside it is a FAILED execution
+     **±1 s around T** (2 s total width; §12a, open question T1). A key landing outside it is a FAILED execution
      with no flight at all, per §3 — so `|dev| ≤ 1.0 s` **by construction**, and the 1,900 m
      reading this ruling was written against assumed a deviation the game can never record.
      Board flavour line stays honest: *"worst valid shot ≈ 4× published CEP."*
@@ -277,7 +277,7 @@ week. Droughts stay droughts (that's fishing); storms get clipped.
   rare **~2-min "snap execution"** tier to keep everyone honest. Distribution weights TBD in
   playtest.
 - **Retargeting cost gradient** (published): MRT mode (small azimuth change) = fast;
-  CEP mode (big swing, platform realign) = 15–30 min published. Staying near your
+  CEP mode (big swing, platform realign) = 15–30 min (not final: §12a, open question T3). Staying near your
   FDM-assigned target is cheap; wrenching across the map costs clock. Targeting locks at
   T−X because a retarget can't complete inside the window.
 - **Launch origin**: player selects wing → squadron → flight/capsule (e.g. "90th MW →
@@ -396,7 +396,7 @@ boundary**, so the constraint is visible rather than an error message after the 
 
 - **Capsule = two seats (RESTRUCTURED 2026-08-04).** A capsule (LCC) has 2 crew positions —
   MCCC + DMCCC, the real structure — so **the crew and the vote are separate mechanisms**:
-  the four-hand execution (enable 3+3, switches, key, 2-s window) happens **inside one
+  the four-hand execution (enable 3+3, switches, key, execution window) happens **inside one
   capsule between its two seats** (the two real workstations = the two devices — the enable
   minigame's "half the characters on each workstation's VDU" is now literal); the **vote**
   happens **between capsules** of a squadron (§9). Topology: seat → capsule (2 people,
@@ -425,7 +425,7 @@ boundary**, so the constraint is visible rather than an error message after the 
   `LeaderboardId`, the `eam-` OTA channel.
 - Hardware truth: CST816 = single touch → one press-hold per human → the honest port is
   two devices. REACT's published config (1 launch key + 3 cooperative launch switches,
-  four-hand, 2-second concurrency) makes the roles **asymmetric**:
+  four-hand) makes the roles **asymmetric**:
   - **Commander (MCCC)** — the key. Precision role. Sits left (published convention).
   - **Deputy (DMCCC)** — the switches. Steadiness role. Sits right. LEP is publicly part of
     the deputy's workstation.
@@ -719,7 +719,7 @@ decision table; a number that governs the economy belongs where the economy is s
 
 | Element | Source | Port |
 |---|---|---|
-| **TODC clock** | Published: Time-of-Day Clock, upper center bay, red 7-segment, spec'd ≤1 s drift/24 h, survives power loss | Idle face: red 7-seg Zulu on black. Countdown to T in same face. (NTP quietly beats the nuclear-hardened spec — README joke.) |
+| **TODC clock** | Published: Time-of-Day Clock, upper center bay, red 7-segment, spec'd drift figure (not final: §12a, open question T4), survives power loss | Idle face: red 7-seg Zulu on black. Countdown to T in same face. (NTP quietly beats the nuclear-hardened spec — README joke.) |
 | **Paper-strip printer** | Center console in crew photos | Messages *print*, teletype pacing, character by character; history = scrollable stack of printed strips |
 | **Padlocks / SAS safe** | Photo shelf padlocks; "SAS safe with two crew locks" (Wikipedia gallery) | Authenticate step visual: locked compartment, two locks, crack the seal. Depict the padlock, never the procedure. |
 | **Fisheye capsule** | The classic crew photo is a round image | Round display = porthole into the LCC: console arc hugging bezel, clock top, printer center |
@@ -789,25 +789,188 @@ absorb a joke payload mid-sequence.
 
 ## 12. Published constants (cite, don't invent)
 
+**Game timings are not in this table.** They are ours, measured from our own recordings or
+stated as our own design choices, and live in §12a (ruled 2026-09-28).
+
 | Constant | Value | Source |
 |---|---|---|
-| Cooperative concurrency window | **2 s** | Nuclear Companion |
-| Terminal countdown | **30 s** | Nuclear Companion |
-| Enable minigame | 6 chars, 3+3 split, time-limited | Nuclear Companion |
+| Enable minigame | 6 chars, 3+3 split (the time limit is ours: §13, 60 s) | Nuclear Companion |
 | MM III range | 8,700 mi / 14,000 km (targeting range cap) | Wikipedia LGM-30 |
 | Terminal speed | Mach 23 | Wikipedia LGM-30 |
 | MM III CEP | ~800 ft / 240 m (miss-distance benchmark) | Wikipedia LGM-30 |
-| Retarget, CEP mode | 15–30 min realign | Nuclear Companion |
-| Retarget, whole force (REACT) | 10–12 min | Nuclear Companion |
+| Retarget, CEP mode | 15–30 min realign — **TODO: not final, §12a T3 (proposed: drop)** | Nuclear Companion |
+| Retarget, whole force (REACT) | 10–12 min — **TODO: not final, §12a T3 (proposed: drop)** | Nuclear Companion |
 | Flight sequence | stage 1 ~60 s, stage 3 ~120 s, post-boost ~180 s | Wikipedia LGM-30 sidebar |
 | Force structure | 3 wings, 400 missiles, 450 silos, 45 MAFs, 15/wing; flight = 1 LCC + 10 LF; squadron = 5 flights; **REACT fleet = 50 LCCs** | Wikipedia ×2, Nuclear Companion |
 | Separation | LFs ≥3 mi apart, ≥3 mi from LCC | Wikipedia LGM-30 |
 | Alert tour | 24 h | Wikipedia / photos |
-| TODC drift spec | ≤1 s / 24 h | Nuclear Companion |
+| TODC drift spec | ≤1 s / 24 h — **TODO: not final, §12a T4 (proposed: drop)** | Nuclear Companion |
 
 Invented freely (public record is silent — per rule §2): T offset distribution, ack window,
 inhibit economics, deviation→distance curve, message-class weights, sortie regen rate,
 choreography of the four-hand split, exercise codenames, payload roster.
+
+## 12a. Timings (ruled 2026-09-28)
+
+> **Ruling (Daniel, 2026-09-28):** *"Game timings: replace with our own numbers measured from
+> our own recordings, documented in the game design doc with the clips they came from.
+> Nothing from Nuclear Companion."*
+
+Every game timing is one of three things, and the table says which:
+
+- **MEASURED**: a quantity our own station recorded, with the messages and clips below.
+- **OURS**: a design choice, decided in a session and recorded in §10/§13. It is not
+  presented as a measurement of anything.
+- **OPEN**: no source yet. The value stays in code so nothing moves by accident, but it is
+  **not final**, and it carries a `TODO` naming the question (T1 to T4 below).
+
+### What the game's timings are
+
+| Constant | Value | Where | What it drives in play | Status |
+|---|---|---|---|---|
+| Execution window | 2 s | device `Config::window_us`, server `timing.executionWindowS` | How far from T a key turn may land and still count (§4's cap depends on it) | **OPEN, T1** |
+| Terminal countdown | 30 s | device `Config::terminal_us` only | The wait between a resolved vote and the drill completing | **OPEN, T2** |
+| T offset | normal 300–900 s (90 %), snap 90–150 s (10 %) | server `timing.tOffset` | How long after the message T falls | OURS (§6, 2026-08-04) |
+| Ack / commit cutoff | T−60 s | server `ackCutoffS` | Last moment a drill can be committed | OURS (§13) |
+| Late copy | 120 s | server `lateCopyNonScorableS` | A message arriving later than T−120 s is not offered | OURS (§13) |
+| Enable limit | 60 s | server `enableLimitS` | Time allowed for the enable step | OURS (§13) |
+| Dead-man timer | 10 min | server `deadManS` | How long a lone vote pends before it proceeds | OURS (§13) |
+| Auto-decode | 300 s | server `autoDecodeS` | An untouched banner shows its class after this | OURS (§5) |
+| Stand-down / regen | 24 h / 3 days | server `economy` | Sortie economy | OURS (§10) |
+| Storm cooldown | 6 h, ×0.25 | server `stormDamping` | Served, unused in v1 | OURS (§5) |
+| Paper-strip print | 1.2 s | device `Config::print_us` | The print animation | OURS (cosmetic) |
+| Key hold / rejoin | 300 ms / 250 ms | device `KeyTurnParams` | Gesture debounce | Bench (§13) |
+| Scoring bucket / clock floor | 0.2 s / 199 ms | server `scoring` | Deviation display and miss distance | Bench (§4, §13 A.3) |
+| Retarget times | 10–12 min, 15–30 min | this doc only (§6, §12) | Nothing in code | **OPEN, T3** |
+| Clock drift figure | ≤1 s / 24 h | this doc only (§11, §12) | Flavour text only | **OPEN, T4** |
+
+The execution window and the terminal countdown were the two numbers in code that the game
+took from Nuclear Companion. Neither is kept as a sourced constant: both are marked OPEN,
+in code and here, until Daniel rules on T1 and T2. The retarget times and the drift figure
+were also taken from it; nothing in code uses them, and they are OPEN as T3 and T4.
+
+### What our recordings measure
+
+Source: the station's own word timestamps (whisper large-v3, `--dtw`), already on disk in
+`E:\eam\full\*.segments.json`, one per message archive clip. No model was run for this.
+Only messages the station graded `message` are used. Words become characters and anchors
+through the station's own vocabulary (`pi-agent/nato_snap.py`, exact matches only), and
+Whisper loop collapse (three or more tokens on one timestamp) is never measured. Where a
+message has two cuts of the same audio, only one is used (the archive clip, else the
+longest). Reproduce with `python3 scripts/game_timings.py --root /mnt/e/eam` in
+valar-eam-feed; this table is its run over `messages.json` built 2026-09-28T18:20:54Z.
+Word timestamps are Whisper's DTW estimates, so any single interval is good to a few
+tenths of a second; read the medians.
+
+| Quantity | How it is measured | n | Median | Range | p10–p90 |
+|---|---|---|---|---|---|
+| **Character slot** | one spoken character to the next, adjacent words only | 31 messages (1,547 pairs) | **1.7 s** | 1.22–2.20 s (per-message medians) | 1.34–2.02 s |
+| **Standby cycle** | one "standby" to the next in the opening (a preamble reading plus "standby") | 24 cycles, 13 messages | **12.3 s** | 9.1–14.9 s | 11.1–13.9 s |
+| **Standby phase** | first preamble character to MESSAGE FOLLOWS | 13 messages | **33.0 s** | 26.4–39.5 s | 27.5–39.0 s |
+| **One reading** | MESSAGE FOLLOWS to I SAY AGAIN | 8 messages | **52.6 s** | 39.5–95.9 s | — |
+| Second receiver | the same broadcast's clip start on the other receiver | 31 clip pairs, 17 messages | 0 s | 0–4 s | 0–2 s |
+| Rebroadcast | one transmission of a message to its next, one receiver | 32 intervals, 9 messages | 30.2 min | 6.4–91 min | 10.2–57.2 min |
+
+Notes on the last three rows. **One reading** has only 8 messages because Whisper rarely
+hears both anchors in one cut; the 95.9 s is 56MIE4 (`M20260925T181819Z`), whose I SAY
+AGAIN is probably a later one, so read the median, not the range. The **second receiver**
+is not a delay: both receivers hear the same transmission at the same moment, and the
+0–4 s is the detector's trigger and the clip id's one-second resolution. It is not a game
+quantity. The **rebroadcast** interval includes transmissions we missed (the 60 and 91 min
+intervals are two and three cycles); no constant uses it.
+
+### Open questions for Daniel
+
+**T1. The execution window (now 2 s).** As Nuclear Companion framed it, the window is a
+crew concurrency tolerance, and our recordings cannot show anything on the crew side. The
+nearest thing they do show, cleanly, is the **character slot: 1.7 s**, the time the reader
+gives one character. Options:
+
+1. **Adopt 1.7 s** as a design choice ("land the key inside one character's time"). This
+   moves more than one number: the window's half-width becomes 0.85 s, so §4's linear
+   curve tops out at 850 m and the 900 m cap (ruling 1) never binds; 1.7 s is 8.5 scoring
+   buckets, not a whole number; and the device fixture and host test pin 2 s. Each needs
+   its own ruling.
+2. **Own 2 s** as a design number and say so. It sits at the slow end of the character
+   slot (p90 of the per-message medians is 2.02 s), but that was noticed after the fact,
+   so it would be a choice, not a measurement.
+3. **Drop the window framing.** Scoring already uses the device's measured deviation, so
+   only the accept/fail bound would need a new basis.
+
+Found while measuring, and it needs a ruling whichever option is chosen: **the device and
+the server do not agree on the window's shape.** The device accepts `[T, T+2 s]`
+(`DrillMachine::ResolveTurn`: a turn before T aborts as "keyed before the window"). The
+server accepts `T ± 1 s` (`votes.ts`, `halfWindowMs`), and §4's ruling 1 says `±1 s`. A
+key 1.5 s after T commits on the device, then fails on the server; a key 0.5 s before T
+is valid on the server but the device aborts it. Not changed here.
+
+**T2. The terminal countdown (now 30 s).** It is launch side, which our recordings cannot
+show. The nearest thing on the air is the broadcast's own wait before a message, the
+**standby phase: 33 s** (13 messages, 26–40 s): the preamble read three times, each
+followed by "standby", then MESSAGE FOLLOWS. Options: **adopt 33 s** as a design choice
+(device only; nothing on the server or in scoring moves), **own 30 s** as a design number,
+or **drop the countdown** and go straight to §7's flight.
+
+**T3. Retarget times (15–30 min, 10–12 min; §6 and §12).** Taken from Nuclear Companion.
+Nothing in code uses them (v1 is FDM-assigned targets only). They are targeting, which is
+outside the editorial line, and our recordings cannot show them. Proposed: **drop them**.
+
+**T4. The clock drift figure (≤1 s / 24 h; §11 and §12).** Taken from Nuclear Companion.
+Flavour text only. Proposed: **drop it**; the game already has its own measured clock
+figure, the 199 ms floor (§4).
+
+### Evidence: the messages and clips
+
+"Clip" is the archive clip (`pushed.json`, served at `/missileer/archive`) whose word
+timestamps were measured; "Archive" is its archive id. Slot is the median character slot,
+with the number of pairs. Standby cycle, phase and reading are in seconds; — means not
+heard cleanly enough to measure.
+
+| Message | Archive | Clip | Preamble | Slot s (pairs) | Standby cycle | Phase | Reading |
+|---|---|---|---|---|---|---|---|
+| `M20260922T010500Z` | eam-6b7a259f | `desk-M20260922T010500Z-kph-010449-183s-p2` | ACH53Z | 1.98 (33) | — | — | — |
+| `M20260922T010904Z` | eam-d4e4a141 | `desk-M20260922T010904Z-kph-010901-53s` | ACBBAW | 1.54 (9) | — | — | — |
+| `M20260922T150813Z` | eam-86d80b13 | `desk-M20260922T150813Z-kph-150743-230s-p2` | QHUDS2 | 2.10 (37) | — | — | — |
+| `M20260922T160115Z` | eam-f27e2d58 | `desk-M20260922T160115Z-iceland-160045-429s-p2` | ACC6GX | 1.98 (88) | — | — | — |
+| `M20260923T050256Z` | eam-31a26f7f | `desk-M20260923T050256Z-kph-050249-136s-p2` | ACRGIQ | 1.80 (56) | — | — | — |
+| `M20260923T173253Z` | eam-356f1a01 | `desk-M20260923T173253Z-iceland-173253-126s` | AC4AUL | 1.54 (52) | 12.9, 11.2 | 31.9 | 50.8 |
+| `M20260923T190247Z` | eam-36183461 | `desk-M20260923T190247Z-kph-190217-158s-p2` | ACRUZR | 1.22 (39) | — | — | — |
+| `M20260923T193249Z` | eam-8e5774ca | `desk-M20260923T193249Z-kph-193244-139s-p2` | ACU6NQ | 1.54 (51) | — | — | — |
+| `M20260923T193554Z` | eam-212a3f98 | `desk-M20260923T193554Z-iceland-193524-243s-p2` | VQTMAK | 1.64 (35) | 11.2 | 33.0 | — |
+| `M20260923T193928Z` | eam-4fb93c48 | `desk-M20260923T193928Z-iceland-193924-38s-p2` | ACHAVK | 1.56 (10) | — | — | — |
+| `M20260923T203321Z` | eam-edf34881 | `desk-M20260923T203321Z-kph-203251-132s-p2` | AC7VGQ | 1.56 (33) | 11.2, 11.3 | 32.0 | 52.9 |
+| `M20260923T203822Z` | eam-1c188907 | `desk-M20260923T203822Z-iceland-203819-104s` | ACNA3M | 1.55 (32) | 11.2, 11.1 | 32.2 | 52.3 |
+| `M20260923T214732Z` | eam-c93611e3 | `desk-M20260923T214732Z-kph-214732-96s` | ACZAA5 | 1.42 (37) | 11.7 | 27.5 | — |
+| `M20260924T021943Z` | eam-50a93ef8 | `desk-M20260924T021943Z-kph-021943-186s-p2` | ACV3KE | 1.78 (41) | — | — | — |
+| `M20260924T035208Z` | eam-484f63ba | `desk-M20260924T035208Z-kph-035138-228s-p2` | AC3QFD | 1.72 (35) | — | — | — |
+| `M20260924T090156Z` | eam-c1286db5 | `desk-M20260924T090156Z-kph-090126-216s-p2` | QHCPBK | 1.70 (53) | — | — | — |
+| `M20260924T091810Z` | eam-8e55b9b0 | `desk-M20260924T091810Z-iceland-091740-142s-p2` | QHMUSD | 1.82 (18) | — | — | — |
+| `M20260924T093155Z` | eam-028fb7df | `desk-M20260924T093155Z-kph-093125-250s-p2` | QHSI7J | 1.68 (65) | 12.7, 12.3 | 36.2 | 57.2 |
+| `M20260924T153003Z` | eam-52a62382 | `desk-M20260924T153003Z-iceland-163317-179s-p2` | QHGCGK | 1.62 (49) | 13.0, 13.9 | 39.5 | 62.8 |
+| `M20260924T154010Z` | eam-e987fde1 | `desk-M20260924T154010Z-kph-153944-186s-p2` | 56YJ2I | 1.26 (22) | — | — | — |
+| `M20260924T170328Z` | eam-ed75798a | `desk-M20260924T170328Z-iceland-170325-208s-p2` | QHJY7J | 1.74 (54) | 11.6, 12.5 | 28.6 | — |
+| `M20260924T211959Z` | eam-103c0101 | `desk-M20260924T211959Z-kph-211956-173s-p2` | QHAWC5 | 1.82 (61) | 14.7, 14.9 | 39.0 | — |
+| `M20260925T143430Z` | eam-66387c6e | `desk-M20260925T143430Z-kph-143400-225s-p2` | 56ZF26 | 1.80 (44) | 11.7, 12.4 | 34.6 | — |
+| `M20260925T181819Z` | eam-2d82e0de | `desk-M20260925T181819Z-kph-181749-253s-p2` | 56MIE4 | 1.40 (89) | — | — | 95.9 |
+| `M20260925T195946Z` | eam-2d82e0de | `desk-M20260925T195946Z-kph-195916-205s-p2` | 56MIE4 | 1.34 (57) | — | — | — |
+| `M20260926T035338Z` | (not pushed) | `desk-M20260926T035338Z-kph-035308-371s-p2` | 563HBW | 1.73 (100) | — | — | — |
+| `M20260926T130220Z` | eam-c1cce232 | `desk-M20260926T130220Z-kph-130150-299s-p2` | QH54V4 | 2.02 (64) | 13.7, 13.8 | 37.4 | — |
+| `M20260926T133512Z` | eam-2122b29c | `desk-M20260926T133512Z-kph-133442-213s-p2` | VQR5NV | 1.92 (53) | 12.2, 13.4 | 36.2 | 44.9 |
+| `M20260926T135341Z` | eam-f68719e2 | `desk-M20260926T135341Z-kph-135311-255s-p2` | 56VK2V | 2.09 (60) | — | — | — |
+| `M20260926T215637Z` | eam-487597f2 | `desk-M20260926T215637Z-kph-215607-188s-p2` | QHRSNB | 1.28 (68) | 9.1, 9.2 | 26.4 | 39.5 |
+| `M20260927T130152Z` | eam-d8c099b0 | `desk-M20260927T130152Z-kph-130122-221s-p2` | QHSNJF | 1.68 (67) | — | — | — |
+| `M20260927T131754Z` | eam-c8731e05 | `desk-M20260927T131754Z-kph-131724-237s-p2` | QHIXMC | 2.20 (35) | — | — | — |
+
+ACBBAW's cut has 9 pairs and is left out of the per-message slot median (the floor is 10).
+
+**Second receiver** (the clip pairs are in the script's `--out` JSON): M20260922T150813Z,
+M20260922T160115Z, M20260923T190247Z, M20260923T193249Z, M20260923T193928Z,
+M20260923T203321Z, M20260923T214732Z, M20260924T021943Z, M20260924T090156Z,
+M20260924T091810Z, M20260924T093155Z, M20260924T153003Z, M20260924T154010Z,
+M20260924T170328Z, M20260924T170650Z, M20260924T184310Z, M20260924T211959Z.
+**Rebroadcast**: M20260922T010500Z, M20260923T190247Z, M20260924T035208Z,
+M20260924T153003Z, M20260924T154010Z, M20260924T170328Z, M20260924T170650Z,
+M20260925T000043Z, M20260926T135341Z.
 
 ## 13. Decisions & remaining work
 
@@ -1024,7 +1187,7 @@ deputy-gesture hardware prototype (§13.3).
 | Source | What it gave |
 |---|---|
 | USAF missile combat crew photo (public domain) | Art bible: TODC clock, printer, padlocks, binders, fisheye composition, seating, tone register |
-| Nuclear Companion, *"REACT: Armageddon with a floppy disk and trackball!"* (Paul Dent, 2023) | Six-step loop skeleton; split-knowledge enable (6 chars, 3+3); 2 s window; 30 s TCD; NAM/FDM/EAM taxonomy; vote/inhibit/dead-man triad; MRT vs CEP retarget; console components (VDU/RMP/WSP/LEP/LCP/CLS/OID/TODC/FDD); the disclaimer template. Comments = folklore, not source. |
+| Nuclear Companion, *"REACT: Armageddon with a floppy disk and trackball!"* (Paul Dent, 2023) | Six-step loop skeleton; split-knowledge enable (6 chars, 3+3); NAM/FDM/EAM taxonomy; vote/inhibit/dead-man triad; MRT vs CEP retarget; console components (VDU/RMP/WSP/LEP/LCP/CLS/OID/TODC/FDD); the disclaimer template. Comments = folklore, not source. **No game timing comes from this source** (ruled 2026-09-28, §12a); the retarget times and drift figure it gave are open (T3, T4). |
 | Wikipedia, *Rapid Execution and Combat Targeting System* | 1 key + 3 cooperative switches; auto EWO processing; retarget times; REACT era choice |
 | Wikipedia, *Missile launch control center* | LCC hierarchy (ACP/SCP/PLCC) + countermand authority (rank system); HVC party line (squadron social unit); capsule physical details; SAS safe w/ two crew locks; 2-person crew; Netlink |
 | Wikipedia, *LGM-30 Minuteman* | Specs table (range/speed/CEP); MIRV flight sequence; wing/squadron structure + nicknames; ALCS/Looking Glass; ERCS; surviving museum sites (Delta-01/-09, Oscar-Zero, November-33, Quebec-One — reference-photo targets); Sentinel timeline |
