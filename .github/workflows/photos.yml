@@ -99,6 +99,10 @@ jobs:
         if: steps.fresh.outputs.fresh == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # The verifier's KV read token (kv-rest.ts readToken). The scripts no longer
+          # fall back to CLOUDFLARE_API_TOKEN, so the same secret is passed under
+          # the name they read. wrangler's writes still use CLOUDFLARE_API_TOKEN.
+          PHOTO_KV_READ_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # Test seams, from a dispatch input OR a repo variable (a dashboard
           # publish arrives as a push, which has no inputs). Both can only make a
           # run refuse. Unset = normal publish.
@@ -133,4 +137,5 @@ jobs:
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PHOTO_KV_READ_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }} # the verifier's read, as above
         run: npx tsx scripts/ingest-photos.ts --env staging --status-out ../mirror-status.json

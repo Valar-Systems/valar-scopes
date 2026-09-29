@@ -7,8 +7,8 @@
  * READ-ONLY. Every pointer the published photo:manifest names must hold exactly
  * the manifest's key, and every blob those pointers name must exist -- the same
  * verify() the publish runs after its writes (publish-guard.ts), reading KV over
- * REST (kv-rest.ts, which has no put). Token: PHOTO_KV_READ_TOKEN, else
- * CLOUDFLARE_API_TOKEN; never printed.
+ * REST (kv-rest.ts, which has no put). Token: PHOTO_KV_READ_TOKEN (CI), else
+ * the kv-read line of the BLIPSCOPE_TOKEN_FILE file (token-file.ts); never printed.
  *
  * Exit 0 PASS, 1 FAIL (rows disagree -- listed), 3 cannot see KV or read the
  * manifest. Anchor controls first: a dead token must come back 3, never as "every

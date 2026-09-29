@@ -774,9 +774,15 @@ This is the point: the backlog stops being guesswork and becomes a list ranked b
 what the fleet actually looks at. Rank the photo gaps with:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... npm run photo-gaps            # 7 days, production
+export BLIPSCOPE_TOKEN_FILE=~/.config/blipscope/tokens  # once per shell
+npm run photo-gaps                                     # 7 days, production
 npm run photo-gaps -- --days 30 --gap name --limit 60  # cheapest wins instead
 ```
+
+The Analytics Engine query uses the file's `analytics-read` line (Account
+Analytics: Read); the manifest read goes through your `wrangler login` (Workers KV
+Read). Format and rules: `scripts/token-file.ts`. Never `CLOUDFLARE_API_TOKEN` —
+see CLAUDE.md.
 
 The token needs **Account Analytics Read** and **Workers KV Read**.
 
@@ -1208,8 +1214,10 @@ half that cannot read KV is **FAILED** (exit 3), never 0 and never "every row
 CHANGED". The job holds one credential, `CLOUDFLARE_KV_READ_TOKEN` (a Cloudflare
 token with **Workers KV Storage: Read** only); `scripts/check-drift-workflow.mjs`
 fails CI if it ever references the write token. Read-only is a property of the
-**workflow**, not the scripts: `readToken()` falls back to `CLOUDFLARE_API_TOKEN`,
-so the same scripts run anywhere else with whatever token that environment holds.
+**workflow**, not the scripts: `readToken()` takes `PHOTO_KV_READ_TOKEN` (which
+photos.yml sets from its own secret for the publish's verifier), else the
+`kv-read` line of the file `BLIPSCOPE_TOKEN_FILE` names (`scripts/token-file.ts`),
+so the same scripts run anywhere with whatever token that environment holds.
 
 **Harvest-phase checklist (when content population begins):**
 

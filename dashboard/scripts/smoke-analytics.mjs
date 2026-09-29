@@ -23,16 +23,17 @@
 //               failure and its zeros mean nothing.
 //
 // TOKEN (Account Analytics: Read), never printed -- only its source's NAME:
-//   1. %USERPROFILE%/.config/blipscope/cf-analytics-token (the operator's file)
-//   2. CF_API_TOKEN (CI: the repo secret, read-only)
-//   3. CLOUDFLARE_API_TOKEN (a local fallback; CI never sets it)
+//   1. CF_API_TOKEN when non-empty (CI: the repo secret CF_ANALYTICS_READ_TOKEN)
+//   2. by hand: the analytics-read line of the file BLIPSCOPE_TOKEN_FILE names
+//      (proxy/scripts/token-file.ts, the one reader every by-hand script shares)
+// Never CLOUDFLARE_API_TOKEN: wrangler prefers that variable over `wrangler
+// login`, so it must not exist outside CI (CLAUDE.md).
 //
 // Exit 0: every statement 200 and both controls behaved. 1: a statement failed.
 // 3: untrustworthy (no token, or a control misbehaved).
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { resolveToken } from "../../proxy/scripts/token-file.ts";
 
 const ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1";
 const WINDOWS = [6, 24, 72, 168, 720];
@@ -41,20 +42,18 @@ const argi = process.argv.indexOf("--module");
 const modPath = resolve(argi >= 0 ? process.argv[argi + 1] : new URL("../src/analytics.ts", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 
 function token() {
-  const f = join(homedir(), ".config", "blipscope", "cf-analytics-token");
-  if (existsSync(f)) {
-    const t = readFileSync(f, "utf8").trim();
-    if (t) return { t, source: "cf-analytics-token file" };
+  try {
+    const { token: t, source } = resolveToken("analytics-read", "CF_API_TOKEN");
+    return { t, source, why: "" };
+  } catch (e) {
+    return { t: "", source: "", why: String(e instanceof Error ? e.message : e) };
   }
-  if (process.env.CF_API_TOKEN) return { t: process.env.CF_API_TOKEN, source: "CF_API_TOKEN" };
-  if (process.env.CLOUDFLARE_API_TOKEN) return { t: process.env.CLOUDFLARE_API_TOKEN, source: "CLOUDFLARE_API_TOKEN (local fallback)" };
-  return { t: "", source: "" };
 }
 
-const { t, source } = token();
+const { t, source, why } = token();
 console.log(`token: ${t ? "present" : "absent"}${source ? ` (from ${source})` : ""}`);
 if (!t) {
-  console.error("UNTRUSTWORTHY: no analytics token -- nothing was measured");
+  console.error(`UNTRUSTWORTHY: no analytics token -- nothing was measured. ${why}`);
   process.exit(3);
 }
 
