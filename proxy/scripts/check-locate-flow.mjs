@@ -16,7 +16,13 @@
 // Cases (the frozen table in the PR): S success, D denied, T timeout, U unavailable,
 // B popup blocked, C closed without choosing, Z helper sends 0,0, G helper sends garbage.
 //
-// RUN:  node scripts/check-locate-flow.mjs --device http://blipscope-xxxxxx.local
+// SABOTAGE (--sabotage <name>) rewrites the device's page in flight, so the check can be
+// shown red against the real page:
+//   no-fallback  failures no longer reveal the paste link       -> every failure case fails
+//   save-zero    the 0,0 guard is removed                        -> Z saves 0,0 and fails
+// A sabotage whose anchor is not found exactly once is BLIND, never a silent pass.
+//
+// RUN:  node scripts/check-locate-flow.mjs --device http://blipscope-xxxxxx.local [--sabotage <name>]
 // EXIT: 0 every case as predicted   1 a case differed   2 blind (page/rig did not work)
 
 import { spawn } from "node:child_process";
@@ -37,6 +43,14 @@ const CHROME = [
 const devAt = process.argv.indexOf("--device");
 const DEVICE = devAt > 0 ? (process.argv[devAt + 1] || "").replace(/\/+$/, "") : "";
 if (!DEVICE) { console.log("usage: node scripts/check-locate-flow.mjs --device http://<device>"); process.exit(2); }
+const SABOTAGES = {
+  "no-fallback": ["bpSay(t,false);bpFb.style.display='block'}", "bpSay(t,false)}"],
+  "save-zero": ["||(Math.abs(la)<0.00005&&Math.abs(lo)<0.00005)", ""],
+};
+const sabAt = process.argv.indexOf("--sabotage");
+const SABOTAGE = sabAt > 0 ? SABOTAGES[process.argv[sabAt + 1]] : null;
+if (sabAt > 0 && !SABOTAGE) { console.log(`unknown sabotage; one of: ${Object.keys(SABOTAGES).join(", ")}`); process.exit(2); }
+let sabotageApplied = false;
 if (!CHROME) { console.log("BLIND: no Chrome/Chromium found (set CHROME=...)"); process.exit(2); }
 
 const out = await build({ entryPoints: ["src/locatepage.ts"], bundle: true, format: "esm", platform: "neutral", write: false, logLevel: "silent" });
@@ -137,7 +151,13 @@ async function runCase(c) {
           // The device's own page, proxied byte for byte.
           try {
             const resp = await fetch(DEVICE + u.pathname + u.search);
-            const buf = Buffer.from(await resp.arrayBuffer());
+            let buf = Buffer.from(await resp.arrayBuffer());
+            if (SABOTAGE && u.pathname === "/") {
+              const html = buf.toString("utf8");
+              if (html.split(SABOTAGE[0]).length !== 2) throw new Error("sabotage anchor not found exactly once");
+              buf = Buffer.from(html.replace(SABOTAGE[0], SABOTAGE[1]), "utf8");
+              sabotageApplied = true;
+            }
             const hdrs = [];
             resp.headers.forEach((v, k) => { if (!/^(content-length|content-encoding|transfer-encoding|connection)$/i.test(k)) hdrs.push({ name: k, value: v }); });
             if (u.pathname === "/") pageServed = resp.status === 200;
@@ -242,6 +262,7 @@ const redact = (t) => String(t).replace(/-?\d+\.\d{2,}/g, "<n>");
 let worst = 0;
 for (const c of CASES) {
   const r = await runCase(c);
+  if (SABOTAGE && !sabotageApplied) { console.log(`${c.key}: BLIND -- the sabotage never applied`); worst = Math.max(worst, 2); continue; }
   if (r.blind) { console.log(`${c.key} ${c.name}: BLIND -- ${r.blind}`); worst = Math.max(worst, 2); continue; }
   const problems = [];
   if (!r.msg.includes(c.want.msg)) problems.push(`message "${redact(r.msg).slice(0, 90)}"`);
