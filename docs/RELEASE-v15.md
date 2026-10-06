@@ -55,6 +55,32 @@ downgrade.
 
 ## 5. "Use my location" on the config page
 
+> **AMENDED 2026-10-06 (review + Daniel). Where this list and the text below disagree, this list wins.**
+>
+> - **Saved on arrival.** Daniel: the position is saved as soon as it arrives, with no Save press.
+>   A usable position goes to `POST /location`, which writes `latitude` and `longitude` and
+>   nothing else. A whole-form save would freeze every default on the page; see
+>   `ConfigMigration.h`. The page then shows what the device stored. This replaces step 6 below.
+> - **Precise on device, coarse on the wire.** NVS stores 4 dp (`CoordParse::Format`), and that
+>   is the one rounding authority, so typed, pasted and located values are treated alike.
+>   Migration rev 6 rewrites older 6-dp values. Every request that leaves the device carries
+>   2 dp (`include/WireLocation.h`):
+>   - `/blips`, `/airports` and the `/enrich` aircraft position are rounded.
+>   - The OpenSky box is built from the rounded centre, widened by one rounding step, and its
+>     edges are rounded outward. The results are then clipped back to the true box on the device.
+>   - The overhead decision is made on the device (`IsOverhead`) and uses the 4-dp value.
+> - **Every failure path saves nothing.** Each one shows a sentence plus the gps-coordinates.org
+>   link: popup blocked, denied, timeout (now **10 s**), unavailable, window closed without
+>   sharing (it now says so), and a message that isn't a usable position (garbage, or 0,0, which
+>   the device also refuses).
+> - **The wire test counts attempts.** A `fetch` of the position under the real CSP never fires
+>   `Network.requestWillBeSent`, so the check passed it until it also read CSP violation
+>   reports. The check also has:
+>   - a HAR of the helper's requests;
+>   - a target-origin case: an opener whose origin is not `?o=` must receive nothing, and a
+>     `"*"` plant fails;
+>   - `check-locate-flow.mjs`, which drives the device's real page through all eight endings.
+
 **The ask.** One button beside Latitude/Longitude that fills both from the browser's location.
 
 **A direct `navigator.geolocation` call cannot work here, and that was measured, not assumed.**
@@ -99,7 +125,8 @@ page from this HTTP page and gets a value back (`window.open` → `/blipscope/en
    places** (~11 m, the precision `bpSay` already echoes; the radar needs nothing finer) and
    written into both boxes as a `"lat, lon"` string through the **existing** paste-splitter path, so
    one parser handles typed, pasted and located input.
-6. **Nothing is saved.** The page says *"Filled from this browser: 44.0582, -121.3153. Press Save
+6. ~~**Nothing is saved.**~~ *Superseded 2026-10-06: saved on arrival, see the amendment above.*
+   The page said *"Filled from this browser: 44.0582, -121.3153. Press Save
    to keep it."* If `acc` is over 1,000 m (a desktop with no GPS locating by IP), it adds *"This is
    only accurate to about N km. Check it on a map before saving."*
 
@@ -129,9 +156,9 @@ page (when it is open) and echoed on the config page via `bpSay`:
 |---|---|
 | permission denied (code 1) | *"Location is turned off for this page, so nothing was filled in. You can find your numbers at gps-coordinates.org and paste them into either box."* (a link) |
 | unavailable (code 2) | *"This browser couldn't work out where it is. Paste your numbers from gps-coordinates.org instead."* |
-| timeout (15 s, code 3) | *"Finding your location took too long. Try again, or paste your numbers from gps-coordinates.org."* |
+| timeout (10 s since 2026-10-06; was 15 s; code 3) | *"Finding your location took too long. Try again, or paste your numbers from gps-coordinates.org."* |
 | popup blocked (`window.open` returns null) | *"Your browser blocked the location window. Allow pop-ups for this page, or paste your numbers from gps-coordinates.org."* |
-| helper closed without answering | nothing; the fields stay as they were |
+| helper closed without answering | *"The location window was closed before it shared a location, so nothing changed."* plus the paste fallback (was: nothing, until 2026-10-06) |
 
 **On gps-coordinates.org "coming back with the values": it cannot.** It is a third-party site with
 no way to return a value to our page. We cannot make it `postMessage`, and a link to it can only
