@@ -46,5 +46,6 @@ proxy/revoked.txt
 # Transient stderr capture from scripts/reconcile-fleet.py.
 .reconcile-stderr.log
 
-# Bench and test logs are local only (device IDs, serial output) -- never commit.
-bench-logs/*.log
+# Everything bench-side is local only (serial captures, flash logs, pid files,
+# logbook backups, firmware dumps) -- device IDs live in it. Never commit.
+bench-logs/
