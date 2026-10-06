@@ -7,6 +7,7 @@ import { recordFleetFirmware } from "./fleet";
 import { handleEnroll } from "./enroll";
 import { handleProvision } from "./provision";
 import { enrollHtml } from "./enrollpage";
+import { locateResponse } from "./locatepage";
 import {
   handleLeaderboardJson,
   handleLeaderboardPage,
@@ -232,6 +233,13 @@ async function route(
   // ONE path, dispatched on METHOD. Written as two sequential `if`s on the same
   // pathname first, which made the POST branch unreachable — the GET matched
   // every time and enrollment would have been a page that never minted.
+  // "Use my location" (v15 item 5, docs/RELEASE-v15.md §5). A static HTTPS helper the
+  // device's HTTP settings page opens in a popup, because geolocation needs a secure
+  // context. Public and keyless like the enrol page; it receives nothing and stores
+  // nothing -- the position goes back to the opener by postMessage only (locatepage.ts).
+  // GET only: the method gate above already answers anything else with 405, and the
+  // route test asserts it does for this path.
+  if (url.pathname === `${PAGE_PREFIX}/locate`) return locateResponse();
   if (url.pathname === `${PAGE_PREFIX}/enroll`) {
     return request.method === "POST"
       ? handleEnroll(request, env)
