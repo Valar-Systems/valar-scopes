@@ -198,7 +198,7 @@ survive on a real mobile browser.
 
 **The bench run cannot start until v15 is published with its factory assets.** No tagged release
 carries them yet:
-- v14 predates `firmware.yml`'s factory step (#347), and a re-run on the v14 tag uses v14's
+- v14 predates the release workflow's factory step (#347), and a re-run on the v14 tag uses v14's
   workflow, which has no such step.
 - The only source today is the scratch prerelease `factory-manifest-scratch-2026-09-24`.
 
