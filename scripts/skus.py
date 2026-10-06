@@ -142,6 +142,7 @@ ALLOWED_MENTIONS = {
     "RELEASING.md",                      # release prose
     "docs/ota-control-plan.md",          # plan prose
     "scripts/check-tag-workflow.sh",     # reads the version + promote jobs, not the matrix
+    "scripts/check-no-bench-hooks.sh",   # a comment naming the job that runs it; scans an image, never the matrix
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")
