@@ -141,9 +141,27 @@ int main()
     printf("\n-- what gets stored --\n");
     check(CoordParse::Format(-121.315) == "-121.315", "Format trims trailing zeros");
     check(CoordParse::Format(0.0) == "0",             "Format renders zero as 0, not -0");
+    // 4 dp (~11 m), v15: precise on device. A 15-dp paste and a typed value store alike.
+    check(CoordParse::Format(-121.315278) == "-121.3153", "Format stores 4 dp, not 6");
+    check(CoordParse::Format(44.058173123456789) == "44.0582", "a 15-dp paste stores 4 dp");
+    check(CoordParse::Format(-0.00004) == "0",        "a value that rounds to zero is 0, never -0");
+    check(CoordParse::Format(-179.99996) == "-180",   "rounding carries across the integer");
     double rt = 0.0;
     check(CoordParse::Parse(CoordParse::Format(-121.315278), false, rt), "the stored form re-parses");
-    near(rt, -121.315278, "  ... to the same number");
+    near(rt, -121.3153, "  ... to the 4-dp number");
+
+    // =====================================================================
+    // 5. ParseLocation: what POST /location ("Use my location") will store.
+    // =====================================================================
+    printf("\n-- POST /location --\n");
+    double sla = 0.0, slo = 0.0;
+    check(CoordParse::ParseLocation(String("44.0582"), String("-121.3153"), sla, slo), "a real pair is accepted");
+    check(!CoordParse::ParseLocation(String("0.0000"), String("0.0000"), sla, slo), "0,0 is REFUSED");
+    check(!CoordParse::ParseLocation(String("0.00004"), String("-0.00003"), sla, slo), "a pair that ROUNDS to 0,0 is refused");
+    check(CoordParse::ParseLocation(String("51.4779"), String("0"), sla, slo), "one zero axis (Greenwich) is fine");
+    check(!CoordParse::ParseLocation(String(""), String("-121.3153"), sla, slo), "one box empty is refused");
+    check(!CoordParse::ParseLocation(String("undefined"), String("-121.3153"), sla, slo), "garbage is refused");
+    check(!CoordParse::ParseLocation(String("91"), String("10"), sla, slo), "an out-of-range latitude is refused");
 
     printf(failures ? "\ncoordinate parsing: %d FAILURE(S)\n" : "\ncoordinate parsing: all good\n",
            failures);

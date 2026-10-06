@@ -224,12 +224,11 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(var ns=s.match(/[-+]?\d+(?:\.\d+)?/g);)" \
     R"(if(ns&&ns.length>=2&&(ns.length&1)==0){var k=0;for(var i=0;i<ns.length/2;i++)k=s.indexOf(ns[i],k)+ns[i].length;hv.push([s.slice(0,k),s.slice(k)])})" \
     R"(for(var q=0;q<hv.length;q++){var a=bpOne(hv[q][0],true),b=bpOne(hv[q][1],false);if(isFinite(a)&&isFinite(b))return [a,b]}return null})" \
-    /* Stored at 6 dp (~11 cm, far past what a desk radar can use) with trailing \
-       zeros trimmed; echoed at 4 dp, which is the precision a human can actually \
-       check against the place they meant. */ \
-    R"(function bpF(v){return String(Number(v.toFixed(6)))})" \
+    /* Stored at 4 dp (~11 m; CoordParse::Format on the device is the authority) \
+       with trailing zeros trimmed, so the box shows what Save will store. */ \
+    R"(function bpF(v){return String(Number(v.toFixed(4)))})" \
     R"(if(shLa&&shLo){var bpMsg=null;)" \
-    R"(function bpSay(txt,ok){if(!bpMsg){bpMsg=document.createElement('div');bpMsg.style.cssText='margin:.35rem 0 0;font-size:.8rem';)" \
+    R"(function bpSay(txt,ok){if(!bpMsg){bpMsg=document.createElement('div');bpMsg.id='bpmsg';bpMsg.style.cssText='margin:.35rem 0 0;font-size:.8rem';)" \
     R"(var r=shLa.closest?shLa.closest('.row'):null;if(r&&r.parentNode)r.parentNode.insertBefore(bpMsg,r.nextSibling);else shLa.parentNode.appendChild(bpMsg)})" \
     R"(bpMsg.textContent=txt;bpMsg.style.color=ok?'var(--ink)':'#ff4d4d'})" \
     /* Confirm what was understood, so a paste that landed looks like it landed. */ \
@@ -249,30 +248,49 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(var t=((e.clipboardData||window.clipboardData).getData('text')||'');var pr=bpPair(t);)" \
     R"(if(pr){e.preventDefault();shLa.value=bpF(pr[0]);shLo.value=bpF(pr[1]);bpEcho();return})" \
     R"(var one=bpOne(t,f[1]);if(isFinite(one)){e.preventDefault();f[0].value=bpF(one);bpEcho()}})});)" \
-    /* "USE MY LOCATION" (v15 item 5, docs/RELEASE-v15.md 5). This page is plain HTTP, \
-       and geolocation needs a secure context -- measured: refused at once, no prompt. \
-       So the button opens the HTTPS helper (proxy/src/locatepage.ts) in a popup, \
-       FROM INSIDE THE CLICK (outside a user gesture the popup is blocked), and the \
-       position comes back by postMessage only. It is written into both boxes as a \
-       "lat, lon" pair through bpPair -- the SAME parser as typed and pasted input -- \
-       and is NOT saved: the customer presses Save. A blocked popup, a refusal or a \
-       timeout never touches the fields, and each says how to paste instead. */ \
+    /* "USE MY LOCATION" (v15 item 5). This page is plain HTTP, and geolocation needs \
+       a secure context -- measured: refused at once, no prompt. So the button opens \
+       the HTTPS helper (proxy/src/locatepage.ts) in a popup, FROM INSIDE THE CLICK \
+       (outside a user gesture the popup is blocked), and the position comes back by \
+       postMessage only. \
+       SAVED ON ARRIVAL (Daniel 2026-10-06): a usable position goes straight to \
+       POST /location, which writes latitude + longitude and nothing else, and the \
+       boxes then show what the DEVICE stored. \
+       EVERY OTHER ENDING SAVES NOTHING and says so, with the paste fallback shown: \
+       popup blocked, permission refused, timeout, unavailable, window closed without \
+       sharing, and a message that is not a usable position (garbage, or 0,0). */ \
     R"(var bpLocUrl='https://scopes.valarsystems.com/blipscope/locate',bpLocOrigin='https://scopes.valarsystems.com';)" \
     R"(var bpLoc=document.createElement('button');bpLoc.type='button';bpLoc.id='bplocate';bpLoc.textContent='Use my location';)" \
     R"(bpLoc.style.cssText='margin:.4rem 0 0';var bpLr=shLa.closest?shLa.closest('.row'):null;)" \
     R"(if(bpLr&&bpLr.parentNode)bpLr.parentNode.insertBefore(bpLoc,bpLr.nextSibling);else shLa.parentNode.appendChild(bpLoc);)" \
-    R"(bpLoc.addEventListener('click',function(){)" \
+    R"(var bpFb=document.createElement('div');bpFb.id='bplocfb';bpFb.style.cssText='display:none;margin:.3rem 0 0;font-size:.8rem';)" \
+    R"(bpFb.innerHTML='Or find your numbers at <a href="https://www.gps-coordinates.org/" target="_blank" rel="noopener noreferrer">gps-coordinates.org</a>, paste them into either box above, and press Save.';)" \
+    R"(bpLoc.parentNode.insertBefore(bpFb,bpLoc.nextSibling);)" \
+    R"(var bpLocW=null,bpLocT=0,bpLocDone=true;)" \
+    R"(function bpLocFail(t){bpLocDone=true;bpSay(t,false);bpFb.style.display='block'})" \
+    R"(bpLoc.addEventListener('click',function(){bpFb.style.display='none';)" \
     R"(var w=window.open(bpLocUrl+'?o='+encodeURIComponent(location.origin),'bpLocate','width=480,height=560');)" \
-    R"(if(!w)bpSay('Your browser blocked the location window. Allow pop-ups for this page, or paste your numbers from gps-coordinates.org.',false)});)" \
-    /* Validate the VALUE (and the sender): the helper's origin, the message type, \
-       and two finite in-range numbers via bpPair -- anything else is ignored. */ \
-    R"(window.addEventListener('message',function(e){if(e.origin!==bpLocOrigin)return;var d=e.data;if(!d)return;)" \
-    R"(if(d.type==='blipscope-location-error'){bpSay(String(d.text||'Location was not available. Paste your numbers from gps-coordinates.org instead.'),false);return})" \
-    R"(if(d.type!=='blipscope-location')return;var pr=bpPair(String(d.lat)+', '+String(d.lon));if(!pr)return;)" \
-    R"(shLa.value=bpF(pr[0]);shLo.value=bpF(pr[1]);)" \
-    R"(var msg='Filled from this browser: '+pr[0].toFixed(4)+', '+pr[1].toFixed(4)+'. Press Save to keep it.';)" \
-    R"(var acc=Number(d.acc);if(isFinite(acc)&&acc>1000)msg+=' This is only accurate to about '+Math.round(acc/1000)+' km. Check it on a map before saving.';)" \
-    R"(bpSay(msg,true)});)" \
+    R"(if(!w){bpLocFail('Your browser blocked the location window, so nothing changed. Allow pop-ups for this page and try again.');return})" \
+    R"(bpLocW=w;bpLocDone=false;bpSay('Waiting for the location window...',true);)" \
+    /* A window closed without sharing sends no message at all, so it is noticed by \
+       polling. A refusal or timeout has already said why (bpLocDone), and is kept. */ \
+    R"(clearInterval(bpLocT);bpLocT=setInterval(function(){if(bpLocW&&!bpLocW.closed)return;clearInterval(bpLocT);bpLocW=null;)" \
+    R"(if(!bpLocDone)bpLocFail('The location window was closed before it shared a location, so nothing changed.')},500)});)" \
+    /* Validate the SENDER (the helper's origin) and the VALUE: two strings the same \
+       parser as typed input accepts, and not 0,0. The device checks again. */ \
+    R"(window.addEventListener('message',function(e){if(e.origin!==bpLocOrigin)return;var d=e.data;if(!d||typeof d!=='object')return;)" \
+    R"(if(d.type==='blipscope-location-error'){bpLocFail(String(d.text||'Location was not available, so nothing changed.'));return})" \
+    R"(if(d.type!=='blipscope-location')return;bpLocDone=true;)" \
+    R"(var la=typeof d.lat==='string'?bpOne(d.lat,true):NaN,lo=typeof d.lon==='string'?bpOne(d.lon,false):NaN;)" \
+    R"(if(!isFinite(la)||!isFinite(lo)||(Math.abs(la)<0.00005&&Math.abs(lo)<0.00005)){bpLocFail('The location that came back was not usable, so nothing changed.');return})" \
+    R"(bpSay('Saving your location...',true);)" \
+    R"(fetch('/location',{method:'POST',headers:{'X-Blipscope':'1','Content-Type':'application/x-www-form-urlencoded'},)" \
+    R"(body:'lat='+encodeURIComponent(bpF(la))+'&lon='+encodeURIComponent(bpF(lo))}).then(function(r){return r.json().then(function(j){return [r.status,j]})}).then(function(x){)" \
+    R"(var j=x[1];if(x[0]!==200||!j||!j.ok){bpLocFail('The device did not save that location, so nothing changed.');return})" \
+    R"(shLa.value=j.lat;shLo.value=j.lon;bpFb.style.display='none';)" \
+    R"(var m='Saved your location from this browser. The radar re-centres in a few seconds.';)" \
+    R"(var acc=Number(d.acc);if(isFinite(acc)&&acc>1000)m+=' This browser only knew it to about '+Math.round(acc/1000)+' km, so check the radar, or paste exact numbers and press Save.';)" \
+    R"(bpSay(m,true)})['catch'](function(){bpLocFail('Could not reach the device to save that location, so nothing changed.')})});)" \
     R"(bpEcho()})" \
     /* SETUP CHECKLIST -- ONE block, never two competing banners. \
        Both steps state the SAME consequence ("the screen stays empty"), because \
@@ -3402,6 +3420,43 @@ void ConfigurationWebServer::Initialise() {
     );
 
     // Handle save submission to web server
+    // "USE MY LOCATION" AUTO-SAVE (v15 item 5; Daniel 2026-10-06: the position is
+    // saved the moment it arrives, without a Save press). Its OWN endpoint, writing
+    // latitude + longitude and NOTHING else. Not a whole-form POST to /save: that
+    // would freeze every default on the page into NVS (ConfigMigration.h) and save
+    // whatever half-typed edit was sitting in another box.
+    //
+    // Both values or nothing. CoordParse::ParseLocation refuses an unreadable value
+    // and 0,0, so a broken or hostile message can never move the radar. Stored
+    // through CoordParse::Format (4 dp, the one rounding authority) and the reply
+    // echoes what was STORED, so the page shows exactly that.
+    server.on("/location", HTTP_POST, [&](AsyncWebServerRequest* request) {
+        if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
+        const auto* pLat = request->getParam("lat", true);
+        const auto* pLon = request->getParam("lon", true);
+        double la = 0.0, lo = 0.0;
+        if (pLat == nullptr || pLon == nullptr ||
+            !CoordParse::ParseLocation(pLat->value(), pLon->value(), la, lo)) {
+            Serial.println("[location] refused: not a usable position, nothing written");
+            request->send(400, "application/json", "{\"ok\":false}");
+            return;
+        }
+        const String sLa = CoordParse::Format(la), sLo = CoordParse::Format(lo);
+        Preferences prefs;
+        bool ok = prefs.begin("config", false);
+        if (ok) ok = prefs.putString("latitude", sLa) > 0 && prefs.putString("longitude", sLo) > 0;
+        prefs.end();
+        if (!ok) {
+            Serial.println("[location] NVS write failed");
+            request->send(500, "application/json", "{\"ok\":false}");
+            return;
+        }
+        configChanged = true;   // the loop re-reads settings, exactly as after /save
+        Serial.println("[location] saved from the browser (lat set, lon set)");
+        request->send(200, "application/json",
+                      String("{\"ok\":true,\"lat\":\"") + sLa + "\",\"lon\":\"" + sLo + "\"}");
+    });
+
     server.on("/save", HTTP_POST, [&](AsyncWebServerRequest* request) {
         if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
         Serial.println("[POST] Handling form submission to config web server...");
@@ -3848,9 +3903,10 @@ void ConfigurationWebServer::Initialise() {
         // have no geography and must not be nagged about it.
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
         if (savedLat.isEmpty() || savedLon.isEmpty()) {
+            // Flags only -- this line printed the coordinate that WAS set.
             Serial.printf("[POST] saved, but location incomplete (lat=%s lon=%s)\n",
-                          savedLat.isEmpty() ? "unset" : savedLat.c_str(),
-                          savedLon.isEmpty() ? "unset" : savedLon.c_str());
+                          savedLat.isEmpty() ? "unset" : "set",
+                          savedLon.isEmpty() ? "unset" : "set");
             request->send(200, "text/html",
                           "Saved - but LOCATION IS MISSING, so nothing will appear on screen. "
                           "Enter your latitude and longitude above and save again. "

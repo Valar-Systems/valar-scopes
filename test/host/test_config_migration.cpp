@@ -140,5 +140,11 @@ int main()
 
     if (failures == 0) std::printf("test_config_migration: all checks passed\n");
     else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);
+    // rev 6 (v15): coordinates rewritten at 4 dp, once.
+    check(NeedsCoordPrecisionMigration(5), "rev 5 devices rewrite their coordinates at 4 dp");
+    check(NeedsCoordPrecisionMigration(0), "a pre-migration device does too");
+    check(!NeedsCoordPrecisionMigration(CONFIG_REV), "CONFIG_REV must satisfy the coordinate predicate");
+    check(sizeof(COORD_KEYS) / sizeof(COORD_KEYS[0]) == 8, "latitude/longitude + three presets x2");
+
     return failures == 0 ? 0 : 1;
 }

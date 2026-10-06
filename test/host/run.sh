@@ -315,6 +315,21 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== precise on device, coarse on the wire (WireLocation.h) =="
+if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_wire_location.cpp"       -o "$OUT/test_wire_location.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the wire-location test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wire_location.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 echo "== \"Use my location\": the helper's format, parsed by the firmware =="
 # The INPUT comes from the other side: test/fixtures/locate-format.txt is written by
 # proxy/scripts/locate-fixture.mjs from the helper's own formatCoord, and workers.yml
