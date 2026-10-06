@@ -89,6 +89,11 @@ jobs:
       - name: The locate page sends no request carrying the position
         if: matrix.worker == 'proxy'
         run: node scripts/check-locate-page.mjs
+      # The firmware's host test parses this fixture with CoordParse; it must be what
+      # the helper's formatCoord actually emits, or that test grades a stale contract.
+      - name: The locate-format fixture matches the helper's formatter
+        if: matrix.worker == 'proxy'
+        run: node scripts/locate-fixture.mjs --check
 
       # Same reasoning for the self-hosted webfonts: fonts/ and the generated
       # module must agree, or the page requests a font the Worker does not have

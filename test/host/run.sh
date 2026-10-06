@@ -315,6 +315,28 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== \"Use my location\": the helper's format, parsed by the firmware =="
+# The INPUT comes from the other side: test/fixtures/locate-format.txt is written by
+# proxy/scripts/locate-fixture.mjs from the helper's own formatCoord, and workers.yml
+# fails if it is stale. Every line must parse in CoordParse and land within 0.00005.
+if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_locate_format.cpp" \
+      -o "$OUT/test_locate_format.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the locate-format test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_locate_format.exe" "$ROOT/test/fixtures/locate-format.txt"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the locate-format test could not read its fixture (BLIND)"
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 echo "== USB open-on-computer planner (what the keyboard may type) =="
 if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_usb_open.cpp"       -o "$OUT/test_usb_open.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the USB open test did not compile"

@@ -249,6 +249,30 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(var t=((e.clipboardData||window.clipboardData).getData('text')||'');var pr=bpPair(t);)" \
     R"(if(pr){e.preventDefault();shLa.value=bpF(pr[0]);shLo.value=bpF(pr[1]);bpEcho();return})" \
     R"(var one=bpOne(t,f[1]);if(isFinite(one)){e.preventDefault();f[0].value=bpF(one);bpEcho()}})});)" \
+    /* "USE MY LOCATION" (v15 item 5, docs/RELEASE-v15.md 5). This page is plain HTTP, \
+       and geolocation needs a secure context -- measured: refused at once, no prompt. \
+       So the button opens the HTTPS helper (proxy/src/locatepage.ts) in a popup, \
+       FROM INSIDE THE CLICK (outside a user gesture the popup is blocked), and the \
+       position comes back by postMessage only. It is written into both boxes as a \
+       "lat, lon" pair through bpPair -- the SAME parser as typed and pasted input -- \
+       and is NOT saved: the customer presses Save. A blocked popup, a refusal or a \
+       timeout never touches the fields, and each says how to paste instead. */ \
+    R"(var bpLocUrl='https://scopes.valarsystems.com/blipscope/locate',bpLocOrigin='https://scopes.valarsystems.com';)" \
+    R"(var bpLoc=document.createElement('button');bpLoc.type='button';bpLoc.id='bplocate';bpLoc.textContent='Use my location';)" \
+    R"(bpLoc.style.cssText='margin:.4rem 0 0';var bpLr=shLa.closest?shLa.closest('.row'):null;)" \
+    R"(if(bpLr&&bpLr.parentNode)bpLr.parentNode.insertBefore(bpLoc,bpLr.nextSibling);else shLa.parentNode.appendChild(bpLoc);)" \
+    R"(bpLoc.addEventListener('click',function(){)" \
+    R"(var w=window.open(bpLocUrl+'?o='+encodeURIComponent(location.origin),'bpLocate','width=480,height=560');)" \
+    R"(if(!w)bpSay('Your browser blocked the location window. Allow pop-ups for this page, or paste your numbers from gps-coordinates.org.',false)});)" \
+    /* Validate the VALUE (and the sender): the helper's origin, the message type, \
+       and two finite in-range numbers via bpPair -- anything else is ignored. */ \
+    R"(window.addEventListener('message',function(e){if(e.origin!==bpLocOrigin)return;var d=e.data;if(!d)return;)" \
+    R"(if(d.type==='blipscope-location-error'){bpSay(String(d.text||'Location was not available. Paste your numbers from gps-coordinates.org instead.'),false);return})" \
+    R"(if(d.type!=='blipscope-location')return;var pr=bpPair(String(d.lat)+', '+String(d.lon));if(!pr)return;)" \
+    R"(shLa.value=bpF(pr[0]);shLo.value=bpF(pr[1]);)" \
+    R"(var msg='Filled from this browser: '+pr[0].toFixed(4)+', '+pr[1].toFixed(4)+'. Press Save to keep it.';)" \
+    R"(var acc=Number(d.acc);if(isFinite(acc)&&acc>1000)msg+=' This is only accurate to about '+Math.round(acc/1000)+' km. Check it on a map before saving.';)" \
+    R"(bpSay(msg,true)});)" \
     R"(bpEcho()})" \
     /* SETUP CHECKLIST -- ONE block, never two competing banners. \
        Both steps state the SAME consequence ("the screen stays empty"), because \
