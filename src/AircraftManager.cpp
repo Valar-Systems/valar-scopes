@@ -20,6 +20,7 @@
 #include <WiFi.h> // WiFi.localIP() for the device address on the Stats screen
 
 #include "SpecialAircraft.h"
+#include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
 #include "IcaoCountry.h"      // origin country from the ICAO address, for feeds that omit it
 #include "DeviceIdentity.h"
 #include "Layout.h"
@@ -1354,6 +1355,9 @@ void AircraftManager::Update()
     // keypress on an idle board with no feed, which is exactly the condition
     // the absence copy is being judged under.
     PollBenchSerial();
+#endif
+#ifdef ALERT_BENCH
+    PollAlertBench();
 #endif
 
     // advance the radar sweep + paint the contacts it crossed this frame, before
@@ -4827,16 +4831,23 @@ void AircraftManager::UpdateVisualAlerts()
         if (isEmergencySquawk(t.state.squawk)) {
             const bool vis = onScreen(t);
             if (vis && emgVisual != VisualAlertMode::Off) emgActive = true;
-            if (!t.emgFlashFired) {
-                t.emgFlashFired = true;
-                if (vis && emgVisual == VisualAlertMode::Flash && initialSyncDone) {
+            // the emergency tone fires even for a contact already squawking at
+            // boot, and even off-screen -- an active emergency is worth hearing
+            // about (unlike a flash, which is tied to something you can see)
+            if (!t.emgToneFired) {
+                t.emgToneFired = true;
+                PlayTone(4, 80, 100);
+            }
+            // THE FLASH WAITS UNTIL IT CAN BE SEEN -- the same rule as military,
+            // through the same helper. This used to spend the edge on first sight,
+            // so a 7700 first seen outside the circle burned its flash unseen and
+            // never flashed when it crossed in (AlertEdge.h).
+            if (alertedge::TakeVisibleEdge(t.emgFlashFired, vis)) {
+                if (emgVisual == VisualAlertMode::Flash && initialSyncDone) {
                     flashBurstUntilMs = now + FLASH_BURST_MS;
                     flashBurstColor = EMG_RED;
+                    Serial.printf("[alert] emg flash t=%lu\n", now);
                 }
-                // the emergency tone fires even for a contact already squawking at
-                // boot, and even off-screen -- an active emergency is worth hearing
-                // about (unlike a flash, which is tied to something you can see)
-                PlayTone(4, 80, 100);
             }
         }
 
@@ -4853,16 +4864,15 @@ void AircraftManager::UpdateVisualAlerts()
         if (SpecialAircraft::IsMilitary(t.state.icao24)) {
             // Gate on visibility, and mark the edge only once visible, so a jet that
             // first shows up in an off-screen corner still flashes when it crosses in.
-            if (onScreen(t)) {
-                if (milVisual != VisualAlertMode::Off) milActive = true;
-                if (!t.milFlashFired) {
-                    t.milFlashFired = true;
-                    // an in-progress emergency burst outranks a new military one
-                    const bool emgBurstActive = now < flashBurstUntilMs && flashBurstColor == EMG_RED;
-                    if (milVisual == VisualAlertMode::Flash && initialSyncDone && !emgBurstActive) {
-                        flashBurstUntilMs = now + FLASH_BURST_MS;
-                        flashBurstColor = MIL_ORANGE;
-                    }
+            const bool vis = onScreen(t);
+            if (vis && milVisual != VisualAlertMode::Off) milActive = true;
+            if (alertedge::TakeVisibleEdge(t.milFlashFired, vis)) {
+                // an in-progress emergency burst outranks a new military one
+                const bool emgBurstActive = now < flashBurstUntilMs && flashBurstColor == EMG_RED;
+                if (milVisual == VisualAlertMode::Flash && initialSyncDone && !emgBurstActive) {
+                    flashBurstUntilMs = now + FLASH_BURST_MS;
+                    flashBurstColor = MIL_ORANGE;
+                    Serial.printf("[alert] mil flash t=%lu\n", now);
                 }
             }
         }
@@ -5564,6 +5574,101 @@ void AircraftManager::HandleFollowTransition()
         Serial.printf("[follow] auto-surfaced on %s\n", follow::Headline(now));
     }
 }
+
+#ifdef ALERT_BENCH
+#ifdef FOLLOW_BENCH
+#error "ALERT_BENCH and FOLLOW_BENCH both read the serial console: build them separately"
+#endif
+// BENCH ONLY -- compiled into env:blipscope-s3-128-alertbench and nothing else.
+// scripts/check-no-bench-hooks.sh fails CI if the "[alert-bench]" marker below is
+// ever found in a shipping image.
+//
+// Injects ONE synthetic emergency contact, so "an alert is never consumed unseen"
+// can be exercised on the glass without waiting for a real 7700:
+//   f  force emergency visuals to Flash for this session (RAM only, no config write)
+//   o  inject a 7700 at 1.3 x the configured radius, bearing 090 (OUTSIDE the circle)
+//   i  move it to 0.5 x the configured radius (INSIDE)
+//   n  inject a fresh 7700 already inside (0.5 x)
+//   m  inject a military-range contact outside; i then moves it in (military parity)
+//   x  remove the bench contact
+// The hex is not hexadecimal, so no feed can ever produce or update it; its
+// lastSeen is refreshed every loop so the absence prune never evicts it.
+static const char* const ALERT_BENCH_HEX = "zzbench";
+
+void AircraftManager::PollAlertBench()
+{
+    static bool announced = false;
+    static String benchIcao;          // the injected contact's key ("" = none)
+    if (!announced) {
+        announced = true;
+        Serial.println("[alert-bench] keys: f=force Flash o=7700 outside i=move inside "
+                       "n=7700 inside m=military outside x=remove");
+    }
+    const unsigned long now = millis();
+    auto place = [&](float frac) -> Aircraft {
+        Aircraft ac{};
+        const float cosLat = std::max(0.01f, cosf(radians((float)lat)));
+        ac.latitude  = (float)lat;
+        ac.longitude = (float)lon + (float)(rangeKmCfg * frac) / (111.0f * cosLat);   // bearing 090
+        ac.baroAltitude = ac.geoAltitude = 3000.0f;
+        ac.onGround = false;
+        ac.velocity = 0.0f;
+        return ac;
+    };
+    auto inject = [&](const char* icao, const char* squawk, float frac, const char* what) {
+        trackedAircraft.erase(benchIcao);
+        Aircraft ac = place(frac);
+        ac.icao24 = icao;
+        ac.callsign = "BENCH";
+        ac.squawk = squawk;
+        benchIcao = icao;
+        TrackedAircraft t{ ac, now };
+        // A FAKE MUST NEVER LEAVE THE BOARD. Every outbound path is pre-marked as
+        // already sent, so the bench contact cannot push an ntfy alert to a real
+        // phone or fire a Home Assistant automation. (It bypasses the fetch merge,
+        // so it is never noted in the logbook either -- do not tap it: a card open
+        // would claim its type/operator.)
+        t.emgNotified = t.watchNotified = t.overheadNotified = true;
+        t.mqttEventFlags = 0xFF;
+        trackedAircraft.emplace(benchIcao, t);
+        Serial.printf("[alert-bench] t=%lu %s at %.1f x radius\n", now, what, (double)frac);
+    };
+    while (Serial.available()) {
+        const int ch = Serial.read();
+        if (ch == 'f') {
+            emgVisual = VisualAlertMode::Flash;
+            milVisual = VisualAlertMode::Flash;
+            Serial.printf("[alert-bench] t=%lu visuals forced to Flash (RAM only)\n", now);
+        } else if (ch == 'o') {
+            inject(ALERT_BENCH_HEX, "7700", 1.3f, "7700 injected OUTSIDE");
+        } else if (ch == 'n') {
+            inject(ALERT_BENCH_HEX, "7700", 0.5f, "7700 injected INSIDE");
+        } else if (ch == 'm') {
+            inject("ae7777", "1200", 1.3f, "military-range contact injected OUTSIDE");
+        } else if (ch == 'i' && !benchIcao.isEmpty()) {
+            auto it = trackedAircraft.find(benchIcao);
+            if (it != trackedAircraft.end()) {
+                Aircraft ac = it->second.state;
+                const Aircraft in = place(0.5f);
+                ac.latitude = in.latitude;
+                ac.longitude = in.longitude;
+                it->second.state = ac;                          // jump, no blend: the test is
+                it->second.blendFromLat = ac.latitude;          // about the edge, not the glide
+                it->second.blendFromLon = ac.longitude;
+                it->second.blendAlpha = 1.0f;
+                it->second.everPainted = false;                 // no latched paint position either
+                Serial.printf("[alert-bench] t=%lu moved INSIDE (0.5 x radius)\n", now);
+            }
+        } else if (ch == 'x' && !benchIcao.isEmpty()) {
+            trackedAircraft.erase(benchIcao);
+            Serial.printf("[alert-bench] t=%lu removed\n", now);
+            benchIcao = "";
+        }
+    }
+    auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
+    if (it != trackedAircraft.end()) it->second.lastSeen = now;   // never pruned as absent
+}
+#endif
 
 #ifdef FOLLOW_BENCH
 // Set a session follow from the bench, with a canned route.
