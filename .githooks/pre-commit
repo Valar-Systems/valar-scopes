@@ -23,13 +23,16 @@ set -u
 # refused a commit the CI check considered clean. Two guards on one rule is two
 # rules, and the second one is always the stale one.
 ALLOWFILE='scripts/device-id-allowlist.txt'
-ALLOW=$(sed 's/#.*//' "$ALLOWFILE" 2>/dev/null | tr -d ' 	' | grep -E '^[0-9a-f]{16}$' | paste -sd'|' -)
+ALLOW=$(sed 's/#.*//' "$ALLOWFILE" 2>/dev/null | tr -d ' 	\r' | grep -E '^[0-9a-f]{16}$' | paste -sd'|' -)
 [ -z "$ALLOW" ] && { echo "pre-commit: cannot read $ALLOWFILE -- refusing to run blind" >&2; exit 1; }
 PATTERN='\b[0-9a-f]{16}\b'
 found=0
 
 while IFS= read -r f; do
   [ -z "$f" ] || [ ! -e "$f" ] && continue
+  # CAD files: STEP coordinates (0.02189784694318916) match the id shape. Same
+  # skip list as scripts/check_device_ids.py.
+  case "$f" in *.step|*.stp|*.stl|*.3mf|*.f3d) continue ;; esac
   # Read the STAGED content, not the worktree: they differ under `git add -p`,
   # and the staged bytes are what the commit will contain.
   hits=$(git show ":$f" 2>/dev/null | grep -oE "$PATTERN" | grep -vE "^($ALLOW)$" | sort -u)

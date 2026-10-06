@@ -51,7 +51,10 @@ def allowed() -> set:
 # Binary and vendored paths carry hex that is not a device id and is not ours.
 SKIP_PREFIX = ("node_modules/", ".pio/", "dist/", "bench-logs/")
 SKIP_SUFFIX = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".bin", ".elf", ".zip",
-               ".woff", ".woff2", ".ttf", ".pdf", ".lock")
+               ".woff", ".woff2", ".ttf", ".pdf", ".lock",
+               # CAD: STEP coordinates like 0.02189784694318916 are 16 digits after
+               # a word boundary and match the id shape. Not ids, not ours to edit.
+               ".step", ".stp", ".stl", ".3mf", ".f3d")
 
 
 def tracked_files():
