@@ -78,6 +78,18 @@ jobs:
         if: matrix.worker == 'proxy'
         run: node scripts/embed-pages.mjs --check
 
+      # "Use my location" (docs/RELEASE-v15.md §5): no request the helper page makes
+      # carries the position, watched on the wire in headless Chrome. The selftest
+      # plants a beacon and an image leak (both must be caught with the CSP removed;
+      # the image must be blocked with it on) and removes the location override (the
+      # anchor must report BLIND, never pass). No Chrome = BLIND = red.
+      - name: The locate page sends no request carrying the position (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-locate-page.mjs --selftest
+      - name: The locate page sends no request carrying the position
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-locate-page.mjs
+
       # Same reasoning for the self-hosted webfonts: fonts/ and the generated
       # module must agree, or the page requests a font the Worker does not have
       # and silently falls back to system type on every visitor's browser.
