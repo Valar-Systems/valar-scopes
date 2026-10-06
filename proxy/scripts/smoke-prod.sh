@@ -720,8 +720,13 @@ contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
 # proxy/test/enroll.test.ts.
 CFG_SRC="$(git rev-parse --show-toplevel 2>/dev/null)/src/ConfigurationWebServer.cpp"
 if [ -r "$CFG_SRC" ]; then
-  ENROLL_PATHS="$(grep -oE 'scopes\.valarsystems\.com/[A-Za-z0-9/_.-]*' "$CFG_SRC" \
+  # Only the ENROL paths: the firmware also names /blipscope/locate (v15), a different
+  # page with its own check below -- sweeping it in here would demand the enrol page's
+  # marker from it and fail a correct deploy.
+  ALL_PATHS="$(grep -oE 'scopes\.valarsystems\.com/[A-Za-z0-9/_.-]*' "$CFG_SRC" \
                   | sed 's|^scopes\.valarsystems\.com||' | sort -u)"
+  ENROLL_PATHS="$(printf '%s\n' "$ALL_PATHS" | grep -E 'enroll' || true)"
+  LOCATE_PATHS="$(printf '%s\n' "$ALL_PATHS" | grep -E '/locate$' || true)"
   if [ -z "$ENROLL_PATHS" ]; then
     printf '\n===== enrol URLs found in firmware =====\n'
     printf 'expect at least one scopes.valarsystems.com/... in %s\n' "${CFG_SRC##*/}"
@@ -744,6 +749,33 @@ if [ -r "$CFG_SRC" ]; then
       printf 'RESULT: PASS\n'; pass=$((pass+1))
     else
       printf -- '--- first 400 bytes ---\n%.400s\n' "$body"
+      printf 'RESULT: FAIL\n'; fail=$((fail+1))
+    fi
+  done
+  # "Use my location" (v15 item 5): the helper the config page opens, fetched by the
+  # firmware's OWN string. 200, the page, and a CSP whose default-src is 'none' -- the
+  # header that keeps the position from leaving the browser in any subresource.
+  if [ -z "$LOCATE_PATHS" ]; then
+    printf '\n===== locate URL found in firmware =====\n'
+    printf 'expect scopes.valarsystems.com/blipscope/locate in %s\n' "${CFG_SRC##*/}"
+    printf 'got    none -- the button is gone, or this pattern stopped matching it\n'
+    printf 'RESULT: FAIL\n'; fail=$((fail+1))
+  fi
+  for p in $LOCATE_PATHS; do
+    hdrs="$(curl -s -D - -o /dev/null --max-time 25 "$BASE$p?o=http%3A%2F%2Fblipscope.local")"
+    body="$(curl -s --max-time 25 "$BASE$p?o=http%3A%2F%2Fblipscope.local")"
+    status="$(printf '%s' "$hdrs" | head -1 | grep -oE ' [0-9]{3}' | tr -d ' ')"
+    csp="$(printf '%s' "$hdrs" | grep -i '^content-security-policy:' | tr -d '\r')"
+    printf '\n===== firmware locate URL %s =====\n' "$p"
+    printf "expect HTTP 200, the locate page, and default-src 'none' in the CSP\n"
+    case "$body" in *"Use my location"*) marker=1 ;; *) marker=0 ;; esac
+    case "$csp" in *"default-src 'none'"*) cspok=1 ;; *) cspok=0 ;; esac
+    printf 'got    HTTP %s, page marker %s, CSP %s\n' "$status" \
+      "$([ "$marker" = 1 ] && echo present || echo MISSING)" "$([ "$cspok" = 1 ] && echo ok || echo MISSING)"
+    if [ "$status" = "200" ] && [ "$marker" = "1" ] && [ "$cspok" = "1" ]; then
+      printf 'RESULT: PASS\n'; pass=$((pass+1))
+    else
+      printf -- '--- CSP: %s\n' "$csp"
       printf 'RESULT: FAIL\n'; fail=$((fail+1))
     fi
   done

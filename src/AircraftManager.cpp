@@ -21,6 +21,7 @@
 
 #include "SpecialAircraft.h"
 #include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
+#include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
 #include "IcaoCountry.h"      // origin country from the ICAO address, for feeds that omit it
 #include "DeviceIdentity.h"
 #include "Layout.h"
@@ -604,8 +605,10 @@ EnrichResult* fetchCloudEnrich(HttpRequestManager& http, const EnrichRequest& re
     std::vector<std::pair<String, String>> params;
     if (!req.callsign.isEmpty()) params.push_back({ "cs", req.callsign });
     if (req.hasPos) {
-        params.push_back({ "lat", String(req.acLat, 4) });
-        params.push_back({ "lon", String(req.acLon, 4) });
+        // 2 dp on the wire (WireLocation.h): enrichment runs nearest-first, so these
+        // positions cluster around the device; the corridor test needs tens of km.
+        params.push_back({ "lat", wireloc::Center(req.acLat) });
+        params.push_back({ "lon", wireloc::Center(req.acLon) });
     }
     // Omitted rather than sent as 0 when unknown: the proxy falls back to the
     // legacy callsign-only key on absence, and a bogus 0 would claim "due north"
@@ -2576,8 +2579,8 @@ void AircraftManager::RunFetchTask()
             JsonDocument aptDoc;
             const HttpResult r = http.GetJson(
                 CloudFeed::AirportsUrl(req->cloudBase), aptDoc,
-                { { "lat", String(req->lat, 4) },
-                  { "lon", String(req->lon, 4) },
+                { { "lat", wireloc::Center(req->lat) },   // 2 dp on the wire (WireLocation.h)
+                  { "lon", wireloc::Center(req->lon) },
                   { "r", String((int)lround(req->rangeKm)) } },
                 CloudFeed::Headers(req->cloudKey));
             if (r.success && r.statusCode >= 200 && r.statusCode < 300 &&
@@ -2639,8 +2642,8 @@ void AircraftManager::RunFetchTask()
             static_assert(BLIPS_LIMIT <= (int)MAX_AIRCRAFT, "blips limit must fit the tracked cap");
             result = http.GetJson(
                 CloudFeed::BlipsUrl(req->cloudBase), doc,
-                { { "lat", String(req->lat, 4) },
-                  { "lon", String(req->lon, 4) },
+                { { "lat", wireloc::Center(req->lat) },   // 2 dp; same Worker tile (WireLocation.h)
+                  { "lon", wireloc::Center(req->lon) },
                   { "r", String((int)lround(req->rangeKm)) },
                   { "limit", String(BLIPS_LIMIT) } },
                 CloudFeed::Headers(req->cloudKey, req->otaMem, req->usage, req->bootReason));
@@ -2650,16 +2653,18 @@ void AircraftManager::RunFetchTask()
             std::vector<std::pair<String, String>> headers = {};
             if (!req->token.isEmpty()) headers.push_back({ "Authorization", "Bearer " + req->token });
 
+            // The box from the ROUNDED centre, widened one rounding step and rounded
+            // outward to 2 dp (WireLocation.h); the reply is clipped back to the TRUE
+            // box below, so the picture is what the 6-dp box used to return.
+            const wireloc::Box bx = wireloc::OpenSkyBox(req->lat, req->lon, req->radLat, req->radLon);
             result = http.GetJson(
                 "https://opensky-network.org/api/states/all",
                 doc,
                 {
-                  // 6 decimals (~0.1 m): String(double) defaults to only 2, which would
-                  // quantize small km/mi radii into a coarse ~1 km box or collapse it
-                  {"lamin", String(req->lat - req->radLat, 6)},
-                  {"lamax", String(req->lat + req->radLat, 6)},
-                  {"lomin", String(req->lon - req->radLon, 6)},
-                  {"lomax", String(req->lon + req->radLon, 6)},
+                  {"lamin", wireloc::Fmt2(bx.lamin)},
+                  {"lamax", wireloc::Fmt2(bx.lamax)},
+                  {"lomin", wireloc::Fmt2(bx.lomin)},
+                  {"lomax", wireloc::Fmt2(bx.lomax)},
                   // category (state vector index 17) is omitted from the default
                   // response; without extended=1 the array stops at index 16 and the
                   // Category info line is always blank
@@ -2719,14 +2724,20 @@ void AircraftManager::RunFetchTask()
                 Aircraft ac;
                 if (!JsonParser::ParseLocalAircraft(entry, ac))
                     continue;
-                if (ac.latitude  < req->lat - req->radLat || ac.latitude  > req->lat + req->radLat ||
-                    ac.longitude < req->lon - req->radLon || ac.longitude > req->lon + req->radLon)
+                if (!wireloc::InTrueBox(ac.latitude, ac.longitude, req->lat, req->lon, req->radLat, req->radLon))
                     continue;
                 res->aircraft.push_back(ac);
             }
             res->ok = true;
         } else {
             res->aircraft = JsonParser::ParseArray<Aircraft>(doc["states"]);
+            // The query box was widened by a rounding step (coarse on the wire); clip
+            // back to the TRUE box, the same clip the local feed uses above.
+            auto& v = res->aircraft;
+            v.erase(std::remove_if(v.begin(), v.end(), [&](const Aircraft& ac) {
+                        return !wireloc::InTrueBox(ac.latitude, ac.longitude, req->lat, req->lon,
+                                                   req->radLat, req->radLon);
+                    }), v.end());
             res->ok = true;
         }
 

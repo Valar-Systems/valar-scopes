@@ -36,8 +36,9 @@ namespace configmigration {
  *   3          spotting logbook default ON (v8)
  *   4          local-details "adsbdb" -> "cloud" (adsbdb left the stack)
  *   5          tz-offset "0" manufactured by the old config form -> auto (v11)
+ *   6          coordinates stored at 4 dp, not 6 (v15: precise on device, coarse on the wire)
  */
-constexpr int CONFIG_REV = 5;
+constexpr int CONFIG_REV = 6;
 
 /**
  * The firmware default for the spotting logbook.
@@ -181,6 +182,31 @@ inline bool NeedsTzOffsetAutoMigration(int storedRev, const char* storedTz,
     if (strcmp(storedTz, "0") != 0) return false;     // an explicit non-zero is a choice
     return derivedOffsetSec != 0;                     // agrees with location -> leave alone
 }
+
+/**
+ * Rewrite stored coordinates at 4 dp (v15).
+ *
+ * NOT A DEFAULT CHANGE -- A FORMAT CHANGE, and it has this file's shape anyway:
+ * CoordParse::Format now stores 4 dp, but that reaches only a value saved AFTER
+ * the update. Every configured device holds its location at 6 dp from an earlier
+ * save, and would keep it -- and keep computing from it -- until the owner saves
+ * again. The rule is that every on-device calculation uses the stored 4-dp value,
+ * so the stored value is rewritten once.
+ *
+ * WRITE, don't remove: absence means "no location" and blanks the radar. Values
+ * CoordParse cannot read are left exactly as they are, and nothing is printed but
+ * a count.
+ */
+constexpr bool NeedsCoordPrecisionMigration(int storedRev) { return storedRev < 6; }
+
+/** The keys that hold a coordinate, and whether each is a latitude. */
+struct CoordKey { const char* key; bool isLat; };
+constexpr CoordKey COORD_KEYS[] = {
+    { "latitude", true }, { "longitude", false },
+    { "loc0-lat", true }, { "loc0-lon", false },
+    { "loc1-lat", true }, { "loc1-lon", false },
+    { "loc2-lat", true }, { "loc2-lon", false },
+};
 
 /**
  * Run any pending migrations against the "config" namespace.

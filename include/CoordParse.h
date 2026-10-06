@@ -221,19 +221,39 @@ inline bool SplitPair(const String& raw, double& latOut, double& lonOut)
     return false;
 }
 
-// Canonical stored form: 6 dp is ~11 cm, far past anything a desk radar can use,
-// and trailing zeros are noise in a text box the customer reads back.
+// Canonical stored form: 4 dp (~11 m; anything finer is below phone GPS accuracy),
+// trailing zeros trimmed because they are noise in a text box the customer reads
+// back. PRECISE ON DEVICE, COARSE ON THE WIRE (v15): this is the precision every
+// on-device calculation uses -- radar projection, the overhead decision, airport
+// distances, Follow -- and it is the ONE place a stored coordinate is rounded, so
+// a typed, pasted or browser-supplied value all land identically. What leaves the
+// device is rounded again, to 2 dp, in WireLocation.h. Stored values written at
+// 6 dp by older firmware are rewritten once by ConfigMigration (rev 6).
 inline String Format(double v)
 {
     char buf[32];
-    snprintf(buf, sizeof(buf), "%.6f", v);
+    snprintf(buf, sizeof(buf), "%.4f", v);
     String s(buf);
     if (s.indexOf('.') >= 0) {
         while (s.endsWith("0")) s.remove(s.length() - 1);
         if (s.endsWith(".")) s.remove(s.length() - 1);
     }
-    if (s == "-0") s = "0"; // snprintf renders a tiny negative as "-0.000000"
+    if (s == "-0") s = "0"; // snprintf renders a tiny negative as "-0.0000"
     return s;
+}
+
+// The pair the browser's "Use my location" sends to POST /location. Both must parse
+// and the pair must not round to 0,0 -- the value every broken message degrades to
+// (Number(null), +"", an uninitialised struct), and open ocean for anyone real.
+inline bool ParseLocation(const String& rawLat, const String& rawLon, double& latOut, double& lonOut)
+{
+    double a = 0.0, b = 0.0;
+    if (rawLat.length() == 0 || rawLon.length() == 0) return false;
+    if (!Parse(rawLat, true, a) || !Parse(rawLon, false, b)) return false;
+    if (Format(a) == "0" && Format(b) == "0") return false;
+    latOut = a;
+    lonOut = b;
+    return true;
 }
 
 } // namespace CoordParse

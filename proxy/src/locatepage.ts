@@ -49,6 +49,11 @@ export function formatCoord(v: number): string {
 
 export const GPS_FALLBACK = "https://www.gps-coordinates.org/";
 
+/** How long the browser may take to find the position once permission is given (review,
+ *  2026-10-06: 10 s). Past it the page says so and offers the paste fallback; the settings
+ *  page saves nothing. */
+export const LOCATE_TIMEOUT_MS = 10000;
+
 /** The customer-facing sentences, one per case (spec §5). Exported so the tests assert
  *  the page carries them, rather than a copy typed into the test. */
 export const LOCATE_COPY = {
@@ -93,7 +98,7 @@ btn.addEventListener("click",function(){
     say(t,true);
     window.opener.postMessage({type:"blipscope-location-error",code:e?e.code:0,text:t},o);
     btn.disabled=false;
-  },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+  },{enableHighAccuracy:true,timeout:${LOCATE_TIMEOUT_MS},maximumAge:0});
 });
 })();`;
 

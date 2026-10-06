@@ -1,4 +1,5 @@
 #include "ConfigMigration.h"
+#include "CoordParse.h"
 #include "LocalOffset.h"
 
 #include <Arduino.h>
@@ -86,6 +87,24 @@ void configmigration::Apply()
             Serial.printf("[quiet] migrated tz-offset \"0\" -> auto (derived %+ld s)\n",
                           derived);
         }
+    }
+
+    if (NeedsCoordPrecisionMigration(stored)) {
+        // Rewritten through CoordParse -- the same parse and the same Format the
+        // save path uses -- so a migrated value is byte-identical to one saved
+        // fresh. Counts only: a coordinate is never printed.
+        int rewritten = 0;
+        for (const CoordKey& ck : COORD_KEYS) {
+            if (!prefs.isKey(ck.key)) continue;
+            const String raw = prefs.getString(ck.key, "");
+            if (raw.isEmpty()) continue;
+            double v = 0.0;
+            if (!CoordParse::Parse(raw, ck.isLat, v)) continue;   // unreadable: leave it
+            const String f = CoordParse::Format(v);
+            if (f != raw) { prefs.putString(ck.key, f); ++rewritten; }
+        }
+        Serial.printf("[cfg-migrate] rev %d -> %d: coordinates stored at 4 dp "
+                      "(%d key(s) rewritten)\n", stored, CONFIG_REV, rewritten);
     }
 
     prefs.putInt("cfg-rev", CONFIG_REV);
