@@ -1,19 +1,22 @@
 # v15 — the release list
 
-**Cut v15 only when items 1–5 below are all on `main` AND the print cards are done.** "On main"
-means `git ls-tree origin/main` shows the change, not that a PR is open or green (see CLAUDE.md,
-*a green signal is about process*). Nothing else rides v15: an item not on this list waits for v16.
+**SCOPE CHANGED 2026-10-06 (Daniel): v15 ships today with the items that are built and verified.**
+Items 1, 3 and 4 below were not built (3 and 4 had no written spec), and could not be built and
+verified in a day. They move to **v16** unchanged. The rule still holds for what remains: cut v15
+only when every item marked *ships* is on `main` (`git ls-tree origin/main`, not a green PR -- see
+CLAUDE.md, *a green signal is about process*).
 
-Order is priority, highest first.
-
-| # | item | spec | status |
-|---|---|---|---|
-| 1 | Touch-wedge reboot cap + "touch unavailable" | [v15-touch-wedge-cap.md](v15-touch-wedge-cap.md) | spec accepted; not built |
-| 2 | Follow flag in the usage report | this file, §2 | not built |
-| 3 | ntfy removal | not yet written in the repo | not built |
-| 4 | `nmi` → `NM` | not yet written in the repo | not built |
-| 5 | "Use my location" on the config page | this file, §5 | spec; not built |
-| — | Print cards | PR #340 | done — merged `e853f0a` |
+| # | item | spec | v15? | status |
+|---|---|---|---|---|
+| 1 | Touch-wedge reboot cap + "touch unavailable" | [v15-touch-wedge-cap.md](v15-touch-wedge-cap.md) | **moved to v16** | spec accepted; not built |
+| 2 | Follow flag in the usage report | this file, §2 | ships | on main (`d3fe2fa`) |
+| 3 | ntfy removal | not yet written in the repo | **moved to v16** | not built |
+| 4 | `nmi` → `NM` | not yet written in the repo | **moved to v16** | not built |
+| 5 | "Use my location" on the config page | this file, §5 | ships | Worker half merged (#371) and **deployed** (`/healthz` 996e8b2); firmware half in its own PR |
+| 6 | Setup screen is a Wi-Fi QR | PR #358 | ships | merged `d28ad1e`; both phones joined, sabotages A/B passed |
+| 7 | Emergency flash waits for visibility (one rule with military) | PR #359 | ships | merged `c889538`; E1/E2 + Ring run observed |
+| — | Card reset instruction checked against the firmware | PR #360 | ships | merged `28677b1` |
+| — | Print cards | PR #340 | ships | done -- merged `e853f0a` |
 
 ## 1. Touch-wedge reboot cap
 
