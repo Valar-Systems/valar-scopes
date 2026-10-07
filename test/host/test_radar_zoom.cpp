@@ -82,6 +82,13 @@ int main()
         check(Step(0, +1, one, e) == 0 && e == Edge::Min, "a one-step ladder: zoom-out says min");
     }
 
+    // THE SHIPPED VALUE. Z5 was measured on a 30 s test build; a release must not inherit
+    // it. The bench override cannot compile into a shipping env (#error without
+    // ALERT_BENCH); this pins the value every other build gets.
+    check(IDLE_RETURN_MS == 600000UL, "the shipped idle return is 600000 ms (10 min), not a test value");
+    check(IdleExpired(IDLE_RETURN_MS, 0, IDLE_RETURN_MS) && !IdleExpired(IDLE_RETURN_MS - 1, 0, IDLE_RETURN_MS),
+          "CONTROL: the shipped value is what IdleExpired is graded against");
+
     check(IdleExpired(30000, 0, 30000), "idle: exactly the timeout expires");
     check(!IdleExpired(29999, 0, 30000), "idle: a millisecond short does not");
     check(IdleExpired(0x00000FFFUL + 30000UL, 0xFFFFF000UL, 30000) , "idle: across the millis() wrap");

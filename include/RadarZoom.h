@@ -15,6 +15,13 @@
 // ladder, one step along it, and the idle test. AircraftManager owns the state.
 namespace radarzoom {
 
+// THE SHIPPED IDLE RETURN: back to the configured radius after 10 minutes with no
+// touch (the spec). Z5 was measured on a 30 s TEST build via -DRADAR_ZOOM_IDLE_MS, and
+// that override refuses to compile without ALERT_BENCH (AircraftManager.cpp), which
+// check-no-bench-hooks.sh keeps out of every shipping image. test_radar_zoom.cpp fails
+// if this is anything but 600000 ms. So a test value cannot ride into a release.
+constexpr uint32_t IDLE_RETURN_MS = 10UL * 60UL * 1000UL;
+
 constexpr int MAX_STEPS = 5;                         // 4 candidates + the configured radius
 constexpr float CANDIDATES[] = { 5.0f, 10.0f, 25.0f, 50.0f };   // in the user's radius unit
 

@@ -23,10 +23,18 @@
 #include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
 #include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
 
-// Swipe-to-zoom returns to the configured radius after this long with no touch.
-// 10 min (the spec). A test build passes -DRADAR_ZOOM_IDLE_MS=30000 for Z5.
-#ifndef RADAR_ZOOM_IDLE_MS
-#define RADAR_ZOOM_IDLE_MS 600000UL
+// Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
+// (10 min, RadarZoom.h) with no touch. RADAR_ZOOM_IDLE_MS is a BENCH-ONLY override --
+// Z5 ran at 30 s with it -- and it refuses to compile without ALERT_BENCH, which
+// check-no-bench-hooks.sh keeps out of every shipping image. A test value cannot
+// ride into a release by an ini line or a PLATFORMIO_BUILD_FLAGS left set.
+#ifdef RADAR_ZOOM_IDLE_MS
+#ifndef ALERT_BENCH
+#error "RADAR_ZOOM_IDLE_MS is a bench-only override (ALERT_BENCH); shipping builds use radarzoom::IDLE_RETURN_MS"
+#endif
+static constexpr uint32_t ZOOM_IDLE_MS = RADAR_ZOOM_IDLE_MS;
+#else
+static constexpr uint32_t ZOOM_IDLE_MS = radarzoom::IDLE_RETURN_MS;
 #endif
 
 // How far below the top of the outer ring its distance label sits (clear of the
@@ -1576,12 +1584,12 @@ void AircraftManager::Update()
         ExitDetail();
     }
 
-    // ZOOM GOES HOME ON ITS OWN after RADAR_ZOOM_IDLE_MS with no touch anywhere.
+    // ZOOM GOES HOME ON ITS OWN after ZOOM_IDLE_MS (10 min) with no touch anywhere.
     // The SAME clock as the card idle-close above (lastTouchActivityMs, stamped on
     // every touched sample, holds included) -- a second clock would be a second
     // rule free to disagree with this one.
     if (zoomIdx < zoomLadder.Top() &&
-        radarzoom::IdleExpired(now, lastTouchActivityMs, RADAR_ZOOM_IDLE_MS))
+        radarzoom::IdleExpired(now, lastTouchActivityMs, ZOOM_IDLE_MS))
         ApplyZoom(zoomLadder.Top(), radarzoom::Edge::None, "idle");
 
     // While the detail card is open the radar isn't visible and the user is
