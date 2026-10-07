@@ -1,4 +1,7 @@
 #include "TouchWatchdog.h"
+#ifdef TOUCH_WEDGE_BENCH
+#include "TouchBench.h"   // bench only: a chip that never answers (check-no-bench-hooks.sh)
+#endif
 
 #if defined(BLIPSCOPE_TOUCH_CST816)
 
@@ -101,6 +104,9 @@ namespace {
     // the whole signal. Same lgfx::i2c owner as the touch driver, per convention.
     bool Probe()
     {
+#ifdef TOUCH_WEDGE_BENCH
+        if (touchbench::Dead()) { stats.probesFailed++; return false; }   // the simulated dead chip
+#endif
         const auto r = lgfx::i2c::readRegister8(BLIPSCOPE_TOUCH_I2C_PORT,
                                                 BLIPSCOPE_TOUCH_I2C_ADDR,
                                                 0xA7, BLIPSCOPE_TOUCH_FREQ);

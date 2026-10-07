@@ -63,7 +63,7 @@ void NoteOtaAttempt(int fwTo, uint32_t preLargest)
     // this rides the existing 6-field report and needs no Worker arity change,
     // and "_" survives the Worker's [^\w.-] sanitiser and its 16-char cap.
     String rst = ResetReasonName();
-    if (ConsumeDeferredRebootCause() == REBOOT_CAUSE_NET_WEDGE) rst += "_NETWD";
+    rst += rebootcause::Suffix(ConsumeDeferredRebootCause());   // _NETWD, _TOUCHWD (RebootCause.h)
     p.putString("rst", rst);
     p.end();
 }
@@ -208,6 +208,17 @@ uint8_t ConsumeDeferredRebootCause()
         p.putUChar("cause", 0);
     p.end();
     return cached;
+}
+
+void StampRebootCause(uint8_t cause)
+{
+    Preferences p;
+    if (!p.begin(OTA_BOOT_NS, false)) {
+        Serial.printf("[ota] reboot cause %u not stamped: NVS unavailable\n", (unsigned)cause);
+        return;   // the reboot still happens; it is only reported as a plain SW
+    }
+    p.putUChar("cause", cause);
+    p.end();
 }
 
 bool DeferUpdateCheckToReboot(uint32_t largestBlock)
@@ -484,7 +495,7 @@ String TakeBootReasonReport()
         // Composed ONCE and cached, which is load-bearing: this read CLEARS the
         // NVS cause, so a retry that recomposed would get a bare "SW" and
         // silently drop the _NETWD that is the whole point of the field.
-        if (ConsumeDeferredRebootCause() == REBOOT_CAUSE_NET_WEDGE) g_bootValue += "_NETWD";
+        g_bootValue += rebootcause::Suffix(ConsumeDeferredRebootCause());   // one map (RebootCause.h)
     }
     return g_bootValue;
 }

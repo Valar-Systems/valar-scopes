@@ -28,6 +28,7 @@
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
+#include "TouchWedgePolicy.h" // the touch-wedge reboot cap: constants, decisions, rung order (pure)
 
 class AircraftManager
 {
@@ -151,6 +152,16 @@ private:
     // Follow's dwell was wrong on the swipe path.
     bool bootLandingDone = false;
     bool tookScreenForSetup = false;
+
+    // TOUCH-WEDGE REBOOT CAP (TouchWedgePolicy.h; s3-128 only, variant::TOUCH_WATCHDOG).
+    // `run` persists in NVS namespace touch-wd; the rest is this boot's.
+    touchwedge::State touchWedge;
+    uint8_t touchWedgeStored = 0;        // what NVS holds, so a write happens only on change
+    bool touchWedgeSeenThisBoot = false; // the rung's condition held at least once this boot
+    bool touchWedgeBooted = false;       // the boot read happens once, not on every Initialise
+    void BootTouchWedge();
+    void StoreTouchRun(uint8_t run, const char* why);
+    void DrawTouchUnavailable(BandCanvas& backbuffer) const;
 
     // Stats-screen "Reset" row -- the entry point to the reset menu below. Its
     // drawn bounds are recorded each frame rather than computed twice, because
@@ -432,6 +443,7 @@ private:
 #endif
 #ifdef ALERT_BENCH
     void PollAlertBench();   // bench-only synthetic emergency contact (AircraftManager.cpp)
+    void PollTouchBench();   // bench-only dead-chip switch (TOUCH_WEDGE_BENCH)
 #endif
     unsigned long lastNotifyCheck = 0;
 
