@@ -443,7 +443,9 @@ private:
 #endif
 #ifdef ALERT_BENCH
     void PollAlertBench();   // bench-only synthetic emergency contact (AircraftManager.cpp)
-    void PollTouchBench();   // bench-only dead-chip switch (TOUCH_WEDGE_BENCH)
+#endif
+#ifdef TOUCH_WEDGE_BENCH
+    void PollTouchBench();   // bench-only dead-chip switch (TouchBench.h)
 #endif
     unsigned long lastNotifyCheck = 0;
 

@@ -4792,6 +4792,16 @@ void AircraftManager::PollTouchBench()
                       "(idle %lus, healthy %lus)\n", touchbench::Dead() ? "DEAD" : "alive",
                       (unsigned long)(TOUCH_REBOOT_IDLE_MS / 1000UL), (unsigned long)(TOUCH_HEALTHY_MS / 1000UL));
     }
+    // The boot summary again at 30 s: the bench capture reattaches only once a rebooted
+    // board is past its boot window (a reopen inside it resets the chip, rst:0x15), so it
+    // misses the boot line; this repeats what that line said.
+    static bool summarised = false;
+    if (!summarised && millis() >= 30000UL) {
+        summarised = true;
+        Serial.printf("[touch-bench] t=%lu boot summary: reset=%s run=%u stored=%u unavailable=%d chip=%s\n",
+                      millis(), ResetReasonName(), (unsigned)touchWedge.run, (unsigned)touchWedgeStored,
+                      (int)touchWedge.unavailable, touchbench::Dead() ? "DEAD" : "alive");
+    }
     while (Serial.available()) {
         const int ch = Serial.read();
         if (ch == 'w') {
