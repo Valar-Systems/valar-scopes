@@ -51,6 +51,14 @@ int main()
         check(OnRung(s4).action == Action::EnterUnavailable && OnRung(s4).newRun == 3,
               "at the cap the rung gives up on touch instead of rebooting");
         check(!AtBoot(2, false).unavailable, "CONTROL: run 2 is not yet unavailable");
+
+        // The cap is checked twice: at boot (above) and at the rung. Each alone stops a 4th
+        // reboot, so a sabotage of ONE is invisible on the bench -- this pins the rung's own.
+        State unclassified; unclassified.run = CAP;   // the boot did NOT mark it unavailable
+        check(OnRung(unclassified).action == Action::EnterUnavailable,
+              "the rung refuses at the cap even when the boot did not classify it");
+        State below; below.run = CAP - 1;
+        check(OnRung(below).action == Action::Reboot, "CONTROL: one below the cap still reboots");
     }
 
     // ---- reset 2: a power cycle starts clean; a soft reset keeps the cap -----------
