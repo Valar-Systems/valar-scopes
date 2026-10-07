@@ -27,6 +27,7 @@
 #include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 #include "OverlapCount.h" // what collides with what on the radar (pure)
+#include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 
 class AircraftManager
 {
@@ -53,6 +54,22 @@ private:
     double radLon = 0.2; // longitude half-span of the scan box, in degrees
     double rangeRadiusDisplay = 0.0; // outer ring distance in the user's unit, for range labels
     String rangeUnit = "km";
+    // SWIPE-TO-ZOOM (include/RadarZoom.h) -- a VIEW scale over the box above.
+    // radLat/radLon/rangeRadiusDisplay stay the CONFIGURED box: the fetch reads
+    // them, and so do the screen-level alerts, so zoom cannot change what is
+    // fetched or which alert fires. The projection, the ring labels, the airport
+    // cull and the tap hit-test read these instead. At the top of the ladder they
+    // EQUAL the configured box exactly (the factor is 1.0, not step/top), so the
+    // default view is pixel-identical to a build without zoom. RAM only: reset on
+    // boot, on every config save (Initialise), and after RADAR_ZOOM_IDLE_MS with
+    // no touch.
+    double viewRadLat = 0.2;
+    double viewRadLon = 0.2;
+    double viewRadiusDisplay = 0.0;
+    radarzoom::Ladder zoomLadder;
+    int zoomIdx = 0;
+    unsigned long zoomOverlayUntilMs = 0;
+    String zoomOverlayText;
     std::map<String, TrackedAircraft> trackedAircraft;
 
     // Window-up rotation: the compass bearing drawn at the TOP of the screen
@@ -840,6 +857,17 @@ private:
     // drawn under the aircraft layer so blips always win the ink.
     void DrawAirports(BandCanvas& backbuffer) const;
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
+    // The projection with the scale passed in. ProjectCoordinateToScreen is this at
+    // the VIEW radius; the screen-level alerts call it at the CONFIGURED radius.
+    std::pair<int, int> ProjectAt(float predLat, float predLon, double rLat, double rLon) const;
+    // Zoomed in AND outside the view circle. One predicate for the draw cull and the
+    // tap hit-test, so what can be tapped is exactly what is drawn.
+    bool ZoomCulled(int x, int y) const;
+    // One step along the ladder (dir -1 in, +1 out) -- the swipe and the bench key
+    // both come through here -- and the move itself, which shows the radius 1.5 s.
+    void StepZoom(int dir, const char* why);
+    void ApplyZoom(int idx, radarzoom::Edge edge, const char* why);
+    void DrawZoomOverlay(BandCanvas& backbuffer) const;
 
     // Step the sweep beam one frame and, while paint-and-fade is active, paint
     // every contact the beam crossed this frame (latch position + reset fade).
