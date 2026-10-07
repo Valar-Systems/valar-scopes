@@ -22,6 +22,25 @@
 #include "SpecialAircraft.h"
 #include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
 #include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
+
+// Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
+// (10 min, RadarZoom.h) with no touch. RADAR_ZOOM_IDLE_MS is a BENCH-ONLY override --
+// Z5 ran at 30 s with it -- and it refuses to compile without ALERT_BENCH, which
+// check-no-bench-hooks.sh keeps out of every shipping image. A test value cannot
+// ride into a release by an ini line or a PLATFORMIO_BUILD_FLAGS left set.
+#ifdef RADAR_ZOOM_IDLE_MS
+#ifndef ALERT_BENCH
+#error "RADAR_ZOOM_IDLE_MS is a bench-only override (ALERT_BENCH); shipping builds use radarzoom::IDLE_RETURN_MS"
+#endif
+static constexpr uint32_t ZOOM_IDLE_MS = RADAR_ZOOM_IDLE_MS;
+#else
+static constexpr uint32_t ZOOM_IDLE_MS = radarzoom::IDLE_RETURN_MS;
+#endif
+
+// How far below the top of the outer ring its distance label sits (clear of the
+// bezel and the N). The ZOOM tag mirrors that label across the centre line, so both
+// read this one value -- two copies of a layout number drift apart.
+static constexpr int RING_LABEL_OUTER_INSET = 14;
 #include "IcaoCountry.h"      // origin country from the ICAO address, for feeds that omit it
 #include "DeviceIdentity.h"
 #include "Layout.h"
@@ -805,6 +824,12 @@ void AircraftManager::Initialise()
     rangeRadiusDisplay = units::FromKm(rangeRadiusDisplay, cfgUnit);
     rangeUnit = cfgUnit;
 
+    // ZOOM RESETS HERE, on boot and on every config save: the ladder is built from
+    // the radius the rings will actually show (the clamped one), so its top IS the
+    // default view, and a radius change on the config page lands on the new default.
+    zoomLadder = radarzoom::BuildLadder((float)rangeRadiusDisplay);
+    ApplyZoom(zoomLadder.Top(), radarzoom::Edge::None, "reset");
+
     // configuration
     const String renderText = configServer.GetStoredString("infotext");
     const String renderTris = configServer.GetStoredString("triangle");
@@ -1558,6 +1583,14 @@ void AircraftManager::Update()
         Serial.println("[card] idle 3 min; auto-closing detail card");
         ExitDetail();
     }
+
+    // ZOOM GOES HOME ON ITS OWN after ZOOM_IDLE_MS (10 min) with no touch anywhere.
+    // The SAME clock as the card idle-close above (lastTouchActivityMs, stamped on
+    // every touched sample, holds included) -- a second clock would be a second
+    // rule free to disagree with this one.
+    if (zoomIdx < zoomLadder.Top() &&
+        radarzoom::IdleExpired(now, lastTouchActivityMs, ZOOM_IDLE_MS))
+        ApplyZoom(zoomLadder.Top(), radarzoom::Edge::None, "idle");
 
     // While the detail card is open the radar isn't visible and the user is
     // interacting, so skip the radar's background network work below (metadata
@@ -3240,7 +3273,10 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
             // at solar night with an empty sky, the radar face becomes a clock
             // (opt-in) -- the device stays useful instead of showing a dead scope
             else if (NightClockActive()) DrawNightClock(backbuffer);
-            else                         DrawRadar(backbuffer, firstPass);
+            else {
+                DrawRadar(backbuffer, firstPass);
+                DrawZoomOverlay(backbuffer);   // "10 mi" for 1.5 s after a zoom step
+            }
             break;
     }
     DrawScreenIndicator(backbuffer);
@@ -3434,6 +3470,10 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 
         auto [predLat, predLon] = RadarBlipPosition(tracked);
         auto [x, y] = ProjectCoordinateToScreen(predLat, predLon);
+        // Zoomed in, a contact outside the view circle is not drawn (the default
+        // view culls nothing, as before zoom). The tap hit-test uses the same
+        // predicate, so nothing undrawn can be tapped.
+        if (ZoomCulled(x, y)) continue;
 
         // The whole contact -- marker, trail, label -- fades together as its
         // radar return ages, so a dim blip doesn't sit under a bright trail/label.
@@ -4504,11 +4544,11 @@ void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
     backbuffer.setTextColor(lgfx::color888(0, 110, 0));
     const int ringPx[3] = { OUTER, (OUTER / 3) * 2, OUTER / 3 };
     const float ringFrac[3] = { 1.0f, 2.0f / 3.0f, 1.0f / 3.0f };
-    const int inset[3] = { 14, 3, 3 }; // push the outer label down off the bezel/N
+    const int inset[3] = { RING_LABEL_OUTER_INSET, 3, 3 }; // push the outer label down off the bezel/N
     for (int i = 0; i < 3; ++i) {
         // rangeRadiusDisplay is ALREADY in display units (converted at setup),
         // so this formats the number without re-converting.
-        const float value = rangeRadiusDisplay * ringFrac[i];
+        const float value = viewRadiusDisplay * ringFrac[i];   // the VIEW radius (zoom)
         String label = String(value, value < 10.0f ? 1 : 0);
         if (i == 0) label += rangeUnit; // unit on the outer ring only
         backbuffer.drawString(label, CENTRE + 4, CENTRE - ringPx[i] + inset[i]);
@@ -4540,8 +4580,8 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
 
     // Cull + draw one entry; shared between the two sources below.
     const auto draw = [&](float apLat, float apLon, const char* code) {
-        if (fabsf(apLat - (float)lat) > (float)radLat ||
-            fabsf(apLon - (float)lon) > (float)radLon)
+        if (fabsf(apLat - (float)lat) > (float)viewRadLat ||   // the VIEW box (zoom)
+            fabsf(apLon - (float)lon) > (float)viewRadLon)
             return;
         auto [x, y] = ProjectCoordinateToScreen(apLat, apLon);
         backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
@@ -4556,7 +4596,7 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
     // busy-GA area can hide the strips entirely and keep just the fields with
     // scheduled service.
     if (!cloudAirports.empty()) {
-        const bool wide = radLat > 0.55f; // ~60 km of half-box in degrees
+        const bool wide = viewRadLat > 0.55f; // ~60 km of half-box in degrees; zooming in reveals strips
         for (const CloudFeed::CloudAirport& ap : cloudAirports) {
             if (airportsMin == AirportsMin::LargeOnly && ap.kind != 'L')
                 continue;
@@ -4578,11 +4618,16 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
 
 std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, float predLon) const
 {
+    return ProjectAt(predLat, predLon, viewRadLat, viewRadLon);   // the VIEW radius (zoom)
+}
+
+std::pair<int, int> AircraftManager::ProjectAt(float predLat, float predLon, double rLat, double rLon) const
+{
     const float dLon = predLon - lon;
     const float dLat = predLat - lat;
 
-    const float normLon = (dLon + radLon) / (2.0f * radLon);
-    const float normLat = (dLat + radLat) / (2.0f * radLat);
+    const float normLon = (dLon + rLon) / (2.0f * rLon);
+    const float normLat = (dLat + rLat) / (2.0f * rLat);
 
     float x = normLon * SCREEN_SIZE;
     float y = SCREEN_SIZE - (normLat * SCREEN_SIZE);
@@ -4600,6 +4645,84 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
     }
 
     return { static_cast<int>(x), static_cast<int>(y) };
+}
+
+bool AircraftManager::ZoomCulled(int x, int y) const
+{
+    if (zoomIdx >= zoomLadder.Top())
+        return false;                                  // the default view culls nothing, as before zoom
+    constexpr int64_t C = SCREEN_SIZE_DIV_2 - 1, R = SCREEN_SIZE_DIV_2 - 1;
+    const int64_t dx = (int64_t)x - C, dy = (int64_t)y - C;   // 64-bit: a far ghost at 5 mi is huge
+    return dx * dx + dy * dy > R * R;
+}
+
+void AircraftManager::StepZoom(int dir, const char* why)
+{
+    radarzoom::Edge edge;
+    const int idx = radarzoom::Step(zoomIdx, dir, zoomLadder, edge);
+    ApplyZoom(idx, edge, why);
+}
+
+void AircraftManager::ApplyZoom(int idx, radarzoom::Edge edge, const char* why)
+{
+    if (zoomLadder.n == 0)
+        zoomLadder = radarzoom::BuildLadder((float)rangeRadiusDisplay);
+    zoomIdx = std::max(0, std::min(idx, zoomLadder.Top()));
+    // EXACTLY 1.0 at the top, not step/top: the default view must be the configured
+    // box bit for bit, whatever rounding the ladder's top went through.
+    const double top = zoomLadder.step[zoomLadder.Top()];
+    const double f = (zoomIdx == zoomLadder.Top() || top <= 0.0) ? 1.0 : zoomLadder.step[zoomIdx] / top;
+    viewRadLat = radLat * f;
+    viewRadLon = radLon * f;
+    viewRadiusDisplay = rangeRadiusDisplay * f;
+    const String value = String((long)lround(zoomLadder.step[zoomIdx])) + " " + rangeUnit;
+    // Boot and a config save reset silently; every other change shows the radius.
+    if (strcmp(why, "reset") != 0) {
+        zoomOverlayText = value;
+        if (edge == radarzoom::Edge::Max) zoomOverlayText += " max";
+        if (edge == radarzoom::Edge::Min) zoomOverlayText += " min";
+        zoomOverlayUntilMs = millis() + 1500UL;
+    }
+    Serial.printf("[zoom] %s -> %s (step %d of %d)%s\n", why, value.c_str(), zoomIdx + 1, zoomLadder.n,
+                  edge == radarzoom::Edge::Max ? " at max" :
+                  edge == radarzoom::Edge::Min ? " at min" : "");
+}
+
+void AircraftManager::DrawZoomOverlay(BandCanvas& backbuffer) const
+{
+    // THE ZOOM TAG, for as long as the view is not the default (Daniel, 2026-10-07).
+    // A zoomed radar must never be mistaken for the configured one: an empty 5-mi
+    // sky reads as "nothing flying". Styled like the radius pill below -- white on
+    // black, ring-green outline -- so it reads as the radar's chrome, not traffic:
+    // amber and orange are taken (watchlist, military, the Follow track). Mirrored
+    // across the centre line from the outer ring label, so the top reads
+    // "ZOOM | 5.0mi".
+    if (zoomIdx < zoomLadder.Top()) {
+        constexpr int C = SCREEN_SIZE_DIV_2 - 1;
+        static const char* const TAG = "ZOOM";
+        backbuffer.setTextSize(1);
+        const int tw = (int)backbuffer.textWidth(TAG);
+        const int th = (int)backbuffer.fontHeight();
+        const int x = C - 4 - tw - 3;                          // the ring label starts at C + 4
+        const int y = C - (SCREEN_SIZE_DIV_2 - 1) + RING_LABEL_OUTER_INSET;
+        backbuffer.fillRoundRect(x - 3, y - 2, tw + 6, th + 3, 3, lgfx::color888(0, 0, 0));
+        backbuffer.drawRoundRect(x - 3, y - 2, tw + 6, th + 3, 3, lgfx::color888(0, 200, 0));
+        backbuffer.setTextColor(lgfx::color888(255, 255, 255));
+        backbuffer.drawString(TAG, x, y);
+    }
+    if (zoomOverlayText.isEmpty() || (long)(millis() - zoomOverlayUntilMs) >= 0)
+        return;
+    // The 5x7 font at size 2: digits and "mi"/"km" have no c/o lookalike hazard.
+    backbuffer.setTextSize(2);
+    const int tw = (int)backbuffer.textWidth(zoomOverlayText);
+    const int th = (int)backbuffer.fontHeight();
+    constexpr int C = SCREEN_SIZE_DIV_2 - 1;
+    const int x = C - tw / 2, y = C - th / 2;
+    backbuffer.fillRoundRect(x - 8, y - 5, tw + 16, th + 10, 5, lgfx::color888(0, 0, 0));
+    backbuffer.drawRect(x - 8, y - 5, tw + 16, th + 10, lgfx::color888(0, 200, 0));
+    backbuffer.setTextColor(lgfx::color888(255, 255, 255));
+    backbuffer.drawString(zoomOverlayText, x, y);
+    backbuffer.setTextSize(1);
 }
 
 // Scratch size for the per-field arrays. AIRCRAFT_INFO_FIELD_COUNT is
@@ -4826,9 +4949,15 @@ void AircraftManager::UpdateVisualAlerts()
     // ring keeps pulsing at an aircraft that has already left the picture.
     constexpr int SCR_C = SCREEN_SIZE_DIV_2 - 1;
     constexpr int SCR_OUTER = SCREEN_SIZE_DIV_2 - 1;
+    // ON THE CONFIGURED CIRCLE, NOT THE ZOOMED VIEW. The flash and the ring are
+    // screen-level (they do not draw at the aircraft), so "visible" means inside
+    // the radar the owner configured. Projecting at the view radius here would let
+    // a zoom-in spend an emergency's one flash on a contact 30 mi out, unseen, and
+    // never flash it on zoom-out -- the rule is that an alert is never consumed
+    // unseen, and zoom must not change which alerts fire or when.
     auto onScreen = [&](const TrackedAircraft& t) {
         auto [la, lo] = RadarBlipPosition(t);
-        auto [x, y] = ProjectCoordinateToScreen(la, lo);
+        auto [x, y] = ProjectAt(la, lo, radLat, radLon);
         const int dx = x - SCR_C, dy = y - SCR_C;
         return dx * dx + dy * dy <= SCR_OUTER * SCR_OUTER;
     };
@@ -5151,7 +5280,7 @@ void AircraftManager::ReportPerf()
                   "enrichOk=%lu enrichEmpty=%lu enrichNonIcao=%lu/%lu enrichCached=%lu "
                   "labelOverlaps=%lu labelOverlapsMax=%lu "
                   "labelOverlapPx=%lu labelOverlapPxMax=%lu "
-                  "labelAreaPx=%lu labelRectDrop=%lu\n",
+                  "labelAreaPx=%lu labelRectDrop=%lu view=%ld%s\n",
                   stamp,
                   (unsigned long)perf.polls,
                   busyMs * 100UL / windowMs,
@@ -5185,7 +5314,9 @@ void AircraftManager::ReportPerf()
                   // guarantees it is. Silence is not a reading -- a field that
                   // only appears when something is wrong is a field nobody
                   // learns to look for.
-                  (unsigned long)perf.labelRectDropped);
+                  (unsigned long)perf.labelRectDropped,
+                  // zoomed frames draw fewer, larger labels: say which view this was
+                  (long)lround(viewRadiusDisplay), rangeUnit.c_str());
 
     perf = PerfWindow{}; // windows are independent; a running total hides the episode
 }
@@ -5613,7 +5744,8 @@ void AircraftManager::PollAlertBench()
     if (!announced) {
         announced = true;
         Serial.println("[alert-bench] keys: f=force Flash o=7700 outside i=move inside "
-                       "n=7700 inside m=military outside x=remove");
+                       "n=7700 inside m=military outside x=remove +=zoom in -=zoom out "
+                       "k=touch stamp");
     }
     const unsigned long now = millis();
     auto place = [&](float frac) -> Aircraft {
@@ -5674,6 +5806,15 @@ void AircraftManager::PollAlertBench()
             trackedAircraft.erase(benchIcao);
             Serial.printf("[alert-bench] t=%lu removed\n", now);
             benchIcao = "";
+        } else if (ch == '+' || ch == '-') {
+            // The swipe's own path (StepZoom), from a key, so zoom can be driven on
+            // the bench without a finger on the glass.
+            Serial.printf("[alert-bench] t=%lu zoom %s\n", now, ch == '+' ? "in" : "out");
+            StepZoom(ch == '+' ? -1 : +1, ch == '+' ? "bench in" : "bench out");
+        } else if (ch == 'k') {
+            // Exactly what a touched sample does to the idle clock (HandleTouch).
+            lastTouchActivityMs = millis();
+            Serial.printf("[alert-bench] t=%lu touch stamped\n", now);
         }
     }
     auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
@@ -8732,6 +8873,7 @@ void AircraftManager::HandleTap(int tx, int ty)
             // position -- otherwise taps miss a blip paused mid-sweep waiting for the next pass
             auto [la, lo] = RadarBlipPosition(tracked);
             auto [x, y] = ProjectCoordinateToScreen(la, lo);
+            if (ZoomCulled(x, y)) continue;   // not drawn when zoomed in, so not tappable
             // A contact projected well off the face isn't drawn, so it can't be
             // tapped. This also keeps the dist2 math below from overflowing on a
             // far-extrapolated ghost during a long stale period (a huge dx makes
@@ -8930,6 +9072,16 @@ void AircraftManager::HandleSwipe(Swipe swipe)
     // auto-surfaced Follow dwell (§13.3). Snapping back to Follow a few seconds
     // after someone deliberately swiped away from it is the device arguing.
     followAutoUntilMs = 0;
+
+    // SWIPE-TO-ZOOM, on the Radar only: up zooms in a step, down zooms out. It sits
+    // after every branch that owns a vertical swipe -- the detail card (pin/follow),
+    // the follow face, List (scroll) and the reset menu (any swipe closes it) -- so
+    // none of those meanings change, and a swipe that closes the menu never zooms.
+    if (screen == Screen::Radar && (swipe == Swipe::Up || swipe == Swipe::Down)) {
+        StepZoom(swipe == Swipe::Up ? -1 : +1, swipe == Swipe::Up ? "swipe up" : "swipe down");
+        return;
+    }
+
     if (swipe == Swipe::Left)  AdvanceScreen(+1);
     if (swipe == Swipe::Right) AdvanceScreen(-1);
 }

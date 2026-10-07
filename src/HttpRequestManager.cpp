@@ -233,11 +233,48 @@ String HttpRequestManager::ReadBodyYielding(HTTPClient& http)
     return out;
 }
 
+#ifdef ALERT_BENCH
+// Z2 (swipe-to-zoom, bench only): the FETCH must not change with zoom. One line per
+// feed request -- the query with every coordinate VALUE masked, and whether the whole
+// URL, coordinates included, is byte-identical to the previous feed request. No
+// coordinate is ever printed. Compiled into no shipping env (check-no-bench-hooks.sh
+// greps the shipping images for the [alert-bench] marker this line carries).
+static void BenchFetchLine(const String& fullUrl)
+{
+    if (fullUrl.indexOf("/blips?") < 0 && fullUrl.indexOf("opensky-network.org") < 0)
+        return;
+    static String last;
+    const int q = fullUrl.indexOf('?');
+    const String path = q >= 0 ? fullUrl.substring(0, q) : fullUrl;
+    const String query = q >= 0 ? fullUrl.substring(q + 1) : String();
+    String masked;
+    int start = 0;
+    while (start < (int)query.length()) {
+        int amp = query.indexOf('&', start);
+        if (amp < 0) amp = query.length();
+        const String kv = query.substring(start, amp);
+        const int eq = kv.indexOf('=');
+        const String k = eq >= 0 ? kv.substring(0, eq) : kv;
+        const bool coord = k == "lat" || k == "lon" || k == "lamin" || k == "lamax" || k == "lomin" || k == "lomax";
+        if (masked.length()) masked += "&";
+        masked += coord ? k + "=*" : kv;
+        start = amp + 1;
+    }
+    Serial.printf("[alert-bench] fetch %s?%s same_as_previous=%d\n",
+                  path.substring(path.lastIndexOf('/')).c_str(), masked.c_str(),
+                  last.length() ? (int)(fullUrl == last) : -1);
+    last = fullUrl;
+}
+#endif
+
 HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pair<String, String>>& params, const std::vector<std::pair<String, String>>& headers) {
     HttpResult result{ false, 0, "", "" };
 
     const String queryParams = BuildQueryString(params);
     const String fullUrl = url + queryParams;
+#ifdef ALERT_BENCH
+    BenchFetchLine(fullUrl);
+#endif
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
@@ -308,6 +345,9 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     HttpResult result{ false, 0, "", "" };
 
     const String fullUrl = url + BuildQueryString(params);
+#ifdef ALERT_BENCH
+    BenchFetchLine(fullUrl);
+#endif
 
     xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
