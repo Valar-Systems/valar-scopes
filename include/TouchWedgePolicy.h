@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "DiscGeometry.h"
 
 // THE TOUCH-WEDGE REBOOT CAP (v16; spec docs/v15-touch-wedge-cap.md).
 //
@@ -99,6 +100,22 @@ inline Strip StripFor(const char* deviceId)
     snprintf(s.line2, sizeof(s.line2), "%s", SUPPORT);
     snprintf(s.line3, sizeof(s.line3), "Device ID: %s", deviceId ? deviceId : "");
     return s;
+}
+
+// Where the strip's box goes: the HIGHEST row at which the whole box clears the round
+// glass, by the one chord rule every round-face caller uses (DiscGeometry.h).
+//
+// A fixed offset is what this replaced, and it was wrong on glass (2026-10-07): the box
+// sat at y=26, where a 240 px disc is ~150 px wide, so its 174 px top corners were cut by
+// the bezel -- 44 border pixels off the glass, read from /diag/fb, and plain in a photo.
+// The text inside was fine, which is why it read as cosmetic; but a box whose corners are
+// missing looks broken on the one screen that tells a customer something is.
+inline int StripTopY(int boxW, int boxH, int screenSize)
+{
+    const int c = screenSize / 2;
+    for (int y = 0; y + boxH <= c; ++y)   // the strip stays in the upper half
+        if (discgeom::ChordWidthPx(y, boxH, screenSize) >= boxW) return y;
+    return c - boxH / 2;   // wider than any upper-half row: centre it, where the glass is widest
 }
 
 } // namespace touchwedge

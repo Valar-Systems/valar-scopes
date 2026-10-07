@@ -114,6 +114,25 @@ int main()
               "the strip says what is wrong");
     }
 
+    // ---- the strip's box is on the glass ------------------------------------------
+    // The box as drawn on the s3-128, measured off /diag/fb on 2026-10-07: 174 x 36 px,
+    // centred on x=119. Graded by an INDEPENDENT test -- are both top corners inside the
+    // r=120 disc? -- not by the chord rule StripTopY itself uses.
+    {
+        const int W = 174, H = 36, S = 240, X0 = 119 - W / 2, X1 = X0 + W - 1;
+        auto cornersOnGlass = [&](int top) {
+            const double c = (S - 1) / 2.0, r = S / 2.0;
+            const double dy = top - c, l = X0 - c, rr = X1 - c;
+            return l * l + dy * dy <= r * r && rr * rr + dy * dy <= r * r;
+        };
+        const int top = StripTopY(W, H, S);
+        std::printf("  strip box top y=%d (was 26)\n", top);
+        check(cornersOnGlass(top), "the strip's top corners are on the round glass");
+        check(top + H <= S / 2, "the strip stays in the upper half");
+        check(!cornersOnGlass(26), "CONTROL: the old fixed placement (y=26) is off the glass, as seen on glass");
+        check(discgeom::ChordWidthPx(top - 1, H, S) < W, "it is the HIGHEST row that fits, not merely a low one");
+    }
+
     // ---- the reported reason --------------------------------------------------------
     {
         char buf[32];

@@ -4760,18 +4760,21 @@ void AircraftManager::DrawTouchUnavailable(BandCanvas& backbuffer) const
 {
     if constexpr (!variant::TOUCH_WATCHDOG) return;
     if (!touchWedge.unavailable) return;
-    // Three lines high on the face, where the round glass is wide enough for the id row,
-    // over whatever screen is up. Nothing on it asks to be tapped -- touch is what's broken.
+    // Three lines high on the face, placed by the chord rule so the whole box is on the
+    // glass (StripTopY), over whatever screen is up. Nothing on it asks to be tapped --
+    // touch is what's broken.
     const touchwedge::Strip st = touchwedge::StripFor(DeviceIdentity::LeaderboardId().c_str());
     constexpr int C = SCREEN_SIZE_DIV_2 - 1;
     backbuffer.setTextSize(1);
     const int th = (int)backbuffer.fontHeight();
     const int rowH = th + 2;
-    const int y0 = C - 89;
     const int w = (int)backbuffer.textWidth(st.line3) + 12;
+    const int boxH = 3 * rowH + 6;
+    const int boxTop = touchwedge::StripTopY(w, boxH, SCREEN_SIZE);
+    const int y0 = boxTop + 4;
     const uint32_t AMBER = lgfx::color888(255, 176, 0);
-    backbuffer.fillRect(C - w / 2, y0 - 4, w, 3 * rowH + 6, lgfx::color888(0, 0, 0));
-    backbuffer.drawRect(C - w / 2, y0 - 4, w, 3 * rowH + 6, AMBER);
+    backbuffer.fillRect(C - w / 2, boxTop, w, boxH, lgfx::color888(0, 0, 0));
+    backbuffer.drawRect(C - w / 2, boxTop, w, boxH, AMBER);
     const char* lines[3] = { st.line1, st.line2, st.line3 };
     for (int i = 0; i < 3; ++i) {
         backbuffer.setTextColor(i == 0 ? AMBER : lgfx::color888(255, 255, 255));
