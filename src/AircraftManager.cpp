@@ -4788,7 +4788,7 @@ void AircraftManager::PollTouchBench()
     static bool announced = false;
     if (!announced) {
         announced = true;
-        Serial.printf("[touch-bench] chip %s from boot; keys: w=toggle dead/alive r=state "
+        Serial.printf("[touch-bench] chip %s from boot; keys: w=toggle dead/alive r=state n=next screen "
                       "(idle %lus, healthy %lus)\n", touchbench::Dead() ? "DEAD" : "alive",
                       (unsigned long)(TOUCH_REBOOT_IDLE_MS / 1000UL), (unsigned long)(TOUCH_HEALTHY_MS / 1000UL));
     }
@@ -4807,6 +4807,14 @@ void AircraftManager::PollTouchBench()
         if (ch == 'w') {
             touchbench::Dead() = !touchbench::Dead();
             Serial.printf("[touch-bench] t=%lu chip now %s\n", millis(), touchbench::Dead() ? "DEAD" : "alive");
+        } else if (ch == 'n') {
+            // With touch dead there is no swipe, so the strip's every-screen check needs a
+            // way round: Radar -> List -> Stats -> Connect, through the one switch point.
+            static const Screen order[] = { Screen::Radar, Screen::List, Screen::Stats, Screen::Connect };
+            int at = 0;
+            for (int i = 0; i < 4; ++i) if (order[i] == screen) at = i;
+            EnterScreen(order[(at + 1) % 4]);
+            Serial.printf("[touch-bench] t=%lu screen -> %d\n", millis(), (int)screen);
         } else if (ch == 'r') {
             Serial.printf("[touch-bench] t=%lu run=%u stored=%u unavailable=%d wedgeSeen=%d chip=%s\n", millis(),
                           (unsigned)touchWedge.run, (unsigned)touchWedgeStored, (int)touchWedge.unavailable,
