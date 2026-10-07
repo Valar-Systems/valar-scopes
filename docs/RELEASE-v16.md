@@ -16,7 +16,7 @@
 
 | # | item | spec | v16? | status |
 |---|---|---|---|---|
-| 1 | Swipe-to-zoom on the radar, plus a ZOOM tag | PR #374 | **required** | Z1–Z5 and sabotages a–d graded, glass done, review approved. Merge pending green CI on the pinned-constant commit |
+| 1 | Swipe-to-zoom on the radar, plus a ZOOM tag | PR #374 | **required** | **merged `b803aef`** (Z1–Z5 and sabotages a–d graded, glass done; the shipped 10-min idle return is pinned by a test and the bench override cannot compile into a shipping env) |
 | 2 | Touch-wedge reboot cap + "touch unavailable" | [v15-touch-wedge-cap.md](v15-touch-wedge-cap.md) | **required** | spec accepted (moved from v15); build starting from `main` |
 | 3 | ntfy removal | not yet written | if done by the cut, else v17 | not started. Needs scope: radar only, or every edition that uses ntfy (Missileer, Quakescope, Quillscope, Reelscope, Claudescope, Speedscope)? And what happens to a saved `ntfy-topic`? |
 | 4 | `nmi` → `NM` | not yet written | if done by the cut, else v17 | not started |
