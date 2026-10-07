@@ -28,6 +28,11 @@
 #ifndef RADAR_ZOOM_IDLE_MS
 #define RADAR_ZOOM_IDLE_MS 600000UL
 #endif
+
+// How far below the top of the outer ring its distance label sits (clear of the
+// bezel and the N). The ZOOM tag mirrors that label across the centre line, so both
+// read this one value -- two copies of a layout number drift apart.
+static constexpr int RING_LABEL_OUTER_INSET = 14;
 #include "IcaoCountry.h"      // origin country from the ICAO address, for feeds that omit it
 #include "DeviceIdentity.h"
 #include "Layout.h"
@@ -4531,7 +4536,7 @@ void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
     backbuffer.setTextColor(lgfx::color888(0, 110, 0));
     const int ringPx[3] = { OUTER, (OUTER / 3) * 2, OUTER / 3 };
     const float ringFrac[3] = { 1.0f, 2.0f / 3.0f, 1.0f / 3.0f };
-    const int inset[3] = { 14, 3, 3 }; // push the outer label down off the bezel/N
+    const int inset[3] = { RING_LABEL_OUTER_INSET, 3, 3 }; // push the outer label down off the bezel/N
     for (int i = 0; i < 3; ++i) {
         // rangeRadiusDisplay is ALREADY in display units (converted at setup),
         // so this formats the number without re-converting.
@@ -4677,6 +4682,26 @@ void AircraftManager::ApplyZoom(int idx, radarzoom::Edge edge, const char* why)
 
 void AircraftManager::DrawZoomOverlay(BandCanvas& backbuffer) const
 {
+    // THE ZOOM TAG, for as long as the view is not the default (Daniel, 2026-10-07).
+    // A zoomed radar must never be mistaken for the configured one: an empty 5-mi
+    // sky reads as "nothing flying". Styled like the radius pill below -- white on
+    // black, ring-green outline -- so it reads as the radar's chrome, not traffic:
+    // amber and orange are taken (watchlist, military, the Follow track). Mirrored
+    // across the centre line from the outer ring label, so the top reads
+    // "ZOOM | 5.0mi".
+    if (zoomIdx < zoomLadder.Top()) {
+        constexpr int C = SCREEN_SIZE_DIV_2 - 1;
+        static const char* const TAG = "ZOOM";
+        backbuffer.setTextSize(1);
+        const int tw = (int)backbuffer.textWidth(TAG);
+        const int th = (int)backbuffer.fontHeight();
+        const int x = C - 4 - tw - 3;                          // the ring label starts at C + 4
+        const int y = C - (SCREEN_SIZE_DIV_2 - 1) + RING_LABEL_OUTER_INSET;
+        backbuffer.fillRoundRect(x - 3, y - 2, tw + 6, th + 3, 3, lgfx::color888(0, 0, 0));
+        backbuffer.drawRoundRect(x - 3, y - 2, tw + 6, th + 3, 3, lgfx::color888(0, 200, 0));
+        backbuffer.setTextColor(lgfx::color888(255, 255, 255));
+        backbuffer.drawString(TAG, x, y);
+    }
     if (zoomOverlayText.isEmpty() || (long)(millis() - zoomOverlayUntilMs) >= 0)
         return;
     // The 5x7 font at size 2: digits and "mi"/"km" have no c/o lookalike hazard.
