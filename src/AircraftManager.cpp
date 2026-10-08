@@ -37,6 +37,28 @@ static constexpr uint32_t ZOOM_IDLE_MS = RADAR_ZOOM_IDLE_MS;
 static constexpr uint32_t ZOOM_IDLE_MS = radarzoom::IDLE_RETURN_MS;
 #endif
 
+// Touch-wedge cap timers (TouchWedgePolicy.h). The overrides are BENCH-ONLY and #error
+// without TOUCH_WEDGE_BENCH, which check-no-bench-hooks.sh keeps out of every shipping
+// image, so a shortened test value cannot ride into a release (same rule as the zoom
+// idle above). The 90 s outage bound lives in TouchWatchdog.cpp and is not overridden.
+#if (defined(TOUCH_WD_REBOOT_IDLE_MS) || defined(TOUCH_WD_HEALTHY_MS)) && !defined(TOUCH_WEDGE_BENCH)
+#error "TOUCH_WD_* overrides are bench-only (TOUCH_WEDGE_BENCH); shipping builds use touchwedge::*"
+#endif
+#ifdef TOUCH_WD_REBOOT_IDLE_MS
+static constexpr uint32_t TOUCH_REBOOT_IDLE_MS = TOUCH_WD_REBOOT_IDLE_MS;
+#else
+static constexpr uint32_t TOUCH_REBOOT_IDLE_MS = touchwedge::REBOOT_IDLE_MS;
+#endif
+#ifdef TOUCH_WD_HEALTHY_MS
+static constexpr uint32_t TOUCH_HEALTHY_MS = TOUCH_WD_HEALTHY_MS;
+#else
+static constexpr uint32_t TOUCH_HEALTHY_MS = touchwedge::HEALTHY_RESET_MS;
+#endif
+#ifdef TOUCH_WEDGE_BENCH
+#include "TouchBench.h"   // bench only: the simulated dead chip
+#endif
+#include <esp_system.h>   // esp_reset_reason(): a power-on resets the touch-wedge run
+
 // How far below the top of the outer ring its distance label sits (clear of the
 // bezel and the N). The ZOOM tag mirrors that label across the centre line, so both
 // read this one value -- two copies of a layout number drift apart.
@@ -46,6 +68,9 @@ static constexpr int RING_LABEL_OUTER_INSET = 14;
 #include "Layout.h"
 #include "StatsRowPriority.h"  // what this face drops when it fills, decided once
 #include "QrRender.h"
+#include "ConnectLayout.h"
+static_assert(connectlayout::QR_MAX_VERSION == qr::MAX_VERSION && connectlayout::QR_QUIET == qr::QUIET,
+              "ConnectLayout.h transcribes QrRender.h's limits; they disagree, so the strip-vs-QR bound is wrong");
 #include "Board.h"
 #include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
 #include "TouchWatchdog.h" // CST816 supervisor; inert unless variant::TOUCH_WATCHDOG
@@ -789,6 +814,14 @@ void AircraftManager::Initialise()
     }
     bootLandingDone = true;
 
+    // The touch-wedge run is read ONCE per boot (Initialise re-runs on every save).
+    if constexpr (variant::TOUCH_WATCHDOG) {
+        if (!touchWedgeBooted) {
+            touchWedgeBooted = true;
+            BootTouchWedge();
+        }
+    }
+
     // "radius" is stored as a real-world distance (km or mi). Convert it into
     // separate latitude/longitude degree spans: 1 deg latitude is ~111 km
     // everywhere, but 1 deg longitude is ~111 km * cos(latitude), so the box
@@ -1387,6 +1420,9 @@ void AircraftManager::Update()
 #ifdef ALERT_BENCH
     PollAlertBench();
 #endif
+#ifdef TOUCH_WEDGE_BENCH
+    PollTouchBench();
+#endif
 
     // advance the radar sweep + paint the contacts it crossed this frame, before
     // any early-return below, so the beam keeps turning even while a card is open
@@ -1403,13 +1439,48 @@ void AircraftManager::Update()
     // over 90 s. Reboot -- historically the one recovery a stuck chip always
     // responded to -- but silently: only once the user has been away a while, so
     // the ~10 s boot never interrupts someone actually watching the scope.
+    //
+    // CAPPED (v16, TouchWedgePolicy.h): after touchwedge::CAP consecutive touch reboots
+    // with no touch in between, a chip that is still dead is not going to answer the
+    // next one either -- one fleet unit went through 30. So the device stops rebooting,
+    // shows "touch unavailable" with the support address and its device id, and keeps
+    // the radar running. The soft/hard re-init rungs keep going, and a real touch
+    // clears it all (ProcessTouchSample).
     if constexpr (variant::TOUCH_WATCHDOG) {
-        constexpr unsigned long REBOOT_IDLE_MS = 10UL * 60UL * 1000UL;
-        if (TouchWatchdog::RebootRecommended() && now - lastTouchActivityMs >= REBOOT_IDLE_MS) {
-            Serial.println("[touch-wd] wedged past the outage bound and idle: rebooting to recover the controller");
-            Serial.flush();
-            delay(100);
-            ESP.restart();
+        const bool wedged = TouchWatchdog::RebootRecommended();
+        if (wedged) touchWedgeSeenThisBoot = true;
+        if (wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= TOUCH_REBOOT_IDLE_MS) {
+            const touchwedge::RungResult r = touchwedge::OnRung(touchWedge);
+            if (r.action == touchwedge::Action::EnterUnavailable) {
+                touchWedge.unavailable = true;
+                Serial.printf("[touch-wd] wedged again at run=%u: the cap holds -- touch unavailable, no reboot\n",
+                              (unsigned)touchWedge.run);
+            } else {
+                Serial.printf("[touch-wd] wedged past the outage bound and idle: touch reboot %u of %u\n",
+                              (unsigned)r.newRun, (unsigned)touchwedge::CAP);
+                // The side effects IN THE PLAN'S ORDER -- the order test_touch_wedge grades.
+                const touchwedge::Plan plan = touchwedge::RebootPlan();
+                for (int i = 0; i < plan.n; ++i) {
+                    switch (plan.step[i]) {
+                        case touchwedge::Step::WriteRun:   StoreTouchRun(r.newRun, "touch reboot"); break;
+                        case touchwedge::Step::StampCause: StampRebootCause(REBOOT_CAUSE_TOUCH_WEDGE); break;
+                        case touchwedge::Step::Restart:
+                            Serial.println("[touch-wd] restarting (cause SW_TOUCHWD stamped)");
+                            Serial.flush();
+                            delay(100);
+                            ESP.restart();
+                            break;
+                    }
+                }
+            }
+        }
+        // An hour without the wedge (reset 3): a recovered unit must not creep toward the cap.
+        if (touchwedge::HealthyResetDue(touchWedge, touchWedgeSeenThisBoot, now, TOUCH_HEALTHY_MS)) {
+            const bool wasUnavailable = touchWedge.unavailable;
+            touchWedge = touchwedge::OnHealthyReset(touchWedge);   // the counter AND the strip
+            StoreTouchRun(0, "an hour without the wedge");
+            if (wasUnavailable)
+                Serial.println("[touch-wd] an hour without the wedge: leaving touch unavailable");
         }
     }
 
@@ -3231,6 +3302,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
             DrawVisualAlert(backbuffer); // the edge ring stays visible around the card
             DrawRankToast(backbuffer);   // a rank-up toast shows over the card too
             DrawFollowDeclineToast(backbuffer);
+            DrawTouchUnavailable(backbuffer);   // touch unavailable: over every screen
             return;
         }
         ExitDetail(); // selected aircraft left the feed (idempotent across band passes)
@@ -3291,6 +3363,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
     DrawRankToast(backbuffer);   // transient "RANK UP" banner after a leaderboard climb
     DrawClaimToast(backbuffer);  // transient "CLAIMED <type> #N" after a tap-to-claim
     DrawFollowDeclineToast(backbuffer);  // a swipe that had nothing to draw, said out loud
+    DrawTouchUnavailable(backbuffer);    // touch unavailable: on every screen, last, undismissable
 }
 
 SpecialAircraft::Class AircraftManager::SpecialClassOf(const TrackedAircraft& tracked) const
@@ -4177,15 +4250,19 @@ void AircraftManager::DrawConnect(BandCanvas& backbuffer)
     // screen whose whole job is to ask for something is the defect this change
     // exists to fix, reintroduced one layer down.
     if (!hasLocation) {
-        const int titleY = 14;
+        const int titleY = connectlayout::TITLE_Y;
         String title = "SET YOUR LOCATION";
         if (FitToDisc(backbuffer, title, titleY, lineH).isEmpty())
             title = "SET LOCATION";           // 72 px, fits from y=8
         centred(title, titleY, lgfx::color888(255, 176, 0));
     }
 
-    const int qrPx = 4;
-    const bool drew = qr::Draw(backbuffer, url.c_str(), cx, 90, qrPx);
+    const bool drew = qr::Draw(backbuffer, url.c_str(), cx, connectlayout::QR_CY, connectlayout::QR_PX);
+
+    // TOUCH UNAVAILABLE ON CONNECT: the strip's three lines take the rows under the URL
+    // (ConnectRowsFor), never the QR or the URL -- this is the screen a customer scans, and
+    // an unconfigured unit lands here by itself. DrawTouchUnavailable stays off Connect.
+    const bool strip = touchwedge::StripShown(touchWedge);
 
     if (!drew) {
         // No half-drawn symbol. The text becomes the whole screen.
@@ -4196,26 +4273,41 @@ void AircraftManager::DrawConnect(BandCanvas& backbuffer)
         // THE ADDRESS AS TEXT, ALWAYS -- never only as a code. Some phones are
         // locked down, some people would rather type, and a code that will not
         // scan with no visible fallback is the same dead end one layer in.
-        centred(url, 164, lgfx::color888(0, 255, 0));
+        centred(url, connectlayout::URL_Y, lgfx::color888(0, 255, 0));
 
         // The device id appears NOWHERE else on the device -- only on the config
         // page, which is the page an unreachable customer cannot open. That is
         // why it earns a row here on its own merits, QR or no QR.
-        centred(DeviceIdentity::LeaderboardId(), 180, lgfx::color888(0, 140, 0));
+        if (!strip)
+            centred(DeviceIdentity::LeaderboardId(), connectlayout::ID_Y, lgfx::color888(0, 140, 0));
 
         // THE AP TRAP. A phone still joined to the device's own setup hotspot is
         // on 192.168.4.x and cannot reach a 192.168.1.x address. It scans the
         // code perfectly and fails to load it, and the owner concludes the code
         // is broken -- or the product is.
-        if (joined)
-            centred("phone on home wifi?", 194, lgfx::color888(150, 150, 0));
+        if (joined && !strip)
+            centred("phone on home wifi?", connectlayout::HINT_Y, lgfx::color888(150, 150, 0));
+    }
+
+    if (strip) {
+        // Drawn directly, not through FitToDisc: each row is host-tested to fit its chord
+        // (test_touch_wedge.cpp), and a support address or id quietly shortened to fit would
+        // be worse than one that visibly ran off the glass.
+        const touchwedge::Strip st = touchwedge::StripFor(DeviceIdentity::LeaderboardId().c_str());
+        const touchwedge::ConnectRows rows = touchwedge::ConnectRowsFor(st);
+        for (const touchwedge::ConnectRow& r : rows.row) {
+            backbuffer.setTextColor(r.headline ? lgfx::color888(255, 176, 0) : lgfx::color888(255, 255, 255));
+            backbuffer.drawString(r.text, cx - (int)backbuffer.textWidth(r.text) / 2, r.y);
+        }
+        resetRowY0 = resetRowY1 = -1;   // no Reset row drawn, so no Reset tap target
+        return;
     }
 
     // THE RESET CONTROL, moved here from Stats. It belongs with the address:
     // both answer "my device is unreachable". A TAP opens a menu rather than
     // doing anything -- nothing destructive happens on this screen, so a stray
     // contact lands on a menu with a large Cancel rather than on a wipe.
-    const int resetY = 210;
+    const int resetY = connectlayout::RESET_Y;
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     centred("[ Reset ]", resetY, lgfx::color888(0, 200, 0));
     // Tap target = the drawn row, padded to a fingertip, derived from the same
@@ -4655,6 +4747,110 @@ bool AircraftManager::ZoomCulled(int x, int y) const
     const int64_t dx = (int64_t)x - C, dy = (int64_t)y - C;   // 64-bit: a far ghost at 5 mi is huge
     return dx * dx + dy * dy > R * R;
 }
+
+void AircraftManager::BootTouchWedge()
+{
+    Preferences p;
+    uint8_t stored = 0;
+    if (p.begin(touchwedge::NVS_NS, true)) {
+        stored = p.getUChar(touchwedge::NVS_KEY, 0);
+        p.end();
+    }
+    touchWedgeStored = stored;
+    const bool powerOn = esp_reset_reason() == ESP_RST_POWERON;
+    touchWedge = touchwedge::AtBoot(stored, powerOn);
+    Serial.printf("[touch-wd] boot: run=%u (stored %u, reset %s)%s\n", (unsigned)touchWedge.run,
+                  (unsigned)stored, powerOn ? "POWERON" : "not power-on",
+                  touchWedge.unavailable ? " -- touch unavailable, no touch reboots this boot" : "");
+    if (touchWedge.run != stored) StoreTouchRun(touchWedge.run, "power-on");   // reset 2
+}
+
+void AircraftManager::StoreTouchRun(uint8_t run, const char* why)
+{
+    if (run == touchWedgeStored) return;   // wear: write only when the value changes
+    Preferences p;
+    if (!p.begin(touchwedge::NVS_NS, false)) {
+        Serial.printf("[touch-wd] run %u -> %u NOT stored: NVS unavailable (%s)\n",
+                      (unsigned)touchWedgeStored, (unsigned)run, why);
+        return;
+    }
+    p.putUChar(touchwedge::NVS_KEY, run);
+    p.end();
+    Serial.printf("[touch-wd] run %u -> %u (NVS write: %s)\n", (unsigned)touchWedgeStored, (unsigned)run, why);
+    touchWedgeStored = run;
+}
+
+void AircraftManager::DrawTouchUnavailable(BandCanvas& backbuffer) const
+{
+    if constexpr (!variant::TOUCH_WATCHDOG) return;
+    if (!touchwedge::StripShown(touchWedge)) return;
+    if (screen == Screen::Connect && !inDetail) return;   // DrawConnect draws it under the URL
+    // Three lines high on the face, placed by the chord rule so the whole box is on the
+    // glass (StripTopY), over whatever screen is up. Nothing on it asks to be tapped --
+    // touch is what's broken.
+    const touchwedge::Strip st = touchwedge::StripFor(DeviceIdentity::LeaderboardId().c_str());
+    constexpr int C = SCREEN_SIZE_DIV_2 - 1;
+    backbuffer.setTextSize(1);
+    const int th = (int)backbuffer.fontHeight();
+    const int rowH = th + 2;
+    const int w = (int)backbuffer.textWidth(st.line3) + 12;
+    const int boxH = 3 * rowH + 6;
+    const int boxTop = touchwedge::StripTopY(w, boxH, SCREEN_SIZE);
+    const int y0 = boxTop + 4;
+    const uint32_t AMBER = lgfx::color888(255, 176, 0);
+    backbuffer.fillRect(C - w / 2, boxTop, w, boxH, lgfx::color888(0, 0, 0));
+    backbuffer.drawRect(C - w / 2, boxTop, w, boxH, AMBER);
+    const char* lines[3] = { st.line1, st.line2, st.line3 };
+    for (int i = 0; i < 3; ++i) {
+        backbuffer.setTextColor(i == 0 ? AMBER : lgfx::color888(255, 255, 255));
+        backbuffer.drawString(lines[i], C - (int)backbuffer.textWidth(lines[i]) / 2, y0 + i * rowH);
+    }
+}
+
+#ifdef TOUCH_WEDGE_BENCH
+// BENCH ONLY (env:blipscope-s3-128-touchbench). The chip is dead from boot; `w` toggles it,
+// `r` prints the cap's state. Every line carries the [touch-bench] marker that
+// check-no-bench-hooks.sh refuses in shipping images.
+void AircraftManager::PollTouchBench()
+{
+    static bool announced = false;
+    if (!announced) {
+        announced = true;
+        Serial.printf("[touch-bench] chip %s from boot; keys: w=toggle dead/alive r=state n=next screen "
+                      "(idle %lus, healthy %lus)\n", touchbench::Dead() ? "DEAD" : "alive",
+                      (unsigned long)(TOUCH_REBOOT_IDLE_MS / 1000UL), (unsigned long)(TOUCH_HEALTHY_MS / 1000UL));
+    }
+    // The boot summary again at 30 s: the bench capture reattaches only once a rebooted
+    // board is past its boot window (a reopen inside it resets the chip, rst:0x15), so it
+    // misses the boot line; this repeats what that line said.
+    static bool summarised = false;
+    if (!summarised && millis() >= 30000UL) {
+        summarised = true;
+        Serial.printf("[touch-bench] t=%lu boot summary: reset=%s run=%u stored=%u unavailable=%d chip=%s\n",
+                      millis(), ResetReasonName(), (unsigned)touchWedge.run, (unsigned)touchWedgeStored,
+                      (int)touchWedge.unavailable, touchbench::Dead() ? "DEAD" : "alive");
+    }
+    while (Serial.available()) {
+        const int ch = Serial.read();
+        if (ch == 'w') {
+            touchbench::Dead() = !touchbench::Dead();
+            Serial.printf("[touch-bench] t=%lu chip now %s\n", millis(), touchbench::Dead() ? "DEAD" : "alive");
+        } else if (ch == 'n') {
+            // With touch dead there is no swipe, so the strip's every-screen check needs a
+            // way round: Radar -> List -> Stats -> Connect, through the one switch point.
+            static const Screen order[] = { Screen::Radar, Screen::List, Screen::Stats, Screen::Connect };
+            int at = 0;
+            for (int i = 0; i < 4; ++i) if (order[i] == screen) at = i;
+            EnterScreen(order[(at + 1) % 4]);
+            Serial.printf("[touch-bench] t=%lu screen -> %d\n", millis(), (int)screen);
+        } else if (ch == 'r') {
+            Serial.printf("[touch-bench] t=%lu run=%u stored=%u unavailable=%d wedgeSeen=%d chip=%s\n", millis(),
+                          (unsigned)touchWedge.run, (unsigned)touchWedgeStored, (int)touchWedge.unavailable,
+                          (int)touchWedgeSeenThisBoot, touchbench::Dead() ? "DEAD" : "alive");
+        }
+    }
+}
+#endif
 
 void AircraftManager::StepZoom(int dir, const char* why)
 {
@@ -8631,6 +8827,9 @@ void AircraftManager::HandleTouch()
     // reboot (PR #8 / commit 56a3df2). Removed 2026-08-09 with the board. Do not reinstate it
     // on an S3 as a precaution -- see the cost above, and TouchPoll.h for the same note.
     touched = tft.getTouch(&tx, &ty);
+#ifdef TOUCH_WEDGE_BENCH
+    if (touchbench::Dead()) touched = false;   // the simulated dead chip reports nothing
+#endif
     if constexpr (variant::TOUCH_WATCHDOG)
         TouchWatchdog::OnPoll(tft, touched, true); // no bus serialization on these boards
 
@@ -8653,6 +8852,15 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
     const unsigned long now = millis();
     if (touched) {
         lastTouchActivityMs = now; // proof the controller is alive
+        // Reset 1 of the touch-wedge cap: the controller answered, so the chain is broken.
+        if constexpr (variant::TOUCH_WATCHDOG) {
+            if (touchWedge.run != 0 || touchWedge.unavailable) {
+                const bool wasUnavailable = touchWedge.unavailable;
+                touchWedge = touchwedge::OnRealTouch(touchWedge);
+                StoreTouchRun(0, "a real touch");
+                if (wasUnavailable) Serial.println("[touch-wd] touch is back: leaving touch unavailable");
+            }
+        }
         if (!wasTouched) {
             touchStartX = tx; touchStartY = ty; // press edge
             touchPressMs = now;

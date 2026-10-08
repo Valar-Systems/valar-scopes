@@ -64,6 +64,9 @@ recover this way, and a smaller one gives up on the case the rung was written fo
      holding. Without this, a healthy unit that glitches once, recovers after one reboot, and
      then sits untouched overnight would carry `run=1` into the next glitch weeks later and creep
      toward the cap across unrelated, recovered episodes. The fleet unit never got past ~90 s healthy.
+     **It also clears touch unavailable in that boot** (ruling 3 on #376): 60 min with
+     `RebootRecommended()` never holding means the chip is answering, so the strip would be false.
+     A boot where the wedge held never qualifies, however long it runs.
 - **Wear:** write only when the value changes. At most N+1 writes per chain.
 
 ### Touch unavailable state (`run >= N` at boot, or reached during a boot)
@@ -75,9 +78,14 @@ recover this way, and a smaller one gives up on the case the rung was written fo
   touch is what's broken, reading:
 
   ```
-  Touch unavailable — contact support@valarsystems.com
+  Touch unavailable
+  support@valarsystems.com
   Device ID: <16-hex id>
   ```
+
+  *As built (#376):* three rows, because a 240 px round face cannot hold the original one long
+  sentence; "contact" is dropped for width (ruling 2). On **Connect** the three lines take the
+  rows under the URL instead of a box, so the QR stays scannable (ruling 4).
 
   **It must show the device ID and the support address**, so a customer can self-report with the
   one identifier that finds the unit. The ID is the same string the config page shows under
@@ -98,7 +106,9 @@ The decision is a pure policy function, like `include/NetWatchPolicy.h`: inputs 
 reset reason, whether a touch occurred, and how long this boot has run wedge-free; the output is
 `Reboot` / `EnterUnavailable` / `None`, plus the new `run`. Host tests:
 
-- `run` 0→1→2→3 across three wedged boots, and the third reboot request becomes `EnterUnavailable`;
+- `run` 0→1→2→3 across three wedged boots (three reboots happen), and the **fourth** reboot request,
+  at `run = 3`, becomes `EnterUnavailable` -- N = 3 reboots, per section 2 (corrected on #376: this
+  line used to say "the third reboot request", which read as two reboots);
 - each of the three resets returns `run` to 0, and each has a control where the condition is
   absent and `run` is kept;
 - a `POWERON` boot at `run = 3` starts clean;

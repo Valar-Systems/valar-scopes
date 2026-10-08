@@ -20,7 +20,7 @@
 set -u
 
 # Every bench hook's marker. Add a hook -> add its marker here, in the same PR.
-MARKERS=( "[alert-bench]" )
+MARKERS=( "[alert-bench]" "[touch-bench]" )
 ANCHOR="[build] env="
 
 scan() {
@@ -29,7 +29,7 @@ scan() {
     echo "BLIND: '$ANCHOR' not found in $f -- cannot tell a clean image from an unreadable one"
     return 2
   fi
-  local hit=0
+  local hit=0 m   # m is LOCAL: the selftest loops over markers with the same name
   for m in "${MARKERS[@]}"; do
     if grep -q -a -F -e "$m" "$f"; then
       echo "FAIL: bench hook marker '$m' is in $f"
@@ -43,11 +43,15 @@ scan() {
 if [ "${1:-}" = "--selftest" ]; then
   t="$(mktemp -d)"
   printf 'xx[build] env=blipscope-s3-128xx' > "$t/clean.bin"
-  printf 'xx[build] env=blipscope-s3-128xx%sxx' "${MARKERS[0]}" > "$t/hooked.bin"
   printf 'no anchor here' > "$t/blind.bin"
   rc=0
   scan "$t/clean.bin"  >/dev/null; [ $? -eq 0 ] && echo "selftest ok: clean image passes"          || { echo "selftest FAIL: clean image"; rc=1; }
-  scan "$t/hooked.bin" >/dev/null; [ $? -eq 1 ] && echo "selftest ok: planted marker is caught"      || { echo "selftest FAIL: planted marker NOT caught"; rc=1; }
+  # EVERY marker is planted and must be caught on its own -- a marker added to the list
+  # but misspelled against its hook would otherwise never be exercised.
+  for m in "${MARKERS[@]}"; do
+    printf 'xx[build] env=blipscope-s3-128xx%sxx' "$m" > "$t/hooked.bin"
+    scan "$t/hooked.bin" >/dev/null; [ $? -eq 1 ] && echo "selftest ok: planted $m is caught" || { echo "selftest FAIL: planted $m NOT caught"; rc=1; }
+  done
   scan "$t/blind.bin"  >/dev/null; [ $? -eq 2 ] && echo "selftest ok: anchor-less file is BLIND"     || { echo "selftest FAIL: anchor-less file not BLIND"; rc=1; }
   rm -rf "$t"
   exit "$rc"

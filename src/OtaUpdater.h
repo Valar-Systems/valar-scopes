@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "RebootCause.h"     // the cause values and their reason suffixes, one map
 #include "LGFX.h"           // LGFX + LGFX_Sprite (LGFX_Sprite is a type alias, not forward-declarable)
 #include "HttpRequestManager.h"
 
@@ -96,8 +97,21 @@ constexpr uint32_t REBOOT_MIN_INTERVAL_S = 24UL * 60UL * 60UL;
 constexpr bool REBOOT_CAP_IS_OVERRIDE = false;
 #endif
 
-constexpr uint8_t REBOOT_CAUSE_OTA_CHECK = 1;
-constexpr uint8_t REBOOT_CAUSE_NET_WEDGE = 2;
+constexpr uint8_t REBOOT_CAUSE_OTA_CHECK   = rebootcause::OTA_CHECK;
+constexpr uint8_t REBOOT_CAUSE_NET_WEDGE   = rebootcause::NET_WEDGE;
+constexpr uint8_t REBOOT_CAUSE_TOUCH_WEDGE = rebootcause::TOUCH_WEDGE;
+
+/**
+ * Record WHY the next boot happens, and nothing else: no 24 h cap, no pending
+ * update check. For a reboot the caller has already decided on and is about to
+ * make -- the touch-wedge rung, which has its OWN cap (TouchWedgePolicy.h) and
+ * must not be refused by the update check's daily one. The next boot's reported
+ * reason gains the cause's suffix exactly as a DeferRebootWithCause reboot does
+ * (SW -> SW_TOUCHWD), because both read the same NVS cause.
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+void StampRebootCause(uint8_t cause);
 
 /**
  * Arm a deferred reboot, recording WHY.
