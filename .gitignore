@@ -49,3 +49,11 @@ proxy/revoked.txt
 # Everything bench-side is local only (serial captures, flash logs, pid files,
 # logbook backups, firmware dumps) -- device IDs live in it. Never commit.
 bench-logs/
+
+# Recorded aircraft traffic (docs/v18-label-declutter.md, docs/v18-next-overhead.md):
+# WORKSTATION-ONLY -- a capture locates a home. scripts/check_no_traffic_captures.py
+# refuses these names AND the capture's line format anywhere in the tree, in CI.
+*.traffic.jsonl
+*.traffic.log
+*.traffic.csv
+traffic-captures/

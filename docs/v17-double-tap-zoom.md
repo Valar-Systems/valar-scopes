@@ -1,6 +1,6 @@
 # Double-tap to toggle overhead zoom (v17)
 
-**Status: spec, not built.** Builds after v16 is promoted. Line refs at `74866aa`.
+**Status: spec, not built; decisions recorded from review 2026-10-08.** Builds after v16 is promoted. Line refs at `74866aa`.
 "AM" = `src/AircraftManager.cpp`.
 
 ## Customer view
@@ -63,6 +63,8 @@ back to the default range. Single taps, aircraft taps and swipes behave exactly 
 
 ## Native gesture or our own timing? Decide with evidence
 
+**Decided at review: the 50-tap bench comparison below decides.** Nothing is chosen ahead of it.
+
 **The chip:**
 - The CST816 has a gesture register (0x01, with 0x0B for a double click). Its double-click must be
   enabled in `MotionMask` (0xEC, `EnDClick`).
@@ -119,6 +121,8 @@ tap is not stolen from the next single tap.
 **`doubleTapZooms`**: double-taps that toggled zoom. It ships in the same single v17 usage-format
 change as `overheadCards` (8 -> 10 integers, with the disclosures in the same commit; see
 `docs/v17-overhead-card.md`). It counts THAT the gesture was used, never where.
+
+**Decided at review (2026-10-08): approved, 8 -> 10, with the disclosures in the same commit.** **The Worker must accept BOTH formats:** v16 devices keep sending 8 integers for as long as they run v16, so `recordUsage` takes 8 or 10 and drops anything else (still digits and commas only). A Worker test sends one of each and asserts both land, plus a 9- and an 11-field control that are dropped.
 
 ## Predictions to freeze before code (drafts)
 

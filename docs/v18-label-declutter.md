@@ -65,6 +65,16 @@ watchlist.
 geometry pass. The recommendation is made on the replay numbers, and that is a decision, not this
 lean.
 
+## Captures are workstation-only (decided at review)
+
+Bench traffic captures locate a home, so they are **never committed**. `.gitignore` covers
+`*.traffic.jsonl`, `*.traffic.log`, `*.traffic.csv` and `traffic-captures/`.
+`scripts/check_no_traffic_captures.py` runs in CI (`.github/workflows/no-traffic-captures.yml`,
+no path filter) and refuses those names **and** the capture's line format
+(`[traffic] t=<epoch> hex=<6 hex> lat=<deg> lon=<deg> ...`) anywhere in the tree. Its selftest
+plants a capture first. **The capture tool must emit exactly that line format**, so the guard
+matches what the tool writes.
+
 ## Telemetry
 
 None. Display behaviour; nothing for a customer to "use".

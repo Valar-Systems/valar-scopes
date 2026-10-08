@@ -1,6 +1,6 @@
 # "Overhead now" card (v17)
 
-**Status: spec, not built.** Builds after v16 is promoted, alongside #379 (time zone) and #377
+**Status: spec, not built; decisions recorded from review 2026-10-08.** Builds after v16 is promoted, alongside #379 (time zone) and #377
 (reboot cap). Line refs at `74866aa`. "AM" = `src/AircraftManager.cpp`.
 
 ## Customer view
@@ -89,11 +89,13 @@ The setting only applies when the data source is **local**. A cloud-source devic
 - **The overhead pass rate is not in telemetry today.** The ring logs nothing, and the ntfy push
   goes to ntfy.sh, not the Worker. So the pass rate cannot be read off the fleet. **The first
   build step is to measure it**: a 24 h count of first-`IsOverhead` transitions on COM18. The
-  frozen predictions then carry that number.
+  frozen predictions then carry that number. **Decided at review: measure the pass rate first.**
 
 ## Config
 
 "**Show a card when a plane passes overhead**", key `lookup-card`.
+
+**Decided at review: default ON only when "Look up!" is on.** The reasoning that led there:
 
 **Is default ON right? Only behind "Look up!", and here is why.**
 - "Look up!" is opt-in today, and `IsOverhead` has no altitude term. A global default-ON card
@@ -122,6 +124,8 @@ The usage report is a fixed eight-integer struct (`include/UsageReport.h:61-82`;
 `cardOpens`.
 
 It would ship in **one** v17 format change shared with double-tap's counter: 8 -> 10 integers.
+
+**Decided at review (2026-10-08): approved, 8 -> 10, with the disclosures in the same commit.** **The Worker must accept BOTH formats:** v16 devices keep sending 8 integers for as long as they run v16, so `recordUsage` takes 8 or 10 and drops anything else (still digits and commas only). A Worker test sends one of each and asserts both land, plus a 9- and an 11-field control that are dropped.
 `usage::Format` and its digits-and-commas test, `recordUsage`'s shape check, and the disclosures
 (`README.md` Privacy & telemetry, `proxy/pages/support.html`) all change **in the same commit**,
 per CLAUDE.md's telemetry entry. It counts THAT a card appeared, never which aircraft.

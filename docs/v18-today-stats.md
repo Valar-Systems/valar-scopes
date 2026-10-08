@@ -51,10 +51,9 @@ persistence.
 
 Three triggers:
 - **Hourly**, at the local hour boundary, if dirty.
-- **Before every planned reboot**: the quiet-hour deferral, the preventive weekly, the touch-wedge
-  rung, and OTA. Each of those paths calls one `today::FlushBeforeRestart()`. *The logbook has
-  the same gap today: nothing calls `PersistNow` before `ESP.restart()`, so each planned reboot
-  can lose up to 10 min of logbook. Fix both with the one hook.*
+- **Before every planned reboot**, through `PlannedRestart()`. That hook ships **in v17** as a bug
+  fix for the logbook, which loses up to 10 min every night (`docs/v17-logbook-flush-before-reboot.md`;
+  split out at review). TODAY adds its flush to that hook; it does not build its own.
 - **At local midnight**, the rollover write.
 
 That is about **24-26 writes/day**. Two power-cut properties:

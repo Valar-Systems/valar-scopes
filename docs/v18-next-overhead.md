@@ -62,6 +62,16 @@ That frame is fine at <= 10 min x <= 600 kt (~100 nm). The same flat-earth conve
   - **Not shipped**, if false predictions exceed 25%. A prediction wrong one time in four teaches
     people to ignore it.
 
+## Captures are workstation-only (decided at review)
+
+Bench traffic captures locate a home, so they are **never committed**. `.gitignore` covers
+`*.traffic.jsonl`, `*.traffic.log`, `*.traffic.csv` and `traffic-captures/`.
+`scripts/check_no_traffic_captures.py` runs in CI (`.github/workflows/no-traffic-captures.yml`,
+no path filter) and refuses those names **and** the capture's line format
+(`[traffic] t=<epoch> hex=<6 hex> lat=<deg> lon=<deg> ...`) anywhere in the tree. Its selftest
+plants a capture first. **The capture tool must emit exactly that line format**, so the guard
+matches what the tool writes.
+
 ## Telemetry
 
 None proposed. If it ships on Radar, the overhead card's counter already measures the event it
