@@ -37,6 +37,16 @@ jobs:
         run: python scripts/check-config-form.py --selftest
       - name: Every config page is a single whole form
         run: python scripts/check-config-form.py
+      # The setup checklist must follow BOTH ways of saving a location (#383): the
+      # Save button re-checked it and "Use my location" did not, so the page said
+      # "1. Set your location" with red boxes right after saving one.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the checker catches a save path that skips the re-check
+        run: node scripts/check-setup-banner.mjs --selftest
+      - name: The setup checklist follows both save paths
+        run: node scripts/check-setup-banner.mjs
 
   # Follow Mode's privacy invariant (docs/follow-mode-consolidated.md 17): the
   # aircraft a customer named must not leave the device, except in the ntfy body

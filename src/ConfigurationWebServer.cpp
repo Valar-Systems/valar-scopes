@@ -287,7 +287,11 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(fetch('/location',{method:'POST',headers:{'X-Blipscope':'1','Content-Type':'application/x-www-form-urlencoded'},)" \
     R"(body:'lat='+encodeURIComponent(bpF(la))+'&lon='+encodeURIComponent(bpF(lo))}).then(function(r){return r.json().then(function(j){return [r.status,j]})}).then(function(x){)" \
     R"(var j=x[1];if(x[0]!==200||!j||!j.ok){bpLocFail('The device did not save that location, so nothing changed.');return})" \
-    R"(shLa.value=j.lat;shLo.value=j.lon;bpFb.style.display='none';)" \
+    /* The SAME re-check the Save button runs (#383). Without it this path saved \
+       the location and left the checklist saying "1. Set your location" until \
+       the owner pressed Save too. Only after the device answered ok, the same \
+       rule as the form path: never tick off a step the device did not accept. */ \
+    R"(shLa.value=j.lat;shLo.value=j.lon;if(window.bpSetupDone)window.bpSetupDone();bpFb.style.display='none';)" \
     R"(var m='Saved your location from this browser. The radar re-centres in a few seconds.';)" \
     R"(var acc=Number(d.acc);if(isFinite(acc)&&acc>1000)m+=' This browser only knew it to about '+Math.round(acc/1000)+' km, so check the radar, or paste exact numbers and press Save.';)" \
     R"(bpSay(m,true)})['catch'](function(){bpLocFail('Could not reach the device to save that location, so nothing changed.')})});)" \
@@ -349,6 +353,10 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(window.bpSetupDone=function(){var b=document.getElementById('bpBanner');if(!b)return;)" \
     R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]');)" \
     R"(if(!la||!lo||!String(la.value).trim()||!String(lo.value).trim())return;)" \
+    /* The red boxes go with the step (#383). They were cleared only by typing, \
+       so after "Use my location" filled them they stayed red, and the page \
+       contradicted itself: step 1 DONE beside two boxes still marked as missing. */ \
+    R"([la,lo].forEach(function(i){i.style.outline='';i.style.background=''});)" \
     /* The location is set. If verification was the only other outstanding step \
        and it is done too, the whole block goes -- an empty checklist is not a \
        checklist. Otherwise step 1 collapses to a tick and step 2 stays, which is \
