@@ -48,7 +48,10 @@ themselves, and pre-scanning Wi-Fi networks for the setup portal.
 **v16 was promoted 2026-10-08T19:13:55Z** (Daniel approved). `releases/latest` is `v16`
 (`prerelease: false`), and `latest/download/version.txt` serves `16`. The gates: overnight
 shipping-image soak S1-S5 clean (#376); `verify-release.sh v16` 8/1/1, as pre-registered; fresh-boot
-acceptance 6/7, with step 4 accepted at review (the reasoning is in the release notes).
+acceptance 6/7. **Step 4 FAILED, and it is a real defect**: a newly claimed aircraft may be missing from
+Collection until the page is refreshed, sometimes more than once. It is a known issue in v15 and v16,
+fixed in v17 (save immediately on a claim). No rollback; no data is lost. Detail and log timeline are in
+the release notes.
 
 ## 50-unit bench run sheet: v16 factory assets
 
