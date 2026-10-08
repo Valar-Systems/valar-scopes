@@ -223,7 +223,9 @@ probe_claim() {
   hit="$(grep -an "\[claim\] [A-Z0-9]* claimed" "$LOG" | tail -1)"
   cl="${hit%%:*}"
   type="$(printf '%s' "$hit" | sed -n 's/.*\[claim\] \([A-Z0-9]*\) claimed.*/\1/p')"
-  ip="$(grep -a "\[WiFi\] CONNECTED" "$LOG" | tail -1 | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')"
+  # FBA_DEVICE_IP overrides the log, for a capture attached to a board that was already running
+  # (its boot-time CONNECTED line is not in this log).
+  ip="${FBA_DEVICE_IP:-$(grep -a "\[WiFi\] CONNECTED" "$LOG" | tail -1 | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')}"
   if [ -z "$type" ] || [ -z "$ip" ]; then
     printf 'probe claim=%s claim_line=%s ip=%s http=0 verdict=NOPROBE first=no\n' "${type:--}" "${cl:-0}" "${ip:--}" > "$(PROBE_FILE)"
     echo "  probe: no claim or no device IP in the log yet" >&2; return 1
