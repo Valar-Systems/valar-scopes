@@ -43,31 +43,93 @@ MODE="guided"
 case "${1:-}" in
   --capture-only) MODE="capture"; shift ;;
   --assert-only)  MODE="assert";  shift ;;
+  --probe-claim)  MODE="probe";   shift ;;
+  --selftest)     MODE="selftest"; shift ;;
 esac
 
 PORT=""
-if [ "$MODE" = "assert" ]; then
+if [ "$MODE" = "selftest" ]; then
+  :
+elif [ "$MODE" = "assert" ] || [ "$MODE" = "probe" ]; then
   LOG="${1:-}"
   if [ -z "$LOG" ] || [ ! -f "$LOG" ]; then
-    echo "usage: $0 --assert-only <log file>" >&2
+    echo "usage: $0 --assert-only <log file> | --probe-claim <log file>" >&2
     exit 2
   fi
 else
   PORT="${1:-}"
   if [ -z "$PORT" ]; then
-    echo "usage: $0 [--capture-only] <COM port> | --assert-only <log>" >&2
+    echo "usage: $0 [--capture-only] <COM port> | --assert-only <log> | --probe-claim <log> | --selftest" >&2
     exit 2
   fi
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if [ "$MODE" != "assert" ]; then
+
+# --selftest: the assertions against synthetic captures, each built to fail ONE way, plus a
+# control that passes. A check that cannot be shown failing proves nothing (CLAUDE.md).
+# The IP is from 192.0.2.0/24 (documentation range): no probe ever leaves the machine.
+if [ "$MODE" = "selftest" ]; then
+  T="$(mktemp -d)"; st=0
+  base() { cat <<'L'
+10:00:00 [capture] attached to COM18
+10:00:01 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:00:02 [reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac
+10:00:05 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:00:05 [boot] reset reason=SW
+10:00:10 [WiFi] CONNECTED  IP=192.0.2.10  RSSI=-50 dBm
+10:00:12 [logbook] loaded 0 types (0 claimed), 0 airlines (0), 0 countries (0), 0 contacts
+10:02:00 [claim] E75L claimed (1/10 types)
+10:02:01 [logbook] persisted (1/10 types claimed, 3 airlines, 1 countries, 40 contacts; 900 B blobs, 2300 NVS entries free)
+10:02:30 [GET] Handling request to config web server...
+10:04:00 [capture] port dropped (IOException) -- waiting for it to come back
+10:04:05 [capture] port back; waiting 25 s past the boot window before reopening
+10:04:30 [capture] attached to COM18
+10:04:30 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:04:30 [boot] reset reason=POWERON
+10:04:50 [logbook] loaded 12 types (1 claimed), 5 airlines (1), 2 countries (1), 60 contacts
+10:06:00 [logbook] disabled -- flushing before logging stops
+L
+  }
+  probe_ok='probe 10:02:05 claim=E75L claim_line=8 ip=192.0.2.10 http=200 verdict=CLAIMED first=yes'
+  mk() { # name, sed-expression-or-empty, probe-line-or-NONE
+    base | { if [ -n "$2" ]; then sed "$2"; else cat; fi; } > "$T/$1.log"
+    [ "$3" = "NONE" ] || printf '%s\n' "$3" > "$T/$1.log.probe"
+  }
+  case_() { # name, want-exit, fail-name-or-empty, must-say-or-empty
+    local out ex
+    out="$(bash "$0" --assert-only "$T/$1.log" 2>&1)"; ex=$?
+    local ok=1
+    [ "$ex" -eq "$2" ] || ok=0
+    [ -z "$3" ] || printf '%s\n' "$out" | grep -q "FAIL  $3" || ok=0
+    [ -z "$4" ] || printf '%s\n' "$out" | grep -qF "$4" || ok=0
+    if [ "$ok" -eq 1 ]; then printf '  ok    %s\n' "$1"; else printf '  FAIL  %s (exit %s)\n%s\n' "$1" "$ex" "$out"; st=1; fi
+  }
+  mk good "" "$probe_ok"
+  mk stale "" "${probe_ok/verdict=CLAIMED/verdict=UNCLAIMED}"
+  mk noprobe "" NONE
+  mk notfirst "" "${probe_ok/first=yes/first=no}"
+  mk neveropened '/\[GET\] Handling request/d' "$probe_ok"
+  mk doubleboot '/10:04:30 \[boot\] reset reason=POWERON/a 10:04:30 rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)\n10:04:31 [boot] reset reason=USB' "$probe_ok"
+  mk noboot '/10:04:30 \[boot\] reset reason=POWERON/d' "$probe_ok"
+  case_ good 0 "" ""
+  case_ stale 1 "step 4: the FIRST Collection view after the claim included it" "had it UNCLAIMED"
+  case_ noprobe 1 "step 4: the FIRST Collection view after the claim included it" "No probe was recorded"
+  case_ notfirst 1 "step 4: the FIRST Collection view after the claim included it" "not the first fetch"
+  case_ neveropened 1 "step 4: Collection was opened after the claim" "Collection was never opened; the step was not performed."
+  case_ doubleboot 1 "step 5: exactly ONE boot after the power cut" "2 boot(s) after the power cut"
+  case_ noboot 1 "step 5: exactly ONE boot after the power cut" "BLIND"
+  rm -rf "$T"
+  [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
+  exit "$st"
+fi
+if [ "$MODE" = "guided" ] || [ "$MODE" = "capture" ]; then
   STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
   LOG="$ROOT/bench-logs/fresh-boot-acceptance-$STAMP.log"
   mkdir -p "$ROOT/bench-logs"
 fi
 
-if [ "$MODE" != "assert" ]; then
+if [ "$MODE" = "guided" ] || [ "$MODE" = "capture" ]; then
 cat <<BANNER
 
   FRESH-BOOT ACCEPTANCE          port $PORT
@@ -108,9 +170,17 @@ while (\$true) {
       try { \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' ' + \$p.ReadLine()) } catch [TimeoutException] { }
     }
   } catch {
-    \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port dropped (' + \$_.Exception.GetType().Name + ') -- reconnecting')
+    \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port dropped (' + \$_.Exception.GetType().Name + ') -- waiting for it to come back')
     if (\$p) { try { \$p.Close() } catch { } ; try { \$p.Dispose() } catch { } }
-    Start-Sleep -Milliseconds 700
+    # NOT DTR/RTS: every open above already holds both false. A REOPEN that lands inside the
+    # boot window resets the chip (rst:0x15) whatever the handshake (CLAUDE.md, the capture-rig
+    # entry). This reconnected every 700 ms and did exactly that after step 5's power cut on
+    # 2026-10-08. So: wait for the port to come back, then 25 s more (the bench capture that
+    # rode out W3b's unplug used 25 s with no reset), then reopen. Boot lines are not lost:
+    # the board buffers them until a host opens the port.
+    while (-not ([System.IO.Ports.SerialPort]::GetPortNames() -contains '$PORT')) { Start-Sleep -Milliseconds 200 }
+    \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port back; waiting 25 s past the boot window before reopening')
+    Start-Sleep -Seconds 25
   }
 }
 "
@@ -138,17 +208,63 @@ start_capture() {
   exit 3
 }
 
+# THE FIRST COLLECTION VIEW AFTER A CLAIM, read the way the page reads it.
+#
+# The page is served from NVS (Logbook::JsonStream). A /logbook.json request only ASKS for a
+# save, which lands a frame or two after its own response, and fetch-triggered saves are
+# rate-limited to one per 30 s. So "a save followed the page request" is true on every board
+# and proves nothing about what the page SHOWED. On v16, Daniel's first view after the claim
+# did not show it (2026-10-08). This fetches /logbook.json ONCE, right after the claim, before
+# anyone opens the page, and records whether the claimed type is marked claimed. That is the
+# customer's first view, measured.
+PROBE_FILE() { printf '%s.probe' "$LOG"; }
+probe_claim() {
+  local hit cl type ip out code body verdict first py
+  hit="$(grep -an "\[claim\] [A-Z0-9]* claimed" "$LOG" | tail -1)"
+  cl="${hit%%:*}"
+  type="$(printf '%s' "$hit" | sed -n 's/.*\[claim\] \([A-Z0-9]*\) claimed.*/\1/p')"
+  ip="$(grep -a "\[WiFi\] CONNECTED" "$LOG" | tail -1 | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')"
+  if [ -z "$type" ] || [ -z "$ip" ]; then
+    printf 'probe claim=%s claim_line=%s ip=%s http=0 verdict=NOPROBE first=no\n' "${type:--}" "${cl:-0}" "${ip:--}" > "$(PROBE_FILE)"
+    echo "  probe: no claim or no device IP in the log yet" >&2; return 1
+  fi
+  # FIRST means first: a config-page load after the claim may already have fetched it.
+  first=yes
+  tail -n +"$((cl + 1))" "$LOG" | grep -aq "\[GET\] Handling request to config web server" && first=no
+  out="$(curl -s -m 15 -w '\n%{http_code}' "http://$ip/logbook.json")"
+  code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  py="$(command -v python3 || command -v python)"
+  verdict="$(printf '%s' "$body" | "$py" -c "import json,sys
+t=sys.argv[1]
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    print('NOFETCH'); sys.exit()
+e=[x for x in d.get('types',[]) if x.get('code')==t]
+print('CLAIMED' if e and e[0].get('claimed') else ('UNCLAIMED' if e else 'ABSENT'))" "$type")"
+  [ "$code" = "200" ] || verdict=NOFETCH
+  printf 'probe %s claim=%s claim_line=%s ip=%s http=%s verdict=%s first=%s\n' \
+    "$(date +%H:%M:%S)" "$type" "$cl" "$ip" "$code" "$verdict" "$first" > "$(PROBE_FILE)"
+  echo "  probe: first /logbook.json after the claim of $type -> $verdict (http $code, first=$first)"
+}
+
 step() {
   [ "$MODE" = "guided" ] || return 0
   printf '\n  ---- STEP %s ----\n  %s\n\n  press ENTER when done: ' "$1" "$2"
   read -r _
 }
 
+if [ "$MODE" = "probe" ]; then
+  probe_claim
+  exit $?
+fi
+
 if [ "$MODE" = "capture" ]; then
   start_capture
   printf '
   capture running. log: %s
 ' "$LOG"
+  printf '  right after the claim (step 3), BEFORE anyone opens Collection: %s --probe-claim %s\n' "$0" "$LOG"
   printf '  finish with: %s --assert-only %s
 
 ' "$0" "$LOG"
@@ -166,7 +282,7 @@ if [ "$MODE" = "guided" ] && [ ! -t 0 ]; then
 fi
 [ "$MODE" = "guided" ] && start_capture
 
-step 1 "FACTORY RESET the device (Stats screen menu, or the config page).
+step 1 "FACTORY RESET the device. Swipe left three times to Connect, tap [ Reset ], choose Factory Reset, confirm.
      This is the state every new owner starts from, and the state your
      friend's board was handed over in."
 step 2 "Join Wi-Fi through the portal, then on the config page SET YOUR
@@ -189,6 +305,7 @@ step 2 "Join Wi-Fi through the portal, then on the config page SET YOUR
      which is why the cfg-rev migration exists."
 step 3 "Wait for aircraft, then TAP one to open its card and claim it.
      Note the type code it claims."
+[ "$MODE" = "guided" ] && probe_claim
 step 4 "Open the CONFIG PAGE -> Collection, WITHIN ABOUT A MINUTE of the claim.
      The claim must be visible. This is the check the whole script exists for:
      before the fix it stayed empty for ten minutes."
@@ -281,38 +398,37 @@ ts_secs() {
   echo $((10#$h * 3600 + 10#$m * 60 + 10#$s))
 }
 
+# STEP 4, REWRITTEN 2026-10-08. The persist-timing check above it was anchored on the claim
+# and could not say what the page SHOWED: the page is served from NVS and a fetch's own save
+# lands after its response. Two checks replace it: what the FIRST view after the claim held
+# (the probe), and whether anyone opened Collection at all (a separate, clearly named failure).
 CLAIM_HIT="$(grep -an "\[claim\] .* claimed" "$LOG" | head -1)"
 CLAIM_LINE="${CLAIM_HIT%%:*}"
-r=1; LB_WHY="No [claim] line, so there is nothing to have persisted after."
-if [ -n "$CLAIM_LINE" ]; then
-  # Strictly after the claim LINE, not merely somewhere in the file.
-  PERSIST_HIT="$(grep -an "\[logbook\] persisted" "$LOG" \
-                 | awk -F: -v c="$CLAIM_LINE" '$1 > c' | head -1)"
-  if [ -z "$PERSIST_HIT" ]; then
-    LB_WHY="No [logbook] persisted AFTER the first [claim] (line $CLAIM_LINE). The Collection page reads NVS, so it would have shown nothing."
-  else
-    PERSIST_LINE="${PERSIST_HIT%%:*}"
-    CLAIM_TS="$(ts_secs "$(sed -n "${CLAIM_LINE}p" "$LOG" | cut -d' ' -f1)")"
-    PERSIST_TS="$(ts_secs "$(sed -n "${PERSIST_LINE}p" "$LOG" | cut -d' ' -f1)")"
-    if [ -z "$CLAIM_TS" ] || [ -z "$PERSIST_TS" ]; then
-      # Unstamped log: fall back to ordering alone rather than inventing a delay.
-      r=0
-      LB_WHY=""
-    else
-      DELAY=$((PERSIST_TS - CLAIM_TS))
-      # A capture that crosses midnight wraps; a negative delay means the next day.
-      [ "$DELAY" -lt 0 ] && DELAY=$((DELAY + 86400))
-      if [ "$DELAY" -le "$LB_WINDOW_S" ]; then
-        r=0
-      else
-        LB_WHY="The first persist after the claim came ${DELAY}s later, past the ${LB_WINDOW_S}s bound. This is the 2026-08-21 shape: the book is written eventually, and the Collection page is empty for the whole window a new owner is looking at it."
-      fi
-    fi
-  fi
+PROBE="$( [ -f "$LOG.probe" ] && cat "$LOG.probe" )"
+pv() { printf '%s' "$PROBE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
+r=1; P_WHY=""
+if [ -z "$PROBE" ]; then
+  P_WHY="No probe was recorded. Run --probe-claim <log> right after the claim, before anyone opens Collection (guided mode does it after step 3)."
+elif [ "$(pv first)" != "yes" ]; then
+  P_WHY="The config page was loaded between the claim and the probe, so the probe was not the first fetch. Redo steps 3-4."
+elif [ "$(pv verdict)" = "CLAIMED" ]; then
+  r=0
+elif [ "$(pv verdict)" = "NOFETCH" ] || [ "$(pv verdict)" = "NOPROBE" ]; then
+  P_WHY="The probe could not read /logbook.json (http $(pv http)), so there is no evidence either way."
+else
+  P_WHY="The first /logbook.json after the claim of $(pv claim) had it $(pv verdict). The page is served from NVS, and the save a fetch triggers lands after its own response (at most once per 30 s), so a new owner's first view is missing the claim until a refresh. Known issue in v15/v16; v17 saves on the claim."
 fi
-check "step 4: the book was PERSISTED within ${LB_WINDOW_S}s of the claim" $r "$LB_WHY"
+check "step 4: the FIRST Collection view after the claim included it" $r "$P_WHY"
+r=1
+if [ -n "$CLAIM_LINE" ] && tail -n +"$((CLAIM_LINE + 1))" "$LOG" | grep -aq "\[GET\] Handling request to config web server"; then r=0; fi
+check "step 4: Collection was opened after the claim" $r "Collection was never opened; the step was not performed."
+# Informational: when the claim actually reached NVS. Not a check (see above).
+if [ -n "$CLAIM_LINE" ]; then
+  PH="$(grep -an "\[logbook\] persisted" "$LOG" | awk -F: -v c="$CLAIM_LINE" '$1 > c' | head -1)"
+  [ -n "$PH" ] && printf '  info  first save after the claim: %s\n' "$(printf '%s' "$PH" | cut -d: -f2- | cut -c1-9)"
+fi
 
-grep -aq "\[logbook\] disabled -- flushing before logging stops" "$LOG"; check "step 5: disabling FLUSHED first" $? \
+grep -aq "\[logbook\] disabled -- flushing before logging stops" "$LOG"; check "step 6: disabling FLUSHED first" $? \
   "The disable edge did not flush. Anything claimed since the last write was stranded in RAM."
 
 # THE ONE THAT MATTERS MOST. After a real power cut the book must come back
@@ -333,8 +449,26 @@ fi
 LOADED_TYPES="$(printf '%s' "$LAST_LOAD" | sed -n 's/.*loaded \([0-9]*\) types.*/\1/p')"
 LOADED_CLAIMED="$(printf '%s' "$LAST_LOAD" | sed -n 's/.*loaded [0-9]* types (\([0-9]*\) claimed.*/\1/p')"
 if [ "${LOADED_TYPES:-0}" -gt 0 ] && [ "${LOADED_CLAIMED:-0}" -gt 0 ]; then r=0; else r=1; fi
-check "step 6: the collection SURVIVED the power cut ($LAST_LOAD)" $r \
+check "step 5: the collection SURVIVED the power cut ($LAST_LOAD)" $r \
   "The post-power-cut boot loaded 0 types or 0 claimed. The customer lost their collection."
+
+# EXACTLY ONE BOOT AFTER THE POWER CUT, and it is POWERON. The capture's own reconnect reset
+# the board a second time on 2026-10-08 (rst:0x15); a second boot is the instrument
+# intervening, and zero boots means the capture missed the boot entirely (blind, not a pass).
+DROP_LINE="$( [ -n "$CLAIM_LINE" ] && grep -an "\[capture\] port dropped" "$LOG" | awk -F: -v c="$CLAIM_LINE" '$1 > c' | head -1 | cut -d: -f1 )"
+r=1; B_WHY="No port drop after the claim: the power cut (step 5) is not in the log."
+if [ -n "$DROP_LINE" ]; then
+  END_LINE="$(grep -an "\[logbook\] disabled -- flushing" "$LOG" | awk -F: -v d="$DROP_LINE" '$1 > d' | head -1 | cut -d: -f1)"
+  WIN="$(sed -n "${DROP_LINE},${END_LINE:-\$}p" "$LOG")"
+  NB="$(printf '%s\n' "$WIN" | grep -ac "\[boot\] reset reason=")"
+  RR="$(printf '%s\n' "$WIN" | grep -a "\[boot\] reset reason=" | head -1 | sed -n 's/.*reset reason=\([A-Z_0-9]*\).*/\1/p')"
+  NX="$(printf '%s\n' "$WIN" | grep -ac "rst:0x15")"
+  if [ "$NB" -eq 1 ] && [ "$RR" = "POWERON" ] && [ "$NX" -eq 0 ]; then r=0
+  elif [ "$NB" -eq 0 ]; then B_WHY="BLIND: no boot line was captured after the power cut, so this cannot tell one boot from two."
+  else B_WHY="$NB boot(s) after the power cut (first: ${RR:-?}; rst:0x15 lines: $NX). A second boot is a reset by the capture, not the power cut."
+  fi
+fi
+check "step 5: exactly ONE boot after the power cut, and it is POWERON" $r "$B_WHY"
 
 printf '\n  %d passed, %d failed\n' "$pass" "$fail"
 printf '  log: %s\n\n' "$LOG"
