@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "DiscGeometry.h"
+#include "ConnectLayout.h"
 
 // THE TOUCH-WEDGE REBOOT CAP (v16; spec docs/v15-touch-wedge-cap.md).
 //
@@ -77,6 +78,20 @@ inline bool HealthyResetDue(const State& s, bool wedgeSeenThisBoot, uint32_t upt
     return s.run != 0 && !wedgeSeenThisBoot && uptimeMs >= healthyMs;
 }
 
+/// Reset 3 applied: the counter AND the strip (ruling 3 on #376). An hour with
+/// RebootRecommended() never holding means the chip is answering, so "touch unavailable"
+/// would be a false statement on the glass. A boot where the wedge held never gets here --
+/// HealthyResetDue refuses it however long it runs (seen on-device: 2 h wedged, no reset).
+inline State OnHealthyReset(State s)
+{
+    s.run = 0;
+    s.unavailable = false;
+    return s;
+}
+
+/// The strip is up exactly when touch is unavailable. One predicate, read by the draw.
+inline bool StripShown(const State& s) { return s.unavailable; }
+
 // ---- the rung's side effects, IN ORDER ------------------------------------------
 // Stamp first, then reboot (like DeferRebootWithCause): power lost between the two
 // leaves one reboot uncounted, which is harmless; the other order can count a reboot
@@ -116,6 +131,26 @@ inline int StripTopY(int boxW, int boxH, int screenSize)
     for (int y = 0; y + boxH <= c; ++y)   // the strip stays in the upper half
         if (discgeom::ChordWidthPx(y, boxH, screenSize) >= boxW) return y;
     return c - boxH / 2;   // wider than any upper-half row: centre it, where the glass is widest
+}
+
+// ---- the strip on Connect --------------------------------------------------------
+// Connect is the screen a customer SCANS, and the device lands on it by itself for an
+// unconfigured unit (Initialise's boot landing). The boxed strip at StripTopY sat on the QR's
+// top-left finder pattern, so the code would not scan while the strip was up (ruling 4 on #376).
+//
+// So on Connect the strip is not a box: its three lines take the rows UNDER the URL --
+// the bare id row (now labelled), the "phone on home wifi?" hint, and "[ Reset ]", a touch
+// control that cannot work while touch is unavailable. The QR and the URL, the two things a
+// customer acts on, are never touched. The order is forced by the disc, not chosen: only
+// the id row is wide enough for "Device ID: <16 hex>" (162 px), only the hint row for the
+// support address (144 px), and the headline (102 px) is what fits the narrow reset row.
+struct ConnectRow { int y; const char* text; bool headline; };
+struct ConnectRows { ConnectRow row[3]; };
+inline ConnectRows ConnectRowsFor(const Strip& st)
+{
+    return { { { connectlayout::ID_Y,    st.line3, false },
+               { connectlayout::HINT_Y,  st.line2, false },
+               { connectlayout::RESET_Y, st.line1, true  } } };
 }
 
 } // namespace touchwedge

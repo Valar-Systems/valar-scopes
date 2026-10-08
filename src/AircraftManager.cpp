@@ -68,6 +68,9 @@ static constexpr int RING_LABEL_OUTER_INSET = 14;
 #include "Layout.h"
 #include "StatsRowPriority.h"  // what this face drops when it fills, decided once
 #include "QrRender.h"
+#include "ConnectLayout.h"
+static_assert(connectlayout::QR_MAX_VERSION == qr::MAX_VERSION && connectlayout::QR_QUIET == qr::QUIET,
+              "ConnectLayout.h transcribes QrRender.h's limits; they disagree, so the strip-vs-QR bound is wrong");
 #include "Board.h"
 #include "OtaUpdater.h" // FW_VERSION, compared against the cloud config's minFw gate
 #include "TouchWatchdog.h" // CST816 supervisor; inert unless variant::TOUCH_WATCHDOG
@@ -1473,9 +1476,11 @@ void AircraftManager::Update()
         }
         // An hour without the wedge (reset 3): a recovered unit must not creep toward the cap.
         if (touchwedge::HealthyResetDue(touchWedge, touchWedgeSeenThisBoot, now, TOUCH_HEALTHY_MS)) {
-            touchWedge.run = 0;
-            touchWedge.unavailable = false;
+            const bool wasUnavailable = touchWedge.unavailable;
+            touchWedge = touchwedge::OnHealthyReset(touchWedge);   // the counter AND the strip
             StoreTouchRun(0, "an hour without the wedge");
+            if (wasUnavailable)
+                Serial.println("[touch-wd] an hour without the wedge: leaving touch unavailable");
         }
     }
 
@@ -4245,15 +4250,19 @@ void AircraftManager::DrawConnect(BandCanvas& backbuffer)
     // screen whose whole job is to ask for something is the defect this change
     // exists to fix, reintroduced one layer down.
     if (!hasLocation) {
-        const int titleY = 14;
+        const int titleY = connectlayout::TITLE_Y;
         String title = "SET YOUR LOCATION";
         if (FitToDisc(backbuffer, title, titleY, lineH).isEmpty())
             title = "SET LOCATION";           // 72 px, fits from y=8
         centred(title, titleY, lgfx::color888(255, 176, 0));
     }
 
-    const int qrPx = 4;
-    const bool drew = qr::Draw(backbuffer, url.c_str(), cx, 90, qrPx);
+    const bool drew = qr::Draw(backbuffer, url.c_str(), cx, connectlayout::QR_CY, connectlayout::QR_PX);
+
+    // TOUCH UNAVAILABLE ON CONNECT: the strip's three lines take the rows under the URL
+    // (ConnectRowsFor), never the QR or the URL -- this is the screen a customer scans, and
+    // an unconfigured unit lands here by itself. DrawTouchUnavailable stays off Connect.
+    const bool strip = touchwedge::StripShown(touchWedge);
 
     if (!drew) {
         // No half-drawn symbol. The text becomes the whole screen.
@@ -4264,26 +4273,41 @@ void AircraftManager::DrawConnect(BandCanvas& backbuffer)
         // THE ADDRESS AS TEXT, ALWAYS -- never only as a code. Some phones are
         // locked down, some people would rather type, and a code that will not
         // scan with no visible fallback is the same dead end one layer in.
-        centred(url, 164, lgfx::color888(0, 255, 0));
+        centred(url, connectlayout::URL_Y, lgfx::color888(0, 255, 0));
 
         // The device id appears NOWHERE else on the device -- only on the config
         // page, which is the page an unreachable customer cannot open. That is
         // why it earns a row here on its own merits, QR or no QR.
-        centred(DeviceIdentity::LeaderboardId(), 180, lgfx::color888(0, 140, 0));
+        if (!strip)
+            centred(DeviceIdentity::LeaderboardId(), connectlayout::ID_Y, lgfx::color888(0, 140, 0));
 
         // THE AP TRAP. A phone still joined to the device's own setup hotspot is
         // on 192.168.4.x and cannot reach a 192.168.1.x address. It scans the
         // code perfectly and fails to load it, and the owner concludes the code
         // is broken -- or the product is.
-        if (joined)
-            centred("phone on home wifi?", 194, lgfx::color888(150, 150, 0));
+        if (joined && !strip)
+            centred("phone on home wifi?", connectlayout::HINT_Y, lgfx::color888(150, 150, 0));
+    }
+
+    if (strip) {
+        // Drawn directly, not through FitToDisc: each row is host-tested to fit its chord
+        // (test_touch_wedge.cpp), and a support address or id quietly shortened to fit would
+        // be worse than one that visibly ran off the glass.
+        const touchwedge::Strip st = touchwedge::StripFor(DeviceIdentity::LeaderboardId().c_str());
+        const touchwedge::ConnectRows rows = touchwedge::ConnectRowsFor(st);
+        for (const touchwedge::ConnectRow& r : rows.row) {
+            backbuffer.setTextColor(r.headline ? lgfx::color888(255, 176, 0) : lgfx::color888(255, 255, 255));
+            backbuffer.drawString(r.text, cx - (int)backbuffer.textWidth(r.text) / 2, r.y);
+        }
+        resetRowY0 = resetRowY1 = -1;   // no Reset row drawn, so no Reset tap target
+        return;
     }
 
     // THE RESET CONTROL, moved here from Stats. It belongs with the address:
     // both answer "my device is unreachable". A TAP opens a menu rather than
     // doing anything -- nothing destructive happens on this screen, so a stray
     // contact lands on a menu with a large Cancel rather than on a wipe.
-    const int resetY = 210;
+    const int resetY = connectlayout::RESET_Y;
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
     centred("[ Reset ]", resetY, lgfx::color888(0, 200, 0));
     // Tap target = the drawn row, padded to a fingertip, derived from the same
@@ -4759,7 +4783,8 @@ void AircraftManager::StoreTouchRun(uint8_t run, const char* why)
 void AircraftManager::DrawTouchUnavailable(BandCanvas& backbuffer) const
 {
     if constexpr (!variant::TOUCH_WATCHDOG) return;
-    if (!touchWedge.unavailable) return;
+    if (!touchwedge::StripShown(touchWedge)) return;
+    if (screen == Screen::Connect && !inDetail) return;   // DrawConnect draws it under the URL
     // Three lines high on the face, placed by the chord rule so the whole box is on the
     // glass (StripTopY), over whatever screen is up. Nothing on it asks to be tapped --
     // touch is what's broken.

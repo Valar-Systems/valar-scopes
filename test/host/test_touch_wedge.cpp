@@ -87,6 +87,55 @@ int main()
         check(!HealthyResetDue(z, false, HEALTHY_RESET_MS), "CONTROL: run 0 needs no reset (no write)");
     }
 
+    // ---- ruling 3: the hour reset clears the strip; the wedge holding never does -----
+    {
+        State s = AtBoot(3, /*powerOn=*/false);
+        check(StripShown(s), "CONTROL: an SW boot at run 3 shows the strip");
+        check(HealthyResetDue(s, /*wedgeSeen=*/false, HEALTHY_RESET_MS), "an unavailable boot that never saw the wedge is due the hour reset");
+        s = OnHealthyReset(s);
+        check(!StripShown(s) && s.run == 0, "the hour reset clears the strip and the counter");
+
+        // On-device evidence for the other half: 2026-10-07, COM18 ran 2 h in touch
+        // unavailable with RebootRecommended() holding (rebootRec=1 on 237 consecutive
+        // health lines) and the strip never cleared. Here it is for any uptime.
+        const State held = AtBoot(3, false);
+        bool everDue = false;
+        const uint32_t uptimes[] = { HEALTHY_RESET_MS, 2 * HEALTHY_RESET_MS, 24UL * 3600000UL, 0xFFFFFFFFUL };
+        for (uint32_t t : uptimes)
+            if (HealthyResetDue(held, /*wedgeSeen=*/true, t)) everDue = true;
+        check(!everDue && StripShown(held), "the strip never clears by the hour reset while the wedge holds, at any uptime");
+    }
+
+    // ---- ruling 4: on Connect the strip leaves the QR and the URL alone ------------
+    {
+        using namespace connectlayout;
+        const int S = 240, GLYPH_W = 6, GLYPH_H = 8;   // the s3-128's font: 6x8 (the 174 px box = 27 chars * 6 + 12)
+        const Strip st = StripFor("0000000000000000");   // EXAMPLE -- not a real device
+        const ConnectRows rows = ConnectRowsFor(st);
+        std::printf("  QR worst-case bottom y=%d, URL y=%d\n", QrBottomY(), URL_Y);
+        check(QrBottomY() <= URL_Y, "the largest QR Connect can draw ends above the URL row");
+        bool clearOfQr = true, clearOfUrl = true, fits = true, allLines = true;
+        for (const ConnectRow& r : rows.row) {
+            if (r.y < QrBottomY()) clearOfQr = false;
+            if (r.y < URL_Y + GLYPH_H + 2) clearOfUrl = false;
+            const int w = (int)std::strlen(r.text) * GLYPH_W;
+            const int chord = discgeom::ChordWidthPx(r.y, GLYPH_H, S);
+            std::printf("  connect row y=%d  %3d px of %3d  \"%s\"\n", r.y, w, chord, r.text);
+            if (w > chord) fits = false;
+            if (r.text[0] == '\0') allLines = false;
+        }
+        check(clearOfQr, "no strip row on Connect reaches into the QR, at its largest");
+        check(clearOfUrl, "no strip row on Connect covers the URL");
+        check(fits, "every strip row on Connect fits the round glass at its height");
+        check(allLines && rows.row[2].headline &&
+              std::strstr(rows.row[0].text, "0000000000000000") && std::strstr(rows.row[1].text, "support@valarsystems.com"),
+              "all three lines are there: the id, the support address, the headline");
+        // CONTROL: the boxed strip, where it sits on every other screen, DOES overlap the QR --
+        // which is why Connect needs its own placement at all.
+        const int boxTop = StripTopY(174, 36, S);
+        check(boxTop < QrBottomY() && boxTop + 36 > QR_CY - 66, "CONTROL: the boxed strip at its usual height overlaps Connect's QR");
+    }
+
     // ---- the rung's order: write, stamp, THEN restart -------------------------------
     {
         const Plan p = RebootPlan();
