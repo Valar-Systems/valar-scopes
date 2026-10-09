@@ -5426,6 +5426,15 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
     PushClaimToast("CLAIMED " + label + "  #" + String((int)logbook.ClaimedTypeCount()));
     Serial.printf("[claim] %s claimed (%u/%u types)\n", label.c_str(),
                   (unsigned)logbook.ClaimedTypeCount(), (unsigned)logbook.TypeCount());
+    // SAVE NOW, not at the next 10-minute write. The Collection page is served from NVS, and
+    // the save a page load requests lands after that load's own response (at most once per
+    // 30 s), so before v17 a new owner's first view after a claim was missing it -- and the
+    // next one too, if the claim fell inside that 30 s (v16's fresh-boot acceptance,
+    // 2026-10-08). A claim is a rare, deliberate act that happens once per type for the life
+    // of the device, so one write per claiming tap is cheap (worst case in
+    // docs/v17-logbook-save-on-claim.md). No debounce: any window here is a window in which
+    // the page is wrong, and the acceptance's step-4 probe fetches right after the claim.
+    logbook.PersistNow();
 }
 
 // One [perf] line a minute: the whole feed-vs-contention question in a form that
