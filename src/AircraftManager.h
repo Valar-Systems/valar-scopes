@@ -261,6 +261,7 @@ private:
     // background enrichment after a touch so the enrichment task's TLS doesn't hold the
     // I2C bus (which touch is serialized against) while the user is interacting.
     unsigned long lastTouchActivityMs = 0;
+    uint32_t overheadPassCount = 0;   // [overhead] pass lines since boot (the v17 pass-rate measurement)
 
     // Decoded aircraft photo for the detail view. The sprite is created once and
     // reused; photoIcao/photoReady track which aircraft it currently holds.

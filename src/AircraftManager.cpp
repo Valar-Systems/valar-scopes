@@ -5162,6 +5162,19 @@ void AircraftManager::UpdateVisualAlerts()
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
 
+        // OVERHEAD PASS RATE (v17 "overhead now" card, step 1: docs/v17-overhead-card.md). One line on
+        // the first IsOverhead frame of each pass -- the edge the card will trigger on -- WHATEVER
+        // "Look up!" is set to, since IsOverhead is otherwise only evaluated with the feature on.
+        // Counts, altitude and idle state only: no hex, no position.
+        if (!t.overheadPassLogged && IsOverhead(t)) {
+            t.overheadPassLogged = true;
+            ++overheadPassCount;
+            Serial.printf("[overhead] pass n=%u alt_ft=%d idle=%d lookup=%d r_km=%.1f up_s=%lu\n",
+                          (unsigned)overheadPassCount, (int)lroundf(t.state.baroAltitude * METRES_TO_FEET),
+                          (now - lastTouchActivityMs) >= 30000UL ? 1 : 0, (showOverhead || alertOverhead) ? 1 : 0,
+                          (double)overheadKm, now / 1000UL);
+        }
+
         // squawks can turn emergency mid-track, so the edge is per-contact and
         // fires at most once (a cleared-then-reset squawk doesn't re-burst)
         if (isEmergencySquawk(t.state.squawk)) {

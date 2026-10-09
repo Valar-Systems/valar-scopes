@@ -52,6 +52,7 @@ struct TrackedAircraft {
                                     // or not; its own flag so the flash can wait without it
     bool emgNotified = false;       // an emergency-squawk ntfy alert has been sent this session
     bool overheadToneFired = false; // the overhead alert tone has sounded this session (HAS_AUDIO)
+    bool overheadPassLogged = false; // the [overhead] pass line has been printed this session
     // MQTT event dedupe (Home Assistant "events, not state"): one bit per event
     // class already fired for this contact this session, so an automation fires
     // once per aircraft, not every poll. Bit0 watchlist, 1 emergency, 2 military,
