@@ -119,6 +119,26 @@ L
   case_ neveropened 1 "step 4: Collection was opened after the claim" "Collection was never opened; the step was not performed."
   case_ doubleboot 1 "step 5: exactly ONE boot after the power cut" "2 boot(s) after the power cut"
   case_ noboot 1 "step 5: exactly ONE boot after the power cut" "BLIND"
+  # An empty verdict is a broken probe, and must not read as the v16 failure (2026-10-08, P1).
+  mk noverdict "" "${probe_ok/verdict=CLAIMED/verdict=}"
+  case_ noverdict 1 "step 4: the FIRST Collection view after the claim included it" "BLIND: the probe produced no verdict"
+  # The PROBE itself, through its FBA_PROBE_BODY seam: the parse and the interpreter, with the
+  # body kept as the artifact. Each wants ONE exact verdict.
+  mkdir -p "$T/stub"
+  for c in python3 python py; do printf '#!/bin/sh\necho "Python was not found"\nexit 49\n' > "$T/stub/$c"; chmod +x "$T/stub/$c"; done
+  pcase() { # name, body, want-verdict, stub-pythons(yes|no)
+    local got; base > "$T/p-$1.log"; printf '%s' "$2" > "$T/p-$1.body"
+    if [ "$4" = yes ]; then PATH="$T/stub:$PATH" FBA_PROBE_BODY="$T/p-$1.body" bash "$0" --probe-claim "$T/p-$1.log" >/dev/null 2>&1
+    else FBA_PROBE_BODY="$T/p-$1.body" bash "$0" --probe-claim "$T/p-$1.log" >/dev/null 2>&1; fi
+    got="$(sed -n 's/.* verdict=\([^ ]*\).*/\1/p' "$T/p-$1.log.probe" 2>/dev/null)"
+    if [ "$got" = "$3" ] && cmp -s "$T/p-$1.body" "$T/p-$1.log.probe.json"; then printf '  ok    probe %s -> %s\n' "$1" "$got"
+    else printf '  FAIL  probe %s: verdict=%s (want %s), body kept: %s\n' "$1" "${got:-<empty>}" "$3" "$(cmp -s "$T/p-$1.body" "$T/p-$1.log.probe.json" && echo yes || echo no)"; st=1; fi
+  }
+  pcase claimed   '{"types":[{"code":"E75L","claimed":true}]}'  CLAIMED   no
+  pcase unclaimed '{"types":[{"code":"E75L","claimed":false}]}' UNCLAIMED no
+  pcase absent    '{"types":[{"code":"B738","claimed":true}]}'  ABSENT    no
+  pcase garbage   '<html>not json</html>'                       NOPARSE   no
+  pcase stubpy    '{"types":[{"code":"E75L","claimed":true}]}'  NOPARSE   yes
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
@@ -219,7 +239,7 @@ start_capture() {
 # customer's first view, measured.
 PROBE_FILE() { printf '%s.probe' "$LOG"; }
 probe_claim() {
-  local hit cl type ip out code body verdict first py
+  local hit cl type ip out code body verdict first py c
   hit="$(grep -an "\[claim\] [A-Z0-9]* claimed" "$LOG" | tail -1)"
   cl="${hit%%:*}"
   type="$(printf '%s' "$hit" | sed -n 's/.*\[claim\] \([A-Z0-9]*\) claimed.*/\1/p')"
@@ -233,17 +253,36 @@ probe_claim() {
   # FIRST means first: a config-page load after the claim may already have fetched it.
   first=yes
   tail -n +"$((cl + 1))" "$LOG" | grep -aq "\[GET\] Handling request to config web server" && first=no
-  out="$(curl -s -m 15 -w '\n%{http_code}' "http://$ip/logbook.json")"
-  code="${out##*$'\n'}"; body="${out%$'\n'*}"
-  py="$(command -v python3 || command -v python)"
-  verdict="$(printf '%s' "$body" | "$py" -c "import json,sys
+  # FBA_PROBE_BODY names a file to use as the response instead of fetching: the --selftest seam
+  # that exercises the parse below. Never set on a real run.
+  if [ -n "${FBA_PROBE_BODY:-}" ]; then
+    code=200; body="$(cat "$FBA_PROBE_BODY")"
+  else
+    out="$(curl -s -m 15 -w '\n%{http_code}' "http://$ip/logbook.json")"
+    code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  fi
+  # Keep what the page SAID, so the verdict can be re-derived from the artifact. The first real
+  # probe (2026-10-08) kept only its verdict, and when that came back empty the run was lost.
+  printf '%s' "$body" > "$LOG.probe.json"
+  # An interpreter PROVEN by running it, not found by name. On Windows `python3` can be the
+  # Microsoft Store stub, which prints "Python was not found" and exits. The first real probe took
+  # it, parsed nothing and wrote an empty verdict -- which step 4 read as the v16 failure it was
+  # predicting, so a broken probe and a broken device looked the same.
+  py=""
+  for c in python3 python py; do
+    "$c" -c 'import json' >/dev/null 2>&1 && { py="$c"; break; }
+  done
+  verdict=NOPARSE
+  [ -n "$py" ] && verdict="$(printf '%s' "$body" | "$py" -c "import json,sys
 t=sys.argv[1]
 try:
     d=json.load(sys.stdin)
 except Exception:
-    print('NOFETCH'); sys.exit()
+    print('NOPARSE'); sys.exit()
 e=[x for x in d.get('types',[]) if x.get('code')==t]
-print('CLAIMED' if e and e[0].get('claimed') else ('UNCLAIMED' if e else 'ABSENT'))" "$type")"
+print('CLAIMED' if e and e[0].get('claimed') else ('UNCLAIMED' if e else 'ABSENT'))" "$type" 2>/dev/null)"
+  # Only three answers are evidence. Anything else is the instrument, and says so.
+  case "$verdict" in CLAIMED|UNCLAIMED|ABSENT) ;; *) verdict=NOPARSE ;; esac
   [ "$code" = "200" ] || verdict=NOFETCH
   printf 'probe %s claim=%s claim_line=%s ip=%s http=%s verdict=%s first=%s\n' \
     "$(date +%H:%M:%S)" "$type" "$cl" "$ip" "$code" "$verdict" "$first" > "$(PROBE_FILE)"
@@ -415,10 +454,12 @@ elif [ "$(pv first)" != "yes" ]; then
   P_WHY="The config page was loaded between the claim and the probe, so the probe was not the first fetch. Redo steps 3-4."
 elif [ "$(pv verdict)" = "CLAIMED" ]; then
   r=0
-elif [ "$(pv verdict)" = "NOFETCH" ] || [ "$(pv verdict)" = "NOPROBE" ]; then
-  P_WHY="The probe could not read /logbook.json (http $(pv http)), so there is no evidence either way."
-else
+elif [ "$(pv verdict)" = "UNCLAIMED" ] || [ "$(pv verdict)" = "ABSENT" ]; then
   P_WHY="The first /logbook.json after the claim of $(pv claim) had it $(pv verdict). The page is served from NVS, and the save a fetch triggers lands after its own response (at most once per 30 s), so a new owner's first view is missing the claim until a refresh. Known issue in v15/v16; v17 saves on the claim."
+else
+  # Named outcomes only reach the explanation above. An unknown or empty verdict is a broken
+  # probe, and must never read as the device failure the run was predicting.
+  P_WHY="BLIND: the probe produced no verdict (verdict='$(pv verdict)', http $(pv http)), so there is no evidence either way. The instrument failed, not the device: fix the probe and redo steps 3-4."
 fi
 check "step 4: the FIRST Collection view after the claim included it" $r "$P_WHY"
 r=1
