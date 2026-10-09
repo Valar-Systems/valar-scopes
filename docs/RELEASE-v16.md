@@ -53,6 +53,31 @@ Collection until the page is refreshed, sometimes more than once. It is a known 
 fixed in v17 (save immediately on a claim). No rollback; no data is lost. Detail and log timeline are in
 the release notes.
 
+## Rollout graded (2026-10-09 11:43Z)
+
+Graded against the predictions frozen before promote (sha256 prefix `aef3b0607dc5`, checked before
+reading). T is the promote, 2026-10-08T19:13:55Z. The figures are the Worker's request and boot rows,
+read with the dashboard's own query. **Every always-on device moved to 16 on the first request after
+its first boot after T, as predicted. Nothing fell outside the set.**
+
+| device | predicted | last fw 15 | first fw 16 | the boot before it |
+|---|---|---|---|---|
+| `336f` | ~10:01Z | 09:59:04Z | 10:01:19Z | 10:01:19Z `SW`, the quiet reboot |
+| `ada1` | ~11:01Z | 10:59:42Z | 11:01:19Z | 11:01:19Z `SW`, the quiet reboot |
+| `04f8` (COM6) | ~11:01Z, "unless something else reboots it sooner" | 02:23:16Z | 02:25:24Z | 02:25:24Z `SW`, **not** the quiet reboot |
+
+- **`04f8` moved 8.6 h early, through the prediction's own exception.** Its first boot after T was a
+  `SW` reboot at 02:25:24Z, and its first fw-16 request was that boot's check-in. Its normal quiet
+  reboot followed at 11:00:18Z. **The cause of the 02:25 reboot is unknown and is not guessed.** It
+  falls between two unexplained `USB` resets of the bench board `e5cd`, at 02:24:09Z and 02:26:32Z.
+  **Daniel confirmed on the glass that COM6 runs v16: swipe-up zoom works.**
+- **`22e6` has made no request since T**, so it did not reconnect, and R2 (the touch-wedge cap on a
+  real wedged chip) is **not graded**.
+- **Did not move** (no request since T): `22e6` (last 2026-09-29 08:54Z, fw 14), `2aee` (2026-10-02
+  01:03Z, fw 14), `870b` (2026-09-22 23:11Z, fw 11), `2afa` (2026-09-14 21:20Z, fw 11), `a566`
+  (2026-09-13 19:51Z, fw 11), `5bec` (2026-09-11 02:59Z, fw 11).
+- `e5cd` (COM18) is the bench board, not a rollout data point.
+
 ## 50-unit bench run sheet: v16 factory assets
 
 **The run flashes v16's CI-built factory set**, published by the release workflow from `74866aa`,
