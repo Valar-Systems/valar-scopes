@@ -198,8 +198,25 @@ while (\$true) {
     # 2026-10-08. So: wait for the port to come back, then 25 s more (the bench capture that
     # rode out W3b's unplug used 25 s with no reset), then reopen. Boot lines are not lost:
     # the board buffers them until a host opens the port.
+    #
+    # AND WAIT FOR IT TO LEAVE FIRST. The first version of this wait still reset the board on
+    # 2026-10-08 (P2): GetPortNames() listed the port at the instant it dropped, so the
+    # come-back wait ended at once and the 25 s ran from the power CUT, not the power-on. The
+    # board's own log bounds it: the first boot printed a fast join but neither its OK nor its
+    # 6 s miss, so it was at most ~10 s old when the reopen reset it. So: wait for the port to
+    # be gone (bounded; one that never leaves the list in 15 s is treated as back), then for it
+    # to return, and time the 25 s from the RETURN. Both gaps are logged, so the wait is
+    # measured rather than assumed.
+    \$t0 = Get-Date
+    while (([System.IO.Ports.SerialPort]::GetPortNames() -contains '$PORT') -and (((Get-Date) - \$t0).TotalSeconds -lt 15)) { Start-Sleep -Milliseconds 200 }
+    if ([System.IO.Ports.SerialPort]::GetPortNames() -contains '$PORT') {
+      \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port never left the list in 15 s; treating it as back')
+    } else {
+      \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port gone ' + [int]((Get-Date) - \$t0).TotalSeconds + ' s after the drop')
+    }
+    \$t1 = Get-Date
     while (-not ([System.IO.Ports.SerialPort]::GetPortNames() -contains '$PORT')) { Start-Sleep -Milliseconds 200 }
-    \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port back; waiting 25 s past the boot window before reopening')
+    \$sw.WriteLine((Get-Date -Format 'HH:mm:ss') + ' [capture] port back after ' + [int]((Get-Date) - \$t1).TotalSeconds + ' s away; waiting 25 s past the boot window before reopening')
     Start-Sleep -Seconds 25
   }
 }
