@@ -19,3 +19,5 @@ with any v16 line still pending.
 - **Overhead card** (`docs/v17-overhead-card.md`): *"When a plane passes overhead, a card shows it
   for a few seconds. Tap it for details."* The wording depends on the default decided in that spec.
   If the card sits behind "Look up!", the line begins *"With Look up! on, ..."*.
+- **What's new** (`docs/v17-whats-new.md`): *"After an update, tap 'What's new' on the radar to see
+  what changed."*
