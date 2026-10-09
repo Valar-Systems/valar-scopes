@@ -17,6 +17,13 @@
 //               (HandleSwipe: Swipe::Left -> AdvanceScreen(+1 | -1)). Never hard-coded.
 // and requires the card's sentence to equal the one those facts produce, word for word.
 //
+// THE FRESH-BOOT ACCEPTANCE SCRIPT TOO (added 2026-10-08). Its step 1 told the operator to
+// factory-reset from the "Stats screen menu" for two releases after the control moved, and a
+// review request to fix it (#341, item 3) did not land. Same failure as the card, so the same
+// derivation now produces its sentence -- with the menu's FACTORY item instead of Wi-Fi:
+//   "Swipe left <n> to <screen>, tap <label>, choose <factory item>, confirm"
+// and that sentence must appear in the script's `step 1 "..."` text.
+//
 // A fact the parser cannot find is BLIND (exit 2), never a pass: a check that cannot
 // see the firmware is indistinguishable from a card that is right.
 //
@@ -26,6 +33,7 @@
 import { readFileSync } from "node:fs";
 
 const CARDS = ["docs/blipscope-quickstart-card.html", "docs/blipscope-quickstart-card-PRINT-TEST.html"];
+const SCRIPT = "scripts/fresh-boot-acceptance.sh";
 const HEADER = "src/AircraftManager.h";
 const SOURCE = "src/AircraftManager.cpp";
 const COUNT_WORDS = { 1: "once", 2: "twice", 3: "three times", 4: "four times", 5: "five times" };
@@ -59,17 +67,28 @@ export function deriveFacts(header, source) {
   const label = need((draw.match(/centred\(\s*"(\[[^"]*\])"\s*,\s*resetY/) || [])[1], `the label Draw${screen} writes at resetY`);
   const menu = need(functionBody(source, "DrawResetMenu"), "DrawResetMenu()");
   const item = need((menu.match(/"(Reset Wi-Fi)"/) || [])[1], "the reset menu's Wi-Fi item");
+  const factory = need((menu.match(/rowBox\(\s*"(Factory[^"]*)"/) || [])[1], "the reset menu's factory item");
   const from = carousel.indexOf("Radar"), to = carousel.indexOf(screen);
   if (from < 0 || to < 0) throw new Blind(`Radar or ${screen} not in the carousel ${carousel.join(",")}`);
   const n = carousel.length;
   const swipes = (((to - from) * dir) % n + n) % n;
   if (!swipes) throw new Blind(`${screen} is Radar itself`);
-  return { carousel, skipped, dir, screen, label, item, swipes };
+  return { carousel, skipped, dir, screen, label, item, factory, swipes };
 }
 
 export function expectedSentence(f) {
   const count = need(COUNT_WORDS[f.swipes], `a word for ${f.swipes} swipes`);
   return `Swipe left ${count} to ${f.screen}, tap ${f.label}, choose ${f.item}, then tap again to confirm.`;
+}
+
+export function expectedScriptSentence(f) {
+  const count = need(COUNT_WORDS[f.swipes], `a word for ${f.swipes} swipes`);
+  return `Swipe left ${count} to ${f.screen}, tap ${f.label}, choose ${f.factory}, confirm`;
+}
+
+export function scriptStep1(sh) {
+  const m = sh.match(/\nstep 1 "([^"]*)"/);
+  return m ? m[1].replace(/\s+/g, " ").trim() : null;
 }
 
 export function cardSentence(html) {
@@ -78,29 +97,34 @@ export function cardSentence(html) {
   return m[1].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
-function check(header, source, cards) {
+function check(header, source, cards, script) {
   const facts = deriveFacts(header, source);
   const want = expectedSentence(facts);
   const bad = [];
+  const wantScript = expectedScriptSentence(facts);
+  const step1 = scriptStep1(script);
+  if (step1 === null) throw new Blind(`${SCRIPT}: no step 1 "..."`);
+  if (!step1.includes(wantScript)) bad.push(`${SCRIPT} step 1:\n    script:   "${step1}"\n    firmware: "${wantScript}"`);
   for (const [path, html] of cards) {
     const got = cardSentence(html);
     if (got === null) throw new Blind(`${path}: no <p class="reset-how">`);
     if (got !== want) bad.push(`${path}:\n    card:     "${got}"\n    firmware: "${want}"`);
   }
-  return { facts, want, bad };
+  return { facts, want, bad, wantScript };
 }
 
-function run(header, source, cards, quiet = false) {
+function run(header, source, cards, script, quiet = false) {
   try {
-    const { facts, want, bad } = check(header, source, cards);
+    const { facts, want, bad, wantScript } = check(header, source, cards, script);
     if (!quiet) {
       console.log(`firmware: carousel ${facts.carousel.join(" -> ")} (skips ${facts.skipped.join(",") || "none"}), ` +
                   `left = AdvanceScreen(${facts.dir > 0 ? "+" : ""}${facts.dir}); reset on ${facts.screen}, ` +
                   `label ${facts.label}, menu "${facts.item}", ${facts.swipes} left swipe(s) from Radar`);
       console.log(`expected: "${want}"`);
+      console.log(`expected in ${SCRIPT} step 1: "${wantScript}"`);
     }
     if (bad.length) { if (!quiet) console.log("FAIL: the card disagrees with the firmware\n  " + bad.join("\n  ")); return 1; }
-    if (!quiet) console.log(`ok: ${cards.length} card(s) match the firmware`);
+    if (!quiet) console.log(`ok: ${cards.length} card(s) and the acceptance script match the firmware`);
     return 0;
   } catch (e) {
     if (e instanceof Blind) { if (!quiet) console.log(`BLIND: could not derive ${e.message}`); return 2; }
@@ -111,6 +135,7 @@ function run(header, source, cards, quiet = false) {
 const header = readFileSync(HEADER, "utf8");
 const source = readFileSync(SOURCE, "utf8");
 const cards = CARDS.map((p) => [p, readFileSync(p, "utf8")]);
+const script = readFileSync(SCRIPT, "utf8");
 
 if (process.argv.includes("--selftest")) {
   // Each plant changes the firmware or the card in memory; the check must answer as stated.
@@ -118,6 +143,9 @@ if (process.argv.includes("--selftest")) {
     all.replace(body, body.split(",").map((s) => s.trim() === a ? ` ${b}` : s.trim() === b ? ` ${a}` : s).join(",")));
   const plants = [
     ["CONTROL: the real firmware and cards", header, source, cards, 0],
+    ["script step 1 back to the Stats menu", header, source, cards, 1, script.replace(/Swipe left three times to Connect, tap \[ Reset \], choose Factory Reset, confirm/, "Stats screen menu")],
+    ["factory item renamed in firmware (the script disagrees)", header, source.replace(/rowBox\("Factory Reset"/, 'rowBox("Factory Wipe"'), cards, 1],
+    ["BLIND: the script's step 1 removed", header, source, cards, 2, script.replace(/\nstep 1 "/, "\nstepX 1 \"")],
     ["Connect moved one carousel step EARLIER (swap with Stats) -> 2 swipes", swapEnum(header, "Stats", "Connect"), source, cards, 1],
     ["left swipe reversed (AdvanceScreen(-1)) -> 1 swipe", header, source.replace(/Swipe::Left\)\s*AdvanceScreen\(\+1\)/, "Swipe::Left)  AdvanceScreen(-1)"), cards, 1],
     // Only the TAP moves here, so DrawStats has no "[ ... ]" at resetY: the firmware is
@@ -129,9 +157,9 @@ if (process.argv.includes("--selftest")) {
     ["BLIND: the Screen enum renamed away", header.replace("enum class Screen", "enum class Page"), source, cards, 2],
   ];
   let rc = 0;
-  for (const [name, h, s, c, want] of plants) {
-    if (name.startsWith("CONTROL") ? false : (h === header && s === source && c === cards)) { console.log(`  FAIL  plant did not apply: ${name}`); rc = 2; continue; }
-    const got = run(h, s, c, true);
+  for (const [name, h, s, c, want, sc = script] of plants) {
+    if (name.startsWith("CONTROL") ? false : (h === header && s === source && c === cards && sc === script)) { console.log(`  FAIL  plant did not apply: ${name}`); rc = 2; continue; }
+    const got = run(h, s, c, sc, true);
     const ok = got === want;
     console.log(`  ${ok ? "ok  " : "FAIL"}  ${name}: exit ${got} (want ${want})`);
     if (!ok) rc = 1;
@@ -140,4 +168,4 @@ if (process.argv.includes("--selftest")) {
   process.exit(rc);
 }
 
-process.exit(run(header, source, cards));
+process.exit(run(header, source, cards, script));

@@ -353,10 +353,11 @@ So: a rule added to this file is the weakest form of the fix. Prefer a check tha
 runs -- a refusal, a test, a `--tol=` the caller must state. Where that is not
 possible, the entry at least gives the next person the shape to recognise.
 
-## Standing practice: the capture rig has now cost three measurements
+## Standing practice: the capture rig keeps costing measurements
 
 Not a caution. A tally, because the guard that catches this is worth less than
-not having it, and it has happened three times:
+not having it. (The heading used to say "three" over a table of four rows; the
+count is no longer stated, for the reason the second-paths entry gives.)
 
 | when | what the recorder did | what it cost |
 |---|---|---|
@@ -364,6 +365,7 @@ not having it, and it has happened three times:
 | 2026-09-09, COM119 | a watcher launched after a FAILED flash took the port | the retry failed because of the first attempt; board wedged overnight |
 | 2026-09-10, COM3 | reopened 5 s after a reboot, INTO the boot window, resetting the board | a ledger full of reboots that were the recorder's, nearly read as the firmware's retry interval |
 | 2026-09-12, COM6 | same reopen loop, during a negative control | the control could not be delivered; the AP vanished mid-test |
+| 2026-10-08, COM18 | timed its reopen from `GetPortNames()`, which kept listing COM18 for more than 15 s while the board was unplugged | both power cuts of the v17 fresh-boot acceptance were reset by the reopen (`rst:0x15`); the Worker's boot rows show only the `USB` boot each time, never the `POWERON` |
 
 **The mechanism is narrower than "recorders disturb boards", and naming it
 correctly is what made a fix possible.** DTR/RTS is not the culprit: both
@@ -384,6 +386,21 @@ So there are two rigs, and picking the wrong one is what costs a measurement:
   is expected to reboot, or whenever the measurement is about the board's own
   timing. A gap in the trace is a fact about the board; a reattach is an
   intervention in it.
+
+**A port list is never a board-present signal.** `SerialPort.GetPortNames()` --
+the host's SERIALCOMM registry list -- kept listing COM18 for **more than 15 s
+while the board was unplugged** (2026-10-08, measured by the fresh-boot
+acceptance's own wait timing out with the port still listed). So a wait that
+reads "the port is back, now hold off 25 s" ran from the power CUT, not the
+power-on, and the reopen landed in the next boot. The tell in that log: `port
+dropped` and `port back` stamped in the **same second**. When the question is
+"is the board up?", ask the board -- does it answer ping, does its own report
+arrive at the Worker -- never the host's port list. The fresh-boot acceptance now
+does exactly that: it grades the post-cut steps over the network, counts boots
+from the Worker's `X-Blip-Boot` rows, and reopens serial only after every check
+is graded. **Still in the tree and still wrong:** `bench-capture.ps1`'s
+"port vanished, so the device is re-enumerating" test (line ~208) uses the same
+list; with a stale entry it sees no vanishing and reopens after 5 s.
 
 **The tell that catches it after the fact:** reboots in a ledger with no
 corresponding cause line from the firmware. On 2026-09-10 the give-away was that
