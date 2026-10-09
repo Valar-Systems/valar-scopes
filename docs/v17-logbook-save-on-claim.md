@@ -58,3 +58,17 @@ Graded with the rewritten fresh-boot acceptance step 4 (`scripts/fresh-boot-acce
 claim and the probe (the model is wrong); or UNCLAIMED on the fix. Either: stop and report.
 CLAIMED with a periodic `persisted` line that happens to fall between the claim and the probe is
 an **invalid run** (redo it), not a result.
+
+### Addendum, written after P1 and before P3 and P2 (2026-10-08 20:25 PDT)
+
+**The probe waits 3 s after the `[claim]` line for P3 and P2.** On the fix, the `[claim]` line
+is printed *before* `PersistNow()` starts. A probe fired 0.5 s after that line (P1's harness
+timing) can land in the middle of the write. That would read UNCLAIMED on a working fix, and no
+person can open Collection 0.5 s after tapping the device. The 3 s wait does not weaken the check:
+the v16 and sabotage builds save only on a page fetch or every 10 minutes, so nothing saves in
+those 3 s unless the periodic write lands there, and that would show in the log (an **invalid
+run**). P1 ran at 0.5 s. Its UNCLAIMED is also what the model predicts at 3 s.
+
+**The step-4 probe itself had a defect, found on the first real run and fixed before P1 was
+redone.** It took the Microsoft Store `python3` stub, parsed nothing, and wrote an empty verdict,
+which step 4 reported as the v16 failure. That run (PC12) is void. The fix is #385 `cb9839d`.
