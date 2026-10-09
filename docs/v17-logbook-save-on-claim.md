@@ -72,3 +72,45 @@ run**). P1 ran at 0.5 s. Its UNCLAIMED is also what the model predicts at 3 s.
 **The step-4 probe itself had a defect, found on the first real run and fixed before P1 was
 redone.** It took the Microsoft Store `python3` stub, parsed nothing, and wrote an empty verdict,
 which step 4 reported as the v16 failure. That run (PC12) is void. The fix is #385 `cb9839d`.
+
+## Results (COM18, 2026-10-08)
+
+Graded with the step-4 probe from #385. Each probe was fired automatically by a log watcher, so
+operator timing played no part. Each run claimed a type that was new to the board. The response
+body of each probe was kept, and is quoted from it below.
+
+| run | image | predicted | observed |
+|---|---|---|---|
+| P1 | v16 (the released image) | UNCLAIMED, red | **UNCLAIMED**: A21N, `first=yes`, http 200 |
+| P3 | sabotage (this branch minus `PersistNow()`), `bac7b785` | UNCLAIMED, red | **UNCLAIMED**: C172, `first=yes`, http 200 |
+| P2 | the fix (plus #383), `c9e67cef` | `persisted` within ~1 s, CLAIMED, green | **CLAIMED**: B39M, `first=yes`, http 200 |
+
+**P1, v16.** The claim of A21N landed at 20:18:46.519. The probe 0.5 s later was the first fetch.
+The body listed A21N with `"claimed": false`, and 43 types against the board's 44: it was
+served from what was saved before the claim. The `persisted` line at 20:18:46.928 came
+after that response; it is the save the probe's own fetch requested. That is the model:
+the save lands after the response.
+
+**P3, sabotage.** The claim of C172 landed at 20:23:08.994. Nothing was saved in the 3 s before
+the probe, which then read C172 `"claimed": false`. The `persisted` line at 20:23:12.332
+follows the probe's own fetch. **Removing the immediate save turns step 4 red.**
+
+**P2, the fix, as part of a full fresh-boot acceptance.** Factory reset, Wi-Fi, location, then
+the claim of B39M at 20:36:13, with `[logbook] persisted` printed in the same second. The probe
+3 s later was the first fetch and read B39M `"claimed": true`. Daniel then opened Collection:
+"1 claimed of 3 seen, B39M x1". The acceptance scored **8 passed, 1 failed**:
+
+- step 4 (the first view after the claim included it): **pass**
+- step 4 (Collection was opened after the claim): **pass**
+- step 5 (the collection survived the power cut): **pass**
+- step 6 (disabling flushed first): **pass**
+- step 5 (exactly one boot after the power cut): **fail**. The second boot was the serial
+  capture's reopen resetting the board (`rst:0x15`), not the firmware. Under the ruling of
+  2026-10-08, that check moves off serial to the Worker's boot rows; that is #385. It does not
+  bear on this fix, whose result is step 4.
+
+**A void run (PC12).** The first P1 attempt fetched http 200 but wrote an empty verdict. The
+probe had picked up the Store `python3` stub. It is excluded, and the probe was fixed (#385
+`cb9839d`) before P1 was redone.
+
+**Outside the set:** none. Every graded run matched its prediction.
