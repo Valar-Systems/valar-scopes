@@ -51,3 +51,47 @@ Instruments (ship): `[card] open t=<ms>` on the first frame that draws a card; `
 ---
 
 *Addenda below this line, dated, never edits above it.*
+
+### Addendum, 2026-10-10 (review): the drift rules, frozen BEFORE the long-press image is flashed
+
+Daniel's holds on the old firmware: a 7,816 ms motionless hold stayed one stroke; a 3,973 ms hold
+drifted 58 px and was classified as a swipe. Spec section "Drift" has the numbers.
+
+- **Rule 1:** past the threshold the stroke is consumed. Its release is never a tap or a swipe,
+  however far the finger drifted.
+- **Rule 2:** before the threshold, 40 px or more within the first 250 ms is a swipe (unchanged);
+  after that, slow drift is tolerated up to **80 px** (the largest drift in a logged 1-4 s hold is
+  67 px). A rejoin compares the new press with the finger's last position.
+- **New instruments:** `[hold] fire drift_max=<px> at=<ms>` (largest drift before the fire, and when),
+  the same on a cancel, and `[screen] -> <name>` on every screen change, so "never changes screen" is
+  read from the log.
+
+**Added predictions:**
+- **(e)** 10 holds with deliberate slow drift (~50-70 px) **each toggle zoom exactly once and never
+  also swipe or change screen**: 10 `[zoom] hold` lines, one per stroke; 10 release lines reading
+  `HOLD (consumed)`; 0 `-> SWIPE` and 0 `[screen]` lines for those strokes.
+- **(f)** 10 normal fast swipes **still swipe**: 10 release lines `-> SWIPE` with `held` under 250 ms,
+  each doing what it does today (left/right: a `[screen]` line; up/down: `[zoom] swipe ...`), and
+  no `[hold]` line among them.
+
+**Added sabotage:** **S3, remove rule 1**: a fired stroke whose finger drifted 40 px or more releases
+as a swipe. (e) fails, with a zoom plus a swipe from one stroke (bench), and the host rule-1 case
+fails.
+
+**Host cases added:** 40 px inside 250 ms -> swipe; 79 px during the ring -> tolerated, 80 px ->
+slow drag; 150 px of drift after the fire -> consumed; a rejoin is measured from the last position.
+
+**Session order (Daniel's choice).** The long-press image first:
+1. Daniel tries it freely;
+2. then the frozen checks: (a-after) 30 taps, (b) 20 holds over a crowded centre, (e) 10 slow-drift
+   holds, (f) 10 fast swipes, (c) 50 normal taps, (d) 10 early releases, and his verdict on the hold
+   time;
+3. then the #385 acceptance run;
+4. then (a-before), 30 taps on the instrument-only image.
+
+The before/after comparison is unchanged by the order.
+
+**Outside the set, stop and report:**
+- one stroke both zooms and swipes, or zooms twice;
+- a fast swipe fails to swipe, or toggles zoom;
+- a fire logged with `drift_max` over 80 px.

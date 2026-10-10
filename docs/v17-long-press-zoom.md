@@ -75,13 +75,15 @@ threshold, then a press within about two frames (~110 ms) and 20 px.
 
 1. **Where:** the Radar only, with nothing on top: no detail card, overhead card, What's-new summary
    or reset menu. Anywhere on the face, including over an aircraft.
-2. **0-250 ms:** nothing visible. A release is a tap, unchanged.
+2. **0-250 ms:** nothing visible. A release is a tap, unchanged. **Movement of 40 px or more inside
+   these first 250 ms is a swipe** (the stroke is the swipe path's, exactly as today).
 3. **250 ms to the threshold:** a ring fills around the press point (radar-chrome green, about 18 px).
-   Movement of 40 px or more from the press makes it a swipe candidate: the ring cancels, and the
-   release is classified as today.
+   **Slow drift is tolerated up to 80 px** (drift rule 2, below). Past 80 px it is a slow drag: the ring
+   cancels, and the release is classified as today.
 4. **At the threshold (start 700 ms, tuned on hardware with Daniel):** zoom toggles through
    `ApplyZoom`, so the pill, ZOOM tag and idle return are unchanged. It is logged
-   `[zoom] hold -> <step>`. **The stroke is consumed: its release opens no card and is not a swipe.**
+   `[zoom] hold -> <step>`. **The stroke is consumed: its release opens no card and is not a swipe,
+   however far the finger drifts** (drift rule 1, below).
 5. **Toggle:** from any step except the closest, go to the closest (5 mi, or the ladder's smallest);
    from the closest, go to the top (the configured range). On a single-step ladder nothing changes,
    and the stroke is still consumed.
@@ -90,6 +92,50 @@ threshold, then a press within about two frames (~110 ms) and 20 px.
 
 The detector is a pure policy (`include/LongPressPolicy.h`): phases, ring start, threshold, rejoin
 grace, swipe cancel and consumption. It is graded on the host in `test/host/test_long_press.cpp`.
+
+## Drift: a swipe is fast, drift is slow (review, 2026-10-10)
+
+Daniel's holds on the old firmware: a 7,816 ms motionless hold stayed one stroke, and a **3,973 ms
+hold drifted 58 px and was classified as a swipe.** Distance alone cannot tell a swipe from a finger
+settling during a hold, so the rule uses speed as well. Frozen before the long-press image was
+flashed.
+
+1. **Past the threshold, the stroke is consumed.** Once the ring is complete and zoom has toggled,
+   the release is **never** classified as a tap or a swipe, however far the finger has drifted.
+2. **Before the threshold, speed separates them:**
+   - movement of **40 px or more within the first 250 ms** is a swipe (today's swipe, unchanged);
+   - after that, **slow drift is tolerated up to 80 px**, and only beyond 80 px does the hold cancel
+     into a slow drag;
+   - **a rejoin** after a dropout compares the new press with the finger's **last** position, not
+     the press point, since the finger may have drifted.
+
+**The numbers behind 80 px.** Every stroke of 250 ms or more in the COM18 / s3-128 logs:
+
+| held | drift (largest axis) | read as |
+|---|---|---|
+| 507, 695, 699, 736 ms | 13, 13, 37, 4 px | TAP |
+| 1,072 ms | 67 px | SWIPE |
+| 2,293 ms (today) | 0 | TAP |
+| 3,378 ms | 54 px | SWIPE |
+| **3,973 ms (today)** | **58 px** | SWIPE |
+| 7,816 ms (today) | 0 | TAP |
+| 8,966 ms | 90 px | SWIPE |
+| eight strokes of 254-328 ms | 38-206 px | 1 TAP, 7 SWIPE (fast swipes) |
+
+- **The largest drift in a 1-4 s hold is 67 px**, so 80 px leaves 13 px of margin. The 9 s, 90 px
+  stroke stays a swipe.
+- **When the 58 px drift happened inside the 3,973 ms hold is not recorded:** the release line
+  carries only the start and end points. The long-press image logs each hold's largest drift and when
+  it was reached (`[hold] fire drift_max=<px> at=<ms>`, and on a cancel), so the free trial and (e)
+  answer it.
+- **Fast swipes are untouched by construction:** of 100 logged swipes under 250 ms, the smallest
+  moved 41 px and the median 125 px. All of them are swipes under rule 2.
+- **What changes, stated:** a **slow** drag of 40-80 px released before the threshold no longer
+  swipes. During the ring a release does nothing, so it cancels. 4 of the 111 logged swipes were
+  slow (250 ms or more) and moved 40-80 px:
+  - 1,072, 3,378 and 3,973 ms: the drags this rule re-reads as drift;
+  - one of 267 ms, which at a steady speed crossed 40 px by about 160 ms, and so stays a swipe. Its
+    intermediate positions are not logged, so that is an inference, not a measurement.
 
 ## Instruments
 
