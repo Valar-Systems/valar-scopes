@@ -28,6 +28,7 @@
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
+#include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
 #include "TouchWedgePolicy.h" // the touch-wedge reboot cap: constants, decisions, rung order (pure)
 
 class AircraftManager
@@ -68,6 +69,7 @@ private:
     double viewRadLon = 0.2;
     double viewRadiusDisplay = 0.0;
     radarzoom::Ladder zoomLadder;
+    longpress::State longPress;   // the hold in progress, if the Radar owns one (LongPressPolicy.h)
     int zoomIdx = 0;
     unsigned long zoomOverlayUntilMs = 0;
     String zoomOverlayText;
@@ -881,6 +883,8 @@ private:
     // One step along the ladder (dir -1 in, +1 out) -- the swipe and the bench key
     // both come through here -- and the move itself, which shows the radius 1.5 s.
     void StepZoom(int dir, const char* why);
+    bool LongPressEligible() const;            // the Radar face with nothing on top
+    void DrawHoldRing(BandCanvas& backbuffer) const;
     void ApplyZoom(int idx, radarzoom::Edge edge, const char* why);
     void DrawZoomOverlay(BandCanvas& backbuffer) const;
 

@@ -55,6 +55,7 @@ int main()
         State s; OnPress(s, 0, 100, 100, true);
         HoldFrames(s, 0, 400, 100, 100);
         check(OnRelease(s, 400) == ReleaseIs::Grace, "a release while the ring fills says nothing yet (grace)");
+        check(RingPermille(s, 400 + REJOIN_MS) == RingPermille(s, 400), "the ring's progress is frozen during the grace -- it never completes after an early release");
         check(!OnIdleCancels(s, 400 + REJOIN_MS), "still waiting at exactly REJOIN_MS");
         check(OnIdleCancels(s, 400 + REJOIN_MS + 1), "after the grace: cancel -- no card, no zoom");
         check(s.phase == Phase::Idle && !RingVisible(s), "and the ring is gone");

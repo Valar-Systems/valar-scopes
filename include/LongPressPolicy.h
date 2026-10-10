@@ -133,11 +133,12 @@ inline bool OnIdleCancels(State& s, uint32_t now)
 /// does not blink it.)
 inline bool RingVisible(const State& s) { return s.phase == Phase::Ring || s.phase == Phase::Grace; }
 
-/// Ring progress 0..1000.
+/// Ring progress 0..1000. FROZEN at the release during the grace: a finger that let go early must
+/// never see the ring complete and then nothing happen.
 inline uint32_t RingPermille(const State& s, uint32_t now)
 {
     if (!RingVisible(s)) return 0;
-    const uint32_t held = now - s.pressMs;
+    const uint32_t held = (s.phase == Phase::Grace ? s.releaseMs : now) - s.pressMs;
     if (held <= RING_START_MS) return 0;
     if (held >= THRESHOLD_MS) return 1000;
     return (held - RING_START_MS) * 1000UL / (THRESHOLD_MS - RING_START_MS);
