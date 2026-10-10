@@ -3299,6 +3299,13 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         auto it = trackedAircraft.find(selectedIcao);
         if (it != trackedAircraft.end()) {
             DrawDetailCard(backbuffer, it->second);
+            // THE LATENCY INSTRUMENT (docs/v17-long-press-zoom.md, prediction (a)): the first frame
+            // that draws a card after it opened. With the release line's t, release-to-card is
+            // measured on the glass rather than assumed.
+            if (cardOpenLogPending) {
+                cardOpenLogPending = false;
+                Serial.printf("[card] open t=%lu\n", millis());
+            }
             DrawVisualAlert(backbuffer); // the edge ring stays visible around the card
             DrawRankToast(backbuffer);   // a rank-up toast shows over the card too
             DrawFollowDeclineToast(backbuffer);
@@ -9113,6 +9120,7 @@ void AircraftManager::HandleTap(int tx, int ty)
             selectedIcao = cands[tapCycleIndex].second;
             inDetail = true;
             detailPage = 0;
+            cardOpenLogPending = true;
             usageStore.CardOpened();
             // Already enriched: claim now, so the confirmation lands with the tap.
             // Cold contacts claim later, when enrichment reveals the type.
@@ -9131,6 +9139,7 @@ void AircraftManager::HandleTap(int tx, int ty)
                     selectedIcao = order[idx];
                     inDetail = true;
                     detailPage = 0;
+                    cardOpenLogPending = true;
                     usageStore.CardOpened();
                     auto sel = trackedAircraft.find(selectedIcao); // same claim-on-open as the radar
                     if (sel != trackedAircraft.end())

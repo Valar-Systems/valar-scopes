@@ -231,6 +231,7 @@ private:
     void CloseResetMenu();
 
     bool inDetail = false;     // detail card shown over the current screen
+    bool cardOpenLogPending = false; // print "[card] open t=" on the first frame that draws it
     String selectedIcao = "";  // aircraft shown in the detail card
     String pinnedIcao = "";    // aircraft kept highlighted ("tracked") on the radar
     int detailPage = 0;        // 0 = photo card, 1 = full-data card
