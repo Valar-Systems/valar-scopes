@@ -141,6 +141,7 @@ ALLOWED_MENTIONS = {
     "platformio.ini",                    # the "the env IS the product" rule, x3
     "RELEASING.md",                      # release prose
     "docs/ota-control-plan.md",          # plan prose
+    "docs/v17-whats-new.md",             # spec prose citing the release jobs by line; parses nothing
     "scripts/check-tag-workflow.sh",     # reads the version + promote jobs, not the matrix
     "scripts/check-no-bench-hooks.sh",   # a comment naming the job that runs it; scans an image, never the matrix
 }
