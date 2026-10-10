@@ -8918,13 +8918,21 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         touchLastY = ty;
 
         // A hold is a property of the contact WHILE it is happening; by release it is over.
+        const bool wasRing = longPress.phase == longpress::Phase::Ring;
         switch (longpress::OnHeld(longPress, now, tx, ty)) {
+        case longpress::HeldIs::Moved:
+            // Only a hold that had reached the ring logs this: a FAST swipe stays exactly as silent as
+            // today (prediction (f) counts no [hold] line among swipes).
+            if (wasRing) Serial.printf("[hold] cancel (slow drag) drift=%dpx at=%lums\n", longPress.driftMax, (unsigned long)longPress.driftMaxAtMs);
+            break;
         case longpress::HeldIs::RingStart:
             Serial.printf("[hold] ring t=%lu\n", now);
             break;
         case longpress::HeldIs::Fire: {
             // Toggle through ApplyZoom, so the pill, the ZOOM tag and the 10-min idle return are the
-            // swipe's own. The stroke is consumed from here: its release opens no card.
+            // swipe's own. The stroke is consumed from here: its release opens no card and is no swipe,
+            // however far the finger drifts (drift rule 1).
+            Serial.printf("[hold] fire drift_max=%dpx at=%lums\n", longPress.driftMax, (unsigned long)longPress.driftMaxAtMs);
             const int target = longpress::ToggleTarget(zoomIdx, zoomLadder.Top());
             if (target < 0) Serial.println("[zoom] hold -> nothing to toggle (single-step ladder)");
             else ApplyZoom(target, radarzoom::Edge::None, "hold");
@@ -8936,8 +8944,9 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
     } else {
         // The rejoin grace runs out on the not-touched samples: a cancel, and nothing else happens.
         const uint32_t heldBefore = longPress.releaseMs - longPress.pressMs;
+        const int driftBefore = longPress.driftMax;
         if (longpress::OnIdleCancels(longPress, now))
-            Serial.printf("[hold] cancel held=%lums\n", (unsigned long)heldBefore);
+            Serial.printf("[hold] cancel held=%lums drift_max=%dpx\n", (unsigned long)heldBefore, driftBefore);
     }
 
     if (!touched && wasTouched) {
@@ -9392,6 +9401,10 @@ void AircraftManager::AdvanceScreen(int dir)
         if ((Screen)next == Screen::Follow)
             continue;
         EnterScreen((Screen)next);
+        // One line per swipe-driven screen change, so a long press can be shown never to change screen
+        // (docs/v17-long-press-zoom.md, predictions (e) and (f)).
+        static const char* const kName[SCREEN_COUNT] = { "Radar", "List", "Stats", "Connect", "Follow" };
+        Serial.printf("[screen] -> %s\n", kName[next]);
         return;
     }
 }

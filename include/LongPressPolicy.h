@@ -32,8 +32,14 @@ namespace longpress {
 constexpr uint32_t RING_START_MS = 250;  // above the recorded tap p99 (183 ms)
 constexpr uint32_t THRESHOLD_MS  = 700;  // start value; Daniel tunes it on the glass
 constexpr uint32_t REJOIN_MS     = 150;  // a split stroke rejoins inside this
-constexpr int      MOVE_PX       = 40;   // == SWIPE_MIN: this much movement is a swipe, not a hold
-constexpr int      REJOIN_PX     = 20;   // a rejoining press lands this close to the hold
+constexpr int      SWIPE_PX      = 40;   // == SWIPE_MIN: this much movement INSIDE the ring start is a swipe
+constexpr int      DRIFT_PX      = 80;   // after the ring start, slow drift up to this is still the hold
+constexpr int      REJOIN_PX     = 20;   // a rejoining press lands this close to the finger's LAST position
+
+// DRIFT (review, 2026-10-10). A swipe is fast; a finger settling during a hold is slow. Daniel's
+// 3,973 ms hold drifted 58 px and was read as a swipe; the largest drift in any logged 1-4 s hold is
+// 67 px. So: 40 px inside the first 250 ms is a swipe, exactly as today; after that, drift up to 80 px
+// is still the hold; and once the hold has FIRED, nothing the finger does makes it a tap or a swipe.
 
 enum class Phase : uint8_t {
     Idle,     // no stroke this policy owns (or not eligible)
@@ -41,7 +47,7 @@ enum class Phase : uint8_t {
     Ring,     // held, ring filling
     Grace,    // released while the ring was filling: waiting REJOIN_MS for the finger to return
     Fired,    // zoom toggled: the rest of this stroke is consumed
-    Moved,    // moved MOVE_PX or more before firing: an ordinary swipe now, hands off
+    Moved,    // a fast swipe (40 px inside the ring start) or a slow drag past 80 px: hands off
 };
 
 struct State {
@@ -49,7 +55,17 @@ struct State {
     uint32_t pressMs = 0;    // start of the hold; KEPT across a rejoin, so progress continues
     uint32_t releaseMs = 0;  // when the grace began
     int      x0 = 0, y0 = 0; // where the hold began (the ring's centre)
+    int      lastX = 0, lastY = 0;   // the finger's latest position (a rejoin is measured from here)
+    int      driftMax = 0;           // largest drift from the press point before the fire, in px
+    uint32_t driftMaxAtMs = 0;       // hold time at which that drift was reached
 };
+
+/// Drift on the larger axis, the same measure the tap/swipe classifier uses.
+inline int Drift(const State& s, int x, int y)
+{
+    const int dx = std::abs(x - s.x0), dy = std::abs(y - s.y0);
+    return dx > dy ? dx : dy;
+}
 
 /// What a press edge is.
 enum class PressIs : uint8_t { NewStroke, Rejoin, Bypass };
@@ -58,7 +74,7 @@ enum class PressIs : uint8_t { NewStroke, Rejoin, Bypass };
 inline PressIs OnPress(State& s, uint32_t now, int x, int y, bool eligible)
 {
     if (s.phase == Phase::Grace) {
-        if (now - s.releaseMs <= REJOIN_MS && std::abs(x - s.x0) <= REJOIN_PX && std::abs(y - s.y0) <= REJOIN_PX) {
+        if (now - s.releaseMs <= REJOIN_MS && std::abs(x - s.lastX) <= REJOIN_PX && std::abs(y - s.lastY) <= REJOIN_PX) {
             s.phase = Phase::Ring;   // the same hold, progress kept (pressMs untouched)
             return PressIs::Rejoin;
         }
@@ -69,8 +85,8 @@ inline PressIs OnPress(State& s, uint32_t now, int x, int y, bool eligible)
     s = State{};
     s.phase = Phase::Pressed;
     s.pressMs = now;
-    s.x0 = x;
-    s.y0 = y;
+    s.x0 = s.lastX = x;
+    s.y0 = s.lastY = y;
     return PressIs::NewStroke;
 }
 
@@ -79,12 +95,19 @@ enum class HeldIs : uint8_t { Nothing, RingStart, Fire, Moved };
 
 inline HeldIs OnHeld(State& s, uint32_t now, int x, int y)
 {
+    // RULE 1: once fired, the finger may go anywhere -- the stroke is consumed (OnRelease).
     if (s.phase != Phase::Pressed && s.phase != Phase::Ring) return HeldIs::Nothing;
-    if (std::abs(x - s.x0) >= MOVE_PX || std::abs(y - s.y0) >= MOVE_PX) {
-        s.phase = Phase::Moved;      // a swipe: the existing classifier owns the release
+    s.lastX = x;
+    s.lastY = y;
+    const uint32_t held = now - s.pressMs;
+    const int d = Drift(s, x, y);
+    if (d > s.driftMax) { s.driftMax = d; s.driftMaxAtMs = held; }
+    // RULE 2: fast movement (inside the ring start) is a swipe at 40 px; slow drift during the ring is
+    // tolerated to 80 px. Either way past the limit the existing classifier owns the release.
+    if (d >= (s.phase == Phase::Pressed ? SWIPE_PX : DRIFT_PX)) {
+        s.phase = Phase::Moved;
         return HeldIs::Moved;
     }
-    const uint32_t held = now - s.pressMs;
     if (held >= THRESHOLD_MS) {
         s.phase = Phase::Fired;
         return HeldIs::Fire;

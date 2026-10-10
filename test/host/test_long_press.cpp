@@ -74,12 +74,53 @@ int main()
         check(t.fire == 1, "a jittering finger still fires once");
         check(OnRelease(s, 780) == ReleaseIs::Consumed, "CONSUMED over an aircraft too: no card past the threshold");
     }
-    { // movement makes it a swipe, before the threshold
+    { // RULE 2: fast movement -- 40 px inside the first 250 ms -- is a swipe, exactly as today
         State s; OnPress(s, 0, 100, 100, true);
-        Tally t = HoldFrames(s, 0, 300, 100, 100);
-        check(OnHeld(s, 352, 100, 100 - MOVE_PX) == HeldIs::Moved, "40 px of movement before firing: a swipe, hands off");
-        check(t.fire == 0 && OnHeld(s, 900, 100, 100 - MOVE_PX) == HeldIs::Nothing, "and it never fires afterwards");
+        check(OnHeld(s, 104, 100, 100) == HeldIs::Nothing, "still, at 104 ms");
+        check(OnHeld(s, 208, 100, 100 - SWIPE_PX) == HeldIs::Moved, "RULE 2: 40 px by 208 ms (inside the ring start) is a swipe");
+        check(HoldFrames(s, 260, 900, 100, 100 - SWIPE_PX).fire == 0, "and it never fires afterwards");
         check(OnRelease(s, 900) == ReleaseIs::PassThrough, "its release is classified as today (a swipe)");
+    }
+    { // RULE 2: slow drift during the ring is tolerated to 80 px
+        State s; OnPress(s, 0, 100, 100, true);
+        HoldFrames(s, 0, 300, 100, 100);
+        check(OnHeld(s, 352, 100 + DRIFT_PX - 1, 100) == HeldIs::Nothing, "RULE 2: 79 px of slow drift during the ring is still the hold");
+        check(OnHeld(s, THRESHOLD_MS, 100 + DRIFT_PX - 1, 100) == HeldIs::Fire, "and it fires at the threshold");
+        check(s.driftMax == DRIFT_PX - 1 && s.driftMaxAtMs == 352, "the largest drift and when it was reached are recorded");
+        State u; OnPress(u, 0, 100, 100, true);
+        HoldFrames(u, 0, 300, 100, 100);
+        check(OnHeld(u, 352, 100 + DRIFT_PX, 100) == HeldIs::Moved, "RULE 2: 80 px during the ring is a slow drag -- hands off");
+        check(OnRelease(u, 400) == ReleaseIs::PassThrough, "its release is classified as today");
+    }
+    { // (e): a deliberate slow drift of ~60 px toggles once, never swipes
+        State s; OnPress(s, 0, 120, 120, true);
+        Tally t = {};
+        for (uint32_t now = 0; now <= 1200; now += 52) {
+            const int x = 120 + (int)(now > 260 ? (now - 260) / 10 : 0); // ~5 px a frame after the ring start: 60+ px by 1.2 s
+            const HeldIs h = OnHeld(s, now, x < 120 + 70 ? x : 120 + 70, 120);
+            if (h == HeldIs::Fire) ++t.fire;
+            if (h == HeldIs::Moved) ++t.moved;
+        }
+        check(t.fire == 1 && t.moved == 0, "(e) a slow 60-70 px drift: exactly one toggle, no swipe");
+        check(OnRelease(s, 1200) == ReleaseIs::Consumed, "(e) and its release is consumed");
+    }
+    { // RULE 1: after the fire, however far the finger drifts, the release is never a tap or a swipe
+        State s; OnPress(s, 0, 100, 100, true);
+        HoldFrames(s, 0, THRESHOLD_MS - 1, 100, 100);
+        check(OnHeld(s, THRESHOLD_MS, 100, 100) == HeldIs::Fire, "RULE 1 setup: the hold fires at the threshold");
+        check(OnHeld(s, THRESHOLD_MS + 104, 100 + 150, 100) == HeldIs::Nothing, "RULE 1: 150 px of drift after the fire is ignored");
+        check(OnRelease(s, THRESHOLD_MS + 156) == ReleaseIs::Consumed, "RULE 1: the release is CONSUMED, never a swipe");
+    }
+    { // the rejoin is measured from the finger's LAST position (it may have drifted)
+        State s; OnPress(s, 0, 100, 100, true);
+        HoldFrames(s, 0, 300, 100, 100);
+        OnHeld(s, 352, 150, 100);   // 50 px of slow drift
+        OnRelease(s, 400);
+        check(OnPress(s, 480, 152, 100, true) == PressIs::Rejoin, "a press 2 px from the drifted position rejoins");
+        State u; OnPress(u, 0, 100, 100, true);
+        HoldFrames(u, 0, 300, 100, 100);
+        OnHeld(u, 352, 150, 100); OnRelease(u, 400);
+        check(OnPress(u, 480, 100, 100, true) == PressIs::NewStroke, "a press back at the ORIGINAL point, 50 px from the finger, is a new stroke");
     }
     { // REJOIN: a split stroke inside the grace resumes the same hold, progress kept
         State s; OnPress(s, 0, 100, 100, true);
