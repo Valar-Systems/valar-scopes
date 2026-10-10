@@ -1,31 +1,39 @@
 <!--
 What's new, for customers. The single source for:
-  - the changes page, served by the Worker at /blipscope/changes;
-  - the 2-4 line summary each image shows after an update (compiled in).
+  - the changes page (its address is the url: line below);
+  - the 2-4 line summary a notify: yes image shows after an update (compiled in).
 Spec: docs/v17-whats-new.md.
 
 One section per firmware version, newest first:
   ## v<N>
-  notify: yes|no          yes = devices updating to this version show "What's new"
-  summary:                1-4 lines, each at most 24 characters, ending at the first blank line
-  - ...
+  notify: yes|no     yes = updating to this version shows the tag and the config banner.
+                     no  = nothing customer-noticeable: a changes-page entry only.
+  summary:           1-4 lines, each at most 24 characters (refs not counted), ending at the
+  - ... (refs: ...)  first blank line. ONLY changes customers will notice; quiet fixes go in the
+                     page text only.
   (then the page text: plain language, no jargon, no internal names)
 
-Code drafts each entry in the FW-bump PR. The summary is compiled into the image at the cut, so
-Daniel approves it BEFORE the cut; the page text can still change at promote.
+refs: #NNN (a PR merged on main) or spec:<doc> (a spec whose status names its merged PR).
+"pending" is allowed only for versions other than the one being cut. The release gate refuses a cut
+whose lines do not all map to merged work, so a slipped item's line is removed before the cut.
+
+Who decides: Code proposes the entry, the notify flag and the lines; Daniel approves them in the
+FW_VERSION bump PR, before the cut (the summary is compiled into the image). The page text may still
+change at promote.
 -->
+url: https://scopes.valarsystems.com/blipscope/changes
 
 ## v17
 notify: yes
 summary:
-- Double-tap to zoom in
-- Overhead plane card
-- Clock follows DST
-- Claims show at once
+- Hold to zoom in  (refs: #388)
+- Overhead plane card  (refs: spec:v17-overhead-card)
+- Clock follows DST  (refs: pending)
 
-### Double-tap to zoom
-Double-tap an empty spot on the radar to jump in close. Double-tap again to go back to your usual
-range.
+### Press and hold to zoom
+Press and hold anywhere on the radar to jump in close. Hold again to go back to your usual range. A
+ring fills around your finger while you hold; let go early and nothing changes. Swiping up and down
+to zoom works exactly as before.
 
 ### See what's flying right over you
 With "Look up!" turned on, a small card appears for a few seconds when a plane passes overhead:
@@ -36,15 +44,16 @@ away. It never covers an emergency alert.
 The clock now changes for daylight saving time on its own. It uses your time zone, which Blipscope
 picks up from your browser the next time you open its settings page.
 
-### Fixed: new claims show up straight away
-A plane you've just claimed now appears in your Collection right away. Before, it could take a
-refresh or two.
+### Smaller fixes
+- A plane you've just claimed now appears in your Collection right away. Before, it could take a
+  refresh or two.
+- During setup, "Use my location" now ticks off the location step straight away.
 
 ## v16
 notify: yes
 summary:
-- Swipe up/down to zoom
-- Touch problem notice
+- Swipe up/down to zoom  (refs: #374)
+- Touch problem notice  (refs: #376)
 
 ### Zoom in on the radar
 Swipe up to zoom in and down to zoom out. A small ZOOM tag shows while you're zoomed in, and the

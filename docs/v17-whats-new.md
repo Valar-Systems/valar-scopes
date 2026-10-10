@@ -1,7 +1,23 @@
 # "What's new" after an update (v17)
 
-**Status: spec, not built.** Includes Daniel's amendment of 2026-10-09: no timeout; the tag stays
-until it is acknowledged. Line refs at `7bc5f43`. "AM" = `src/AircraftManager.cpp`.
+**Status: spec, approved at review 2026-10-09, not built.** Includes Daniel's amendment (no timeout;
+the tag stays until it is acknowledged) and the review's decisions, marked **Decided** below. Line
+refs at `7bc5f43`. "AM" = `src/AircraftManager.cpp`.
+
+**Who decides what customers see (decided): Code proposes, and Daniel approves in the FW_VERSION bump
+PR, both whether a release is `notify: yes` and which summary lines it carries.**
+
+**On-screen content is only what customers will care about and notice (Daniel, decided).**
+- The device tag and the config-page banner appear **only for `notify: yes` releases**.
+- A release with nothing customer-noticeable is **`notify: no`**: it gets a changes-page entry and
+  **no tag and no banner**.
+- The on-device summary lines name **only noticeable changes**. A fix most owners never noticed
+  goes on the changes page only.
+
+**Still open with Daniel:** where the changes page lives (`scopes.valarsystems.com` or his main
+website). Whichever is chosen is a **one-line change**: the page URL is one `url:` line at the top
+of `docs/CHANGES-customer.md`, and both the device's QR and the config banner's link are generated
+from it.
 
 ## Customer view
 
@@ -54,8 +70,8 @@ So "is this an upgrade?" is answered by evidence, in this order:
    at boot, before the first check-in's `TakeOtaMemReport` clears the record.
 3. **Neither:** factory-fresh. Set `seen = FW_VERSION` silently and show nothing.
 
-**Accepted limitation:** a used unit updated over USB with NVS kept (the bench `app0` flash, or a web
-flasher in "keep settings" mode) has no OTA record, so it falls into case 3 and stays silent. The
+**Accepted limitation (decided: stays documented, bench units only):** a unit updated over USB with
+NVS kept (the bench `app0` flash) has no OTA record, so it falls into case 3 and stays silent. The
 changes page still lists everything. Stated, not hidden.
 
 ## State: NVS namespace `whatsnew`
@@ -77,6 +93,7 @@ previous owner's pending tag. After the reset the unit is factory-fresh (case 3)
    page covers everything missed in between.
    - A `notify: no` release leaves a pending older tag in place, still showing its own version: that
      news is still unread. (The image carries every entry's summary, so it can show it.)
+     **Decided at review.**
 3. **Persist:** the tag survives reboots (it is NVS) and has **no timeout.**
 4. **Acknowledge, by either path, and both clear `tag` (one acknowledgment, stored once):**
    - **tap the tag on the device** (it also opens the summary);
@@ -113,18 +130,21 @@ previous owner's pending tag. After the reset the unit is factory-fresh (case 3)
 
 ## Changes page and its source
 
-**Source of truth:** `docs/CHANGES-customer.md`, one section per FW version, newest first:
+**Source of truth:** `docs/CHANGES-customer.md`. One `url:` line at the top (where the page lives),
+then one section per FW version, newest first:
 
 ```
+url: https://scopes.valarsystems.com/blipscope/changes
 ## v17
 notify: yes
 summary:
-- Double-tap to zoom in
+- Hold to zoom in  (refs: #388)
 ...
 (page text, plain language)
 ```
 
-- **Summary:** at most 4 lines, at most 24 characters each, checked by the generator.
+- **Summary:** at most 4 lines, at most 24 characters each, not counting the refs, which are
+  stripped from everything a customer sees. Checked by the generator.
 - **Generators:** two outputs from that one file, each with a `--check` mode run in CI (the
   `embed-pages` pattern, so an edit to the source cannot ship with stale output):
   - `include/generated/WhatsNew.inc`: every entry's `notify` and summary, compiled into the image;
@@ -139,27 +159,37 @@ summary:
 - **New job `customer-entry`:** reads `FW_VERSION` the way `version` already does
   (`firmware.yml:517-535`: exactly one declaration, numeric) and requires a `## v<N>` section with a
   valid `notify:` line and 1-4 summary lines.
-- **`build` gains `needs: [skus, customer-entry]`.** If the entry is missing, no SKU builds, no
-  receipt is written, and `version` refuses to publish `version.txt`. **The cut fails.** It runs on
-  every push and PR too, so a FW bump without an entry is red long before a cut.
+- **Every summary line must correspond to an item merged on main for that version (decided).** Each
+  line carries `(refs: ...)`, and for the version being cut every ref must resolve:
+  - `#NNN`: PR NNN's merge commit is in main's history (`Merge pull request #NNN`). This is read from
+    git, with history fetched in full. A shallow clone is **BLIND** (exit 2), never a pass.
+  - `spec:<name>`: `docs/<name>.md` exists and its status line names the merged PR(s) that built it,
+    which must themselves resolve as above.
+
+  - `pending`: allowed **only** for versions other than the one being cut (drafts).
+
+  **If an item slips, its line is removed before the cut.** The gate refuses a line whose item has not
+  merged, which is the point: an unmerged item's line can never be compiled into an image.
+- **`build` gains `needs: [skus, customer-entry]`.** If the entry is missing or a line does not map,
+  no SKU builds, no receipt is written, and `version` refuses to publish `version.txt`. **The cut
+  fails.** It runs on every push and PR too, so a FW bump without a valid entry is red long before a
+  cut. Entries for versions other than `FW_VERSION` are format-checked only.
 - **Code drafts the entry in the FW-bump PR.**
-- **Wording approval, and a real constraint on it:** the summary is **compiled into the image at the
-  cut**, so approving it at promote can only mean "accept, or re-cut".
-  - **Recommendation:** Daniel approves the on-device summary in the FW-bump PR, **before** the cut.
-  - The page text, served by the Worker, can still be edited and approved at promote.
+- **Wording approval (decided):** the summary is **compiled into the image at the cut**, so Daniel
+  approves the on-device summary, the `notify` flag and the line selection **in the FW_VERSION bump
+  PR, before the cut**. The changes-page text, served by the Worker, may still be edited at promote.
 
-## Telemetry (proposal, count only)
+## Telemetry (decided at review: one v17 change, 8 -> 12, count only)
 
-Two counters: **`whatsNewOpened`** (summary opened) and **`whatsNewQr`** (QR page shown). **Never
-which version's text was read.**
-- The approved v17 format change is 8 -> 10 (`doubleTapZooms`, `overheadCards`). **Proposal: make
-  the one v17 change 8 -> 12** instead.
-  - The Worker accepts 8 or 12 and drops anything else; 10 never shipped, so it is not accepted.
-  - A Worker test sends one of each, plus 9-, 10-, 11- and 13-field controls that must be dropped.
-  - The disclosures (README "Privacy & telemetry", `proxy/pages/support.html`) change in the same
-    commit.
-- **If the review keeps 8 -> 10,** these two wait for the next format change, and nothing is counted
-  until then.
+Two counters here: **`whatsNewOpened`** (summary opened) and **`whatsNewQr`** (QR page shown).
+**Never which version's text was read.**
+- **The one v17 usage-report change is 8 -> 12 fields:** `longPressZooms`, `overheadCards`,
+  `whatsNewOpened`, `whatsNewQr`. It replaces the earlier 8 -> 10.
+- **The Worker accepts exactly 8 or 12** and drops anything else. **10 never shipped, so it is
+  rejected, with a test:** the test sends one 8 and one 12 (both land) and 9-, 10-, 11- and 13-field
+  controls (all dropped).
+- **The disclosures** (README "Privacy & telemetry", `proxy/pages/support.html`) change **in the
+  same commit.**
 
 ## Predictions to freeze before code (amended 2026-10-09)
 
@@ -169,7 +199,7 @@ which version's text was read.**
 - **W3:** the tag **persists across reboots until it is tapped or dismissed on the config page**:
   present after a power cut and after the quiet reboot, with no time limit.
 - **W4:** **dismissing the banner on the config page clears the device tag.**
-- **W5:** a **`notify: no`** release raises no tag.
+- **W5:** a **`notify: no`** release raises **no tag and no banner**, and still has its changes-page entry.
 - **W6:** a **newer `notify: yes`** release replaces a pending tag. There is still one tag, now
   showing the newer version.
 - **W7:** the cut **fails with no entry**: the `customer-entry` job is red and `build` does not run.
@@ -177,6 +207,9 @@ which version's text was read.**
   - Proved in the workflow wiring with a throwaway **prerelease** tag (excluded from
     `releases/latest`, so no device can see it). This is the method CLAUDE.md prescribes for a gate
     whose blocking direction only a release event can exercise.
+- **W8:** the cut **fails when a summary line's item has not merged**: a line whose `#NNN` has no
+  merge commit on main, or whose `spec:` names no merged PR, is refused. Removing that line makes the
+  gate pass again.
 
 ## Sabotage, each shown red and then undone
 
