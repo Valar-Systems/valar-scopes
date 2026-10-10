@@ -3299,6 +3299,13 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
         auto it = trackedAircraft.find(selectedIcao);
         if (it != trackedAircraft.end()) {
             DrawDetailCard(backbuffer, it->second);
+            // THE LATENCY INSTRUMENT (docs/v17-long-press-zoom.md, prediction (a)): the first frame
+            // that draws a card after it opened. With the release line's t, release-to-card is
+            // measured on the glass rather than assumed.
+            if (cardOpenLogPending) {
+                cardOpenLogPending = false;
+                Serial.printf("[card] open t=%lu\n", millis());
+            }
             DrawVisualAlert(backbuffer); // the edge ring stays visible around the card
             DrawRankToast(backbuffer);   // a rank-up toast shows over the card too
             DrawFollowDeclineToast(backbuffer);
@@ -3348,6 +3355,7 @@ void AircraftManager::Draw(BandCanvas& backbuffer, bool firstPass)
             else {
                 DrawRadar(backbuffer, firstPass);
                 DrawZoomOverlay(backbuffer);   // "10 mi" for 1.5 s after a zoom step
+                DrawHoldRing(backbuffer);      // the long-press ring, while a hold is filling
             }
             break;
     }
@@ -4882,6 +4890,36 @@ void AircraftManager::ApplyZoom(int idx, radarzoom::Edge edge, const char* why)
     Serial.printf("[zoom] %s -> %s (step %d of %d)%s\n", why, value.c_str(), zoomIdx + 1, zoomLadder.n,
                   edge == radarzoom::Edge::Max ? " at max" :
                   edge == radarzoom::Edge::Min ? " at min" : "");
+}
+
+// LONG PRESS: where a hold may toggle zoom (docs/v17-long-press-zoom.md). The Radar face itself, with
+// nothing on top. Anywhere else a hold is exactly what it is today: a slow tap, classified on release.
+bool AircraftManager::LongPressEligible() const
+{
+    return screen == Screen::Radar && !inDetail && resetMenu == ResetMenu::Closed
+        && hasLocation && !NightClockActive() && !tookScreenForSetup;
+}
+
+// The ring that fills around the finger from the ring start to the threshold. Radar chrome green,
+// like the ZOOM tag, so it reads as the radar's own control, not traffic. Its progress freezes at an
+// early release, so it never completes and then does nothing.
+void AircraftManager::DrawHoldRing(BandCanvas& backbuffer) const
+{
+    if (!longpress::RingVisible(longPress)) return;
+    constexpr int R0 = 15, R1 = 19;
+    const int x = longPress.x0, y = longPress.y0;
+    backbuffer.drawCircle(x, y, R1 + 1, lgfx::color888(0, 90, 0));
+    const uint32_t p = longpress::RingPermille(longPress, millis());
+    if (p == 0) return;
+    // LovyanGFX angles: 0 = 3 o'clock, clockwise. Start at 12 o'clock and never pass 360 in one call.
+    const float a1 = 270.0f + 360.0f * (float)p / 1000.0f;
+    const uint32_t green = lgfx::color888(0, 200, 0);
+    if (a1 <= 360.0f) {
+        backbuffer.fillArc(x, y, R0, R1, 270.0f, a1, green);
+    } else {
+        backbuffer.fillArc(x, y, R0, R1, 270.0f, 360.0f, green);
+        backbuffer.fillArc(x, y, R0, R1, 0.0f, a1 - 360.0f, green);
+    }
 }
 
 void AircraftManager::DrawZoomOverlay(BandCanvas& backbuffer) const
@@ -8862,18 +8900,54 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
             }
         }
         if (!wasTouched) {
-            touchStartX = tx; touchStartY = ty; // press edge
-            touchPressMs = now;
+            // LONG PRESS (docs/v17-long-press-zoom.md). A press inside the rejoin grace, close to the
+            // hold, is the SAME stroke resuming after a dropout: its start point and time are kept.
+            const bool wasGrace = longPress.phase == longpress::Phase::Grace;
+            const uint32_t graceFrom = longPress.releaseMs, heldBefore = longPress.releaseMs - longPress.pressMs;
+            const longpress::PressIs p = longpress::OnPress(longPress, now, tx, ty, LongPressEligible());
+            if (p == longpress::PressIs::Rejoin) {
+                Serial.printf("[hold] rejoin after %lums\n", (unsigned long)(now - graceFrom));
+            } else {
+                if (wasGrace) Serial.printf("[hold] cancel held=%lums\n", (unsigned long)heldBefore);
+                touchStartX = tx; touchStartY = ty; // press edge
+                touchPressMs = now;
+            }
             Serial.printf("[touch] %lu press (%d,%d) inDetail=%d\n", now, (int)tx, (int)ty, (int)inDetail);
         }
         touchLastX = tx;
         touchLastY = ty;
+
+        // A hold is a property of the contact WHILE it is happening; by release it is over.
+        const bool wasRing = longPress.phase == longpress::Phase::Ring;
+        switch (longpress::OnHeld(longPress, now, tx, ty)) {
+        case longpress::HeldIs::Moved:
+            // Only a hold that had reached the ring logs this: a FAST swipe stays exactly as silent as
+            // today (prediction (f) counts no [hold] line among swipes).
+            if (wasRing) Serial.printf("[hold] cancel (slow drag) drift=%dpx at=%lums\n", longPress.driftMax, (unsigned long)longPress.driftMaxAtMs);
+            break;
+        case longpress::HeldIs::RingStart:
+            Serial.printf("[hold] ring t=%lu\n", now);
+            break;
+        case longpress::HeldIs::Fire: {
+            // Toggle through ApplyZoom, so the pill, the ZOOM tag and the 10-min idle return are the
+            // swipe's own. The stroke is consumed from here: its release opens no card and is no swipe,
+            // however far the finger drifts (drift rule 1).
+            Serial.printf("[hold] fire drift_max=%dpx at=%lums\n", longPress.driftMax, (unsigned long)longPress.driftMaxAtMs);
+            const int target = longpress::ToggleTarget(zoomIdx, zoomLadder.Top());
+            if (target < 0) Serial.println("[zoom] hold -> nothing to toggle (single-step ladder)");
+            else ApplyZoom(target, radarzoom::Edge::None, "hold");
+            break;
+        }
+        default:
+            break;
+        }
+    } else {
+        // The rejoin grace runs out on the not-touched samples: a cancel, and nothing else happens.
+        const uint32_t heldBefore = longPress.releaseMs - longPress.pressMs;
+        const int driftBefore = longPress.driftMax;
+        if (longpress::OnIdleCancels(longPress, now))
+            Serial.printf("[hold] cancel held=%lums drift_max=%dpx\n", (unsigned long)heldBefore, driftBefore);
     }
-
-    // Before the tap/swipe classifier: a hold is a property of the contact WHILE
-    // it is happening, and by release it is already over. Also runs on the
-    // not-touched samples, which is where the release grace is measured.
-
 
     if (!touched && wasTouched) {
         // release: classify the stroke as a tap or a 4-way swipe from its delta
@@ -8881,18 +8955,24 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         const int dy = touchLastY - touchStartY;
         const int adx = abs(dx), ady = abs(dy);
         constexpr int SWIPE_MIN = 40;
+        const longpress::ReleaseIs r = longpress::OnRelease(longPress, now);
 
         Serial.printf("[touch] %lu release start=(%d,%d) end=(%d,%d) d=(%d,%d) held=%lums -> %s\n",
                       now, touchStartX, touchStartY, touchLastX, touchLastY, dx, dy,
                       now - touchPressMs,
+                      r == longpress::ReleaseIs::Consumed ? "HOLD (consumed)" :
+                      r == longpress::ReleaseIs::Grace ? "HOLD (released early; grace)" :
                       (adx < SWIPE_MIN && ady < SWIPE_MIN) ? "TAP" : "SWIPE");
 
-        if (adx < SWIPE_MIN && ady < SWIPE_MIN)
-            HandleTap(touchStartX, touchStartY);
-        else if (adx >= ady)
-            HandleSwipe(dx > 0 ? Swipe::Right : Swipe::Left);
-        else
-            HandleSwipe(dy > 0 ? Swipe::Down : Swipe::Up);
+        // Only a stroke the hold does not own is classified as today -- the whole of a quick tap.
+        if (r == longpress::ReleaseIs::PassThrough) {
+            if (adx < SWIPE_MIN && ady < SWIPE_MIN)
+                HandleTap(touchStartX, touchStartY);
+            else if (adx >= ady)
+                HandleSwipe(dx > 0 ? Swipe::Right : Swipe::Left);
+            else
+                HandleSwipe(dy > 0 ? Swipe::Down : Swipe::Up);
+        }
     }
 
     wasTouched = touched;
@@ -9113,6 +9193,7 @@ void AircraftManager::HandleTap(int tx, int ty)
             selectedIcao = cands[tapCycleIndex].second;
             inDetail = true;
             detailPage = 0;
+            cardOpenLogPending = true;
             usageStore.CardOpened();
             // Already enriched: claim now, so the confirmation lands with the tap.
             // Cold contacts claim later, when enrichment reveals the type.
@@ -9131,6 +9212,7 @@ void AircraftManager::HandleTap(int tx, int ty)
                     selectedIcao = order[idx];
                     inDetail = true;
                     detailPage = 0;
+                    cardOpenLogPending = true;
                     usageStore.CardOpened();
                     auto sel = trackedAircraft.find(selectedIcao); // same claim-on-open as the radar
                     if (sel != trackedAircraft.end())
@@ -9319,6 +9401,10 @@ void AircraftManager::AdvanceScreen(int dir)
         if ((Screen)next == Screen::Follow)
             continue;
         EnterScreen((Screen)next);
+        // One line per swipe-driven screen change, so a long press can be shown never to change screen
+        // (docs/v17-long-press-zoom.md, predictions (e) and (f)).
+        static const char* const kName[SCREEN_COUNT] = { "Radar", "List", "Stats", "Connect", "Follow" };
+        Serial.printf("[screen] -> %s\n", kName[next]);
         return;
     }
 }
