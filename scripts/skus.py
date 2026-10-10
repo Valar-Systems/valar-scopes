@@ -143,6 +143,7 @@ ALLOWED_MENTIONS = {
     "docs/ota-control-plan.md",          # plan prose
     "docs/v17-whats-new.md",             # spec prose citing the release jobs by line; parses nothing
     "scripts/check-tag-workflow.sh",     # reads the version + promote jobs, not the matrix
+    "scripts/check-customer-entry.py",   # reads build's needs + its own job (--check-wiring), not the matrix
     "scripts/check-no-bench-hooks.sh",   # a comment naming the job that runs it; scans an image, never the matrix
 }
 

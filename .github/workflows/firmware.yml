@@ -224,9 +224,29 @@ jobs:
         name: Emit the build matrix
         run: echo "matrix=$(python3 scripts/skus.py --matrix-json)" >> "$GITHUB_OUTPUT"
 
+  # WHAT'S NEW: NO CUSTOMER ENTRY, NO CUT (docs/v17-whats-new.md). FW_VERSION must have a section in
+  # docs/CHANGES-customer.md whose summary lines all map to work MERGED on main -- so a line whose
+  # item slipped has to come out before the cut, and can never be compiled into an image. `build`
+  # needs this job: when it fails, no SKU builds, no publish receipt is written, and `version`
+  # refuses version.txt. Full history, because the gate reads the merges from git; a shallow
+  # checkout makes it BLIND (exit 2), never a pass. --check-wiring fails CI if someone takes this
+  # job out of build's needs: a gate that can be deleted without anything noticing protects nothing.
+  customer-entry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prove the gate catches each violation
+        run: python3 scripts/check-customer-entry.py --selftest
+      - name: The gate is still in front of build
+        run: python3 scripts/check-customer-entry.py --check-wiring
+      - name: FW_VERSION has a customer entry whose lines map to merged work
+        run: python3 scripts/check-customer-entry.py
+
   build:
     runs-on: ubuntu-latest
-    needs: skus
+    needs: [skus, customer-entry]
     strategy:
       fail-fast: false
       # THE MATRIX IS skus.yml. It used to be an inline list here, and on
