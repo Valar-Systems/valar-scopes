@@ -36,6 +36,8 @@ ESPRESSIF_VID = 0x303A
 BOARDS = {
     # name: (MAC as the USB serial, colons removed, upper case; rule)
     'missileer': ('90706931E9D8', 'flash freely (Missileer work)'),
+    # Second Missileer unit (Kit S3 1.28"), confirmed for Missileer work by Daniel 2026-10-11.
+    'missileer2': ('90706931E794', 'flash freely (Missileer work)'),
     'blipscope': ('907069326E64', 'SOAK BOARD: never for Missileer work; ask Daniel first'),
 }
 

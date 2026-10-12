@@ -38,6 +38,7 @@ In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-
 | Board | USB serial (its MAC) | Rule |
 |---|---|---|
 | the **Missileer** board | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
+| the second **Missileer** board (`missileer2`) | `90706931E794` (VID:PID `303A:1001`) | Same rule as `missileer`. Kit S3 1.28"; was COM16 (USB-Serial-JTAG) and COM34 (TinyUSB) on 2026-10-11. |
 | the **Blipscope** board | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
 
 **A COM number is not an identity.** Windows numbers a port per USB interface layout, so
