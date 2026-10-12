@@ -8,6 +8,9 @@
 #include "Layout.h"
 #include "EamModels.h"
 #include "UsbOpen.h"
+#if defined(MISSILEER_E6_BENCH)
+#include "E6Bench.h"   // bench only (env missileer-s3-128-e6bench): fixture feed, no ntfy, no logbook writes
+#endif
 
 #if defined(FEATURE_EAM_GAME)
 #include <esp_timer.h>
@@ -39,6 +42,14 @@ void EamManager::Initialise()
     backendBaseUrl = configServer.GetStoredString("eam-base-url");
     if (backendBaseUrl.isEmpty())
         backendBaseUrl = EAM_FEED_BASE;
+#if defined(MISSILEER_E6_BENCH)
+    // OVER the stored value, not instead of the default: a configured board has
+    // saved eam-base-url, and a build-flag default never reaches a saved key.
+    // RAM only -- NVS keeps what it had, and the restored image reads it again.
+    Serial.printf("[e6-bench] feed base forced to %s (NVS eam-base-url '%s' untouched)\n",
+                  e6bench::FeedBase().c_str(), backendBaseUrl.c_str());
+    backendBaseUrl = e6bench::FeedBase();
+#endif
 
     palette = eam::PaletteFor(configServer.GetStoredString("eam-palette"));
     colonBlink = configServer.GetStoredString("eam-colon-blink") == "true";
@@ -106,6 +117,9 @@ void EamManager::Initialise()
     // Global poll cadence: Normal / Relaxed / Battery scale every poller's interval.
     const String refresh = configServer.GetStoredString("eam-refresh");
     cfg.intervalScale = refresh == "relaxed" ? 2.0f : refresh == "battery" ? 4.0f : 1.0f;
+#if defined(MISSILEER_E6_BENCH)
+    cfg.intervalScale = 1.0f;   // /eam/latest every 30 s, so the procedure's timings hold
+#endif
 
     feed.Begin();
     feed.Configure(cfg);
@@ -113,6 +127,11 @@ void EamManager::Initialise()
     // ntfy alerts (reuses the radar's ntfy-topic key + POST pattern). Each trigger is toggleable;
     // all fire by default once a topic is set (an empty topic disables everything).
     ntfyTopic = configServer.GetStoredString("ntfy-topic");
+#if defined(MISSILEER_E6_BENCH)
+    // Fixture EAMs must never reach a phone: no topic, no alert of any kind.
+    ntfyTopic = "";
+    Serial.println("[e6-bench] ntfy off; logbook in RAM only (eam-log is not written)");
+#endif
     ntfy.SetTopic(ntfyTopic);
     auto boolCfg = [&](const char* key, bool def) {
         const String v = configServer.GetStoredString(key);
@@ -533,7 +552,9 @@ void EamManager::UpdateLogbook(std::vector<eam::Msg>* fresh)
             newCodewords.insert(cw.codeword);
     }
 
+#if !defined(MISSILEER_E6_BENCH)
     logbook.MaybePersist();
+#endif   // the bench build's fixture ids stay in RAM: they must not become "seen" EAMs
 }
 
 void EamManager::CheckAlerts(bool newEamArrived)

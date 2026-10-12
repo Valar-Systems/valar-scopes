@@ -26,3 +26,8 @@ relay/** text eol=lf
 proxy/src/pages.generated.ts text eol=lf
 proxy/pages/*.html text eol=lf
 proxy/fonts/*.woff2 binary
+
+# E6 long-message fixtures: the exact bytes the host test parses and the bench
+# fixture server serves (scripts/e6-fixture-server.py --check compares them byte
+# for byte). No eol conversion, or a Windows checkout serves a different body.
+test/fixtures/eam-long/*.json -text

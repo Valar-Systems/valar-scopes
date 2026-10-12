@@ -97,3 +97,23 @@ npx tsx scripts/emit-derivation-fixture.ts   --out    test/fixtures/derivation.j
 # drift check (exit 1 on drift):
 npx tsx scripts/emit-derivation-fixture.ts --check   --out    test/fixtures/derivation.json   --header ../valar-scopes/test/fixtures/derivation_fixture.h
 ```
+
+## `eam-long/latest-{031,075,290,500}.json`
+
+**Generated. Do not edit by hand — regenerate.** `/eam/latest` bodies in
+valar-eam-feed's served shape (20 station copies; message 0 is 31, 75, 290 or
+500 characters long — 500 is the backend's `MAX_COPY`), for ROADMAP E6. Two
+consumers read the SAME bytes: `test/host/test_eam_long_message.cpp` and
+`test_eam_ticker_draw.cpp` on the host, and the bench board through
+`scripts/e6-fixture-server.py`, which serves them one per request. Marked
+`-text` in `.gitattributes`: a CRLF checkout would serve a different body.
+
+```sh
+python scripts/e6-fixture-server.py --generate test/fixtures/eam-long   # rewrite
+python scripts/e6-fixture-server.py --check test/fixtures/eam-long      # exit 1 on drift
+```
+
+Unlike `game-config.json` these are NOT the other side of a contract: they are
+written from reading the backend (`src/types.ts`, `src/normalize.ts`,
+`src/routes/eam.ts`), so a backend shape change will not show up here by itself.
+See [docs/e6-long-message-check.md](../../docs/e6-long-message-check.md).
