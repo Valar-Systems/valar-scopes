@@ -1197,6 +1197,7 @@ private:
         return ClassifyWatchlist(tracked) != WatchClass::None;
     }
     bool IsOverhead(const TrackedAircraft& tracked) const; // within overheadKm of the centre
+    float OverheadDistanceKm(const TrackedAircraft& tracked) const; // the ONE distance IsOverhead uses
     // Score a freshly-enriched contact for "aircraft of the day" and adopt it if
     // it beats the day's current holder.
     void ConsiderAircraftOfDay(const TrackedAircraft& tracked, bool newType, bool newOperator);
