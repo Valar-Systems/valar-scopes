@@ -37,8 +37,8 @@ namespace configmigration {
  *   4          local-details "adsbdb" -> "cloud" (adsbdb left the stack)
  *   5          tz-offset "0" manufactured by the old config form -> auto (v11)
  *   6          coordinates stored at 4 dp, not 6 (v15: precise on device, coarse on the wire)
- *   7          one Overhead-alerts toggle (ovh-on) replaces lookup + lookup-alert; lookup-dist
- *              snapped onto 1/2/3/5 (v17 owner controls)
+ *   7          one Overhead-alerts screen switch (ovh-on) replaces the lookup ring toggle;
+ *              lookup-alert stays as the push opt-in; lookup-dist snapped onto 1/2/3/5 (v17)
  */
 constexpr int CONFIG_REV = 7;
 
@@ -211,27 +211,50 @@ constexpr CoordKey COORD_KEYS[] = {
 };
 
 /**
- * rev 7 (v17): ONE switch for every overhead behaviour -- the card, the "Look up!" ring and the
- * "Look up!" push -- under the new key `ovh-on`, default ON (docs/v17-overhead-card.md).
+ * rev 7 (v17): the overhead SCREEN switch -- the card and the cyan "Look up!" ring -- under the new
+ * key `ovh-on`, default ON (docs/v17-overhead-card.md). The phone push is NOT under it: it stays
+ * the v16 checkbox `lookup-alert` (relabelled "Also send to my phone (ntfy)", default OFF) and fires
+ * only when both are on (overhead::PushFires).
  *
  * A new key's default reaches every device that never wrote it, which is every v16 device in the
- * field, so default ON alone would switch the ring and the push ON for owners who had them off.
+ * field, so default ON alone would switch the card and the ring ON for owners who had them off.
  * Daniel's decision: new units ON, existing devices keep their state. So a device that has SAVED
  * its configuration before -- its "lookup" key exists, because every whole-form save writes it --
- * gets ovh-on WRITTEN as its old state (ring OR push on -> ON). A device that never saved gets
- * nothing written, and the default applies.
+ * gets ovh-on WRITTEN as its old RING state. A device that never saved gets nothing written, and
+ * the default applies.
+ *
+ * The push plays no part in that answer (amended 2026-10-12; it was "ring OR push"), and that is
+ * structural: OverheadFromLegacy has no parameter for it, so putting the OR back means changing a
+ * signature. `lookup-alert` is never written by this migration -- MigrateOverheadSwitch touches one
+ * key, and test/host/test_config_migration.cpp runs it against a store that records every write.
+ *
+ * Known consequence, built as stated pending a ruling: a v16 owner with the ring OFF and the push
+ * ON (v16's push ignored the ring) migrates to ovh-on OFF with the box still ticked, and so stops
+ * receiving overhead pushes.
  *
  * Unlike the earlier entries this one WRITES rather than removes: the old state is a real value
  * that the new default must not overwrite.
  */
 constexpr bool NeedsOverheadMigration(int storedRev) { return storedRev < 7; }
 
-/** What to write to ovh-on, or nullptr to write nothing (the default, ON, applies). */
-inline const char* OverheadFromLegacy(const char* lookup, const char* lookupAlert)
+/** What to write to ovh-on from the v16 ring key, or nullptr to write nothing (the default, ON,
+ *  applies). */
+inline const char* OverheadFromLegacy(const char* lookup)
 {
     if (!lookup || !*lookup) return nullptr;           // never saved: a fresh unit
-    const bool on = strcmp(lookup, "true") == 0 || (lookupAlert && strcmp(lookupAlert, "true") == 0);
-    return on ? "true" : "false";
+    return strcmp(lookup, "true") == 0 ? "true" : "false";
+}
+
+/** The rev-7 switch step against any prefs-like store: the firmware's Preferences, or the host
+ *  test's recording map. Writes `ovh-on` at most once and no other key. Returns what it wrote, or
+ *  nullptr when it wrote nothing (never saved, or ovh-on already present). */
+template <class Prefs>
+const char* MigrateOverheadSwitch(Prefs& prefs)
+{
+    if (prefs.isKey("ovh-on") || !prefs.isKey("lookup")) return nullptr;
+    const char* v = OverheadFromLegacy(prefs.getString("lookup", "").c_str());
+    if (v) prefs.putString("ovh-on", v);
+    return v;
 }
 
 /**

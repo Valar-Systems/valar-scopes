@@ -3,11 +3,14 @@
 /* ===========================================================================
  * OVERHEAD ALERTS: the pure half (docs/v17-overhead-card.md, "Owner controls").
  *
- * ONE switch and ONE radius for every overhead behaviour -- the card, the cyan
- * "Look up!" ring and the "Look up!" phone push (Daniel, 2026-10-11). The radius
- * is the owner's dropdown value (1, 2, 3 or 5) in the device's own unit; nothing
- * in the firmware holds a second one. Graded on the host in
- * test/host/test_overhead.cpp before it reaches the panel.
+ * ONE radius for every overhead behaviour, and ONE switch for the SCREEN: `ovh-on`
+ * drives the card and the cyan "Look up!" ring. The phone push is its own opt-in
+ * (amended 2026-10-12, reversing the 2026-10-11 "one switch for all three"): the
+ * owner's ntfy topic also carries their military/emergency alerts, so overhead
+ * pushes are never switched on for anyone who did not tick a box for them. The
+ * radius is the owner's dropdown value (1, 2, 3 or 5) in the device's own unit;
+ * nothing in the firmware holds a second one -- the push included. Graded on the
+ * host in test/host/test_overhead.cpp before it reaches the panel.
  * ======================================================================== */
 
 #include <cmath>
@@ -16,6 +19,7 @@
 namespace overhead {
 
 constexpr bool     DEFAULT_ON          = true;      // a unit that never saved: ON
+constexpr bool     DEFAULT_PUSH        = false;     // "Also send to my phone (ntfy)": OFF
 constexpr int      DEFAULT_DISTANCE    = 3;         // in the device's unit
 constexpr int      DISTANCES[4]        = { 1, 2, 3, 5 };
 constexpr uint32_t CARD_SPACING_MS     = 60000;     // internal: >= 60 s between any two cards
@@ -43,6 +47,15 @@ inline int SnapDistance(double stored)
 inline double RadiusKm(int distance, double kmPerUnit)
 {
     return (double)distance * kmPerUnit;
+}
+
+/// The phone push for one overhead edge: the screen switch AND its own checkbox ("Also send to my
+/// phone (ntfy)", key `lookup-alert`) AND a topic to send to. All three, or nothing. There is no
+/// distance parameter on purpose: the edge is IsOverhead's, the same one the card and the ring use,
+/// so the push cannot be given a radius of its own without changing this signature.
+inline bool PushFires(bool on, bool pushBox, bool topicSet)
+{
+    return on && pushBox && topicSet;
 }
 
 /// Why an overhead edge did or did not become a card.

@@ -4,7 +4,20 @@
 // deliberate and is the same shape as GameFormat: put the rule in a constexpr
 // predicate, test the rule, and keep the I/O thin enough to read.
 #include <cstdio>
+#include <map>
+#include <string>
+#include <vector>
 #include "../../include/ConfigMigration.h"
+
+// A Preferences stand-in for MigrateOverheadSwitch that records every write, so the table below can
+// assert which keys a migration TOUCHED, not only what they read afterwards.
+struct RecordingPrefs {
+    std::map<std::string, std::string> kv;
+    std::vector<std::string> writes;
+    bool isKey(const char* k) const { return kv.count(k) != 0; }
+    std::string getString(const char* k, const char* def) const { auto it = kv.find(k); return it == kv.end() ? std::string(def) : it->second; }
+    void putString(const char* k, const char* v) { kv[k] = v; writes.push_back(k); }
+};
 
 static int failures = 0;
 
@@ -138,23 +151,57 @@ int main()
     check(!NeedsInfoFieldReset(CONFIG_REV), "rev 5: the info-field reset is done");
     check(!NeedsLocalDetailsMigration(CONFIG_REV), "rev 5: the local-details migration is done");
 
-    // rev 7 (v17): one Overhead-alerts toggle. Existing devices keep their Look up! state; a
-    // never-saved device gets nothing written, so the default (ON) applies.
-    check(NeedsOverheadMigration(6), "rev 6 devices migrate the overhead toggle");
+    // rev 7 (v17): the overhead SCREEN switch takes the v16 RING state only; the push checkbox
+    // (lookup-alert) is left exactly as stored. Never saved -> nothing written -> default ON.
+    // The table is the frozen one (docs/v17-overhead-card-predictions.md, addendum 2026-10-12):
+    // each v16 store is migrated through the same MigrateOverheadSwitch the firmware runs, against
+    // a store that records every write, so "lookup-alert left as stored" is checked, not assumed.
+    check(NeedsOverheadMigration(6), "rev 6 devices migrate the overhead switch");
     check(!NeedsOverheadMigration(CONFIG_REV), "CONFIG_REV must satisfy the overhead predicate");
-    check(OverheadFromLegacy(nullptr, nullptr) == nullptr, "never saved (no lookup key): nothing written, default ON");
-    check(OverheadFromLegacy("", "") == nullptr, "an empty lookup key is never-saved too");
-    check(strcmp(OverheadFromLegacy("true", "false"), "true") == 0, "ring was on: kept ON");
-    check(strcmp(OverheadFromLegacy("false", "true"), "true") == 0, "push was on: kept ON");
-    check(strcmp(OverheadFromLegacy("false", "false"), "false") == 0, "both off: kept OFF -- the new default does not reach it");
-    check(strcmp(OverheadFromLegacy("false", nullptr), "false") == 0, "ring off, no push key: kept OFF");
-    if (failures == 0) std::printf("test_config_migration: all checks passed\n");
-    else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);
+    check(OverheadFromLegacy(nullptr) == nullptr && OverheadFromLegacy("") == nullptr,
+          "no lookup value (or an empty one) is never-saved: nothing written");
+    {
+        struct Row { const char* lookup; const char* alert; const char* ovhOn; const char* name; };
+        const Row rows[] = {
+            { "true",  "false", "true",  "ring on,  push off" },
+            { "false", "true",  "false", "ring off, push on  (the OR rule wrote true; the open consequence)" },
+            { "true",  "true",  "true",  "ring on,  push on" },
+            { "false", "false", "false", "ring off, push off (the new default does not reach it)" },
+            { nullptr, nullptr, nullptr, "never saved       (nothing written; default ON applies)" },
+        };
+        std::printf("  rev-7 migration table:  lookup | lookup-alert -> ovh-on | lookup-alert after | writes\n");
+        for (const Row& r : rows) {
+            RecordingPrefs p;
+            if (r.lookup) p.kv["lookup"] = r.lookup;
+            if (r.alert) p.kv["lookup-alert"] = r.alert;
+            const char* wrote = MigrateOverheadSwitch(p);
+            const bool hasOvh = p.kv.count("ovh-on") != 0;
+            const std::string ovh = hasOvh ? p.kv["ovh-on"] : std::string("(absent)");
+            const std::string alertAfter = p.kv.count("lookup-alert") ? p.kv["lookup-alert"] : std::string("(absent)");
+            std::printf("    %-6s | %-6s -> %-8s | %-8s | %u  %s\n", r.lookup ? r.lookup : "absent", r.alert ? r.alert : "absent",
+                        ovh.c_str(), alertAfter.c_str(), (unsigned)p.writes.size(), r.name);
+            char what[160];
+            std::snprintf(what, sizeof what, "%s: ovh-on %s", r.name, r.ovhOn ? r.ovhOn : "not written");
+            check(r.ovhOn ? (hasOvh && ovh == r.ovhOn && wrote && std::string(wrote) == r.ovhOn) : (!hasOvh && !wrote), what);
+            std::snprintf(what, sizeof what, "%s: lookup-alert exactly as stored", r.name);
+            check(r.alert ? (p.kv.count("lookup-alert") && p.kv["lookup-alert"] == r.alert) : !p.kv.count("lookup-alert"), what);
+            std::snprintf(what, sizeof what, "%s: the only key written is ovh-on", r.name);
+            check(p.writes.size() == (r.ovhOn ? 1u : 0u) && (p.writes.empty() || p.writes[0] == "ovh-on"), what);
+        }
+        RecordingPrefs set;                                   // an ovh-on already present is never overwritten
+        set.kv["lookup"] = "true"; set.kv["ovh-on"] = "false";
+        check(MigrateOverheadSwitch(set) == nullptr && set.kv["ovh-on"] == "false" && set.writes.empty(),
+              "ovh-on already present: left as it is, nothing written");
+    }
+
     // rev 6 (v15): coordinates rewritten at 4 dp, once.
     check(NeedsCoordPrecisionMigration(5), "rev 5 devices rewrite their coordinates at 4 dp");
     check(NeedsCoordPrecisionMigration(0), "a pre-migration device does too");
     check(!NeedsCoordPrecisionMigration(CONFIG_REV), "CONFIG_REV must satisfy the coordinate predicate");
     check(sizeof(COORD_KEYS) / sizeof(COORD_KEYS[0]) == 8, "latitude/longitude + three presets x2");
 
+    // The summary comes last: it used to sit above the rev-6 checks and so reported before they ran.
+    if (failures == 0) std::printf("test_config_migration: all checks passed\n");
+    else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);
     return failures == 0 ? 0 : 1;
 }

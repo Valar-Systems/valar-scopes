@@ -51,6 +51,15 @@ int main()
     check(DecideCard(true, 40000, true, false, CARD_SPACING_MS - 1) == Card::Spacing, "59.999 s after the last card -> no card");
     check(DecideCard(true, 40000, true, false, CARD_SPACING_MS) == Card::Show, "60 s after the last card -> SHOW");
 
+    // the phone push: the switch AND its own box AND a topic -- all 8 combinations
+    check(!DEFAULT_PUSH, "the push box defaults OFF");
+    for (int m = 0; m < 8; ++m) {
+        const bool on = m & 1, box = m & 2, topic = m & 4;
+        char what[96];
+        std::snprintf(what, sizeof what, "push: switch=%d box=%d topic=%d -> %s", on, box, topic, (on && box && topic) ? "fires" : "silent");
+        check(PushFires(on, box, topic) == (on && box && topic), what);
+    }
+
     std::printf(failures ? "FAILED: %d\n" : "all passed\n", failures);
     return failures ? 1 : 0;
 }
