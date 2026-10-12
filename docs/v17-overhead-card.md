@@ -100,13 +100,36 @@ The overhead card is **owner-controlled from the config page**. A new section, *
 |---|---|---|
 | On / Off | one toggle, key `ovh-on` | **ON** |
 | Distance | dropdown **1, 2, 3, 5** in the device's own unit (mi or km), key `lookup-dist` | **3** |
+| "Also send to my phone (ntfy)" | checkbox nested under the toggle, key `lookup-alert` (the v16 key, relabelled) | **OFF** |
 
-- **One switch, one radius, for all overhead behaviour (Daniel's answers):** the toggle drives the
-  **card, the cyan "Look up!" ring and the "Look up!" phone push** together. The old `lookup` and
-  `lookup-alert` checkboxes leave the page and are no longer read; their NVS keys are left in place,
-  so a downgrade to v16 still behaves. `lookup-dist` is **the only radius in the code**: the card,
-  the ring and the push all ask `IsOverhead`, which asks `OverheadDistanceKm` once.
-- **Off** means no card, no ring and no push. Everything else on the radar is unchanged.
+- **The switch governs the SCREEN; the phone push is its own opt-in (amended 2026-10-12, reversing
+  2026-10-11).** `ovh-on` drives the **card and the cyan "Look up!" ring** (and the look-up tone on a
+  board with a speaker; the tone already follows "ring or push", which now reduces to the switch).
+  The push stays a separate checkbox, relabelled **"Also send to my phone (ntfy)"**, default **OFF**,
+  drawn nested under the switch. **It fires only when `ovh-on` AND the checkbox are both true** (and
+  a topic is set, as today). The old `lookup` checkbox leaves the page and is no longer read. Its NVS
+  key is left in place, so a downgrade to v16 still behaves.
+  - *What was reversed:* on 2026-10-11 the toggle drove the card, the ring **and the push** together
+    (Daniel's answer, "ring + push + card").
+  - *Why:* `lookup-alert` posts to the owner's `ntfy-topic`, the same topic owners use for military
+    and emergency alerts. With the rev-7 migration as first written ("ring OR push -> ON") plus
+    default ON for new units, an owner with a topic set would get on the order of the measured
+    148 passes/day as phone pushes they never asked for.
+- **One radius, still.** `lookup-dist` is **the only radius in the code**. The card, the ring and
+  the push all ask `IsOverhead`, which asks `OverheadDistanceKm` once. The push has no radius of its
+  own anywhere.
+- **Off** means no card and no ring, and therefore no push (the push needs the switch). Everything
+  else on the radar is unchanged.
+- **Home Assistant (MQTT) is not governed by `ovh-on`**, on the same single radius. The config page
+  says so in one line of help text, so owners know HA has its own switch (the MQTT settings). Today
+  there are two MQTT overhead outputs, and they are **not** alike:
+  - the per-contact `overhead` event (AM:10609) is unconditional. It stays exactly as it is.
+  - the state payload's overhead field is gated on `showOverhead || alertOverhead` (AM:10426, 10439),
+    i.e. on v16's ring-or-push. If left as written it would follow `ovh-on` after this change.
+    **Proposed (flagged for review, not yet decided):** make it unconditional like the event, so
+    neither HA output follows `ovh-on`. The visible change is for an MQTT owner who had both ring
+    and push off in v16: the state field starts reporting overhead contacts, as the event already
+    does.
 - **The 60 s minimum spacing between cards is an internal constant**, not on the page.
 - **The unit:** if the owner changes mi <-> km, the stored index is kept ("3" stays 3 in the new unit),
   never converted. That is what `lookup-dist` already does.
@@ -119,11 +142,28 @@ The overhead card is **owner-controlled from the config page**. A new section, *
 **Who gets ON at the v17 OTA (Daniel's answer): new units ON; existing devices keep their state.**
 A new key's default reaches every device that never wrote it -- including every v16 device in the
 field -- so default ON alone would switch the card, the ring and the push ON for owners who had
-"Look up!" off. So `cfg-rev` 6 -> 7 migrates (`include/ConfigMigration.h`):
+"Look up!" off. So `cfg-rev` 6 -> 7 migrates (`include/ConfigMigration.h`), **amended 2026-10-12:**
 - a device that has saved its configuration before (its `lookup` key exists) gets `ovh-on` written
-  as its old state: ON if `lookup` OR `lookup-alert` was on, else OFF;
+  as **its old ring state only**: ON if `lookup` was on, else OFF. `lookup-alert` plays no part in
+  that answer. (As first written it was "`lookup` OR `lookup-alert`", which is reversed.)
 - a device that never saved (no `lookup` key: factory-fresh, or just factory-reset) gets nothing
   written, so the default, **ON**, applies.
+- **`lookup-alert` is left exactly as stored.** The migration never writes it. It is the push
+  checkbox now, so a v16 owner's push choice carries over as their push choice.
+
+**A consequence to decide, not an outcome to discover:** in v16 the push was **independent of the
+ring**: it fires on `alertOverhead && IsOverhead` (AM:10151), whatever `lookup` says. A v16 owner
+with the **ring off and the push on** therefore migrates to `ovh-on` OFF with the box still ticked.
+Under "push needs the switch" they **stop getting the overhead pushes they chose**, silently, at the
+OTA. Both v16 checkboxes defaulted off, and the page drew "also ntfy" as a sub-option of the ring,
+so this population is probably small. Its size is not observable: config is not in telemetry.
+The alternatives and their cost are:
+- keep the rule as stated, and accept the silent loss;
+- migrate that one case to `ovh-on` ON, which keeps their push but turns on a card and ring they
+  had off;
+- or let the push fire on its box alone, which contradicts "only when both".
+**Built as stated (the first), pending a ruling.** The host table pins it as an explicit case, so a
+later ruling changes one expected value in a visible place.
 
 **The rate an owner gets (measured, 2026-10-09/10, COM18 at Daniel's site, 3 mi = 4.8 km):**
 148.5 passes/day, 144.0 idle passes/day, **122.1 cards/day after the 60 s spacing** (an upper bound:

@@ -64,3 +64,87 @@ it readable.
 ---
 
 *Addenda below this line, dated, never edits above it.*
+
+## Addendum 2026-10-12: the phone push is its own opt-in (re-frozen before any code changes)
+
+The ruling: `ovh-on` governs the SCREEN only, i.e. the card and the cyan ring. The push is the
+`lookup-alert` checkbox, relabelled "Also send to my phone (ntfy)", default OFF, nested under the
+switch. It fires only when `ovh-on` AND the box are both true, and a topic is set. Same single
+radius; no second radius anywhere. HA (MQTT) is not governed by `ovh-on`. The text above this line
+is unchanged and still hashes ca6cfdda32f3. Where an item below restates a check, the item below is
+the one graded.
+
+**Migration rev 7, amended.** `ovh-on` <- the old `lookup` (ring) state only. Never saved (no `lookup`
+key) -> nothing written, so the default (ON) applies. `lookup-alert` is left exactly as stored; the
+migration never writes it. The host table (`test/host/test_config_migration.cpp`):
+
+| v16 `lookup` | v16 `lookup-alert` | `ovh-on` written | `lookup-alert` after |
+|---|---|---|---|
+| true | false | true | false (as stored) |
+| false | true | **false** | true (as stored) |
+| true | true | true | true (as stored) |
+| false | false | false | false (as stored) |
+| absent | absent | nothing (default ON applies) | absent |
+
+Row 2 is the one the old OR rule decides differently: OR writes true. It is also the open
+consequence in the spec. In v16 that owner received overhead pushes, because v16's push ignored the
+ring (AM:10151). Under "push needs the switch" they stop. That is built as stated, pending a ruling.
+
+**The push predicate is pure and host-tested.** `overhead::PushFires(on, box, topicSet)` in
+`include/OverheadPolicy.h`, true only for (true, true, true). All 8 combinations are in the host test.
+
+**Instruments.** `[lookup] push pass=<n>` is logged only when PushFires holds and the POST queued.
+Push counts are also taken from the wire: a throwaway bench topic, polled at ntfy.sh, with **counts
+only** (bodies never printed). The device count and the wire count must agree.
+
+**(a), amended: OFF survives a reboot, with the push box ticked.** Same as above, but the window runs
+with the push checkbox **ON** and the bench topic set, so "0 push" is the switch's doing and not the
+box's. Pass: 0 `[ovhcard] show`, 0 `[lookup] ring`, 0 `[lookup] push`, and 0 messages at the topic.
+Readable only if at least one `cross r=<setting>` line falls in the window.
+
+**(c), replaced: the ring and the card fire on one set; the push fires on it only when ticked.** Two
+30 min live windows at one setting, the same session, the bench topic set:
+- **(c1) box ON.** The set of passes with `[lookup] ring` == the set with `[ovh] edge` == the set with
+  an `[ovhcard]` line (show or skip: the card DECIDES on every edge; idle and spacing then filter
+  it). The set with `[lookup] push` == that same set. The wire count == the push line count.
+- **(c2) box OFF.** Ring set == edge set == card-decision set, as in (c1), and **0** `[lookup] push`
+  lines, **0** messages at the topic.
+- **Readable only if** each window has at least one `[ovh] edge`. A window with none is a FAIL
+  (unreadable), not a pass.
+- **Sabotage S-c1: give the push its own constant radius (5 in the device unit, setting 3).** In
+  (c1) the push set != the edge set -> FAIL. Readable only if the window has at least one pass with
+  `cross r=5` and no `cross r=3`. Otherwise this run did not exercise the sabotage: report "not
+  applied" and extend the window.
+- **Sabotage S-c2: tie the push to `ovh-on` alone, ignoring the box.** In (c2) there are
+  `[lookup] push` lines and messages at the topic -> FAIL.
+
+**(e), new: a v16 owner with ring on, push off and a topic gets zero overhead pushes.**
+- **Method.** Host replay (`test/host/replay_overhead.cpp`, the firmware's own `OverheadFromLegacy`
+  and `PushFires`). The v16 config is `lookup=true`, `lookup-alert=false`, topic set, no `ovh-on`,
+  cfg-rev 6. It is migrated, then every overhead edge of the replay is run through the push decision.
+- **The replay input** is the r=3 crossings of the 24 h radii run: workstation-only, anonymous
+  (radius, idle, altitude, uptime). Once (b)'s capture exists, it is replayed too.
+- **Pass:** 0 pushes.
+- **Control (must hold, or the zero is unreadable):** the same replay with `lookup-alert=true`
+  gives pushes == edges, and edges >= 1.
+- **Sabotage as written, "the old OR rule" in the migration:** **predicted NOT to fail (e).** For
+  ring on, OR and ring-only both write `ovh-on=true`. The pushes come from the push GATE, not the
+  migration. Running it shows 0 pushes. That is reported as "this sabotage cannot bite on this
+  config", not counted as a pass of the sabotage.
+- **The sabotage that does bite (e): the old rev-7 design as a whole** (OR migration + push follows
+  `ovh-on` alone). Pushes == edges (about the measured passes/day) -> FAIL.
+- **(e2), where the OR rule itself bites:** v16 ring off, push on, topic set. Pass: `ovh-on` written
+  false; 0 cards, 0 rings, 0 pushes over the replay. Under the OR rule, `ovh-on` is true and cards
+  and rings appear -> FAIL.
+
+**(b) and (d)** unchanged. **(a) and (d) run after the radii run ends** (~20:45 2026-10-12), or on
+COM16 (Missileer, 90706931E794) once it is registered via `bench-flash.ps1`. No flash, reboot, power
+cut or factory reset on COM18 before then. COM6 and COM5 remain off limits.
+
+**Outside the set, added (stop and report):**
+- any `[lookup] push` or topic message while the box is OFF, or while `ovh-on` is OFF;
+- a push for a pass with no `[ovh] edge`;
+- device push count != wire count;
+- a migrated device whose `lookup-alert` value changed;
+- in (e), a non-zero push count with the as-written OR sabotage. That would mean the gate is not
+  what this addendum says it is.
