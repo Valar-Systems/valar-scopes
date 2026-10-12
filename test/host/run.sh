@@ -976,6 +976,142 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# --- E6: long EAMs (31 / 75 / 290 / 500 chars), parse + heap + ticker draw ----
+#
+# ROADMAP E6, 2026-10-11. Two binaries, both fed test/fixtures/eam-long/ -- the
+# bytes scripts/e6-fixture-server.py serves the bench board.
+#
+#  1. test_eam_long_message: the SHIPPING EamFeedClient.cpp + EamModels.cpp,
+#     against ArduinoJson from .pio/libdeps and the REAL arduino-esp32 String
+#     (WString.cpp, copied out of the installed framework unmodified), with every
+#     allocation counted (eam_host/hostheap.h). Its own include path, eam_host/,
+#     stands in for FreeRTOS, the HTTP client and DeviceIdentity; -I src is
+#     deliberately NOT given, so src/HttpRequestManager.h can never be reached.
+#  2. test_eam_ticker_draw: the REAL LovyanGFX sprite drawing DrawTicker's lines
+#     (transcribed, and pinned to EamScreens.cpp verbatim -- a changed DrawTicker
+#     makes it BLIND, never stale).
+#
+# NO FRAMEWORK OR LIBDEPS = BLIND (exit 2), like the Wi-Fi QR test: they exist
+# once any env has been built or `pio pkg install -e blipscope-s3-128` has run.
+#
+# SANITIZERS where the compiler has them. PlatformIO's MinGW gcc 5.1 has no
+# ASan/UBSan runtime, so a Windows run gets the guard bands and the ledger only;
+# CI's Linux g++ runs both binaries under -fsanitize=address,undefined. The probe
+# below decides, and the line it prints says which one this run was.
+echo
+echo "== E6: long EAMs through the shipping feed client, the heap they cost, and the ticker =="
+FWCORE="$HOME/.platformio/packages/framework-arduinoespressif32/cores/esp32"
+AJSRC="$(ls -d "$ROOT"/.pio/libdeps/*/ArduinoJson/src 2>/dev/null | head -1)"
+LGSRC="$(ls -d "$ROOT"/.pio/libdeps/*/LovyanGFX/src 2>/dev/null | head -1)"
+if [ ! -f "$FWCORE/WString.cpp" ] || [ -z "$AJSRC" ] || [ -z "$LGSRC" ]; then
+  echo "FAIL: BLIND -- E6 needs the arduino-esp32 core ($FWCORE),"
+  echo "      ArduinoJson and LovyanGFX under .pio/libdeps. Run: pio pkg install -e blipscope-s3-128"
+  exit 2
+fi
+E6="$OUT/e6"
+rm -rf "$E6"
+mkdir -p "$E6/realwstring" "$E6/lgfx"
+for f in WString.cpp WString.h stdlib_noniso.c stdlib_noniso.h pgmspace.h; do
+  cp "$FWCORE/$f" "$E6/realwstring/" || { echo "FAIL: BLIND -- cannot copy $f from the framework"; exit 2; }
+done
+echo "real String from framework-arduinoespressif32 $(grep -o '"version": *"[^"]*"' "$FWCORE/../../package.json" | head -1)"
+SAN=""
+printf 'int main(){return 0;}\n' > "$E6/san_probe.cpp"
+if "$CXX" -fsanitize=address,undefined "$E6/san_probe.cpp" -o "$E6/san_probe.exe" >/dev/null 2>&1 \
+   && "$E6/san_probe.exe" >/dev/null 2>&1; then
+  SAN="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+  # LeakSanitizer off: the rig leaks its fake queues on purpose. exitcode=1 so a
+  # sanitizer report reads as a FAILED TEST (a defect in the code), not a rig fault.
+  export ASAN_OPTIONS="detect_leaks=0:exitcode=1"
+  export UBSAN_OPTIONS="print_stacktrace=1:exitcode=1"
+  # CONTROL: "ON" is only a claim until a planted one-byte heap overrun is caught.
+  printf '#include <cstdlib>\nint main(){volatile char* p=(char*)malloc(8); p[8]=1; free((void*)p); return 0;}\n' \
+    > "$E6/san_control.cpp"
+  if "$CXX" $SAN "$E6/san_control.cpp" -o "$E6/san_control.exe" >/dev/null 2>&1 \
+     && ! "$E6/san_control.exe" >/dev/null 2>&1; then
+    echo "sanitizers: ON (-fsanitize=address,undefined); control: a planted heap overrun IS caught"
+  else
+    echo "FAIL: sanitizers compiled but a planted heap overrun was NOT caught -- they would be blind"
+    exit 2
+  fi
+else
+  echo "sanitizers: OFF -- this compiler has no ASan/UBSan runtime (CI's Linux g++ runs them)"
+fi
+H="$ROOT/test/host/eam_host"
+E6DEFS="-DBOARD_HAS_PSRAM -DARDUINOJSON_ENABLE_ARDUINO_STRING=1"
+# ArduinoJson by -isystem, and maybe-uninitialized NOT fatal: CI's g++ 13 under
+# -fsanitize=address reports CollectionIterator::nextId_ "may be used
+# uninitialized" inside ArduinoJson's ObjectImpl.hpp once it is inlined into our
+# TU (first CI run of this section, 2026-10-11; g++ 11 is silent). That is flow
+# analysis inside a third-party header, and `#pragma GCC system_header` in
+# ArduinoJson.hpp covers that one file only. The warning still PRINTS; every
+# other warning in our code and the shipping sources stays an error.
+E6INC="-I$H -I$E6/realwstring -I$ROOT/src/eam -isystem $AJSRC"
+E6FLAGS="-std=c++11 -O1 -g $SAN -Wno-error=maybe-uninitialized"
+# One compile or link step. Its failure is the RIG's (exit 2), and the log is shown.
+e6_cc() {
+  if ! "$CXX" "${@:2}" 2>"$E6/$1.log"; then
+    echo "FAIL: E6 build step '$1' did not compile"
+    cat "$E6/$1.log"
+    exit 2
+  fi
+}
+e6_cc wstring  $E6FLAGS -w $E6DEFS -include "$H/hostheap.h" $E6INC -c "$E6/realwstring/WString.cpp" -o "$E6/WString.o"
+e6_cc noniso   -x c -O1 -g $SAN -w $E6DEFS -include "$H/hostheap.h" $E6INC -c "$E6/realwstring/stdlib_noniso.c" -o "$E6/noniso.o"
+e6_cc newlib   -x c -O1 -g $SAN -Wall -Wextra -Werror -c "$H/newlib_extras.c" -o "$E6/newlib_extras.o"
+e6_cc ledger   $E6FLAGS -Wall -Wextra -Werror -I"$H" -c "$H/hostheap.cpp" -o "$E6/hostheap.o"
+e6_cc models   $E6FLAGS -Wall -Wextra -Werror $E6DEFS -include "$H/hostheap.h" $E6INC -c "$ROOT/src/eam/EamModels.cpp" -o "$E6/EamModels.o"
+e6_cc client   $E6FLAGS -Wall -Wextra -Werror $E6DEFS -include "$H/hostheap.h" $E6INC -c "$ROOT/src/eam/EamFeedClient.cpp" -o "$E6/EamFeedClient.o"
+e6_cc msgtest  $E6FLAGS -Wall -Wextra -Werror $E6DEFS -include "$H/hostheap.h" $E6INC -c "$ROOT/test/host/test_eam_long_message.cpp" -o "$E6/test_eam_long_message.o"
+e6_cc msglink  $E6FLAGS -static-libgcc -static-libstdc++ "$E6/WString.o" "$E6/noniso.o" "$E6/newlib_extras.o" \
+               "$E6/hostheap.o" "$E6/EamModels.o" "$E6/EamFeedClient.o" "$E6/test_eam_long_message.o" \
+               -o "$E6/test_eam_long_message.exe"
+# The sources to inventory are LISTED here, not named in the test, so a new file in
+# src/eam is scanned without anyone remembering to add it.
+( cd "$ROOT" && "$E6/test_eam_long_message.exe" "$ROOT" src/eam/*.h src/eam/*.cpp include/NtfyAlerter.h )
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the E6 message test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the E6 message test could not see what it checks (BLIND)"
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
+# LovyanGFX's own sources, warnings off (not our code), as objects. -D__linux__ on
+# a non-Linux host only selects the framebuffer platform HEADER; lgfx_platform.cpp
+# replaces its .cpp. The efont/IPA tables are compiled because lgfx_fonts.cpp
+# references them, not because the ticker uses them.
+LGDEFS="-DLGFX_LINUX_FB"
+case "$(uname -s)" in Linux*) ;; *) LGDEFS="$LGDEFS -D__linux__" ;; esac
+LGV="$LGSRC/lgfx/v1"
+n=0
+for src in "$LGV/LGFXBase.cpp" "$LGV/LGFX_Sprite.cpp" "$LGV/lgfx_fonts.cpp" "$LGV"/misc/*.cpp \
+           "$LGV/panel/Panel_Device.cpp" "$H/lgfx_platform.cpp"; do
+  n=$((n + 1))
+  e6_cc "lgfx$n" -std=gnu++14 -O1 -g $SAN -w $LGDEFS -I"$LGSRC" -c "$src" -o "$E6/lgfx/cxx$n.o"
+done
+for src in "$LGSRC"/lgfx/utility/*.c "$LGSRC"/lgfx/Fonts/efont/*.c "$LGSRC"/lgfx/Fonts/IPA/*.c; do
+  n=$((n + 1))
+  e6_cc "lgfx$n" -x c -O1 -g $SAN -w $LGDEFS -I"$LGSRC" -c "$src" -o "$E6/lgfx/c$n.o"
+done
+e6_cc drawtest -std=gnu++14 -O1 -g $SAN -Wall -Wextra -Werror -Wno-error=maybe-uninitialized $LGDEFS -isystem "$LGSRC" \
+               -c "$ROOT/test/host/test_eam_ticker_draw.cpp" -o "$E6/test_eam_ticker_draw.o"
+e6_cc drawlink -O1 -g $SAN -static-libgcc -static-libstdc++ "$E6/test_eam_ticker_draw.o" "$E6"/lgfx/*.o \
+               -o "$E6/test_eam_ticker_draw.exe"
+"$E6/test_eam_ticker_draw.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the E6 ticker-draw test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the E6 ticker-draw test is BLIND (fixtures missing, or DrawTicker changed: re-transcribe)"
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
