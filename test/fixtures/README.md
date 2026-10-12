@@ -89,6 +89,29 @@ The server's test suite asserts that coverage by property.
 The parameters are the server checkout's defaults, and they're emitted into
 the header beside the cases. On the device they come from `/config` at runtime.
 
+[`../host/test_game_agreement.cpp`](../host/test_game_agreement.cpp) reads the
+same cases for what leaves the device: the POST /votes body built from each
+derivation has to carry the server's class name (`class_wire`) and its
+rendering of T. The server's suite commits the same cases with the same class
+and T (valar-eam-feed `test/game-derivation.test.ts`). That is enrollment-open
+checklist item 5, at the wire.
+
+### The execution window section (`kWindowCases`)
+
+The same header carries the shared execution-window vectors (ruled 2026-10-11,
+"ResolveTurn -> T ± 1 s"): T itself, 0.5 s early, each edge, 1 ms outside each
+edge, and 1.5 s late. Both edges count, because the design doc's §4 ruling 1 says
+`|dev| <= 1.0 s`.
+
+**These have a different source of truth from the derivation cases.** The
+verdicts are the RULING's, written down in the emitter. Neither implementation
+produced them. `test_game_agreement.cpp` grades `DrillMachine::ResolveTurn` and
+`DeviationMsForServer` against them, and the server's `test/game-flow.test.ts`
+grades `inExecutionWindow` and `executeVote` against the JSON twin. Every
+instant is a whole millisecond. Which side decides a key a fraction of a
+millisecond outside an edge is an open question (design doc "Timings", W2), so
+no case answers it.
+
 ### Regenerating
 
 ```sh

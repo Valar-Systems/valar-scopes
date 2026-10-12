@@ -689,6 +689,28 @@ elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
 
+echo "== device/server agreement at the wire (the execution window, the commit body) =="
+#
+# The same fixture, read for what leaves the device. kWindowCases are the
+# 2026-10-11 ruling's verdicts ("ResolveTurn -> T ± 1 s"), which the server's
+# votes tests run against executeVote from the JSON twin; kCases are the
+# server's own derivation, here built into the POST /votes body the server
+# commits from the same inputs. A failure in the first half is the device
+# disagreeing with the ruling; in the second, a device that cannot vote.
+if ! "$CXX" $FLAGS $INCLUDES $FIXTURE_INCLUDES       "$ROOT/src/game/DrillMachine.cpp" "$ROOT/src/game/Derive.cpp" "$ROOT/src/game/GameProtocol.cpp"       "$ROOT/test/host/test_game_agreement.cpp"       -o "$OUT/test_game_agreement.exe" 2>"$OUT/build_agreement.log"; then
+  echo "FAIL: the agreement tests did not compile"
+  cat "$OUT/build_agreement.log"
+  exit 2
+fi
+"$OUT/test_game_agreement.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the agreement test binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
 # --- 1b. THE SAME TU, COMPILED FOR THE BOARD ---------------------------------
 #
 # RULED after <stddef.h>. The host suite proves the LOGIC; it does not prove the

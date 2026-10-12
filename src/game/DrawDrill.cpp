@@ -158,6 +158,12 @@ void DrawBezel(BandCanvas& c, const eam::Palette& palette, const State& st) {
     // THE WHOLE RING, not a sweep. A sweeping indicator would imply the window
     // is a position to hit; it is an interval, and every instant in it is
     // equally on time until the machine says otherwise.
+    //
+    // LIT FROM T, NOT FROM THE WINDOW'S OPENING. Since the window was centred
+    // on T (ruled 2026-10-11) it opens a second earlier, inside Armed, and the
+    // ring does not show that second. Left where it was on purpose: whether
+    // the ring and TURN move to T - 1 s is an open question for Daniel (design
+    // doc "Timings"), and moving them is a change to what the player sees.
     c.fillArc(kC, kC, r0, r1, 0, 360, palette.accent);           SS_ARC("window_ring", 360);
   }
 }
@@ -265,7 +271,7 @@ void DrawDrill(BandCanvas& c, const eam::Palette& palette, const State& st, cons
       // precision the clock cannot support. The countdown is a countdown, and a
       // tenths digit here would imply the device knows where it is inside a
       // 199 ms floor.
-      const long secs = (long)(st.until_window_us / 1000000ull);
+      const long secs = (long)(st.until_t_us / 1000000ull);
       c.setTextSize(2);
       Centre(c, String(secs).c_str(), kC - 4, palette.accent);   SS_NUM("countdown_s", secs);
       c.setTextSize(1);
