@@ -13,8 +13,9 @@ When a plane passes overhead and nobody is using the device, a compact card appe
 ## What exists today (facts this spec builds on)
 
 - **"Overhead"** is `IsOverhead` (AM:10086-10094).
-  - It is **horizontal distance only**: <= `overheadKm`, default 3 km, set as "lookup-dist" in the
-    radar's unit (AM:1213-1219).
+  - It is **horizontal distance only**: <= `overheadKm`, set as "lookup-dist" **in the radar's unit**,
+    default 3 (AM:1213-1219). **On a miles device that is 3 mi = 4.8 km, not 3 km**: every one of the
+    163 lines of the pass-rate measurement reported `r_km=4.8` (corrected 2026-10-11).
   - It is **not an altitude test**. An airliner at 37,000 ft within 3 km is "overhead".
 - **"Look up!" is opt-in.** `lookup` (the cyan ring) and `lookup-alert` (ntfy) both default
   **false** (`ConfigurationWebServer.cpp:2829-2831`).
@@ -91,29 +92,44 @@ The setting only applies when the data source is **local**. A cloud-source devic
   build step is to measure it**: a 24 h count of first-`IsOverhead` transitions on COM18. The
   frozen predictions then carry that number. **Decided at review: measure the pass rate first.**
 
-## Config
+## Owner controls (Daniel, decided 2026-10-11) -- replaces "default ON only behind Look up!"
 
-"**Show a card when a plane passes overhead**", key `lookup-card`.
+The overhead card is **owner-controlled from the config page**. A new section, **"Overhead alerts"**:
 
-**Decided at review: default ON only when "Look up!" is on.** The reasoning that led there:
+| control | values | default |
+|---|---|---|
+| On / Off | one toggle, key `ovh-on` | **ON** |
+| Distance | dropdown **1, 2, 3, 5** in the device's own unit (mi or km), key `lookup-dist` | **3** |
 
-**Is default ON right? Only behind "Look up!", and here is why.**
-- "Look up!" is opt-in today, and `IsOverhead` has no altitude term. A global default-ON card
-  would make the device **take the screen**, every minute at worst, for every airliner crossing a
-  3 km circle at cruise. That would happen on units whose owners never asked for any overhead
-  attention.
-- That is spec 13.3's rule turned around (*Follow gets a screen; it never gets THE screen*). The
-  card surfaces on a transition, like Follow's auto-surface, but for a far more frequent event.
+- **One switch, one radius, for all overhead behaviour (Daniel's answers):** the toggle drives the
+  **card, the cyan "Look up!" ring and the "Look up!" phone push** together. The old `lookup` and
+  `lookup-alert` checkboxes leave the page and are no longer read; their NVS keys are left in place,
+  so a downgrade to v16 still behaves. `lookup-dist` is **the only radius in the code**: the card,
+  the ring and the push all ask `IsOverhead`, which asks `OverheadDistanceKm` once.
+- **Off** means no card, no ring and no push. Everything else on the radar is unchanged.
+- **The 60 s minimum spacing between cards is an internal constant**, not on the page.
+- **The unit:** if the owner changes mi <-> km, the stored index is kept ("3" stays 3 in the new unit),
+  never converted. That is what `lookup-dist` already does.
+- **Stored distances outside 1/2/3/5** (the old free field allowed 0.5 steps) snap to the nearest
+  option at migration; a tie goes to the smaller (fewer cards).
+- **Persistence:** both keys live in NVS namespace `config`, so they survive reboot and OTA, and a
+  **factory reset clears them back to the defaults (ON, 3)** (`config` is cleared by name,
+  `src/FactoryReset.cpp`; only `cloud-key-fac` is preserved).
 
-**Recommendation:**
-- The card is a **sub-option of "Look up!"**: shown and effective only when `lookup` is on, and
-  **default ON within it**.
-- Owners who asked for overhead attention get the card. New owners get no new screen-taking
-  behaviour.
-- `lookup-card` is a new key, so its default reaches existing devices with no `ConfigMigration`
-  entry. The first save freezes it as rendered, per the rule at `include/ConfigMigration.h:9-27`.
-- **If the review wants it on for everyone:** ship it only with the altitude filter (v18 spec)
-  respected, or an altitude ceiling on the card itself, so cruise traffic does not trigger it.
+**Who gets ON at the v17 OTA (Daniel's answer): new units ON; existing devices keep their state.**
+A new key's default reaches every device that never wrote it -- including every v16 device in the
+field -- so default ON alone would switch the card, the ring and the push ON for owners who had
+"Look up!" off. So `cfg-rev` 6 -> 7 migrates (`include/ConfigMigration.h`):
+- a device that has saved its configuration before (its `lookup` key exists) gets `ovh-on` written
+  as its old state: ON if `lookup` OR `lookup-alert` was on, else OFF;
+- a device that never saved (no `lookup` key: factory-fresh, or just factory-reset) gets nothing
+  written, so the default, **ON**, applies.
+
+**The rate an owner gets (measured, 2026-10-09/10, COM18 at Daniel's site, 3 mi = 4.8 km):**
+148.5 passes/day, 144.0 idle passes/day, **122.1 cards/day after the 60 s spacing** (an upper bound:
+the log cannot see the other states that block a card); busiest hour 18; 75% below 10,000 ft. **The
+same table at 1, 2, 3 and 5 is being measured** (`measure/v17-overhead-radii`, frozen
+`ab3d10337782`, started 2026-10-11 20:45 PDT) and is reported, **not** written into the UI.
 
 ## Telemetry (proposal, not a silent addition)
 
@@ -123,9 +139,9 @@ The usage report is a fixed eight-integer struct (`include/UsageReport.h:61-82`;
 **Proposed:** one counter, **`overheadCards`**: cards shown. Taps on a card already count as
 `cardOpens`.
 
-It ships in the **one** v17 format change, decided at review as 8 -> 12 integers (`longPressZooms`, `overheadCards`, `whatsNewOpened`, `whatsNewQr`; `docs/v17-whats-new.md`).
-
-**Decided at review (2026-10-08): approved, 8 -> 10, with the disclosures in the same commit.** **The Worker must accept BOTH formats:** v16 devices keep sending 8 integers for as long as they run v16, so `recordUsage` takes 8 or 10 and drops anything else (still digits and commas only). A Worker test sends one of each and asserts both land, plus a 9- and an 11-field control that are dropped.
+It ships in the **one** v17 format change, **decided as 8 -> 12** (`longPressZooms`,
+`overheadCards`, `whatsNewOpened`, `whatsNewQr`; `docs/v17-whats-new.md`). The Worker accepts
+exactly 8 or 12 and drops anything else, with a test that sends both and 9/10/11/13 controls.
 `usage::Format` and its digits-and-commas test, `recordUsage`'s shape check, and the disclosures
 (`README.md` Privacy & telemetry, `proxy/pages/support.html`) all change **in the same commit**,
 per CLAUDE.md's telemetry entry. It counts THAT a card appeared, never which aircraft.
@@ -153,7 +169,5 @@ per CLAUDE.md's telemetry entry. It counts THAT a card appeared, never which air
 
 Pending line for `docs/CARDS-README.md` (v17):
 
-> *"When a plane passes overhead, a card shows it for a few seconds. Tap it for details."*
-
-The wording depends on the default decision above. If the card sits behind "Look up!", the line
-says *"With Look up! on, ..."*.
+> *"When a plane passes overhead, a card shows it for a few seconds. Tap it for details. Turn it
+> off or change the distance under Overhead alerts on the settings page."*
