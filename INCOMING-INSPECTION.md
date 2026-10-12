@@ -303,7 +303,25 @@ Confirm on boot: radar renders, backlight responds, touch registers a tap, WiFi 
 **This boot is where §4's serial half gets recorded** — the RSSI reading and the zero-reason-204
 criterion. Watch it here; the probe build could not produce it.
 
-**No per-unit gate for a touch controller that wedges later — on purpose.** The quick tap above proves touch works at inspection. A controller that wedges *later* (after 10 minutes, a day, a month) is handled in the field by the v15 touch-wedge cap: the device stops rebooting and tells the customer on screen, with its Device ID and the support address ([docs/v15-touch-wedge-cap.md](docs/v15-touch-wedge-cap.md)). That covers a wedge at any time, where an inspection soak would only cover the first minutes.
+**No per-unit gate for a touch controller that wedges later — on purpose.** The quick tap above proves touch works at inspection. A controller that wedges *later* (after 10 minutes, a day, a month) is handled in the field by the touch-wedge cap (shipped in v16): the device stops rebooting and tells the customer on screen, with its Device ID and the support address ([docs/v15-touch-wedge-cap.md](docs/v15-touch-wedge-cap.md)). That covers a wedge at any time, where an inspection soak would only cover the first minutes.
+
+**One narrow exception, added 2026-10-08 ([#381](https://github.com/Valar-Systems/valar-scopes/issues/381)): touch must respond on the FIRST tap after 30+ minutes untouched.**
+
+This is not a wedge soak. It targets one suspected mode at the one moment it would show:
+- The CST816's "no auto-sleep" re-arm (0xFE) has **never been in a shipped image**.
+- So a chip that silently resets itself after §3 passed could re-enable its own auto-sleep, and the first touch after a long idle is where that shows.
+- It costs no handling: the board sits while the next ones are flashed.
+
+Procedure:
+1. After the boot above, leave the board **untouched for at least 30 min**, serial still attached.
+2. Then **tap once** on empty radar.
+3. **Pass, all three:**
+   - the first tap registers (`[touch] ... press` and then `... -> TAP` on serial);
+   - no `[touch-wd] WEDGE` line in the window;
+   - the `[health]` line's `wakes=` did not climb while the board sat.
+4. **Fail** (a missed first tap, a WEDGE, or climbing `wakes=`): quarantine the board, and record the serial log and the board's MAC on #381.
+
+A failure is evidence for #381's hypothesis, and a batch of passes is evidence against it.
 
 ---
 
