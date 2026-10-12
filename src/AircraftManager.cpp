@@ -8955,7 +8955,12 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         const int dy = touchLastY - touchStartY;
         const int adx = abs(dx), ady = abs(dy);
         constexpr int SWIPE_MIN = 40;
-        const longpress::ReleaseIs r = longpress::OnRelease(longPress, now);
+        const bool ringAtRelease = longPress.phase == longpress::Phase::Ring;
+        const longpress::ReleaseIs r = longpress::OnRelease(longPress, now, dx, dy);   // the same delta the classifier reads
+        // Rule 3's instrument: a release during the ring that moved 40 px is handed back as a swipe. Bench
+        // check (g) counts these to know the slow swipes exercised the rule, not the fast-swipe path.
+        if (ringAtRelease && r == longpress::ReleaseIs::PassThrough)
+            Serial.printf("[hold] early release moved=%dpx -> swipe\n", adx > ady ? adx : ady);
 
         Serial.printf("[touch] %lu release start=(%d,%d) end=(%d,%d) d=(%d,%d) held=%lums -> %s\n",
                       now, touchStartX, touchStartY, touchLastX, touchLastY, dx, dy,

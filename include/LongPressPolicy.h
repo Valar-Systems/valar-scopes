@@ -8,7 +8,8 @@
  * (test/host/test_long_press.cpp) before it reaches the panel.
  *
  *   0 .. RING_START_MS        nothing visible; a release is a TAP, exactly as before
- *   RING_START_MS .. THRESHOLD  the ring fills; a release starts the REJOIN grace
+ *   RING_START_MS .. THRESHOLD  the ring fills; a release starts the REJOIN grace -- unless the
+ *                             stroke moved 40 px, which is a swipe exactly as before (rule 3)
  *   THRESHOLD, still held     FIRE once (toggle zoom); the stroke is then CONSUMED
  *
  * WHY THE RING STARTS AT 250 ms. 905 recorded taps on this batch: median 75 ms,
@@ -40,6 +41,14 @@ constexpr int      REJOIN_PX     = 20;   // a rejoining press lands this close t
 // 3,973 ms hold drifted 58 px and was read as a swipe; the largest drift in any logged 1-4 s hold is
 // 67 px. So: 40 px inside the first 250 ms is a swipe, exactly as today; after that, drift up to 80 px
 // is still the hold; and once the hold has FIRED, nothing the finger does makes it a tap or a swipe.
+//
+// RULE 3 (review, 2026-10-12). A stroke released BEFORE the threshold having moved 40 px or more is a
+// swipe, exactly as v16 classifies it. On 10 Oct a 428 ms swipe that moved 78 px was under 40 px at the
+// ring start, so drift tolerance kept it as a hold and the early release cancelled it: an ordinary swipe
+// did nothing. Drift up to 80 px is still tolerated WHILE HELD (so a drifting hold that reaches the
+// threshold still toggles); it is only an early RELEASE that is judged at 40 px, by the classifier's own
+// measure. Cost, accepted: a ring-phase dropout after 40 px of drift swipes rather than rejoining -- the
+// rejoin is for a finger the chip stops reporting because it is still, and 0 rejoins were seen on 10 Oct.
 
 enum class Phase : uint8_t {
     Idle,     // no stroke this policy owns (or not eligible)
@@ -121,18 +130,27 @@ inline HeldIs OnHeld(State& s, uint32_t now, int x, int y)
 
 /// What a release edge is.
 enum class ReleaseIs : uint8_t {
-    PassThrough, // classify as today (tap or swipe) -- the ONLY outcome under the ring start
+    PassThrough, // classify as today (tap or swipe): everything under the ring start, and a ring-phase
+                 // release that moved 40 px or more (rule 3)
     Grace,       // ring was filling: say nothing yet, wait for a rejoin
     Consumed,    // the hold fired: no tap, no swipe, no card
 };
 
-inline ReleaseIs OnRelease(State& s, uint32_t now)
+/// A release edge. `dx, dy` is the caller's OWN release delta (release point - press point) -- the very
+/// numbers its tap/swipe classifier reads -- so rule 3 and the classifier cannot disagree about 40 px.
+inline ReleaseIs OnRelease(State& s, uint32_t now, int dx, int dy)
 {
     switch (s.phase) {
-    case Phase::Ring:
+    case Phase::Ring: {
+        const int adx = std::abs(dx), ady = std::abs(dy);
+        if ((adx > ady ? adx : ady) >= SWIPE_PX) {   // RULE 3: an early release that moved 40 px is a swipe
+            s = State{};
+            return ReleaseIs::PassThrough;
+        }
         s.phase = Phase::Grace;
         s.releaseMs = now;
         return ReleaseIs::Grace;
+    }
     case Phase::Fired:
         s = State{};
         return ReleaseIs::Consumed;
