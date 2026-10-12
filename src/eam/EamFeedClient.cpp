@@ -7,6 +7,9 @@
 #include "../game/GameClient.h"   // ApiBase: /config comes from the server votes go to
 #endif
 #include "DeviceIdentity.h"        // LeaderboardId: the X-Missileer-Device value (ON WATCH)
+#if defined(MISSILEER_E6_BENCH)
+#include "E6Bench.h"               // bench only: heap readings around the /eam/latest parse
+#endif
 
 // The fetch request/result envelopes live in namespace eam; bring them in for this unit so the
 // worker/scheduler code below reads cleanly.
@@ -101,9 +104,18 @@ void EamFeedClient::Poll()
     // 1. apply a ready result (frees its heap) and clear the in-flight gate.
     EamFetchResult* res = nullptr;
     if (xQueueReceive(resQueue, &res, 0) == pdTRUE && res != nullptr) {
+#if defined(MISSILEER_E6_BENCH)
+        const bool e6 = res->endpoint == eam::EamEndpoint::Latest && res->ok;
+#endif
         ApplyResult(*res);
         delete res;
         inFlight = false;
+#if defined(MISSILEER_E6_BENCH)
+        if (e6) {
+            const e6bench::Sample s = e6bench::Take();   // the store as kept, the result freed
+            e6bench::Print("kept", s, latest.empty() ? -1 : (int)latest.front().text.length(), latest.size());
+        }
+#endif
     }
     if (inFlight) return; // one fetch at a time over the shared TLS client
 
@@ -323,6 +335,12 @@ void EamFeedClient::MergeLatest(std::vector<eam::Msg>& incoming)
         lastTopId = merged.front().id;
     }
 
+#if defined(MISSILEER_E6_BENCH)
+    {   // the loop's peak: the worker's result, `incoming`, `merged` and the old store, all live
+        const e6bench::Sample s = e6bench::Take();
+        e6bench::Print("merge", s, merged.empty() ? -1 : (int)merged.front().text.length(), merged.size());
+    }
+#endif
     latest = std::move(merged);
 }
 
@@ -364,6 +382,13 @@ void EamFeedClient::RunWorker()
         res->endpoint = req->endpoint;
         Fetch(http, authHandler, *req, *res);
         delete req;
+#if defined(MISSILEER_E6_BENCH)
+        if (res->endpoint == eam::EamEndpoint::Latest && res->ok) {
+            const e6bench::Sample s = e6bench::Take();   // JsonDocument gone, the result in hand
+            e6bench::Print("res", s, res->messages.empty() ? -1 : (int)res->messages.front().text.length(),
+                           res->messages.size());
+        }
+#endif
 
         xQueueSend(resQueue, &res, portMAX_DELAY);
     }
@@ -385,9 +410,17 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
         headers.push_back({"Authorization", "Bearer " + token});
     }
 
+#if defined(MISSILEER_E6_BENCH)
+    const bool e6 = req.endpoint == eam::EamEndpoint::Latest;
+    const e6bench::Sample e6pre = e6 ? e6bench::Take() : e6bench::Sample{};   // before the body arrives
+#endif
     JsonDocument doc;
     const HttpResult r = http.GetJson(req.url, doc, req.params, headers);
     if (!r.success || r.statusCode < 200 || r.statusCode >= 300) {
+#if defined(MISSILEER_E6_BENCH)
+        if (e6) Serial.printf("[e6-bench] /eam/latest FAILED status=%d err=%s (is the fixture server up?)\n",
+                              r.statusCode, r.errorMessage.c_str());
+#endif
         res.ok = false;
         return;
     }
@@ -442,4 +475,19 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
             break;
     }
     res.ok = parsed;
+#if defined(MISSILEER_E6_BENCH)
+    if (e6) {
+        const e6bench::Sample s = e6bench::Take();   // parsed, and the JsonDocument still alive
+        const int len = res.messages.empty() ? -1 : (int)res.messages.front().text.length();
+        e6bench::Print("pre", e6pre, len, res.messages.size());
+        e6bench::Print("doc", s, len, res.messages.size());
+        if (!res.messages.empty()) {
+            const eam::Msg& m = res.messages.front();
+            Serial.printf("[e6-bench] parsed ok=%d top=%s len=%u groups=%u char_count=%d msgs=%u on_watch=%ld "
+                          "parse_ms=%lu\n",
+                          parsed ? 1 : 0, m.id.c_str(), (unsigned)m.text.length(), (unsigned)m.groups.size(),
+                          m.charCount, (unsigned)res.messages.size(), res.onWatch, r.parseMs);
+        }
+    }
+#endif
 }

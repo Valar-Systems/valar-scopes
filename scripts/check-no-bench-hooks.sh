@@ -20,7 +20,9 @@
 set -u
 
 # Every bench hook's marker. Add a hook -> add its marker here, in the same PR.
-MARKERS=( "[alert-bench]" "[touch-bench]" )
+#   [alert-bench] AircraftManager::PollAlertBench   [touch-bench] TouchBench.h
+#   [e6-bench]    src/eam/E6Bench.h (env missileer-s3-128-e6bench, ROADMAP E6)
+MARKERS=( "[alert-bench]" "[touch-bench]" "[e6-bench]" )
 ANCHOR="[build] env="
 
 scan() {
