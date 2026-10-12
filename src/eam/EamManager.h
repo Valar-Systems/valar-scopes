@@ -161,6 +161,18 @@ private:
     void CheckAlerts(bool newEamArrived); // evaluate the three ntfy triggers
     void SendNtfy(const String& title, const String& body, const String& tags, int priority);
 
+#if defined(PHOTO_MODE)
+    // ---- PHOTO MODE (env:missileer-photo only; never in a shipping image) ----
+    // The ticker shows ONE picked message from the device's own feed list, pinned by
+    // id so a fresh arrival never swaps the text mid-exposure. A vertical swipe on the
+    // ticker steps through the newest PHOTO_PICK_MAX. Real messages only: this reads
+    // feed.Latest(), the list the logbook notes every message from.
+    static constexpr int PHOTO_PICK_MAX = 10;
+    String photoPickId;               // "" until the ticker is first drawn
+    int PhotoPickIndex();             // the pick's index in feed.Latest(); pins the newest when unset; -1 if empty
+    void PhotoStep(int dir);          // +1 older, -1 newer
+#endif
+
     // small helpers
     static std::vector<String> SplitList(const String& s, bool lower);
     static String TimeAgo(long epoch);                 // "4m ago" from a UTC epoch, "" if 0/unsynced
