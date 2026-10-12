@@ -20,8 +20,10 @@ namespace sevenseg {
 
 // Draw a single digit (0-9, or DASH; any other value blanks the digit, ghost-only) in the
 // cell at (x,y).
+// flagOne: give a lit 1 its flag (SevenSegmentShapes.h, Flag) -- ONLY where the digit sits
+// right beside letters (the Missileer ON WATCH count); everywhere else stays pure segments.
 void DrawSevenSeg(BandCanvas& c, int x, int y, int w, int h, int digit,
-                  uint32_t lit, uint32_t ghost, uint32_t bloom);
+                  uint32_t lit, uint32_t ghost, uint32_t bloom, bool flagOne = false);
 
 // Draw the clock colon (two dots) centred in a cell of width w, height h at (x,y).
 void DrawColon(BandCanvas& c, int x, int y, int w, int h, bool lit,
