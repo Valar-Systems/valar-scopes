@@ -360,6 +360,24 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== seven-segment 1 vs the letter I: the 1's flag (SevenSegmentShapes.h + glcdfont.h) =="
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_sevenseg_one.cpp" -o "$OUT/test_sevenseg_one.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the seven-segment 1 test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+# The label font's own I and 1 come from LovyanGFX's glcdfont.h, not a transcription.
+# It exists once any env has been built; if not, the test says BLIND (exit 2).
+GLCD="$(ls "$ROOT"/.pio/libdeps/*/LovyanGFX/src/lgfx/Fonts/glcdfont.h 2>/dev/null | head -1)"
+"$OUT/test_sevenseg_one.exe" "${GLCD:-<no LovyanGFX under .pio/libdeps: run pio run once>}"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 echo "== precise on device, coarse on the wire (WireLocation.h) =="
 if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_wire_location.cpp"       -o "$OUT/test_wire_location.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the wire-location test did not compile"
