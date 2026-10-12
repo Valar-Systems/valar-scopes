@@ -9,6 +9,14 @@ Every station is the shipping board config with the app swapped out — same
 variant, same PSRAM, same partition table — so the bench board's NVS survives
 the trip back to a radar build.
 
+> **Run the sitting from [bench-d6-checklist.md](bench-d6-checklist.md)** (added 2026-10-11).
+> This page stays the authority on what each station is for and what a bad run looks like;
+> the checklist has the commands. The command lines below are kept as written, and they have
+> known problems: they pick a port themselves (the soak board is usually attached), `pio run` has no
+> `--build-flag` option, `GAMETEST_ARM` is 0-based (0=A 1=B 2=C, so `=3` fails its
+> `static_assert`), and station 2's env has not compiled since 4638a34 (candidate fix: #399).
+> Stations 3 and 4 print no provenance block. The checklist's open questions list what still needs a ruling.
+
 > **Before you start:** note the room temperature, whether the board is enclosed
 > or open, and whether it is on a hub or straight into the machine. Every
 > station prompts for these and **cannot** self-report them. Two minutes now, or

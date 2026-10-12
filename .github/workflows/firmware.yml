@@ -244,6 +244,28 @@ jobs:
       - name: FW_VERSION has a customer entry whose lines map to merged work
         run: python3 scripts/check-customer-entry.py
 
+  # The D6 bench tools (docs/bench-d6-checklist.md) touch a real board only during a
+  # sitting, months apart, so these selftests are the only place they run in between.
+  # No board anywhere: the flash helper runs against scripts/fake_esptool.py, the
+  # capture against pyserial's loop:// port, the collector against a temp dir. Windows,
+  # because that is the bench machine and the collector is PowerShell.
+  bench-tools:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: pyserial (the capture's selftest needs loop://)
+        run: python -m pip install pyserial==3.5
+      - name: d6-flash-image -- app0 only, refusals, unverified writes fail
+        run: python scripts/d6-flash-image.py --selftest
+      - name: d6-capture -- bytes exact, lost port is not reopened
+        run: python scripts/d6-capture.py --selftest
+      - name: d6-collect-logs -- every expected item found or reported missing
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/d6-collect-logs.ps1 -SelfTest
+
   build:
     runs-on: ubuntu-latest
     needs: [skus, customer-entry]
