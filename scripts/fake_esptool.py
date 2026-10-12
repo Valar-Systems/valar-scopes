@@ -84,6 +84,19 @@ def run(sub, args, flash_path, d):
             mac = os.environ.get("FAKE_MAC", "02:00:00:00:00:01")
         print(f"MAC: {mac}")
         return 0
+    if sub == "read-flash":
+        # read-flash <offset> <size> <file>: copy the simulated flash out, as esptool does.
+        # Used by d6-flash-image.py's selftest (it reads the partition table and otadata
+        # back before an app-only write).
+        off, size, path = int(args[0], 0), int(args[1], 0), args[2]
+        flash = open(flash_path, "rb").read()
+        if off + size > len(flash):
+            print("A fatal error occurred: read beyond the end of flash")
+            return 2
+        with open(path, "wb") as f:
+            f.write(flash[off:off + size])
+        print(f"Read {size} bytes from {off:#x} in 0.1 s.")
+        return 0
     if sub in ("write-flash", "verify-flash"):
         flash = bytearray(open(flash_path, "rb").read())
         for off_s, path in zip(args[0::2], args[1::2]):
