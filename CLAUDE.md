@@ -35,10 +35,21 @@ In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-
 
 ### Bench boards: identified by USB serial, never by COM port (standing, 2026-09-24)
 
-| Board | USB serial (its MAC) | Rule |
-|---|---|---|
-| the **Missileer** board | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
-| the **Blipscope** board | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+**Identify the board by its ID (MAC / USB serial) immediately before every flash, never
+by COM number alone** (standing, 2026-10-12). There are two units of each product on the
+bench, so "the Missileer" is not an identity either: on 2026-10-12 COM16 was taken for the
+bench Missileer, and it was the photo unit.
+
+| `-Board` | Product, role | USB serial (its MAC) | Rule |
+|---|---|---|---|
+| `missileer` | **Missileer**, bench | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
+| `missileer-photo` | **Missileer**, photo unit | `90706931E794` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-31E794.local`. |
+| `blipscope` | **Blipscope**, soak | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+| `blipscope-bench` | **Blipscope**, bench | `90706931E208` (USB-Serial-JTAG spells it `90:70:69:31:E2:08`) | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
+
+The two Blipscopes are separate units, and so are the two Missileers (Daniel, 2026-10-12).
+`scripts/board-port.py` (`BOARDS`) and `scripts/bench-flash.ps1` (`-Board`) carry the
+same four rows; change all three together.
 
 **A COM number is not an identity.** Windows numbers a port per USB interface layout, so
 the same board moves whenever its firmware's USB shape changes: the Missileer board was
@@ -50,9 +61,10 @@ the colons removed.
 
 - `python scripts/board-port.py --list` shows where each board is right now.
 - `scripts/bench-flash.ps1 -PioEnv <env> -Board missileer -Label <l>` resolves the port
-  from the serial (and 1200-baud-touches a TinyUSB board into download mode itself).
-  It refuses `-Board blipscope` without `-DanielApproved`, and refuses a `missileer-*`
-  env on any other board.
+  from the serial (and 1200-baud-touches a TinyUSB board into download mode itself), and
+  prints the serial beside the port before it writes anything. It refuses every board
+  but `missileer` without `-DanielApproved`, refuses a `missileer-*` env on a
+  non-Missileer board, and refuses a non-Missileer env on the photo unit.
 - A bare `pio run -t upload --upload-port COMx` is how the wrong board gets flashed:
   resolve the port first (`board-port.py missileer --upload`).
 
