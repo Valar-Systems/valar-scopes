@@ -88,10 +88,17 @@ def main():
             f.write(f"{stamp()} [collect] the reopen reset the board: {'YES (rst:0x15)' if reset else 'no'}\n")
             return 0
         if mode == "reset":
+            # esptool's USB-JTAG-Serial hard reset, INCLUDING its usbser.sys work-around: on Windows
+            # the driver only sends the line state with a DTR update, so after every RTS change DTR is
+            # set again to its own value. Without that the RTS pulse never reaches the chip -- the first
+            # sabotage run on 2026-10-10 sent this pulse and the board did not reboot (its touch-wd
+            # probe counter kept climbing, 1867 -> 1891, and no boot row reached the Worker).
             s = open_port(port)
-            s.rts = True
+            s.rts = True      # EN low
+            s.dtr = s.dtr
             time.sleep(0.2)
             s.rts = False
+            s.dtr = s.dtr
             time.sleep(0.2)
             s.close()
             f.write(f"{stamp()} [sabotage] pulsed RTS on {port}: an extra reset the boot check must catch\n")

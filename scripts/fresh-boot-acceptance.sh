@@ -211,6 +211,20 @@ L
   # A reset AFTER step 6 -- the --collect reopen -- is recorded, never counted.
   gcase boots-after    --grade-boots boots verdict=ONE_POWERON   FBA_BOOT_ROWS="$T/rows-after"
   gcase boots-none     --grade-boots boots verdict=NONE          FBA_BOOT_ROWS="$T/rows-none"
+  # THE SABOTAGE MODE ITSELF (FBA_NO_RESET skips the serial pulse). Graded on its exit code AND its
+  # verdict, so a refusal for the wrong reason -- no pyserial, say -- cannot pass as "did not apply".
+  scase() { # name, alive-seq, boot-rows, want-exit, want-verdict
+    local got ex; base > "$T/s-$1.log"; printf '%s\n' "$s5_ok" > "$T/s-$1.log.step5"; printf '%s\n' "$s6_ok" > "$T/s-$1.log.step6"
+    printf "$2" > "$T/s-$1.seq"
+    env FBA_POLL_S=0 FBA_LEAVE_WAIT_S=2 FBA_BACK_WAIT_S=2 FBA_NO_RESET=1 FBA_DEVICE_ID=0000000000000000 \
+      FBA_ALIVE_SEQ="$T/s-$1.seq" FBA_BOOT_ROWS="$3" bash "$0" --sabotage-extra-reset COM99 "$T/s-$1.log" >/dev/null 2>&1; ex=$?
+    got="$(sed -n 's/.* verdict=\([A-Z_]*\).*/\1/p' "$T/s-$1.log.boots.sabotage" 2>/dev/null)"
+    if [ "$ex" -eq "$4" ] && [ "$got" = "$5" ]; then printf '  ok    sabotage %s -> exit %s, %s\n' "$1" "$ex" "$got"
+    else printf '  FAIL  sabotage %s: exit %s verdict %s (want %s, %s)\n' "$1" "$ex" "${got:-<none>}" "$4" "$5"; st=1; fi
+  }
+  scase never-left  '1\n'             "$T/rows-two" 3 NOT_APPLIED
+  scase caught      '0\n0\n1\n' "$T/rows-two" 0 WRONG
+  scase still-green '0\n0\n1\n' "$T/rows-one" 1 ONE_POWERON
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
@@ -532,13 +546,31 @@ fi
 # it to answer again and check in, and re-grades the SAME check over a window extended to include
 # it. It must go red. Writes <log>.boots.sabotage and never touches <log>.boots.
 if [ "$MODE" = "sabotage" ]; then
-  py="$(find_py serial)" || { echo "no working python with pyserial" >&2; exit 3; }
   { [ -f "$LOG.step5" ] && [ -f "$LOG.step6" ]; } || { echo "grade steps 5 and 6 first" >&2; exit 2; }
   ip="$(dev_ip)"
-  "$py" "$(winpath "$CAPTURE_PY")" reset "$PORT" "$(winpath "$LOG")" || { echo "the reset did not run" >&2; exit 3; }
-  echo "  sabotage: reset sent; waiting for the board to answer again..."
-  dl=$(( $(date +%s) + 20 )); while [ "$(date +%s)" -lt "$dl" ] && alive "$ip"; do sleep 1; done
-  dl=$(( $(date +%s) + 180 )); until alive "$ip" || [ "$(date +%s)" -ge "$dl" ]; do sleep 1; done
+  # FBA_NO_RESET (selftest seam): skip the serial reset so the refusal below can be graded on a host.
+  if [ -z "${FBA_NO_RESET:-}" ]; then
+    py="$(find_py serial)" || { echo "no working python with pyserial" >&2; exit 3; }
+    "$py" "$(winpath "$CAPTURE_PY")" reset "$PORT" "$(winpath "$LOG")" || { echo "the reset did not run" >&2; exit 3; }
+  fi
+  echo "  sabotage: reset sent; waiting for the board to leave the network..."
+  # A SABOTAGE THAT DID NOT HAPPEN IS NOT A RESULT (CLAUDE.md). The first run on 2026-10-10 sent a pulse
+  # that never reached the chip, then graded on anyway and reported "NOT CAUGHT" -- a statement about
+  # the boot check, when the boot check had been handed nothing to catch. So: the board must be seen
+  # LEAVING the network (two missed pings in a row) within 20 s, or this refuses with exit 3.
+  left=0; miss=0; dl=$(( $(date +%s) + ${FBA_LEAVE_WAIT_S:-20} ))
+  while [ "$(date +%s)" -lt "$dl" ]; do
+    if alive "$ip"; then miss=0; else miss=$((miss + 1)); [ "$miss" -ge 2 ] && { left=1; break; }; fi
+    sleep "$POLL_S"
+  done
+  if [ "$left" -ne 1 ]; then
+    printf 'boots verdict=NOT_APPLIED why=the-board-never-left-the-network\n' > "$LOG.boots.sabotage"
+    echo "  SABOTAGE DID NOT APPLY: the board never left the network within 20 s, so no reset happened"
+    echo "  and there was nothing for the boot check to catch. This says nothing about the boot check."
+    exit 3
+  fi
+  echo "  sabotage: the board left the network; waiting for it to answer again..."
+  dl=$(( $(date +%s) + 180 )); until alive "$ip" || [ "$(date +%s)" -ge "$dl" ]; do sleep "$POLL_S"; done
   # Its X-Blip-Boot rides the first check-in after the network returns; give that 45 s.
   grade_boots $(( $(date +%s) + 45 )) .sabotage
   case "$(sed -n 's/.* verdict=\([A-Z_]*\).*/\1/p' "$LOG.boots.sabotage")" in
