@@ -5159,8 +5159,27 @@ void AircraftManager::UpdateVisualAlerts()
     };
 
     bool milActive = false, emgActive = false;
+    // OVERHEAD RADII (v17 owner controls: the pass-rate table at 1, 2, 3 and 5 in the device's unit).
+    static constexpr uint8_t kOvhRadii[4] = { 1, 2, 3, 5 };
+    float ovhRadiusKm[4];
+    for (int i = 0; i < 4; ++i) ovhRadiusKm[i] = (float)units::ToKm(kOvhRadii[i], rangeUnit);
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
+
+        // One line per pass PER RADIUS, on the first frame inside it -- the edge a card would fire on at
+        // that setting -- whatever "Look up!" is set to. Counts, altitude and idle state only: no hex,
+        // no position. The per-pass bits live on TrackedAircraft, so they reset with the pass.
+        if (t.overheadCrossed != 0x0F) {
+            const float dKm = OverheadDistanceKm(t);
+            for (int i = 0; i < 4; ++i) {
+                if ((t.overheadCrossed & (1u << i)) || dKm > ovhRadiusKm[i]) continue;
+                t.overheadCrossed |= (uint8_t)(1u << i);
+                Serial.printf("[overhead] cross r=%u%s idle=%d alt_ft=%d up_s=%lu\n",
+                              (unsigned)kOvhRadii[i], rangeUnit.c_str(),
+                              (now - lastTouchActivityMs) >= 30000UL ? 1 : 0,
+                              (int)lroundf(t.state.baroAltitude * METRES_TO_FEET), now / 1000UL);
+            }
+        }
 
         // squawks can turn emergency mid-track, so the edge is per-contact and
         // fires at most once (a cleared-then-reset squawk doesn't re-burst)
@@ -10087,10 +10106,17 @@ bool AircraftManager::IsOverhead(const TrackedAircraft& tracked) const
 {
     if (tracked.state.onGround)
         return false;
+    return OverheadDistanceKm(tracked) <= (float)overheadKm;
+}
+
+// The horizontal distance "overhead" is judged by. ONE formula, used by IsOverhead and by the
+// radii measurement below, so the measured table and the shipped predicate cannot drift apart.
+float AircraftManager::OverheadDistanceKm(const TrackedAircraft& tracked) const
+{
     auto [aLat, aLon] = tracked.GetDisplayPosition();
     const float dLatKm = (aLat - (float)lat) * 111.0f;
     const float dLonKm = (aLon - (float)lon) * 111.0f * cosf(radians((float)lat));
-    return sqrtf(dLatKm * dLatKm + dLonKm * dLonKm) <= (float)overheadKm;
+    return sqrtf(dLatKm * dLatKm + dLonKm * dLonKm);
 }
 
 void AircraftManager::ProcessAlerts()
