@@ -138,6 +138,16 @@ int main()
     check(!NeedsInfoFieldReset(CONFIG_REV), "rev 5: the info-field reset is done");
     check(!NeedsLocalDetailsMigration(CONFIG_REV), "rev 5: the local-details migration is done");
 
+    // rev 7 (v17): one Overhead-alerts toggle. Existing devices keep their Look up! state; a
+    // never-saved device gets nothing written, so the default (ON) applies.
+    check(NeedsOverheadMigration(6), "rev 6 devices migrate the overhead toggle");
+    check(!NeedsOverheadMigration(CONFIG_REV), "CONFIG_REV must satisfy the overhead predicate");
+    check(OverheadFromLegacy(nullptr, nullptr) == nullptr, "never saved (no lookup key): nothing written, default ON");
+    check(OverheadFromLegacy("", "") == nullptr, "an empty lookup key is never-saved too");
+    check(strcmp(OverheadFromLegacy("true", "false"), "true") == 0, "ring was on: kept ON");
+    check(strcmp(OverheadFromLegacy("false", "true"), "true") == 0, "push was on: kept ON");
+    check(strcmp(OverheadFromLegacy("false", "false"), "false") == 0, "both off: kept OFF -- the new default does not reach it");
+    check(strcmp(OverheadFromLegacy("false", nullptr), "false") == 0, "ring off, no push key: kept OFF");
     if (failures == 0) std::printf("test_config_migration: all checks passed\n");
     else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);
     // rev 6 (v15): coordinates rewritten at 4 dp, once.

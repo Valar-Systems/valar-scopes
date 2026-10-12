@@ -37,8 +37,10 @@ namespace configmigration {
  *   4          local-details "adsbdb" -> "cloud" (adsbdb left the stack)
  *   5          tz-offset "0" manufactured by the old config form -> auto (v11)
  *   6          coordinates stored at 4 dp, not 6 (v15: precise on device, coarse on the wire)
+ *   7          one Overhead-alerts toggle (ovh-on) replaces lookup + lookup-alert; lookup-dist
+ *              snapped onto 1/2/3/5 (v17 owner controls)
  */
-constexpr int CONFIG_REV = 6;
+constexpr int CONFIG_REV = 7;
 
 /**
  * The firmware default for the spotting logbook.
@@ -207,6 +209,30 @@ constexpr CoordKey COORD_KEYS[] = {
     { "loc1-lat", true }, { "loc1-lon", false },
     { "loc2-lat", true }, { "loc2-lon", false },
 };
+
+/**
+ * rev 7 (v17): ONE switch for every overhead behaviour -- the card, the "Look up!" ring and the
+ * "Look up!" push -- under the new key `ovh-on`, default ON (docs/v17-overhead-card.md).
+ *
+ * A new key's default reaches every device that never wrote it, which is every v16 device in the
+ * field, so default ON alone would switch the ring and the push ON for owners who had them off.
+ * Daniel's decision: new units ON, existing devices keep their state. So a device that has SAVED
+ * its configuration before -- its "lookup" key exists, because every whole-form save writes it --
+ * gets ovh-on WRITTEN as its old state (ring OR push on -> ON). A device that never saved gets
+ * nothing written, and the default applies.
+ *
+ * Unlike the earlier entries this one WRITES rather than removes: the old state is a real value
+ * that the new default must not overwrite.
+ */
+constexpr bool NeedsOverheadMigration(int storedRev) { return storedRev < 7; }
+
+/** What to write to ovh-on, or nullptr to write nothing (the default, ON, applies). */
+inline const char* OverheadFromLegacy(const char* lookup, const char* lookupAlert)
+{
+    if (!lookup || !*lookup) return nullptr;           // never saved: a fresh unit
+    const bool on = strcmp(lookup, "true") == 0 || (lookupAlert && strcmp(lookupAlert, "true") == 0);
+    return on ? "true" : "false";
+}
 
 /**
  * Run any pending migrations against the "config" namespace.
