@@ -95,3 +95,73 @@ The before/after comparison is unchanged by the order.
 - one stroke both zooms and swipes, or zooms twice;
 - a fast swipe fails to swipe, or toggles zoom;
 - a fire logged with `drift_max` over 80 px.
+
+### Addendum, 2026-10-12 (review): rule 3, an early release that moved 40 px or more is a swipe -- frozen BEFORE code
+
+**The finding.** On 10 Oct, block (f): 1 of 24 swipes did nothing. It took 428 ms and moved 78 px.
+It was under 40 px at 250 ms, so the ring started. It was released before the threshold, which went
+to the grace and then a cancel. **Ruling: apply the fix before merge.**
+
+- **Rule 3:** a stroke released BEFORE the threshold whose total movement is 40 px or more is a
+  swipe, **exactly as v16 classifies it**.
+  - "Total movement" is the classifier's own measure: the larger axis of (release point - press
+    point). The caller passes its own `dx, dy` into `OnRelease`, so the rule and the classifier read
+    the same number, and a release under rule 3 goes to the existing classifier unchanged.
+  - **Below 40 px nothing changes.** Released before 250 ms it is the old tap. Released during the
+    ring it is the grace and then a cancel, which is (d). (The review wrote "39 px early release ->
+    tap path as today". What is frozen is "as today", and during the ring today is the cancel, not a
+    tap.)
+- **Rules 1 and 2 are unchanged.** Past the threshold the stroke is consumed whatever it moved (e).
+  Drift up to 80 px still holds, so a slow-drifting hold that REACHES the threshold still toggles.
+- **What this reverses:** the spec's 2026-10-10 line "a slow drag of 40-80 px released before the
+  threshold no longer swipes". Those strokes swipe again, as in v16.
+- **Consequence, stated: a ring-phase dropout after 40 px or more of drift now releases as a swipe**
+  instead of waiting for a rejoin.
+  - The rejoin exists for a finger the chip stops reporting because it does not move. A finger 40 px
+    from where it started is moving. The 10 Oct session logged 0 rejoins.
+  - The host case "a rejoin is measured from the last position" moves from 50 px to 30 px of drift.
+    That is still more than REJOIN_PX (20), so the property it tests is intact.
+- **New instrument:** `[hold] early release moved=<px> -> swipe`, logged when a ring-phase release
+  passes through under rule 3. It separates rule-3 swipes from fast ones.
+
+**Host cases** (`test/host/test_long_press.cpp`):
+- G1, the 10 Oct stroke: under 40 px at 250 ms (the ring starts), 78 px at the 428 ms release ->
+  **PassThrough (SWIPE)**.
+- G2: a ring-phase release at 39 px -> **Grace** (unchanged).
+- G3: a ring-phase release at 40 px -> **PassThrough**.
+- G4: 39 px released before 250 ms -> PassThrough. The classifier makes it a tap; unchanged.
+- G5, the trade: 50 px of ring drift then a release -> PassThrough (G5a). A press 2 px away is then a
+  new stroke, not a rejoin (G5b).
+
+**Sabotage S4: remove rule 3** (a ring-phase release always enters the grace). **Predicted: exactly
+4 failures, G1, G3, G5a and G5b, and nothing else.** The 428/78 case is among them.
+
+**Bench (g): 10 deliberate slow swipes**, about 400-600 ms and 50-80 px each, on the bare Radar.
+- **Each must swipe exactly once:** a release line `-> SWIPE` and the swipe's own effect (up/down:
+  `[zoom] swipe`; left/right: `[screen]`). There must be **no `[zoom] hold` and no `[hold] fire`** for
+  those strokes.
+- **Expected, and not a failure:** a `[hold] ring` line for any stroke slower than the ring start.
+  Each such stroke also logs `[hold] early release moved=<px> -> swipe`.
+- **Readable only if at least 5 of the 10 exercised rule 3**, i.e. logged the early-release line.
+  The fast ones pass under the old rules and prove nothing about the fix. If fewer than 5 qualify,
+  Daniel does more, slower ones.
+
+**Re-run of (d), (e) and (f) in the same sitting, on the same image.** The frozen bars are
+unchanged. How rule 3 is kept out of their grading, decided now:
+- **(d)** is graded over early releases whose movement is under 40 px, and needs 10 of them. One that
+  moved 40 px or more and swiped is reported under rule 3, not counted as a (d) failure.
+- **(e)** is graded over holds that reached the threshold (`[hold] fire`). A hold released before the
+  threshold is excluded and reported.
+- **(f)** is graded over swipes with `held` under 250 ms, as frozen.
+
+**Image:** #388's head with rule 3 = 52ba638 + #388's commits, named by sha in the PR before the
+sitting. The sitting is not tonight.
+
+**(a) still counts.** The after taps ran on 62cf054 + 2faceff. Rule 3 touches only a release during the
+ring (250 ms or more). A quick tap is under 250 ms and passes through unchanged, which G4 and the
+existing tap case pin.
+
+**Outside the set, added (stop and report):**
+- a (g) stroke that both swipes and toggles, swipes twice, or does nothing;
+- a (d) stroke under 40 px that swipes or opens a card;
+- an `[hold] early release` line with moved < 40.

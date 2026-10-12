@@ -108,6 +108,11 @@ flashed.
      into a slow drag;
    - **a rejoin** after a dropout compares the new press with the finger's **last** position, not
      the press point, since the finger may have drifted.
+3. **An early release that moved 40 px or more is a swipe (added 2026-10-12, review).** A stroke
+   released before the threshold whose total movement is 40 px or more (the classifier's own
+   measure, the larger axis of release minus press) is classified exactly as v16 classifies it.
+   Below 40 px nothing changes. This reverses the "What changed" line below. The cost: a ring-phase
+   dropout after 40 px or more of drift swipes instead of rejoining (0 rejoins seen on 10 Oct).
 
 **The numbers behind 80 px.** Every stroke of 250 ms or more in the COM18 / s3-128 logs:
 
@@ -130,7 +135,7 @@ flashed.
   answer it.
 - **Fast swipes are untouched by construction:** of 100 logged swipes under 250 ms, the smallest
   moved 41 px and the median 125 px. All of them are swipes under rule 2.
-- **What changes, stated:** a **slow** drag of 40-80 px released before the threshold no longer
+- **What changed, stated (2026-10-10; reversed by rule 3 on 2026-10-12):** a **slow** drag of 40-80 px released before the threshold no longer
   swipes. During the ring a release does nothing, so it cancels. 4 of the 111 logged swipes were
   slow (250 ms or more) and moved 40-80 px:
   - 1,072, 3,378 and 3,973 ms: the drags this rule re-reads as drift;
