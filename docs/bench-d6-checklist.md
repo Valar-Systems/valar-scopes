@@ -46,7 +46,7 @@ python scripts/d6-capture.py     --board $B --name gesture --image "$I\station1-
 ```
 
 - ☐ flash ended `WRITTEN + VERIFIED` · ☐ capture printed `boot captured` (if not: Ctrl+C, re-run with `--reset`)
-- ☐ provenance in the file: `# elf_sha256   c7ffab6b873891ef` (the sidecar says `MATCH`), `# variant S3_128`, `# partition app0 @ 0x020000`
+- ☐ provenance in the file: `# elf_sha256` equal to the image's MANIFEST (the sidecar says `MATCH`), `# variant S3_128`, `# partition app0 @ 0x020000`
 - ☐ *"confirm the instrument can see the thing present — touch the panel and watch rows appear before you start stroke 1."*
 
 Trace the ring, leaving a pause between strokes. The probe marks each one `# --- stroke N ended ---`.
@@ -78,7 +78,7 @@ python scripts/d6-flash-image.py --board $B --image "$I\station2-screenstate-CAN
 python scripts/d6-capture.py     --board $B --name screenstate --image "$I\station2-screenstate-CANDIDATE"
 ```
 
-- ☐ `WRITTEN + VERIFIED` · ☐ `# elf_sha256   89564f43c8558a9e` (`MATCH`)
+- ☐ `WRITTEN + VERIFIED` · ☐ `# elf_sha256` matches the MANIFEST (the sidecar says `MATCH`)
 - ☐ **looked at the panel at least once while it ran** — what it showed: ______________________
 - ☐ the capture ends `# ---- done. four scripts captured. ----` · ☐ skipped by ruling (Q1)
 
