@@ -31,11 +31,19 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 `
 #       -PioEnv missileer-s3-128 -Board missileer -Label missileer-bench
 #
-#   -Board       which bench board, by NAME. The port is resolved from the board's
-#                USB serial number (its MAC) by scripts\board-port.py -- never from
-#                a COM number, which changes whenever the firmware's USB layout does
-#                (the Missileer board was COM15, COM4 and COM17 on 2026-09-24).
-#   -DanielApproved  required for -Board blipscope: it is the soak board (CLAUDE.md).
+#   -Board       which bench board, by NAME (scripts\board-port.py BOARDS):
+#                  missileer        90706931E9D8  Missileer bench   flash freely
+#                  missileer-photo  90706931E794  Missileer photo   Missileer envs only
+#                  blipscope        907069326E64  Blipscope soak
+#                  blipscope-bench  90706931E208  Blipscope bench
+#                The port is resolved from the board's USB serial number (its MAC)
+#                by scripts\board-port.py -- never from a COM number, which changes
+#                whenever the firmware's USB layout does (the Missileer board was
+#                COM15, COM4 and COM17 on 2026-09-24), and is printed with the
+#                serial before anything is written.
+#   -DanielApproved  required for every board but `missileer` (CLAUDE.md, Bench
+#                boards): the two Blipscopes belong to other work, and the photo
+#                unit is flashed on Daniel's go.
 #   -NoCapture   flash only; do not re-attach the recorder
 #
 # THE QUIET HOUR IS NOT A PARAMETER HERE, deliberately. It lives in the env's
@@ -46,7 +54,7 @@
 # script written to close a second-path defect is not a trade worth making.
 param(
     [Parameter(Mandatory=$true)][string]$PioEnv,
-    [Parameter(Mandatory=$true)][ValidateSet('missileer','blipscope')][string]$Board,
+    [Parameter(Mandatory=$true)][ValidateSet('missileer','missileer-photo','blipscope','blipscope-bench')][string]$Board,
     [Parameter(Mandatory=$true)][string]$Label,
     [switch]$DanielApproved,
     [switch]$NoCapture
@@ -66,17 +74,35 @@ if ($Board -eq 'blipscope' -and -not $DanielApproved) {
     Say "  re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
     exit 4
 }
-if ($PioEnv -like 'missileer-*' -and $Board -ne 'missileer') {
-    Say "REFUSING: $PioEnv is Missileer firmware and only goes on the Missileer board."
+if ($Board -eq 'blipscope-bench' -and -not $DanielApproved) {
+    Say "REFUSING: the Blipscope bench board belongs to the Blipscope session. Ask"
+    Say "  Daniel, then re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
     exit 4
 }
+if ($Board -eq 'missileer-photo' -and -not $DanielApproved) {
+    Say "REFUSING: the Missileer photo unit is flashed on Daniel's go. Ask him, then"
+    Say "  re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
+    exit 4
+}
+if ($PioEnv -like 'missileer-*' -and $Board -notlike 'missileer*') {
+    Say "REFUSING: $PioEnv is Missileer firmware and only goes on a Missileer board."
+    exit 4
+}
+if ($Board -eq 'missileer-photo' -and $PioEnv -notlike 'missileer-*') {
+    Say "REFUSING: the photo unit takes Missileer envs only; $PioEnv is not one."
+    exit 4
+}
+$Serial = "$((& python $resolver $Board --serial) 2>$null)".Trim()
 $Port = (& python $resolver $Board) 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $Port) {
-    Say "REFUSING: the $Board board is not connected (no port carries its serial)."
+    Say "REFUSING: the $Board board ($Serial) is not connected (no port carries its serial)."
     exit 5
 }
 $Port = "$Port".Trim()
-Say "$Board board is on $Port (resolved from its USB serial)"
+# THE ID, IMMEDIATELY BEFORE THE FLASH (standing rule, 2026-10-12). The port below
+# was found by this serial, and the line says so, so a flash log names the board by
+# what it is rather than by where Windows put it today.
+Say "$Board board, USB serial $Serial, is on $Port (resolved from that serial)"
 
 # ---- 1. stop OUR recorders that name THIS port ------------------------------
 # TWO CONDITIONS, both required, and the second is the safety one.
@@ -173,7 +199,7 @@ if ($Port -ne $appPort) { Say "download port: $Port (the app was on $appPort)" }
 # binding error that leaves $LASTEXITCODE unset -- which the gate below then reads
 # as a failure and refuses to flash on. Tried 2026-09-09; reverted. Decode when
 # reading: `io.open(path, encoding="utf-16")`, or `iconv -f UTF-16`.
-Say "uploading env=$PioEnv -> $Port  (log: $uploadLog)"
+Say "uploading env=$PioEnv -> $Port, board $Board serial $Serial  (log: $uploadLog)"
 Push-Location $repo
 & pio run -e $PioEnv -t upload --upload-port $Port 2>&1 | Tee-Object -FilePath $uploadLog
 $rc = $LASTEXITCODE

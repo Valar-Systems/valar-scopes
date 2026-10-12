@@ -768,6 +768,9 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 
 void AircraftManager::Initialise()
 {
+#ifdef NIGHT_CLOCK_BENCH
+    Serial.println("[clock-bench] ** NIGHT CLOCK BENCH -- NEVER SHIPS ** the night clock shows whenever the time is known");
+#endif
     // get centre point + radius
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
@@ -4450,6 +4453,12 @@ int AircraftManager::FollowMinutesToArrival(const RouteView& v) const
 
 bool AircraftManager::NightClockActive() const
 {
+#ifdef NIGHT_CLOCK_BENCH
+    // BENCH ONLY (env:blipscope-s3-128-clockbench, NEVER SHIPS): the night clock whenever
+    // the time is known -- day or night, enabled or not, traffic or not -- so /diag/fb can
+    // capture the seven-segment digits on demand (#405 / the 1's flag, 2026-10-12).
+    if (!inDetail && screen == Screen::Radar && time(nullptr) >= 1600000000) return true;
+#endif
     if (!nightClockEnabled || !nightNow || inDetail || screen != Screen::Radar)
         return false;
     if (time(nullptr) < 1600000000)
