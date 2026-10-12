@@ -15,6 +15,11 @@
 // THE DISPLAY RULES (Fable, 2026-09-23, display PR):
 //   - No text at size 1. The 6x8 font is 8 px tall on a 1.28" panel; nothing a person is meant
 //     to read is drawn at that size any more. Text is size 2.
+//     NOT YET TRUE OF THE CREDITS (rebase 2026-10-11): the data credits that landed on main
+//     after this rule was written (#363 N0NBH, #367 adsb.fi) draw through DrawCredit at size 1
+//     on the 240 px panel (the 2026-09-28 TEMPO-credit ruling asks for credits "small and
+//     legible"). Kept as main has them; whether they move to size 2 is an open question for
+//     Daniel, not decided here.
 //   - One subject per screen. What a screen is ABOUT stays; a second subject sharing the glass
 //     (the tempo screen's frequency strip, the propagation screen's solar indices) is gone.
 //   - Every number a player reads is SEVEN-SEGMENT, drawn with the Zulu clock's own glyph
@@ -807,7 +812,12 @@ void EamManager::DrawSolar(BandCanvas& c)
         cell(xl, y2, "R", sw.rScale, sw.rScale >= 3 ? palette.alert : sw.rScale >= 1 ? palette.warn : palette.fg);
         cell(xr, y2, "G", sw.gScale, sw.gScale >= 3 ? palette.alert : sw.gScale >= 1 ? palette.warn : palette.fg);
     }
-    if (p.source.length()) CenterWrap(c, p.source, (int)(SCREEN_SIZE * 0.72), palette.faint, 2);
+    // SFI and K are HamQSL's numbers, so this screen carries the same fixed N0NBH credit as HF
+    // PROPAGATION (ruling 2026-09-28: "the N0NBH credit shown on the device screen where the
+    // data appears"; see DrawPropagation). It replaces the feed's `source` line this screen was
+    // written with: #363 moved the credit off that field because it vanished whenever the
+    // field did. Same string, same DrawCredit row and size rule. (Rebased 2026-10-11.)
+    DrawCredit(c, "Data: N0NBH HAMQSL.com");
 }
 
 void EamManager::DrawQuiet(BandCanvas& c)
