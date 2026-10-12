@@ -148,3 +148,67 @@ cut or factory reset on COM18 before then. COM6 and COM5 remain off limits.
 - a migrated device whose `lookup-alert` value changed;
 - in (e), a non-zero push count with the as-written OR sabotage. That would mean the gate is not
   what this addendum says it is.
+
+## Addendum 2026-10-12 (2): decisions 1 and 2 -- re-frozen before any code changes
+
+Everything above this heading is unchanged (it hashed eefea8139ac6). Where an item here restates
+one above, this one is graded.
+
+**Decision 1: the migration is OR again.** `ovh-on` <- (`lookup` == true) OR (`lookup-alert` == true).
+Never saved (no `lookup` key) -> nothing written (default ON). `lookup-alert` is left exactly as
+stored. The push still needs `ovh-on` AND its own box. Every v16 owner keeps every overhead push
+they had; ring-off owners who had the push on gain the ring and the card (accepted).
+
+| v16 `lookup` | v16 `lookup-alert` | `ovh-on` written | `lookup-alert` after | keys written |
+|---|---|---|---|---|
+| true | false | true | false (as stored) | 1 |
+| false | true | **true** | true (as stored) | 1 |
+| true | true | true | true (as stored) | 1 |
+| false | false | false | false (as stored) | 1 |
+| absent | absent | nothing (default ON) | absent | 0 |
+
+**Decision 2: the HA state field follows `ovh-on`; the per-aircraft events do not.** Firmware:
+`overheadActive = overhead::HaStateFollowsSwitch(showOverhead)`. The per-aircraft event (AM:10609)
+stays unconditional. Help line, exactly: *"Home Assistant's per-aircraft events have their own
+switch."*
+
+**The replay host case** (`test/host/test_overhead_replay.cpp`, in run.sh, synthetic edges). It
+composes the firmware's own `MigrateOverheadSwitch`, `SwitchOn`, `DecideCard`, `PushFires` and
+`HaStateFollowsSwitch` over 8 overhead edges: 6 idle, 2 touched, some within 60 s of each other,
+so the card policy shows exactly 4 cards when on. It models the wiring; bench check (c) is what
+checks the wiring. The 13 checks:
+- **(e)** ring on, push off, topic set: R1 `ovh-on` written true; R2 **0 pushes**; R3 CONTROL: with
+  the push box on, pushes == edges == 8; R13 cards == 4.
+- **(e2)** ring off, push on, topic set: R4 `ovh-on` written **true**; R5 pushes == edges (they keep
+  every push); R6 rings == edges (they gain the ring, accepted); R7 `lookup-alert` still true.
+- **HA:** ring off, push off, MQTT on: R8 `ovh-on` written false; R9 **0 HA state rises**; R10
+  per-aircraft events == edges (independent of the switch); R11 CONTROL: ring on -> HA state
+  rises == edges.
+- **New unit:** never saved, topic set: R12 the switch reads ON (rings == edges) and **0 pushes**
+  (the box defaults off).
+
+**Sabotages, predicted failure counts per binary** (each planted, proven planted, restored):
+
+| sabotage | test_config_migration | test_overhead | test_overhead_replay |
+|---|---|---|---|
+| S1 ring-only rule (OverheadFromLegacy ignores `lookup-alert`) | 1 (row 2) | 0 | 3 (R4, R5, R6) |
+| S2 the migration also writes `lookup-alert`="false" | 6 | 0 | 3 (R3, R5, R7) |
+| S3 push follows `ovh-on` alone (PushFires ignores its box) | 0 | 1 | 2 (R2, R12) |
+| S4 HA state independent of `ovh-on` | 0 | 1 | 1 (R9) |
+
+Any other count is outside the set: stop and report.
+
+**Tonight's bench (the reviewer's order, nothing earlier):**
+1. the radii grade at 20:47;
+2. `v17-lp-before.bin` (2bfababf6e6c) -> Daniel's 30 "before" taps;
+3. the #403 image, named by base + commits + sha -> (a) OFF + power cut and (d) factory reset.
+
+**Known limits of (a) on tonight's image, stated now:**
+- The card itself is not built yet, so `[ovhcard]` cannot appear in any image. "0 `[ovhcard] show`" is
+  vacuous and is **not graded tonight**. It is graded when the card lands.
+- Tonight's (a) grades the switch on what exists: 0 `[lookup] ring`, 0 `[lookup] push`, 0 messages at
+  the bench topic, the page reading OFF after the power cut, and at least 1 `[ovh] edge` in the
+  window (readability).
+- S-a and S-d each need a sabotaged image plus a second power cut or factory reset. They run only if
+  Daniel has the time, otherwise on COM16 once it is registered. Until then (a) and (d) rest on
+  their readability controls, and that is how they are reported.

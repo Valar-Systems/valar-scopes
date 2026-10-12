@@ -120,16 +120,16 @@ The overhead card is **owner-controlled from the config page**. A new section, *
   own anywhere.
 - **Off** means no card and no ring, and therefore no push (the push needs the switch). Everything
   else on the radar is unchanged.
-- **Home Assistant (MQTT) is not governed by `ovh-on`**, on the same single radius. The config page
-  says so in one line of help text, so owners know HA has its own switch (the MQTT settings). Today
-  there are two MQTT overhead outputs, and they are **not** alike:
-  - the per-contact `overhead` event (AM:10609) is unconditional. It stays exactly as it is.
-  - the state payload's overhead field is gated on `showOverhead || alertOverhead` (AM:10426, 10439),
-    i.e. on v16's ring-or-push. If left as written it would follow `ovh-on` after this change.
-    **Proposed (flagged for review, not yet decided):** make it unconditional like the event, so
-    neither HA output follows `ovh-on`. The visible change is for an MQTT owner who had both ring
-    and push off in v16: the state field starts reporting overhead contacts, as the event already
-    does.
+- **Home Assistant (MQTT): two outputs, two rules (ruling 2026-10-12, decision 2).** Both use the
+  same single radius.
+  - **The per-aircraft `overhead` event (AM:10609) is independent of `ovh-on`.** It was always
+    unconditional and stays so; HA's own switch (the MQTT settings) governs it. The config page
+    says exactly that in one line: *"Home Assistant's per-aircraft events have their own switch."*
+  - **The state payload's overhead field follows `ovh-on`** (AM:10426, 10439). In v16 it was gated
+    on ring-or-push. With the OR migration below, `ovh-on` equals v16's ring-or-push for every
+    existing device, so the HA state is unchanged for every current install.
+  - *What was reversed:* an earlier draft (f883149) un-gated the state field, so that a broader help
+    line would be true. That is reverted; the help line is narrowed to the events instead.
 - **The 60 s minimum spacing between cards is an internal constant**, not on the page.
 - **The unit:** if the owner changes mi <-> km, the stored index is kept ("3" stays 3 in the new unit),
   never converted. That is what `lookup-dist` already does.
@@ -142,28 +142,23 @@ The overhead card is **owner-controlled from the config page**. A new section, *
 **Who gets ON at the v17 OTA (Daniel's answer): new units ON; existing devices keep their state.**
 A new key's default reaches every device that never wrote it -- including every v16 device in the
 field -- so default ON alone would switch the card, the ring and the push ON for owners who had
-"Look up!" off. So `cfg-rev` 6 -> 7 migrates (`include/ConfigMigration.h`), **amended 2026-10-12:**
+"Look up!" off. So `cfg-rev` 6 -> 7 migrates (`include/ConfigMigration.h`), **as ruled 2026-10-12
+(decision 1):**
 - a device that has saved its configuration before (its `lookup` key exists) gets `ovh-on` written
-  as **its old ring state only**: ON if `lookup` was on, else OFF. `lookup-alert` plays no part in
-  that answer. (As first written it was "`lookup` OR `lookup-alert`", which is reversed.)
+  as **ON if `lookup` OR `lookup-alert` was on**, else OFF;
 - a device that never saved (no `lookup` key: factory-fresh, or just factory-reset) gets nothing
-  written, so the default, **ON**, applies.
+  written, so the default, **ON**, applies;
 - **`lookup-alert` is left exactly as stored.** The migration never writes it. It is the push
   checkbox now, so a v16 owner's push choice carries over as their push choice.
 
-**A consequence to decide, not an outcome to discover:** in v16 the push was **independent of the
-ring**: it fires on `alertOverhead && IsOverhead` (AM:10151), whatever `lookup` says. A v16 owner
-with the **ring off and the push on** therefore migrates to `ovh-on` OFF with the box still ticked.
-Under "push needs the switch" they **stop getting the overhead pushes they chose**, silently, at the
-OTA. Both v16 checkboxes defaulted off, and the page drew "also ntfy" as a sub-option of the ring,
-so this population is probably small. Its size is not observable: config is not in telemetry.
-The alternatives and their cost are:
-- keep the rule as stated, and accept the silent loss;
-- migrate that one case to `ovh-on` ON, which keeps their push but turns on a card and ring they
-  had off;
-- or let the push fire on its box alone, which contradicts "only when both".
-**Built as stated (the first), pending a ruling.** The host table pins it as an explicit case, so a
-later ruling changes one expected value in a visible place.
+**Why OR: every v16 owner keeps every overhead push they had.** In v16 the push was independent of
+the ring: it fired on `alertOverhead && IsOverhead` (AM:10151), whatever `lookup` said. A ring-only
+rule would have migrated a ring-OFF/push-ON owner to `ovh-on` OFF. Since the push now needs the
+switch, they would have silently stopped getting the pushes they chose. Under OR they keep them,
+and also gain the ring and the card on screen. That cost is **accepted** (ruling).
+- *History:* the rule was first written as OR (2026-10-11), changed to ring-only with the push
+  opt-in (2026-10-12, faaa510), and returned to OR (2026-10-12, this ruling). The push opt-in itself
+  stands: the push needs `ovh-on` AND its own box.
 
 **The rate an owner gets (measured, 2026-10-09/10, COM18 at Daniel's site, 3 mi = 4.8 km):**
 148.5 passes/day, 144.0 idle passes/day, **122.1 cards/day after the 60 s spacing** (an upper bound:
