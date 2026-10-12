@@ -204,7 +204,7 @@ fixed-buffer overflow -- but measure the heap with a long message in the feed be
 relying on that (see [docs/heap-fragmentation-2026-08-17.md](docs/heap-fragmentation-2026-08-17.md)).
 The feed keeps new per-message fields (announced_length, position notes) off /eam/latest
 until this parsing is checked.
-**Checked 2026-10-11 (host; the device half is a bench step, not yet run)** --
+**Checked 2026-10-11 (host, and the bench step run on the photo unit that night)** --
 [docs/e6-long-message-check.md](docs/e6-long-message-check.md), `test_eam_long_message` +
 `test_eam_ticker_draw` in `test/host/run.sh`. Parse: 31/75/290/500-char texts reach the
 store byte-identical through the shipping EamFeedClient (station, spaced and `groups: []`
@@ -217,7 +217,10 @@ middle (a 75-char copy from char 21, losing the preamble; 1.46": ~60). Heap (32-
 derived device bytes): a 500-char message adds ~2.3 KB at the worker's peak, ~2.8 KB at the
 loop's, ~0.9 KB per kept copy; all 20 at 500 would peak at 75 KB internal (3 copies of the
 batch alive in ApplyResult/MergeLatest). Bench: env `missileer-s3-128-e6bench` +
-`scripts/e6-fixture-server.py`. Still the redesign's question, unchanged: paging vs "+N".
+`scripts/e6-fixture-server.py`. **Device (bench run 2026-10-11, 16 polls):** a 500-char
+message costs +1.5 KB internal heap at the parse and +2.0 KB at the merge peak vs a 31-char
+one, nothing measurable kept; tls16k=1 throughout, no reboot; the host model holds. Still
+the redesign's question, unchanged: paging vs "+N".
 
 E7 **EAM station: a fade mid-reading splits one reading into two groups** (filed
 2026-09-27; backlog, a known case for later grouping work, NOT built now). M20260924T222317Z:

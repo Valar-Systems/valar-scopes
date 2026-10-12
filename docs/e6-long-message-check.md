@@ -190,3 +190,45 @@ into PSRAM and streams it over the async web server, which moves `int_free` and
 regions and latches onto reserves nothing allocates from (`src/HeapHealth.h`);
 read `int_free` and `tls16k`. `int_min` is the low-water mark since boot: if it
 drops on a `doc` or `merge` line, that poll set a new low.
+
+## Bench run, 2026-10-11, on the photo unit
+
+Run by the overnight session on `missileer-photo` (USB serial `90706931E794`), not
+`missileer` (E9D8, which was not connected). The image was `missileer-s3-128-e6bench` +
+`-DMISSILEER_DIAG_FB`, built from branch `bench/e6-hw-run-2026-10-11` @ 3112cfa. That is this
+PR's firmware (67a5f0d; nothing under `src/` or `platformio.ini` changed after it) merged
+with #398 for `/diag/fb`. Flashed through `bench-flash.ps1 -Board missileer-photo
+-DanielApproved -NoCapture`, which wrote bootloader, partition table, otadata and app0, and
+not NVS. Serial via `pio device monitor --rts 0 --dtr 1`. Fixture server on 192.168.86.45:8765.
+16 `/eam/latest` requests (21:08–21:15 PDT); the monitor attached after request 2, so 14
+polls are in the ledger. Every one printed `parsed ok=1`.
+
+Read against the table above, which was written before the run:
+
+| length | Δdoc (pre − doc) per poll, B | Δmerge, B | `int_free` at kept, B |
+|---|---|---|---|
+| 31 | 16,020 · 16,012 · 16,004 · 15,992 | 18,572 · 18,616 · 18,576 · 18,624 | 127,596 · 125,500 · 127,076 · 127,084 |
+| 75 | 16,140 · 16,132 · 16,140 | 18,780 · 18,804 · 18,812 | 127,336 · 125,512 · 127,040 |
+| 290 | 16,896 · 16,820 · 16,832 · 16,832 | 18,544 · 19,740 · 19,720 · 19,732 | 129,248 · 127,064 · 125,504 · 127,080 |
+| 500 | 17,476 · 17,464 · 17,548 · 17,488 | 20,564 · 20,584 · 20,624 · 20,648 | 127,812 · 127,080 · 125,516 · 127,084 |
+
+- **Δdoc(500) − Δdoc(31) = +1.47 KB** (medians 17,482 and 16,008 B), inside the +1 to
+  +5 KB row. At the merge peak the difference is +2.0 KB. `tls16k=1` on every line, and
+  `t=` only increases (one boot). Lowest `int_min` was 86,252 B. **Row 1: the host model
+  holds.**
+- **Noise check.** The Δdoc samples of one length agree within 84 B, far below the
+  1.47 KB difference, so the instrument resolves it.
+- **Kept is not falling.** The four consecutive `kept` readings from 21:11:45 to 21:13:15
+  (one per length) are about 1.6 KB lower, then return to about 127.1 KB. A burst of six
+  `/diag/fb` requests ran from 21:11:22 to 21:11:47. lwIP holds a closed connection's PCB in
+  TIME_WAIT for about 2 minutes, which spans that window exactly. That explanation is
+  inferred, not proven; the other candidate is an unrelated transient on the loop. Neither
+  is a per-poll trend.
+- **Glass** (captures via `/diag/fb`): the ticker shows the header (`11175 kHz - 16h ago -
+  N ch`) and one centred line. 31 fits; 75, 290 and 500 are cut at both ends of the disc,
+  as the host test predicts. One capture right after a fetch returned a frame with only the
+  screen dots and `torn=false`. The next ten captures of the same message all show it.
+  `torn` only reports a frame completed DURING the copy, not one half-drawn when the copy
+  began. Read a single `/diag/fb` frame with that in mind.
+- Afterwards the unit was flashed with `missileer-photo` (the photo-mode run); it was never
+  restored to `missileer-s3-128` in between.
