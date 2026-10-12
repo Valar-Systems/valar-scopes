@@ -51,6 +51,9 @@
 #                boards): the two Blipscopes belong to other work, and the photo
 #                unit is flashed on Daniel's go.
 #   -NoCapture   flash only; do not re-attach the recorder
+#   -AppOnly     write the app image to ota_0 ONLY (scripts\app-only-write.py):
+#                bootloader, partition table, otadata and NVS are never written, and
+#                the write is refused unless the board's table and boot slot match
 #
 # THE QUIET HOUR IS NOT A PARAMETER HERE, deliberately. It lives in the env's
 # build_flags, where a `pio run` and this script agree by construction. A
@@ -64,7 +67,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Label,
     [Parameter(Mandatory=$true)][string]$By,
     [switch]$DanielApproved,
-    [switch]$NoCapture
+    [switch]$NoCapture,
+    [switch]$AppOnly
 )
 
 $ErrorActionPreference = 'Continue'
@@ -239,10 +243,28 @@ if ($Port -ne $appPort) { Say "download port: $Port (the app was on $appPort)" }
 # binding error that leaves $LASTEXITCODE unset -- which the gate below then reads
 # as a failure and refuses to flash on. Tried 2026-09-09; reverted. Decode when
 # reading: `io.open(path, encoding="utf-16")`, or `iconv -f UTF-16`.
-Say "uploading env=$PioEnv -> $Port, board $Board serial $Serial  (log: $uploadLog)"
+# -AppOnly ("app image only; never erase", Daniel 2026-10-12): build, then write the
+# app to ota_0 ALONE -- after reading back the board's partition table and otadata and
+# refusing if the write would land wrong or not be booted (scripts\app-only-write.py).
+# Without it, `-t upload` also rewrites the bootloader, partition table and otadata
+# (same layout, NVS untouched, nothing erased -- but not the app only).
 Push-Location $repo
-& pio run -e $PioEnv -t upload --upload-port $Port 2>&1 | Tee-Object -FilePath $uploadLog
-$rc = $LASTEXITCODE
+if ($AppOnly) {
+    Say "APP ONLY: building env=$PioEnv, then writing ota_0 alone -> $Port, board $Board serial $Serial  (log: $uploadLog)"
+    & pio run -e $PioEnv 2>&1 | Tee-Object -FilePath $uploadLog
+    $rc = $LASTEXITCODE
+    if ($rc -eq 0) {
+        # A TinyUSB board was 1200-baud-touched into the ROM above: do not reset it again.
+        $before = if ($Port -ne $appPort) { 'no-reset' } else { 'default-reset' }
+        & python "$repo\scripts\app-only-write.py" --port $Port --build-dir "$repo\.pio\build\$PioEnv" --before $before 2>&1 |
+            Tee-Object -FilePath $uploadLog -Append
+        $rc = $LASTEXITCODE
+    }
+} else {
+    Say "uploading env=$PioEnv -> $Port, board $Board serial $Serial  (log: $uploadLog)"
+    & pio run -e $PioEnv -t upload --upload-port $Port 2>&1 | Tee-Object -FilePath $uploadLog
+    $rc = $LASTEXITCODE
+}
 Pop-Location
 
 # ---- 4. THE GATE -------------------------------------------------------------
