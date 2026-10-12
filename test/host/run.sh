@@ -1039,8 +1039,15 @@ else
 fi
 H="$ROOT/test/host/eam_host"
 E6DEFS="-DBOARD_HAS_PSRAM -DARDUINOJSON_ENABLE_ARDUINO_STRING=1"
-E6INC="-I$H -I$E6/realwstring -I$ROOT/src/eam -I$AJSRC"
-E6FLAGS="-std=c++11 -O1 -g $SAN"
+# ArduinoJson by -isystem, and maybe-uninitialized NOT fatal: CI's g++ 13 under
+# -fsanitize=address reports CollectionIterator::nextId_ "may be used
+# uninitialized" inside ArduinoJson's ObjectImpl.hpp once it is inlined into our
+# TU (first CI run of this section, 2026-10-11; g++ 11 is silent). That is flow
+# analysis inside a third-party header, and `#pragma GCC system_header` in
+# ArduinoJson.hpp covers that one file only. The warning still PRINTS; every
+# other warning in our code and the shipping sources stays an error.
+E6INC="-I$H -I$E6/realwstring -I$ROOT/src/eam -isystem $AJSRC"
+E6FLAGS="-std=c++11 -O1 -g $SAN -Wno-error=maybe-uninitialized"
 # One compile or link step. Its failure is the RIG's (exit 2), and the log is shown.
 e6_cc() {
   if ! "$CXX" "${@:2}" 2>"$E6/$1.log"; then
@@ -1090,7 +1097,7 @@ for src in "$LGSRC"/lgfx/utility/*.c "$LGSRC"/lgfx/Fonts/efont/*.c "$LGSRC"/lgfx
   n=$((n + 1))
   e6_cc "lgfx$n" -x c -O1 -g $SAN -w $LGDEFS -I"$LGSRC" -c "$src" -o "$E6/lgfx/c$n.o"
 done
-e6_cc drawtest -std=gnu++14 -O1 -g $SAN -Wall -Wextra -Werror $LGDEFS -isystem "$LGSRC" \
+e6_cc drawtest -std=gnu++14 -O1 -g $SAN -Wall -Wextra -Werror -Wno-error=maybe-uninitialized $LGDEFS -isystem "$LGSRC" \
                -c "$ROOT/test/host/test_eam_ticker_draw.cpp" -o "$E6/test_eam_ticker_draw.o"
 e6_cc drawlink -O1 -g $SAN -static-libgcc -static-libstdc++ "$E6/test_eam_ticker_draw.o" "$E6"/lgfx/*.o \
                -o "$E6/test_eam_ticker_draw.exe"
