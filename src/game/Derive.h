@@ -9,8 +9,9 @@
 // So a drift here is not a cosmetic difference: it is a device that cannot
 // commit a single vote.
 //
-// This file is graded against test/fixtures/derivation_fixture.h, which the
-// SERVER emitted by calling its own function (scripts/emit-derivation-fixture.ts).
+// This file is graded against test/fixtures/derivation_fixture.h, whose every
+// expected value is the SERVER's own function's output: this repo's
+// scripts/emit-derivation-fixture.ts calls valar-eam-feed's derive.ts to emit it.
 // Whole-value equality on every draw, class, tier, offset and T. Nothing in the
 // expected values was typed by somebody reading derive.ts.
 //

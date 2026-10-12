@@ -853,15 +853,17 @@ The 2026-10-11 ruling reverses it: both sides are **T ± 1 s**, which is also §
 `|dev| ≤ 1.0 s`. The edges are **included**, because §4 ruling 1 says `≤` and its table scores
 the 1.0 s edge (900 m, capped).
 
-**Both sides run the same cases.** They are the `window` section of valar-eam-feed
-`test/fixtures/derivation.json`, emitted beside the device's `test/fixtures/derivation_fixture.h`
-(`kWindowCases`) by `scripts/emit-derivation-fixture.ts`. That is the derivation fixture's own
-mechanism, so the enrollment checklist's item 5 `--check` covers the window too. The cases are
-T itself, 0.5 s early (in), each edge (in), 1 ms outside each edge (out), and 1.5 s late (out).
-The device grades `ResolveTurn` and its wire rounding against them
-(`test/host/test_game_agreement.cpp`), and the server grades `inExecutionWindow` and
-`executeVote` (`test/game-flow.test.ts`). The verdicts come from the ruling, written down
-before either side ran them. They are not either implementation's output.
+**Both sides run the same cases.** They live in this repo (ruled 2026-10-12: the generator
+and the JSON belong here, beside the header). `scripts/emit-derivation-fixture.ts` emits
+`test/fixtures/derivation_fixture.h` (`kWindowCases`) and `test/fixtures/derivation.json`
+(its `window` section) together. That is the derivation fixture's own mechanism, so the
+enrollment checklist's item 5 `--check` covers the window too (command in
+`test/fixtures/README.md`). The cases are T itself, 0.5 s early (in), each edge (in), 1 ms
+outside each edge (out), and 1.5 s late (out). The device grades `ResolveTurn` and its wire
+rounding against them (`test/host/test_game_agreement.cpp`), and valar-eam-feed's votes tests
+grade `inExecutionWindow` and `executeVote` against the same cases. The verdicts come from
+the ruling, written down before either side ran them. They are not either implementation's
+output.
 
 **What the player sees has not moved.** The countdown still counts to T, and the TURN cue and
 the lit ring still appear at T (`Phase::Window` is entered at T). The window now opens a

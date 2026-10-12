@@ -1,7 +1,22 @@
 /**
  * Emit the derivation fixture that grades the firmware's port of
- * src/game/derive.ts -- the GameFormat pattern (emit-device-fixture.ts), applied
- * to class and T.
+ * valar-eam-feed's src/game/derive.ts -- the GameFormat pattern
+ * (valar-eam-feed's emit-device-fixture.ts), applied to class and T.
+ *
+ * ---------------------------------------------------------------------------
+ * WHERE THIS LIVES, AND WHAT IT READS FROM THE SERVER
+ *
+ * Ruled 2026-10-12 (Daniel): "#187: the generator script and the derivation
+ * JSON belong in valar-scopes beside #402." So this script, the .json and the
+ * .h all live here, in valar-scopes, and this repo is where the vectors change.
+ * It was copied from valar-eam-feed (PR #187, 5e43012); valar-eam-feed's own
+ * copy predates the move.
+ *
+ * The derivation's AUTHORITY is still the server's function, so the script
+ * calls it from a valar-eam-feed checkout named by --server (default
+ * ../valar-eam-feed; those modules need nothing but node:crypto). It imports two
+ * modules from there, src/game/config.ts (buildGameConfig: the parameters) and
+ * src/game/derive.ts (deriveMessage and its helpers), and writes nothing there.
  *
  * ---------------------------------------------------------------------------
  * THE EXPECTED VALUES ARE THE SERVER FUNCTION'S OUTPUT, NEVER A READING OF IT
@@ -29,12 +44,12 @@
  * same ids. The tier-boundary search is the slow one (~20 M hashes).
  *
  * ---------------------------------------------------------------------------
- * PARAMETERS: THIS CHECKOUT'S DEFAULTS, NOT THE DEPLOYED /config
+ * PARAMETERS: THE SERVER CHECKOUT'S DEFAULTS, NOT THE DEPLOYED /config
  *
  * The fixture grades the FUNCTION, and the device takes its parameters from
  * /config at runtime, so the parameters are inputs here and are emitted beside
  * the cases. Whether production serves the same numbers is a separate question
- * that emit-device-fixture.ts's --check already answers against the live
+ * that valar-eam-feed's emit-device-fixture.ts --check answers against the live
  * service. Env overrides are refused, so a local GAME_WEIGHT_* cannot leak in.
  *
  * ---------------------------------------------------------------------------
@@ -61,22 +76,49 @@
  * fraction of a millisecond outside an edge is an open question (design doc
  * "Timings"), so no vector here asserts an answer to it.
  *
- * Emitted as:
- *   .json  the record, committed here as test/fixtures/derivation.json, and
- *          re-derived by test/game-derivation.test.ts on every run; the window
- *          section is run by test/game-flow.test.ts's votes tests.
- *   .h     what valar-scopes' host suite compiles.
+ * Emitted as (both committed here, in valar-scopes):
+ *   .json  test/fixtures/derivation.json, the record: every case with its
+ *          `covers` reason and the server's whole Derivation, plus the window
+ *          section. It is what a server test suite reads.
+ *   .h     test/fixtures/derivation_fixture.h, what the host suite compiles
+ *          (test/host/test_derive.cpp, test/host/test_game_agreement.cpp).
  *
- * Usage:
- *   tsx scripts/emit-derivation-fixture.ts --out <file.json> [--header <file.h>]
- *   tsx scripts/emit-derivation-fixture.ts --check --out <file.json> [--header <file.h>]
+ * Usage, from the valar-scopes root:
+ *   npx tsx scripts/emit-derivation-fixture.ts [--server <valar-eam-feed>] --out <file.json> [--header <file.h>]
+ *   npx tsx scripts/emit-derivation-fixture.ts --check [--server <valar-eam-feed>] --out <file.json> [--header <file.h>]
  *
  * Exit codes: 0 fine - 1 drift (in --check) - 2 this script could not do its job.
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { buildGameConfig } from '../src/game/config';
-import { deriveMessage, derivationParamProblems, toPpmDraw, type Derivation, type DerivationParams } from '../src/game/derive';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+
+// The shapes this script reads from the server's two modules. Structural only: the
+// server's own types (valar-eam-feed src/game/derive.ts, src/types.ts) are the
+// definition, and tsx does not type-check across the two checkouts.
+interface DerivationParams {
+  epoch: number;
+  decode: { weights: readonly { class: string; ppm: number }[] };
+  timing: { tOffset: readonly { tier: string; ppm: number; minS: number; maxS: number }[] };
+}
+interface Derivation {
+  class: string;
+  tier: string | null;
+  offset_s: number | null;
+  t_at: string | null;
+  draws: { class_u32: number; tier_u32: number; offset_u32: number; class_ppm: number; tier_ppm: number };
+}
+interface ServerConfig extends DerivationParams {
+  timing: DerivationParams['timing'] & { executionWindowS: number };
+}
+
+// Bound by loadServer() before anything below runs.
+let buildGameConfig: () => ServerConfig;
+let deriveMessage: (msgId: string, heardAtIso: string, params: DerivationParams) => Derivation;
+let derivationParamProblems: (params: DerivationParams) => string[];
+let toPpmDraw: (u32: number) => number;
 
 const OVERRIDES = [
   'GAME_WEIGHT_NAM', 'GAME_WEIGHT_FDM', 'GAME_WEIGHT_EXECUTION',
@@ -94,7 +136,43 @@ function die(msg: string): never {
   process.exit(2);
 }
 
-const candidate = (n: number) => `eam-${n.toString(16).padStart(8, '0')}`;
+/**
+ * Bind the server's functions from a valar-eam-feed checkout. Returns a one-line
+ * description of the checkout for the console (never written into the fixture,
+ * so --check does not drift every time the server's HEAD moves).
+ */
+async function loadServer(dir: string): Promise<string> {
+  const root = resolve(dir);
+  const configTs = resolve(root, 'src/game/config.ts');
+  const deriveTs = resolve(root, 'src/game/derive.ts');
+  for (const f of [configTs, deriveTs]) {
+    if (!existsSync(f)) die(`${f} does not exist. Point --server at a valar-eam-feed checkout (default ../valar-eam-feed).`);
+  }
+  // A CommonJS module imported from here arrives as its exports, or under `default`.
+  const pick = (m: Record<string, unknown>) => ((m.default as Record<string, unknown>) ?? m);
+  const cfg = pick(await import(pathToFileURL(configTs).href));
+  const der = pick(await import(pathToFileURL(deriveTs).href));
+  const fn = (m: Record<string, unknown>, name: string, file: string) => {
+    if (typeof m[name] !== 'function') die(`${file} exports no function ${name}; the server's API moved, so this script must follow it`);
+    return m[name] as never;
+  };
+  buildGameConfig = fn(cfg, 'buildGameConfig', configTs);
+  deriveMessage = fn(der, 'deriveMessage', deriveTs);
+  derivationParamProblems = fn(der, 'derivationParamProblems', deriveTs);
+  toPpmDraw = fn(der, 'toPpmDraw', deriveTs);
+
+  let where = root;
+  try {
+    const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const dirty = execFileSync('git', ['-C', root, 'status', '--porcelain', '--', 'src/game', 'src/types.ts'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    where += ` @ ${head}${dirty ? ' (src/game or src/types.ts has UNCOMMITTED changes)' : ''}`;
+  } catch {
+    where += ' (not a git checkout: commit unknown)';
+  }
+  return where;
+}
+
+const candidate =(n: number) => `eam-${n.toString(16).padStart(8, '0')}`;
 
 /** The first candidate id whose raw draws satisfy `ok`, searched from `from`. */
 function search(label: string, ok: (d: Buffer) => boolean, from = 0): string {
@@ -225,7 +303,7 @@ const WINDOW_VECTORS: readonly WindowVector[] = [
 
 function buildWindow(windowS: number) {
   if (windowS !== WINDOW_S) {
-    die(`timing.executionWindowS is ${windowS} in this checkout; the window vectors are written for ${WINDOW_S} s (T +/- 1 s). Re-rule, then rewrite them.`);
+    die(`timing.executionWindowS is ${windowS} in the server checkout (--server); the window vectors are written for ${WINDOW_S} s (T +/- 1 s). Re-rule, then rewrite them.`);
   }
   const halfUs = (WINDOW_S / 2) * 1_000_000;
   const cases = WINDOW_VECTORS.map((v) => {
@@ -251,15 +329,15 @@ function buildWindow(windowS: number) {
 
 function buildFixture() {
   const set = OVERRIDES.filter((k) => process.env[k] !== undefined && process.env[k] !== '');
-  if (set.length) die(`env overrides are set (${set.join(', ')}); the fixture is emitted from this checkout's defaults only`);
+  if (set.length) die(`env overrides are set (${set.join(', ')}); the fixture is emitted from the server checkout's defaults only`);
   const cfg = buildGameConfig();
   const params: DerivationParams = { epoch: cfg.epoch, decode: { weights: cfg.decode.weights }, timing: { tOffset: cfg.timing.tOffset } };
   const problems = derivationParamProblems(params);
   if (problems.length) die(`the derivation parameters are unsound:\n  ${problems.join('\n  ')}`);
   return {
     _README:
-      'GENERATED by valar-eam-feed scripts/emit-derivation-fixture.ts. Do not edit by hand. '
-      + 'Every `expected` in `cases` is the output of src/game/derive.ts deriveMessage -- the function POST /votes re-derives with. '
+      'GENERATED by valar-scopes scripts/emit-derivation-fixture.ts. Do not edit by hand. '
+      + 'Every `expected` in `cases` is the output of valar-eam-feed src/game/derive.ts deriveMessage -- the function POST /votes re-derives with. '
       + 'The `window` verdicts are the 2026-10-11 ruling\'s, written in the emitter, and graded on the device and the server both.',
     spec: 'valar-eam-feed docs/game-derivation.md',
     params: { epoch: params.epoch, weights: params.decode.weights, tOffset: params.timing.tOffset },
@@ -281,8 +359,9 @@ function renderHeader(fx: Fixture): string {
   const L: string[] = [];
   L.push('// GENERATED FILE -- DO NOT EDIT.');
   L.push('//');
-  L.push('// valar-eam-feed  scripts/emit-derivation-fixture.ts');
-  L.push('//   spec          docs/game-derivation.md');
+  L.push('// valar-scopes    scripts/emit-derivation-fixture.ts');
+  L.push('//   derivation    valar-eam-feed src/game/derive.ts, called by that script');
+  L.push('//   spec          valar-eam-feed docs/game-derivation.md');
   L.push(`//   epoch         ${fx.params.epoch}`);
   L.push('//');
   L.push("// Every expected value below is the SERVER's own deriveMessage() output -- the");
@@ -383,14 +462,15 @@ function parseArgs() {
   };
   const out = get('--out');
   if (!out) {
-    console.error('usage: emit-derivation-fixture.ts --out <file.json> [--header <file.h>] [--check]');
+    console.error('usage: emit-derivation-fixture.ts [--server <valar-eam-feed checkout>] --out <file.json> [--header <file.h>] [--check]');
     process.exit(2);
   }
-  return { out, header: get('--header'), check: a.includes('--check') };
+  return { out, header: get('--header'), check: a.includes('--check'), server: get('--server') ?? '../valar-eam-feed' };
 }
 
-function main() {
+async function main() {
   const args = parseArgs();
+  console.log(`server: ${await loadServer(args.server)}`);
   const fresh = buildFixture();
   const json = JSON.stringify(fresh, null, 2) + '\n';
   const lf = (s: string) => s.replace(/\r\n/g, '\n');
@@ -408,7 +488,7 @@ function main() {
   if (!existsSync(args.out)) die(`--check: ${args.out} does not exist`);
   let drift = false;
   if (lf(readFileSync(args.out, 'utf8')) !== json) {
-    console.error(`DRIFT: ${args.out} no longer matches src/game/derive.ts or the window vectors in this script. Regenerate it and re-grade the device port.`);
+    console.error(`DRIFT: ${args.out} no longer matches the server's src/game/derive.ts (at --server) or the window vectors in this script. Regenerate it and re-grade the device port.`);
     drift = true;
   } else {
     console.log(`ok   ${args.out} matches deriveMessage() and the window vectors`);
@@ -426,8 +506,4 @@ function main() {
   if (drift) process.exit(1);
 }
 
-try {
-  main();
-} catch (e) {
-  die(e instanceof Error ? (e.stack ?? e.message) : String(e));
-}
+main().catch((e: unknown) => die(e instanceof Error ? (e.stack ?? e.message) : String(e)));

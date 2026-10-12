@@ -1,7 +1,8 @@
 // GENERATED FILE -- DO NOT EDIT.
 //
-// valar-eam-feed  scripts/emit-derivation-fixture.ts
-//   spec          docs/game-derivation.md
+// valar-scopes    scripts/emit-derivation-fixture.ts
+//   derivation    valar-eam-feed src/game/derive.ts, called by that script
+//   spec          valar-eam-feed docs/game-derivation.md
 //   epoch         1
 //
 // Every expected value below is the SERVER's own deriveMessage() output -- the
