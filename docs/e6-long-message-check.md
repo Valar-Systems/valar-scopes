@@ -38,7 +38,7 @@ serve them is the backend's ruling; the parsing is no longer the reason not to.*
 
 **Fixed buffers: none is reachable by message text.** Every `char x[N]` and every
 `snprintf/strcpy/memcpy`-family call in `src/eam/` and `include/NtfyAlerter.h`
-(13 buffers, 12 bounded `snprintf`s) is fed by numbers, the tempo level, or a
+(14 `char` arrays -- 13 scratch buffers and one const literal -- and 12 bounded `snprintf`s) is fed by numbers, the tempo level, or a
 literal. The text goes: `ParseMsg` → `String` → three `std::vector<Msg>` copies
 in `EamFeedClient` → `DrawTicker` (`drawString`) and the ntfy alert body (a
 `String` POSTed as-is). The id, not the text, reaches the logbook, the drill and

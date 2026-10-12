@@ -8,7 +8,7 @@
 namespace DeviceIdentity {
 inline const String& LeaderboardId()
 {
-    static const String id("e6e6e6e6e6e6e6e6");
+    static const String id("0000000000000000");   // EXAMPLE -- not a real device
     return id;
 }
 }  // namespace DeviceIdentity
