@@ -46,7 +46,7 @@
 # script written to close a second-path defect is not a trade worth making.
 param(
     [Parameter(Mandatory=$true)][string]$PioEnv,
-    [Parameter(Mandatory=$true)][ValidateSet('missileer','blipscope')][string]$Board,
+    [Parameter(Mandatory=$true)][ValidateSet('missileer','missileer2','blipscope')][string]$Board,
     [Parameter(Mandatory=$true)][string]$Label,
     [switch]$DanielApproved,
     [switch]$NoCapture
@@ -66,7 +66,7 @@ if ($Board -eq 'blipscope' -and -not $DanielApproved) {
     Say "  re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
     exit 4
 }
-if ($PioEnv -like 'missileer-*' -and $Board -ne 'missileer') {
+if ($PioEnv -like 'missileer-*' -and $Board -notin @('missileer','missileer2')) {
     Say "REFUSING: $PioEnv is Missileer firmware and only goes on the Missileer board."
     exit 4
 }
