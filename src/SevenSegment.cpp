@@ -13,9 +13,9 @@ int SevenSegThickness(int h)
 }
 
 void DrawSevenSeg(BandCanvas& c, int x, int y, int w, int h, int digit,
-                  uint32_t lit, uint32_t ghost, uint32_t bloom)
+                  uint32_t lit, uint32_t ghost, uint32_t bloom, bool flagOne)
 {
-    DrawDigit(c, x, y, w, h, digit, lit, ghost, bloom);
+    DrawDigit(c, x, y, w, h, digit, lit, ghost, bloom, flagOne);
 }
 
 void DrawColon(BandCanvas& c, int x, int y, int w, int h, bool lit,

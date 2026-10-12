@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 // The two segment shapes behind sevenseg::DrawSevenSeg, on their own so a host test can
 // rasterize the geometry that ships (test/host/test_sevenseg_shapes.cpp). Templated on
 // the canvas: the firmware passes a BandCanvas, the test a pixel grid. No dependencies.
@@ -75,30 +77,47 @@ inline unsigned SegMask(int digit)
     return (digit >= 0 && digit <= 9) ? kSegTable[digit] : 0;
 }
 
-// THE 1's FLAG (2026-10-12). Segments b + c alone are a plain vertical bar, and under the
-// Missileer Clock "1 ON WATCH" read as "I ON WATCH". A printed 1 has a flag: a short
-// stroke from the top of its stem down to the left (the label font's own 1 has one --
-// GLCD '1' is 00 42 7F 40 00). This is that stroke, in the segments' style: it leaves the
-// bar's left edge where the top cap ends and runs down-left about 60 % of the free width
-// at about 34 degrees, as a parallelogram t tall, and always ends above the middle bar.
+// THE 1's FLAG -- OPT-IN, PER CALL SITE (Daniel, 2026-10-12). Segments b + c alone are a
+// plain vertical bar, and under the Missileer Clock "1 ON WATCH" read as "I ON WATCH". A
+// printed 1 has a flag: a short stroke from the top of its stem down to the left (the
+// label font's own 1 has one -- GLCD '1' is 00 42 7F 40 00). It is drawn ONLY where a
+// call site asks for it (DrawDigit's flagOne), which is where a digit sits right beside
+// letters: the ON WATCH count. The big Clock, the drill face and the radar night clock
+// stay pure seven-segment, pixel-identical to before.
+//
+// The stroke leaves the bar's left edge where the top cap ends and runs down-left about
+// 60 % of the free width at about 34 degrees, always ending above the middle bar. It is a
+// parallelogram with vertical ends, and its height tv is chosen so that its thickness
+// ACROSS the slope matches the segments' thickness t: tv = t * hypot(reach, drop) / reach.
 // Drawn for a LIT 1 only, in the bloom and core passes -- never as ghost: no real
-// seven-segment panel has it, and a ghosted diagonal in every cell would read as a
-// broken digit.
+// seven-segment panel has it, and a ghosted diagonal would read as a broken digit.
+struct FlagGeom { int x0, y0, x1, y1, tv; };   // from (x0, y0) to (x1, y1), tv tall
+inline bool FlagGeometry(int x, int y, int w, int h, FlagGeom* g)
+{
+    const int t = Thickness(h);
+    const int barX = x + w - t;                 // segment b's left edge
+    const int reach = (w - t) * 6 / 10;         // how far left the flag goes
+    if (reach < 1) return false;
+    const int y0 = y + t / 2;                   // where it leaves the bar
+    const int midY = y + (h - t) / 2;           // the middle bar's top row
+    int drop = reach * 2 / 3;
+    int tv = (int)(t * std::sqrt((double)reach * reach + (double)drop * drop) / reach + 0.5);
+    if (y0 + drop + tv > midY) {                // never reaching the middle bar
+        drop = midY - tv - y0;
+        if (drop < 0) drop = 0;
+        tv = (int)(t * std::sqrt((double)reach * reach + (double)drop * drop) / reach + 0.5);
+    }
+    g->x0 = barX; g->y0 = y0; g->x1 = barX - reach; g->y1 = y0 + drop; g->tv = tv;
+    return true;
+}
+
 template <typename Canvas, typename Col>
 void Flag(Canvas& c, int x, int y, int w, int h, Col col)
 {
-    const int t = Thickness(h);
-    const int barX = x + w - t;             // segment b's left edge
-    const int reach = (w - t) * 6 / 10;     // how far left the flag goes
-    if (reach < 1) return;
-    const int x0 = barX, y0 = y + t / 2;    // where it leaves the bar
-    const int midY = y + (h - t) / 2;       // the middle bar's top row
-    int y1 = y0 + reach * 2 / 3;            // its far end's top
-    if (y1 + t > midY) y1 = midY - t;       // never reaching the middle bar
-    if (y1 < y0) y1 = y0;
-    const int x1 = barX - reach;
-    c.fillTriangle(x0, y0, x0, y0 + t - 1, x1, y1 + t - 1, col);
-    c.fillTriangle(x0, y0, x1, y1 + t - 1, x1, y1, col);
+    FlagGeom f;
+    if (!FlagGeometry(x, y, w, h, &f)) return;
+    c.fillTriangle(f.x0, f.y0, f.x0, f.y0 + f.tv - 1, f.x1, f.y1 + f.tv - 1, col);
+    c.fillTriangle(f.x0, f.y0, f.x1, f.y1 + f.tv - 1, f.x1, f.y1, col);
 }
 
 // A digit cell's segment geometry.
@@ -133,9 +152,11 @@ void Seg(Canvas& c, const DigitBox& b, int i, Col col)
 }
 
 // One digit in the cell (x, y, w, h): every segment as ghost, then the lit ones as bloom
-// and core, then (for a 1) the flag. Any value but 0..9 and DASH draws the ghost alone.
+// and core, then -- for a 1, and only if the call site asks (flagOne) -- the flag. Any
+// value but 0..9 and DASH draws the ghost alone.
 template <typename Canvas, typename Col>
-void DrawDigit(Canvas& c, int x, int y, int w, int h, int digit, Col lit, Col ghost, Col bloom)
+void DrawDigit(Canvas& c, int x, int y, int w, int h, int digit, Col lit, Col ghost, Col bloom,
+               bool flagOne = false)
 {
     const DigitBox b = Box(x, y, w, h);
 
@@ -147,10 +168,10 @@ void DrawDigit(Canvas& c, int x, int y, int w, int h, int digit, Col lit, Col gh
     // Bloom pass, then the bright core.
     for (int i = 0; i < 7; ++i)
         if (mask & (1u << i)) Seg(c, b, i, bloom);
-    if (digit == 1) Flag(c, x, y, w, h, bloom);
+    if (flagOne && digit == 1) Flag(c, x, y, w, h, bloom);
     for (int i = 0; i < 7; ++i)
         if (mask & (1u << i)) Seg(c, b, i, lit);
-    if (digit == 1) Flag(c, x, y, w, h, lit);
+    if (flagOne && digit == 1) Flag(c, x, y, w, h, lit);
 }
 
 } // namespace sevenseg
