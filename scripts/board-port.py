@@ -26,15 +26,34 @@ Usage:
                                                       # 1200-baud-touched into ROM
                                                       # download mode
     python scripts/board-port.py missileer --serial   # the registered serial (no USB)
-    python scripts/board-port.py --list               # every board, where it is
+    python scripts/board-port.py --list               # every board, where it is, who holds it
 
-Exit: 0 found, 1 not connected, 2 bad usage.
+RESERVATIONS (Daniel, 2026-10-12). Several sessions share these boards, and a held
+port is only visible while something has it open. So a session that takes a board
+says so in a small file -- who, since when, for what -- that every checkout and every
+session on this machine can read, and bench-flash.ps1 checks it before flashing:
+
+    python scripts/board-port.py --reserve <board> --by <who> --for "<what>" [--pid N]
+    python scripts/board-port.py --release <board> --by <who>
+    python scripts/board-port.py --check   <board> --by <who>   # 0 free or yours, 3 someone else's
+    python scripts/board-port.py --who     <board>
+    python scripts/board-port.py --selftest
+
+One JSON file per board in %USERPROFILE%/.valar-bench/reservations (override with
+VALAR_BENCH_RESERVATIONS). Created with O_EXCL, so two sessions reserving at once
+cannot both win. Only the holder releases; a claim that looks abandoned is reported,
+never broken -- a person deletes the file. A reservation is a claim, not a lock on the
+port: bench-flash.ps1 still refuses a port that something holds open.
+
+Exit: 0 found / ok, 1 not connected, 2 bad usage, 3 reserved by someone else.
 """
+import json
+import os
+import socket
 import sys
+import tempfile
 import time
-
-from serial import Serial
-from serial.tools import list_ports
+from datetime import datetime, timezone
 
 ESPRESSIF_VID = 0x303A
 
@@ -61,6 +80,7 @@ def norm(serial):
 
 def find(name):
     """(port, on_usb_serial_jtag) or (None, None)."""
+    from serial.tools import list_ports   # lazily: reservations work without pyserial
     want = BOARDS[name][0]
     for p in list_ports.comports():
         if p.vid == ESPRESSIF_VID and norm(p.serial_number) == want:
@@ -75,6 +95,7 @@ def for_upload(name, timeout_s=15.0):
         return port  # USB-Serial-JTAG: esptool's own reset reaches the ROM
     # TinyUSB CDC: esptool's DTR/RTS reset does not reach the ROM from here (it
     # reads "No serial data received"); the 1200-baud touch does.
+    from serial import Serial
     try:
         s = Serial(port, 1200)
         s.dtr = False
@@ -91,12 +112,158 @@ def for_upload(name, timeout_s=15.0):
     return None
 
 
+# ---- reservations ----------------------------------------------------------------
+def res_dir():
+    return (os.environ.get('VALAR_BENCH_RESERVATIONS')
+            or os.path.join(os.path.expanduser('~'), '.valar-bench', 'reservations'))
+
+
+def res_path(name):
+    return os.path.join(res_dir(), name + '.json')
+
+
+def read_res(name):
+    try:
+        with open(res_path(name), encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        # An unreadable claim is still a claim: never treat it as free.
+        return {'by': '<unreadable reservation: %s>' % e, 'since': '?', 'for': '?'}
+
+
+def describe(r):
+    pid = ', pid %s' % r['pid'] if r.get('pid') else ''
+    return '%s since %s for "%s" (host %s%s)' % (r.get('by'), r.get('since'), r.get('for'),
+                                                 r.get('host', '?'), pid)
+
+
+def reserve(name, by, why, pid=None):
+    """0 reserved (or already yours), 3 someone else holds it."""
+    os.makedirs(res_dir(), exist_ok=True)
+    r = {'board': name, 'serial': BOARDS[name][0], 'by': by, 'for': why,
+         'since': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+         'host': socket.gethostname()}
+    if pid:
+        r['pid'] = pid
+    try:
+        fd = os.open(res_path(name), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        cur = read_res(name)
+        if cur and cur.get('by') == by:
+            print('%s: already yours (%s)' % (name, describe(cur)))
+            return 0
+        print('%s: RESERVED by %s' % (name, describe(cur or {})), file=sys.stderr)
+        return 3
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        json.dump(r, f, indent=1)
+    print('%s: reserved by %s' % (name, describe(r)))
+    return 0
+
+
+def release(name, by):
+    cur = read_res(name)
+    if cur is None:
+        print('%s: not reserved' % name)
+        return 0
+    if cur.get('by') != by:
+        print('%s: REFUSING to release: held by %s. Only the holder releases it; if it is '
+              'abandoned, a person deletes %s' % (name, describe(cur), res_path(name)), file=sys.stderr)
+        return 3
+    os.remove(res_path(name))
+    print('%s: released by %s' % (name, by))
+    return 0
+
+
+def check(name, by):
+    cur = read_res(name)
+    if cur is None:
+        print('%s: free' % name)
+        return 0
+    if cur.get('by') == by:
+        print('%s: yours (%s)' % (name, describe(cur)))
+        return 0
+    print('%s: RESERVED by %s' % (name, describe(cur)))  # stdout: the answer to --check, not an error
+    return 3
+
+
+def opt(argv, flag):
+    if flag in argv:
+        i = argv.index(flag)
+        if i + 1 < len(argv) and not argv[i + 1].startswith('--'):
+            return argv[i + 1]
+    return None
+
+
+def selftest():
+    """Reservation rules against a scratch directory. Touches no USB and no real claim."""
+    bad = 0
+
+    def ok(cond, what):
+        nonlocal bad
+        print('  %s  %s' % ('ok  ' if cond else 'FAIL', what))
+        bad += not cond
+
+    saved = os.environ.get('VALAR_BENCH_RESERVATIONS')
+    with tempfile.TemporaryDirectory() as d:
+        os.environ['VALAR_BENCH_RESERVATIONS'] = d
+        b = 'blipscope-bench'
+        ok(check(b, 'alice') == 0, 'a board nobody reserved is free')
+        ok(reserve(b, 'alice', 'captures') == 0, 'alice reserves it')
+        ok(read_res(b) is not None and read_res(b)['by'] == 'alice', 'the claim is on disk, naming alice')
+        ok(reserve(b, 'bob', 'soak') == 3, "bob cannot reserve alice's board")
+        ok(read_res(b)['for'] == 'captures', "bob's attempt left alice's claim unchanged")
+        ok(check(b, 'bob') == 3 and check(b, 'alice') == 0, 'check: 3 for bob, 0 for alice')
+        ok(reserve(b, 'alice', 'more captures') == 0, 'reserving your own board again is fine')
+        ok(release(b, 'bob') == 3 and read_res(b) is not None, 'bob cannot release it')
+        ok(release(b, 'alice') == 0 and read_res(b) is None, 'alice releases it')
+        ok(release(b, 'alice') == 0, 'releasing a free board is a no-op')
+        with open(res_path(b), 'w') as f:
+            f.write('{not json')
+        ok(check(b, 'alice') == 3, 'CONTROL: an unreadable claim is still a claim, not free')
+        os.remove(res_path(b))
+    if saved is None:
+        os.environ.pop('VALAR_BENCH_RESERVATIONS', None)
+    else:
+        os.environ['VALAR_BENCH_RESERVATIONS'] = saved
+    print('SELFTEST PASSED' if not bad else 'SELFTEST FAILED (%d)' % bad)
+    return 1 if bad else 0
+
+
 def main(argv):
+    if '--selftest' in argv:
+        return selftest()
+    for flag in ('--reserve', '--release', '--check', '--who'):
+        if flag not in argv:
+            continue
+        name = opt(argv, flag)
+        if name not in BOARDS:
+            print('usage: board-port.py %s <%s> --by <who>' % (flag, '|'.join(BOARDS)), file=sys.stderr)
+            return 2
+        if flag == '--who':
+            cur = read_res(name)
+            print('%s: %s' % (name, describe(cur) if cur else 'free'))
+            return 0
+        by = opt(argv, '--by')
+        if not by:
+            print('%s needs --by <who>' % flag, file=sys.stderr)
+            return 2
+        if flag == '--reserve':
+            why = opt(argv, '--for')
+            if not why:
+                print('--reserve needs --for "<what>"', file=sys.stderr)
+                return 2
+            pid = opt(argv, '--pid')
+            return reserve(name, by, why, int(pid) if pid and pid.isdigit() else None)
+        return release(name, by) if flag == '--release' else check(name, by)
     if '--list' in argv:
         for name, (mac, product, role, rule) in BOARDS.items():
             port, jtag = find(name)
             where = f'{port} ({"USB-Serial-JTAG" if jtag else "TinyUSB"})' if port else 'not connected'
+            cur = read_res(name)
             print(f'{name:16s} {mac}  {product:9s} {role:10s}  {where:28s} {rule}')
+            print(f'{"":16s} ' + ('reserved: ' + describe(cur) if cur else 'unreserved'))
         return 0
     names = [a for a in argv if not a.startswith('--')]
     if len(names) != 1 or names[0] not in BOARDS:

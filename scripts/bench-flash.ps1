@@ -29,7 +29,13 @@
 #
 # USAGE
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 `
-#       -PioEnv missileer-s3-128 -Board missileer -Label missileer-bench
+#       -PioEnv missileer-s3-128 -Board missileer -Label missileer-bench -By <who>
+#
+#   -By          WHO is flashing: a person or a session name. Checked against the
+#                board's RESERVATION (scripts\board-port.py --check) before anything
+#                touches USB: a board another holder has reserved is refused (exit 6),
+#                a free one is reserved for -By, and stays reserved until released with
+#                `python scripts\board-port.py --release <board> --by <who>`.
 #
 #   -Board       which bench board, by NAME (scripts\board-port.py BOARDS):
 #                  missileer        90706931E9D8  Missileer bench   flash freely
@@ -56,6 +62,7 @@ param(
     [Parameter(Mandatory=$true)][string]$PioEnv,
     [Parameter(Mandatory=$true)][ValidateSet('missileer','missileer-photo','blipscope','blipscope-bench')][string]$Board,
     [Parameter(Mandatory=$true)][string]$Label,
+    [Parameter(Mandatory=$true)][string]$By,
     [switch]$DanielApproved,
     [switch]$NoCapture
 )
@@ -92,6 +99,32 @@ if ($Board -eq 'missileer-photo' -and $PioEnv -notlike 'missileer-*') {
     Say "REFUSING: the photo unit takes Missileer envs only; $PioEnv is not one."
     exit 4
 }
+# ---- 0b. THE RESERVATION, before anything touches USB (Daniel, 2026-10-12) ----
+# Several sessions share these boards. A held port shows only while something has it
+# open; a reservation says who has taken the board, since when and for what, and every
+# session on this machine reads the same file. Someone else's claim is a refusal, never
+# a negotiation: the holder releases it, or a person deletes the file.
+$resOut = (& python $resolver --check $Board --by $By 2>$null) | Out-String
+$resRc = $LASTEXITCODE
+if ($resRc -eq 3) {
+    Say "REFUSING: $($resOut.Trim())"
+    Say "  Ask the holder to release it (board-port.py --release $Board --by <them>)."
+    exit 6
+}
+if ($resRc -ne 0) {
+    Say "REFUSING: could not read the reservation for $Board (exit $resRc): $($resOut.Trim())"
+    exit 6
+}
+# Was it ALREADY ours before this run? Only then can a recorder on its port be ours.
+$heldBefore = $resOut -match ': yours'
+if (-not $heldBefore) {
+    & python $resolver --reserve $Board --by $By --for "flash $PioEnv ($Label)"
+    if ($LASTEXITCODE -ne 0) {
+        Say "REFUSING: could not reserve $Board for $By (someone took it first?)."
+        exit 6
+    }
+}
+
 $Serial = "$((& python $resolver $Board --serial) 2>$null)".Trim()
 $Port = (& python $resolver $Board) 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $Port) {
@@ -118,8 +151,14 @@ Say "$Board board, USB serial $Serial, is on $Port (resolved from that serial)"
 #
 # Anything else holding the port is left alone and reported by the poll below,
 # because killing a process we did not start is not this script's business.
-Say "stopping our recorders that name $Port"
+# NEVER ANOTHER SESSION'S PROCESS (Daniel, 2026-10-12). A recorder on this port can
+# only be ours if we held the board's reservation BEFORE this run; on a fresh claim,
+# nothing is stopped and step 2 refuses a port that something still holds.
 $killed = 0
+if (-not $heldBefore) {
+    Say "fresh reservation for ${By}: stopping nothing (a recorder on $Port is not ours)"
+} else {
+Say "stopping our recorders that name $Port"
 # EXCLUDE SELF AND PARENT, and match the SCRIPT FILENAME rather than a bare word.
 # A dry run of this matcher killed itself: the test command's own command line
 # quoted the strings "ota_watch" and "COM119", so the process doing the matching
@@ -147,6 +186,7 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe' 
         $killed++
     }
 if ($killed -eq 0) { Say "  none found" }
+}
 
 # ---- 2. WAIT FOR THE HANDLE, by opening it ---------------------------------
 # A poll, not a sleep: the only proof the handle is free is that we can take it.

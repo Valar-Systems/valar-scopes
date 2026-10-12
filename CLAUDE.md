@@ -70,6 +70,14 @@ the colons removed.
 
 A board that answers nothing on serial is not a free board: check this table first.
 
+**Reservations (Daniel, 2026-10-12).** Several sessions share these boards. Take one with
+`python scripts/board-port.py --reserve <board> --by <who> --for "<what>"` and give it back with
+`--release <board> --by <who>`; `--list` shows every claim. The claims are one JSON file per
+board under `%USERPROFILE%/.valar-bench/reservations`, the same for every checkout and session.
+`bench-flash.ps1` now needs `-By <who>`: it refuses a board someone else has reserved (exit 6),
+reserves a free one, and stops recorders on the port only if the board was already yours before
+the run. **Never stop another session's process or take a held port**: report it and wait.
+
 - Partitions: `min_spiffs.csv` (firmware is large; OTA needs the room).
 - A pre-build script ([scripts/patch_async_buff.py](scripts/patch_async_buff.py)) re-applies a guard to ESPAsyncWebServer in `.pio/` (gitignored) so `-DASYNC_RESPONCE_BUFF_SIZE=1024` survives a fresh lib install. If the config web page silently stops sending after a clean `.pio/`, that patch didn't take.
 
