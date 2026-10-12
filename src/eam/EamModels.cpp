@@ -1,4 +1,5 @@
 #include "EamModels.h"
+#include "AbncpIdentity.h"
 
 #include <cstdio>
 #include <cstring>
@@ -28,12 +29,6 @@ MsgType ParseType(const String& t)
     if (t == "eam") return MsgType::Eam;
     return MsgType::Unknown;
 }
-
-// PLACEHOLDER E-4B "Nightwatch" ICAO24 hexes. The OpenSky command-post watch has no type field,
-// so we tag these as E-4B. VERIFY against a live tracker (adsb.lol / ADS-B Exchange) before
-// relying on them -- the fleet's hex assignments change. These are also the default seed for the
-// OpenSky watchlist (see EamFeedClient); the user can edit the list in web config.
-const char* const kE4bHexes[] = { "ae0451", "ae0452", "ae0453", "ae0454" };
 
 } // namespace
 
@@ -233,6 +228,11 @@ bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
                 ac.lat = a["lat"].as<double>();
                 ac.lon = a["lon"].as<double>();
             }
+            // The E-4B rule (AbncpIdentity.h) needs the registration as well as the type, and
+            // the backend's row carries no registration (valar-eam-feed types.ts AbncpAircraft),
+            // so a B742 row keeps its raw type here rather than being called "E-4B".
+            const String named = ClassifyAbncp(ac);
+            if (named.length()) ac.type = named;
             out.aircraft.push_back(std::move(ac));
         }
     }
@@ -262,7 +262,10 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
                 ac.lat = s[6].as<double>();
             }
             const bool onGround = s[8].is<bool>() ? s[8].as<bool>() : false;
-            ac.type = ClassifyAbncp(ac.hex, ac.callsign);
+            // A state vector states no aircraft type and no registration, so the E-4B rule has
+            // nothing to match and this is "" (unnamed). The hex is never used to name an
+            // airframe: the old hex table was four C-2As (AbncpIdentity.h).
+            ac.type = ClassifyAbncp(ac);
             if (!onGround) out.airborne = true;
             out.aircraft.push_back(std::move(ac));
         }
@@ -301,22 +304,11 @@ bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap)
     return true;
 }
 
-String ClassifyAbncp(const String& hex, const String& callsign)
+String ClassifyAbncp(const AbncpAircraft& ac)
 {
-    String h = hex;
-    h.toLowerCase();
-    for (const char* e4b : kE4bHexes)
-        if (h == e4b) return "E-4B";
+    if (abncp::IsE4b(ac.type.c_str(), ac.registration.c_str())) return "E-4B";
     // E-6B Mercury callsigns are not fixed; leave unknown unless the caller knows better.
-    (void)callsign;
     return "";
-}
-
-std::vector<String> DefaultAbncpWatch()
-{
-    std::vector<String> out;
-    for (const char* h : kE4bHexes) out.push_back(String(h));
-    return out;
 }
 
 long Iso8601ToEpoch(const String& s)

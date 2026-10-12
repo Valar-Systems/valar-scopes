@@ -100,8 +100,10 @@ public:
         req.needsOpenSkyToken = true;
         req.openskyId = id;
         req.openskySecret = secret;
-        // Filter to the watchlist hexes (E-4B can be anywhere, so no bbox). OpenSky accepts a
-        // repeated icao24 param. extended=1 includes the category column.
+        // Filter to the user's watchlist hexes (a command post can be anywhere, so no bbox).
+        // OpenSky accepts a repeated icao24 param and can filter on nothing else: it states no
+        // type and no registration, so the E-4B rule (AbncpIdentity.h) cannot run on its
+        // rows. extended=1 includes the category column.
         for (const String& h : watch)
             if (h.length()) req.params.push_back({"icao24", h});
         req.params.push_back({"extended", "1"});

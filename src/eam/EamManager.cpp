@@ -92,13 +92,13 @@ void EamManager::Initialise()
         cfg.abncpSource = EamFeedClient::AbncpSource::OpenSky;
         cfg.openskyId = configServer.GetStoredString("opensky-id");
         cfg.openskySecret = configServer.GetStoredString("opensky-secret");
-        // Fall back to the default watch when the PARSED list is empty, not just the
-        // raw string: a stray comma/space in a cleared textarea is a non-empty string
-        // that splits to zero hexes (which would leave the provider inert).
+        // The user's own hexes, and nothing else. There is no default list: the old seed
+        // (ae0451..ae0454, marked PLACEHOLDER) was four C-2A Greyhounds, and OpenSky cannot
+        // filter on what the E-4B rule matches (type B742 + registration; AbncpIdentity.h).
+        // An empty PARSED list (a stray comma/space splits to zero hexes) leaves the provider
+        // inert, and the screen says "watchlist is empty".
         const String watch = configServer.GetStoredString("abncp-watch");
         cfg.abncpWatch = watch.length() ? SplitList(watch, true) : std::vector<String>();
-        if (cfg.abncpWatch.empty())
-            cfg.abncpWatch = eam::DefaultAbncpWatch();
     } else {
         cfg.abncpSource = EamFeedClient::AbncpSource::Backend;
     }

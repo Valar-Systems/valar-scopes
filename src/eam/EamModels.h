@@ -136,7 +136,11 @@ struct Launch {
 
 // ----------------------------------------------------------------------------- ABNCP watch
 struct AbncpAircraft {
-    String type;                     // "E-4B" / "E-6B" / "" (best-effort)
+    String type;                     // "E-4B" (AbncpIdentity.h rule), else the source's raw type, or ""
+    // As the source states it. Neither source states one today: the backend row has no
+    // registration field and an OpenSky state vector has none, so this stays "" and no row is
+    // named "E-4B" (the rule needs type B742 AND a public E-4B registration).
+    String registration;
     String callsign;
     String hex;                      // ICAO24
     bool hasPos = false;
@@ -248,14 +252,11 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out);                      
 bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap);               // {base}/status/milair shape
 bool ParseGameConfig(JsonObjectConst root, GameConfig& out);                    // /api/v1/missileer/config; strict
 
-// Best-effort classification of an ABNCP aircraft from its hex/callsign (used by the OpenSky
-// path, which has no type field). Returns "E-4B", "E-6B", or "".
-String ClassifyAbncp(const String& hex, const String& callsign);
-
-// Default ICAO24 seed for the OpenSky command-post watch: the four E-4B "Nightwatch" hexes.
-// PLACEHOLDERS -- verify against a live tracker before relying on them. The user can edit the
-// list in web config; allow adding E-6B by hex/callsign.
-std::vector<String> DefaultAbncpWatch();
+// Name an ABNCP aircraft from what its source states. "E-4B" only when its type is B742 AND its
+// registration is one of the four public E-4B registrations (AbncpIdentity.h, ruled
+// 2026-10-12); "" otherwise. Never from the hex: there is no hex table, and no default
+// OpenSky watchlist -- the old one was four C-2As marked PLACEHOLDER.
+String ClassifyAbncp(const AbncpAircraft& ac);
 
 // Parse "YYYY-MM-DDThh:mm:ss" (UTC, trailing zone/fraction ignored) to a Unix epoch; 0 on failure.
 long Iso8601ToEpoch(const String& s);

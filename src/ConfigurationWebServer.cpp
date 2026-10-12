@@ -1618,7 +1618,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         </label>
                         <span class="hint">
                             Queried from this device with YOUR OpenSky account only &mdash; never shared, never routed through the Valar backend.
-                            Seeded with the E-4B &ldquo;Nightwatch&rdquo; hexes (verify them); add E-6B hexes as needed. Blank ID/secret keeps the watch off.
+                            OpenSky filters by hex only, so enter the hexes you want watched; there is no default list. Blank ID/secret or an empty list keeps the watch off.
                         </span>
                     </div>
                 </details>
