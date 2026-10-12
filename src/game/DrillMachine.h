@@ -62,11 +62,13 @@
 //
 // The execution window is passed in through Config rather than baked here, so
 // the device displays the rule the server is playing by (served as
-// timing.executionWindowS). The defaults in Config's initialiser exist so a test
+// timing.executionWindowS). Its SHAPE is fixed: centred on T, T +/- half the
+// width (ruled 2026-10-11, "ResolveTurn -> T ± 1 s"), the same shape the server's
+// votes.ts applies. The defaults in Config's initialiser exist so a test
 // can construct one without ceremony. Where each number comes from is the design
 // doc's "Timings" section (docs/missileer-game-design.md): the game's timings are
 // our own, measured from our own recordings or stated as our own design choice
-// (ruled 2026-09-28).
+// (ruled 2026-09-28 and 2026-10-11).
 
 #ifndef BLIPSCOPE_GAME_DRILLMACHINE_H
 #define BLIPSCOPE_GAME_DRILLMACHINE_H
@@ -98,9 +100,17 @@ enum class Phase : uint8_t {
   WarPlan,
   /// §3 step 3 — enable. Solo path: the player's own act (rail 2).
   Enable,
-  /// Armed and waiting for the window to open. The countdown runs here.
+  /// Armed, counting down to T. The countdown runs here.
+  ///
+  /// THE WINDOW OPENS INSIDE THIS PHASE, half its width before T (T - 1 s at
+  /// the served 2 s; ruled 2026-10-11). A key turn from then on counts, here as
+  /// in Window: ResolveTurn judges the instant, not the phase.
   Armed,
-  /// The execution window (Config::window_us) is OPEN. The key turn counts now.
+  /// T has arrived and the execution window is still OPEN, until T + half its
+  /// width. Entered AT T, not when the window opens: the TURN cue and the lit
+  /// ring stay at T, where they were before the window was centred on it. Whether
+  /// they should move to the window's opening is an open question for Daniel
+  /// (design doc "Timings"); until it is ruled nothing on screen moves.
   Window,
   /// §3 step 5 — the execution registered; the fleet can second or inhibit.
   Committed,
@@ -188,27 +198,28 @@ struct EventArgs {
 
 /// The game's rules, supplied rather than invented here (rail 3).
 struct Config {
-  /// The execution window, 2 s. Served as timing.executionWindowS, which
-  /// overrides this default on a device that has fetched /config.
+  /// The execution window's WIDTH, 2 s, centred on T: a key turn in
+  /// [T - 1 s, T + 1 s] counts, both edges included. Served as
+  /// timing.executionWindowS, which overrides this default on a device that has
+  /// fetched /config; the half-width is this divided by two, in whole
+  /// microseconds (exact for the served 2 s).
   ///
-  /// TODO(Daniel, open question T1 in the design doc's "Timings"): this number is
-  /// NOT FINAL and has no source yet. As a crew-concurrency window it is crew
-  /// side, which our recordings cannot show. Our recordings do measure the
-  /// reader's CHARACTER SLOT (one spoken character to the next): median 1.7 s
-  /// over 31 messages. Adopt that as a design choice (1.7 s, which moves the
-  /// scoring cap and the device/server window shape with it), own 2 s as a
-  /// design number, or drop the window framing. Kept at 2 s until ruled so
-  /// nothing on the scoring side moves by accident.
+  /// 2 s is our own design choice, not a measurement (ruled 2026-09-28: "keep
+  /// 2 s, recorded as our own design choice"). The shape is T +/- 1 s (ruled
+  /// 2026-10-11: "ResolveTurn -> T ± 1 s"), which reverses the [T, T + 2 s]
+  /// shape ruled 2026-09-28 and puts the device back on §4 ruling 1's
+  /// "|dev| <= 1.0 s". The edges are INCLUDED because §4 ruling 1 says `<=` and
+  /// scores the 1.0 s edge (900 m, capped). The cases both sides run are in
+  /// test/fixtures/derivation_fixture.h (kWindowCases), emitted by the server.
   uint32_t window_us = 2000000u;
-  /// The terminal countdown, 30 s. Device-only; the server does not serve it.
+  /// The terminal countdown, 33 s. Device-only; the server does not serve it.
   ///
-  /// TODO(Daniel, open question T2 in the design doc's "Timings"): NOT FINAL and
-  /// has no source yet. It is launch side, which our recordings cannot show. The
-  /// nearest thing on the air is the broadcast's own STANDBY PHASE (first
-  /// preamble character to MESSAGE FOLLOWS): median 33 s over 13 messages.
-  /// Adopt that as a design choice (33 s), own 30 s as a design number, or drop
-  /// the countdown.
-  uint32_t terminal_us = 30000000u;
+  /// Ruled 2026-10-11 ("terminal_us = 33 s"): our own design choice, set from a
+  /// quantity our recordings measure, the broadcast's STANDBY PHASE (first
+  /// preamble character to MESSAGE FOLLOWS): median 33.0 s over 13 messages,
+  /// clips listed in the design doc's "Timings". It was 30 s, from a source the
+  /// 2026-09-28 ruling removed.
+  uint32_t terminal_us = 33000000u;
   /// How long the paper strip takes to print. Cosmetic; not a published rule.
   uint32_t print_us = 1200000u;
   /// How long the hold after the arc must last to confirm the key turn.
@@ -235,10 +246,14 @@ struct Config {
 struct State {
   Phase phase = Phase::Idle;
 
-  /// Monotonic microseconds at which the window OPENS. Zero when unknown.
+  /// Monotonic microseconds of T: the instant the key turn aims at, and the
+  /// CENTRE of the window (which opens half its width before). Zero when unknown.
   uint64_t t_at_us = 0;
-  /// Microseconds until the window opens; 0 once it has. For the countdown.
-  uint64_t until_window_us = 0;
+  /// Microseconds until T; 0 once T has passed. For the countdown.
+  ///
+  /// Was `until_window_us`, renamed when the window stopped opening at T: it
+  /// counts to T, and the window now opens a second before it reaches zero.
+  uint64_t until_t_us = 0;
   /// Microseconds until the terminal countdown ends. Only meaningful in Terminal.
   uint64_t until_impact_us = 0;
 
@@ -314,8 +329,11 @@ class DrillMachine {
  private:
   void Enter(Phase p, uint64_t now_us);
   void SetNote(const char* s);
-  /// Settle a confirmed key turn scored at `turn_us`.
+  /// Settle a confirmed key turn scored at `turn_us`: in the window
+  /// (T +/- HalfWindowUs(), edges included) -> Committed, else Aborted.
   void ResolveTurn(uint64_t turn_us, uint64_t now_us);
+  /// Half the window's width: how far either side of T a key turn may land.
+  uint64_t HalfWindowUs() const { return cfg_.window_us / 2u; }
   /// True while a pending arc still holds the window open for its hold.
   bool PendingHolds(uint64_t now_us);
 

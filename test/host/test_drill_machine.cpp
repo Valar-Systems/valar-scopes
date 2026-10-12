@@ -111,7 +111,7 @@ static void HappyPath() {
   // The countdown runs on ticks, and only ticks.
   m.Step(Event::Tick, 50 * S);
   CHECK(m.Get().phase == Phase::Armed, "armed too early");
-  CHECK(m.Get().until_window_us == 10 * S, "the countdown does not read 10 s");
+  CHECK(m.Get().until_t_us == 10 * S, "the countdown does not read 10 s");
 
   m.Step(Event::Tick, t);
   CHECK(m.Get().phase == Phase::Window, "the window did not open at T");
@@ -122,22 +122,39 @@ static void HappyPath() {
   CHECK(m.Get().deviation_us == 300000, "deviation is not +300 ms");
 }
 
-/// The execution window (Config::window_us, 2 s by default), at every edge that matters.
+/// The execution window (Config::window_us, 2 s wide by default), centred on T
+/// (ruled 2026-10-11: "ResolveTurn -> T ± 1 s"), at every edge that matters.
+///
+/// The shared device/server vectors for the same edges are graded in
+/// test_game_agreement.cpp; this is the machine's own half -- what the Tick and
+/// the phases do around them, which the server has no counterpart for.
 static void TheWindow() {
   const uint64_t t = 100 * S;
 
-  CASE("window: one tick before T is not open");
+  CASE("window: one tick before T is not the TURN phase");
   {
     DrillMachine m = ArmedAt(t);
     m.Step(Event::Tick, t - 1);
-    CHECK(m.Get().phase == Phase::Armed, "the window opened before T");
+    CHECK(m.Get().phase == Phase::Armed, "Window was entered before T");
   }
 
-  CASE("window: exactly T opens it");
+  CASE("window: half a second before T the window is open, and the phase is still Armed");
+  {
+    // PINNED AS IT IS, NOT AS IT SHOULD BE. The window opens at T - 1 s, and
+    // the TURN cue and the lit ring stay at T. Whether they move is an open
+    // question for Daniel (design doc "Timings"); this case is here so that
+    // moving them is a decision someone makes, not a side effect.
+    DrillMachine m = ArmedAt(t);
+    m.Step(Event::Tick, t - 500000);
+    CHECK(m.Get().phase == Phase::Armed, "the TURN cue moved off T");
+    CHECK(m.Get().until_t_us == 500000, "the countdown does not count to T");
+  }
+
+  CASE("window: exactly T enters Window");
   {
     DrillMachine m = ArmedAt(t);
     m.Step(Event::Tick, t);
-    CHECK(m.Get().phase == Phase::Window, "the window did not open at exactly T");
+    CHECK(m.Get().phase == Phase::Window, "Window was not entered at exactly T");
   }
 
   CASE("window: a key turn at exactly T reads zero deviation");
@@ -149,28 +166,64 @@ static void TheWindow() {
     CHECK(m.Get().phase == Phase::Committed, "a perfect key turn did not commit");
   }
 
-  CASE("window: the last instant is still open");
+  CASE("window: the first instant, T - 1 s, is open (a turn in Armed counts)");
   {
-    // [T, T+2s]. Treating the final instant as shut makes the published
-    // constant 2 s minus one tick, which is a different rule quietly.
+    // [T - 1 s, T + 1 s], both edges in: §4 ruling 1's |dev| <= 1.0 s.
+    DrillMachine m = ArmedAt(t);
+    m.Step(Event::Tick, t - 1 * S);
+    m.Step(Event::PlayerKeyTurn, t - 1 * S);
+    CHECK(m.Get().phase == Phase::Committed, "a key at the window's first instant was refused");
+    CHECK(m.Get().deviation_us == -1000000, "deviation at the early edge is not -1 s");
+  }
+
+  CASE("window: one microsecond before the first instant is early, and recorded");
+  {
+    DrillMachine m = ArmedAt(t);
+    m.Step(Event::Tick, t - 1 * S - 1);
+    m.Step(Event::PlayerKeyTurn, t - 1 * S - 1);
+    CHECK(m.Get().phase == Phase::Aborted, "a key before the window committed");
+    CHECK(m.Get().executed, "the early key turn was swallowed rather than recorded");
+    CHECK(m.Get().deviation_us == -1000001, "the early turn was not recorded at -1 s - 1 us");
+    CHECK(std::strstr(m.Get().note, "before the window") != nullptr,
+          "the early turn is not explained");
+  }
+
+  CASE("window: the last instant, T + 1 s, is still open");
+  {
+    // Treating the final instant as shut makes the published constant 2 s
+    // minus one tick, which is a different rule quietly.
     DrillMachine m = ArmedAt(t);
     m.Step(Event::Tick, t);
-    m.Step(Event::Tick, t + 2 * S);
-    CHECK(m.Get().phase == Phase::Window, "the window shut at exactly T+2s");
-    m.Step(Event::PlayerKeyTurn, t + 2 * S);
+    m.Step(Event::Tick, t + 1 * S);
+    CHECK(m.Get().phase == Phase::Window, "the window shut at exactly T + 1 s");
+    m.Step(Event::PlayerKeyTurn, t + 1 * S);
     CHECK(m.Get().phase == Phase::Committed, "a key at the last instant was refused");
-    CHECK(m.Get().deviation_us == 2000000, "deviation at the edge is not +2 s");
+    CHECK(m.Get().deviation_us == 1000000, "deviation at the late edge is not +1 s");
   }
 
   CASE("window: one tick past the close is shut");
   {
     DrillMachine m = ArmedAt(t);
     m.Step(Event::Tick, t);
-    m.Step(Event::Tick, t + 2 * S + 1);
+    m.Step(Event::Tick, t + 1 * S + 1);
     CHECK(m.Get().phase == Phase::Aborted, "the window stayed open past its close");
     CHECK(!m.Get().executed, "an unexecuted drill claims an execution");
     CHECK(std::strstr(m.Get().note, "window closed") != nullptr,
           "the reason the drill ended is not stated");
+  }
+
+  CASE("window: a key one microsecond past the close is late, and recorded");
+  {
+    // No Tick between: the turn arrives before the Tick that would close it,
+    // so ResolveTurn is what judges it.
+    DrillMachine m = ArmedAt(t);
+    m.Step(Event::Tick, t);
+    m.Step(Event::PlayerKeyTurn, t + 1 * S + 1);
+    CHECK(m.Get().phase == Phase::Aborted, "a key after the window committed");
+    CHECK(m.Get().executed, "the late key turn was not recorded");
+    CHECK(m.Get().deviation_us == 1000001, "the late turn was not recorded at +1 s + 1 us");
+    CHECK(std::strstr(m.Get().note, "after the window") != nullptr,
+          "the late turn is not explained");
   }
 
   CASE("window: no input at all ends aborted, committed, and logged");
@@ -187,7 +240,7 @@ static void TheWindow() {
     CHECK(!m.Get().executed, "a missed window recorded an execution");
   }
 
-  CASE("window: a key turn before it opens is refused, and recorded");
+  CASE("window: a key turn well before it opens is refused, and recorded");
   {
     DrillMachine m = ArmedAt(t);
     m.Step(Event::Tick, t - 3 * S);
@@ -204,8 +257,8 @@ static void TheWindow() {
 
   CASE("window: a configured width is what governs, not a baked one");
   {
-    // RAIL 3 in miniature. If 2 s were hardcoded, this drill would abort at
-    // t+2s and never see its own window.
+    // RAIL 3 in miniature. A 5 s window is T +/- 2.5 s. If 2 s were baked in,
+    // this drill would close at t + 1 s and refuse a key at t - 2 s.
     Config cfg;
     cfg.window_us = 5 * S;
     DrillMachine m(cfg);
@@ -217,8 +270,41 @@ static void TheWindow() {
     m.Step(Event::PlayerConfirmWarPlan, 0);
     m.Step(Event::PlayerEnable, 0);
     m.Step(Event::Tick, t);
-    m.Step(Event::Tick, t + 4 * S);
-    CHECK(m.Get().phase == Phase::Window, "a 5 s window closed at 2 s — the width is baked in");
+    m.Step(Event::Tick, t + 2 * S);
+    CHECK(m.Get().phase == Phase::Window, "a 5 s window closed at 1 s: the width is baked in");
+    m.Step(Event::Tick, t + 2500001);
+    CHECK(m.Get().phase == Phase::Aborted, "a 5 s window stayed open past T + 2.5 s");
+
+    DrillMachine e(cfg);
+    e.SetT(t);
+    e.Step(Event::MessageArrived, 0, Exec());
+    e.Step(Event::PlayerOpen, 0);
+    e.Step(Event::PrintFinished, 0);
+    e.Step(Event::PlayerAck, 0);
+    e.Step(Event::PlayerConfirmWarPlan, 0);
+    e.Step(Event::PlayerEnable, 0);
+    e.Step(Event::PlayerKeyTurn, t - 2 * S);
+    CHECK(e.Get().phase == Phase::Committed, "a 5 s window refused a key 2 s early");
+  }
+
+  CASE("window: a T smaller than half a window does not wrap");
+  {
+    // T is a monotonic instant; a T 0.5 s after boot has T - half below zero.
+    // `turn < T - half` would wrap to ~584,000 years and call every turn early.
+    DrillMachine m = ArmedAt(500000);
+    m.Step(Event::PlayerKeyTurn, 400000);
+    CHECK(m.Get().phase == Phase::Committed, "the early edge wrapped below zero");
+    CHECK(m.Get().deviation_us == -100000, "deviation is not -100 ms");
+  }
+
+  CASE("the ruled timings are the defaults (2 s window, 33 s terminal)");
+  {
+    // Rulings 2026-09-28 (2 s, ours) and 2026-10-11 (terminal_us = 33 s). A
+    // default that restates a published rule is the same number twice; this
+    // pins that the copy here is the ruled one.
+    const Config cfg;
+    CHECK(cfg.window_us == 2000000u, "the window default is not 2 s");
+    CHECK(cfg.terminal_us == 33000000u, "the terminal default is not 33 s");
   }
 }
 
@@ -245,10 +331,10 @@ static void Interruptions() {
   const uint64_t t = 60 * S;
   DrillMachine m = ArmedAt(t);
   m.Step(Event::Tick, 50 * S);
-  const uint64_t before = m.Get().until_window_us;
+  const uint64_t before = m.Get().until_t_us;
   for (int i = 0; i < 50; i += 1) m.Step(Event::OtherMessageArrived, 50 * S);
   CHECK(m.Get().phase == Phase::Armed, "another message moved the drill");
-  CHECK(m.Get().until_window_us == before, "another message disturbed the countdown");
+  CHECK(m.Get().until_t_us == before, "another message disturbed the countdown");
   CHECK(m.Get().committed, "another message discarded the commitment");
 
   CASE("the drill survives a feed reconnect");
@@ -300,7 +386,7 @@ static void RenderableValues() {
     // existed, because every other path overwrites the value before it is read.
     DrillMachine late = ArmedAt(10 * S, 10 * S + 500000);
     late.Step(Event::Tick, 10 * S + 500000);
-    CHECK(late.Get().until_window_us == 0,
+    CHECK(late.Get().until_t_us == 0,
           "the countdown wrapped instead of saturating when armed after T");
   }
 
@@ -309,9 +395,9 @@ static void RenderableValues() {
   // number rather than as an error.
   DrillMachine n = ArmedAt(10 * S);
   n.Step(Event::Tick, 9 * S);
-  CHECK(n.Get().until_window_us == 1000000, "the countdown is wrong before T");
+  CHECK(n.Get().until_t_us == 1000000, "the countdown is wrong before T");
   n.Step(Event::Tick, 10 * S);
-  CHECK(n.Get().until_window_us == 0, "the countdown did not reach zero");
+  CHECK(n.Get().until_t_us == 0, "the countdown did not reach zero");
 }
 
 // ---------------------------------------------------------------------------
@@ -421,12 +507,12 @@ static void KeyArc() {
   CASE("key: an arc inside the window holds it open for its hold");
   {
     DrillMachine m = WindowAt(t);
-    m.Step(Event::PlayerKeyArc, t + 1900000);
-    m.Step(Event::Tick, t + 2100000);  // past the close, hold not yet done
+    m.Step(Event::PlayerKeyArc, t + 900000);
+    m.Step(Event::Tick, t + 1100000);  // past the close (T + 1 s), hold not yet done
     CHECK(m.Get().phase == Phase::Window, "the window shut on a pending arc");
-    m.Step(Event::PlayerKeyTurn, t + 2200000);
+    m.Step(Event::PlayerKeyTurn, t + 1200000);
     CHECK(m.Get().phase == Phase::Committed, "an on-time arc confirmed late was refused");
-    CHECK(m.Get().deviation_us == 1900000, "not scored at the arc");
+    CHECK(m.Get().deviation_us == 900000, "not scored at the arc");
   }
 
   CASE("key: a release voids the turn, and the window then closes normally");
@@ -435,7 +521,7 @@ static void KeyArc() {
     m.Step(Event::PlayerKeyArc, t + 500000);
     m.Step(Event::PlayerKeyRelease, t + 600000);
     CHECK(!m.Get().key_pending, "the release left the turn pending");
-    m.Step(Event::Tick, t + 2 * S + 1);
+    m.Step(Event::Tick, t + 1 * S + 1);
     CHECK(m.Get().phase == Phase::Aborted, "a released turn kept the window open");
     CHECK(!m.Get().executed, "a released turn was recorded as an execution");
   }
@@ -451,15 +537,28 @@ static void KeyArc() {
     CHECK(m.Get().deviation_us == 900000, "the retry was scored at the wrong arc");
   }
 
-  CASE("key: an arc before T confirmed after T is EARLY, because it was");
+  CASE("key: an arc 100 ms before T, confirmed after T, counts at -100 ms");
   {
+    // It was EARLY while the window opened at T. Centred on T (ruled
+    // 2026-10-11) it is inside, and it is scored at the arc, not the confirm.
     DrillMachine m = ArmedAt(t);
     m.Step(Event::PlayerKeyArc, t - 100000);
     m.Step(Event::Tick, t);
-    CHECK(m.Get().phase == Phase::Window, "the pending arc stopped the window opening");
+    CHECK(m.Get().phase == Phase::Window, "the pending arc stopped Window being entered");
     m.Step(Event::PlayerKeyTurn, t + 200000);
+    CHECK(m.Get().phase == Phase::Committed, "an in-window arc before T was refused");
+    CHECK(m.Get().deviation_us == -100000, "the arc was not recorded at -100 ms");
+  }
+
+  CASE("key: an arc before the window opens, confirmed inside it, is EARLY, because it was");
+  {
+    DrillMachine m = ArmedAt(t);
+    m.Step(Event::PlayerKeyArc, t - 1 * S - 100000);
+    m.Step(Event::Tick, t - 900000);
+    CHECK(m.Get().phase == Phase::Armed, "the pending arc moved the phase");
+    m.Step(Event::PlayerKeyTurn, t - 800000);
     CHECK(m.Get().phase == Phase::Aborted, "an early arc was scored as on time");
-    CHECK(m.Get().deviation_us == -100000, "the early arc was not recorded at -100 ms");
+    CHECK(m.Get().deviation_us == -1100000, "the early arc was not recorded at -1.1 s");
     CHECK(std::strstr(m.Get().note, "before the window") != nullptr, "not explained");
   }
 
@@ -483,8 +582,14 @@ static void VoteResolution() {
     DrillMachine b = CommittedAt(t);
     b.Step(Event::VoteResolved, t + 60 * S, Resolved(game::VoteOutcome::Seconded));
     CHECK(b.Get().phase == Phase::Terminal, "a second did not start the terminal countdown");
-    b.Step(Event::Tick, t + 60 * S + 31 * S);
-    CHECK(b.Get().phase == Phase::Complete, "the terminal countdown did not run out");
+    // 33 s (ruled 2026-10-11). One microsecond short is still counting, and
+    // 33 s ends it. The old check ticked once at 31 s, which only proved the
+    // countdown was shorter than 31 s; both edges pin the number itself.
+    b.Step(Event::Tick, t + 60 * S + 33 * S - 1);
+    CHECK(b.Get().phase == Phase::Terminal, "the terminal countdown ended before 33 s");
+    CHECK(b.Get().until_impact_us == 1, "the countdown is not 1 us from the end");
+    b.Step(Event::Tick, t + 60 * S + 33 * S);
+    CHECK(b.Get().phase == Phase::Complete, "the terminal countdown did not run out at 33 s");
   }
 
   CASE("resolved from Committed: inhibited or failed -> Aborted, with the reason");

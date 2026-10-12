@@ -61,7 +61,16 @@ void DrillMachine::ResolveTurn(uint64_t turn_us, uint64_t now_us) {
   st_.key_pending = false;
   st_.deviation_us = static_cast<int64_t>(turn_us) - static_cast<int64_t>(st_.t_at_us);
   st_.executed = true;
-  if (turn_us < st_.t_at_us) {
+  // THE WINDOW IS T +/- HALF ITS WIDTH, BOTH EDGES IN (ruled 2026-10-11:
+  // "ResolveTurn -> T ± 1 s"; inclusive because §4 ruling 1 says |dev| <= 1.0 s
+  // and scores the 1.0 s edge). It used to be [T, T + width], which aborted
+  // every turn before T; the server's votes.ts applies the same shape, and both
+  // run the kWindowCases vectors in test/fixtures/derivation_fixture.h.
+  //
+  // `turn + half < T` rather than `turn < T - half`: T is a monotonic instant
+  // and can be smaller than half a window, and the subtraction would wrap.
+  const uint64_t half = HalfWindowUs();
+  if (turn_us + half < st_.t_at_us) {
     // EARLY. Recorded rather than ignored: a key turned before the window is a
     // real thing the player did, and silently discarding it would let the
     // device show nothing happening while the player is certain they acted.
@@ -69,12 +78,12 @@ void DrillMachine::ResolveTurn(uint64_t turn_us, uint64_t now_us) {
     Enter(Phase::Aborted, now_us);
     return;
   }
-  if (turn_us > st_.t_at_us + cfg_.window_us) {
+  if (turn_us > st_.t_at_us + half) {
     SetNote("keyed after the window");
     Enter(Phase::Aborted, now_us);
     return;
   }
-  st_.until_window_us = 0;
+  st_.until_t_us = 0;
   Enter(Phase::Committed, now_us);
 }
 
@@ -223,19 +232,22 @@ void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
         return;
       }
       if (ev == Event::PlayerKeyTurn) {
-        // Usually EARLY (the window has not opened), which ResolveTurn records
-        // and ends. A turn at or after T that arrived before the Tick that would
-        // have opened the window is scored as what it is, not as early.
+        // ResolveTurn judges the INSTANT, not the phase. More than half a
+        // window before T it is EARLY, recorded and ended. From T - half on it
+        // is inside the window even though this phase still shows the
+        // countdown (the window opens inside Armed; see Phase::Armed). And a
+        // turn at or after T that arrived before the Tick that would have moved
+        // to Window is scored as what it is.
         ResolveTurn(st_.key_pending ? st_.key_arc_us : now_us, now_us);
         return;
       }
       if (ev != Event::Tick) return;
-      st_.until_window_us = Remaining(st_.t_at_us, now_us);
+      st_.until_t_us = Remaining(st_.t_at_us, now_us);
       // T ALREADY PAST AT ARM TIME is a real case: a snap-execution message
       // (§6's ~2-minute tier) can be opened late. `>= t_at_us` catches both the
       // ordinary arrival at T and the case where the drill armed after it, and
       // the window's own expiry below then closes it honestly.
-      if (now_us > st_.t_at_us + cfg_.window_us && !PendingHolds(now_us)) {
+      if (now_us > st_.t_at_us + HalfWindowUs() && !PendingHolds(now_us)) {
         // T IS NOT MERELY PAST, THE WINDOW HAS ALREADY CLOSED. Falling into
         // Window here would offer a key turn that could never be on time and
         // would then abort a tick later — the device showing an open window
@@ -262,18 +274,19 @@ void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
         return;
       }
       if (ev == Event::PlayerKeyTurn) {
-        // Scored at the arc if one is pending -- which may even be before T, if
-        // the arc completed in Armed and the hold confirmed it after the window
-        // opened. ResolveTurn calls that early, because it was.
+        // Scored at the arc if one is pending -- which may be before T, if the
+        // arc completed in Armed and the hold confirmed it after T. ResolveTurn
+        // counts it if the arc was at or after T - half, and calls it early if
+        // it was before, because it was.
         ResolveTurn(st_.key_pending ? st_.key_arc_us : now_us, now_us);
         return;
       }
       if (ev != Event::Tick) return;
-      st_.until_window_us = 0;
-      const uint64_t closes_at = st_.t_at_us + cfg_.window_us;
+      st_.until_t_us = 0;
+      const uint64_t closes_at = st_.t_at_us + HalfWindowUs();
       // STRICTLY PAST THE CLOSE. At exactly closes_at the window is still open:
-      // a 2-second window means [T, T+2s], and treating the final instant as
-      // shut would make the published constant 2 s minus one tick.
+      // a 2-second window means [T - 1 s, T + 1 s], and treating the final
+      // instant as shut would make the published constant 2 s minus one tick.
       //
       // A PENDING ARC HOLDS IT OPEN for its hold: an arc completed inside the
       // window is on time, and closing on it while the finger is still down
@@ -296,7 +309,7 @@ void DrillMachine::Step(Event ev, uint64_t now_us, const EventArgs& args) {
       // because a park reads as a gap and the obvious next edit is to fill it
       // in with a timer.
       //
-      // §3 step 6's published 30-second terminal countdown begins when the
+      // §3 step 6's terminal countdown (Config::terminal_us, 33 s) begins when the
       // launch vote RESOLVES — seconded, inhibited, or the dead-man timer
       // expiring. That resolution is the SERVER's to report. A device that
       // starts its own countdown is manufacturing a detonation result it does

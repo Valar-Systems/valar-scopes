@@ -57,9 +57,9 @@ explicitly a guess from unclassified sources — the right provenance posture).
 | 1 | Decode & authenticate EAM | Real EAM arrives → prints on screen (paper-strip animation) → device "auto-decodes" (REACT's published EWO auto-processing) → reveals message class (§5) and, for execution traffic, **T** (Zulu execution time). Player acks = commits the sortie. Authenticate visual: padlocked SAS safe, two crew locks, crack the seal. |
 | 2 | Set preparatory launch procedures | Confirm/adjust war plan: target from FDM (default) or manual override (§6). Locks at T−X. |
 | 3 | Cooperative enable | **Split-knowledge minigame**: system derives 6 characters; each crew member's device shows 3; each keys in their own 3 correctly within a time limit. Two-player, citable, already designed by Ford Aerospace. |
-| 4 | Execute launch command (four-hand) | **Commander**: key-turn (press-drag arc on bezel, hold) at exactly T. **Deputy**: cooperative switches held through the window. All inputs within the **execution window** (§12a, open question T1). |
+| 4 | Execute launch command (four-hand) | **Commander**: key-turn (press-drag arc on bezel, hold) at exactly T. **Deputy**: cooperative switches held through the window. All inputs within the **execution window**, T ± 1 s (§12a, ruled 2026-10-11). |
 | 5 | Second LCC vote | Crew's execution registers a **launch vote**, visible fleet-wide. Another crew can: second it (ELC → launch proceeds), **Inhibit** it (playable verb!), or let the dead-man timer expire (launch proceeds alone). |
-| 6 | Terminal countdown | **30 s**, not final (§12a, open question T2). Then flight (§7). |
+| 6 | Terminal countdown | **33 s**, from our measured standby phase (§12a, ruled 2026-10-11). Then flight (§7). |
 
 ## 4. Scoring (settles #135's passive-scoring objection)
 
@@ -149,7 +149,7 @@ explicitly a guess from unclassified sources — the right provenance posture).
   **Rulings on the three flags (DECIDED 2026-08-05).**
 
   1. **CAP = 900 m.** Deviation only exists *inside a valid execution window*, and the window is
-     **±1 s around T** (2 s total width; §12a, open question T1). A key landing outside it is a FAILED execution
+     **±1 s around T** (2 s total width; §12a, ruled 2026-10-11). A key landing outside it is a FAILED execution
      with no flight at all, per §3 — so `|dev| ≤ 1.0 s` **by construction**, and the 1,900 m
      reading this ruling was written against assumed a deviation the game can never record.
      Board flavour line stays honest: *"worst valid shot ≈ 4× published CEP."*
@@ -276,10 +276,11 @@ week. Droughts stay droughts (that's fishing); storms get clipped.
   to ack, pair, run the enable minigame, and face the retarget-or-launch dilemma — with a
   rare **~2-min "snap execution"** tier to keep everyone honest. Distribution weights TBD in
   playtest.
-- **Retargeting cost gradient** (published): MRT mode (small azimuth change) = fast;
-  CEP mode (big swing, platform realign) = 15–30 min (not final: §12a, open question T3). Staying near your
-  FDM-assigned target is cheap; wrenching across the map costs clock. Targeting locks at
-  T−X because a retarget can't complete inside the window.
+- **Retargeting cost gradient**: MRT mode (small azimuth change) = fast; CEP mode (big
+  swing, platform realign) = slow. **No retarget times**: the 15–30 min and 10–12 min
+  figures came from Nuclear Companion and were dropped (§12a, T3, ruled 2026-10-11). Staying
+  near your FDM-assigned target is cheap; wrenching across the map costs clock. Targeting
+  locks at T−X because a retarget can't complete inside the window.
 - **Launch origin**: player selects wing → squadron → flight/capsule (e.g. "90th MW →
   Golf-01"). All locations public (Sentinel EIS, NPS, Wikipedia LF lists). Origin matters:
   real great-circle geometry gives different flight times to the same target.
@@ -719,7 +720,7 @@ decision table; a number that governs the economy belongs where the economy is s
 
 | Element | Source | Port |
 |---|---|---|
-| **TODC clock** | Published: Time-of-Day Clock, upper center bay, red 7-segment, spec'd drift figure (not final: §12a, open question T4), survives power loss | Idle face: red 7-seg Zulu on black. Countdown to T in same face. (NTP quietly beats the nuclear-hardened spec — README joke.) |
+| **TODC clock** | Published: Time-of-Day Clock, upper center bay, red 7-segment, survives power loss (no drift figure: dropped, §12a, T4, ruled 2026-10-11) | Idle face: red 7-seg Zulu on black. Countdown to T in same face. (NTP quietly beats the nuclear-hardened spec — README joke.) |
 | **Paper-strip printer** | Center console in crew photos | Messages *print*, teletype pacing, character by character; history = scrollable stack of printed strips |
 | **Padlocks / SAS safe** | Photo shelf padlocks; "SAS safe with two crew locks" (Wikipedia gallery) | Authenticate step visual: locked compartment, two locks, crack the seal. Depict the padlock, never the procedure. |
 | **Fisheye capsule** | The classic crew photo is a round image | Round display = porthole into the LCC: console arc hugging bezel, clock top, printer center |
@@ -790,7 +791,9 @@ absorb a joke payload mid-sequence.
 ## 12. Published constants (cite, don't invent)
 
 **Game timings are not in this table.** They are ours, measured from our own recordings or
-stated as our own design choices, and live in §12a (ruled 2026-09-28).
+stated as our own design choices, and live in §12a (ruled 2026-09-28). The two retarget times
+and the TODC drift figure that used to be here came from Nuclear Companion and were dropped
+(§12a, T3 and T4, ruled 2026-10-11).
 
 | Constant | Value | Source |
 |---|---|---|
@@ -798,38 +801,40 @@ stated as our own design choices, and live in §12a (ruled 2026-09-28).
 | MM III range | 8,700 mi / 14,000 km (targeting range cap) | Wikipedia LGM-30 |
 | Terminal speed | Mach 23 | Wikipedia LGM-30 |
 | MM III CEP | ~800 ft / 240 m (miss-distance benchmark) | Wikipedia LGM-30 |
-| Retarget, CEP mode | 15–30 min realign — **TODO: not final, §12a T3 (proposed: drop)** | Nuclear Companion |
-| Retarget, whole force (REACT) | 10–12 min — **TODO: not final, §12a T3 (proposed: drop)** | Nuclear Companion |
 | Flight sequence | stage 1 ~60 s, stage 3 ~120 s, post-boost ~180 s | Wikipedia LGM-30 sidebar |
 | Force structure | 3 wings, 400 missiles, 450 silos, 45 MAFs, 15/wing; flight = 1 LCC + 10 LF; squadron = 5 flights; **REACT fleet = 50 LCCs** | Wikipedia ×2, Nuclear Companion |
 | Separation | LFs ≥3 mi apart, ≥3 mi from LCC | Wikipedia LGM-30 |
 | Alert tour | 24 h | Wikipedia / photos |
-| TODC drift spec | ≤1 s / 24 h — **TODO: not final, §12a T4 (proposed: drop)** | Nuclear Companion |
 
 Invented freely (public record is silent — per rule §2): T offset distribution, ack window,
 inhibit economics, deviation→distance curve, message-class weights, sortie regen rate,
 choreography of the four-hand split, exercise codenames, payload roster.
 
-## 12a. Timings (ruled 2026-09-28)
+## 12a. Timings (ruled 2026-09-28 and 2026-10-11)
 
 > **Ruling (Daniel, 2026-09-28):** *"Game timings: replace with our own numbers measured from
 > our own recordings, documented in the game design doc with the clips they came from.
 > Nothing from Nuclear Companion."*
+>
+> **Ruling (Daniel, 2026-10-11):** *"ResolveTurn → T ± 1 s · terminal_us = 33 s · §12a
+> updated, T3/T4 dropped · A shared test-vector file that both the device host tests and
+> valar-eam-feed's votes tests run (early edge, late edge, just outside each)."*
 
 Every game timing is one of three things, and the table says which:
 
 - **MEASURED**: a quantity our own station recorded, with the messages and clips below.
-- **OURS**: a design choice, decided in a session and recorded in §10/§13. It is not
-  presented as a measurement of anything.
+- **OURS**: a design choice, decided in a session and recorded here or in §10/§13. It is not
+  presented as a measurement of anything, even when a measurement chose it.
 - **OPEN**: no source yet. The value stays in code so nothing moves by accident, but it is
-  **not final**, and it carries a `TODO` naming the question (T1 to T4 below).
+  **not final**, and it carries a `TODO` naming the question. **No timing is OPEN now**: T1
+  and T2 are ruled, and T3 and T4 were dropped (below).
 
 ### What the game's timings are
 
 | Constant | Value | Where | What it drives in play | Status |
 |---|---|---|---|---|
-| Execution window | 2 s | device `Config::window_us`, server `timing.executionWindowS` | How far from T a key turn may land and still count (§4's cap depends on it) | **OPEN, T1** |
-| Terminal countdown | 30 s | device `Config::terminal_us` only | The wait between a resolved vote and the drill completing | **OPEN, T2** |
+| Execution window | 2 s wide, **T ± 1 s**, both edges in | device `Config::window_us` (`DrillMachine::ResolveTurn`), server `timing.executionWindowS` (`votes.ts` `inExecutionWindow`) | How far from T a key turn may land and still count (§4's cap depends on it) | OURS (width 2026-09-28, shape 2026-10-11) |
+| Terminal countdown | 33 s | device `Config::terminal_us` only | The wait between a resolved vote and the drill completing | OURS, set from the MEASURED standby phase (2026-10-11) |
 | T offset | normal 300–900 s (90 %), snap 90–150 s (10 %) | server `timing.tOffset` | How long after the message T falls | OURS (§6, 2026-08-04) |
 | Ack / commit cutoff | T−60 s | server `ackCutoffS` | Last moment a drill can be committed | OURS (§13) |
 | Late copy | 120 s | server `lateCopyNonScorableS` | A message arriving later than T−120 s is not offered | OURS (§13) |
@@ -841,13 +846,29 @@ Every game timing is one of three things, and the table says which:
 | Paper-strip print | 1.2 s | device `Config::print_us` | The print animation | OURS (cosmetic) |
 | Key hold / rejoin | 300 ms / 250 ms | device `KeyTurnParams` | Gesture debounce | Bench (§13) |
 | Scoring bucket / clock floor | 0.2 s / 199 ms | server `scoring` | Deviation display and miss distance | Bench (§4, §13 A.3) |
-| Retarget times | 10–12 min, 15–30 min | this doc only (§6, §12) | Nothing in code | **OPEN, T3** |
-| Clock drift figure | ≤1 s / 24 h | this doc only (§11, §12) | Flavour text only | **OPEN, T4** |
 
-The execution window and the terminal countdown were the two numbers in code that the game
-took from Nuclear Companion. Neither is kept as a sourced constant: both are marked OPEN,
-in code and here, until Daniel rules on T1 and T2. The retarget times and the drift figure
-were also taken from it; nothing in code uses them, and they are OPEN as T3 and T4.
+**The window's shape.** Until 2026-09-28 the device accepted [T, T + 2 s] and the server
+T ± 1 s. That day's ruling made both [T, T + 2 s] (the server changed in valar-eam-feed #155).
+The 2026-10-11 ruling reverses it: both sides are **T ± 1 s**, which is also §4 ruling 1's
+`|dev| ≤ 1.0 s`. The edges are **included**, because §4 ruling 1 says `≤` and its table scores
+the 1.0 s edge (900 m, capped).
+
+**Both sides run the same cases.** They live in this repo (ruled 2026-10-12: the generator
+and the JSON belong here, beside the header). `scripts/emit-derivation-fixture.ts` emits
+`test/fixtures/derivation_fixture.h` (`kWindowCases`) and `test/fixtures/derivation.json`
+(its `window` section) together. That is the derivation fixture's own mechanism, so the
+enrollment checklist's item 5 `--check` covers the window too (command in
+`test/fixtures/README.md`). The cases are T itself, 0.5 s early (in), each edge (in), 1 ms
+outside each edge (out), and 1.5 s late (out). The device grades `ResolveTurn` and its wire
+rounding against them (`test/host/test_game_agreement.cpp`), and valar-eam-feed's votes tests
+grade `inExecutionWindow` and `executeVote` against the same cases. The verdicts come from
+the ruling, written down before either side ran them. They are not either implementation's
+output.
+
+**What the player sees has not moved.** The countdown still counts to T, and the TURN cue and
+the lit ring still appear at T (`Phase::Window` is entered at T). The window now opens a
+second earlier, inside `Phase::Armed`, and a key turned there counts. Whether the cue moves is
+open question W1 below.
 
 ### What our recordings measure
 
@@ -879,45 +900,47 @@ is not a delay: both receivers hear the same transmission at the same moment, an
 quantity. The **rebroadcast** interval includes transmissions we missed (the 60 and 91 min
 intervals are two and three cycles); no constant uses it.
 
-### Open questions for Daniel
+### Rulings, and what is still open
 
-**T1. The execution window (now 2 s).** As Nuclear Companion framed it, the window is a
-crew concurrency tolerance, and our recordings cannot show anything on the crew side. The
-nearest thing they do show, cleanly, is the **character slot: 1.7 s**, the time the reader
-gives one character. Options:
+**T1. The execution window: ruled.** 2 s wide, our own design choice (2026-09-28: "keep 2 s,
+recorded as our own design choice"), centred on T, T ± 1 s (2026-10-11). The 1.7 s character
+slot our recordings measure was not adopted. The [T, T + 2 s] shape ruled 2026-09-28 is
+reversed.
 
-1. **Adopt 1.7 s** as a design choice ("land the key inside one character's time"). This
-   moves more than one number: the window's half-width becomes 0.85 s, so §4's linear
-   curve tops out at 850 m and the 900 m cap (ruling 1) never binds; 1.7 s is 8.5 scoring
-   buckets, not a whole number; and the device fixture and host test pin 2 s. Each needs
-   its own ruling.
-2. **Own 2 s** as a design number and say so. It sits at the slow end of the character
-   slot (p90 of the per-message medians is 2.02 s), but that was noticed after the fact,
-   so it would be a choice, not a measurement.
-3. **Drop the window framing.** Scoring already uses the device's measured deviation, so
-   only the accept/fail bound would need a new basis.
+**T2. The terminal countdown: ruled.** 33 s (2026-10-11), set from the measured **standby
+phase**: first preamble character to MESSAGE FOLLOWS, median 33.0 s over 13 messages
+(26.4–39.5 s). The clips are in the evidence table below. Device only: nothing on the server
+or in scoring moves.
 
-Found while measuring, and it needs a ruling whichever option is chosen: **the device and
-the server do not agree on the window's shape.** The device accepts `[T, T+2 s]`
-(`DrillMachine::ResolveTurn`: a turn before T aborts as "keyed before the window"). The
-server accepts `T ± 1 s` (`votes.ts`, `halfWindowMs`), and §4's ruling 1 says `±1 s`. A
-key 1.5 s after T commits on the device, then fails on the server; a key 0.5 s before T
-is valid on the server but the device aborts it. Not changed here.
+**T3, T4. Dropped (2026-10-11).** The retarget times (15–30 min, 10–12 min) and the TODC drift
+figure (≤1 s / 24 h) came from Nuclear Companion. Nothing in code used them, and they are gone
+from §6, §11 and §12.
 
-**T2. The terminal countdown (now 30 s).** It is launch side, which our recordings cannot
-show. The nearest thing on the air is the broadcast's own wait before a message, the
-**standby phase: 33 s** (13 messages, 26–40 s): the preamble read three times, each
-followed by "standby", then MESSAGE FOLLOWS. Options: **adopt 33 s** as a design choice
-(device only; nothing on the server or in scoring moves), **own 30 s** as a design number,
-or **drop the countdown** and go straight to §7's flight.
+Still open. Both of these turned up while the rulings above were being carried out:
 
-**T3. Retarget times (15–30 min, 10–12 min; §6 and §12).** Taken from Nuclear Companion.
-Nothing in code uses them (v1 is FDM-assigned targets only). They are targeting, which is
-outside the editorial line, and our recordings cannot show them. Proposed: **drop them**.
+**W1. Where the TURN cue sits.** The window opens at T − 1 s, but the TURN cue and the lit
+ring still appear at T, so the ring shows only the second half of the window. There are two
+options. Leave the cue at T: that is the target a player aims at, and the first half of the
+window stays unlit. Or move it to T − 1 s: the ring then shows the whole window, but nothing
+on screen marks T. Nothing on screen moves until this is ruled. `test/host/test_drill_machine.cpp`
+pins the current behaviour.
 
-**T4. The clock drift figure (≤1 s / 24 h; §11 and §12).** Taken from Nuclear Companion.
-Flavour text only. Proposed: **drop it**; the game already has its own measured clock
-figure, the 199 ms floor (§4).
+**W2. Keys a fraction of a millisecond outside an edge.** The device judges a key in
+microseconds. The wire carries whole milliseconds (`DeviationMsForServer`, the server's
+`Math.round`), and the server judges those. So a key 1 µs to 0.5 ms outside an edge
+(−1.000500 to −1.000001 s, or +1.000001 to +1.000499 s) is aborted on the device. The execute
+body the device still sends rounds to ±1000 ms, and the server counts that. The drill shows
+ABORTED while the record holds a valid execution that can go on to launch. Both halves were
+observed: the device's `ResolveTurn` and `DeviationMsForServer` on those inputs, and the
+server's `executeVote` at ±1000 ms. The same gap existed at the old shape's late edge. There
+are three options:
+
+1. The device judges the rounded wire value. The two sides can then never disagree, and the
+   device's edge moves out by up to half a millisecond.
+2. The wire carries microseconds. That changes the protocol and `vote.deviation_ms`.
+3. Accept the gap.
+
+The shared vectors stay on whole milliseconds until this is ruled, so none of them answers it.
 
 ### Evidence: the messages and clips
 
@@ -1187,7 +1210,7 @@ deputy-gesture hardware prototype (§13.3).
 | Source | What it gave |
 |---|---|
 | USAF missile combat crew photo (public domain) | Art bible: TODC clock, printer, padlocks, binders, fisheye composition, seating, tone register |
-| Nuclear Companion, *"REACT: Armageddon with a floppy disk and trackball!"* (Paul Dent, 2023) | Six-step loop skeleton; split-knowledge enable (6 chars, 3+3); NAM/FDM/EAM taxonomy; vote/inhibit/dead-man triad; MRT vs CEP retarget; console components (VDU/RMP/WSP/LEP/LCP/CLS/OID/TODC/FDD); the disclaimer template. Comments = folklore, not source. **No game timing comes from this source** (ruled 2026-09-28, §12a); the retarget times and drift figure it gave are open (T3, T4). |
+| Nuclear Companion, *"REACT: Armageddon with a floppy disk and trackball!"* (Paul Dent, 2023) | Six-step loop skeleton; split-knowledge enable (6 chars, 3+3); NAM/FDM/EAM taxonomy; vote/inhibit/dead-man triad; MRT vs CEP retarget; console components (VDU/RMP/WSP/LEP/LCP/CLS/OID/TODC/FDD); the disclaimer template. Comments = folklore, not source. **No game timing comes from this source** (ruled 2026-09-28, §12a); the retarget times and drift figure it gave were dropped (T3, T4; ruled 2026-10-11). |
 | Wikipedia, *Rapid Execution and Combat Targeting System* | 1 key + 3 cooperative switches; auto EWO processing; retarget times; REACT era choice |
 | Wikipedia, *Missile launch control center* | LCC hierarchy (ACP/SCP/PLCC) + countermand authority (rank system); HVC party line (squadron social unit); capsule physical details; SAS safe w/ two crew locks; 2-person crew; Netlink |
 | Wikipedia, *LGM-30 Minuteman* | Specs table (range/speed/CEP); MIRV flight sequence; wing/squadron structure + nicknames; ALCS/Looking Glass; ERCS; surviving museum sites (Delta-01/-09, Oscar-Zero, November-33, Quebec-One — reference-photo targets); Sentinel timeline |

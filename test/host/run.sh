@@ -665,14 +665,15 @@ fi
 
 echo "== Derive (device/server agreement on class and T) =="
 #
-# Same shape as GameFormat, for the derivation. The fixture is emitted by
-# valar-eam-feed's scripts/emit-derivation-fixture.ts from the server's own
-# derive.ts -- the function POST /votes re-derives with and refuses a mismatch
-# against. So a failure here is a device that cannot commit a vote.
+# Same shape as GameFormat, for the derivation. The fixture is emitted by this
+# repo's scripts/emit-derivation-fixture.ts, which calls the server's own
+# derive.ts (from a valar-eam-feed checkout) -- the function POST /votes
+# re-derives with and refuses a mismatch against. So a failure here is a device
+# that cannot commit a vote.
 if [ ! -f "$ROOT/test/fixtures/derivation_fixture.h" ]; then
   echo "FAIL: test/fixtures/derivation_fixture.h is missing, so the derivation"
-  echo "      agreement claim cannot be made. Regenerate it from the server repo --"
-  echo "      see test/fixtures/README.md for the command."
+  echo "      agreement claim cannot be made. Regenerate it with"
+  echo "      scripts/emit-derivation-fixture.ts -- see test/fixtures/README.md."
   exit 2
 fi
 if ! "$CXX" $FLAGS $INCLUDES $FIXTURE_INCLUDES       "$ROOT/src/game/Derive.cpp"       "$ROOT/test/host/test_derive.cpp"       -o "$OUT/test_derive.exe" 2>"$OUT/build_derive.log"; then
@@ -684,6 +685,28 @@ fi
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the derivation test binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+echo "== device/server agreement at the wire (the execution window, the commit body) =="
+#
+# The same fixture, read for what leaves the device. kWindowCases are the
+# 2026-10-11 ruling's verdicts ("ResolveTurn -> T ± 1 s"), which the server's
+# votes tests run against executeVote too; kCases are the
+# server's own derivation, here built into the POST /votes body the server
+# commits from the same inputs. A failure in the first half is the device
+# disagreeing with the ruling; in the second, a device that cannot vote.
+if ! "$CXX" $FLAGS $INCLUDES $FIXTURE_INCLUDES       "$ROOT/src/game/DrillMachine.cpp" "$ROOT/src/game/Derive.cpp" "$ROOT/src/game/GameProtocol.cpp"       "$ROOT/test/host/test_game_agreement.cpp"       -o "$OUT/test_game_agreement.exe" 2>"$OUT/build_agreement.log"; then
+  echo "FAIL: the agreement tests did not compile"
+  cat "$OUT/build_agreement.log"
+  exit 2
+fi
+"$OUT/test_game_agreement.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the agreement test binary did not run (exit $rc). This is the RIG, not the code."
   exit 2
 elif [ "$rc" -ne 0 ]; then
   fail=1
