@@ -4,7 +4,7 @@ The **how**, with blanks. The **what and why** is [bench-runbook-device-game.md]
 and its pass/fail criteria are quoted here word for word; nothing below adds one.
 Where the runbook leaves a result undefined there is a blank and a question (end of page).
 
-Operator ________  ·  Board ☐ `missileer` (90706931E9D8) ☐ `missileer2` (90706931E794, needs #393, Q9)  ·  Start (UTC) ________
+Operator ________  ·  Board ☐ `missileer` (90706931E9D8) (not the photo unit 90706931E794, Q9)  ·  Start (UTC) ________
 
 **Rulings needed before you start:**
 **Q1** station 2 ☐ run the candidate image (#399, `clock_age_s=-1`) ☐ skip it  ·
@@ -16,7 +16,7 @@ Operator ________  ·  Board ☐ `missileer` (90706931E9D8) ☐ `missileer2` (90
 
 ```powershell
 cd C:\Github\vsc-wt\d6                         # branch bench/d6-turnkey-prep: has the scripts
-$B = 'missileer'                               # or 'missileer2' (Q9)
+$B = 'missileer'                               # the bench board 90706931E9D8 (Q9)
 $I = 'C:\Github\missileer-overnight\d6\images' # pre-built images, each with a MANIFEST.txt
 python scripts/board-port.py --list            # lists ports only; opens none
 ```
@@ -223,5 +223,5 @@ DTR high and writes to a folder outside this repo. Capture with `d6-capture.py` 
 6. **"Say each stroke aloud so the log has a marker"**: a serial log cannot record speech. Is the stroke table above enough, or should audio/video run alongside?
 7. **Capture lines**: opening with DTR=0 RTS=0 resetting the board comes from bench-capture.ps1's 2026-08-05 measurement on a USB-Serial-JTAG s3-128, not from these images. If it does not reset, `--reset` drives esptool's own reset. Also, each capture starts with the ROM boot lines **before** the provenance block. Keep them, or trim them for the fixtures?
 8. **Full flash / erase**: none planned. All four envs use `partitions-s3-16mb-bignvs.csv`, the Missileer env's table, and station 4 joins Wi-Fi from NVS. If the helper refuses a board (exit 6: a different table, or it boots app1), is a full `pio upload`, or for a different table a full flash that can move NVS, approved for that board?
-9. **`missileer2`**: not in `board-port.py` on this branch (#393 is unmerged), so `$B='missileer2'` is refused until #393 merges or is merged locally for the sitting. Which board?
+9. **Which board.** Only `missileer` (90706931E9D8). 90706931E794 is now the Missileer **photo unit** (`missileer-photo`, #394, left running photo mode on 2026-10-11), and `d6-flash-image.py` refuses it. E9D8 was not connected on 2026-10-11. Will it be on the bench for the sitting?
 10. **After the sitting**: put `missileer-s3-128` back on the board, and from which commit?

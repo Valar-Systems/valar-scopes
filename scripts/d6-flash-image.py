@@ -441,9 +441,13 @@ def selftest():
 
     # 1. board policy
     for name, env, want in [("blipscope", "probe-s3-128-gesture", "SOAK"), ("nosuch", "probe-s3-128-gesture", "unknown"),
-                            ("missileer", "probe-s3-128-gesture", None), ("missileer2", "gametest-s3-128-arm", None)]:
+                            ("missileer", "probe-s3-128-gesture", None), ("missileer9", "gametest-s3-128-arm", None),
+                            ("missileer-photo", "probe-s3-128-gesture", "not a Missileer board")]:
         b = dict(boards)
-        b.setdefault("missileer2", ("90706931E794", "flash freely (Missileer work)"))
+        # missileer9: a FAKE second bench board (dummy serial) for the accepted path.
+        # missileer-photo: the photo unit (#394), which D6 must never flash.
+        b.setdefault("missileer9", ("000000000009", "flash freely (Missileer work)"))
+        b.setdefault("missileer-photo", ("90706931E794", "Missileer envs only; flash on Daniel's go (product photos)"))
         try:
             check_board(name, env, b)
             got = None
