@@ -60,6 +60,11 @@ int main()
         check(PushFires(on, box, topic) == (on && box && topic), what);
     }
 
+    // the switch as read from NVS, and Home Assistant's state field (decision 2)
+    check(SwitchOn(nullptr) == DEFAULT_ON && SwitchOn("") == DEFAULT_ON, "never saved: the switch reads the default, ON");
+    check(SwitchOn("true") && !SwitchOn("false"), "a stored value is read as stored");
+    check(HaStateFollowsSwitch(true) && !HaStateFollowsSwitch(false), "HA's state field follows the switch");
+
     std::printf(failures ? "FAILED: %d\n" : "all passed\n", failures);
     return failures ? 1 : 0;
 }

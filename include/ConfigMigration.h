@@ -37,8 +37,8 @@ namespace configmigration {
  *   4          local-details "adsbdb" -> "cloud" (adsbdb left the stack)
  *   5          tz-offset "0" manufactured by the old config form -> auto (v11)
  *   6          coordinates stored at 4 dp, not 6 (v15: precise on device, coarse on the wire)
- *   7          one Overhead-alerts screen switch (ovh-on) replaces the lookup ring toggle;
- *              lookup-alert stays as the push opt-in; lookup-dist snapped onto 1/2/3/5 (v17)
+ *   7          one Overhead-alerts screen switch (ovh-on) from v16's ring OR push; lookup-alert
+ *              stays as the push opt-in; lookup-dist snapped onto 1/2/3/5 (v17)
  */
 constexpr int CONFIG_REV = 7;
 
@@ -220,29 +220,29 @@ constexpr CoordKey COORD_KEYS[] = {
  * field, so default ON alone would switch the card and the ring ON for owners who had them off.
  * Daniel's decision: new units ON, existing devices keep their state. So a device that has SAVED
  * its configuration before -- its "lookup" key exists, because every whole-form save writes it --
- * gets ovh-on WRITTEN as its old RING state. A device that never saved gets nothing written, and
+ * gets ovh-on WRITTEN as v16's ring OR push. A device that never saved gets nothing written, and
  * the default applies.
  *
- * The push plays no part in that answer (amended 2026-10-12; it was "ring OR push"), and that is
- * structural: OverheadFromLegacy has no parameter for it, so putting the OR back means changing a
- * signature. `lookup-alert` is never written by this migration -- MigrateOverheadSwitch touches one
- * key, and test/host/test_config_migration.cpp runs it against a store that records every write.
- *
- * Known consequence, built as stated pending a ruling: a v16 owner with the ring OFF and the push
- * ON (v16's push ignored the ring) migrates to ovh-on OFF with the box still ticked, and so stops
- * receiving overhead pushes.
+ * Why OR (ruling 2026-10-12, decision 1): v16's push ignored the ring, and the push now needs the
+ * switch -- so a ring-only rule would silently end the overhead pushes of a ring-OFF/push-ON owner.
+ * Under OR every v16 owner keeps every push they had; that owner also gains the ring and the card,
+ * which is accepted. `lookup-alert` is read for the answer and never WRITTEN: MigrateOverheadSwitch
+ * touches one key, and test/host/test_config_migration.cpp runs it against a store that records
+ * every write. With OR, ovh-on also equals v16's ring-or-push, which is what Home Assistant's state
+ * field followed -- so that field is unchanged for every existing install (decision 2).
  *
  * Unlike the earlier entries this one WRITES rather than removes: the old state is a real value
  * that the new default must not overwrite.
  */
 constexpr bool NeedsOverheadMigration(int storedRev) { return storedRev < 7; }
 
-/** What to write to ovh-on from the v16 ring key, or nullptr to write nothing (the default, ON,
- *  applies). */
-inline const char* OverheadFromLegacy(const char* lookup)
+/** What to write to ovh-on from the v16 ring (`lookup`) and push (`lookup-alert`) values, or nullptr
+ *  to write nothing (never saved: the default, ON, applies). */
+inline const char* OverheadFromLegacy(const char* lookup, const char* lookupAlert)
 {
     if (!lookup || !*lookup) return nullptr;           // never saved: a fresh unit
-    return strcmp(lookup, "true") == 0 ? "true" : "false";
+    const bool on = strcmp(lookup, "true") == 0 || (lookupAlert && strcmp(lookupAlert, "true") == 0);
+    return on ? "true" : "false";
 }
 
 /** The rev-7 switch step against any prefs-like store: the firmware's Preferences, or the host
@@ -252,7 +252,7 @@ template <class Prefs>
 const char* MigrateOverheadSwitch(Prefs& prefs)
 {
     if (prefs.isKey("ovh-on") || !prefs.isKey("lookup")) return nullptr;
-    const char* v = OverheadFromLegacy(prefs.getString("lookup", "").c_str());
+    const char* v = OverheadFromLegacy(prefs.getString("lookup", "").c_str(), prefs.getString("lookup-alert", "").c_str());
     if (v) prefs.putString("ovh-on", v);
     return v;
 }

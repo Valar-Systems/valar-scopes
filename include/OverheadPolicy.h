@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 
 namespace overhead {
 
@@ -47,6 +48,22 @@ inline int SnapDistance(double stored)
 inline double RadiusKm(int distance, double kmPerUnit)
 {
     return (double)distance * kmPerUnit;
+}
+
+/// The screen switch as the firmware reads it from NVS: absent (never saved) is the default, ON.
+inline bool SwitchOn(const char* stored)
+{
+    if (!stored || !*stored) return DEFAULT_ON;
+    return std::strcmp(stored, "true") == 0;
+}
+
+/// Home Assistant's STATE payload: its overhead field follows the screen switch (ruling 2026-10-12,
+/// decision 2; with the OR migration that is v16's ring-or-push for every existing device). The
+/// per-aircraft "overhead" EVENT is deliberately not gated here or anywhere: it has its own switch,
+/// the MQTT settings, and the config page says so.
+inline bool HaStateFollowsSwitch(bool on)
+{
+    return on;
 }
 
 /// The phone push for one overhead edge: the screen switch AND its own checkbox ("Also send to my

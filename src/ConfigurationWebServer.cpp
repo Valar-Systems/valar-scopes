@@ -996,7 +996,7 @@ R"(
                     </div>
                     <label class="check nest"><input name="lookup-alert" type="checkbox" %LOOKUP_ALERT%><span>Also send to my phone (ntfy)</span></label>
                     <span class="hint mt">A card for a few seconds and the cyan &ldquo;LOOK UP&rdquo; ring when a plane passes within that distance. The phone alert uses the same distance and your ntfy topic, and only while overhead alerts are on.</span>
-                    <span class="hint">Home Assistant (MQTT) has its own switch: its overhead events do not follow this one.</span>
+                    <span class="hint">Home Assistant's per-aircraft events have their own switch.</span>
                 </fieldset>
 
                 </div><!-- /sec -->

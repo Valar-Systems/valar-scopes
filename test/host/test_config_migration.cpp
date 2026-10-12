@@ -151,20 +151,20 @@ int main()
     check(!NeedsInfoFieldReset(CONFIG_REV), "rev 5: the info-field reset is done");
     check(!NeedsLocalDetailsMigration(CONFIG_REV), "rev 5: the local-details migration is done");
 
-    // rev 7 (v17): the overhead SCREEN switch takes the v16 RING state only; the push checkbox
+    // rev 7 (v17): the overhead SCREEN switch takes v16's ring OR push; the push checkbox
     // (lookup-alert) is left exactly as stored. Never saved -> nothing written -> default ON.
-    // The table is the frozen one (docs/v17-overhead-card-predictions.md, addendum 2026-10-12):
+    // The table is the frozen one (docs/v17-overhead-card-predictions.md, addendum 2026-10-12 (2)):
     // each v16 store is migrated through the same MigrateOverheadSwitch the firmware runs, against
     // a store that records every write, so "lookup-alert left as stored" is checked, not assumed.
     check(NeedsOverheadMigration(6), "rev 6 devices migrate the overhead switch");
     check(!NeedsOverheadMigration(CONFIG_REV), "CONFIG_REV must satisfy the overhead predicate");
-    check(OverheadFromLegacy(nullptr) == nullptr && OverheadFromLegacy("") == nullptr,
+    check(OverheadFromLegacy(nullptr, nullptr) == nullptr && OverheadFromLegacy("", "true") == nullptr,
           "no lookup value (or an empty one) is never-saved: nothing written");
     {
         struct Row { const char* lookup; const char* alert; const char* ovhOn; const char* name; };
         const Row rows[] = {
             { "true",  "false", "true",  "ring on,  push off" },
-            { "false", "true",  "false", "ring off, push on  (the OR rule wrote true; the open consequence)" },
+            { "false", "true",  "true",  "ring off, push on  (keeps the push; gains the ring and card)" },
             { "true",  "true",  "true",  "ring on,  push on" },
             { "false", "false", "false", "ring off, push off (the new default does not reach it)" },
             { nullptr, nullptr, nullptr, "never saved       (nothing written; default ON applies)" },

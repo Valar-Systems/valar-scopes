@@ -1218,7 +1218,7 @@ void AircraftManager::Initialise()
     // value in the radar's unit, snapped onto 1/2/3/5 here as well as at migration, so a value a stale
     // v16 tab posts (2.5, say) can never become a radius of its own.
     const String ovhOn = configServer.GetStoredString("ovh-on");
-    showOverhead = ovhOn.isEmpty() ? overhead::DEFAULT_ON : ovhOn == "true";
+    showOverhead = overhead::SwitchOn(ovhOn.c_str());
     alertOverhead = configServer.GetStoredString("lookup-alert") == "true";
     overheadSetting = overhead::SnapDistance(configServer.GetStoredString("lookup-dist").toDouble());
     overheadKm = overhead::RadiusKm(overheadSetting, units::ToKm(1.0, cfgUnit));
@@ -10589,10 +10589,10 @@ void AircraftManager::PublishMqttState()
     String highIcao, fastIcao, nearIcao, milIcao, ovhIcao;
     float maxAlt = -1e30f, maxVel = -1e30f, minD2 = 1e30f;
     bool anyMil = false, anyOvh = false;
-    // Home Assistant has its own switch (the MQTT settings), so the state's overhead field is NOT gated
-    // on the overhead switch or the push box -- the same as the per-contact "overhead" event, which never
-    // was. (It used to follow v16's ring-or-push; flagged for review in docs/v17-overhead-card.md.)
-    const bool overheadActive = true;
+    // The state's overhead field follows the screen switch (decision 2). With the OR migration that is
+    // v16's ring-or-push for every existing device, so HA sees no change. The per-aircraft "overhead"
+    // event (PublishMqttEvents) is NOT gated on the switch: it has its own, the MQTT settings.
+    const bool overheadActive = overhead::HaStateFollowsSwitch(showOverhead);
     const float clat = cosf(radians((float)lat)); // scale longitude delta (see IsOverhead)
 
     for (auto& [icao, t] : trackedAircraft) {

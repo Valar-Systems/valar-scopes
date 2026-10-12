@@ -123,7 +123,7 @@ void configmigration::Apply()
         }
         Serial.printf("[cfg-migrate] rev %d -> %d: overhead screen %s; phone push left as stored (%s); distance %s\n",
                       stored, CONFIG_REV,
-                      hadSwitch ? "already set" : !v ? "default ON (never saved)" : (strcmp(v, "true") == 0 ? "kept ON (ring was on)" : "kept OFF (ring was off)"),
+                      hadSwitch ? "already set" : !v ? "default ON (never saved)" : (strcmp(v, "true") == 0 ? "ON (ring or push was on)" : "OFF (ring and push were off)"),
                       push, moved.c_str());
     }
 
