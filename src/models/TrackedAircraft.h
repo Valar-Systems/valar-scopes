@@ -53,6 +53,8 @@ struct TrackedAircraft {
     bool emgNotified = false;       // an emergency-squawk ntfy alert has been sent this session
     bool overheadToneFired = false; // the overhead alert tone has sounded this session (HAS_AUDIO)
     uint8_t overheadCrossed = 0;    // radii (bit per 1/2/3/5) whose [overhead] cross line printed this session
+    uint16_t overheadPass = 0;      // per-boot number of this session's overhead edge (0 = none yet): the [ovh]/[lookup] join key
+    bool overheadRingLogged = false; // the [lookup] ring line printed this session
     // MQTT event dedupe (Home Assistant "events, not state"): one bit per event
     // class already fired for this contact this session, so an automation fires
     // once per aircraft, not every poll. Bit0 watchlist, 1 emergency, 2 military,

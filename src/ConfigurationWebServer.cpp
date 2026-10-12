@@ -11,6 +11,7 @@
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
 #include "BuildIdentity.h"
+#include "OverheadPolicy.h"   // the overhead dropdown's values and defaults (pure)
 #include "CoordParse.h"       // forgiving lat/lon parsing for /save (see the header)
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
@@ -113,6 +114,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(.field>span:first-child{flex:none})" \
     R"(.stack{display:flex;flex-direction:column;gap:.75rem})" \
     R"(.check{display:flex;align-items:center;gap:.5rem})" \
+    R"(.nest{margin-left:1.75rem})" \
     R"(.presets{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:0 0 .75rem})" \
     R"(.preset.on{border-color:var(--ink);background:rgba(34,197,94,.22);font-weight:600})" \
     R"(.preset-state{font-size:.78rem;color:var(--dim);border:1px dashed var(--dim);border-radius:999px;padding:.3rem .6rem})" \
@@ -988,11 +990,13 @@ R"(
                     <label class="check mt"><input name="visual-night" type="checkbox" %VISUAL_NIGHT%><span>Visual alerts override night dimming</span></label>
                     <span class="hint mt">Edge ring while a military (orange) or emergency-squawk (red) contact is in range, with a brief flash when it arrives.</span>
                     <div class="field mt">
-                        <label class="check"><input name="lookup" type="checkbox" %LOOKUP%><span>&ldquo;Look up!&rdquo; overhead alert within</span></label>
-                        <input name="lookup-dist" type="number" min="0.5" step="0.5" value='%LOOKUP_DIST%' class="w6">
-                        <label class="check"><input name="lookup-alert" type="checkbox" %LOOKUP_ALERT%><span>also ntfy</span></label>
+                        <label class="check"><input name="ovh-on" type="checkbox" %OVH_ON%><span>Overhead alerts, within</span></label>
+                        <select name="lookup-dist" class="w6">%LOOKUP_DIST_OPTS%</select>
+                        <span id="lookup-unit">%LOOKUP_UNIT%</span>
                     </div>
-                    <span class="hint mt">Cyan &ldquo;LOOK UP&rdquo; ring when a contact passes within that distance.</span>
+                    <label class="check nest"><input name="lookup-alert" type="checkbox" %LOOKUP_ALERT%><span>Also send to my phone (ntfy)</span></label>
+                    <span class="hint mt">A card for a few seconds and the cyan &ldquo;LOOK UP&rdquo; ring when a plane passes within that distance. The phone alert uses the same distance and your ntfy topic, and only while overhead alerts are on.</span>
+                    <span class="hint">Home Assistant (MQTT) has its own switch: its overhead events do not follow this one.</span>
                 </fieldset>
 
                 </div><!-- /sec -->
@@ -1195,6 +1199,9 @@ R"(
                 }
                 prevUnit = radiusUnit.value;
                 updateRadiusMax();
+                // the overhead distance keeps its NUMBER across a unit change ("3" stays 3); only its label moves
+                const lu = document.getElementById('lookup-unit');
+                if (lu) lu.textContent = radiusUnit.value;
             });
             updateRadiusMax();
 
@@ -2834,7 +2841,8 @@ void ConfigurationWebServer::Initialise() {
         const bool haveLocation = !latitude.isEmpty() && !longitude.isEmpty();
         const String startSection = haveLocation ? F("collection") : F("location");
 
-        const String lookupOn = HtmlEscape(prefs.isKey("lookup") ? prefs.getString("lookup", "false") : "false");
+        const String ovhOn = HtmlEscape(prefs.isKey("ovh-on") ? prefs.getString("ovh-on", "true")
+                                                              : String(overhead::DEFAULT_ON ? "true" : "false"));
         const String lookupAlert = HtmlEscape(prefs.isKey("lookup-alert") ? prefs.getString("lookup-alert", "false") : "false");
         const String lookupDist = HtmlEscape(prefs.isKey("lookup-dist") ? prefs.getString("lookup-dist", "3") : "3");
         const String mqttOn = HtmlEscape(prefs.isKey("mqtt") ? prefs.getString("mqtt", "false") : "false");
@@ -3074,7 +3082,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, ovhOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -3163,9 +3171,17 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "LOC2_NAME") return loc2Name;
                 if (var == "LOC2_LAT")  return loc2Lat;
                 if (var == "LOC2_LON")  return loc2Lon;
-                if (var == "LOOKUP")         return lookupOn == "true" ? "checked" : "";
+                if (var == "OVH_ON")         return ovhOn == "true" ? "checked" : "";
                 if (var == "LOOKUP_ALERT")   return lookupAlert == "true" ? "checked" : "";
-                if (var == "LOOKUP_DIST")    return lookupDist;
+                if (var == "LOOKUP_DIST_OPTS") {
+                    // 1, 2, 3, 5 in the radar's unit; the stored value snapped the same way the firmware reads it
+                    const int sel = overhead::SnapDistance(lookupDist.toDouble());
+                    String o;
+                    for (int d : overhead::DISTANCES)
+                        o += String("<option value=\"") + d + "\"" + (d == sel ? " selected" : "") + ">" + d + "</option>";
+                    return o;
+                }
+                if (var == "LOOKUP_UNIT")    return radiusUnit == "km" ? "km" : radiusUnit == "nmi" ? "nmi" : "mi";
                 if (var == "MQTT")           return mqttOn == "true" ? "checked" : "";
                 if (var == "MQTT_HOST")      return mqttHost;
                 if (var == "MQTT_PORT")      return mqttPort;
@@ -3672,8 +3688,8 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("follow-down");
         SaveToggle("follow-lost");
         TrySaveParam("lb-name");
-        SaveToggle("lookup");
-        SaveToggle("lookup-alert");
+        SaveToggle("ovh-on");          // the overhead SCREEN switch; the v16 "lookup" key is no longer written
+        SaveToggle("lookup-alert");    // the push's own box ("Also send to my phone (ntfy)")
         SaveToggle("mqtt");
         SaveToggle("mqtt-disco");
 

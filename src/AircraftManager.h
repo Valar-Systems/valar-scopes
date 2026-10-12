@@ -484,11 +484,13 @@ private:
     // contact lingers -- the on-screen gate in UpdateVisualAlerts is the main cure.
     bool visualAlertDismissed = false;
 
-    // "Look up!" overhead alert: flag a contact passing within overheadKm of the
-    // centre so you can physically glance up and spot it.
-    bool showOverhead = false;    // pulsing "LOOK UP" ring on the radar
-    bool alertOverhead = false;   // also raise an ntfy alert
-    double overheadKm = 3.0;      // how close to the centre counts as "overhead"
+    // Overhead alerts (v17 owner controls, docs/v17-overhead-card.md): flag a contact passing within
+    // overheadKm of the centre so you can physically glance up and spot it.
+    bool showOverhead = false;    // `ovh-on`, the SCREEN switch: the card + the cyan "LOOK UP" ring (default ON)
+    bool alertOverhead = false;   // `lookup-alert`, the phone push's own box -- fires only with the switch (PushFires)
+    double overheadKm = 3.0;      // the ONE overhead radius, from the 1/2/3/5 dropdown in the radar's unit
+    int overheadSetting = 3;      // that dropdown value, for the [ovh] edge line
+    uint16_t overheadPassCount = 0; // per-boot overhead pass numbering (the instruments' join key)
 
     // Spotting logbook ("lifelist"): persistent tally of unique types/airlines/
     // countries seen. Opt-in, because it forces an adsbdb lookup on every contact
@@ -1197,6 +1199,8 @@ private:
         return ClassifyWatchlist(tracked) != WatchClass::None;
     }
     bool IsOverhead(const TrackedAircraft& tracked) const; // within overheadKm of the centre
+    void NoteOverheadEdge(TrackedAircraft& tracked);       // the [ovh] edge instrument, once per pass
+    void NoteOverheadRing(TrackedAircraft& tracked);       // the [lookup] ring instrument, once per pass
     float OverheadDistanceKm(const TrackedAircraft& tracked) const; // the ONE distance IsOverhead uses
     // Score a freshly-enriched contact for "aircraft of the day" and adopt it if
     // it beats the day's current holder.
