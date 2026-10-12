@@ -335,6 +335,21 @@ jobs:
         run: |
           bash scripts/check-no-bench-hooks.sh --selftest
           bash scripts/check-no-bench-hooks.sh ".pio/build/${{ matrix.env }}/firmware.bin"
+      # /diag/fb IS BENCH-ONLY ON MISSILEER (ruling 2026-09-28: debug builds only, compiled
+      # out of release builds entirely; the -fbdiag envs are the debug builds). It cannot be a
+      # check-no-bench-hooks.sh marker: those are global, and the radar's SHIPPING image
+      # serves /diag/fb by design, so the radar leg would go red. So the Missileer legs run
+      # their own check on THIS leg's image (elf and bin), and build the -fbdiag sibling as
+      # the positive control -- an absence means something only if the same probe finds the
+      # route's strings in an image that has it. The sibling is built here, not as a matrix
+      # leg: it is not a SKU and stays out of skus.yml. A new missileer-* env needs its own
+      # -fbdiag sibling or this step fails, which is the point.
+      - name: No /diag/fb in the shipping Missileer image
+        if: startsWith(matrix.env, 'missileer-')
+        run: |
+          bash scripts/check-missileer-fbdiag.sh --selftest
+          pio run -e "${{ matrix.env }}-fbdiag"
+          bash scripts/check-missileer-fbdiag.sh --env "${{ matrix.env }}"
       # HOST TESTS, once per run. test/host/run.sh was only ever run by hand, so a
       # red host test could merge. It needs .pio/libdeps (the Wi-Fi QR test reads
       # LovyanGFX's fonts and reports BLIND without them), which is why it runs here,
