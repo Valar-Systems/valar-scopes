@@ -8,8 +8,9 @@
  * (test/host/test_long_press.cpp) before it reaches the panel.
  *
  *   0 .. RING_START_MS        nothing visible; a release is a TAP, exactly as before
- *   RING_START_MS .. THRESHOLD  the ring fills; a release starts the REJOIN grace -- unless the
- *                             stroke moved 40 px, which is a swipe exactly as before (rule 3)
+ *   RING_START_MS .. THRESHOLD  the ring fills; a release starts the REJOIN grace. If the finger
+ *                             does not come back, the grace ends: a swipe if the stroke moved
+ *                             40 px (exactly as before -- rule 3), otherwise the cancel
  *   THRESHOLD, still held     FIRE once (toggle zoom); the stroke is then CONSUMED
  *
  * WHY THE RING STARTS AT 250 ms. 905 recorded taps on this batch: median 75 ms,
@@ -47,8 +48,9 @@ constexpr int      REJOIN_PX     = 20;   // a rejoining press lands this close t
 // ring start, so drift tolerance kept it as a hold and the early release cancelled it: an ordinary swipe
 // did nothing. Drift up to 80 px is still tolerated WHILE HELD (so a drifting hold that reaches the
 // threshold still toggles); it is only an early RELEASE that is judged at 40 px, by the classifier's own
-// measure. Cost, accepted: a ring-phase dropout after 40 px of drift swipes rather than rejoining -- the
-// rejoin is for a finger the chip stops reporting because it is still, and 0 rejoins were seen on 10 Oct.
+// measure -- and it is judged when the REJOIN GRACE ENDS, not at the lift. A dropout during a drifting
+// hold therefore still rejoins (one hold); a real lift swipes ~150 ms later. The grace ends two ways --
+// expiry (OnIdle) and a press that is not a rejoin (OnPress) -- and both go through EndGrace.
 
 enum class Phase : uint8_t {
     Idle,     // no stroke this policy owns (or not eligible)
@@ -67,7 +69,28 @@ struct State {
     int      lastX = 0, lastY = 0;   // the finger's latest position (a rejoin is measured from here)
     int      driftMax = 0;           // largest drift from the press point before the fire, in px
     uint32_t driftMaxAtMs = 0;       // hold time at which that drift was reached
+    int      relDx = 0, relDy = 0;   // the caller's release delta at the lift, kept through the grace (rule 3)
 };
+
+/// How a stroke in the rejoin grace ended, once it is known the finger is not coming back.
+struct GraceEnd {
+    bool ended = false;   // false: the grace has not ended (still waiting, or there was none)
+    bool swipe = false;   // rule 3: it moved 40 px or more -- classify (dx, dy) as today, i.e. a swipe
+    int  dx = 0, dy = 0;  // the lift's own delta, the same numbers the caller's classifier reads
+};
+
+/// The ONE place a grace ends (expiry and a non-rejoin press both come here): rule 3, then a clean state.
+inline GraceEnd EndGrace(State& s)
+{
+    GraceEnd e;
+    e.ended = true;
+    e.dx = s.relDx;
+    e.dy = s.relDy;
+    const int adx = std::abs(e.dx), ady = std::abs(e.dy);
+    e.swipe = (adx > ady ? adx : ady) >= SWIPE_PX;   // RULE 3
+    s = State{};
+    return e;
+}
 
 /// Drift on the larger axis, the same measure the tap/swipe classifier uses.
 inline int Drift(const State& s, int x, int y)
@@ -79,24 +102,35 @@ inline int Drift(const State& s, int x, int y)
 /// What a press edge is.
 enum class PressIs : uint8_t { NewStroke, Rejoin, Bypass };
 
+/// A press edge's outcome: what the press is, and -- if it ended a stroke that was in its rejoin grace
+/// because it is NOT that stroke's rejoin -- how that stroke ended (`prev.ended`).
+struct PressOutcome {
+    PressIs  is = PressIs::NewStroke;
+    GraceEnd prev;
+};
+
 /// A press edge. `eligible`: the Radar face with nothing on top (decided by the caller).
-inline PressIs OnPress(State& s, uint32_t now, int x, int y, bool eligible)
+inline PressOutcome OnPress(State& s, uint32_t now, int x, int y, bool eligible)
 {
+    PressOutcome out;
     if (s.phase == Phase::Grace) {
         if (now - s.releaseMs <= REJOIN_MS && std::abs(x - s.lastX) <= REJOIN_PX && std::abs(y - s.lastY) <= REJOIN_PX) {
-            s.phase = Phase::Ring;   // the same hold, progress kept (pressMs untouched)
-            return PressIs::Rejoin;
+            s.phase = Phase::Ring;   // the same hold, progress kept (pressMs untouched), whatever it drifted
+            out.is = PressIs::Rejoin;
+            return out;
         }
-        // Too late or too far: the hold was cancelled (the caller logs it from OnFrame or here)
-        // and this press is a new stroke.
+        // Too late or too far: the finger did not come back, so the grace ends HERE -- through the same
+        // rule as expiry -- and this press is a new stroke.
+        out.prev = EndGrace(s);
     }
-    if (!eligible) { s = State{}; return PressIs::Bypass; }
+    if (!eligible) { s = State{}; out.is = PressIs::Bypass; return out; }
     s = State{};
     s.phase = Phase::Pressed;
     s.pressMs = now;
     s.x0 = s.lastX = x;
     s.y0 = s.lastY = y;
-    return PressIs::NewStroke;
+    out.is = PressIs::NewStroke;
+    return out;
 }
 
 /// What a frame with the finger down does.
@@ -130,27 +164,23 @@ inline HeldIs OnHeld(State& s, uint32_t now, int x, int y)
 
 /// What a release edge is.
 enum class ReleaseIs : uint8_t {
-    PassThrough, // classify as today (tap or swipe): everything under the ring start, and a ring-phase
-                 // release that moved 40 px or more (rule 3)
+    PassThrough, // classify as today (tap or swipe) -- the ONLY outcome under the ring start
     Grace,       // ring was filling: say nothing yet, wait for a rejoin
     Consumed,    // the hold fired: no tap, no swipe, no card
 };
 
 /// A release edge. `dx, dy` is the caller's OWN release delta (release point - press point) -- the very
-/// numbers its tap/swipe classifier reads -- so rule 3 and the classifier cannot disagree about 40 px.
+/// numbers its tap/swipe classifier reads. During the ring it is KEPT, not judged: rule 3 judges it when
+/// the grace ends (EndGrace), so a dropout that rejoins is never mistaken for a lift.
 inline ReleaseIs OnRelease(State& s, uint32_t now, int dx, int dy)
 {
     switch (s.phase) {
-    case Phase::Ring: {
-        const int adx = std::abs(dx), ady = std::abs(dy);
-        if ((adx > ady ? adx : ady) >= SWIPE_PX) {   // RULE 3: an early release that moved 40 px is a swipe
-            s = State{};
-            return ReleaseIs::PassThrough;
-        }
+    case Phase::Ring:
         s.phase = Phase::Grace;
         s.releaseMs = now;
+        s.relDx = dx;
+        s.relDy = dy;
         return ReleaseIs::Grace;
-    }
     case Phase::Fired:
         s = State{};
         return ReleaseIs::Consumed;
@@ -160,14 +190,12 @@ inline ReleaseIs OnRelease(State& s, uint32_t now, int dx, int dy)
     }
 }
 
-/// A frame with no finger: the grace expiring is a cancel (nothing happens; the ring goes away).
-inline bool OnIdleCancels(State& s, uint32_t now)
+/// A frame with no finger: the grace expiring ends the stroke (rule 3: a swipe if it moved 40 px,
+/// otherwise the cancel -- nothing happens and the ring goes away). `ended` is false while waiting.
+inline GraceEnd OnIdle(State& s, uint32_t now)
 {
-    if (s.phase == Phase::Grace && now - s.releaseMs > REJOIN_MS) {
-        s = State{};
-        return true;
-    }
-    return false;
+    if (s.phase == Phase::Grace && now - s.releaseMs > REJOIN_MS) return EndGrace(s);
+    return GraceEnd{};
 }
 
 /// Is the ring on screen? (Filling while held, and held on through the grace so a dropout

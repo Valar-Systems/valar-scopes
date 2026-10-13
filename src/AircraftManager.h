@@ -1169,6 +1169,8 @@ private:
     void ProcessTouchSample(bool touched, int32_t tx, int32_t ty);
     void HandleTap(int tx, int ty); // route a tap to selection / dismissal
     void HandleSwipe(Swipe swipe);  // route a swipe to navigation / pin
+    void ClassifyStroke(int dx, int dy, int tapX, int tapY);   // the v16 tap/swipe classifier, from a release delta
+    void EndHoldGrace(const longpress::GraceEnd& e, uint32_t now, uint32_t heldMs, int driftMax); // rule 3's outcome
     void ExitDetail();              // leave the detail card and free its ~15 KB photo sprite
     // Backfill the logbook from contacts already on screen when it is switched on
     // mid-session. EDGE-ONLY (NoteContact is an odometer); see the definition.

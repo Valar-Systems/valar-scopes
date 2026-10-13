@@ -4,8 +4,9 @@
 // SABOTAGE S1: make a fired stroke's release PassThrough instead of Consumed ("no card past the
 // threshold" dropped) -> the CONSUMED cases go red.
 // SABOTAGE S2: drop the rejoin (OnPress ignores Grace) -> the REJOIN case goes red.
-// SABOTAGE S4: remove rule 3 (a ring-phase release always enters the grace) -> exactly G1, G3, G5a and
-// G5b go red (frozen 06e01f3869ee).
+// SABOTAGE A: decide rule 3 at the LIFT instead of at grace end -> exactly RJa, G6a, G6b, G6c, G7a, G7b,
+// G8 go red. SABOTAGE B: remove rule 3 (the grace always ends in the cancel) -> exactly G1, G3, G7b, G8.
+// (Frozen d2ecd9351e32.)
 #include <cstdio>
 #include "../../include/LongPressPolicy.h"
 
@@ -21,6 +22,31 @@ static void check(bool ok, const char* what)
 // Drive a held stroke frame by frame (52 ms, the touch-poll cadence seen in the logs) from
 // `from` up to `to` inclusive, at (x, y). Counts each kind of HeldIs.
 struct Tally { int ring = 0, fire = 0, moved = 0; };
+
+// How a released stroke ENDS: at the lift (the classifier, or consumed), or when its rejoin grace ends
+// on idle frames every 52 ms. `atMs` is when, relative to the lift. Unresolved is its own value, never
+// quietly a cancel.
+enum class End { Tap, Swipe, Cancel, Consumed, Unresolved };
+struct Ending { End end; uint32_t atMs; int dx, dy; };
+static Ending IdleUntilEnd(State& s, uint32_t lift)
+{
+    for (uint32_t now = lift + 52; now <= lift + 1000; now += 52) {
+        const GraceEnd g = OnIdle(s, now);
+        if (g.ended) { Ending e = { g.swipe ? End::Swipe : End::Cancel, now - lift, g.dx, g.dy }; return e; }
+    }
+    Ending u = { End::Unresolved, 0, 0, 0 };
+    return u;
+}
+static Ending Finish(State& s, uint32_t lift, int dx, int dy)
+{
+    const ReleaseIs r = OnRelease(s, lift, dx, dy);
+    if (r == ReleaseIs::Consumed) { Ending e = { End::Consumed, 0, dx, dy }; return e; }
+    if (r == ReleaseIs::PassThrough) {
+        Ending e = { (std::abs(dx) < SWIPE_PX && std::abs(dy) < SWIPE_PX) ? End::Tap : End::Swipe, 0, dx, dy };
+        return e;
+    }
+    return IdleUntilEnd(s, lift);
+}
 static Tally HoldFrames(State& s, uint32_t from, uint32_t to, int x, int y)
 {
     Tally t;
@@ -41,7 +67,7 @@ int main()
 
     { // a quick tap is the old tap: no ring, no fire, PassThrough at release
         State s;
-        check(OnPress(s, 1000, 120, 120, true) == PressIs::NewStroke, "a press on the eligible Radar starts a stroke");
+        check(OnPress(s, 1000, 120, 120, true).is == PressIs::NewStroke, "a press on the eligible Radar starts a stroke");
         Tally t = HoldFrames(s, 1000, 1000 + 183, 120, 120); // the recorded tap p99
         check(t.ring == 0 && t.fire == 0, "a 183 ms hold (the tap p99) shows no ring and fires nothing");
         check(OnRelease(s, 1000 + 183, 0, 0) == ReleaseIs::PassThrough, "its release is classified as today (a tap)");
@@ -58,8 +84,8 @@ int main()
         HoldFrames(s, 0, 400, 100, 100);
         check(OnRelease(s, 400, 0, 0) == ReleaseIs::Grace, "a release while the ring fills says nothing yet (grace)");
         check(RingPermille(s, 400 + REJOIN_MS) == RingPermille(s, 400), "the ring's progress is frozen during the grace -- it never completes after an early release");
-        check(!OnIdleCancels(s, 400 + REJOIN_MS), "still waiting at exactly REJOIN_MS");
-        check(OnIdleCancels(s, 400 + REJOIN_MS + 1), "after the grace: cancel -- no card, no zoom");
+        check(!OnIdle(s, 400 + REJOIN_MS).ended, "still waiting at exactly REJOIN_MS");
+        { const GraceEnd g = OnIdle(s, 400 + REJOIN_MS + 1); check(g.ended && !g.swipe, "after the grace: cancel -- no card, no zoom"); }
         check(s.phase == Phase::Idle && !RingVisible(s), "and the ring is gone");
     }
     { // a full hold fires exactly once, at the threshold, and its release is CONSUMED
@@ -116,33 +142,33 @@ int main()
     { // the rejoin is measured from the finger's LAST position (it may have drifted)
         State s; OnPress(s, 0, 100, 100, true);
         HoldFrames(s, 0, 300, 100, 100);
-        OnHeld(s, 352, 130, 100);   // 30 px of slow drift (under rule 3's 40, so the release still waits)
-        OnRelease(s, 400, 30, 0);
-        check(OnPress(s, 480, 132, 100, true) == PressIs::Rejoin, "a press 2 px from the drifted position rejoins");
+        OnHeld(s, 352, 150, 100);   // 50 px of slow drift
+        OnRelease(s, 400, 50, 0);
+        check(OnPress(s, 480, 152, 100, true).is == PressIs::Rejoin, "RJa a press 2 px from the drifted position rejoins");
         State u; OnPress(u, 0, 100, 100, true);
         HoldFrames(u, 0, 300, 100, 100);
-        OnHeld(u, 352, 130, 100); OnRelease(u, 400, 30, 0);
-        check(OnPress(u, 480, 100, 100, true) == PressIs::NewStroke, "a press back at the ORIGINAL point, 30 px from the finger, is a new stroke");
+        OnHeld(u, 352, 150, 100); OnRelease(u, 400, 50, 0);
+        check(OnPress(u, 480, 100, 100, true).is == PressIs::NewStroke, "RJb a press back at the ORIGINAL point, 50 px from the finger, is a new stroke");
     }
     { // REJOIN: a split stroke inside the grace resumes the same hold, progress kept
         State s; OnPress(s, 0, 100, 100, true);
         HoldFrames(s, 0, 400, 100, 100);
         OnRelease(s, 400, 0, 0);
-        check(OnPress(s, 500, 105, 96, true) == PressIs::Rejoin, "REJOIN: a press 100 ms later and 5 px away is the same hold");
+        check(OnPress(s, 500, 105, 96, true).is == PressIs::Rejoin, "REJOIN: a press 100 ms later and 5 px away is the same hold");
         check(RingPermille(s, 500) > 0, "progress was kept across the dropout");
         check(OnHeld(s, THRESHOLD_MS, 105, 96) == HeldIs::Fire, "and it fires at the ORIGINAL press + threshold");
     }
     { // too late or too far is a new stroke
         State s; OnPress(s, 0, 100, 100, true);
         HoldFrames(s, 0, 400, 100, 100); OnRelease(s, 400, 0, 0);
-        check(OnPress(s, 400 + REJOIN_MS + 1, 100, 100, true) == PressIs::NewStroke, "a press 151 ms later is a new stroke");
+        check(OnPress(s, 400 + REJOIN_MS + 1, 100, 100, true).is == PressIs::NewStroke, "a press 151 ms later is a new stroke");
         State t; OnPress(t, 0, 100, 100, true);
         HoldFrames(t, 0, 400, 100, 100); OnRelease(t, 400, 0, 0);
-        check(OnPress(t, 450, 100 + REJOIN_PX + 1, 100, true) == PressIs::NewStroke, "a press 21 px away is a new stroke");
+        check(OnPress(t, 450, 100 + REJOIN_PX + 1, 100, true).is == PressIs::NewStroke, "a press 21 px away is a new stroke");
     }
     { // not eligible (a card open, another screen): bypassed, everything as today
         State s;
-        check(OnPress(s, 0, 100, 100, false) == PressIs::Bypass, "a press with a card open / off the Radar is bypassed");
+        check(OnPress(s, 0, 100, 100, false).is == PressIs::Bypass, "a press with a card open / off the Radar is bypassed");
         Tally t = HoldFrames(s, 0, 2000, 100, 100);
         check(t.ring == 0 && t.fire == 0, "a 2 s hold there shows no ring and fires nothing");
         check(OnRelease(s, 2000, 0, 0) == ReleaseIs::PassThrough, "its release is classified as today");
@@ -160,24 +186,42 @@ int main()
             if (h == HeldIs::Moved) ++moved;
         }
         check(ring == 1 && moved == 0 && s.phase == Phase::Ring, "G1 setup: under 40 px at the ring start, 78 px still inside the 80 px drift tolerance");
-        check(OnRelease(s, 428, 0, -78) == ReleaseIs::PassThrough, "G1 the 10 Oct stroke (428 ms, 78 px) -> SWIPE, as v16 classifies it");
+        check(Finish(s, 428, 0, -78).end == End::Swipe, "G1 the 10 Oct stroke (428 ms, 78 px) ends as a SWIPE, as v16 classifies it");
 
         State g2; OnPress(g2, 0, 100, 100, true); HoldFrames(g2, 0, 300, 100, 100);
         OnHeld(g2, 352, 100, 100 - 39);
-        check(OnRelease(g2, 400, 0, -39) == ReleaseIs::Grace, "G2 a ring-phase release at 39 px -> the grace, unchanged");
+        check(Finish(g2, 400, 0, -39).end == End::Cancel, "G2 a ring-phase release at 39 px ends as the cancel, unchanged");
 
         State g3; OnPress(g3, 0, 100, 100, true); HoldFrames(g3, 0, 300, 100, 100);
         OnHeld(g3, 352, 100, 100 - 40);
-        check(OnRelease(g3, 400, 0, -40) == ReleaseIs::PassThrough, "G3 a ring-phase release at 40 px -> SWIPE");
+        check(Finish(g3, 400, 0, -40).end == End::Swipe, "G3 a ring-phase release at 40 px ends as a SWIPE");
 
         State g4; OnPress(g4, 0, 100, 100, true);
         check(OnHeld(g4, 104, 139, 100) == HeldIs::Nothing, "G4 setup: 39 px inside the ring start is not yet a swipe");
         check(OnRelease(g4, 183, 39, 0) == ReleaseIs::PassThrough, "G4 39 px released before 250 ms -> classified as today (a tap), unchanged");
 
-        State g5; OnPress(g5, 0, 100, 100, true); HoldFrames(g5, 0, 300, 100, 100);
-        OnHeld(g5, 352, 150, 100);   // 50 px of ring drift
-        check(OnRelease(g5, 400, 50, 0) == ReleaseIs::PassThrough, "G5a the trade: 50 px of ring drift then a release -> SWIPE, not the grace");
-        check(OnPress(g5, 480, 152, 100, true) == PressIs::NewStroke, "G5b ...so a press 2 px away is a new stroke, not a rejoin");
+        // G6: 50 px of drift, a lift, a re-press 120 ms later at the last position: a dropout, one hold.
+        State g6; OnPress(g6, 0, 100, 100, true); HoldFrames(g6, 0, 300, 100, 100);
+        OnHeld(g6, 352, 150, 100);
+        OnRelease(g6, 400, 50, 0);
+        check(OnPress(g6, 520, 152, 100, true).is == PressIs::Rejoin, "G6a 50 px drift, lift, re-press at 120 ms -> a REJOIN");
+        check(HoldFrames(g6, 572, THRESHOLD_MS + 104, 152, 100).fire == 1, "G6b it fires once, at the ORIGINAL press + threshold");
+        check(OnRelease(g6, THRESHOLD_MS + 104, 52, 0) == ReleaseIs::Consumed, "G6c its release is CONSUMED: one hold, no swipe");
+
+        // G7: 50 px of drift, a lift, no re-press: a SWIPE when the grace expires -- not at the lift.
+        State g7; OnPress(g7, 0, 100, 100, true); HoldFrames(g7, 0, 300, 100, 100);
+        OnHeld(g7, 352, 150, 100);
+        check(OnRelease(g7, 400, 50, 0) == ReleaseIs::Grace, "G7a nothing at the lift: the grace opens");
+        const Ending e7 = IdleUntilEnd(g7, 400);
+        check(e7.end == End::Swipe && e7.atMs > REJOIN_MS && e7.dx == 50 && e7.dy == 0,
+              "G7b a SWIPE at grace expiry, not before, with the stroke's own dx/dy");
+
+        // G8: the grace's OTHER end -- a press elsewhere inside it -- goes through the same rule.
+        State g8; OnPress(g8, 0, 100, 100, true); HoldFrames(g8, 0, 300, 100, 100);
+        OnHeld(g8, 352, 150, 100); OnRelease(g8, 400, 50, 0);
+        const PressOutcome p8 = OnPress(g8, 480, 210, 100, true);   // 60 px from the finger, 80 ms after the lift
+        check(p8.is == PressIs::NewStroke && p8.prev.ended && p8.prev.swipe && p8.prev.dx == 50,
+              "G8 a press elsewhere inside the grace ends the old stroke as a SWIPE and starts a new one");
     }
     { // the toggle
         check(ToggleTarget(2, 4) == 0, "from an intermediate step: to the closest");

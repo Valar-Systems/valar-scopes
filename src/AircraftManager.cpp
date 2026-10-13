@@ -8902,13 +8902,14 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         if (!wasTouched) {
             // LONG PRESS (docs/v17-long-press-zoom.md). A press inside the rejoin grace, close to the
             // hold, is the SAME stroke resuming after a dropout: its start point and time are kept.
-            const bool wasGrace = longPress.phase == longpress::Phase::Grace;
             const uint32_t graceFrom = longPress.releaseMs, heldBefore = longPress.releaseMs - longPress.pressMs;
-            const longpress::PressIs p = longpress::OnPress(longPress, now, tx, ty, LongPressEligible());
-            if (p == longpress::PressIs::Rejoin) {
+            const int driftBefore = longPress.driftMax;
+            const longpress::PressOutcome p = longpress::OnPress(longPress, now, tx, ty, LongPressEligible());
+            // A press that is not the held stroke's rejoin ends its grace here, through rule 3 (same as expiry).
+            if (p.prev.ended) EndHoldGrace(p.prev, now, heldBefore, driftBefore);
+            if (p.is == longpress::PressIs::Rejoin) {
                 Serial.printf("[hold] rejoin after %lums\n", (unsigned long)(now - graceFrom));
             } else {
-                if (wasGrace) Serial.printf("[hold] cancel held=%lums\n", (unsigned long)heldBefore);
                 touchStartX = tx; touchStartY = ty; // press edge
                 touchPressMs = now;
             }
@@ -8942,11 +8943,12 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
             break;
         }
     } else {
-        // The rejoin grace runs out on the not-touched samples: a cancel, and nothing else happens.
+        // The rejoin grace runs out on the not-touched samples: rule 3 decides -- a swipe if the stroke
+        // moved 40 px (through the same classifier, with the lift's delta), otherwise the cancel.
         const uint32_t heldBefore = longPress.releaseMs - longPress.pressMs;
         const int driftBefore = longPress.driftMax;
-        if (longpress::OnIdleCancels(longPress, now))
-            Serial.printf("[hold] cancel held=%lums drift_max=%dpx\n", (unsigned long)heldBefore, driftBefore);
+        const longpress::GraceEnd ge = longpress::OnIdle(longPress, now);
+        if (ge.ended) EndHoldGrace(ge, now, heldBefore, driftBefore);
     }
 
     if (!touched && wasTouched) {
@@ -8955,12 +8957,7 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
         const int dy = touchLastY - touchStartY;
         const int adx = abs(dx), ady = abs(dy);
         constexpr int SWIPE_MIN = 40;
-        const bool ringAtRelease = longPress.phase == longpress::Phase::Ring;
         const longpress::ReleaseIs r = longpress::OnRelease(longPress, now, dx, dy);   // the same delta the classifier reads
-        // Rule 3's instrument: a release during the ring that moved 40 px is handed back as a swipe. Bench
-        // check (g) counts these to know the slow swipes exercised the rule, not the fast-swipe path.
-        if (ringAtRelease && r == longpress::ReleaseIs::PassThrough)
-            Serial.printf("[hold] early release moved=%dpx -> swipe\n", adx > ady ? adx : ady);
 
         Serial.printf("[touch] %lu release start=(%d,%d) end=(%d,%d) d=(%d,%d) held=%lums -> %s\n",
                       now, touchStartX, touchStartY, touchLastX, touchLastY, dx, dy,
@@ -8970,17 +8967,41 @@ void AircraftManager::ProcessTouchSample(bool touched, int32_t tx, int32_t ty)
                       (adx < SWIPE_MIN && ady < SWIPE_MIN) ? "TAP" : "SWIPE");
 
         // Only a stroke the hold does not own is classified as today -- the whole of a quick tap.
-        if (r == longpress::ReleaseIs::PassThrough) {
-            if (adx < SWIPE_MIN && ady < SWIPE_MIN)
-                HandleTap(touchStartX, touchStartY);
-            else if (adx >= ady)
-                HandleSwipe(dx > 0 ? Swipe::Right : Swipe::Left);
-            else
-                HandleSwipe(dy > 0 ? Swipe::Down : Swipe::Up);
-        }
+        if (r == longpress::ReleaseIs::PassThrough)
+            ClassifyStroke(dx, dy, touchStartX, touchStartY);
     }
 
     wasTouched = touched;
+}
+
+// The v16 tap/swipe classifier, from a release delta: under 40 px on both axes a tap at the press point,
+// otherwise a 4-way swipe on the larger axis. One copy, used by an ordinary release and by rule 3 at the
+// end of a rejoin grace, so the two cannot classify the same delta differently.
+void AircraftManager::ClassifyStroke(int dx, int dy, int tapX, int tapY)
+{
+    constexpr int SWIPE_MIN = 40;
+    const int adx = abs(dx), ady = abs(dy);
+    if (adx < SWIPE_MIN && ady < SWIPE_MIN)
+        HandleTap(tapX, tapY);
+    else if (adx >= ady)
+        HandleSwipe(dx > 0 ? Swipe::Right : Swipe::Left);
+    else
+        HandleSwipe(dy > 0 ? Swipe::Down : Swipe::Up);
+}
+
+// A held stroke's rejoin grace has ended without a rejoin (expiry, or a press elsewhere): rule 3's
+// outcome. Under 40 px it is the cancel (check (d)); 40 px or more it is a swipe, classified from the
+// lift's own delta -- logged so bench check (g) can tell a rule-3 swipe from a fast one.
+void AircraftManager::EndHoldGrace(const longpress::GraceEnd& e, uint32_t now, uint32_t heldMs, int driftMax)
+{
+    if (!e.swipe) {
+        Serial.printf("[hold] cancel held=%lums drift_max=%dpx\n", (unsigned long)heldMs, driftMax);
+        return;
+    }
+    const int adx = abs(e.dx), ady = abs(e.dy);
+    Serial.printf("[hold] early release moved=%dpx -> swipe\n", adx > ady ? adx : ady);
+    Serial.printf("[touch] %lu grace-end d=(%d,%d) -> SWIPE\n", (unsigned long)now, e.dx, e.dy);
+    ClassifyStroke(e.dx, e.dy, 0, 0);   // 40 px or more: always a swipe, never the tap branch
 }
 
 // Backfill the logbook from contacts already being tracked, for the moment the
