@@ -152,6 +152,14 @@ void EamManager::Initialise()
                   backendBaseUrl.c_str(), source == "opensky" ? "opensky" : "backend",
                   palette.fg == eam::PaletteAmber().fg ? "amber" : "green",
                   (unsigned)enabledOrder.size());
+#if defined(PHOTO_MODE)
+    // THE MARKER. scripts/check-no-bench-hooks.sh refuses "[photo-mode]" in every
+    // shipping image and REQUIRES it in the missileer-photo image, so the string is
+    // what proves which build is on a board. Keep it in PHOTO_MODE code only.
+    Serial.printf("[photo-mode] no auto-rotate, no auto-dim (brightness %u), no arrival jump, "
+                  "ticker steps the newest %d by vertical swipe\n",
+                  (unsigned)configuredBrightness, PHOTO_PICK_MAX);
+#endif
 }
 
 void EamManager::Update()
@@ -160,12 +168,17 @@ void EamManager::Update()
 
     // A genuinely new top-of-feed EAM: pulse + jump to the ticker so it's seen.
     const bool newEam = feed.ConsumeNewLatest();
+#if !defined(PHOTO_MODE)
     if (newEam) {
         newPulseUntilMs = millis() + 2000;
         current = Screen::Ticker;
         lastInteractionMs = millis();
         tickerScroll = 0;
     }
+#endif
+    // PHOTO MODE: a fresh EAM changes nothing on the glass -- no jump to the ticker, no
+    // NEW pulse -- because either would ruin a long exposure. The edge is still consumed
+    // and everything underneath still runs: the logbook, the ntfy alert, the feed's data.
 
 #if defined(FEATURE_EAM_GAME)
     std::vector<eam::Msg> fresh;
@@ -175,6 +188,12 @@ void EamManager::Update()
     // drill (missileer-game-ui-review.md §6.6 "Backlog: edge-seeded"). A fresh device's
     // empty logbook would otherwise offer a day-old NAM.
     if (!newEam) fresh.clear();
+#if defined(PHOTO_MODE)
+    // PHOTO MODE OFFERS NO DRILL. The offer is a banner over whatever screen is up -- the
+    // arrival banner a long exposure cannot have -- and the drill face is game content,
+    // not the feed. The messages still reach the logbook above and the ticker.
+    fresh.clear();
+#endif
     UpdateDrill(fresh, feed.ConsumeReconnected());
 #else
     UpdateLogbook();
@@ -246,6 +265,12 @@ String EamManager::ShownMessageId() const
 {
     // "The message currently shown" is the ticker's: it is the only screen that
     // shows one message. Every other screen is an aggregate, and opens the root.
+#if defined(PHOTO_MODE)
+    // The ticker shows the picked message, so that is the one a long press opens.
+    if (current == Screen::Ticker)
+        for (const eam::Msg& m : feed.Latest())
+            if (m.id == photoPickId) return m.id;
+#endif
     if (current == Screen::Ticker && !feed.Latest().empty()) return feed.Latest().front().id;
     return String();
 }
@@ -307,6 +332,11 @@ void EamManager::AdvanceRotation(int dir)
 
 void EamManager::AutoRotate()
 {
+#if defined(PHOTO_MODE)
+    // PHOTO MODE: no 8 s dwell and no 30 s hold. The screen stays where the last swipe
+    // put it, for as long as the shoot takes.
+    return;
+#endif
 #if defined(FEATURE_EAM_GAME)
     if (drillScreen) return; // the drill face is a mode; the carousel waits under it
 #endif
@@ -411,6 +441,13 @@ void EamManager::HandleTouch()
     }
     if (abs(dx) >= abs(dy))
         AdvanceRotation(dx < 0 ? +1 : -1);    // swipe left -> next, right -> prev
+#if defined(PHOTO_MODE)
+    // PHOTO MODE: a vertical swipe on the ticker steps through the newest messages --
+    // up for older, down for newer (the radar List's direction). Elsewhere it does
+    // nothing, as in the shipping build.
+    else if (current == Screen::Ticker)
+        PhotoStep(dy < 0 ? +1 : -1);
+#endif
 }
 
 void EamManager::UpdateBrightness()
@@ -429,6 +466,11 @@ void EamManager::UpdateBrightness()
     if (drill.Get().committed && drill.Get().phase != game::Phase::Complete
         && drill.Get().phase != game::Phase::Aborted)
         night = false;
+#endif
+#if defined(PHOTO_MODE)
+    // PHOTO MODE: auto-dim off. The panel holds the configured brightness (the
+    // config page's Brightness slider), day and night.
+    night = false;
 #endif
     nightDim = night;
 
@@ -622,6 +664,49 @@ void EamManager::SendNtfy(const String& title, const String& body, const String&
     // is therefore safe -- a throttled alert is delivered later, not lost.
     ntfy.Send(title, body, tags, priority);
 }
+
+#if defined(PHOTO_MODE)
+// ======================================================================= photo mode
+// env:missileer-photo only. The ticker's message is a PICK, not "the newest": pinned by
+// id, so a fresh arrival prepends to feed.Latest() underneath without moving the text on
+// the glass. Every message here came from the feed and was noted in the logbook; nothing
+// is made up, filtered or edited -- a copy with "?" in it is shown as it is, and the
+// person holding the camera chooses.
+
+int EamManager::PhotoPickIndex()
+{
+    const std::vector<eam::Msg>& latest = feed.Latest();
+    if (latest.empty()) return -1;
+    for (int i = 0; i < (int)latest.size(); ++i)
+        if (latest[i].id == photoPickId) return i;
+    // First draw of the ticker, or the pick aged out of the feed's retained list: pin
+    // the newest. Never a jump while the pick is still there.
+    photoPickId = latest.front().id;
+    return 0;
+}
+
+void EamManager::PhotoStep(int dir)
+{
+    const int idx = PhotoPickIndex();
+    if (idx < 0) return;
+    const int n = min((int)feed.Latest().size(), PHOTO_PICK_MAX);
+    const int next = idx + dir;
+    int shown = idx;
+    if (next < 0) {
+        usbToast = String("newest");
+    } else if (dir > 0 && next >= n) {
+        usbToast = String("oldest of ") + String(n);
+    } else {
+        shown = next;
+        photoPickId = feed.Latest()[next].id;
+        tickerScroll = 0;
+        usbToast = String(next + 1) + " of " + String(n);
+    }
+    // The position toast clears itself in 1.2 s, well before anyone opens a shutter.
+    usbToastUntilMs = millis() + 1200;
+    Serial.printf("[photo-mode] ticker pick %d of %d id=%s\n", shown + 1, n, photoPickId.c_str());
+}
+#endif
 
 #if defined(FEATURE_EAM_GAME)
 // =========================================================================== the drill

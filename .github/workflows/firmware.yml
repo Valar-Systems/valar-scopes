@@ -220,6 +220,18 @@ jobs:
         run: python3 scripts/skus.py --selftest
       - name: Validate skus.yml
         run: python3 scripts/skus.py --validate
+      # PHOTO MODE NEVER SHIPS. The Missileer photo env (product photos: no
+      # auto-rotation, no auto-dim, no OTA) must equal its shipping parent plus one
+      # flag, be the only env carrying that flag, stay build-only with no slug, and
+      # be named by no workflow. Here, in the job `build` needs, so a leak stops the
+      # run before anything is compiled. The image half runs in each build leg.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prove the photo-mode fence catches each leak
+        run: node scripts/check_photo_mode.mjs --selftest
+      - name: Photo mode is in one env, and that env never ships
+        run: node scripts/check_photo_mode.mjs
       - id: gen
         name: Emit the build matrix
         run: echo "matrix=$(python3 scripts/skus.py --matrix-json)" >> "$GITHUB_OUTPUT"
@@ -278,6 +290,22 @@ jobs:
       # here instead of as a planted string in a shipped binary.
       - name: adsbdb launch gate (${{ matrix.env }})
         run: bash scripts/check-adsbdb-out.sh ${{ matrix.env }}
+      # PHOTO MODE, THE IMAGE HALF. On the photo leg the "[photo-mode]" marker must be
+      # IN the image (proof the marker survives a real build, so its absence anywhere
+      # else means something) with no other bench marker; on its shipping parent's leg
+      # it must be absent. Every slug-ful image is scanned for it again below, with the
+      # other bench markers. The role comes from scripts/check_photo_mode.mjs, so no
+      # workflow names the photo env -- the fence forbids that.
+      - name: Photo-mode marker where it belongs and nowhere else
+        run: |
+          role=$(node scripts/check_photo_mode.mjs --role "${{ matrix.env }}")
+          img=".pio/build/${{ matrix.env }}/firmware.bin"
+          case "$role" in
+            photo)  bash scripts/check-no-bench-hooks.sh --expect "[photo-mode]" "$img" ;;
+            parent) bash scripts/check-no-bench-hooks.sh "$img" ;;
+            none)   echo "${{ matrix.env }}: no photo-mode role (slug-ful images are scanned below)" ;;
+            *)      echo "::error::check_photo_mode.mjs --role answered '$role'"; exit 1 ;;
+          esac
       # THE FACTORY IMAGE IS PUBLISHED FROM CI, AND THAT IS A SAFETY CONTROL, NOT A
       # CONVENIENCE. The local build path (provision-batch.py, a bench `pio run`) can
       # bake a -DCLOUD_FEED_KEY="..." flag into the image -- platformio.ini invites

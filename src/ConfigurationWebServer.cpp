@@ -25,6 +25,10 @@
 
 #ifdef FEATURE_EAM
 #include "eam/EamLogbook.h"        // serves the on-device logbook as a CSV/JSON download
+#if defined(PHOTO_MODE)
+#include "FrameBuffer.h"           // PHOTO_MODE only: /diag/fb for product screenshots
+#include <esp_heap_caps.h>
+#endif
 // The EAM build's backend base URL default. Normally injected per-env (-DEAM_FEED_BASE=...);
 // guarded so the file still compiles without it. The runtime value ("eam-base-url") overrides.
 #ifndef EAM_FEED_BASE
@@ -398,7 +402,9 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // The page is feature-specific: the radar build serves the radar settings form below; the
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+// The radar serves /diag/fb to everyone; of the editions, only the Missileer PHOTO_MODE
+// build (env:missileer-photo) serves it, for product screenshots of the real glass.
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE))
 // The viewer page for /diag/fb. Its own literal rather than part of CONFIG_HTML:
 // it takes no %PLACEHOLDER% substitution, so it is served with send_P and the
 // percent sign is an ordinary character here.
@@ -553,7 +559,9 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#endif
 
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -4196,6 +4204,52 @@ void ConfigurationWebServer::Initialise() {
         r->addHeader("Cache-Control", "no-store");
         request->send(r);
     });
+#if defined(PHOTO_MODE)
+    // ---- /diag/fb + /diag/fb.html, PHOTO_MODE ONLY (env:missileer-photo) ----------
+    // The radar's frame capture (see its /diag/fb above for the why of every line:
+    // snapshot-then-send, the torn flag, big-endian RGB565), served here so product
+    // screenshots are the real glass rather than a camera's view of it. A shipping
+    // Missileer image does not have this route; check-no-bench-hooks.sh proves which
+    // image a board runs by the "[photo-mode]" marker.
+    server.on("/diag/fb", HTTP_GET, [](AsyncWebServerRequest* request) {
+        LGFX_Sprite* fb = framebuf::Backbuffer();
+        if (fb == nullptr || fb->getBuffer() == nullptr) {
+            request->send(503, "text/plain", "framebuffer not available");
+            return;
+        }
+        const size_t total = (size_t)fb->bufferLength();
+        uint8_t* snap = (uint8_t*)heap_caps_malloc(total, MALLOC_CAP_SPIRAM);
+        if (snap == nullptr) {
+            request->send(503, "text/plain", "out of PSRAM for a frame snapshot");
+            return;
+        }
+        const uint32_t seqBefore = framebuf::Sequence();
+        memcpy(snap, fb->getBuffer(), total);
+        const bool torn = (seqBefore != framebuf::Sequence());
+        std::shared_ptr<uint8_t> buf(snap, [](uint8_t* p) { heap_caps_free(p); });
+        auto sent = std::make_shared<size_t>(0);
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "application/octet-stream",
+            [buf, total, sent](uint8_t* out, size_t maxLen, size_t) -> size_t {
+                const size_t left = total - *sent;
+                const size_t n = left < maxLen ? left : maxLen;
+                if (n > 0) {
+                    memcpy(out, buf.get() + *sent, n);
+                    *sent += n;
+                }
+                return n;
+            });
+        r->addHeader("X-Blipscope-Frame-Width", String(fb->width()));
+        r->addHeader("X-Blipscope-Frame-Height", String(fb->height()));
+        r->addHeader("X-Blipscope-Frame-Format", "RGB565BE");
+        r->addHeader("X-Blipscope-Frame-Torn", torn ? "true" : "false");
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+    server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send_P(200, "text/html", FB_VIEWER_HTML);
+    });
+#endif
 #endif
 
     server.begin();
