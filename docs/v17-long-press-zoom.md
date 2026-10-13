@@ -111,8 +111,10 @@ flashed.
 3. **An early release that moved 40 px or more is a swipe (added 2026-10-12, review).** A stroke
    released before the threshold whose total movement is 40 px or more (the classifier's own
    measure, the larger axis of release minus press) is classified exactly as v16 classifies it.
-   Below 40 px nothing changes. This reverses the "What changed" line below. The cost: a ring-phase
-   dropout after 40 px or more of drift swipes instead of rejoining (0 rejoins seen on 10 Oct).
+   Below 40 px nothing changes. This reverses the "What changed" line below. **It is decided when the
+   150 ms rejoin grace ends, not at the lift** (review, same day): a re-press at the finger's last
+   position within the grace is a rejoin whatever the drift, so a dropout costs nothing; a real lift
+   swipes about 150 ms later. The grace ends by expiry or by a press elsewhere, and both apply the rule.
 
 **The numbers behind 80 px.** Every stroke of 250 ms or more in the COM18 / s3-128 logs:
 

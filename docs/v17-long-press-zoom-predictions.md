@@ -165,3 +165,71 @@ existing tap case pin.
 - a (g) stroke that both swipes and toggles, swipes twice, or does nothing;
 - a (d) stroke under 40 px that swipes or opens a card;
 - an `[hold] early release` line with moved < 40.
+
+### Addendum, 2026-10-12 (review, 2): rule 3 is decided when the rejoin grace ENDS, not at the lift -- frozen BEFORE code
+
+This supersedes the "decide at the lift" form of rule 3 (bfa36a6) and its stated trade. The 39 px
+interpretation (the cancel, not a tap) is accepted as frozen above.
+
+- **A release before the threshold opens the 150 ms rejoin grace, exactly as on 10 Oct.**
+  - A re-press within the grace, within REJOIN_PX of the finger's LAST position, is a **rejoin**, one
+    hold, **whatever it had drifted so far**.
+  - When the grace ends with no rejoin, rule 3 decides. Total movement of 40 px or more is a **swipe**
+    through the existing classifier, with the same release `dx, dy` the caller passed at the lift.
+    Under 40 px it is **the cancel** that (d) tests, unchanged.
+- **The grace can end two ways, and both go through the same decision:**
+  - **expiry:** no press within 150 ms;
+  - **a press that is not a rejoin:** too far from the last position. That press also starts a new
+    stroke. (This second path is named here so it cannot quietly miss the rule.)
+- **Net effect:**
+  - a dropout during a drifting hold rejoins; there is no trade-off any more;
+  - a real lift that moved 40 px or more swipes about 150 ms after the lift (plus up to one 52 ms
+    poll);
+  - the ring stays up, frozen, through those 150 ms, as it already does during the grace.
+- **Instruments.** At the lift the release line reads `HOLD (released early; grace)`, as today. When
+  the grace ends in a swipe, the device logs:
+  - `[hold] early release moved=<px> -> swipe`;
+  - `[touch] <ms> grace-end d=(<dx>,<dy>) -> SWIPE`;
+  - then the swipe's own effect.
+
+  When it ends in the cancel, it logs `[hold] cancel ...`, as today.
+
+**Host cases** (`test/host/test_long_press.cpp`). "Ends as" means: run the release, then idle frames
+every 52 ms until the stroke is resolved.
+- **RJa / RJb, restored to 50 px of drift:** a press 2 px from the drifted position rejoins (RJa); a
+  press back at the original point, 50 px from the finger, is a new stroke (RJb).
+- **G1**, the 10 Oct stroke (428 ms, 78 px; under 40 px at the ring start): ends as a **SWIPE**. Its
+  setup check (the ring started, still within the drift tolerance) is unchanged.
+- **G2:** a ring release at 39 px ends as **the cancel**.
+- **G3:** a ring release at 40 px ends as a **SWIPE**.
+- **G4:** 39 px released before 250 ms is classified at the lift as today (a tap). Unchanged.
+- **G6:** 50 px drift, lift, re-press 120 ms later at the last position.
+  - G6a: it is a **rejoin**;
+  - G6b: it fires once, at the ORIGINAL press + threshold;
+  - G6c: its release is CONSUMED. One hold, no swipe.
+- **G7:** 50 px drift, lift, no re-press.
+  - G7a: nothing at the lift (the grace opens);
+  - G7b: a **SWIPE at grace expiry**, not before it, carrying the stroke's own dx, dy.
+- **G8:** 50 px drift, lift, a press 60 px away 80 ms later. It ends the old stroke as a **SWIPE** and
+  starts a new stroke.
+- The 10 Oct G5 pair (the trade) is removed; G6 now asserts the opposite of G5b.
+
+**Sabotage, predicted exact failure sets** (anything else is outside the set: stop and report):
+
+| sabotage | fails exactly |
+|---|---|
+| **A: decide at the lift** (a ring release that moved 40 px passes through at once) | RJa, G6a, G6b, G6c, G7a, G7b, G8 (7) |
+| **B: remove rule 3** (the grace always ends in the cancel) | G1, G3, G7b, G8 (4) |
+
+Under A, G1 and G3 still pass, because they still swipe, only at the lift. G7 is what separates "when".
+
+**Bench (g), restated for the new instruments.** Each slow swipe must show exactly ONE `-> SWIPE`
+and the swipe's own effect, and no `[zoom] hold` or `[hold] fire`:
+- a fast swipe shows it on its release line;
+- a rule-3 swipe shows it on its `grace-end` line, about 150 ms after the lift.
+
+Readable only if at least 5 of the 10 logged `[hold] early release`.
+
+**(f)** is graded over release lines with `held` under 250 ms, as frozen. `grace-end` lines carry no
+`held` and are not counted in (f). **(d)** and **(e)** are as in the previous addendum. Daniel's 4-step
+sitting is unchanged.
