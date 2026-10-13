@@ -8,6 +8,7 @@ Nothing here is inferred, and a hex no source states would have been left out. N
 
 **Where this should live is an open question** (end of this page). Nothing in the repo
 reads it yet.
+**Answered 2026-10-12 (Daniel):** the list stays here as the cited reference, and the backend adds these three hexes to its military-aircraft watchlist (valar-eam-feed `MILAIR_WATCHLIST`); that change is valar-eam-feed's, not this repo's.
 
 ## The list
 
