@@ -74,13 +74,13 @@ Wi-Fi and settings carry over in both directions.
 Photo mode:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 -PioEnv missileer-photo -Board missileer-photo -DanielApproved -Label photo -NoCapture
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 -PioEnv missileer-photo -Board missileer-photo -DanielApproved -Label photo -NoCapture -By <you>
 ```
 
 Back to the normal firmware, which also brings OTA back:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 -PioEnv missileer-s3-128 -Board missileer-photo -DanielApproved -Label shipping -NoCapture
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\bench-flash.ps1 -PioEnv missileer-s3-128 -Board missileer-photo -DanielApproved -Label shipping -NoCapture -By <you>
 ```
 
 ## Never shipped
