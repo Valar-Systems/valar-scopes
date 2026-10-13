@@ -233,3 +233,56 @@ Readable only if at least 5 of the 10 logged `[hold] early release`.
 **(f)** is graded over release lines with `held` under 250 ms, as frozen. `grace-end` lines carry no
 `held` and are not counted in (f). **(d)** and **(e)** are as in the previous addendum. Daniel's 4-step
 sitting is unchanged.
+
+### Addendum, 2026-10-13 (review): check (g)'s scope, and the "hold toggled back" usage counter -- frozen BEFORE code
+
+**(g), ruled.** (g) is graded on strokes inside its stated range: 50-80 px, lifted before 0.7 s. On
+the 13 Oct sitting (image ed8f09f03625) that gives **n = 6, and 6 of 6 swiped exactly once**, 5 of
+them through rule 3.
+- **Out of scope:** the 6 strokes at 26-39 px. They behaved per the frozen "39 px -> unchanged" rule,
+  which is v16 parity: v16 would not have swiped them either.
+- **Also outside the range:** the strokes above 80 px, the 40-49 px strokes and the held-past-0.7 s
+  strokes are reported, not graded.
+- **The slow-slide decision:** option 1, recorded in the spec ("Product decision 2026-10-13").
+
+**The counter: `holdToggleBacks`, "a hold toggled back by another hold within 5 s"** (a likely
+accidental hold). Its place is next to the long-press count in the usage report. It counts THAT it
+happened, never what the hold was over: one integer.
+
+- **Definition.** When a hold FIRES (the zoom toggles), it counts as a toggle-back if and only if
+  BOTH hold:
+  - the previous hold fire was **at most 5000 ms earlier**, measured fire to fire on the device clock,
+    and **5000 ms exactly counts**;
+  - **nothing else changed the zoom** in between, i.e. the zoom index just before this fire equals
+    the index the previous fire set. A swipe zoom in between makes it not a toggle-back.
+
+  Notes:
+  - The first fire of a session never counts.
+  - A fire on a single-step ladder toggles nothing (`ToggleTarget` returns -1), so it is not a fire
+    for this counter.
+  - Three quick holds count 2: each of the 2nd and 3rd toggles the previous one back.
+- **The pure half:** in `include/LongPressPolicy.h`. A small state (whether there was a previous
+  fire, its time, the index it set) and one decision function, called at every fire. The device only
+  increments the usage counter when it returns true.
+- **Host cases** (`test/host/test_long_press.cpp`):
+
+  | case | setup | counts |
+  |---|---|---|
+  | T1 | two fires 3000 ms apart, no other zoom change | 1 |
+  | T2 | 6000 ms apart | 0 |
+  | T3 | exactly 5000 ms | 1 |
+  | T4 | 5001 ms | 0 |
+  | T5 | a swipe zoom change between two fires 3000 ms apart | 0 |
+  | T6 | three fires 2000 ms apart | 2 |
+  | T7 | the first fire ever | 0 |
+
+- **Sabotages, predicted exact failure sets:**
+  - **A: drop the 5 s window** (any consecutive fire counts): fails T2 and T4.
+  - **B: drop the no-other-zoom-change condition:** fails T5.
+- **Where the code lands:** with the usage-report format change, alongside its digits-and-commas test,
+  the Worker's shape check and the disclosures (README Privacy & telemetry, support.html), in the
+  same commit, per CLAUDE.md's telemetry entry. #388 itself is not changed for it.
+- **Open, for a ruling: the field count.** The format change was decided as 8 -> 12 (longPressZooms,
+  overheadCards, whatsNewOpened, whatsNewQr), with the Worker accepting exactly 8 or 12. This counter
+  makes 13. Either the format becomes 8 -> 13 (the Worker accepts exactly 8 or 13, and its rejection
+  test covers 9-12 and 14), or one of the four gives way. Not decided here.

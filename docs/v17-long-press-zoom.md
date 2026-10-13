@@ -182,3 +182,31 @@ disclosures change in the same commit.
 - `docs/CARDS-README.md`, pending for v17: *"Press and hold the radar to zoom in close; again to zoom
   back out."*
 - `docs/CHANGES-customer.md` (What's new), v17 summary line: *"Hold to zoom in"*.
+
+## Product decision (2026-10-13): a slow slide that lasts past 0.7 s is a hold
+
+**Ruling:** option 1, keep as is. A stroke still down when the ring fills is a hold, whatever it has
+moved (up to rule 2's 80 px drift tolerance). Rule 3 rescues only swipes that lift BEFORE the ring
+fills.
+
+**The data behind it:**
+
+| strokes | duration | movement when the hold fired |
+|---|---|---|
+| Daniel's natural "slow swipes" (2026-10-13, image ed8f09f03625), 17 that fired | 1.1-2.7 s | **22-75 px** (half of them 44 px or more) |
+| deliberate slow-drift holds, 10 Oct (check (e)) | -- | **6-42 px** |
+| deliberate slow-drift holds, 13 Oct (check (e), 21) | -- | **1-43 px** |
+
+The ranges overlap from 22 px to 43 px, so no drift threshold separates a slow swipe from a drifting
+hold. The alternative (option 2: cancel a hold into a swipe at about 45 px of movement before the fire) would
+have rescued 10 of the 17, but would leave a 2 px margin over the largest real-hold drift seen. All 100
+swipes logged on 10 Oct took under 0.25 s.
+
+**Field evidence instead of a guess:** a usage counter, "a hold toggled back by another hold within
+5 s", sits next to the long-press count. A high ratio after launch is the signal to revisit option 2
+with real data. Definition, host cases and sabotages are frozen in the predictions file (addendum
+2026-10-13).
+
+**Also recorded from the same sitting** (a separate v17 follow-up, not a #388 blocker): the ring is
+invisible under a thumb. It is about 5 mm across (R 15-19 px on the 1.28" panel); a thumb covers
+15-20 mm.
