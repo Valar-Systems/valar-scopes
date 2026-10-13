@@ -41,6 +41,8 @@ set -u
 #   fresh-boot-acceptance.sh --grade-boots <log>     boots at the Worker, cut to end of step 6
 #   fresh-boot-acceptance.sh --collect COM119 <log>  reopen serial, AFTER everything is graded
 #   fresh-boot-acceptance.sh --sabotage-extra-reset COM119 <log>   the boot check must go red
+#   fresh-boot-acceptance.sh --grade-sabotage <log> <until-epoch>   grade an EXISTING sabotage window
+#                                                                    (step 5's cut to until); sends nothing
 #   fresh-boot-acceptance.sh --assert-only <log>     assert an existing capture
 #
 # The split is what lets an agent hold the capture and the assertions while a
@@ -55,6 +57,7 @@ case "${1:-}" in
   --grade-boots)  MODE="gboots";  shift ;;
   --collect)      MODE="collect"; shift ;;
   --sabotage-extra-reset) MODE="sabotage"; shift ;;
+  --grade-sabotage) MODE="gsab"; shift ;;
   --selftest)     MODE="selftest"; shift ;;
 esac
 
@@ -65,6 +68,12 @@ elif [ "$MODE" = "collect" ] || [ "$MODE" = "sabotage" ]; then
   PORT="${1:-}"; LOG="${2:-}"
   if [ -z "$PORT" ] || [ -z "$LOG" ] || [ ! -f "$LOG" ]; then
     echo "usage: $0 --collect <COM port> <log file> | --sabotage-extra-reset <COM port> <log file>" >&2
+    exit 2
+  fi
+elif [ "$MODE" = "gsab" ]; then
+  LOG="${1:-}"; UNTIL="${2:-}"
+  if [ -z "$LOG" ] || [ ! -f "$LOG" ] || ! printf '%s' "$UNTIL" | grep -Eq '^[0-9]{4,}$'; then
+    echo "usage: $0 --grade-sabotage <log file> <until-epoch>" >&2
     exit 2
   fi
 elif [ "$MODE" = "assert" ] || [ "$MODE" = "probe" ] || [ "$MODE" = "gcut" ] || [ "$MODE" = "goff" ] || [ "$MODE" = "gboots" ]; then
@@ -225,6 +234,34 @@ L
   scase never-left  '1\n'             "$T/rows-two" 3 NOT_APPLIED
   scase caught      '0\n0\n1\n' "$T/rows-two" 0 WRONG
   scase still-green '0\n0\n1\n' "$T/rows-one" 1 ONE_POWERON
+  # PRE-FLIGHT (2026-10-13): each failure must refuse with exit 3, NOT_RUN, and NO reset attempted.
+  # FBA_NO_RESET is deliberately NOT set: a case the pre-flight let through would try a real reset on COM99
+  # and print "the reset did not run" or "no working python", which this check refuses.
+  printf '<html>no id here</html>\n' > "$T/cfg-noid.html"
+  pcase() { # name, want-why, env assignments...
+    local name="$1" why="$2" out ex got; shift 2
+    base > "$T/p-$name.log"; printf '%s\n' "$s5_ok" > "$T/p-$name.log.step5"; printf '%s\n' "$s6_ok" > "$T/p-$name.log.step6"
+    out="$(env -u FBA_DEVICE_ID FBA_POLL_S=0 FBA_ID_TRIES=2 FBA_ID_RETRY_S=0 "$@" bash "$0" --sabotage-extra-reset COM99 "$T/p-$name.log" 2>&1)"; ex=$?
+    got="$(sed -n 's/.* why=\([a-z-]*\).*/\1/p' "$T/p-$name.log.boots.sabotage" 2>/dev/null)"
+    if [ "$ex" -eq 3 ] && [ "$got" = "$why" ] && printf '%s' "$out" | grep -q "no reset sent" \
+       && ! printf '%s' "$out" | grep -q "reset sent;\|the reset did not run\|no working python"; then
+      printf '  ok    preflight %s -> exit 3, NOT_RUN %s, no reset attempted\n' "$name" "$got"
+    else printf '  FAIL  preflight %s: exit %s why %s\n' "$name" "$ex" "${got:-<none>}"; st=1; fi
+  }
+  pcase no-device-id preflight-no-device-id FBA_CONFIG_BODY="$T/cfg-noid.html" FBA_BOOT_ROWS="$T/rows-two"
+  pcase query-failed preflight-query-failed FBA_DEVICE_ID=0000000000000000 FBA_BOOT_ROWS="$T/no-such-rows"
+  # GRADE-ONLY: an existing window graded by the unchanged grade_boots, nothing sent; the rows kept verbatim.
+  gscase() { # name, rows, until, want-verdict, want-row-count
+    local got rows; base > "$T/g-$1.log"; printf '%s\n' "$s5_ok" > "$T/g-$1.log.step5"
+    env FBA_POLL_S=0 FBA_DEVICE_ID=0000000000000000 FBA_BOOT_ROWS="$2" bash "$0" --grade-sabotage "$T/g-$1.log" "$3" >/dev/null 2>&1
+    got="$(sed -n 's/.* verdict=\([A-Z_]*\).*/\1/p' "$T/g-$1.log.boots.regrade" 2>/dev/null)"
+    rows="$(grep -c . "$T/g-$1.log.boots.regrade.rows" 2>/dev/null)"
+    if [ "$got" = "$4" ] && [ "$rows" = "$5" ]; then printf '  ok    grade-only %s -> %s, %s row(s) kept\n' "$1" "$got" "$rows"
+    else printf '  FAIL  grade-only %s: %s, %s row(s) (want %s, %s)\n' "$1" "${got:-<none>}" "${rows:-?}" "$4" "$5"; st=1; fi
+  }
+  gscase two          "$T/rows-two"   1500 WRONG       3
+  gscase one          "$T/rows-one"   1500 ONE_POWERON 2
+  gscase after-window "$T/rows-after" 1200 ONE_POWERON 2
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
@@ -472,10 +509,19 @@ grade_off() {
 # (window.BP_DEVID). Never printed; the result records a 4-character prefix.
 dev_id() {
   [ -n "${FBA_DEVICE_ID:-}" ] && { printf '%s' "$FBA_DEVICE_ID"; return 0; }
-  local tmp id
+  # Read once, BEFORE any reset (the sabotage pre-flight sets DEV_CACHED): the id cannot change, and on
+  # 2026-10-13 a read 2-3 s into the sabotage reboot found the web server not yet serving, and the grade
+  # came back UNTRUSTWORTHY (no-device-id) after the reset had already spent the clean window.
+  [ -n "${DEV_CACHED:-}" ] && { printf '%s' "$DEV_CACHED"; return 0; }
+  local tmp id="" tries=0
   tmp="$(mktemp)"
-  fetch_to "$(dev_ip)" / "$tmp" >/dev/null
-  id="$(grep -o "window.BP_DEVID='[0-9a-f]\{16\}'" "$tmp" | head -1 | sed "s/.*='\(.*\)'/\1/")"
+  while [ "$tries" -lt "${FBA_ID_TRIES:-6}" ]; do      # and a retry, for a board that is still booting
+    tries=$((tries + 1))
+    fetch_to "$(dev_ip)" / "$tmp" >/dev/null
+    id="$(grep -o "window.BP_DEVID='[0-9a-f]\{16\}'" "$tmp" | head -1 | sed "s/.*='\(.*\)'/\1/")"
+    [ -n "$id" ] && break
+    [ "$tries" -lt "${FBA_ID_TRIES:-6}" ] && sleep "${FBA_ID_RETRY_S:-2}"
+  done
   rm -f "$tmp"
   [ -n "$id" ] && printf '%s' "$id"
 }
@@ -484,7 +530,7 @@ dev_id() {
 # with the dashboard's own query (scripts/fba-boot-rows.mjs). FBA_BOOT_ROWS (selftest seam): a
 # file of such lines. stderr goes to its own file, so a failed query says why.
 boot_rows() { # dev from to errfile
-  if [ -n "${FBA_BOOT_ROWS:-}" ]; then awk -v a="$2" -v b="$3" 'NF==2 && $1>=a && $1<=b' "$FBA_BOOT_ROWS"; return 0; fi
+  if [ -n "${FBA_BOOT_ROWS:-}" ]; then awk -v a="$2" -v b="$3" 'NF==2 && $1>=a && $1<=b' "$FBA_BOOT_ROWS"; return $?; fi   # the seam fails like the query does (a missing file = a failed query)
   node --experimental-strip-types "$(winpath "$ROOT/scripts/fba-boot-rows.mjs")" "$1" "$2" "$3" 2>"$4"
 }
 
@@ -548,6 +594,21 @@ fi
 if [ "$MODE" = "sabotage" ]; then
   { [ -f "$LOG.step5" ] && [ -f "$LOG.step6" ]; } || { echo "grade steps 5 and 6 first" >&2; exit 2; }
   ip="$(dev_ip)"
+  # PRE-FLIGHT (ruling 2026-10-13). Everything the grade will need is read BEFORE the reset: the device
+  # id, and a real boot-row query (which proves the analytics token resolves and the Worker answers).
+  # Either failing refuses with exit 3 and NO reset sent. A clean window is spent by the reset, so a
+  # probe that cannot grade must not be allowed to fire it -- on 2026-10-13 one did, twice over.
+  preflight_refuse() {
+    printf 'boots verdict=NOT_RUN why=%s\n' "$1" > "$LOG.boots.sabotage"
+    echo "  PRE-FLIGHT REFUSED ($1): no reset sent. $2"
+    exit 3
+  }
+  DEV_CACHED="$(dev_id)"
+  [ -n "$DEV_CACHED" ] || preflight_refuse preflight-no-device-id "The device id could not be read from ${ip:-<no ip>}."
+  t0_pre="$(sed -n 's/.* cut=\([0-9]*\) .*/\1/p' "$LOG.step5")"
+  rows_pre="$(boot_rows "$DEV_CACHED" $((t0_pre - 3600)) "$t0_pre" "$LOG.boots.sabotage.preflight.err")" \
+    || preflight_refuse preflight-query-failed "The boot-row query failed (token? see $LOG.boots.sabotage.preflight.err)."
+  echo "  pre-flight: device id read (${DEV_CACHED:0:4}...); the boot-row query answered: $(printf '%s\n' "$rows_pre" | awk 'NF==2' | wc -l | tr -d ' ') row(s) in the hour before the cut"
   # FBA_NO_RESET (selftest seam): skip the serial reset so the refusal below can be graded on a host.
   if [ -z "${FBA_NO_RESET:-}" ]; then
     py="$(find_py serial)" || { echo "no working python with pyserial" >&2; exit 3; }
@@ -577,6 +638,23 @@ if [ "$MODE" = "sabotage" ]; then
     WRONG) echo "  sabotage CAUGHT: the boot check went red with the extra reset"; exit 0 ;;
     ONE_POWERON) echo "  SABOTAGE NOT CAUGHT: the boot check stayed green through an extra reset"; exit 1 ;;
     *) echo "  sabotage INCONCLUSIVE: $(cat "$LOG.boots.sabotage")"; exit 3 ;;
+  esac
+fi
+
+# GRADE-ONLY (ruling 2026-10-13): grade an EXISTING sabotage window -- step 5's cut to <until-epoch> --
+# with the unchanged grade_boots, sending NOTHING to the board. Writes <log>.boots.regrade, and the rows
+# the Worker returned for the graded query, verbatim, to <log>.boots.regrade.rows. The wrapper only tees
+# the query's output; its exit status is the query's, so a failed query still grades UNTRUSTWORTHY.
+if [ "$MODE" = "gsab" ]; then
+  [ -f "$LOG.step5" ] || { echo "grade step 5 first" >&2; exit 2; }
+  ROWS_OUT="$LOG.boots.regrade.rows"
+  eval "$(declare -f boot_rows | sed '1s/^boot_rows /boot_rows_query /')"
+  boot_rows() { local rc out; out="$(boot_rows_query "$@")"; rc=$?; printf '%s\n' "$out" > "$ROWS_OUT"; printf '%s\n' "$out"; return "$rc"; }
+  grade_boots "$UNTIL" .regrade
+  cat "$LOG.boots.regrade"
+  case "$(sed -n 's/.* verdict=\([A-Z_]*\).*/\1/p' "$LOG.boots.regrade")" in
+    ONE_POWERON|WRONG|NONE) exit 0 ;;
+    *) exit 3 ;;
   esac
 fi
 
