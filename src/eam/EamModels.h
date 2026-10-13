@@ -236,6 +236,11 @@ struct EamFetchResult {
     MilAir milair;
     GameConfig gameConfig;           // GameConfig
     String cacheControl;             // GameConfig: the response's Cache-Control, for the poll cadence
+    // AbncpOpenSky: OpenSky's answer beyond the body (src/eam/OpenSkyLimit.h). A 429 is a
+    // failed fetch (ok == false) whose Retry-After decides when the watch polls next.
+    int httpStatus = 0;              // 0 = no round trip (or no token)
+    String rateLimitRemaining;       // X-Rate-Limit-Remaining, "" if absent
+    String rateLimitRetryAfter;      // X-Rate-Limit-Retry-After-Seconds, "" if absent
 };
 
 // -------------------------------------------------------------------------------- parsers

@@ -81,7 +81,9 @@ public:
         : id(std::move(clientId)), secret(std::move(clientSecret)),
           watch(abncp::OpenSkyWatchQuery<String>(userWatch)) {}
 
-    uint32_t IntervalMs() const override { return 90000; } // ~90 s, never faster than 60 s
+    // 300 s, its own fixed interval (ruled 2026-10-12), x2 Relaxed / x4 Battery via the EAM
+    // refresh scale. At 4 credits a query (measured, see the PR), 288 polls/day = 1,152 credits.
+    uint32_t IntervalMs() const override { return 300000; }
     const char* Name() const override { return "OpenSky (your account)"; }
 
     const char* InertReason() const override

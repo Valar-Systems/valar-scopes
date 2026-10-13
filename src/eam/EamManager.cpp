@@ -7,6 +7,7 @@
 
 #include "Layout.h"
 #include "EamModels.h"
+#include "AbncpWatch.h"           // the abncp-watch splitter, shared with the config page
 #include "UsbOpen.h"
 
 #if defined(FEATURE_EAM_GAME)
@@ -96,9 +97,10 @@ void EamManager::Initialise()
         // only it (the old seed, ae0451..ae0454 marked PLACEHOLDER, was four C-2A Greyhounds).
         // The provider's query adds the four built-in E-4B addresses on top (AbncpWatch.h,
         // ruled 2026-10-12), so an empty list here still watches the E-4Bs, and no edit to
-        // this list can remove them.
+        // this list can remove them. Split with the SAME splitter the config page uses to mark
+        // invalid entries (AbncpWatch.h), raw; the query canonicalises and drops the invalid.
         const String watch = configServer.GetStoredString("abncp-watch");
-        cfg.abncpWatch = watch.length() ? SplitList(watch, true) : std::vector<String>();
+        cfg.abncpWatch = abncp::SplitWatchList<String, std::vector<String>>(watch.c_str());
     } else {
         cfg.abncpSource = EamFeedClient::AbncpSource::Backend;
     }

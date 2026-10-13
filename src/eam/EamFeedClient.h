@@ -73,6 +73,12 @@ public:
     // Non-null while the selected ABNCP source can't poll (e.g. OpenSky creds blank).
     const char* AbncpInertReason() const { return abncpProvider ? abncpProvider->InertReason() : nullptr; }
 
+    // True while the OpenSky watch is waiting out a 429 (OpenSkyLimit.h); cleared by the next
+    // answered poll. AbncpResumeText fills "resuming HH:MMZ" (or "resuming in N min" with no
+    // clock) for the ABNCP screen.
+    bool AbncpLimited() const { return abncpLimited && cfg.abncpSource == AbncpSource::OpenSky; }
+    void AbncpResumeText(char* buf, size_t n) const;
+
     // Edge: true once after a genuinely new top-of-feed EAM arrives (drives the "NEW" pulse and,
     // later, the ntfy alert). Consuming clears it.
     bool ConsumeNewLatest();
@@ -113,6 +119,12 @@ private:
     eam::MilAir milair;
     eam::GameConfig gameConfig;
     onwatch::Count onWatch;
+
+    // OpenSky watch rate limit (a 429): when the next poll is due, and that instant in UTC
+    // (0 when the clock was not set at the time).
+    bool abncpLimited = false;
+    uint32_t abncpResumeMs = 0;
+    long abncpResumeEpoch = 0;
 
     String lastTopId;          // top-of-feed EAM id last seen, for new-arrival detection
     bool newLatestEdge = false;

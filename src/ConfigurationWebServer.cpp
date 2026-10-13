@@ -25,6 +25,7 @@
 
 #ifdef FEATURE_EAM
 #include "eam/EamLogbook.h"        // serves the on-device logbook as a CSV/JSON download
+#include "eam/AbncpWatch.h"        // marks the OpenSky watch entries the device drops
 // The EAM build's backend base URL default. Normally injected per-env (-DEAM_FEED_BASE=...);
 // guarded so the file still compiles without it. The runtime value ("eam-base-url") overrides.
 #ifndef EAM_FEED_BASE
@@ -1616,9 +1617,10 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                             <span>ICAO24 watchlist (hex, comma-separated):</span>
                             <textarea name="abncp-watch" rows="2">%ABNCP_WATCH%</textarea>
                         </label>
+                        %ABNCP_WATCH_BAD%
                         <span class="hint">
                             Queried from this device with YOUR OpenSky account only &mdash; never shared, never routed through the Valar backend.
-                            E-4B Nightwatch is recognised and watched automatically, in the same request; you don't need to list it. OpenSky filters by hex only, so add any other hexes you want watched. Blank ID/secret keeps the watch off.
+                            E-4B Nightwatch is recognised and watched automatically, in the same request; you don't need to list it. OpenSky filters by hex only, so add any other 6-digit hexes you want watched; anything else is ignored. Checked every 5 minutes (10 on Relaxed, 20 on Battery). Blank ID/secret keeps the watch off.
                         </span>
                     </div>
                 </details>
@@ -2864,7 +2866,14 @@ void ConfigurationWebServer::Initialise() {
         const String abncpSource = HtmlEscape(prefs.isKey("abncp-source") ? prefs.getString("abncp-source", "backend") : "backend");
         const String openskyClientId = HtmlEscape(prefs.getString("opensky-id", ""));
         String openskySecret = HtmlEscape(prefs.getString("opensky-secret", ""));
-        const String abncpWatch = HtmlEscape(prefs.getString("abncp-watch", ""));
+        const String abncpWatchRaw = prefs.getString("abncp-watch", "");
+        const String abncpWatch = HtmlEscape(abncpWatchRaw);
+        // Each entry the OpenSky query drops -- not six hex digits once trimmed, '~'-stripped and
+        // lower-cased -- marked under the list (ruled 2026-10-12). Same splitter and test as the
+        // device's query (src/eam/AbncpWatch.h), so the page marks exactly what is not sent.
+        String abncpWatchBad;
+        for (const String& bad : abncp::InvalidWatchEntries<String, std::vector<String>>(abncpWatchRaw.c_str()))
+            abncpWatchBad += "<span class=\"hint\">&#9888; <b>" + HtmlEscape(bad) + "</b>: not a valid 6-digit hex, ignored</span>";
         const String ntfyTopic = HtmlEscape(prefs.getString("ntfy-topic", ""));
         const String alertNew = HtmlEscape(prefs.isKey("eam-alert-new") ? prefs.getString("eam-alert-new", "true") : "true");
         const String alertTempo = HtmlEscape(prefs.isKey("eam-alert-tempo") ? prefs.getString("eam-alert-tempo", "true") : "true");
@@ -3180,7 +3189,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens, usbOpenHtml]
+            [deviceName, deviceIp, wifiRssi, eamBaseUrl, latitude, longitude, abncpSource, openskyClientId, openskySecret, abncpWatch, abncpWatchBad, ntfyTopic, alertNew, alertTempo, alertAbncp, alertSpace, eamPalette, eamRefresh, colonBlink, autoDimEnabled, brightness, eamScreens, usbOpenHtml]
             (const String& var) -> String {
                 if (var == "EAM_BASE_URL")   return eamBaseUrl;
                 if (var == "LATITUDE")       return latitude;
@@ -3190,6 +3199,7 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "OPENSKY_ID")     return openskyClientId;
                 if (var == "OPENSKY_SECRET") return openskySecret;
                 if (var == "ABNCP_WATCH")    return abncpWatch;
+                if (var == "ABNCP_WATCH_BAD") return abncpWatchBad;
                 if (var == "NTFY_TOPIC")     return ntfyTopic;
                 if (var == "ALERT_NEW")      return alertNew == "true" ? "checked" : "";
                 if (var == "ALERT_TEMPO")    return alertTempo == "true" ? "checked" : "";

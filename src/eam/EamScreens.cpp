@@ -319,6 +319,17 @@ void EamManager::DrawAbncp(BandCanvas& c)
         return;
     }
 
+    // OpenSky answered 429 (out of credits): say so, and when the next poll is, instead of a
+    // blank or a stale picture (ruled 2026-10-12). The time is UTC, like every time on this
+    // device (OpenSkyLimit.h).
+    if (feed.AbncpLimited()) {
+        char resume[32];
+        feed.AbncpResumeText(resume, sizeof(resume));
+        CenterText(c, "OpenSky limit reached,", SCREEN_SIZE_DIV_2 - 8, palette.warn);
+        CenterText(c, resume, SCREEN_SIZE_DIV_2 + 8, palette.dim);
+        return;
+    }
+
     const eam::Abncp& a = feed.Abncp();
     if (!a.valid) {
         CenterText(c, "checking...", SCREEN_SIZE_DIV_2, palette.faint);

@@ -1,5 +1,6 @@
 #include "EamModels.h"
 #include "AbncpIdentity.h"
+#include "AbncpWatch.h"
 
 #include <cstdio>
 #include <cstring>
@@ -250,9 +251,22 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
     out.aircraft.clear();
     out.airborne = false;
     if (root["states"].is<JsonArrayConst>()) {
+        // At most 8 kept (not raised: heap), and WHICH 8 is ruled (2026-10-12): the built-in
+        // E-4Bs first, then the user's, each in response order (AbncpWatch.h SelectWithinCap).
+        // Only the first 64 well-formed states are considered, so a hostile/huge reply cannot
+        // grow the scan; the query itself is at most the user's list + 4.
+        constexpr size_t kKeep = 8;
+        constexpr size_t kScan = 64;
+        std::vector<JsonArrayConst> rows;
+        std::vector<String> hexes;
         for (JsonArrayConst s : root["states"].as<JsonArrayConst>()) {
-            if (out.aircraft.size() >= 8) break; // the watchlist is a handful of hexes; bound a hostile/huge reply
+            if (rows.size() >= kScan) break;
             if (s.size() < 9) continue;
+            rows.push_back(s);
+            hexes.push_back(s[0].as<String>());
+        }
+        for (size_t k : abncp::SelectWithinCap(hexes, kKeep)) {
+            JsonArrayConst s = rows[k];
             AbncpAircraft ac;
             ac.hex = s[0].as<String>();
             ac.callsign = s[1].as<String>();

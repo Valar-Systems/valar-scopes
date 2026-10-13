@@ -7,6 +7,7 @@
 #include "../game/GameClient.h"   // ApiBase: /config comes from the server votes go to
 #endif
 #include "DeviceIdentity.h"        // LeaderboardId: the X-Missileer-Device value (ON WATCH)
+#include "OpenSkyLimit.h"          // the OpenSky watch's 429 / Retry-After handling
 
 // The fetch request/result envelopes live in namespace eam; bring them in for this unit so the
 // worker/scheduler code below reads cleanly.
@@ -57,6 +58,13 @@ void EamFeedClient::Begin()
 
 void EamFeedClient::Configure(const Config& newCfg)
 {
+    // A config save while the OpenSky watch is waiting out a 429 keeps the wait when it is the
+    // same account (same client id) -- restaging would just spend another poll on another 429.
+    const bool keepLimit = abncpLimited && cfg.abncpSource == AbncpSource::OpenSky &&
+                           newCfg.abncpSource == AbncpSource::OpenSky && cfg.openskyId == newCfg.openskyId &&
+                           (int32_t)(abncpResumeMs - millis()) > 0;
+    if (!keepLimit) abncpLimited = false;
+
     cfg = newCfg;
 
     // (Re)build the command-post provider from the selected source. Never any baked-in key:
@@ -94,6 +102,13 @@ void EamFeedClient::Configure(const Config& newCfg)
         feeds[i].failCount = 0;
         feeds[i].nextDueMs = now + (uint32_t)i * 400 + 300;
     }
+    if (keepLimit) feeds[F_ABNCP].nextDueMs = abncpResumeMs;
+}
+
+void EamFeedClient::AbncpResumeText(char* buf, size_t n) const
+{
+    const int32_t left = (int32_t)(abncpResumeMs - millis());
+    osklimit::FormatResume(buf, n, abncpResumeEpoch, left > 0 ? (uint32_t)left : 0u);
 }
 
 void EamFeedClient::Poll()
@@ -243,9 +258,28 @@ void EamFeedClient::ApplyResult(const EamFetchResult& res)
         uint32_t backoff = feeds[f].intervalMs << shift;
         if (backoff > MAX_BACKOFF_MS || backoff < feeds[f].intervalMs) backoff = MAX_BACKOFF_MS;
         if (backoff < feeds[f].intervalMs) backoff = feeds[f].intervalMs; // never poll a FAILING feed faster than a healthy one
+
+        // OpenSky said "out of credits" (429): wait the X-Rate-Limit-Retry-After-Seconds it
+        // gave (ruled 2026-10-12), or the ordinary back-off when it gave none, and say so on
+        // the ABNCP screen until the next poll answers.
+        if (res.endpoint == eam::EamEndpoint::AbncpOpenSky && res.httpStatus == osklimit::kTooManyRequests) {
+            const uint32_t wait = osklimit::LimitDelayMs(res.httpStatus, res.rateLimitRetryAfter.c_str(),
+                                                         feeds[f].intervalMs, backoff);
+            if (osklimit::ParseSeconds(res.rateLimitRetryAfter.c_str()) >= 0)
+                feeds[f].failCount = 0; // a wait the server set is a schedule, not a failure streak
+            backoff = wait;
+            abncpLimited = true;
+            abncpResumeMs = now + wait;
+            const time_t nowUtc = time(nullptr);
+            abncpResumeEpoch = nowUtc > 1600000000 ? (long)nowUtc + (long)(wait / 1000u) : 0;
+            Serial.printf("[eam] opensky abncp: 429, retry-after=\"%s\", next poll in %lu s\n",
+                          res.rateLimitRetryAfter.c_str(), (unsigned long)(wait / 1000u));
+        }
         feeds[f].nextDueMs = now + backoff;
         return;
     }
+
+    if (res.endpoint == eam::EamEndpoint::AbncpOpenSky) abncpLimited = false; // answered again
 
     // The feed dropped and came back: /eam/latest answers again after failing.
     if (f == F_LATEST && feeds[f].failCount > 0) reconnectEdge = true;
@@ -387,6 +421,15 @@ void EamFeedClient::Fetch(HttpRequestManager& http, OpenSkyAuthTokenHandler& aut
 
     JsonDocument doc;
     const HttpResult r = http.GetJson(req.url, doc, req.params, headers);
+    if (req.endpoint == eam::EamEndpoint::AbncpOpenSky) {
+        // Kept BEFORE the failure check: a 429 is exactly the response that must carry its
+        // Retry-After back to the scheduler (ApplyResult).
+        res.httpStatus = r.statusCode;
+        res.rateLimitRemaining = r.rateLimitRemaining;
+        res.rateLimitRetryAfter = r.rateLimitRetryAfter;
+        Serial.printf("[eam] opensky abncp: HTTP %d, %s=%s\n", r.statusCode, osklimit::kRemainingHeader,
+                      r.rateLimitRemaining.length() ? r.rateLimitRemaining.c_str() : "(absent)");
+    }
     if (!r.success || r.statusCode < 200 || r.statusCode >= 300) {
         res.ok = false;
         return;
