@@ -6,8 +6,14 @@
 //   2. Recognition on the device is a cited hex table, ADFEB3..ADFEB6: the hex is in the table
 //      AND (the type is B742 or E4, or no type is given). "YES, type E4 counts too."
 //   3. Rule 1 stays as a second check wherever a registration exists, unchanged (B742 only).
+//   4. "OpenSky mode always includes the four built-in E-4B hexes (ADFEB3-ADFEB6) in its
+//      watchlist query, alongside the user's own hexes." (src/eam/AbncpWatch.h, the same
+//      template the firmware instantiates with Arduino String.)
 #include <cstdio>
+#include <string>
+#include <vector>
 #include "../../src/eam/AbncpIdentity.h"
+#include "../../src/eam/AbncpWatch.h"
 
 static int failures = 0;
 
@@ -15,6 +21,28 @@ static void expect(bool ok, const char* what)
 {
     if (!ok) { printf("  FAIL  %s\n", what); failures++; }
     else printf("  ok    %s\n", what);
+}
+
+typedef std::vector<std::string> List;
+
+static List Query(const List& user) { return abncp::OpenSkyWatchQuery<std::string>(user); }
+
+static int Count(const List& q, const char* hex)
+{
+    int n = 0;
+    for (const std::string& h : q) n += (h == hex) ? 1 : 0;
+    return n;
+}
+
+// Every built-in exactly once, and nothing in the list twice.
+static bool HasBuiltinsOnceNoDupes(const List& q)
+{
+    for (const abncp::Airframe& a : abncp::kE4bAirframes)
+        if (Count(q, a.hex) != 1) return false;
+    for (size_t i = 0; i < q.size(); ++i)
+        for (size_t j = i + 1; j < q.size(); ++j)
+            if (q[i] == q[j]) return false;
+    return true;
 }
 
 int main()
@@ -101,6 +129,52 @@ int main()
     expect(!IdentifyE4b("", "", "73-1676"), "a registration alone (no type, no hex) is NOT named");
     expect(!IdentifyE4b("adfdf8", "B742", "82-8000"), "the VC-25A as a full row is NOT named");
 
+    // ---------------------------------------------- rule 4: the OpenSky query's built-in four
+    printf("  ---- rule 4: the OpenSky query always carries the four built-ins\n");
+    {
+        const List q = Query(List());
+        expect(q.size() == 4, "an EMPTY user list still sends 4 hexes");
+        expect(HasBuiltinsOnceNoDupes(q), "...and they are ADFEB3..ADFEB6, once each");
+        expect(q.size() == 4 && q[0] == "adfeb3" && q[1] == "adfeb4" && q[2] == "adfeb5" && q[3] == "adfeb6",
+               "...lower-case, in table order");
+    }
+    {
+        const List q = Query(List{ "", "  ", "~", "\t" });
+        expect(q.size() == 4 && HasBuiltinsOnceNoDupes(q), "blank / '~'-only entries add nothing; the four remain");
+    }
+    {
+        const List user{ "abc9f3", "a1b2c3", "ae5006" };
+        const List q = Query(user);
+        expect(q.size() == user.size() + 4, "a user list of 3 gives 3 + 4 = 7");
+        expect(q.size() == 7 && q[0] == "abc9f3" && q[1] == "a1b2c3" && q[2] == "ae5006",
+               "...the user's own entries first, in their order");
+        expect(HasBuiltinsOnceNoDupes(q), "...then the four, once each");
+    }
+    {
+        const List user{ "abc9f3" };
+        expect(Query(user).size() == 5, "a user list of 1 gives 1 + 4 = 5");
+    }
+    {
+        // The user also typed some of the four: in any case, with a '~', with whitespace.
+        const List user{ "ADFEB3", "~adfeb4", " adfeb5\t", "~ADFEB6 " };
+        const List q = Query(user);
+        expect(q.size() == 4, "the user typed all four (ADFEB3, ~adfeb4, ' adfeb5', '~ADFEB6 '): still 4, no duplicates");
+        expect(HasBuiltinsOnceNoDupes(q), "...each of the four exactly once");
+    }
+    {
+        const List user{ "abc9f3", "AdFeB3", "ABC9F3", "~abc9f3" };
+        const List q = Query(user);
+        expect(q.size() == 5, "abc9f3 three ways + AdFeB3: abc9f3 once, the four once = 5");
+        expect(Count(q, "abc9f3") == 1 && HasBuiltinsOnceNoDupes(q), "...no address sent twice");
+        expect(q[0] == "abc9f3" && q[1] == "adfeb3", "...the user's first spelling sets the position");
+    }
+    {
+        // Canonical form is what is SENT: OpenSky's icao24 is the bare address.
+        expect(abncp::CanonicalWatchHex<std::string>("  ~ABC9F3\t") == "abc9f3", "'  ~ABC9F3\\t' is sent as 'abc9f3'");
+        expect(abncp::CanonicalWatchHex<std::string>("xyz") == "xyz", "a non-hex entry is sent as typed (lower-cased), not dropped");
+        expect(abncp::CanonicalWatchHex<std::string>(nullptr).empty(), "a null entry is empty");
+    }
+
     // ------------------------------------------------------------------------- controls
     // Fail if the table were emptied or swapped (every positive above fails too; these state it
     // directly), or if E4 stopped counting. The "typed B752 / C2 / E6 / E4B" cases above fail if
@@ -115,6 +189,11 @@ int main()
         named += IdentifyE4b("", "B742", a.registration) ? 1 : 0;
     }
     expect(named == 16, "every table row is named by its hex (no type, B742, E4) AND by B742 + its registration");
+    // Fails if the built-ins were dropped from the query, or the query stopped using the table.
+    int carried = 0;
+    for (const abncp::Airframe& a : abncp::kE4bAirframes)
+        carried += Count(Query(List()), a.hex) + Count(Query(List{ "abc9f3" }), a.hex);
+    expect(carried == 8, "every table hex is in the query, with an empty user list and with one entry");
 
     if (failures) {
         printf("abncp identity: %d FAILED\n", failures);
