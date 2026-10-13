@@ -173,6 +173,23 @@ jobs:
       - name: Every radar SKU in the matrix builds a production cloud image
         run: node scripts/check_release_envs.mjs
 
+  # NO MISSILEER BUILD SHIPS THE USB KEYBOARD (Daniel, 2026-10-12). Every Missileer env
+  # uses the chip's built-in USB-Serial/JTAG (ARDUINO_USB_MODE=1), so a board is always
+  # reflashable over USB, and FEATURE_USB_OPEN's code stays behind its flag with no env
+  # building it. Resolved through `extends` and ${...}; BLIND (exit 2) if no Missileer env
+  # is found. The image half runs on each missileer-* build leg below.
+  missileer-usb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove the checker catches each violation
+        run: python3 scripts/check-missileer-usb.py --selftest
+      - name: No Missileer env is TinyUSB, no env builds FEATURE_USB_OPEN
+        run: python3 scripts/check-missileer-usb.py
+
   # The launch gate itself scans linked binaries and so runs inside the build
   # matrix below, per SKU. What runs HERE is its MATRIX PARSER -- the part that
   # decides which images get scanned at all.
@@ -316,6 +333,9 @@ jobs:
       # not once by hand. The script requires an anchor string first (a scanner
       # that cannot read the image reports BLIND, exit 2, never "clean"), and its
       # selftest proves a planted marker is caught.
+      - name: No USB keyboard in the Missileer image
+        if: startsWith(matrix.env, 'missileer-')
+        run: python3 scripts/check-missileer-usb.py --image ".pio/build/${{ matrix.env }}/firmware.bin"
       - name: No bench hook in the image
         if: matrix.slug
         run: |

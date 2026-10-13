@@ -11,7 +11,8 @@ therefore a rule that eventually flashes the wrong board.
 The ESP32-S3 reports its factory MAC as the USB serial number in every mode, but
 spelled two ways: the chip's USB-Serial-JTAG peripheral (ROM download mode, and any
 firmware built with ARDUINO_USB_MODE=1, e.g. the Blipscope soak build) gives
-"90:70:69:31:E9:D8"; the TinyUSB stack (ARDUINO_USB_MODE=0, the Missileer builds)
+"90:70:69:31:E9:D8"; the TinyUSB stack (ARDUINO_USB_MODE=0 -- the Missileer builds until
+2026-10-12, when they moved to the built-in USB-Serial/JTAG; no env uses it now)
 gives "90706931E9D8". Both are matched after removing the colons.
 
 Usage:
