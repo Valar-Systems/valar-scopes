@@ -1,4 +1,5 @@
 #include "SevenSegment.h"
+#include "SevenSegmentShapes.h"
 
 namespace sevenseg {
 
@@ -25,25 +26,7 @@ const uint8_t kSegTable[10] = {
     0b1101111, // 9: a b c d f g
 };
 
-// Horizontal segment as a flat hexagon (rect body + triangular caps) spanning [x, x+len] at y.
-void SegH(BandCanvas& c, int x, int y, int len, int t, uint32_t col)
-{
-    const int h2 = t / 2;
-    if (len <= t) return;
-    c.fillRect(x + h2, y, len - t, t, col);
-    c.fillTriangle(x + h2, y, x + h2, y + t - 1, x, y + h2, col);
-    c.fillTriangle(x + len - h2, y, x + len - h2, y + t - 1, x + len, y + h2, col);
-}
-
-// Vertical segment hexagon spanning [y, y+len] at x.
-void SegV(BandCanvas& c, int x, int y, int len, int t, uint32_t col)
-{
-    const int h2 = t / 2;
-    if (len <= t) return;
-    c.fillRect(x, y + h2, t, len - t, col);
-    c.fillTriangle(x, y + h2, x + t - 1, y + h2, x + h2, y, col);
-    c.fillTriangle(x, y + len - h2, x + t - 1, y + len - h2, x + h2, y + len, col);
-}
+// SegH / SegV, the hexagon segments: include/SevenSegmentShapes.h (host-tested there).
 
 } // namespace
 
