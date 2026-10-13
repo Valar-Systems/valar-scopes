@@ -137,9 +137,10 @@ struct Launch {
 // ----------------------------------------------------------------------------- ABNCP watch
 struct AbncpAircraft {
     String type;                     // "E-4B" (AbncpIdentity.h rule), else the source's raw type, or ""
-    // As the source states it. Neither source states one today: the backend row has no
-    // registration field and an OpenSky state vector has none, so this stays "" and no row is
-    // named "E-4B" (the rule needs type B742 AND a public E-4B registration).
+    // As the source states it. Neither source states one today (the backend row has no
+    // registration field; an OpenSky state vector has none), so this stays "" and the hex
+    // table names the row. Where a source does state one, it is the second check
+    // (AbncpIdentity.h): a registration that is not one of the four E-4Bs names nothing.
     String registration;
     String callsign;
     String hex;                      // ICAO24
@@ -252,10 +253,11 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out);                      
 bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap);               // {base}/status/milair shape
 bool ParseGameConfig(JsonObjectConst root, GameConfig& out);                    // /api/v1/missileer/config; strict
 
-// Name an ABNCP aircraft from what its source states. "E-4B" only when its type is B742 AND its
-// registration is one of the four public E-4B registrations (AbncpIdentity.h, ruled
-// 2026-10-12); "" otherwise. Never from the hex: there is no hex table, and no default
-// OpenSky watchlist -- the old one was four C-2As marked PLACEHOLDER.
+// Name an ABNCP aircraft from what its source states (AbncpIdentity.h, ruled 2026-10-12).
+// "E-4B" when its hex is one of the four cited E-4B addresses (ADFEB3..ADFEB6) and its type is
+// B742 or absent; where a registration is stated it must also be one of the four, and B742 plus
+// such a registration names it too. "" otherwise. There is no default OpenSky watchlist: the
+// old one was four C-2As marked PLACEHOLDER.
 String ClassifyAbncp(const AbncpAircraft& ac);
 
 // Parse "YYYY-MM-DDThh:mm:ss" (UTC, trailing zone/fraction ignored) to a Unix epoch; 0 on failure.

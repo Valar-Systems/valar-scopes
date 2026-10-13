@@ -228,9 +228,10 @@ bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
                 ac.lat = a["lat"].as<double>();
                 ac.lon = a["lon"].as<double>();
             }
-            // The E-4B rule (AbncpIdentity.h) needs the registration as well as the type, and
-            // the backend's row carries no registration (valar-eam-feed types.ts AbncpAircraft),
-            // so a B742 row keeps its raw type here rather than being called "E-4B".
+            // Named "E-4B" when its hex is in the cited table and its type is B742 (or absent);
+            // AbncpIdentity.h. Any other row keeps its raw type: a VC-25A is B742 too, but its
+            // hex is not in the table. The backend row carries no registration
+            // (valar-eam-feed types.ts AbncpAircraft), so the registration check never runs here.
             const String named = ClassifyAbncp(ac);
             if (named.length()) ac.type = named;
             out.aircraft.push_back(std::move(ac));
@@ -262,9 +263,8 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
                 ac.lat = s[6].as<double>();
             }
             const bool onGround = s[8].is<bool>() ? s[8].as<bool>() : false;
-            // A state vector states no aircraft type and no registration, so the E-4B rule has
-            // nothing to match and this is "" (unnamed). The hex is never used to name an
-            // airframe: the old hex table was four C-2As (AbncpIdentity.h).
+            // A state vector states no aircraft type and no registration, so the hex alone
+            // decides: "E-4B" when it is in the cited table (AbncpIdentity.h), "" otherwise.
             ac.type = ClassifyAbncp(ac);
             if (!onGround) out.airborne = true;
             out.aircraft.push_back(std::move(ac));
@@ -306,7 +306,7 @@ bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap)
 
 String ClassifyAbncp(const AbncpAircraft& ac)
 {
-    if (abncp::IsE4b(ac.type.c_str(), ac.registration.c_str())) return "E-4B";
+    if (abncp::IdentifyE4b(ac.hex.c_str(), ac.type.c_str(), ac.registration.c_str())) return "E-4B";
     // E-6B Mercury callsigns are not fixed; leave unknown unless the caller knows better.
     return "";
 }
