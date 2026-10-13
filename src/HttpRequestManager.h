@@ -22,6 +22,11 @@ struct HttpResult {
     String cacheState;             // X-Cache: HIT | STALE | MISS ("" if absent)
     String upstream;               // X-Upstream: which source actually served it
     String cacheControl;           // Cache-Control ("" if absent); GetJson only
+    // OpenSky's rate-limit headers ("" if absent); GetJson only. Read by the Missileer's
+    // OpenSky command-post watch (src/eam/OpenSkyLimit.h); collected for every GetJson, and
+    // ignored by everything else.
+    String rateLimitRemaining;     // X-Rate-Limit-Remaining
+    String rateLimitRetryAfter;    // X-Rate-Limit-Retry-After-Seconds (sent with a 429)
     size_t bodyBytes = 0;          // response body size (Content-Length, or bytes read)
     unsigned long parseMs = 0;     // JSON deserialize time only, excluding transfer
     unsigned long requestMs = 0;   // whole call: connect + transfer + parse
