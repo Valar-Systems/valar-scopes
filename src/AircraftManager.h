@@ -885,6 +885,7 @@ private:
     void StepZoom(int dir, const char* why);
     bool LongPressEligible() const;            // the Radar face with nothing on top
     void DrawHoldRing(BandCanvas& backbuffer) const;
+    void DrawHoldRingStyle(BandCanvas& g, char style, int x, int y, uint32_t permille) const; // one ring style
     void ApplyZoom(int idx, radarzoom::Edge edge, const char* why);
     void DrawZoomOverlay(BandCanvas& backbuffer) const;
 
