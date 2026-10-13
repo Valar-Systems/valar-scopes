@@ -3,73 +3,19 @@
 
 namespace sevenseg {
 
-namespace {
-
-// Segment bitmask per digit, bit order: a b c d e f g (bit0 = a ... bit6 = g).
-//   aaa
-//  f   b
-//  f   b
-//   ggg
-//  e   c
-//  e   c
-//   ddd
-const uint8_t kSegTable[10] = {
-    0b0111111, // 0: a b c d e f
-    0b0000110, // 1: b c
-    0b1011011, // 2: a b d e g
-    0b1001111, // 3: a b c d g
-    0b1100110, // 4: b c f g
-    0b1101101, // 5: a c d f g
-    0b1111101, // 6: a c d e f g
-    0b0000111, // 7: a b c
-    0b1111111, // 8: all
-    0b1101111, // 9: a b c d f g
-};
-
-// SegH / SegV, the hexagon segments: include/SevenSegmentShapes.h (host-tested there).
-
-} // namespace
+// The digit itself -- segment table, hexagon segments, the 1's flag -- is
+// include/SevenSegmentShapes.h, templated on the canvas so the host tests rasterize the
+// exact geometry that ships (test/host/test_sevenseg_shapes.cpp, test_sevenseg_one.cpp).
 
 int SevenSegThickness(int h)
 {
-    int t = h / 8;
-    if (t < 2) t = 2;
-    return t;
+    return Thickness(h);
 }
 
 void DrawSevenSeg(BandCanvas& c, int x, int y, int w, int h, int digit,
-                  uint32_t lit, uint32_t ghost, uint32_t bloom)
+                  uint32_t lit, uint32_t ghost, uint32_t bloom, bool flagOne)
 {
-    const int t = SevenSegThickness(h);
-    const int midY = y + (h - t) / 2;
-    const int rightX = x + w - t;
-    const int halfH = (h - t) / 2 + t; // vertical seg length (overlaps the middle bar)
-    const int botY = y + h - t;
-    const int lowerY = midY;
-
-    // Per-segment geometry as a draw lambda, so we can paint ghost (all) then lit (on) cheaply.
-    auto seg = [&](int i, uint32_t col) {
-        switch (i) {
-            case 0: SegH(c, x, y, w, t, col); break;            // a top
-            case 1: SegV(c, rightX, y, halfH, t, col); break;   // b top-right
-            case 2: SegV(c, rightX, lowerY, halfH, t, col); break; // c bottom-right
-            case 3: SegH(c, x, botY, w, t, col); break;         // d bottom
-            case 4: SegV(c, x, lowerY, halfH, t, col); break;   // e bottom-left
-            case 5: SegV(c, x, y, halfH, t, col); break;        // f top-left
-            case 6: SegH(c, x, midY, w, t, col); break;         // g middle
-        }
-    };
-
-    // Ghost every segment first so off segments stay faintly visible (the LED-panel look).
-    for (int i = 0; i < 7; ++i) seg(i, ghost);
-
-    if (digit < 0 || digit > DASH) return;
-    const uint8_t mask = digit == DASH ? 0b1000000 : kSegTable[digit]; // DASH: g alone
-    // Bloom pass (slightly offset, dimmer) then the bright core.
-    for (int i = 0; i < 7; ++i)
-        if (mask & (1 << i)) seg(i, bloom);
-    for (int i = 0; i < 7; ++i)
-        if (mask & (1 << i)) seg(i, lit);
+    DrawDigit(c, x, y, w, h, digit, lit, ghost, bloom, flagOne);
 }
 
 void DrawColon(BandCanvas& c, int x, int y, int w, int h, bool lit,

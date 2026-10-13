@@ -644,7 +644,9 @@ void EamManager::DrawClock(BandCanvas& c)
     for (int i = 0; i < nDigits; ++i) {
         const char ch = count[i];
         const int d = ch == '-' ? eam::DASH : ch - '0';
-        eam::DrawSevenSeg(c, lx, lineY, segW, segH, d, lit, ghost, bloom);
+        // flagOne: the count sits right beside "ON WATCH", and a bare-bar 1 there reads
+        // as the letter I (Daniel, 2026-10-12). The only flagged call site.
+        eam::DrawSevenSeg(c, lx, lineY, segW, segH, d, lit, ghost, bloom, /*flagOne=*/true);
         lx += segW + segGap;
     }
     lx += space - segGap;
