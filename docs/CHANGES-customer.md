@@ -48,6 +48,7 @@ picks up from your browser the next time you open its settings page.
 - A plane you've just claimed now appears in your Collection right away. Before, it could take a
   refresh or two.
 - During setup, "Use my location" now ticks off the location step straight away.
+- Segment digits no longer show a gap at some sizes.
 
 ## v16
 notify: yes
