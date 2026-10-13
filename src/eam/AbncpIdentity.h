@@ -10,8 +10,10 @@
 //   1. "The ABNCP watchlist matches type B742 plus the E-4B registrations from public sources."
 //      Ruled AND: the type B742 AND one of the four registrations below.
 //   2. On the device, recognition is a cited HEX table (the four rows below): a row is an E-4B
-//      when its ICAO24 address is in the table AND its type is B742 whenever a type is present.
-//      A row with no type (an OpenSky state vector never has one) matches on the hex alone.
+//      when its ICAO24 address is in the table AND (its type is B742 or E4, or no type is
+//      given). A row with no type (an OpenSky state vector never has one) matches on the hex
+//      alone. E4 is accepted HERE ONLY (ruled 2026-10-12, "YES, type E4 counts too"): it is how
+//      adsbdb and hexdb.io type these airframes. Rule 1 is unchanged and still needs B742.
 //   3. Rule 1 stays as a second check wherever a registration exists. A row that states a
 //      registration is named only if that registration is one of the four; then either rule 1
 //      (B742 + registration) or rule 2 (hex) names it.
@@ -21,7 +23,8 @@
 // VC-25As B742, flagged military: 82-8000 at ADFDF8 and 92-9000 at ADFDF9
 // (https://github.com/wiedehopf/tar1090-db/blob/17679e257733ad808a417cf4a5d52f3b00238887/db/AD.js,
 // keys "FDF8"/"FDF9"; adsbdb agrees: https://api.adsbdb.com/v0/aircraft/82-8000). Type alone
-// would call Air Force One "Nightwatch"; so would a hex table checked against type alone.
+// would call Air Force One "Nightwatch"; so would a hex table checked against type alone. The
+// VC-25A hexes are not in the table, so neither B742 nor E4 can name them.
 //
 // ---------------------------------------------------------------------------------------------
 // THE FOUR AIRFRAMES. The USAF fact sheet gives the inventory as four, on a militarized
@@ -42,8 +45,7 @@
 //     (and 73-1677, 74-0787, 75-0125 -> ADFEB4, ADFEB5, ADFEB6);
 //   - hexdb.io, by hex: https://hexdb.io/api/v1/aircraft/ADFEB3 -> "73-1676", "E-4B"
 //     (and ADFEB4..ADFEB6 -> 73-1677, 74-0787, 75-0125).
-// tar1090-db types them "B742", as the ruling does. adsbdb and hexdb.io type them "E4"; a row
-// typed "E4" is NOT named under rule 2's literal type check (question on the PR).
+// tar1090-db types them "B742"; adsbdb and hexdb.io type them "E4". Rule 2 accepts both.
 //
 // ---------------------------------------------------------------------------------------------
 // NOT THE OLD TABLE. Before 2026-10-12 the firmware held four ICAO24 addresses marked
@@ -52,7 +54,8 @@
 // "E0451".."E0454") all say so. They are gone, and the test keeps them out.
 namespace abncp {
 
-constexpr const char* kE4bIcaoType = "B742";
+constexpr const char* kE4bIcaoType = "B742";   // rules 1 and 2 (tar1090-db's type)
+constexpr const char* kE4bAltIcaoType = "E4";  // rule 2 only (adsbdb's and hexdb.io's type)
 
 struct Airframe {
     const char* hex;           // ICAO24, lower-case, exactly 6 hex digits
@@ -125,10 +128,11 @@ inline bool IsE4b(const char* icaoType, const char* registration)
     return SameIdent(icaoType, kE4bIcaoType) && IsE4bRegistration(registration);
 }
 
-// Rule 2: the hex is in the table AND, when a type is stated, it is B742.
+// Rule 2: the hex is in the table AND (the type is B742 or E4, or no type is given).
 inline bool IsE4bHex(const char* hex, const char* icaoType)
 {
-    if (Stated(icaoType) && !SameIdent(icaoType, kE4bIcaoType)) return false;
+    if (Stated(icaoType) && !SameIdent(icaoType, kE4bIcaoType) && !SameIdent(icaoType, kE4bAltIcaoType))
+        return false;
     for (const Airframe& a : kE4bAirframes)
         if (SameHex(hex, a.hex)) return true;
     return false;

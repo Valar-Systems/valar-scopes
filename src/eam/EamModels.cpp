@@ -228,7 +228,7 @@ bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
                 ac.lat = a["lat"].as<double>();
                 ac.lon = a["lon"].as<double>();
             }
-            // Named "E-4B" when its hex is in the cited table and its type is B742 (or absent);
+            // Named "E-4B" when its hex is in the cited table and its type is B742, E4 or absent;
             // AbncpIdentity.h. Any other row keeps its raw type: a VC-25A is B742 too, but its
             // hex is not in the table. The backend row carries no registration
             // (valar-eam-feed types.ts AbncpAircraft), so the registration check never runs here.

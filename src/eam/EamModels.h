@@ -255,7 +255,7 @@ bool ParseGameConfig(JsonObjectConst root, GameConfig& out);                    
 
 // Name an ABNCP aircraft from what its source states (AbncpIdentity.h, ruled 2026-10-12).
 // "E-4B" when its hex is one of the four cited E-4B addresses (ADFEB3..ADFEB6) and its type is
-// B742 or absent; where a registration is stated it must also be one of the four, and B742 plus
+// B742, E4 or absent; where a registration is stated it must also be one of the four, and B742 plus
 // such a registration names it too. "" otherwise. There is no default OpenSky watchlist: the
 // old one was four C-2As marked PLACEHOLDER.
 String ClassifyAbncp(const AbncpAircraft& ac);
