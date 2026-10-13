@@ -768,6 +768,7 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 
 void AircraftManager::Initialise()
 {
+    Serial.println("** BENCH OVERRIDE ** clockcap: night clock forced, digits 10:23 / 45:67 / 89:01, NEVER SHIPS");
     // get centre point + radius
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
@@ -4450,6 +4451,9 @@ int AircraftManager::FollowMinutesToArrival(const RouteView& v) const
 
 bool AircraftManager::NightClockActive() const
 {
+    // ** BENCH OVERRIDE ** clockcap (#405/#406 capture): forced on the Radar face, whatever the night
+    // verdict, the setting or the traffic. NEVER SHIPS -- this commit lives on bench/clock-* only.
+    if (!inDetail && screen == Screen::Radar) return true;
     if (!nightClockEnabled || !nightNow || inDetail || screen != Screen::Radar)
         return false;
     if (time(nullptr) < 1600000000)
@@ -4514,6 +4518,12 @@ void AircraftManager::DrawNightClock(BandCanvas& backbuffer) const
     const time_t local = time(nullptr) + utcOffsetSec;
     struct tm t;
     gmtime_r(&local, &t);
+    // ** BENCH OVERRIDE ** clockcap: three fixed sets, 10 s each, colon lit -- the same digits on every build.
+    static const int kSets[3][4] = { { 1, 0, 2, 3 }, { 4, 5, 6, 7 }, { 8, 9, 0, 1 } };
+    const int* d = kSets[(millis() / 10000UL) % 3];
+    t.tm_hour = d[0] * 10 + d[1];
+    t.tm_min = d[2] * 10 + d[3];
+    t.tm_sec = 0;
 
     // HH : MM in four seven-segment cells + a blinking colon, centred. All
     // geometry scales from SCREEN_SIZE so every panel gets the same face.
