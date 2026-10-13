@@ -25,12 +25,12 @@
 
 #ifdef FEATURE_EAM
 #include "eam/EamLogbook.h"        // serves the on-device logbook as a CSV/JSON download
-#include "eam/AbncpWatch.h"        // marks the OpenSky watch entries the device drops
 // The EAM build's backend base URL default. Normally injected per-env (-DEAM_FEED_BASE=...);
 // guarded so the file still compiles without it. The runtime value ("eam-base-url") overrides.
 #ifndef EAM_FEED_BASE
 #define EAM_FEED_BASE "https://eam.example.com"
 #endif
+#include "eam/AbncpWatch.h"        // marks the OpenSky watch entries the device drops
 #endif
 
 #ifdef FEATURE_SPACE
