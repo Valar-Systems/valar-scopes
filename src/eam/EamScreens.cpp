@@ -1,3 +1,4 @@
+#include "SegCaptureBench.h"   // bench only (SEVENSEG_CAPTURE_BENCH); empty otherwise
 #include "EamManager.h"
 
 #include <math.h>
@@ -570,9 +571,12 @@ void EamManager::DrawClock(BandCanvas& c)
     struct tm tmv;
     gmtime_r(&nowUtc, &tmv);
     const bool synced = nowUtc > 1600000000;
-    const int hh = synced ? tmv.tm_hour : 0;
-    const int mm = synced ? tmv.tm_min : 0;
-    const int ss = synced ? tmv.tm_sec : 0;
+    int hh = synced ? tmv.tm_hour : 0;
+    int mm = synced ? tmv.tm_min : 0;
+    int ss = synced ? tmv.tm_sec : 0;
+#if defined(SEVENSEG_CAPTURE_BENCH)
+    segcapture::PinClock(&hh, &mm, &ss);   // bench only: a fixed time per capture phase
+#endif
 
     const float glow = GlowFactor();
     const uint32_t lit = eam::ScaleColor(eam::ClockLit(), glow);
@@ -617,7 +621,10 @@ void EamManager::DrawClock(BandCanvas& c)
     // clock's red. The label is size-2 text on the 1.28" (3 on the 412 px panel); the digits
     // are exactly that text's height, so the two read as one line. "--" (dash glyphs) until
     // the first answer; after that the last good count, whatever later fetches do.
-    const int labelSize = SCREEN_SIZE >= 360 ? 3 : 2;
+    int labelSize = SCREEN_SIZE >= 360 ? 3 : 2;
+#if defined(SEVENSEG_CAPTURE_BENCH)
+    labelSize = segcapture::LabelSize(labelSize);   // bench only: the 1.46" size on this panel
+#endif
     c.setTextSize(labelSize);
     const char* kLabel = "ON WATCH";
     const int segH = c.fontHeight();                  // label scale
@@ -625,6 +632,9 @@ void EamManager::DrawClock(BandCanvas& c)
     const int segGap = max(2, (int)(segW * 0.16f));
     char count[12];
     onwatch::Text(feed.OnWatch(), count, sizeof(count));
+#if defined(SEVENSEG_CAPTURE_BENCH)
+    segcapture::OnWatchText(count, sizeof(count));   // bench only: "1" / "10"
+#endif
     const int nDigits = (int)strlen(count);
     const int countW = nDigits * segW + (nDigits > 0 ? (nDigits - 1) * segGap : 0);
     const int space = c.textWidth(" ");

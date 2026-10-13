@@ -1,3 +1,4 @@
+#include "SegCaptureBench.h"   // bench only (SEVENSEG_CAPTURE_BENCH); empty otherwise
 #include "EamManager.h"
 #include "TouchPoll.h"
 #include "SolarDim.h"
@@ -196,6 +197,17 @@ void EamManager::Update()
 
 void EamManager::Draw(BandCanvas& backbuffer, bool firstPass)
 {
+#if defined(SEVENSEG_CAPTURE_BENCH)
+    // BENCH ONLY: the capture phases (SegCaptureBench.h). The drill face through the real
+    // DrawDrill; otherwise the Clock, through the normal path below.
+    segcapture::Announce();
+    if (segcapture::DrillPhase()) {
+        game::State st;   // Idle: EXERCISE and the clock-age digits, as in every phase
+        game::DrawDrill(backbuffer, palette, st, drill.Cfg(), NowUs(), segcapture::kDrillAgeS);
+        return;
+    }
+    current = Screen::Clock;
+#endif
 #if defined(FEATURE_EAM_GAME)
     // THE DRILL FACE IS A MODE, not a rotation screen (missileer-game-ui-review.md:
     // "the launch face must be an overlay + a mode"). While it is up nothing else draws.

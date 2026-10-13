@@ -20,7 +20,7 @@
 set -u
 
 # Every bench hook's marker. Add a hook -> add its marker here, in the same PR.
-MARKERS=( "[alert-bench]" "[touch-bench]" )
+MARKERS=( "[alert-bench]" "[touch-bench]" "[seg-capture]" )
 ANCHOR="[build] env="
 
 scan() {
