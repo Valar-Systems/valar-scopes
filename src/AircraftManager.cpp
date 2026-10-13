@@ -4909,12 +4909,16 @@ bool AircraftManager::LongPressEligible() const
 // far it has filled are LongPressPolicy's, unchanged. Sizes are set on the 240 px panel and scale with the screen.
 void AircraftManager::DrawHoldRing(BandCanvas& backbuffer) const
 {
-    if (!longpress::RingVisible(longPress)) return;
+    // FIRED (the zoom has toggled; the finger is still down): the band is drawn COMPLETE. The fire lands on the first
+    // touch frame at or past the threshold and the ring phase ends there, so without this the last band anyone saw was
+    // the frame before -- 93-98 % -- and it seemed to stop short (Daniel, 2026-10-13). Reads the phase; changes nothing.
+    const bool fired = longPress.phase == longpress::Phase::Fired;
+    if (!fired && !longpress::RingVisible(longPress)) return;
     const float k = SCREEN_SIZE / 240.0f;
     const int c = SCREEN_SIZE_DIV_2;
     const int R1 = SCREEN_SIZE_DIV_2 - (int)(2 * k), R0 = R1 - (int)(7 * k);
     backbuffer.drawCircle(c, c, R1 + 1, lgfx::color888(0, 90, 0));          // the dim track
-    const uint32_t p = longpress::RingPermille(longPress, millis());
+    const uint32_t p = fired ? 1000 : longpress::RingPermille(longPress, millis());
     if (p == 0) return;
     // LovyanGFX angles: 0 = 3 o'clock, clockwise. Start at 12 o'clock and never pass 360 in one call.
     const float a1 = 270.0f + 360.0f * (float)p / 1000.0f;
