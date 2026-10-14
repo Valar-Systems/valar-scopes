@@ -583,3 +583,26 @@ describe("military enrichment deepening", () => {
     expect(body.t).toBe("B52");
   });
 });
+
+describe("type names: the 2026-10-14 name-gap sweep", () => {
+  // SNBD4 / SNBD10, the RCAF Snowbirds: CL41 with no `desc` from the feed, which until this sweep reached the
+  // card as a bare code (the Worker logged a "name" gap for both, 2026-10-13).
+  for (const [hex, reg] of [["c2c269", "114081"], ["c2c287", "114096"]] as const) {
+    it(`resolves the Snowbirds' CL41 (${hex}) to its new name`, async () => {
+      fetchMock.get(LOL).intercept({ path: `/v2/hex/${hex}` }).reply(200, hexBody([{ hex, r: reg, t: "CL41" }]));
+      const body = (await (await call(apiRequest(`/v1/enrich/${hex}`))).json()) as { t: string; tn: string };
+      expect(body.t).toBe("CL41");
+      expect(body.tn).toBe("Canadair CT-114 Tutor");
+    });
+  }
+
+  it("leaves a code with no name -- CX30, deliberately unfilled -- falling back exactly as before", async () => {
+    // CONTROL for the test above: a code this sweep did NOT fill still answers with its type and an empty
+    // name, which is what every unnamed code did before the sweep. If the lookup started inventing names,
+    // or dropped the type, this fails.
+    fetchMock.get(LOL).intercept({ path: "/v2/hex/a0b1c2" }).reply(200, hexBody([{ hex: "a0b1c2", r: "N1CX", t: "CX30" }]));
+    const body = (await (await call(apiRequest("/v1/enrich/a0b1c2"))).json()) as { t: string; tn: string };
+    expect(body.t).toBe("CX30");
+    expect(body.tn).toBe("");
+  });
+});
