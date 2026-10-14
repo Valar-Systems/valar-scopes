@@ -9,13 +9,19 @@
   v15, whose firmware has no zoom, so a card that mentioned it would describe a feature the unit
   in the box does not have.
 
-## Pending: v17 (specs only; not built, not on any card)
+## Pending: v17 (ships in v17; not on any card yet)
 
-The Canva edit for these is made **once, when the release carrying them is promoted**, together
-with any v16 line still pending.
+The Canva edit is made **when v17 is promoted, not before**, together with any v16 line still
+pending: units shipped before then run firmware without it.
 
-- **Long-press zoom** (`docs/v17-long-press-zoom.md`; replaced double-tap, Daniel 2026-10-09):
-  *"Press and hold the radar to zoom in close; again to zoom back out."*
+- **Long-press zoom** (`docs/v17-long-press-zoom.md`; PRs #388 and #411; replaced double-tap,
+  Daniel 2026-10-09): *"Press and hold the radar to zoom in close; again to zoom back out."* While
+  you hold, a band fills around the edge of the screen, not under your finger.
+
+## Pending: next release (specs only; not built, not on any card)
+
+Moved out of v17 on 2026-10-14: v17 ships only what was already in main.
+
 - **Overhead card** (`docs/v17-overhead-card.md`): *"When a plane passes overhead, a card shows it
   for a few seconds. Tap it for details."* The wording depends on the default decided in that spec.
   If the card sits behind "Look up!", the line begins *"With Look up! on, ..."*.

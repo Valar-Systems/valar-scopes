@@ -26,29 +26,17 @@ url: https://scopes.valarsystems.com/blipscope/changes
 ## v17
 notify: yes
 summary:
-- Hold to zoom in  (refs: #388)
-- Overhead plane card  (refs: spec:v17-overhead-card)
-- Clock follows DST  (refs: pending)
+- Hold to zoom in  (refs: #388, #411)
+- Smaller fixes  (refs: #405, #386)
 
 ### Press and hold to zoom
 Press and hold anywhere on the radar to jump in close. Hold again to go back to your usual range. A
-ring fills around your finger while you hold; let go early and nothing changes. Swiping up and down
-to zoom works exactly as before.
-
-### See what's flying right over you
-With "Look up!" turned on, a small card appears for a few seconds when a plane passes overhead:
-who it is, what it is, where it's going and how high. Tap it for the full details, or swipe it
-away. It never covers an emergency alert.
-
-### The clock follows daylight saving time
-The clock now changes for daylight saving time on its own. It uses your time zone, which Blipscope
-picks up from your browser the next time you open its settings page.
+band fills around the edge of the screen while you hold; let go early and nothing changes. Swiping up
+and down to zoom works exactly as before.
 
 ### Smaller fixes
-- A plane you've just claimed now appears in your Collection right away. Before, it could take a
-  refresh or two.
 - During setup, "Use my location" now ticks off the location step straight away.
-- Segment digits no longer show a gap at some sizes.
+- The night clock's digits look cleaner, without small gaps at some sizes.
 
 ## v16
 notify: yes
