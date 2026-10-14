@@ -114,3 +114,38 @@ probe had picked up the Store `python3` stub. It is excluded, and the probe was 
 `cb9839d`) before P1 was redone.
 
 **Outside the set:** none. Every graded run matched its prediction.
+
+## v17.1 re-run: predictions, frozen before any re-run image is built (2026-10-14)
+
+**Why a re-run.** The 2026-10-08 P2 did not meet its own second clause ("exactly one boot after the power cut"): the serial reopen reset the board. That moved #387 out of v17. It ships first in v17.1. The re-run grades that clause from the Worker's boot rows (#385); no serial reopen happens before everything is graded. **v17 shipped with the defect**, so the baseline image is now v17's own release binary.
+
+**Two tokens, because the probe's verdict depends on whether the saved copy already holds the type** (v17 acceptance, 2026-10-14):
+- **fresh logbook:** the type is not in the last saved copy, so the probe reads **ABSENT**;
+- **existing type:** the type is in the saved copy as seen-but-unclaimed, so the probe reads **UNCLAIMED**.
+
+The first case was observed on v17 on 2026-10-14 (C150, ABSENT) **before** these predictions; it is marked as observed.
+
+**Setting up the existing-type case** (no firmware help needed):
+1. Fetch `/logbook.json` once. That asks the device to save the logbook. The request is consumed on the next loop pass and dropped if the logbook is not dirty or a save happened in the last 30 s (`ConsumeLogbookFlushRequest` + `MaybePersistForFetch`). **It does not linger, so it cannot cause a save after the claim.**
+2. Wait for the `[logbook] persisted` line in the capture.
+3. Fetch again and record which types the saved copy holds, claimed or not.
+4. Daniel claims an aircraft whose type is in that list.
+
+The **case is decided by that pre-claim body**: a claimed type absent from it makes the run a fresh-logbook run, whatever was intended.
+
+| image | fresh logbook | existing type |
+|---|---|---|
+| **B**: v17 release `firmware-s3-128.bin` (f3080caa7e66) | **ABSENT** (observed 2026-10-14, before freezing) | **UNCLAIMED** |
+| **F**: this branch on main 523cd73 (the fix) | **CLAIMED**, with `[logbook] persisted` within ~1 s of `[claim]` and before the probe | **CLAIMED**, same |
+| **S**: F with the `logbook.PersistNow()` call removed | **ABSENT** | **UNCLAIMED** |
+
+**F, full fresh-boot acceptance** (factory reset first):
+- step 4 green (`verdict=CLAIMED`);
+- steps 5 and 6 `verdict=CLAIMED`;
+- boots `n=1 reasons=POWERON verdict=ONE_POWERON`, from Worker rows;
+- `--assert-only` all passed;
+- the `[collect]` reopen comes only after grading.
+
+**Invalid run (redo, not a result):** on B or S, a periodic `[logbook] persisted` line between the claim and the probe.
+
+**Outside the set:** any other token in any cell, CLAIMED on B or S with no save between the claim and the probe, ABSENT or UNCLAIMED on F, or F's acceptance failing any other step. Stop and report.
