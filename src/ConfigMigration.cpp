@@ -1,6 +1,7 @@
 #include "ConfigMigration.h"
 #include "CoordParse.h"
 #include "LocalOffset.h"
+#include "OverheadPolicy.h"
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -105,6 +106,25 @@ void configmigration::Apply()
         }
         Serial.printf("[cfg-migrate] rev %d -> %d: coordinates stored at 4 dp "
                       "(%d key(s) rewritten)\n", stored, CONFIG_REV, rewritten);
+    }
+
+    if (NeedsOverheadMigration(stored)) {
+        const bool hadSwitch = prefs.isKey("ovh-on");
+        const char* v = MigrateOverheadSwitch(prefs);   // writes ovh-on only; lookup-alert is left as stored
+        const char* push = !prefs.isKey("lookup-alert") ? "absent"
+                         : (prefs.getString("lookup-alert", "") == "true" ? "on" : "off");
+        // The distance onto the dropdown: 1, 2, 3 or 5 in the device's unit (nearest; a tie to the
+        // smaller). A value already on the dropdown is left exactly as it is.
+        String moved = "unchanged";
+        if (prefs.isKey("lookup-dist")) {
+            const String d = prefs.getString("lookup-dist", "");
+            const String snapped = String(overhead::SnapDistance(d.toDouble()));
+            if (snapped != d) { prefs.putString("lookup-dist", snapped); moved = d + " -> " + snapped; }
+        }
+        Serial.printf("[cfg-migrate] rev %d -> %d: overhead screen %s; phone push left as stored (%s); distance %s\n",
+                      stored, CONFIG_REV,
+                      hadSwitch ? "already set" : !v ? "default ON (never saved)" : (strcmp(v, "true") == 0 ? "ON (ring or push was on)" : "OFF (ring and push were off)"),
+                      push, moved.c_str());
     }
 
     prefs.putInt("cfg-rev", CONFIG_REV);

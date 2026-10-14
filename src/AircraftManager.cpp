@@ -356,6 +356,7 @@ constexpr int LIST_COL_ALT  = 118; // altitude
 #include <ArduinoJson.h>
 
 #include "Airports.h"     // baked major-airport table for the radar overlay
+#include "OverheadPolicy.h"  // the overhead switch, radius and push rules (pure; test/host/test_overhead.cpp)
 #include "GlobeProjection.h"  // the orthographic globe, shared with src/anim (§7.2)
 #include "SevenSegment.h" // shared 7-seg renderer, for the night clock face
 
@@ -1210,13 +1211,17 @@ void AircraftManager::Initialise()
     if (logbookEnabled && !logbookWasEnabled)
         SeedLogbookFromTracked();
 
-    // "look up!" overhead alert. The distance is entered in the same unit as the
-    // radar radius; store it in km for the centre-distance comparison.
-    showOverhead = configServer.GetStoredString("lookup") == "true";
+    // Overhead alerts (v17 owner controls). `ovh-on` is the SCREEN switch -- the card and the cyan
+    // ring -- default ON. `lookup-alert` is the phone push's own opt-in, default OFF, and it only fires
+    // while the switch is on (overhead::PushFires). The old `lookup` ring key is no longer read (rev 7
+    // migrated it into ovh-on; it stays in NVS for a downgrade). ONE radius for all of it: the dropdown
+    // value in the radar's unit, snapped onto 1/2/3/5 here as well as at migration, so a value a stale
+    // v16 tab posts (2.5, say) can never become a radius of its own.
+    const String ovhOn = configServer.GetStoredString("ovh-on");
+    showOverhead = overhead::SwitchOn(ovhOn.c_str());
     alertOverhead = configServer.GetStoredString("lookup-alert") == "true";
-    double lookupDist = configServer.GetStoredString("lookup-dist").toDouble();
-    if (lookupDist <= 0.0) lookupDist = 3.0;
-    overheadKm = units::ToKm(lookupDist, cfgUnit);
+    overheadSetting = overhead::SnapDistance(configServer.GetStoredString("lookup-dist").toDouble());
+    overheadKm = overhead::RadiusKm(overheadSetting, units::ToKm(1.0, cfgUnit));
 
     // Home Assistant / MQTT publishing (off by default).
     mqttEnabled = configServer.GetStoredString("mqtt") == "true";
@@ -3634,9 +3639,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.drawCircle(x, y, 7, lgfx::color888(255, 215, 0));
         }
 
-        // overhead: pulsing "look up!" ring when a contact is passing near-overhead
-        if (showOverhead && IsOverhead(tracked))
+        // overhead: pulsing "look up!" ring when a contact is passing near-overhead (the screen switch)
+        if (showOverhead && IsOverhead(tracked)) {
             DrawOverheadAlert(backbuffer, x, y);
+            NoteOverheadRing(tracked);   // the [lookup] ring line, once per pass (kept out of this function: see there)
+        }
 
         // ring the standout contacts; tags stack up-left to avoid the info text
         if (displayHighlight) {
@@ -4900,9 +4907,9 @@ bool AircraftManager::LongPressEligible() const
         && hasLocation && !NightClockActive() && !tookScreenForSetup;
 }
 
-// The ring that fills around the finger from the ring start to the threshold. Radar chrome green,
-// like the ZOOM tag, so it reads as the radar's own control, not traffic. Its progress freezes at an
-// early release, so it never completes and then does nothing.
+// The hold ring: a band just inside the screen's rim that fills clockwise from 12 o'clock, from the ring
+// start to the threshold. Radar chrome green, like the ZOOM tag, so it reads as the radar's own control,
+// not traffic. Its progress freezes at an early release, so it never completes and then does nothing.
 // HOLD RING (v17 follow-up; docs/v17-long-press-zoom.md, "Ring visibility"). The 10 Oct ring was ~5 mm across at the
 // press point, and a thumb (15-20 mm) hid it completely. Daniel's pick, 2026-10-13, from three candidates shown on
 // the panel: a progress band just inside the screen's rim, where no finger is. DRAWING ONLY -- when it shows and how
@@ -5206,8 +5213,27 @@ void AircraftManager::UpdateVisualAlerts()
     };
 
     bool milActive = false, emgActive = false;
+    // OVERHEAD RADII (v17 owner controls: the pass-rate table at 1, 2, 3 and 5 in the device's unit).
+    static constexpr uint8_t kOvhRadii[4] = { 1, 2, 3, 5 };
+    float ovhRadiusKm[4];
+    for (int i = 0; i < 4; ++i) ovhRadiusKm[i] = (float)units::ToKm(kOvhRadii[i], rangeUnit);
     for (auto& [icao, t] : trackedAircraft) {
         if (t.state.onGround) continue;
+
+        // One line per pass PER RADIUS, on the first frame inside it -- the edge a card would fire on at
+        // that setting -- whatever "Look up!" is set to. Counts, altitude and idle state only: no hex,
+        // no position. The per-pass bits live on TrackedAircraft, so they reset with the pass.
+        if (t.overheadCrossed != 0x0F) {
+            const float dKm = OverheadDistanceKm(t);
+            for (int i = 0; i < 4; ++i) {
+                if ((t.overheadCrossed & (1u << i)) || dKm > ovhRadiusKm[i]) continue;
+                t.overheadCrossed |= (uint8_t)(1u << i);
+                Serial.printf("[overhead] cross r=%u%s idle=%d alt_ft=%d up_s=%lu\n",
+                              (unsigned)kOvhRadii[i], rangeUnit.c_str(),
+                              (now - lastTouchActivityMs) >= 30000UL ? 1 : 0,
+                              (int)lroundf(t.state.baroAltitude * METRES_TO_FEET), now / 1000UL);
+            }
+        }
 
         // squawks can turn emergency mid-track, so the edge is per-contact and
         // fires at most once (a cleared-then-reset squawk doesn't re-burst)
@@ -5234,10 +5260,15 @@ void AircraftManager::UpdateVisualAlerts()
             }
         }
 
-        // overhead alert tone: one-shot per contact, same "look up" condition as
-        // the ring/ntfy. IsOverhead is only evaluated when the feature is on.
+        // The overhead edge: the first frame of this pass inside the owner's radius, numbered and
+        // logged whatever the switch says -- it is the instrument the card, ring and push are graded
+        // against (docs/v17-overhead-card-predictions.md), not a behaviour.
+        NoteOverheadEdge(t);
+
+        // overhead alert tone: one-shot per contact, under the screen switch. It used to follow
+        // "ring or push"; the push now needs the switch too, so that reduces to the switch.
         if constexpr (variant::HAS_AUDIO) {
-            if ((showOverhead || alertOverhead) && !t.overheadToneFired && IsOverhead(t)) {
+            if (showOverhead && !t.overheadToneFired && IsOverhead(t)) {
                 t.overheadToneFired = true;
                 if (initialSyncDone)
                     PlayTone(3, 40, 70);
@@ -10208,10 +10239,44 @@ bool AircraftManager::IsOverhead(const TrackedAircraft& tracked) const
 {
     if (tracked.state.onGround)
         return false;
+    return OverheadDistanceKm(tracked) <= (float)overheadKm;
+}
+
+// The [ovh] edge instrument: the first frame of a pass inside the owner's radius -- the ONE predicate
+// the card, the ring and the push share. Numbered per boot so the [lookup] and [ovhcard] lines can be
+// joined to it; the line carries the setting and a distance, never an aircraft id or a position.
+// Idempotent per pass, so a consumer can call it before logging and never print pass 0.
+void AircraftManager::NoteOverheadEdge(TrackedAircraft& tracked)
+{
+    if (tracked.overheadPass != 0 || !IsOverhead(tracked))
+        return;
+    if (++overheadPassCount == 0) overheadPassCount = 1;   // a wrap never hands out 0
+    tracked.overheadPass = overheadPassCount;
+    Serial.printf("[ovh] edge pass=%u r=%d%s d_km=%.1f\n", (unsigned)tracked.overheadPass, overheadSetting,
+                  rangeUnit.c_str(), OverheadDistanceKm(tracked));
+}
+
+// The [lookup] ring line: the first frame the ring actually DRAWS for a pass (Radar face only), joined to
+// its [ovh] edge by pass number. A function of its own rather than three lines inside DrawRadar: DrawRadar
+// touches the follow target, and scripts/check_follow_privacy.py rightly refuses a serial sink in any
+// function that does. This one sees only the pass number -- no id, no target -- so nothing here can leak.
+void AircraftManager::NoteOverheadRing(TrackedAircraft& tracked)
+{
+    if (tracked.overheadRingLogged)
+        return;
+    tracked.overheadRingLogged = true;
+    NoteOverheadEdge(tracked);   // idempotent: the ring never logs a pass the edge has not numbered
+    Serial.printf("[lookup] ring pass=%u\n", (unsigned)tracked.overheadPass);
+}
+
+// The horizontal distance "overhead" is judged by. ONE formula, used by IsOverhead and by the
+// radii measurement below, so the measured table and the shipped predicate cannot drift apart.
+float AircraftManager::OverheadDistanceKm(const TrackedAircraft& tracked) const
+{
     auto [aLat, aLon] = tracked.GetDisplayPosition();
     const float dLatKm = (aLat - (float)lat) * 111.0f;
     const float dLonKm = (aLon - (float)lon) * 111.0f * cosf(radians((float)lat));
-    return sqrtf(dLatKm * dLatKm + dLonKm * dLonKm) <= (float)overheadKm;
+    return sqrtf(dLatKm * dLatKm + dLonKm * dLonKm);
 }
 
 void AircraftManager::ProcessAlerts()
@@ -10243,9 +10308,15 @@ void AircraftManager::ProcessAlerts()
         // flag is only set when the POST actually queued (the enrichment task's
         // depth-1 queue may be busy), so a deferred alert retries next tick
         // instead of being lost.
-        if (alertOverhead && !tracked.overheadNotified && IsOverhead(tracked)) {
-            if (SendOverheadNotification(tracked))
+        // The push needs the screen switch AND its own box (overhead::PushFires): the topic also carries
+        // the owner's military/emergency alerts, so overhead pushes are only ever the owner's choice.
+        if (overhead::PushFires(showOverhead, alertOverhead, !ntfyTopic.isEmpty())
+            && !tracked.overheadNotified && IsOverhead(tracked)) {
+            if (SendOverheadNotification(tracked)) {
                 tracked.overheadNotified = true;
+                NoteOverheadEdge(tracked);
+                Serial.printf("[lookup] push pass=%u\n", (unsigned)tracked.overheadPass);
+            }
             return; // at most one notification per tick
         }
 
@@ -10518,7 +10589,10 @@ void AircraftManager::PublishMqttState()
     String highIcao, fastIcao, nearIcao, milIcao, ovhIcao;
     float maxAlt = -1e30f, maxVel = -1e30f, minD2 = 1e30f;
     bool anyMil = false, anyOvh = false;
-    const bool overheadActive = showOverhead || alertOverhead;
+    // The state's overhead field follows the screen switch (decision 2). With the OR migration that is
+    // v16's ring-or-push for every existing device, so HA sees no change. The per-aircraft "overhead"
+    // event (PublishMqttEvents) is NOT gated on the switch: it has its own, the MQTT settings.
+    const bool overheadActive = overhead::HaStateFollowsSwitch(showOverhead);
     const float clat = cosf(radians((float)lat)); // scale longitude delta (see IsOverhead)
 
     for (auto& [icao, t] : trackedAircraft) {
