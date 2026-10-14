@@ -53,6 +53,11 @@ skus:
   - { env: missileer-s3-146, status: build-only }
   # missileer-s3-128: bring-up (USB keyboard, FEATURE_USB_OPEN, TinyUSB mode); no slug until it ships.
   - { env: missileer-s3-128, status: build-only }
+  # missileer-photo: missileer-s3-128 + -DPHOTO_MODE, for product photos. BUILD-ONLY
+  # FOREVER: compiled on every run so it cannot rot, and never given a slug, so no
+  # release carries it and no OTA channel can serve it. scripts/check_photo_mode.mjs
+  # fails CI if this row gains a slug or a shipping status.
+  - { env: missileer-photo, status: build-only }
   - { env: orbitscope-s3-146, status: build-only }
   - { env: quakescope-s3-146, status: build-only }
   - { env: quillscope-s3-146, status: build-only }

@@ -169,4 +169,20 @@ export const TYPE_NAMES: Record<string, string> = {
   // manufacturer's own name (Engineering & Research Corp), so "ERCO Ercoupe"
   // would read as a stutter on the card; Doc 8643's model field is just "415".
   ERCO: "Ercoupe 415", HUSK: "Aviat A-1 Husky",
+  // Fourth pass 2026-10-14: every type code the fleet's own `enrich_gap` telemetry logged as a "name" gap
+  // (type resolved, no friendly name) in the last 30 days -- 11 codes. Each was checked against ICAO Doc 8643
+  // itself (the doc8643.icao.int dataset, 7,261 designators), and a code was filled ONLY where one name is
+  // true for every Doc 8643 entry under it. CL41 is what prompted it: the RCAF Snowbirds (SNBD4/SNBD10)
+  // showed a bare code. Left blank on purpose, so they keep today's fallback:
+  //   K900 -- Doc 8643 lists both the Kodiak 200 and the Kodiak 900 under it (two models);
+  //   ST30 -- both the Staudacher S-300 and the S-330 (two models);
+  //   CX30 -- not an ICAO designator at all.
+  CL41: "Canadair CT-114 Tutor",      // Doc 8643: CL-41 Tutor = CT-114 Tutor, one airframe
+  C408: "Cessna 408 SkyCourier",
+  CC19: "CubCrafters XCub/NXCub",     // CC-19 XCub and NXCub: the gear variants of one type
+  B58T: "Beechcraft Baron 58P/58TC",  // the turbocharged 58s: pressurized and not
+  N3N: "Naval Aircraft Factory N3N",
+  A5: "ICON A5",
+  BEA5: "Bearhawk 5",                 // one model, three kit makers' names
+  FDF2: "Flight Design F2",
 };
