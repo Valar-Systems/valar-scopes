@@ -594,6 +594,7 @@ export const supportHtml = `<!DOCTYPE html>
   </header>
 
   <nav class="jump">
+    <a href="#kit">DIY Kit assembly</a>
     <a href="#setup">Setup</a>
     <a href="#problems">Troubleshooting</a>
     <a href="#data">Flight data</a>
@@ -604,9 +605,68 @@ export const supportHtml = `<!DOCTYPE html>
   </nav>
 
   <section class="blk">
+    <h2 id="kit">Building a DIY Kit</h2>
+    <p>Bought the <b>DIY Kit</b>? The board comes flashed and ready; you print the
+       case and screw it together. It takes about 20 minutes once the parts are
+       printed. Bought an assembled Blipscope? Skip to <a href="#setup">Setting it up</a>.</p>
+
+    <h3>1. Print the case</h3>
+    <p>The case files are free on
+       <a href="https://www.printables.com/model/1868304-blipscope-desk-radar-for-live-aircraft-ads-b">Printables</a>
+       and
+       <a href="https://makerworld.com/en/models/3404265-blipscope-desk-radar-for-live-aircraft-ads-b">MakerWorld</a>.
+       There are five parts on two plates:</p>
+    <ul>
+      <li><b>Plate 1</b> (we print it black): the bezel, the bottom housing and the
+          small USB port block.</li>
+      <li><b>Plate 2</b> (your body colour): the front housing and the back plate.</li>
+    </ul>
+    <p>PLA, 0.4 mm nozzle, 0.20 mm layers, 2 walls, 15% infill. No supports; every
+       part is already oriented to print without them. Let the bezel cool on the bed
+       before you take it off so it stays flat.</p>
+
+    <h3>2. Check the kit</h3>
+    <ul>
+      <li>Flashed board with the round display</li>
+      <li>FPC antenna (the thin flat sticker on a wire)</li>
+      <li>USB-C panel-mount cable, 10 cm</li>
+      <li>4 small M2 screws for the board</li>
+      <li>10 M2 × 10 mm thread-forming screws for the case</li>
+      <li>2 M2 pan-head screws and 2 M2 nuts for the USB port</li>
+      <li>4 steel weights and 4 non-slip pads</li>
+    </ul>
+
+    <h3>3. Put it together</h3>
+    <ol>
+      <li>Drop the four <b>steel weights</b> into the pockets in the bottom housing.
+          A dot of super glue stops them rattling.</li>
+      <li>Fit the <b>USB-C panel-mount</b> into the small port block with the two
+          pan-head screws and nuts.</li>
+      <li>Mount the <b>board</b> in the front housing with the four small board
+          screws. Peel the backing off the <b>antenna</b> and stick it to the inside
+          wall of the housing, away from the board.</li>
+      <li>Plug the panel-mount cable into the board.</li>
+      <li>Fit the <b>back plate</b> with six of the M2 × 10 screws. Snug, not
+          tight: they cut their own thread, and overdriving strips it.</li>
+      <li>Set the <b>bezel</b> over the glass and drive the last four M2 × 10 screws.</li>
+      <li>Fit the front housing onto the bottom housing and stick the four
+          <b>pads</b> underneath.</li>
+    </ol>
+    <div class="note">
+      <p>Plug the board in once before you close the case (step 4 is a good moment).
+         If the screen lights up, everything inside is working, and it's much easier
+         to check now than after the bezel is on.</p>
+    </div>
+    <p>That's it. Plug it in and carry on with setup below. Stuck on a step? Email
+       <a href="mailto:support@valarsystems.com">support@valarsystems.com</a> with a
+       photo and we'll sort it out.</p>
+  </section>
+
+  <section class="blk">
     <h2 id="setup">Setting it up</h2>
-    <p>Your Blipscope arrives assembled and already running. It needs two things
-       from you: your Wi-Fi, and where you are.</p>
+    <p>Your Blipscope is already running; a DIY Kit is too, once it's
+       <a href="#kit">assembled</a>. It needs two things from you: your Wi-Fi, and
+       where you are.</p>
 
     <h3>First boot</h3>
     <ol>
@@ -992,8 +1052,9 @@ export const supportHtml = `<!DOCTYPE html>
        connect a board over USB-C and hit upload. If a board doesn't reboot into new
        firmware by itself, hold <b>BOOT</b>, press <b>RESET</b> once, then release
        <b>BOOT</b> — those buttons are on the bare board, not on an assembled unit.</p>
-    <p>The <a href="https://github.com/Valar-Systems/valar-scopes/wiki">wiki</a> covers
-       assembly, the build variants and the per-edition guides.</p>
+    <p>Assembling a DIY Kit is covered <a href="#kit">above</a>. The
+       <a href="https://github.com/Valar-Systems/valar-scopes/wiki">wiki</a> covers
+       the build variants and the per-edition guides.</p>
   </section>
 
   <footer>
