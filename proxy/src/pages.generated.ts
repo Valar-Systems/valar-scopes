@@ -635,6 +635,9 @@ export const supportHtml = `<!DOCTYPE html>
       <li>2 M2 pan-head screws and 2 M2 nuts for the USB port</li>
       <li>4 steel weights and 4 non-slip pads</li>
     </ul>
+    <p>You'll also need a <b>T6 Torx driver</b> for the screws. If your kit didn't
+       include one, any T6 bit or precision screwdriver works, or email us and we'll
+       send one.</p>
 
     <h3>3. Put it together</h3>
     <ol>
