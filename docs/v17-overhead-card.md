@@ -123,7 +123,7 @@ The usage report is a fixed eight-integer struct (`include/UsageReport.h:61-82`;
 **Proposed:** one counter, **`overheadCards`**: cards shown. Taps on a card already count as
 `cardOpens`.
 
-It would ship in **one** v17 format change shared with double-tap's counter: 8 -> 10 integers.
+It ships in the **one** v17 format change, decided at review as 8 -> 12 integers (`longPressZooms`, `overheadCards`, `whatsNewOpened`, `whatsNewQr`; `docs/v17-whats-new.md`).
 
 **Decided at review (2026-10-08): approved, 8 -> 10, with the disclosures in the same commit.** **The Worker must accept BOTH formats:** v16 devices keep sending 8 integers for as long as they run v16, so `recordUsage` takes 8 or 10 and drops anything else (still digits and commas only). A Worker test sends one of each and asserts both land, plus a 9- and an 11-field control that are dropped.
 `usage::Format` and its digits-and-commas test, `recordUsage`'s shape check, and the disclosures
