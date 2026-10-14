@@ -31,10 +31,15 @@ void RangeBearing(double lat1, double lon1, double lat2, double lon2, double& km
 
 // "this-day in HFGCS heritage" sample lines. SAMPLE DATA -- ship empty or move to a bundled JSON;
 // here just to exercise the idle clock's ambient line.
+//
+// NOT IN A PHOTO_MODE BUILD. The photo build is real data only, and these two lines say of
+// themselves that they are sample data, so a product photo of the clock must not show them.
+#if !defined(PHOTO_MODE)
 const char* const kHeritageSample[] = {
     "1961: SAC airborne alert begins",
     "1991: HFGCS keeps the watch",
 };
+#endif
 
 // THE adsb.fi CREDIT (ruling 2026-09-28: "Attribution: "adsb.fi" with a link to its home page
 // wherever the data is shown -- device screen (with the N0NBH credit) and any site page").
@@ -56,7 +61,12 @@ void EamManager::DrawTicker(BandCanvas& c, bool firstPass)
         return;
     }
 
+#if defined(PHOTO_MODE)
+    // The picked message (EamManager::PhotoPickIndex), drawn exactly as the newest is.
+    const eam::Msg& m = latest[PhotoPickIndex()];
+#else
     const eam::Msg& m = latest.front();
+#endif
     const int lh = c.fontHeight() + 2;
 
     // Header band: frequency . time-ago . length.
@@ -655,8 +665,10 @@ void EamManager::DrawClock(BandCanvas& c)
         amb.push_back("quiet gap " + (q >= 60 ? (String(q / 60) + "h " + String(q % 60) + "m") : (String(q) + "m")));
     }
     if (logbook.EamCount() > 0) amb.push_back(String(logbook.EamCount()) + " logged");
+#if !defined(PHOTO_MODE)
     for (int i = 0; i < (int)(sizeof(kHeritageSample) / sizeof(kHeritageSample[0])); ++i)
         amb.push_back(kHeritageSample[i]);
+#endif
     String ambient = amb.empty() ? String() : amb[ambientIndex % (int)amb.size()];
     if (!synced) ambient = "waiting for time sync";
     if (ambient.length())

@@ -345,6 +345,21 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== long press to toggle zoom: ring start, threshold, rejoin, consumed release (LongPressPolicy.h) =="
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_long_press.cpp" -o "$OUT/test_long_press.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the long-press test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_long_press.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 echo "== seven-segment shapes: no seam before the far cap (SevenSegmentShapes.h) =="
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_sevenseg_shapes.cpp" -o "$OUT/test_sevenseg_shapes.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the seven-segment shapes test did not compile"

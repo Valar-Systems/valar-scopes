@@ -603,7 +603,14 @@ void setup()
   // The flag is consumed BEFORE the check, so a crash inside it cannot re-arm.
   if (ConsumeDeferredCheckFlag())
     Serial.println("[ota] this boot was armed by a deferred update check");
+#if defined(PHOTO_MODE)
+  // PHOTO MODE HAS NO OTA (env:missileer-photo). The photo firmware must not be
+  // replaced mid-shoot by whatever release is current, and it is never published, so
+  // there is nothing for it to update into. Back to shipping is a USB flash.
+  Serial.println("[photo-mode] OTA off: update check skipped");
+#else
   MaybeUpdateFirmware(tft, backbuffer, http);
+#endif
 
   // begin background server for configuration
   configServer.Initialise();
@@ -748,6 +755,11 @@ void loop()
   // The policy PROPOSES; DeferRebootWithCause DISPOSES. The 24 h cap and the
   // unsynced-clock refusal stay in that one place, shared with the reachability
   // watchdog's rung 3, so there is one implementation of each rather than two.
+  //
+  // NOT IN PHOTO MODE: it reboots the board to run an update check that the photo
+  // build skips (above), and on an EAM build the quiet hour is 03:00 UTC -- an
+  // evening in the Americas, which is when a shoot happens.
+#if !defined(PHOTO_MODE)
   {
     static quiet::State qs;
     // The offset is read from config rather than from the app manager, because
@@ -775,6 +787,7 @@ void loop()
       DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
     }
   }
+#endif
 
   // Apply settings saved via the web UI without rebooting. Done here, on the
   // loop task, so all AircraftManager state changes stay on a single task
