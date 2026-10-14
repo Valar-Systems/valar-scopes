@@ -4903,22 +4903,31 @@ bool AircraftManager::LongPressEligible() const
 // The ring that fills around the finger from the ring start to the threshold. Radar chrome green,
 // like the ZOOM tag, so it reads as the radar's own control, not traffic. Its progress freezes at an
 // early release, so it never completes and then does nothing.
+// HOLD RING (v17 follow-up; docs/v17-long-press-zoom.md, "Ring visibility"). The 10 Oct ring was ~5 mm across at the
+// press point, and a thumb (15-20 mm) hid it completely. Daniel's pick, 2026-10-13, from three candidates shown on
+// the panel: a progress band just inside the screen's rim, where no finger is. DRAWING ONLY -- when it shows and how
+// far it has filled are LongPressPolicy's, unchanged. Sizes are set on the 240 px panel and scale with the screen.
 void AircraftManager::DrawHoldRing(BandCanvas& backbuffer) const
 {
-    if (!longpress::RingVisible(longPress)) return;
-    constexpr int R0 = 15, R1 = 19;
-    const int x = longPress.x0, y = longPress.y0;
-    backbuffer.drawCircle(x, y, R1 + 1, lgfx::color888(0, 90, 0));
-    const uint32_t p = longpress::RingPermille(longPress, millis());
+    // FIRED (the zoom has toggled; the finger is still down): the band is drawn COMPLETE. The fire lands on the first
+    // touch frame at or past the threshold and the ring phase ends there, so without this the last band anyone saw was
+    // the frame before -- 93-98 % -- and it seemed to stop short (Daniel, 2026-10-13). Reads the phase; changes nothing.
+    const bool fired = longPress.phase == longpress::Phase::Fired;
+    if (!fired && !longpress::RingVisible(longPress)) return;
+    const float k = SCREEN_SIZE / 240.0f;
+    const int c = SCREEN_SIZE_DIV_2;
+    const int R1 = SCREEN_SIZE_DIV_2 - (int)(2 * k), R0 = R1 - (int)(7 * k);
+    backbuffer.drawCircle(c, c, R1 + 1, lgfx::color888(0, 90, 0));          // the dim track
+    const uint32_t p = fired ? 1000 : longpress::RingPermille(longPress, millis());
     if (p == 0) return;
     // LovyanGFX angles: 0 = 3 o'clock, clockwise. Start at 12 o'clock and never pass 360 in one call.
     const float a1 = 270.0f + 360.0f * (float)p / 1000.0f;
     const uint32_t green = lgfx::color888(0, 200, 0);
     if (a1 <= 360.0f) {
-        backbuffer.fillArc(x, y, R0, R1, 270.0f, a1, green);
+        backbuffer.fillArc(c, c, R0, R1, 270.0f, a1, green);
     } else {
-        backbuffer.fillArc(x, y, R0, R1, 270.0f, 360.0f, green);
-        backbuffer.fillArc(x, y, R0, R1, 0.0f, a1 - 360.0f, green);
+        backbuffer.fillArc(c, c, R0, R1, 270.0f, 360.0f, green);
+        backbuffer.fillArc(c, c, R0, R1, 0.0f, a1 - 360.0f, green);
     }
 }
 

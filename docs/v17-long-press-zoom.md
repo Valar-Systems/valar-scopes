@@ -210,3 +210,17 @@ with real data. Definition, host cases and sabotages are frozen in the predictio
 **Also recorded from the same sitting** (a separate v17 follow-up, not a #388 blocker): the ring is
 invisible under a thumb. It is about 5 mm across (R 15-19 px on the 1.28" panel); a thumb covers
 15-20 mm.
+
+## Ring visibility: Daniel's pick (2026-10-13, #411)
+
+The original ring was drawn round the press point and was hidden under a thumb (about 5 mm against 15-20 mm).
+Three candidates were drawn on the real panel (E2:08), each with and without a stand-in thumb:
+
+- (A) a progress band just inside the screen's rim;
+- (B) a larger ring round the finger;
+- (C) the ring drawn above the finger.
+
+**Daniel picked (A).** No finger sits on the rim, and the band reads at a glance.
+
+The screenshots are in Drive, `Products/Valar Scopes/Blipscope/screenshots/hold-ring/`. B and C left the code.
+This is DRAWING ONLY: when the ring shows and how far it has filled are unchanged (LongPressPolicy).
