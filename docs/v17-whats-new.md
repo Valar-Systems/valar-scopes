@@ -1,8 +1,8 @@
 # "What's new" after an update (v17)
 
-**Status: spec, approved at review 2026-10-09, not built.** Includes Daniel's amendment (no timeout;
-the tag stays until it is acknowledged) and the review's decisions, marked **Decided** below. Line
-refs at `7bc5f43`. "AM" = `src/AircraftManager.cpp`.
+**Status: spec, approved at review 2026-10-09, not built. Every open question is answered.** Includes
+Daniel's amendment (no timeout; the tag stays until it is acknowledged) and the review's decisions,
+marked **Decided** below. Line refs at `7bc5f43`. "AM" = `src/AircraftManager.cpp`.
 
 **Who decides what customers see (decided): Code proposes, and Daniel approves in the FW_VERSION bump
 PR, both whether a release is `notify: yes` and which summary lines it carries.**
@@ -14,10 +14,10 @@ PR, both whether a release is `notify: yes` and which summary lines it carries.*
 - The on-device summary lines name **only noticeable changes**. A fix most owners never noticed
   goes on the changes page only.
 
-**Still open with Daniel:** where the changes page lives (`scopes.valarsystems.com` or his main
-website). Whichever is chosen is a **one-line change**: the page URL is one `url:` line at the top
-of `docs/CHANGES-customer.md`, and both the device's QR and the config banner's link are generated
-from it.
+**Where the changes page lives (Daniel, decided 2026-10-09): `scopes.valarsystems.com`, served by
+the Worker alongside `/locate`, at `https://scopes.valarsystems.com/blipscope/changes`.** It is the
+`url:` line at the top of `docs/CHANGES-customer.md`, and both the device's QR and the config
+banner's link are generated from that one line. Moving it later is still a one-line change.
 
 ## Customer view
 
@@ -148,11 +148,28 @@ summary:
 - **Generators:** two outputs from that one file, each with a `--check` mode run in CI (the
   `embed-pages` pattern, so an edit to the source cannot ship with stale output):
   - `include/generated/WhatsNew.inc`: every entry's `notify` and summary, compiled into the image;
-  - `proxy/pages/changes.html`: the page, embedded and served at `/blipscope/changes`.
-- **The page must be live before the QR points at it.** `smoke-prod.sh` gains a check that takes the
-  changes URL from the firmware source (input from the other side of the contract) and requires the
-  live page to contain the current `FW_VERSION`'s section. It runs as part of promote. A QR to a page
-  without the version's section would be the enrolment-404 failure again.
+  - the Worker's changes page, served at `/blipscope/changes`.
+
+**The page (Daniel, decided 2026-10-09):**
+- **Generated from `docs/CHANGES-customer.md` at deploy, so it cannot drift from the file.**
+  `deploy.sh` runs the generator before building the Worker. CI's `--check` refuses a commit whose
+  generated page no longer matches the file. Nobody edits the page by hand.
+- **Plain and mobile-friendly:** one column, readable at phone width with no horizontal scroll, the
+  newest version first. Each section carries the anchor `id="v<N>"`.
+- **No tracking, no cookies, no device data.** The page sets no cookie, loads no third-party script,
+  font or pixel, and logs nothing about who read it beyond what the Worker already logs for any page.
+  - The device's QR is a **fixed URL**, at most with `#v<N>` to jump to a section. A fragment never
+    leaves the browser, so the request carries no device id, version or anything else from the
+    device.
+  - The config banner's link is the same fixed URL.
+- **The deployed page must list every version in the file.** `smoke-prod.sh` gains a check that
+  reads the version list from `docs/CHANGES-customer.md` (input from the other side of the contract)
+  and the URL from its `url:` line. It fetches the live page and requires a `v<N>` section for
+  **every** version in the file. It reports the missing ones by name, and a fetch that fails is
+  **BLIND**, not a pass.
+  - It runs at every deploy and as part of promote.
+  - A QR to a page missing its version's section would be the enrolment-404 failure again; checking
+    every version also catches a deploy that dropped an older section.
 
 ## Release gate
 
@@ -210,6 +227,11 @@ Two counters here: **`whatsNewOpened`** (summary opened) and **`whatsNewQr`** (Q
 - **W8:** the cut **fails when a summary line's item has not merged**: a line whose `#NNN` has no
   merge commit on main, or whose `spec:` names no merged PR, is refused. Removing that line makes the
   gate pass again.
+- **W9:** the deployed page lists **every** version in the file. Deleting one version's section from
+  the generated page before a staging deploy makes the smoke check fail and name that version; the
+  untouched page passes.
+- **W10:** the page and its request carry nothing from the device: the request a QR scan makes has no
+  query string, no cookie is set (`Set-Cookie` absent), and the HTML loads nothing third-party.
 
 ## Sabotage, each shown red and then undone
 
