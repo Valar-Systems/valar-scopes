@@ -8,6 +8,8 @@
   <a href="#the-editions">EDITIONS</a> - <a href="#more-editions-on-the-way">ROADMAP</a> - <a href="#get-a-kit">GET A KIT</a> - <a href="#assembly">ASSEMBLY</a> - <a href="#firmware">FIRMWARE</a> - <a href="#setup--usage">SETUP</a> - <a href="#thanks">THANKS</a>
 </p>
 
+<p align="center"><img src="docs/images/blipscope-front.jpg" alt="Blipscope desk radar showing live aircraft on its round screen" width="480"></p>
+
 **Valar Scopes** is a line of small open-source gadgets for your desk: an ESP32-S3 driving a round touchscreen. The line comes in several **Editions** — and the trick is that they're all the *same hardware*. Each Edition is a separate firmware that turns the screen into a window onto a different stream of live data, and pings your phone when something notable happens. They all share the same Wi-Fi setup, web config page, persistent storage, over-the-air updates, and [ntfy](https://ntfy.sh) alerts — so once you know one, you know them all. You just flash the Edition you want.
 
 ## The Editions
@@ -30,6 +32,12 @@ All eight run on the same Valar Scopes board; the Edition is chosen by the firmw
 ## 📡 Blipscope (Aviation)
 
 The original Valar Scope: a small flight radar that sits on your desk and shows live aircraft around your location in real time — pulled from public ADS-B data — so you can glance over and see what's in the sky above you, where it came from, and where it's headed.
+
+| | | |
+|:-:|:-:|:-:|
+| <img src="docs/images/blipscope-three-quarter.jpg" alt="Blipscope, three-quarter view" width="260"> | <img src="docs/images/blipscope-profile.jpg" alt="Blipscope in profile, showing the angled body and weighted base" width="260"> | <img src="docs/images/blipscope-rear.jpg" alt="Rear of Blipscope with the debossed logo and USB-C port" width="260"> |
+| <img src="docs/images/blipscope-radar-closeup.jpg" alt="Radar screen with a military contact flagged MIL and nearest/highest/fastest highlights" width="260"> | <img src="docs/images/blipscope-photo-card.jpg" alt="Aircraft photo card for a military Beech King Air" width="260"> | <img src="docs/images/blipscope-detail-card.jpg" alt="Detail card: type, operator, distance, registration and altitude" width="260"> |
+| | <img src="docs/images/blipscope-route-map.jpg" alt="Route map tracking a flight from Los Angeles to Vancouver" width="260"> | |
 
 - **Live radar view** — aircraft plotted around your location, with fading trails, type-aware heading markers (helicopters, gliders, and heavies each draw differently), and altitude-based colour coding.
 - **Tap to inspect** — touch an aircraft to open a detail card with callsign, type, operator, registration, route, altitude, speed, and a photo. Pin one to keep tracking it.

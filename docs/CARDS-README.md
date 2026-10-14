@@ -14,8 +14,8 @@
 The Canva edit for these is made **once, when the release carrying them is promoted**, together
 with any v16 line still pending.
 
-- **Double-tap zoom** (`docs/v17-double-tap-zoom.md`): *"Double-tap an empty spot on the radar to
-  zoom in close; double-tap again to zoom back out."*
+- **Long-press zoom** (`docs/v17-long-press-zoom.md`; replaced double-tap, Daniel 2026-10-09):
+  *"Press and hold the radar to zoom in close; again to zoom back out."*
 - **Overhead card** (`docs/v17-overhead-card.md`): *"When a plane passes overhead, a card shows it
   for a few seconds. Tap it for details."* The wording depends on the default decided in that spec.
   If the card sits behind "Look up!", the line begins *"With Look up! on, ..."*.
