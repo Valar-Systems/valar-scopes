@@ -4907,9 +4907,9 @@ bool AircraftManager::LongPressEligible() const
         && hasLocation && !NightClockActive() && !tookScreenForSetup;
 }
 
-// The ring that fills around the finger from the ring start to the threshold. Radar chrome green,
-// like the ZOOM tag, so it reads as the radar's own control, not traffic. Its progress freezes at an
-// early release, so it never completes and then does nothing.
+// The hold ring: a band just inside the screen's rim that fills clockwise from 12 o'clock, from the ring
+// start to the threshold. Radar chrome green, like the ZOOM tag, so it reads as the radar's own control,
+// not traffic. Its progress freezes at an early release, so it never completes and then does nothing.
 // HOLD RING (v17 follow-up; docs/v17-long-press-zoom.md, "Ring visibility"). The 10 Oct ring was ~5 mm across at the
 // press point, and a thumb (15-20 mm) hid it completely. Daniel's pick, 2026-10-13, from three candidates shown on
 // the panel: a progress band just inside the screen's rim, where no finger is. DRAWING ONLY -- when it shows and how
