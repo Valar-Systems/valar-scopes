@@ -160,6 +160,12 @@ jobs:
         run: node scripts/check-card-gestures.mjs --selftest
       - name: The card's reset instruction matches the firmware
         run: node scripts/check-card-gestures.mjs
+      # The fresh-boot acceptance's assertions against synthetic captures: each built to fail one
+      # way (a stale first Collection view, Collection never opened, a second boot after the power
+      # cut, a missed boot), plus a control that passes. Its step-4 check misfired two releases
+      # running before it was rewritten (2026-10-08).
+      - name: The fresh-boot acceptance's assertions fail where they should
+        run: bash scripts/fresh-boot-acceptance.sh --selftest
 
   release-envs:
     runs-on: ubuntu-latest
