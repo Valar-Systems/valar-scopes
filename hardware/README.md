@@ -47,15 +47,9 @@ Everything below comes in the [Blipscope DIY Kit](https://valarsystems.com/produ
 
 ## Assembly
 
-1. Print both plates. Let the bezel cool on the bed before removing it so it stays flat.
-2. Drop the four steel weights into the pockets in the bottom housing. A dot of CA glue stops them rattling.
-3. Fit the USB-C panel mount into the back-small block with the two pan-head screws and nuts.
-4. Mount the board in the front housing with the four M2 board screws. Stick the FPC antenna to the inside wall, away from the board.
-5. Plug the panel-mount cable into the board.
-6. Fit the back plate with six M2 × 10 thread-forming screws. Snug, not tight.
-7. Set the bezel over the glass and drive the last four M2 × 10 screws.
-8. Fit the front housing onto the bottom housing and stick the four pads underneath.
-9. Plug it in and follow the setup guide at <https://valarsystems.com/blipscope>.
+The step-by-step build guide is on the support page, so there is one copy of the steps: **<https://scopes.valarsystems.com/blipscope/support#kit>**. The QR code on the card in the kit box goes there too.
+
+Tools: a T6 Torx driver.
 
 ## License
 
