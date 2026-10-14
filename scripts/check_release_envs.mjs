@@ -27,7 +27,8 @@
 // --selftest proves the checker catches each violation before it is trusted to pass.
 // That order is deliberate: a checker nobody has seen fail is not evidence.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const PROD_HOST = "scopes.valarsystems.com";
 const EDITION_FLAGS = [
@@ -271,7 +272,15 @@ function selftest() {
   console.log("\nselftest passed: the checker catches each violation.");
 }
 
-if (process.argv.includes("--selftest")) {
+// RUN ONLY AS A SCRIPT. scripts/check_photo_mode.mjs imports parseIni/resolveFlags/
+// resolveMacro/matrixEnvs from here -- one platformio.ini parser, not two -- and an
+// import must not run this file's own check (or exit) inside that one.
+const runAsScript = process.argv[1] !== undefined &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+
+if (!runAsScript) {
+  // imported for its parser; nothing to run
+} else if (process.argv.includes("--selftest")) {
   selftest();
 } else {
   const problems = check(

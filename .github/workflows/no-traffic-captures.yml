@@ -1,0 +1,19 @@
+name: no-traffic-captures
+
+# NO PATH FILTER, for the same reason as device-ids.yml: the thing this guards
+# against arrives in whatever file someone saved it to, docs and fixtures included.
+# A recorded aircraft-traffic capture locates a home, so captures are
+# workstation-only (docs/v18-label-declutter.md, docs/v18-next-overhead.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  no-traffic-captures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The selftest first: a check that cannot catch a planted capture proves nothing.
+      - run: python3 scripts/check_no_traffic_captures.py --selftest
+      - run: python3 scripts/check_no_traffic_captures.py

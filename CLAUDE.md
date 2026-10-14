@@ -35,10 +35,21 @@ In VS Code, the PlatformIO toolbar buttons do the same. If upload fails to auto-
 
 ### Bench boards: identified by USB serial, never by COM port (standing, 2026-09-24)
 
-| Board | USB serial (its MAC) | Rule |
-|---|---|---|
-| the **Missileer** board | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
-| the **Blipscope** board | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+**Identify the board by its ID (MAC / USB serial) immediately before every flash, never
+by COM number alone** (standing, 2026-10-12). There are two units of each product on the
+bench, so "the Missileer" is not an identity either: on 2026-10-12 COM16 was taken for the
+bench Missileer, and it was the photo unit.
+
+| `-Board` | Product, role | USB serial (its MAC) | Rule |
+|---|---|---|---|
+| `missileer` | **Missileer**, bench | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
+| `missileer-photo` | **Missileer**, photo unit | `90706931E794` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-31E794.local`. |
+| `blipscope` | **Blipscope**, soak | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+| `blipscope-bench` | **Blipscope**, bench | `90706931E208` (USB-Serial-JTAG spells it `90:70:69:31:E2:08`) | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
+
+The two Blipscopes are separate units, and so are the two Missileers (Daniel, 2026-10-12).
+`scripts/board-port.py` (`BOARDS`) and `scripts/bench-flash.ps1` (`-Board`) carry the
+same four rows; change all three together.
 
 **A COM number is not an identity.** Windows numbers a port per USB interface layout, so
 the same board moves whenever its firmware's USB shape changes: the Missileer board was
@@ -50,13 +61,22 @@ the colons removed.
 
 - `python scripts/board-port.py --list` shows where each board is right now.
 - `scripts/bench-flash.ps1 -PioEnv <env> -Board missileer -Label <l>` resolves the port
-  from the serial (and 1200-baud-touches a TinyUSB board into download mode itself).
-  It refuses `-Board blipscope` without `-DanielApproved`, and refuses a `missileer-*`
-  env on any other board.
+  from the serial (and 1200-baud-touches a TinyUSB board into download mode itself), and
+  prints the serial beside the port before it writes anything. It refuses every board
+  but `missileer` without `-DanielApproved`, refuses a `missileer-*` env on a
+  non-Missileer board, and refuses a non-Missileer env on the photo unit.
 - A bare `pio run -t upload --upload-port COMx` is how the wrong board gets flashed:
   resolve the port first (`board-port.py missileer --upload`).
 
 A board that answers nothing on serial is not a free board: check this table first.
+
+**Reservations (Daniel, 2026-10-12).** Several sessions share these boards. Take one with
+`python scripts/board-port.py --reserve <board> --by <who> --for "<what>"` and give it back with
+`--release <board> --by <who>`; `--list` shows every claim. The claims are one JSON file per
+board under `%USERPROFILE%/.valar-bench/reservations`, the same for every checkout and session.
+`bench-flash.ps1` now needs `-By <who>`: it refuses a board someone else has reserved (exit 6),
+reserves a free one, and stops recorders on the port only if the board was already yours before
+the run. **Never stop another session's process or take a held port**: report it and wait.
 
 - Partitions: `min_spiffs.csv` (firmware is large; OTA needs the room).
 - A pre-build script ([scripts/patch_async_buff.py](scripts/patch_async_buff.py)) re-applies a guard to ESPAsyncWebServer in `.pio/` (gitignored) so `-DASYNC_RESPONCE_BUFF_SIZE=1024` survives a fresh lib install. If the config web page silently stops sending after a clean `.pio/`, that patch didn't take.
@@ -353,10 +373,11 @@ So: a rule added to this file is the weakest form of the fix. Prefer a check tha
 runs -- a refusal, a test, a `--tol=` the caller must state. Where that is not
 possible, the entry at least gives the next person the shape to recognise.
 
-## Standing practice: the capture rig has now cost three measurements
+## Standing practice: the capture rig keeps costing measurements
 
 Not a caution. A tally, because the guard that catches this is worth less than
-not having it, and it has happened three times:
+not having it. (The heading used to say "three" over a table of four rows; the
+count is no longer stated, for the reason the second-paths entry gives.)
 
 | when | what the recorder did | what it cost |
 |---|---|---|
@@ -364,6 +385,7 @@ not having it, and it has happened three times:
 | 2026-09-09, COM119 | a watcher launched after a FAILED flash took the port | the retry failed because of the first attempt; board wedged overnight |
 | 2026-09-10, COM3 | reopened 5 s after a reboot, INTO the boot window, resetting the board | a ledger full of reboots that were the recorder's, nearly read as the firmware's retry interval |
 | 2026-09-12, COM6 | same reopen loop, during a negative control | the control could not be delivered; the AP vanished mid-test |
+| 2026-10-08, COM18 | timed its reopen from `GetPortNames()`, which kept listing COM18 for more than 15 s while the board was unplugged | both power cuts of the v17 fresh-boot acceptance were reset by the reopen (`rst:0x15`); the Worker's boot rows show only the `USB` boot each time, never the `POWERON` |
 
 **The mechanism is narrower than "recorders disturb boards", and naming it
 correctly is what made a fix possible.** DTR/RTS is not the culprit: both
@@ -384,6 +406,21 @@ So there are two rigs, and picking the wrong one is what costs a measurement:
   is expected to reboot, or whenever the measurement is about the board's own
   timing. A gap in the trace is a fact about the board; a reattach is an
   intervention in it.
+
+**A port list is never a board-present signal.** `SerialPort.GetPortNames()` --
+the host's SERIALCOMM registry list -- kept listing COM18 for **more than 15 s
+while the board was unplugged** (2026-10-08, measured by the fresh-boot
+acceptance's own wait timing out with the port still listed). So a wait that
+reads "the port is back, now hold off 25 s" ran from the power CUT, not the
+power-on, and the reopen landed in the next boot. The tell in that log: `port
+dropped` and `port back` stamped in the **same second**. When the question is
+"is the board up?", ask the board -- does it answer ping, does its own report
+arrive at the Worker -- never the host's port list. The fresh-boot acceptance now
+does exactly that: it grades the post-cut steps over the network, counts boots
+from the Worker's `X-Blip-Boot` rows, and reopens serial only after every check
+is graded. **Still in the tree and still wrong:** `bench-capture.ps1`'s
+"port vanished, so the device is re-enumerating" test (line ~208) uses the same
+list; with a stale entry it sees no vanishing and reopens after 5 s.
 
 **The tell that catches it after the fact:** reboots in a ledger with no
 corresponding cause line from the firmware. On 2026-09-10 the give-away was that
