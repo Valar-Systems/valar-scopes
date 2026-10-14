@@ -5475,7 +5475,7 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
                   (unsigned)logbook.ClaimedTypeCount(), (unsigned)logbook.TypeCount());
     // SAVE NOW, not at the next 10-minute write. The Collection page is served from NVS, and
     // the save a page load requests lands after that load's own response (at most once per
-    // 30 s), so before v17 a new owner's first view after a claim was missing it -- and the
+    // 30 s), so in v15-v17 a new owner's first view after a claim was missing it -- and the
     // next one too, if the claim fell inside that 30 s (v16's fresh-boot acceptance,
     // 2026-10-08). A claim is a rare, deliberate act that happens once per type for the life
     // of the device, so one write per claiming tap is cheap (worst case in
