@@ -1,6 +1,6 @@
 """Host reference for Weatherscope Stage 1: what the 240 x 240 screen must show for one WXC1 crop.
 
-    python -I test/fixtures/wx/render_ref.py <spike-checkout> <crop.wxc> [--png out.png] [--flip-ns]
+    python -I test/fixtures/wx/render_ref.py <spike-checkout> <crop.wxc> [--out screen.bin] [--png out.png] [--flip-ns]
 
 Decodes with the spike's independent Python decoder (tools/wx/a3_check.py decode(), eccodes stubbed), then
 maps every screen pixel back to a crop cell with the radar's own projection (AircraftManager::ProjectAt):
@@ -107,6 +107,10 @@ def main(argv):
     print(f"disc pixels {n}; echo {echo} ({100 * echo / n:.1f}%); pixels whose cell is outside the crop: {oob}")
     print("quadrants: " + "  ".join(f"{k} {100 * e / t:.0f}%" for k, (e, t) in sorted(q.items())))
     print("codes on the disc: " + " ".join(f"{k}:{v}" for k, v in sorted(hist.items())))
+    if "--out" in argv:
+        out = argv[argv.index("--out") + 1]
+        open(out, "wb").write(buf)
+        print(f"wrote {os.path.basename(out)} ({len(buf)} bytes: one code per pixel, row-major, 255 = off the disc)")
     if "--png" in argv:
         from PIL import Image
         out = argv[argv.index("--png") + 1]
