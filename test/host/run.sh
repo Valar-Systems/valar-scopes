@@ -1054,10 +1054,10 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
-# Weatherscope Stage 1's renderer (src/weather/WxRender.h) against render_ref.py's screen, byte for byte.
+# Weatherscope Stage 1's renderer (src/weatherscope/WxRender.h) against render_ref.py's screen, byte for byte.
 echo
 echo "== WxRender =="
-if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weather" "$ROOT/test/host/test_wx_render.cpp" -o "$OUT/test_wx_render.exe" 2>"$OUT/build.log"; then
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_render.cpp" -o "$OUT/test_wx_render.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope renderer test did not compile"
   cat "$OUT/build.log"
   exit 2
