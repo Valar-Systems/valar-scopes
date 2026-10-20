@@ -6,7 +6,7 @@
 //   node --experimental-strip-types tools/wx/a2-run.ts --speckle <out.json>      (the sabotage frame)
 import { readFileSync, appendFileSync, writeFileSync } from "node:fs";
 import { decodeMrms, codeOf } from "./mrms.ts";
-import { encodeCrop, CAP_BYTES, type CodeGrid } from "./crop.ts";
+import { encodeCrop, decodeCrop, CAP_BYTES, type CodeGrid } from "./crop.ts";
 
 const BUCKET = "https://noaa-mrms-pds.s3.amazonaws.com";
 const PROD = "CONUS/MergedReflectivityQCComposite_00.50";
@@ -28,12 +28,24 @@ async function listKeys(day: string): Promise<string[]> {
 }
 const frameTime = (k: string) => { const m = k.match(/_(\d{8})-(\d{6})\.grib2/)!; return Date.parse(`${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}T${m[2].slice(0,2)}:${m[2].slice(2,4)}:${m[2].slice(4,6)}Z`); };
 
+// Round trip: decode(encode(crop)) must equal exactly the cells the encoder was given, bit for bit.
+function roundTrip(e: { bytes: Uint8Array; cells: Uint8Array }): number {
+  try {
+    const d = decodeCrop(e.bytes).codes;
+    if (d.length !== e.cells.length) return 0;
+    for (let i = 0; i < d.length; i++) if (d[i] !== e.cells[i]) return 0;
+    return 1;
+  } catch { return 0; }
+}
+
 function measure(g: CodeGrid) {
-  const out: Record<string, number[]> = {};   // `${id}:${r}` -> [capped bytes, coarsen, flagged, uncapped bytes]
+  // `${id}:${r}` -> [capped bytes, coarsen, flagged, uncapped bytes, round-trip ok, SABOTAGE round-trip ok]
+  const out: Record<string, number[]> = {};
   for (const a of airports) for (const r of RADII) {
     const c = encodeCrop(g, a.lat, a.lon, r);
     const u = encodeCrop(g, a.lat, a.lon, r, Infinity);
-    out[`${a.id}:${r}`] = [c.bytes.length, c.coarsen, c.flagged ? 1 : 0, u.bytes.length];
+    const s = encodeCrop(g, a.lat, a.lon, r, CAP_BYTES, 0, /*longRunOffByOne=*/true);
+    out[`${a.id}:${r}`] = [c.bytes.length, c.coarsen, c.flagged ? 1 : 0, u.bytes.length, roundTrip(c), roundTrip(s)];
   }
   return out;
 }

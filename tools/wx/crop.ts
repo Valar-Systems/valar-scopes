@@ -10,8 +10,9 @@
 //  12  i32 lat of the NW cell centre (microdegrees)   16 i32 lon of the NW cell centre (microdegrees)
 //  20  u32 cell height (microdegrees)                 24 u32 cell width (microdegrees)
 //  28  u16 rows   30 u16 cols
-// Body: run-length bytes, row-major from the NW cell: (code << 4) | (run - 1), run 1..16, runs continue
-// across rows. Codes: 0 = no echo / under 15 dBZ inside coverage; 1-13 = 15-75 dBZ in 5 dBZ steps;
+// Body: runs, row-major from the NW cell; runs cross row ends. Each run starts with one byte: the code in the
+// high nibble and the length 1-15 in the low nibble. A low nibble of 0 means a LONG run: the whole length
+// follows as an unsigned LEB128 varint (ruled 2026-10-20; still format v1, nothing has shipped). Codes: 0 = no echo / under 15 dBZ inside coverage; 1-13 = 15-75 dBZ in 5 dBZ steps;
 // 14 = no radar coverage; 15 = missing data. Cells outside the source grid are 14.
 
 export interface CodeGrid {
@@ -53,17 +54,31 @@ function blockCode(g: CodeGrid, r: number, c: number, k: number): number {
   return echo ? echo : nocov ? 14 : missing ? 15 : 0;
 }
 
-export interface EncodedCrop { bytes: Uint8Array; coarsen: number; flagged: boolean; rows: number; cols: number }
+export interface EncodedCrop { bytes: Uint8Array; coarsen: number; flagged: boolean; rows: number; cols: number; cells: Uint8Array }
 
-function encodeAt(g: CodeGrid, box: CropBox, k: number, flagged: boolean, originShiftCells = 0): EncodedCrop {
+export interface EncodeOpts { originShiftCells?: number; longRunOffByOne?: boolean }
+
+function encodeAt(g: CodeGrid, box: CropBox, k: number, flagged: boolean, o: EncodeOpts = {}): EncodedCrop {
+  const shift = o.originShiftCells ?? 0;
   const rows = Math.ceil(box.rows / k), cols = Math.ceil(box.cols / k);
   const body: number[] = [];
-  let cur = -1, run = 0;
-  const flush = () => { if (run) body.push((cur << 4) | (run - 1)); run = 0; };
+  const cells = new Uint8Array(rows * cols);     // exactly what was encoded, for the round-trip check
+  let cur = -1, run = 0, n = 0;
+  const flush = () => {
+    if (!run) return;
+    if (run <= 15) body.push((cur << 4) | run);
+    else {
+      body.push(cur << 4);                       // low nibble 0: a long run, LEB128 length follows
+      let len = o.longRunOffByOne ? run - 1 : run;   // SABOTAGE (round-trip check): one short
+      do { let b = len & 0x7f; len >>>= 7; if (len) b |= 0x80; body.push(b); } while (len);
+    }
+    run = 0;
+  };
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const rr = box.r0 + originShiftCells + r * k, cc = box.c0 + originShiftCells + c * k;
+    const rr = box.r0 + shift + r * k, cc = box.c0 + shift + c * k;
     const v = k === 1 ? cellAt(g, rr, cc) : blockCode(g, rr, cc, k);
-    if (v === cur && run < 16) run++;
+    cells[n++] = v;
+    if (v === cur) run++;
     else { flush(); cur = v; run = 1; }
   }
   flush();
@@ -78,7 +93,7 @@ function encodeAt(g: CodeGrid, box: CropBox, k: number, flagged: boolean, origin
   dv.setUint32(20, Math.round(g.dj * k * 1e6), true); dv.setUint32(24, Math.round(g.di * k * 1e6), true);
   dv.setUint16(28, rows, true); dv.setUint16(30, cols, true);
   out.set(body, HEADER_BYTES);
-  return { bytes: out, coarsen: k, flagged, rows, cols };
+  return { bytes: out, coarsen: k, flagged, rows, cols, cells };
 }
 
 /**
@@ -87,12 +102,13 @@ function encodeAt(g: CodeGrid, box: CropBox, k: number, flagged: boolean, origin
  * it. capBytes = Infinity is the sabotage (no cap). `originShiftCells` exists only for A3's sabotage.
  */
 export function encodeCrop(g: CodeGrid, lat: number, lon: number, radiusKm: number,
-                           capBytes = CAP_BYTES, originShiftCells = 0): EncodedCrop {
+                           capBytes = CAP_BYTES, originShiftCells = 0, longRunOffByOne = false): EncodedCrop {
   const box = cropBox(g, lat, lon, radiusKm);
-  let e = encodeAt(g, box, 1, false, originShiftCells);
+  const o: EncodeOpts = { originShiftCells, longRunOffByOne };
+  let e = encodeAt(g, box, 1, false, o);
   for (const k of [2, 4, 8]) {
     if (e.bytes.length <= capBytes) break;
-    e = encodeAt(g, box, k, true, originShiftCells);
+    e = encodeAt(g, box, k, true, o);
   }
   return e;
 }
@@ -104,9 +120,15 @@ export function decodeCrop(b: Uint8Array): { coarsen: number; flagged: boolean; 
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const rows = dv.getUint16(28, true), cols = dv.getUint16(30, true);
   const codes = new Uint8Array(rows * cols);
-  let p = 0;
-  for (let i = HEADER_BYTES; i < b.length; i++) {
-    const code = b[i] >> 4, run = (b[i] & 15) + 1;
+  let p = 0, i = HEADER_BYTES;
+  while (i < b.length) {
+    const code = b[i] >> 4;
+    let run = b[i++] & 15;
+    if (run === 0) {                              // long run: LEB128 length
+      let shift = 0, byte = 0; run = 0;
+      do { if (i >= b.length) throw new Error("truncated long-run length"); byte = b[i++]; run |= (byte & 0x7f) << shift; shift += 7; } while (byte & 0x80);
+    }
+    if (p + run > rows * cols) throw new Error(`crop body overruns ${rows * cols} cells`);
     codes.fill(code, p, p + run); p += run;
   }
   if (p !== rows * cols) throw new Error(`crop body decodes to ${p} cells, header says ${rows * cols}`);

@@ -33,10 +33,18 @@ def decode(path):
     cell_lat, cell_lon = struct.unpack_from("<II", b, 20)
     rows, cols = struct.unpack_from("<HH", b, 28)
     codes = np.empty(rows * cols, dtype=np.uint8)
-    p = 0
-    for byte in b[32:]:
-        run = (byte & 15) + 1
-        codes[p:p + run] = byte >> 4
+    p, i = 0, 32
+    while i < len(b):                       # long-run form: low nibble 0 -> LEB128 length follows
+        code, run = b[i] >> 4, b[i] & 15
+        i += 1
+        if run == 0:
+            shift = 0
+            while True:
+                byte = b[i]; i += 1
+                run |= (byte & 0x7F) << shift; shift += 7
+                if not byte & 0x80:
+                    break
+        codes[p:p + run] = code
         p += run
     assert p == rows * cols, (p, rows * cols)
     return coarsen, lat_nw / 1e6, lon_nw / 1e6, cell_lat / 1e6, cell_lon / 1e6, codes.reshape(rows, cols)

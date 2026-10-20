@@ -231,3 +231,16 @@ Download, gunzip, decode, quantise to 4-bit and pack two cells per byte (12.25 M
 - Predicted: **≥ 95 %** of crops fail, i.e. every crop with at least one long run, which on this day is nearly all of them.
 - If the round trip passes, **A3 and A5 stand without a re-run**: the cell values do not change.
 
+### A4 re-meter (ruled 2026-10-20): predictions, frozen before the new meter runs
+
+**The meter:** V8's own accounting, `process.memoryUsage().heapUsed + external`. `arrayBuffers` is already inside `external`, so it is not added twice. It is sampled **at every pipeline stage boundary** (start, after the download, after the gunzip, after the GRIB parse, at each PNG row block, after the pack, after the store) **and every 5 ms** by a timer. The peak is the largest sample.
+
+| case | predicted peak (`heapUsed + external`) | predicted CPU |
+|---|---|---|
+| **storm** (2.12 MB gz; the bars apply) | **~25 MB** (range 18-35): download 2.1 + unzipped 0.75 + the PNG's data copies 0.75 + packed grid 12.25 + rows + V8's own heap | **~0.5 s** |
+| quiet (0.70 MB gz) | ~23 MB | ~0.5 s |
+| **meter sabotage:** storm + 64 MB held | **peak rises by 60-68 MB** (ruled band), i.e. ~89 MB | ~0.5 s |
+
+- **Bars (unchanged, graded on the storm frame):** peak ≤ 96 MB, CPU ≤ 10 s. Predicted: **both met with large margins.**
+- **Local workerd:** the pipeline is run once to prove it runs there, and **no memory claim is made from that run**. Production memory is confirmed in Stage 2.
+
