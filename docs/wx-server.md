@@ -291,3 +291,33 @@ value was involved.
   have been syntax-checked, **not run**: only production can exercise them, so the first post-deploy run
   is the first real reading.
 
+## WS4′, re-registered by ruling (2026-10-20), frozen before any run
+
+**WS4's ≤ 4 bound stays a miss in the record:** worst case 4.180 cells. The ruling accepted the cause:
+the wire-offset term was latitude-only, and the longitude edges carry 1/cos(lat). Coverage held: 0
+uncovered in 34,293 cases, with the sabotage and the control working.
+
+**The re-registered check.** The terms are the same, but evaluated per case, per edge, at that case's
+own latitude, instead of as one constant.
+- **Sweep:** WS4's 34,293 cases. Each case has 8 device corners (lat ± 0.005°, lon ± 0.005°, range
+  ± 0.5 km, floored at 0.5 km as in WS4) and 4 edges. That is **1,097,376** corner-edge checks.
+- **Overshoot:** the crop's outer cell edge minus the device's view edge, in cells, exactly as WS4
+  computes it.
+- **The bound:** for each case and edge, `bound = 2 (the frozen padding) + 1 (outward rounding, < 1 cell)
+  + wire offset`. lat and r are the quantised query. radLat and radLon follow `ProjectAt`'s rule, with the
+  constants parsed out of `src/AircraftManager.cpp`, so the 2.0° clamp, the 0.001° floor and the cos floor
+  are all included exactly.
+  - **N / S edges:** `wire offset = [0.005° + max over r′ ∈ {r − 0.5, r + 0.5} of |radLat(r) − radLat(r′)|] / dj`.
+  - **W / E edges:** `wire offset = [0.005° + max over lat′ ∈ {lat ± 0.005}, r′ ∈ {r ± 0.5} of
+    |radLon(lat, r) − radLon(lat′, r′)|] / di`. This term carries the lat rounding's effect on cos(lat).
+  - Corners are enough: radLat and radLon are monotonic in r, and radLon is monotonic in lat across
+    20-55 N.
+  - Floating-point tolerance: **1e-9 cells**.
+- **Predicted:** **0 violations** in 1,097,376 checks. Printed but not graded:
+  - the worst overshoot, which is still **4.180**;
+  - the largest per-case bound, **≈ 4.29** cells near 55 N;
+  - the smallest margin (bound − overshoot), which is ≥ 0 by the prediction.
+- **Its sabotage:** padding **3**, with the bound still computed with padding 2, must give **violations > 0**.
+- **Coverage stays asserted as before:** 0 uncovered.
+- **Outside the set:** stop and report.
+
