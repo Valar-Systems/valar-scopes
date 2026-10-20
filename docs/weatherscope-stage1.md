@@ -153,11 +153,254 @@ Each gets its own A3 mutation of the KDFW crop. The run-callback contract become
 
 **Left lenient, on purpose:** a long run of length 1-15 (non-canonical) is still accepted. The encoder never writes one, and it can neither overrun nor underrun. The header comment says so.
 
+## Predictions B, addendum: B2' (2026-10-20, frozen before re-measuring)
+
+**B2 stays recorded as a MISS** (see Results). It was a prediction error: the framework's static RAM is about 25.7 KB, not about 20 KB, and the harness adds 1,116 B. The original B2 line above is not edited. Ruled 2026-10-20: re-register.
+
+**Changes between the B2 measurement (`33c5b10`) and the re-measurement:**
+- `#429`'s review fixes: five refusals, all code and string literals, no static data;
+- `src/weather/` renamed to `src/weatherscope/` (ruled 2026-10-20, so it can't collide with the Blipscope weather layer);
+- the env block moved after the `animtest` group.
+
+None of these adds or removes a variable.
+
+| check | predicted | basis |
+|---|---|---|
+| B2'. Static RAM (build output) | **26,568-27,080 B** (26,824 ± 256) | measured base 25,708 B + harness 1,116 B; no static data changes |
+| B1, re-measured. Flash (build output) | **463,235-464,500 B**, still inside B1's 435-485 KB | `33c5b10` plus a few hundred bytes for the new checks and their status names |
+
+**Off these bands:** stop and report, as before.
+
+## Predictions B, addendum 2: the timing budget (ruled 2026-10-20, frozen before re-measuring)
+
+**B5, B6 and B7 stay recorded as MISSES** (see Results). Their candidate causes are **unproven**:
+- software double-precision arithmetic (B6);
+- first-touch flash and PSRAM cache misses (B5, B7);
+- LovyanGFX's per-call overhead (B7).
+
+Profiling waits until the past-hour loop exists and is measurably too slow. The original B5-B7 lines are not edited.
+
+**Reference points** (the single measurements, image `ed40af2`): decode **2,867 µs**, indices **3,584 µs**, render **22,012 µs**, push **25,788 µs**.
+
+**Budget bars, not bands** (ruled):
+
+| check | bar | predicted from the reference points |
+|---|---|---|
+| B5'-B8'. Decode + indices + render + push, per frame | **≤ 100 ms** | about **54.3 ms** (54,251 µs) |
+| Loop. A 15-frame past-hour loop, projected | **≥ 8 fps** | about **19.7 fps** |
+
+**How the loop is projected:** the view doesn't change during a loop, so the indices are worked out once and each loop frame costs decode + render + push (50,667 µs at the reference points). Counting the indices on every frame too, the stricter figure would be about 18.4 fps; it is reported alongside.
+
+**How it's re-measured:** a fresh boot of the rebased image (`6538f73`; the harness code is unchanged from `ed40af2`), flashed to `907069326E64` by serial and graded with `capture_stage1.py --budget`. B3, B4, B8 and B9 are graded against their original predictions as before.
+
+**The north/south-flip sabotage, S-B1, on the board.** Frozen in the original Predictions B:
+- the dump's sha256 must be `91bbb69d6ef6152d421660ec1bebb79555cd7dcdc795663d1e5161b306f6b368`;
+- 52.1 % of disc pixels and 0.6 % of echo pixels must equal the reference;
+- **B9 must FAIL**.
+
+It is planted in `src/weatherscope/WxRender.h` with an assertion that it applied. The file is then restored byte for byte (sha256 checked), rebuilt, and the correct image reflashed and re-graded (B9 identical).
+
+**Pre-registered outcomes off the table:**
+- A budget bar not met: stop and report.
+- B3, B4, B8 or B9 off their predictions on the fresh boot: stop and report.
+- S-B1 producing any dump other than the predicted one: stop and report. That would mean the sabotage did not plant as intended, or the board renders differently from the host.
+
+## Predictions B, addendum 3: the tagged dump (ruled 2026-10-20, frozen before the fix)
+
+**The measuring tool is fixed, not the subject.** The `1183010` capture stays on record as it is: B9 unreadable, rows 197-200 lost.
+
+**The fix,** in the harness's dump only (`src/weatherscope/stage1_main.cpp`):
+- **Blocking writes:** during the dump, a serial write waits up to 2 s for the host instead of dropping after 2 ms.
+- **Tagged rows:** every row goes on its own line, `WXR,<row>,<crc32>,<base64>`. The CRC-32 is the standard one (zlib), over the row's 240 raw bytes.
+- **Dump on request only:** at boot the harness prints its measurements and no dump, because a blocking write with nobody listening would stall the board. Any byte asks for a report with the blocking dump. `D` asks for the same report with the **old drop-on-stall** writes (2 ms), and exists for the control.
+- **The host refuses** a capture with any missing, duplicated or corrupt row (bad CRC, bad base64, wrong length) and names every such row by number. Only a complete dump is assembled and graded.
+
+| check | predicted |
+|---|---|
+| **Control.** `D` (drop-on-stall), with the host deliberately not reading for 1.5 s partway through the dump | capture **REFUSED**, with **≥ 1 missing row named by number**. If the host reports nothing missing, the tags don't work: **stop** |
+| **B9 (re-measured).** Blocking dump of the correct image | **240/240 rows**, every CRC good; assembled sha256 **`344383b4cfae04eec5a7a844cfb5f1b9aaa4ce8fa15f30d1b956d4e86ac05225`**, **0 of 57,600** pixels differ from the host reference, and it equals the board's own `fb_sha256` |
+| **S-B1.** Blocking dump of the flipped image | 240/240 rows; sha256 **`91bbb69d6ef6152d421660ec1bebb79555cd7dcdc795663d1e5161b306f6b368`**; about **52.1 %** of disc pixels and **0.6 %** of echo pixels equal the reference; **B9 against the reference FAILS** |
+| **Final.** The correct image reflashed | B9 identical again, as above; the board ends on Stage 1 |
+
+**Expected to stay where they were:**
+- the timings: they're measured before any printing, and the dump change doesn't touch them;
+- the build: static RAM is unchanged (the CRC is computed in a function with no table), and flash grows by a few hundred bytes.
+
+These are reported, not re-graded.
+
+**Pre-registered outcomes off the table:**
+- The control reports no missing row: stop (the tags can't see loss).
+- The blocking dump is refused: stop and report the named rows (the fix didn't fix it).
+- B9 or S-B1 off the predictions above: stop and report.
+
+## Predictions B, addendum 4: the Stage 1 diagnostic run (reviewer ruling, 2026-10-20; frozen before any diagnostic code)
+
+**Where the diagnostics live.** A separate bench env, `weatherscope-s3-128-diag`: `extends = env:weatherscope-s3-128`, plus `-DWX_STAGE1_DIAG`, and **no `skus.yml` row**. All diagnostic code is under that flag:
+- the Stage 1 env compiles none of it, so the Stage 1 image and its measured path are unchanged;
+- no shipping env compiles `src/weatherscope/` at all.
+
+**Optimize nothing.** Every variant below is a measurement. A faster one is a finding for Stage 2, not a change to Stage 1.
+
+**How it runs, in the diag image:**
+- **Cold:** the boot path runs exactly as in Stage 1 (decode from flash into the PSRAM grid, double indices, `writeFastHLine` render, push). It is recorded as the cold run before anything else runs.
+- **Warm:** then each variant runs **11 times**, reported as median and max.
+- **Code-buffer checks:** the sha256 of the 57,600-byte code buffer (`CodeAt` over every pixel), worked out outside the timing.
+- **Sprite checks:** the sha256 of the 115,200-byte sprite buffer, for each render method.
+
+| variant | what it is |
+|---|---|
+| D-flash | decode from the embedded crop (flash) into the PSRAM grid: Stage 1's path |
+| D-ram | decode from an **internal-RAM copy** of the crop (copied once, outside the timing) into the PSRAM grid: the way Stage 2 will receive it |
+| D-ram-int *(extra, not in the ruling)* | the same RAM copy, decoded into an **internal-RAM** grid. It separates the cost of writing 36,192 bytes into PSRAM |
+| I-double | the indices in double: Stage 1's `BuildView` |
+| I-float | the same expressions in float (diagnostic-only code) |
+| R-hline | render through `writeFastHLine`: Stage 1's `Render` |
+| R-direct | render by writing the sprite buffer directly, one 16-bit store per pixel, same colours |
+
+**The instrument check (a), before anything is read from it:** the diag image's cold run must reproduce Stage 1's boot numbers (2,867 / 3,584 / 22,012 µs) **within ±10 % each**. If it doesn't, the instrument is unreliable: **stop**.
+
+**Identity (every variant must produce the identical buffer):**
+- D-flash, D-ram, D-ram-int and I-double each give code-buffer sha256 **`344383b4…`**.
+- R-hline and R-direct give the **same sprite sha256**.
+- I-float is the one exception. The prediction is that **0-3 of the 480 indices** differ from double: float carries about 7 significant digits, and a flip needs a sample within about 4 × 10⁻⁴ of a cell boundary. If 0 differ, its code buffer is `344383b4…`; otherwise the differing pixels are counted.
+
+**Each miss, by candidate cause** (warm medians, against the cold run):
+
+| miss | candidate cause | it predicts | ruled out if | my bet |
+|---|---|---|---|---|
+| **B6** indices 3.584 ms | **C1** software double arithmetic (no double-precision FPU) | I-double warm median **within 10 % of cold** (3.2-3.9 ms); I-float median **≤ 1.0 ms** | I-float median **≥ 50 %** of I-double's, or I-double warm **≤ 50 %** of cold (that would be cache, not arithmetic) | **holds** |
+| **B5** decode 2.867 ms | **C2** first-touch cache misses on the flash-mapped crop | D-flash warm median **≤ 60 %** of cold (≤ 1.7 ms); D-ram within ±15 % of D-flash warm | D-flash warm median **≥ 85 %** of cold (≥ 2.44 ms) | **ruled out** (expect about 2.2-2.7 ms warm) |
+| **B5** | **C2'** *(new candidate)* the cost of writing 36,192 bytes into PSRAM | D-ram-int median **≤ 50 %** of D-ram's | D-ram-int **≥ 80 %** of D-ram | **holds** (expect D-ram-int about 0.4-1.0 ms) |
+| **B7** render 22.012 ms | **C3** LovyanGFX per-call overhead in `writeFastHLine` | R-direct median **≤ 50 %** of R-hline's | R-direct **≥ 80 %** of R-hline | **holds** (expect R-direct about 5-10 ms) |
+| **B7** | **C3'** first-touch PSRAM cache misses (grid reads, sprite writes) | R-hline warm median **≤ 70 %** of cold | R-hline warm **≥ 90 %** of cold | **ruled out** (expect about 20-22 ms warm) |
+
+**My overall expectation:**
+- **B6** is C1, software doubles.
+- **B5** is mostly C2', the PSRAM fill, not flash.
+- **B7** is mostly C3, the per-call overhead.
+
+**Note added before any measurement (2026-10-20), found by testing the grader on synthetic lines:** my expected range for C2, about 2.2-2.7 ms warm, **straddles** C2's ruled-out threshold (85 % of cold, about 2.44 ms). Only the part of that range at 2.44 ms or above matches my bet ("ruled out"); a warm D-flash median from 1.72 to 2.43 ms grades **partial**, which is **off my bet**. The thresholds are not changed. This note only says which of my own numbers the bet actually covers.
+
+**Pre-registered outcomes off the table:**
+- The cold run outside ±10 % of the boot numbers: stop (the instrument).
+- Any identity check failing, other than I-float's counted indices: stop and report.
+- A result between a cause's "predicts" and "ruled out" thresholds: reported as **partial, not established**.
+- A miss with every candidate ruled out: **cause unknown**; stop and report.
+- Any result not named here: stop and decide.
+
+**Board session, once Daniel gives the OK to flash `907069326E64`,** in this order:
+1. Stage 1 with the tagged dump: the control (`D`), then B9.
+2. S-B1, the flipped image.
+3. The diag image.
+4. The correct Stage 1 image, reflashed and B9 re-graded, so the board ends on Stage 1.
+
+## Predictions B, addendum 5: Daniel's rulings and today's board session (2026-10-20, frozen before building or flashing)
+
+**Daniel's rulings, recorded as received:**
+1. **Standing OK** to flash `907069326E64` whenever the work needs it, with the port always found from the serial. That board only; any other board still needs his OK.
+2. **B5-B7 are MISSES against their original frozen bands, unchanged.** The budget bars (≤ 100 ms per frame, ≥ 8 fps loop) are reported **separately**, as a later-frozen check that passes. The two are not merged in the results. This settles the open conflict recorded under the reviewer ruling.
+3. **Step 3 is dropped.** The env `weatherscope-s3-128-diag` and the `WX_STAGE1_DIAG` code move off #434 to their own draft branch, `bench/weatherscope-stage1-diag` (`8da2ab9`). Stage 1 keeps one env. Profiling waits until the loop is measurably too slow.
+4. **One reviewer voice:** rulings for this repo come only from Daniel's reviewer chat. If rulings conflict: stop and ask Daniel.
+
+**What this does to the record** (nothing above is edited):
+- **Addendum 4 stays as written, not run.** So no cause is established for B5, B6 or B7. The candidates stay untested, and the C2 note stays with them.
+- **Addendum 2 names its per-frame bar "B5'-B8'".** That name is kept but read as the budget bar's name, not a re-registration: **B5-B7 have no re-registration.** From here on the results call it "Budget, per frame".
+- **`capture_stage1.py` no longer drops B5-B7** under `--budget` or `--expect-sha`. It prints each against its frozen band, and the budget bars in a block of their own.
+
+**The code after the move:**
+- `platformio.ini`, `stage1_main.cpp` and the capture and dump code are byte-identical to `f6628b5`, the harness of `56a2488`.
+- `stage1_diag.h` is gone.
+- The grader's only changes are the B5-B7 lines and the budget block's heading. On synthetic captures it graded 9/9 cases as intended. Six of them were sabotages:
+  - a timing inside its band;
+  - a timing moved by 36 %;
+  - a missing row;
+  - the flip graded as B9;
+  - a control with nothing lost.
+
+**One new gating check, frozen here:** each of B5, B6 and B7 must repeat its measurement (2,867 / 3,584 / 22,012 µs) within **±10 %**. That is addendum 4's instrument tolerance. The two boots so far repeated within 1 µs. A timing that moved is not the measurement the miss describes.
+
+| check | predicted |
+|---|---|
+| Build, `weatherscope-s3-128` at the new head | RAM **26,824 B** (B2'), flash **463,667 B**, as built from `8da2ab9`'s tree, whose Stage 1 code is the same with the flag unset. Against that saved image (sha256 `46f0c3ce464d…`), every differing byte is a build stamp: `app_elf_sha256`, the image checksum and trailing SHA-256, compile-time strings |
+| Control (`D` + a 1.5 s host stall) | as in addendum 3: **REFUSED**, ≥ 1 missing row named |
+| B9, blocking dump | as in addendum 3: **240/240** rows, sha256 `344383b4…`, **0 of 57,600** differ, equal to the board's `fb_sha256` |
+| S-B1, the flip | as in addendum 3: sha256 `91bbb69d…`, **52.1 %** disc / **0.6 %** echo agreement, **B9 against the reference FAILS** |
+| Restore | `WxRender.h` back to its sha256 before the plant; the rebuilt image differs from the step-1 image only in build stamps |
+| Final | the correct image reflashed: B9 identical; the board ends on Stage 1 |
+| B3, B4, B8 (every capture) | inside their frozen bands (last time 153,608 B; 0 B; 25.788 ms) |
+| B5, B6, B7 (every capture) | **MISS** against the frozen bands, each within ±10 % of its measurement |
+| Budget (separate; addendum 2) | **≤ 100 ms** per frame (about 54.2 ms); **≥ 8 fps** loop (about 19.7) |
+
+**The plant:** in `src/weatherscope/WxRender.h`, `v->homeLat + 1.0 * (kCentre` becomes `v->homeLat + -1.0 * (kCentre`. The anchor must occur exactly once and the file's sha256 must change, or nothing is built. This is the same sign flip `render_ref.py --flip-ns` computes, and that output hashes to `91bbb69d…`, checked today.
+
+**Pre-registered outcomes off the table:**
+- A flash that exits nonzero: stop. Nothing is measured from that board state.
+- An image that differs from its comparison in any byte that is not a build stamp: stop.
+- The control reporting nothing missing, or the blocking dump refused: stop (as in addendum 3).
+- B3, B4 or B8 out of band; B5-B7 inside their bands or moved more than ±10 %; a budget bar missed: stop and report.
+- **Any result not named here: stop and decide.**
+
+## Predictions B, addendum 6: the control's rule, re-registered (ruled 2026-10-20, option 1; frozen before the grader changes or the board runs)
+
+**Ruling, recorded as received:** the control **PASSES** if the capture is **refused AND at least one bad row is named** (missing, corrupt or duplicated). If no row is lost at all, the run is **INCONCLUSIVE**, not a pass: lengthen the stall and run again, recording each attempt.
+
+**What stays as it was:**
+- The `11:34` capture stays recorded as **outside its original prediction**. It is not re-graded under this rule.
+- The drop's origin (board or host) **stays open**. It is noted, not chased, because the dump B9 grades uses blocking writes.
+
+**Before the fresh run, in two commits of their own:**
+1. **The grader's wording.** It printed "NOT refused" for a capture it had refused. The fix changes words only, no verdict.
+2. **This rule, in the grader:**
+   - The control passes on `refused` with the named rows printed.
+   - With every row intact, it assembles the dump and compares it with the board's own `fb_sha256`:
+     - equal: **INCONCLUSIVE** (exit 3; nothing was lost);
+     - different: **FAIL** (a loss the tags did not see).
+   - `--stall <s>` sets the stall.
+   - Tested on synthetic captures, sabotages included, before it touches the board.
+
+**The stall ladder:** **1.5 s, 3 s, 6 s, 12 s**, one attempt each, moving up only on INCONCLUSIVE. Every attempt's capture is saved and listed in the results. **Four INCONCLUSIVE attempts: stop and decide.** A stall the host can absorb without loss can't test the tags this way.
+
+| check | predicted |
+|---|---|
+| Control, attempt 1 (1.5 s) | **PASS**: refused, ≥ 1 bad row named. The one capture so far at this stall lost 64 bytes |
+| B9, blocking dump, `--budget` | as in addendum 5: 240/240, sha256 `344383b4…`, 0 of 57,600 differ, equal to `fb_sha256`; B3, B4, B8 in band; B5-B7 MISS and within ±10 %; budget met |
+| S-B1, `--expect-sha 91bbb69d…` | as in addendum 5: that sha, 52.1 % / 0.6 %, B9 against the reference FAILS; the timings as in the B9 row (the flip mirrors the screen; the work is the same) |
+| Restore and final | as in addendum 5: `WxRender.h` back to its sha256; the rebuilt image differs from `d7ed5182dc7e…` only in stamps; B9 identical again |
+
+**No reflash before the control or B9.** The board has run `d7ed5182dc7e…` (`27600e8`'s Stage 1) since the `11:34` capture. The commits in between touch only the grader and this doc, not the firmware.
+
+**Pre-registered outcomes off the table:**
+- No `WX,end` (the capture fails): stop and decide. A loss outside the rows, or the instrument; the two can't be told apart.
+- Control **FAIL** (rows intact, but the dump disagrees with `fb_sha256`): stop.
+- Four INCONCLUSIVE attempts: stop and decide.
+- Anything in addendum 5's list. **Any result not named here: stop and decide.**
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
 - **The radar product** is MergedReflectivityQCComposite, as in the spike. Which product Weatherscope uses has not been ruled.
 - **Stage 2:** the data path, the screens, the 15 mi approach ring and the warning screens.
+
+### Ruled for Stage 2 (Daniel, 2026-10-20)
+
+Recorded as received. The three lines above are left as they were.
+1. **Palette:**
+   - rain = the standard NWS reflectivity scale;
+   - snow = its own blue-to-white intensity scale;
+   - no coverage = solid grey;
+   - missing = dim or hatched grey (never violet, which reads as a hail core);
+   - the lowest band (15-20 dBZ) dimmed slightly.
+
+   Render it on the board for Daniel to look at before it's final. Stage 1's provisional palette, with its dark violet for missing, stays as it was in the closed Stage 1 harness, and this ruling replaces it from Stage 2 on.
+2. **Radar product:** SeamlessHSR, pending a side-by-side check. Before Stage 2 code, compare SeamlessHSR and the composite on a few stored frames, including a dry western day with storms aloft, and report where they differ. If the difference is negligible, say so, and Daniel may switch back.
+3. **Data path:**
+   - one shared server pipeline with the Blipscope weather layer, with the radar product as a parameter;
+   - it runs on the device side, never the website's Worker;
+   - NWS alerts also come through the proxy (one request per area, a proper User-Agent), not directly from devices.
+
+   This touches blipscope-5c's spike (#422), so the coordination goes to it through Daniel before the shared parts are planned.
+
+**Stage 2's plan:** `docs/weatherscope-stage2.md`, draft PR #437 (doc only, predictions first). The shared parts are held there until that coordination has happened.
 
 ## Results
 
@@ -213,6 +456,221 @@ Two extra checks, not in the frozen table, also passed:
 - **The real header** was unchanged throughout.
 - **The whole host suite** passes, with 0 bytes on stderr.
 
-### B: the env on the board
+### B: the env (2026-10-20, branch `feat/weatherscope-stage1`)
 
-Not started. The `platformio.ini` env and the `skus.yml` row wait for the decoder to pass (it has) and for `blipscope-5c`'s word on shared files. The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`.
+**Built, not flashed.** The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`. So B3-B9 have not run.
+
+**Two deviations from the design text above,** neither a measured quantity:
+- **Where the main file lives:** `src/weatherscope/stage1_main.cpp` (`src/weather/` until the 2026-10-20 rename), with `build_src_filter = -<*> +<weatherscope/>`, not `src/weatherscope_main.cpp`. With the main inside the folder, one line in `[filters] editions_off` (`-<weatherscope/>`) keeps the harness out of every other env.
+- **The disc test** is done in integers: `(2x+1−240)² + (2y+1−240)² > 240²`. Doubled, every term is exact, so it is the same test, and it avoids 57,600 software-double operations on a chip with no double-precision FPU.
+
+**Extra checks, not in the frozen table:**
+- `test/host/test_wx_render.cpp`, the renderer on the host: **57,600/57,600** pixels identical to `render_ref.py`'s screen (`kdfw-60mi.screen.bin`, sha256 `344383b4…`, the B9 value).
+- **Its control:** S-B1 (latitude sign flipped) planted in a copy of `WxRender.h` gives **35,920/57,600** identical. On the disc that is 23,564 of 45,244, or 52.1 %, as S-B1 predicts. The test fails.
+- **The shipping build** `blipscope-s3-128` still builds, with no `src/weatherscope/` object in it.
+- **CI's own checks** pass locally: `skus.py --validate` / `--check-readers`, `check_release_envs.mjs` and `check_photo_mode.mjs`. The whole host suite passes.
+
+| check | predicted | result | |
+|---|---|---|---|
+| B1. Flash (build output) | 435-485 KB | **463,235 B** | ✓ |
+| B2. Static RAM (build output) | **16-26 KB** | **26,824 B** (26.8 KB; 26.2 KiB) | **✗ off-prediction, about 0.8 KB over** |
+
+**STOP, report (B2).** The harness itself is inside its allowance. Its own static RAM is 2,004 B in the object file (`stage1_main.cpp.o`: data 48, bss 1,956). Linked, the only RAM symbols in this image that `animtest-s3-128`'s lacks are the harness's five globals, **1,116 B** (`view` 992). The miss is in the **baseline** the band was built on:
+- **How I estimated it:** the framework's static RAM at "about 20 KB", from `animtest`'s 29,952 B minus its objects' data + bss (9.9 KB).
+- **Why that was wrong:** per-object data + bss doesn't map one-to-one onto RAM in the linked image.
+- **What the base really is:** measured from the two images, about **25.7 KB** (26,824 − 1,116).
+
+**The alternative, and why the data excludes it:** "the harness pulls in extra framework RAM (mbedtls for the dump's sha256, heap_caps)". If it did, those symbols would appear in this image's RAM and not in `animtest`'s. None do, apart from the harness's own globals.
+
+Nothing was changed to bring RAM down. B2 waits for a ruling.
+
+### B, re-measured (2026-10-20, code at `ed40af2`: #429's fixes, `src/weatherscope/`, the env moved)
+
+| check | predicted (frozen in `edaea95`) | result | |
+|---|---|---|---|
+| B1, re-measured. Flash | 463,235-464,500 B | **463,395 B** (+160 B for the new checks) | ✓ |
+| B2'. Static RAM | 26,568-27,080 B (26,824 ± 256) | **26,824 B**, the point estimate | ✓ |
+
+- **B2 stays a miss.** B2' is its re-registration.
+- **The shipping build** `blipscope-s3-128` still builds, with no `src/weatherscope/` object in it.
+- **The host suite** passes (A3 12/12; renderer 57,600/57,600), and `skus.yml` validates.
+
+### B, on the board (2026-10-20, image `ed40af2` on `907069326E64`)
+
+**How it ran:**
+- **Flash:** `scripts/bench-flash.ps1 -Board weatherscope -DanielApproved -NoCapture`. The port was resolved from the serial (COM6), and esptool reported MAC `90:70:69:32:6e:64`; all four images verified.
+- **Read:** one open of the port, with DTR and RTS held low, then a single byte to ask for the report (`test/fixtures/wx/capture_stage1.py`).
+- **What the timings measure:** the report re-prints the values measured once at boot.
+
+| check | predicted | result | |
+|---|---|---|---|
+| B3. PSRAM used by the frame | 144-160 KB | **153,608 B** | ✓ |
+| B4. Change in internal heap | ≤ 2 KB | **0 B** | ✓ |
+| B5. Decode | 0.2-2 ms | **2.867 ms** | **✗ off-prediction** |
+| B6. Row and column indices | ≤ 1.5 ms | **3.584 ms** | **✗ off-prediction** |
+| B7. Render into the sprite | 2-10 ms | **22.012 ms** | **✗ off-prediction** |
+| B8. Push to the panel | 23-32 ms | **25.788 ms** | ✓ |
+| B9. Per-pixel code dump | sha256 `344383b4…`, identical to `render_ref.py` | **identical**: 0 of 57,600 pixels differ, and the board's own `fb_sha256` agrees | ✓ |
+
+**STOP, report (B5, B6, B7).** The image is correct: B9 is identical. The work is slower than predicted:
+- B5 by 1.4×, B6 by 2.4× and B7 by 2.2× over the top of each band.
+- B8, which is bound by the SPI bus rather than the CPU, landed as predicted.
+
+**One alternative ruled out:** a CPU clock below the 240 MHz the estimates assumed. The framework's `sdkconfig.h` sets `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ 240`, and nothing in the harness changes it.
+
+**Cause not established.** It is not profiled, so these are candidates, none tested:
+- B6: the cost of software double-precision arithmetic, 480 divides and floors on a chip with no double FPU;
+- B5 and B7: first-touch cache misses on the flash-mapped crop and on PSRAM;
+- B7: LovyanGFX's per-call overhead in `writeFastHLine`.
+
+**Not run:** S-B1, the north/south flip on the board. The stage stopped first. The board is left running the correct `ed40af2` image.
+
+### B, budget re-measured (2026-10-20, a fresh boot of `1183010`'s image on `907069326E64`)
+
+**How it ran:** flashed by serial (esptool reported MAC `90:70:69:32:6e:64`, all four images verified), then graded once with `capture_stage1.py --budget`.
+
+| check | bar or prediction | result | |
+|---|---|---|---|
+| B5'-B8'. Decode + indices + render + push | ≤ 100 ms per frame | **54.2 ms** (2,866 + 3,583 + 22,012 + 25,788 µs) | ✓ |
+| Loop. 15 frames, projected | ≥ 8 fps | **19.7 fps** (50.7 ms per loop frame; 18.4 fps counting the indices every frame) | ✓ |
+| B3. PSRAM | 144-160 KB | **153,608 B** | ✓ |
+| B4. Internal heap change | ≤ 2 KB | **0 B** | ✓ |
+| B8. Push | 23-32 ms | **25.788 ms** | ✓ |
+| B9. Per-pixel dump | identical to `render_ref.py` | **UNREADABLE through the dump**: the board's own `fb_sha256` is `344383b4…` (the reference), but the dump that arrived holds **56,640 of 57,600 bytes** | **✗ instrument** |
+
+**The timings repeat the reference points to within 1 µs:** 2,866, 3,583, 22,012 and 25,788 µs, against 2,867, 3,584, 22,012 and 25,788.
+
+**STOP, report (B9).** The analysis of the saved capture:
+- **What arrived:** 236 whole rows, each **identical to the reference row**, in order.
+- **What didn't:** rows **197-200**, four whole consecutive rows, never arrived.
+- **What the board says:** its sha over the codes it streamed equals the reference.
+- **So** the screen renders as predicted, and the **transport dropped rows**.
+
+**The mechanism, not yet tested:** `setTxTimeoutMs(2)`, which the harness copied from `animtest_main.cpp` (where a blocked print was worse than a dropped one). It drops a write whenever the host stalls longer than 2 ms. The first board capture received the whole dump, and this one did not.
+
+**Not done:**
+- **No re-capture** of the same image: that would be retrying until it passes.
+- **No change** to the harness.
+- **S-B1 not run.** Its grade also depends on the dump.
+
+The board is left running the correct image.
+
+### Reviewer ruling on the Stage 1 board results (image `ed40af2` on `907069326E64`), 2026-10-20
+
+Recorded as received:
+
+1. **B5, B6 and B7 stay misses**: 2.867, 3.584 and 22.012 ms against bands of 0.2-2, ≤ 1.5 and 2-10 ms. **The bands stay as frozen; don't re-register over them.** B3, B4, B8 and B9 pass, and B9 is the result that matters most. Stopping, and listing the causes as untested candidates, was right.
+2. **B2:** the explanation is accepted (the baseline was wrong; the harness's own linked RAM is 1,116 B; no extra framework symbols). B2 stays a miss, and **B2' stands**.
+3. **These times are fine for Weatherscope** (about 50 ms per new frame, with a new frame every 2 minutes). They matter for the Blipscope weather overlay, which redraws every frame. So **each miss needs a cause** before anyone predicts from these numbers again. Close Stage 1 with **one diagnostic run**, predictions frozen first, giving for each candidate cause the number it predicts and the result that would rule it out:
+   - a. cold vs warm: decode, indices and render once cold, then at least 10 more times. Report the first run, and the median and max of the rest. The first run must reproduce the boot numbers within a stated tolerance, or the instrument is unreliable: stop.
+   - b. decode from a RAM copy of the crop, the way Stage 2 will receive it, as well as from flash.
+   - c. indices in float as well as double; report how many of the 480 indices differ.
+   - d. render by writing the sprite buffer directly as well as through `writeFastHLine`.
+   - Every variant must produce the identical buffer (`344383b4…`), except where float indices differ, which are reported as a count.
+4. **Run S-B1 on the board.** It must fail as predicted.
+5. **Keep diagnostic code out of the Stage 1 harness's measured path and out of every shipping env. Optimize nothing.** A faster variant is a finding for Stage 2's design, not a change to Stage 1.
+6. **Report** each prediction with its result, then which cause explains each miss. If the results match, Stage 1 is closed and the measured costs become the basis for Stage 2's timing bands; if not, stop and report.
+
+Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait for v18 to be promoted.
+
+**Open conflict, put to Daniel.** An earlier ruling the same day ("Ruling on B5-B7: option 2, re-register") had budget bars frozen in "Predictions B, addendum 2", and they were met on the board (54.2 ms per frame, 19.7 fps). That addendum did not edit the original B5-B7 lines, which still read as misses. This ruling says not to re-register over the bands. Until Daniel says which stands, addendum 2 and its results stay in the record as written, and B5-B7 remain misses either way.
+
+### B, addendum 5 on the board (2026-10-20, image `27600e8` on `907069326E64`): the control is off-prediction, STOP
+
+**Build, before flashing:**
+
+| check | predicted | result | |
+|---|---|---|---|
+| RAM / flash | 26,824 B / 463,667 B | **26,824 B / 463,667 B** | ✓ |
+| Image vs `8da2ab9`'s Stage 1 build (`46f0c3ce464d…`) | build stamps only | **69 bytes differ, all stamps:** `app_elf_sha256` 32; the compile-time string (11:01:39 → 11:33:28) 4; the image checksum 1 and the trailing SHA-256 32 | ✓ |
+
+**A slip in my comparison script, corrected before flashing.** It first called the last 33 bytes "unexplained": the checksum byte and the SHA sit next to each other, its run-merging joined them, and the merged run matched neither rule. The bytes were not relabelled by hand. They were proven: in both images the byte at n−33 equals 0xEF XOR every segment byte, and the last 32 bytes equal the SHA-256 of everything before them.
+
+**Flash:** `bench-flash.ps1` resolved the port from the serial (COM6), and esptool read MAC `90:70:69:32:6e:64`; all four images verified. The flashed `firmware.bin` (`d7ed5182dc7e…`) is the image compared above.
+
+| check | predicted (addendum 3, repeated in 5) | result | |
+|---|---|---|---|
+| Control: `D` + a 1.5 s host stall after 20 rows | capture **REFUSED**, with **≥ 1 missing row named** | **0 rows missing; 1 row corrupt, named: row 239.** 239 of 240 rows good, none duplicated | **✗ off-prediction** |
+
+**STOP, report.** The capture (`bench-logs/wx-stage1-control-113450.txt`, 81,553 B, sha256 `0852e7bfde7c…`, not committed):
+- **What was lost:** row 239, the last row, arrived with **256 of its 320 base64 characters**. All 256 match the reference row; the last **64** are gone. 64 bytes is one USB full-speed packet.
+- **What arrived:** the rest of that line (its line ending), every other row whole, and the board's `fb_sha256` (`344383b4…`, the reference) and `WX,end`.
+- **The tags saw the loss:** the row was named by number and its CRC refused it. But it was named **corrupt, not missing**, and the frozen prediction was "≥ 1 missing row". That is outside the predicted set, so it is not re-graded here.
+- **The grader's wording was wrong; its verdict was right.** It printed "NOT refused", but the capture *was* refused, with row 239 named. Its control rule is the frozen one, at least one row missing, and that failed.
+
+**Why my prediction was wrong:** I assumed that once the host stopped reading, the board's 4 KB TX buffer would fill and whole rows would drop. Instead, about 81 KB went through with only 64 bytes lost, and the loss was 219 rows after the stall began. So the host side absorbed nearly the whole dump, and the stall barely stalled the board.
+
+**Two explanations, and this capture can't separate them:**
+- **The board dropped one packet** when a 2 ms write timed out. For: the loss is exactly one 64-byte packet, inside a line, with the line ending intact.
+- **The host lost it** (the driver or pyserial). Why it is not excluded: a driver that runs out of buffer normally stops asking the board for data rather than discarding it, which favours the first explanation, but one capture can't show which. The `1183010` capture, which lost rows 197-200 without any deliberate stall, isn't evidence either way.
+
+**What this leaves proven:**
+- Of the row checker's refusals, only "corrupt" has now fired on a real capture.
+- "Missing" has fired only on synthetic captures (9/9 cases, addendum 5).
+
+**Timings in the same capture** (the control path does not grade them; data only): decode 2,867, indices 3,584, render 22,014, push 25,771 µs; PSRAM 153,608 B; internal heap change 0 B. Each of B5-B7 is within 0.01 % of its measurement and still a **MISS** on its frozen band.
+
+**Not run:** B9, S-B1 and the final reflash. No second control was tried; that would be retrying until it passes. **The board is left on the correct Stage 1 image (`27600e8`)**, so it already ends where step 4 would leave it. The board's own `fb_sha256` in the control capture is the reference value, which says the screen is right, but that is not B9.
+
+### B, addendum 6 on the board (2026-10-20, image `d7ed5182dc7e…` on `907069326E64`): all as predicted
+
+**Order, as ruled:**
+1. The rule frozen (`f266a2d`).
+2. The grader's wording fixed in a commit of its own (`4cb7a9f`). Replaying the `11:34` capture still exits 1; only the line changed.
+3. The rule implemented (`e2811b1`). Synthetic captures: 16/16 as intended, and two planted sabotages each turn the suite red.
+
+The firmware source did not change after `27600e8`, so the board kept the image it had run since `11:34`. Every capture was one open of the port, with the port resolved from the serial (COM6).
+
+| check | predicted (addenda 5 and 6) | result | |
+|---|---|---|---|
+| Control, attempt 1 (1.5 s stall) | **PASS**: refused, ≥ 1 bad row named | **PASS**: refused, **row 230 named missing**, 239/240 good | ✓ |
+| B9, blocking dump | 240/240, sha256 `344383b4…`, 0 of 57,600 differ, equal to `fb_sha256` | **240/240**, `344383b4…`, **0** differ, equal to `fb_sha256` | ✓ |
+| B3 / B4 / B8 | in their frozen bands | **153,608 B / 0 B / 25.771 ms** | ✓ |
+| B5 / B6 / B7 | **MISS** on the frozen bands, each within ±10 % of its measurement | **2.867 / 3.584 / 22.014 ms: MISS** on 0.2-2 / ≤ 1.5 / 2-10 ms; +0.0 % each | ✓ (as predicted: misses) |
+| Budget (separate; addendum 2) | ≤ 100 ms per frame; ≥ 8 fps | **54.2 ms; 19.7 fps** | ✓ |
+| S-B1 plant | anchor once; the file's sha256 changes | once; `88f002864daa…` → `911da8765bb2…`; image `34592ece5c11…`, flash 463,687 B (+20) | ✓ |
+| S-B1, `--expect-sha 91bbb69d…` | that sha; 52.1 % / 0.6 %; B9 against the reference FAILS | **`91bbb69d…`**, equal to `fb_sha256`; **52.1 % / 0.6 %**; **B9 FAILS**; 21,680 pixels differ (the host test's 57,600 − 35,920) | ✓ |
+| S-B1 timings | as in the B9 row | 2.867 / 3.589 / 21.961 / 25.785 ms: B5-B7 MISS, within 0.2 %; B3, B4, B8 in band; budget 54.2 ms, 19.8 fps | ✓ |
+| Restore | `WxRender.h` back to `88f002864daa…`; rebuilt image differs from `d7ed5182dc7e…` only in stamps | sha256 checked OK, and `git diff` is empty. The rebuild is **byte-identical** to `d7ed5182dc7e…`: 0 bytes differ, and it differs from the S-B1 image, so the rebuild really happened | ✓ |
+| Final: the correct image reflashed | B9 identical | **identical**: 240/240, `344383b4…`, 0 differ; timings as in the B9 row | ✓ |
+
+**Each flash:** `bench-flash.ps1` resolved COM6 from the serial, and esptool read MAC `90:70:69:32:6e:64`, verified all four images and exited 0. The flashed `firmware.bin` was the image checked above each time.
+
+**Captures** (`bench-logs/`, not committed):
+
+| capture | bytes | sha256 |
+|---|---|---|
+| `control2-a1-114019` | 81,553 | `ab6e0e2d02cf…` |
+| `b9-114051` | 81,612 | `c45189cf5ef9…` |
+| `sb1-114157` | 81,612 | `10da9eb60b6e…` |
+| `final-114300` | 81,612 | `c45189cf5ef9…` |
+
+**B9 and final are byte-identical, and that was checked rather than trusted.** The capture between them carried the flipped dump, so the reflash landed. This image also gave the same microsecond timings at `11:34`. Its report re-prints values measured once per boot, and they repeat from boot to boot.
+
+**Two things noted, and not chased:**
+- **Both drop-on-stall captures lost exactly one 64-byte packet**, late in the dump (row 239 at `11:34`, row 230 here). The blocking dump lost nothing in 3 captures out of 3. Each control capture is exactly 64 B short of a full drop-on-stall dump (81,612 + 5 B for the longer mode string). Whether the board or the host dropped them **stays open**, by ruling.
+- **This time the packet took the start of row 230's line** (`WXR,230,<crc>,` and 47 base64 characters). That leaves a 273-character tail, which the checker ignores because it doesn't start with `WXR,`. So "missing [230]" is right, but "unparseable lines 0" doesn't count stray fragments. No verdict depends on that count. Left as is, not changed mid-run.
+
+## Stage 1: every prediction and its result (2026-10-20)
+
+| prediction | result |
+|---|---|
+| A1-A8, A3.8-A3.12; S-A1, S-A2, S-A3a-c | **all as predicted** |
+| B1 flash | ✓ |
+| B2 static RAM | **✗ MISS** (the baseline was wrong). **B2'** re-registered by ruling: ✓ |
+| B3 PSRAM, B4 internal heap, B8 push | ✓ every time |
+| **B5 decode, B6 indices, B7 render** | **✗ MISSES on their frozen bands**, unchanged (Daniel's ruling). They repeat on every boot: 2.867, 3.584 and 22.01 ms |
+| Budget bars (addendum 2, frozen later, separate) | **met** every time: 54.2 ms per frame, 19.7 fps |
+| B9 the per-pixel dump | ✓ 3 times (`ed40af2`, today twice); once unreadable through the old 2 ms dump (`1183010`, an instrument miss) |
+| Control, original rule (addendum 3) | **✗ outside its prediction** (`11:34`: one row corrupt, none missing). Not re-graded |
+| Control, re-registered rule (addendum 6) | ✓ attempt 1 |
+| S-B1 the flip, on the board | ✓ |
+| Addendum 4, the diagnostic run | **not run**: dropped by Daniel's ruling; parked as draft #435 |
+
+**The cause of each miss:**
+- **B2:** the RAM baseline was estimated wrongly, from per-object sizes. The reviewer accepted this.
+- **B5, B6, B7: not established.** The candidates stay untested: software doubles (B6), first-touch cache misses (B5, B7), LovyanGFX's per-call overhead (B7). The run that would have tested them is parked on #435 until the past-hour loop is measurably too slow. The bands are not used to predict anything further; the measured costs are.
+- **The `1183010` dump loss:** the 2 ms drop-on-stall writes. Today both drop-on-stall captures lost data and every blocking capture lost none. Board or host is still open.
+- **The original control rule:** my prediction assumed the host stall would make whole rows drop. The losses came instead as one 64-byte packet, which can fall inside a row or across its start.
+
+**The board ends on the correct Stage 1 image**, `d7ed5182dc7e…`, built from `e2811b1`'s firmware source (unchanged since `27600e8`).

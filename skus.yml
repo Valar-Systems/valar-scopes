@@ -69,3 +69,4 @@ skus:
   # source rather than this file plus a remainder hidden in the workflow.
   - { env: blipscope-pro-s3-175-amoled, status: build-only }
   - { env: animtest-s3-128, status: build-only }
+  - { env: weatherscope-s3-128, status: build-only }
