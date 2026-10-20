@@ -30,9 +30,9 @@ found=0
 
 while IFS= read -r f; do
   [ -z "$f" ] || [ ! -e "$f" ] && continue
-  # CAD files: STEP coordinates (0.02189784694318916) match the id shape. Same
-  # skip list as scripts/check_device_ids.py.
-  case "$f" in *.step|*.stp|*.stl|*.3mf|*.f3d) continue ;; esac
+  # CAD files: STEP coordinates (0.02189784694318916) match the id shape. Colour tables (.tbl) vendored
+  # from MetPy: fractions with sixteen digits after the point do too. Same skip list as scripts/check_device_ids.py.
+  case "$f" in *.step|*.stp|*.stl|*.3mf|*.f3d|*.tbl) continue ;; esac
   # Read the STAGED content, not the worktree: they differ under `git add -p`,
   # and the staged bytes are what the commit will contain.
   hits=$(git show ":$f" 2>/dev/null | grep -oE "$PATTERN" | grep -vE "^($ALLOW)$" | sort -u)

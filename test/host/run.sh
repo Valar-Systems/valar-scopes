@@ -1070,6 +1070,23 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties
+# (docs/weatherscope-stage2.md, addendum 2: C3 a-f). Its sabotages: python -I test/host/sabotage_wx_palette.py
+echo
+echo "== WxPalette =="
+if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_palette.cpp" -o "$OUT/test_wx_palette.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope palette test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_palette.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the palette test did not run or could not read the pinned table (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"

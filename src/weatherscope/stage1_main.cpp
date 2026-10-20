@@ -6,8 +6,15 @@
 // .inc can go stale), the 60 mi KDFW crop of the 2024-05-21 22:00Z MRMS composite.
 //
 // On boot it decodes the crop (include/WxCrop.h) into a code grid in PSRAM, works out each screen row's
-// and column's cell (src/weatherscope/WxRender.h), paints a 240 x 240 PSRAM sprite in the PROVISIONAL palette
-// (not ruled), pushes it once, and reports its measurements -- WITHOUT the dump (see below).
+// and column's cell (src/weatherscope/WxRender.h), paints a 240 x 240 PSRAM sprite in the RULED palette
+// (src/weatherscope/WxPalette.h, Stage 2 step 2.1), pushes it once, and reports its measurements -- WITHOUT the
+// dump (see below).
+//
+// STAGE 2, STEP 2.1 (docs/weatherscope-stage2.md): the palette is shown for Daniel to look at before it is final.
+// After boot the screen alternates every 10 s between the frame and a palette card (rain, snow, both code-1 dim
+// levels, no coverage, both missing options, dry). The boot report adds WX,sprite_sha256: the sha256 of the
+// frame's 115,200 sprite bytes, computed AFTER the timed path, which test/fixtures/wx/palette_ref.py derives
+// independently on the host (check C2).
 //
 // Serial, for a single-open capture (test/fixtures/wx/capture_stage1.py, never a reattaching recorder):
 //   WX,<key>,<value>            one measurement per line (predictions B3-B8)
@@ -29,6 +36,7 @@
 
 #include "LGFX.h"
 #include "WxCrop.h"
+#include "WxPalette.h"
 #include "WxRender.h"
 #include "variants/Variant.h"
 
@@ -43,12 +51,11 @@ wxrender::View view;
 wxcrop::Header hdr;
 uint8_t* grid = nullptr;   // decoded codes, rows x cols, in PSRAM
 
-// PROVISIONAL palette (NOT ruled): NWS reflectivity steps for codes 1-13, black for dry, grey for no
-// coverage, dark violet for missing. Same values as render_ref.py's PNG. B9 compares codes, not colours.
-const uint8_t kPalette[16][3] = {
-    {0, 0, 0},       {3, 0, 244},   {2, 253, 2},   {1, 197, 1},   {0, 142, 0},     {253, 248, 2},
-    {229, 188, 0},   {253, 149, 0}, {253, 0, 0},   {212, 0, 0},   {188, 0, 0},     {248, 0, 253},
-    {152, 84, 198},  {253, 253, 253}, {60, 60, 68}, {110, 0, 110}};
+// The RULED palette (src/weatherscope/WxPalette.h). The frame is rain only -- the wire carries no snow field
+// yet -- with code 1 dimmed to 85 %. Stage 1's provisional palette (dark violet for missing) is retired; it is
+// recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
+constexpr int kFrameDim = wxpalette::kDim85;
+constexpr uint32_t kAlternateMs = 10000;   // frame <-> palette card, so the look needs no serial input
 
 struct Report {
     const char* status = "not run";
@@ -56,6 +63,7 @@ struct Report {
     uint32_t decodeUs = 0, indexUs = 0, renderUs = 0, pushUs = 0;
     size_t psramBefore = 0, psramAfter = 0, internalBefore = 0, internalAfter = 0;
     bool sprite = false;
+    char spriteSha[65] = "";   // the frame's sprite bytes, hashed after the timed path (C2)
 } rep;
 
 void Render()
@@ -67,13 +75,66 @@ void Render()
         for (int x = 1; x <= wxrender::kSize; ++x) {
             const uint8_t c = x < wxrender::kSize ? wxrender::CodeAt(hdr, grid, view, x, y) : 0xFE;
             if (c == run) continue;
-            const uint8_t* p = kPalette[run == wxrender::kOffDisc ? 0 : (run & 15)];
-            canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p[0], p[1], p[2]));
+            const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false, kFrameDim);
+            canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p.r, p.g, p.b));
             x0 = x;
             run = c;
         }
     }
     canvas.endWrite();
+}
+
+// The palette card, for the look. Not measured and not graded: Daniel's eyes are the result of this step.
+void Swatch(int x, int y, int w, int h, wxpalette::Rgb c) { canvas.fillRect(x, y, w, h, canvas.color565(c.r, c.g, c.b)); }
+
+void HatchSwatch(int x, int y, int w, int h)
+{
+    const uint16_t line = canvas.color565(wxpalette::kMissingHatch.r, wxpalette::kMissingHatch.g, wxpalette::kMissingHatch.b);
+    const uint16_t bg = canvas.color565(wxpalette::kDry.r, wxpalette::kDry.g, wxpalette::kDry.b);
+    for (int yy = y; yy < y + h; ++yy)
+        for (int xx = x; xx < x + w; ++xx) canvas.drawPixel(xx, yy, (xx + yy) % wxpalette::kHatchPeriod == 0 ? line : bg);
+}
+
+void Label(int x, int y, const char* text)
+{
+    canvas.setCursor(x, y);
+    canvas.print(text);
+}
+
+void DrawCard()
+{
+    canvas.fillSprite(TFT_BLACK);
+    canvas.setTextColor(TFT_WHITE);
+    canvas.setTextSize(1);
+    const int w = 12, x0 = 120 - 13 * w / 2;
+    Label(x0, 34, "RAIN  15 ........ 75+ dBZ");
+    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 44, w - 1, 20, wxpalette::Rain((uint8_t)c, kFrameDim));
+    Label(x0, 72, "15 dBZ: 85%");
+    Swatch(x0 + 70, 69, 18, 12, wxpalette::Rain(1, wxpalette::kDim85));
+    Label(x0 + 96, 72, "70%");
+    Swatch(x0 + 118, 69, 18, 12, wxpalette::Rain(1, wxpalette::kDim70));
+    Label(x0, 92, "SNOW  15 ........ 75+ dBZ");
+    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 102, w - 1, 20, wxpalette::Snow((uint8_t)c, kFrameDim));
+    const char* names[4] = {"NOCOV", "MIS-A", "MIS-B", "DRY"};
+    for (int i = 0; i < 4; ++i) {
+        const int x = 40 + i * 41;
+        Label(x, 134, names[i]);
+        if (i == 0) Swatch(x, 144, 32, 22, wxpalette::kNoCoverage);
+        if (i == 1) Swatch(x, 144, 32, 22, wxpalette::kMissingDim);
+        if (i == 2) HatchSwatch(x, 144, 32, 22);
+        if (i == 3) canvas.drawRect(x, 144, 32, 22, canvas.color565(128, 128, 128));   // dry is black: outlined
+    }
+    Label(52, 176, "MISSING: A dim, B hatched");
+}
+
+void ShowFrame() { Render(); canvas.pushSprite(&tft, 0, 0); }
+void ShowCard() { DrawCard(); canvas.pushSprite(&tft, 0, 0); }
+
+void SpriteSha(char out[65])
+{
+    uint8_t d[32];
+    mbedtls_sha256((const unsigned char*)canvas.getBuffer(), (size_t)wxrender::kSize * wxrender::kSize * 2, d, 0);
+    for (int i = 0; i < 32; ++i) snprintf(out + 2 * i, 3, "%02x", d[i]);
 }
 
 // zlib's CRC-32 (reflected 0xEDB88320, init and final ~0), bit by bit: no table, so no static RAM.
@@ -116,6 +177,7 @@ void PrintReport(bool withDump, bool lossy)
     Serial.printf("WX,index_us,%lu\n", (unsigned long)rep.indexUs);
     Serial.printf("WX,render_us,%lu\n", (unsigned long)rep.renderUs);
     Serial.printf("WX,push_us,%lu\n", (unsigned long)rep.pushUs);
+    Serial.printf("WX,sprite_sha256,%s\n", rep.spriteSha[0] ? rep.spriteSha : "none");
     if (!grid || !withDump) {
         if (grid) Serial.println("WX,dump,on request (any byte: blocking; D: the drop-on-stall control)");
         Serial.println("WX,end");
@@ -216,6 +278,7 @@ void setup()
     }
     rep.psramAfter = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     rep.internalAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    if (grid && rep.sprite) SpriteSha(rep.spriteSha);   // after the timed path and the memory readings
     PrintReport(false, false);   // measurements only: nobody may be listening yet
 }
 
@@ -225,6 +288,13 @@ void loop()
         bool lossy = false;   // 'D' anywhere in what arrived: the drop-on-stall control
         while (Serial.available()) lossy |= Serial.read() == 'D';
         PrintReport(true, lossy);
+    }
+    static uint32_t lastSwitch = millis();
+    static bool card = false;
+    if (grid && rep.sprite && millis() - lastSwitch >= kAlternateMs) {
+        lastSwitch = millis();
+        card = !card;
+        if (card) ShowCard(); else ShowFrame();
     }
     delay(20);
 }
