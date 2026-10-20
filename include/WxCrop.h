@@ -22,7 +22,13 @@
 // 14 = no radar coverage; 15 = missing data. 14 and 15 are NEVER drawn as dry.
 //
 // A crop that breaks any rule is refused WHOLE: every byte is validated before a single run is
-// reported or a single cell written, so a caller never holds part of a grid.
+// reported or a single cell written, so a caller never holds part of a grid. Every run that IS
+// reported has len >= 1 and row < rows.
+//
+// v1 is strict about what it does not define: a nonzero reserved byte 7 or any flag bit other than
+// bit 0 is refused, so a future meaning has to bump the version instead of being silently ignored
+// (#429 review). Left lenient on purpose: a long run whose length is 1-15 (the short form would do).
+// The encoder never writes one, and it can neither overrun nor underrun.
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -48,6 +54,11 @@ enum class Status : uint8_t {
     BadCoarsen,       // coarsen not 1, 2, 4 or 8
     ZeroRows,
     ZeroCols,
+    ZeroCellHeight,   // a cell 0 microdegrees tall: every row would sit on one latitude
+    ZeroCellWidth,    // a cell 0 microdegrees wide
+    ReservedByte,     // byte 7 is not 0 (v1 defines no use for it)
+    UnknownFlags,     // a flag bit other than bit 0 is set (v1 defines only bit 0)
+    ZeroRun,          // a long run of length 0: it covers no cell, and the encoder never writes one
     TruncatedLength,  // the input ends inside a LEB128 length
     LengthTooLong,    // a LEB128 length longer than 5 bytes
     Overrun,          // the runs cover more than rows x cols cells
@@ -66,6 +77,11 @@ inline const char* StatusName(Status s)
     case Status::BadCoarsen: return "BadCoarsen";
     case Status::ZeroRows: return "ZeroRows";
     case Status::ZeroCols: return "ZeroCols";
+    case Status::ZeroCellHeight: return "ZeroCellHeight";
+    case Status::ZeroCellWidth: return "ZeroCellWidth";
+    case Status::ReservedByte: return "ReservedByte";
+    case Status::UnknownFlags: return "UnknownFlags";
+    case Status::ZeroRun: return "ZeroRun";
     case Status::TruncatedLength: return "TruncatedLength";
     case Status::LengthTooLong: return "LengthTooLong";
     case Status::Overrun: return "Overrun";
@@ -107,6 +123,7 @@ inline Status NextRun(const uint8_t* data, size_t len, size_t* i, uint8_t* code,
         v |= (uint64_t)(x & 0x7f) << (7 * k);
         if (!(x & 0x80)) break;
     }
+    if (v == 0) return Status::ZeroRun;
     *run = v > 0xffffffffu ? 0xffffffffu : (uint32_t)v;   // anything that large overruns below
     return Status::Ok;
 }
@@ -133,6 +150,10 @@ inline Status ParseHeader(const uint8_t* data, size_t len, Header* out)
     if (h.coarsen != 1 && h.coarsen != 2 && h.coarsen != 4 && h.coarsen != 8) return Status::BadCoarsen;
     if (h.rows == 0) return Status::ZeroRows;
     if (h.cols == 0) return Status::ZeroCols;
+    if (h.cellLatMicro == 0) return Status::ZeroCellHeight;
+    if (h.cellLonMicro == 0) return Status::ZeroCellWidth;
+    if (data[7] != 0) return Status::ReservedByte;
+    if (h.flags & 0xFE) return Status::UnknownFlags;
     if (out) *out = h;
     return Status::Ok;
 }

@@ -9,7 +9,8 @@
 //
 //   A1  4 valid fixtures decode to the agreed codes sha256
 //   A2  3 negative fixtures refused, each with its own reason, with no partial output
-//   A3  7 mutations of the KDFW crop refused, each with its own reason, with no partial output
+//   A3  12 mutations of the KDFW crop refused, each with its own reason, with no partial output
+//       (7 frozen with the predictions, 5 added by the #429 review's addendum)
 //   A4  the 50-crop corpus round-trips to the encoder's own cells
 //   A5  the 50 sabotaged twins (long runs written one short) are refused
 //   A6  no heap allocation during any decode (operator new, malloc, calloc, realloc counted)
@@ -262,7 +263,13 @@ int main(int argc, char** argv)
         }
         mut("a 6-byte LEB128 length", b, Status::LengthTooLong);
     }
-    std::printf("  ->  A3 %d/7 refused with their reasons (predicted 7/7)\n", a3);
+    // The #429 review's three (docs/weatherscope-stage1.md, "Predictions A, addendum").
+    { Bytes b = kdfw; b.push_back(0x00); b.push_back(0x00); mut("a zero-length long run appended (00 00)", b, Status::ZeroRun); }
+    { Bytes b = kdfw; b[20] = b[21] = b[22] = b[23] = 0; mut("cell height 0", b, Status::ZeroCellHeight); }
+    { Bytes b = kdfw; b[24] = b[25] = b[26] = b[27] = 0; mut("cell width 0", b, Status::ZeroCellWidth); }
+    { Bytes b = kdfw; b[7] = 1; mut("reserved byte 7 = 1", b, Status::ReservedByte); }
+    { Bytes b = kdfw; b[6] = 0x02; mut("flags 0x02 (bit 1)", b, Status::UnknownFlags); }
+    std::printf("  ->  A3 %d/12 refused with their reasons (predicted 12/12: 7 frozen + 5 in the review addendum)\n", a3);
 
     // ---- A4 / A5: the round-trip corpus and its sabotaged twins --------------------------------
     Bytes good, sab;
