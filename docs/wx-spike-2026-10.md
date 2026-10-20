@@ -121,3 +121,24 @@ Predictions for B1-B7 are committed in this file **before** Part B starts, as th
 Value census for this frame: −999 8,411,028; −99 15,507,309; other negatives 22,973; 0-15 dBZ 346,493; ≥ 15 dBZ 212,197; max 64.0 dBZ.
 
 **STOP, report: −99 cannot be decided-format code 15 ("missing").** Mapping it to 15 would make two thirds of CONUS "missing" (never drawn as dry) on every quiet night. The data says −99 is dry-inside-coverage, which is code **0**. A genuine "missing" (code 15) does not occur in this frame at all. Measurements A1-A6 wait for a ruling on the mapping.
+
+### A1: TypeScript decoder vs eccodes (2026-10-20)
+
+Decoder `tools/wx/mrms.ts` (Web APIs only; the PNG is inflated and unfiltered row by row); Node wrapper `tools/wx/decode-cli.ts`; comparison `tools/wx/compare_a1.py`, which applies the ruled mapping independently in Python and reads eccodes' own values and lat/lon arrays.
+
+| frame | classes used | class agreement | echo cells, max \|Δ\| | lat / lon max error | bars |
+|---|---|---|---|---|---|
+| quiet, 2026-10-20 02:12:36Z | 0, 1-10, 14 | **100.0000 %** (0 of 24.5 M differ) | 212,197 cells, **0.0000 dBZ** | 4.6e-12 / **2.0e-6 °** | MET |
+| storms, 2024-05-21 22:00:42Z | 0, 1-11, 14 | **100.0000 %** | 1,207,851 cells, **0.0000 dBZ** | 4.6e-12 / **2.0e-6 °** | MET |
+| widespread rain, 2024-09-27 13:00:38Z | 0, 1-9, 14 | **100.0000 %** | 985,994 cells, **0.0000 dBZ** | 4.6e-12 / **2.0e-6 °** | MET |
+| SeamlessHSR, 2024-05-21 22:02:00Z | 0, 1-11, 14 | **100.0000 %** | 991,140 cells, **0.0000 dBZ** | 4.6e-12 / **2.0e-6 °** | MET |
+| **sabotage**: storm frame, rows shifted by one | | **97.959 %** (500,055 differ; prediction < 99.9 %) | **67.7 %** beyond 0.5 dBZ (prediction > 1 %) | | **NOT MET**, exit 1, as predicted |
+
+- **SeamlessHSR's sentinels:** −99 (14,793,202 cells) and −999 (8,175,712), **exactly the composite's two**, with no third "missing" value, **as predicted**. Same grid and packing (5.41, 16-bit, reference −9990, decimal scale 1). Code 15 is not used by either product.
+- **Decode time:** ~310 ms per CONUS frame in Node, an input to A4.
+- **OFF-PREDICTION 1, longitude precision: 2.0e-6 °, against a prediction of < 1e-6 °.** It is inside the 0.001 ° bar by 500×.
+  - **Mechanism, verified:** eccodes computes each longitude by interpolating between the stored first and last points. That matches eccodes' own array to 4.1e-11 °. The stored last point is 299.994998, 2 µdeg short of 6,999 steps of 0.01 °. The decoder steps by exactly Di = 0.01 °, so the two differ by up to 2 µdeg at the east edge. Both are valid readings of a micro-degree header.
+  - **The decoder is unchanged.** My prediction was too tight.
+- **OFF-PREDICTION 2, A0's file size:** the storm frame is **2.12 MB** gzipped (the rain frame 1.64 MB), **above** the predicted 0.3-2 MB range.
+
+**STOP after A1, per the doctrine.** Both off-predictions are reported above; neither touches a bar or the design. A2-A6 wait for the reviewer.
