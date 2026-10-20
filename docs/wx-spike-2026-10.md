@@ -279,3 +279,19 @@ Same 300 frames (2024-05-21 15:00:38Z to 2024-05-22 00:58:41Z), 50 airports, 3 r
 - p95 and max come from the rainy crops and land within +5 % to +20 % of prediction. At 40 km the p95 (1.44 against ~1.2) and max (2.78 against ~2.6) are above; the 160 km values match.
 - **Bars: all met.**
 
+**Ruled 2026-10-20: A2 accepted.** The smaller medians are recorded as off-prediction, cause above: crops that are nearly all one value collapse to a few long runs. No re-run. A3 and A5 stand.
+
+### A4 live-set meter (ruled 2026-10-20): predictions, frozen before it runs
+
+**Why the V8 meter failed:** `heapUsed` and `external` include garbage not yet collected, and holding an extra 64 MB makes V8 collect more often, so the sabotage showed only partly in the peak. **The live set is what has to fit**, because V8 collects before an isolate reaches its limit.
+
+**Meter:** `node --expose-gc`. A forced `gc()`, then `heapUsed + external`, **at every pipeline stage boundary and right after each large allocation** (the download buffer, the unzipped file, the packed grid, and the held block in the sabotage); not on a timer. The live peak is the largest of those samples. **Wall and CPU come from the separate un-forced runs** (above). The old un-forced peak is reported alongside, for information only.
+
+| case | predicted live peak | |
+|---|---|---|
+| **storm** (the bar applies) | **~24 MB** (range 18-30): Node's live baseline (a few MB) + download 2.12 + unzipped 0.74 + the PNG data's copy 0.74 + packed grid 12.25 + rows | bar ≤ 96 MB: **met** |
+| quiet | **~22 MB** | |
+| **sabotage:** storm + 64 MB held | **every sample rises by 63-65 MB** (ruled band) | |
+
+**Local workerd:** the pipeline runs once in `wrangler dev` (local, no deploy, no remote bindings) to prove it runs there. Pass means it returns the storm frame's packed grid with the **same sha256 as Node's**. **No memory claim is made from that run**; production memory is confirmed in Stage 2.
+
