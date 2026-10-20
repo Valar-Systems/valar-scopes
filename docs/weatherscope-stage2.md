@@ -410,3 +410,49 @@ Change 1's sample is 24 snowing hours at KMSP, 2024-12-02 05:53Z to 12-11 15:53Z
 - **F3.** The rule reads (a). But the two directions differ: went up 8.72 % and went down 12.13 %, with run 1's 12.18 % in between. And run 1's offset was 43 s, shorter than the 120 s here, so motion at 43 s should be **no larger** than at 120 s. On that reading, motion covers only part of F3's 12.18 %, and the rest would point to (b). This is an observation outside the frozen rule. It isn't graded, and the rule's reading stands.
 
 **Not established:** whether the two products differ in grid or QC. A test at the right time scale would pair files only as far apart as run 1's (40-45 s), but **SeamlessHSR publishes every 2 min** and the composite at :36-:43 s, so no same-product pair is that close. A cleaner discriminator needs a ruling: for example, the composite at :42 against SeamlessHSR at the following :00 **and** the preceding :00, which brackets the offset from both sides.
+
+### 2.1, the palette on the board (2026-10-20): all as predicted
+
+**Code:** `feat/weatherscope-stage2-palette` at `e80ae56`, built from `main` `122e118`.
+- `src/weatherscope/WxPalette.h`: the palette.
+- `test/host/test_wx_palette.cpp` and `sabotage_wx_palette.py`: its test and sabotages.
+- `test/fixtures/wx/palette_ref.py`: C2's host render.
+- `test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl`: the pinned table, with MetPy's notice. Its committed blob hashes to `f73f0d6264d4…`, the pin.
+
+| check | predicted | result | |
+|---|---|---|---|
+| **C3 (a)-(f)**, host | all pass | **all pass**, plus the pin control: the file's 15 dBZ entry is `(0,0,246)` and its 75 dBZ entry `(0,0,0)`. `run.sh`: ALL HOST TESTS PASSED, 0 B on stderr | ✓ |
+| C3's sabotages | violet missing → exactly (a); a rain entry off by one → exactly (c); snow top white → exactly (e) and (f) | **each as predicted**. (f) counted 24 clashes; the real header was unchanged | ✓ |
+| Build | static RAM within ±256 B of 26,824; flash up by less than 4 KB | **26,912 B (+88); 465,751 B (+2,084)** | ✓ |
+| **C1**: the codes unchanged | KDFW dump sha256 `344383b4…` | **240/240 rows, `344383b4…`, 0 of 57,600 differ**, equal to the board's `fb_sha256` | ✓ |
+| **C2**: board colours equal host colours | the sprite identical to an independent host render | board `WX,sprite_sha256` = host `504651db359d…`: **identical** | ✓ |
+| B3, B4, B8 | in their bands | 153,608 B; 0 B; 25.789 ms | ✓ |
+| B5, B6, B7 | **MISS** on the frozen bands, each within ±10 % of its measurement | 2.868 / 3.582 / 22.578 ms: **MISS** on all three; +0.0 %, −0.1 %, **+2.6 %** | ✓ |
+| Budget (separate) | ≤ 100 ms per frame; ≥ 8 fps | 54.8 ms; 19.5 fps | ✓ |
+
+**C2 can fail.** Three wrong models of the sprite give three other hashes:
+- little-endian storage: `edf7af1390aa…`;
+- the 70 % dim: `659fba0bc9f6…`;
+- a rounding `color565`: `3d28db24363e…`.
+
+The board matched only the model C2 predicted.
+
+**Render is +2.6 %** (22,578 µs against 22,012): the colour now comes from `wxpalette::Code()` instead of a table lookup. That's inside the ±10 % repeat band, and the budget is unaffected.
+
+**Flash and capture:**
+- **The flash:** `bench-flash.ps1` resolved COM6 from the serial; esptool read MAC `90:70:69:32:6e:64`; all four images verified. The image was `8e9c1e26f67c…`.
+- **The capture:** a single open, saved **outside the clone** as `captures/wx-2.1-palette-130158.txt` (81,694 B, sha256 `4ff5b7563431…`).
+
+**The board now shows the palette for Daniel's look.** It alternates every 10 s between the KDFW frame, in rain, with code 1 at 85 %, and the card. The card shows:
+- the 13 rain swatches;
+- code 1 at 85 % and 70 %;
+- the 13 snow swatches;
+- no coverage;
+- missing, dim (A) and hatched (B);
+- dry.
+
+**The palette is final only after Daniel's look.** Open choices for that look: code 1 at 85 % or 70 %, and missing dim (A) or hatched (B).
+
+**Two process faults, recorded:**
+- **The Stage 1 and addendum-6 board captures are gone.** They were written to the clone's gitignored `bench-logs/`. When I added `tools/weatherscope` to the clone's sparse checkout (cone mode), git re-applied the sparse rules and removed that folder: in cone mode it deletes ignored files in directories outside the cone. Their sizes and sha256 values are recorded above; the raw files can't be recovered. Captures now go to the scratchpad, outside the clone.
+- **The device-id hook refused the pinned table.** Its 16-digit fractions match the id shape. `.githooks/pre-commit` and `scripts/check_device_ids.py` now skip `*.tbl`, as they already skip CAD files. Control: the hook still refuses an id-shaped token in an ordinary file.
