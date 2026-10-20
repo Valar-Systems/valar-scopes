@@ -1,0 +1,136 @@
+# Weather under the planes: the device side
+
+The radar edition's half of the weather layer, under the 2026-10-20 ruling:
+- build it and test it on the host now;
+- bench it as soon as a board is free;
+- **device-side weather does not merge until the starved-seconds counter has landed and #245 has been
+  ruled on from the soak.**
+
+The server half is [docs/wx-server.md](wx-server.md) (#443). The device talks to it only through
+`GET /api/v1/blipscope/wx/<product>?lat=&lon=&r=` and the WXC1 v1 bytes it returns, which
+`include/WxCrop.h` decodes.
+
+The colour scheme, the switch's name and its default are **provisional until Daniel picks from bench
+screens**. Until then the scheme is **S2**: standard colours at 40 %, planes keep their colours with a
+black outline. The switch is **off by default**.
+
+This document freezes the design and the predictions **before any device code exists**.
+
+## The pieces
+
+| | what | where | graded by |
+|---|---|---|---|
+| **WD1** | the radar's projection, extracted once, and its inverse | `include/RadarProjection.h`; `AircraftManager::ProjectAt` becomes a call to it | host |
+| **WD2** | which crop cell each screen pixel shows | `include/WxLayer.h` (pure) | host |
+| **WD3** | when to fetch, what to keep, when to hide | `include/WxPolicy.h` (pure) | host |
+| **WD4** | S2: code to colour | `include/WxS2.h` (pure), from the pinned NWS table once #439 has merged | host + glass |
+| **WD5** | the wiring: `FetchKind::Weather`, the PSRAM crop and layer buffers, the draw order, the config switch, the black plane outline | `AircraftManager`, `ConfigurationWebServer` | bench (Part B) |
+
+**WD1 first, and as an extraction rather than a copy.** The layer has to invert exactly the projection
+the planes are drawn with. A second transcription of `ProjectAt` would agree with it until one of them
+changed: the `ChordWidthPx` row in CLAUDE.md. So the rule moves into one pure header, the radar calls
+it, and the layer inverts it. That is a change to a shipping draw path, so WD1's first test pins the
+extracted function to the current one bit for bit.
+
+## Predictions (frozen before any device code)
+
+Every check has a sabotage that must turn it red, and a check whose sabotage stays green is reported as
+untrustworthy, not passed. The host checks run in `test/host/run.sh`, so in `host-tests`.
+
+**WD1. The extraction is bit-identical.**
+- **Reference:** the current `ProjectAt` body is copied verbatim into the test as the reference, and
+  the copy is checked against the source text it came from, so a later edit to the original cannot
+  leave a stale reference.
+- **Sweep:**
+  - homes at lat 20-55 by 2.5° × lon −125 to −65 by 5°;
+  - view radii from 0.009° to 2.0° (5 steps);
+  - rotations 0, 37, 90, 180 and 253°;
+  - screen sizes 240, 412, 466 and 480;
+  - targets on a 21 × 21 grid across ±1.2 view radii.
+- **Predicted:** `radarproj::Project` returns the identical `(x, y)` for **every** case: 0 differences.
+- *Sabotage:* `rotSin` sign flipped in the extraction, which must give differences > 0.
+
+**WD2. The layer registers with the planes.** The layer computes in single precision: the ESP32-S3 has
+no double-precision FPU, and a 480 px rebuild in software doubles would take about half a second.
+
+**Setup:**
+- the 8 server-made crops of WS7 (`test/fixtures/wx/server/`), with real server geometry;
+- homes at each crop's centre ± 0.005°;
+- view radii from each crop's own `r` (ProjectAt's clamp), at zoom × 1, × 0.6 and × 0.3;
+- rotations 0, 37, 90, 180 and 253°;
+- sizes 240, 412, 466 and 480.
+
+**Predicted:**
+- **(a) Every pixel against an independent reference.** The test inverts the projection itself, in
+  double precision, from the forward formula, and shares no code with `WxLayer`. That gives each pixel
+  centre's cell. **0 mismatches** except where the reference's position is within **1e-4 cells** of a
+  cell boundary, where single and double precision may legitimately round differently. The count inside
+  that band is printed.
+- **(b) Round trip with the planes' projection.** For every crop cell whose centre projects onto the
+  disc, `radarproj::Project` (truncating, as the planes do) gives a pixel. The cell `WxLayer` shows there
+  is within **|Δrow|, |Δcol| ≤ 1** of the original cell. The bound: the pixel centre is at most 0.707 px
+  from the projected point along either lat/lon axis (rotation turns the pixel), which is at most 1.18
+  cells at the 2.0° clamp on 240 px, under 1.5. The share of exact hits is printed, not graded.
+- **(c)** Every pixel off the round screen is `kOffDisc`: **0 exceptions**. The disc test is WxRender's
+  integer test, generalised to size S.
+- **(d)** Every on-disc pixel whose cell falls outside the crop is **14**, never dry: **0 exceptions**.
+
+**Sabotages:**
+- the layer ignores rotation: (a) must report mismatches > 0;
+- the layer swaps rLat and rLon: (a) must report mismatches > 0;
+- the layer flips y: (b) must report violations > 0.
+
+**WD3. The fetch policy, as a table and as properties.** The table covers the transitions on: enabled /
+disabled; 200 valid / 200 oversize / 200 invalid / 304 / 503 / 4xx / network error; clock set / not
+set; location or range changed. Its asserted properties:
+- **(a)** Disabled means **0 requests**, ever.
+- **(b)** A 200 replaces the held crop **only** if it is ≤ 32,768 bytes, `wxcrop::Validate` is Ok, its
+  frame epoch is ≥ the held one, and it answers the current query. Otherwise the held crop is kept.
+- **(c)** **Never shown older than 600 s** by the NTP clock. **Never shown without a set clock.**
+- **(d)** `If-None-Match` is sent only with an ETag earned **by the current query**. A location or range
+  change drops the held crop and its ETag.
+- **(e)** Polling every 60 s while enabled. On errors (503, 4xx, network) the interval backs off
+  60 → 120 → 240 → 480 → 600 s cap, and resets on any 200 or 304.
+- **(f)** A crop made entirely of 14 is held, but marked "outside coverage", so the note is shown instead
+  of an empty overlay. The decision comes from the data, not a map.
+- *Sabotages, one per property:*
+  - (a) no enabled check;
+  - (b) no size cap; and accepting an older epoch;
+  - (c) no age check; and treating an unset clock as epoch 0;
+  - (d) the ETag kept across a query change;
+  - (e) no backoff;
+  - (f) all-14 treated as dry.
+
+  Each must turn exactly its own property red.
+
+**WD4. S2 (provisional) as properties, not a picture.** The picture is Daniel's, from bench screens.
+- Code 0 is **exactly** the background: nothing is drawn.
+- Codes 1-13 are the pinned NWS table's colours **× 0.40** over black, rounded the same way on host and
+  device.
+- 14 and 15 are a dim dither, **never all-background in any 2 × 2 block**, and different from each other.
+- No S2 colour equals a plane colour: the existing type palette is read from source, not transcribed.
+- *Sabotages:*
+  - 14 drawn as 0, which must fail "never dry";
+  - × 0.4 dropped, which must fail the value check.
+- **Not before #439 merges:** the pinned table lives there, and a second copy is how two palettes drift.
+
+**Part B: the bench, weather on vs off** (ruled: these three are required). These need a free board,
+and the starved-seconds counter for B3. Each runs as one capture per arm of equal length, the arms in
+the same hour bands on consecutive days, on the same board and firmware image, with only the switch
+changed.
+- **B1. p95 frame time:** on − off **≤ 3 ms**. The layer is cached and replaces the `fillScreen` black,
+  so steady-state frames copy instead of fill. A rebuild (a new crop, a zoom or rotation step, a home
+  change) is a one-frame spike, reported separately with a bar of **≤ 40 ms** on the s3-128.
+- **B2. Heap floor during weather fetches:**
+  - the minimum free **internal** heap across all `/wx` fetches is within **2 KB** of the minimum across
+    `/blips` fetches in the same arm;
+  - `heaphealth::CanHandshake()` is never false during one.
+
+  The crop and layer buffers are PSRAM, so the internal heap should not see weather at all.
+- **B3. Starvation no worse:** starved seconds per hour, from the counter, with weather on ≤ off + the
+  off arm's own hour-to-hour spread (its max − min). Weather adds a request per minute, so a real
+  increase would show as a step, not noise.
+- **Outside the set, in any arm:** stop and report. The arms are never re-run to get a better number.
+
+**Outside the set (all of the above):** stop. The code, tests and bars are not edited to make a reading
+come true. The raw reading goes to the reviewer, and the next step is decided then.
