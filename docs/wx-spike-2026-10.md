@@ -82,3 +82,21 @@ Predictions for B1-B7 are committed in this file **before** Part B starts, as th
 ## Results
 
 (Filled in as each check runs, against the predictions above. Never edited after the fact.)
+
+### A0: what the files are (2026-10-20, frame 02:12:36Z), read with eccodes 2.50.0
+
+| | predicted | found | |
+|---|---|---|---|
+| layout | `CONUS/MergedReflectivityQCComposite_00.50/<YYYYMMDD>/MRMS_..._<YYYYMMDD-HHMMSS>.grib2.gz` | exactly that. ALASKA/, CARIB/, GUAM/, HAWAII/ beside CONUS/; also `CONUS/SeamlessHSR_00.00/` | ✓ |
+| cadence | 2 min | median 120 s (113-127) over 67 files | ✓ |
+| file size | 0.3-2 MB gz | 0.70-0.78 MB gz (quiet night); 0.74 MB gunzipped | ✓ |
+| grid | 7000 × 3500, 0.01°, first point ~54.995 N 129.995 W, W→E then N→S | 7000 × 3500, 0.01°; first 54.995 N 230.005 E (= 129.995 W); last 20.005 N 299.995 E; iScansNegatively 0, jScansPositively 0 | ✓ |
+| packing | template 5.41 (PNG) | 5.41 `grid_png`, 16 bits, reference −9990, decimal scale 1 (tenths of dBZ), no bitmap | ✓ |
+| **−99 is "missing"** | **missing** | **"no echo detected, inside radar coverage"**. It is 63 % of the grid on a quiet night, and 100 % of ±1° boxes over Iowa and central Texas | **✗ (meaning)** |
+| −999 is "no coverage" | no coverage | no coverage: 100 % of ±1° boxes over the deep Gulf, the in-grid Atlantic and interior Mexico | ✓ |
+| other negatives | not predicted | −21 to −0.5 dBZ, 22,973 cells: real weak returns, below 15 | (new) |
+| landing delay | (A6 assumed 1.5-2.5 min) | file last-modified ≈ **50 s** after frame time | (A6 input) |
+
+Value census for this frame: −999 8,411,028; −99 15,507,309; other negatives 22,973; 0-15 dBZ 346,493; ≥ 15 dBZ 212,197; max 64.0 dBZ.
+
+**STOP, report: −99 cannot be decided-format code 15 ("missing").** Mapping it to 15 would make two thirds of CONUS "missing" (never drawn as dry) on every quiet night. The data says −99 is dry-inside-coverage, which is code **0**. A genuine "missing" (code 15) does not occur in this frame at all. Measurements A1-A6 wait for a ruling on the mapping.
