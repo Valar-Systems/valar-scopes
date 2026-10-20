@@ -14,18 +14,17 @@ from it (exit 2 -- the instrument, not the board). Only a complete, checked dump
   B9  its sha256 == kdfw-60mi.screen.bin's (render_ref.py; 344383b4...) and == the board's own fb_sha256
 --expect-sha <hex>  grade the dump against that sha instead (S-B1, the north/south flip): B9 against the
                     reference must FAIL, with the disc and echo agreement reported (predicted 52.1 % / 0.6 %).
---budget            grade the ruled budget bars (2026-10-20): decode + indices + render + push <= 100 ms per
-                    frame, and a projected 15-frame past-hour loop at >= 8 fps (per loop frame: decode +
-                    render + push; the indices are worked out once per view). B5-B7's retired bands print
-                    as reference points.
+--budget            also grade the budget bars (addendum 2, frozen LATER than B5-B7 and kept apart from them):
+                    decode + indices + render + push <= 100 ms per frame, and a projected 15-frame past-hour
+                    loop at >= 8 fps (per loop frame: decode + render + push; the indices are worked out once
+                    per view). A separate block: it does not stand in for B5-B7.
 --control           send 'D' and stop reading for 1.5 s after 20 rows, so the board's 4 KB TX buffer must
                     overflow and its 2 ms writes must drop rows. PASS = the capture is refused with at least
                     one missing row named; anything else means the tags cannot see a loss.
---diag              grade the diagnostic run (env weatherscope-s3-128-diag; addendum 4): the cold run must
-                    reproduce Stage 1's boot numbers within +/-10 %, every variant must give the identical
-                    buffer, and each candidate cause is called holds / ruled out / partial by the frozen
-                    thresholds, then compared with the bets.
-B3, B4 and B8 are graded against their original bands every time.
+B3-B8 are graded against their original frozen bands every time. B5-B7 are STANDING MISSES (Daniel,
+2026-10-20: misses on their frozen bands, unchanged): each prints MISS against its frozen band and does not
+gate a run. What does gate is that they repeat the reference points within +/-10 % (addendum 5); a timing
+that moved is not one of the measurements those misses describe.
 """
 import base64
 import hashlib
@@ -47,6 +46,8 @@ BANDS = {   # frozen in docs/weatherscope-stage1.md, Predictions B
     "render_us": ("B7", 2000, 10000),
     "push_us": ("B8", 23000, 32000),
 }
+STANDING_MISSES = {"B5", "B6", "B7"}   # ruled 2026-10-20: misses on their frozen bands; reported, never re-graded
+REF_POINTS = {"decode_us": 2867, "index_us": 3584, "render_us": 22012}   # addendum 2: the B5-B7 measurements
 ROW_RE = re.compile(r"^WXR,(\d+),([0-9a-f]{8}),([A-Za-z0-9+/=]*)$")
 
 
@@ -144,7 +145,6 @@ def main(argv):
     for k in ("build", "crop", "sprite"):
         print(f"  {k}: {wx.get(k)}")
     ok = True
-    retired = {"B5", "B6", "B7"} if ("--budget" in argv or "--expect-sha" in argv or "--diag" in argv) else set()
     for key, (bid, lo, hi) in BANDS.items():
         v = wx.get(key)
         try:
@@ -153,12 +153,17 @@ def main(argv):
             print(f"  {bid} {key}: UNREADABLE ({v!r}) -> FAIL")
             ok = False
             continue
-        if bid in retired:
-            print(f"  {bid} {key} = {n:,} (reference point; the band is retired, the budget bars grade it)")
-            continue
         good = (lo is None or n >= lo) and (hi is None or n <= hi)
-        ok &= good
         band = f"{'' if lo is None else lo}..{'' if hi is None else hi}"
+        if bid in STANDING_MISSES:
+            ref = REF_POINTS[key]
+            repeats = abs(n - ref) <= 0.10 * ref
+            ok &= repeats
+            print(f"  {bid} {key} = {n:,} (frozen band {band}) -> {'inside the band' if good else 'MISS'}, a standing "
+                  f"miss; vs the measured {ref:,}: {100 * (n - ref) / ref:+.1f} % -> "
+                  f"{'repeats (+/-10 %)' if repeats else 'MOVED: not the measurement the miss describes, STOP'}")
+            continue
+        ok &= good
         print(f"  {bid} {key} = {n:,} (predicted {band}) -> {'as predicted' if good else 'OFF-PREDICTION'}")
 
     dump = b"".join(rows[y] for y in range(ROWS))
@@ -190,80 +195,13 @@ def main(argv):
             return 1
         total, loop_frame = d + ix + r + p, d + r + p
         fps, fps_strict = 1e6 / loop_frame, 1e6 / total
-        print(f"  BUDGET B5'-B8' = {total / 1000:.1f} ms per frame (bar <= 100 ms) -> {'as predicted' if total <= 100000 else 'OVER BUDGET'}")
+        print("  BUDGET BARS (addendum 2, frozen later; a separate check, not a re-registration of B5-B7):")
+        print(f"  BUDGET per frame, decode + indices + render + push = {total / 1000:.1f} ms (bar <= 100 ms) -> "
+              f"{'as predicted' if total <= 100000 else 'OVER BUDGET'}")
         print(f"  BUDGET loop, 15 frames: {loop_frame / 1000:.1f} ms per frame -> {fps:.1f} fps (bar >= 8; "
               f"{fps_strict:.1f} counting the indices every frame) -> {'as predicted' if fps >= 8 else 'TOO SLOW'}")
         ok &= total <= 100000 and fps >= 8
-    if "--diag" in argv:
-        ok &= grade_diag(lines)
     return 0 if ok else 1
-
-
-# ---- the diagnostic run (docs/weatherscope-stage1.md, "Predictions B, addendum 4"; thresholds frozen there) ----
-REF_POINTS = {"decode_us": 2867, "index_us": 3584, "render_us": 22012}   # Stage 1's boot numbers, image ed40af2
-# The reference screen's sha256 prefix, derived from the file rather than typed in (a 16-hex literal is
-# also the device-id shape the pre-commit hook refuses).
-REF_SHA16 = hashlib.sha256(open(os.path.join(HERE, "kdfw-60mi.screen.bin"), "rb").read()).hexdigest()[:16]
-
-
-def grade_diag(lines):
-    d = {}
-    for l in lines:
-        if l.startswith("WXD,"):
-            parts = l.split(",")
-            d[parts[1]] = {kv.split("=")[0]: kv.split("=")[1] for kv in parts[2:] if "=" in kv}
-            d[parts[1]]["_raw"] = parts[2:]
-    if "error" in d or "cold" not in d:
-        print(f"  DIAG: the run did not happen ({d.get('error', {}).get('_raw')}) -> FAIL")
-        return False
-    med = lambda k: int(d[k]["median"])
-    cold = {k: int(d["cold"][k]) for k in REF_POINTS}
-    ok = True
-    # (a) the instrument: the cold run must reproduce the boot numbers within +/-10 % each
-    inst = all(abs(cold[k] - REF_POINTS[k]) <= 0.10 * REF_POINTS[k] for k in REF_POINTS)
-    print("  DIAG (a) cold run vs Stage 1's boot numbers (+/-10 %): " + ", ".join(
-        f"{k} {cold[k]:,} vs {REF_POINTS[k]:,}" for k in REF_POINTS) + f" -> {'reproduced' if inst else 'NOT REPRODUCED: the instrument is unreliable, STOP'}")
-    if not inst:
-        return False
-    for k in ("d_flash", "d_ram", "d_ram_int", "i_double", "i_float", "r_hline", "r_direct"):
-        print(f"  DIAG {k}: median {med(k):,} us, max {int(d[k]['max']):,} us (n={d[k]['n']})")
-    # identity
-    cs, fid = d["code_sha"], d["float_index_diff"]
-    n_idx, n_pix = int(fid["_raw"][0]), int(fid["pixels"])
-    same = all(cs[k] == REF_SHA16 for k in ("d_flash", "d_ram", "d_ram_int", "i_double"))
-    float_ok = (cs["i_float"] == REF_SHA16) if n_idx == 0 else True
-    sprite_ok = d["sprite_sha"]["r_hline"] == d["sprite_sha"]["r_direct"]
-    print(f"  DIAG identity: d_flash/d_ram/d_ram_int/i_double code sha == {REF_SHA16}: {same}; "
-          f"r_hline sprite == r_direct sprite: {sprite_ok}; float indices differing {n_idx} of 480 "
-          f"(predicted 0-3), {n_pix} pixels affected, float buffer {'identical' if cs['i_float'] == REF_SHA16 else 'differs'}")
-    if not (same and float_ok and sprite_ok):
-        print("  DIAG identity FAILED -> STOP")
-        return False
-    ok &= 0 <= n_idx <= 3
-
-    def verdict(name, holds, out):
-        v = "holds" if holds else ("ruled out" if out else "partial, not established")
-        print(f"  DIAG cause {name}: {v}")
-        return v
-    v = {}
-    v["C1"] = verdict("C1 software doubles (B6)",
-                      abs(med("i_double") - cold["index_us"]) <= 0.10 * cold["index_us"] and med("i_float") <= 1000,
-                      med("i_float") >= 0.5 * med("i_double") or med("i_double") <= 0.5 * cold["index_us"])
-    v["C2"] = verdict("C2 first-touch misses on the flash crop (B5)",
-                      med("d_flash") <= 0.60 * cold["decode_us"] and abs(med("d_ram") - med("d_flash")) <= 0.15 * med("d_flash"),
-                      med("d_flash") >= 0.85 * cold["decode_us"])
-    v["C2'"] = verdict("C2' the PSRAM fill (B5)", med("d_ram_int") <= 0.50 * med("d_ram"), med("d_ram_int") >= 0.80 * med("d_ram"))
-    v["C3"] = verdict("C3 writeFastHLine per-call overhead (B7)", med("r_direct") <= 0.50 * med("r_hline"), med("r_direct") >= 0.80 * med("r_hline"))
-    v["C3'"] = verdict("C3' first-touch PSRAM misses (B7)", med("r_hline") <= 0.70 * cold["render_us"], med("r_hline") >= 0.90 * cold["render_us"])
-    bets = {"C1": "holds", "C2": "ruled out", "C2'": "holds", "C3": "holds", "C3'": "ruled out"}
-    for miss, causes in (("B5", ("C2", "C2'")), ("B6", ("C1",)), ("B7", ("C3", "C3'"))):
-        held = [c for c in causes if v[c] == "holds"]
-        allout = all(v[c] == "ruled out" for c in causes)
-        print(f"  DIAG {miss} is explained by: {', '.join(held) if held else ('NOTHING: cause unknown, STOP' if allout else 'not established')}")
-        ok &= bool(held)
-    match = all(v[c] == bets[c] for c in bets)
-    print(f"  DIAG against my bets {bets}: {'AS PREDICTED' if match else 'OFF-PREDICTION'}")
-    return ok and match
 
 
 if __name__ == "__main__":

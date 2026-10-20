@@ -294,6 +294,52 @@ These are reported, not re-graded.
 3. The diag image.
 4. The correct Stage 1 image, reflashed and B9 re-graded, so the board ends on Stage 1.
 
+## Predictions B, addendum 5: Daniel's rulings and today's board session (2026-10-20, frozen before building or flashing)
+
+**Daniel's rulings, recorded as received:**
+1. **Standing OK** to flash `907069326E64` whenever the work needs it, with the port always found from the serial. That board only; any other board still needs his OK.
+2. **B5-B7 are MISSES against their original frozen bands, unchanged.** The budget bars (≤ 100 ms per frame, ≥ 8 fps loop) are reported **separately**, as a later-frozen check that passes. The two are not merged in the results. This settles the open conflict recorded under the reviewer ruling.
+3. **Step 3 is dropped.** The env `weatherscope-s3-128-diag` and the `WX_STAGE1_DIAG` code move off #434 to their own draft branch, `bench/weatherscope-stage1-diag` (`8da2ab9`). Stage 1 keeps one env. Profiling waits until the loop is measurably too slow.
+4. **One reviewer voice:** rulings for this repo come only from Daniel's reviewer chat. If rulings conflict: stop and ask Daniel.
+
+**What this does to the record** (nothing above is edited):
+- **Addendum 4 stays as written, not run.** So no cause is established for B5, B6 or B7. The candidates stay untested, and the C2 note stays with them.
+- **Addendum 2 names its per-frame bar "B5'-B8'".** That name is kept but read as the budget bar's name, not a re-registration: **B5-B7 have no re-registration.** From here on the results call it "Budget, per frame".
+- **`capture_stage1.py` no longer drops B5-B7** under `--budget` or `--expect-sha`. It prints each against its frozen band, and the budget bars in a block of their own.
+
+**The code after the move:**
+- `platformio.ini`, `stage1_main.cpp` and the capture and dump code are byte-identical to `f6628b5`, the harness of `56a2488`.
+- `stage1_diag.h` is gone.
+- The grader's only changes are the B5-B7 lines and the budget block's heading. On synthetic captures it graded 9/9 cases as intended. Six of them were sabotages:
+  - a timing inside its band;
+  - a timing moved by 36 %;
+  - a missing row;
+  - the flip graded as B9;
+  - a control with nothing lost.
+
+**One new gating check, frozen here:** each of B5, B6 and B7 must repeat its measurement (2,867 / 3,584 / 22,012 µs) within **±10 %**. That is addendum 4's instrument tolerance. The two boots so far repeated within 1 µs. A timing that moved is not the measurement the miss describes.
+
+| check | predicted |
+|---|---|
+| Build, `weatherscope-s3-128` at the new head | RAM **26,824 B** (B2'), flash **463,667 B**, as built from `8da2ab9`'s tree, whose Stage 1 code is the same with the flag unset. Against that saved image (sha256 `46f0c3ce464d…`), every differing byte is a build stamp: `app_elf_sha256`, the image checksum and trailing SHA-256, compile-time strings |
+| Control (`D` + a 1.5 s host stall) | as in addendum 3: **REFUSED**, ≥ 1 missing row named |
+| B9, blocking dump | as in addendum 3: **240/240** rows, sha256 `344383b4…`, **0 of 57,600** differ, equal to the board's `fb_sha256` |
+| S-B1, the flip | as in addendum 3: sha256 `91bbb69d…`, **52.1 %** disc / **0.6 %** echo agreement, **B9 against the reference FAILS** |
+| Restore | `WxRender.h` back to its sha256 before the plant; the rebuilt image differs from the step-1 image only in build stamps |
+| Final | the correct image reflashed: B9 identical; the board ends on Stage 1 |
+| B3, B4, B8 (every capture) | inside their frozen bands (last time 153,608 B; 0 B; 25.788 ms) |
+| B5, B6, B7 (every capture) | **MISS** against the frozen bands, each within ±10 % of its measurement |
+| Budget (separate; addendum 2) | **≤ 100 ms** per frame (about 54.2 ms); **≥ 8 fps** loop (about 19.7) |
+
+**The plant:** in `src/weatherscope/WxRender.h`, `v->homeLat + 1.0 * (kCentre` becomes `v->homeLat + -1.0 * (kCentre`. The anchor must occur exactly once and the file's sha256 must change, or nothing is built. This is the same sign flip `render_ref.py --flip-ns` computes, and that output hashes to `91bbb69d…`, checked today.
+
+**Pre-registered outcomes off the table:**
+- A flash that exits nonzero: stop. Nothing is measured from that board state.
+- An image that differs from its comparison in any byte that is not a build stamp: stop.
+- The control reporting nothing missing, or the blocking dump refused: stop (as in addendum 3).
+- B3, B4 or B8 out of band; B5-B7 inside their bands or moved more than ±10 %; a budget bar missed: stop and report.
+- **Any result not named here: stop and decide.**
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
