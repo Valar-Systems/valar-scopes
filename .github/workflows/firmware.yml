@@ -224,11 +224,15 @@ jobs:
   # leg, so the check has ONE stable name for main's branch rule to require
   # ("host-tests"); leg names carry the slug and change with skus.yml.
   #
-  # Not a build: `pio pkg install` fetches the two things the suite reads from
-  # PlatformIO without compiling an image -- the xtensa cross-compiler ("the same
-  # TU, for the board"; missing is FAIL, not a skip) and LovyanGFX's fonts under
-  # .pio/libdeps (the Wi-Fi QR sweep; missing is BLIND, exit 2). Proved red by a
-  # planted WxCrop.h sabotage before it was required: docs/host-tests-ci.md.
+  # A FULL BUILD, and not `pio pkg install`, because the suite reads two things
+  # from PlatformIO: the xtensa cross-compiler ("the same TU, for the board";
+  # missing is FAIL, not a skip) and LovyanGFX's fonts under .pio/libdeps (the
+  # Wi-Fi QR sweep; missing is BLIND, exit 2). pkg install fetches the fonts, but
+  # pioarduino's toolchain package is a 1.6 KB stub (package.json + tools.json);
+  # the compiler itself arrives only during a build. That was this job's first
+  # run on CI: red, "no xtensa toolchain found" -- the rig refusing correctly.
+  # Proved red by a planted WxCrop.h sabotage before it was required:
+  # docs/host-tests-ci.md.
   host-tests:
     runs-on: ubuntu-latest
     steps:
@@ -238,8 +242,8 @@ jobs:
           python-version: '3.12'
       - name: Install PlatformIO
         run: pip install --upgrade platformio
-      - name: Install blipscope-s3-128's toolchain and libraries (no build)
-        run: pio pkg install -e blipscope-s3-128
+      - name: Build blipscope-s3-128 (installs the cross-compiler and the libraries)
+        run: pio run -e blipscope-s3-128
       - name: Host tests
         run: bash test/host/run.sh
 

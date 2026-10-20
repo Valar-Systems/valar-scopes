@@ -13,9 +13,10 @@ ahead of the workflow change, so the commit order is the proof.
   (no path or branch filter, so stacked PRs too) and every push to `main`. The job is its own job, not a
   step in a build leg, because a branch rule needs one stable check name, and leg names carry the slug
   and change with `skus.yml`.
-- The job does not build an image. `pio pkg install -e blipscope-s3-128` fetches the two things the
-  suite reads from PlatformIO: the xtensa cross-compiler (a missing one is `fail=1`) and LovyanGFX's
-  fonts under `.pio/libdeps` (a missing one is BLIND, exit 2).
+- The job's first version did not build an image: `pio pkg install -e blipscope-s3-128` was meant to
+  fetch the two things the suite reads from PlatformIO, the xtensa cross-compiler (a missing one is
+  `fail=1`) and LovyanGFX's fonts under `.pio/libdeps` (a missing one is BLIND, exit 2). It does not
+  fetch the compiler (see Results), so the job builds `blipscope-s3-128` instead.
 - `test/host/run.sh` also looks for the cross-compiler under its Linux name (no `.exe`). This is
   453c0b9 from #392, carried here. #392's other half, the Missileer bench-hook scan, stays in #392.
 - After merge: a classic branch-protection rule on `main` that requires `host-tests` from GitHub
@@ -101,6 +102,70 @@ edited to make a reading come true; the raw reading goes to the reviewer, and th
 then. One branch is pre-registered:
 - If H1 is as predicted except that the `ok` count differs from 361, that is a platform difference.
   It is reported with the section it came from, and H2 is graded against H1's own count.
+
+## Results, first heads (2026-10-20)
+
+**H1 at `c7c8d17`: OFF-PREDICTION.** Two checks went red where H1 said every other check was unchanged.
+
+1. **`sku-readers` failed.** The reader sweep refuses any file that names `firmware.yml` and isn't on its
+   reviewed list, and this doc names it. The guard was correct and the miss was this PR's: I had run
+   `skus.py --validate` before pushing but not `--check-readers`. Fixed in `36c2b4c`, which adds the doc
+   to `ALLOWED_MENTIONS` as prose, the sweep's documented remedy.
+2. **`host-tests` failed, exit 1.** The only FAIL line is `FAIL: no xtensa toolchain found`. Every
+   other line matches the Windows calibration:
+   - `compiler: /usr/bin/g++`;
+   - 356 `ok` lines, which is 361 less the five cross-compile lines;
+   - all WX crop and WX render checks passed;
+   - the purity gate fired;
+   - 0 BLIND.
+
+   **Cause:** `pio pkg install` did install `toolchain-xtensa-esp-elf@14.2.0+20260121`, but that
+   registry zip is a 1,601-byte stub: `package.json` plus a `tools.json` pointing at the real 176 MB
+   tarball per OS. pioarduino fetches the compiler only during a build.
+
+   **Alternative named:** the binary is present but lost its exec bit. **Excluded:** the zip holds no
+   binary at all; it was downloaded and listed.
+
+   **Why the calibration missed it:** this machine's copy of the package was populated by earlier
+   builds, so the calibration's environment lacked the property under test.
+
+   **The rig refused correctly.** A missing cross-compiler is FAIL, not a skip, and CI went red.
+
+**H2 at `fe5f2c1` (#441, stacked on `c7c8d17`): OFF-PREDICTION, because of the same install defect.**
+- Two FAIL lines, the cross half and `FAIL  A3  a zero-length long run appended (00 00): Ok (want ZeroRun)`,
+  where "exactly one" was frozen.
+- Exit 1, `WX CROP TESTS FAILED`, `all WX render checks passed`, last suite line `HOST TESTS FAILED`.
+- **355** `ok` lines = H1's 356 − 1. Line for line, the suite output differs from H1's in exactly the
+  A3 case, `A3 11/12` and `WX CROP TESTS FAILED`.
+- So the part H2 exists for, a decoder regression turning `host-tests` red on exactly the predicted
+  check, was observed on CI. The second FAIL line is H1's defect, inherited.
+
+## Predictions after the fix (frozen before its first run)
+
+The fix installs with `pio run -e blipscope-s3-128`, a full build, the way every build leg gets the
+toolchain. It costs about 4.5 min: main's last s3-128 build step took 4 min 34 s.
+
+**H1′. The fixed head.**
+- `host-tests` concludes **success**, and its build step succeeds.
+- The suite log contains, in order:
+  - `compiler: /usr/bin/g++`;
+  - `cross:    /home/runner/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++`;
+  - the five `ok   <TU>.cpp compiles for the ESP32-S3` lines;
+  - `all WX crop checks passed`;
+  - `all WX render checks passed`;
+  - the last suite line, `ALL HOST TESTS PASSED`.
+- 0 FAIL lines, 0 BLIND, and **361** `ok` lines: H1's 356 plus the five cross lines.
+- Every other check run concludes as on `c7c8d17`, except `sku-readers`, which now passes.
+
+**H2′. The sabotage, stacked on the fixed head.** A new draft PR, so no branch is force-pushed; #441
+is closed once this is graded.
+- `host-tests` concludes **failure**, exit 1.
+- **Exactly one** FAIL line: `FAIL  A3  a zero-length long run appended (00 00): Ok (want ZeroRun)`.
+- `WX CROP TESTS FAILED`, `all WX render checks passed`, last suite line `HOST TESTS FAILED`.
+- **360** `ok` lines = H1′ − 1.
+- Every other check run concludes as on H1′'s head.
+
+H3 is unchanged. The outside-the-set rule still applies: stop, report, and decide.
 
 ## What the rule does to everyone else (stated before it is applied)
 
