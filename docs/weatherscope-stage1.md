@@ -125,6 +125,34 @@ The full key, the full hashes and every header field are in `MANIFEST.json`.
   - Anything else is a FAIL.
 - **B1-B8 outside their bands:** stop and report.
 
+## Predictions A, addendum: the #429 review (2026-10-20, frozen before the code change)
+
+The review of #429 at `d7948da` asked for three changes, each found by probing `kdfw-60mi.wxc`:
+- **Zero-length runs (required).** A trailing long run of length 0 (`00 00`) is accepted today, and then `ForEachRun` makes a call with `len == 0` and `row == rows`.
+- **Zero cell height or width (required).** Both are accepted today.
+- **In v1, a nonzero reserved byte 7 and flag bits 1-7 (recommended, and ruled in).** Refusing them means a future meaning has to bump the version.
+
+Each gets its own A3 mutation of the KDFW crop. The run-callback contract becomes **`len ≥ 1` and `row < rows`** on every call.
+
+| check | predicted |
+|---|---|
+| A3.8. A zero-length long run (`00 00`) appended | refused **`ZeroRun`**, nothing emitted |
+| A3.9. Cell height 0 | refused **`ZeroCellHeight`** |
+| A3.10. Cell width 0 | refused **`ZeroCellWidth`** |
+| A3.11. Reserved byte 7 = 1 | refused **`ReservedByte`** |
+| A3.12. Flags `0x02` (bit 1) | refused **`UnknownFlags`** |
+| A3 in all | **12/12** refused, each with its own reason (the 7 above plus these 5) |
+| A1, A2, A4, A5, A7, A8 | **unchanged**: 4/4, 3/3, 50/50, 50/50, 3,741 runs, the same headers. No crop the encoder wrote has a zero-length run, a zero cell size, a nonzero reserved byte or a flag above bit 0 (KMSP's flags are `0x01`) |
+| A6 | **0** allocations |
+
+**Sabotages (each planted in a copy of the header, each must turn the suite red):**
+- **S-A3a, no zero-run check:** A3 fails **exactly 1** (A3.8 accepted).
+- **S-A3b, no cell-size checks:** A3 fails **exactly 2** (A3.9 and A3.10).
+- **S-A3c, no reserved-byte or flags checks:** A3 fails **exactly 2** (A3.11 and A3.12).
+- **S-A1 and S-A2 as before:** A2 fails 1 and A5 fails 50/50; A6 counts at least one allocation per decode.
+
+**Left lenient, on purpose:** a long run of length 1-15 (non-canonical) is still accepted. The encoder never writes one, and it can neither overrun nor underrun. The header comment says so.
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
