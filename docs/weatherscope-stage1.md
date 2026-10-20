@@ -213,6 +213,30 @@ Two extra checks, not in the frozen table, also passed:
 - **The real header** was unchanged throughout.
 - **The whole host suite** passes, with 0 bytes on stderr.
 
-### B: the env on the board
+### B: the env (2026-10-20, branch `feat/weatherscope-stage1`)
 
-Not started. The `platformio.ini` env and the `skus.yml` row wait for the decoder to pass (it has) and for `blipscope-5c`'s word on shared files. The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`.
+**Built, not flashed.** The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`. So B3-B9 have not run.
+
+**Two deviations from the design text above,** neither a measured quantity:
+- **Where the main file lives:** `src/weather/stage1_main.cpp`, with `build_src_filter = -<*> +<weather/>`, not `src/weatherscope_main.cpp`. With the main inside the folder, one line in `[filters] editions_off` (`-<weather/>`) keeps the harness out of every other env.
+- **The disc test** is done in integers: `(2x+1−240)² + (2y+1−240)² > 240²`. Doubled, every term is exact, so it is the same test, and it avoids 57,600 software-double operations on a chip with no double-precision FPU.
+
+**Extra checks, not in the frozen table:**
+- `test/host/test_wx_render.cpp`, the renderer on the host: **57,600/57,600** pixels identical to `render_ref.py`'s screen (`kdfw-60mi.screen.bin`, sha256 `344383b4…`, the B9 value).
+- **Its control:** S-B1 (latitude sign flipped) planted in a copy of `WxRender.h` gives **35,920/57,600** identical. On the disc that is 23,564 of 45,244, or 52.1 %, as S-B1 predicts. The test fails.
+- **The shipping build** `blipscope-s3-128` still builds, with no `src/weather/` object in it.
+- **CI's own checks** pass locally: `skus.py --validate` / `--check-readers`, `check_release_envs.mjs` and `check_photo_mode.mjs`. The whole host suite passes.
+
+| check | predicted | result | |
+|---|---|---|---|
+| B1. Flash (build output) | 435-485 KB | **463,235 B** | ✓ |
+| B2. Static RAM (build output) | **16-26 KB** | **26,824 B** (26.8 KB; 26.2 KiB) | **✗ off-prediction, about 0.8 KB over** |
+
+**STOP, report (B2).** The harness itself is inside its allowance. Its own static RAM is 2,004 B in the object file (`stage1_main.cpp.o`: data 48, bss 1,956). Linked, the only RAM symbols in this image that `animtest-s3-128`'s lacks are the harness's five globals, **1,116 B** (`view` 992). The miss is in the **baseline** the band was built on:
+- **How I estimated it:** the framework's static RAM at "about 20 KB", from `animtest`'s 29,952 B minus its objects' data + bss (9.9 KB).
+- **Why that was wrong:** per-object data + bss doesn't map one-to-one onto RAM in the linked image.
+- **What the base really is:** measured from the two images, about **25.7 KB** (26,824 − 1,116).
+
+**The alternative, and why the data excludes it:** "the harness pulls in extra framework RAM (mbedtls for the dump's sha256, heap_caps)". If it did, those symbols would appear in this image's RAM and not in `animtest`'s. None do, apart from the harness's own globals.
+
+Nothing was changed to bring RAM down. B2 waits for a ruling.
