@@ -13,9 +13,9 @@ name: workers
 on:
   push:
     branches: [main]
-    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
   pull_request:
-    paths: ["proxy/**", "dashboard/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
 
 jobs:
   # The published photo manifest and the repo's manifest.json must name the same
@@ -94,6 +94,13 @@ jobs:
       - name: The locate-format fixture matches the helper's formatter
         if: matrix.worker == 'proxy'
         run: node scripts/locate-fixture.mjs --check
+
+      # The weather crops the device's decoder is graded on (test/host/test_wx_server_crops.cpp) are
+      # made by the server path. Regenerate them and compare, so a change to proxy/src/wx/ cannot leave
+      # the host test grading yesterday's crops (docs/wx-server.md, WS7).
+      - name: The weather server crop fixtures match the server path
+        if: matrix.worker == 'proxy'
+        run: npx tsx scripts/wx-fixtures.ts --check
 
       # Same reasoning for the self-hosted webfonts: fonts/ and the generated
       # module must agree, or the page requests a font the Worker does not have
