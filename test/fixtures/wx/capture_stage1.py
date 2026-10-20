@@ -12,6 +12,9 @@ prints its report on any byte -- reads until "WX,end", saves every byte to <out.
      fb_sha256 line. If they differ: how many pixels, and is every difference one cell away (the
      pre-registered escape hatch -- report, do not tune)?
 --expect-sha replaces the reference sha (used for the S-B1 sabotage run, whose dump must NOT match).
+--budget grades the ruled budget bars (2026-10-20) instead of B5-B7's retired bands:
+  decode + indices + render + push <= 100 ms per frame, and a projected 15-frame past-hour loop at
+  >= 8 fps (per loop frame: decode + render + push; the indices are worked out once per view).
 Prints values and verdicts; exit 0 when every check reads as predicted, 1 otherwise, 2 if the capture
 itself failed (no "WX,end" before the timeout: the instrument, not the board).
 """
@@ -84,6 +87,9 @@ def main(argv):
     for k in ("build", "crop", "sprite"):
         print(f"  {k}: {wx.get(k)}")
     ok = True
+    # B5-B7's narrow bands were retired by the 2026-10-20 ruling (recorded MISSES): under --budget, and in
+    # the sabotage run, they print as reference points and the budget bars grade instead.
+    retired = {"B5", "B6", "B7"} if ("--budget" in argv or "--expect-sha" in argv) else set()
     for key, (bid, lo, hi) in BANDS.items():
         v = wx.get(key)
         try:
@@ -91,6 +97,9 @@ def main(argv):
         except (TypeError, ValueError):
             print(f"  {bid} {key}: UNREADABLE ({v!r}) -> FAIL")
             ok = False
+            continue
+        if bid in retired:
+            print(f"  {bid} {key} = {n:,} (reference point; the band is retired, the budget bars grade it)")
             continue
         good = (lo is None or n >= lo) and (hi is None or n <= hi)
         ok &= good
@@ -114,6 +123,35 @@ def main(argv):
     print(f"  B9 vs {'the expected sha' if '--expect-sha' in argv else 'render_ref.py'} ({want[:16]}): "
           f"{'IDENTICAL' if match else 'DIFFERENT'}; {differ} of {len(ref)} pixels differ from the reference screen")
     ok &= match and got == wx.get("fb_sha256") and len(dump) == 57600
+    if "--expect-sha" in argv and len(dump) == len(ref):
+        # S-B1: the dump must be the predicted flipped screen, so B9 against the reference FAILS.
+        disc = [i for i in range(len(ref)) if ref[i] != 255]
+        echo = [i for i in disc if 1 <= ref[i] <= 13]
+        same_disc = 100 * sum(1 for i in disc if dump[i] == ref[i]) / len(disc)
+        same_echo = 100 * sum(1 for i in echo if dump[i] == ref[i]) / len(echo)
+        b9_fails = hashlib.sha256(dump).hexdigest() != hashlib.sha256(ref).hexdigest()
+        print(f"  S-B1: B9 against the reference {'FAILS' if b9_fails else 'PASSES (the sabotage did not bite)'}; "
+              f"{same_disc:.1f}% of disc pixels and {same_echo:.1f}% of echo pixels equal the reference "
+              f"(predicted 52.1% and 0.6%)")
+        ok &= b9_fails
+    if "--budget" in argv:
+        # Ruled 2026-10-20 (docs/weatherscope-stage1.md, "Predictions B, addendum 2"): budget bars, not bands.
+        try:
+            d, ix, r, p = (int(wx[k]) for k in ("decode_us", "index_us", "render_us", "push_us"))
+        except (KeyError, ValueError):
+            print("  BUDGET: a timing line is missing or unreadable -> FAIL")
+            return 1
+        total = d + ix + r + p
+        loop_frame = d + r + p                  # a loop keeps one view: indices once, then decode + render + push
+        fps, fps_strict = 1e6 / loop_frame, 1e6 / total
+        b_total = total <= 100000
+        b_fps = fps >= 8.0
+        print(f"  BUDGET B5'-B8' decode+indices+render+push = {total / 1000:.1f} ms per frame (bar <= 100 ms) -> "
+              f"{'as predicted' if b_total else 'OVER BUDGET'}")
+        print(f"  BUDGET past-hour loop, 15 frames: {loop_frame / 1000:.1f} ms per frame -> {fps:.1f} fps "
+              f"(bar >= 8 fps; counting the indices every frame too: {fps_strict:.1f} fps) -> "
+              f"{'as predicted' if b_fps else 'TOO SLOW'}")
+        ok &= b_total and b_fps
     return 0 if ok else 1
 
 

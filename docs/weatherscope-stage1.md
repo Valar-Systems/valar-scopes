@@ -171,6 +171,40 @@ None of these adds or removes a variable.
 
 **Off these bands:** stop and report, as before.
 
+## Predictions B, addendum 2: the timing budget (ruled 2026-10-20, frozen before re-measuring)
+
+**B5, B6 and B7 stay recorded as MISSES** (see Results). Their candidate causes are **unproven**:
+- software double-precision arithmetic (B6);
+- first-touch flash and PSRAM cache misses (B5, B7);
+- LovyanGFX's per-call overhead (B7).
+
+Profiling waits until the past-hour loop exists and is measurably too slow. The original B5-B7 lines are not edited.
+
+**Reference points** (the single measurements, image `ed40af2`): decode **2,867 µs**, indices **3,584 µs**, render **22,012 µs**, push **25,788 µs**.
+
+**Budget bars, not bands** (ruled):
+
+| check | bar | predicted from the reference points |
+|---|---|---|
+| B5'-B8'. Decode + indices + render + push, per frame | **≤ 100 ms** | about **54.3 ms** (54,251 µs) |
+| Loop. A 15-frame past-hour loop, projected | **≥ 8 fps** | about **19.7 fps** |
+
+**How the loop is projected:** the view doesn't change during a loop, so the indices are worked out once and each loop frame costs decode + render + push (50,667 µs at the reference points). Counting the indices on every frame too, the stricter figure would be about 18.4 fps; it is reported alongside.
+
+**How it's re-measured:** a fresh boot of the rebased image (`6538f73`; the harness code is unchanged from `ed40af2`), flashed to `907069326E64` by serial and graded with `capture_stage1.py --budget`. B3, B4, B8 and B9 are graded against their original predictions as before.
+
+**The north/south-flip sabotage, S-B1, on the board.** Frozen in the original Predictions B:
+- the dump's sha256 must be `91bbb69d6ef6152d421660ec1bebb79555cd7dcdc795663d1e5161b306f6b368`;
+- 52.1 % of disc pixels and 0.6 % of echo pixels must equal the reference;
+- **B9 must FAIL**.
+
+It is planted in `src/weatherscope/WxRender.h` with an assertion that it applied. The file is then restored byte for byte (sha256 checked), rebuilt, and the correct image reflashed and re-graded (B9 identical).
+
+**Pre-registered outcomes off the table:**
+- A budget bar not met: stop and report.
+- B3, B4, B8 or B9 off their predictions on the fresh boot: stop and report.
+- S-B1 producing any dump other than the predicted one: stop and report. That would mean the sabotage did not plant as intended, or the board renders differently from the host.
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
