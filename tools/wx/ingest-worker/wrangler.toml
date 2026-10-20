@@ -1,0 +1,5 @@
+# LOCAL ONLY (weather spike A4 "does it run in workerd"). No bindings, no routes, no account: `wrangler dev` only.
+# Never deploy this. It exists to prove ingest.ts runs under workerd; it makes no memory claim.
+name = "wx-ingest-spike-local"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"   # the production Worker's date (proxy/wrangler.toml)
