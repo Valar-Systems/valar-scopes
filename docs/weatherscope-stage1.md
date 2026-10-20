@@ -333,3 +333,33 @@ Nothing was changed to bring RAM down. B2 waits for a ruling.
 - B7: LovyanGFX's per-call overhead in `writeFastHLine`.
 
 **Not run:** S-B1, the north/south flip on the board. The stage stopped first. The board is left running the correct `ed40af2` image.
+
+### B, budget re-measured (2026-10-20, a fresh boot of `1183010`'s image on `907069326E64`)
+
+**How it ran:** flashed by serial (esptool reported MAC `90:70:69:32:6e:64`, all four images verified), then graded once with `capture_stage1.py --budget`.
+
+| check | bar or prediction | result | |
+|---|---|---|---|
+| B5'-B8'. Decode + indices + render + push | ≤ 100 ms per frame | **54.2 ms** (2,866 + 3,583 + 22,012 + 25,788 µs) | ✓ |
+| Loop. 15 frames, projected | ≥ 8 fps | **19.7 fps** (50.7 ms per loop frame; 18.4 fps counting the indices every frame) | ✓ |
+| B3. PSRAM | 144-160 KB | **153,608 B** | ✓ |
+| B4. Internal heap change | ≤ 2 KB | **0 B** | ✓ |
+| B8. Push | 23-32 ms | **25.788 ms** | ✓ |
+| B9. Per-pixel dump | identical to `render_ref.py` | **UNREADABLE through the dump**: the board's own `fb_sha256` is `344383b4…` (the reference), but the dump that arrived holds **56,640 of 57,600 bytes** | **✗ instrument** |
+
+**The timings repeat the reference points to within 1 µs:** 2,866, 3,583, 22,012 and 25,788 µs, against 2,867, 3,584, 22,012 and 25,788.
+
+**STOP, report (B9).** The analysis of the saved capture:
+- **What arrived:** 236 whole rows, each **identical to the reference row**, in order.
+- **What didn't:** rows **197-200**, four whole consecutive rows, never arrived.
+- **What the board says:** its sha over the codes it streamed equals the reference.
+- **So** the screen renders as predicted, and the **transport dropped rows**.
+
+**The mechanism, not yet tested:** `setTxTimeoutMs(2)`, which the harness copied from `animtest_main.cpp` (where a blocked print was worse than a dropped one). It drops a write whenever the host stalls longer than 2 ms. The first board capture received the whole dump, and this one did not.
+
+**Not done:**
+- **No re-capture** of the same image: that would be retrying until it passes.
+- **No change** to the harness.
+- **S-B1 not run.** Its grade also depends on the dump.
+
+The board is left running the correct image.
