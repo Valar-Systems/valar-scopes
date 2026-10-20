@@ -470,6 +470,8 @@ For information only, not a grade: on the A6 log, the real run is green on both 
 
 ## Part A summary (complete 2026-10-20)
 
+**Accepted 2026-10-20 at `87ecb8a`**, including the A7 correction (costs at 60 and 600 units; (c) is a new box). #422 stays a draft PR.
+
 | check | result | key numbers | off-prediction, and the ruling |
 |---|---|---|---|
 | A0 files | as found | 7000 × 3500 at 0.01°, PNG 5.41, a frame every 2 min, files land ~50 s after frame time | **−99 means "no echo inside coverage", not "missing"**. Ruled: −99 → 0, −999 → 14, code 15 unused by these products |
@@ -547,6 +549,8 @@ Workers Paid has been on since 2026-10-20, so its $5 isn't new. **Assumed:** eve
 | **total** | **≈ $0**, at most ~$1.20 | **at most ~$23.40 uncached** (at 1 ms per crop) |
 
 At 600 units, caching each tile per frame under its immutable key means R2 reads scale with data centres × tiles, not with units. That would take the total to about $8. Not measured.
+
+**Ruled 2026-10-20: tile caching is decided from Stage 2 measurements, not from this estimate.** Measure the CPU to build a crop and the cache hit rate per frame first. At 600 units the choice is about $8 against about $23 a month, small either way.
 
 ### 4. The on/off setting on the config page
 
