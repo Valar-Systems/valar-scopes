@@ -1,12 +1,12 @@
 // Weatherscope Stage 1 (docs/weatherscope-stage1.md): a bench harness that draws ONE stored MRMS frame.
 //
-// Env weatherscope-s3-128 builds ONLY src/weather/ (build_src_filter = -<*> +<weather/>), and every other
-// env drops src/weather/ through [filters] editions_off. No Wi-Fi, no config page, no OTA, no network:
+// Env weatherscope-s3-128 builds ONLY src/weatherscope/ (build_src_filter = -<*> +<weatherscope/>), and every other
+// env drops src/weatherscope/ through [filters] editions_off. No Wi-Fi, no config page, no OTA, no network:
 // the frame is test/fixtures/wx/kdfw-60mi.wxc, embedded with board_build.embed_files (so no generated
 // .inc can go stale), the 60 mi KDFW crop of the 2024-05-21 22:00Z MRMS composite.
 //
 // On boot it decodes the crop (include/WxCrop.h) into a code grid in PSRAM, works out each screen row's
-// and column's cell (src/weather/WxRender.h), paints a 240 x 240 PSRAM sprite in the PROVISIONAL palette
+// and column's cell (src/weatherscope/WxRender.h), paints a 240 x 240 PSRAM sprite in the PROVISIONAL palette
 // (not ruled), pushes it once, and reports. Send any byte over serial to get the report again.
 //
 // Serial, tagged for a single-open capture (scripts/bench-trace.ps1, never a reattaching recorder):

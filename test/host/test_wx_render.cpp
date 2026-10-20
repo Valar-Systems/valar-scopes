@@ -1,4 +1,4 @@
-// Weatherscope Stage 1's renderer (src/weather/WxRender.h) on the host, before any board.
+// Weatherscope Stage 1's renderer (src/weatherscope/WxRender.h) on the host, before any board.
 //
 //   test_wx_render.exe <repo>/test/fixtures/wx
 //
@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "WxCrop.h"
-#include "WxRender.h"   // -I src/weather, so a sabotaged copy can stand in
+#include "WxRender.h"   // -I src/weatherscope, so a sabotaged copy can stand in
 
 static int failures = 0;
 static void check(bool ok, const std::string& what)
