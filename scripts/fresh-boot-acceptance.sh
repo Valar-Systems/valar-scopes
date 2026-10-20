@@ -838,7 +838,7 @@ elif [ "$(pv first)" != "yes" ]; then
 elif [ "$(pv verdict)" = "CLAIMED" ]; then
   r=0
 elif [ "$(pv verdict)" = "UNCLAIMED" ] || [ "$(pv verdict)" = "ABSENT" ]; then
-  P_WHY="The first /logbook.json after the claim of $(pv claim) had it $(pv verdict). The page is served from NVS, and the save a fetch triggers lands after its own response (at most once per 30 s), so a new owner's first view is missing the claim until a refresh. Known issue in v15/v16; v17 saves on the claim."
+  P_WHY="The first /logbook.json after the claim of $(pv claim) had it $(pv verdict). The page is served from NVS, and the save a fetch triggers lands after its own response (at most once per 30 s), so a new owner's first view is missing the claim until a refresh. Known issue in v15-v17; v17.1 saves on the claim (#387)."
 else
   # Named outcomes only reach the explanation above. An unknown or empty verdict is a broken
   # probe, and must never read as the device failure the run was predicting.
