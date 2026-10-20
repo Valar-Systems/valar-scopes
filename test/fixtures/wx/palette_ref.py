@@ -3,8 +3,8 @@ KDFW frame in the ruled palette, derived INDEPENDENTLY of src/weatherscope/WxPal
 
     python -I test/fixtures/wx/palette_ref.py [--out sprite.bin]
 
-Rain comes from the pinned file (NWSReflectivity-metpy-v1.6.3.tbl): code 1 = its 15 dBZ entry dimmed to 70 %
-(ruled, addendum 4) with (v * 70 + 50) // 100, codes 2-12 = its 20-70 dBZ entries, code 13 = white (ruled). Dry and off-disc are black,
+Rain comes from the pinned file (NWSReflectivity-metpy-v1.6.3.tbl): code 1 = its 15 dBZ entry dimmed to 55 %
+(final, addendum 5) with (v * 55 + 50) // 100, codes 2-12 = its 20-70 dBZ entries, code 13 = white (ruled). Dry and off-disc are black,
 as the harness draws them. Each pixel is LovyanGFX's color565 -- (r >> 3) << 11 | (g >> 2) << 5 | b >> 3, which
 TRUNCATES -- stored big-endian, which is how a 16-bit LGFX_Sprite holds it (swap565_t). Prints the sha256 the
 board's WX,sprite_sha256 line must equal.
@@ -20,7 +20,7 @@ raw = open(os.path.join(HERE, "NWSReflectivity-metpy-v1.6.3.tbl"), "rb").read().
 assert hashlib.sha256(raw).hexdigest() == PIN, "the table is not the pinned one -- refusing to render from it"
 tbl = [tuple(round(c * 255) for c in ast.literal_eval(l)) for l in raw.decode().splitlines() if l.strip()]
 assert len(tbl) == 15 and tbl[2] == (0, 0, 246), "not the pinned table"
-DIM = 70   # addendum 4: Daniel's look ruled 70 % for rain code 1
+DIM = 55   # addendum 5: Daniel's second look, final for rain code 1
 rain = {1: tuple((v * DIM + 50) // 100 for v in tbl[2]), 13: (255, 255, 255)}
 rain.update({c: tbl[c + 1] for c in range(2, 13)})
 

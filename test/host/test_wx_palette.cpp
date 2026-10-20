@@ -1,5 +1,5 @@
 // Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties:
-// C3 (a)-(g), docs/weatherscope-stage2.md addenda 2 and 4. The table is READ FROM THE COMMITTED FILE here, so the
+// C3 (a)-(i), docs/weatherscope-stage2.md addenda 2, 4 and 5. The table is READ FROM THE COMMITTED FILE here, so the
 // header and the pin cannot drift apart unnoticed.
 //
 //   test_wx_palette.exe <fixtures-dir>        exit 0 all pass, 1 a check failed, 2 the rig (file unreadable)
@@ -110,7 +110,7 @@ int main(int argc, char** argv)
     std::fclose(f);
     if (tbl.size() != 15) { std::printf("FAIL: the pinned table has %u entries, not 15 (rig)\n", (unsigned)tbl.size()); return 2; }
 
-    const int dims[3] = {wxpalette::kDim55, wxpalette::kDim70, wxpalette::kDim85};
+    const int dims[1] = {wxpalette::kDim55};   // rain code 1's one ruled level (addendum 5: final)
 
     // (a) no coverage and the missing hatch are achromatic: "never violet" as a property, not a promise.
     check(Achromatic(wxpalette::kNoCoverage) && Achromatic(wxpalette::kMissingHatch),
@@ -126,15 +126,15 @@ int main(int argc, char** argv)
     bool tableOk = true;
     for (int code = 2; code <= 12; ++code) {
         const Rgb want = tbl[(size_t)code + 1];   // code 1 = 15 dBZ = entry index 2
-        if (wxpalette::Rain((uint8_t)code, wxpalette::kDim70) != want) {
+        if (wxpalette::Rain((uint8_t)code, wxpalette::kDim55) != want) {
             tableOk = false;
-            std::printf("        rain %d is %s, the table says %s\n", code, S(wxpalette::Rain((uint8_t)code, 70)).c_str(), S(want).c_str());
+            std::printf("        rain %d is %s, the table says %s\n", code, S(wxpalette::Rain((uint8_t)code, 55)).c_str(), S(want).c_str());
         }
     }
-    const bool white = wxpalette::Rain(13, wxpalette::kDim70) == Rgb{255, 255, 255};
-    check(tableOk && white, "C3c", "rain 2-12 equal the pinned 20-70 dBZ entries; rain 13 is white " + S(wxpalette::Rain(13, 70)));
+    const bool white = wxpalette::Rain(13, wxpalette::kDim55) == Rgb{255, 255, 255};
+    check(tableOk && white, "C3c", "rain 2-12 equal the pinned 20-70 dBZ entries; rain 13 is white " + S(wxpalette::Rain(13, 55)));
 
-    // (d) rain code 1 = the table's 15 dBZ entry x the dim factor, (v * p + 50) / 100, at 55 / 70 / 85 %.
+    // (d) rain code 1 = the table's 15 dBZ entry x the dim factor, (v * p + 50) / 100, at the ruled 55 %.
     bool dimOk = true;
     std::string dimText;
     for (int p : dims) {
@@ -145,14 +145,14 @@ int main(int argc, char** argv)
     }
     check(dimOk, "C3d", "rain 1 = the 15 dBZ entry " + S(tbl[2]) + " dimmed:" + dimText);
 
-    // (e) snow luma rises with each code up to code 8, flat after; the top is pale blue, not white.
+    // (e) snow luma rises with each code up to code 6, flat after; the top is pale blue, not white.
     bool rises = true;
     for (int c = 2; c <= wxpalette::kSnowTopCode; ++c)
         rises &= Luma(wxpalette::Snow((uint8_t)c)) > Luma(wxpalette::Snow((uint8_t)(c - 1)));
-    for (int c = wxpalette::kSnowTopCode + 1; c <= 13; ++c) rises &= wxpalette::Snow((uint8_t)c) == wxpalette::Snow(8);
+    for (int c = wxpalette::kSnowTopCode + 1; c <= 13; ++c) rises &= wxpalette::Snow((uint8_t)c) == wxpalette::Snow((uint8_t)wxpalette::kSnowTopCode);
     const Rgb top = wxpalette::Snow(13);
     const bool pale = top.b > top.r && top != Rgb{255, 255, 255};
-    check(rises && pale, "C3e", "snow rises from " + S(wxpalette::Snow(1)) + " to code 8 and is flat after; its top " + S(top) +
+    check(rises && pale, "C3e", "snow rises from " + S(wxpalette::Snow(1)) + " to code " + std::to_string(wxpalette::kSnowTopCode) + " and is flat after; its top " + S(top) +
                                     " is pale blue, not white");
 
     // (f) no snow colour equals any rain colour, codes 1-13, every dim level.
@@ -163,7 +163,7 @@ int main(int argc, char** argv)
                 if (wxpalette::Snow((uint8_t)s) == wxpalette::Rain((uint8_t)rc, q)) ++clashes;
     check(clashes == 0, "C3f", "no snow colour equals any rain colour (" + std::to_string(clashes) + " clashes)");
 
-    // (g) snow code 1 against rain code 1 at 55 / 70 / 85 %: dE*ab >= 40 AND dL* >= 25 (addendum 4, frozen first).
+    // (g) snow code 1 against rain code 1 at the ruled 55 %: dE*ab >= 40 AND dL* >= 25 (addenda 4 and 5, frozen first).
     bool clear = true;
     std::string gText;
     const Lab s1 = ToLab(wxpalette::Snow(1));
@@ -177,6 +177,27 @@ int main(int argc, char** argv)
         gText += t;
     }
     check(clear, "C3g", "snow 1 " + S(wxpalette::Snow(1)) + " vs rain 1 (dE*ab >= 40 and dL* >= 25):" + gText);
+
+    // (h) adjacent snow codes 1-6 differ by dE*ab >= 10: visible steps where snow sits (addendum 5, frozen first).
+    bool steps = true;
+    std::string hText;
+    for (int c = 1; c < wxpalette::kSnowTopCode; ++c) {
+        const Lab a = ToLab(wxpalette::Snow((uint8_t)c)), b2 = ToLab(wxpalette::Snow((uint8_t)(c + 1)));
+        const double dE = std::sqrt((a.L - b2.L) * (a.L - b2.L) + (a.a - b2.a) * (a.a - b2.a) + (a.b - b2.b) * (a.b - b2.b));
+        steps &= dE >= 10.0;
+        char t[32];
+        std::snprintf(t, sizeof t, " %d-%d: %.1f;", c, c + 1, dE);
+        hText += t;
+    }
+    check(steps, "C3h", "adjacent snow codes 1-6 differ by dE*ab >= 10:" + hText);
+
+    // (i) snow code 13 against rain code 13 (white): dE*ab >= 20 (addendum 5, frozen first).
+    const Lab s13 = ToLab(wxpalette::Snow(13)), r13 = ToLab(wxpalette::Rain(13, wxpalette::kDim55));
+    const double dE13 = std::sqrt((s13.L - r13.L) * (s13.L - r13.L) + (s13.a - r13.a) * (s13.a - r13.a) + (s13.b - r13.b) * (s13.b - r13.b));
+    char t13[96];
+    std::snprintf(t13, sizeof t13, "snow 13 %s vs rain 13 %s: dE*ab %.1f (>= 20)", S(wxpalette::Snow(13)).c_str(),
+                  S(wxpalette::Rain(13, 55)).c_str(), dE13);
+    check(dE13 >= 20.0, "C3i", t13);
 
     // The pin, as a check (#439 review): the file's bytes, CRLF folded to LF, hash to the pinned sha256. An id appended
     // to the table, or any byte changed, fails it -- the guards' pin and this one read the same number.

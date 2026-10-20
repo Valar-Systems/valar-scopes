@@ -52,9 +52,9 @@ wxcrop::Header hdr;
 uint8_t* grid = nullptr;   // decoded codes, rows x cols, in PSRAM
 
 // The RULED palette (src/weatherscope/WxPalette.h). The frame is rain only -- the wire carries no snow field
-// yet -- with code 1 dimmed to 70 % (Daniel's look, addendum 4). Stage 1's provisional palette (dark violet for
-// missing) is retired; it is recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
-constexpr int kFrameDim = wxpalette::kDim70;
+// yet -- with code 1 dimmed to 55 % (final: Daniel's second look, addendum 5). Stage 1's provisional palette (dark
+// violet for missing) is retired; it is recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
+constexpr int kFrameDim = wxpalette::kDim55;
 constexpr uint32_t kAlternateMs = 10000;   // frame <-> palette card, so the look needs no serial input
 
 struct Report {
@@ -114,17 +114,11 @@ void DrawCard()
     canvas.setTextColor(TFT_WHITE);
     canvas.setTextSize(1);
     const int w = 12, x0 = 120 - 13 * w / 2;
-    Label(x0, 34, "RAIN  15 ........ 75+ dBZ");
+    Label(x0, 34, "RAIN (final) 15 ... 75+ dBZ");
     for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 44, w - 1, 20, wxpalette::Rain((uint8_t)c, kFrameDim));
-    const int dims[3] = {wxpalette::kDim85, wxpalette::kDim70, wxpalette::kDim55};   // 70 % is ruled; 55 % for one more look
-    const char* dimNames[3] = {"85", "70", "55"};
-    Label(x0, 72, "15dBZ");
-    for (int i = 0; i < 3; ++i) {
-        Label(x0 + 36 + i * 42, 72, dimNames[i]);
-        Swatch(x0 + 50 + i * 42, 69, 18, 12, wxpalette::Rain(1, dims[i]));
-    }
-    Label(x0, 92, "SNOW  15 ........ 75+ dBZ");
-    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 102, w - 1, 20, wxpalette::Snow((uint8_t)c));
+    // Snow, the one thing left for the last look: 15-40 dBZ step by step, then held from code 6 (40 dBZ) up.
+    Label(x0, 76, "SNOW  15 ........ 75+ dBZ");
+    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 86, w - 1, 36, wxpalette::Snow((uint8_t)c));
     const char* names[3] = {"NOCOV", "MISSING", "DRY"};
     for (int i = 0; i < 3; ++i) {
         const int x = 48 + i * 52;

@@ -1,5 +1,5 @@
 """Runs test_wx_palette.cpp against SABOTAGED copies of src/weatherscope/WxPalette.h; each must turn the suite
-red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2 and 4) and nothing else.
+red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4 and 5) and nothing else.
 
     python -I test/host/sabotage_wx_palette.py
 
@@ -9,8 +9,10 @@ real header's sha256 is compared before and after.
 
   S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
   S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
-  S-C3ef  the snow top set to white                                -> exactly C3e and C3f
+  S-C3ef  the snow top set to white                                -> exactly C3e, C3f and C3i
   S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
+  S-h     the snow ramp started at (165, 205, 245), near its top    -> exactly C3h (it barely steps)
+  S-i     the snow top set to (240, 245, 255), near white          -> exactly C3i
   S-PIN   the REAL header, run on a fixtures copy whose pinned table has an id appended -> exactly pin
 Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
 """
@@ -33,10 +35,16 @@ SABOTAGES = {
               [r"C3a\b"]),
     "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 201, 0},  /* SABOTAGE */")],
               [r"C3c\b"]),
-    "S-C3ef": ([("constexpr Rgb kSnowTop = {190, 225, 255};", "constexpr Rgb kSnowTop = {255, 255, 255};  // SABOTAGE")],
-               [r"C3e\b", r"C3f\b"]),
-    "S-C3g": ([("constexpr Rgb kSnowStart = {120, 165, 230};", "constexpr Rgb kSnowStart = {20, 30, 180};  // SABOTAGE")],
+    "S-C3ef": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {255, 255, 255}};  // SABOTAGE")],
+               [r"C3e\b", r"C3f\b", r"C3i\b"]),
+    "S-C3g": ([("kSnowTable[6] = {{0, 110, 210},", "kSnowTable[6] = {{20, 30, 180},  /* SABOTAGE */")],
               [r"C3g\b"]),
+    "S-h": ([("constexpr Rgb kSnowTable[6] = {{0, 110, 210}, {66, 129, 218}, {98, 149, 226}, {124, 169, 234}, {148, 190, 242}, {170, 212, 250}};",
+              "constexpr Rgb kSnowTable[6] = {{165, 205, 245}, {166, 206, 246}, {167, 208, 247}, {168, 209, 248}, "
+              "{169, 211, 249}, {170, 212, 250}};  // SABOTAGE: starts near the top, barely steps")],
+            [r"C3h\b"]),
+    "S-i": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {240, 245, 255}};  // SABOTAGE: near white")],
+            [r"C3i\b"]),
 }
 
 
