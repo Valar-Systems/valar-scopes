@@ -129,7 +129,7 @@ void Tick()
             // Backoff, and it is what stops an unreachable network from becoming
             // a reboot loop. Says so out loud, because a silent refusal here
             // would look exactly like a reboot that did not work.
-            if (!DeferRebootWithCause(REBOOT_CAUSE_NET_WEDGE, ESP.getMaxAllocHeap()))
+            if (!DeferRebootWithCause(REBOOT_CAUSE_NET_WEDGE, ESP.getMaxAllocHeap(), /*scheduled=*/false))
                 Serial.println("[netwd] reboot refused (cap/clock/NVS) -- backing off instead");
             break;
 
