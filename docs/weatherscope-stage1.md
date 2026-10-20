@@ -340,6 +340,41 @@ These are reported, not re-graded.
 - B3, B4 or B8 out of band; B5-B7 inside their bands or moved more than ±10 %; a budget bar missed: stop and report.
 - **Any result not named here: stop and decide.**
 
+## Predictions B, addendum 6: the control's rule, re-registered (ruled 2026-10-20, option 1; frozen before the grader changes or the board runs)
+
+**Ruling, recorded as received:** the control **PASSES** if the capture is **refused AND at least one bad row is named** (missing, corrupt or duplicated). If no row is lost at all, the run is **INCONCLUSIVE**, not a pass: lengthen the stall and run again, recording each attempt.
+
+**What stays as it was:**
+- The `11:34` capture stays recorded as **outside its original prediction**. It is not re-graded under this rule.
+- The drop's origin (board or host) **stays open**. It is noted, not chased, because the dump B9 grades uses blocking writes.
+
+**Before the fresh run, in two commits of their own:**
+1. **The grader's wording.** It printed "NOT refused" for a capture it had refused. The fix changes words only, no verdict.
+2. **This rule, in the grader:**
+   - The control passes on `refused` with the named rows printed.
+   - With every row intact, it assembles the dump and compares it with the board's own `fb_sha256`:
+     - equal: **INCONCLUSIVE** (exit 3; nothing was lost);
+     - different: **FAIL** (a loss the tags did not see).
+   - `--stall <s>` sets the stall.
+   - Tested on synthetic captures, sabotages included, before it touches the board.
+
+**The stall ladder:** **1.5 s, 3 s, 6 s, 12 s**, one attempt each, moving up only on INCONCLUSIVE. Every attempt's capture is saved and listed in the results. **Four INCONCLUSIVE attempts: stop and decide.** A stall the host can absorb without loss can't test the tags this way.
+
+| check | predicted |
+|---|---|
+| Control, attempt 1 (1.5 s) | **PASS**: refused, ≥ 1 bad row named. The one capture so far at this stall lost 64 bytes |
+| B9, blocking dump, `--budget` | as in addendum 5: 240/240, sha256 `344383b4…`, 0 of 57,600 differ, equal to `fb_sha256`; B3, B4, B8 in band; B5-B7 MISS and within ±10 %; budget met |
+| S-B1, `--expect-sha 91bbb69d…` | as in addendum 5: that sha, 52.1 % / 0.6 %, B9 against the reference FAILS; the timings as in the B9 row (the flip mirrors the screen; the work is the same) |
+| Restore and final | as in addendum 5: `WxRender.h` back to its sha256; the rebuilt image differs from `d7ed5182dc7e…` only in stamps; B9 identical again |
+
+**No reflash before the control or B9.** The board has run `d7ed5182dc7e…` (`27600e8`'s Stage 1) since the `11:34` capture. The commits in between touch only the grader and this doc, not the firmware.
+
+**Pre-registered outcomes off the table:**
+- No `WX,end` (the capture fails): stop and decide. A loss outside the rows, or the instrument; the two can't be told apart.
+- Control **FAIL** (rows intact, but the dump disagrees with `fb_sha256`): stop.
+- Four INCONCLUSIVE attempts: stop and decide.
+- Anything in addendum 5's list. **Any result not named here: stop and decide.**
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
