@@ -13,7 +13,11 @@ import fetch
 SP = sys.argv[1]
 SPIKE = os.path.join(SP, "spike-a5db678")
 AIRPORTS = os.path.join(SPIKE, "tools", "wx", "airports-a2.txt")
-RENDER = os.path.join(SP, "vs", "test", "fixtures", "wx", "render_ref.py")
+# The renderer is PINNED: run 1 used render_ref.py sha256 450e01cc4ff6... (#434, now main 122e118). A branch
+# switch in the clone once swapped in an older copy with no --out (2026-10-20), so the copy is fixed and checked.
+RENDER = os.path.join(SP, "pinned", "render_ref.py")
+import hashlib as _h
+assert _h.sha256(open(RENDER, "rb").read()).hexdigest().startswith("450e01cc4ff6"), "render_ref.py is not the run-1 version"
 DATA = os.path.join(SP, "wxdata2")
 THRESH = (1, 2, 4)                       # code >= 1 (15 dBZ), >= 2 (20), >= 4 (30)
 RING_PX = 30                             # 15 mi of a 60 mi radius = 120 px * 15/60
