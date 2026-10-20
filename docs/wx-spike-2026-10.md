@@ -146,3 +146,62 @@ Decoder `tools/wx/mrms.ts` (Web APIs only; the PNG is inflated and unfiltered ro
 **Ruled 2026-10-20: both accepted.**
 - **Longitude:** the decoder stays as is (it steps by Di). **The error bound is set by the GRIB header's micro-degree rounding** of the first and last grid points, not by the decoder: any reader that interpolates first to last instead of stepping by Di will differ by up to 2 µdeg at the east edge.
 - **File size:** the measured sizes are **the new upstream baseline for A7's bandwidth math**: quiet ~0.70-0.78 MB, widespread rain **1.64 MB**, storm **2.12 MB** per CONUS frame, gzipped.
+
+### A2: crop size (2026-10-20). Bars met; the size distribution is OFF-PREDICTION
+
+300 frames, 2024-05-21 15:00:38Z to 2024-05-22 00:58:41Z (the outbreak afternoon and evening: 0.69-1.24 M echo cells per frame, 1.52-2.18 MB gz), × 50 public airports × 3 radii = 45,000 crops (`tools/wx/a2-run.ts`; frames streamed and never stored). **Airports (ICAO)**, each checked ≥ 150 km from every repo coordinate by computation; 11 of 66 candidates were dropped and 5 more for an even spread: KSFO KLAS KPHX KSLC KDEN KABQ KELP KBIL KRAP KFAR KMSP KDSM KOMA KMCI KOKC KDFW KSAT KMAF KAMA KLBB KMSY KMEM KSTL KORD KDTW KCLE KIND KBNA KATL KBHM KJAX KMCO KTPA KCLT KRDU KDCA KPHL KJFK KBOS KBTV KBUF KPIT KCHS KLIT KGRB KBIS KCYS KRNO KFAT KGJT.
+
+| radius | p50 (pred.) | p95 (pred.) | max (pred.) | over 32 KB after cap | coarsened |
+|---|---|---|---|---|---|
+| 40 km | **0.44 KB** (~0.15) | 1.52 KB (~1.5) | 2.79 KB (~4) | **0** | 0 % |
+| 80 km | **1.68 KB** (~0.4) | **5.03 KB** (~4) | 8.93 KB (~12) | **0** | 0 % |
+| 160 km | **6.71 KB** (~1) | **16.25 KB** (~10) | 30.45 KB (~28) | **0** | **0 %** (pred. ≤ 1 %) |
+
+- **Bars: met.** Nothing over 32 KB left the encoder, and no crop needed coarsening at any radius.
+- **Sabotage (synthetic speckle frame, cap removed):** the 160 km crop reached **118.4 KB**, inside the predicted 80-120 KB. **All 50** exceeded 32 KB and were caught. With the cap on, all were coarsened 2×2 and flagged, at 1.9 KB.
+- **OFF-PREDICTION: the distribution (p50 ×3 to ×7, p95 +25-60 %).** The p50s are almost exactly the size of a perfectly uniform crop. **My RLE gives each run a 4-bit length (max 16 cells)**, so even an all-dry crop costs one byte per 16 cells: ~110 k cells at 160 km is ≥ 6.9 KB, and ~7 k at 40 km is ≥ 0.43 KB. The predictions assumed long runs.
+  - That is **an encoding choice of mine, not a property of MRMS**. The ruled 4-bit codes are unaffected.
+  - A long-run form (an escape plus a variable-length count) would take quiet crops to tens of bytes. **That is a wire-format change and waits for a ruling.**
+
+### A3: crop placement (2026-10-20). As predicted
+
+Storm frame 2024-05-21 22:00:42Z; strongest echo **65.5 dBZ** (code 11). Crops 80 km in radius, centred 40 km N, E, S and W of it; the echo and all four centres were checked ≥ 150 km from repo coordinates. The check (`tools/wx/a3_check.py`) decodes each crop **independently in Python** and places every cell on the grid from the crop's header alone.
+
+| crop | strongest-echo cell, crop / reference | whole crop vs reference | sabotage (origin + 1 cell): echo cells mismatching |
+|---|---|---|---|
+| N | 11 / 11 ✓ | **100.0000 %** (145 × 165) | **39.00 %** (strongest cell → 9) |
+| E | 11 / 11 ✓ | **100.0000 %** | **35.59 %** (→ 9) |
+| S | 11 / 11 ✓ | **100.0000 %** | **39.88 %** (→ 9) |
+| W | 11 / 11 ✓ | **100.0000 %** | **47.72 %** (→ 9) |
+
+4/4 and 100 % as predicted. The sabotage is ≥ 5 % in all four, as predicted. Here even the single strongest cell failed under the shift; the prediction only said it *might* survive.
+
+### A5: coverage (2026-10-20). As predicted
+
+Quiet frame 2026-10-20 02:12:36Z, through the real crop encoder (40 km; the Iowa box 100 km). All points were checked ≥ 150 km from repo coordinates.
+
+| point | ruled mapping | sabotage: −999 as dry | sabotage: −99 as 15 |
+|---|---|---|---|
+| mid-Pacific (outside grid) | 100 % code 14 ✓ | 14 | 14 |
+| London LHR (outside grid) | 100 % code 14 ✓ | 14 | 14 |
+| Atlantic patch (inside grid) | 100 % code 14 ✓ | **100 % code 0: red** ✓ | 14 |
+| Vancouver YVR / Toronto YYZ / Montreal YUL | centre 0, 100 % code 0: covered ✓ | 0 | 15 |
+| **Iowa quiet box (ruled case)** | **100 % code 0** ✓ | 0 | **100 % code 15: red** ✓ |
+
+### A4: ingest cost, Node part (2026-10-20). OFF-PREDICTION, including the meter sabotage
+
+Download, gunzip, decode, quantise to 4-bit and pack two cells per byte (12.25 MB), then write (`tools/wx/ingest.ts`, `tools/wx/a4-node.ts`). One run per fresh process, 3 runs per case, every run reported:
+
+| case | wall | CPU | peak RSS (`maxRSS`) |
+|---|---|---|---|
+| **storm** (2.12 MB gz; the bars apply) | 1082 / 1031 / 1066 ms | 453 / 531 / 453 ms | 144.8 / 135.9 / 135.1 MB |
+| quiet (0.70 MB gz) | 906 / 993 / 910 ms | 438 / 468 / 469 ms | 118.5 / 119.7 / 119.0 MB |
+| **meter sabotage:** storm + 64 MB held, every page touched | 1157 / 1099 / 1179 ms | 453 / 532 / 500 ms | **182.0 / 182.7 / 182.0 MB** |
+
+- **Predicted (Node):** wall ~3 s, CPU ~1.5 s, peak ~150 MB on a ~50 MB baseline.
+- **Measured:** wall ~1.05 s, CPU ~0.5 s, peak 135-145 MB on an **80 MB** baseline. All off-prediction, in the cheaper direction.
+- **THE METER SABOTAGE FAILED: +37 to +47 MB against the required ≥ +60 MB.** `maxRSS` (Windows' peak working set) is not additive here, so **it cannot be trusted to measure the ingest's own memory**, and A4's 96 MB bar cannot be graded with it.
+  - Mechanism not yet tested: possibly V8 collecting garbage earlier under memory pressure, or Windows trimming the working set.
+  - **The local-workerd measurement was not run:** it would lean on the same kind of meter.
+
+**STOP, report: A2's distribution and A4 are off-prediction.** A3 and A5 are as predicted. A6 (the 2-hour live poll) is still running and will be recorded when it ends. A4-workerd and A7 wait for a ruling.
