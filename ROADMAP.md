@@ -213,6 +213,36 @@ them apart. It is one message and Daniel's copy is on it
 (VQGDWDQQUYJCMSFPY6MDSY6VNS6DPYGX). The boundary join (valar-eam-feed #127) only joins
 runs across raw files, so it does not reach this.
 
+E8 **Aviation: aircraft type filter** (filed 2026-10-20; roadmap only, NOT built now;
+queued after the "Look up" countdown and the weather overlay, #422). A setting to show
+only some kinds of aircraft: for example military only, general aviation only, airliners
+only, or helicopters. Default: show everything.
+
+- **Data already on hand.** Each contact carries its ADS-B size category:
+  [proxy/src/schema.ts](proxy/src/schema.ts) `mapCategory` maps it to the OpenSky enum,
+  and [CloudFeed.cpp](src/CloudFeed.cpp) reads it as `row[8]`. The military,
+  special-callsign and helicopter detection in [SpecialAircraft.h](src/SpecialAircraft.h)
+  already classifies contacts. Today it only colours, badges, chimes and flashes them;
+  it never hides one.
+- **Rules.** Emergency squawks (7500/7600/7700) always show, whatever the filter.
+  Contacts with no category need a defined home: shown under "All" only, or as their
+  own option. Decide in the spike. "No category" is two values on the wire: 0 (field
+  absent) and 1 (A0/B0/C0, "no information").
+- **Emergencies on the cloud feed.** The cloud wire carries no squawk (`CloudFeed.cpp`
+  sets `a.squawk = ""`), so the emergency rule protects only OpenSky and local-receiver
+  users. Same caveat as [docs/v18-altitude-filter.md](docs/v18-altitude-filter.md); state
+  it, don't imply it. That spec also never hides military, pinned or followed aircraft,
+  and routes every contact walk through one predicate. The spike decides how much of
+  that the type filter shares.
+- **Open question for the spike: filter on the device or on the proxy.** The device asks
+  for the nearest **40** contacts to its tile centre (`BLIPS_LIMIT` in
+  [AircraftManager.cpp](src/AircraftManager.cpp)). The proxy's default of 25 applies only
+  when no limit is sent. A device-side filter can show an empty screen while matching
+  aircraft sit just beyond those 40. A proxy-side filter avoids that, but changes the
+  device-facing server, which Daniel deploys. Measure how often it matters before
+  choosing.
+- **Website:** gets it only after a firmware release has it (parity rule).
+
 ### Already done — carried on lists but true in the tree
 
 Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:
