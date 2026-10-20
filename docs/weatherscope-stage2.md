@@ -244,3 +244,77 @@ All of them stay in the scratchpad, never in git.
 - **Captures:** one open of the port, never reattached; the measuring tool is never retried until it passes.
 - **Files:** downloaded MRMS files stay out of git; only ICAO codes are printed, never a coordinate.
 - **Merging:** blipscope-5c reviews and merges. Daniel's reviewer chat is the only source of rulings.
+
+## Results
+
+### 2.0, run 1 (2026-10-20): F1-F3 measured; two stops
+
+**How it ran:**
+- **Scripts:** `tools/weatherscope/product-check/`, committed as run. The paths are the session scratchpad's.
+- **Shared tools:** the spike's tools pinned at `a5db678`: `mrms.ts`'s decode and ruled mapping, and `crop.ts`.
+- **Screens:** `render_ref.py` from `main`.
+- **Data:** MRMS files from `noaa-mrms-pds`, kept outside git; METARs from the IEM archive.
+
+**The frames the rules chose** (METARs and the composite only):
+
+| frame | airport | chosen hour | composite file | SeamlessHSR file | gap |
+|---|---|---|---|---|---|
+| F1 | KDFW | Stage 1's frame | 22:00:42Z | 22:00:00Z | 42 s |
+| F2 | KPHX | 2024-06-14 01:51Z: VIRGA, no precipitation. **The first** METAR candidate; its composite had echo within 15 mi | 01:50:39Z | 01:50:00Z | 39 s |
+| F3 | KATL | 2024-11-14 09:52Z: `-RA`. The run was 08:52 / 09:52 / 10:52, at 10 °C | 09:52:43Z | 09:52:00Z | 43 s |
+| F5 | KPHX | 2025-03-07 13:51Z: `RA`, 9.4 °C. The run was 12:51-14:51, with no VIRGA | 13:50:36Z | 13:50:00Z | 36 s |
+| F4 | KMSP | 2024-12-02 06:53Z: `-SN`. The run was 05:53-07:53 | 06:52:36Z | 06:52:00Z | 36 s |
+
+Change 1's sample is 24 snowing hours at KMSP, 2024-12-02 05:53Z to 12-11 15:53Z.
+
+**STOP 1: the anchor fired on F5, F4 and all 24 change-1 hours.**
+- **What it found:** values below −30 dBZ that are not sentinels. F5 has 97 in the composite and 8 in SeamlessHSR; F4 has 47 and 46. Each grid has 24.5 M cells, and the lowest value is −32. F1-F3 have none: their lowest real values are −15 to −25.
+- **Not graded:** F4, F5 and change 1. Their screens were never rendered; their centre values were recorded and **not read**.
+- **What the values are.** This is a probe of the anchor, `oddvals.ts`, not a grade:
+  - there are many distinct values, in 0.5 dB steps in the composite and 0.1 dB steps in SeamlessHSR;
+  - the counts taper smoothly from just above −30 into −30.5 to −32;
+  - **none** lies inside either airport's 60 mi crop box;
+  - so they look like the low tail of real reflectivity, below the −30 floor I chose. The ruled mapping makes them dry either way.
+- **The alternative: a new sentinel**, meaning no coverage or missing. The data argues against it: a sentinel is one repeated value, and these are spread over at least 6 values with smoothly tapering counts. **Not argued away:** every failing file is from 2024-12 on and every passing one from before, so MRMS's lower bound may have moved. The floor needs a ruling, not my edit.
+- **My plan contradicted itself here.** Its frames section says to replace a frame whose anchor fails; the census rule and the "outside" list say stop. I stopped, because replacing frames would hide a fault shared by recent files.
+
+**The controls on F1-F3: all as predicted.**
+
+| | self-comparison | −5 dBZ sabotage |
+|---|---|---|
+| F1 | 100.0000 %, identical M5 | **+1 on all 11,025** echo pixels. No decision sat on a threshold, since there is no echo within 15 mi |
+| F2 | 100.0000 %, identical M5 | **+1 on all 9,817**. The 20 dBZ ring decision flipped (ring max code 2 → 1) |
+| F3 | 100.0000 %, identical M5 | **+1 on all 36,305**. The 30 dBZ ring decision flipped (4 → 3), and so did the 15 dBZ centre decision (1 → 0) |
+
+**F1-F3 against the predictions:**
+
+| | predicted | result | |
+|---|---|---|---|
+| P0, F1 | composite ≥ SeamlessHSR in ≥ 90 % of echo pixels | **83.69 %**: SeamlessHSR is higher on 1,841 of 11,285 | **✗** |
+| P0, F2 | as above | **96.37 %** | ✓ |
+| P0, F3 | as above | **87.82 %**: SeamlessHSR is higher on 4,466 of 36,653 | **✗** |
+| P1, F1 storm | SeamlessHSR's echo share 75-100 % of the composite's | **43.5 %** (10.61 % against 24.37 % of the disc) | **✗** |
+| | class agreement ≥ 95 % | **85.09 %** | **✗** |
+| | M5 agrees | agrees: no echo within 15 mi or at the centre in either | ✓ |
+| P2, F2 virga | SeamlessHSR's echo share ≤ 60 % | **14.2 %** (3.09 % against 21.70 %) | ✓ |
+| | M5(a) differs at 15 dBZ: composite echo within 15 mi, SeamlessHSR none | the composite **yes**, SeamlessHSR **no**, at both 15 and 20 dBZ; both no at 30 | ✓ |
+| P3, F3 stratiform | echo share 85-100 % | **85.6 %** (68.70 % against 80.24 %) | ✓ |
+| | composite ≥ +1 band in ≥ 30 % of echo pixels | **40.8 %** | ✓ |
+| | M5 agrees | the ring agrees at all three thresholds; **the centre differs at 15 dBZ**: composite 19.5 dBZ (code 1), SeamlessHSR 12.4 dBZ (code 0) | **✗** |
+
+**STOP 2: P0 is below 90 % on F1 and F3.** The pre-registered meaning: the products may not share the mosaic the way the plan assumed. Stop and decide. **Two explanations, and this run excludes neither:**
+- **(a) The files' time offset** (42 s on F1, 43 s on F3). Storms move, so some pixels change in either direction. Not excluded: this run has no measure of how much one product changes in 42 s.
+- **(b) Different source grids or QC.** The products are not built from the same 3D grid and QC the way the plan assumed: a column maximum cannot be lower than one level of its own column.
+
+**The test that would tell them apart, not run:** the same comparison between two **consecutive SeamlessHSR files**, 2 min apart, on F1 and F3. That is motion alone. If its "went up" share is near the 12-16 % here, (a) explains P0; if it is much smaller, (b) holds.
+
+**"Negligible" is not met on what was measured.** On F2, M5 differs: the composite says echo within 15 mi on a virga hour, and SeamlessHSR doesn't. F3's centre differs at 15 dBZ, and class agreement is 80.5-86.9 %, not ≥ 98 %. F4 and F5 weren't graded, so this verdict is partial.
+
+**Two observations for the ring-threshold ruling** (reported, not graded):
+- **F3:** KATL's METAR for that hour reports `-RA`. The centre reads 19.5 dBZ on the composite and **12.4 dBZ on SeamlessHSR**, so at 15 dBZ SeamlessHSR would call the station dry while it reports light rain. This is one sample.
+- **F2:** the composite's ring maximum is code 2 (20-25 dBZ), so the virga echo is light. At 30 dBZ the two products agree that there is no echo.
+
+**Waiting on rulings:**
+1. the anchor's floor;
+2. P0's stop: run the motion test, or accept the result as it stands;
+3. then F4, F5 and change 1.
