@@ -54,16 +54,20 @@ async function inflate(gz: Uint8Array): Promise<Uint8Array> {
 
 /** Decode one NOAA frame into a WXG1 object. The geometry is read first (decodeMrms, moved from the spike
  *  unchanged, reports it only at the end), so the tiled buffer exists before the first row arrives. */
-export async function buildFrame(p: Product, epoch: number, gz: Uint8Array): Promise<FrameBuilder> {
+export async function buildFrame(p: Product, epoch: number, gz: Uint8Array,
+                                 onStage?: (name: string) => void): Promise<FrameBuilder> {
   const { grid } = parseGrib2(await inflate(gz));
+  onStage?.("gunzip-geom");                    // the stage hooks exist for WS8's live meter only
   if (!grid.n2s || !grid.w2e) throw new Error("MRMS grid is not north->south, west->east");
   const g: GridGeom = { ni: grid.ni, nj: grid.nj, la1: grid.la1, lo1: grid.lo1, di: grid.di, dj: grid.dj };
   const fb = new FrameBuilder(frameMeta(p.id, epoch, g));
+  onStage?.("alloc-tiled");
   const codes = new Uint8Array(g.ni);
   await decodeMrms(gz, (row, vals) => {
     for (let j = 0; j < vals.length; j++) codes[j] = p.codeOf(vals[j] as number);
     fb.setRow(row, codes);
-  });
+  }, onStage);
+  onStage?.("tiled");
   return fb;
 }
 
