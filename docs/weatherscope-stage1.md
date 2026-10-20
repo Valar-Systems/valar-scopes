@@ -590,3 +590,66 @@ Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait 
 **Timings in the same capture** (the control path does not grade them; data only): decode 2,867, indices 3,584, render 22,014, push 25,771 µs; PSRAM 153,608 B; internal heap change 0 B. Each of B5-B7 is within 0.01 % of its measurement and still a **MISS** on its frozen band.
 
 **Not run:** B9, S-B1 and the final reflash. No second control was tried; that would be retrying until it passes. **The board is left on the correct Stage 1 image (`27600e8`)**, so it already ends where step 4 would leave it. The board's own `fb_sha256` in the control capture is the reference value, which says the screen is right, but that is not B9.
+
+### B, addendum 6 on the board (2026-10-20, image `d7ed5182dc7e…` on `907069326E64`): all as predicted
+
+**Order, as ruled:**
+1. The rule frozen (`f266a2d`).
+2. The grader's wording fixed in a commit of its own (`4cb7a9f`). Replaying the `11:34` capture still exits 1; only the line changed.
+3. The rule implemented (`e2811b1`). Synthetic captures: 16/16 as intended, and two planted sabotages each turn the suite red.
+
+The firmware source did not change after `27600e8`, so the board kept the image it had run since `11:34`. Every capture was one open of the port, with the port resolved from the serial (COM6).
+
+| check | predicted (addenda 5 and 6) | result | |
+|---|---|---|---|
+| Control, attempt 1 (1.5 s stall) | **PASS**: refused, ≥ 1 bad row named | **PASS**: refused, **row 230 named missing**, 239/240 good | ✓ |
+| B9, blocking dump | 240/240, sha256 `344383b4…`, 0 of 57,600 differ, equal to `fb_sha256` | **240/240**, `344383b4…`, **0** differ, equal to `fb_sha256` | ✓ |
+| B3 / B4 / B8 | in their frozen bands | **153,608 B / 0 B / 25.771 ms** | ✓ |
+| B5 / B6 / B7 | **MISS** on the frozen bands, each within ±10 % of its measurement | **2.867 / 3.584 / 22.014 ms: MISS** on 0.2-2 / ≤ 1.5 / 2-10 ms; +0.0 % each | ✓ (as predicted: misses) |
+| Budget (separate; addendum 2) | ≤ 100 ms per frame; ≥ 8 fps | **54.2 ms; 19.7 fps** | ✓ |
+| S-B1 plant | anchor once; the file's sha256 changes | once; `88f002864daa…` → `911da8765bb2…`; image `34592ece5c11…`, flash 463,687 B (+20) | ✓ |
+| S-B1, `--expect-sha 91bbb69d…` | that sha; 52.1 % / 0.6 %; B9 against the reference FAILS | **`91bbb69d…`**, equal to `fb_sha256`; **52.1 % / 0.6 %**; **B9 FAILS**; 21,680 pixels differ (the host test's 57,600 − 35,920) | ✓ |
+| S-B1 timings | as in the B9 row | 2.867 / 3.589 / 21.961 / 25.785 ms: B5-B7 MISS, within 0.2 %; B3, B4, B8 in band; budget 54.2 ms, 19.8 fps | ✓ |
+| Restore | `WxRender.h` back to `88f002864daa…`; rebuilt image differs from `d7ed5182dc7e…` only in stamps | sha256 checked OK, and `git diff` is empty. The rebuild is **byte-identical** to `d7ed5182dc7e…`: 0 bytes differ, and it differs from the S-B1 image, so the rebuild really happened | ✓ |
+| Final: the correct image reflashed | B9 identical | **identical**: 240/240, `344383b4…`, 0 differ; timings as in the B9 row | ✓ |
+
+**Each flash:** `bench-flash.ps1` resolved COM6 from the serial, and esptool read MAC `90:70:69:32:6e:64`, verified all four images and exited 0. The flashed `firmware.bin` was the image checked above each time.
+
+**Captures** (`bench-logs/`, not committed):
+
+| capture | bytes | sha256 |
+|---|---|---|
+| `control2-a1-114019` | 81,553 | `ab6e0e2d02cf…` |
+| `b9-114051` | 81,612 | `c45189cf5ef9…` |
+| `sb1-114157` | 81,612 | `10da9eb60b6e…` |
+| `final-114300` | 81,612 | `c45189cf5ef9…` |
+
+**B9 and final are byte-identical, and that was checked rather than trusted.** The capture between them carried the flipped dump, so the reflash landed. This image also gave the same microsecond timings at `11:34`. Its report re-prints values measured once per boot, and they repeat from boot to boot.
+
+**Two things noted, and not chased:**
+- **Both drop-on-stall captures lost exactly one 64-byte packet**, late in the dump (row 239 at `11:34`, row 230 here). The blocking dump lost nothing in 3 captures out of 3. Each control capture is exactly 64 B short of a full drop-on-stall dump (81,612 + 5 B for the longer mode string). Whether the board or the host dropped them **stays open**, by ruling.
+- **This time the packet took the start of row 230's line** (`WXR,230,<crc>,` and 47 base64 characters). That leaves a 273-character tail, which the checker ignores because it doesn't start with `WXR,`. So "missing [230]" is right, but "unparseable lines 0" doesn't count stray fragments. No verdict depends on that count. Left as is, not changed mid-run.
+
+## Stage 1: every prediction and its result (2026-10-20)
+
+| prediction | result |
+|---|---|
+| A1-A8, A3.8-A3.12; S-A1, S-A2, S-A3a-c | **all as predicted** |
+| B1 flash | ✓ |
+| B2 static RAM | **✗ MISS** (the baseline was wrong). **B2'** re-registered by ruling: ✓ |
+| B3 PSRAM, B4 internal heap, B8 push | ✓ every time |
+| **B5 decode, B6 indices, B7 render** | **✗ MISSES on their frozen bands**, unchanged (Daniel's ruling). They repeat on every boot: 2.867, 3.584 and 22.01 ms |
+| Budget bars (addendum 2, frozen later, separate) | **met** every time: 54.2 ms per frame, 19.7 fps |
+| B9 the per-pixel dump | ✓ 3 times (`ed40af2`, today twice); once unreadable through the old 2 ms dump (`1183010`, an instrument miss) |
+| Control, original rule (addendum 3) | **✗ outside its prediction** (`11:34`: one row corrupt, none missing). Not re-graded |
+| Control, re-registered rule (addendum 6) | ✓ attempt 1 |
+| S-B1 the flip, on the board | ✓ |
+| Addendum 4, the diagnostic run | **not run**: dropped by Daniel's ruling; parked as draft #435 |
+
+**The cause of each miss:**
+- **B2:** the RAM baseline was estimated wrongly, from per-object sizes. The reviewer accepted this.
+- **B5, B6, B7: not established.** The candidates stay untested: software doubles (B6), first-touch cache misses (B5, B7), LovyanGFX's per-call overhead (B7). The run that would have tested them is parked on #435 until the past-hour loop is measurably too slow. The bands are not used to predict anything further; the measured costs are.
+- **The `1183010` dump loss:** the 2 ms drop-on-stall writes. Today both drop-on-stall captures lost data and every blocking capture lost none. Board or host is still open.
+- **The original control rule:** my prediction assumed the host stall would make whole rows drop. The losses came instead as one 64-byte packet, which can fall inside a row or across its start.
+
+**The board ends on the correct Stage 1 image**, `d7ed5182dc7e…`, built from `e2811b1`'s firmware source (unchanged since `27600e8`).
