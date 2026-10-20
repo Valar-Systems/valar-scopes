@@ -123,7 +123,7 @@ inline Status NextRun(const uint8_t* data, size_t len, size_t* i, uint8_t* code,
         v |= (uint64_t)(x & 0x7f) << (7 * k);
         if (!(x & 0x80)) break;
     }
-    // SABOTAGE S-A3a: zero-length runs accepted
+    if (v == 0) return Status::ZeroRun;
     *run = v > 0xffffffffu ? 0xffffffffu : (uint32_t)v;   // anything that large overruns below
     return Status::Ok;
 }
