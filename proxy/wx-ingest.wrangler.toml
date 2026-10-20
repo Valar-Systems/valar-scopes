@@ -1,0 +1,29 @@
+# blipscope-wx-ingest -- the weather ingest Worker (docs/wx-server.md). A SECOND Worker built from this
+# package: same node_modules, same tests, same CI job as the proxy.
+#
+# NOT DEPLOYED. The bucket below does not exist yet: Daniel creates it, and deploys this with
+#   npx wrangler deploy -c wx-ingest.wrangler.toml
+# It has no route and no public surface; its only entry is the cron. The proxy reads its frames
+# through its own WX binding (wrangler.toml), and never writes them.
+name = "blipscope-wx-ingest"
+main = "src/wx/ingest-worker.ts"
+compatibility_date = "2025-12-01"   # the proxy's date
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+workers_dev = false
+
+# (a'): every minute, plus a second check 30 s in, inside the same invocation (ingest-worker.ts).
+[triggers]
+crons = ["* * * * *"]
+
+# 10x the measured 0.53 s (A4), and under the 30 s cron cap. The PROXY's cpu_ms = 200 is untouched:
+# the ingest never runs inside the proxy (A7 ruling).
+[limits]
+cpu_ms = 5000
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[[r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"

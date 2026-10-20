@@ -49,6 +49,13 @@ ROUTE_ADSBDB_ENABLED = "true"             # route fallback; "false" once adsb.lo
 binding = "ENRICH_KV"
 id = "0000000000000000000000000000dev0" # placeholder: tests/dev run in-memory; real ids live per-env
 
+# Weather frames (docs/wx-server.md). DEV/TEST ONLY: tests get an in-memory bucket, and bindings are not
+# inherited, so staging and production have NO WX binding until Daniel creates the bucket and adds one per
+# env. Without it /wx answers 503 not_configured and /healthz says "not_configured" -- nothing breaks.
+[[r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
 [[analytics_engine_datasets]]
 binding = "METRICS"
 dataset = "blipscope_proxy"
