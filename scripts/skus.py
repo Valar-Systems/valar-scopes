@@ -145,6 +145,7 @@ ALLOWED_MENTIONS = {
     "scripts/check-tag-workflow.sh",     # reads the version + promote jobs, not the matrix
     "scripts/check-customer-entry.py",   # reads build's needs + its own job (--check-wiring), not the matrix
     "scripts/check-no-bench-hooks.sh",   # a comment naming the job that runs it; scans an image, never the matrix
+    "docs/host-tests-ci.md",             # predictions for the host-tests job; names the workflow, parses nothing
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")
