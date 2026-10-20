@@ -33,9 +33,10 @@ while IFS= read -r f; do
   # CAD files: STEP coordinates (0.02189784694318916) match the id shape. Same skip list as
   # scripts/check_device_ids.py.
   case "$f" in *.step|*.stp|*.stl|*.3mf|*.f3d) continue ;; esac
-  # ONE vendored file, by exact path (ruled 2026-10-20, never every *.tbl): MetPy's sha256-pinned colour table,
-  # whose fractions have sixteen digits after the point. Same exemption as scripts/check_device_ids.py SKIP_PATHS.
-  case "$f" in test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl) continue ;; esac
+  # Pinned vendored files (scripts/device-id-pinned-files.txt, shared with scripts/check_device_ids.py) are skipped
+  # ONLY while their STAGED blob hashes to the pin; any change -- an appended id included -- is scanned like any file.
+  pin=$(tr -d '\r' < "${DEVICE_ID_PINFILE:-scripts/device-id-pinned-files.txt}" 2>/dev/null | awk -v p="$f" '!/^#/ && $1 == p {print $2}')
+  if [ -n "$pin" ] && [ "$(git show ":$f" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$pin" ]; then continue; fi
   # Read the STAGED content, not the worktree: they differ under `git add -p`,
   # and the staged bytes are what the commit will contain.
   hits=$(git show ":$f" 2>/dev/null | grep -oE "$PATTERN" | grep -vE "^($ALLOW)$" | sort -u)

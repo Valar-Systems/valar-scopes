@@ -22,6 +22,8 @@ somebody acts on later -- an example annotation carrying a real id cost an hour
 of genuine alarm mid-incident on 2026-08-31 -- plus a privacy surface once the
 ids belong to customers rather than to a bench.
 """
+import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -55,10 +57,28 @@ SKIP_SUFFIX = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".bin", ".elf", ".zip",
                # CAD: STEP coordinates like 0.02189784694318916 are 16 digits after
                # a word boundary and match the id shape. Not ids, not ours to edit.
                ".step", ".stp", ".stl", ".3mf", ".f3d")
-# ONE vendored file, by exact path (ruled 2026-10-20: narrow, never every *.tbl): MetPy's colour table, pinned
-# unmodified by sha256 for Weatherscope's palette. Its fractions have sixteen digits after the point and match the
-# id shape. Any other file -- another .tbl included -- is still scanned. Same exemption as .githooks/pre-commit.
-SKIP_PATHS = ("test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl",)
+# Vendored files skipped ONLY while their HEAD blob hashes to their pin (#439 review: a path-only exemption let an id
+# appended to the pinned table through). The list is a FILE shared with .githooks/pre-commit, like the allowlist.
+# DEVICE_ID_PINFILE overrides it, as a seam for the guard's own probes.
+PINNED = os.environ.get("DEVICE_ID_PINFILE", "scripts/device-id-pinned-files.txt")
+
+
+def pinned() -> dict:
+    out = {}
+    try:
+        fh = open(PINNED, "rb")
+    except FileNotFoundError:
+        return out   # no list: no exemptions -- stricter, never blinder
+    with fh:
+        for line in fh:
+            f = line.split(b"#")[0].split()
+            if len(f) == 2:
+                out[f[0].decode()] = f[1].decode().lower()
+    return out
+
+
+def pinned_skip(path: str, blob: bytes, pins: dict) -> bool:
+    return path in pins and hashlib.sha256(blob).hexdigest() == pins[path]
 
 
 def tracked_files():
@@ -68,15 +88,18 @@ def tracked_files():
 
 def main() -> int:
     allow = allowed()
+    pins = pinned()
     bad = []
     for raw in tracked_files():
         path = raw.decode("utf-8", "replace")
-        if path.startswith(SKIP_PREFIX) or path.endswith(SKIP_SUFFIX) or path in SKIP_PATHS:
+        if path.startswith(SKIP_PREFIX) or path.endswith(SKIP_SUFFIX):
             continue
         blob = subprocess.run(["git", "show", f"HEAD:{path}"],
                               capture_output=True)
         if blob.returncode != 0:
             continue
+        if pinned_skip(path, blob.stdout, pins):
+            continue  # a pinned vendored file, byte-identical to its pin
         if b"\0" in blob.stdout[:8000]:
             continue  # binary
         hits = {m for m in ID.findall(blob.stdout) if m not in allow}

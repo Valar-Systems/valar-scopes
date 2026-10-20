@@ -15,7 +15,10 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-tbl = [tuple(round(c * 255) for c in ast.literal_eval(l)) for l in open(os.path.join(HERE, "NWSReflectivity-metpy-v1.6.3.tbl")) if l.strip()]
+PIN = "f73f0d6264d420cb55efe79d58415ca056391a0cc607fa0efa061f3331418e2f"   # scripts/device-id-pinned-files.txt
+raw = open(os.path.join(HERE, "NWSReflectivity-metpy-v1.6.3.tbl"), "rb").read().replace(b"\r\n", b"\n")  # autocrlf
+assert hashlib.sha256(raw).hexdigest() == PIN, "the table is not the pinned one -- refusing to render from it"
+tbl = [tuple(round(c * 255) for c in ast.literal_eval(l)) for l in raw.decode().splitlines() if l.strip()]
 assert len(tbl) == 15 and tbl[2] == (0, 0, 246), "not the pinned table"
 DIM = 70   # addendum 4: Daniel's look ruled 70 % for rain code 1
 rain = {1: tuple((v * DIM + 50) // 100 for v in tbl[2]), 13: (255, 255, 255)}

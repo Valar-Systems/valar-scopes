@@ -1,0 +1,8 @@
+# Vendored files the device-id guards skip -- each ONLY while its git blob hashes to the sha256 on its line.
+# Read by BOTH .githooks/pre-commit (the STAGED blob) and scripts/check_device_ids.py (the HEAD blob), like
+# scripts/device-id-allowlist.txt: one list, two readers. Any change to a listed file -- an appended id included --
+# changes its hash, and it is then scanned like any other file. Hash the blob (`git show :<path> | sha256sum`),
+# never the working copy: under core.autocrlf the working copy differs.
+#
+# path                                              sha256 of the blob, as committed
+test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl  f73f0d6264d420cb55efe79d58415ca056391a0cc607fa0efa061f3331418e2f
