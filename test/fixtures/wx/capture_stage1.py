@@ -1,32 +1,40 @@
-"""Weatherscope Stage 1 on the board: read the harness's report once and grade it against B3-B9.
+"""Weatherscope Stage 1 on the board: read the harness's report once and grade it.
 
-    python -I test/fixtures/wx/capture_stage1.py <COMx> <out.txt> [--expect-sha <hex>]
+    python -I test/fixtures/wx/capture_stage1.py <COMx> <out.txt> [--budget] [--expect-sha <hex>] [--control]
 
 ONE open of the port, never repeated (CLAUDE.md, the capture rig: a reattach is an intervention in the
-board). DTR and RTS are held low, which does not reset a running board. Sends one byte -- the harness
-prints its report on any byte -- reads until "WX,end", saves every byte to <out.txt>, then grades:
-  B3 psram_used 144,000-160,000 B      B4 internal_heap_delta <= 2,048 B
-  B5 decode_us 200-2,000               B6 index_us <= 1,500
-  B7 render_us 2,000-10,000            B8 push_us 23,000-32,000
-  B9 the WXFB dump's sha256 == kdfw-60mi.screen.bin's (render_ref.py; 344383b4...) and == the board's own
-     fb_sha256 line. If they differ: how many pixels, and is every difference one cell away (the
-     pre-registered escape hatch -- report, do not tune)?
---expect-sha replaces the reference sha (used for the S-B1 sabotage run, whose dump must NOT match).
---budget grades the ruled budget bars (2026-10-20) instead of B5-B7's retired bands:
-  decode + indices + render + push <= 100 ms per frame, and a projected 15-frame past-hour loop at
-  >= 8 fps (per loop frame: decode + render + push; the indices are worked out once per view).
-Prints values and verdicts; exit 0 when every check reads as predicted, 1 otherwise, 2 if the capture
-itself failed (no "WX,end" before the timeout: the instrument, not the board).
+board). DTR and RTS are held low, which does not reset a running board. Sends one byte -- 'r' for the
+blocking dump, 'D' (with --control) for the old drop-on-stall dump -- reads until "WX,end", saves every
+byte to <out.txt>, then grades.
+
+THE DUMP IS CHECKED ROW BY ROW (docs/weatherscope-stage1.md, addendum 3). Every screen row arrives as
+`WXR,<row>,<crc32>,<base64>`. A row that is missing, duplicated, not valid base64, not 240 bytes, or whose
+zlib CRC-32 disagrees is NAMED, and a capture with any such row is REFUSED: nothing is assembled or graded
+from it (exit 2 -- the instrument, not the board). Only a complete, checked dump is graded:
+  B9  its sha256 == kdfw-60mi.screen.bin's (render_ref.py; 344383b4...) and == the board's own fb_sha256
+--expect-sha <hex>  grade the dump against that sha instead (S-B1, the north/south flip): B9 against the
+                    reference must FAIL, with the disc and echo agreement reported (predicted 52.1 % / 0.6 %).
+--budget            grade the ruled budget bars (2026-10-20): decode + indices + render + push <= 100 ms per
+                    frame, and a projected 15-frame past-hour loop at >= 8 fps (per loop frame: decode +
+                    render + push; the indices are worked out once per view). B5-B7's retired bands print
+                    as reference points.
+--control           send 'D' and stop reading for 1.5 s after 20 rows, so the board's 4 KB TX buffer must
+                    overflow and its 2 ms writes must drop rows. PASS = the capture is refused with at least
+                    one missing row named; anything else means the tags cannot see a loss.
+B3, B4 and B8 are graded against their original bands every time.
 """
 import base64
 import hashlib
 import os
+import re
 import sys
 import time
+import zlib
 
 import serial
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROWS, ROW_BYTES = 240, 240
 BANDS = {   # frozen in docs/weatherscope-stage1.md, Predictions B
     "psram_used": ("B3", 144000, 160000),
     "internal_heap_delta": ("B4", None, 2048),
@@ -35,25 +43,30 @@ BANDS = {   # frozen in docs/weatherscope-stage1.md, Predictions B
     "render_us": ("B7", 2000, 10000),
     "push_us": ("B8", 23000, 32000),
 }
+ROW_RE = re.compile(r"^WXR,(\d+),([0-9a-f]{8}),([A-Za-z0-9+/=]*)$")
 
 
-def capture(port, out, timeout=90):
+def capture(port, out, cmd, stall_after_rows=None, stall_s=1.5, timeout=120):
     s = serial.Serial()
-    s.port, s.baudrate, s.timeout = port, 115200, 0.5
+    s.port, s.baudrate, s.timeout = port, 115200, 0.2
     s.dtr = False
     s.rts = False
     s.open()                                    # the one and only open
     try:
         time.sleep(1.0)
         s.reset_input_buffer()
-        s.write(b"r")
+        s.write(cmd)
         buf = bytearray()
+        stalled = False
         t0 = time.time()
         while time.time() - t0 < timeout:
             chunk = s.read(65536)
             if chunk:
                 buf += chunk
-                if b"WX,end" in buf:
+                if stall_after_rows and not stalled and buf.count(b"\nWXR,") >= stall_after_rows:
+                    time.sleep(stall_s)         # the CONTROL: stop reading, so the board's writes must stall
+                    stalled = True
+                if b"WX,end" in buf[-64:] or buf.rstrip().endswith(b"WX,end"):
                     time.sleep(0.2)
                     buf += s.read(65536)
                     break
@@ -63,32 +76,70 @@ def capture(port, out, timeout=90):
     return bytes(buf)
 
 
+def check_rows(lines):
+    """Returns (rows dict row->bytes, missing, duplicated, corrupt, unparseable line count)."""
+    rows, dup, bad, junk = {}, [], [], 0
+    for l in lines:
+        if not l.startswith("WXR,"):
+            continue
+        m = ROW_RE.match(l)
+        if not m:
+            junk += 1
+            continue
+        y, crc, b64 = int(m.group(1)), int(m.group(2), 16), m.group(3)
+        if not 0 <= y < ROWS:
+            junk += 1
+            continue
+        try:
+            data = base64.b64decode(b64, validate=True)
+        except Exception:
+            bad.append(y)
+            continue
+        if len(data) != ROW_BYTES or zlib.crc32(data) != crc:
+            bad.append(y)
+            continue
+        if y in rows:
+            dup.append(y)
+            continue
+        rows[y] = data
+    missing = [y for y in range(ROWS) if y not in rows and y not in bad]
+    return rows, missing, sorted(set(dup)), sorted(set(bad)), junk
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
         return 2
     port, out = argv[1], argv[2]
-    raw = capture(port, out)
-    text = raw.decode("ascii", errors="replace")
-    if "WX,end" not in text:
+    control = "--control" in argv
+    raw = capture(port, out, b"D" if control else b"r", stall_after_rows=20 if control else None)
+    text = raw.decode("ascii", errors="replace").replace("\r", "")
+    lines = [l.strip() for l in text.split("\n")]
+    if "WX,end" not in lines:
         print(f"CAPTURE FAILED: no WX,end within the timeout ({len(raw)} bytes saved to {out}). The instrument, not the board.")
         return 2
-    lines = [l.strip() for l in text.replace("\r", "").split("\n")]
     wx = {}
-    fb = None
     for l in lines:
-        if l.startswith("WXFB,"):
-            fb = l[5:]
-        elif l.startswith("WX,"):
+        if l.startswith("WX,"):
             parts = l.split(",", 2)
             if len(parts) == 3:
                 wx[parts[1]] = parts[2]
-    print(f"captured {len(raw)} bytes -> {os.path.basename(out)}")
+    print(f"captured {len(raw)} bytes -> {os.path.basename(out)}  (dump mode: {wx.get('dump', '?')})")
+    rows, missing, dup, bad, junk = check_rows(lines)
+    refused = bool(missing or dup or bad)
+    print(f"  rows: {len(rows)}/{ROWS} good; missing {missing}; corrupt {bad}; duplicated {dup}; unparseable lines {junk}")
+    if control:
+        ok = refused and len(missing) >= 1
+        print(f"  CONTROL (drop-on-stall + a 1.5 s host stall): "
+              f"{'REFUSED, missing rows named -> the tags see a loss' if ok else 'NOT refused -> the tags cannot see a loss: STOP'}")
+        return 0 if ok else 1
+    if refused:
+        print(f"  CAPTURE REFUSED: rows missing {missing}, corrupt {bad}, duplicated {dup}. Nothing assembled or graded.")
+        return 2
+
     for k in ("build", "crop", "sprite"):
         print(f"  {k}: {wx.get(k)}")
     ok = True
-    # B5-B7's narrow bands were retired by the 2026-10-20 ruling (recorded MISSES): under --budget, and in
-    # the sabotage run, they print as reference points and the budget bars grade instead.
     retired = {"B5", "B6", "B7"} if ("--budget" in argv or "--expect-sha" in argv) else set()
     for key, (bid, lo, hi) in BANDS.items():
         v = wx.get(key)
@@ -105,53 +156,40 @@ def main(argv):
         ok &= good
         band = f"{'' if lo is None else lo}..{'' if hi is None else hi}"
         print(f"  {bid} {key} = {n:,} (predicted {band}) -> {'as predicted' if good else 'OFF-PREDICTION'}")
+
+    dump = b"".join(rows[y] for y in range(ROWS))
     ref = open(os.path.join(HERE, "kdfw-60mi.screen.bin"), "rb").read()
-    want = argv[argv.index("--expect-sha") + 1] if "--expect-sha" in argv else hashlib.sha256(ref).hexdigest()
-    if fb is None:
-        print("  B9: no WXFB line -> FAIL")
-        return 1
-    try:
-        dump = base64.b64decode(fb, validate=True)
-    except Exception as e:
-        print(f"  B9: WXFB is not valid base64 ({e}) -> FAIL")
-        return 1
     got = hashlib.sha256(dump).hexdigest()
-    print(f"  B9 dump: {len(dump)} bytes, sha256 {got[:16]}; board's own fb_sha256 {wx.get('fb_sha256', '?')[:16]}; "
-          f"{'consistent' if got == wx.get('fb_sha256') else 'INCONSISTENT (transport?)'}")
-    differ = sum(1 for a, b in zip(dump, ref) if a != b) if len(dump) == len(ref) else -1
-    match = got == want
+    want = argv[argv.index("--expect-sha") + 1] if "--expect-sha" in argv else hashlib.sha256(ref).hexdigest()
+    consistent = got == wx.get("fb_sha256")
+    differ = sum(1 for a, b in zip(dump, ref) if a != b)
+    print(f"  dump: {len(dump)} bytes from 240 checked rows, sha256 {got[:16]}; board's own fb_sha256 "
+          f"{wx.get('fb_sha256', '?')[:16]} -> {'consistent' if consistent else 'INCONSISTENT'}")
     print(f"  B9 vs {'the expected sha' if '--expect-sha' in argv else 'render_ref.py'} ({want[:16]}): "
-          f"{'IDENTICAL' if match else 'DIFFERENT'}; {differ} of {len(ref)} pixels differ from the reference screen")
-    ok &= match and got == wx.get("fb_sha256") and len(dump) == 57600
-    if "--expect-sha" in argv and len(dump) == len(ref):
-        # S-B1: the dump must be the predicted flipped screen, so B9 against the reference FAILS.
+          f"{'IDENTICAL' if got == want else 'DIFFERENT'}; {differ} of {len(ref)} pixels differ from the reference screen")
+    ok &= got == want and consistent
+    if "--expect-sha" in argv:
         disc = [i for i in range(len(ref)) if ref[i] != 255]
         echo = [i for i in disc if 1 <= ref[i] <= 13]
         same_disc = 100 * sum(1 for i in disc if dump[i] == ref[i]) / len(disc)
         same_echo = 100 * sum(1 for i in echo if dump[i] == ref[i]) / len(echo)
-        b9_fails = hashlib.sha256(dump).hexdigest() != hashlib.sha256(ref).hexdigest()
+        b9_fails = got != hashlib.sha256(ref).hexdigest()
         print(f"  S-B1: B9 against the reference {'FAILS' if b9_fails else 'PASSES (the sabotage did not bite)'}; "
               f"{same_disc:.1f}% of disc pixels and {same_echo:.1f}% of echo pixels equal the reference "
               f"(predicted 52.1% and 0.6%)")
         ok &= b9_fails
     if "--budget" in argv:
-        # Ruled 2026-10-20 (docs/weatherscope-stage1.md, "Predictions B, addendum 2"): budget bars, not bands.
         try:
             d, ix, r, p = (int(wx[k]) for k in ("decode_us", "index_us", "render_us", "push_us"))
         except (KeyError, ValueError):
             print("  BUDGET: a timing line is missing or unreadable -> FAIL")
             return 1
-        total = d + ix + r + p
-        loop_frame = d + r + p                  # a loop keeps one view: indices once, then decode + render + push
+        total, loop_frame = d + ix + r + p, d + r + p
         fps, fps_strict = 1e6 / loop_frame, 1e6 / total
-        b_total = total <= 100000
-        b_fps = fps >= 8.0
-        print(f"  BUDGET B5'-B8' decode+indices+render+push = {total / 1000:.1f} ms per frame (bar <= 100 ms) -> "
-              f"{'as predicted' if b_total else 'OVER BUDGET'}")
-        print(f"  BUDGET past-hour loop, 15 frames: {loop_frame / 1000:.1f} ms per frame -> {fps:.1f} fps "
-              f"(bar >= 8 fps; counting the indices every frame too: {fps_strict:.1f} fps) -> "
-              f"{'as predicted' if b_fps else 'TOO SLOW'}")
-        ok &= b_total and b_fps
+        print(f"  BUDGET B5'-B8' = {total / 1000:.1f} ms per frame (bar <= 100 ms) -> {'as predicted' if total <= 100000 else 'OVER BUDGET'}")
+        print(f"  BUDGET loop, 15 frames: {loop_frame / 1000:.1f} ms per frame -> {fps:.1f} fps (bar >= 8; "
+              f"{fps_strict:.1f} counting the indices every frame) -> {'as predicted' if fps >= 8 else 'TOO SLOW'}")
+        ok &= total <= 100000 and fps >= 8
     return 0 if ok else 1
 
 

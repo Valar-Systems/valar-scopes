@@ -7,13 +7,21 @@
 //
 // On boot it decodes the crop (include/WxCrop.h) into a code grid in PSRAM, works out each screen row's
 // and column's cell (src/weatherscope/WxRender.h), paints a 240 x 240 PSRAM sprite in the PROVISIONAL palette
-// (not ruled), pushes it once, and reports. Send any byte over serial to get the report again.
+// (not ruled), pushes it once, and reports its measurements -- WITHOUT the dump (see below).
 //
-// Serial, tagged for a single-open capture (scripts/bench-trace.ps1, never a reattaching recorder):
-//   WX,<key>,<value>      one measurement per line (predictions B3-B8)
-//   WXFB,<base64>         the code every pixel was painted from, 57,600 bytes row-major, 255 = off disc
-//   WX,fb_sha256,<hex>    the device's own sha256 of those bytes (prediction B9)
+// Serial, for a single-open capture (test/fixtures/wx/capture_stage1.py, never a reattaching recorder):
+//   WX,<key>,<value>            one measurement per line (predictions B3-B8)
+//   WXR,<row>,<crc32>,<base64>  one screen row: the code every pixel was painted from, 240 bytes, 255 = off
+//                               the disc; crc32 is zlib's, over those 240 raw bytes
+//   WX,fb_sha256,<hex>          the device's own sha256 of all 57,600 bytes (prediction B9)
 //   WX,end
+//
+// THE DUMP IS A MEASURING TOOL, AND IT USED TO LOSE ROWS (2026-10-20, rows 197-200 of one capture). The
+// 2 ms TX timeout below -- right for a log nobody is reading -- drops a write whenever the host stalls. So
+// the dump is printed only ON REQUEST, with BLOCKING writes (up to 2 s), and every row carries its number
+// and checksum so the host can name what is missing rather than miss it. Any byte asks for a report with
+// the blocking dump; 'D' asks for the same report with the old drop-on-stall writes, which exists only
+// for the control that proves the tags see a loss (docs/weatherscope-stage1.md, addendum 3).
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <mbedtls/base64.h>
@@ -68,7 +76,29 @@ void Render()
     canvas.endWrite();
 }
 
-void PrintReport()
+// zlib's CRC-32 (reflected 0xEDB88320, init and final ~0), bit by bit: no table, so no static RAM.
+uint32_t Crc32(const uint8_t* p, size_t n)
+{
+    uint32_t c = 0xFFFFFFFFu;
+    while (n--) {
+        c ^= *p++;
+        for (int k = 0; k < 8; ++k) c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1u)));
+    }
+    return ~c;
+}
+
+void SetTxTimeoutMs(uint32_t ms)
+{
+#if ARDUINO_USB_CDC_ON_BOOT
+    Serial.setTxTimeoutMs(ms);
+#else
+    (void)ms;
+#endif
+}
+
+// withDump = false at boot (nobody may be listening, and a blocking write would stall the board).
+// lossy = true only for the control: the old 2 ms drop-on-stall writes during the dump.
+void PrintReport(bool withDump, bool lossy)
 {
     Serial.printf("WX,build,env=%s\n",
 #ifdef BUILD_ENV
@@ -86,14 +116,19 @@ void PrintReport()
     Serial.printf("WX,index_us,%lu\n", (unsigned long)rep.indexUs);
     Serial.printf("WX,render_us,%lu\n", (unsigned long)rep.renderUs);
     Serial.printf("WX,push_us,%lu\n", (unsigned long)rep.pushUs);
-    if (!grid) { Serial.println("WX,end"); return; }
+    if (!grid || !withDump) {
+        if (grid) Serial.println("WX,dump,on request (any byte: blocking; D: the drop-on-stall control)");
+        Serial.println("WX,end");
+        return;
+    }
 
-    // The dump: the code every pixel was painted from (the same CodeAt the renderer used), streamed in
-    // rows so nothing the size of the screen is allocated.
+    // The dump: the code every pixel was painted from (the same CodeAt the renderer used), one tagged
+    // row per line, streamed so nothing the size of the screen is allocated.
+    SetTxTimeoutMs(lossy ? 2 : 2000);
+    Serial.printf("WX,dump,mode=%s,rows=%d\n", lossy ? "drop-on-stall" : "blocking", wxrender::kSize);
     mbedtls_sha256_context sha;
     mbedtls_sha256_init(&sha);
     mbedtls_sha256_starts(&sha, 0);
-    Serial.print("WXFB,");
     uint8_t rowCodes[wxrender::kSize];
     unsigned char b64[wxrender::kSize * 4 / 3 + 4];
     for (int y = 0; y < wxrender::kSize; ++y) {
@@ -101,9 +136,10 @@ void PrintReport()
         mbedtls_sha256_update(&sha, rowCodes, sizeof rowCodes);
         size_t n = 0;   // 240 bytes is a multiple of 3, so each row encodes on its own with no padding
         mbedtls_base64_encode(b64, sizeof b64, &n, rowCodes, sizeof rowCodes);
+        Serial.printf("WXR,%d,%08lx,", y, (unsigned long)Crc32(rowCodes, sizeof rowCodes));
         Serial.write(b64, n);
+        Serial.println();
     }
-    Serial.println();
     uint8_t digest[32];
     mbedtls_sha256_finish(&sha, digest);
     mbedtls_sha256_free(&sha);
@@ -111,6 +147,7 @@ void PrintReport()
     for (uint8_t b : digest) Serial.printf("%02x", b);
     Serial.println();
     Serial.println("WX,end");
+    SetTxTimeoutMs(2);
 }
 
 }  // namespace
@@ -179,14 +216,15 @@ void setup()
     }
     rep.psramAfter = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     rep.internalAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    PrintReport();
+    PrintReport(false, false);   // measurements only: nobody may be listening yet
 }
 
 void loop()
 {
     if (Serial.available()) {
-        while (Serial.available()) Serial.read();
-        PrintReport();
+        bool lossy = false;   // 'D' anywhere in what arrived: the drop-on-stall control
+        while (Serial.available()) lossy |= Serial.read() == 'D';
+        PrintReport(true, lossy);
     }
     delay(20);
 }
