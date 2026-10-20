@@ -173,6 +173,71 @@ Pure functions with host tests, from `docs/weatherscope-screens.md`:
 
 Stored NWS alert JSON from the 2026-10-20 sample stands in for the feed. **What counts as precipitation for the ring** (code ≥ 1 or higher) is not ruled; 2.0 reports both thresholds, and it needs a ruling before 2.3's code.
 
+## Addendum 1: the #437 review (ruled 2026-10-20; frozen before any download)
+
+**Recorded as received:** approved with three changes, then a go on 2.0 and 2.1. Nothing above is edited. Where this addendum changes 2.0, it governs.
+
+### Change 3: M5 at three thresholds
+
+M5 is reported at code ≥ 1 (15 dBZ), **code ≥ 2 (20 dBZ)** and code ≥ 4 (30 dBZ). Every "M5 agrees" above, the self-comparison control, and the definition of "negligible" now mean **agreeing at all three**.
+
+### Fixed now, so they can't be decided after the data is seen
+
+- **"The centre":** the source grid cell **nearest the airport's coordinates**. The even-sized crops have no single middle pixel. Its code under the ruled mapping is M5(b), and its raw value is what change 1 reports.
+- **How a rule searches:**
+  - The airports are taken in the listed order, and for each one, hours ascending through the date window. The first hour that meets the rule is the hit.
+  - "Consecutive hourly" means routine METARs 50-70 min apart.
+  - Each product's frame for a METAR is its file nearest the observation time.
+- **Weather tokens:**
+  - Precipitation is DZ, RA, SN, SG, IC, PL, GR, GS or UP.
+  - **RA** is a token containing RA. For F3 and F5, a token with SH or TS doesn't count.
+  - **SN** is a token containing SN, but BLSN or DRSN alone doesn't count: blowing snow is not falling snow.
+- **The order frames are measured in:** F1, F2, F3, F5, F4, then change 1's sample. A stop fired by F4 then can't cut short the others.
+
+### Change 2: F5, western ground rain
+
+| frame | site and time | how it is chosen |
+|---|---|---|
+| **F5, western ground rain** | first hit of the rule | **F2's airports in F2's order** (KPHX, KLAS, KABQ, KELP, KDEN, KSLC, KGJT, KRNO, KCYS, KBIL), with **F3's rule and window**: 3 consecutive hourly METARs with RA and no SH or TS, at 5 °C or more, November 2024 to March 2025, ascending; **and no VIRGA remark** in any of the three. The frame is at the middle hour |
+
+**P5, predicted:**
+- **M5 agrees at every threshold.**
+- **SeamlessHSR has echo at the centre** (code ≥ 1).
+- P0 applies, as on every frame.
+
+**Basis:** the rain reaches the ground, and the frame tests whether a high hybrid scan in the mountain West misses real rain.
+
+**Outside the prediction:** SeamlessHSR dry at the centre is exactly the failure this frame exists to catch: **stop and report**.
+
+### Change 1: F4, snow that reads as dry
+
+**The sample:** the **first 24 snowing routine METAR hours** at the F4 airport, with snow per the token rule and no RA, starting at the F4 run's first hour. They need not be consecutive.
+
+**Reported for each product:**
+- the share of those hours whose centre is **below 15 dBZ** (code 0, which reads as dry), with its count out of 24;
+- the centre's raw value in bins: no echo (−99), below 5, 5-10, 10-15, 15 or more dBZ.
+
+**P4b, predicted:**
+- composite **20-50 %**;
+- SeamlessHSR **25-60 %**, and **at least the composite's share** (a column's maximum is at least its lowest height).
+
+**Basis:** light snow (−SN, the commonest snow METAR) is often 5-15 dBZ.
+
+**"Large", fixed now: 20 % or more on either product.** That is a **stop**: the snow threshold needs a ruling before the wire format. **So my prediction is a stop.**
+
+### The answers, recorded
+
+- **2.2 may predict from Stage 1's measured costs**, which were stable to 0.2 %. The frozen B5-B7 bands stay misses; the measurements are fine to predict from.
+- **The ring's threshold** is ruled after 2.0 reports 15, 20 and 30 dBZ, before 2.3's code.
+- **The coordination note** has gone to blipscope-5c through Daniel. The shared parts stay held until it answers.
+
+**Downloads:**
+- about two files per frame per product;
+- the composite files F2's search needs;
+- 24 × 2 for change 1.
+
+All of them stay in the scratchpad, never in git.
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
