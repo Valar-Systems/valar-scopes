@@ -637,3 +637,36 @@ The board matched only the model C2 predicted.
 - **blipscope-5c's review then found a hole.** Its probe (d) appended an id to the pinned table, and both guards let it through: the sha256 pin existed only in prose.
 - **Fixed (`a0c34e9`):** the guards skip the table **only while its blob hashes to the pin**. The hook hashes the staged blob and the checker the HEAD blob, both from one list, `scripts/device-id-pinned-files.txt`.
 - **Probes (a)-(d), plus (d-real) on the real path, all as intended.** blipscope-5c's re-review is pending.
+
+### 2.1, Daniel's second look applied (addendum 5): all as predicted
+
+**Code:** #439 at `10e5012`. Rain code 1 is at 55 % and final; the greys are final.
+
+**The snow colours.** These were chosen **after** addendum 5 froze the thresholds (`50fd4dd`), as design against them, and then measured by the host test:
+- **The construction:** six entries, interpolated evenly in CIELAB from a medium sky blue `(0, 110, 210)` to a pale blue `(170, 212, 250)`. Code 6's colour holds through 13.
+- **Why a table:** a linear RGB ramp between sky-blue endpoints left its last steps at about 7.7-10.0, at or under the bar. Even CIELAB steps give each step about the same visible size.
+
+| check | frozen | result | |
+|---|---|---|---|
+| **C3h**: adjacent snow codes 1-6 | ΔE\*ab ≥ 10 each | **10.8 / 10.9 / 10.5 / 10.7 / 11.0** | ✓ |
+| **C3i**: snow 13 against rain 13 (white) | ΔE\*ab ≥ 20 | **28.9** | ✓ |
+| C3g at 55 % | ΔE ≥ 40, ΔL\* ≥ 25 | **50.0, 32.6** | ✓ |
+| C3a-f, the pin, the `sha` and `lab` controls | pass | **all pass**; ALL HOST TESTS PASSED, 0 B on stderr | ✓ |
+| The sabotages | each fails exactly its own checks | **all seven as predicted**: S-h fails exactly C3h (steps 0.4-0.9); S-i exactly C3i (6.4); S-C3ef exactly (e), (f) and (i); S-C3g, S-C3a, S-C3c and S-PIN as before | ✓ |
+| Build | ±256 B RAM; flash < +4 KB | **26,912 B; 465,447 B** | ✓ |
+| **C1** | B9 `344383b4…` | **identical**, 240/240 rows | ✓ |
+| **C2** | board = `palette_ref.py` at 55 %, `a88c3a99fa5c…`, committed before flashing | **identical** | ✓ |
+| B3, B4, B8; B5-B7; budget | in band; MISS within ±10 %; met | 153,608 B, 0 B, 25.801 ms; 2.867 / 3.585 / 22.612 ms (render **+2.7 %**); 54.9 ms, 19.5 fps | ✓ |
+
+**How it ran:**
+- **The flash:** the port was resolved from the serial, MAC `90:70:69:32:6e:64`, all four images verified, image `a3585a89d356…`.
+- **The capture:** outside the clone, `captures/wx-2.1-add5-154751.txt` (81,694 B, sha256 `efa5ef56ec51…`).
+
+**The board alternates** the KDFW frame (rain code 1 at 55 %) and the card **for Daniel's last look, at snow only.** The card shows:
+- the final rain row;
+- the snow row, with taller swatches;
+- no coverage, hatched missing, and dry.
+
+**Also on #439 since addendum 4:**
+- **`601a236` / `162ad9f`:** the palette test enforces the table's sha256 pin itself (SHA-256 checked against the "abc" vector), with sabotage S-PIN.
+- **A slip of mine:** `601a236` carried an id-shaped probe token. The device-id hook refused it, but the hook isn't installed in my clone and I had chained it with `;`, so the commit went through. **CI's `no-real-device-ids` caught it** (red on `601a236`, green on `162ad9f`), and it was fixed forward with the allowlisted synthetic id.
