@@ -54,10 +54,11 @@ SKIP_SUFFIX = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".bin", ".elf", ".zip",
                ".woff", ".woff2", ".ttf", ".pdf", ".lock",
                # CAD: STEP coordinates like 0.02189784694318916 are 16 digits after
                # a word boundary and match the id shape. Not ids, not ours to edit.
-               ".step", ".stp", ".stl", ".3mf", ".f3d",
-               # Colour tables vendored unmodified from MetPy (test/fixtures/wx/, sha256-pinned): fractions
-               # with sixteen digits after the point match the id shape too. Not ids, not ours to edit.
-               ".tbl")
+               ".step", ".stp", ".stl", ".3mf", ".f3d")
+# ONE vendored file, by exact path (ruled 2026-10-20: narrow, never every *.tbl): MetPy's colour table, pinned
+# unmodified by sha256 for Weatherscope's palette. Its fractions have sixteen digits after the point and match the
+# id shape. Any other file -- another .tbl included -- is still scanned. Same exemption as .githooks/pre-commit.
+SKIP_PATHS = ("test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl",)
 
 
 def tracked_files():
@@ -70,7 +71,7 @@ def main() -> int:
     bad = []
     for raw in tracked_files():
         path = raw.decode("utf-8", "replace")
-        if path.startswith(SKIP_PREFIX) or path.endswith(SKIP_SUFFIX):
+        if path.startswith(SKIP_PREFIX) or path.endswith(SKIP_SUFFIX) or path in SKIP_PATHS:
             continue
         blob = subprocess.run(["git", "show", f"HEAD:{path}"],
                               capture_output=True)
