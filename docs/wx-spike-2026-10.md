@@ -205,3 +205,29 @@ Download, gunzip, decode, quantise to 4-bit and pack two cells per byte (12.25 M
   - **The local-workerd measurement was not run:** it would lean on the same kind of meter.
 
 **STOP, report: A2's distribution and A4 are off-prediction.** A3 and A5 are as predicted. A6 (the 2-hour live poll) is still running and will be recorded when it ends. A4-workerd and A7 wait for a ruling.
+
+## Ruling 2026-10-20 (after A2/A4): the long-run form, and A2's new predictions, frozen BEFORE the encoder changes
+
+**Wire format v1, run encoding (amended; nothing has shipped, so it stays v1).** The body is a sequence of runs, row-major from the NW cell; **runs may cross row ends**.
+- Each run starts with one byte: **code in the high nibble**, **length 1-15 in the low nibble**.
+- **A low nibble of 0 means a long run**: the length follows as an **unsigned LEB128 varint**. The varint carries the whole run length.
+- The 4-bit codes are unchanged (0 / 1-13 / 14 / 15, as in the table above).
+- Part B's device decoder implements exactly this.
+
+**A2 predictions under the long-run form.** Same 300 frames, same 50 airports, same radii:
+
+| radius | p50 | p95 | max |
+|---|---|---|---|
+| 40 km | **≤ 0.15 KB** (from 0.44) | **~1.2 KB** (from 1.52) | **~2.6 KB** (from 2.79) |
+| 80 km | **~0.3 KB** (from 1.68) | **~4 KB** (from 5.03) | **~8.5 KB** (from 8.93) |
+| 160 km | **~1.5 KB** (from 6.71) | **~13 KB** (from 16.25) | **~29 KB** (from 30.45) |
+
+- **Why the p50 falls far and the p95/max barely:** dry areas collapse into long runs (a uniform 160 km crop is ~36 B: the header plus one long run), but rain fields are noisy at 5 dBZ classes and are mostly runs of 1-15 that already cost one byte.
+- **A uniform crop** (all one code) is **≤ 40 B** at every radius.
+- **Still 0 crops over 32 KB, and 0 coarsened.**
+
+**Round-trip check (new):** `decode(encode(crop))` equals the crop's source cells **bit for bit on all 45,000 crops**. Predicted **45,000 / 45,000**.
+- **Sabotage:** an off-by-one in the long-run length (the encoder writes length − 1). The check must fail.
+- Predicted: **≥ 95 %** of crops fail, i.e. every crop with at least one long run, which on this day is nearly all of them.
+- If the round trip passes, **A3 and A5 stand without a re-run**: the cell values do not change.
+
