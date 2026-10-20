@@ -189,6 +189,30 @@ Two extra checks, not in the frozen table, also passed:
 
 **All of A matches the predictions.** Nothing was off-prediction, and nothing was re-run or tuned.
 
+### A, addendum: the #429 review (2026-10-20, code at `1f51721`, predictions in `a893c6f`)
+
+| check | predicted | result | |
+|---|---|---|---|
+| A3.8. Zero-length long run (`00 00`) appended | `ZeroRun` | **`ZeroRun`**, nothing emitted | ✓ |
+| A3.9. Cell height 0 | `ZeroCellHeight` | **`ZeroCellHeight`** | ✓ |
+| A3.10. Cell width 0 | `ZeroCellWidth` | **`ZeroCellWidth`** | ✓ |
+| A3.11. Reserved byte 7 = 1 | `ReservedByte` | **`ReservedByte`** | ✓ |
+| A3.12. Flags `0x02` | `UnknownFlags` | **`UnknownFlags`** | ✓ |
+| A3 in all | 12/12 | **12/12** | ✓ |
+| A1, A2, A4, A5, A6, A7, A8 | unchanged | **unchanged**: 4/4, 3/3, 50/50, 50/50, 0, 3,741 runs, the same headers | ✓ |
+
+| sabotage | predicted | result | |
+|---|---|---|---|
+| S-A1. No run-total check | A2 fails 1, A5 fails 50/50 | exactly those two | ✓ |
+| S-A2. An allocation per call | A6 ≥ 1 per decode | **185**: one per decoder call (175 + 10 for the five new mutations) | ✓ |
+| S-A3a. No zero-run check | A3 fails exactly 1 | **exactly 1**: the appended `00 00` | ✓ |
+| S-A3b. No cell-size checks | A3 fails exactly 2 | **exactly 2**: height and width | ✓ |
+| S-A3c. No reserved-byte or flags checks | A3 fails exactly 2 | **exactly 2**: reserved byte and flags | ✓ |
+
+- **Stricter runner:** each sabotage must now fail **exactly** its predicted checks and nothing else.
+- **The real header** was unchanged throughout.
+- **The whole host suite** passes, with 0 bytes on stderr.
+
 ### B: the env on the board
 
 Not started. The `platformio.ini` env and the `skus.yml` row wait for the decoder to pass (it has) and for `blipscope-5c`'s word on shared files. The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`.
