@@ -153,6 +153,24 @@ Each gets its own A3 mutation of the KDFW crop. The run-callback contract become
 
 **Left lenient, on purpose:** a long run of length 1-15 (non-canonical) is still accepted. The encoder never writes one, and it can neither overrun nor underrun. The header comment says so.
 
+## Predictions B, addendum: B2' (2026-10-20, frozen before re-measuring)
+
+**B2 stays recorded as a MISS** (see Results). It was a prediction error: the framework's static RAM is about 25.7 KB, not about 20 KB, and the harness adds 1,116 B. The original B2 line above is not edited. Ruled 2026-10-20: re-register.
+
+**Changes between the B2 measurement (`33c5b10`) and the re-measurement:**
+- `#429`'s review fixes: five refusals, all code and string literals, no static data;
+- `src/weather/` renamed to `src/weatherscope/` (ruled 2026-10-20, so it can't collide with the Blipscope weather layer);
+- the env block moved after the `animtest` group.
+
+None of these adds or removes a variable.
+
+| check | predicted | basis |
+|---|---|---|
+| B2'. Static RAM (build output) | **26,568-27,080 B** (26,824 ± 256) | measured base 25,708 B + harness 1,116 B; no static data changes |
+| B1, re-measured. Flash (build output) | **463,235-464,500 B**, still inside B1's 435-485 KB | `33c5b10` plus a few hundred bytes for the new checks and their status names |
+
+**Off these bands:** stop and report, as before.
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
