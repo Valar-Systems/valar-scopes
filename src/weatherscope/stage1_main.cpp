@@ -31,6 +31,9 @@
 #include "WxCrop.h"
 #include "WxRender.h"
 #include "variants/Variant.h"
+#ifdef WX_STAGE1_DIAG
+#include <algorithm>   // stage1_diag.h is included inside the namespace below
+#endif
 
 extern const uint8_t kdfw_crop_start[] asm("_binary_test_fixtures_wx_kdfw_60mi_wxc_start");
 extern const uint8_t kdfw_crop_end[] asm("_binary_test_fixtures_wx_kdfw_60mi_wxc_end");
@@ -76,6 +79,10 @@ void Render()
     canvas.endWrite();
 }
 
+#ifdef WX_STAGE1_DIAG
+#include "stage1_diag.h"   // the diagnostic run: env weatherscope-s3-128-diag only
+#endif
+
 // zlib's CRC-32 (reflected 0xEDB88320, init and final ~0), bit by bit: no table, so no static RAM.
 uint32_t Crc32(const uint8_t* p, size_t n)
 {
@@ -116,6 +123,9 @@ void PrintReport(bool withDump, bool lossy)
     Serial.printf("WX,index_us,%lu\n", (unsigned long)rep.indexUs);
     Serial.printf("WX,render_us,%lu\n", (unsigned long)rep.renderUs);
     Serial.printf("WX,push_us,%lu\n", (unsigned long)rep.pushUs);
+#ifdef WX_STAGE1_DIAG
+    PrintDiagnostics();
+#endif
     if (!grid || !withDump) {
         if (grid) Serial.println("WX,dump,on request (any byte: blocking; D: the drop-on-stall control)");
         Serial.println("WX,end");
@@ -216,6 +226,9 @@ void setup()
     }
     rep.psramAfter = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     rep.internalAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#ifdef WX_STAGE1_DIAG
+    RunDiagnostics();   // AFTER the measured boot path (the cold run) and its memory readings
+#endif
     PrintReport(false, false);   // measurements only: nobody may be listening yet
 }
 

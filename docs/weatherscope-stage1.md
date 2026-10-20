@@ -279,6 +279,8 @@ These are reported, not re-graded.
 - **B5** is mostly C2', the PSRAM fill, not flash.
 - **B7** is mostly C3, the per-call overhead.
 
+**Note added before any measurement (2026-10-20), found by testing the grader on synthetic lines:** my expected range for C2, about 2.2-2.7 ms warm, **straddles** C2's ruled-out threshold (85 % of cold, about 2.44 ms). Only the part of that range at 2.44 ms or above matches my bet ("ruled out"); a warm D-flash median from 1.72 to 2.43 ms grades **partial**, which is **off my bet**. The thresholds are not changed. This note only says which of my own numbers the bet actually covers.
+
 **Pre-registered outcomes off the table:**
 - The cold run outside ±10 % of the boot numbers: stop (the instrument).
 - Any identity check failing, other than I-float's counted indices: stop and report.
