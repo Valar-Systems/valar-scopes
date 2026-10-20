@@ -321,3 +321,24 @@ own latitude, instead of as one constant.
 - **Coverage stays asserted as before:** 0 uncovered.
 - **Outside the set:** stop and report.
 
+### WS4′ results (2026-10-20): AS PREDICTED
+
+| | result |
+|---|---|
+| graded: violations | **0** in **1,097,376** corner-edge checks (34,293 cases × 8 corners × 4 edges) |
+| graded: sabotage, padding 3 against the padding-2 bound | **264,814** violations: red |
+| graded: coverage | 0 uncovered, unchanged |
+| printed: worst overshoot | 4.180 cells, the same as WS4 |
+| printed: largest per-case bound | **4.301** cells, against my ≈ 4.29 |
+| printed: smallest margin | **−3.7 × 10⁻¹³** cells, inside the 1e-9 tolerance |
+
+**The largest bound is 4.301, not ≈ 4.29.** The estimate took 0.5 km / (111 × cos 55°) alone. The bound
+also carries cos(lat)'s change across lat ± 0.005°, and the sweep's last row is 55.0 with corners at
+55.005. This was printed, not graded, and the gap is in the bound's favour of being honest rather than
+loose.
+
+**The margin is zero to floating point, so the bound is tight, not loose.** At some corner the outward
+rounding approaches its full cell from below, at the same corner where the wire offset is at its maximum.
+The overshoot then equals the bound to 10⁻¹³. That is what the ruling asked for: a bound built from the
+real terms that real cases reach, not a constant like 4.3 that is loose almost everywhere.
+

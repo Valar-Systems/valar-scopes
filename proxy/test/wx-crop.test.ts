@@ -141,6 +141,7 @@ function coverage(lat: number, lon: number, r: number, fw: ViewConsts, pad: numb
   const cropW = CONUS.lo1 + b.c0 * CONUS.di - CONUS.di / 2, cropE = CONUS.lo1 + (b.c0 + b.cols - 1) * CONUS.di + CONUS.di / 2;
   let uncovered = 0, over = 0;
   const E = 1e-9;
+  const corners: Array<{ N: number; S: number; W: number; E: number }> = [];
   for (const dLat of [-0.005, 0.005]) for (const dLon of [-0.005, 0.005]) for (const dR of [-0.5, 0.5]) {
     const pl = q.lat + dLat, pn = q.lon + dLon, rr = Math.max(0.5, q.rKm + dR);
     const { radLat, radLon } = viewDegrees(pl, rr, fw);
@@ -149,9 +150,11 @@ function coverage(lat: number, lon: number, r: number, fw: ViewConsts, pad: numb
     if (cropS > vS + E) uncovered++;
     if (cropW > vW + E) uncovered++;
     if (cropE < vE - E) uncovered++;
-    over = Math.max(over, (cropN - vN) / CONUS.dj, (vS - cropS) / CONUS.dj, (vW - cropW) / CONUS.di, (cropE - vE) / CONUS.di);
+    const o = { N: (cropN - vN) / CONUS.dj, S: (vS - cropS) / CONUS.dj, W: (vW - cropW) / CONUS.di, E: (cropE - vE) / CONUS.di };
+    corners.push(o);
+    over = Math.max(over, o.N, o.S, o.W, o.E);
   }
-  return { uncovered, over };
+  return { uncovered, over, corners, q };
 }
 
 describe("WS4: the crop covers the radar's view", () => {
@@ -163,12 +166,13 @@ describe("WS4: the crop covers the radar's view", () => {
     expect(fw).toEqual(VIEW);
   });
 
-  it("every sweep case is covered, with an overshoot of at most 4 cells", () => {
+  // WS4's frozen "overshoot <= 4 cells" FAILED (worst 4.180) and stays a miss in the record (docs/wx-server.md).
+  // By ruling it is re-registered as WS4' below; the worst overshoot is still printed here, not asserted.
+  it("every sweep case is covered", () => {
     let bad = 0, worst = 0, n = 0;
     for (const s of sweep()) { n++; const c = coverage(s.lat, s.lon, s.r, fw!, PAD_CELLS); bad += c.uncovered; worst = Math.max(worst, c.over); }
     console.log(`WS4 cases ${n}, uncovered edges ${bad}, max overshoot ${worst.toFixed(3)} cells`);
     expect(bad).toBe(0);
-    expect(worst).toBeLessThanOrEqual(4);
   });
 
   it("SABOTAGE: padding 0 must leave some view uncovered", () => {
@@ -176,5 +180,56 @@ describe("WS4: the crop covers the radar's view", () => {
     for (const s of sweep()) bad += coverage(s.lat, s.lon, s.r, fw!, 0).uncovered;
     console.log(`WS4 sabotage (pad 0) uncovered edges ${bad}`);
     expect(bad).toBeGreaterThan(0);
+  });
+});
+
+// ---- WS4': the overshoot, against a per-case bound from the same terms (re-registered by ruling) ---------
+/** bound(edge) = frozen padding + 1 (outward rounding) + the case's own wire offset, in cells. The offsets
+ *  are the 0.005 deg lat/lon rounding plus the range's +-0.5 km, through ProjectAt's own rule (clamp, floor,
+ *  cos floor) at the quantised lat, and -- for W/E -- at lat +- 0.005, so lat rounding's effect on cos(lat)
+ *  is in it. Corners suffice: radLat/radLon are monotonic in r, and radLon in lat over 20-55 N. */
+function bounds(q: { lat: number; rKm: number }, fw: ViewConsts) {
+  const base = viewDegrees(q.lat, q.rKm, fw);
+  let dLat = 0, dLon = 0;
+  for (const dR of [-0.5, 0.5]) {
+    const rr = Math.max(0.5, q.rKm + dR);
+    dLat = Math.max(dLat, Math.abs(base.radLat - viewDegrees(q.lat, rr, fw).radLat));
+    for (const dl of [-0.005, 0.005]) dLon = Math.max(dLon, Math.abs(base.radLon - viewDegrees(q.lat + dl, rr, fw).radLon));
+  }
+  const ns = PAD_CELLS + 1 + (0.005 + dLat) / CONUS.dj, ew = PAD_CELLS + 1 + (0.005 + dLon) / CONUS.di;
+  return { N: ns, S: ns, W: ew, E: ew };
+}
+
+function ws4prime(pad: number, fw: ViewConsts) {
+  let checks = 0, violations = 0, worstOver = 0, maxBound = 0, minMargin = Infinity;
+  const TOL = 1e-9;
+  for (const s of sweep()) {
+    const c = coverage(s.lat, s.lon, s.r, fw, pad);
+    const b = bounds(c.q, fw);
+    maxBound = Math.max(maxBound, b.N, b.W);
+    for (const o of c.corners) for (const e of ["N", "S", "W", "E"] as const) {
+      checks++;
+      worstOver = Math.max(worstOver, o[e]);
+      minMargin = Math.min(minMargin, b[e] - o[e]);
+      if (o[e] > b[e] + TOL) violations++;
+    }
+  }
+  return { checks, violations, worstOver, maxBound, minMargin };
+}
+
+describe("WS4': the overshoot is within each case's own bound", () => {
+  const fw = parseView(firmware);
+  it("0 violations in 1,097,376 corner-edge checks", () => {
+    expect(fw, "BLIND: the projection constants were not found exactly once").not.toBeNull();
+    const r = ws4prime(PAD_CELLS, fw!);
+    console.log(`WS4' checks ${r.checks}, violations ${r.violations}, worst overshoot ${r.worstOver.toFixed(3)}, ` +
+      `max bound ${r.maxBound.toFixed(3)}, min margin ${r.minMargin.toExponential(3)} cells`);
+    expect(r.checks).toBe(1_097_376);
+    expect(r.violations).toBe(0);
+  });
+  it("SABOTAGE: padding 3 (bound still from padding 2) must give violations > 0", () => {
+    const r = ws4prime(3, fw!);
+    console.log(`WS4' sabotage (pad 3) violations ${r.violations} of ${r.checks}`);
+    expect(r.violations).toBeGreaterThan(0);
   });
 });
