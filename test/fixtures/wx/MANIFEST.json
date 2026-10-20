@@ -1,0 +1,548 @@
+{
+ "format": "WXC1 (docs/wx-spike-2026-10.md, 'Wire format v1', on spike/wx-overlay)",
+ "inputs": {
+  "encoder": "spike/wx-overlay tools/wx/crop.ts, last changed at 9147fd9579c8e1f2b0c751a935ba2a14f71e9110",
+  "decoder": "spike/wx-overlay tools/wx/mrms.ts, last changed at 681c80999bc347f05d5326fd4afb7b4a8e350b0d",
+  "noaaObject": "s3://noaa-mrms-pds/CONUS/MergedReflectivityQCComposite_00.50/20240521/MRMS_MergedReflectivityQCComposite_00.50_20240521-220042.grib2.gz",
+  "noaaSha256": "0bd824f76981ae5f470f52a5e19f0d69257d5fd7c99ab4634ef67eca6ef42829",
+  "frameValid": "2024-05-21T22:00:42Z",
+  "capBytes": 32768
+ },
+ "fixtures": [
+  {
+   "name": "kdfw-60mi.wxc",
+   "bytes": 4033,
+   "sha256": "107aefc8ce956f0f11b2725b43bb0b45e8f38ffc4a335d8705a9f744c055f5dd",
+   "header": {
+    "version": 1,
+    "coarsen": 1,
+    "flags": 0,
+    "frameEpoch": 1716328842,
+    "rows": 174,
+    "cols": 208
+   },
+   "params": {
+    "airport": "KDFW",
+    "radiusKm": 96.56064,
+    "radiusMi": 60
+   },
+   "expect": {
+    "cells": 36192,
+    "codesSha256": "5d31301044fc359203fef39112019e1abe6922aeecf3de9cb064ebea8d44a544",
+    "histogram": {
+     "0": 26790,
+     "1": 3164,
+     "2": 2336,
+     "3": 1395,
+     "4": 1071,
+     "5": 748,
+     "6": 388,
+     "7": 214,
+     "8": 62,
+     "9": 23,
+     "10": 1
+    }
+   }
+  },
+  {
+   "name": "kphx-40km-uniform.wxc",
+   "bytes": 35,
+   "sha256": "041d12d09a1491b5d9ba0e9549462d7cdf847b1b5493aa256550cfa704daaa20",
+   "header": {
+    "version": 1,
+    "coarsen": 1,
+    "flags": 0,
+    "frameEpoch": 1716328842,
+    "rows": 72,
+    "cols": 88
+   },
+   "params": {
+    "airport": "KPHX",
+    "radiusKm": 40
+   },
+   "expect": {
+    "cells": 6336,
+    "codesSha256": "822c2cdfbc7a6e5f4dd355251f4dfc9af1b1a64152464b9b83c5007eeed0f346",
+    "histogram": {
+     "0": 6336
+    }
+   }
+  },
+  {
+   "name": "phnl-60mi-outside-grid.wxc",
+   "bytes": 36,
+   "sha256": "ff2ff5f6652580b96e8eec9f644c3afc5055df1f8308cd00ea2cfeab806f3f24",
+   "header": {
+    "version": 1,
+    "coarsen": 1,
+    "flags": 0,
+    "frameEpoch": 1716328842,
+    "rows": 174,
+    "cols": 187
+   },
+   "params": {
+    "airport": "PHNL",
+    "radiusKm": 96.56064,
+    "radiusMi": 60
+   },
+   "expect": {
+    "cells": 32538,
+    "codesSha256": "36033fc34fa69ea14e505143ed2c8069ebd95bfaf586c684ece3a8d4228e52f8",
+    "histogram": {
+     "14": 32538
+    }
+   }
+  },
+  {
+   "name": "kmsp-222km-coarsened.wxc",
+   "bytes": 10867,
+   "sha256": "9be027a3b64a78d61c27d38ee0867601ac565aa8275585a0d3ebd421713fab06",
+   "header": {
+    "version": 1,
+    "coarsen": 2,
+    "flags": 1,
+    "frameEpoch": 1716328842,
+    "rows": 200,
+    "cols": 282
+   },
+   "params": {
+    "airport": "KMSP",
+    "radiusKm": 222
+   },
+   "expect": {
+    "cells": 56400,
+    "codesSha256": "3758c06534aaf3c9c05fd404d6be3f6f692667e2f166a83ca593d1c65d05ba9c",
+    "histogram": {
+     "0": 26580,
+     "1": 6185,
+     "2": 7021,
+     "3": 5502,
+     "4": 4993,
+     "5": 3299,
+     "6": 1793,
+     "7": 887,
+     "8": 140
+    }
+   }
+  },
+  {
+   "name": "neg-bad-magic.wxc",
+   "bytes": 4033,
+   "sha256": "6909c0f2aa314fe6ced18b61ef4e7c17c3176f89a5495dc0ae5181950f80024c",
+   "header": {
+    "version": 1,
+    "coarsen": 1,
+    "flags": 0,
+    "frameEpoch": 1716328842,
+    "rows": 174,
+    "cols": 208
+   },
+   "params": {
+    "from": "kdfw-60mi.wxc",
+    "change": "byte 0 'W' -> 'X'"
+   },
+   "expect": {
+    "refuse": "not a WXC1 crop"
+   }
+  },
+  {
+   "name": "neg-run-short.wxc",
+   "bytes": 4031,
+   "sha256": "44fe94b512c7974202e7aa2fc37055556d5f45593e99fc0510f73448acf363ea",
+   "header": {
+    "version": 1,
+    "coarsen": 1,
+    "flags": 0,
+    "frameEpoch": 1716328842,
+    "rows": 174,
+    "cols": 208
+   },
+   "params": {
+    "airport": "KDFW",
+    "radiusKm": 96.56064,
+    "radiusMi": 60,
+    "sabotage": "crop.ts longRunOffByOne: every long run written one short"
+   },
+   "expect": {
+    "refuse": "crop body decodes to 35988 cells, header says 36192"
+   }
+  },
+  {
+   "name": "neg-truncated-leb128.wxc",
+   "bytes": 640,
+   "sha256": "49676e8b36f6bd270405a210854a11aac740090be715bbdd2fae3187feb29ab2",
+   "header": {
+    "version": 1,
+    "coarsen": 1,
+    "flags": 0,
+    "frameEpoch": 1716328842,
+    "rows": 174,
+    "cols": 208
+   },
+   "params": {
+    "from": "kdfw-60mi.wxc",
+    "change": "cut after byte 640, inside a LEB128 length"
+   },
+   "expect": {
+    "refuse": "truncated long-run length"
+   }
+  }
+ ],
+ "corpus": {
+  "good": "corpus-60mi.bin",
+  "sabotaged": "corpus-60mi-sabotaged.bin",
+  "note": "records of [u32 LE length][crop]; each good crop must decode to cellsSha256; each sabotaged twin that differs must be refused",
+  "records": [
+   {
+    "airport": "KSFO",
+    "bytes": 36,
+    "cells": 38280,
+    "cellsSha256": "e2ffe8549558b420775fd081a62b5f19547ee9ad81b15e16429ef03eb3f46a63",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KLAS",
+    "bytes": 36,
+    "cells": 37584,
+    "cellsSha256": "ec89bcda7ac479d18c2f75f3c86b942841a8f6168b0757a44ad2be715ae62abb",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KPHX",
+    "bytes": 36,
+    "cells": 36192,
+    "cellsSha256": "10b5643f0ad088db99f6384d5dd2a1b8560bad926893635c439ec6cd0f6bd359",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KSLC",
+    "bytes": 104,
+    "cells": 40020,
+    "cellsSha256": "e5f9bcd5b533ea029b81cd1831ffa1423b696bd15d80a4ec9d95c4a11c130dde",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KDEN",
+    "bytes": 5672,
+    "cells": 39672,
+    "cellsSha256": "8659875c87f480c79e5ddf3bfecd9ec76600086b590f9a26d13abebc66601946",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KABQ",
+    "bytes": 36,
+    "cells": 36888,
+    "cellsSha256": "37ee6eec1708c22b914b1192f1125db7aa9a1819b021b6c16821625fc265127a",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KELP",
+    "bytes": 36,
+    "cells": 35844,
+    "cellsSha256": "0bbafc1b9d0bb900021318afda1faa14224213aaa15ddfef150868dce6c0629c",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBIL",
+    "bytes": 3818,
+    "cells": 43500,
+    "cellsSha256": "6c1840aa4a8416c3c28e118ec68daef36ce9fa4e004508b997695988aac2c8e5",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KRAP",
+    "bytes": 4545,
+    "cells": 42108,
+    "cellsSha256": "f2b490185acbd882b0b1b97f719d83c9a47a1b0d83c91ee0c177fc9a95063347",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KFAR",
+    "bytes": 9295,
+    "cells": 44196,
+    "cellsSha256": "b84621c9c0a679f723bb6cbd82ae8864a381a4e83d10c36b4500add9f7a48a90",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KMSP",
+    "bytes": 11880,
+    "cells": 42804,
+    "cellsSha256": "0ae8e6ca556b4c7303e7ba36dd22271a73a04c0e56117d157eb2f90ee4cd6c70",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KDSM",
+    "bytes": 7920,
+    "cells": 40368,
+    "cellsSha256": "ae7cb5087e920efde2245551d02cce35b6bc82ef69a8960ad8ceba4e9ff8f1c6",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KOMA",
+    "bytes": 1828,
+    "cells": 40368,
+    "cellsSha256": "55b12155cb859afa1085662bce59e38f33f840f1ed55dff78a0c8aca451bb3b2",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KMCI",
+    "bytes": 2585,
+    "cells": 39324,
+    "cellsSha256": "4fb95d191019e88e8173c064f1f289e1a0b6341584cc0dcae7e56dae380524b9",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KOKC",
+    "bytes": 850,
+    "cells": 37236,
+    "cellsSha256": "16b98652de888b6c5dd8d0478d2606d83f827e1884e3fdba8db2c474c64c9edb",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KDFW",
+    "bytes": 4033,
+    "cells": 36192,
+    "cellsSha256": "5d31301044fc359203fef39112019e1abe6922aeecf3de9cb064ebea8d44a544",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KSAT",
+    "bytes": 36,
+    "cells": 34800,
+    "cellsSha256": "b57258eb6f5eb02b50d678cc59925d0469b860e2663bb6e44c3288fe1ba16931",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KMAF",
+    "bytes": 36,
+    "cells": 35844,
+    "cellsSha256": "0bbafc1b9d0bb900021318afda1faa14224213aaa15ddfef150868dce6c0629c",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KAMA",
+    "bytes": 36,
+    "cells": 37236,
+    "cellsSha256": "f0d39824853a8de4be8a3a2f619d6a8b8b60b6b355b8a0e6d9e4606939308d6b",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KLBB",
+    "bytes": 36,
+    "cells": 36540,
+    "cellsSha256": "77d0459f2b5d7abf7342310805d5791f6bb863724ccbf886ed35212dcd978f24",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KMSY",
+    "bytes": 36,
+    "cells": 35148,
+    "cellsSha256": "e451abc281a6a9a4a8d8b901ea2903a18ed4c72b0564e76703a3f42445a4d7b1",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KMEM",
+    "bytes": 36,
+    "cells": 36888,
+    "cellsSha256": "37ee6eec1708c22b914b1192f1125db7aa9a1819b021b6c16821625fc265127a",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KSTL",
+    "bytes": 36,
+    "cells": 38976,
+    "cellsSha256": "174961d5efed9b437f34d96fd570b3e8b797ea79f1ddb48d1a7b64a790d119ed",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KORD",
+    "bytes": 40,
+    "cells": 40716,
+    "cellsSha256": "919f4894141d3a31c951161a399db6f67918e6733e6eac2327a9a4748f9ed984",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KDTW",
+    "bytes": 369,
+    "cells": 41064,
+    "cellsSha256": "919164645d7b01d7d1b7511c8f6854d1c1a5f9e7b2783b3a8ba0ff8a19bd48a5",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KCLE",
+    "bytes": 84,
+    "cells": 40368,
+    "cellsSha256": "4eaacfbfe90c21fcb1e65be8195fd4a9274b08e4d6dbca7d2f1fa091c955f5c8",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KIND",
+    "bytes": 36,
+    "cells": 39324,
+    "cellsSha256": "68585e38ec4c324345584c71502b890ba9cfa618c4c2222250887559b29cb581",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBNA",
+    "bytes": 36,
+    "cells": 37584,
+    "cellsSha256": "ec89bcda7ac479d18c2f75f3c86b942841a8f6168b0757a44ad2be715ae62abb",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KATL",
+    "bytes": 36,
+    "cells": 36540,
+    "cellsSha256": "77d0459f2b5d7abf7342310805d5791f6bb863724ccbf886ed35212dcd978f24",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBHM",
+    "bytes": 36,
+    "cells": 36540,
+    "cellsSha256": "77d0459f2b5d7abf7342310805d5791f6bb863724ccbf886ed35212dcd978f24",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KJAX",
+    "bytes": 1503,
+    "cells": 35148,
+    "cellsSha256": "1b0db3e5e1712629da8e06378de20001f0146a75ab3c1711cfd304724726f294",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KMCO",
+    "bytes": 1294,
+    "cells": 34452,
+    "cellsSha256": "905b71d4722d49286a8e5a5d4bafd4856d608ad23ea7e634574c039dc803aaca",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KTPA",
+    "bytes": 370,
+    "cells": 34452,
+    "cellsSha256": "11789f4389a1d05b0a0fca1b74bb4aeea9b54c3f8472093472b298cc559164ca",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KCLT",
+    "bytes": 36,
+    "cells": 37236,
+    "cellsSha256": "f0d39824853a8de4be8a3a2f619d6a8b8b60b6b355b8a0e6d9e4606939308d6b",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KRDU",
+    "bytes": 36,
+    "cells": 37584,
+    "cellsSha256": "ec89bcda7ac479d18c2f75f3c86b942841a8f6168b0757a44ad2be715ae62abb",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KDCA",
+    "bytes": 36,
+    "cells": 38976,
+    "cellsSha256": "174961d5efed9b437f34d96fd570b3e8b797ea79f1ddb48d1a7b64a790d119ed",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KPHL",
+    "bytes": 36,
+    "cells": 39672,
+    "cellsSha256": "07f020d7d0f6b33f66328ad929508e1fbb0227c354c1552f15a5028a49f2d030",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KJFK",
+    "bytes": 36,
+    "cells": 40020,
+    "cellsSha256": "647e29aa06560e69134123d3d94b0a84fae84c43277be22b880b65ed2ba18a6a",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBOS",
+    "bytes": 2381,
+    "cells": 41064,
+    "cellsSha256": "249770c06cf6366d86695be95e988ac5ed517df884d701946ba28d859a07e3b7",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBTV",
+    "bytes": 5105,
+    "cells": 42456,
+    "cellsSha256": "33dcde44ef446a9625e71d2708a95e983182e7545a5923ec4f4392f501e11c11",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBUF",
+    "bytes": 119,
+    "cells": 41412,
+    "cellsSha256": "bdfb0b1e15094d71830207fdc7b66adde0c7ada3a00018c49d0e4a2b15bccae0",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KPIT",
+    "bytes": 36,
+    "cells": 40020,
+    "cellsSha256": "647e29aa06560e69134123d3d94b0a84fae84c43277be22b880b65ed2ba18a6a",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KCHS",
+    "bytes": 36,
+    "cells": 36192,
+    "cellsSha256": "10b5643f0ad088db99f6384d5dd2a1b8560bad926893635c439ec6cd0f6bd359",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KLIT",
+    "bytes": 1441,
+    "cells": 36888,
+    "cellsSha256": "f80b40e67add83ea103980af675301f402d05feceeff5f995c457e76a99ad242",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KGRB",
+    "bytes": 1114,
+    "cells": 42456,
+    "cellsSha256": "9a508bb01d0688b00bfd3200b2a01bd362d007cc4a8bd4506e28335037ed0634",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KBIS",
+    "bytes": 577,
+    "cells": 44196,
+    "cellsSha256": "813c90ae402485a052337ca38a71a2f59bff45b4add0c74fb6b02a7e456171d5",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KCYS",
+    "bytes": 2960,
+    "cells": 40368,
+    "cellsSha256": "a49caa2ef1c24b372aa97cc47d6949c950bba5841b5677a0b114c75aac247f7a",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KRNO",
+    "bytes": 36,
+    "cells": 39324,
+    "cellsSha256": "68585e38ec4c324345584c71502b890ba9cfa618c4c2222250887559b29cb581",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KFAT",
+    "bytes": 36,
+    "cells": 37932,
+    "cellsSha256": "232bfd5d667e277e662fd3e370c9c73ad7ef8e450df265b1c7f83f409fe0207c",
+    "twinDiffers": true
+   },
+   {
+    "airport": "KGJT",
+    "bytes": 2997,
+    "cells": 38976,
+    "cellsSha256": "7b8c11ac78341aaf2490a5409766faed20a093919e36e7d0a175f34ea08b60a1",
+    "twinDiffers": true
+   }
+  ]
+ }
+}

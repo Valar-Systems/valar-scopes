@@ -1036,6 +1036,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The WXC1 weather-crop decoder (include/WxCrop.h), shared by Weatherscope and the Blipscope weather
+# layer, against crops the weather spike's OWN encoder wrote (test/fixtures/wx/, two references in
+# MANIFEST.json). Its two sabotages run from test/host/sabotage_wx_crop.py.
+echo
+echo "== WxCrop =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_crop.cpp" -o "$OUT/test_wx_crop.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the WXC1 decoder test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_crop.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the WXC1 test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
