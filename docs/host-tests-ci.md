@@ -80,6 +80,11 @@ WxRender.
 
 **H3. The rule, after this PR merges.** Every reading in H3 counts only once two reads ≥ 30 s apart
 agree; `UNKNOWN` (GitHub still computing) is not a reading.
+0. **H3.0, before the PUT (added after the Weatherscope session's review, before any H3 reading).**
+   `branches/main/protection` reads **404 "Branch not protected"**, and `rulesets` returns **0 rulesets**,
+   each read twice ≥ 30 s apart, immediately before the PUT. A PUT replaces the whole protection object,
+   so this is what makes the PUT a creation and the rollback `DELETE` a removal of this rule alone. If
+   either read shows anything else, stop: the PUT would overwrite someone's rule.
 1. Before the rule, a proof PR is opened into `main`. It is non-draft, titled DO NOT MERGE, and its one
    commit is S-A3a. Once CI completes, `mergeStateStatus` = **UNSTABLE**: a failing check that nothing
    requires.
@@ -208,3 +213,13 @@ predicted check, with every other check unaffected. H3, the rule, follows the me
   `gh api -X DELETE repos/Valar-Systems/valar-scopes/branches/main/protection`, and it is reported.
 - **Merges via `gh pr merge` without `--admin`** respect the rule. That is the point: this repo's merges
   are made that way.
+- **What the rule cannot do (stated so nobody over-reads it).** Every session merges with the same
+  admin token, so the rule binds our merges only through the convention of never passing `--admin`.
+  The real gate stays the merge procedure: the reviewer's "approved to merge at <SHA>", plus CI counted
+  against the total. To make the convention observable, **every merge report states `host-tests`'
+  conclusion on the merged head, and that `--admin` was not used.**
+- **Unsettled:** whether an admin merging through the REST API bypasses the rule with
+  `enforce_admins: false`. Probably yes. Not tested, and not needed for anything above.
+- **`strict: false`** means a PR that was green on an older base can still turn `main` red after merging.
+  `main`'s own push run of `host-tests` is what catches that, so a red `host-tests` on `main` is read and
+  acted on by whoever merged last.
