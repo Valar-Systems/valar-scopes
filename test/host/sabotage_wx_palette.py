@@ -81,7 +81,8 @@ def main():
         os.makedirs(fx)
         name = "NWSReflectivity-metpy-v1.6.3.tbl"
         data = open(os.path.join(FIXTURES, name), "rb").read()
-        open(os.path.join(fx, name), "wb").write(data + b"5a5a5a5a12345678\n")
+        # EXAMPLE -- not a real device: the allowlisted synthetic id (scripts/device-id-allowlist.txt).
+        open(os.path.join(fx, name), "wb").write(data + b"beefbeefbeefbeef\n")
         assert open(os.path.join(fx, name), "rb").read() != data, "S-PIN: the table copy did not change"
         exe = os.path.join(td, "real.exe")
         b = subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe], capture_output=True, text=True)
