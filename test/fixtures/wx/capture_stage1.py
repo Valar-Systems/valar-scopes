@@ -1,6 +1,6 @@
 """Weatherscope Stage 1 on the board: read the harness's report once and grade it.
 
-    python -I test/fixtures/wx/capture_stage1.py <COMx> <out.txt> [--budget] [--expect-sha <hex>] [--control]
+    python -I test/fixtures/wx/capture_stage1.py <COMx> <out.txt> [--budget] [--expect-sha <hex>] [--control [--stall <s>]]
 
 ONE open of the port, never repeated (CLAUDE.md, the capture rig: a reattach is an intervention in the
 board). DTR and RTS are held low, which does not reset a running board. Sends one byte -- 'r' for the
@@ -18,9 +18,14 @@ from it (exit 2 -- the instrument, not the board). Only a complete, checked dump
                     decode + indices + render + push <= 100 ms per frame, and a projected 15-frame past-hour
                     loop at >= 8 fps (per loop frame: decode + render + push; the indices are worked out once
                     per view). A separate block: it does not stand in for B5-B7.
---control           send 'D' and stop reading for 1.5 s after 20 rows, so the board's 4 KB TX buffer must
-                    overflow and its 2 ms writes must drop rows. PASS = the capture is refused with at least
-                    one missing row named; anything else means the tags cannot see a loss.
+--control           send 'D' and stop reading for --stall seconds (default 1.5) after 20 rows, so the board's
+                    drop-on-stall writes can lose data. Graded by addendum 6 (ruled 2026-10-20, option 1):
+                      PASS (exit 0)          refused, with at least one bad row named (missing/corrupt/duplicated)
+                      INCONCLUSIVE (exit 3)  every row intact and the dump equals the board's fb_sha256: nothing
+                                             was lost, so the tags were not tested. Next stall on the frozen ladder
+                                             (1.5, 3, 6, 12 s); four INCONCLUSIVE attempts: stop and decide
+                      FAIL (exit 1)          every row passed its checks but the dump disagrees with fb_sha256: a
+                                             loss the tags did not see
 B3-B8 are graded against their original frozen bands every time. B5-B7 are STANDING MISSES (Daniel,
 2026-10-20: misses on their frozen bands, unchanged): each prints MISS against its frozen band and does not
 gate a run. What does gate is that they repeat the reference points within +/-10 % (addendum 5); a timing
@@ -117,7 +122,8 @@ def main(argv):
         return 2
     port, out = argv[1], argv[2]
     control = "--control" in argv
-    raw = capture(port, out, b"D" if control else b"r", stall_after_rows=20 if control else None)
+    stall = float(argv[argv.index("--stall") + 1]) if "--stall" in argv else 1.5
+    raw = capture(port, out, b"D" if control else b"r", stall_after_rows=20 if control else None, stall_s=stall)
     text = raw.decode("ascii", errors="replace").replace("\r", "")
     lines = [l.strip() for l in text.split("\n")]
     if "WX,end" not in lines:
@@ -134,16 +140,19 @@ def main(argv):
     refused = bool(missing or dup or bad)
     print(f"  rows: {len(rows)}/{ROWS} good; missing {missing}; corrupt {bad}; duplicated {dup}; unparseable lines {junk}")
     if control:
-        ok = refused and len(missing) >= 1
-        if ok:
-            verdict = f"REFUSED, missing rows named {missing} -> the tags see a loss"
-        elif refused:   # refused, but on corrupt or duplicated rows only: not what this rule asks for
-            verdict = (f"REFUSED, but no row MISSING (corrupt {bad}, duplicated {dup}); the rule wants >= 1 missing "
-                       f"row -> outside it: STOP")
-        else:
-            verdict = "NOT refused: every row arrived intact, so nothing was lost -> STOP"
-        print(f"  CONTROL (drop-on-stall + a 1.5 s host stall): {verdict}")
-        return 0 if ok else 1
+        head = f"  CONTROL (drop-on-stall + a {stall:g} s host stall):"
+        if refused:   # addendum 6: refused AND >= 1 bad row named; refused implies one of the three lists is non-empty
+            print(f"{head} REFUSED, bad rows named: missing {missing}, corrupt {bad}, duplicated {dup} "
+                  f"-> PASS (the tags see a loss)")
+            return 0
+        got = hashlib.sha256(b"".join(rows[y] for y in range(ROWS))).hexdigest()
+        if got == wx.get("fb_sha256"):
+            print(f"{head} NOT refused: every row intact and the dump equals the board's fb_sha256 "
+                  f"-> INCONCLUSIVE (nothing was lost; next stall on the ladder)")
+            return 3
+        print(f"{head} NOT refused, but the dump ({got[:16]}) disagrees with the board's fb_sha256 "
+              f"({wx.get('fb_sha256', '?')[:16]}) -> FAIL: a loss the tags did not see")
+        return 1
     if refused:
         print(f"  CAPTURE REFUSED: rows missing {missing}, corrupt {bad}, duplicated {dup}. Nothing assembled or graded.")
         return 2
