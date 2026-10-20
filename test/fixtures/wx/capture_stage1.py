@@ -135,8 +135,14 @@ def main(argv):
     print(f"  rows: {len(rows)}/{ROWS} good; missing {missing}; corrupt {bad}; duplicated {dup}; unparseable lines {junk}")
     if control:
         ok = refused and len(missing) >= 1
-        print(f"  CONTROL (drop-on-stall + a 1.5 s host stall): "
-              f"{'REFUSED, missing rows named -> the tags see a loss' if ok else 'NOT refused -> the tags cannot see a loss: STOP'}")
+        if ok:
+            verdict = f"REFUSED, missing rows named {missing} -> the tags see a loss"
+        elif refused:   # refused, but on corrupt or duplicated rows only: not what this rule asks for
+            verdict = (f"REFUSED, but no row MISSING (corrupt {bad}, duplicated {dup}); the rule wants >= 1 missing "
+                       f"row -> outside it: STOP")
+        else:
+            verdict = "NOT refused: every row arrived intact, so nothing was lost -> STOP"
+        print(f"  CONTROL (drop-on-stall + a 1.5 s host stall): {verdict}")
         return 0 if ok else 1
     if refused:
         print(f"  CAPTURE REFUSED: rows missing {missing}, corrupt {bad}, duplicated {dup}. Nothing assembled or graded.")
