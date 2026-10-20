@@ -223,3 +223,28 @@ production's.
 
 **Outside the set:** any reading not listed above means stop. Code, tests and bars are not edited to
 make a reading come true. The raw reading goes to the reviewer, and the next step is decided then.
+
+## Results (2026-10-20, local vitest-pool-workers, Windows)
+
+| check | result | numbers |
+|---|---|---|
+| **WS1** tiling round trip | **as predicted** | 98 tiles, 12,845,120 bytes; **24,500,000 / 24,500,000** cells identical; sabotage (tilesY for tilesX) 5,470,202 mismatched; control: every code 0-15 present |
+| **WS2** tiles vs flat | **as predicted** | **200 / 200** crops through the worker byte-identical; sabotage (ty/tx swapped) 184 / 200 differ |
+| extra (not frozen) | holds | the encoder equals the spike's `encodeCrop` on the spike's own boxes: 200 / 200 |
+| **WS3** tile reads | **as predicted** | 34,293 cases, maximum **4**; sabotage (256-cell tiles) maximum **9** |
+| **WS4** coverage | **0 uncovered: as predicted. Overshoot: OFF-PREDICTION** | 34,293 cases, 0 uncovered edges; sabotage (pad 0) 308,162 uncovered; control: the four constants found once each, and equal to `VIEW`. **Worst overshoot 4.180 cells against the frozen ≤ 4** |
+
+**WS4's overshoot, and why the frozen bound was wrong.** The worst case is the **west edge at 52 N, r = 80
+km**, with the device 0.005° east of the wire's position and its range 0.5 km shorter.
+- The frozen bound used "2 + rounding (< 1) + wire offset (< 0.95)". That wire-offset term came from
+  the sentence above: "together that is under 0.01°, one cell". **That sum is latitude-only.**
+- In longitude, 0.5 km of range is 0.5 / (111 × cos lat) degrees: 0.0073° at 52 N and 0.0079° at 55 N.
+  So the wire offset reaches 1.23-1.29 cells there, and the bound is about 4.29.
+- **Alternative named:** a rounding bug in `cropCellBox` that over-pads. **Excluded:** that would push
+  every edge out. Per edge, the worst overshoots are N **3.950**, S **3.878**, W **4.180** and E
+  **4.180** cells. The latitude edges sit exactly inside 2 + 1 + 0.95; only the longitude edges, which
+  carry the 1/cos factor, exceed 4. (A read-only diagnostic located this; the test is unchanged.)
+- **Coverage is unaffected.** Two cells of padding exceed the real worst-case offset (1.29 cells at
+  55 N), and the sweep finds 0 uncovered edges.
+- The test still asserts the frozen ≤ 4 and fails. **Nothing is changed until there is a ruling.**
+

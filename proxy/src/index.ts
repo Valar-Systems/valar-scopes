@@ -25,6 +25,8 @@ import { limitByIp, limitByKey } from "./ratelimit";
 import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
+import { handleWx, wxHealth } from "./wx/handler";
+import { PRODUCTS } from "./wx/products";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
 // HMAC-derived key that is only valid when presented with the X-Blip-Device id
@@ -72,13 +74,16 @@ async function authenticate(env: Env, request: Request): Promise<{ bucket: strin
 // textually -- there is no module to import from.
 declare const BUILD_COMMIT: string;
 
-function handleHealth(env: Env): Response {
+async function handleHealth(env: Env): Promise<Response> {
   // The commit is here because "what is production actually running?" was, for a
   // long time, only answerable by correlating deploy timestamps against git log
   // and hoping the working tree had been clean. It is a public build identifier,
   // not a secret: the repo it names is public, and being able to ask a running
   // Worker what it is beats inferring it after something has already gone wrong.
-  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env) });
+  //
+  // `wx`: each weather product's newest-frame age, null when there is no frame (never a made-up age), or
+  // "not_configured" while the WX bucket is unbound (docs/wx-server.md).
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
@@ -382,6 +387,9 @@ async function route(
   if (enrichMatch) return handleEnrich(request, env, ctx, enrichMatch[1] as string, meta);
   const photoMatch = api.suffix.match(/^photo\/([^/]+)$/);
   if (photoMatch) return handlePhoto(env, photoMatch[1] as string);
+  // Weather under the planes: one WXC1 crop of the newest frame of <product> (docs/wx-server.md).
+  const wxMatch = api.suffix.match(/^wx\/([^/]+)$/);
+  if (wxMatch) return handleWx(request, env, wxMatch[1] as string);
   return errorResponse(404, "not_found");
 }
 
