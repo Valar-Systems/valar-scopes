@@ -1,6 +1,6 @@
 # Weatherscope: the planned screens
 
-**Status: Daniel's rulings recorded 2026-10-20.** The few points still open are marked **UNDECIDED** (listed under [Still undecided](#still-undecided)). This is a docs-only change; firmware starts with the first firmware task Daniel assigns.
+**Status: ruled.** Daniel's rulings of 2026-10-20, including the final rulings the same day, are recorded below. No point is left undecided; one check is pending (see [Open items](#open-items)). This is a docs-only change.
 
 Weatherscope is a planned scope of its own: a desk weather radar on the same 1.28-inch round 240 × 240 screen as Blipscope, with a 60-mile range, US only. It is **not** the weather layer under the planes on the Blipscope; that is the Stage 1 spike in [PR #422](https://github.com/Valar-Systems/valar-scopes/pull/422) (`docs/wx-spike-2026-10.md` on `spike/wx-overlay`).
 
@@ -8,7 +8,7 @@ Weatherscope is a planned scope of its own: a desk weather radar on the same 1.2
 
 **For the website** (ruled 2026-10-20):
 - The website's virtual Weatherscope mirrors **shipped Weatherscope firmware only**, not this doc.
-- Whether the preview page's mockups may show elements that no data source backs is **UNDECIDED**. It has not been ruled.
+- Whether the preview page's mockups may show elements that no data source backs is **moot**: website PR #9 waits for the re-exported mockups (final ruling, 2026-10-20).
 
 What the mockups and their README already fix: the six screens; radar from the NOAA MRMS mosaic; warnings and forecasts from the National Weather Service (NWS); a 60 mi range; US only.
 
@@ -27,10 +27,10 @@ Each of these appears in a mockup, and neither MRMS nor the NWS supplies it.
 
 | Element | Where | Why there is no source | Ruling, 2026-10-20 |
 |---|---|---|---|
-| Arrival times: "RAIN IN 18 MIN", "SNOW IN 40 MIN" | 1, 2, 5 | MRMS publishes observed frames only. Its one extrapolation product, the AutoNowcaster Final Forecast (a 60-minute extrapolation of storms of 35 dBZ and up), was withdrawn by the NWS in 2023 ([SCN 23-86](https://www.weather.gov/media/notification/pdf_2023_24/scn23-86_autonowcaster_discontinuation.pdf)). The bucket has no `ANC_FinalForecast` folders in 2026, against 293 for `PrecipFlag` up to 2026-10-20. NWS forecasts are hourly, not minute by minute. | **No countdown in v1.** "Approaching" means precipitation within a distance ring, from MRMS only ([1b](#1-which-screen-the-device-shows)) |
+| Arrival times: "RAIN IN 18 MIN", "SNOW IN 40 MIN" | 1, 2, 5 | MRMS publishes observed frames only. Its one extrapolation product, the AutoNowcaster Final Forecast (a 60-minute extrapolation of storms of 35 dBZ and up), was withdrawn by the NWS in 2023 ([SCN 23-86](https://www.weather.gov/media/notification/pdf_2023_24/scn23-86_autonowcaster_discontinuation.pdf)). The bucket has no `ANC_FinalForecast` folders in 2026, against 293 for `PrecipFlag` up to 2026-10-20. NWS forecasts are hourly, not minute by minute. | **No countdown in v1.** "Approaching" means precipitation within 15 mi, from MRMS only ([1b](#1-which-screen-the-device-shows)) |
 | The dashed "+30" on the replay timeline | 4 | No future radar frames exist in MRMS or the NWS, for the same reason | **Dropped** ([2b](#2-the-past-hour-loop)) |
 | "MIX" in the legend | 5 | MRMS `PrecipFlag` has no wintry-mix class | **Snow and rain only** ([§4](#4-mix-in-mockup-5)) |
-| "MT BACHELOR" label | 1–5 | Not a Census place: the 2025 Gazetteer Places file has no record for it | **A short hand-made list** of non-place labels; no GNIS until its licence is confirmed. The list's entries are UNDECIDED ([5c](#5-town-labels)) |
+| "MT BACHELOR" label | 1–5 | Not a Census place: the 2025 Gazetteer Places file has no record for it | **Left out.** Non-places are not labelled, so MT BACHELOR is dropped ([5c](#5-town-labels); final ruling, changed from a hand-made list) |
 | The bottom lines of the warning screen, for a Flash Flood Warning | 3 (drawn for a Severe Thunderstorm Warning) | Flash Flood Warnings carry no hail, wind or storm-motion fields. 10 of 10 sampled carried only `flashFloodDetection`, or nothing | **Show the `flashFloodDetection` text** ([3b](#3-which-warnings-use-the-warning-screen)) |
 
 ## Mockups that now need re-exporting
@@ -39,13 +39,13 @@ Following the rulings above:
 
 | Mockup | Change |
 |---|---|
-| 1, on the desk | headline without minutes (it shows screen 2's "RAIN IN 18 MIN") |
-| 2, rain on the way | headline without minutes |
-| 4, past-hour loop | no dashed "+30" on the timeline |
-| 5, snow on the way | headline without minutes; no MIX in the legend; the pink mix area shown as snow or rain |
-| 1–5, wherever MT BACHELOR appears | only if MT BACHELOR is left off the hand-made list (5c, still UNDECIDED) |
+| 1, on the desk | headline without minutes (it shows screen 2's "RAIN IN 18 MIN"); no MT BACHELOR |
+| 2, rain on the way | headline without minutes; no MT BACHELOR |
+| 3, severe warning | no MT BACHELOR |
+| 4, past-hour loop | no dashed "+30" on the timeline; no MT BACHELOR |
+| 5, snow on the way | headline without minutes; no MIX in the legend; the pink mix area shown as snow or rain; no MT BACHELOR |
 
-Unchanged: 3 (severe warning) and 6 (dry day).
+Unchanged: 6 (dry day), which draws the town dots without labels.
 
 **States with no mockup yet** (new exports, not re-exports): precipitation at the location now (1c), a Flash Flood Warning (3b), and a Snow Squall Warning (3a).
 
@@ -56,7 +56,7 @@ The mockups show five screens and no rule for choosing between them.
 | Point | Options | Ruling, 2026-10-20 |
 |---|---|---|
 | 1a. The order | (a) a fixed priority: an active warning, then rain or snow approaching or present, then the dry screen; (b) the same priority, with a timed rotation between screens of equal rank | **(a)** |
-| 1b. What "approaching" means | (a) arrival within N minutes, which needs an arrival-time source; (b) precipitation within a distance ring, from MRMS frames alone, with no countdown | **(b)**, from MRMS only; no countdown in v1. The ring's radius is UNDECIDED |
+| 1b. What "approaching" means | (a) arrival within N minutes, which needs an arrival-time source; (b) precipitation within a distance ring, from MRMS frames alone, with no countdown | **(b)**, from MRMS only; no countdown in v1. **Radius: 15 mi** (final ruling) |
 | 1c. Precipitation at the location **now** (no mockup shows it) | (a) the rain or snow screen with a "now" headline; (b) a new mockup; (c) the plain radar | **(a)** |
 | 1d. When a warning counts as "covering the town" | (a) its polygon contains the device's location; (b) its polygon falls anywhere inside the 60 mi range | **(a)** |
 
@@ -90,7 +90,8 @@ What the NWS alerts feed (`api.weather.gov/alerts`) carries, sampled on 2026-10-
 | 3a. Which warnings | (a) Tornado, Severe Thunderstorm and Flash Flood; (b) also Snow Squall; (c) also Extreme Wind. Watches and advisories stay out under every option | **(a) plus Snow Squall:** Tornado, Severe Thunderstorm, Flash Flood and Snow Squall Warnings. Watches and advisories stay out |
 | 3b. The bottom lines for a Flash Flood Warning | (a) leave them blank; (b) show the `flashFloodDetection` text; (c) a new mockup | **(b)** |
 | 3c. When the warning screen ends | (a) at the alert's `expires` time or on a Cancel, whichever comes first; (b) at `expires` only | **(a)** |
-| 3d. Two warnings at once | (a) the most severe first: Tornado, then Severe Thunderstorm, then Flash Flood; (b) the newest first | **(a)**. Where Snow Squall ranks in that order is UNDECIDED |
+| 3d. Two warnings at once | (a) the most severe first: Tornado, then Severe Thunderstorm, then Flash Flood; (b) the newest first | **(a)**, with Snow Squall second (final ruling): **Tornado, Snow Squall, Severe Thunderstorm, Flash Flood** |
+| 3e. The bottom lines for a Snow Squall Warning (no live sample seen yet) | (a) storm motion if present, otherwise blank | **(a)** (final ruling). **Confirm against the first live sample** |
 
 ## 4. "MIX" in mockup 5
 
@@ -126,7 +127,7 @@ What the 2025 Census Gazetteer Places file holds ([record layout](https://www.ce
 |---|---|---|
 | 5a. The source | (a) the Gazetteer, on both device and site | **(a)** |
 | 5b. Which places get a label | (a) incorporated cities only (`LSAD` 25), skipping census-designated places; (b) by land area; (c) add a Census population table; (d) the nearest N to the centre | **(a)** |
-| 5c. Mt Bachelor, and other non-places such as peaks and ski areas | (a) leave them out; (b) add USGS GNIS names; (c) a short hand-made list | **(c)**: a short hand-made list, and no GNIS until its licence is confirmed. The list's entries, including whether MT BACHELOR is on it, are UNDECIDED |
+| 5c. Mt Bachelor, and other non-places such as peaks and ski areas | (a) leave them out; (b) add USGS GNIS names; (c) a short hand-made list | **(a)** (final ruling; earlier the same day (c), with no GNIS until its licence was confirmed). Weatherscope ships nationwide, so a hand-made list can't scale. **MT BACHELOR is dropped**, and every mockup showing it is re-exported |
 | 5d. Label text | (a) drop the `LSAD` word, so "Bend city" becomes "BEND" | **(a)** |
 
 ## 6. Units
@@ -140,13 +141,11 @@ The inputs come in other units, and the device converts them:
 |---|---|---|
 | 6a. Units | (a) imperial only; (b) imperial by default, with a metric setting | **(a) imperial only:** °F, mph, mi |
 
-## Still undecided
+## Open items
 
-- **The website:** whether the preview page's mockups may show elements that no data source backs.
-- **1b:** the radius of the "approaching" ring.
-- **3d:** where Snow Squall ranks among the warnings.
-- **3a:** a Snow Squall Warning's fields for the bottom lines. No live sample has been seen yet.
-- **5c:** the hand-made list's entries, including MT BACHELOR.
+**No point is undecided** (final rulings, 2026-10-20). One check is pending:
+
+- **3e:** confirm a Snow Squall Warning's bottom-line fields against the first live sample. None was available on 2026-10-20.
 
 ## Sources
 
