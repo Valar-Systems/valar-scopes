@@ -24,14 +24,15 @@ const grid = await decodeMrms(new Uint8Array(readFileSync(gzPath)), (row: number
 if (!grid.n2s || !grid.w2e || grid.ni !== ni || rowsSeen !== grid.nj) { console.error("REFUSED: unexpected grid scan or size"); process.exit(3); }
 const nj = grid.nj, n = ni * nj, v = f32!.subarray(0, n);
 
-// The anchor: every value is -999, -99, or a reflectivity of at least -30 dBZ.
+// The anchor: every value is -999, -99, or a reflectivity of at least -40 dBZ (re-registered from -30,
+// addendum 2: files from 2024-12 on carry a smooth real tail down to -32).
 const census = { nocov999: 0, noecho99: 0, below15: 0, echo: 0, odd: 0, oddMin: null as number | null, realMin: Infinity, realMax: -Infinity };
 const codes = new Uint8Array(n), sab = new Uint8Array(n);
 for (let i = 0; i < n; i++) {
   const x = v[i];
   if (x === -999) census.nocov999++;
   else if (x === -99) census.noecho99++;
-  else if (x < -30) { census.odd++; census.oddMin = census.oddMin === null ? x : Math.min(census.oddMin, x); }
+  else if (x < -40) { census.odd++; census.oddMin = census.oddMin === null ? x : Math.min(census.oddMin, x); }
   else { if (x < 15) census.below15++; else census.echo++; if (x < census.realMin) census.realMin = x; if (x > census.realMax) census.realMax = x; }
   codes[i] = codeOf(x);
   sab[i] = (x === -999 || x === -99) ? codeOf(x) : codeOf(x - 5);     // the -5 dBZ sabotage (sentinels untouched)
