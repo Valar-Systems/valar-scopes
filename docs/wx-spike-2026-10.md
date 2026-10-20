@@ -75,6 +75,27 @@ Any of these wrong is reported as found; the design adjusts, not the record.
 
 **A7: where it runs.** A cost and upkeep comparison, not a measurement; the A4 numbers feed it. Predicted recommendation: **(a) a cron Worker writing one tiled frame to R2**, if A4's workerd peak and CPU fit. (b) is a Durable Object holding ~12 MB per frame in memory, and (c) adds a server to look after.
 
+### Wire format v1: the cell codes (ruled 2026-10-20, after A0)
+
+| code | meaning | MergedReflectivityQCComposite source values |
+|---|---|---|
+| **0** | no echo, or under 15 dBZ, **inside radar coverage** | −99 (no echo detected), and every value below 15 dBZ including real negatives (−21 to −0.5) |
+| 1-13 | 15-75 dBZ in 5 dBZ steps (1 = 15-19.9 … 12 = 70-74.9, 13 = 75 and up) | the decoded dBZ |
+| **14** | **no radar coverage** | −999 |
+| **15** | **missing data** | never sent by this product; kept for products that have a genuine missing value |
+
+No coverage (14) and missing (15) are never drawn as dry.
+
+### Addendum to the predictions, after the A0 ruling, before any of A1-A6 is measured (2026-10-20)
+
+**A1, classes compared:** no echo or below 15 (0) / echo (1-13) / no coverage (14), plus missing (15) **only where a product actually uses it**.
+- **MergedReflectivityQCComposite:** 3 classes, predicted **100.000 %** agreement on all three frames. Other predictions as above.
+- **SeamlessHSR**, for one scene: predicted to use the **same two sentinels**, −999 for no coverage and −99 for no echo, and **no separate missing value**. Whatever it uses is reported as found. If it has a third sentinel, that sentinel maps to 15 and is compared as its own class.
+
+**A5, one more case:** a quiet area inside coverage, the Iowa ±1° box (checked ≥ 150 km from every repo coordinate), on a clear-night frame:
+- **predicted:** **100 % code 0**, never 14 or 15;
+- **sabotage:** map −99 to 15. Predicted: that box reads **100 % code 15**, and the check fails.
+
 ### Part B: device (after v18 merges)
 
 Predictions for B1-B7 are committed in this file **before** Part B starts, as their own commit.
