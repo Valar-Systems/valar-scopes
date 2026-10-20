@@ -307,6 +307,29 @@ All of them stay in the scratchpad, never in git.
 
 **Outside all of the above: stop and decide.**
 
+## Addendum 3: rulings on the motion test, 2.1's hook change, and the look (2026-10-20; frozen before F4, F5 and change 1 are graded)
+
+**Recorded as received:**
+1. **Motion test: accepted, with no bracket test.**
+   - On storm frames, SeamlessHSR's per-pixel band churn (92 % in 2 min) swamps the 16 % gap, so P0 can't discriminate there.
+   - **P0 is recorded as UNINFORMATIVE on storm frames.** That is not a pass, and it is not re-graded.
+   - **F3 is read as (a).**
+   - Then **F4, F5 and change 1 are graded under the −40 floor**. The product ruling waits for their M5 decisions: ring and centre, at 15, 20 and 30 dBZ.
+2. **The device-id hook:** the exemption is narrowed to the **single pinned table file, by path**, not all `*.tbl`. It must be proven again that an id-shaped token in an ordinary file is still refused, and blipscope-5c reviews the change in #439.
+3. **The four faults** are accepted as recorded. Captures stay outside the clone.
+4. **The palette look:** Daniel rules on 85 % against 70 %, and on dim against hatched. The board keeps alternating until then.
+
+**Fixed now, so they can't be decided after the data is seen:**
+- **"Storm frames" are F1.** It is the only convective frame. F2's P0 (96.37 %) passed, and it stands.
+- **On F4 and F5, P0 is graded as frozen** (≥ 90 % of echo pixels), because neither is a storm frame. Below 90 % is the frozen outcome: stop and decide.
+- **The instrument is unchanged since the motion test:**
+  - `frame.ts` with the −40 floor (`1ad74dd`);
+  - `check.py` with the pinned renderer (`8e1de79`);
+  - a new `run2` mode that runs **only** F5, F4 and change 1, writing `results2.json`. Run 1's numbers aren't touched.
+- **Graded as frozen:** P4, P5 and P4b (addendum 1), P0 (above), and the controls (self-comparison and −5 dBZ sabotage) on F4 and F5.
+- **P4b's stop still holds:** 20 % or more of snowing hours reading dry on either product means **stop**. My prediction is that stop.
+- **Outside all of the above: stop and decide.**
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
