@@ -133,4 +133,34 @@ The full key, the full hashes and every header field are in `MANIFEST.json`.
 
 ## Results
 
-(None yet. Decoder code comes next; the env waits for the v18 prerelease; the board waits for Daniel.)
+### A: the decoder on the host (2026-10-20, code at `59417e3`)
+
+Run with `bash test/host/run.sh` (MinGW-W64 g++ 5.1.0, `-std=c++11 -Wall -Wextra -Werror -O1`). The whole suite passed: **ALL HOST TESTS PASSED**, 0 bytes on stderr.
+
+| check | predicted | result | |
+|---|---|---|---|
+| A1. Valid fixtures, codes sha256 | 4/4 | **4/4** equal to both references | ✓ |
+| A2. Negative fixtures refused | 3/3, own reasons | **3/3**: `BadMagic`, `Underrun`, `TruncatedLength`. No callback, buffer untouched | ✓ |
+| A3. Mutations refused | 7/7, own reasons | **7/7**: `BadVersion`, `BadCoarsen`, `ZeroRows`, `ZeroCols`, `TooLong`, `Overrun`, `LengthTooLong` | ✓ |
+| A4. Corpus round trip | 50/50 | **50/50** bit-exact to the encoder's cells | ✓ |
+| A5. Corpus twins refused | 50/50 | **50/50** | ✓ |
+| A6. Allocations during a decode | 0 | **0** | ✓ |
+| A7. KDFW run callback | 3,741 calls, contiguous, 36,192 cells | **3,741**, row-major and contiguous, **36,192** | ✓ |
+| A8. Headers | KDFW 174 × 208, coarsen 1, flags 0, 1716328842; KMSP coarsen 2, flags 1 | **as predicted** | ✓ |
+
+Two extra checks, not in the frozen table, also passed:
+- 31 bytes are refused as `TooShort`.
+- A 100-cell buffer is refused as `BufferTooSmall` and left untouched.
+
+**Sabotages** (`python -I test/host/sabotage_wx_crop.py`). Each is planted in a copy of the header, never the real one; each plant asserts its anchor occurs exactly once and that the copy differs. The real header's sha256 is `b4154c4b4181…` before and after.
+
+| sabotage | predicted | result | |
+|---|---|---|---|
+| S-A1. No "runs add up to rows × cols" check | A2 fails 1 (`neg-run-short`); A5 fails 50/50 | suite exit 1. Exactly two failures: `neg-run-short` accepted (`Ok`), and **0/50** twins refused | ✓ red as predicted |
+| S-A2. A `std::vector` allocated on every call | A6 ≥ 1 per decode | suite exit 1. A6 counts **175** allocations, one per decoder call made before A6 (4 + 6 + 14 + 50 + 100 + 1). Nothing else fails | ✓ red as predicted |
+
+**All of A matches the predictions.** Nothing was off-prediction, and nothing was re-run or tuned.
+
+### B: the env on the board
+
+Not started. The `platformio.ini` env and the `skus.yml` row wait for the decoder to pass (it has) and for `blipscope-5c`'s word on shared files. The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`.
