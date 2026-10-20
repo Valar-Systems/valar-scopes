@@ -238,6 +238,75 @@ M5 is reported at code ≥ 1 (15 dBZ), **code ≥ 2 (20 dBZ)** and code ≥ 4 (3
 
 All of them stay in the scratchpad, never in git.
 
+## Addendum 2: rulings on 2.0 run 1 (2026-10-20; frozen before the motion test, before any regrade, before 2.1's code)
+
+**Recorded as received:**
+1. **Floor:** the sentinel census floor is re-registered at **−40 dBZ**. The values below −30 are a smooth tail of real reflectivity, mapped dry either way. STOP 1 stays on record, with a note that **the lower bound appears to have moved in files from 2024-12 on**. Then grade F4, F5 and change 1.
+2. **P0:** run **the motion test before anything else is graded**. STOP 2 and **P1's miss on F1** stay on record, and nothing is re-graded.
+3. **Palette:**
+   - MetPy's `NWSReflectivity` values for **15-70 dBZ**;
+   - **75 dBZ and up white**, a ruled exception, because black would read as dry;
+   - the **snow ramp tops out at pale blue**, not white, so heavy snow and 75+ rain never share a colour;
+   - the table pinned with its sha256, as planned.
+4. **The product ruling** (SeamlessHSR or the composite) is held until F4, F5 and the motion test are in. **F3's centre** (METAR `-RA`, SeamlessHSR 12.4 dBZ) is noted as evidence for the ring-threshold ruling.
+
+### The motion test
+
+**What:** two consecutive SeamlessHSR files, 2 min apart, on F1 and F3. Each pair is run 1's SeamlessHSR file and the next one, so **F1 at 22:00:00Z and 22:02:00Z, and F3 at 09:52:00Z and 09:54:00Z**. The two files must be exactly 120 s apart. They go through the same pipeline as run 1: the ruled mapping, the 60 mi crop and `render_ref.py`.
+
+**What is measured:** among disc pixels with echo in either file, the share whose level **went up** (the later file higher) and the share that **went down**. **"Went up" is what's graded, as ruled.** "Went down" is reported beside it, because it is the closer copy of run 1's miss: there, the SeamlessHSR file was the *earlier* one.
+
+**Run 1's share to compare with,** "SeamlessHSR higher than the composite": **F1 16.31 %** (1,841 of 11,285) and **F3 12.18 %** (4,466 of 36,653).
+
+**The readings, fixed now, per frame:**
+
+| went-up share | reading |
+|---|---|
+| within **±4 points** of that frame's run-1 share | **(a)** motion explains P0 on that frame |
+| **less than half** of that frame's run-1 share | **(b)** the products differ in grid or QC: **stop and report** |
+| anything else: more than 4 points above, or between half and 4 points below | **outside: stop and decide.** The 2 min gap is about 3 × run 1's 42 s offset, so a share well above can't simply be read as (a) |
+
+**(a) on both F1 and F3 means motion explains P0**, and F4, F5 and change 1 are then graded. Any mixed result: stop and decide.
+
+**The control:** each file against itself must give 0 % went up and 0 % went down.
+
+**My bet:** **(a)** on both frames. F1 is convective and changes a lot in 2 min; F3's stratiform rain changes less, but its run-1 share is also lower. My confidence is low, because the 2-min gap could overshoot.
+
+### F4, F5 and change 1, graded only after (a)
+
+- **The census floor is −40 dBZ** in `frame.ts`. That is the only change to the instrument.
+- P4, P5 and P4b are graded **as frozen** in addendum 1, including P0 at 90 %, which is reported in light of the motion test.
+- Run 1's numbers for F1-F3 are **not re-run and not re-graded**.
+
+### 2.1: the palette, re-registered
+
+| code | colour |
+|---|---|
+| rain 1 (15-20 dBZ) | MetPy's 15 dBZ entry `(0, 0, 246)`, dimmed to 85 % `(0, 0, 209)` or 70 % `(0, 0, 172)`. Rounding is `(v · p + 50) / 100` in integers |
+| rain 2-12 (20-70 dBZ) | MetPy's 20-70 dBZ entries, exactly: `(0,255,0) (0,200,0) (0,144,0) (255,255,0) (231,192,0) (255,144,0) (255,0,0) (214,0,0) (192,0,0) (255,0,255) (153,85,201)` |
+| rain 13 (≥ 75 dBZ) | **white `(255, 255, 255)`**, by ruling. MetPy's 75 dBZ entry is black |
+| snow 1-13 | a ramp linear in RGB from `(30, 60, 160)` at code 1 to **pale blue `(175, 215, 255)` at code 8**, then flat for codes 9-13. Code 1 is dimmed like rain's |
+| no coverage, missing, dry | as in 2.1 |
+
+**The pin:** MetPy v1.6.3, `src/metpy/plots/colortable_files/NWSReflectivity.tbl`, sha256 `f73f0d6264d4…`. It's committed beside its test, with MetPy's BSD-3-Clause notice. Each entry is k/255 exactly, so × 255 gives integers. Stage 1's provisional values are **not** this table: codes 1-12 differ by up to 7 units, and code 13 was white.
+
+**C3, re-registered** (it replaces C3 in 2.1):
+- **(a)** no coverage and missing are achromatic.
+- **(b)** dry, missing (dim and hatched) and no coverage are four different colours.
+- **(c)** rain codes 2-12 equal the pinned table's 20-70 dBZ entries, **read from the committed file by the test**, and code 13 is white.
+- **(d)** code 1 is the table's 15 dBZ entry times the dim factor, with the rounding above.
+- **(e)** snow brightness (luma) rises with each code up to code 8 and stays flat after; the top is pale blue (blue > red) and **not white**.
+- **(f)** **no snow colour equals any rain colour**, codes 1-13, both dim levels.
+
+**C3's sabotages:**
+- missing planted as violet `(110, 0, 110)` turns **exactly (a)** red;
+- one rain entry off by one unit turns **exactly (c)** red;
+- the snow top set to white turns **exactly (e) and (f)** red.
+
+**Unchanged:** C1, C2, the build bands and the timings.
+
+**Outside all of the above: stop and decide.**
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
