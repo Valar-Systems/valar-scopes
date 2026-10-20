@@ -1,4 +1,5 @@
 #include "AircraftManager.h"
+#include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
 #include "BrightnessLog.h"
@@ -4723,28 +4724,9 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
 
 std::pair<int, int> AircraftManager::ProjectAt(float predLat, float predLon, double rLat, double rLon) const
 {
-    const float dLon = predLon - lon;
-    const float dLat = predLat - lat;
-
-    const float normLon = (dLon + rLon) / (2.0f * rLon);
-    const float normLat = (dLat + rLat) / (2.0f * rLat);
-
-    float x = normLon * SCREEN_SIZE;
-    float y = SCREEN_SIZE - (normLat * SCREEN_SIZE);
-
-    // Window-up: rotate the picture about the centre so bearing radarUpDeg reads
-    // "up". Screen space is isotropic here (radLon is pre-scaled by cos(lat) so
-    // the scan box is square on the ground), which makes a plain screen-space
-    // rotation geometrically correct. Everything downstream of this projection
-    // (blips, trails, taps, the sweep's paint-crossing test) rotates with it.
-    if (rotSin != 0.0f || rotCos != 1.0f) {
-        constexpr float C = SCREEN_SIZE / 2.0f;
-        const float px = x - C, py = y - C;
-        x = C + px * rotCos + py * rotSin;
-        y = C - px * rotSin + py * rotCos;
-    }
-
-    return { static_cast<int>(x), static_cast<int>(y) };
+    // The projection lives in include/RadarProjection.h, ONCE: the weather layer inverts the same function
+    // (docs/wx-device.md, WD1; held bit-identical to this function's old body by test_radar_projection.cpp).
+    return radarproj::Project(predLat, predLon, lat, lon, rLat, rLon, rotSin, rotCos, SCREEN_SIZE);
 }
 
 bool AircraftManager::ZoomCulled(int x, int y) const
