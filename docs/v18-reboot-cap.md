@@ -57,3 +57,18 @@ These are **rules for how the rollout is graded**, set at review before v18 is c
      - the device made **no requests that night**; or
      - it logged an **unscheduled deferred reboot** (net wedge or fleet floor) **in the 20 h before that quiet hour**. The cap refuses that night by design (`test_quiet_cap.cpp`, control C).
    - **What it cannot see:** the 20 h minimum itself is not visible in telemetry, because `lastReb` is not reported. This criterion grades that no scheduled night is lost, which is the customer-visible half of the change.
+
+## Bench board 6E:64 leaves the Blipscope fleet (2026-10-20)
+
+Daniel released USB serial `907069326E64` (COM6 that day) to become the Weatherscope board. No v18 check needs it: Board #1's first-run leg, the #387 runs and the prerelease acceptance all run on E2:08. Its **last Blipscope state**, read before it was reflashed:
+
+| | value | read from |
+|---|---|---|
+| firmware | `blipscope-s3-128 · v17 · cloud` | its config page's build string, 2026-10-20 16:43Z |
+| device id | `04f8…` (prefix only) | its config page |
+| last boot | 2026-10-20 11:00:28Z, `SW`: the scheduled quiet-hour restart | the Worker's boot rows (`scripts/fba-boot-rows.mjs`) |
+| uptime | **5 h 44 m** at 16:44Z | now minus that boot |
+| boots, 30 days | 34 `SW`, 6 `POWERON`, 7 `USB`; first row 2026-09-21 | the Worker's boot rows |
+| heap | **starved at 4 h 41 m of uptime**: largest block 10.7-17.4 KB (under the 20 KB budget), 38 allocation failures, enrichment refused | a passive serial read at 15:41Z, log saved (#245 follow-up) |
+
+**For the v18 rollout grade:** once reflashed, this device stops checking in as a Blipscope. Rule 1 above makes it offline (silent, not graded). If a Weatherscope image ever checks in under the same device id, its rows are not v18 Blipscope rows. **Proposed for the reviewer:** exclude device `04f8…` from the v18 grade from 2026-10-20.

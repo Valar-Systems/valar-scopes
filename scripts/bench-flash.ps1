@@ -40,7 +40,7 @@
 #   -Board       which bench board, by NAME (scripts\board-port.py BOARDS):
 #                  missileer        90706931E9D8  Missileer bench   flash freely
 #                  missileer-photo  90706931E794  Missileer photo   Missileer envs only
-#                  blipscope        907069326E64  Blipscope soak
+#                  weatherscope     907069326E64  Weatherscope bench (the Blipscope soak board until 2026-10-20)
 #                  blipscope-bench  90706931E208  Blipscope bench
 #                The port is resolved from the board's USB serial number (its MAC)
 #                by scripts\board-port.py -- never from a COM number, which changes
@@ -48,7 +48,7 @@
 #                COM15, COM4 and COM17 on 2026-09-24), and is printed with the
 #                serial before anything is written.
 #   -DanielApproved  required for every board but `missileer` (CLAUDE.md, Bench
-#                boards): the two Blipscopes belong to other work, and the photo
+#                boards): the Blipscope and Weatherscope boards belong to other work, and the photo
 #                unit is flashed on Daniel's go.
 #   -NoCapture   flash only; do not re-attach the recorder
 #   -AppOnly     write the app image to ota_0 ONLY (scripts\app-only-write.py):
@@ -63,7 +63,7 @@
 # script written to close a second-path defect is not a trade worth making.
 param(
     [Parameter(Mandatory=$true)][string]$PioEnv,
-    [Parameter(Mandatory=$true)][ValidateSet('missileer','missileer-photo','blipscope','blipscope-bench')][string]$Board,
+    [Parameter(Mandatory=$true)][ValidateSet('missileer','missileer-photo','weatherscope','blipscope-bench')][string]$Board,
     [Parameter(Mandatory=$true)][string]$Label,
     [Parameter(Mandatory=$true)][string]$By,
     [switch]$DanielApproved,
@@ -80,9 +80,9 @@ $resolver = "$repo\scripts\board-port.py"
 function Say($t) { Write-Host "[bench-flash] $t" }
 
 # ---- 0. WHICH BOARD, by serial number, and the board rules -------------------
-if ($Board -eq 'blipscope' -and -not $DanielApproved) {
-    Say "REFUSING: the Blipscope board is soaking Blipscope firmware. Ask Daniel, then"
-    Say "  re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
+if ($Board -eq 'weatherscope' -and -not $DanielApproved) {
+    Say "REFUSING: the Weatherscope board belongs to the Weatherscope session. Ask Daniel,"
+    Say "  then re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
     exit 4
 }
 if ($Board -eq 'blipscope-bench' -and -not $DanielApproved) {

@@ -65,8 +65,8 @@ BOARDS = {
                         'flash freely (Missileer work)'),
     'missileer-photo': ('90706931E794', 'Missileer', 'photo unit',
                         'Missileer envs only; flash on Daniel\'s go (product photos)'),
-    'blipscope':       ('907069326E64', 'Blipscope', 'soak',
-                        'SOAK BOARD: never for Missileer work; ask Daniel first'),
+    'weatherscope':    ('907069326E64', 'Weatherscope', 'bench',
+                        'the Weatherscope session\'s board (Daniel, 2026-10-20): never for Blipscope or Missileer work; ask Daniel first'),
     'blipscope-bench': ('90706931E208', 'Blipscope', 'bench',
                         'the Blipscope session\'s board: never for Missileer work; ask Daniel first'),
 }

@@ -44,10 +44,10 @@ bench Missileer, and it was the photo unit.
 |---|---|---|---|
 | `missileer` | **Missileer**, bench | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
 | `missileer-photo` | **Missileer**, photo unit | `90706931E794` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-31E794.local`. |
-| `blipscope` | **Blipscope**, soak | `907069326E64` (VID:PID `303A:1001`) | It soaks Blipscope firmware. **Never flash it for Missileer work**, and ask Daniel before touching it at all -- a flash ends the soak. |
+| `weatherscope` | **Weatherscope**, bench | `907069326E64` (VID:PID `303A:1001`) | The Weatherscope session's board since 2026-10-20 (Daniel). Until then it was the Blipscope soak board; its last Blipscope state is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). **Never flash it for Blipscope or Missileer work**; ask Daniel before touching it. |
 | `blipscope-bench` | **Blipscope**, bench | `90706931E208` (USB-Serial-JTAG spells it `90:70:69:31:E2:08`) | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
 
-The two Blipscopes are separate units, and so are the two Missileers (Daniel, 2026-10-12).
+The Blipscope and Weatherscope boards are separate units, and so are the two Missileers (Daniel, 2026-10-12; the Weatherscope row since 2026-10-20).
 `scripts/board-port.py` (`BOARDS`) and `scripts/bench-flash.ps1` (`-Board`) carry the
 same four rows; change all three together.
 
