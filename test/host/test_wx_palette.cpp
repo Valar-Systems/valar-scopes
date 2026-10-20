@@ -52,6 +52,51 @@ static Lab ToLab(Rgb c)
     return Lab{116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)};
 }
 
+// The pin as a CHECK, not prose (#439 review): the table file's sha256, with CRLF folded to LF -- core.autocrlf
+// rewrites the working copy; the committed blob is LF. A compact SHA-256 (FIPS 180-4), controlled below against
+// the standard "abc" vector so a broken hash cannot pass as a matching one.
+static const char* kPin = "f73f0d6264d420cb55efe79d58415ca056391a0cc607fa0efa061f3331418e2f";
+static std::string Sha256Hex(const std::string& msg)
+{
+    static const uint32_t K[64] = {
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
+    uint32_t h[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+    std::string m = msg;
+    const uint64_t bits = (uint64_t)msg.size() * 8;
+    m += (char)0x80;
+    while (m.size() % 64 != 56) m += (char)0;
+    for (int i = 7; i >= 0; --i) m += (char)((bits >> (i * 8)) & 0xff);
+    auto rotr = [](uint32_t x, int n) { return (x >> n) | (x << (32 - n)); };
+    for (size_t off = 0; off < m.size(); off += 64) {
+        uint32_t w[64];
+        for (int i = 0; i < 16; ++i)
+            w[i] = (uint32_t)(uint8_t)m[off + 4 * i] << 24 | (uint32_t)(uint8_t)m[off + 4 * i + 1] << 16 |
+                   (uint32_t)(uint8_t)m[off + 4 * i + 2] << 8 | (uint32_t)(uint8_t)m[off + 4 * i + 3];
+        for (int i = 16; i < 64; ++i) {
+            const uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
+            const uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+        }
+        uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], k = h[7];
+        for (int i = 0; i < 64; ++i) {
+            const uint32_t t1 = k + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i];
+            const uint32_t t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
+            k = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+        }
+        h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += k;
+    }
+    char out[65];
+    for (int i = 0; i < 8; ++i) std::snprintf(out + 8 * i, 9, "%08x", (unsigned)h[i]);
+    return std::string(out, 64);
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 2) { std::printf("usage: test_wx_palette.exe <fixtures-dir>\n"); return 2; }
@@ -133,9 +178,23 @@ int main(int argc, char** argv)
     }
     check(clear, "C3g", "snow 1 " + S(wxpalette::Snow(1)) + " vs rain 1 (dE*ab >= 40 and dL* >= 25):" + gText);
 
-    // A control the suite needs: the file really is the pinned one (its 75 dBZ entry is black, which is WHY 13 is a ruling).
-    check(tbl[14] == Rgb{0, 0, 0} && tbl[2] == Rgb{0, 0, 246}, "pin", "the file's 15 dBZ entry is " + S(tbl[2]) +
-                                                                         " and its 75 dBZ entry is " + S(tbl[14]));
+    // The pin, as a check (#439 review): the file's bytes, CRLF folded to LF, hash to the pinned sha256. An id appended
+    // to the table, or any byte changed, fails it -- the guards' pin and this one read the same number.
+    std::string bytes;
+    if (FILE* fb = std::fopen(path.c_str(), "rb")) {
+        int ch;
+        while ((ch = std::fgetc(fb)) != EOF) bytes += (char)ch;
+        std::fclose(fb);
+    }
+    std::string lf;
+    for (size_t i = 0; i < bytes.size(); ++i)
+        if (!(bytes[i] == (char)13 && i + 1 < bytes.size() && bytes[i + 1] == (char)10)) lf += bytes[i];
+    const std::string got = Sha256Hex(lf);
+    check(got == kPin && tbl[14] == Rgb{0, 0, 0}, "pin", "the table (CRLF folded) hashes to " + got.substr(0, 12) +
+                                                            "... (pin f73f0d6264d4...); its 75 dBZ entry is " + S(tbl[14]));
+    // And the hash itself is controlled: the FIPS 180-2 "abc" vector.
+    check(Sha256Hex("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "sha",
+          "SHA-256(\"abc\") is the standard vector (the pin check's arithmetic is wired right)");
     // And one for (g)'s arithmetic: sRGB white is L* 100, a* 0, b* 0 to within rounding.
     const Lab w = ToLab(Rgb{255, 255, 255});
     check(std::fabs(w.L - 100) < 0.01 && std::fabs(w.a) < 0.01 && std::fabs(w.b) < 0.01, "lab",

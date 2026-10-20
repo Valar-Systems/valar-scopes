@@ -11,6 +11,7 @@ real header's sha256 is compared before and after.
   S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
   S-C3ef  the snow top set to white                                -> exactly C3e and C3f
   S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
+  S-PIN   the REAL header, run on a fixtures copy whose pinned table has an id appended -> exactly pin
 Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
 """
 import hashlib
@@ -74,6 +75,26 @@ def main():
             for l in fails:
                 print(f"    {l}")
             ok &= good
+        # S-PIN (#439 review): the table, not the header, is sabotaged. The real header is built; the pinned file
+        # in a copied fixtures folder gets an id appended, which leaves the 15 parsed entries unchanged.
+        fx = os.path.join(td, "fixtures-pin")
+        os.makedirs(fx)
+        name = "NWSReflectivity-metpy-v1.6.3.tbl"
+        data = open(os.path.join(FIXTURES, name), "rb").read()
+        open(os.path.join(fx, name), "wb").write(data + b"5a5a5a5a12345678\n")
+        assert open(os.path.join(fx, name), "rb").read() != data, "S-PIN: the table copy did not change"
+        exe = os.path.join(td, "real.exe")
+        b = subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe], capture_output=True, text=True)
+        if b.returncode != 0:
+            print(f"S-PIN: did not compile (rig)\n{b.stderr}")
+            return 2
+        r = subprocess.run([exe, fx], capture_output=True, text=True)
+        fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+        good = r.returncode == 1 and len(fails) == 1 and re.search(r"FAIL\s+pin\b", fails[0]) is not None
+        print(f"S-PIN: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+        for l in fails:
+            print(f"    {l}")
+        ok &= good
     after = sha(HEADER)
     print(f"real src/weatherscope/WxPalette.h unchanged: {before == after} ({after[:12]})")
     return 0 if ok and before == after else 1
