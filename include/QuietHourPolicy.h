@@ -47,9 +47,10 @@
  *   A late check beats a missed one, and the cap still bounds it.
  *
  * WHAT THIS POLICY DOES NOT DECIDE. Whether the reboot actually happens.
- * DeferRebootWithCause owns the 24 h cap and refuses on an unsynced clock, and
- * it stays the single implementation of both -- this file proposes, that one
- * disposes. Same split as the reachability ladder's rung 3, and for the same
+ * DeferRebootWithCause owns the reboot cap (include/RebootCap.h: 24 h for an
+ * unscheduled reboot, MIN_INTERVAL_S = 20 h for this scheduled one, #377) and
+ * refuses on an unsynced clock, and it stays the single implementation of
+ * both -- this file proposes, that one disposes. Same split as the reachability ladder's rung 3, and for the same
  * reason: two guards on one rule is two rules.
  * ======================================================================== */
 
@@ -159,8 +160,9 @@ inline int LocalHour(uint32_t utcEpoch, long offsetSec)
  * `uptimeMs` is millis(). Records its own fire, because DeferRebootWithCause
  * does not return when it succeeds, so there is no "afterwards" in which the
  * caller could record it. A refusal therefore also counts as a fire -- which is
- * correct, because the only thing that refuses is the 24 h cap, and the cap
- * refuses precisely when a reboot has already happened.
+ * correct, because the only thing that refuses is the reboot cap
+ * (include/RebootCap.h), and the cap refuses precisely when a reboot has
+ * already happened.
  */
 inline Decision Step(State& s, uint32_t utcEpoch, long offsetSec, uint32_t uptimeMs)
 {
