@@ -258,3 +258,14 @@ Two extra checks, not in the frozen table, also passed:
 **The alternative, and why the data excludes it:** "the harness pulls in extra framework RAM (mbedtls for the dump's sha256, heap_caps)". If it did, those symbols would appear in this image's RAM and not in `animtest`'s. None do, apart from the harness's own globals.
 
 Nothing was changed to bring RAM down. B2 waits for a ruling.
+
+### B, re-measured (2026-10-20, code at `ed40af2`: #429's fixes, `src/weatherscope/`, the env moved)
+
+| check | predicted (frozen in `edaea95`) | result | |
+|---|---|---|---|
+| B1, re-measured. Flash | 463,235-464,500 B | **463,395 B** (+160 B for the new checks) | ✓ |
+| B2'. Static RAM | 26,568-27,080 B (26,824 ± 256) | **26,824 B**, the point estimate | ✓ |
+
+- **B2 stays a miss.** B2' is its re-registration.
+- **The shipping build** `blipscope-s3-128` still builds, with no `src/weatherscope/` object in it.
+- **The host suite** passes (A3 12/12; renderer 57,600/57,600), and `skus.yml` validates.
