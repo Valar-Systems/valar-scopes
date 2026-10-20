@@ -205,6 +205,34 @@ It is planted in `src/weatherscope/WxRender.h` with an assertion that it applied
 - B3, B4, B8 or B9 off their predictions on the fresh boot: stop and report.
 - S-B1 producing any dump other than the predicted one: stop and report. That would mean the sabotage did not plant as intended, or the board renders differently from the host.
 
+## Predictions B, addendum 3: the tagged dump (ruled 2026-10-20, frozen before the fix)
+
+**The measuring tool is fixed, not the subject.** The `1183010` capture stays on record as it is: B9 unreadable, rows 197-200 lost.
+
+**The fix,** in the harness's dump only (`src/weatherscope/stage1_main.cpp`):
+- **Blocking writes:** during the dump, a serial write waits up to 2 s for the host instead of dropping after 2 ms.
+- **Tagged rows:** every row goes on its own line, `WXR,<row>,<crc32>,<base64>`. The CRC-32 is the standard one (zlib), over the row's 240 raw bytes.
+- **Dump on request only:** at boot the harness prints its measurements and no dump, because a blocking write with nobody listening would stall the board. Any byte asks for a report with the blocking dump. `D` asks for the same report with the **old drop-on-stall** writes (2 ms), and exists for the control.
+- **The host refuses** a capture with any missing, duplicated or corrupt row (bad CRC, bad base64, wrong length) and names every such row by number. Only a complete dump is assembled and graded.
+
+| check | predicted |
+|---|---|
+| **Control.** `D` (drop-on-stall), with the host deliberately not reading for 1.5 s partway through the dump | capture **REFUSED**, with **≥ 1 missing row named by number**. If the host reports nothing missing, the tags don't work: **stop** |
+| **B9 (re-measured).** Blocking dump of the correct image | **240/240 rows**, every CRC good; assembled sha256 **`344383b4cfae04eec5a7a844cfb5f1b9aaa4ce8fa15f30d1b956d4e86ac05225`**, **0 of 57,600** pixels differ from the host reference, and it equals the board's own `fb_sha256` |
+| **S-B1.** Blocking dump of the flipped image | 240/240 rows; sha256 **`91bbb69d6ef6152d421660ec1bebb79555cd7dcdc795663d1e5161b306f6b368`**; about **52.1 %** of disc pixels and **0.6 %** of echo pixels equal the reference; **B9 against the reference FAILS** |
+| **Final.** The correct image reflashed | B9 identical again, as above; the board ends on Stage 1 |
+
+**Expected to stay where they were:**
+- the timings: they're measured before any printing, and the dump change doesn't touch them;
+- the build: static RAM is unchanged (the CRC is computed in a function with no table), and flash grows by a few hundred bytes.
+
+These are reported, not re-graded.
+
+**Pre-registered outcomes off the table:**
+- The control reports no missing row: stop (the tags can't see loss).
+- The blocking dump is refused: stop and report the named rows (the fix didn't fix it).
+- B9 or S-B1 off the predictions above: stop and report.
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
