@@ -279,3 +279,15 @@ fixtures it scans. So the cleared list, not a re-run, is what admits a centre.
 an R2 body unread: it took the etag with `get` instead of `head`. That was fixed in the test; no measured
 value was involved.
 
+**Two endpoint-table items, done differently from the plan, and why:**
+- **`/credits` does NOT gain the NOAA line yet.** "Weather radar derived from NOAA MRMS data" would be a
+  false public statement while no weather is served. It goes in the PR that binds the bucket, the same
+  rule as README's telemetry disclosure: the statement changes in the commit that makes it true.
+- **`smoke-prod.sh` gains the `/wx` check now**, as planned. It passes on exactly two answers:
+  - `503 not_configured`: the inert route;
+  - `200` with WXC1 magic and an ETag: wired.
+
+  Anything else is a FAIL: a 404 (no route) or a `503 wx_stale` (wired, ingest behind). Its branches
+  have been syntax-checked, **not run**: only production can exercise them, so the first post-deploy run
+  is the first real reading.
+
