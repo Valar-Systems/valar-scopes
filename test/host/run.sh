@@ -1090,6 +1090,40 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The radar's projection, extracted once (include/RadarProjection.h; docs/wx-device.md WD1), held
+# bit-identical to ProjectAt's body at 788ad44 (test/host/ref_project_at.h, cut verbatim).
+echo
+echo "== RadarProjection =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/test/host" "$ROOT/test/host/test_radar_projection.cpp" -o "$OUT/test_radar_projection.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the radar projection test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_radar_projection.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# The weather layer (include/WxLayer.h; WD2) against an independent inverse and the planes' projection,
+# over the server-made crops.
+echo
+echo "== WxLayer =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_layer.cpp" -o "$OUT/test_wx_layer.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather layer test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_layer.exe" "$ROOT/test/fixtures/wx/server"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the weather layer test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"

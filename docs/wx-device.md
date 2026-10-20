@@ -134,3 +134,37 @@ changed.
 
 **Outside the set (all of the above):** stop. The code, tests and bars are not edited to make a reading
 come true. The raw reading goes to the reviewer, and the next step is decided then.
+
+## Results (2026-10-20, host, Windows MinGW)
+
+**WD1: AS PREDICTED.**
+- **8,599,500** projections over the frozen sweep, **0** different from `ProjectAt`'s body at `788ad44`.
+  The reference `test/host/ref_project_at.h` was cut by script; its body sha256 is `018192a40cf5…`, and
+  it was checked byte-identical to the cut.
+- *Sabotage* (rotSin sign flipped): 2,653,432 of 4,299,750 differ.
+
+**WD2: (a), (c) and (d) AS PREDICTED; (b) OFF-PREDICTION.** 960 views (8 crops × 2 home offsets × 3
+zooms × 5 rotations × 4 sizes).
+- **(a)** 127,230,720 on-disc pixels; **0** mismatches outside the 1e-4 band, and 211,347 inside it.
+  A read-only diagnostic split the band:
+  - **211,232** lie within **1e-9** of a cell boundary. These are exact alignments: the test's home is a
+    half-cell from each crop's centre;
+  - the other **115** lie within **3.4 × 10⁻⁸** cells, the fixed point's precision.
+
+  So every disagreement with the double reference is within 3.4e-8 cells of an edge.
+- **(c)** 0 off-disc disagreements. **(d)** 0 outside-the-crop pixels that are not 14.
+- **Sabotages:** rotation ignored, 16,845,039 mismatches; rLat/rLon swapped, 13,186,188; y flipped,
+  8,600,352 round-trip violations. All red.
+- **(b) OFF-PREDICTION: 1,740 of 25,098,437** crop cells land more than one cell away, against a frozen 0.
+  - **Cause, from a read-only diagnostic:** **all 1,740** are points whose float x or y is in (−1, 0),
+    and **0** are elsewhere. `Project` ends in `static_cast<int>`, which truncates toward zero, so a
+    point at x = −0.4 lands on pixel 0, up to 1.5 px from that pixel's centre. The frozen bound
+    assumed flooring: "the pixel centre is at most 0.707 px from the projected point". That holds only
+    for non-negative coordinates.
+  - **Alternative named:** a layer bug at the screen's edge pixels. **Excluded:** (a) grades every pixel,
+    x = 0 and y = 0 included, against the independent reference, with 0 mismatches. And no violation
+    has a non-negative float coordinate.
+  - **This is a property of the planes' projection, unchanged and pre-existing:** a plane at x = −0.4 is
+    drawn on column 0 too, and WD1 holds `Project` bit-identical to it. The test still asserts the
+    frozen 0 and fails. **Nothing changes until there is a ruling.**
+
