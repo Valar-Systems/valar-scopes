@@ -743,7 +743,7 @@ void loop()
   // state on its own, so the daily timer was firing into a heap that could not
   // serve it -- for the life of the unit.
   //
-  // The stamp is taken BEFORE the deferral so a refusal (see the 24 h cap) costs
+  // The stamp is taken BEFORE the deferral so a refusal (see the reboot cap) costs
   // one attempt per day rather than one per loop iteration.
   // AT A LOCAL QUIET HOUR, not 24 h after boot. The uptime timer drifted: a board
   // that booted at 14:00 rebooted at 14:00 every day thereafter, in front of the
@@ -752,9 +752,11 @@ void loop()
   // that never happens -- both arrive here as a `tz-offset` edit rather than as
   // a clock event, and how each is answered.
   //
-  // The policy PROPOSES; DeferRebootWithCause DISPOSES. The 24 h cap and the
+  // The policy PROPOSES; DeferRebootWithCause DISPOSES. The reboot cap and the
   // unsynced-clock refusal stay in that one place, shared with the reachability
   // watchdog's rung 3, so there is one implementation of each rather than two.
+  // The cap itself is include/RebootCap.h: 24 h for an unscheduled reboot, and
+  // the quiet policy's own 20 h for this scheduled one (#377).
   //
   // NOT IN PHOTO MODE: it reboots the board to run an update check that the photo
   // build skips (above), and on an EAM build the quiet hour is 03:00 UTC -- an
