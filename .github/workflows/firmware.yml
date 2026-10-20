@@ -368,6 +368,25 @@ jobs:
           # and the factory image the flasher writes -- every image that can reach a
           # customer is one of these two, and both are only built on slug-ful legs
           bash scripts/check-no-bench-hooks.sh "publish/firmware-${{ matrix.slug }}.factory.bin"
+      # MISSILEER IMAGES ARE SCANNED TOO, slug or no slug. Missileer has no slug yet
+      # (skus.yml: build-only), so the step above never reads a Missileer image -- and
+      # Missileer is where bench-only code is now being added (-fbdiag, bench envs).
+      # "Compiled out of shipping" for those is a claim about THIS image; without this
+      # step nothing in CI checks it. Same script, same anchor/BLIND rule, same
+      # selftest; harness envs (animtest/gametest) are not matched and not scanned.
+      - name: No bench hook in the Missileer image
+        if: startsWith(matrix.env, 'missileer-')
+        run: |
+          bash scripts/check-no-bench-hooks.sh --selftest
+          bash scripts/check-no-bench-hooks.sh ".pio/build/${{ matrix.env }}/firmware.bin"
+      # HOST TESTS, once per run. test/host/run.sh was only ever run by hand, so a
+      # red host test could merge. It needs .pio/libdeps (the Wi-Fi QR test reads
+      # LovyanGFX's fonts and reports BLIND without them), which is why it runs here,
+      # after this leg's `pio run`, rather than as a bare job. One leg is enough:
+      # the tests are pure TUs and do not depend on the env.
+      - name: Host tests
+        if: matrix.env == 'blipscope-s3-128'
+        run: bash test/host/run.sh
       - name: No secret in the factory image
         if: matrix.slug
         run: |

@@ -774,7 +774,9 @@ fi
 # exactly that and nothing it cannot back up.
 echo
 echo "== the same TU, for the board =="
-XCXX="$(ls "$HOME"/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++.exe 2>/dev/null | head -1)"
+# .exe on Windows, no suffix on Linux (CI): both spellings, so CI runs this half too.
+XCXX="$(ls "$HOME"/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++.exe \
+           "$HOME"/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++ 2>/dev/null | head -1)"
 if [ -z "$XCXX" ] || [ ! -x "$XCXX" ]; then
   # NOT SKIPPED SILENTLY. A missing cross-compiler means this run proves the
   # host half only -- which is the exact claim that was overstated -- so it is
