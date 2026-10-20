@@ -381,6 +381,27 @@ These are reported, not re-graded.
 - **The radar product** is MergedReflectivityQCComposite, as in the spike. Which product Weatherscope uses has not been ruled.
 - **Stage 2:** the data path, the screens, the 15 mi approach ring and the warning screens.
 
+### Ruled for Stage 2 (Daniel, 2026-10-20)
+
+Recorded as received. The three lines above are left as they were.
+1. **Palette:**
+   - rain = the standard NWS reflectivity scale;
+   - snow = its own blue-to-white intensity scale;
+   - no coverage = solid grey;
+   - missing = dim or hatched grey (never violet, which reads as a hail core);
+   - the lowest band (15-20 dBZ) dimmed slightly.
+
+   Render it on the board for Daniel to look at before it's final. Stage 1's provisional palette, with its dark violet for missing, stays as it was in the closed Stage 1 harness, and this ruling replaces it from Stage 2 on.
+2. **Radar product:** SeamlessHSR, pending a side-by-side check. Before Stage 2 code, compare SeamlessHSR and the composite on a few stored frames, including a dry western day with storms aloft, and report where they differ. If the difference is negligible, say so, and Daniel may switch back.
+3. **Data path:**
+   - one shared server pipeline with the Blipscope weather layer, with the radar product as a parameter;
+   - it runs on the device side, never the website's Worker;
+   - NWS alerts also come through the proxy (one request per area, a proper User-Agent), not directly from devices.
+
+   This touches blipscope-5c's spike (#422), so the coordination goes to it through Daniel before the shared parts are planned.
+
+**Stage 2's plan:** `docs/weatherscope-stage2.md`, draft PR #437 (doc only, predictions first). The shared parts are held there until that coordination has happened.
+
 ## Results
 
 ### A: the decoder on the host (2026-10-20, code at `59417e3`)
