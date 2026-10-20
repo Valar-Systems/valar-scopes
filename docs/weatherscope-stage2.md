@@ -387,3 +387,26 @@ Change 1's sample is 24 snowing hours at KMSP, 2024-12-02 05:53Z to 12-11 15:53Z
 1. the anchor's floor;
 2. P0's stop: run the motion test, or accept the result as it stands;
 3. then F4, F5 and change 1.
+
+**A correction to run 1's "How it ran".** Run 1's screens did **not** come from `main`'s `render_ref.py`. They came from #434's branch version, sha256 `450e01cc4ff6…`: the clone was on that branch while run 1 ran. That version is now `main`'s, at `122e118`. #437's branch carries the older `7c1275c8…`, which has no `--out`. A branch switch swapped it in, and the motion test's first attempt then stopped before measuring anything, with no screen written. The renderer is now a pinned copy of `450e01cc4ff6…`, asserted when `check.py` loads (`8e1de79`).
+
+### 2.0, the motion test (2026-10-20, frozen in addendum 2): F1 outside, F3 (a). STOP
+
+**How it ran:**
+- `motion.py` (`1ad74dd`), with the pinned renderer, on two consecutive SeamlessHSR files per frame, exactly 120 s apart.
+- The census passed at the −40 floor (no values below it).
+- Each file against itself gave 0 went up and 0 went down.
+- **The early file of each pair reproduces run 1:** SeamlessHSR's echo share is 10.61 % on F1 and 68.70 % on F3, both equal to run 1's.
+
+| frame | files | pixels with echo in either | **went up** | went down | changed level | run 1's "SeamlessHSR higher" | reading |
+|---|---|---|---|---|---|---|---|
+| F1 KDFW | 22:00:00Z → 22:02:00Z | 6,407 | **44.75 %** (2,867) | 47.21 % (3,025) | 92.0 % | 16.31 % | **outside**: more than 4 points above |
+| F3 KATL | 09:52:00Z → 09:54:00Z | 31,695 | **8.72 %** (2,764) | 12.13 % (3,844) | 20.8 % | 12.18 % | **(a)**: within 4 points (3.46 below) |
+
+**STOP, as pre-registered: a mixed result means stop and decide.** F4, F5 and change 1 stay **ungraded**, and their values stay unread.
+
+**What the numbers show,** reported and not re-graded:
+- **F1.** SeamlessHSR's echo **area** barely changes in 2 min, from 10.61 % to 10.17 % of the disc, with class agreement 92.46 %. But **92 % of its echo pixels change band**. On a convective frame, then, the band at a pixel churns far faster than the echo moves. Over 2 min that churn is about 3 × run 1's 16.31 %, so it could easily cover run 1's 42 s offset. This test can't show that: it measured 2 min, not 42 s. That is the reason the addendum put a share well above 16 % outside (a).
+- **F3.** The rule reads (a). But the two directions differ: went up 8.72 % and went down 12.13 %, with run 1's 12.18 % in between. And run 1's offset was 43 s, shorter than the 120 s here, so motion at 43 s should be **no larger** than at 120 s. On that reading, motion covers only part of F3's 12.18 %, and the rest would point to (b). This is an observation outside the frozen rule. It isn't graded, and the rule's reading stands.
+
+**Not established:** whether the two products differ in grid or QC. A test at the right time scale would pair files only as far apart as run 1's (40-45 s), but **SeamlessHSR publishes every 2 min** and the composite at :36-:43 s, so no same-product pair is that close. A cleaner discriminator needs a ruling: for example, the composite at :42 against SeamlessHSR at the following :00 **and** the preceding :00, which brackets the offset from both sides.
