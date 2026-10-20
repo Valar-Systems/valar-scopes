@@ -180,11 +180,11 @@ Buying a kit is also the best way to support continued development of the projec
 
 ## Assembly
 
-The Valar Scopes enclosure has been completely redesigned, so the build steps live in the project wiki rather than here in the README:
+The step-by-step build guide is on the Blipscope support page. That's also where the QR code on the card in the kit box takes you:
 
-### 📖 [Assembly guide → Valar Scopes Wiki](https://github.com/Valar-Systems/valar-scopes/wiki)
+### 📖 [Build guide → Blipscope Support](https://scopes.valarsystems.com/blipscope/support#kit)
 
-The wiki walks through the full build with photos. We recommend skimming the [Setup & Usage](#setup--usage) section below before you start, so you can test the hardware before everything is closed up.
+It covers printing the case, what's in the kit, the assembly steps, and a power-on test to run before you close it up. You'll need a T6 Torx driver. The case files and print settings are in [hardware/](hardware/README.md).
 
 ## Firmware
 
