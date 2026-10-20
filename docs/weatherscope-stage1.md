@@ -269,3 +269,33 @@ Nothing was changed to bring RAM down. B2 waits for a ruling.
 - **B2 stays a miss.** B2' is its re-registration.
 - **The shipping build** `blipscope-s3-128` still builds, with no `src/weatherscope/` object in it.
 - **The host suite** passes (A3 12/12; renderer 57,600/57,600), and `skus.yml` validates.
+
+### B, on the board (2026-10-20, image `ed40af2` on `907069326E64`)
+
+**How it ran:**
+- **Flash:** `scripts/bench-flash.ps1 -Board weatherscope -DanielApproved -NoCapture`. The port was resolved from the serial (COM6), and esptool reported MAC `90:70:69:32:6e:64`; all four images verified.
+- **Read:** one open of the port, with DTR and RTS held low, then a single byte to ask for the report (`test/fixtures/wx/capture_stage1.py`).
+- **What the timings measure:** the report re-prints the values measured once at boot.
+
+| check | predicted | result | |
+|---|---|---|---|
+| B3. PSRAM used by the frame | 144-160 KB | **153,608 B** | ✓ |
+| B4. Change in internal heap | ≤ 2 KB | **0 B** | ✓ |
+| B5. Decode | 0.2-2 ms | **2.867 ms** | **✗ off-prediction** |
+| B6. Row and column indices | ≤ 1.5 ms | **3.584 ms** | **✗ off-prediction** |
+| B7. Render into the sprite | 2-10 ms | **22.012 ms** | **✗ off-prediction** |
+| B8. Push to the panel | 23-32 ms | **25.788 ms** | ✓ |
+| B9. Per-pixel code dump | sha256 `344383b4…`, identical to `render_ref.py` | **identical**: 0 of 57,600 pixels differ, and the board's own `fb_sha256` agrees | ✓ |
+
+**STOP, report (B5, B6, B7).** The image is correct: B9 is identical. The work is slower than predicted:
+- B5 by 1.4×, B6 by 2.4× and B7 by 2.2× over the top of each band.
+- B8, which is bound by the SPI bus rather than the CPU, landed as predicted.
+
+**One alternative ruled out:** a CPU clock below the 240 MHz the estimates assumed. The framework's `sdkconfig.h` sets `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ 240`, and nothing in the harness changes it.
+
+**Cause not established.** It is not profiled, so these are candidates, none tested:
+- B6: the cost of software double-precision arithmetic, 480 divides and floors on a chip with no double FPU;
+- B5 and B7: first-touch cache misses on the flash-mapped crop and on PSRAM;
+- B7: LovyanGFX's per-call overhead in `writeFastHLine`.
+
+**Not run:** S-B1, the north/south flip on the board. The stage stopped first. The board is left running the correct `ed40af2` image.
