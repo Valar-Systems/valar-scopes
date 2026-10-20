@@ -221,6 +221,23 @@ production's.
 - Each result is reported against its bar. Production CPU, memory and cron delay are measured after
   Daniel deploys, against Stage 2's frozen bars: p95 lag ≤ 2 min, and no skipped frames.
 
+**WS8, grading details fixed before its first run** (2026-10-20, after WS1-WS7, before any WS8
+measurement):
+- **Frame:** Stage 1's storm frame, the one A4 measured
+  (`CONUS/MergedReflectivityQCComposite_00.50/20240521/MRMS_MergedReflectivityQCComposite_00.50_20240521-220042.grib2.gz`).
+  Its download must hash to the manifest's `0bd824f76981…`, or WS8 is BLIND.
+- **CPU and wall:** un-forced runs, `process.cpuUsage()` from just before the download to the finished
+  WXG1 object, the same scope as A4's 0.53 s. **3 runs**; the bar applies to the largest.
+- **Live memory:** A4's meter, `node --expose-gc`. A forced `gc()` then `heapUsed + external` at every
+  stage boundary and right after each large allocation: the download, the geometry inflate, the tiled
+  buffer, the decoder's stages. **3 runs**; the bar applies to the largest live peak.
+- **Its sabotage:** the same run holding an extra 64 MB, touched. **Graded on the live peak:** it must
+  rise by **63-65 MB** against the mean unsabotaged peak. That is A4's ruled band, applied to the peak
+  only, since A4 showed mid-stream samples vary by more than the band.
+- **Crop build:** all 200 cases of WS2 on the real frame. Tiles are cut from the object in memory, as R2
+  would return them, and each crop is timed from `cropCellBox` to finished bytes. **p95 by nearest rank**
+  (sorted[⌈0.95 n⌉ − 1]), and the maximum too.
+
 **Outside the set:** any reading not listed above means stop. Code, tests and bars are not edited to
 make a reading come true. The raw reading goes to the reviewer, and the next step is decided then.
 
