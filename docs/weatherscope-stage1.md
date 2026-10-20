@@ -233,6 +233,65 @@ These are reported, not re-graded.
 - The blocking dump is refused: stop and report the named rows (the fix didn't fix it).
 - B9 or S-B1 off the predictions above: stop and report.
 
+## Predictions B, addendum 4: the Stage 1 diagnostic run (reviewer ruling, 2026-10-20; frozen before any diagnostic code)
+
+**Where the diagnostics live.** A separate bench env, `weatherscope-s3-128-diag`: `extends = env:weatherscope-s3-128`, plus `-DWX_STAGE1_DIAG`, and **no `skus.yml` row**. All diagnostic code is under that flag:
+- the Stage 1 env compiles none of it, so the Stage 1 image and its measured path are unchanged;
+- no shipping env compiles `src/weatherscope/` at all.
+
+**Optimize nothing.** Every variant below is a measurement. A faster one is a finding for Stage 2, not a change to Stage 1.
+
+**How it runs, in the diag image:**
+- **Cold:** the boot path runs exactly as in Stage 1 (decode from flash into the PSRAM grid, double indices, `writeFastHLine` render, push). It is recorded as the cold run before anything else runs.
+- **Warm:** then each variant runs **11 times**, reported as median and max.
+- **Code-buffer checks:** the sha256 of the 57,600-byte code buffer (`CodeAt` over every pixel), worked out outside the timing.
+- **Sprite checks:** the sha256 of the 115,200-byte sprite buffer, for each render method.
+
+| variant | what it is |
+|---|---|
+| D-flash | decode from the embedded crop (flash) into the PSRAM grid: Stage 1's path |
+| D-ram | decode from an **internal-RAM copy** of the crop (copied once, outside the timing) into the PSRAM grid: the way Stage 2 will receive it |
+| D-ram-int *(extra, not in the ruling)* | the same RAM copy, decoded into an **internal-RAM** grid. It separates the cost of writing 36,192 bytes into PSRAM |
+| I-double | the indices in double: Stage 1's `BuildView` |
+| I-float | the same expressions in float (diagnostic-only code) |
+| R-hline | render through `writeFastHLine`: Stage 1's `Render` |
+| R-direct | render by writing the sprite buffer directly, one 16-bit store per pixel, same colours |
+
+**The instrument check (a), before anything is read from it:** the diag image's cold run must reproduce Stage 1's boot numbers (2,867 / 3,584 / 22,012 µs) **within ±10 % each**. If it doesn't, the instrument is unreliable: **stop**.
+
+**Identity (every variant must produce the identical buffer):**
+- D-flash, D-ram, D-ram-int and I-double each give code-buffer sha256 **`344383b4…`**.
+- R-hline and R-direct give the **same sprite sha256**.
+- I-float is the one exception. The prediction is that **0-3 of the 480 indices** differ from double: float carries about 7 significant digits, and a flip needs a sample within about 4 × 10⁻⁴ of a cell boundary. If 0 differ, its code buffer is `344383b4…`; otherwise the differing pixels are counted.
+
+**Each miss, by candidate cause** (warm medians, against the cold run):
+
+| miss | candidate cause | it predicts | ruled out if | my bet |
+|---|---|---|---|---|
+| **B6** indices 3.584 ms | **C1** software double arithmetic (no double-precision FPU) | I-double warm median **within 10 % of cold** (3.2-3.9 ms); I-float median **≤ 1.0 ms** | I-float median **≥ 50 %** of I-double's, or I-double warm **≤ 50 %** of cold (that would be cache, not arithmetic) | **holds** |
+| **B5** decode 2.867 ms | **C2** first-touch cache misses on the flash-mapped crop | D-flash warm median **≤ 60 %** of cold (≤ 1.7 ms); D-ram within ±15 % of D-flash warm | D-flash warm median **≥ 85 %** of cold (≥ 2.44 ms) | **ruled out** (expect about 2.2-2.7 ms warm) |
+| **B5** | **C2'** *(new candidate)* the cost of writing 36,192 bytes into PSRAM | D-ram-int median **≤ 50 %** of D-ram's | D-ram-int **≥ 80 %** of D-ram | **holds** (expect D-ram-int about 0.4-1.0 ms) |
+| **B7** render 22.012 ms | **C3** LovyanGFX per-call overhead in `writeFastHLine` | R-direct median **≤ 50 %** of R-hline's | R-direct **≥ 80 %** of R-hline | **holds** (expect R-direct about 5-10 ms) |
+| **B7** | **C3'** first-touch PSRAM cache misses (grid reads, sprite writes) | R-hline warm median **≤ 70 %** of cold | R-hline warm **≥ 90 %** of cold | **ruled out** (expect about 20-22 ms warm) |
+
+**My overall expectation:**
+- **B6** is C1, software doubles.
+- **B5** is mostly C2', the PSRAM fill, not flash.
+- **B7** is mostly C3, the per-call overhead.
+
+**Pre-registered outcomes off the table:**
+- The cold run outside ±10 % of the boot numbers: stop (the instrument).
+- Any identity check failing, other than I-float's counted indices: stop and report.
+- A result between a cause's "predicts" and "ruled out" thresholds: reported as **partial, not established**.
+- A miss with every candidate ruled out: **cause unknown**; stop and report.
+- Any result not named here: stop and decide.
+
+**Board session, once Daniel gives the OK to flash `907069326E64`,** in this order:
+1. Stage 1 with the tagged dump: the control (`D`), then B9.
+2. S-B1, the flipped image.
+3. The diag image.
+4. The correct Stage 1 image, reflashed and B9 re-graded, so the board ends on Stage 1.
+
 ## Not decided here
 
 - **The palette** is provisional: NWS reflectivity steps for codes 1-13, black for dry, grey for no coverage, dark violet for missing. It has not been ruled. B9 compares codes, not colours.
@@ -391,3 +450,23 @@ Nothing was changed to bring RAM down. B2 waits for a ruling.
 - **S-B1 not run.** Its grade also depends on the dump.
 
 The board is left running the correct image.
+
+### Reviewer ruling on the Stage 1 board results (image `ed40af2` on `907069326E64`), 2026-10-20
+
+Recorded as received:
+
+1. **B5, B6 and B7 stay misses**: 2.867, 3.584 and 22.012 ms against bands of 0.2-2, ≤ 1.5 and 2-10 ms. **The bands stay as frozen; don't re-register over them.** B3, B4, B8 and B9 pass, and B9 is the result that matters most. Stopping, and listing the causes as untested candidates, was right.
+2. **B2:** the explanation is accepted (the baseline was wrong; the harness's own linked RAM is 1,116 B; no extra framework symbols). B2 stays a miss, and **B2' stands**.
+3. **These times are fine for Weatherscope** (about 50 ms per new frame, with a new frame every 2 minutes). They matter for the Blipscope weather overlay, which redraws every frame. So **each miss needs a cause** before anyone predicts from these numbers again. Close Stage 1 with **one diagnostic run**, predictions frozen first, giving for each candidate cause the number it predicts and the result that would rule it out:
+   - a. cold vs warm: decode, indices and render once cold, then at least 10 more times. Report the first run, and the median and max of the rest. The first run must reproduce the boot numbers within a stated tolerance, or the instrument is unreliable: stop.
+   - b. decode from a RAM copy of the crop, the way Stage 2 will receive it, as well as from flash.
+   - c. indices in float as well as double; report how many of the 480 indices differ.
+   - d. render by writing the sprite buffer directly as well as through `writeFastHLine`.
+   - Every variant must produce the identical buffer (`344383b4…`), except where float indices differ, which are reported as a count.
+4. **Run S-B1 on the board.** It must fail as predicted.
+5. **Keep diagnostic code out of the Stage 1 harness's measured path and out of every shipping env. Optimize nothing.** A faster variant is a finding for Stage 2's design, not a change to Stage 1.
+6. **Report** each prediction with its result, then which cause explains each miss. If the results match, Stage 1 is closed and the measured costs become the basis for Stage 2's timing bands; if not, stop and report.
+
+Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait for v18 to be promoted.
+
+**Open conflict, put to Daniel.** An earlier ruling the same day ("Ruling on B5-B7: option 2, re-register") had budget bars frozen in "Predictions B, addendum 2", and they were met on the board (54.2 ms per frame, 19.7 fps). That addendum did not edit the original B5-B7 lines, which still read as misses. This ruling says not to re-register over the bands. Until Daniel says which stands, addendum 2 and its results stay in the record as written, and B5-B7 remain misses either way.
