@@ -49,8 +49,11 @@ Exit codes: the fix exits 0. The sabotage exits 1 with **exactly A and B** faili
 These are **rules for how the rollout is graded**, set at review before v18 is cut or promoted. They are not changes to the predictions above.
 
 1. **A device offline at promote time is listed as silent, not graded.** The field prediction names 336f, which has made no request since **2026-10-17 18:41:48Z**. If it is still silent when v18 is promoted, it is listed under "silent" with its last report, and no criterion is graded against it.
-2. **A unit that takes the "unless something else reboots it sooner" exception is judged on its own timeline.** The boot-count criterion counts exactly one boot row from **that unit's** first boot after T to that boot + 24 h, not across a fixed window. (v17's R5 failed as worded for exactly this reason: COM6 updated early and its normal 03:00 reboot fell inside the fixed window.)
+2. **In the 24 h after a unit's update restart, its boot rows must be that restart plus its scheduled quiet-hour reboot(s) under item 3, and nothing else. Any other boot row in that span is a FAIL.** This is judged on each unit's own timeline, so a unit that updates in the evening is expected to make its quiet-hour reboot that same night. That is exactly what COM6 did in v17, where a fixed-window count of "exactly one boot row" failed it as worded.
 3. **New criterion: the scheduled quiet-hour reboot inside the window**, the behaviour #421 changes.
    - **Pass:** for every always-on device, each scheduled quiet-hour reboot that falls inside the grading window happens: one `SW` boot row at the device's usual minute (±3 min) on every night the window covers. That includes the night after its update, and any night whose reboot comes less than 24 h but at least 20 h after the previous stamped one.
    - **A skipped quiet-hour night is a FAIL.** Its rows are reported as returned.
+   - **Exemptions: a night is not graded, and is listed with its rows, if:**
+     - the device made **no requests that night**; or
+     - it logged an **unscheduled deferred reboot** (net wedge or fleet floor) **in the 20 h before that quiet hour**. The cap refuses that night by design (`test_quiet_cap.cpp`, control C).
    - **What it cannot see:** the 20 h minimum itself is not visible in telemetry, because `lastReb` is not reported. This criterion grades that no scheduled night is lost, which is the customer-visible half of the change.
