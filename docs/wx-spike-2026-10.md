@@ -262,3 +262,20 @@ Download, gunzip, decode, quantise to 4-bit and pack two cells per byte (12.25 M
 - **Proposed fix (needs a ruling):** force a collection before each stage-boundary sample (`node --expose-gc`). That meters live memory, which is additive by construction; then repeat the 64 MB sabotage.
 - **Not yet run:** the local-workerd "it runs there" check.
 
+### A2 re-run with the long-run form, and the round trip (2026-10-20). Round trip as predicted; p50 OFF-PREDICTION (smaller)
+
+Same 300 frames (2024-05-21 15:00:38Z to 2024-05-22 00:58:41Z), 50 airports, 3 radii = 45,000 crops.
+
+| radius | p50 (pred.) | p95 (pred.) | max (pred.) | over 32 KB | coarsened | smallest |
+|---|---|---|---|---|---|---|
+| 40 km | **0.034 KB** (≤ 0.15) ✓ | 1.44 KB (~1.2) | 2.78 KB (~2.6) | **0** | **0** | 35 B |
+| 80 km | **0.035 KB** (~0.3) | 4.41 KB (~4) | 8.95 KB (~8.5) | **0** | **0** | 36 B |
+| 160 km | **0.144 KB** (~1.5) | 12.78 KB (~13) ✓ | 29.94 KB (~29) ✓ | **0** | **0** | 36 B |
+
+- **Round trip:** `decode(encode(crop))` equals the encoded cells **bit for bit on 45,000 / 45,000** crops, **as predicted**. Per the ruling, **A3 and A5 stand without a re-run**.
+- **Round-trip sabotage** (the encoder writes long-run lengths one short): **45,000 / 45,000 fail (100.00 %)**, within the predicted ≥ 95 %.
+- **Uniform crops:** 35-36 B, as predicted (≤ 40 B).
+- **OFF-PREDICTION: the 80 km and 160 km p50s are ~10× smaller than predicted.** The prediction assumed rain inside the median airport's crop. On this storm day, more than half of the 50 airports had near-uniform crops at any moment, so their crops collapse to a few long runs.
+- p95 and max come from the rainy crops and land within +5 % to +20 % of prediction. At 40 km the p95 (1.44 against ~1.2) and max (2.78 against ~2.6) are above; the 160 km values match.
+- **Bars: all met.**
+
