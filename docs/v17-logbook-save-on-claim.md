@@ -187,9 +187,19 @@ Each image was written to app0 only. NVS and app1 (v17) were never touched by a 
 - F's fresh-type cell was measured and matched, so the shipped behaviour was seen working.
 - The most the missing cell could hide is a fresh-type claim waiting for the next 10-minute save, as in v17. That is not a regression.
 
-**Observation, outside the frozen cells.** After the B38M claim, v18 saved **twice**: at the claim (18:38:25Z), and again 3 s later (18:38:28Z, types 13 → 14), with no fetch in between. That contradicts this doc's "one save per claiming tap", which the NVS-wear estimate above relies on. The cause is not known yet.
+**Observation, outside the frozen cells (corrected after review).** After the B38M claim, v18 saved twice: at the claim (18:38:25Z), and again at 18:38:28Z (types 13 → 14). The first draft of this record said "no fetch in between". **That was wrong: the second save is most likely my own probe's fetch.**
+- The probe fetches `/logbook.json` 3.0 s after the claim is seen, so its request started at or after 18:38:28.0Z. Its recorded time (18:38:29) is stamped after the fetch completes.
+- A page fetch saves through `MaybePersistForFetch()`, rate-limited by `lastFetchPersist` (`Logbook.cpp:1023-1031`). A claim's `PersistNow()` sets only `lastPersist`, so a claim never starts that limit.
+- One new type logged in those 3 s (13 → 14) made the logbook dirty again, so the probe's fetch saved it.
+
+**Not excluded by serial order.** `/logbook.json` requests are not logged, and the timestamps resolve to the second, so the request cannot be placed before the save within 18:38:28.
+
+**The cross-check is consistent with it:** the P28A and RV9 probes, also at +3 s, produced no second save. Neither showed a new type in its window (no later save line).
+
+**So "one save per claiming tap" holds.** The NVS-wear estimate above should count the fetch path as a separate source: at most one save per 30 s, while the logbook is dirty and someone is reading the page.
 
 **The board afterwards:** E2:08 was restored from its verified 16:16Z backup.
 - The files matched their recorded hashes (NVS `0e5a0cb1c3bc…`, otadata `b7e293bb607d…`), and the restore was written back only to E2:08.
 - It boots app1 (v17), the logbook is unticked, and Collection is **1 claimed of 28 seen**, with every count identical to before the run.
+- **app0 still holds S** (`424ce11b1df6…`, the red-control build). otadata points at app1, so app0 does not boot, and the next OTA overwrites it.
 - The restore also reverts what happened on v17 between 16:28Z and 17:55Z: the logbook being switched on, and two claims.
