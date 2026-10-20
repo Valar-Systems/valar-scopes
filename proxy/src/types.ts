@@ -6,6 +6,9 @@ export interface RateLimit {
 export interface Env {
   ENRICH_KV: KVNamespace;
   METRICS?: AnalyticsEngineDataset;
+  // Weather frames, written by the separate ingest Worker (src/wx/ingest-worker.ts) and only READ here.
+  // Optional: absent in staging/production until Daniel binds the bucket; /wx then answers 503 not_configured.
+  WX?: R2Bucket;
 
   // Optional: absent in `wrangler dev`/tests (miniflare can't emulate the beta
   // binding), enforced in staging/production.
