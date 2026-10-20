@@ -167,6 +167,35 @@ is closed once this is graded.
 
 H3 is unchanged. The outside-the-set rule still applies: stop, report, and decide.
 
+## Results after the fix (2026-10-20, ruled to run)
+
+**H1′ at `fa6daae`: AS PREDICTED.** [job](https://github.com/Valar-Systems/valar-scopes/actions/runs/39494194135/job/118874838145)
+- `host-tests` succeeded. Its build step succeeded (4 min 25 s).
+- The suite log has every frozen line, in order:
+  - `compiler: /usr/bin/g++`;
+  - `cross:    /home/runner/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++`;
+  - the five `compiles for the ESP32-S3` lines;
+  - `all WX crop checks passed`;
+  - `all WX render checks passed`;
+  - `ALL HOST TESTS PASSED`.
+- 0 FAIL lines and 0 BLIND, and **361** `ok` lines in the suite log.
+  - *Counted from the suite's first line, `compiler:`.* The whole job log has 369, because the build
+    step adds 8 lines of the config-page size report (`ok 68,847 B Configure Blipscope`, and so on). The
+    frozen count was for the suite log; both counts are stated here so neither reading is hidden.
+- 33 check runs: 30 success and 3 skipped, all from app 15368. Name by name, they differ from `c7c8d17`
+  in exactly `host-tests` and `sku-readers`, both now success.
+
+**H2′ at `4df31cc` (#442): AS PREDICTED.** [job](https://github.com/Valar-Systems/valar-scopes/actions/runs/39494251216/job/118875033221)
+- `host-tests` failed, `Process completed with exit code 1.`
+- **Exactly one** FAIL line: `FAIL  A3  a zero-length long run appended (00 00): Ok (want ZeroRun)`.
+- `WX CROP TESTS FAILED`, `all WX render checks passed`, last suite line `HOST TESTS FAILED`.
+- **360** `ok` lines in the suite log (368 in the job log, the same 8 from the build step).
+- 33 check runs. Name by name, they differ from H1′'s head in exactly `host-tests`, failure. The
+  weatherscope harness leg built the sabotaged header.
+
+So a deliberate regression in the shipped WXC1 decoder turns `host-tests` red on exactly the
+predicted check, with every other check unaffected. H3, the rule, follows the merge.
+
 ## What the rule does to everyone else (stated before it is applied)
 
 - **Open PRs into `main`.** The 14 open non-draft PRs' last CI predates the job. Each reads BLOCKED
