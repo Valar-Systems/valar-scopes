@@ -302,6 +302,28 @@ else
   fail=$((fail+1))
 fi
 
+# Weather (docs/wx-server.md). Until Daniel binds a WX bucket the route is deliberately inert, and the ONLY
+# passing answers are: 503 not_configured (not wired yet), or 200 with a WXC1 crop and an ETag (wired). A
+# 404 means the deployed Worker has no /wx route; a 503 wx_stale means it is wired and the ingest is not
+# keeping up -- both are failures, never "not yet". The body is binary, so it is never dumped.
+printf '\n===== /wx/cref (the device'"'"'s own query) =====\n'
+WX_TMP="$(mktemp)"
+WX_HDR="$(mktemp)"
+WX_STATUS="$(curl -s --max-time 25 -o "$WX_TMP" -D "$WX_HDR" -w '%{http_code}' "${AUTH[@]}" \
+  "$BASE/api/v1/blipscope/wx/cref?lat=$LAT&lon=$LON&r=$R")"
+WX_MAGIC="$(head -c 4 "$WX_TMP" 2>/dev/null | tr -cd 'A-Z0-9')"
+WX_ERR="$(grep -oE '"error":"[a-z_]+"' "$WX_TMP" 2>/dev/null | head -1)"
+WX_ETAG="$(grep -i '^etag:' "$WX_HDR" | tr -d '\r' | cut -d' ' -f2-)"
+printf 'HTTP %s, %s bytes, magic [%s], error [%s], ETag [%s]\n' "$WX_STATUS" "$(wc -c < "$WX_TMP" | tr -d ' ')" "$WX_MAGIC" "$WX_ERR" "$WX_ETAG"
+if [ "$WX_STATUS" = "503" ] && [ "$WX_ERR" = '"error":"not_configured"' ]; then
+  printf 'RESULT: PASS -- not wired yet (no WX bucket bound): the inert answer\n'; pass=$((pass+1))
+elif [ "$WX_STATUS" = "200" ] && [ "$WX_MAGIC" = "WXC1" ] && [ -n "$WX_ETAG" ]; then
+  printf 'RESULT: PASS -- wired: a WXC1 crop with an ETag\n'; pass=$((pass+1))
+else
+  printf 'RESULT: FAIL -- neither the inert answer nor a crop\n'; fail=$((fail+1))
+fi
+rm -f "$WX_TMP" "$WX_HDR"
+
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
   "${AUTH[@]}" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"
