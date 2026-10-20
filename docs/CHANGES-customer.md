@@ -23,6 +23,14 @@ change at promote.
 -->
 url: https://scopes.valarsystems.com/blipscope/changes
 
+## v18
+notify: no
+summary:
+- Claims show right away  (refs: #387)
+
+### Claims show up straight away
+A plane you claim now shows in your Collection straight away.
+
 ## v17
 notify: yes
 summary:
