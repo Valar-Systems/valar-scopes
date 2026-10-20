@@ -1124,6 +1124,23 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The weather fetch policy (include/WxPolicy.h; docs/wx-device.md WD3): a table and random sequences, one
+# line per property. Its sabotages: python -I test/host/sabotage_wx_policy.py
+echo
+echo "== WxPolicy =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_policy.cpp" -o "$OUT/test_wx_policy.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather policy test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_policy.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"

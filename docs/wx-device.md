@@ -168,3 +168,22 @@ zooms × 5 rotations × 4 sizes).
     drawn on column 0 too, and WD1 holds `Project` bit-identical to it. The test still asserts the
     frozen 0 and fails. **Nothing changes until there is a ruling.**
 
+**WD3: AS PREDICTED.**
+- The table: 12 / 12 rows.
+- Random sequences: **200,000 steps, 0 violations** of each of (a)-(f). The sequences cover enable
+  toggles, query changes (including a response landing after its query moved), clock set and unset,
+  and 200 valid / oversize / invalid / older-frame / all-14, 304, 503, 404 and network failures.
+- **Sabotages** (`test/host/sabotage_wx_policy.py`): **8 / 8 turn exactly their own property red, and no
+  other.** Each plants into a copy of the header, and the real header's sha256 is unchanged before and
+  after.
+  - S-a: no enabled check.
+  - S-b1: no size cap. S-b2: an older epoch accepted.
+  - S-c1: no age check. S-c2: an unset clock read as epoch 0.
+  - S-d: the ETag kept **and** sent across a query change. (d) has two guards, so removing one is
+    correctly masked by the other.
+  - S-e: no backoff.
+  - S-f: all-14 shown as dry.
+- **Rig note:** five plants first failed to compile under `-Werror`. Deleting a check removed a
+  parameter's only use (`enabled`, `bytes`, `nowEpoch`, `clockSet`, `q`). Each was re-planted as a
+  `(void)` reference. Those were compile refusals, not results; no measured value was involved.
+
