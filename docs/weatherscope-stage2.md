@@ -378,6 +378,43 @@ All of them stay in the scratchpad, never in git.
 
 **Outside all of the above: stop and decide.**
 
+## Addendum 5: Daniel's second palette look (2026-10-20, photos of the board; frozen before any snow colour is chosen or measured)
+
+**Recorded as received:**
+1. **Rain 15-20 dBZ: 55 %.** 70 % looked the same as 85 % on the storm frame: blue dims little perceptually. **Final.**
+2. **No coverage (the darker grey): approved. Missing, hatched: approved. Final.**
+3. **The snow ramp:**
+   - The paler start is approved in direction, but it's too washed out: codes ~6-13 look identical, and codes 1-5 barely step.
+   - **Change:** start at a **medium sky blue**, still at or above the frozen C3g distance from rain code 1. Make **visible steps across codes 1-6** (15-40 dBZ, where snow actually sits). **Hold at a pale blue from code 6 up**: never white, with a clear margin from rain 75+ white.
+   - **Freeze a host check before measuring:**
+     - adjacent snow codes 1-6 differ by a stated minimum;
+     - snow code 13 differs from rain code 13 by a stated minimum.
+4. Re-render with the card and the KDFW frame alternating as now. C1 and C2 must still hold. **Daniel takes one last look at snow only; rain and the greys are final.**
+
+**Fixed now, before any snow colour is chosen:**
+- **The metric** is CIE76 ΔE\*ab, exactly as in C3g (addendum 4): sRGB is linearised, then converted to XYZ and to CIELAB with the D65 white.
+- **(h), new:** each adjacent pair of snow codes 1-2, 2-3, 3-4, 4-5 and 5-6 differs by **ΔE\*ab ≥ 10**. Ten is about 4 × the just-noticeable 2.3: a step you see without comparing side by side.
+- **(i), new:** snow code 13 against rain code 13 (white) differs by **ΔE\*ab ≥ 20**.
+- **(e), re-registered:** snow luma rises with each code **up to code 6** and is **flat from 6 to 13**. The top is pale blue (blue > red) and not white.
+- **(g), re-registered at the ruled level only:** snow code 1 against rain code 1 **at 55 %**, ΔE\*ab ≥ 40 and ΔL\* ≥ 25.
+- **(d), re-registered:** rain code 1 is the 15 dBZ entry at **55 %**, using `(v · p + 50) / 100`.
+- **(a), (b), (c), (f) and the pin are unchanged.**
+
+**The snow colours are chosen AFTER this commit, to meet (e), (g), (h) and (i), and then measured by the host test.** The thresholds above don't move. Because the colours are picked against them, those checks become regression guards. Each one is proven able to fail by a sabotage:
+- **S-h:** the snow start set to `(165, 205, 245)`, close to the top, so the ramp barely steps. It must turn **exactly (h)** red.
+- **S-i:** the snow top set to `(240, 245, 255)`, near white but not white. It must turn **exactly (i)** red.
+- **S-C3ef** (the snow top set to white) must now turn **exactly (e), (f) and (i)** red.
+- **S-C3g, S-C3a, S-C3c and S-PIN** are as before.
+
+**On the board:**
+- **C1:** B9 identical.
+- **C2:** the board equals `palette_ref.py` at **55 %**, with that sha256 committed before flashing.
+- **Build:** RAM within ±256 B of 26,824, flash up < 4 KB from 463,667.
+- **Timings:** B3, B4 and B8 in band; B5-B7 MISS within ±10 %; budget met.
+- **The card:** the rain row (final, 55 %), the snow row (for the look), no coverage, hatched missing and dry. The rain dim comparison is removed.
+
+**Outside all of the above: stop and decide.**
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
