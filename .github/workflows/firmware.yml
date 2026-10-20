@@ -218,6 +218,31 @@ jobs:
       - name: Prove the publish-receipt gate, both directions
         run: bash scripts/check-publish-receipts.sh --selftest
 
+  # HOST TESTS, on every PR and every push to main. test/host/run.sh was only ever
+  # run by hand, so a red host test could merge -- and the weather layer's decoder
+  # (include/WxCrop.h) is graded nowhere else. Its own job, not a step in a build
+  # leg, so the check has ONE stable name for main's branch rule to require
+  # ("host-tests"); leg names carry the slug and change with skus.yml.
+  #
+  # Not a build: `pio pkg install` fetches the two things the suite reads from
+  # PlatformIO without compiling an image -- the xtensa cross-compiler ("the same
+  # TU, for the board"; missing is FAIL, not a skip) and LovyanGFX's fonts under
+  # .pio/libdeps (the Wi-Fi QR sweep; missing is BLIND, exit 2). Proved red by a
+  # planted WxCrop.h sabotage before it was required: docs/host-tests-ci.md.
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Install blipscope-s3-128's toolchain and libraries (no build)
+        run: pio pkg install -e blipscope-s3-128
+      - name: Host tests
+        run: bash test/host/run.sh
+
   # ---------------------------------------------------------------------------
   # skus.yml is the one place a leg's status is declared. Validated here, BEFORE
   # anything is compiled, so a contradiction -- a build-only leg carrying a slug,
