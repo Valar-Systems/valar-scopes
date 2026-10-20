@@ -127,3 +127,17 @@ if __name__ == "__main__" and sys.argv[2] == "run":
     for s in sel["F4"]["sample"]:
         results["change1"].append(centre_only(T(s), sel["F4"]["icao"])); save()
     print("done:", len(results["frames"]), "frames,", len(results["f2_search"]), "F2 tries,", len(results["change1"]), "change-1 hours")
+
+
+if __name__ == "__main__" and sys.argv[2] == "run2":
+    # Addendum 3: ONLY F5, F4 and change 1, under the -40 floor; run 1's results.json is not touched.
+    sel = json.load(open(os.path.join(DATA, "selection.json")))
+    results = {"frames": [], "change1": []}
+    T = lambda s: datetime.fromisoformat(s)
+    def save():
+        json.dump(results, open(os.path.join(DATA, "results2.json"), "w"), indent=1, default=str)
+    for name in ("F5", "F4"):
+        results["frames"].append(frame(name, sel[name]["icao"], T(sel[name]["t"]))); save()
+    for s in sel["F4"]["sample"]:
+        results["change1"].append(centre_only(T(s), sel["F4"]["icao"])); save()
+    print("done run2:", len(results["frames"]), "frames,", len(results["change1"]), "change-1 hours")
