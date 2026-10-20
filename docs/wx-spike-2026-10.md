@@ -332,3 +332,73 @@ Same 300 frames (2024-05-21 15:00:38Z to 2024-05-22 00:58:41Z), 50 airports, 3 r
 - **OFF-PREDICTION (the check):** the sabotage moved p95 by exactly the predicted 2 min. But from a 1.3-min baseline the result stays under 4 min, so **as written, the bar cannot catch a poller that skips half the frames**.
 - **Needs a ruling:** a tighter bar (for example, p95 ≤ 2 min), or a "no frame skipped" criterion. Skipping every other frame would fail the latter on 30 of 60 frames.
 
+## Rulings 2026-10-20 (after A6 and the A4 live meter)
+
+### A6: the lag stands; freshness is NOT a pass
+
+- **The measurement stands:** NOAA publishes about **48 s** after frame time, and p95 to crop-ready is **1.28 min**.
+- **Not a freshness pass:** the check failed its own sabotage. Skipping half the frames stayed under the 4 min bar. No local re-run.
+- **My prediction miss:** A0's table had already measured the landing delay (**≈ 50 s**) and marked it "A6 input". The addendum written after A0 still left A6 predicting 1.5-2.5 min. The input was in hand and I did not carry it over.
+
+**Stage 2 freshness checks, frozen now.** They are graded where the real poller runs:
+
+| check | pass |
+|---|---|
+| lag, frame time to crop ready | **p95 ≤ 2 min** |
+| no skipped frames | **every frame NOAA publishes during the run is processed, in order** |
+| **sabotage:** skip every other frame | **both checks turn red** |
+
+For information only, not a grade: on the A6 log, the real run is green on both (p95 1.28 min; 60 of 60 frames processed, in order). The sabotage is red on both (p95 3.28 min; 30 of 60 skipped).
+
+### A4: accepted, graded PASS
+
+- **Live peak 47.05 MB against the 96 MB bar.**
+- **58 of 60** sabotage samples landed in the 63-65 MB band. The band stays as frozen, and no sample is dropped.
+- **The verdict holds** because the ~49 MB margin to the bar is far larger than the meter's error.
+
+**The two samples outside the band.** Both are in sabotage run 3.
+
+| sample | sabotage run 3 | other sabotage runs | storm mean | rise | in flight at that instant |
+|---|---|---|---|---|---|
+| `download` (just after the body is read) | **91.80 MB** | 92.14 / 91.99 | 28.95 | **+62.85** | the fetch layer's own buffers. The three sabotage runs differ by 0.34 MB here; the three storm runs by 0.01 MB |
+| first `rows` block (after 256 PNG rows) | **110.03 MB** | 103.01 / 103.02 | 39.14 | **+70.89** | **~7 MB of decompressed PNG data that the stream had produced ahead of the row reader.** In every other run (3 storm, 2 sabotage), the first row block sits 7.89-8.04 MB below the second. In run 3 it sits **1.02 MB** below: those chunks had already arrived by the first sample |
+
+"In flight" is inferred from the per-stage totals. The meter records totals only, not what makes them up.
+
+## A7: where it runs. Predictions, frozen 2026-10-20, before the freshness replay is computed
+
+**Inputs, as ruled:** A4's numbers (**0.5 s CPU**, **47 MB live peak**, **2.12 MB** largest file), and A6's recorded landing times. A7 is a comparison, not a measurement. The one new number is a **replay of cron schedules against A6's 60 recorded frames**, defined here before it is computed.
+
+**Options compared:**
+- **(a)** a cron Worker, `* * * * *`, writing one frame to R2 (the original prediction);
+- **(a′)** the same cron, but each invocation also checks again 30 s later. A cron invocation may run for up to 15 min wall time, and waiting costs no CPU;
+- **(b)** a Durable Object whose alarm polls every 30 s and writes to R2;
+- **(b-mem)** a Durable Object holding the frame in memory and serving crops itself (the original (b));
+- **(c)** a server.
+
+**Replay, defined:**
+- For each A6 frame, the landing time `L` is the S3 `LastModified`. The local-vs-S3 clock skew is under 1 s (A6: poll delays 0.3-29.2 s on a 30 s interval).
+- **(a):** the frame is picked up at the first whole UTC minute ≥ `L`.
+- **(a′):** it is picked up at the first `:00` or `:30` ≥ `L`.
+- Processing time is that frame's own A6 measurement (crop ready minus seen).
+- Lag = pickup + processing − frame time.
+- **The replay assumes zero cron jitter.** Cloudflare documents no firing-time accuracy, so Stage 2 measures it.
+- **(b)** is not replayed: A6's own poller was a 30 s poll, so (b) **is** A6's measurement (p50 1.06, p95 1.28 min).
+
+| schedule | predicted p50 | predicted p95 | frozen Stage 2 checks |
+|---|---|---|---|
+| (a) cron, once a minute | **1.3-1.5 min** (landing ~48 s + ~36 s wait + ~1 s) | **≤ 1.75 min** | both green |
+| (a′) cron + a check 30 s in | ~1.1 min | ~1.3 min (≈ A6) | both green |
+| **sabotage:** (a) skipping every other frame | | rises by ~2 min, past 2 | **both red** |
+
+**Recommendation rule, fixed before the replay:**
+
+| replay result for (a) | recommend |
+|---|---|
+| p95 ≤ 1.75 min | **(a)**, the fewest parts |
+| 1.75 < p95 ≤ 2.0 min | **(a′)**. Same parts as (a), A6-level freshness. Plain cron would pass by less than 15 s, against an unmeasured jitter |
+| p95 > 2.0 min | **(a′)**. (a) fails the frozen bar |
+| **outside the set:** any replayed wait outside [0, 60) s for (a) or [0, 30) s for (a′), or the sabotage does not turn both checks red | **the replay is wrong: stop and report, no recommendation** |
+
+(b-mem) and (c) are not recommended under any replay result, for the reasons in the cost and upkeep table.
+
