@@ -567,4 +567,10 @@ The line **"Weather radar derived from NOAA MRMS data. Not endorsed by NOAA."** 
 - No coverage is never drawn as dry.
 - Alaska, Hawaii, the Caribbean and Guam come later, through the same code (decided item 2).
 
+### Open for Part B: one km-per-degree constant (found by the Weatherscope work, 2026-10-20)
+
+- `tools/wx/crop.ts` sizes the crop box with **111.32 km per degree**. The radar projection (`AircraftManager::ProjectAt`, via `KM_PER_DEGREE`) and `IsOverhead` use **111.0**.
+- The crop is therefore 0.29 % smaller than the view the radar draws. At 160 km that is 0.0041°, about **0.4 of a 0.01° cell** at each edge. At 60 mi the cell rounding absorbs it.
+- **Pick one constant before Part B's larger crops.** Proposed: 111.0 in the crop box, because the weather has to register with the planes' projection; plus one cell of padding, so the crop always covers the drawn view. Part B's registration check (B5) grades it.
+
 **Stage 1 stops here. Part B waits until v18 and the countdown are merged.**
