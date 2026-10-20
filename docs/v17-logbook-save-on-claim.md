@@ -149,3 +149,14 @@ The **case is decided by that pre-claim body**: a claimed type absent from it ma
 **Invalid run (redo, not a result):** on B or S, a periodic `[logbook] persisted` line between the claim and the probe.
 
 **Outside the set:** any other token in any cell, CLAIMED on B or S with no save between the claim and the probe, ABSENT or UNCLAIMED on F, or F's acceptance failing any other step. Stop and report.
+
+## Reviewer decisions, 2026-10-20 (recorded as decisions, not results)
+
+- **#387 was approved to merge at `545dbbe` on its graded 2026-10-08 run**, provided CI was green on the merge result. CI ran again on the merge with main `217d7b5` (28 passed, 3 skipped). It merged as `f0cb9f8`.
+- **Still owed: "exactly one boot after the power cut"**, the clause that kept #387 out of v17. It is graded from the Worker's boot rows in the **v18 prerelease's fresh-boot acceptance**, and **v18 is not promoted unless it passes**.
+- **Remaining cells of the v17.1 re-run table:**
+  - **S** (flashed): fresh-logbook and existing-type claims. It stays the red control for F.
+  - **B**'s remaining cell (existing type) is **dropped as redundant with S**. B and S both lack the immediate save, and B's fresh-logbook cell was already observed. This is a reviewer decision, not a result.
+  - **F**'s cells (both tokens, boots from the Worker's rows) are graded on the **v18 prerelease image**, in place of this branch's build.
+- **v18 is promoted only if every F cell matches and S stays red.**
+- Board: E2:08 (`90706931E208`), per Daniel. Its backup was verified before any run: NVS parses, 186 entries, 0 CRC failures, `cloud-key-fac` present, 12 logbook entries, sha256 `0e5a0cb1c3bc…`. The Collection before the run: 1 claimed type of 28 seen. The backup is written back only to E2:08, and the count is confirmed afterwards.
