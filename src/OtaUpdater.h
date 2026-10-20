@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "RebootCause.h"     // the cause values and their reason suffixes, one map
+#include "RebootCap.h"       // the cap comparison, pure, shared with the host test (#377)
 #include "LGFX.h"           // LGFX + LGFX_Sprite (LGFX_Sprite is a type alias, not forward-declarable)
 #include "HttpRequestManager.h"
 
@@ -69,9 +70,13 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http);
  * there so a serial capture shows WHY the reboot happened and can be read
  * against the numbers above.
  *
+ * `scheduled`: true ONLY for the quiet-hour decision, which is held to the quiet
+ * policy's 20 h minimum instead of the full cap (include/RebootCap.h, #377).
+ * The fleet-config floor passes false. No default, on purpose.
+ *
  * LOOP TASK ONLY (NVS).
  */
-bool DeferUpdateCheckToReboot(uint32_t largestBlock);
+bool DeferUpdateCheckToReboot(uint32_t largestBlock, bool scheduled);
 
 // Why a deferred reboot was armed. Persisted alongside the flag, because after
 // the reboot the two causes are otherwise indistinguishable: both are
@@ -128,9 +133,14 @@ void StampRebootCause(uint8_t cause);
  * not return at all when it succeeds. A caller MUST handle the false case --
  * see the Backoff stage in NetWatchPolicy.h, which is where a refusal leads.
  *
+ * `scheduled`: the quiet-hour reboot passes true and needs min(20 h, cap); every
+ * other caller (the net-wedge rung, the fleet floor) passes false and needs the
+ * full cap. The comparison is rebootcap::Allows (include/RebootCap.h), the same
+ * function the host test drives.
+ *
  * LOOP TASK ONLY (NVS).
  */
-bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock);
+bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock, bool scheduled);
 
 /**
  * The cause of the reboot that armed THIS boot, or 0. Clears it on read, the

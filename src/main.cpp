@@ -784,7 +784,8 @@ void loop()
     if (d != quiet::Decision::None) {
       Serial.printf("[quiet] %s -> deferring update check to reboot\n",
                     quiet::DecisionName(d));
-      DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
+      // scheduled=true: the quiet hour is held to its own 20 h minimum, not the 24 h cap (#377).
+      DeferUpdateCheckToReboot(ESP.getMaxAllocHeap(), /*scheduled=*/true); // does not return if it arms
     }
   }
 #endif
@@ -870,7 +871,7 @@ void loop()
   // fires from a cloud-config poll on a device that has been up for days, which is
   // exactly the heap the direct call cannot survive.
   if (appManager.ConsumeOtaCheckRequest())
-    DeferUpdateCheckToReboot(ESP.getMaxAllocHeap()); // does not return if it arms
+    DeferUpdateCheckToReboot(ESP.getMaxAllocHeap(), /*scheduled=*/false); // the floor keeps the full cap
 #endif
 #endif
 }

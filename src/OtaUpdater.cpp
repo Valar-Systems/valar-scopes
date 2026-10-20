@@ -221,12 +221,12 @@ void StampRebootCause(uint8_t cause)
     p.end();
 }
 
-bool DeferUpdateCheckToReboot(uint32_t largestBlock)
+bool DeferUpdateCheckToReboot(uint32_t largestBlock, bool scheduled)
 {
-    return DeferRebootWithCause(REBOOT_CAUSE_OTA_CHECK, largestBlock);
+    return DeferRebootWithCause(REBOOT_CAUSE_OTA_CHECK, largestBlock, scheduled);
 }
 
-bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock)
+bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock, bool scheduled)
 {
     const char* why = (cause == REBOOT_CAUSE_NET_WEDGE) ? "net" : "update check";
     const time_t nowT = time(nullptr);
@@ -245,12 +245,13 @@ bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock)
         return false;
     }
     const uint32_t last = p.getUInt("lastReb", 0);
-    if (last != 0 && now >= last && (now - last) < REBOOT_MIN_INTERVAL_S) {
+    if (!rebootcap::Allows(now, last, scheduled, REBOOT_MIN_INTERVAL_S)) {
         p.end();
         Serial.printf("[ota] %s deferral refused: last reboot %lus ago, "
-                      "cap is %lus (largest=%u)\n",
-                      why, (unsigned long)(now - last), (unsigned long)REBOOT_MIN_INTERVAL_S,
-                      (unsigned)largestBlock);
+                      "needs %lus (%s; largest=%u)\n",
+                      why, (unsigned long)(now - last),
+                      (unsigned long)rebootcap::MinGapS(scheduled, REBOOT_MIN_INTERVAL_S),
+                      scheduled ? "scheduled" : "unscheduled", (unsigned)largestBlock);
         return false;
     }
 
