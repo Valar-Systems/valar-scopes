@@ -160,3 +160,36 @@ The **case is decided by that pre-claim body**: a claimed type absent from it ma
   - **F**'s cells (both tokens, boots from the Worker's rows) are graded on the **v18 prerelease image**, in place of this branch's build.
 - **v18 is promoted only if every F cell matches and S stays red.**
 - Board: E2:08 (`90706931E208`), per Daniel. Its backup was verified before any run: NVS parses, 186 entries, 0 CRC failures, `cloud-key-fac` present, 12 logbook entries, sha256 `0e5a0cb1c3bc…`. The Collection before the run: 1 claimed type of 28 seen. The backup is written back only to E2:08, and the count is confirmed afterwards.
+
+## v18 bench results (E2:08, 2026-10-20)
+
+**Board:** E2:08 (`90706931E208`). **Images:**
+- S: `r387-S-724dad6.bin`, sha256 `424ce11b1df6…`;
+- the v18 prerelease: `firmware-s3-128.bin`, sha256 `5a5f662bd51b…`, equal to the release asset's digest.
+
+Each image was written to app0 only. NVS and app1 (v17) were never touched by a flash. Each claim was probed automatically 3 s after its `[claim]` line, and each probe was the first `/logbook.json` after the claim. **A case is decided by the pre-claim body:** a second fetch inside the 30 s rate limit, right after a save, so it returns the saved copy exactly and triggers nothing.
+
+| cell | image | predicted | observed |
+|---|---|---|---|
+| S, existing type | S | UNCLAIMED | **UNCLAIMED, twice.** C172 at 18:26:35Z (pre-claim body: 80 types, 18:23:28Z); C152 at 18:57:07Z (body: 29 types, 18:56:16Z). Both valid: no save between the body and the probe |
+| **S, fresh type** | S | ABSENT | **NOT MEASURED: a gap, not a pass** (reviewer, 2026-10-20). Every attempt landed on a type already in the saved copy. A finger cannot reliably pick one plane on the 1.28" screen (#436) |
+| F, existing type | v18 prerelease | CLAIMED, saved within ~1 s, before the probe | **CLAIMED:** P28A at 18:30:35Z (body: 80 types), saved in the same second. Also B38M in the acceptance (body: 6 types), saved in the same second |
+| **F, fresh type** | v18 prerelease | same | **MEASURED, CLAIMED:** RV9 at 18:43:58Z. The body (14 types, 18:39:52Z) does not contain RV9. No save between the body and the claim; saved in the same second; probe first=yes |
+| fresh-boot acceptance | v18 prerelease | every step green; boots `ONE_POWERON` | **10 passed, 0 failed.** The clause owed since v17, exactly one POWERON boot from the cut to the end of step 6, **passed** at the Worker. The `[collect]` reopen did not reset the board |
+
+**Why S's saved types went from 73 at setup to 80 at the first claim.**
+- The first pin (17:59:40Z, 73 types) went stale before any claim. The claim watcher crashed on a file-sharing read error (fixed with a retry), and while I waited for the List photo, the board made its own 10-minute saves at 18:09:40Z (77 types) and 18:19:40Z (79 types).
+- So I re-pinned at 18:23:27Z: a fetch-triggered save, 80 types. The C172 claim was graded against that 80-type body, and no save fell between it and the claim.
+- The types grew because the board was logging a live sky.
+
+**Reviewer decision (2026-10-20): promote may go ahead despite the gap.**
+- S's existing-type cell went red, so the probe can see a claim that wasn't saved.
+- F's fresh-type cell was measured and matched, so the shipped behaviour was seen working.
+- The most the missing cell could hide is a fresh-type claim waiting for the next 10-minute save, as in v17. That is not a regression.
+
+**Observation, outside the frozen cells.** After the B38M claim, v18 saved **twice**: at the claim (18:38:25Z), and again 3 s later (18:38:28Z, types 13 → 14), with no fetch in between. That contradicts this doc's "one save per claiming tap", which the NVS-wear estimate above relies on. The cause is not known yet.
+
+**The board afterwards:** E2:08 was restored from its verified 16:16Z backup.
+- The files matched their recorded hashes (NVS `0e5a0cb1c3bc…`, otadata `b7e293bb607d…`), and the restore was written back only to E2:08.
+- It boots app1 (v17), the logbook is unticked, and Collection is **1 claimed of 28 seen**, with every count identical to before the run.
+- The restore also reverts what happened on v17 between 16:28Z and 17:55Z: the logbook being switched on, and two claims.
