@@ -456,3 +456,111 @@ For information only, not a grade: on the A6 log, the real run is green on both 
 - Not recommended: (b), more parts for freshness (a′) already reaches; (b-mem); (c).
 - Cron jitter, production CPU and production memory are all Stage 2 measurements.
 
+## Ruling 2026-10-20 on A7: (a′) adopted
+
+- **The pre-registered result stays (a).** The frozen rule picked it, and this record keeps it.
+- **(a′) is the reviewer's decision, made after the replay:** the once-a-minute cron with a second check 30 s in.
+- **Reason:** under worst-case landing times, (a) clears the 2 min bar by about 4 s before any cron firing delay, which Cloudflare doesn't document. (a′) clears it by about 34 s, with the same Worker, cron, parts and cost.
+- **Build notes for Stage 2:**
+  - every check is idempotent: a frame already stored is never re-written, and a newer frame is never replaced by an older one. That covers overlapping runs and retries;
+  - a frame-age field in `/healthz`;
+  - the ingest stays in its own Worker, and the proxy's `cpu_ms = 200` kill switch is not loosened.
+- The Stage 2 freshness checks stay as frozen. Cron firing delay, production CPU and production memory are measured in Stage 2.
+- **Also accepted:** A6 and A4 as recorded, and the replay control fix (switched to A6's definitions before any replay output was printed).
+
+## Part A summary (complete 2026-10-20)
+
+| check | result | key numbers | off-prediction, and the ruling |
+|---|---|---|---|
+| A0 files | as found | 7000 × 3500 at 0.01°, PNG 5.41, a frame every 2 min, files land ~50 s after frame time | **−99 means "no echo inside coverage", not "missing"**. Ruled: −99 → 0, −999 → 14, code 15 unused by these products |
+| A1 decoder vs eccodes | **MET** | 100.0000 % class agreement on 4 frames, echoes Δ 0.0000 dBZ, lat/lon ≤ 2.0e-6°; row-shift sabotage caught | longitude 2.0e-6° against < 1e-6° (GRIB header rounding); storm file 2.12 MB, above 0.3-2. Both accepted |
+| A2 crop size | **MET** | 45,000 crops, 0 over 32 KB, 0 coarsened; p95 at 160 km 12.78 KB, max 29.94 KB; round trip 45,000 / 45,000; speckle and round-trip sabotages caught | the 4-bit run length cost 1 byte per 16 cells. Ruled: a LEB128 long-run form, still v1. p50s then ~10× smaller than predicted. Accepted |
+| A3 placement | **as predicted** | 4/4 strongest-echo cells; 100.0000 % of every crop; 1-cell shift sabotage 35.6-47.7 % | — |
+| A4 ingest cost | **PASS** | storm: live peak **47.05 MB** (≤ 96), CPU **0.53 s** (≤ 10); sabotage 58/60 samples in the 63-65 MB band; local workerd runs it, sha identical to Node | peak 47 against ~24 MB; two meters failed their own sabotage before the forced-GC live meter |
+| A5 coverage | **as predicted** | outside the grid and no-coverage patches → 14; Vancouver, Toronto, Montreal, Iowa → covered (0); both sabotages red | — |
+| A6 freshness | **measurement stands; not a freshness pass** | lag p50 **1.06** / p95 **1.28** min (NOAA 48 s, poll 15 s, processing 0.9 s) | faster than predicted (my miss: A0 had the ~50 s). The skip sabotage stayed under the 4 min bar. Stage 2 checks frozen: p95 ≤ 2 min, no skipped frames |
+| A7 where it runs | **(a) pre-registered; (a′) adopted** | (a) replay p95 1.45 min, (a′) 0.95 min; $0 a month extra at today's fleet | (a′) faster than predicted: NOAA lands files 17-28 s past the minute. Replay control failed once and was fixed before any replay output |
+
+**A correction to A7's costs.** The brief asked for the monthly cost at **60 and 600 units**, and for relay-a and relay-b to stay out of it. A7's table used ~55 devices, and it offered (c) "on an existing host". Both are corrected below for the adopted option, and (c) means a new separate box. (b) and (c) are not re-costed, since neither was adopted.
+
+**What surprised me in Part A:**
+- −99 is dry, not missing;
+- a 4-bit run length makes quiet crops cost more than storms do;
+- garbage the collector hasn't freed makes V8's heap counters non-additive, so two meters failed their own sabotage;
+- Node's live baseline is 19 MB on its own;
+- NOAA publishes in under a minute, at a steady 17-28 s past the minute.
+
+## Stage 2 list, DRAFT for review
+
+Nothing here has been created. Every item in Cloudflare is Daniel's, and every proxy change is a PR that Daniel deploys. This list is final only after Part B and C, when Daniel has picked the colour scheme and the reviewer has reviewed it.
+
+### 1. What Daniel creates in Cloudflare
+
+| what | detail |
+|---|---|
+| **R2 bucket** (name suggested: `blipscope-wx`) | a lifecycle rule `--expire-days 1` as the backstop; the ingest deletes its own frames older than 1 h (deletes are free). At the backstop a day's frames are 720 × 12.25 MB = 8.8 GB, still inside the 10 GB free tier |
+| **ingest Worker** (suggested: `blipscope-wx-ingest`) **and its cron** | its own `wrangler.toml`; the R2 binding, read-write; cron `* * * * *`; `[limits] cpu_ms` set for the ingest (suggested 5,000: 10× the measured 0.5 s, and under the 30 s cron cap); observability on; **no public route** |
+| **the proxy route that reads the frame** (PR) | an R2 binding on the proxy, used read-only; `GET /api/v1/blipscope/wx`; the frame-age field in `/healthz`; the attribution line on `/credits`; a **`smoke-prod.sh` check** for the route and the frame age, since that script is the only production check |
+| not created | nothing on relay-a or relay-b; no KV namespace; no Durable Object |
+
+**Ingest behaviour, (a′) with the ruling's build notes:**
+- Each invocation lists the frame folder and takes the newest frame. If that frame isn't stored yet it ingests it, then waits until `:30` and checks again.
+- **Objects:**
+  - `frames/<frame epoch>`: the packed grid, 12.25 MB, tiled inside the object so that a crop needs at most ~4 range reads. The tile layout is a Stage 2 design item.
+  - `latest`: a small record of the frame epoch, the object key and the time ingested.
+- **Idempotent:**
+  - a frame already stored is never re-written: check before writing, and write with a condition;
+  - `latest` only moves forward: it is written with R2's conditional put on the etag just read, and only when the new frame time is later. Overlapping runs and retries cannot move it back.
+- **Graded in Stage 2:**
+  - the frozen freshness checks: p95 ≤ 2 min; no skipped frames, in order; and the skip-every-other sabotage must turn both red;
+  - cron firing delay, production CPU and production memory.
+
+### 2. Device endpoint and polling plan
+
+- **Request:** `GET /api/v1/blipscope/wx?lat=&lon=&r=`.
+  - `lat`/`lon` exactly as the blips request sends them (`wireloc::Center`, 2 decimal places), so no new location detail leaves the device.
+  - `r` is the same range value.
+  - The device-key headers are the blips ones (`CloudFeed::Headers`), behind the proxy's existing auth and rate limits.
+- **Response:**
+  - **200** carries one WXC1 crop (≤ 32 KB; coarsened and flagged if needed) with `ETag` = the frame epoch;
+  - **304** when the device's `If-None-Match` matches;
+  - **503** when no frame younger than 10 min exists.
+  - A request outside the grid gets an all-14 crop without an R2 read.
+- **The device:**
+  - polls every 60 s with `If-None-Match`, so it **downloads only when the frame changes**;
+  - **rejects anything over 32 KB**, or anything that fails decoding (magic, version, or run total ≠ rows × cols), and **keeps the last good crop**;
+  - **hides weather once the held crop's frame time is older than 10 minutes**, judged by its NTP clock.
+- **Expected lag on screen:** crop ready at p95 ~1 min with (a′), plus up to 60 s of polling.
+- **Option, not costed below:** the blips response carries the latest frame time in a header, and the device fetches `/wx` only when it changes. This halves the weather requests.
+
+### 3. Monthly cost at 60 and 600 units, adopted (a′)
+
+Workers Paid has been on since 2026-10-20, so its $5 isn't new. **Assumed:** every unit has weather on all month and polls every 60 s (43,200 requests per unit). About half of those polls are 304s, leaving 21,600 crop builds per unit. Without caching, each crop build costs up to 4 R2 range reads. **The CPU to build a crop has not been measured**, so it is priced per millisecond.
+
+| item | 60 units | 600 units |
+|---|---|---|
+| ingest (fixed): 10.8 M CPU-ms, 43,200 invocations, 21,600 R2 writes, ≤ 368 MB stored (8.8 GB at the lifecycle backstop) | **$0**; at most $0.22 if the CPU is all billed | same |
+| device requests: 2.59 M / 25.9 M | **$0** inside the 10 M included; at most $0.90 if all billed | at most **$7.80** |
+| crop CPU, per 1 ms per crop build: 1.3 M / 13 M CPU-ms | at most $0.04 per ms | at most **$0.26** per ms |
+| R2 range reads, no caching: 5.2 M / 51.8 M | **$0** (10 M free) | **≈ $15.12** |
+| egress (Workers and R2) | $0 | $0 |
+| **total** | **≈ $0**, at most ~$1.20 | **at most ~$23.40 uncached** (at 1 ms per crop) |
+
+At 600 units, caching each tile per frame under its immutable key means R2 reads scale with data centres × tiles, not with units. That would take the total to about $8. Not measured.
+
+### 4. The on/off setting on the config page
+
+A new key; its name and default are Daniel's call. Because the key is new, its default reaches every device until that device saves its config. Changing that default later needs a migration ([include/ConfigMigration.h](../include/ConfigMigration.h), and CLAUDE.md "a default only reaches keys that were never saved").
+
+### 5. Attribution
+
+The line **"Weather radar derived from NOAA MRMS data. Not endorsed by NOAA."** goes on the config page and on `/credits`. `/credits` is the proxy's existing page (`handleCredits`, `proxy/src/photos.ts`).
+
+### 6. The "US only" note
+
+- **Coverage is the MRMS CONUS grid,** 20.005-54.995 N, 129.995-60.005 W: the contiguous US, plus the parts of Canada and Mexico that US radars reach. A5: Vancouver, Toronto and Montreal are covered; London, the mid-Pacific, the deep Gulf and interior Mexico are not.
+- **Outside coverage**, crops are all code 14. When a whole crop is 14, the device shows the note instead of an empty overlay. The decision comes from the data, not a hard-coded map. The config page shows the same note beside the setting.
+- No coverage is never drawn as dry.
+- Alaska, Hawaii, the Caribbean and Guam come later, through the same code (decided item 2).
+
+**Stage 1 stops here. Part B waits until v18 and the countdown are merged.**
