@@ -1,17 +1,19 @@
 #pragma once
 // Weatherscope's palette (Stage 2, step 2.1). Pure C++11: no Arduino, no allocation. Ruled 2026-10-20
-// (docs/weatherscope-stage1.md "Ruled for Stage 2"; docs/weatherscope-stage2.md, addendum 2), and shown on
-// the board for Daniel to look at BEFORE it is final.
+// (docs/weatherscope-stage1.md "Ruled for Stage 2"; docs/weatherscope-stage2.md, addenda 2 and 4 -- addendum 4
+// is Daniel's look at the board), and shown on the board for one more look before it is final.
 //
 //   rain 1-12 (15-70 dBZ)  MetPy's NWSReflectivity table, pinned: test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl
-//                          (sha256 f73f0d6264d4...). Code 1 (15-20 dBZ) is dimmed slightly: 85 % or 70 %, both shown.
+//                          (sha256 f73f0d6264d4...). Code 1 (15-20 dBZ) is dimmed: 70 % (ruled); 55 % and 85 % are
+//                          on the card for comparison.
 //   rain 13 (>= 75 dBZ)    WHITE, a ruled exception: the table's 75 dBZ entry is black, which would read as dry.
-//   snow 1-13              its own ramp, blue to PALE BLUE (never white, so heavy snow and 75+ rain never share a
-//                          colour), linear in RGB over codes 1-8 and flat above. Code 1 is dimmed like rain's.
-//   no coverage (14)       solid neutral grey.
-//   missing (15)           dim grey, or grey hatching on black -- both shown; NEVER violet (it reads as a hail core).
+//   snow 1-13              its own ramp, from a light, pale blue (clearly distinct from rain's 15 dBZ blue, check
+//                          C3g) to a paler blue -- never white, so heavy snow and 75+ rain never share a colour --
+//                          linear in RGB over codes 1-8 and flat above. Snow code 1 is NOT dimmed.
+//   no coverage (14)       a dark neutral grey, so large no-coverage areas don't outshine the weather.
+//   missing (15)           grey hatching on black (ruled: option B). NEVER violet (it reads as a hail core).
 //   dry (0)                black.
-// test/host/test_wx_palette.cpp holds these to the pinned file and to the ruled properties (C3 a-f).
+// test/host/test_wx_palette.cpp holds these to the pinned file and to the ruled properties (C3 a-g).
 
 #include <stdint.h>
 
@@ -28,18 +30,18 @@ constexpr Rgb kRainTable[12] = {
     {255, 144, 0}, {255, 0, 0},   {214, 0, 0},   {192, 0, 0},   {255, 0, 255}, {153, 85, 201}};
 constexpr Rgb kRain75 = {255, 255, 255};   // code 13: white, by ruling
 
-constexpr Rgb kSnowStart = {30, 60, 160};  // code 1, before dimming
-constexpr Rgb kSnowTop = {175, 215, 255};  // code 8 and above: pale blue
+constexpr Rgb kSnowStart = {120, 165, 230};  // code 1: light, pale blue (not dimmed)
+constexpr Rgb kSnowTop = {190, 225, 255};    // code 8 and above: paler blue
 constexpr int kSnowTopCode = 8;
 
 constexpr Rgb kDry = {0, 0, 0};
-constexpr Rgb kNoCoverage = {96, 96, 96};
-constexpr Rgb kMissingDim = {48, 48, 48};
+constexpr Rgb kNoCoverage = {40, 40, 40};
 constexpr Rgb kMissingHatch = {72, 72, 72};  // the hatch lines, drawn on kDry
 constexpr int kHatchPeriod = 4;              // a hatch line where (x + y) % 4 == 0
 
 constexpr int kDim85 = 85;
-constexpr int kDim70 = 70;
+constexpr int kDim70 = 70;   // ruled for rain code 1
+constexpr int kDim55 = 55;   // on the card for one more look
 
 // (v * pct + 50) / 100 in integers: the rounding the doc freezes.
 constexpr uint8_t Dim(uint8_t v, int pct) { return (uint8_t)((v * pct + 50) / 100); }
@@ -59,21 +61,24 @@ inline Rgb Rain(uint8_t code, int dimPct)
     return kRainTable[code - 1];
 }
 
-inline Rgb Snow(uint8_t code, int dimPct)
+inline Rgb Snow(uint8_t code)
 {
     if (code < 1 || code > 13) return kDry;
     const int k = code > kSnowTopCode ? kSnowTopCode : code;
-    const Rgb c{Lerp(kSnowStart.r, kSnowTop.r, k), Lerp(kSnowStart.g, kSnowTop.g, k), Lerp(kSnowStart.b, kSnowTop.b, k)};
-    return code == 1 ? Dim(c, dimPct) : c;
+    return Rgb{Lerp(kSnowStart.r, kSnowTop.r, k), Lerp(kSnowStart.g, kSnowTop.g, k), Lerp(kSnowStart.b, kSnowTop.b, k)};
 }
 
-// The colour a code is drawn in, for everything except the hatch (whose pixels depend on position).
+// Missing is a pattern, not a colour: the hatch line where (x + y) % kHatchPeriod == 0, dry elsewhere.
+inline Rgb MissingAt(int x, int y) { return (x + y) % kHatchPeriod == 0 ? kMissingHatch : kDry; }
+
+// The colour a code is drawn in. For missing (15) this is the hatch LINE colour; a renderer draws 15 with
+// MissingAt(), pixel by pixel.
 inline Rgb Code(uint8_t code, bool snow, int dimPct)
 {
     if (code == 0) return kDry;
     if (code == 14) return kNoCoverage;
-    if (code == 15) return kMissingDim;
-    return snow ? Snow(code, dimPct) : Rain(code, dimPct);
+    if (code == 15) return kMissingHatch;
+    return snow ? Snow(code) : Rain(code, dimPct);
 }
 
 }  // namespace wxpalette

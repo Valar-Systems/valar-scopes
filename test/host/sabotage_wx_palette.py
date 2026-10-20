@@ -1,5 +1,5 @@
 """Runs test_wx_palette.cpp against SABOTAGED copies of src/weatherscope/WxPalette.h; each must turn the suite
-red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addendum 2) and nothing else.
+red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2 and 4) and nothing else.
 
     python -I test/host/sabotage_wx_palette.py
 
@@ -7,9 +7,10 @@ The real header is never edited: each sabotage is planted in a copy in a tempora
 with that folder on its include path, every anchor must occur exactly once, the copy must differ, and the
 real header's sha256 is compared before and after.
 
-  S-C3a   missing planted as Stage 1's violet (110, 0, 110)  -> exactly C3a
-  S-C3c   one rain entry off by one unit (25 dBZ green 200->201) -> exactly C3c
-  S-C3ef  the snow top set to white                           -> exactly C3e and C3f
+  S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
+  S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
+  S-C3ef  the snow top set to white                                -> exactly C3e and C3f
+  S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
 Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
 """
 import hashlib
@@ -27,12 +28,14 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
 SABOTAGES = {
-    "S-C3a": ([("constexpr Rgb kMissingDim = {48, 48, 48};", "constexpr Rgb kMissingDim = {110, 0, 110};  // SABOTAGE")],
+    "S-C3a": ([("constexpr Rgb kMissingHatch = {72, 72, 72};", "constexpr Rgb kMissingHatch = {110, 0, 110};  // SABOTAGE")],
               [r"C3a\b"]),
     "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 201, 0},  /* SABOTAGE */")],
               [r"C3c\b"]),
-    "S-C3ef": ([("constexpr Rgb kSnowTop = {175, 215, 255};", "constexpr Rgb kSnowTop = {255, 255, 255};  // SABOTAGE")],
+    "S-C3ef": ([("constexpr Rgb kSnowTop = {190, 225, 255};", "constexpr Rgb kSnowTop = {255, 255, 255};  // SABOTAGE")],
                [r"C3e\b", r"C3f\b"]),
+    "S-C3g": ([("constexpr Rgb kSnowStart = {120, 165, 230};", "constexpr Rgb kSnowStart = {20, 30, 180};  // SABOTAGE")],
+              [r"C3g\b"]),
 }
 
 

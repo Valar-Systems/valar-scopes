@@ -52,9 +52,9 @@ wxcrop::Header hdr;
 uint8_t* grid = nullptr;   // decoded codes, rows x cols, in PSRAM
 
 // The RULED palette (src/weatherscope/WxPalette.h). The frame is rain only -- the wire carries no snow field
-// yet -- with code 1 dimmed to 85 %. Stage 1's provisional palette (dark violet for missing) is retired; it is
-// recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
-constexpr int kFrameDim = wxpalette::kDim85;
+// yet -- with code 1 dimmed to 70 % (Daniel's look, addendum 4). Stage 1's provisional palette (dark violet for
+// missing) is retired; it is recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
+constexpr int kFrameDim = wxpalette::kDim70;
 constexpr uint32_t kAlternateMs = 10000;   // frame <-> palette card, so the look needs no serial input
 
 struct Report {
@@ -75,8 +75,15 @@ void Render()
         for (int x = 1; x <= wxrender::kSize; ++x) {
             const uint8_t c = x < wxrender::kSize ? wxrender::CodeAt(hdr, grid, view, x, y) : 0xFE;
             if (c == run) continue;
-            const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false, kFrameDim);
-            canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p.r, p.g, p.b));
+            if (run == 15) {   // missing is hatched (ruled: B): a pattern, drawn pixel by pixel
+                for (int xx = x0; xx < x; ++xx) {
+                    const wxpalette::Rgb m = wxpalette::MissingAt(xx, y);
+                    canvas.writePixel(xx, y, canvas.color565(m.r, m.g, m.b));
+                }
+            } else {
+                const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false, kFrameDim);
+                canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p.r, p.g, p.b));
+            }
             x0 = x;
             run = c;
         }
@@ -109,22 +116,24 @@ void DrawCard()
     const int w = 12, x0 = 120 - 13 * w / 2;
     Label(x0, 34, "RAIN  15 ........ 75+ dBZ");
     for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 44, w - 1, 20, wxpalette::Rain((uint8_t)c, kFrameDim));
-    Label(x0, 72, "15 dBZ: 85%");
-    Swatch(x0 + 70, 69, 18, 12, wxpalette::Rain(1, wxpalette::kDim85));
-    Label(x0 + 96, 72, "70%");
-    Swatch(x0 + 118, 69, 18, 12, wxpalette::Rain(1, wxpalette::kDim70));
-    Label(x0, 92, "SNOW  15 ........ 75+ dBZ");
-    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 102, w - 1, 20, wxpalette::Snow((uint8_t)c, kFrameDim));
-    const char* names[4] = {"NOCOV", "MIS-A", "MIS-B", "DRY"};
-    for (int i = 0; i < 4; ++i) {
-        const int x = 40 + i * 41;
-        Label(x, 134, names[i]);
-        if (i == 0) Swatch(x, 144, 32, 22, wxpalette::kNoCoverage);
-        if (i == 1) Swatch(x, 144, 32, 22, wxpalette::kMissingDim);
-        if (i == 2) HatchSwatch(x, 144, 32, 22);
-        if (i == 3) canvas.drawRect(x, 144, 32, 22, canvas.color565(128, 128, 128));   // dry is black: outlined
+    const int dims[3] = {wxpalette::kDim85, wxpalette::kDim70, wxpalette::kDim55};   // 70 % is ruled; 55 % for one more look
+    const char* dimNames[3] = {"85", "70", "55"};
+    Label(x0, 72, "15dBZ");
+    for (int i = 0; i < 3; ++i) {
+        Label(x0 + 36 + i * 42, 72, dimNames[i]);
+        Swatch(x0 + 50 + i * 42, 69, 18, 12, wxpalette::Rain(1, dims[i]));
     }
-    Label(52, 176, "MISSING: A dim, B hatched");
+    Label(x0, 92, "SNOW  15 ........ 75+ dBZ");
+    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 102, w - 1, 20, wxpalette::Snow((uint8_t)c));
+    const char* names[3] = {"NOCOV", "MISSING", "DRY"};
+    for (int i = 0; i < 3; ++i) {
+        const int x = 48 + i * 52;
+        Label(x, 134, names[i]);
+        if (i == 0) Swatch(x, 144, 40, 22, wxpalette::kNoCoverage);
+        if (i == 1) HatchSwatch(x, 144, 40, 22);
+        if (i == 2) canvas.drawRect(x, 144, 40, 22, canvas.color565(128, 128, 128));   // dry is black: outlined
+    }
+    Label(64, 176, "rain 15 dBZ ruled: 70%");
 }
 
 void ShowFrame() { Render(); canvas.pushSprite(&tft, 0, 0); }
