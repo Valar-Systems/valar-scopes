@@ -233,6 +233,9 @@ make a reading come true. The raw reading goes to the reviewer, and the next ste
 | extra (not frozen) | holds | the encoder equals the spike's `encodeCrop` on the spike's own boxes: 200 / 200 |
 | **WS3** tile reads | **as predicted** | 34,293 cases, maximum **4**; sabotage (256-cell tiles) maximum **9** |
 | **WS4** coverage | **0 uncovered: as predicted. Overshoot: OFF-PREDICTION** | 34,293 cases, 0 uncovered edges; sabotage (pad 0) 308,162 uncovered; control: the four constants found once each, and equal to `VIEW`. **Worst overshoot 4.180 cells against the frozen ≤ 4** |
+| **WS5** ingest idempotence | **as predicted** | Controls: an unconditional put overwrites; `If-None-Match: *` on an existing key returns null; a stale `etagMatches` returns null. **(a)** stored, then already-stored: 1 frame write, 1 NOAA GET. **(b)** `latest` kept at the newest; sabotage (no "only if newer") moved it to the older frame. **(c)** two at once: stored + lost-race, **1** write; sabotage (no create-only) **2** writes. **(d)** pruned 2, kept 2. Driven through the real decoder by a synthetic GRIB2 (`proxy/test/wx-grib.ts`). |
+| **WS6** endpoint | **as predicted** | 15 / 15 cases. Fresh 200: 7,655 bytes, 3 reads (2 tiles). 304, stale, off-grid: 1 read each. 401, 400 and 404: 0 reads. Different products give different ETags; sabotage (an ETag without the product) collides. `/healthz`: `not_configured`, `null` and the real age. |
+| **WS7** device decodes server crops | **as predicted** | **8 / 8** server-made crops decode with `include/WxCrop.h` to the encoder's own cells. The set: uniform, coarsened (KBIS 300 km, k = 2, flagged), partly outside the grid (KMCI on the small grid), all 14 (PHNL), and 4 from the set at up to 405 × 404. Sabotage: one nibble in the KMCI crop fails exactly that crop, on both `file` and `cells`. `run.sh`: 377 ok, 0 FAIL, 0 BLIND. |
 
 **WS4's overshoot, and why the frozen bound was wrong.** The worst case is the **west edge at 52 N, r = 80
 km**, with the device 0.005° east of the wire's position and its range 0.5 km shorter.
@@ -247,4 +250,14 @@ km**, with the device 0.005° east of the wire's position and its range 0.5 km s
 - **Coverage is unaffected.** Two cells of padding exceed the real worst-case offset (1.29 cells at
   55 N), and the sweep finds 0 uncovered edges.
 - The test still asserts the frozen ≤ 4 and fails. **Nothing is changed until there is a ruling.**
+
+**Centres (WS6, WS7):** every centre is a public airport from the cleared list. KMCI was used for the
+endpoint tests and PHNL for the off-grid ones (Stage 1's). The first draft of WS6 used two ad-hoc
+points, and they were replaced before anything was committed. Re-running `forbidden.py` against today's
+tree reads every cleared airport as "too close" to itself, because their coordinates are now in the
+fixtures it scans. So the cleared list, not a re-run, is what admits a centre.
+
+**WS5's first run** died on the test pool's isolated storage (EBUSY on Windows). My sabotage test left
+an R2 body unread: it took the etag with `get` instead of `head`. That was fixed in the test; no measured
+value was involved.
 
