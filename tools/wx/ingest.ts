@@ -9,13 +9,14 @@ export async function ingestFrame(url: string, holdMb = 0, onStage?: (name: stri
   // Meter sabotage: hold an extra block for the whole run, touched so it is really resident.
   const hold = holdMb > 0 ? new Uint8Array(holdMb * 1024 * 1024) : null;
   if (hold) for (let i = 0; i < hold.length; i += 4096) hold[i] = 1;
+  if (hold) onStage?.("alloc-hold");
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${res.status}`);
   const gz = new Uint8Array(await res.arrayBuffer());
   onStage?.("download");
   let packed: Uint8Array | null = null, ni = 0;
   const grid = await decodeMrms(gz, (row, vals) => {
-    if (!packed) { ni = vals.length; packed = new Uint8Array((ni * 3500) >> 1); }
+    if (!packed) { ni = vals.length; packed = new Uint8Array((ni * 3500) >> 1); onStage?.("alloc-packed"); }
     const base = row * ni;
     for (let j = 0; j < ni; j++) {
       const idx = base + j, c = codeOf(vals[j]);

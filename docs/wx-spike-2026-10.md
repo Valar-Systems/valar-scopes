@@ -295,3 +295,25 @@ Same 300 frames (2024-05-21 15:00:38Z to 2024-05-22 00:58:41Z), 50 airports, 3 r
 
 **Local workerd:** the pipeline runs once in `wrangler dev` (local, no deploy, no remote bindings) to prove it runs there. Pass means it returns the storm frame's packed grid with the **same sha256 as Node's**. **No memory claim is made from that run**; production memory is confirmed in Stage 2.
 
+### A4 live-set meter, results (2026-10-20). Bar met; OFF-PREDICTION (peak and two sabotage samples)
+
+`tools/wx/a4-live.ts` (`node --expose-gc`): forced `gc()`, then `heapUsed + external`, at every stage boundary and right after each large allocation (the download, the unzipped file, the PNG data blob, the packed grid, the held block). 21 samples per run (22 with the hold); 3 runs per case; every run identical to within 0.01 MB at the peak.
+
+| case | live peak (pred.) | un-forced peak, for information | wall / CPU (un-forced runs) |
+|---|---|---|---|
+| **storm** | **47.05 MB** ×3 (~24, range 18-30) | 64.0-65.9 MB | 1.04-1.15 s / 0.47-0.53 s |
+| quiet | **42.89 MB** ×3 (~22) | 51.0-52.8 MB | 0.92-0.97 s / 0.42-0.58 s |
+| sabotage: storm + 64 MB held | 111.05 MB ×3 | 114.2-114.5 MB | |
+
+**Storm run 1, every sample (MB):** start 19.09 · download 28.96 · gunzip 26.09 · parse 26.09 · alloc-blob 26.23 · alloc-packed 37.94 · rows 39.12, **47.05**, 46.69, 46.30, 43.73, 43.40, 43.31, 43.19, 43.03, 43.06, 43.04, 43.02, 42.91 · packed 40.65 · stored 35.95.
+
+- **Bar (storm): live peak 47.05 MB ≤ 96 MB, MET.** CPU 0.53 s ≤ 10 s, met.
+- **OFF-PREDICTION, the peak (47 against ~24 MB):**
+  - Node's own live baseline is **19.1 MB** at `start`, where I predicted "a few MB";
+  - **~9 MB of in-flight stream buffers** are live, not garbage, during the PNG inflate (the early `rows` samples);
+  - the ingest's own increment is **28 MB**, against a predicted ~16.
+- **Sabotage, every sample +63-65 MB:** 60 samples were compared (matched by stage and occurrence against the mean of the 3 storm runs). **58 are inside the band and 2 are outside**: `download` **+62.85 MB** in one run and the first `rows` block **+70.89 MB** in one run. **OFF-PREDICTION.**
+  - Mechanism, inferred from the samples: a mid-stream sample includes whatever the decompression stream holds in flight at that instant, which varies run to run by up to a few MB, wider than the ruled ±1 MB band.
+  - The 3 `start` samples are excluded: they are taken before the hold is allocated, so it cannot raise them (+0.00 by construction).
+- **Local workerd run-check: PASS.** `wrangler dev` (local; no deploy; no bindings; compatibility date 2025-12-01, the production Worker's) ran `ingest.ts` on the storm frame and returned the packed grid with **sha256 `011c2a65bd4d…`, identical to Node's**: 12,250,000 B, 7000 × 3500. No memory claim is made from it. Rig note: the first attempt used a 2026-09-01 compatibility date, newer than the local binary supports, and refused to start; it was re-run at the production date.
+

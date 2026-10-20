@@ -136,6 +136,7 @@ export async function decodeMrms(gz: Uint8Array, onRow: (row: number, values: Fl
     const t = prev; prev = cur; cur = t;
   };
   const zlib = new Blob(idat).stream().pipeThrough(new DecompressionStream("deflate"));
+  onStage?.("alloc-blob");
   const reader = zlib.getReader();
   for (;;) {
     const { value, done } = await reader.read();
