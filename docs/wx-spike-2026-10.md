@@ -402,3 +402,57 @@ For information only, not a grade: on the A6 log, the real run is green on both 
 
 (b-mem) and (c) are not recommended under any replay result, for the reasons in the cost and upkeep table.
 
+### A7: results (2026-10-20). Verdict by the frozen rule: (a). One row OFF-PREDICTION (faster)
+
+**The replay's control failed on the first run.** `tools/wx/a7-replay.ts` checks first that, with A6's own pickup times, it reproduces A6's published numbers.
+- The first run did **not**: p50 1.05 against 1.06, and sabotage p95 3.23 against 3.28. It exited before printing any replay line.
+- **Cause, read from A6's analysis code (not guessed):** A6 used `sorted[round(p·(n−1))]` with half-to-even rounding, and skipped the odd frames. The replay used nearest-rank percentiles and skipped the even frames.
+- The replay was switched to A6's definitions. The second run reproduces all five A6 numbers: p50 1.06, p95 1.28, sabotage p50 1.33, p95 3.28, max 3.32.
+- **Also found:** A6's sabotage figures cover **59** of 60 frames. Its last frame is skipped and has no later frame in the run, and the analysis left it out. The replay keeps that handling for percentiles and counts the frame under the no-skip check.
+
+| schedule | p50 (predicted) | p95 (predicted) | max | frozen Stage 2 checks |
+|---|---|---|---|---|
+| **(a)** cron, once a minute | **1.42 min** (1.3-1.5) ✓ | **1.45 min** (≤ 1.75) ✓ | 1.46 | p95 green · no-skip green |
+| **(a′)** cron + a check 30 s in | **0.92 min** (~1.1) | **0.95 min** (~1.3) | 0.96 | both green · **OFF-PREDICTION (faster)** |
+| **sabotage:** (a) skipping every other frame | 1.45 | **3.45 min** | 3.47 | **both red** (30 skipped) ✓ |
+| (b) DO alarm every 30 s = A6 as measured | 1.06 | 1.28 | 1.33 | both green |
+
+- Every replayed wait is inside its bounds: [0, 60) s for (a) and [0, 30) s for (a′).
+- **Why (a′) beats its prediction:** in all 60 frames, NOAA's file landed **17-28 s past the minute**. Frames sit 33-41 s past an even minute, and the landing delay is 39-55 s. A check at `:30` catches each file 2-13 s after it lands. My prediction assumed a random phase, which averages a 15 s wait. The same phase gives (a) its 32-43 s wait.
+- **Verdict by the frozen rule: (a).** Its p95 is 1.45 min ≤ 1.75.
+
+**For the ruling: not pre-registered, computed after the replay.** Both waits depend on that landing phase. NOAA sets it, and we observed it for only 2 hours. A bound that holds for any phase uses A6's slowest landing (55 s) and slowest processing (1.02 s):
+- (a) stays **under 1.93 min**: inside the 2 min bar by ~4 s, before any cron jitter.
+- (a′) stays **under 1.44 min**.
+
+(a′) is the same Worker, the same cron and the same bill, plus one more bucket listing per invocation.
+
+**Cost per month**, from A4's numbers: 0.5 s CPU, 47 MB live peak, 2.12 MB largest file. 720 frames a day, 21,600 a month. Workers Paid since 2026-10-20. Prices are from Cloudflare's docs, read 2026-10-20.
+
+| | (a) / (a′) cron Worker → R2 | (b) DO alarm → R2 | (b-mem) DO serves crops from memory | (c) server |
+|---|---|---|---|---|
+| compute | 21,600 × 0.5 s = **10.8 M CPU-ms**. Included 30 M/month is shared with the proxy, which uses at most ~8.1 M (27 k req/day × 10 ms) → **$0** | alarm handlers ≈ 36,700 s × 128 MB ≈ **4,700 GB-s** of 400,000 included; 86,400 alarm requests of 1 M → **$0** | busy whenever devices poll: ≈ 332,000 GB-s, **83 %** of the included 400,000; ~1.19 M requests → ~$0.15 | $0 on an existing host, else a new monthly bill |
+| invocations | (a) 43,200, (a′) the same plus a second listing each; 10 M included → **$0** | as left | | |
+| memory | 47 MB live peak of the **128 MB** isolate limit | the same, inside the object | the same, plus the 12.25 MB grid held resident | — |
+| download from NOAA | 0.5-1.5 GB/day (720 × 0.70-2.12 MB). Public bucket; Cloudflare does not bill subrequests | same | same | same |
+| R2 writes | 1 write per frame (12.25 MB) = 21,600 of 1 M free → **$0** | same | none | same, plus **~265 GB/month** uploaded from the host |
+| R2 storage | 1 h of frames = 30 × 12.25 MB = 368 MB of 10 GB free → **$0** | same | — | same |
+| R2 reads (crops) | **estimate:** ~55 devices × 720 frames × ≤ 4 range reads ≤ 4.75 M of 10 M free → **$0**. Without caching, past ~115 such devices it costs $0.36 per million | same | none | same |
+
+**Upkeep:**
+
+| | what has to be built and looked after | what fails silently, and what has to read it |
+|---|---|---|
+| **(a) / (a′)** | one **new** Worker, one cron trigger, one R2 bucket and a lifecycle rule. Cron changes take up to 15 min to propagate. **It cannot live in the proxy:** production's `cpu_ms = 200` would stop a 0.5 s ingest on every run, and raising it loosens the runaway kill switch on device traffic. The 47 MB would also share the proxy's isolates | a stopped cron leaves an old frame being served. Needs a **frame-age field in `/healthz`** |
+| **(b)** | everything in (a), plus a DO class and its migration, an alarm that reschedules itself, **and still a cron**. A handler that returns without setting the next alarm, or fails its 6 retries, ends the chain | the same frame-age field, plus the chain's state |
+| (b-mem) | as (b) | the frame is lost when the object is evicted, and every crop goes through one object in one location |
+| (c) | a host, its runtime and process supervisor, OS updates, and an **R2 write credential stored outside Cloudflare** | invisible to `/healthz` unless it reports in |
+
+**Local workerd "does it run" (from A4): PASS.** `wrangler dev`, local, with compatibility date 2025-12-01 (production's), ran the storm frame. The packed grid's sha256 `011c2a65bd4d…` is identical to Node's. No memory claim is made from that run.
+
+**Recommendation:**
+- **(a)**, by the frozen rule: a separate cron Worker writing one frame per NOAA frame to R2, with a frame-age field in `/healthz`.
+- **For the ruling:** the phase-free bound puts (a) within ~4 s of the 2 min bar, while (a′) keeps ~34 s at no extra cost or parts.
+- Not recommended: (b), more parts for freshness (a′) already reaches; (b-mem); (c).
+- Cron jitter, production CPU and production memory are all Stage 2 measurements.
+
