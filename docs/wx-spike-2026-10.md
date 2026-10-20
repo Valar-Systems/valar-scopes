@@ -142,3 +142,7 @@ Decoder `tools/wx/mrms.ts` (Web APIs only; the PNG is inflated and unfiltered ro
 - **OFF-PREDICTION 2, A0's file size:** the storm frame is **2.12 MB** gzipped (the rain frame 1.64 MB), **above** the predicted 0.3-2 MB range.
 
 **STOP after A1, per the doctrine.** Both off-predictions are reported above; neither touches a bar or the design. A2-A6 wait for the reviewer.
+
+**Ruled 2026-10-20: both accepted.**
+- **Longitude:** the decoder stays as is (it steps by Di). **The error bound is set by the GRIB header's micro-degree rounding** of the first and last grid points, not by the decoder: any reader that interpolates first to last instead of stepping by Di will differ by up to 2 µdeg at the east edge.
+- **File size:** the measured sizes are **the new upstream baseline for A7's bandwidth math**: quiet ~0.70-0.78 MB, widespread rain **1.64 MB**, storm **2.12 MB** per CONUS frame, gzipped.
