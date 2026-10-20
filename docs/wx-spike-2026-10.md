@@ -244,3 +244,21 @@ Download, gunzip, decode, quantise to 4-bit and pack two cells per byte (12.25 M
 - **Bars (unchanged, graded on the storm frame):** peak ≤ 96 MB, CPU ≤ 10 s. Predicted: **both met with large margins.**
 - **Local workerd:** the pipeline is run once to prove it runs there, and **no memory claim is made from that run**. Production memory is confirmed in Stage 2.
 
+### A4 re-meter, results (2026-10-20). OFF-PREDICTION; the meter sabotage is OUTSIDE the ruled band
+
+`tools/wx/a4-meter.ts`: `heapUsed + external`, sampled at every stage boundary (stage hooks in `ingest.ts` / `mrms.ts`, including every 256 PNG rows) and every 5 ms. One run per fresh process, 3 per case, every run reported. Absolute values include Node's own **19.8 MB** baseline.
+
+| case | peak (MB) | CPU (ms) | wall (ms) | per-stage maxima, run 1 (MB) |
+|---|---|---|---|---|
+| **storm** (bars) | **64.0 / 64.7 / 65.9** | 469 / 516 / 531 | 1145 / 1049 / 1040 | start 19.8 · download 30.8 · gunzip 32.7 · parse 32.7 · rows 60.3 · packed 62.5 · stored 62.5 |
+| quiet | **52.8 / 51.1 / 51.0** | 469 / 578 / 422 | 921 / 971 / 952 | start 19.8 · download 25.9 · rows 51.8 · packed 52.0 |
+| **sabotage:** storm + 64 MB held | **114.3 / 114.5 / 114.2** | 594 / 672 / 531 | 1084 / 1131 / 1037 | start 19.8 · **download 94.3 (+63.5)** · rows 113.8 (+53.5) · packed 110.4 |
+
+- **Bars (storm):** peak **65.9 MB ≤ 96 MB** and CPU **0.53 s ≤ 10 s**. These would pass, but a bar graded by a meter that failed its own sabotage is not a grade.
+- **OFF-PREDICTION, the peak:** ~65 MB against a predicted ~25 MB (18-35). My estimate counted the held buffers but not the transient ones: duplicated response bodies, decompression-stream chunks, and copies of the PNG's data blocks. The absolute figure also carries Node's 19.8 MB baseline.
+- **OFF-PREDICTION, the meter sabotage: +49.5 MB** (mean of the peaks, 114.3 against 64.9), **outside the ruled 60-68 MB.**
+  - The held block **does** register whole when it arrives: +63.5 MB at the "download" stage.
+  - **Mechanism (inferred from the stage samples, not separately tested):** `heapUsed + external` counts garbage that has not yet been collected, and V8 collects sooner when the extra 64 MB raises memory pressure. The peak therefore depends on the garbage collector's timing and is not additive.
+- **Proposed fix (needs a ruling):** force a collection before each stage-boundary sample (`node --expose-gc`). That meters live memory, which is additive by construction; then repeat the 64 MB sabotage.
+- **Not yet run:** the local-workerd "it runs there" check.
+

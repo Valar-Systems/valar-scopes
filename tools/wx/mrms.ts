@@ -84,9 +84,12 @@ export function parseGrib2(g: Uint8Array): { grid: MrmsGrid; png: Uint8Array } {
  * Decode an MRMS .grib2.gz. Calls onRow(rowIndex, values) for each row in file order (row 0 = the first
  * grid row, north edge for n2s). `values` is reused between calls: copy what you keep.
  */
-export async function decodeMrms(gz: Uint8Array, onRow: (row: number, values: Float32Array) => void): Promise<MrmsGrid> {
+export async function decodeMrms(gz: Uint8Array, onRow: (row: number, values: Float32Array) => void,
+                                 onStage?: (name: string) => void): Promise<MrmsGrid> {
   const g = await inflateAll(gz, "gzip");
+  onStage?.("gunzip");
   const { grid, png } = parseGrib2(g);
+  onStage?.("parse");
   if (grid.bits !== 16) throw new MrmsRefused(`bits per value ${grid.bits}, want 16`);
   // PNG: signature, then chunks; concatenate IDAT payloads (a zlib stream).
   const sig = [137, 80, 78, 71, 13, 10, 26, 10];
@@ -129,6 +132,7 @@ export async function decodeMrms(gz: Uint8Array, onRow: (row: number, values: Fl
     for (let j = 0; j < w; j++) vals[j] = (R + ((cur[2 * j] << 8) | cur[2 * j + 1]) * scale) / div;
     onRow(row, vals);
     row++;
+    if (onStage && (row & 255) === 0) onStage("rows");
     const t = prev; prev = cur; cur = t;
   };
   const zlib = new Blob(idat).stream().pipeThrough(new DecompressionStream("deflate"));
