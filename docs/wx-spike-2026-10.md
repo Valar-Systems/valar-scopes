@@ -317,3 +317,18 @@ Same 300 frames (2024-05-21 15:00:38Z to 2024-05-22 00:58:41Z), 50 airports, 3 r
   - The 3 `start` samples are excluded: they are taken before the hold is allocated, so it cannot raise them (+0.00 by construction).
 - **Local workerd run-check: PASS.** `wrangler dev` (local; no deploy; no bindings; compatibility date 2025-12-01, the production Worker's) ran `ingest.ts` on the storm frame and returned the packed grid with **sha256 `011c2a65bd4d…`, identical to Node's**: 12,250,000 B, 7000 × 3500. No memory claim is made from it. Rig note: the first attempt used a 2026-09-01 compatibility date, newer than the local binary supports, and refused to start; it was re-run at the production date.
 
+### A6: freshness (2026-10-20, live 2-hour poll). Bar met; OFF-PREDICTION, and THE SABOTAGE DOES NOT TURN THE BAR RED
+
+`tools/wx/a6-poll.ts`: polled the live folder every 30 s from 02:47:43Z for 7,200 s. **60 frames** (2026-10-20 02:48:36Z to 04:46:36Z), gaps 114-127 s, **0 missed**. Each frame was downloaded, decoded and cropped (3 airports, 80 km).
+
+| | predicted | measured |
+|---|---|---|
+| lag, frame time to crop ready: p50 | ~2.5 min | **1.06 min** |
+| p95 (bar ≤ 4 min) | ~3.5 min | **1.28 min**, MET (max 1.33 min) |
+| **sabotage:** skip every other frame (computed from the same log: a skipped frame's crop is the next processed frame's) | p95 rises ~2 min **and breaks the bar** | p95 rises **+2.00 min**, to **3.28 min**: **does not break the 4 min bar** |
+
+- **Where the lag goes (medians):** NOAA's own landing delay **48 s** (file last-modified minus frame time; A0 had already seen ~50 s) · my poll delay **15 s** (half the 30 s interval) · download + decode + crop **0.9 s**.
+- **OFF-PREDICTION (faster):** the predictions assumed files land 1.5-2.5 min after frame time; they land in under a minute.
+- **OFF-PREDICTION (the check):** the sabotage moved p95 by exactly the predicted 2 min. But from a 1.3-min baseline the result stays under 4 min, so **as written, the bar cannot catch a poller that skips half the frames**.
+- **Needs a ruling:** a tighter bar (for example, p95 ≤ 2 min), or a "no frame skipped" criterion. Skipping every other frame would fail the latter on 30 of 60 frames.
+
