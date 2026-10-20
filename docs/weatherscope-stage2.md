@@ -527,3 +527,76 @@ The board matched only the model C2 predicted.
 **Two process faults, recorded:**
 - **The Stage 1 and addendum-6 board captures are gone.** They were written to the clone's gitignored `bench-logs/`. When I added `tools/weatherscope` to the clone's sparse checkout (cone mode), git re-applied the sparse rules and removed that folder: in cone mode it deletes ignored files in directories outside the cone. Their sizes and sha256 values are recorded above; the raw files can't be recovered. Captures now go to the scratchpad, outside the clone.
 - **The device-id hook refused the pinned table.** Its 16-digit fractions match the id shape. `.githooks/pre-commit` and `scripts/check_device_ids.py` now skip `*.tbl`, as they already skip CAD files. Control: the hook still refuses an id-shaped token in an ordinary file.
+
+### 2.0, F4, F5 and change 1 under the −40 floor (2026-10-20, frozen in addendum 3): three stops
+
+**How it ran:**
+- `check.py run2` (`7d206fb`) on the files run 1 had already downloaded;
+- `frame.ts` with the −40 floor; the pinned renderer;
+- output to `results2.json`. Run 1's results are untouched.
+
+**Anchors and controls:**
+- **The census passes on both frames:** no values below −40. The low tail still reaches −32 on both products.
+- **The self-comparisons are 100.0000 %, with identical M5.**
+- **The sabotage gives +1 on every echo pixel:** 37,766 on F5, 327 on F4. F4's 20 dBZ ring decision, which sat on its threshold, flipped (ring max code 2 → 1). F5's ring max is code 7, so it had no decision on a threshold.
+- **All 24 change-1 hours pass the census.** The composite and SeamlessHSR files are 31-43 s apart.
+
+| | predicted | result | |
+|---|---|---|---|
+| **P5, F5** (KPHX, western ground rain): M5 | agrees at every threshold | **agrees**: ring and centre, at 15, 20 and 30 dBZ, all yes on both products | ✓ |
+| P5: SeamlessHSR echo at the centre | yes, code ≥ 1 | **yes: code 4, 32.4 dBZ** (the composite: code 5, 36.5 dBZ) | ✓ |
+| **P0, F5** | ≥ 90 % (not a storm frame) | **73.57 %**: SeamlessHSR higher on 10,436 of 39,490 echo pixels | **✗ STOP** |
+| **P4, F4** (KMSP, snow): class agreement | ≥ 95 % | **98.94 %** | ✓ |
+| P4: codes equal | ≥ 70 % of echo pixels | **16.2 %** (94 of 579) | **✗** |
+| P4: M5 | agrees | **agrees**: the ring yes at 15 and 20 dBZ on both, no at 30; the centre no at every threshold on both | ✓ |
+| **P0, F4** | ≥ 90 % | **55.79 %**, over only 579 echo pixels | **✗ STOP** |
+| **P4b, change 1**: dry share at the centre | composite 20-50 %; SeamlessHSR 25-60 % and ≥ the composite's | **composite 23/24 = 95.8 %; SeamlessHSR 23/24 = 95.8 %** | **✗ in magnitude.** SeamlessHSR ≥ composite holds (equal) |
+| P4b's stop | 20 % or more → stop (my prediction: a stop) | **95.8 %: the stop fires**, as I bet, at about twice the top of my range | **STOP** |
+
+**Change 1's raw centre values** (24 snowing hours, KMSP, December 2024):
+
+| | no echo (−99) | below 5 | 5-10 | 10-15 | 15 or more |
+|---|---|---|---|---|---|
+| composite | 4 | **12** | 4 | 3 | 1 |
+| SeamlessHSR | 7 | **12** | 1 | 3 | 1 |
+
+**STOP (pre-registered):**
+- **P0 below 90 % on F4 and F5.** The motion test measured SeamlessHSR's 2-min band churn at 92 % (F1) and 20.8 % (F3); whether churn covers F4 and F5 is not established, since no motion test was run for them.
+- **P4b's large dry share.** The snow threshold needs a ruling before the wire format.
+
+**Two readings of change 1, and the data excludes neither:**
+- **(a) Light snow at KMSP is genuinely weak:** half the hours sit below 5 dBZ at the airport's cell, far below the 5-15 dBZ "often" figure.
+- **(b) A single 1 km cell under-samples it.** That cell is one sample, where the device's ring decision (within 15 mi) looks at many. **F4's ring said yes at 15 dBZ on both products while its centre said no.** Change 1 measured only the centre, not the ring, so this run can't separate (a) from (b).
+
+**For the product ruling: the M5 decisions on every frame,** ring and centre, at 15, 20 and 30 dBZ:
+
+| frame | do the two products agree? |
+|---|---|
+| F1, storm | agree at every threshold |
+| **F2, virga** | **differ:** the composite says echo within 15 mi at 15 and 20 dBZ; SeamlessHSR says none. Both no at 30 |
+| **F3, stratiform** | the ring agrees; **the centre differs at 15 dBZ**: composite 19.5 dBZ, SeamlessHSR 12.4, with a METAR of `-RA` |
+| F4, snow | agree at every threshold |
+| F5, western rain | agree at every threshold; SeamlessHSR has echo at the centre (P5 held) |
+
+### 2.1, Daniel's look applied (addendum 4): all as predicted
+
+**Code:** #439 at `f2a78ce`.
+
+| check | predicted | result | |
+|---|---|---|---|
+| C3 (a)-(g), host | all pass | **all pass**. **C3g:** ΔE\*ab **76.8 / 85.2 / 95.5** and ΔL\* **52.9 / 47.0 / 41.4** at 55 / 70 / 85 %, against ≥ 40 and ≥ 25. My estimate was about 80 and 45. Controls: the pin, and sRGB white converting to L\* 100 | ✓ |
+| The four sabotages | exactly (a); (c); (e) and (f); (g) | **each exactly as predicted**. S-C3g brings ΔE down to 9.4 at 70 % | ✓ |
+| Build | ±256 B RAM; flash up < 4 KB | **26,912 B; 465,699 B** | ✓ |
+| **C1** | B9 `344383b4…` | **identical**, 240/240 rows, 0 differ | ✓ |
+| **C2** | board = `palette_ref.py` at 70 %, sha256 committed **before** flashing (`659fba0bc9f6…`) | **identical** | ✓ |
+| B3, B4, B8; B5-B7; budget | in band; MISS within ±10 %; met | 153,608 B, 0 B, 25.791 ms; 2.870 / 3.584 / 22.695 ms (render **+3.1 %**); 54.9 ms, 19.5 fps | ✓ |
+
+- **Flash:** the port was resolved from the serial, MAC `90:70:69:32:6e:64`, all four images verified, image `1bbad81f405c…`.
+- **Capture:** saved outside the clone as `captures/wx-2.1-add4-134932.txt` (81,694 B, sha256 `535bba02306e…`).
+- **The board alternates** the KDFW frame (rain code 1 at 70 %) and the card (rain code 1 at 85 / 70 / 55 %; the new snow ramp; no coverage; hatched missing; dry) **for Daniel's next look**.
+
+**The device-id guards, as #439 has them now:**
+- **Path-only exemption:** narrowed to the single pinned path by ruling (`7b07685`).
+- **blipscope-5c's review then found a hole.** Its probe (d) appended an id to the pinned table, and both guards let it through: the sha256 pin existed only in prose.
+- **Fixed (`a0c34e9`):** the guards skip the table **only while its blob hashes to the pin**. The hook hashes the staged blob and the checker the HEAD blob, both from one list, `scripts/device-id-pinned-files.txt`.
+- **Probes (a)-(d), plus (d-real) on the real path, all as intended.** blipscope-5c's re-review is pending.
