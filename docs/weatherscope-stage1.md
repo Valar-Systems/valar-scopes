@@ -518,3 +518,40 @@ Recorded as received:
 Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait for v18 to be promoted.
 
 **Open conflict, put to Daniel.** An earlier ruling the same day ("Ruling on B5-B7: option 2, re-register") had budget bars frozen in "Predictions B, addendum 2", and they were met on the board (54.2 ms per frame, 19.7 fps). That addendum did not edit the original B5-B7 lines, which still read as misses. This ruling says not to re-register over the bands. Until Daniel says which stands, addendum 2 and its results stay in the record as written, and B5-B7 remain misses either way.
+
+### B, addendum 5 on the board (2026-10-20, image `27600e8` on `907069326E64`): the control is off-prediction, STOP
+
+**Build, before flashing:**
+
+| check | predicted | result | |
+|---|---|---|---|
+| RAM / flash | 26,824 B / 463,667 B | **26,824 B / 463,667 B** | ✓ |
+| Image vs `8da2ab9`'s Stage 1 build (`46f0c3ce464d…`) | build stamps only | **69 bytes differ, all stamps:** `app_elf_sha256` 32; the compile-time string (11:01:39 → 11:33:28) 4; the image checksum 1 and the trailing SHA-256 32 | ✓ |
+
+**A slip in my comparison script, corrected before flashing.** It first called the last 33 bytes "unexplained": the checksum byte and the SHA sit next to each other, its run-merging joined them, and the merged run matched neither rule. The bytes were not relabelled by hand. They were proven: in both images the byte at n−33 equals 0xEF XOR every segment byte, and the last 32 bytes equal the SHA-256 of everything before them.
+
+**Flash:** `bench-flash.ps1` resolved the port from the serial (COM6), and esptool read MAC `90:70:69:32:6e:64`; all four images verified. The flashed `firmware.bin` (`d7ed5182dc7e…`) is the image compared above.
+
+| check | predicted (addendum 3, repeated in 5) | result | |
+|---|---|---|---|
+| Control: `D` + a 1.5 s host stall after 20 rows | capture **REFUSED**, with **≥ 1 missing row named** | **0 rows missing; 1 row corrupt, named: row 239.** 239 of 240 rows good, none duplicated | **✗ off-prediction** |
+
+**STOP, report.** The capture (`bench-logs/wx-stage1-control-113450.txt`, 81,553 B, sha256 `0852e7bfde7c…`, not committed):
+- **What was lost:** row 239, the last row, arrived with **256 of its 320 base64 characters**. All 256 match the reference row; the last **64** are gone. 64 bytes is one USB full-speed packet.
+- **What arrived:** the rest of that line (its line ending), every other row whole, and the board's `fb_sha256` (`344383b4…`, the reference) and `WX,end`.
+- **The tags saw the loss:** the row was named by number and its CRC refused it. But it was named **corrupt, not missing**, and the frozen prediction was "≥ 1 missing row". That is outside the predicted set, so it is not re-graded here.
+- **The grader's wording was wrong; its verdict was right.** It printed "NOT refused", but the capture *was* refused, with row 239 named. Its control rule is the frozen one, at least one row missing, and that failed.
+
+**Why my prediction was wrong:** I assumed that once the host stopped reading, the board's 4 KB TX buffer would fill and whole rows would drop. Instead, about 81 KB went through with only 64 bytes lost, and the loss was 219 rows after the stall began. So the host side absorbed nearly the whole dump, and the stall barely stalled the board.
+
+**Two explanations, and this capture can't separate them:**
+- **The board dropped one packet** when a 2 ms write timed out. For: the loss is exactly one 64-byte packet, inside a line, with the line ending intact.
+- **The host lost it** (the driver or pyserial). Why it is not excluded: a driver that runs out of buffer normally stops asking the board for data rather than discarding it, which favours the first explanation, but one capture can't show which. The `1183010` capture, which lost rows 197-200 without any deliberate stall, isn't evidence either way.
+
+**What this leaves proven:**
+- Of the row checker's refusals, only "corrupt" has now fired on a real capture.
+- "Missing" has fired only on synthetic captures (9/9 cases, addendum 5).
+
+**Timings in the same capture** (the control path does not grade them; data only): decode 2,867, indices 3,584, render 22,014, push 25,771 µs; PSRAM 153,608 B; internal heap change 0 B. Each of B5-B7 is within 0.01 % of its measurement and still a **MISS** on its frozen band.
+
+**Not run:** B9, S-B1 and the final reflash. No second control was tried; that would be retrying until it passes. **The board is left on the correct Stage 1 image (`27600e8`)**, so it already ends where step 4 would leave it. The board's own `fb_sha256` in the control capture is the reference value, which says the screen is right, but that is not B9.
