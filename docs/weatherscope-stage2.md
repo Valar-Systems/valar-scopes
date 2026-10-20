@@ -330,6 +330,54 @@ All of them stay in the scratchpad, never in git.
 - **P4b's stop still holds:** 20 % or more of snowing hours reading dry on either product means **stop**. My prediction is that stop.
 - **Outside all of the above: stop and decide.**
 
+## Addendum 4: Daniel's palette look (2026-10-20, from photos of the board; frozen before the palette changes)
+
+**Recorded as received:**
+1. **Lowest rain band (15-20 dBZ): 70 %.** Also add a **55 %** swatch to the card for one more look: the deep-blue fringe dominates the storm frame.
+2. **Missing: B, hatched.**
+3. **Change:** the snow ramp's first band must be **clearly distinct from rain's 15 dBZ blue**. Start it at a lighter, paler blue and keep the ramp to pale blue at the top. Add a host check that snow code 1 and rain code 1 differ by a clear margin, **with the metric and threshold stated before measuring**.
+4. **Change:** no coverage becomes a **darker neutral grey**: still achromatic, still distinct from dry and from hatched missing. Large no-coverage areas shouldn't outshine the weather.
+5. Re-render on the board, with the card and the KDFW frame alternating as now, for one more look. **C1 and C2 must still hold.**
+
+**My reading, flagged:** snow code 1 is **no longer dimmed**. Dimming darkens it, which works against "lighter, paler". So the 15-20 dBZ dim applies to rain only.
+
+**The palette, fixed now:**
+
+| element | before (2.1) | now |
+|---|---|---|
+| rain 1 on the frame | 85 % `(0, 0, 209)` | **70 % `(0, 0, 172)`**. The card shows 85 %, 70 % and **55 % `(0, 0, 135)`** |
+| snow | `(30, 60, 160)` → `(175, 215, 255)`, code 1 dimmed | **`(120, 165, 230)` → `(190, 225, 255)`** at code 8, flat above, linear in RGB; code 1 **not** dimmed |
+| no coverage | `(96, 96, 96)` | **`(40, 40, 40)`** |
+| missing | dim `(48, 48, 48)` or hatched | **hatched only**: `(72, 72, 72)` lines where `(x + y) % 4 == 0`, on dry. The dim option is removed. The frame's renderer draws code 15 pixel by pixel |
+| rain 2-13, dry | unchanged | unchanged |
+
+**C3, re-registered** (it replaces addendum 2's C3):
+- **(a)** no coverage and the missing hatch are achromatic.
+- **(b)** dry, the missing hatch and no coverage are three different colours.
+- **(c)** unchanged: rain 2-12 equal the pinned table, and 13 is white.
+- **(d)** rain code 1 is the 15 dBZ entry times **55 %, 70 % and 85 %**, using `(v · p + 50) / 100`.
+- **(e)** snow luma rises with each code up to code 8 and is flat after; the top is pale blue (blue > red) and not white.
+- **(f)** no snow colour equals any rain colour, at any dim level.
+- **(g), new: snow code 1 against rain code 1, at each of 55 %, 70 % and 85 %:**
+  - **Metric:** CIE76 **ΔE\*ab**. sRGB (IEC 61966-2-1) is linearised, converted to XYZ, then to CIELAB with the D65 white point (0.95047, 1.0, 1.08883).
+  - **Threshold:** **ΔE\*ab ≥ 40 and ΔL\* ≥ 25.** Lightness is the cue that survives a small LCD and colour-blind viewers.
+  - **Predicted:** passes at all three levels. My estimate is ΔE around 80 and ΔL\* around 45; the thresholds grade, not the estimates.
+
+**C3's sabotages:**
+- the missing hatch planted as violet `(110, 0, 110)` turns **exactly (a)** red;
+- one rain entry off by one turns **exactly (c)** red;
+- the snow top set to white turns **exactly (e) and (f)** red;
+- **new:** the snow start set to `(20, 30, 180)`, a blue close to rain's, turns **exactly (g)** red.
+
+**On the board:**
+- **C1:** B9 identical (the codes are unchanged).
+- **C2:** the board's `WX,sprite_sha256` equals `palette_ref.py` at **70 %**. That sha256 is computed and committed **before flashing**.
+- **Build:** static RAM within ±256 B of 26,824, and flash up by less than 4 KB from 463,667.
+- **Timings:** B3, B4 and B8 in band; B5-B7 **MISS** on their frozen bands, within ±10 %; the budget met.
+- The card and the frame keep alternating every 10 s.
+
+**Outside all of the above: stop and decide.**
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
