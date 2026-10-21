@@ -11,8 +11,11 @@
 // dump (see below).
 //
 // STAGE 2, STEP 2.1 (docs/weatherscope-stage2.md): the palette, final after Daniel's three looks (addendum 6).
-// After boot the screen alternates every 10 s between the frame and a palette card (rain, snow, both code-1 dim
-// levels, no coverage, both missing options, dry). The boot report adds WX,sprite_sha256: the sha256 of the
+// SCREEN 7, THE LEGEND (docs/weatherscope-screens.md §7; bench build per addendum 7): after boot the screen alternates
+// every 10 s between the KDFW frame and the legend. A serial 'L' draws the legend and dumps its sprite's own bytes
+// (WXL swatch lines, then tagged WXS rows) so test/fixtures/wx/legend_check.py can compare every swatch pixel with
+// the palette table.
+// The boot report adds WX,sprite_sha256: the sha256 of the
 // frame's 115,200 sprite bytes, computed AFTER the timed path, which test/fixtures/wx/palette_ref.py derives
 // independently on the host (check C2).
 //
@@ -36,6 +39,7 @@
 
 #include "LGFX.h"
 #include "WxCrop.h"
+#include "WxLegend.h"
 #include "WxPalette.h"
 #include "WxRender.h"
 #include "variants/Variant.h"
@@ -55,7 +59,7 @@ uint8_t* grid = nullptr;   // decoded codes, rows x cols, in PSRAM
 // yet -- with code 1 dimmed to 55 % (final: Daniel's second look, addendum 5). Stage 1's provisional palette (dark
 // violet for missing) is retired; it is recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
 constexpr int kFrameDim = wxpalette::kDim55;
-constexpr uint32_t kAlternateMs = 10000;   // frame <-> palette card, so the look needs no serial input
+constexpr uint32_t kAlternateMs = 10000;   // frame <-> legend, so the look needs no serial input
 
 struct Report {
     const char* status = "not run";
@@ -91,7 +95,7 @@ void Render()
     canvas.endWrite();
 }
 
-// The palette card: the final palette's swatches. Not measured and not graded; Daniel's looks were its result.
+// Drawing helpers for the legend.
 void Swatch(int x, int y, int w, int h, wxpalette::Rgb c) { canvas.fillRect(x, y, w, h, canvas.color565(c.r, c.g, c.b)); }
 
 void HatchSwatch(int x, int y, int w, int h)
@@ -108,30 +112,36 @@ void Label(int x, int y, const char* text)
     canvas.print(text);
 }
 
-void DrawCard()
+// Screen 7, the legend (docs/weatherscope-screens.md §7): plain-word rows from WxLegend.h, every swatch drawn from
+// the final palette. Dry has no swatch (ruled).
+wxpalette::Rgb LegendColour(const wxlegend::Swatch& sw)
+{
+    switch (sw.kind) {
+    case wxlegend::Kind::Rain: return wxpalette::Rain(sw.code, kFrameDim);
+    case wxlegend::Kind::Snow: return wxpalette::Snow(sw.code);
+    case wxlegend::Kind::NoCoverage: return wxpalette::kNoCoverage;
+    default: return wxpalette::kMissingHatch;
+    }
+}
+
+void DrawLegend()
 {
     canvas.fillSprite(TFT_BLACK);
     canvas.setTextColor(TFT_WHITE);
     canvas.setTextSize(1);
-    const int w = 12, x0 = 120 - 13 * w / 2;
-    Label(x0, 34, "RAIN (final) 15 ... 75+ dBZ");
-    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 44, w - 1, 20, wxpalette::Rain((uint8_t)c, kFrameDim));
-    // Snow: 15-40 dBZ step by step, then held from code 6 (40 dBZ) up.
-    Label(x0, 76, "SNOW  15 ........ 75+ dBZ");
-    for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 86, w - 1, 36, wxpalette::Snow((uint8_t)c));
-    const char* names[3] = {"NOCOV", "MISSING", "DRY"};
-    for (int i = 0; i < 3; ++i) {
-        const int x = 48 + i * 52;
-        Label(x, 134, names[i]);
-        if (i == 0) Swatch(x, 144, 40, 22, wxpalette::kNoCoverage);
-        if (i == 1) HatchSwatch(x, 144, 40, 22);
-        if (i == 2) canvas.drawRect(x, 144, 40, 22, canvas.color565(128, 128, 128));   // dry is black: outlined
+    for (const auto& row : wxlegend::kRows) Label(wxlegend::kLabelX, row.y, row.label);
+    for (const auto& sw : wxlegend::kSwatches) {
+        if (sw.kind == wxlegend::Kind::NoData) {
+            HatchSwatch(sw.x, sw.y, sw.w, sw.h);
+            continue;
+        }
+        const wxpalette::Rgb c = LegendColour(sw);
+        Swatch(sw.x, sw.y, sw.w, sw.h, c);
     }
-    Label(64, 176, "rain 15 dBZ final: 55%");
 }
 
 void ShowFrame() { Render(); canvas.pushSprite(&tft, 0, 0); }
-void ShowCard() { DrawCard(); canvas.pushSprite(&tft, 0, 0); }
+void ShowLegend() { DrawLegend(); canvas.pushSprite(&tft, 0, 0); }
 
 void SpriteSha(char out[65])
 {
@@ -215,6 +225,35 @@ void PrintReport(bool withDump, bool lossy)
     SetTxTimeoutMs(2);
 }
 
+// 'L': draw the legend, then print its swatch list and dump the sprite's OWN bytes (RGB565 as stored, 480 per row),
+// tagged and CRC'd like the B9 dump and written with the same blocking writes, so the host checks the pixels the
+// board actually holds, not the code that meant to draw them (addendum 7).
+void DumpLegend()
+{
+    ShowLegend();
+    SetTxTimeoutMs(2000);
+    Serial.printf("WX,legend,swatches=%d\n", wxlegend::kSwatchCount);
+    int i = 0;
+    for (const auto& sw : wxlegend::kSwatches)
+        Serial.printf("WXL,%d,%s,%u,%d,%d,%d,%d\n", i++, wxlegend::KindName(sw.kind), (unsigned)sw.code, sw.x, sw.y, sw.w, sw.h);
+    constexpr size_t kRowBytes = (size_t)wxrender::kSize * 2;
+    const uint8_t* buf = (const uint8_t*)canvas.getBuffer();
+    unsigned char b64[kRowBytes * 4 / 3 + 4];
+    for (int y = 0; y < wxrender::kSize; ++y) {
+        const uint8_t* row = buf + (size_t)y * kRowBytes;
+        size_t n = 0;   // 480 bytes is a multiple of 3, so each row encodes on its own with no padding
+        mbedtls_base64_encode(b64, sizeof b64, &n, row, kRowBytes);
+        Serial.printf("WXS,%d,%08lx,", y, (unsigned long)Crc32(row, kRowBytes));
+        Serial.write(b64, n);
+        Serial.println();
+    }
+    char sha[65];
+    SpriteSha(sha);
+    Serial.printf("WX,legend_sha256,%s\n", sha);
+    Serial.println("WX,end");
+    SetTxTimeoutMs(2);
+}
+
 }  // namespace
 
 void setup()
@@ -288,16 +327,20 @@ void setup()
 void loop()
 {
     if (Serial.available()) {
-        bool lossy = false;   // 'D' anywhere in what arrived: the drop-on-stall control
-        while (Serial.available()) lossy |= Serial.read() == 'D';
-        PrintReport(true, lossy);
+        bool lossy = false, legend = false;   // 'D': the drop-on-stall control; 'L': the legend dump
+        while (Serial.available()) {
+            const int c = Serial.read();
+            lossy |= c == 'D';
+            legend |= c == 'L';
+        }
+        if (legend) DumpLegend(); else PrintReport(true, lossy);
     }
     static uint32_t lastSwitch = millis();
-    static bool card = false;
+    static bool legendShown = false;
     if (grid && rep.sprite && millis() - lastSwitch >= kAlternateMs) {
         lastSwitch = millis();
-        card = !card;
-        if (card) ShowCard(); else ShowFrame();
+        legendShown = !legendShown;
+        if (legendShown) ShowLegend(); else ShowFrame();
     }
     delay(20);
 }
