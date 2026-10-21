@@ -335,6 +335,17 @@ jobs:
       # here instead of as a planted string in a shipped binary.
       - name: adsbdb launch gate (${{ matrix.env }})
         run: bash scripts/check-adsbdb-out.sh ${{ matrix.env }}
+      # NO skus.yml IMAGE POINTS OTA ANYWHERE BUT releases/latest (docs/ota-url-check.md).
+      # -DOTA_RELEASE_BASE pins OTA to a tag and is for bench envs only; a shipping env
+      # that gained it would publish devices that follow whatever is clobbered onto that
+      # tag. Read from the IMAGE, on every row (no `if:`), before the upload and the
+      # receipt, so a shipping image that FAILs here cannot publish. --check-wiring holds
+      # this step in that place.
+      - name: OTA URL is the fleet's (${{ matrix.env }})
+        run: |
+          python3 scripts/check_ota_url.py --selftest
+          python3 scripts/check_ota_url.py --check-wiring
+          python3 scripts/check_ota_url.py ${{ matrix.slug && '--require-ota' || '' }} ".pio/build/${{ matrix.env }}/firmware.bin"
       # PHOTO MODE, THE IMAGE HALF. On the photo leg the "[photo-mode]" marker must be
       # IN the image (proof the marker survives a real build, so its absence anywhere
       # else means something) with no other bench marker; on its shipping parent's leg
