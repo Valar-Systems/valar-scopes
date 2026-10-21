@@ -201,6 +201,27 @@ H3 is unchanged. The outside-the-set rule still applies: stop, report, and decid
 So a deliberate regression in the shipped WXC1 decoder turns `host-tests` red on exactly the
 predicted check, with every other check unaffected. H3, the rule, follows the merge.
 
+## H3 results (2026-10-20): AS PREDICTED, every step
+
+#440 merged as `788ad44` (squash, no `--admin`), then H3 ran as frozen. Each reading is two reads at
+least 30 s apart; `UNKNOWN` did not count as a reading. Record on #440:
+https://github.com/Valar-Systems/valar-scopes/pull/440#issuecomment-6303952573
+
+| step | reading |
+|---|---|
+| **H3.0** before the PUT | `branches/main/protection` 404 "Branch not protected" and `rulesets` 0, at 22:50:38Z and 22:51:14Z |
+| **H3.1** proof PR #444 (S-A3a), before the rule | CI complete: 33 checks, 1 failure (`host-tests`, exactly the A3 line, exit 1, 360 ok). **UNSTABLE** at 22:49:54Z and 22:50:30Z |
+| **H3.2** the rule (PUT 22:51:27Z), read back | `checks=[{"context":"host-tests","app_id":15368}]`, `strict:false`, `enforce_admins:false`, no review requirement, no push restrictions |
+| **H3.3** #444, no new commit | **BLOCKED** at 22:51:45Z and 22:52:21Z. Only the rule changed between H3.1 and H3.3 |
+| **H3.5** #415 (never ran `host-tests`) | **BLOCKED** at 22:52:21Z and 22:52:56Z. A 22:51:45Z read was UNKNOWN, and a 22:52:41Z read came only 20 s after the one before, so neither counted |
+| **H3.4** #444 after the revert commit `029b0c3` | 33 checks, 30 success, 3 skipped, `host-tests` green. **CLEAN** at 23:16:46Z and 23:17:22Z |
+| **H3.6** | #444 closed unmerged and `ci/h3-proof` deleted. No merge command was ever run against it |
+
+- **Observed, not in the frozen text:** the classic rule's defaults also disable force pushes to `main`
+  and deleting `main` (`allow_force_pushes:false`, `allow_deletions:false`).
+- **Also observed:** `main`'s own push run of `host-tests` on `788ad44` was green, which is the
+  `strict:false` safety net. Accepted by the reviewer, 2026-10-20.
+
 ## What the rule does to everyone else (stated before it is applied)
 
 - **Open PRs into `main`.** The 14 open non-draft PRs' last CI predates the job. Each reads BLOCKED
