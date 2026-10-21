@@ -919,3 +919,19 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 1. Is the miss recorded as above, with its cause left open, like M4g?
 2. May the remaining rows (S1, S2/D2, D1, CI, the board) proceed as frozen? Their predictions don't depend on the budgets.
 3. Should 3.3's flash and RAM bands be re-derived from this build, `4df1065`, rather than from the s3-146 envs? Any new bands would be frozen in 3.3's addendum, before its code.
+
+### A6.5 Ruled 2026-10-21: A6.3 and A6.4
+
+These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to me":
+
+> 1. A6.4: recorded as a miss, cause left open, as with M4g. Both sizes are under their bands; the model (Claudescope on s3-146 as a floor) was wrong.
+> 2. The other checks (S1, S2/D2, D1, CI, the board) go ahead as frozen. None depends on the sizes.
+> 3. 3.3's size ranges are re-derived from 4df1065's measured sizes, with the basis for each addition stated, and frozen in 3.3's addendum before any 3.3 code.
+> 4. A6.3 is accepted. The selection rule was written before fetching, and one real alert is fine. The USB-serial flag and the large-NVS partition table are accepted too.
+> 5. Push the four local commits now.
+
+**Done:**
+- the four commits were pushed (`b348623`);
+- **the budgets row reads as a miss** (A6.4), with its cause open.
+
+**The base moves.** Main is now `882d49e` (#450, which changes radar firmware). So, as A6 provides, S1 is measured against the PR's actual merge parent. The branch is rebased before S1, and the parent is recorded with S1's result.
