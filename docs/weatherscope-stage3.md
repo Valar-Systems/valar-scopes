@@ -108,6 +108,7 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
   - **On `HTTP_UPDATE_OK`,** it reads the identity at 0x120 of the partition just written.
     - On a match, it restarts as today.
     - On a mismatch, it sets the boot partition back to the running one (`esp_ota_set_boot_partition`), logs the refusal with both identities, and keeps running the current image.
+  - **Withdrawn 2026-10-21 (Addendum 1):** the three lines above leave a window. A power loss between `Update.end()` and the flip back boots the foreign image. The check now reads the identity from the stream **before any write**; see A1.2.
 - **The offering side:** a CI step, `check-ota-identity`, runs **before upload** on every slug-ful leg. The identity inside `firmware.bin` must equal the name it is about to be published under (`firmware-<slug>.bin`) and the flash manifest's slug. If not, there's no upload and no receipt, so `version.txt` cannot advance.
 
 ### 3.2 Predicted
@@ -192,6 +193,7 @@ Every behaviour follows `docs/weatherscope-screens.md`'s rulings.
 3. **3.2** The edition scaffolding (the product env, `main.cpp`, the config page, the identity headers, the stored feeds, the D2 hostname gate). Predicted: S1, D1, D2, and the budgets in section 6; it boots on `907069326E64`, joins Wi-Fi and serves its config page.
 4. **3.3** The screens and the logic (section 5).
 5. **3.4** OTA identity (section 3): host O1, O2 and O4; CI O3 and O5. Its release is Daniel's call, and it must come before any Weatherscope slug.
+   - Added 2026-10-21 (Addendum 1): host O7, O8 and O10, and bench O9 on `907069326E64`.
 
 **Outside every step's predictions: stop and decide.**
 
@@ -203,6 +205,7 @@ The review is on #449. Each finding below was checked against the artifact befor
    - Checked: `project_name` reads `arduino-lib-builder` in a built image, and all 5 esp32s3 linker variants place the slot after `.rodata_desc`.
 2. **There was no check point:** `rebootOnUpdate(true)` reboots straight after the write. The device side now sets it to false, then checks, then restarts or reverts.
    - Checked: `OtaUpdater.cpp:400`, `HTTPUpdate.cpp:396-397`.
+   - **Superseded 2026-10-21 by Addendum 1:** check before any write, never after `Update.end()`.
 3. **The Worker can't tell editions apart** (`X-Blip-Model` is `variant::SLUG`, `CloudFeed.cpp:51`).
    - Recorded in 1.3.
    - Out of scope for Stage 3, which makes no proxy calls.
@@ -211,3 +214,78 @@ The review is on #449. Each finding below was checked against the artifact befor
    - Checked: the reader sweep failed naming the doc, then passed.
 
 **The predictions in 3.2 are unchanged.** They never depended on where the identity lives.
+
+## Addendum 1, 2026-10-21: the #449 review (frozen before any Stage 3 code)
+
+blipscope-5c reviewed #449 at `012f984`: approve after two changes, both frozen here. Daniel's answers from the same message are at the end.
+
+**The device-side design in 3.1 is withdrawn.** It set `rebootOnUpdate(false)`, checked on `HTTP_UPDATE_OK`, then set the boot partition back. That leaves a window: `Update.end()` has already called `esp_ota_set_boot_partition`, so a power loss between it and the flip back boots the foreign image. **The check now happens before anything is written.** The offering side (`check-ota-identity`) and O1-O6 are unchanged.
+
+### A1.1 Where flash is first touched
+
+Read in the installed framework (arduino-esp32 3.3.9, `libraries/Update/src/Updater.cpp`):
+- **`Update.begin()` touches no flash.** It picks the next OTA partition and allocates a 4096-byte buffer (:184-300).
+- **The first erase and write are in `_writeBuffer()`,** once 4096 bytes are buffered (erase :666, write :674).
+- **The boot partition changes only in `end()`.** `_verifyEnd()` writes the 16 held-back bytes, then calls `esp_ota_set_boot_partition` (:730-735).
+- **"Abort in the first write callback" isn't safe here.** The first progress callback, `(0, size)` at :655, fires just before the first erase. It isn't handed the bytes, and nothing after it checks for an abort:
+  - `abort()` runs `_reset()` (:104-131), which frees the buffer and zeroes the size.
+  - `_writeBuffer()` then carries on to the erase at :666. By a read of the code (not a run), the tail-sector test is still true with the size zeroed, so the slot's first sector is erased anyway.
+  - **So the check can't live in the Updater's callbacks.**
+
+### A1.2 The design: read the identity from the stream, decide, then write
+
+- **`OtaUpdater` opens the image download itself** and stops using `httpUpdate.update()` for it. It keeps:
+  - the same `WiFiClientSecure` with the pinned roots (`OTA_ROOT_CAS`);
+  - `HTTPClient` with `HTTPC_FORCE_FOLLOW_REDIRECTS` (`latest/download` redirects to GitHub's CDN);
+  - the request bus, held for the whole download.
+- **It requires HTTP 200 and a `Content-Length` larger than the head.**
+  - It then reads exactly `kHeadBytes` into RAM: 0x120 plus the record's fixed size.
+  - A `static_assert` holds the record to at most 64 bytes, so the head is at most 352 bytes.
+- **The decision is a pure function, `ota::Install(source, flash, running)`,** header-only and compiled on the host. In order:
+  1. Read the head. A short read is `truncated`.
+  2. Parse the record. A wrong magic is `no-record`; an unknown record version or length is `bad-record`.
+  3. Call `OtaIdentity::Accept(running, candidate)`. False is `foreign`.
+  4. **Only then** call `flash.begin(size)`, `flash.write(head)`, write the rest of the stream, and call `flash.end()`.
+- **A refusal makes no flash call at all.**
+  - The inactive slot is never erased or written, and the boot partition is never touched. The connection is closed after the head.
+  - It logs `[ota] refused <reason>: running=<id> image=<id or ->`.
+  - It records `res=refused-<reason>` in the OTA-mem record, overwriting the pre-armed `incomplete`. Without that, the next check-in would report a refusal as a power loss mid-flash (the `incomplete` finalisation in `OtaUpdater.cpp`).
+  - It releases the bus and keeps running.
+- **A non-200 or a broken stream is still a failure (`fail-<n>`), not a refusal.**
+  - A refusal is never written as a failure, and a failure never as a refusal.
+  - The mapping from today's `HTTP_UE_*` codes to the new open's conditions is frozen at 3.4, before its code: a condition that existed before keeps its `fail-<n>` token.
+- **The real `flash` is a thin adapter over `Update`** (`begin`, `write`, `writeStream`, `end`). `ESP.restart()` runs only after `end()` succeeds.
+- **The Worker needs no change for the new token.** `proxy/src/metrics.ts:292` keeps up to 24 `[\w.-]` characters and checks no fixed set, so `refused-foreign` arrives as its own category, apart from `fail-<n>` and `incomplete`. Stage 3 deploys nothing.
+
+### A1.3 Predicted (added to 3.2; O1-O6 unchanged)
+
+| check | predicted |
+|---|---|
+| **O7** (host): a refused image never touches flash | **The fake:** `ota::Install` runs against a fake flash that records every call in order and keeps a **history** of the boot partition. Its `end()` switches the boot to the target slot, as `Update.end()` does.<br>**Five refused inputs, each with its predicted reason:**<br>• the real Weatherscope image head offered to `s3-128` (`foreign`; this is O4 (ii) through the new path)<br>• a pre-check image head, from the `s3-128` build of the base commit (`no-record`)<br>• a record with a wrong magic (`no-record`)<br>• a record with an unknown version (`bad-record`)<br>• a stream that ends before `kHeadBytes` (`truncated`)<br>**For each:** the call log is **empty**, the boot history holds **only its initial value**, and the target slot's bytes are unchanged.<br>**CONTROL:** the board's own identity is accepted. The log is `begin, write…, end`, the boot history switches exactly once, and the target equals the image. Without this control, a fake that ignores every call would pass. |
+| **O8** (host): the sabotage, the check moved after `Update.end()` | **The sabotage:** `sabotage_ota_install.py` moves step 3 after step 4. That is the withdrawn design, flip-back on a mismatch included.<br>**Predicted:** O7 turns red on all five refused inputs, naming `begin` as the first forbidden call and showing the switch in the boot history.<br>**The assertion is on the history, not the final state.** The withdrawn design reverts the boot partition, so a final-state assertion passes it. The sabotage run prints both, final state PASS and history FAIL, which is why the history is the assertion.<br>**A second sabotage** moves the check after the first `write`. O7 turns red on the target bytes while the boot history stays clean, which proves the target assertion works on its own. |
+| **O9** (bench, `907069326E64`): the real adapter | **Why it is needed:** the host fake models our interface, not the Updater. A real adapter that wrote before the decision would pass O7 (the named alternative), and only the board can exclude it.<br>**The source:** a bench-only source (`WX_OTA_BENCH`, in the bench env only) feeds `ota::Install` an image head over USB serial.<br>**Refused** (a Blipscope `s3-128` head): the `esp_ota_get_boot_partition()` label and the sha256 of the inactive slot's first 64 KB are identical before and after.<br>**CONTROL, so the instrument is shown to see a write:** the board's own head, with the stream cut at 8 KB, is accepted, writes, then fails. The inactive slot's sha256 changes and the boot label does not.<br>**Where the bench code is:** `WX_OTA_BENCH`'s marker string is in the bench ELF and in no shipping env's ELF (grep). |
+| **O10** (host): the downgrade consequence, asserted, not just stated | **Every** identity in the O1 matrix refuses the pre-check `s3-128` head from O7 as `no-record`. No pre-check image in that matrix has the record's magic at 0x120. |
+
+- **3.4 runs O7-O10 alongside O1-O5.** O8's two sabotages must turn O7 red before O7's green counts.
+- **O6 stays as it is.** At the next real version bump, the 404 is a failure (`fail-<n>`), observed on serial, not forced.
+
+### A1.4 The consequence (review item 2), recorded here and in `RELEASING.md`
+
+- **No downgrade past the release that adds the check.**
+  - Every image built before that release has no record, so a device running the check refuses all of them over OTA (`no-record`; O10 asserts it).
+  - OTA never offers a lower `version.txt` anyway. What this really closes is a rollback by re-publishing an old binary under a higher `version.txt`: from that release on, every device refuses it.
+- **A rollback is a new build.** Old behaviour comes back as a new build from source that carries the record. The offering side's `check-ota-identity` refuses to publish anything else.
+- **USB flashing is unaffected.** The check is on the OTA path only, so a single device can always be recovered by cable (esptool or the web flasher).
+- **Identities become permanent.** From that release, a device accepts only its own `<FW_OTA_PREFIX><variant::SLUG>`, in a record version it knows.
+  - A device is stranded on OTA if any of these change, because it then refuses every later image:
+    - an edition prefix or a slug is renamed;
+    - the record's magic or layout changes incompatibly.
+  - Any such change needs its own ruling, plus a transitional release that accepts both and is already on the fleet. Until then, `Accept` is an exact match.
+- **A mislabelled publish costs a head read, not a brick.** On each check, each device reads at most 352 bytes, closes the connection, records `refused-foreign` and keeps running. No device updates until a correctly labelled image is published.
+- **The order is unchanged.** The accepting side reaches the fleet only through a release Daniel rules on, with blipscope-5c's release discipline, and before any Weatherscope slug exists.
+
+### A1.5 Daniel's answers (2026-10-21)
+
+- **The edition section in `CLAUDE.md`: authorized.** The shared-file table in 1.1 named it as needing authorization. It lands with the Stage 3 code, not before.
+- **`docs/wxc1-v2.md`: go.** It opens as its own docs-only draft PR and is not part of this plan.
+- **No Stage 3 code until #449 is approved at its new head.**
