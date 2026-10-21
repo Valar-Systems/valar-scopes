@@ -179,6 +179,28 @@ No format choice depends on the result except the pairing rule and Q2's frequenc
 
 Fetching `PrecipFlag`, the pairing rule (from M4b and M4c), encoding the type layer, coarsening with both layers, the cap ladder and its sabotage, `&fmt=2`, and the Worker. **Nothing is deployed from this PR.**
 
+#### 5.1.1 The producer's parts that don't depend on M4 (blipscope-5c, 2026-10-21; frozen before any encoder code)
+
+**Facts cited:** `proxy/src/wx/crop.ts` and `handler.ts` on #443 at `57a677f`.
+- The view box is clamped to ±2.0° (`VIEW.maxDegrees`) and padded by `PAD_CELLS` = 2.
+- The ladder is 1, 2, 4, 8.
+- `CAP_BYTES` is 32,768.
+- The ETag is `cropEtag(product, epoch, lat2, lon2, rKm)`.
+
+**Not in this part:** fetching `PrecipFlag`, pairing it, and serving untyped when nothing pairs. All three wait for M4b/M4c. So does coarsening's tie rule, which waits for Q1.
+
+| | check | predicted |
+|---|---|---|
+| **P1** | **The ladder never runs out, typed or not** (host, exhaustive over the box sizes the handler can produce: every whole-km `r` up to the clamp, at every quantised latitude of the grid) | **The box:** the largest box is 405 or 406 cells a side. 405 is 400 + 1 + 2 × 2; one more is possible from float rounding at a half-cell boundary, and the test reports which. **At rung 4:** `cells(4)` is at most ⌈406/4⌉² = **10,404**, under the typed always-fit limit of (32,768 − 32) / 2 = 16,368 cells. So **every crop fits by rung 4 whatever its content**: rung 8 is never needed, and `wx_too_large` stays unreachable in v2 as it is in v1. **At rung 2:** `cells(2)` reaches 203² = 41,209, so rung 2 is not guaranteed, and the ladder is doing real work there. |
+| **P1a** | **The bound in 2.6 is exact** for the worst content: every cell its own code run (alternating codes 1-13) and its own type run (alternating rain/snow) | The crop's size is **exactly** 32 + 2 × `cells(c)` at the rung it lands on. The same content untyped is exactly 32 + `cells(c)`. |
+| **P1b** | **The cap sees the type layer** | A real query whose box has 16,368 < `cells(2)` ≤ 32,736, with the worst content: **untyped lands on rung 2, typed on rung 4**, and both are ≤ 32,768 B. **Sabotage:** the ladder's size test counts the code layer only. The typed crop is then accepted at rung 2 at 32 + 2 × `cells(2)` > 32,768 B, so the check goes red on both its rung and its size. |
+| **P2** | **`fmt` is refused, never coerced** | **Absent or `1`:** the response is byte-identical to today's, and `test/wx-crop.test.ts` passes **unmodified**. **`2`:** a v2 crop. **Anything else** (`3`, empty, `2.0`, `v2`, ` 2`): **400 `bad_fmt`**. An unknown format answered as v1 would be a plausible-shaped wrong answer. **Sabotage:** `parseInt` with a default of 1. The `2.0`, `v2` and empty cases go red. |
+| **P3** | **The ETag covers every input to the bytes** | v2 adds two inputs, the format and the type source: the paired `PrecipFlag` file's time, or "untyped". **(a)** For one frame and one query, the `fmt=1` and `fmt=2` ETags differ. A v1 ETag sent as `If-None-Match` on a `fmt=2` request gets **200 with a v2 body, never 304.** **(b)** One frame served untyped, then typed once its `PrecipFlag` pairs, has **two** ETags. So a device holding the untyped crop is never answered 304 indefinitely. **Sabotages:** drop the format from the ETag and (a) goes red; drop the type source and (b) goes red. |
+| **P4** | **The producer's own round trip** (the floor; V5's cross-check is the strong form) | **The decoder:** a reference decoder written in the test, independent of the encoder. **The inputs:** seeded random typed crops up to 406 × 406, with run lengths at every LEB128 boundary (15/16, 127/128, 16,383/16,384). **Predicted:** the decoder recovers codes and types cell for cell, and every output is within 2.6's bound for its rung. **Sabotages:** a type layer emitted over all cells instead of echo cells (the reference decoder reports `TypeOverrun`); a type run one short at a LEB128 boundary (`TypeUnderrun`). |
+| **P5** | **The coarsened type, the case Q1 doesn't cover** | A block with a unique strongest cell takes that cell's type, in both directions: a snow winner among rain cells and a rain winner among snow cells. The tie case waits for Q1, and no tie winner is written into a test before the ruling. |
+
+**Why P3 is here.** The ETag's job is to say "these are the same bytes". v2 adds inputs to the bytes, and a 304 path that doesn't know about them is the second-path shape in CLAUDE.md, the route-cache row. Whether a `PrecipFlag` file can arrive after its radar frame is a pairing question for M4. P3 holds either way, so it's frozen now.
+
 ### 5.2 The consumer (Weatherscope): predictions for `WxCrop.h` v2
 
 Frozen here before the decoder code:
