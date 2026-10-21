@@ -526,6 +526,59 @@ A host script then:
 
 **Outside all of the above: stop and decide.**
 
+## Addendum 8: Daniel's look at the legend (2026-10-20; frozen before the legend changes)
+
+**Recorded as received:**
+- First look: a low-light phone photo, so its colours weren't reliable. The legend is approved in content.
+- Then in person: **the colours look right, and the palette and the legend colours are confirmed final.**
+- **Checks 1 and 2 are confirmations only.** If either fails, report it; **no colour changes**:
+  1. the legend background equals dry (black), from the board's pixel dump;
+  2. rain code 12 (violet) against no coverage (code 14), ΔE\*ab **measured and recorded**.
+- **To do:**
+  3. the label "Very heavy/hail" becomes "Hail possible" ("Very heavy / possible hail" if it fits), and the screens doc is updated, dated;
+  4. the round-screen layout: the block centred vertically, every label and swatch inside a stated inner radius (the margin frozen), and the right-hand swatches sharing one left edge;
+  5. the "No data" swatch at the same size as the others.
+- Re-run the legend pixel check and its sabotage, push to #448, and ask blipscope-5c to review.
+
+**Already read from the board's dump** (image `e572e3d7…`, `captures/wx-legend-205546.txt`), before any change:
+- **Check 1 holds there:** outside the 21 swatch rectangles, every pixel is `0x0000` (dry: 53,688 px) or `0xFFFF` (white label text: 888 px).
+- **Fix 5 is already true in pixels:** "No data" is 12 × 12 like every other swatch, and its hatch spans the full 12 × 12. Only 36 of its 144 pixels are lit, which is why it reads smaller on black. It stays 12 × 12. A host check now asserts the equal size; **no outline is added**, since that wasn't asked for.
+
+**Fixed now:**
+- **The label:** "Very heavy / possible hail" is 26 characters, 156 px in the 6 px font. **It does not fit** left of the swatch column at any row. So the label is **"Hail possible"**.
+- **The inner radius:** every label box (6 px × characters by 8 px) and every swatch must lie **within 112 px of the centre (120, 120)**, a margin of 8 px inside the 120 px panel.
+- **The layout:**
+  - 7 rows at a 22 px pitch, swatches 12 × 12 starting at y = 48, with labels 2 px lower;
+  - the block runs from y = 48 to y = 192, centred on 120;
+  - labels at x = 36; **every row's swatches start at x = 144**;
+  - the tightest corner, the snow row's right edge, sits at 109.6 px.
+
+**Predicted:**
+
+| check | predicted |
+|---|---|
+| **C3j** (host, palette): rain 12 against no coverage | **ΔE\*ab ≥ 40**, the same "clearly distinct" bar as C3g. Confirmation only: a failure is reported, and no colour changes |
+| **G1** (host, layout): inner radius | every label box and swatch, all four corners, ≤ 112 px from (120, 120) |
+| **G2**: alignment and size | every row's first swatch at the same x (144); all 21 swatches the same w × h (12 × 12), "No data" included |
+| **G3**: vertical centring | the block's top and bottom are symmetric about y = 120, within ±1 px |
+| **G4**: no overlap | every label box ends left of the swatch column |
+| **L1, L2, L4** (board, as in addendum 7) | 21/21 swatches exact; the ruled mapping, with the row label now "Hail possible"; the dump complete |
+| **L5** (board), new: check 1 on the new build | outside the swatch rectangles and the label boxes the board reports (new `WXT` lines), every pixel is dry `0x0000`; inside label boxes only `0x0000` or `0xFFFF`, with every box non-empty |
+| **L6** (board), new: G1 on the actual pixels | **every non-dry pixel** of the legend lies within 112 px of the centre (pixel centres) |
+| C1, C2 | unchanged (B9 identical; `a88c3a99fa5c…`) |
+| Build | RAM within ±512 B of 26,912; flash within ±2 KB of 466,047 |
+
+**Sabotages:**
+- **The layout** (host, each planted in a copy of `WxLegend.h`):
+  - **S-G1:** the swatch column at x = 150 turns **exactly G1** red, at the snow row's edge, 115.4 px;
+  - **S-G2:** "No data" at 10 × 10 turns **exactly G2** red;
+  - **S-G3:** the first row at y = 44 turns **exactly G3** red;
+  - **S-G4:** labels at x = 50 turn **exactly G4** red.
+- **The palette:** **S-C3j**, rain 12 set to `(45, 45, 45)`, turns **exactly C3c and C3j** red (rain 12 comes from the pinned table).
+- **The board:** **S-L**, as in addendum 7, turns L1 red on exactly that swatch, then restore.
+
+**Outside all of the above: stop and decide.**
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
