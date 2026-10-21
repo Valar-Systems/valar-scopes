@@ -24,6 +24,8 @@ Facts cite `origin/main` at `fc784b8` unless a commit is named.
 | **The only format change is a rain/snow type per cell, from `PrecipFlag`.** | Daniel, 2026-10-20; same section |
 | SeamlessHSR is Weatherscope's product. The Blipscope layer keeps the composite (`MergedReflectivityQCComposite`, "cref"); the product stays a parameter of the request. | Daniel, 2026-10-20 |
 | Open this spec now as a docs-only draft PR; blipscope-5c reviews it. | Daniel, 2026-10-21 |
+| **Q1: snow wins a coarsening tie.** | Daniel, 2026-10-21; Addendum 6 (A6.2) |
+| **Q2: rain by default when `PrecipFlag` gives no type, and the crop is served untyped when no `PrecipFlag` file pairs.** | Daniel, 2026-10-21; Addendum 6 (A6.2). M4f's numbers are added when measured |
 
 **Unchanged from v1:** the code nibbles (0 dry inside coverage, 1-13 for 15-75 dBZ in 5 dBZ steps, 14 no coverage, 15 missing), the run encoding, the header fields, the 32 KB cap and the refuse-whole strictness. The format reference is the header comment of `include/WxCrop.h`; the v1 wire spec is "Wire format v1" in `docs/wx-spike-2026-10.md` on `spike/wx-overlay`.
 
@@ -124,6 +126,11 @@ The producer's section turns this into the largest crop each rung can always fit
 | **Q2** | **An echo cell `PrecipFlag` doesn't call precipitation:** code 0 (no precipitation), −3 (no coverage), or no paired file for that cell. Which type does it get? | **Rain (type 0).** Snow only on positive evidence (code 3), which matches the ruled "snow is code 3, every other code is rain". Measurement 4 counts how often it happens (M4f). If no `PrecipFlag` file pairs with the frame at all, the crop is served **untyped** (flag bit 1 clear), never typed all-rain. |
 
 > **Q2, added 2026-10-21 (Addendum 1, A1.1):** on the composite, which is the Blipscope layer, Q2's rain default would draw virga at the edge of a snowstorm in the rain ramp. M4f(composite) measures how often that happens. It goes to Daniel beside Q2 as information; it isn't a different proposal.
+
+> **Ruled 2026-10-21 (Daniel), see Addendum 6:**
+> - **Q1:** snow wins a coarsening tie.
+> - **Q2:** rain by default when `PrecipFlag` gives no type, and the crop is served **untyped** when no `PrecipFlag` file pairs with the frame.
+> - M4f's numbers are added beside Q2 once they are measured.
 
 ## 4. Measurement 4: before any encoder or decoder code
 
@@ -508,3 +515,41 @@ The instrument is on branch `tools/wxc1-v2-m4` (`tools/weatherscope/m4/`). **It 
 | expect 16, given the 16-bit SeamlessHSR file | **decodes completely,** 3,500 × 7,000 |
 
 **The first two rows are this design's sabotage:** a product offered a file at the wrong depth must be refused. The last two are its control, showing the matching depth still decodes.
+
+**A5.3 was checked as predicted:** both mismatches were refused, naming the two depths, and both matching depths decoded completely.
+
+## Addendum 6, 2026-10-21: Daniel's rulings
+
+### A6.1 The stop of measurement 4's first run: the fix is accepted
+
+**Push and rerun.** `85d1cea`, `8ce77f9`, `80ab48c` and `bc9ad2c` are pushed, and measurement 4 reruns from the start. The first run's stop stays on record in Addendum 5.
+
+**The ruling's reasons, as given:**
+- The stop was an instrument failure before any row was graded. The decoder refused rather than misreading, which is what it is for.
+- The cause is established: two files from different days agree, in two separate header fields.
+- The fix is narrow:
+  - the depth is declared per product, and a mismatch is refused;
+  - the pinned decoder stays on SeamlessHSR and the composite;
+  - C-M4e checks the new decoder against the pinned one.
+
+**Conditions on the rerun:**
+- **C-M4e** (the new decoder equals the pinned decoder, cell for cell, on all 48 SeamlessHSR and composite files) **must pass before any M4 row is read.** If it fails, stop.
+- **C-M4b** must still reproduce Stage 2's SeamlessHSR and composite values exactly. If it doesn't, stop.
+- C-M4a's precondition, the restored width sabotage, the scale sabotage and the census are graded as frozen.
+- **M4a is graded as frozen, and its result says that the listing's object totals were seen before M4a was graded.**
+
+### A6.2 Q1 and Q2 (section 3)
+
+- **Q1: snow wins a coarsening tie.** P5's tie case can now be written, with snow as the winner.
+- **Q2: rain by default when `PrecipFlag` gives no type** (code 0 or −3 under an echo cell). The crop is served **untyped** (flag bit 1 clear) when no `PrecipFlag` file pairs with the frame.
+- M4f's numbers, both products, are added beside Q2 when measured.
+
+### A6.3 For the producer (blipscope-5c)
+
+**When.** #443's decoder needs the same depth rule when the `PrecipFlag` fetch is built. That is v2 producer work, so it **comes after the Blipscope layer is on the bench, as ruled.** #443 is not touched for it before then.
+
+**The same design:**
+- an expected depth per product, and a mismatch is refused;
+- the composite stays 16-bit only;
+- an anchor against the pinned decoder on 16-bit files;
+- the width sabotage.
