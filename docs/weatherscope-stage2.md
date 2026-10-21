@@ -478,6 +478,54 @@ All of them stay in the scratchpad, never in git.
 
 **Outside the predictions:** a census or control failure stops the run. Anything else is reported as measured, and the snow wire format waits for the ruling on it.
 
+## Addendum 7: the legend's bench build (2026-10-20; frozen before any legend code)
+
+**Ruled:** screen 7, the legend (`docs/weatherscope-screens.md` §7), built as a bench version on the board alongside the KDFW frame, with a host check that **every swatch on it equals the palette table**. 2.1 is closed.
+
+**What the board shows:**
+- **The alternation:** every 10 s, the KDFW frame alternates with **the legend**. The palette card is retired; its look is done.
+- **The legend's rows**, in plain words, each followed by its swatches:
+
+  | row | swatches |
+  |---|---|
+  | Light rain | rain 1-4 |
+  | Moderate | rain 5-7 |
+  | Heavy | rain 8-10 |
+  | Very heavy / possible hail | rain 11-13 |
+  | Snow, light → heavy | snow 1-6 (7-13 hold code 6's colour) |
+  | No radar coverage | 14 |
+  | No data | 15, hatched |
+
+- **Dry** gets no swatch (ruled). The optional dBZ text is left out of the bench version.
+
+**How the check stays independent of the code that draws.** A serial byte `L` asks the board to:
+- draw the legend into the sprite;
+- print one line per swatch: `WXL,<i>,<kind>,<code>,<x>,<y>,<w>,<h>`;
+- dump the legend **sprite's own bytes**, RGB565, as 240 tagged rows (`WXS,<row>,<crc32>,<base64>`) with blocking writes, the same discipline as B9.
+
+A host script then:
+- refuses an incomplete dump;
+- checks **every pixel of every declared swatch** against the colour the **final palette** (addendum 6) gives its code. It derives those colours itself, from the pinned table and the ruled values, as `palette_ref.py` does. Solid swatches must be one colour throughout; "No data" must be the hatch pattern exactly;
+- writes a PNG of the board's legend for the record.
+
+**Predicted:**
+
+| check | predicted |
+|---|---|
+| **L1**: every swatch equals the palette table | **all 21 swatches** (rain 13, snow 6, no coverage 1, no data 1): every pixel equals its expected RGB565 |
+| **L2**: coverage | the board's swatch list holds rain 1-13 once each, in the groups above; snow 1-6 once each; 14 once; 15 once; nothing for dry. **Exactly the ruled mapping** |
+| **L3**: the frame is unchanged | C1 (B9 identical) and C2 (the frame sprite at boot, `a88c3a99fa5c…`) |
+| L4: the instrument | the legend dump arrives complete: 240 rows, every CRC good |
+| Build | static RAM within ±512 B of 26,912; flash up by less than 6 KB from 465,447 |
+| Timings | B3, B4 and B8 in band; B5-B7 MISS within ±10 %; budget met |
+
+**The sabotage, S-L, on the board.** One swatch, Moderate's first (rain 5, yellow `(255, 255, 0)`), is drawn as `(255, 255, 64)`:
+- planted with an assertion that it applied;
+- flashed and checked: **L1 fails on exactly that swatch**, and L2 still passes;
+- restored byte for byte (sha256 checked), reflashed, and checked again: L1 back to all 21.
+
+**Outside all of the above: stop and decide.**
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
