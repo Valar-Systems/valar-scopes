@@ -1,7 +1,7 @@
 #pragma once
 // Weatherscope's palette (Stage 2, step 2.1). Pure C++11: no Arduino, no allocation. Ruled 2026-10-20
 // (docs/weatherscope-stage1.md "Ruled for Stage 2"; docs/weatherscope-stage2.md, addenda 2 and 4 -- addendum 4
-// and 5 are Daniel's looks at the board). Rain and the greys are FINAL; snow gets one last look.
+// and 5 are Daniel's looks at the board). The whole palette is FINAL (ruled 2026-10-20, addendum 6).
 //
 //   rain 1-12 (15-70 dBZ)  MetPy's NWSReflectivity table, pinned: test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl
 //                          (sha256 f73f0d6264d4...). Code 1 (15-20 dBZ) is dimmed to 55 % (final: blue dims little

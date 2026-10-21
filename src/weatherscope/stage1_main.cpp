@@ -10,7 +10,7 @@
 // (src/weatherscope/WxPalette.h, Stage 2 step 2.1), pushes it once, and reports its measurements -- WITHOUT the
 // dump (see below).
 //
-// STAGE 2, STEP 2.1 (docs/weatherscope-stage2.md): the palette is shown for Daniel to look at before it is final.
+// STAGE 2, STEP 2.1 (docs/weatherscope-stage2.md): the palette, final after Daniel's three looks (addendum 6).
 // After boot the screen alternates every 10 s between the frame and a palette card (rain, snow, both code-1 dim
 // levels, no coverage, both missing options, dry). The boot report adds WX,sprite_sha256: the sha256 of the
 // frame's 115,200 sprite bytes, computed AFTER the timed path, which test/fixtures/wx/palette_ref.py derives
@@ -91,7 +91,7 @@ void Render()
     canvas.endWrite();
 }
 
-// The palette card, for the look. Not measured and not graded: Daniel's eyes are the result of this step.
+// The palette card: the final palette's swatches. Not measured and not graded; Daniel's looks were its result.
 void Swatch(int x, int y, int w, int h, wxpalette::Rgb c) { canvas.fillRect(x, y, w, h, canvas.color565(c.r, c.g, c.b)); }
 
 void HatchSwatch(int x, int y, int w, int h)
@@ -116,7 +116,7 @@ void DrawCard()
     const int w = 12, x0 = 120 - 13 * w / 2;
     Label(x0, 34, "RAIN (final) 15 ... 75+ dBZ");
     for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 44, w - 1, 20, wxpalette::Rain((uint8_t)c, kFrameDim));
-    // Snow, the one thing left for the last look: 15-40 dBZ step by step, then held from code 6 (40 dBZ) up.
+    // Snow: 15-40 dBZ step by step, then held from code 6 (40 dBZ) up.
     Label(x0, 76, "SNOW  15 ........ 75+ dBZ");
     for (int c = 1; c <= 13; ++c) Swatch(x0 + (c - 1) * w, 86, w - 1, 36, wxpalette::Snow((uint8_t)c));
     const char* names[3] = {"NOCOV", "MISSING", "DRY"};
@@ -127,7 +127,7 @@ void DrawCard()
         if (i == 1) HatchSwatch(x, 144, 40, 22);
         if (i == 2) canvas.drawRect(x, 144, 40, 22, canvas.color565(128, 128, 128));   // dry is black: outlined
     }
-    Label(64, 176, "rain 15 dBZ ruled: 70%");
+    Label(64, 176, "rain 15 dBZ final: 55%");
 }
 
 void ShowFrame() { Render(); canvas.pushSprite(&tft, 0, 0); }
