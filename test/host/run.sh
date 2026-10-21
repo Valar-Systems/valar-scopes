@@ -1107,6 +1107,18 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== pre-build patches: which libraries count as declared (docs/prebuild-patches.md, T2) =="
+# The rule that decides "FATAL" vs "not a dependency" when a patch target is missing. It errs
+# toward FATAL: a library is declared if its name appears anywhere in a lib_deps entry.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the pre-build patch rule cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/prebuild_patch.py" --selftest
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
 else
