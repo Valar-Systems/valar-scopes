@@ -40,6 +40,7 @@ Weatherscope becomes an edition the way Claudescope (`FEATURE_CLAUDESCOPE`) and 
 | `include/BuildIdentity.h`, `include/DeviceIdentity.h`, `src/SoakHarness.h` | Weatherscope's entry in each edition list (feature name, wordmark, `DEVICE_PRODUCT_NAME` = "Weatherscope", so the mDNS name is `Weatherscope-XXXXXX`) |
 | `skus.yml` | the product row `{ env: weatherscope-s3-128, status: build-only }` (no slug), and the bench row renamed `weatherscope-bench-s3-128` (build-only). The CI matrix follows from `skus.py --matrix-json` (`firmware.yml:255-317`), with no workflow edit |
 | `scripts/check_release_envs.mjs` | `FEATURE_WEATHERSCOPE` added to `EDITION_FLAGS` (:34-37). Otherwise a future slug-ful Weatherscope env would be read as a radar SKU |
+| `scripts/skus.py` | `docs/weatherscope-stage3.md` added to `ALLOWED_MENTIONS`, since this plan names `firmware.yml`. Checked: `skus.py --check-readers` failed naming the doc before, and passes after |
 | `scripts/check-adsbdb-out.sh` | the `weatherscope-*` case in `plant_target()` (:359-365) narrowed to **`weatherscope-bench-*`**. The product env links `ConfigMigration.cpp`, so it falls through to the default plant site. Without this, the product leg would plant into a file it doesn't compile and read `UNTRUSTWORTHY (control blind)` |
 | `src/weatherscope/` | the edition code, and `bench/stage1_main.cpp` (moved, unchanged in content) |
 | docs | the edition section in `CLAUDE.md` (**this needs Daniel's authorization**), plus `README.md` and `RELEASING.md` |
@@ -64,7 +65,12 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
 ### 1.3 Support and enroll
 
 - **Today:** the enroll popup renders only when `%ENROLLED%` is substituted, which only the radar processor does (:310-313), and `/enroll-key` is radar-only (:3964). Making it Weatherscope's means widening those two guards. That is still a gated, preprocessor-only change, so S1 covers it.
-- **Device side only.** Whether the Worker accepts a Weatherscope device's enrolment (`X-Blip-Model`, `proxy/src/config.ts:65`) is a question for blipscope-5c. Stage 3 makes **no Worker change and no deploy**. The end-to-end enrolment is verified when the proxy data path lands.
+- **Device side only.** Stage 3 makes **no Worker change and no deploy**. The end-to-end enrolment is verified when the proxy data path lands.
+- **A finding from blipscope-5c's review (checked): the Worker accepts the device, but can't tell the editions apart.**
+  - The model header is `X-Blip-Model: variant::SLUG` (`CloudFeed.cpp:51`).
+  - So a Weatherscope s3-128 would read as a **Blipscope s3-128** in the Worker's per-model config (`proxy/src/config.ts:65`) and its fleet telemetry.
+  - **Stage 3 makes no proxy calls** (every feed is stored, section 2), so the confusion can't arise yet.
+  - **Before any Weatherscope request reaches the Worker,** its model must carry the edition. The OTA identity string (`weatherscope-s3-128`) is the natural value. How the Worker reads it is blipscope-5c's side, so that contract is listed in section 7.
 
 ## 2. Data: stored now, live later, one module apart
 
@@ -93,12 +99,15 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
 
 ### 3.1 The design (its details are for review)
 
-- **An identity in every image:** `<FW_OTA_PREFIX><variant::SLUG>`, for example `weatherscope-s3-128` or `s3-128`, in a fixed, findable record. The two candidates:
-  - (a) an `esp_app_desc_t` field, if one can be set per env (to be verified; the prebuilt framework may fix `project_name`);
-  - (b) a magic-tagged constant record found by scanning.
-
-  The choice is part of this review. **The predictions below don't depend on it.**
-- **The accepting side:** `OtaIdentity::Accept(running, candidate)`, a pure function, accepts only an exact match. `OtaUpdater` reads the downloaded image's identity **after the write and before the boot partition switches**. If the boot partition was already set, it sets it back to the running one, and it refuses with a logged reason.
+- **An identity in every image:** `<FW_OTA_PREFIX><variant::SLUG>`, for example `weatherscope-s3-128` or `s3-128`, in **ESP-IDF's custom app descriptor**: a small constant record placed in `.rodata_custom_desc` (blipscope-5c's review; checked):
+  - **`esp_app_desc_t` can't carry it.** Its `project_name` is fixed by the prebuilt framework: a built image reads `arduino-lib-builder` at file offset 0x50, after the descriptor's magic `0xabcd5432` at 0x20.
+  - **The slot is everywhere we build.** All 5 esp32s3 `sections.ld` variants in `framework-arduinoespressif32-libs` place `.rodata_custom_desc` second, right after `.rodata_desc`. `esp_app_desc_t` is 256 bytes, so the record sits at **file offset 0x120** in every image.
+  - **No scanning is needed.** CI and the device read a fixed offset. The record carries its own magic and length, so a missing or foreign record is refused rather than misread.
+- **The accepting side:** `OtaIdentity::Accept(running, candidate)`, a pure function, accepts only an exact match.
+  - **Today there's no moment to check.** `OtaUpdater` sets `httpUpdate.rebootOnUpdate(true)` (`OtaUpdater.cpp:400`), and `HTTPUpdate` restarts right after `Update.end()` (`HTTPUpdate.cpp:396-397`), which has already switched the boot partition. **So the device side sets `rebootOnUpdate(false)`.**
+  - **On `HTTP_UPDATE_OK`,** it reads the identity at 0x120 of the partition just written.
+    - On a match, it restarts as today.
+    - On a mismatch, it sets the boot partition back to the running one (`esp_ota_set_boot_partition`), logs the refusal with both identities, and keeps running the current image.
 - **The offering side:** a CI step, `check-ota-identity`, runs **before upload** on every slug-ful leg. The identity inside `firmware.bin` must equal the name it is about to be published under (`firmware-<slug>.bin`) and the flash manifest's slug. If not, there's no upload and no receipt, so `version.txt` cannot advance.
 
 ### 3.2 Predicted
@@ -173,6 +182,7 @@ Every behaviour follows `docs/weatherscope-screens.md`'s rulings.
 - **WXC1 v2's rain/snow type field:** shared work with blipscope-5c (`docs/wxc1-v2.md`, to come). Stage 3 draws rain only, since the wire carries no type yet.
 - **The first-boot legend:** parked until the screens are built (ruled).
 - **Worker changes, deploys, and end-to-end enrolment.**
+- **The edition-qualified model header:** what Weatherscope sends as `X-Blip-Model`, and how the Worker reads it. This is a contract with blipscope-5c, and it's needed before the proxy data path, not in Stage 3.
 - **Any release, slug, store listing or customer device.**
 
 ## 8. Order of work; each step frozen before its code
@@ -184,3 +194,20 @@ Every behaviour follows `docs/weatherscope-screens.md`'s rulings.
 5. **3.4** OTA identity (section 3): host O1, O2 and O4; CI O3 and O5. Its release is Daniel's call, and it must come before any Weatherscope slug.
 
 **Outside every step's predictions: stop and decide.**
+
+## Changes after review (blipscope-5c, 2026-10-20)
+
+The review is on #449. Each finding below was checked against the artifact before the plan changed.
+1. **Where the identity lives:** ESP-IDF's `.rodata_custom_desc`, at file offset 0x120.
+   - It replaces the two candidates.
+   - Checked: `project_name` reads `arduino-lib-builder` in a built image, and all 5 esp32s3 linker variants place the slot after `.rodata_desc`.
+2. **There was no check point:** `rebootOnUpdate(true)` reboots straight after the write. The device side now sets it to false, then checks, then restarts or reverts.
+   - Checked: `OtaUpdater.cpp:400`, `HTTPUpdate.cpp:396-397`.
+3. **The Worker can't tell editions apart** (`X-Blip-Model` is `variant::SLUG`, `CloudFeed.cpp:51`).
+   - Recorded in 1.3.
+   - Out of scope for Stage 3, which makes no proxy calls.
+   - Listed in section 7 as a contract before the proxy path.
+4. **`ALLOWED_MENTIONS`:** this plan names `firmware.yml`. `scripts/skus.py` lists it in the same PR.
+   - Checked: the reader sweep failed naming the doc, then passed.
+
+**The predictions in 3.2 are unchanged.** They never depended on where the identity lives.
