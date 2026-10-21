@@ -247,6 +247,8 @@ blipscope-5c reviewed the predictions at `d2e14fc` (#451). I've taken all five c
 - **(a) `PrecipFlag`'s full grid flipped north to south** (the scanning-mode slip M4d can't see). Predicted: not (i), with `A(0,0)` at least 20 points below the unsabotaged `A(0,0)`.
 - **(b) the `PrecipFlag` window shifted 10 cells east.** Predicted: (ii), because the −10-column offset recovers the true alignment.
 
+> **Superseded 2026-10-21 by Addendum 2 (A2.1).** `A(o)` is one-sided, so it can't tell "aligned" from "saturated". Alignment is now read from a two-sided measure that includes the ±1 offsets. `A(0,0)` ≥ 95 % stays, as the expectation bar only.
+
 ### A1.3 Missing files (review 3; these replace M4a's and M4b's outcome rules)
 
 **M4a:**
@@ -291,3 +293,54 @@ Each must report **"different"** and name the field. If either reports "identica
 4. **Only after outcome (i):** M4e, M4f, M4g and M4h.
 
 A stop at any step leaves every later row unread.
+
+## Addendum 2, 2026-10-21: C-M4c read from a two-sided measure (blipscope-5c's re-read at `2210443`; frozen before M4 runs)
+
+blipscope-5c's re-read found everything in Addendum 1 right except C-M4c. **No `PrecipFlag` file has been listed or fetched.**
+
+### A2.1 The finding, and the alignment control as it now stands
+
+**The finding, checked against A1.2's text.** `A(o)` asks only what share of echo cells land on `PrecipFlag` > 0. That makes it one-sided, and it can saturate:
+- **Why it saturates.** M4g predicts that only 5-40 % of snow cells reach 15 dBZ. So in a snow shield, the `PrecipFlag` > 0 area is several times the echo area. A 10-cell shift can leave `A` at about 100 %, tying `A(0,0)`.
+- **What a tie did under A1.2:**
+  - a correctly aligned decode could stop as "misaligned" (outcome (ii));
+  - sabotage (b) could pass on a tie whether or not the measure discriminates.
+- **What ±10 can't see:** an off-by-one, which is the likeliest decode bug.
+
+**The two masks,** per hour, over the crop:
+- `P` = the cells with `PrecipFlag` > 0;
+- `H` = the cells with **raw** SeamlessHSR ≥ **5 dBZ**.
+
+The threshold is stated now, without data. Only where the agreement peaks is predicted, not its level, so 5 dBZ only sets which boundary is compared.
+
+**The measure:** `IoU(o) = Σ|P(o) ∩ H| / Σ|P(o) ∪ H|`.
+- The sums are pooled over the hours, with `P` read at offset `o` from the full grid, never wrapped.
+- Values are compared **exactly**, as fractions of integer counts.
+
+**The offsets, 17 displaced:**
+- the 8 at **±1 cell** in rows, columns or both;
+- the 8 at ±10 cells;
+- the crop window flipped north to south.
+
+**A boundary hour** is one whose crop holds cells both inside and outside `P`, and cells both inside and outside `H`. **K = 8 of the 24 hours**, stated now. The boundary-hour count is always reported.
+
+**The expectation bar stays `A(0,0)` ≥ 95 %,** which is 100 % − M4f(HSR). It is read only once alignment has passed. A1.2's displaced `A` values are no longer used.
+
+| outcome | meaning |
+|---|---|
+| **(i)** at least K boundary hours; `IoU(0,0)` **strictly** above all 17 displaced values; and `A(0,0)` ≥ 95 % | aligned, as expected: M4e-M4h are read |
+| **(ii)** some displaced `IoU` **strictly** above `IoU(0,0)` | **misaligned:** the instrument. **Stop** |
+| **(iii)** at least K boundary hours, a strict peak at (0,0), but `A(0,0)` < 95 % | aligned, and the expectation was wrong. **Stop and decide**; Q2's ruling gets the number |
+| **(iv)** fewer than K boundary hours, **or a tie at the top**, or anything else | **no signal:** the instrument is unreliable at this scale. **Stop** |
+
+### A2.2 Three sabotages, run before the real control is believed
+
+| sabotage | predicted |
+|---|---|
+| **(a) `PrecipFlag`'s full grid flipped north to south** | not (i), and `IoU(0,0)` at most half its unsabotaged value |
+| **(b) the `PrecipFlag` window shifted 10 cells east** | (ii), with a **strict** maximum at the offset that undoes it (10 cells west) |
+| **(c) the `PrecipFlag` window shifted 1 cell east** | (ii), with a **strict** maximum at the offset that undoes it (1 cell west) |
+
+**A sabotage that lands in (iv) is no evidence that the measure sees.** If (b) or (c) lands there, the control isn't believed, and the run stops.
+
+**A1.7's order is unchanged.** "C-M4c" there now means A2.1, and "its sabotages" means A2.2.
