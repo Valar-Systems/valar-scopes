@@ -162,3 +162,19 @@ So "not found" means one of two different things, and the scripts currently trea
 - **(b) a link-order or host-toolchain difference** between a Windows/NTFS build and a Linux/ext4 one. Object and archive ordering can move alignment padding by a few bytes.
 
 **What would separate them,** proposed and not run: rebuild `672eab7` warm **on a GitHub Linux runner at CI's own paths**, in a throwaway PR job that uploads nothing, and compare it with the v18 asset, stamp regions listed first. CI-against-CI rebuilds were measured identical outside 75 stamp bytes (CLAUDE.md, v9), so that comparison can tell (a) from (b). It is for the reviewer to rule.
+
+## 2. Results: local (2026-10-21, before CI)
+
+Graded on `2aac2e3`. Driver `run_fix_checks.py` (scratchpad); every `pio run`'s whole output was kept in its own log.
+
+| check | read | verdict |
+|---|---|---|
+| **F1**, fresh tree (no `.pio`) | exit 0; `guarded ASYNC_RESPONCE_BUFF_SIZE`, `3 applied, 0 already patched`, `made the LCD_CAM interrupt shared` | as predicted |
+| **F2**, warm | exit 0; `already guarded`, `0 applied, 3 already patched`, `already shared` | as predicted |
+| **F3**, `animtest-s3-128` | exit 0; `ESPAsyncWebServer is not a dependency of animtest-s3-128`, `WiFiManager is not a dependency of animtest-s3-128`; LovyanGFX applied | as predicted |
+| **S-F1a**, `WebResponseImpl.h` removed | exit 1, `[patch_async_buff] FATAL …`; `firmware.bin` unchanged (`f7654560…`); the rebuild did not re-create the file | as predicted |
+| **S-F1b**, `wm_strings_en.h` removed | exit 1, `patch_wm_copy: FATAL …`; `firmware.bin` unchanged; not re-created | as predicted |
+| **S-F1c**, `Bus_RGB.cpp` removed | exit 1, `[patch_lgfx_rgb_intr] FATAL …`; `firmware.bin` unchanged; not re-created | as predicted |
+| **S-F2**, a replacement string drifted | exit 1, `patch_wm_copy: FATAL -- pattern NOT FOUND …` (was a WARNING in a green build); `firmware.bin` unchanged | as predicted |
+
+After each sabotage the file was restored from its saved copy and the rebuild was green. Every plant asserted that it took (the removed file was gone; the drift anchor appeared exactly once and the file changed). **F4 is CI on this push.**
