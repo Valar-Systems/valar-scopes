@@ -733,3 +733,32 @@ The board matched only the model C2 predicted.
 **Also on #439 since addendum 4:**
 - **`601a236` / `162ad9f`:** the palette test enforces the table's sha256 pin itself (SHA-256 checked against the "abc" vector), with sabotage S-PIN.
 - **A slip of mine:** `601a236` carried an id-shaped probe token. The device-id hook refused it, but the hook isn't installed in my clone and I had chained it with `;`, so the commit went through. **CI's `no-real-device-ids` caught it** (red on `601a236`, green on `162ad9f`), and it was fixed forward with the allowlisted synthetic id.
+
+### 2.1 closed (2026-10-20): the final palette on the board
+
+- **The palette was ruled final** and recorded in addendum 6, with the pinned table and its sha256. Every value in that table was **checked by program** against `WxPalette.h` at `10e5012`: 13 codes plus 3 others, all matching.
+- **C1 and C2 confirmed again on the running 55 % build**, on a fresh capture at close (`captures/wx-2.1-close-*.txt`, 81,694 B, sha256 `efa5ef56ec51…`): B9 identical, 240/240 rows; the sprite `a88c3a99fa5c…`.
+- **That capture is byte-identical to 15:47's.** It's the same boot of the same image, whose report re-prints the boot measurements.
+- **An instrument slip, caught:** the first attempt at this capture ran from #437's branch, which predates #434 and has no `capture_stage1.py`. The port was never opened, and nothing was measured or reported from it.
+- **#439** is ready for review, with blipscope-5c.
+
+### (e) The snow ring at 5, 10 and 15 dBZ (2026-10-20, frozen in addendum 6): as predicted
+
+**How it ran:**
+- `ring.py` and `ring.ts` (`5ca695f`), on change 1's 24 SeamlessHSR files, the same files run2 used.
+- The census passed on all 24 at the −40 floor.
+- Each ring holds **2,104** grid cells within 15 mi of KMSP, by the device's flat projection.
+
+**The control:** at F4's hour (the 06:52:00Z file), the raw ring maximum is **23.4 dBZ**, inside the frozen [20, 30) and agreeing with run2's screen ring (yes at 15 and 20 dBZ, no at 30). ✓
+
+| threshold | the ring catches | predicted | |
+|---|---|---|---|
+| ≥ 15 dBZ | **17 / 24 = 70.8 %** | 40-75 % | ✓ |
+| ≥ 10 dBZ | **18 / 24 = 75.0 %** | 60-90 % | ✓ |
+| ≥ 5 dBZ | **20 / 24 = 83.3 %** | 75-100 % | ✓ |
+
+**What it means for the snow wire format** (for the ruling; nothing is decided here):
+- **The ring at 15 dBZ, which WXC1 v1 can already carry, catches 17 of the 24 snowing hours.** The airport's own cell caught 1.
+- **Going below 15 dBZ adds 3 hours:** one at 10 dBZ (11.5), and two more at 5 dBZ (6.7 and 8.1).
+- **4 hours (16.7 %) have no echo anywhere in the ring:** 12-03 00:52, 12-03 04:52, 12-04 23:52 and 12-11 15:52, all hours whose METAR reported snow. **No threshold catches them.** Light snow under the beam, or a timing mismatch, could explain them; this run doesn't separate the two.
+- **So a lower snow threshold would raise ring detection from 70.8 % to at most 83.3 %**, and only by carrying sub-15 dBZ snow on the wire, which is the shared format change held for blipscope-5c.
