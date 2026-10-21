@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "../../include/UsageReport.h"
 
@@ -48,6 +49,24 @@ static size_t fieldCount(const char* s)
     return n;
 }
 
+// A whole file with every run of whitespace collapsed to one space, so a sentence the HTML wraps across
+// lines still matches. Empty = unreadable, which the caller treats as BLIND.
+static std::string readFlat(const char* path)
+{
+    std::string out;
+    FILE* f = std::fopen(path, "rb");
+    if (!f) return out;
+    bool gap = false;
+    for (int c; (c = std::fgetc(f)) != EOF; ) {
+        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') { gap = true; continue; }
+        if (gap && !out.empty()) out += ' ';
+        gap = false;
+        out += (char)c;
+    }
+    std::fclose(f);
+    return out;
+}
+
 int main(int argc, char** argv)
 {
     std::printf("== UsageReport ==\n");
@@ -68,6 +87,26 @@ int main(int argc, char** argv)
             else ++at;
         }
         check(count > 0 && listed, "SC4: the Worker's USAGE_FIELD_COUNTS (read from proxy/src/metrics.ts) includes the device's FIELD_COUNT");
+    }
+
+    // SC5: the disclosure says it. The README's count is DERIVED from FIELD_COUNT, so a field added without
+    // the published count changing fails here, and both pages must name the health number in the same words.
+    {
+        if (argc < 4) { std::printf("FAIL: usage: test_usage_report <metrics.ts> <README.md> <support.html> (BLIND)\n"); return 2; }
+        const std::string readme = readFlat(argv[2]), support = readFlat(argv[3]);
+        if (readme.empty() || support.empty()) { std::printf("FAIL: cannot read %s or %s (BLIND)\n", argv[2], argv[3]); return 2; }
+        static const char* const WORDS[] = {"zero", "one", "two", "three", "four", "five", "six",
+                                            "seven", "eight", "nine", "ten", "eleven", "twelve"};
+        const size_t nWords = sizeof(WORDS) / sizeof(WORDS[0]);
+        char want[64], stale[64];
+        std::snprintf(want, sizeof(want), "%s numbers separated by commas", FIELD_COUNT < nWords ? WORDS[FIELD_COUNT] : "?");
+        std::snprintf(stale, sizeof(stale), "%s numbers separated by commas", FIELD_COUNT - 1 < nWords ? WORDS[FIELD_COUNT - 1] : "?");
+        check(FIELD_COUNT < nWords && readme.find(want) != std::string::npos,
+              "SC5: README states the payload's field count in words, derived from FIELD_COUNT");
+        check(readme.find(stale) == std::string::npos, "SC5: README no longer states the previous count");
+        const char* HEALTH = "how many seconds in that hour the device couldn't open a secure connection";
+        check(readme.find(HEALTH) != std::string::npos, "SC5: README names the starved-seconds number");
+        check(support.find(HEALTH) != std::string::npos, "SC5: support.html names the starved-seconds number");
     }
 
     // =========================================================================

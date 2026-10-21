@@ -1,5 +1,5 @@
-"""The starved-seconds counter's sabotages (docs/starved-seconds-counter.md, SC1/SC2/SC4): each plants one break
-into a COPY of the headers and the named check must go red.
+"""The starved-seconds counter's sabotages (docs/starved-seconds-counter.md, SC1/SC2/SC4/SC5): each plants one
+break into a COPY of the headers (or of support.html) and the named check must go red.
 
     python -I test/host/sabotage_starved_seconds.py
 
@@ -19,6 +19,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 METRICS = os.path.join(ROOT, "proxy", "src", "metrics.ts")
+README = os.path.join(ROOT, "README.md")
+SUPPORT = os.path.join(ROOT, "proxy", "pages", "support.html")
 
 SABOTAGES = [
     # (name, header, [(anchor, replacement)], test, the FAIL text that must appear)
@@ -37,6 +39,10 @@ SABOTAGES = [
     ("S-SC4 FIELD_COUNT 10", "UsageReport.h",
      [("constexpr size_t FIELD_COUNT = 9;", "constexpr size_t FIELD_COUNT = 10;")],
      "test_usage_report.cpp", "SC4:"),
+    ("S-SC5 the sentence removed from support.html", "@support.html",
+     [("running. Newer\n       firmware adds one health number: how many seconds in that hour the device\n"
+       "       couldn't open a secure connection, which describes the device and not you.\n", "running.\n")],
+     "test_usage_report.cpp", "SC5: support.html"),
 ]
 
 
@@ -46,7 +52,8 @@ def sha(p):
 
 def main():
     inc = os.path.join(ROOT, "include")
-    before = {h: sha(os.path.join(inc, h)) for h in ("UsageReport.h", "StarvationPolicy.h")}
+    real = [os.path.join(inc, h) for h in ("UsageReport.h", "StarvationPolicy.h")] + [SUPPORT]
+    before = {h: sha(h) for h in real}
     ok = True
     with tempfile.TemporaryDirectory() as td:
         for i, (name, header, edits, test, must) in enumerate(SABOTAGES):
@@ -54,7 +61,12 @@ def main():
             shutil.copytree(inc, os.path.join(tree, "include"))
             os.makedirs(os.path.join(tree, "test", "host"))
             shutil.copy(os.path.join(ROOT, "test", "host", test), os.path.join(tree, "test", "host", test))
-            hp = os.path.join(tree, "include", header)
+            support = SUPPORT
+            if header.startswith("@"):
+                support = hp = os.path.join(tree, header[1:])
+                shutil.copy(SUPPORT, hp)
+            else:
+                hp = os.path.join(tree, "include", header)
             src = open(hp, encoding="utf-8").read().replace("\r\n", "\n")
             out = src
             for a, b in edits:
@@ -67,15 +79,15 @@ def main():
             if b.returncode != 0:
                 print(f"{name}: did not compile (rig)\n{b.stderr}")
                 return 2
-            args = [exe, METRICS] if test == "test_usage_report.cpp" else [exe]
+            args = [exe, METRICS, README, support] if test == "test_usage_report.cpp" else [exe]
             r = subprocess.run(args, capture_output=True, text=True)
             fails = [l.strip() for l in r.stdout.splitlines() if "FAIL" in l]
             good = r.returncode == 1 and any(must in l for l in fails)
             print(f"{name}: exit {r.returncode}; {len(fails)} FAIL line(s); '{must}' red: {any(must in l for l in fails)} -> "
                   f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
             ok &= good
-    after = {h: sha(os.path.join(inc, h)) for h in before}
-    print(f"real headers unchanged: {before == after}")
+    after = {h: sha(h) for h in before}
+    print(f"real headers and support.html unchanged: {before == after}")
     return 0 if ok and before == after else 1
 
 
