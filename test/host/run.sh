@@ -810,10 +810,13 @@ if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_usage_report.cpp"      
   cat "$OUT/build.log"
   exit 2
 fi
-"$OUT/test_usage_report.exe"
+"$OUT/test_usage_report.exe" "$ROOT/proxy/src/metrics.ts"   # SC4 reads the Worker's accepted arities
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the usage test could not read the Worker's accepted arities (BLIND)"
   exit 2
 elif [ "$rc" -ne 0 ]; then
   fail=1

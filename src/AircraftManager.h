@@ -17,6 +17,7 @@
 #include "FactoryReset.h"
 #include "MqttPublisher.h"
 #include "UsageStore.h"  // anonymous feature-use counters (README "Telemetry")
+#include "StarvationPolicy.h"  // the starvation watch's rule and the starved-seconds accrual
 #include "LGFX.h"
 #include "BandCanvas.h"
 #include "FollowTrack.h" // Follow Mode track buffer (header-only; radar path only)
@@ -849,6 +850,11 @@ private:
     // that fired on those would be switched off within a week.
     uint8_t       starveRun = 0;
     unsigned long starvedSinceMs = 0;      // 0 = not starved; else when it began
+    // The starved-seconds counter (docs/starved-seconds-counter.md): the previous health tick's state and time,
+    // and the millisecond remainder the accrual carries (StarvationPolicy.h, Accrual).
+    bool          prevTickStarved = false;
+    unsigned long lastStarveTickMs = 0;
+    starvation::Accrual starveAccrual;
     unsigned long lastStarveLogMs = 0;     // rate-limits the reminder line
     unsigned long lastStarveRecoveryMs = 0;// last recovery attempt
     uint32_t      starveRecoveries = 0;    // attempts made this starvation episode

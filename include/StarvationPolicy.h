@@ -137,4 +137,30 @@ inline bool IsStarved(uint8_t run, bool /*ballastHeld*/)
     return run >= CONFIRM_TICKS;
 }
 
+/**
+ * THE STARVED-SECONDS COUNTER'S RULE (docs/starved-seconds-counter.md, SC2).
+ *
+ * At each health tick, the interval since the PREVIOUS tick counts as starved
+ * when the previous tick was starved. Summed over an episode, that is the span
+ * from the STARVED edge's tick to the RECOVERED edge's tick -- exactly the
+ * `RECOVERED after Ns` the watch already prints, so the counter and the log line
+ * are two readings of one number.
+ *
+ * Whole seconds are handed out and the millisecond remainder is carried, so an
+ * episode is never rounded down tick by tick. Unsigned subtraction, so a
+ * millis() wrap mid-episode costs nothing.
+ */
+struct Accrual {
+    uint32_t remMs = 0;
+
+    /// Seconds to add to the counter at this tick.
+    uint32_t Step(bool previousTickStarved, uint32_t previousTickMs, uint32_t nowMs)
+    {
+        if (!previousTickStarved) return 0;
+        const uint32_t ms = remMs + (uint32_t)(nowMs - previousTickMs);
+        remMs = ms % 1000u;
+        return ms / 1000u;
+    }
+};
+
 } // namespace starvation
