@@ -59,6 +59,7 @@ It is measured by building each env at the base and at the head and diffing each
 **S1's sabotage:** a shared edit made **outside any guard**, one ungated constant string added to `ConfigurationWebServer.cpp`. Every env that compiles the file then changes. **S1 must report a non-stamp difference in every one of them.**
 
 A guard term left **off** (a missing `&& !defined(FEATURE_WEATHERSCOPE)`) would not show up in S1 at all. It changes only Weatherscope's own build, by pulling radar code into it. That failure is caught by 3.2's own budgets and the D2 gate, not by S1, and the plan doesn't claim otherwise.
+- **Added 2026-10-21 (Addendum 2, A2.3):** S2 now checks this case directly, with a grep of the Weatherscope image for radar-only strings.
 
 The OTA identity change (section 3) deliberately changes **every** edition's image. So it is a separate step, with its own predictions, outside S1.
 
@@ -125,6 +126,7 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
 - The accepting side changes **every** edition's firmware, the Blipscope fleet's OTA path included. So it reaches devices only through a normal release, which is Daniel's call, with blipscope-5c's release discipline. **It must be on the fleet before Weatherscope ever gets a slug.**
 - **Until then Weatherscope is build-only with no slug, so CI never publishes a Weatherscope image** (`skus.py` rules, :75-90; the receipts). Nothing can be offered, and a Weatherscope device asking for `firmware-weatherscope-s3-128.bin` gets a 404 and flashes nothing.
 - **O6, observed, not forced:** while `version.txt` equals the edition's `FW_VERSION`, the device fetches nothing. The 404 path is **predicted for the next real version bump and observed then**, on the board's serial. No version is bumped to test it.
+- **Added 2026-10-21 (Addendum 2, A2.1):** what the screen shows, and how often, for a failure, a refusal and an accepted image.
 
 ## 4. `skus.yml` and releases
 
@@ -134,6 +136,7 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
 - **No customer-facing release, no store listing,** and no change to `version.txt`'s meaning.
 - **No board is flashed except `907069326E64`.**
 - **No deploys.** No Worker change happens in Stage 3.
+- **Added 2026-10-21 (Addendum 2, A2.2):** once Weatherscope has a slug, a failing Weatherscope leg withholds `version.txt` for **every** SKU. The slug decision is made knowing that.
 
 ## 5. Screens and screen logic (2.2 and 2.3 fold in here)
 
@@ -194,6 +197,7 @@ Every behaviour follows `docs/weatherscope-screens.md`'s rulings.
 4. **3.3** The screens and the logic (section 5).
 5. **3.4** OTA identity (section 3): host O1, O2 and O4; CI O3 and O5. Its release is Daniel's call, and it must come before any Weatherscope slug.
    - Added 2026-10-21 (Addendum 1): host O7, O8 and O10, and bench O9 on `907069326E64`.
+   - Added 2026-10-21 (Addendum 2): O6's screen predictions (A2.1), and O11, the real download path end to end, on the release candidate **before the release that adds the check is published** (A2.4). S2 belongs to 3.2 (A2.3).
 
 **Outside every step's predictions: stop and decide.**
 
@@ -289,3 +293,103 @@ Read in the installed framework (arduino-esp32 3.3.9, `libraries/Update/src/Upda
 - **The edition section in `CLAUDE.md`: authorized.** The shared-file table in 1.1 named it as needing authorization. It lands with the Stage 3 code, not before.
 - **`docs/wxc1-v2.md`: go.** It opens as its own docs-only draft PR and is not part of this plan.
 - **No Stage 3 code until #449 is approved at its new head.**
+
+## Addendum 2, 2026-10-21: blipscope-5c's re-read at `94d863b` (frozen before any Stage 3 code)
+
+blipscope-5c re-read the plan at `94d863b` (#449):
+- **A1.1** was checked against the installed Updater (3.3.9) and holds as written.
+- **Point 1, the revert's bench proof,** is settled by the redesign.
+- **Points 2-4 were still open.** Each is taken below, so that "settled" refers to something in the plan.
+- **One new point** is taken too. Two of its parts are Daniel's call.
+
+| point | decision |
+|---|---|
+| 1. The revert needs a bench proof | **Settled by the redesign.** No revert is left; O9 proves the stronger property. |
+| 2. What the screen shows | **Taken: A2.1.** The refusal case is a proposal, because it is what customers see. |
+| 3. The release-train coupling | **Taken: A2.2,** plus one line in section 4. Nothing changes for Stage 3. |
+| 4. A guard term left off | **Taken: A2.3,** as check S2 in 3.2. |
+| New: the real path never runs end to end | **Taken: A2.4,** as check O11. **The board and where image B is hosted are Daniel's call.** |
+
+### A2.1 What the screen shows, and how often (point 2)
+
+**When the check runs.** At every boot, before the screens start (`main.cpp:612`), and on the daily reboot-then-check, at most once per 24 h (`main.cpp:790`, `REBOOT_MIN_INTERVAL_S`). It gets past the version check only while `version.txt` > `FW_VERSION`.
+
+**What the screen shows today:**
+- `drawProgress(0)` runs right after `NoteOtaAttempt`, before the download (`OtaUpdater.cpp:393-394`);
+- `onProgress` draws the bar (:405);
+- a failure draws "Update failed" for 2 s (:455-456).
+
+A1.2 replaces `httpUpdate.update()`, so all three are rewritten. **What the new path shows:**
+
+| case | record | screen | how often |
+|---|---|---|---|
+| a 404, a non-200 or a broken stream | `fail-<n>`, as today | "Update failed" for 2 s, as today | every boot and every daily check while `version.txt` > `FW_VERSION`. **Unchanged from today** |
+| **a refusal** | `refused-<reason>` | **nothing.** No bar, no status: the screen stays on whatever it showed before the check, and the boot carries on | the same cadence. After a mislabelled publish, that is every device, every boot and every daily check |
+| an accepted image | `incomplete`, finalised as `ok` on the next boot, as today | the bar from 0 to 100 %, then the restart, as today | once |
+
+**Why a refusal draws nothing (proposed; Daniel can overrule).**
+- The customer can't act on it.
+- It repeats until a correctly labelled image is published.
+- A1.4 says a mislabelled publish "costs a head read, not a brick". An "Update failed" on every boot across the fleet would also make it cost a visible fault.
+- The record and the serial line still carry the refusal.
+
+**One consequence:** the first draw of the bar moves to after acceptance, so a refused head never flashes a 0 % bar.
+
+**How to observe it.** Absence can't be seen on a panel (CLAUDE.md, "know which instrument can see the failure you have"). So every OTA screen draw logs one serial line: `[ota] screen: progress <pct>` on the first and last draw, and `[ota] screen: status <text>`.
+
+**Predicted on serial:**
+- a refusal: **0** screen lines;
+- a failure: exactly **one** `status Update failed`;
+- an accepted image: a `progress 0` and a `progress 100`.
+
+The refusal and accepted cases are observed in O11; the failure case in O6, at the next real version bump.
+
+### A2.2 The release-train coupling (point 3)
+
+**Weatherscope shares `FW_VERSION` and the single `version.txt`.**
+- **What a slug turns on:** once Weatherscope has one, its leg is slug-ful, and `check-publish-receipts` withholds `version.txt` for **every** SKU when any slug-ful leg fails (CLAUDE.md, "a gate that refuses to certify is working; check the coupling").
+- **The consequence:** a broken Weatherscope build would stop OTA for the whole Blipscope fleet.
+- **Stage 3 changes nothing here:** Weatherscope stays build-only and has no slug.
+- **The slug ruling has to be made knowing this.** An alternative to weigh then is per-prefix version files, which would be another `OtaUpdater` change.
+
+### A2.3 S2: a guard term left off (point 4), a 3.2 check
+
+**What it catches:** a missing `&& !defined(FEATURE_WEATHERSCOPE)` pulls radar code into Weatherscope's image only. S1 can't see that, and the budgets and D2 catch it only indirectly. S2 checks it directly, on the same pattern as D2 and the adsbdb gate:
+- **The check:** a grep of the Weatherscope product image (`firmware.bin` and the ELF) for radar-only strings. **Predicted: 0 hits.**
+- **The list:** frozen in 3.2's addendum, before its code. It is drawn from the code behind the radar-default guards in `ConfigurationWebServer.cpp` (form field names) and the cloud blips path (`/api/v1/blipscope/blips`).
+- **Positive control, from the other side:** the same grep finds **every** listed string in the `blipscope-s3-128` image. A string the radar image doesn't contain proves nothing by being absent.
+- **Anchor control:** an anchor build of the Weatherscope env, with one reachable string planted, must be found. So 0 hits means the scanner could see.
+- **Sabotage:** remove one `&& !defined(FEATURE_WEATHERSCOPE)` from one of the guards. S2 must find that guard's strings and name them.
+- **Whether S2 becomes a CI step** is decided at 3.2's freeze.
+
+### A2.4 O11: the real download path end to end, before it can strand anyone (new point)
+
+**Why.** blipscope-5c's point, and it is correct:
+- **What is covered:** O7 runs a fake source into a fake flash, and O9 runs the real adapter fed over serial.
+- **What isn't:** nothing runs the self-opened download on a board against a correctly labelled image, through `HTTPClient`, the redirect to the CDN, the pinned roots, `Content-Length`, the head read and `writeStream`.
+- **Why a defect there would go unseen:** an off-by-N head read refuses everything as `no-record`, which looks exactly like "nothing to update".
+
+**Taken, with one change to when it runs.** It runs **before the release that adds the check is published**, not before the release after it.
+- Once a device runs that release, call it R, a broken path refuses every later image, and only a cable fixes it.
+- **So O11 runs on R's own release candidate.**
+
+**The builds:**
+- **A:** R's candidate, with the check and the record.
+- **B:** the same source and identity, with `FW_VERSION` + 1. B is never published to `releases/latest`.
+
+| case | predicted |
+|---|---|
+| **accepted** | A finds B over the real HTTPS path: `version.txt`, then the image, through the redirect and the pinned roots. It accepts B, writes it, restarts and boots B. B's `[build]` banner and version show on serial, and serial has a `progress 0` and a `progress 100` (A2.1). |
+| **refused** | The same path, serving another edition's image for the same board under B's name. Serial shows `refused-foreign` and **0** screen lines. After a power cycle, A is still running and the boot label is unchanged. |
+| **sabotage** | A bench build of A whose head read is off by one byte refuses the good B as `no-record` or `bad-record`. The accepted case rules out exactly this defect, so it must be visible as one. |
+
+**Open, for Daniel's ruling:**
+- **The board.**
+  - Option 1: `907069326E64`, the board I have a standing OK to flash, running A with a Blipscope `s3-128` identity.
+  - Option 2: E2:08, run by blipscope-5c. It proposed this because it is the Blipscope fleet's path at stake. Section 4 says no board but `907069326E64` is flashed in Stage 3, so option 2 is also a ruling on that line.
+- **Where B is hosted.**
+  - A GitHub prerelease asset is invisible to `releases/latest`, but it is release machinery.
+  - Or another host Daniel names.
+  - Either way, A needs a bench-only override of the `version.txt` and image URLs. Hosting B on GitHub keeps the production host and redirect path.
+  - The override's marker string must be absent from every shipping ELF (the O9 grep).
+  - How A's difference from R's candidate, the override alone, is bounded is frozen with O11's addendum before it runs.
