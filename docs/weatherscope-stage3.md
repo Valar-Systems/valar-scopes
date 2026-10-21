@@ -404,6 +404,7 @@ The refusal and accepted cases are observed in O11; the failure case in O6, at t
   - The override's marker string must be absent from every shipping ELF (the O9 grep).
   - How A's difference from R's candidate, the override alone, is bounded is frozen with O11's addendum before it runs.
 - **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2):** the board is E2:08, operated by blipscope-5c. B is hosted as a GitHub prerelease asset clearly named as a bench test, and deleted after O11.
+- **Amended 2026-10-21 (reviewer ruling; A4.2's amendment):** B's hosting has changed. B is uploaded directly as an asset on the existing bench prerelease `ota-preflight-v6`, never through a tag push or the release workflow. The asset is removed after O11, and the release is kept.
 
 ## Addendum 3, 2026-10-21: blipscope-5c's re-read at `9e9c6a9` (frozen before any Stage 3 code)
 
@@ -478,6 +479,34 @@ The plan was approved at `35903dd` and merged as `69e81c1`. These rulings came w
 - **Frozen in O11's own addendum, before it runs:**
   - how A's difference from R's candidate, the URL override alone, is bounded (A2.4);
   - **what `firmware.yml`'s release-event jobs (`version`, `promote`, `ship-alert`) do on a PRERELEASE publish.** O11 needs it established that they build or upload nothing that reaches `releases/latest`. blipscope-5c raised this, and it is checked together before any prerelease is created.
+
+#### A4.2's amendment, 2026-10-21: where image B is hosted (reviewer ruling)
+
+**Why it changed.** blipscope-5c's read-only analysis of the release jobs found two things:
+- **A new prerelease runs the full release pipeline.** The build legs upload `firmware-<slug>.bin` to it, and `version` uploads `version.txt`.
+- **`promote` then waits on Daniel's required review.** One approval would make the bench release `latest` for the whole fleet.
+
+The analysis also found that the firmware decides the asset names, so B must be `firmware-s3-128.bin`. blipscope-5c therefore withdrew its suggestion of a distinct asset name, which Addendum 5's A5.3 on #453 still lists as a recommendation.
+
+**The ruling, verbatim as relayed by blipscope-5c** (Daniel's summary in this session says the same):
+
+> "Reviewer ruling on O11 hosting: accepted, replacing "a new bench-named prerelease, deleted after".
+> - Host image B as an asset on the existing bench prerelease ota-preflight-v6, uploaded directly (gh release upload), never through a tag push or the release workflow.
+> - Before upload and after O11: confirm ota-preflight-v6 is still marked prerelease and that releases/latest (and version.txt) are unchanged. Record both checks.
+> - After O11, remove image B's asset (keep the release for reuse).
+> - Never approve a promote step for anything connected to O11."
+
+**It replaces A4.2's "Image B" line above.** The board, the timing and the two items frozen in O11's own addendum are unchanged.
+
+**For O11's own addendum, frozen before O11 runs:**
+- **The checks, as actual reads, recorded before the upload and after O11.** blipscope-5c proposed these three:
+  - `gh release view ota-preflight-v6 --json isPrerelease`;
+  - `gh api repos/Valar-Systems/valar-scopes/releases/latest -q .tag_name`;
+  - `releases/latest/download/version.txt`, read twice a few minutes apart, so the value is proven static.
+- **An open question, not a change to the ruling:** what `ota-preflight-v6`'s own `version.txt` is left at once B's asset is removed.
+  - If it is left at B's version (R+1), any bench unit pinned to that prerelease (such as `blipscope-s3-128-otatest`) would see a newer version with no image behind it, and show "Update failed" on every check.
+  - The two answers are: restore it to its pre-O11 value, or leave it and record it.
+  - blipscope-5c is bringing this to the reviewer. `RELEASING.md`'s rule of re-clobbering and re-reading before each use protects the next user either way.
 
 ### A4.3 Stage 3 code may start
 
