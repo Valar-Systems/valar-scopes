@@ -201,6 +201,21 @@ Fetching `PrecipFlag`, the pairing rule (from M4b and M4c), encoding the type la
 
 **Why P3 is here.** The ETag's job is to say "these are the same bytes". v2 adds inputs to the bytes, and a 304 path that doesn't know about them is the second-path shape in CLAUDE.md, the route-cache row. Whether a `PrecipFlag` file can arrive after its radar frame is a pairing question for M4. P3 holds either way, so it's frozen now.
 
+> **Amended 2026-10-21, before any code, from the Weatherscope session's review of `54962fa`.** Two corrections; the table above stays as it was frozen.
+>
+> 1. **P2 and P3 disagreed.** If the ETag gains terms for every request, the v1 response's `ETag` header is no longer today's. Every device's cached ETag would then miss once: a harmless fleet-wide revalidation, but P2's "byte-identical" would be false.
+>    - **Ruled here:** with `fmt` absent or `1`, the ETag is today's `cropEtag` **exactly**. The format and type-source terms enter only for `fmt=2`.
+>    - **P2 now also predicts:** the v1 ETag equals today's for the same frame and query.
+>    - **P3(a) still holds:** a `fmt=2` ETag carries terms a v1 ETag can't.
+>    - **Sabotage:** the new terms added for every format. The ETag-equality case goes red.
+> 2. **P3(b) has to hold on the 304 path, which reads only `latest`.** `handler.ts:59-61` decides a 304 before any crop is read: one R2 read, counted by the tests' wrapped binding (`handler.ts:4-5`). So the type source has to be **in the `latest` record**. If it isn't, the 304 path either reads twice or computes the ETag without it, which is the route-cache shape again.
+>    - **P3(b) now also predicts:** a `fmt=2` 304 is **exactly one** R2 read, and the 304 is decided from `latest` alone.
+>    - **Sabotages:**
+>      - the v2 ETag computed from the frame alone: (b) goes red;
+>      - the type source read from a second object on the 304 path: the read count is 2, and the case goes red.
+>
+> **M4i** (#451 Addendum 3) measures whether `PrecipFlag` can arrive after its frame. If it can, the pairing section says whether the server waits for it or serves untyped first. P3(b) is what keeps "untyped first" correct.
+
 ### 5.2 The consumer (Weatherscope): predictions for `WxCrop.h` v2
 
 Frozen here before the decoder code:
