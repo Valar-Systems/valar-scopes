@@ -178,3 +178,19 @@ Graded on `2aac2e3`. Driver `run_fix_checks.py` (scratchpad); every `pio run`'s 
 | **S-F2**, a replacement string drifted | exit 1, `patch_wm_copy: FATAL -- pattern NOT FOUND …` (was a WARNING in a green build); `firmware.bin` unchanged | as predicted |
 
 After each sabotage the file was restored from its saved copy and the rebuild was green. Every plant asserted that it took (the removed file was gone; the drift anchor appeared exactly once and the file changed). **F4 is CI on this push.**
+
+## 2. Results: CI, F4 (run 39668873359 on `4a8c171`): OFF-PREDICTION on the count. Recorded, not re-graded
+
+CI was counted with `per_page=100` against `total_count`: 33/33, 30 success, 3 release-only skipped, 0 failing. Every leg's patch lines:
+
+| legs | `patch_async_buff` | `patch_wm_copy` | `patch_lgfx_rgb_intr` |
+|---|---|---|---|
+| **13** build legs (`blipscope-pro-s3-175-amoled`, `blipscope-pro-s3-21`, `blipscope-s3-128`, `blipscope-s3-146`, `claudescope-s3-146`, `missileer-photo`, `missileer-s3-128`, `missileer-s3-146`, `orbitscope-s3-146`, `quakescope-s3-146`, `quillscope-s3-146`, `reelscope-s3-146`, `speedscope-s3-146`), plus `host-tests` | `guarded …` | `3 applied, 0 already patched` | `made … shared` |
+| `animtest-s3-128` | `not a dependency of animtest-s3-128` | `not a dependency of animtest-s3-128` | `made … shared` |
+| **`weatherscope-s3-128`** | `not a dependency of weatherscope-s3-128` | `not a dependency of weatherscope-s3-128` | `made … shared` |
+
+**0** `skipping` lines and **0** `FATAL` lines anywhere in the run.
+
+**The frozen F4 said** 14 legs would print F1's three lines and `animtest-s3-128` alone would print F3's. **The miss:** the Weatherscope bench env also declares LovyanGFX as its only library, as `platformio.ini`'s own comment on it says ("LovyanGFX only"). So it prints the explicit not-a-dependency lines too. It isn't a skip of a needed patch: the libraries aren't in that build. The prediction undercounted the envs without those libraries.
+
+Nothing is changed for this. Whether F4 may be read as satisfied in substance (no skip, no FATAL, every env that depends on a library patched it) is for the reviewer to rule.
