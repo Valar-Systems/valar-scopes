@@ -789,3 +789,27 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 - S1 v1's three false failures came from the build setup: first-build library patching, and a build-time string tail-merge.
 - The bench prediction missed the compiled-in env name.
 - D2's "no time strings" clause missed.
+
+### A5.8 Correction (2026-10-21): S1 v1's "first-build library patching" explanation was wrong
+
+**What A5.5 and A5.7 said.** Two of S1 v1's false failures (`blipscope-pro-s3-21` and `missileer-photo`) came from first-build library patching: the base round compiled unpatched libraries.
+
+**What the logs show, read in full** during the review of #457, which depends on exactly this ordering:
+- In each of the three envs' first builds in the fresh clone, every library was installed first (`Library Manager: Installing`, log lines 3-25).
+- Then **all three patches applied**: `guarded ASYNC_RESPONCE_BUFF_SIZE`, `patch_wm_copy: 3 applied, 0 already patched` and `made the LCD_CAM interrupt shared` (lines 40-42).
+- Compilation started only after that (line 75 onward).
+
+**So the base round compiled patched libraries, and A5.5's mechanism is false.** It was drawn from a read of those logs that my own command cut off at 330 characters, which never showed lines 40-42. That is CLAUDE.md's "never filter the output of a command you are testing", applied to a diagnosis.
+
+**The cause, re-read from the saved images:**
+
+| env | what the images show | cause |
+|---|---|---|
+| `blipscope-pro-s3-21` | the base build's second time string is `09:02:01`, and that image has **one standalone `"01"` string fewer** than the rebuild and the head (1 against 2) | the **same build-time-string tail merge** as `blipscope-s3-128` |
+| `blipscope-s3-128` | `"15"` merged into the head build's `09:15:15` (A5.5) | unchanged |
+| `missileer-photo` | 6 bytes in two rodata-pointer regions; no short digit string changes count | **not explained** |
+
+**What stands:**
+- **D1's graded outcomes**, as read (H-B for `pro-s3-21` and `missileer-photo`: the base round's images were the odd ones out). Only the mechanism recorded beside them changes.
+- **S1 v2's results (A5.7).** S1 v2 added warm-up builds AND fixed `SOURCE_DATE_EPOCH`. On the corrected cause, fixing the time strings is what removed the false failures. The warm-ups were harmless, but S1 v2's pass can't say which of the two mattered.
+- **#457 and the reviewer's ruling 2** ("a patch that can't apply fails the build"). They stand on their own: the skip path was a hazard whether or not it fired here.
