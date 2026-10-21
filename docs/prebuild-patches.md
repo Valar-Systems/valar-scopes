@@ -99,3 +99,41 @@ The anchor was found, and the control passed: the pristine WiFiManager 2.0.17 `w
 - **For that pair the image can't distinguish patched from unpatched.** For the two pairs that are linked, the image carries the patched text and not the original.
 
 Whether C1 may be read as "`patch_wm_copy` reached the v18 image" on the two linked pairs is for the reviewer to rule. It is not graded here.
+
+## 2. The fix: a patch that can't apply fails the build (predictions frozen before any code)
+
+**Ruling:** "a patch that can't apply fails the build, in CI and locally. Better still, install the library before patching instead of skipping. Freeze predictions first, with a sabotage: the fresh-runner path must go red, never build unpatched."
+
+**What 1a measured, which shapes the design.** On a fresh runner, PlatformIO installs an env's `lib_deps` **before** the `pre:` scripts run. All 28 fresh legs whose env depends on the library printed "applied" on their first build. The only skips were `animtest-s3-128`'s, for libraries that aren't in its `lib_deps`.
+
+So "not found" means one of two different things, and the scripts currently treat them the same:
+1. **The library isn't a dependency of this env.** There is nothing to patch, and the build is correct.
+2. **The library is a dependency, but the file is missing.** The install is broken, and building would ship unpatched code.
+
+**The change, the same in all three scripts:**
+- **The file is missing and its library is in this env's `lib_deps`** (read with `env.GetProjectOption("lib_deps")`): **FATAL** (`env.Exit(1)`), naming the file and the remedy (`pio pkg install -e <env>`). It is never built around.
+- **The file is missing and the library isn't in `lib_deps`:** an explicit line, `<lib> is not a dependency of <env>; nothing to patch`. The build continues.
+- **`patch_wm_copy`'s `WARNING -- pattern NOT FOUND`** becomes **FATAL**. A copy fix that can't apply is a patch that can't apply. The other two scripts already FATAL on anchor drift.
+- **`patch_async_buff`'s already-guarded path** prints a line (`already guarded`) instead of nothing, so every path is visible in a log.
+
+**Why no in-script install (the "better still"), for the reviewer to rule on.** PlatformIO already performs that install before the scripts run; measured above. An in-script `pio pkg install` would nest a second `pio` inside the build, for the one case where the install has already happened and a file then went missing. There, a FATAL with the remedy is the honest outcome. If the reviewer wants the install anyway, it's an addition on top of this, not a replacement.
+
+| | check | predicted |
+|---|---|---|
+| **F1** | a fresh worktree (no `.pio`), `pio run -e blipscope-s3-128` | green; `guarded ASYNC_RESPONCE_BUFF_SIZE`, `3 applied, 0 already patched`, `made the LCD_CAM interrupt shared`; no `skipping`, no `not a dependency` |
+| **F2** | the same tree, built again (warm) | green; `already guarded`, `0 applied, 3 already patched`, `LCD_CAM interrupt already shared` |
+| **F3** | `pio run -e animtest-s3-128` | green; ESPAsyncWebServer and WiFiManager each `not a dependency of animtest-s3-128; nothing to patch`; LovyanGFX applied or already shared |
+| **F4** | CI on the PR, all 15 legs | green. 14 legs print F1's three lines and `animtest-s3-128` prints F3's. No `skipping` anywhere |
+
+**The sabotages:** the fresh-runner path must go red, never build unpatched. Each runs on a warm s3-128 tree with **one** target file removed, then rebuilds, simulating a dependent library absent at `pre:` time:
+
+| | removed | predicted |
+|---|---|---|
+| **S-F1a** | `ESPAsyncWebServer/src/WebResponseImpl.h` | `[patch_async_buff] FATAL …`; the build fails; `firmware.bin` is unchanged (same sha256 and mtime as before the rebuild) |
+| **S-F1b** | `WiFiManager/wm_strings_en.h` | `patch_wm_copy: FATAL …`; the build fails; `firmware.bin` unchanged |
+| **S-F1c** | `LovyanGFX/src/lgfx/v1/platforms/esp32s3/Bus_RGB.cpp` | `[patch_lgfx_rgb_intr] FATAL …`; the build fails; `firmware.bin` unchanged |
+| **S-F2** | none removed. One of `patch_wm_copy`'s find strings is altered in the header, and its replacement is absent | `patch_wm_copy: FATAL …` (today: a WARNING and a green build); the build fails |
+
+**Outside the set:**
+- **If a rebuild silently re-creates a removed file** (PlatformIO repairing the package), the removal isn't a valid simulation of absence. **Stop:** the sabotage needs redesigning, and nothing is concluded.
+- **If F3 goes red,** the "is it a dependency?" read is wrong. Stop.
