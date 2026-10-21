@@ -935,3 +935,11 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 - **the budgets row reads as a miss** (A6.4), with its cause open.
 
 **The base moves.** Main is now `882d49e` (#450, which changes radar firmware). So, as A6 provides, S1 is measured against the PR's actual merge parent. The branch is rebased before S1, and the parent is recorded with S1's result.
+
+### A6.6 S1's base, and what a later move of main means (2026-10-21, written before S1 runs)
+
+- **The base:** main at `6bb61df` (#450 and #458), merged into this branch rather than rebased, so `4df1065` stays the commit the rulings name. S1's base is `6bb61df`, and its head is this branch's tip after the merge.
+- **If #457 merges before this PR does,** main moves again and the merge parent changes. **S1 then re-runs in full against the new parent:** the calibration, base, head, both sabotages and the per-file rounds.
+  - blipscope-5c reports that #457 applies the same patches to the same bytes, so no image should change. That is a claim about code this PR doesn't touch, so it is re-measured, not assumed.
+  - **Predicted for that re-run:** the same verdicts as the first run.
+- **If main moves for any other reason before the merge,** the same rule applies.
