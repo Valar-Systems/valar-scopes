@@ -489,7 +489,7 @@ The plan was approved at `35903dd` and merged as `69e81c1`. These rulings came w
 The analysis also found that the firmware decides the asset names, so B must be `firmware-s3-128.bin`. blipscope-5c therefore withdrew its suggestion of a distinct asset name, which Addendum 5's A5.3 on #453 still lists as a recommendation.
 
 **The text below was pasted into blipscope-5c's session by Daniel on 2026-10-21, headed "Reviewer ruling on O11 hosting".**
-- **The reviewer states it is not theirs. Its author is to be confirmed by Daniel.**
+- **Settled by Daniel (2026-10-21): the four-bullet text was written by the Weatherscope chat, not the reviewer chat, and was pasted by Daniel.**
 - The reviewer's own ruling is quoted word for word in the continuation below, and that is the ruling.
 - Daniel's summary in this session says the same as the four bullets in substance.
 
