@@ -632,3 +632,26 @@ The prediction's premise was that the composite, as a column maximum, reads at l
 - **M4h is read as frozen.** It is independent of M4g, since it measures layer sizes, not this share, and it needs no new prediction.
 - **Not proposed:** a diagnostic to separate H1-H3. These files can't remove H2, so it wouldn't be decisive.
 
+### A7.6 Ruled 2026-10-21 (Daniel): M4g is a MISS with the cause left open; M4h is read as frozen
+
+**M4g is recorded as a MISS.** H1-H3 stay open, and no cause is assigned.
+
+**M4g's values, both products, from run 2:**
+- **SeamlessHSR: 5.09 %** (14,896 of 292,629 snow cells);
+- **the composite: 4.76 %** (13,930 of 292,629).
+
+**The ruling's flag condition: is M4g below 5 % on SeamlessHSR?** It is **not met:** SeamlessHSR is 5.09 %, which is 0.09 points above 5 %. Two things to record beside it:
+- **The composite is below 5 % (4.76 %).** That is the Blipscope layer, and the composite is also below its own 5-40 % band.
+- **The HSR figure is close to 5 %.** About one snow cell in twenty reaches 15 dBZ, so the 15 dBZ floor keeps roughly 5 % of snow on the wire, in this sample.
+
+**How M4h is read (frozen here, before it is read):**
+- **The data:** run 2 already wrote every hour's counts (`wxdata2/m4/hours/`, outside git). M4h's fields there have not been read.
+- **The code:** M4h's grading code is moved, **unchanged**, into a function. Run 2's path and a new `read-m4h` mode both call it, in a commit pushed before the mode runs.
+- **Proving the input is static:** the mode refuses unless all of the following hold:
+  - the directory holds exactly 24 hour files;
+  - every file is older than run 2's log;
+  - every hour's `PrecipFlag` file is the one at that hour's SeamlessHSR timestamp (M4b's outcome (a), 0 missing).
+
+  It prints a sha256 over the 24 files.
+- **The prediction is section 4's M4h, unchanged:** at most 4 bytes in every hour whose echo is all one type; otherwise at most 25 % of the code layer's bytes; in 24/24 hours. It is reported for both products, with the v1 rung.
+
