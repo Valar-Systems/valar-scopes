@@ -123,6 +123,8 @@ The producer's section turns this into the largest crop each rung can always fit
 | **Q1** | **The coarsening tie:** a block's strongest cells are equally strong and have different types. Which type does it get? | blipscope-5c proposes **snow wins**, so coarsening never hides snow. That is a ruling, not ours to make. |
 | **Q2** | **An echo cell `PrecipFlag` doesn't call precipitation:** code 0 (no precipitation), −3 (no coverage), or no paired file for that cell. Which type does it get? | **Rain (type 0).** Snow only on positive evidence (code 3), which matches the ruled "snow is code 3, every other code is rain". Measurement 4 counts how often it happens (M4f). If no `PrecipFlag` file pairs with the frame at all, the crop is served **untyped** (flag bit 1 clear), never typed all-rain. |
 
+> **Q2, added 2026-10-21 (Addendum 1, A1.1):** on the composite, which is the Blipscope layer, Q2's rain default would draw virga at the edge of a snowstorm in the rain ramp. M4f(composite) measures how often that happens. It goes to Daniel beside Q2 as information; it isn't a different proposal.
+
 ## 4. Measurement 4: before any encoder or decoder code
 
 **Purpose.** Settle three things from data before the spec does:
@@ -164,6 +166,13 @@ No format choice depends on the result except the pairing rule and Q2's frequenc
 
 **Outside every row's predicted set: the instrument or the model is wrong. Stop and decide; don't write a pairing rule from it.**
 
+> **Amended before M4 runs, by Addendum 1 (2026-10-21):**
+> - M4a, M4b, M4e and M4f are replaced, and M4c is sharpened.
+> - M4d gains a sabotage, and M4g gains a direction.
+> - A third control, C-M4c, checks alignment.
+>
+> Where a row in the addendum replaces one above, the addendum's row is the one graded.
+
 ## 5. Who does what
 
 ### 5.1 The producer (blipscope-5c; sections to come as commits)
@@ -192,3 +201,93 @@ Frozen here before the decoder code:
 5. **Flipping the endpoint's default to v2:** a ruling, not a step.
 
 **Outside every step's predictions: stop and decide.**
+
+## Addendum 1, 2026-10-21: blipscope-5c's review of measurement 4 (frozen before M4 runs)
+
+blipscope-5c reviewed the predictions at `d2e14fc` (#451). I've taken all five changes and the directional M4g. **No `PrecipFlag` file has been listed or fetched.**
+
+**Read for this addendum, and nothing else:** Stage 2's per-hour file times for change 1, from run2's `results2.json`. The sharpened M4c needs them.
+- Every SeamlessHSR file is on a whole minute.
+- The composite file is 31-43 s later in every hour. The 24 values are 33, 36, 32, 31, 34, 34, 39, 41, 33, 33, 35, 31, 33, 38, 43, 40, 36, 39, 34, 38, 38, 38, 36 and 42 s, in hour order.
+
+### A1.1 M4e and M4f, split by product (review 1; these replace the section-4 rows)
+
+**Why:** `PrecipFlag` is a surface type, and the composite is a column maximum. So echo aloft with nothing reaching the ground is composite echo with `PrecipFlag` 0: virga, or the leading edge of a snow shield.
+
+| | measured, pooled over the 24 hours | predicted |
+|---|---|---|
+| **M4e(HSR)** | of SeamlessHSR's echo cells (codes 1-13), the share with `PrecipFlag` 3 | **80-100 %** |
+| **M4e(comp)** | the same, on the composite | **60-100 %, and ≤ M4e(HSR)** |
+| **M4f(HSR)** | of SeamlessHSR's echo cells, the share with `PrecipFlag` 0 or −3 | **≤ 5 %**. This is 100 % minus C-M4c's own number, so it is read only once C-M4c passes (A1.2) |
+| **M4f(comp)** | the same, on the composite | **≤ 25 %, and ≥ M4f(HSR)** |
+
+**What each outcome means:**
+- **A composite value outside its band:** reported beside Q2 as the Blipscope layer's virga share. That's not a stop by itself.
+- **Either direction reversed** (M4e(comp) > M4e(HSR), or M4f(comp) < M4f(HSR)): **stop.** The model of the two products is wrong.
+
+### A1.2 C-M4c, the alignment control (review 2), read before M4e-M4h
+
+**blipscope-5c's form:** at least 95 % of SeamlessHSR's echo cells have `PrecipFlag` > 0, with a flip/shift sabotage.
+- **Taken, with one change.** That share is exactly 100 % − M4f(HSR). On its own, a failure couldn't say whether the grids are misaligned or the expectation is wrong.
+- **So the control compares the true alignment with displaced ones.**
+
+**The measure.** `A(o)` is the share of SeamlessHSR's echo cells, pooled over the 24 hours, whose `PrecipFlag` is > 0 when `PrecipFlag` is read at offset `o`. Every displaced window is read from the full grid, never wrapped. The offsets are:
+- (0, 0);
+- the 8 offsets of ±10 cells in rows, columns, or both;
+- the crop window flipped north to south.
+
+| outcome | meaning |
+|---|---|
+| **(i)** `A(0,0)` ≥ 95 % and greater than every displaced `A` | aligned, as expected: M4e-M4h are read |
+| **(ii)** some displaced `A` ≥ `A(0,0)` | misaligned, or no signal: the instrument. **Stop** |
+| **(iii)** `A(0,0)` is greater than every displaced `A` but below 95 % | aligned, and the expectation was wrong. **Stop and decide**; Q2's ruling gets the number |
+| **(iv)** no SeamlessHSR echo cell in the sample, or anything else | the instrument is unreliable at this scale. **Stop** |
+
+**Two sabotages, run before the real control is believed:**
+- **(a) `PrecipFlag`'s full grid flipped north to south** (the scanning-mode slip M4d can't see). Predicted: not (i), with `A(0,0)` at least 20 points below the unsabotaged `A(0,0)`.
+- **(b) the `PrecipFlag` window shifted 10 cells east.** Predicted: (ii), because the −10-column offset recovers the true alignment.
+
+### A1.3 Missing files (review 3; these replace M4a's and M4b's outcome rules)
+
+**M4a:**
+- **120 s cadence with N gaps:** every interval is a multiple of 120 s, with 120 s as the mode. N is reported. **Predicted: N ≤ 5 % of the intervals** across the 24 windows.
+- **N above 5 %:** stop and decide. Gaps would no longer be rare enough for the pairing to treat as rare.
+- **An interval that isn't a multiple of 120 s:** stop, as before.
+
+**M4b:**
+- **The modal offset:** the most common per-hour offset to the nearest `PrecipFlag` file, measured first.
+- **A missing hour** has no `PrecipFlag` file **at the modal offset**. It is counted as missing, never as an offset.
+- **Outcome (a)** becomes: the modal offset is 0 s, and every hour that isn't missing is at 0 s. M missing hours are reported. **Predicted: M ≤ 2 of 24.**
+- **M above 2:** stop and decide, because untyped crops would be common.
+- **Outcomes (b)-(d)** are judged on the hours that aren't missing.
+
+### A1.4 M4c, sharpened (review 4)
+
+**If M4b lands in (a):** for each hour, the composite file's time minus the `PrecipFlag` file's time **equals** that hour's value in the list above, exactly. Missing hours are excluded and counted.
+- **Predicted:** equal in every hour that isn't missing.
+- **Any hour that differs:** stop.
+
+**If M4b doesn't land in (a),** M4c keeps section 4's band form.
+
+### A1.5 M4d's sabotage (review 5)
+
+The comparison is run twice more, each time with one field of `PrecipFlag`'s decoded grid metadata perturbed:
+- an increment changed by one unit;
+- the scanning mode flipped.
+
+Each must report **"different"** and name the field. If either reports "identical", M4d's comparison is not reading what it claims, and M4d isn't graded.
+
+### A1.6 M4g's direction (the small one)
+
+**Predicted: M4g(comp) ≥ M4g(HSR),** pooled. The bands are unchanged, 5-40 % each.
+- **Pooled, not cell for cell.** The composite file is 31-43 s later and has its own QC, so a single cell can read lower than SeamlessHSR's.
+- **A reversed direction:** stop.
+
+### A1.7 The order the measurement reads things in
+
+1. **The checks on the instrument:** C-M4a (the census), then C-M4b (the anchor).
+2. **The timing and grid rows:** M4a, M4b, M4c and M4d, each with its sabotage.
+3. **The alignment control:** C-M4c's sabotages, then C-M4c itself.
+4. **Only after outcome (i):** M4e, M4f, M4g and M4h.
+
+A stop at any step leaves every later row unread.
