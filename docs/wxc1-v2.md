@@ -655,3 +655,29 @@ The prediction's premise was that the composite, as a column maximum, reads at l
   It prints a sha256 over the 24 files.
 - **The prediction is section 4's M4h, unchanged:** at most 4 bytes in every hour whose echo is all one type; otherwise at most 25 % of the code layer's bytes; in 24/24 hours. It is reported for both products, with the v1 rung.
 
+### A7.7 M4h, read as frozen: as predicted. Measurement 4 is complete
+
+**The read:** instrument `2efe0e3` (`read-m4h`; the M4h block is byte-identical to `8ce77f9`'s, checked with `cmp`), on run 2's counts.
+- The input was proven to be run 2's: 24 hour files, all older than `run2.log`, all paired at 0 s.
+- sha256 `cef6132bc5dbf29181959b427a07b6d9d66f1fa083bab9f445d3462d2f1fd7fd`.
+
+| | predicted | measured |
+|---|---|---|
+| **M4h, SeamlessHSR** | 24/24 within (≤ 4 B when one type, else ≤ 25 % of the code layer) | **24/24.** Worst type/code **11.1 %** |
+| **M4h, composite** | the same | **24/24.** Worst type/code **12.5 %** |
+| the v1 rung (reported) | | **rung 1 in all 24 hours, on both products.** A4.3's coarsen-1 convention is therefore what v1 actually sends for this sample |
+
+**What it means (section 4's frozen meaning): inside.** The cap bound in 2.6 is loose in practice: the type layer is at most an eighth of the crop here.
+
+### A7.8 Further reviewer rulings, relayed by blipscope-5c (2026-10-21)
+
+- **M4g(comp) is also a band miss.** A1.6 kept the 5-40 % bands, and the composite's 4.76 % is below 5 %. **SeamlessHSR's 5.09 % is inside its band.**
+  - M4g is recorded with two misses: the direction (A7.6) and the composite's band.
+  - It is not re-run and not re-graded, and it changes nothing ruled.
+- **Any cause suggested for M4g goes in as unproven.** H1-H3 in A7.5 stand as unproven explanations; none is asserted.
+
+**Measurement 4 is complete:**
+- **Every row as predicted:** the instrument's checks, M4a-M4f, M4i and M4h;
+- **Misses on record:** M4g's direction, and the composite's M4g band;
+- **Stops on record:** run 1's instrument stop (Addendum 5) and run 2's M4g stop (Addendum 7).
+
