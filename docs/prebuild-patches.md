@@ -264,3 +264,15 @@ A wrong match can then only ever stop the build with a fix-it message, never ski
 - If not, an unpatched release remains possible. That would contradict the 1a logs and C1, and it would be a stop.
 
 The scratch branch `scratch/c2b-linux-rebuild` was deleted after the read, as frozen.
+
+### The tightening: every check came out as predicted (graded on `860e06c`)
+
+| | read |
+|---|---|
+| **T1** (F1-F3 on the new code) | fresh: `guarded …`, `3 applied, 0 already patched`, `made … shared`. Warm: the three already-patched lines. `animtest-s3-128`: the same two `not a dependency` lines as before, LovyanGFX applied. **Unchanged** |
+| **T2** (`--selftest`, now run by `test/host/run.sh`) | `owner/Name @ v`, a bare `Name`, a git URL, a zip URL and a fork URL are **declared**. An unrelated library and a `;`-commented entry are **not**. PASSED |
+| **S-T2** (`ESPAsyncWebServer` renamed to `ESPAsyncWebServer-fork` on a warm tree) | exit 1, `[patch_async_buff] FATAL: ESPAsyncWebServer is a dependency of blipscope-s3-128 but … is missing`. The rebuild did **not** re-create the original folder |
+| **S-T1** (the git-URL WiFiManager spec, installed, then `wm_strings_en.h` removed) | the git install went into `WiFiManager/` and patched on its first build. With the header removed: exit 1, `patch_wm_copy: FATAL: WiFiManager is a dependency …` |
+| **S-T1's control** (the same tree on the pre-tightening rule, `4c3f131`'s helper) | exit **0**, `patch_wm_copy: WiFiManager is not a dependency of blipscope-s3-128; nothing to patch`. **The silent skip the tightening closes, reproduced** |
+
+After each sabotage the tree was restored: the folder renamed back, the registry spec put back, a clean libdeps, and a green rebuild. `git status` was clean afterwards, once a line-ending-only rewrite of `platformio.ini` was checked out.
