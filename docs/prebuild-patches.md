@@ -137,3 +137,28 @@ So "not found" means one of two different things, and the scripts currently trea
 **Outside the set:**
 - **If a rebuild silently re-creates a removed file** (PlatformIO repairing the package), the removal isn't a valid simulation of absence. **Stop:** the sabotage needs redesigning, and nothing is concluded.
 - **If F3 goes red,** the "is it a dependency?" read is wrong. Stop.
+
+### C2: outcome (iii), the sizes differ. STOPPED and inconclusive, as frozen (read 2026-10-21)
+
+**The build conditions held:**
+- Build #1 applied all three patches. Build #2 read already-patched (`0 applied, 3 already patched`, `already shared`, and `patch_async_buff`'s silent already-guarded path).
+- All three files were patched on disk.
+- The local image embeds `C:/hrr/runnr/.platformio/…`: forward slashes, the same 24-character length as CI's prefix, and no `C:\Users\…` path.
+
+| | |
+|---|---|
+| reproducibility control, #2 against #3 | **0 differing bytes.** Both are sha256 `e104e082…` |
+| sizes | v18 asset **1,928,192 B** (`5a5f662b…`), local #2 **1,928,176 B**: 16 B shorter |
+| verdict | **(iii): stop.** Not evidence about the patches either way |
+
+**An error in my own instrument, recorded:** the frozen `SOURCE_DATE_EPOCH=1760979600` was described as 2026-10-20T17:00:00Z. It is **2025-10-20T17:00:00Z**. It changes only the `__DATE__` digits, at the same length, so it can't produce a size difference. It is still a defect in the setup.
+
+**The diagnosis, read after the stop and kept apart from the verdict:**
+- Every printable string of 6 or more characters matches between the two images once the core prefix is mapped, apart from the date and time strings.
+- The other differing fragments are non-string bytes that look like shifted addresses. So the 16 B is in code or data layout, not strings.
+
+**The two alternatives, neither excluded by this data:**
+- **(a) an unpatched release.** For example, `ASYNC_RESPONCE_BUFF_SIZE` at 2,872 instead of 1,024 no longer fits an immediate and needs a literal-pool entry, so the code grows. That would contradict 1a's logs, which C2 was meant to stand without.
+- **(b) a link-order or host-toolchain difference** between a Windows/NTFS build and a Linux/ext4 one. Object and archive ordering can move alignment padding by a few bytes.
+
+**What would separate them,** proposed and not run: rebuild `672eab7` warm **on a GitHub Linux runner at CI's own paths**, in a throwaway PR job that uploads nothing, and compare it with the v18 asset, stamp regions listed first. CI-against-CI rebuilds were measured identical outside 75 stamp bytes (CLAUDE.md, v9), so that comparison can tell (a) from (b). It is for the reviewer to rule.
