@@ -69,6 +69,8 @@ The mockups show five screens and no rule for choosing between them.
 - **What 1c's ruling (a) still means:** the rain or snow screen with a "now" headline. Only the source of "now" changed.
 - **Not decided here:** how observations reach the device. That is part of the shared data path held with the Blipscope weather layer, as with NWS alerts through the proxy.
 
+**Ruled 2026-10-20 (Daniel): the ring's threshold is 15 dBZ (code ≥ 1), for rain and snow alike.** It is the same as the lowest drawn band, so **any colour inside the 15 mi ring counts as approaching**. This settles 1b's open threshold. Weatherscope Stage 2's product check had reported 15, 20 and 30 dBZ for the ruling (`docs/weatherscope-stage2.md`).
+
 ## 2. The past-hour loop
 
 Screen 4 shows one frame and a timeline from −1 h to NOW. MRMS composite frames arrive about every 2 minutes (median 120 s over 67 files, wx spike A0 in [PR #422](https://github.com/Valar-Systems/valar-scopes/pull/422)), so an hour holds about 30 frames. On Blipscope, a swipe changes screens and a tap opens a detail card.
@@ -123,6 +125,11 @@ None of them is freezing rain, sleet or a wintry mix. The other options were our
 **Ruling, 2026-10-20: (a) snow and rain only.** MIX is dropped from the legend.
 - Snow is code 3.
 - Every other precipitation code (1, 6, 7, 10, 91, 96) counts as rain. That includes code 7, rain mixed with hail.
+
+**Ruled 2026-10-20 (Daniel): snow on the wire keeps the 15 dBZ floor.** No sub-15 dBZ snow is carried.
+- **The basis** is Weatherscope Stage 2's snow-ring measurement over 24 snowing hours at KMSP (`docs/weatherscope-stage2.md`, (e)). The 15 mi ring caught **70.8 %** of those hours at 15 dBZ, and going down to 5 dBZ would add at most **3 of 24**. **4 hours show no echo at any threshold**, and the NWS "here now" observation (1c) covers those.
+- **The remaining format change is a rain/snow TYPE per cell, from `PrecipFlag` only:** snow is code 3, and every other precipitation code is rain, as above.
+- **It is planned with blipscope-5c as shared work.** The WXC1 format is shared with the Blipscope weather layer (`include/WxCrop.h`), so nothing about it is decided here.
 
 ## 5. Town labels
 
@@ -189,6 +196,7 @@ The inputs come in other units, and the device converts them:
 
 - **3e:** confirm a Snow Squall Warning's bottom-line fields against the first live sample. None was available on 2026-10-20.
 - **7, first boot:** should the legend show once at first boot? An open question for Daniel (ruled 2026-10-20 to note it and not build it).
+  - **Parked until the screens are built** (ruled 2026-10-20).
 
 ## Sources
 
