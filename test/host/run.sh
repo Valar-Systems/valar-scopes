@@ -1106,6 +1106,23 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's feed interfaces (src/weatherscope/WxFeeds.h) against fakes, with no Arduino core and no stored
+# implementation (docs/weatherscope-stage3.md A6.2, D1). Its sabotage: python -I tools/weatherscope/s32/s32.py d1host --sabotage
+echo
+echo "== WxFeeds =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_feeds.cpp" -o "$OUT/test_wx_feeds.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope feed-interface test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_feeds.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the feed-interface test did not run or could not read its fixture (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
