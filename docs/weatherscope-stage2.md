@@ -887,3 +887,24 @@ The board alternates the KDFW frame and the legend every 10 s.
 - **Flashes:** each resolved the port from the serial (MAC `90:70:69:32:6e:64`) and verified all four images.
 - **Captures:** saved outside the clone, together with a PNG of the board's own legend, built from its dumped pixels (`captures/wx-legend-205546.png`).
 - **Left out of the bench version, as recorded:** the optional dBZ text, and showing the legend at first boot (an open question for Daniel).
+
+### The legend after Daniel's look (2026-10-20, frozen in addendum 8): all as predicted
+
+**Code:** #448 at `9cd3675`. **Board image:** `9043169a435f…`.
+
+| check | predicted | result | |
+|---|---|---|---|
+| **Check 1** (a confirmation): the background is dry | from the pixel dump | **yes**, on both builds. On the old build, outside the swatches: `0x0000` 53,688 px and white text 888 px. On the new build, L5: 0 non-dry pixels outside the swatches and labels | ✓ |
+| **Check 2, C3j** (a confirmation): rain 12 against no coverage | ΔE\*ab ≥ 40 | **76.9**. The two look alike only in the photo. No colour changed | ✓ |
+| G1-G4 (host) | inner radius 112; one swatch edge; centred; no overlap | farthest corner **109.6 px** (the snow row); column x = 144; block 48..192, centre **120.0**; rightmost label edge 138 < 144 | ✓ |
+| Sabotages S-G1 to S-G4 | each exactly its own check | **each exact**; S-G1 reaches 115.4 px | ✓ |
+| S-C3j | exactly C3c and C3j | **exact** | ✓ |
+| L1, L2, L4 (board) | 21/21; the ruled mapping; dump complete | **21/21; exact; 240/240** | ✓ |
+| **L5** (board) | background dry; labels white on dry; none empty | **0 / 0 / 0** | ✓ |
+| **L6** (board) | every non-dry pixel within 112 px | **3,790 pixels; farthest 109.0 px** | ✓ |
+| **Fix 5:** "No data" at full size | already 12 × 12 (read before the change) | **12 × 12**; held by G2 | ✓ |
+| C1, C2 | unchanged | **B9 identical; `a88c3a99fa5c…`** | ✓ |
+| Build | RAM ±512 B; flash ±2 KB | **26,912 B; 466,119 B** | ✓ |
+| **S-L** (board) | L1 fails on exactly that swatch, then restore | **20/21: `#4 rain 5: 144/144 px`**; L2, L5 and L6 unaffected. Restored: the rebuild is **byte-identical** (`9043169a435f…`), and the reflash gives **21/21** again | ✓ |
+
+The label reads **"Hail possible"**: the long form is 156 px and doesn't fit. The screens doc is updated, dated (#425). The board alternates the KDFW frame and the final legend.
