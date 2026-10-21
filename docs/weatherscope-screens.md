@@ -188,6 +188,16 @@ The inputs come in other units, and the device converts them:
 
 **One reading to confirm:** the 40 dBZ gold (code 6) is counted as "yellow". It could equally be read as orange, which would move it to the same group anyway (Moderate). **Dry (black, code 0) has no label**, because the ruling lists none.
 
+**Changed 2026-10-20 (Daniel's look at the bench legend):**
+- **The label "Very heavy / possible hail" becomes "Hail possible" on screen.** The long form is 26 characters, 156 px in the device font, and doesn't fit left of the swatch column on the round screen. The group is unchanged: rain 11-13 (≥ 65 dBZ).
+- **The layout:**
+  - centred vertically;
+  - every label and swatch within 112 px of the screen's centre, an 8 px margin;
+  - one shared left edge for the swatches;
+  - every swatch 12 × 12, "No data" included.
+
+  The colours are final and unchanged. See `docs/weatherscope-stage2.md`, addendum 8.
+
 **The bench version is built after 2.1 closes**, on the board, alongside the KDFW frame. It comes with a host check that **every swatch on the legend equals the palette table**. Its predictions are frozen before its code, as with every step so far.
 
 ## Open items
