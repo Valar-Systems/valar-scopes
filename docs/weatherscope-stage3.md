@@ -897,3 +897,25 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 - **The observation:** `KDFW`'s `/observations/latest` at fetch time, keeping `presentWeather` (its raw strings) and `timestamp`. Station coordinates and every other field are dropped.
 - **The interfaces in 3.2:** `WxFeed::Latest()`, `ObsFeed::Latest()`, `AlertFeed::Active()`. The past hour's history is added to `WxFeed` in 3.3, with the 15 frames.
 - **The config page:** location (latitude, longitude) and display (auto-dim, brightness), like Claudescope's location and display blocks. No ntfy and no alert toggles until there are alerts to send.
+
+### A6.4 STOPPED: the budgets read below their bands (2026-10-21; local until ruled)
+
+**How it was seen, ahead of the frozen order.** The code had to be compiled before it could be committed. That compile of the tree that became `4df1065` printed PlatformIO's size summary, so the budgets row (step 8) was read **before** S1. Nothing was changed after it: `4df1065` is that tree.
+
+| | read | frozen band (A6.2) | |
+|---|---|---|---|
+| flash | **1,518,635 B** | 1.60-1.85 MB | **below**, in decimal or binary units |
+| static RAM | **54,600 B** | 55-70 KB | **below**, in decimal or binary units |
+
+**The verdict:** a miss on both, recorded on the frozen bands and **not re-graded**. Per the standing rule, no measured row (S1, S2, D2, D1, CI, the board) runs until the reviewer rules. The tooling commit, which measures nothing, may be prepared locally.
+
+**Kept apart from the verdict: what the bands assumed, and candidate causes. None of them is tested.**
+- **What the bands assumed:** section 6 built them from Claudescope (1,575,195 B flash, 54,992 B RAM) and Speedscope, both on the **s3-146**, plus about 20 KB of Weatherscope code and up to 150 KB of stored data. So they assumed Weatherscope would be **at least Claudescope's size**.
+- **(a) Less code than the basis.** Step 3.2's edition has no feed client, no HTTP or JSON parsing and no ntfy, all of which Claudescope carries. The RAM lands 392 B under Claudescope, which this fits.
+- **(b) A different board.** The basis envs are s3-146 builds (an SPD2010 QSPI panel and its touch driver). This env is the s3-128 (GC9A01, CST816), so the variant's driver code differs.
+- **What would separate (a) from (b),** proposed and not run: build `claudescope-s3-146`'s source with the s3-128 variant flags, and compare its size with both.
+
+**Asked of the reviewer:**
+1. Is the miss recorded as above, with its cause left open, like M4g?
+2. May the remaining rows (S1, S2/D2, D1, CI, the board) proceed as frozen? Their predictions don't depend on the budgets.
+3. Should 3.3's flash and RAM bands be re-derived from this build, `4df1065`, rather than from the s3-146 envs? Any new bands would be frozen in 3.3's addendum, before its code.
