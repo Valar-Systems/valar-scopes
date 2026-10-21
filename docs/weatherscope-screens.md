@@ -62,6 +62,13 @@ The mockups show five screens and no rule for choosing between them.
 | 1c. Precipitation at the location **now** (no mockup shows it) | (a) the rain or snow screen with a "now" headline; (b) a new mockup; (c) the plain radar | **(a)** |
 | 1d. When a warning counts as "covering the town" | (a) its polygon contains the device's location; (b) its polygon falls anywhere inside the 60 mi range | **(a)** |
 
+**Changed later on 2026-10-20 (Daniel, on Weatherscope Stage 2's radar product check): where "now" comes from.**
+- **"Precipitation here now" (1c) comes from the NWS latest observation at the nearest station, using its present weather. It no longer comes from the radar's centre pixel.**
+- **Radar still drives the 15 mi ring (1b) and the drawing.**
+- **Why:** in the product check, SeamlessHSR's centre cell read 12.4 dBZ at an airport whose observation reported light rain (`docs/weatherscope-stage2.md`, F3). Most snowing hours at KMSP also read below 15 dBZ at the airport's cell (change 1). A single radar cell under-samples what a station reports.
+- **What 1c's ruling (a) still means:** the rain or snow screen with a "now" headline. Only the source of "now" changed.
+- **Not decided here:** how observations reach the device. That is part of the shared data path held with the Blipscope weather layer, as with NWS alerts through the proxy.
+
 ## 2. The past-hour loop
 
 Screen 4 shows one frame and a timeline from −1 h to NOW. MRMS composite frames arrive about every 2 minutes (median 120 s over 67 files, wx spike A0 in [PR #422](https://github.com/Valar-Systems/valar-scopes/pull/422)), so an hour holds about 30 frames. On Blipscope, a swipe changes screens and a tap opens a detail card.
