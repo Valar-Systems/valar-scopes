@@ -167,6 +167,7 @@ Every SKU is now a **dual-core S3 with PSRAM**. Read the state below as current,
 ## Conventions
 
 - Branching: feature/fix branches → PR into `main`. OTA is **per-SKU**: bump `FW_VERSION` ([OtaUpdater.h](src/OtaUpdater.h)) once, then a GitHub Release builds and publishes `firmware-<slug>.bin` for every SKU — see [RELEASING.md](RELEASING.md). A device only ever downloads its own slug's binary.
+- **The device-id hook runs only where it is installed.** A fresh clone has `core.hooksPath` unset, so `.githooks/pre-commit` does not run until `git config core.hooksPath .githooks`; CI's `no-real-device-ids` is the backstop (it caught `601a236`, pushed past an uninstalled hook, on 2026-10-20).
 - Put per-variant behaviour behind `variant::` capability flags, not `#ifdef`s scattered through the logic — and delete a flag once no SKU sets it and no code reads it. `ENRICH_ALWAYS` survived as a flag that read like a switch and was wired to nothing.
 - `credentials.json` (OpenSky client secret) is a user secret — never read, commit, or log it.
 
