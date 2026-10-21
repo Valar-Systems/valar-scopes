@@ -132,6 +132,12 @@ The producer's section turns this into the largest crop each rung can always fit
 > - **Q2:** rain by default when `PrecipFlag` gives no type, and the crop is served **untyped** when no `PrecipFlag` file pairs with the frame.
 > - M4f's numbers are added beside Q2 once they are measured.
 
+> **M4f, measured 2026-10-21 (Addendum 7):** of the echo cells (≥ 15 dBZ) in change 1's 24 snowing hours at KMSP, the share with no type evidence, which Q2's rain default would draw as rain, is:
+> - **SeamlessHSR: 0.0 %;**
+> - **the composite: 3.0 %** (the virga share).
+>
+> Both are inside their predicted bands.
+
 ## 4. Measurement 4: before any encoder or decoder code
 
 **Purpose.** Settle three things from data before the spec does:
@@ -561,3 +567,68 @@ The instrument is on branch `tools/wxc1-v2-m4` (`tools/weatherscope/m4/`). **It 
 - the composite stays 16-bit only;
 - an anchor against the pinned decoder on 16-bit files;
 - the width sabotage.
+
+## Addendum 7, 2026-10-21: measurement 4, run 2. Every row as predicted up to M4g; M4g's direction reversed, so STOP; M4h unread
+
+**The run.** Instrument `8ce77f9`, against this spec at `0a589cf`, both pushed and proved static before it ran. Exit 1 at M4g, a pre-registered stop. Run 1's stop stays on record in Addendum 5. The logs are kept outside git (`wxdata2/m4/run1.log`, `run2.log`), and no coordinate was printed.
+
+### A7.1 The instrument's checks: all passed
+
+| check | predicted | measured |
+|---|---|---|
+| listing control | Stage 2's 48 files in the listing | **48/48** |
+| **C-M4e** | the any-width decoder equals `mrms.ts`, cell for cell | **48/48 files identical** |
+| C-M4a precondition | 8 bits at (−3, 0, 0) in 24/24 | **24/24** |
+| C-M4a width sabotage | refused in 24/24 | **refused in 24/24** (194,508,414 out-of-table cells) |
+| C-M4a scale sabotage | refused | **refused in 24/24** (23,132,344 cells) |
+| C-M4a census | pass | **pass**: every value in all 24 files is in NSSL's table |
+| **C-M4b** | Stage 2's centre values and histograms, exactly | **24/24; both histograms equal** the committed ones (SeamlessHSR 7/12/1/3/1, composite 4/12/4/3/1) |
+| run counter against the spike encoder (instrument check) | equal | **48/48 crops** |
+
+### A7.2 The timing and grid rows: all as predicted
+
+| row | predicted | measured |
+|---|---|---|
+| **M4a** | 120 s cadence, gaps ≤ 5 % | **mode 120 s, 0 gaps in 240 intervals.** As ruled, recorded with it: **the listing's object totals (4,320 `PrecipFlag` over 6 days) were seen in run 1 before M4a was graded.** |
+| M4b sabotage (the next hour's file) | stops | **stops** (modal offset +3,600 s, A4.2) |
+| **M4b** | (a), ≤ 2 missing hours | **(a): modal offset 0 s, 0 missing hours, 24/24 at 0 s** |
+| C-M4d | `LastModified` − nominal within 0-300 s | **55-97 s**, which is real-time publication |
+| **M4i** | within ±60 s | **outcome (a):** `PrecipFlag` was published 0-34 s after SeamlessHSR (and 33 s before to 17 s after the composite). "Untyped, then typed" is a rare edge |
+| **M4c** (sharpened) | equals Stage 2's composite − SeamlessHSR | **24/24**, using `PrecipFlag`'s own reference time |
+| M4d sabotages | "different", naming the field | **`di`** and **`n2s`** |
+| **M4d** | identical grids | **identical for all three products in 24/24**, with the same crop box for both |
+
+### A7.3 C-M4c: aligned
+
+| | predicted | measured |
+|---|---|---|
+| sabotage (a), the full grid flipped | not (i), with `IoU(0,0)` ≤ half | **(iv)** (7 boundary hours); `IoU(0,0)` 0.047 against the real grid's 0.608 |
+| sabotage (b), the window read 10 cells east | (ii), with a strict maximum at (0, −10) | **(ii), at (0, −10) alone** |
+| sabotage (c), the window read 1 cell east | (ii), with a strict maximum at (0, −1) | **(ii), at (0, −1) alone** |
+| **the control** | (i) | **(i):** 22 boundary hours (K = 8); `IoU(0,0)` **0.6085**, strictly above (0, +1) at 0.6013 and (0, −1) at 0.5979; `A(0,0)` **100.0 %** |
+
+### A7.4 The rows read after outcome (i)
+
+| row | predicted | measured | |
+|---|---|---|---|
+| **M4e** | HSR 80-100 %; composite 60-100 % and ≤ HSR | **HSR 99.6 %; composite 96.7 %** | as predicted |
+| **M4f** | HSR ≤ 5 %; composite ≤ 25 % and ≥ HSR | **HSR 0.0 %; composite 3.0 %** | as predicted (recorded beside Q2) |
+| **M4g** | 5-40 % each; **composite ≥ HSR**, pooled | **HSR 5.09 %** (14,896 of 292,629 snow cells); **composite 4.76 %** (13,930 of 292,629) | **direction REVERSED by 966 cells: STOP.** The composite is also below its band, which by itself is reported, not a stop |
+| M4h | (frozen) | **unread** | |
+
+### A7.5 The stop: M4g's direction (A1.6) reversed
+
+The prediction's premise was that the composite, as a column maximum, reads at least as high as SeamlessHSR. M4g is a share **conditioned on `PrecipFlag` = 3**, and three explanations fit the reversal. **The data in hand excludes none of them,** so all three are reported:
+- **H1, the products differ.** SeamlessHSR is a separate product, not one level of the composite's column. In light snow it may read higher where the composite's QC or mosaic reads lower.
+- **H2, time.** The composite file is 31-43 s after both SeamlessHSR and `PrecipFlag`, which share a clock (M4b, 0 s in 24/24). Any time offset can only **reduce** the composite's overlap with a `PrecipFlag`-defined set, so this bias is systematic, not symmetric noise.
+- **H3, selection.** `PrecipFlag` shares SeamlessHSR's timestamp and is published 0-34 s after it (M4i). That is consistent with its being derived from the same QPE pass. If so, `PrecipFlag` = 3 cells are selected where SeamlessHSR shows precipitation, which favours SeamlessHSR in any share conditioned on them.
+
+**Why the data can't separate them:** no composite file is time-aligned with `PrecipFlag`, since the composite runs 31-43 s off the 120 s cadence. H2 can't be removed from any comparison these files allow.
+
+**What the reversal says about the predictions.** H2 and H3 both bias against the composite in **every** `PrecipFlag`-conditioned share. M4e's and M4f's directions held, and both are consistent with the same biases. A1.6's direction ignored that `PrecipFlag` and SeamlessHSR share a clock and the composite doesn't; that is the premise that failed. **M4g stays on record as a miss, and is not re-graded.**
+
+**Proposed, for a ruling (nothing is changed until then):**
+- M4g's reversal is recorded as a finding with H1-H3 unresolved. M4g changes nothing ruled.
+- **M4h is read as frozen.** It is independent of M4g, since it measures layer sizes, not this share, and it needs no new prediction.
+- **Not proposed:** a diagnostic to separate H1-H3. These files can't remove H2, so it wouldn't be decisive.
+
