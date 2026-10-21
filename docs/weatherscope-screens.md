@@ -49,6 +49,8 @@ Unchanged: 6 (dry day), which draws the town dots without labels.
 
 **States with no mockup yet** (new exports, not re-exports): precipitation at the location now (1c), a Flash Flood Warning (3b), and a Snow Squall Warning (3a).
 
+**Also a new export (ruled 2026-10-20):** screen 7, **the legend** ([§7](#7-the-legend-screen-screen-7)). There's no mockup of it yet.
+
 ## 1. Which screen the device shows
 
 The mockups show five screens and no rule for choosing between them.
@@ -141,11 +143,45 @@ The inputs come in other units, and the device converts them:
 |---|---|---|
 | 6a. Units | (a) imperial only; (b) imperial by default, with a metric setting | **(a) imperial only:** °F, mph, mi |
 
+## 7. The legend screen (screen 7)
+
+**Ruled by Daniel, 2026-10-20: add a legend screen.** Recorded as received:
+- **It is screen 7**, after the others in the swipe order. **A swipe reaches it; a tap returns to the map.**
+- **Plain-word labels, in groups:**
+  - Light rain (blue, green);
+  - Moderate (yellow, orange);
+  - Heavy (red);
+  - Very heavy / possible hail (magenta, violet, white);
+  - snow, Light → Heavy, on the snow ramp;
+  - No radar coverage (grey);
+  - No data (hatched).
+
+  dBZ in small text is optional.
+- **It uses the final palette exactly:** the same table and the same sha256. That is the palette in `docs/weatherscope-stage2.md`, with rain from MetPy's `NWSReflectivity` v1.6.3, pinned at sha256 `f73f0d6264d4…`.
+- **Open question for Daniel, later:** show the legend once at first boot? **Noted, not built.**
+
+**Which codes each group covers.** This is read from the colours the ruling names; the wire codes are WXC1's 5 dBZ bands:
+
+| label | colours | rain codes | dBZ |
+|---|---|---|---|
+| Light rain | blue, green | 1 (blue); 2-4 (greens) | 15-35 |
+| Moderate | yellow, orange | 5-6 (yellow, and the 40 dBZ gold `(231, 192, 0)`, read as yellow); 7 (orange) | 35-50 |
+| Heavy | red | 8-10 | 50-65 |
+| Very heavy / possible hail | magenta, violet, white | 11 (magenta), 12 (violet), 13 (white) | ≥ 65 |
+| Snow, Light → Heavy | the snow ramp | snow 1-6 step; 6-13 hold | 15 → ≥ 40 |
+| No radar coverage | grey | 14 | — |
+| No data | hatched | 15 | — |
+
+**One reading to confirm:** the 40 dBZ gold (code 6) is counted as "yellow". It could equally be read as orange, which would move it to the same group anyway (Moderate). **Dry (black, code 0) has no label**, because the ruling lists none.
+
+**The bench version is built after 2.1 closes**, on the board, alongside the KDFW frame. It comes with a host check that **every swatch on the legend equals the palette table**. Its predictions are frozen before its code, as with every step so far.
+
 ## Open items
 
 **No point is undecided** (final rulings, 2026-10-20). One check is pending:
 
 - **3e:** confirm a Snow Squall Warning's bottom-line fields against the first live sample. None was available on 2026-10-20.
+- **7, first boot:** should the legend show once at first boot? An open question for Daniel (ruled 2026-10-20 to note it and not build it).
 
 ## Sources
 
