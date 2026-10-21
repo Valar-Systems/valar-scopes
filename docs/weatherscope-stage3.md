@@ -813,3 +813,65 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 - **D1's graded outcomes**, as read (H-B for `pro-s3-21` and `missileer-photo`: the base round's images were the odd ones out). Only the mechanism recorded beside them changes.
 - **S1 v2's results (A5.7).** S1 v2 added warm-up builds AND fixed `SOURCE_DATE_EPOCH`. On the corrected cause, fixing the time strings is what removed the false failures. The warm-ups were harmless, but S1 v2's pass can't say which of the two mattered.
 - **#457 and the reviewer's ruling 2** ("a patch that can't apply fails the build"). They stand on their own: the skip path was a hazard whether or not it fired here.
+
+## Addendum 6, 2026-10-21: step 3.2, the edition scaffolding (frozen before its code)
+
+**The reviewer's ruling (2026-10-21):** "Step 3.2: go ahead, with predictions frozen before any code, as the plan says. Include S1 for every shared file it touches, and show in CI that the product env's adsbdb gate finds its control at the default site."
+
+**The base:** main at `75d62c4`. If main moves before the merge, S1 is measured against the PR's actual merge parent, and that parent is recorded.
+
+### A6.1 What 3.2 builds, and what it leaves to 3.3
+
+**The edition's own code** lives in `src/weatherscope/`, outside `bench/`, and is compiled only by the product env:
+- **`WeatherscopeManager`:** the shared `Initialise()`/`Update()`/`Draw()` surface. **3.2 draws only a splash, then a status face**: the device name, Wi-Fi state, the config-page URL and the UTC time. **No weather screen is drawn in 3.2**; screens and their logic are 3.3.
+- **The three feed interfaces** (`WxFeed`, `ObsFeed`, `AlertFeed`) **and their stored implementations:**
+  - `StoredWxFeed` serves the KDFW crop already in the repo (`test/fixtures/wx/kdfw-60mi.wxc`), embedded.
+  - `StoredObsFeed` serves one NWS observation for KDFW. It is fetched once by this session at implementation time, never by the device, and trimmed to the fields the device reads (present weather and time). **No coordinates are kept.**
+  - `StoredAlertFeed` serves the event, headline and expiry of the 2026-10-20 sample in `docs/weatherscope-screens.md` §3. The warning polygon waits for the screen that draws it (3.3).
+- **One factory file** chooses the implementations (D1).
+
+**Shared files.** Each change is a new `#elif` branch, a name added to an edition list, or `&& !defined(FEATURE_WEATHERSCOPE)` appended to a guard. The counts were taken at `75d62c4`:
+
+| file | change |
+|---|---|
+| `platformio.ini` | the product env `[env:weatherscope-s3-128]`, on the s3-128 board, with `${common.build_flags}`, the s3-128 variant, `-DFEATURE_WEATHERSCOPE`, `-DFW_OTA_PREFIX=\"weatherscope-\"`, PSRAM and `ARDUINO_USB_MODE=1`. Its filter is `+<*> ${filters.radar_off} ${filters.editions_off} ${filters.hwtest_off} ${filters.gametest_off} ${filters.anim_off} +<weatherscope/> -<weatherscope/bench/>`. No other env changes. |
+| `src/main.cpp` | **2** `#elif` branches (include `:63`, instance `:111`), and the guard term on **6** radar-only guards (`:665`, `:680`, `:801`, `:831`, `:848`, `:865`) |
+| `src/ConfigurationWebServer.cpp` | **4** `#elif` branches (page `:2334`, load `:3040`, template `:3395`, save `:3859`), and the guard term on **9** radar-default guards (`:18`, `:415`, `:572`, `:2612`, `:3064`, `:3081`, `:3574`, `:3964`, `:4075`). **Not** on the no-geography list at `:3920`: Weatherscope needs a location. |
+| `include/BuildIdentity.h` | 2 (its edition `#ifdef` and `#elif`, as Speedscope's at `:67` and `:99`) |
+| `include/DeviceIdentity.h` | 1 (`DEVICE_PRODUCT_NAME` = "Weatherscope") |
+| `include/FactoryReset.h` | 1 (on the "persist no logbook" list at `:84`) |
+| `src/SoakHarness.h` | 1 (on the edition list at `:25`) |
+| `scripts/check_release_envs.mjs` | `FEATURE_WEATHERSCOPE` added to `EDITION_FLAGS` |
+| `skus.yml` | the product row `{ env: weatherscope-s3-128, status: build-only }`, with no slug |
+| docs | `CLAUDE.md`'s edition section (authorized, A1.5); an edition line in `README.md`; `RELEASING.md`'s edition OTA channel section, saying there is no slug yet |
+
+`FW_VERSION` doesn't change, and nothing is released.
+
+**Graded later, in 3.3, because 3.2 has no frame path:** the PSRAM, frame-time and loop-rate budgets of section 6.
+
+### A6.2 Predicted
+
+| check | how | predicted |
+|---|---|---|
+| **S1, every other env** | S1 v2's method (A5.6): warm-ups, `SOURCE_DATE_EPOCH`, and the R1/R2 list. All **15** other envs, the bench included, base against head. | **identical outside R1 and R2, in 15/15** |
+| **S1, every compiled shared file** (the ruling) | **The covering sabotage:** one per shared file that the other envs compile (`main.cpp`, `ConfigurationWebServer.cpp`, `BuildIdentity.h`, `DeviceIdentity.h`, `FactoryReset.h`, `SoakHarness.h`). Each is an UNGATED change to a value that file already contributes to every image, built in `blipscope-s3-128`. The site in each file is named in the tooling commit, before any measured build.<br>**Plus the full-matrix sabotage from 3.1** (`ConfigurationWebServer::Initialise`). | **The per-file sabotages:** `blipscope-s3-128` differs outside R1/R2 in **6/6**.<br>**The full-matrix sabotage:** every env that compiles the file differs, and **`animtest-s3-128` and `weatherscope-bench-s3-128` are at 0 bytes.**<br>**If a file has no ungated runtime site,** it is reported as such, and its S1 coverage rests on the full-image comparison alone. |
+| **S1, the shared files no build reads** (`skus.yml`, `check_release_envs.mjs`, docs) | their own checks | `skus.py --selftest/--validate/--check-readers` and `check_release_envs` exit 0 |
+| **S2, a guard term left off** (A2.3) | grep the product image for the radar-only strings **`local-url`, `radius-unit`, `data-source`, `/api/v1/blipscope/blips`** | **0 hits.**<br>**The positive control:** all four are present in `blipscope-s3-128`'s image at the base. They read 3, 3, 4 and 1 in S1 v2's `base2` image, and **0** in Claudescope's, Speedscope's and Missileer's, so they are radar-only in fact, not only by guard.<br>**The anchor:** a control build of the product with one planted, reachable copy of `local-url` must be found.<br>**The sabotage:** the guard term removed from the guard around the radar form makes S2 find its strings, and name them. |
+| **D1** | `grep` of `src/`, and a host test | exactly **one** file names the `Stored*` implementations, besides their own definitions. The host test builds all three interfaces against fakes. |
+| **D2** | grep the product image, **case-sensitive, lowercase**, as hostnames are written, for `weather.gov`, `noaa`, `ncep`, `mrms`, `amazonaws` | **0 hits.**<br>**The control:** a control build with one planted, reachable hostname string must be found.<br>*Recorded now so it isn't discovered later:* the bench image carries one uppercase `MRMS`, a text string, and no host fragment. |
+| **CI** | the matrix on the PR head | **The product leg builds.**<br>**Its adsbdb gate:** `CONTROL found` at the **default site, `ConfigMigration.cpp`** (3.1 narrowed the bench case), and PASS.<br>**The OTA URL check (#455):** **PASS** (the edition has an OTA client on the default base).<br>**Every other leg:** as on main. |
+| **Budgets** (graded now) | the product build's `pio` size summary | **flash 1.60-1.85 MB; static RAM 55-70 KB** (section 6) |
+| **The board** | flash `weatherscope-s3-128` on `907069326E64` (standing OK; port from the serial) | **The banner:** `[build] env=weatherscope-s3-128`.<br>**The mDNS name:** `Weatherscope-XXXXXX`.<br>**Wi-Fi:**<br>• it joins with the stored credentials;<br>• *if none survive the flash,* the portal appears, and that is a stop to ask Daniel, not a build fault.<br>**`GET http://<name>.local/`:** **200**, with the Weatherscope form, and **none** of S2's strings in the body. |
+
+**Order:**
+1. This addendum.
+2. The code commit.
+3. The tooling commit, with the per-file sabotage sites named.
+4. S1.
+5. S2 and D2.
+6. D1.
+7. CI.
+8. The budgets.
+9. The board.
+
+**Outside every prediction: stop and decide.**
