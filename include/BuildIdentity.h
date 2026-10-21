@@ -67,6 +67,9 @@ namespace BuildIdentity {
 #ifdef FEATURE_SPEED
         add("speed");
 #endif
+#ifdef FEATURE_WEATHERSCOPE
+        add("weatherscope");
+#endif
 #ifdef SOAK_TEST
         add("soak");
 #endif
@@ -98,6 +101,8 @@ namespace BuildIdentity {
     constexpr char PRODUCT_WORDMARK[] = "CLAUDESCOPE";
 #elif defined(FEATURE_SPEED)
     constexpr char PRODUCT_WORDMARK[] = "SPEEDSCOPE";
+#elif defined(FEATURE_WEATHERSCOPE)
+    constexpr char PRODUCT_WORDMARK[] = "WEATHERSCOPE";
 #else
     constexpr char PRODUCT_WORDMARK[] = "BLIPSCOPE";
 #endif
