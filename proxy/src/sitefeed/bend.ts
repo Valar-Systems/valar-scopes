@@ -42,6 +42,12 @@ export const ATTRIBUTION: Record<string, string> = {
   "adsb.lol": "aircraft data © adsb.lol contributors, ODbL 1.0",
 };
 
+/** The link every page showing the data must carry (Daniel, 2026-10-21: credit adsb.fi with a link to adsb.fi). */
+export const ATTRIBUTION_URL: Record<string, string> = {
+  "adsb.fi": "https://adsb.fi",
+  "adsb.lol": "https://adsb.lol",
+};
+
 export function enabled(env: Env): boolean {
   return env.SITE_FEED_BEND === "on" && env.BEND_SNAPSHOT !== undefined;
 }
@@ -249,6 +255,7 @@ export type SiteFeedResponse =
       stale: boolean;
       source: string;
       attribution: string;
+      attribution_url: string;
       aircraft: SiteAircraft[];
     };
 
@@ -292,11 +299,16 @@ export async function readSnapshot(env: Env, nowMs: number = Date.now(), cache: 
     stale,
     source: snap.source,
     attribution: ATTRIBUTION[snap.source] ?? "",
+    attribution_url: ATTRIBUTION_URL[snap.source] ?? "",
     aircraft: stale ? [] : snap.aircraft,
   };
 }
 
-/** The service-binding entrypoint: `[[services]] service = "blipscope-proxy", entrypoint = "BendFeed"`. */
+/**
+ * The service-binding entrypoint: `[[services]] service = "blipscope-proxy", entrypoint = "BendFeed"`.
+ * BEND ONLY, BY CONSTRUCTION: adsb.fi's OK (Daniel, 2026-10-21) covers Bend and nothing else, so `snapshot()` takes
+ * no place. Adding one is a licensing change, not a feature -- it needs Samuli's OK first (test B12 refuses it).
+ */
 export class BendFeed extends WorkerEntrypoint<Env> {
   async snapshot(): Promise<SiteFeedResponse> {
     return readSnapshot(this.env);

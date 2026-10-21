@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { SCHEMA_V } from "../src/schema";
 import {
   BEND,
+  BendFeed,
   BendStore,
   RADIUS_KM,
   __resetSiteFeedForTests,
@@ -12,6 +13,7 @@ import {
   fetchedKm,
   haversineKm,
   readSnapshot,
+  type SiteFeedResponse,
   type Snapshot,
   type SnapStorage,
 } from "../src/sitefeed/bend";
@@ -233,5 +235,39 @@ describe("the reader, BendFeed.snapshot()", () => {
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /get"]);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+});
+
+describe("B12/B13 Bend only, credited with a link (adsb.fi's OK, Daniel 2026-10-21)", () => {
+  const snapAt = (source: string): Snapshot => ({
+    t: Math.floor(Date.now() / 1000),
+    source,
+    aircraft: [{ hex: "abc123", cs: "X", lat: 44.06, lon: -121.3, alt_ft: 1, gs_kt: 1, track_deg: 1, vrate_fpm: 0, category: 1, seen_s: 1 }],
+  });
+
+  it("B12 snapshot() takes no place, and a place passed anyway changes nothing", async () => {
+    expect(BendFeed.prototype.snapshot.length).toBe(0);
+    const names: string[] = [];
+    const ns = {
+      idFromName: (n: string) => (names.push(n), { name: n }),
+      get: () => ({ fetch: async () => Response.json(snapAt("adsb.fi")) }),
+    } as unknown as DurableObjectNamespace;
+    const self = { env: { ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns } };
+    // Portland, passed as if the method accepted a place.
+    const r = await (BendFeed.prototype.snapshot as (...a: unknown[]) => Promise<SiteFeedResponse>).call(self, 45.52, -122.68);
+    expect(r.available).toBe(true);
+    if (r.available) {
+      expect(r.centre).toEqual({ lat: BEND.lat, lon: BEND.lon });
+      expect(r.radius_km).toBe(RADIUS_KM);
+    }
+    expect(new Set(names)).toEqual(new Set(["bend"]));
+  });
+
+  it("B13 every available answer carries the source's link", async () => {
+    for (const [source, url] of [["adsb.fi", "https://adsb.fi"], ["adsb.lol", "https://adsb.lol"]] as const) {
+      const { ns } = fakeNs(async () => Response.json(snapAt(source)));
+      const r = await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns }, Date.now(), fakeCache());
+      expect(r).toMatchObject({ available: true, source, attribution_url: url });
+    }
   });
 });
