@@ -81,8 +81,8 @@ async function buildFresh(
   // same cheap planar metric the firmware uses (lon scaled by cos lat); we only
   // need to RANK neighbours, not measure them.
   const normalized = result.ac.map(normalizeReadsbAc).filter((a): a is NormalizedAircraft => a !== null);
-  // Bend site feed (removable): handed the FULL list, before the `limit` cut. Never throws, never awaited.
-  onFetched?.(normalized, result.upstream, result.nowMs);
+  // Bend site feed (removable): handed the upstream's FULL raw list, before the `limit` cut. Never throws, never awaited.
+  onFetched?.(result.ac, result.upstream, result.nowMs);
   const latC = parseFloat(latQ);
   const lonC = parseFloat(lonQ);
   const cosLat = Math.cos((latC * Math.PI) / 180);
