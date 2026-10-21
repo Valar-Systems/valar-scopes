@@ -276,3 +276,22 @@ The scratch branch `scratch/c2b-linux-rebuild` was deleted after the read, as fr
 | **S-T1's control** (the same tree on the pre-tightening rule, `4c3f131`'s helper) | exit **0**, `patch_wm_copy: WiFiManager is not a dependency of blipscope-s3-128; nothing to patch`. **The silent skip the tightening closes, reproduced** |
 
 After each sabotage the tree was restored: the folder renamed back, the registry spec put back, a clean libdeps, and a green rebuild. `git status` was clean afterwards, once a line-ending-only rewrite of `platformio.ini` was checked out.
+
+### C2-diag: the build-time strings as the alternative (pre-registered before it runs; read-only)
+
+**Raised by the Weatherscope session's review at `9f911a4`:**
+- **The alternative C2b's diagnosis didn't name:** the fixed `SOURCE_DATE_EPOCH` itself. A5.8 (main, #459) records that a build's `__TIME__` string can absorb a standalone short digit string through linker tail merging.
+- **Measured on this very env** (`blipscope-s3-128`, firmware-identical source): **1,928,560 B** with real-clock strings, against **1,928,544 B** with the date fixed. That is **16 B**, with no source change.
+- **Why it applies here:** C2 and C2b both fixed the time at `17:00:00`, while the v18 run's strings carry its real clock (`17:17:32`, `17:17:58`). So "the same size on Windows and Linux" doesn't single out the gate recipe. Identical fixed strings predict identical sizes too.
+
+**The read:** on images already held, no build:
+- the v18 asset (`5a5f662b…`);
+- C2's local #2 (`e104e082…`, 1,928,176 B, time `17:00:00`). The runner's `4726b898…` wasn't kept, but it has the same size and the same time.
+
+Every standalone two-digit string `"00"`-`"59"` (NUL on both sides) is counted in each.
+
+| outcome | meaning |
+|---|---|
+| **(a)** the counts differ only in strings that are suffixes of one image's own time strings and not of the other's (e.g. `"00"` absorbed by the rebuild's `17:00:00`) | the 16 B is the fixed `SOURCE_DATE_EPOCH`, by tail merge. C2's and C2b's size gap is explained without the recipe; C2c becomes unnecessary for that question |
+| **(b)** the counts are identical | the time-string alternative doesn't account for the 16 B; C2c stands |
+| **(c)** anything else | stop |
