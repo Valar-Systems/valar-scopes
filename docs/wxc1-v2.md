@@ -397,3 +397,44 @@ The threshold is stated now, without data. Only where the agreement peaks is pre
 | **M4i** | `PrecipFlag` `LastModified` − SeamlessHSR `LastModified`, per paired hour (and the same against the composite, reported) | **within ±60 s in 24/24 hours** | **(a) Within ±60 s everywhere:** "untyped, then typed" is a rare edge. P3(b) still holds, but nothing waits on it. **(b) `PrecipFlag` more than 60 s later in any hour:** "untyped, then typed" is a normal state. P3(b) is load-bearing, and the producer's pairing section must say whether it waits or serves untyped first. **(c) C-M4d fails:** uninformative; measure live. **(d) Anything else: stop and decide.** |
 
 **Order:** M4i is read after M4b, with C-M4d first. Neither depends on C-M4c.
+
+## Addendum 4, 2026-10-21: two sabotages that couldn't bite, fixed before M4 runs; M4h's convention
+
+Both problems were found while writing the instrument, by tracing each frozen sabotage through the decoder and the outcome rules. **No `PrecipFlag` file has been listed or fetched.** As CLAUDE.md puts it, a probe that cannot prove it planted is not a probe.
+
+### A4.1 C-M4a's sabotage, "the wrong field width", can't turn the census red
+
+- **In the file, it never reaches the census.** `mrms.ts` refuses any PNG that isn't 16-bit grey (`mrms.ts:108`) before a value exists. That is a louder refusal, further upstream.
+- **Forced in the instrument, it passes the census.** Values are `R + X`, and `R` is expected to be −3 with a scale of 1. Every `PrecipFlag` code has `X` ≤ 99, so a 16-bit sample misread as two bytes gives:
+  - a high byte of 0, which decodes to `R` = −3;
+  - a low byte of `X`, which decodes to the original value.
+
+  Both are in the table, so the census can't see the misread.
+- **Replaced by: the binary scale off by one (`E` + 1),** so each value decodes as `R + 2X`. **Predicted: C-M4a refuses.**
+  - Code 1 becomes 5, code 3 becomes 9, and so on: any rain or snow cell leaves the table.
+  - Code 0 becomes 3 and −3 stays −3, and both are in the table. So the census catches the sabotage only through precipitating cells. That every CONUS frame has some is therefore part of the prediction.
+  - The instrument reports how many values fell outside the table.
+- **The prediction assumes the packing (`R`, `E`, `D`) = (−3, 0, 0).** The instrument prints the packing first. **If it isn't (−3, 0, 0), stop before the census and decide.** The effect isn't re-derived on the spot.
+
+### A4.2 M4b's sabotage landed inside outcome (b)
+
+Pairing each hour with the next hour's file gives a constant offset of about +3600 s in 24/24 hours. That **is** outcome (b), "the same nonzero offset in 24/24: pair at that offset". So the run would not have stopped.
+
+**Fix: an offset counts as a pairing only if |offset| < 120 s,** one cadence step.
+- Outcomes (b) and (c) now require |offset| < 120 s in every hour that isn't missing.
+- An offset of 120 s or more pairs a different frame. That is outside the set: **stop.**
+- **The sabotage is now predicted to stop at M4b,** as section 4 said it would.
+- The modal-offset and missing-hour rules (A1.3) are unchanged.
+
+### A4.3 M4h is measured at coarsen 1
+
+A coarsened block's type needs Q1's tie rule, which hasn't been ruled.
+- **The convention:** M4h compares the type layer with the code layer for the **uncoarsened** crop, each encoded with 2.2's runs.
+- **Also reported:** the rung the v1 encoder would pick for that hour.
+- **The prediction itself is unchanged.**
+
+### A4.4 Where the instrument lives
+
+The instrument is on branch `tools/wxc1-v2-m4` (`tools/weatherscope/m4/`). **It is committed before it runs.**
+- **What it reuses:** the decoder and the `cropBox` that Stage 2 pinned (the spike's tools at `a5db678`). C-M4b therefore re-tests the decoder Stage 2 trusted.
+- **What it keeps out of git:** downloads stay outside git, and no coordinate is printed.
