@@ -286,6 +286,7 @@ Read in the installed framework (arduino-esp32 3.3.9, `libraries/Update/src/Upda
     - the record's magic or layout changes incompatibly.
   - Any such change needs its own ruling, plus a transitional release that accepts both and is already on the fleet. Until then, `Accept` is an exact match.
 - **A mislabelled publish costs a head read, not a brick.** On each check, each device reads at most 352 bytes, closes the connection, records `refused-foreign` and keeps running. No device updates until a correctly labelled image is published.
+- **Added 2026-10-21 (Addendum 3, A3.2):** some devices never report a refusal anywhere: radar devices off the cloud feed, and every non-radar edition.
 - **The order is unchanged.** The accepting side reaches the fleet only through a release Daniel rules on, with blipscope-5c's release discipline, and before any Weatherscope slug exists.
 
 ### A1.5 Daniel's answers (2026-10-21)
@@ -343,6 +344,7 @@ A1.2 replaces `httpUpdate.update()`, so all three are rewritten. **What the new 
 - an accepted image: a `progress 0` and a `progress 100`.
 
 The refusal and accepted cases are observed in O11; the failure case in O6, at the next real version bump.
+- **Added 2026-10-21 (Addendum 3, A3.1):** with nothing drawn, the refusal's record needs a reader. That reader is `reconcile-fleet.py`.
 
 ### A2.2 The release-train coupling (point 3)
 
@@ -383,6 +385,10 @@ The refusal and accepted cases are observed in O11; the failure case in O6, at t
 | **refused** | The same path, serving another edition's image for the same board under B's name. Serial shows `refused-foreign` and **0** screen lines. After a power cycle, A is still running and the boot label is unchanged. |
 | **sabotage** | A bench build of A whose head read is off by one byte refuses the good B as `no-record` or `bad-record`. The accepted case rules out exactly this defect, so it must be visible as one. |
 
+- **Amended 2026-10-21 (Addendum 3):**
+  - The refused case's image is built from R's candidate with another edition's env (A3.4).
+  - The sabotage predicts exactly `no-record` (A3.3).
+
 **Open, for Daniel's ruling:**
 - **The board.**
   - Option 1: `907069326E64`, the board I have a standing OK to flash, running A with a Blipscope `s3-128` identity.
@@ -393,3 +399,56 @@ The refusal and accepted cases are observed in O11; the failure case in O6, at t
   - Either way, A needs a bench-only override of the `version.txt` and image URLs. Hosting B on GitHub keeps the production host and redirect path.
   - The override's marker string must be absent from every shipping ELF (the O9 grep).
   - How A's difference from R's candidate, the override alone, is bounded is frozen with O11's addendum before it runs.
+
+## Addendum 3, 2026-10-21: blipscope-5c's re-read at `9e9c6a9` (frozen before any Stage 3 code)
+
+blipscope-5c re-read Addendum 2 and found points 2-4 and O11 taken correctly. It confirmed the line numbers (`drawProgress(0)` at :394, `drawStatus` at :455) and O11's timing. **Three small items remain, and all three are taken.**
+
+### A3.1 The refusal's record gets a reader (item 1)
+
+**Why.** With nothing on screen (A2.1), `refused-<reason>` is the **only** fleet-level sign of a mislabelled publish, or of a broken accept path at R+1. Today nothing routinely reads it, which is the shape CLAUDE.md calls "an instrument that fires correctly into a void". Checked:
+- **Where the result is written:** only as an Analytics Engine point (`proxy/src/metrics.ts:304`: index `ota`, with the result and the device as blobs).
+- **What reads it:** nothing routinely. `scripts/reconcile-fleet.py` reads only the KV `fw:` rows, so its Instrument A prints the firmware spread and the change count. It shows neither the result nor "devices behind `version.txt`".
+
+**The reader.** On every run, `reconcile-fleet.py` prints the count of devices behind the published `version.txt`, broken down by each device's last OTA result:
+- `refused-*`, `fail-*`, `incomplete` and `ok`;
+- a bucket for devices with no `ota` point at all.
+
+**How it works:**
+- **The data:** the "behind" count comes from the `fw:` rows the script already reads; each device's last result comes from the `ota` points.
+- **It's a script change only:** no Worker change and no deploy.
+- **The analytics read** uses the token file's `analytics-read=` line, as `usage-stats.ts` does, never a user-level token.
+- **Why "behind":** it catches every cause, a refusal included. A defect at R+1 shows as devices stuck behind, sitting in a `refused-no-record` bucket.
+
+**Predicted, as part of 3.4, and in place before R ships:**
+- **R1 (host).** The breakdown is a pure function, run over fixture rows:
+  - each device lands in exactly one bucket, so the buckets always sum to the behind count;
+  - a fixture with `refused-foreign` rows prints a `refused-foreign` bucket.
+  - **Sabotage:** a breakdown that drops tokens it doesn't recognise loses the refused rows, so the sum check turns red.
+- **R2 (live, read-only).** One real run prints the line, and its buckets sum to the behind count computed from the `fw:` rows alone.
+
+**Who writes it** is agreed with blipscope-5c, since it is the Blipscope fleet's tool.
+
+### A3.2 Who never reports a refusal (item 1's gap), added to A1.4's consequences
+
+**The OTA record is sent only on the radar's cloud-feed requests.** `AircraftManager.cpp:2919` and `:2964` set it, and `CloudFeed.cpp:70` sends it. `AircraftManager` is radar-only: every other edition's build drops it. So two groups never report a refusal, and for them it shows only on serial:
+- **radar devices on a local feed or on OpenSky**, which make no cloud-feed requests;
+- **every non-radar edition:** Missileer, Orbitscope, Quakescope, Quillscope, Reelscope, Claudescope and Speedscope, plus Weatherscope, which makes no proxy calls in Stage 3.
+
+**This is a known blind spot,** stated so that A3.1's reader isn't mistaken for full coverage. Whether those editions should report too is a question for when they gain a proxy path, not for Stage 3.
+
+### A3.3 O11's sabotage predicts one value (item 2)
+
+**Predicted: exactly `no-record`.** The record's magic is parsed first (A1.2, step 2), and a one-byte shift moves it.
+- **A `bad-record` would mean** the shift landed on another valid magic. That is its own reason to stop.
+- **Made structural:** the magic's four bytes are pairwise distinct, held by a `static_assert`. So a one-byte shift in either direction can never re-form it.
+
+### A3.4 O11's foreign image carries a valid record (item 3)
+
+**How it's built:** from **R's candidate source**, with another edition's env for the same board; for example `weatherscope-s3-128` when A is `s3-128`. So it has the magic and a well-formed record naming the other edition.
+- **Predicted: exactly `refused-foreign`.**
+- **Why it matters:** a pre-check image, or one from another source, would be refused as `no-record`. That would test O10, not `foreign`.
+
+### A3.5 For Daniel's O11 ruling
+
+blipscope-5c is content with either board. If it is E2:08, O11 waits until #450's SC6 and the Part B soak are off that board.
