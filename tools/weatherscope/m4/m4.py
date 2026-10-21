@@ -9,7 +9,8 @@ files are downloaded to wxdata2/grib/pf/ and per-hour counts written to wxdata2/
 and no coordinate is printed.
 
 THE ORDER IS THE FROZEN ONE (A1.7, with Addenda 2-4), AND A STOP LEAVES EVERY LATER ROW UNREAD:
-  1. the instrument's checks: the listing holds Stage 2's files; C-M4a (packing, the scale sabotage, the census);
+  1. the instrument's checks: the listing holds Stage 2's files; C-M4e (the any-width decoder against mrms.ts);
+     C-M4a (packing, the width and scale sabotages, the census);
      C-M4b (the anchor); the run counter against the spike encoder (an instrument check, not a frozen row)
   2. M4a (cadence), M4b (pairing; its next-hour sabotage first), M4i (C-M4d first), M4c, M4d (its two sabotages first)
   3. C-M4c's three sabotages, then C-M4c
@@ -188,8 +189,7 @@ def run(sp):
     for h in hours:
         if h["hsr_t"] not in by_t["hsr"] or h["comp_t"] not in by_t["comp"]:
             raise InstrumentFailure(f"listing: Stage 2's file for {h['t']} is not in the listing")
-    print(f"listing: {len(L['pf'])} PrecipFlag, {len(L['hsr'])} SeamlessHSR, {len(L['comp'])} composite objects; "
-          f"all 48 of Stage 2's files present")
+    print("listing: all 48 of Stage 2's files present (object totals are not printed: they bear on M4a)")
     pf_times = sorted(by_t["pf"])
 
     def offsets_near(t, shift=0):
@@ -208,15 +208,27 @@ def run(sp):
         r = subprocess.run(["node", "--experimental-strip-types", os.path.join(HERE, "m4frame.ts"), spike, airports,
                             icao, files["hsr"], files["comp"], files["pf"], out], capture_output=True, text=True)
         if r.returncode != 0:
-            raise InstrumentFailure(f"m4frame.ts failed for {h['t']}: {r.stderr.strip()[-400:]}")
+            raise InstrumentFailure(f"m4frame.ts failed for {h['t']}, its whole stderr follows:{os.linesep}{r.stderr.strip()}")
         h["m"] = json.load(open(out))
     print(f"decoded: {len(hours)} hours x 3 files")
 
     # ================================ 1. the instrument's checks =================================================
-    packs = Counter((h["m"]["meta"]["pf"]["R"], h["m"]["meta"]["pf"]["E"], h["m"]["meta"]["pf"]["D"]) for h in hours)
-    print(f"C-M4a packing (R, E, D): {dict(packs)}")
-    if set(packs) != {(-3.0, 0, 0)}:
-        raise Stop("C-M4a: the packing is not (-3, 0, 0); A4.1's sabotage was derived for that packing. Stop and decide")
+    am = [(f"{h['t']:%m-%d %H:%M}", p, h["m"]["products"][p]["anchorMismatch"]) for h in hours for p in ("hsr", "comp")
+          if h["m"]["products"][p]["anchorMismatch"]]
+    print(f"C-M4e: the any-width decoder reproduces mrms.ts on {48 - len(am)}/48 SeamlessHSR and composite files")
+    if am:
+        raise InstrumentFailure(f"C-M4e: the any-width decoder disagrees with mrms.ts: {am[:4]}")
+    packs = Counter((h["m"]["meta"]["pf"]["bits"], h["m"]["meta"]["pf"]["R"], h["m"]["meta"]["pf"]["E"],
+                     h["m"]["meta"]["pf"]["D"]) for h in hours)
+    print(f"C-M4a packing (bits, R, E, D): {dict(packs)}")
+    if set(packs) != {(8, -3.0, 0, 0)}:
+        raise Stop("C-M4a: the packing is not 8 bits at (-3, 0, 0), which Addendum 5 predicted. Stop and decide")
+    w_hours = sum(1 for h in hours if h["m"]["census"]["sabWidthOutOfTable"])
+    w_total = sum(h["m"]["census"]["sabWidthOutOfTable"] for h in hours)
+    print(f"C-M4a sabotage (8-bit pairs read as 16-bit): out-of-table values in {w_hours}/24 hours ({w_total:,} cells) -> "
+          f"{'REFUSED, as predicted' if w_hours else 'NOT refused: the sabotage did not bite'}")
+    if not w_hours:
+        raise Stop("C-M4a's width sabotage did not bite")
     sab_hours = sum(1 for h in hours if h["m"]["census"]["sabScaleOutOfTable"] > 0)
     sab_total = sum(h["m"]["census"]["sabScaleOutOfTable"] for h in hours)
     print(f"C-M4a sabotage (R + 2X): out-of-table values in {sab_hours}/24 hours ({sab_total:,} cells) -> "

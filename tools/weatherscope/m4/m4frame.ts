@@ -25,6 +25,9 @@ const [, , spike, airportsPath, icao, hsrGz, compGz, pfGz, outPath] = process.ar
 if (!outPath) { console.error("usage: m4frame.ts <spike> <airports> <ICAO> <hsr.gz> <comp.gz> <pf.gz> <out.json>"); process.exit(2); }
 const { decodeMrms, codeOf } = await import(pathToFileURL(`${spike}/tools/wx/mrms.ts`).href);
 const { cropBox, encodeCrop } = await import(pathToFileURL(`${spike}/tools/wx/crop.ts`).href);
+// Addendum 5: PrecipFlag is 8 bits per value, which mrms.ts refuses; pngdecode.ts is its row loop for 8 or 16.
+const { loadDecoder } = await import(new URL("./pngdecode.ts", import.meta.url).href);
+const decodeAnyWidth = await loadDecoder(spike);
 
 let lat = NaN, lon = NaN;
 for (const line of readFileSync(airportsPath, "utf8").split(/\r?\n/)) {
@@ -66,10 +69,17 @@ function runBytes(seq: ArrayLike<number>): number {
 
 // ---- reflectivity: SeamlessHSR, then the composite (window values and full code grids, one at a time) --------
 type Product = { meta: any; box: any; raw: Float32Array; code: Uint8Array; centreRaw: number; v1Rung: number;
-                 codeBytesAtK1: number; encoderBytesAtK1: number };
+                 codeBytesAtK1: number; encoderBytesAtK1: number; anchorMismatch: number };
 async function product(gz: string): Promise<Product> {
   const { v, meta } = await decodeFull(gz);
   if (!meta.n2s || !meta.w2e) refuse(`${gz}: unexpected scanning`);
+  // C-M4e (Addendum 5): the any-width decoder must reproduce mrms.ts on this 16-bit file, cell for cell.
+  let anchorMismatch = 0, anchorRows = 0;
+  await decodeAnyWidth(new Uint8Array(readFileSync(gz)), (row: number, vals: Float32Array) => {
+    anchorRows++;
+    for (let j = 0; j < vals.length; j++) if (vals[j] !== v[row * meta.ni + j]) anchorMismatch++;
+  });
+  if (anchorRows !== meta.nj) anchorMismatch += 1 + Math.abs(meta.nj - anchorRows) * meta.ni;
   const codes = new Uint8Array(meta.ni * meta.nj);
   for (let i = 0; i < codes.length; i++) codes[i] = codeOf(v[i]);
   const cg = { codes, ni: meta.ni, nj: meta.nj, la1: meta.la1, lo1: meta.lo1, di: meta.di, dj: meta.dj,
@@ -86,15 +96,25 @@ async function product(gz: string): Promise<Product> {
   const e1 = encodeCrop(cg, lat, lon, KM, Infinity);          // capBytes = Infinity: always coarsen 1
   const ev = encodeCrop(cg, lat, lon, KM);                     // the v1 rung, with the real cap
   return { meta, box, raw, code, centreRaw: v[cr * meta.ni + cc], v1Rung: ev.coarsen,
-           codeBytesAtK1: runBytes(code), encoderBytesAtK1: e1.bytes.length - 32 };
+           codeBytesAtK1: runBytes(code), encoderBytesAtK1: e1.bytes.length - 32, anchorMismatch };
 }
 
 const hsr = await product(hsrGz);
 const comp = await product(compGz);
 
 // ---- PrecipFlag: the full grid stays in memory (the shifted and flipped reads leave the window) --------------
-const pfd = await decodeFull(pfGz);
-const pf = pfd.v, pm = pfd.meta;
+// Decoded with the any-width decoder (Addendum 5). The width sabotage is computed here, from the raw samples:
+// each PAIR of 8-bit samples read as one 16-bit value, X' = 256 X1 + X2, the direction that exists for 8-bit data.
+let pfBuf: Float32Array | null = null, pfRows = 0;
+const pg = await decodeAnyWidth(new Uint8Array(readFileSync(pfGz)), (row: number, vals: Float32Array) => {
+  if (!pfBuf) pfBuf = new Float32Array(vals.length * MAX_ROWS);
+  if (row >= MAX_ROWS) refuse(`${pfGz}: more than ${MAX_ROWS} rows`);
+  pfBuf!.set(vals, row * vals.length); pfRows++;
+});
+if (pfRows !== pg.nj) refuse(`${pfGz}: decoded ${pfRows} rows, header says ${pg.nj}`);
+const pm = { ni: pg.ni, nj: pg.nj, la1: pg.la1, lo1: pg.lo1, la2: pg.la2, lo2: pg.lo2, di: pg.di, dj: pg.dj,
+             w2e: pg.w2e, n2s: pg.n2s, R: pg.R, E: pg.E, D: pg.D, bits: pg.bits, validTimeUtc: pg.validTimeUtc };
+const pf = pfBuf!.subarray(0, pg.ni * pg.nj);
 const census: Record<string, number> = {}; let outOfTable = 0, nonInteger = 0;
 const odd: number[] = [];
 let sabOut = 0;
@@ -106,6 +126,15 @@ for (let i = 0; i < pf.length; i++) {
   else { outOfTable++; if (odd.length < 5 && !odd.includes(x)) odd.push(x); }
   const X = (x * div - pm.R) / scale;                            // A4.1's sabotage: the binary scale off by one
   if (!PF_TABLE.has((pm.R + X * scale2) / div)) sabOut++;
+}
+// Addendum 5's width sabotage, for 8-bit data: each pair of samples in a row read as one 16-bit sample.
+let sabWidthOut: number | null = null;
+if (pm.bits === 8) {
+  sabWidthOut = 0;
+  for (let r = 0; r < pm.nj; r++) for (let j = 0; j + 1 < pm.ni; j += 2) {
+    const X1 = (pf[r * pm.ni + j] * div - pm.R) / scale, X2 = (pf[r * pm.ni + j + 1] * div - pm.R) / scale;
+    if (!PF_TABLE.has((pm.R + (X1 * 256 + X2) * scale) / div)) sabWidthOut++;
+  }
 }
 
 // ---- C-M4c: pooled-IoU counts, real and three sabotages -------------------------------------------------------
@@ -165,14 +194,15 @@ function rows(p: Product) {
   }
   const allOneType = types.every((t) => t === types[0]);
   return { echo, echoPfPos, echoSnow, echoNoType, snow, snowEcho, typeBytes: runBytes(types), allOneType,
-           codeBytes: p.codeBytesAtK1, encoderCodeBytes: p.encoderBytesAtK1, v1Rung: p.v1Rung };
+           codeBytes: p.codeBytesAtK1, encoderCodeBytes: p.encoderBytesAtK1, v1Rung: p.v1Rung,
+           anchorMismatch: p.anchorMismatch };
 }
 const sameBox = JSON.stringify(hsr.box) === JSON.stringify(comp.box);
 
 writeFileSync(outPath, JSON.stringify({
   files: { hsr: hsrGz.split(/[\\/]/).pop(), comp: compGz.split(/[\\/]/).pop(), pf: pfGz.split(/[\\/]/).pop() },
   meta: { hsr: hsr.meta, comp: comp.meta, pf: pm },
-  census: { counts: census, outOfTable, nonInteger, odd, sabScaleOutOfTable: sabOut },
+  census: { counts: census, outOfTable, nonInteger, odd, sabScaleOutOfTable: sabOut, sabWidthOutOfTable: sabWidthOut },
   centre: { hsr: hsr.centreRaw, comp: comp.centreRaw },
   box: { rows: B.rows, cols: B.cols, sameBoxBothProducts: sameBox },
   iou,
