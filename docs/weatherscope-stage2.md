@@ -810,3 +810,27 @@ The board matched only the model C2 predicted.
 - **Going below 15 dBZ adds 3 hours:** one at 10 dBZ (11.5), and two more at 5 dBZ (6.7 and 8.1).
 - **4 hours (16.7 %) have no echo anywhere in the ring:** 12-03 00:52, 12-03 04:52, 12-04 23:52 and 12-11 15:52, all hours whose METAR reported snow. **No threshold catches them.** Light snow under the beam, or a timing mismatch, could explain them; this run doesn't separate the two.
 - **So a lower snow threshold would raise ring detection from 70.8 % to at most 83.3 %**, and only by carrying sub-15 dBZ snow on the wire, which is the shared format change held for blipscope-5c.
+
+### The legend on the bench board (2026-10-20, frozen in addendum 7): all as predicted
+
+**Code:** `feat/weatherscope-legend` at `954c7eb`, stacked on #439. It contains:
+- `src/weatherscope/WxLegend.h`: the layout, 7 rows and 21 swatches;
+- the harness's `DrawLegend()` and its `L` dump;
+- `test/fixtures/wx/legend_check.py`.
+
+The board alternates the KDFW frame and the legend every 10 s.
+
+| check | predicted | result | |
+|---|---|---|---|
+| Build | RAM within ±512 B of 26,912; flash up < 6 KB from 465,447 | **26,912 B; 466,047 B** (+600). ALL HOST TESTS PASSED, 0 B on stderr | ✓ |
+| **L4**: the dump | 240 rows, every CRC good | **240/240**. Sprite sha256 `a94355d7857a…`, equal to the board's own | ✓ |
+| **L2**: coverage | exactly the ruled mapping | **21 swatches in 7 rows**, top to bottom: rain 1-4 / 5-7 / 8-10 / 11-13, snow 1-6, 14, 15; nothing for dry. **Exact** | ✓ |
+| **L1**: every swatch equals the palette | all 21, every pixel | **21/21 exact**, against colours derived independently from the pinned table and addendum 6 | ✓ |
+| **L3**: the frame unchanged | C1, C2 | **B9 identical** (240/240); **C2 `a88c3a99fa5c…`** | ✓ |
+| Timings | B3, B4, B8 in band; B5-B7 MISS within ±10 %; budget | 153,608 B; 0 B; 25.784 ms; 2.867 / 3.584 / 22.611 ms (+2.7 %); 54.8 ms, 19.5 fps | ✓ |
+| **S-L** | L1 fails on exactly Moderate's first swatch; L2 still passes | **20/21: `#4 rain 5: 144/144 px` mismatched**; L2 exact; exit 1 | ✓ red as predicted |
+| The restore | sha256 checked; L1 back to 21 | `stage1_main.cpp` back to its sha256, and `git diff` empty. **The rebuild is byte-identical to the pre-plant image (`e572e3d70252…`)**. Reflashed: **21/21**, sprite `a94355d7857a…` again | ✓ |
+
+- **Flashes:** each resolved the port from the serial (MAC `90:70:69:32:6e:64`) and verified all four images.
+- **Captures:** saved outside the clone, together with a PNG of the board's own legend, built from its dumped pixels (`captures/wx-legend-205546.png`).
+- **Left out of the bench version, as recorded:** the optional dBZ text, and showing the legend at first boot (an open question for Daniel).
