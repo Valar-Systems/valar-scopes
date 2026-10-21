@@ -137,3 +137,25 @@ Cloudflare's docs say named environments **do not inherit** Durable Object bindi
 | | check | predicted |
 |---|---|---|
 | **B11** | `npx wrangler deploy --dry-run --env staging` and `--env production`; nothing is deployed | each lists the Durable Object binding `BEND_SNAPSHOT` (class `BendSnapshotDO`) and the var `SITE_FEED_BEND`. *Sabotage S-B11:* with the production binding removed, the production dry-run doesn't list it, and the check goes red |
+
+## Results: local (2026-10-21, before CI)
+
+Graded on `5c055b3`. Every check came out as predicted, and every sabotage turned its check red. Each plant asserted that its anchor appeared exactly once and that the file changed, and each was restored and verified against the commit.
+
+| | read | sabotage |
+|---|---|---|
+| **B1** | `covers()` is true 1 m inside the bucket-80 boundary and false 1 m outside it; never true for bucket 40; only planes within R kept | (structural; B2-B3 depend on it) |
+| **B2** | from the tile 44.10/-121.25, the stored row's keys are exactly `aircraft, source, t`, and it contains neither `44.10` nor `-121.25` | **S-B2** (tile as centre): red |
+| **B3** | the device got its `limit` of 5, and the snapshot holds all **20** planes inside the circle and none of the 3 outside it | **S-B3** (the `limit`-cut list): B2/B3 red, and B9 red too (it also expects 20) |
+| **B4** | the Durable Object's `fetch` rejects: the device gets 200 and a body identical to the switch-off response (apart from `t`), and `write_error` is counted once | **S-B4** (awaited in-line): red |
+| **B5** | written at t0, refused at t0+10 s on a new instance, written at t0+31 s | **S-B5** (instance field): red |
+| **B6** | at 121 s: `aircraft: []`, `stale: true`; at 119 s the planes are present | **S-B6** (no cutoff): red |
+| **B7** | one Durable Object read for reads at 0 s and +5 s; a second at +11 s | **S-B7** (no cache): red |
+| **B8** | empty gives `{available:false, reason:"empty"}`, with exactly one `GET /get` and **0** global `fetch` calls | **S-B8** (an upstream fall-back): red |
+| **B9** | off: 0 Durable Object calls and `disabled`. On, against the **real** Durable Object binding: written, and read back with 20 planes and the downtown centre | (S-B3 above) |
+| **B10** | the full proxy suite: **44 files, 585 tests passed**, every existing test unmodified; `tsc` clean | (n/a) |
+| **B11** | `wrangler deploy --dry-run` for staging and production each list `env.BEND_SNAPSHOT (BendSnapshotDO)` and `env.SITE_FEED_BEND ("on")` | **S-B11** (production binding removed): not listed, so red |
+
+**What B11 showed beyond its prediction:** with the production binding removed, the dry-run **still exits 0**. Wrangler would deploy production with the feed silently off (`enabled()` needs the binding). That's the reason the check reads the artifact rather than the file or the exit code. A CI step that runs this dry-run would make it permanent. I'd propose that separately.
+
+**Still to come:** CI on this push. L1 and L2 follow Daniel's deploy.
