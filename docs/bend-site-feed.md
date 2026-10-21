@@ -190,3 +190,72 @@ The full proxy suite passes (44 files, 587 tests), and `tsc` is clean. The READM
 "The counts" in the design section lists **`skipped_isolate_guard`, but the code never emits it.** That was deliberate in the code and left wrong in this document.
 - **Why it isn't counted:** the per-isolate guard is hit on nearly every tile refresh that covers Bend. One Analytics Engine point per refresh would be steady write traffic for no information, since the guard only keeps Durable Object traffic small. The 30 s rule's real refusals are counted, as `refused_30s`.
 - **So the counts are four:** `written`, `skipped_not_covered`, `refused_30s` and `write_error`. That matches `proxy/README.md` and `src/sitefeed/bend.ts`. `skipped_not_covered` is itself rate-limited, to once per isolate per 30 s, and is emitted only for fetches that overlap the circle.
+
+## Addendum 3, 2026-10-21 (before any code): v2, three pass-through fields, and a staged production deploy
+
+**Asked by Daniel:** the website needs three more fields per aircraft, **passed through from adsb.fi as received**:
+- the type code (readsb `t`);
+- the type name (`desc`);
+- `dbFlags`, the bitfield (military, interesting, PIA, LADD), **unchanged**.
+
+Registration and operator are **not** wanted. The rest of the shape is kept, and `v` is bumped.
+
+**The design:**
+- **The writer is handed the upstream's raw records**, not the normalised list, because normalisation drops these three fields. It normalises them itself, for position, altitude and so on, exactly as `blips.ts` does.
+- **The three fields are copied verbatim under their upstream names** (`t`, `desc`, `dbFlags`), with no renaming, so "as received" is literal.
+- **A value of the wrong type is refused,** not coerced: `t` and `desc` must be strings and `dbFlags` a non-negative integer. Anything else, or absence, is `null`. A coerced value would be a plausible-shaped wrong answer.
+- **`v` becomes 2.** Snapshots stored by v1 code have no such fields, so the reader fills them with `null` ("not received"), never with an invented value.
+
+**The staged production deploy (Daniel's standing deploy rule, step 2):** production's `SITE_FEED_BEND` is set to **`"off"`** here. The first production deploy then ships #450, #458 and this with the Bend writer **dormant**, and the existing service is checked. A one-line reviewed change sets it to `"on"`, followed by another check. Staging stays `"on"`.
+
+| | check | predicted |
+|---|---|---|
+| **B14** | the pass-through fields | for upstream records carrying `t: "B738"`, `desc: "BOEING 737-800"`, `dbFlags: 1`, the snapshot's aircraft carry exactly those values, and `v` is **2**. A record without them gives `null` for each. *Sabotage S-B14:* dropping `dbFlags` from the copy turns the check red |
+| **B15** | refused, not coerced | `t: 738` (a number), `desc: {}` and `dbFlags: "1"` (a string) each give `null`, never `"738"`, `"[object Object]"` or `1`. *Sabotage S-B15:* `String(t)` turns the check red |
+| **B16** | nothing unwanted | each aircraft's keys are exactly the v1 set plus `t`, `desc` and `dbFlags`. An upstream `r` (registration) and `ownOp` (operator) are **not** passed through. *Sabotage S-B16:* copying `r` turns the check red |
+| **B17** | a v1 row read by v2 code | an aircraft stored without the three fields is served with each one `null`, and `v` is 2 |
+| **B18** | the switch | the production dry-run lists `SITE_FEED_BEND ("off")`; the staging dry-run lists `("on")` |
+| **B1-B13** | unchanged | every existing Bend test passes. The tests that build upstream bodies already go through the raw path |
+
+**After the deploy:**
+- **The off-stage:** `/healthz` reports the commit, and the fleet's own request statuses are unchanged (read from Analytics Engine, which needs no smoke credential).
+- **The on-stage:** L1 and L2 as before.
+
+### Results for addendum 3 (graded on `c069f47`)
+
+| | read | sabotage |
+|---|---|---|
+| **B14** | `t: "B738"`, `desc: "BOEING 737-800"` and `dbFlags: 1` come through exactly; absent fields read `null`; `v` is **2** | **S-B14** (`dbFlags` dropped): red |
+| **B15** | `t: 738`, `desc: {}` and `dbFlags: "1"` each read `null` | **S-B15** (`String(t)`): red |
+| **B16** | each aircraft's keys are exactly the v1 ten plus `t`, `desc` and `dbFlags`; `r` ("N12345") and `ownOp` ("SOMEONE LLC") appear nowhere in the stored JSON | **S-B16** (`r` copied): red |
+| **B17** | a v1 row is served as `v: 2`, with the three fields `null` | (structural) |
+| **B18** | dry-runs: staging `SITE_FEED_BEND ("on")`, production `("off")`; both list `BEND_SNAPSHOT (BendSnapshotDO)` | (n/a) |
+| **B1-B13** | unchanged and passing; the test file only gained lines | (n/a) |
+
+- **The suites:** the full proxy suite passes (44 files, 594 tests) and `tsc` is clean.
+- **One type correction, made before grading:** stored aircraft (`StoredAircraft`) make the three fields optional, because v1 rows really lack them. Served aircraft always carry all three.
+
+## Addendum 4, 2026-10-21 (before its code): one circle test, from the Weatherscope session's review of `27e906a`
+
+**The finding.** `extractRaw` tested the circle, then built each aircraft with `extract([a])[0]!`, which tested it **again**. Two copies of one rule: if they ever disagree, an aircraft is emitted as `{t, desc, dbFlags}` alone, with no `hex`, `lat` or `lon`, and the `!` hides that from the type checker. The reviewer showed it: `<=` changed to `<` in `extract` alone passed all 14 tests, because the boundary is tested only through `extract`, at ±10 m.
+
+**The change:**
+- **One predicate,** `inCircle(a)`, decides membership.
+- **One conversion,** `toSite(a)`, builds an aircraft.
+- `extract` and `extractRaw` both use both, so they can't disagree, and the `!` goes.
+
+| | check | predicted |
+|---|---|---|
+| **B19** | for aircraft at R − 1 m, R − 1 cm and R + 1 m, via `extractRaw` | every output carries `hex`, `lat` and `lon`. **Membership equals `extract`'s** for the same aircraft: in, in, out. *Sabotage S-B19:* a second, stricter circle test in `extractRaw` alone turns B19 red, and makes no partial aircraft |
+| **S-B17** (the reviewer's, recorded) | the reader's `?? null` fill removed | B17 red. The reviewer ran it at `27e906a`, and it failed exactly B17 |
+
+B1-B18 are unchanged.
+
+### Results for addendum 4 (graded on `570cec0`)
+
+| | read | sabotage |
+|---|---|---|
+| **B19** | at R − 1 m, R − 1 cm and R + 1 m, `extractRaw` emits `b19001` and `b19002`, each with `hex`, `lat` and `lon`. That is the same membership as `extract` | **S-B19** (a second, stricter circle test in `extractRaw` alone): red |
+| **S-B17** | the reader's `?? null` fill removed: B17 red | (reproduces the reviewer's run) |
+
+There is now one circle test (`inCircle`) and one conversion (`toSite`), and the `!` is gone. The full proxy suite passes (44 files, 595 tests); `tsc` is clean.

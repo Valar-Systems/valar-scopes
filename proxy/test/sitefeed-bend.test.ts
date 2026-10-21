@@ -1,7 +1,7 @@
 // The Bend site feed (docs/bend-site-feed.md): B1-B9. Each check has a sabotage in the doc that turns it red.
 import { env, fetchMock } from "cloudflare:test";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { SCHEMA_V } from "../src/schema";
+import { SCHEMA_V, normalizeReadsbAc } from "../src/schema";
 import {
   BEND,
   BendFeed,
@@ -10,6 +10,7 @@ import {
   __resetSiteFeedForTests,
   covers,
   extract,
+  extractRaw,
   fetchedKm,
   haversineKm,
   readSnapshot,
@@ -269,5 +270,75 @@ describe("B12/B13 Bend only, credited with a link (adsb.fi's OK, Daniel 2026-10-
       const r = await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns }, Date.now(), fakeCache());
       expect(r).toMatchObject({ available: true, source, attribution_url: url });
     }
+  });
+});
+
+describe("B14-B17 v2: t / desc / dbFlags passed through as received (Daniel, 2026-10-21)", () => {
+  const V1_KEYS = ["alt_ft", "category", "cs", "gs_kt", "hex", "lat", "lon", "seen_s", "track_deg", "vrate_fpm"];
+
+  async function storedFrom(acs: Record<string, unknown>[], limit: number) {
+    fetchMock.get(LOL).intercept({ path: UPSTREAM_PATH }).reply(200, pointBody(acs));
+    const { ns, calls } = fakeNs(async () => new Response(null, { status: 204 }));
+    await call(deviceReq(limit), { SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns });
+    expect(calls).toHaveLength(1);
+    return (JSON.parse(calls[0]!.body) as Snapshot).aircraft;
+  }
+
+  it("B14 the three fields arrive exactly as the upstream sent them, null when absent, and v is 2", async () => {
+    const got = await storedFrom(
+      [
+        makeAc({ hex: "c14001", lat: 44.06, lon: -121.31, t: "B738", desc: "BOEING 737-800", dbFlags: 1 }),
+        makeAc({ hex: "c14002", lat: 44.07, lon: -121.32, t: undefined, desc: undefined, dbFlags: undefined }),
+      ],
+      14,
+    );
+    const by = Object.fromEntries(got.map((a) => [a.hex, a]));
+    expect(by["c14001"]).toMatchObject({ t: "B738", desc: "BOEING 737-800", dbFlags: 1 });
+    expect(by["c14002"]).toMatchObject({ t: null, desc: null, dbFlags: null });
+    const { ns } = fakeNs(async () => Response.json({ t: Math.floor(Date.now() / 1000), source: "adsb.fi", aircraft: got }));
+    const r = await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns }, Date.now(), fakeCache());
+    expect(r).toMatchObject({ available: true, v: 2 });
+  });
+
+  it("B15 a value of the wrong type is refused (null), never coerced", async () => {
+    const got = await storedFrom([makeAc({ hex: "c15001", lat: 44.06, lon: -121.31, t: 738, desc: {}, dbFlags: "1" })], 15);
+    expect(got[0]).toMatchObject({ t: null, desc: null, dbFlags: null });
+  });
+
+  it("B16 nothing unwanted: exactly the v1 keys plus t, desc, dbFlags -- no registration, no operator", async () => {
+    const got = await storedFrom(
+      [makeAc({ hex: "c16001", lat: 44.06, lon: -121.31, r: "N12345", ownOp: "SOMEONE LLC", t: "C172", desc: "CESSNA 172", dbFlags: 8 })],
+      16,
+    );
+    expect(Object.keys(got[0]!).sort()).toEqual([...V1_KEYS, "dbFlags", "desc", "t"].sort());
+    expect(JSON.stringify(got)).not.toContain("N12345");
+    expect(JSON.stringify(got)).not.toContain("SOMEONE LLC");
+  });
+
+  it("B17 a row stored by v1 code is served with the three fields null, as v 2", async () => {
+    const v1row = { t: Math.floor(Date.now() / 1000), source: "adsb.fi",
+      aircraft: [{ hex: "c17001", cs: "X", lat: 44.06, lon: -121.3, alt_ft: 1, gs_kt: 1, track_deg: 1, vrate_fpm: 0, category: 1, seen_s: 1 }] };
+    const { ns } = fakeNs(async () => Response.json(v1row));
+    const r = await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns }, Date.now(), fakeCache());
+    expect(r).toMatchObject({ available: true, v: 2 });
+    if (r.available) expect(r.aircraft[0]).toMatchObject({ t: null, desc: null, dbFlags: null });
+  });
+});
+
+describe("B19 one circle test (addendum 4)", () => {
+  it("extractRaw emits only complete aircraft, and agrees with extract on membership at the boundary", () => {
+    const at = (km: number, hex: string) => {
+      const p = northOf(km);
+      return makeAc({ hex, lat: p.lat, lon: p.lon });
+    };
+    const raw = [at(RADIUS_KM - 0.001, "b19001"), at(RADIUS_KM - 0.00001, "b19002"), at(RADIUS_KM + 0.001, "b19003")];
+    const viaRaw = extractRaw(raw);
+    for (const a of viaRaw) {
+      expect(typeof a.hex).toBe("string");
+      expect(Number.isFinite(a.lat) && Number.isFinite(a.lon)).toBe(true);
+    }
+    const norm = raw.map(normalizeReadsbAc).filter((a): a is NonNullable<typeof a> => a !== null);
+    expect(viaRaw.map((a) => a.hex)).toEqual(extract(norm).map((a) => a.hex));
+    expect(viaRaw.map((a) => a.hex)).toEqual(["b19001", "b19002"]);
   });
 });
