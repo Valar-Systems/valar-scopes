@@ -561,3 +561,231 @@ O11's own predictions are frozen in its addendum before the run, and it waits it
 ### A4.3 Stage 3 code may start
 
 "No Stage 3 code until #449 is approved at its new head" is met. Step 3.1 starts with its predictions frozen first (section 8).
+
+## Addendum 5, 2026-10-21: step 3.1, moving the bench harness (frozen before its code)
+
+**Ruled 2026-10-21 (Daniel):** step 3.1 goes now, with its predictions frozen first, without waiting for measurement 4. Measurement 4 has since completed (`docs/wxc1-v2.md` A7.7).
+
+**The base:** main once #452 is merged. Its tree is `991ac88`'s, and this branch starts from `991ac88`. **The tree equality is checked** (`git diff 991ac88 <merge>` empty) before the base builds are believed.
+
+### A5.1 The complete change list
+
+1. **The move:** `src/weatherscope/stage1_main.cpp` → `src/weatherscope/bench/stage1_main.cpp`, by `git mv`, **byte-identical** (a 100 % rename).
+   - Its includes stay bare names (`"WxPalette.h"` and the rest), so the bench env gains an include path to `src/weatherscope`. The shared headers stay where they are, for the product.
+   - Its header comment still names the old env. That line changes in 3.2, when the product env takes the name, so the file stays byte-identical here.
+2. **`platformio.ini`:** `[env:weatherscope-s3-128]` becomes `[env:weatherscope-bench-s3-128]`.
+   - `build_src_filter = -<*> +<weatherscope/bench/>`.
+   - The include path for `src/weatherscope` is added to its `build_flags`, and its comment is updated.
+   - `extends`, `embed_files` and `lib_deps` are unchanged.
+   - `[filters] editions_off` is unchanged: it drops `weatherscope/`, which still covers `bench/`.
+3. **`skus.yml`:** the row is renamed `weatherscope-bench-s3-128`, still build-only.
+4. **`scripts/check-adsbdb-out.sh`:** the `weatherscope-*` case is narrowed to `weatherscope-bench-*`. Its plant path, in the case and in `PLANT_FILES`, moves to `src/weatherscope/bench/stage1_main.cpp`.
+5. **`tools/weatherscope/s1/`:** Stage 1's stamp accountant (`stampdiff.py`, committed unchanged) and the S1 driver, both committed before S1 runs.
+6. **`RELEASING.md`, and A5.3 here:** the two release rulings relayed on 2026-10-21, beside "Planned, not yet in any release".
+
+**Nothing else changes:** no other env's configuration, and no source any other env compiles.
+
+### A5.2 Predicted
+
+| check | how | predicted |
+|---|---|---|
+| **S1** | **What:** the 14 other envs in `skus.yml`, each built clean at the base and at 3.1's head.<br>**Where:** in **one directory**, so no path compiled into an image differs.<br>**How:** each pair compared with `stampdiff.py`. | **Stamps only, in 14/14.** That means `app_elf_sha256`, the checksum and trailing SHA-256, and WiFiManager's two time strings where WiFiManager is linked. **Any size change or UNEXPLAINED byte: stop.** |
+| **S1's sabotage** | **The edit:** at the head, `if (millis() == 0xFFFFFFFFul) Serial.println("S1 SABOTAGE");` at the top of `ConfigurationWebServer::Initialise()`, outside every edition guard. It is runtime-dependent, so the linker keeps it.<br>**The check:** the edit is asserted applied, then reverted after. | **Two-sided, keyed to the build itself:**<br>• a non-stamp difference in **every env whose build compiled `ConfigurationWebServer.cpp`** (its object file exists). Predicted: 13 of the 14, every one except `animtest-s3-128`;<br>• **stamps only in every env that didn't.** Predicted: `animtest-s3-128` alone. |
+| **the bench image** | `weatherscope-bench-s3-128` at the head against `weatherscope-s3-128` at the base, in the same directory | **Stamps only, with no time strings**, since the bench links no WiFiManager: `app_elf_sha256`, the checksum and the trailing SHA-256. |
+| **C1, on the board** | Flash the head's bench image on `907069326E64` (standing OK; the port found by serial). Then run `capture_stage1.py`. | **Exit 0, as in Stage 2:**<br>• 240/240 rows;<br>• B9 `344383b4…`, equal to the board's `fb_sha256`;<br>• its standing timing checks repeating. |
+| **C2, on the board** | the same capture's `WX,sprite_sha256` | **`a88c3a99fa5c1bb4d6d2bb77d081b22b8da6e752200ae79cf67acec90c335ed3`**: `palette_ref.py`'s sprite for the final 55 % palette, 115,200 bytes, run before this addendum |
+| **L1-L6, on the board** | `legend_check.py` | **Exit 0:** L1, L2, L4, L5 and L6 all hold. The script defines no L3. |
+| **CI** | the matrix, from `skus.yml` | **The bench leg** builds under its new name. Its adsbdb gate reads PASS, with the control seen in `src/weatherscope/bench/stage1_main.cpp`.<br>**The discriminator:** if the narrowed case failed to match the renamed env, the gate would plant at the default site, which the bench doesn't compile, and read `UNTRUSTWORTHY (control blind)`.<br>**Every other leg:** as on main. |
+
+**The order:**
+1. this addendum;
+2. the code commit, then the S1 tooling commit;
+3. S1's base builds, then its head builds, then the sabotage builds;
+4. the bench image;
+5. the flash and the board checks.
+
+**Outside every prediction: stop and decide.**
+
+**Disk:** C: has 26 GB free. Each env's build directory is deleted once its image is copied out, so at most one env's build is on disk at a time.
+
+### A5.3 Two release rulings, relayed by blipscope-5c from the reviewer chat (2026-10-21)
+
+- **The OTA identity check's release:** "The release that adds it needs Daniel's explicit OK at cut time, with those two consequences named in plain words." The two consequences are A1.4's:
+  - no OTA downgrade past that release;
+  - edition and board identities become permanent.
+
+  This is also written into `RELEASING.md`'s "Planned, not yet in any release" note, where the person cutting R reads it.
+- **O11:** "no prerelease gets created, as a bench test or otherwise, until you've brought me what each release job does on a prerelease publish and Daniel has OK'd it."
+  - blipscope-5c's read-only analysis is with the reviewer. A prerelease publish runs the full release pipeline. `promote` pauses on Daniel's required review, and **one approval would make the bench release `latest` for the whole fleet.**
+  - blipscope-5c recommends three things:
+    - a structural guard, so that `promote` never runs for `bench-*` tags;
+    - rejecting the promote deployment, as a second layer;
+    - a distinct asset name for B.
+  - Daniel decides. **No prerelease exists until then.**
+
+### A5.4 S1 stopped: the reading, and a diagnosis registered before it runs (2026-10-21; local until ruled)
+
+**The reading** (`tools/weatherscope/s1/s1.py compare`). All three rounds built every env. The sabotage was planted, then removed, with the file restored byte-identical and the clone clean.
+
+| row | predicted | measured |
+|---|---|---|
+| **S1** | stamps only, 14/14 | **11/14: OFF-PREDICTION, STOP.** These three are not stamps-only, at equal sizes:<br>• `blipscope-s3-128`: 143,061 unexplained bytes;<br>• `blipscope-pro-s3-21`: 21,858;<br>• `missileer-photo`: 6, in two 3-byte regions that read as rodata pointers (`0x3C…`). |
+| **S1's sabotage** | two-sided, with the non-compiling set exactly `animtest-s3-128` | **14/14 as predicted.** The 13 envs that compiled `ConfigurationWebServer.cpp` show a non-stamp difference, and `animtest-s3-128` is stamps only. **The instrument sees.** |
+| **the bench image** | stamps only, no time strings | **OFF-PREDICTION: the size differs** (466,528 → 466,544 B). The cause is read off the images: `[common]` compiles `-DBUILD_ENV=\"$PIOENV\"` into every image (`platformio.ini:100`). So the base image holds `weatherscope-s3-128` and the head holds `weatherscope-bench-s3-128`. **Renaming the env must change the image, and A5.2's prediction missed it.** |
+
+**Not run:** the board checks (C1, C2, L1-L6). They follow S1 in A5.2's order. CI's own prediction for #453 is unaffected.
+
+**Three explanations fit the three envs, and the saved images can't separate them:**
+- **H-A, 3.1 changed them.** No changed env name or commit id appears in them (searched for), but nothing yet excludes it.
+- **H-B, a first-build effect in the fresh clone.** The base round was the clone's FIRST build of every env. It installed and patched each env's libraries (`pre:` patch scripts) on the way, and the head round reused them. `blipscope-s3-128` and `blipscope-pro-s3-21` were the first two envs built.
+- **H-C, these envs don't build reproducibly** in this setup at all.
+
+**D1, the control** (to run once this is committed):
+- **What:** rebuild `blipscope-s3-128`, `blipscope-pro-s3-21` and `missileer-photo` at the **base** (`991ac88`), in the same clone, with `s1.py build` (label `base-rebuild`).
+- **The comparisons:** (i) the rebuild against the base round's image, which is the same source; and (ii) the head round's image against the rebuild.
+
+| per env | (i) base-rebuild vs base | (ii) head vs base-rebuild | means |
+|---|---|---|---|
+| **H-A** | stamps only | NOT stamps only | 3.1 changed the image: S1's miss is real |
+| **H-B** | NOT stamps only | stamps only | the base round's images were first-build artifacts: S1's miss is the instrument's |
+| **H-C** | NOT stamps only | NOT stamps only | the env doesn't build reproducibly: S1 can't judge it as designed |
+| anything else | | | the instrument is unreliable at this scale: stop and decide |
+
+**D2, the bench's one difference:**
+- **What:** in the clone at the head, the bench env's header alone is temporarily renamed back to `[env:weatherscope-s3-128]` (asserted applied, restored, and the clone asserted clean). It is built and compared with the base round's bench image.
+- **Predicted: stamps only, with no time strings.** That would make the env name the image's only difference.
+- **Anything else:** stop.
+
+**The fix is not chosen here.** It waits for the ruling, after D1 and D2 are read.
+
+### A5.5 D1 and D2, read as registered; the cause; a proposed fix (2026-10-21; local until ruled)
+
+**D1, per env, graded on A5.4's table:**
+
+| env | (i) base-rebuild vs base | (ii) head vs base-rebuild | outcome |
+|---|---|---|---|
+| `blipscope-pro-s3-21` | NOT stamps only (21,858) | stamps only | **H-B, a first-build effect** |
+| `missileer-photo` | NOT stamps only (6) | stamps only | **H-B, a first-build effect** |
+| `blipscope-s3-128` | stamps only | NOT stamps only (143,061) | **H-A on the table.** But see below: the table's set was incomplete |
+
+**Supporting evidence for H-B (read after D1; blipscope-5c named the discriminator):**
+- In the base round, each of these envs' build **installed** its libraries during the run.
+- Every later round printed `patch_wm_copy: 0 applied, 3 already patched` and the LovyanGFX patch line.
+- The `pre:` library patches skip silently when their target isn't installed yet. So the base round compiled unpatched libraries, and the head and rebuild rounds compiled patched ones.
+
+**`blipscope-s3-128`: the cause was read off the images, and it is not 3.1.**
+- **Compiled sources:** the same 213 project translation units in every round, none of them from Weatherscope.
+- **Library state:** identical in the head and rebuild rounds.
+- **The difference:** at the head, `"custom.15."` becomes `"custom.&amp;"`. A standalone `"15"` string is gone, and the rodata after it shifts.
+- **Why it's gone:** each image carries two build-time strings.
+  - The head build's second one is **`09:15:15`**. It ends in `15`, so the linker tail-merged the standalone `"15"` literal into it.
+  - Base (`09:00:40`/`09:00:54`), base-rebuild (`09:44:49`/`09:45:02`) and sabotage (`09:28:48`/`09:29:02`) have no time ending in `15`, and each keeps its standalone `"15"`.
+
+  **The head image is the only one with a time ending in `15`, and the only one without the standalone `"15"`.**
+
+**So D1's H-A label is wrong for this env.** The table read "(i) stamps only, (ii) not" as "3.1 changed the image". It did not name a build whose own clock changes its layout. That is the outside-the-set branch this file warns about. D1 stands as read and is not re-graded; this cause is recorded beside it.
+- **Not yet proven by a controlled rebuild.** The proposed fix's calibration tests it.
+
+**D2, as registered:**
+- **The verdict:** stamps only, at equal size (466,528 B).
+- **One clause missed:** D2, and A5.2's bench row, predicted **no time strings**. The bench carries one 4-byte compile-time string (`…Info:… 09:14:30` → `09:50:14`). The claim that the bench links nothing with a time string was wrong.
+- **What still holds:** under its old name, the head's bench equals the base's bench except for stamps. **The env name is the image's only real change.**
+
+**What all this says about S1.** The rows the instrument got wrong were wrong for reasons of build setup, not because of the change:
+- **First builds compile unpatched libraries,** and that left 2 false failures.
+- **Build-time strings feed the linker's tail-merging,** and that left 1 false failure, which recurs whenever a compile time happens to end in a string that exists elsewhere.
+
+The sabotage row (14/14) shows the instrument sees a real change. **3.1's own change is not shown to alter any of the 14 envs.**
+
+**Proposed fix, for the ruling. Nothing is re-run until then.** S1 v2 adds two things to A5.2's procedure:
+1. **A warm-up build of every env in the clone before the base round,** with its image discarded, so every measured build compiles patched libraries.
+2. **Every measured build runs with `SOURCE_DATE_EPOCH` fixed to one value.** GCC then fixes `__DATE__`/`__TIME__`, which removes both the stamp strings and the tail-merge effect.
+
+**S1 v2's new frozen predictions:**
+- **C-S1v2, the calibration, run first:** two builds of `blipscope-s3-128` at the base, minutes apart, both with `SOURCE_DATE_EPOCH` set, are **byte-identical** (0 differing bytes). If not, `SOURCE_DATE_EPOCH` didn't reach the compiler or something else is time-dependent: stop.
+- **S1:** base against head is **byte-identical in 14/14.** That is stricter than "stamps only".
+- **The bench:** byte-identical to the base's bench when the head's bench is built under the old name (D2's method). Under the new name, every difference is downstream of the env-name string.
+- **S1's sabotage:** unchanged: a difference in the 13 envs that compile `ConfigurationWebServer.cpp`, and **0 differing bytes** in `animtest-s3-128`.
+
+**Not proposed, raised for Daniel:** the patch scripts' "not found yet; skipping" path lets a build succeed **unpatched** (blipscope-5c's note). Whether that should be fatal in CI is a separate decision.
+
+### A5.6 Ruled 2026-10-21: S1 v2, its stamp list and its predictions (frozen before any measured build)
+
+**The reviewer's ruling (the single reviewer from this date; the Weatherscope chat is retired):**
+- S1 v2 is accepted, with one correction: predict base against head identical **outside an explicit list of regions that can still differ between commits**. Each region is listed with the reason it can differ, before any measured build. Not "blindly byte-identical".
+- The first run's misses stay on record (A5.4, A5.5).
+- The branch is rebased onto `bf7ece6` and the run repeated.
+- **The patch-skip question is ruled separately:** a patch that can't apply will fail the build. blipscope-5c is doing that work.
+
+**The base and the head.**
+- **Base:** main at `bf7ece6`.
+- **Head:** this branch once S1 v2's tooling is committed. The rebase changed no line of this branch's change (the same numstat and the same added and removed lines as before it).
+
+**The list: regions that can still differ between base and head.**
+
+| region | where | why it can differ | allowed? |
+|---|---|---|---|
+| **R1, `app_elf_sha256`** | image offset `0xB0`, 32 B | a hash of the whole ELF, including debug sections that never reach the image, so it can change when no image byte does | **yes** |
+| **R2, the image checksum and the appended SHA-256** | the last 33 B | computed over the image, R1 included, so they change whenever R1 does | **yes** |
+
+**Checked and NOT on the list** (a difference in any of these is a stop):
+- **`BUILD_ENV`:** the 14 other envs keep their names, so their `$PIOENV` strings can't differ. The bench's name does change, which is why the bench is compared under its old name.
+- **A commit id:** none is embedded.
+  - No build script writes one: `check_config_form_prebuild.py`'s only subprocess runs a checker, and the patch scripts and `fix_boot_app0_offset.py` call no git.
+  - No build flag carries one.
+  - Run 1's images contained neither commit id (searched).
+- **`__DATE__`/`__TIME__` strings** (WiFiManager's two, and the bench's one): fixed by `SOURCE_DATE_EPOCH`. If they differ, it didn't reach the compiler, and the calibration catches that first.
+- **The other `esp_app_desc_t` fields** (project name, version, build date and time): fixed in the prebuilt framework.
+
+**The procedure.** It runs in the same clone, every measured build with `SOURCE_DATE_EPOCH=1760000000` passed in the build's environment:
+1. **Warm-up:** one build of every env at the base, and of `weatherscope-bench-s3-128` at the head, with the images discarded. Every measured build then compiles installed, patched libraries.
+2. **Calibration**, then the base, head and sabotage rounds.
+3. **The bench under its old name**, by the D2 method, now committed in the tooling.
+4. **The board checks**, as frozen in A5.2.
+
+**Predicted:**
+
+| check | predicted |
+|---|---|
+| **C-S1v2, the calibration, first** | two builds of `blipscope-s3-128` at the base, minutes apart: **0 differing bytes, R1 and R2 included** (the same commit gives the same ELF).<br>• A time string differs: `SOURCE_DATE_EPOCH` didn't reach the compiler. Stop.<br>• Anything else differs: something else in the build is time-dependent. Stop. |
+| **S1** | the 14 other envs, base against head: **identical outside R1 and R2, in 14/14.** Whether R1 and R2 differ is reported, not graded. |
+| **S1's sabotage** | a difference outside R1 and R2 in every env whose sabotage build compiled `ConfigurationWebServer.cpp`, predicted to be the 13 envs other than `animtest-s3-128`. **`animtest-s3-128` at 0 differing bytes**, as ruled. |
+| **the bench** | the head's bench built under its old name, against the base's bench: **identical outside R1 and R2.** |
+| **C1, C2, L1-L6, on the board** | as frozen in A5.2 |
+
+**Outside every prediction: stop and decide.** The first run's records stay as they are.
+
+### A5.7 Step 3.1's results: S1 v2, the board and CI, every row as predicted (2026-10-21)
+
+**S1 v2**, run as A5.6 froze it.
+- **The build:** in one clone, with `SOURCE_DATE_EPOCH=1760000000` on every measured build. The base was `bf7ece6` and the head `0de94ad`.
+- **The rounds:** every warm-up and measured build succeeded. The sabotage and the bench rename were each restored byte-identical, and the clone was clean after each round.
+- **The grade:** `s1.py compare2` printed `S1 v2 rows: ALL AS PREDICTED`.
+
+| row | predicted | measured |
+|---|---|---|
+| **C-S1v2, the calibration** | `blipscope-s3-128` built twice at the base, minutes apart: 0 bytes | **0 differing bytes** (the builds finished 10:40:49 and 10:43:41) |
+| **S1** | identical outside R1/R2 in 14/14 | **14/14 completely byte-identical.** R1 and R2 are unchanged too, with 0 differing bytes in every env. **3.1 changes nothing in any other product's image.** |
+| **S1's sabotage** | outside R1/R2 in the 13 envs that compile `ConfigurationWebServer.cpp`; `animtest-s3-128` at 0 bytes | **13/13 changed** (size differs), and **`animtest-s3-128` is at 0 bytes.** The non-compiling set is exactly `['animtest-s3-128']`. |
+| **the bench, under its old name** | identical outside R1/R2 | **0 bytes outside R1/R2.** R1 and R2 differ (65 bytes in all), as listed: moving the file changes the ELF's debug data. |
+
+**On the board**, `907069326E64`:
+- **The flash:** the head's bench image, with the port resolved from the serial (COM6). esptool read the MAC as `90:70:69:32:6e:64`, and the board's banner reads `env=weatherscope-bench-s3-128`.
+- **An instrument slip before this:** a first capture attempt passed the serial number as the port name. The open failed, and no byte reached the board.
+
+| check | predicted | measured |
+|---|---|---|
+| **C1** (`capture_stage1.py`) | exit 0: 240/240 rows, B9 `344383b4…` = `fb_sha256`, the standing timing checks repeating | **exit 0.**<br>• 240/240 rows good; B9 **IDENTICAL**, 0 of 57,600 pixels differ, consistent with the board's `fb_sha256`.<br>• B3 153,608, B4 0 and B8 25,768 as predicted.<br>• B5-B7, the standing misses, repeat at +0.0 %, −0.1 % and +2.7 %. |
+| **C2** | `WX,sprite_sha256` = `a88c3a99fa5c…` | **`a88c3a99fa5c1bb4d6d2bb77d081b22b8da6e752200ae79cf67acec90c335ed3`**, exact |
+| **L1, L2, L4, L5, L6** (`legend_check.py`) | exit 0 | **exit 0:**<br>• L4 240/240;<br>• L2 exactly the ruled mapping;<br>• L1 21/21 swatches exact;<br>• L5 dry, with 0 stray pixels;<br>• L6 farthest pixel 109.0 px (≤ 112), as in #448. |
+
+**CI on `0de94ad`:** 33 checks, 30 successes and 3 release-only skips.
+- The bench leg's adsbdb gate reads `weatherscope-bench-s3-128  CONTROL found … PASS`.
+- **"found" is the discriminator:** had the narrowed case not matched the renamed env, the control would have been planted in a file the bench doesn't compile.
+
+**Step 3.1 is complete.** The bench harness is `weatherscope-bench-s3-128`, its file moved byte-identical, and no other product's image changed by a single byte.
+
+**On record from the first run (A5.4, A5.5):**
+- S1 v1's three false failures came from the build setup: first-build library patching, and a build-time string tail-merge.
+- The bench prediction missed the compiled-in env name.
+- D2's "no time strings" clause missed.

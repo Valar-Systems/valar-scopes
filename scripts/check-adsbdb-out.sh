@@ -156,7 +156,7 @@ parse_matrix_envs() {
 # not to skip the env (it is in the CI matrix, and the gate scans every image the
 # matrix builds): it is to plant into a file that image does compile.
 # plant_target() picks the site; every site is listed here for the recovery below.
-PLANT_FILES="src/ConfigMigration.cpp src/animtest_main.cpp src/weatherscope/stage1_main.cpp"
+PLANT_FILES="src/ConfigMigration.cpp src/animtest_main.cpp src/weatherscope/bench/stage1_main.cpp"
 PLANT_FILE="src/ConfigMigration.cpp"
 
 unplant() {
@@ -356,10 +356,12 @@ plant_target() {
       PLANT_ANCHOR='    Serial.begin(115200);'
       PLANT_LINE='    if (millis() == 0xFFFFFFFFul) Serial.println("api.adsbdb.com/v0/aircraft/"); // GATE CONTROL'
       ;;
-    weatherscope-*)
-      # Built from `-<*> +<weatherscope/>` (#434): ConfigMigration.cpp is never compiled into it, so
-      # the default site left the control structurally absent -- the animtest case again, 2026-10-20.
-      PLANT_FILE="src/weatherscope/stage1_main.cpp"
+    weatherscope-bench-*)
+      # Built from `-<*> +<weatherscope/bench/>` (#434; moved by Stage 3 step 3.1): ConfigMigration.cpp is never
+      # compiled into it, so the default site left the control structurally absent -- the animtest case again,
+      # 2026-10-20. Narrowed from weatherscope-* so the PRODUCT env (3.2), which links ConfigMigration.cpp, falls
+      # through to the default site instead of planting into a file it does not compile.
+      PLANT_FILE="src/weatherscope/bench/stage1_main.cpp"
       PLANT_ANCHOR='    Serial.begin(115200);'
       PLANT_LINE='    if (millis() == 0xFFFFFFFFul) Serial.println("api.adsbdb.com/v0/aircraft/"); // GATE CONTROL'
       ;;
