@@ -1,0 +1,113 @@
+"""Runs test_wx_palette.cpp against SABOTAGED copies of src/weatherscope/WxPalette.h; each must turn the suite
+red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4 and 5) and nothing else.
+
+    python -I test/host/sabotage_wx_palette.py
+
+The real header is never edited: each sabotage is planted in a copy in a temporary folder, the test is built
+with that folder on its include path, every anchor must occur exactly once, the copy must differ, and the
+real header's sha256 is compared before and after.
+
+  S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
+  S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
+  S-C3ef  the snow top set to white                                -> exactly C3e, C3f and C3i
+  S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
+  S-h     the snow ramp started at (165, 205, 245), near its top    -> exactly C3h (it barely steps)
+  S-i     the snow top set to (240, 245, 255), near white          -> exactly C3i
+  S-PIN   the REAL header, run on a fixtures copy whose pinned table has an id appended -> exactly pin
+Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
+"""
+import hashlib
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+HEADER = os.path.join(ROOT, "src", "weatherscope", "WxPalette.h")
+TEST = os.path.join(ROOT, "test", "host", "test_wx_palette.cpp")
+FIXTURES = os.path.join(ROOT, "test", "fixtures", "wx")
+CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
+FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
+
+SABOTAGES = {
+    "S-C3a": ([("constexpr Rgb kMissingHatch = {72, 72, 72};", "constexpr Rgb kMissingHatch = {110, 0, 110};  // SABOTAGE")],
+              [r"C3a\b"]),
+    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 201, 0},  /* SABOTAGE */")],
+              [r"C3c\b"]),
+    "S-C3ef": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {255, 255, 255}};  // SABOTAGE")],
+               [r"C3e\b", r"C3f\b", r"C3i\b"]),
+    "S-C3g": ([("kSnowTable[6] = {{0, 110, 210},", "kSnowTable[6] = {{20, 30, 180},  /* SABOTAGE */")],
+              [r"C3g\b"]),
+    "S-h": ([("constexpr Rgb kSnowTable[6] = {{0, 110, 210}, {66, 129, 218}, {98, 149, 226}, {124, 169, 234}, {148, 190, 242}, {170, 212, 250}};",
+              "constexpr Rgb kSnowTable[6] = {{165, 205, 245}, {166, 206, 246}, {167, 208, 247}, {168, 209, 248}, "
+              "{169, 211, 249}, {170, 212, 250}};  // SABOTAGE: starts near the top, barely steps")],
+            [r"C3h\b"]),
+    "S-i": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {240, 245, 255}};  // SABOTAGE: near white")],
+            [r"C3i\b"]),
+}
+
+
+def sha(path):
+    return hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+
+def plant(name, edits, src):
+    out = src
+    for anchor, repl in edits:
+        assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
+        out = out.replace(anchor, repl)
+    assert out != src, f"{name}: the copy is identical to the original -- the sabotage did not apply"
+    return out
+
+
+def main():
+    before = sha(HEADER)
+    src = open(HEADER, encoding="utf-8").read()
+    ok = True
+    with tempfile.TemporaryDirectory() as td:
+        for name, (edits, expect) in SABOTAGES.items():
+            inc = os.path.join(td, name)
+            os.makedirs(inc)
+            open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(plant(name, edits, src))
+            exe = os.path.join(td, name + ".exe")
+            b = subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
+            if b.returncode != 0:
+                print(f"{name}: did not compile (rig)\n{b.stderr}")
+                return 2
+            r = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
+            fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+            matched = [sum(1 for l in fails if re.search(rx, l)) for rx in expect]
+            good = r.returncode == 1 and all(m == 1 for m in matched) and len(fails) == len(expect)
+            print(f"{name}: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+            for l in fails:
+                print(f"    {l}")
+            ok &= good
+        # S-PIN (#439 review): the table, not the header, is sabotaged. The real header is built; the pinned file
+        # in a copied fixtures folder gets an id appended, which leaves the 15 parsed entries unchanged.
+        fx = os.path.join(td, "fixtures-pin")
+        os.makedirs(fx)
+        name = "NWSReflectivity-metpy-v1.6.3.tbl"
+        data = open(os.path.join(FIXTURES, name), "rb").read()
+        # EXAMPLE -- not a real device: the allowlisted synthetic id (scripts/device-id-allowlist.txt).
+        open(os.path.join(fx, name), "wb").write(data + b"beefbeefbeefbeef\n")
+        assert open(os.path.join(fx, name), "rb").read() != data, "S-PIN: the table copy did not change"
+        exe = os.path.join(td, "real.exe")
+        b = subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe], capture_output=True, text=True)
+        if b.returncode != 0:
+            print(f"S-PIN: did not compile (rig)\n{b.stderr}")
+            return 2
+        r = subprocess.run([exe, fx], capture_output=True, text=True)
+        fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+        good = r.returncode == 1 and len(fails) == 1 and re.search(r"FAIL\s+pin\b", fails[0]) is not None
+        print(f"S-PIN: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+        for l in fails:
+            print(f"    {l}")
+        ok &= good
+    after = sha(HEADER)
+    print(f"real src/weatherscope/WxPalette.h unchanged: {before == after} ({after[:12]})")
+    return 0 if ok and before == after else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
