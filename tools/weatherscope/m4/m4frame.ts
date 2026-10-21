@@ -75,7 +75,7 @@ async function product(gz: string): Promise<Product> {
   if (!meta.n2s || !meta.w2e) refuse(`${gz}: unexpected scanning`);
   // C-M4e (Addendum 5): the any-width decoder must reproduce mrms.ts on this 16-bit file, cell for cell.
   let anchorMismatch = 0, anchorRows = 0;
-  await decodeAnyWidth(new Uint8Array(readFileSync(gz)), (row: number, vals: Float32Array) => {
+  await decodeAnyWidth(new Uint8Array(readFileSync(gz)), 16, (row: number, vals: Float32Array) => {
     anchorRows++;
     for (let j = 0; j < vals.length; j++) if (vals[j] !== v[row * meta.ni + j]) anchorMismatch++;
   });
@@ -103,10 +103,11 @@ const hsr = await product(hsrGz);
 const comp = await product(compGz);
 
 // ---- PrecipFlag: the full grid stays in memory (the shifted and flipped reads leave the window) --------------
-// Decoded with the any-width decoder (Addendum 5). The width sabotage is computed here, from the raw samples:
-// each PAIR of 8-bit samples read as one 16-bit value, X' = 256 X1 + X2, the direction that exists for 8-bit data.
+// Decoded with the any-width decoder at PrecipFlag's EXPECTED depth, 8 bits (Addendum 5); a file at any other
+// depth is refused there. The width sabotage is computed below, from the decoded values.
+const PF_BITS = 8;
 let pfBuf: Float32Array | null = null, pfRows = 0;
-const pg = await decodeAnyWidth(new Uint8Array(readFileSync(pfGz)), (row: number, vals: Float32Array) => {
+const pg = await decodeAnyWidth(new Uint8Array(readFileSync(pfGz)), PF_BITS, (row: number, vals: Float32Array) => {
   if (!pfBuf) pfBuf = new Float32Array(vals.length * MAX_ROWS);
   if (row >= MAX_ROWS) refuse(`${pfGz}: more than ${MAX_ROWS} rows`);
   pfBuf!.set(vals, row * vals.length); pfRows++;

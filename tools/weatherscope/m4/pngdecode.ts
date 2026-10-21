@@ -20,12 +20,17 @@ export async function loadDecoder(spike: string) {
     return new Uint8Array(await out.arrayBuffer());
   }
 
-  // onRow(row, values, samples): samples are the raw unpacked integers X, for the width sabotage.
-  return async function decodeAnyWidth(gz: Uint8Array,
+  // The bit depth is the CALLER'S EXPECTATION for its product, refused on mismatch, never "8 or 16" for any file
+  // (agreed with blipscope-5c for the Worker's product table: SeamlessHSR and the composite 16, PrecipFlag 8).
+  // A shared "accept either" would let a reflectivity file arriving at 8 bits decode silently, at a different
+  // quantisation; mrms.ts's 16-bit refusal is what catches that today.
+  // onRow(row, values, samples): samples are the raw unpacked integers X.
+  return async function decodeAnyWidth(gz: Uint8Array, expectBits: 8 | 16,
       onRow: (row: number, values: Float32Array, samples: Uint32Array) => void): Promise<any> {
+    if (expectBits !== 8 && expectBits !== 16) throw new MrmsRefused(`expected bits ${expectBits}: only 8 or 16 exist here`);
     const g = await inflateAll(gz, "gzip");
     const { grid, png } = parseGrib2(g);
-    if (grid.bits !== 8 && grid.bits !== 16) throw new MrmsRefused(`bits per value ${grid.bits}, want 8 or 16`);
+    if (grid.bits !== expectBits) throw new MrmsRefused(`bits per value ${grid.bits}, this product expects ${expectBits}`);
     const sig = [137, 80, 78, 71, 13, 10, 26, 10];
     for (let i = 0; i < 8; i++) if (png[i] !== sig[i]) throw new MrmsRefused("section 7 is not a PNG");
     let p = 8, w = 0, h = 0, depth = 0, ctype = 0;
