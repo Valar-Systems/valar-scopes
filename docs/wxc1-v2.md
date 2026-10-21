@@ -488,3 +488,23 @@ The instrument is on branch `tools/wxc1-v2-m4` (`tools/weatherscope/m4/`). **It 
 - this addendum is pushed;
 - the run is repeated from the start;
 - the first run's stop stays on record here.
+
+### A5.3 The bit depth is an expectation per product, not "8 or 16" (blipscope-5c's design point; frozen before it is checked)
+
+**The point.** A decoder that accepts "8 or 16" for any file would let a reflectivity file arriving at 8 bits decode silently, at a different quantisation. Today, `mrms.ts`'s 16-bit refusal is the only thing that catches it. So the expected depth is the **caller's**, given per product, and a mismatch is refused.
+- **The producer's side:** blipscope-5c's product table, once it is written, carries 16 for SeamlessHSR and the composite and 8 for `PrecipFlag`.
+- **The instrument's side:** `decodeAnyWidth(gz, expectBits, onRow)`.
+  - The C-M4e anchor calls it with 16.
+  - `PrecipFlag` is decoded with 8.
+  - That change is a further local commit on `tools/wxc1-v2-m4`, on top of `85d1cea`.
+
+**Predicted, checked once on two files already on disk.** Only the refusal or the row count is read; no value is read.
+
+| the call | predicted |
+|---|---|
+| expect 16, given the 8-bit `PrecipFlag` file | **refused**, naming 8 against 16 |
+| expect 8, given a 16-bit SeamlessHSR file | **refused**, naming 16 against 8 |
+| expect 8, given the 8-bit `PrecipFlag` file | **decodes completely,** 3,500 × 7,000 |
+| expect 16, given the 16-bit SeamlessHSR file | **decodes completely,** 3,500 × 7,000 |
+
+**The first two rows are this design's sabotage:** a product offered a file at the wrong depth must be refused. The last two are its control, showing the matching depth still decodes.
