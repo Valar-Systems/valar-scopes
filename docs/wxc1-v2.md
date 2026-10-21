@@ -366,3 +366,19 @@ The threshold is stated now, without data. Only where the agreement peaks is pre
 **A sabotage that lands in (iv) is no evidence that the measure sees.** If (b) or (c) lands there, the control isn't believed, and the run stops.
 
 **A1.7's order is unchanged.** "C-M4c" there now means A2.1, and "its sabotages" means A2.2.
+
+## Addendum 3, 2026-10-21: M4i, publication lag (prompted by P3(b); frozen before M4 runs)
+
+**Why this row.** P3(b) (5.1.1) holds only if a frame can be served untyped and later typed. Whether that happens depends on **when** each file is published, not on its nominal time. M4a-M4c measure only nominal times. The listing M4 already makes returns each object's S3 `LastModified`, so this row costs no download. **No `PrecipFlag` file has been listed or fetched.**
+
+**The measure:** for each hour, `LastModified` of the paired `PrecipFlag` object minus that of the SeamlessHSR object, and the same against the composite object.
+
+**Its control, C-M4d: is `LastModified` a publication time at all?**
+- **The test:** for the 24 SeamlessHSR objects, `LastModified` minus the nominal time in the file name. **Predicted:** between 0 and 300 s in 24/24 hours, which is what real-time publication looks like.
+- **What a failure means:** the archive was written after the fact, or the clocks don't relate. Signs are a negative value, a value over 300 s, or all 24 clustered at one write time. Any of these makes M4i **uninformative**. Publication lag then has to be measured live, in the producer's Worker, and is not inferred from the archive.
+
+| | measured | predicted | what each outcome means |
+|---|---|---|---|
+| **M4i** | `PrecipFlag` `LastModified` − SeamlessHSR `LastModified`, per paired hour (and the same against the composite, reported) | **within ±60 s in 24/24 hours** | **(a) Within ±60 s everywhere:** "untyped, then typed" is a rare edge. P3(b) still holds, but nothing waits on it. **(b) `PrecipFlag` more than 60 s later in any hour:** "untyped, then typed" is a normal state. P3(b) is load-bearing, and the producer's pairing section must say whether it waits or serves untyped first. **(c) C-M4d fails:** uninformative; measure live. **(d) Anything else: stop and decide.** |
+
+**Order:** M4i is read after M4b, with C-M4d first. Neither depends on C-M4c.
