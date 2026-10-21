@@ -23,7 +23,9 @@
 // checked would be right. So each counter is moved ALONE and the other five are
 // required to stay at zero.
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "../../include/UsageReport.h"
 
@@ -47,9 +49,65 @@ static size_t fieldCount(const char* s)
     return n;
 }
 
-int main()
+// A whole file with every run of whitespace collapsed to one space, so a sentence the HTML wraps across
+// lines still matches. Empty = unreadable, which the caller treats as BLIND.
+static std::string readFlat(const char* path)
+{
+    std::string out;
+    FILE* f = std::fopen(path, "rb");
+    if (!f) return out;
+    bool gap = false;
+    for (int c; (c = std::fgetc(f)) != EOF; ) {
+        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') { gap = true; continue; }
+        if (gap && !out.empty()) out += ' ';
+        gap = false;
+        out += (char)c;
+    }
+    std::fclose(f);
+    return out;
+}
+
+int main(int argc, char** argv)
 {
     std::printf("== UsageReport ==\n");
+
+    // SC4 (docs/starved-seconds-counter.md): the device's arity must be one the WORKER accepts, read from the
+    // Worker's own source -- the other side of the contract -- not restated here. Unreadable = BLIND, exit 2.
+    {
+        if (argc < 2) { std::printf("FAIL: usage: test_usage_report <proxy/src/metrics.ts> (BLIND)\n"); return 2; }
+        FILE* f = std::fopen(argv[1], "rb");
+        if (!f) { std::printf("FAIL: cannot read %s (BLIND)\n", argv[1]); return 2; }
+        char src[65536]; const size_t n = std::fread(src, 1, sizeof(src) - 1, f); std::fclose(f); src[n] = '\0';
+        const char* at = std::strstr(src, "USAGE_FIELD_COUNTS = [");
+        if (!at) { std::printf("FAIL: USAGE_FIELD_COUNTS not found in %s (BLIND)\n", argv[1]); return 2; }
+        at += std::strlen("USAGE_FIELD_COUNTS = [");
+        bool listed = false; int count = 0;
+        while (*at && *at != ']') {
+            if (*at >= '0' && *at <= '9') { const long v = std::strtol(at, nullptr, 10); ++count; if ((size_t)v == FIELD_COUNT) listed = true; while (*at >= '0' && *at <= '9') ++at; }
+            else ++at;
+        }
+        check(count > 0 && listed, "SC4: the Worker's USAGE_FIELD_COUNTS (read from proxy/src/metrics.ts) includes the device's FIELD_COUNT");
+    }
+
+    // SC5: the disclosure says it. The README's count is DERIVED from FIELD_COUNT, so a field added without
+    // the published count changing fails here, and both pages must name the health number in the same words.
+    {
+        if (argc < 4) { std::printf("FAIL: usage: test_usage_report <metrics.ts> <README.md> <support.html> (BLIND)\n"); return 2; }
+        const std::string readme = readFlat(argv[2]), support = readFlat(argv[3]);
+        if (readme.empty() || support.empty()) { std::printf("FAIL: cannot read %s or %s (BLIND)\n", argv[2], argv[3]); return 2; }
+        static const char* const WORDS[] = {"zero", "one", "two", "three", "four", "five", "six",
+                                            "seven", "eight", "nine", "ten", "eleven", "twelve"};
+        const size_t nWords = sizeof(WORDS) / sizeof(WORDS[0]);
+        char want[64], stale[64];
+        std::snprintf(want, sizeof(want), "%s numbers separated by commas", FIELD_COUNT < nWords ? WORDS[FIELD_COUNT] : "?");
+        std::snprintf(stale, sizeof(stale), "%s numbers separated by commas", FIELD_COUNT - 1 < nWords ? WORDS[FIELD_COUNT - 1] : "?");
+        check(FIELD_COUNT < nWords && readme.find(want) != std::string::npos,
+              "SC5: README states the payload's field count in words, derived from FIELD_COUNT");
+        check(readme.find(stale) == std::string::npos, "SC5: README no longer states the previous count");
+        const char* HEALTH = "how many seconds in that hour the device couldn't open a secure connection";
+        check(readme.find(HEALTH) != std::string::npos, "SC5: README names the starved-seconds number");
+        check(support.find(HEALTH) != std::string::npos, "SC5: support.html names the starved-seconds number");
+    }
 
     // =========================================================================
     // §17 / the published promise: the payload cannot carry a subject
@@ -59,6 +117,7 @@ int main()
         Report r;
         r.delta.cardOpens = 41; r.delta.screenRadar = 7; r.delta.screenList = 3;
         r.delta.screenStats = 2; r.delta.screenFollow = 11; r.delta.logbookClaims = 5;
+        r.delta.starvedSeconds = 150;
         r.followEnabled = true;
         r.uptimeHours = 137;
 
@@ -76,16 +135,16 @@ int main()
         // CONTROL: the assertion above is satisfied by an empty string, and an
         // empty payload would pass every privacy test while collecting nothing.
         check(len >= 15 && fieldCount(buf) == FIELD_COUNT,
-              "CONTROL: ... and it is not empty -- 8 fields, as declared");
+              "CONTROL: ... and it is not empty -- 9 fields, as declared");
 
         // The arity is a contract with the Worker's parser. Pinning the constant
         // is not enough: the constant and the emitted string can disagree.
-        check(FIELD_COUNT == 8, "FIELD_COUNT is 8");
+        check(FIELD_COUNT == 9, "FIELD_COUNT is 9 (the starved-seconds delta appended ninth)");
         check(fieldCount(buf) == FIELD_COUNT,
               "and what is EMITTED has exactly that many fields");
 
-        check(std::strcmp(buf, "41,7,3,2,11,5,1,137") == 0,
-              "the fields are in the documented order");
+        check(std::strcmp(buf, "41,7,3,2,11,5,1,137,150") == 0,
+              "the fields are in the documented order, starvedSeconds appended ninth");
     }
 
     // followEnabled is a bool on the wire, never a name.
@@ -96,8 +155,8 @@ int main()
         char a[MAX_LEN], b[MAX_LEN];
         Format(on, a, sizeof(a));
         Format(off, b, sizeof(b));
-        check(std::strcmp(a, "0,0,0,0,0,0,1,0") == 0, "follow enabled renders as 1");
-        check(std::strcmp(b, "0,0,0,0,0,0,0,0") == 0, "and disabled as 0");
+        check(std::strcmp(a, "0,0,0,0,0,0,1,0,0") == 0, "follow enabled renders as 1");
+        check(std::strcmp(b, "0,0,0,0,0,0,0,0,0") == 0, "and disabled as 0");
         check(std::strcmp(a, b) != 0, "CONTROL: the flag reaches the payload at all");
     }
 
@@ -124,6 +183,7 @@ int main()
             { "screenStats",   &Counters::screenStats },
             { "screenFollow",  &Counters::screenFollow },
             { "logbookClaims", &Counters::logbookClaims },
+            { "starvedSeconds", &Counters::starvedSeconds },
         };
         for (const Case& c : cases) {
             Counters prev, now;
@@ -143,6 +203,8 @@ int main()
         check(Empty(z), "an unmoved snapshot is empty");
         Counters one; one.cardOpens = 1;
         check(!Empty(one), "CONTROL: one event is not");
+        Counters st; st.starvedSeconds = 30;
+        check(!Empty(st), "starved seconds alone are not empty either");
     }
 
     // =========================================================================
@@ -152,12 +214,12 @@ int main()
     {
         Report r;
         r.delta.cardOpens = r.delta.screenRadar = r.delta.screenList =
-            r.delta.screenStats = r.delta.screenFollow = r.delta.logbookClaims = 0xffffffffu;
+            r.delta.screenStats = r.delta.screenFollow = r.delta.logbookClaims = r.delta.starvedSeconds = 0xffffffffu;
         r.followEnabled = true;
         r.uptimeHours = 0xffffffffu;
         char buf[MAX_LEN];
         const size_t len = Format(r, buf, sizeof(buf));
-        check(len > 0, "six u32 maxima plus the gauge still render");
+        check(len > 0, "seven u32 maxima plus the gauge still render");
         check(fieldCount(buf) == FIELD_COUNT, "... with the arity intact");
         check(len < MAX_LEN, "... inside MAX_LEN");
 

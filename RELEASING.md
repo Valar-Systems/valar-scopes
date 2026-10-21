@@ -33,6 +33,16 @@ are versioned and released **together** from a single commit, and each device se
     those needs its own ruling and, first, a transitional release on the fleet that
     accepts both.
 
+  **Before cutting that release (ruled 2026-10-21):** it needs **Daniel's explicit OK at
+  cut time, with both consequences above named in plain words**: no OTA downgrade past
+  it, and fixed identities. A green CI run is not that OK.
+
+  **No prerelease, bench test or otherwise (ruled 2026-10-21),** until what each release
+  job does on a prerelease publish has been brought to the reviewer and Daniel has OK'd
+  it. The reason: a prerelease runs the full release pipeline, and one approval of
+  `promote` would make it `latest` for the whole fleet. See the Stage 3 plan, Addendum 5
+  (A5.3).
+
 ## Cutting a release
 
 > ### ⛔ HARD GATE — the photo square library must be published BEFORE any release that raises `FW_VERSION` to `FULLBLEED_MIN_FW` (7) or above
