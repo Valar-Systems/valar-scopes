@@ -184,3 +184,9 @@ L1 and L2, after Daniel's deploy, are unchanged. **The deploy is unblocked on th
 | **B13** | `attribution_url` is `https://adsb.fi` for adsb.fi and `https://adsb.lol` for adsb.lol | **S-B13** (field removed): red |
 
 The full proxy suite passes (44 files, 587 tests), and `tsc` is clean. The README section now carries the permission, its Bend-only scope, and the linked credit.
+
+## Correction, 2026-10-21 (found by the Weatherscope session's review at `4d20fb8`)
+
+"The counts" in the design section lists **`skipped_isolate_guard`, but the code never emits it.** That was deliberate in the code and left wrong in this document.
+- **Why it isn't counted:** the per-isolate guard is hit on nearly every tile refresh that covers Bend. One Analytics Engine point per refresh would be steady write traffic for no information, since the guard only keeps Durable Object traffic small. The 30 s rule's real refusals are counted, as `refused_30s`.
+- **So the counts are four:** `written`, `skipped_not_covered`, `refused_30s` and `write_error`. That matches `proxy/README.md` and `src/sitefeed/bend.ts`. `skipped_not_covered` is itself rate-limited, to once per isolate per 30 s, and is emitted only for fetches that overlap the circle.
