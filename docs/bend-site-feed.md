@@ -234,3 +234,19 @@ Registration and operator are **not** wanted. The rest of the shape is kept, and
 
 - **The suites:** the full proxy suite passes (44 files, 594 tests) and `tsc` is clean.
 - **One type correction, made before grading:** stored aircraft (`StoredAircraft`) make the three fields optional, because v1 rows really lack them. Served aircraft always carry all three.
+
+## Addendum 4, 2026-10-21 (before its code): one circle test, from the Weatherscope session's review of `27e906a`
+
+**The finding.** `extractRaw` tested the circle, then built each aircraft with `extract([a])[0]!`, which tested it **again**. Two copies of one rule: if they ever disagree, an aircraft is emitted as `{t, desc, dbFlags}` alone, with no `hex`, `lat` or `lon`, and the `!` hides that from the type checker. The reviewer showed it: `<=` changed to `<` in `extract` alone passed all 14 tests, because the boundary is tested only through `extract`, at ±10 m.
+
+**The change:**
+- **One predicate,** `inCircle(a)`, decides membership.
+- **One conversion,** `toSite(a)`, builds an aircraft.
+- `extract` and `extractRaw` both use both, so they can't disagree, and the `!` goes.
+
+| | check | predicted |
+|---|---|---|
+| **B19** | for aircraft at R − 1 m, R − 1 cm and R + 1 m, via `extractRaw` | every output carries `hex`, `lat` and `lon`. **Membership equals `extract`'s** for the same aircraft: in, in, out. *Sabotage S-B19:* a second, stricter circle test in `extractRaw` alone turns B19 red, and makes no partial aircraft |
+| **S-B17** (the reviewer's, recorded) | the reader's `?? null` fill removed | B17 red. The reviewer ran it at `27e906a`, and it failed exactly B17 |
+
+B1-B18 are unchanged.
