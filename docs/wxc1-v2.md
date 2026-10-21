@@ -223,6 +223,14 @@ Fetching `PrecipFlag`, the pairing rule (from M4b and M4c), encoding the type la
 >
 > **M4i** (#451 Addendum 3) measures whether `PrecipFlag` can arrive after its frame. If it can, the pairing section says whether the server waits for it or serves untyped first. P3(b) is what keeps "untyped first" correct.
 
+> **P5 amended 2026-10-21, before any code, on Daniel's Q1 ruling ("snow wins ties"; A6.2).** The table row stays as frozen. This adds its tie case:
+> - **The tie case:** a block whose strongest cells are equally strong, at least one snow and at least one rain, takes **snow**.
+> - **It's exercised in both orders:** the snow cell first in row-major order, and the rain cell first. So the winner can't be an accident of scan order.
+> - **Plus one degenerate case:** an all-rain tie takes rain, and an all-snow tie takes snow, so the rule doesn't invent snow.
+> - **Sabotages:**
+>   - "first cell in scan order wins": the rain-first case goes red;
+>   - "rain wins ties": both mixed cases go red.
+
 ### 5.2 The consumer (Weatherscope): predictions for `WxCrop.h` v2
 
 Frozen here before the decoder code:
