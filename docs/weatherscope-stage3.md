@@ -657,3 +657,54 @@ O11's own predictions are frozen in its addendum before the run, and it waits it
 - **Anything else:** stop.
 
 **The fix is not chosen here.** It waits for the ruling, after D1 and D2 are read.
+
+### A5.5 D1 and D2, read as registered; the cause; a proposed fix (2026-10-21; local until ruled)
+
+**D1, per env, graded on A5.4's table:**
+
+| env | (i) base-rebuild vs base | (ii) head vs base-rebuild | outcome |
+|---|---|---|---|
+| `blipscope-pro-s3-21` | NOT stamps only (21,858) | stamps only | **H-B, a first-build effect** |
+| `missileer-photo` | NOT stamps only (6) | stamps only | **H-B, a first-build effect** |
+| `blipscope-s3-128` | stamps only | NOT stamps only (143,061) | **H-A on the table.** But see below: the table's set was incomplete |
+
+**Supporting evidence for H-B (read after D1; blipscope-5c named the discriminator):**
+- In the base round, each of these envs' build **installed** its libraries during the run.
+- Every later round printed `patch_wm_copy: 0 applied, 3 already patched` and the LovyanGFX patch line.
+- The `pre:` library patches skip silently when their target isn't installed yet. So the base round compiled unpatched libraries, and the head and rebuild rounds compiled patched ones.
+
+**`blipscope-s3-128`: the cause was read off the images, and it is not 3.1.**
+- **Compiled sources:** the same 213 project translation units in every round, none of them from Weatherscope.
+- **Library state:** identical in the head and rebuild rounds.
+- **The difference:** at the head, `"custom.15."` becomes `"custom.&amp;"`. A standalone `"15"` string is gone, and the rodata after it shifts.
+- **Why it's gone:** each image carries two build-time strings.
+  - The head build's second one is **`09:15:15`**. It ends in `15`, so the linker tail-merged the standalone `"15"` literal into it.
+  - Base (`09:00:40`/`09:00:54`), base-rebuild (`09:44:49`/`09:45:02`) and sabotage (`09:28:48`/`09:29:02`) have no time ending in `15`, and each keeps its standalone `"15"`.
+
+  **The head image is the only one with a time ending in `15`, and the only one without the standalone `"15"`.**
+
+**So D1's H-A label is wrong for this env.** The table read "(i) stamps only, (ii) not" as "3.1 changed the image". It did not name a build whose own clock changes its layout. That is the outside-the-set branch this file warns about. D1 stands as read and is not re-graded; this cause is recorded beside it.
+- **Not yet proven by a controlled rebuild.** The proposed fix's calibration tests it.
+
+**D2, as registered:**
+- **The verdict:** stamps only, at equal size (466,528 B).
+- **One clause missed:** D2, and A5.2's bench row, predicted **no time strings**. The bench carries one 4-byte compile-time string (`…Info:… 09:14:30` → `09:50:14`). The claim that the bench links nothing with a time string was wrong.
+- **What still holds:** under its old name, the head's bench equals the base's bench except for stamps. **The env name is the image's only real change.**
+
+**What all this says about S1.** The rows the instrument got wrong were wrong for reasons of build setup, not because of the change:
+- **First builds compile unpatched libraries,** and that left 2 false failures.
+- **Build-time strings feed the linker's tail-merging,** and that left 1 false failure, which recurs whenever a compile time happens to end in a string that exists elsewhere.
+
+The sabotage row (14/14) shows the instrument sees a real change. **3.1's own change is not shown to alter any of the 14 envs.**
+
+**Proposed fix, for the ruling. Nothing is re-run until then.** S1 v2 adds two things to A5.2's procedure:
+1. **A warm-up build of every env in the clone before the base round,** with its image discarded, so every measured build compiles patched libraries.
+2. **Every measured build runs with `SOURCE_DATE_EPOCH` fixed to one value.** GCC then fixes `__DATE__`/`__TIME__`, which removes both the stamp strings and the tail-merge effect.
+
+**S1 v2's new frozen predictions:**
+- **C-S1v2, the calibration, run first:** two builds of `blipscope-s3-128` at the base, minutes apart, both with `SOURCE_DATE_EPOCH` set, are **byte-identical** (0 differing bytes). If not, `SOURCE_DATE_EPOCH` didn't reach the compiler or something else is time-dependent: stop.
+- **S1:** base against head is **byte-identical in 14/14.** That is stricter than "stamps only".
+- **The bench:** byte-identical to the base's bench when the head's bench is built under the old name (D2's method). Under the new name, every difference is downstream of the env-name string.
+- **S1's sabotage:** unchanged: a difference in the 13 envs that compile `ConfigurationWebServer.cpp`, and **0 differing bytes** in `animtest-s3-128`.
+
+**Not proposed, raised for Daniel:** the patch scripts' "not found yet; skipping" path lets a build succeed **unpatched** (blipscope-5c's note). Whether that should be fatal in CI is a separate decision.
