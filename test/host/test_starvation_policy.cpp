@@ -118,6 +118,53 @@ int main()
     check(starvation::NextRun(255, /*canAlloc=*/true) == 0,
           "even a saturated run clears on recovery");
 
+    // ---- SC2: the starved-seconds counter (docs/starved-seconds-counter.md) ----
+    //
+    // Driven exactly as AircraftManager's health tick drives it: the policy's own run and state, the
+    // watch's RECOVERED duration ((recoveryMs - starvedSinceMs) / 1000), and the counter accrued from the
+    // PREVIOUS tick's state. The counter and the RECOVERED line must be two readings of one number.
+    {
+        struct Sim {
+            uint8_t run = 0; bool prevStarved = false; uint32_t lastMs = 0, sinceMs = 0;
+            starvation::Accrual acc; uint32_t counter = 0; uint32_t recoveredS = 0; int episodes = 0;
+            void Tick(uint32_t nowMs, bool canAlloc) {
+                run = starvation::NextRun(run, canAlloc);
+                const bool starved = starvation::IsStarved(run, false);
+                counter += acc.Step(prevStarved, lastMs, nowMs);
+                if (starved && sinceMs == 0) { sinceMs = nowMs ? nowMs : 1; ++episodes; }
+                if (!starved && sinceMs != 0) { recoveredS += (uint32_t)(nowMs - sinceMs) / 1000u; sinceMs = 0; }
+                prevStarved = starved; lastMs = nowMs;
+            }
+        };
+        // never refused: nothing accrues
+        { Sim s; for (uint32_t t = 30000; t <= 3600000; t += 30000) s.Tick(t, true);
+          check(s.counter == 0 && s.episodes == 0, "SC2: a healthy hour accrues 0 starved seconds"); }
+        // the 6E:64 shape: RECOVERED 150 s after the STARVED edge (5 starved intervals of 30 s)
+        { Sim s; uint32_t t = 0; for (int i = 0; i < 10; ++i) s.Tick(t += 30000, true);
+          for (int i = 0; i < 4 + 4; ++i) s.Tick(t += 30000, false);   // the 4th refusal is the edge; 4 more starved
+          s.Tick(t += 30000, true);                                       // recovers
+          std::printf("    SC2 6E:64 shape: counter %u s, RECOVERED %u s\n", (unsigned)s.counter, (unsigned)s.recoveredS);
+          check(s.counter == s.recoveredS && s.recoveredS == 150, "SC2: the 6E:64 shape (RECOVERED after 150s) accrues 150 -- the counter equals the watch's own RECOVERED span"); }
+        // jittered ticks, several episodes, and a millis() wrap in the middle of one
+        { Sim s; uint32_t t = 0xFFFFFFFFu - 900000u; uint32_t seed = 20261021;
+          int episodesWanted = 0;
+          for (int i = 0; i < 2000; ++i) {
+              seed = seed * 1664525u + 1013904223u;
+              t += 28500u + (seed >> 8) % 3000u;                            // 28.5-31.5 s
+              const bool refuse = ((i / 37) % 3) == 1;                      // ~37-tick refusals, 2 of every 3 blocks clear
+              s.Tick(t, !refuse);
+          }
+          episodesWanted = s.episodes;
+          s.Tick(t += 30000, true); s.Tick(t += 30000, true);               // make sure the last episode closed
+          const long diff = (long)s.counter - (long)s.recoveredS;
+          std::printf("    SC2 jitter + wrap: %d episodes, counter %u s, sum of RECOVERED %u s (diff %ld)\n",
+                      episodesWanted, (unsigned)s.counter, (unsigned)s.recoveredS, diff);
+          // RECOVERED floors each episode separately; the counter carries the remainder: so the counter
+          // may exceed the sum of floors by under one second per episode, and never falls short.
+          check(episodesWanted >= 10 && diff >= 0 && diff < episodesWanted,
+                "SC2: across a millis() wrap and jittered ticks the counter matches the RECOVERED spans to under 1 s per episode"); }
+    }
+
     if (failures == 0) std::printf("test_starvation_policy: all checks passed\n");
     else               std::printf("test_starvation_policy: %d FAILURE(S)\n", failures);
     return failures == 0 ? 0 : 1;
