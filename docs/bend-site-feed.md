@@ -220,3 +220,17 @@ Registration and operator are **not** wanted. The rest of the shape is kept, and
 **After the deploy:**
 - **The off-stage:** `/healthz` reports the commit, and the fleet's own request statuses are unchanged (read from Analytics Engine, which needs no smoke credential).
 - **The on-stage:** L1 and L2 as before.
+
+### Results for addendum 3 (graded on `c069f47`)
+
+| | read | sabotage |
+|---|---|---|
+| **B14** | `t: "B738"`, `desc: "BOEING 737-800"` and `dbFlags: 1` come through exactly; absent fields read `null`; `v` is **2** | **S-B14** (`dbFlags` dropped): red |
+| **B15** | `t: 738`, `desc: {}` and `dbFlags: "1"` each read `null` | **S-B15** (`String(t)`): red |
+| **B16** | each aircraft's keys are exactly the v1 ten plus `t`, `desc` and `dbFlags`; `r` ("N12345") and `ownOp` ("SOMEONE LLC") appear nowhere in the stored JSON | **S-B16** (`r` copied): red |
+| **B17** | a v1 row is served as `v: 2`, with the three fields `null` | (structural) |
+| **B18** | dry-runs: staging `SITE_FEED_BEND ("on")`, production `("off")`; both list `BEND_SNAPSHOT (BendSnapshotDO)` | (n/a) |
+| **B1-B13** | unchanged and passing; the test file only gained lines | (n/a) |
+
+- **The suites:** the full proxy suite passes (44 files, 594 tests) and `tsc` is clean.
+- **One type correction, made before grading:** stored aircraft (`StoredAircraft`) make the three fields optional, because v1 rows really lack them. Served aircraft always carry all three.
