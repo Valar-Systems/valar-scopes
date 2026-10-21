@@ -438,3 +438,53 @@ A coarsened block's type needs Q1's tie rule, which hasn't been ruled.
 The instrument is on branch `tools/wxc1-v2-m4` (`tools/weatherscope/m4/`). **It is committed before it runs.**
 - **What it reuses:** the decoder and the `cropBox` that Stage 2 pinned (the spike's tools at `a5db678`). C-M4b therefore re-tests the decoder Stage 2 trusted.
 - **What it keeps out of git:** downloads stay outside git, and no coordinate is printed.
+
+## Addendum 5, 2026-10-21: the first run stopped, PrecipFlag is 8 bits per value (proposed; awaiting a ruling)
+
+**The reading.** The instrument at `3b215c1` ran once and stopped as an **instrument failure (exit 2)**, before any row was graded.
+- **Where it stopped:** the pinned `mrms.ts` refused the first `PrecipFlag` file with `bits per value 8, want 16` (`mrms.ts:93`).
+- **What was seen before the stop, disclosed:**
+  - the listing control passed: all 48 of Stage 2's files are in the listing;
+  - the listing line printed object totals for the 6 listed days (4,320 `PrecipFlag`, 4,320 SeamlessHSR, 4,319 composite). Those totals bear on M4a. **M4a's frozen prediction is unchanged by them,** and the fixed driver no longer prints them.
+
+**The cause.** `PrecipFlag_00.00` is packed at **8 bits per value**. Two files from different days (2024-12-02 05:52 and 2024-12-11 15:52) agree:
+- GRIB section 5 reads `bits=8`, and the PNG IHDR reads depth 8;
+- the packing is (R, E, D) = (−3, 0, 0), on the same 7000 × 3500 grid as SeamlessHSR.
+
+**The alternative, and why it is excluded:** a corrupt or truncated download. A damaged file fails at gunzip or chunk parsing; it does not produce well-formed headers. Here, two independent files parse cleanly and agree in two separate fields.
+
+**What this undoes:** A4.1's field-width argument assumed 16-bit samples. blipscope-5c's caution was right: the reasoning has to be about the decoder actually used and the data it actually gets.
+- **Superseded:** for 8-bit data, A4.1's claim that the field-width sabotage can't bite is false. Read in the direction that exists for 8-bit data, it bites hard (A5.2).
+- **Still stands:** A4.1's scale sabotage.
+
+**A finding for the producer.** The Worker's decoder on #443 (`proxy/src/wx/mrms.ts:93` and `:108` on `feat/wx-server`) has the same 16-bit-only refusal. Fetching `PrecipFlag` will need an 8-bit path there too.
+
+### A5.1 The proposed fix (committed locally as `85d1cea` on `tools/wxc1-v2-m4`; pushed only on the ruling)
+
+- **`pngdecode.ts`:** `mrms.ts`'s row loop with one generalisation, bytes per sample = bits / 8, accepting 8 or 16 bits. It reuses `mrms.ts`'s own `parseGrib2`.
+  - Only `PrecipFlag` goes through it; SeamlessHSR and the composite keep the pinned `mrms.ts`.
+  - It refuses a PNG depth that disagrees with the GRIB bits.
+- **The driver:**
+  - a failed decode prints its **whole** stderr (the first run kept 400 characters and lost the reason);
+  - the listing prints no object totals before M4a.
+- **Checked without reading any M4 row:**
+  - the driver's selftest passes;
+  - the 8-bit branch decodes the `PrecipFlag` file completely, 3,500 rows of 7,000. Only the row count and width were printed.
+
+### A5.2 New frozen predictions (everything else in Addenda 1-4 is unchanged)
+
+| | check | predicted |
+|---|---|---|
+| **C-M4e** (new, first among the instrument's checks) | the any-width decoder against the pinned `mrms.ts`, on all 48 SeamlessHSR and composite files | **identical, cell for cell, in 48/48.** Any difference is an instrument failure. |
+| **C-M4a's precondition** (replaces A4.1's) | the packing of all 24 `PrecipFlag` files | **8 bits at (−3, 0, 0) in 24/24.** Anything else: stop and decide. |
+| **C-M4a's width sabotage** (restored, for 8-bit data) | each pair of samples in a row read as one 16-bit sample, X′ = 256 X₁ + X₂ | **refused in 24/24 hours.** Every in-table code except −3 has X ≥ 3, so any pair whose first sample isn't −3 gives a value of 765 or more, outside the table. |
+| **C-M4a's scale sabotage** (A4.1, unchanged) | R + 2X | **refused**, through the precipitating cells |
+| **C-M4a's census** (unchanged) | every value of all 24 files in NSSL's table | **pass** |
+
+**The order:** C-M4e first, then C-M4a's precondition, its two sabotages and the census, then C-M4b. From there, A1.7's order with Addenda 2-4 is unchanged.
+
+**If the ruling accepts this:**
+- `85d1cea` is pushed;
+- this addendum is pushed;
+- the run is repeated from the start;
+- the first run's stop stays on record here.
