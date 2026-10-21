@@ -187,3 +187,35 @@ zooms × 5 rotations × 4 sizes).
   parameter's only use (`enabled`, `bytes`, `nowEpoch`, `clockSet`, `q`). Each was re-planted as a
   `(void)` reference. Those were compile refusals, not results; no measured value was involved.
 
+## WD2 (b′), re-registered by ruling (2026-10-20), frozen before any run
+
+**(b)'s frozen 0 stays a miss in the record.** 1,740 of 25,098,437 round trips were more than one cell
+off. The ruling accepted the cause: `Project` truncates toward zero, so a point in (−1, 0) lands on
+pixel 0, up to 1.5 px from that pixel's centre, and the frozen bound assumed flooring. **`Project` does
+not change.** It is the planes' existing behaviour, WD1 pins it bit for bit, and the visible effect is at
+most about 1.5 px on the left and top edge pixels.
+
+**(b′): the same round trip, split by where the float projection fell.** It covers the same 960 views
+and every crop cell whose centre `Project` puts on an on-disc pixel. The test recomputes `Project`'s
+float x and y to classify each point. **Control:** for every point, `(int)x` and `(int)y` must equal
+what `Project` returned, or the classification is BLIND.
+
+**The bound, derived per view the same way as the frozen one.** `kRow` and `kCol` are the view's cells
+per pixel along the lat and lon axes: `(2 rLat / size) / cellLat` and `(2 rLon / size) / cellLon`.
+- **(b′1): x ≥ 0 and y ≥ 0.** The pixel centre is within 0.5 px of the point on each screen axis, so
+  within **0.7071 px** along any rotated axis. The bound is `|Δrow| ≤ ⌊0.7071 · kRow + 0.5⌋` and
+  `|Δcol| ≤ ⌊0.7071 · kCol + 0.5⌋`. That is ≤ 1 everywhere, since k ≤ 1.667, so it is the frozen ≤ 1.
+  **Predicted: 0 violations.**
+- **(b′2): x or y in (−1, 0).** The truncated axis is up to 1.5 px from the pixel centre and the other up
+  to 0.5 px, so along any rotated axis up to **√(1.5² + 0.5²) = 1.5811 px**. The bound is
+  `|Δrow| ≤ ⌊1.5811 · kRow + 0.5⌋` and `|Δcol| ≤ ⌊1.5811 · kCol + 0.5⌋`: at most 3 at the 2.0° clamp
+  on 240 px. **Predicted: 0 violations.** The count of b′2 points is printed: **1,740 or more**, since it
+  includes the 1,740 that failed (b).
+- **Both x and y in (−1, 0)** would land on pixel (0, 0), which is off the disc for every size.
+  **Predicted count: 0.**
+
+**Sabotages:** all three existing WD2 sabotages (rotation ignored, rLat/rLon swapped, y flipped) now also
+run through the round trip, and **each must give (b′1) violations > 0**.
+
+**Outside the set:** stop and report.
+
