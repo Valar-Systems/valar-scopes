@@ -1,0 +1,194 @@
+# WXC1 v2: a rain/snow type per cell (spec, predictions first)
+
+**Status: a draft for review. Docs only, no code.** WXC1 v2 is shared work between two sessions:
+- **the producer**, blipscope-5c: fetching PrecipFlag, pairing it with a radar frame, the encoder, the Worker and the cap. Its sections arrive as commits on this PR.
+- **the consumer**, Weatherscope: `include/WxCrop.h` v2, its host tests, fixtures and sabotages, and the renderer.
+
+Both sessions review every section. **Rulings come only from Daniel's reviewer chat.** The open questions in section 3 are his to rule on.
+
+**The rules carry over from Weatherscope Stages 1 and 2:**
+- predictions are frozen before the code or the measurement they predict;
+- every check is proven able to fail by a sabotage;
+- stop on anything off-prediction, and don't re-grade;
+- downloaded MRMS files stay out of git;
+- no deploys.
+
+Facts cite `origin/main` at `fc784b8` unless a commit is named.
+
+## 0. What is ruled
+
+| ruling | source |
+|---|---|
+| Snow and rain only, no MIX. Snow is `PrecipFlag` code 3, and every other precipitation code (1, 6, 7, 10, 91, 96) is rain, including 7 (rain mixed with hail). | Daniel, 2026-10-20; `docs/weatherscope-screens.md` §4 (#425) |
+| **The 15 dBZ floor stays.** No sub-15 dBZ snow is carried. | Daniel, 2026-10-20; same section |
+| **The only format change is a rain/snow type per cell, from `PrecipFlag`.** | Daniel, 2026-10-20; same section |
+| SeamlessHSR is Weatherscope's product. The Blipscope layer keeps the composite (`MergedReflectivityQCComposite`, "cref"); the product stays a parameter of the request. | Daniel, 2026-10-20 |
+| Open this spec now as a docs-only draft PR; blipscope-5c reviews it. | Daniel, 2026-10-21 |
+
+**Unchanged from v1:** the code nibbles (0 dry inside coverage, 1-13 for 15-75 dBZ in 5 dBZ steps, 14 no coverage, 15 missing), the run encoding, the header fields, the 32 KB cap and the refuse-whole strictness. The format reference is the header comment of `include/WxCrop.h`; the v1 wire spec is "Wire format v1" in `docs/wx-spike-2026-10.md` on `spike/wx-overlay`.
+
+## 1. Why this is a version bump
+
+There is no room in v1 for a type:
+- **All 16 code nibbles are taken** (0, 1-13, 14, 15).
+- **v1 refuses unknown flags and a nonzero reserved byte** (`WxCrop.h`: `UnknownFlags` for any flag bit but bit 0, `ReservedByte` for byte 7; added in the #429 review).
+
+That strictness was put there for this moment. A new meaning has to bump the version rather than being silently ignored.
+
+## 2. The format
+
+### 2.1 Header: 32 bytes, as v1, with two differences
+
+- **Byte 4, `version`: 2.**
+- **Byte 6, `flags`:**
+  - bit 0: coarsened to fit the cap (as v1);
+  - **bit 1: typed.** When it is set, a type layer is always present.
+  - Bits 2-7 are refused (`UnknownFlags`).
+- **Unchanged:** the magic stays `WXC1`, and byte 7 stays reserved and must be 0.
+
+**Why "typed" is its own flag** (blipscope-5c, agreed). Without it, an untyped crop (a frame or product with no `PrecipFlag`) and a typed all-rain crop look the same. With it, an all-rain typed crop is a single long run of about 3 bytes. Omitting the layer when there's no snow would save almost nothing and bring the ambiguity back.
+
+### 2.2 Body: the code layer, then the type layer
+
+1. **The code layer is exactly v1's.** Its runs are row-major from the north-west cell, may cross row ends, and cover exactly `rows × cols` cells:
+   - one byte per run, with the code in the high nibble and a length of 1-15 in the low nibble;
+   - a low nibble of 0 means a long run whose length follows as an unsigned LEB128.
+2. **The type layer** is present if and only if `typed` is set. It starts at the byte right after the code layer has covered every cell. v1's no-overrun rule makes that boundary unambiguous.
+   - **It covers echo cells only** (codes 1-13), in the same row-major order, skipping every cell with code 0, 14 or 15. Dry, no coverage and missing carry no type.
+   - **Its runs use the same nibble + LEB128 scheme.** The nibble is the type: **0 = rain, 1 = snow**. Types 2-15 are refused.
+   - **Its runs cover exactly the crop's echo-cell count.** Covering more is refused, and so is ending before it. When the crop has no echo cell the layer is empty (0 bytes), and that is still "present".
+3. **Nothing follows the type layer.** A trailing byte is refused.
+
+### 2.3 What a v2 decoder refuses
+
+Everything v1 refuses, plus:
+
+| input | status |
+|---|---|
+| `version` not 1 or 2 | `BadVersion` |
+| a version-1 crop with flag bit 1 set | `UnknownFlags`. A v1 crop keeps v1's rules exactly |
+| flag bits 2-7 | `UnknownFlags` |
+| `typed`, but the type runs end before the echo count (including no layer at all when there is echo) | `TypeUnderrun` |
+| `typed`, and the type runs cover more than the echo count | `TypeOverrun` |
+| a type nibble of 2-15 | `BadType` |
+| not `typed`, but bytes follow the code layer | `Overrun`, as in v1 |
+| `typed`, and bytes follow the type layer | `TrailingBytes` |
+
+**As in v1, the whole crop is validated before a single run is reported or a single cell written.** A caller never holds part of a grid.
+
+**The v2 decoder also decodes v1.** A version-1 crop decodes exactly as today, every cell typed rain, so the consumer keeps working against an endpoint that serves v1.
+
+### 2.4 What a v1 decoder does with a v2 crop (predicted; V2 tests it)
+
+| the crop | the v1 decoder (today's `WxCrop.h`) |
+|---|---|
+| a v2 crop as specified, typed or not | `BadVersion`, refused whole, no cell written |
+| a crop mislabelled `version` 1, typed | `UnknownFlags` (bit 1), refused whole |
+| a crop mislabelled `version` 1, untyped, with a type layer appended | `Overrun`, refused whole |
+| a crop mislabelled `version` 1, untyped, no type layer | decodes, untyped. This is a correct v1 crop |
+
+So no v2 crop is ever partly drawn by a v1 decoder. That is the clean refusal Daniel asked for.
+
+### 2.5 Coarsening
+
+A coarsened block takes the code of its strongest cell, as v1 does.
+- **Its type is the type of the cell that won its code.**
+- **Ties need a rule.** That means equal-strength cells of different types winning the same block. See Q1 in section 3.
+
+### 2.6 The cap, and a worst-case bound
+
+**32 KB covers the whole v2 crop: header, codes and types together.** The producer's coarsening ladder (1, 2, 4, 8) considers both layers.
+
+**The bound** at coarsen `c`, with `cells = ceil(rows / c) × ceil(cols / c)`:
+- the code layer is at most `cells` bytes (one byte per run, at most one run per cell);
+- the type layer is at most `echo ≤ cells` bytes;
+- so a typed crop is at most `32 + 2 × cells` bytes. An untyped crop keeps v1's `32 + cells`.
+
+The producer's section turns this into the largest crop each rung can always fit. **Its sabotage shows the cap check sees the type layer:** a crop that fits on codes alone and is over the cap with types must step down a rung.
+
+### 2.7 Serving
+
+- **The endpoint serves v1 unless the request asks for v2** (for example `&fmt=2`; the producer names it). Today's v1 fixtures and tests stay valid.
+- **Nothing that decodes WXC1 has shipped.** The default flips to v2 only by a ruling.
+
+### 2.8 Not in v2
+
+- **No product byte.** An earlier ruling listed "WXC1 v2 (rain/snow, the product byte)". The later ruling makes the type the only change, and the URL and ETag already carry the product. Written here so nobody thinks it was forgotten.
+- **No type below code 1.** The 15 dBZ floor is untouched.
+
+## 3. Open questions, for Daniel's ruling
+
+| | question | proposal |
+|---|---|---|
+| **Q1** | **The coarsening tie:** a block's strongest cells are equally strong and have different types. Which type does it get? | blipscope-5c proposes **snow wins**, so coarsening never hides snow. That is a ruling, not ours to make. |
+| **Q2** | **An echo cell `PrecipFlag` doesn't call precipitation:** code 0 (no precipitation), −3 (no coverage), or no paired file for that cell. Which type does it get? | **Rain (type 0).** Snow only on positive evidence (code 3), which matches the ruled "snow is code 3, every other code is rain". Measurement 4 counts how often it happens (M4f). If no `PrecipFlag` file pairs with the frame at all, the crop is served **untyped** (flag bit 1 clear), never typed all-rain. |
+
+## 4. Measurement 4: before any encoder or decoder code
+
+**Purpose.** Settle three things from data before the spec does:
+- how `PrecipFlag` files pair in time with SeamlessHSR's and the composite's;
+- whether the grids line up cell for cell;
+- how sparse the type layer is.
+
+No format choice depends on the result except the pairing rule and Q2's frequency. **Run by the consumer, predictions frozen here.**
+
+**The sample:** change 1's 24 snowing hours at KMSP, 2024-12-02 05:53Z to 12-11 15:53Z (`docs/weatherscope-stage2.md`).
+- These are the same SeamlessHSR files that run2 and the snow-ring measurement used.
+- The composite files paired with them in Stage 2's run2 are also used.
+- The `PrecipFlag_00.00` files are new: for each hour, every file within ±10 minutes of that hour's SeamlessHSR file.
+
+**The instrument** is committed on its own branch before it runs (`tools/weatherscope/m4_precipflag.py`), so this PR stays docs-only. The results return here as an addendum.
+
+**The crop:** Weatherscope's screen crop around KMSP, the 60 mi geometry of Stage 1's fixture. **No coordinates are printed or committed.**
+
+**Two controls must pass before any number is read:**
+- **C-M4a, census.** Every decoded `PrecipFlag` value is in NSSL's table (−3, 0, 1, 3, 6, 7, 10, 91, 96). A value outside it refuses the run: that is the instrument, not the data.
+- **C-M4b, anchor.** Re-decoding each hour's SeamlessHSR and composite files reproduces, exactly:
+  - the centre value Stage 2 recorded for that hour in run2's `results2.json` (kept outside git, with the MRMS files);
+  - the histogram committed in `docs/weatherscope-stage2.md` (SeamlessHSR 7 / 12 / 1 / 3 / 1, composite 4 / 12 / 4 / 3 / 1).
+
+**Two sabotages must turn the instrument red:**
+- **decoding `PrecipFlag` with the wrong field width:** C-M4a refuses;
+- **pairing each hour with the next hour's `PrecipFlag` file:** M4b reports offsets near 3600 s, outside every predicted set, so the run stops.
+
+| | measured | predicted | what each outcome means |
+|---|---|---|---|
+| **M4a** | `PrecipFlag` cadence: the interval between consecutive files in each of the 24 windows | **120 s in all 24** | 120 s: pair per 2-minute frame. **Anything else: stop and decide**, and design the pairing from the measured cadence. |
+| **M4b** | the nearest `PrecipFlag` file's time minus the SeamlessHSR file's, per hour | **0 s in 24/24** | (a) 0 s in 24/24: pair by identical timestamp; a missing match serves the crop untyped. (b) The same nonzero offset in 24/24: pair at that offset. (c) Varying, but all within ±120 s: pair to the nearest, with a stated maximum age. **(d) Anything else: stop and decide.** |
+| **M4c** | the same, against the paired composite file | **\|Δ\| within 31-43 s in 24/24.** Stage 2 measured that spread between the composite and SeamlessHSR, and the prediction is that `PrecipFlag` runs on SeamlessHSR's clock | Inside the band: the Blipscope layer pairs across products to the nearest file, at most 60 s apart. Outside: **stop and decide** (the composite side's pairing has to be designed separately). |
+| **M4d** | the grid of `PrecipFlag` against SeamlessHSR and the composite: dimensions, first point, increments, scanning mode | **identical for all three** | Identical: types pair cell for cell. Different: **stop.** v2 defines no resampling. |
+| **M4e** | of the echo cells (codes 1-13) in the crop, pooled over the 24 hours: the share with `PrecipFlag` 3 (snow) | **80-100 %** on SeamlessHSR; **80-100 %** on the composite | Inside: snowing hours look like snow on the wire. Below 80 %: report it with M4f, and Daniel decides whether the type layer means what the ruling assumes. |
+| **M4f** | of the echo cells, the share with no type evidence (`PrecipFlag` 0 or −3) | **≤ 5 %** on both products | Q2's frequency. Above 5 %: Q2 stops being an edge case, and its ruling is asked with this number. |
+| **M4g** | of the snow cells (`PrecipFlag` 3) in the crop, the share with echo ≥ 15 dBZ | **5-40 %** on both products | The share of snow the 15 dBZ floor keeps on the wire, for the record. It changes nothing ruled. |
+| **M4h** | the type layer's size under 2.2, per hour, against the code layer's | **≤ 4 bytes in every hour whose echo is all one type; otherwise ≤ 25 % of the code layer's bytes**, in 24/24 | Inside: the cap bound in 2.6 is loose in practice. Outside: the producer's ladder section gets this number before it is written. |
+
+**Outside every row's predicted set: the instrument or the model is wrong. Stop and decide; don't write a pairing rule from it.**
+
+## 5. Who does what
+
+### 5.1 The producer (blipscope-5c; sections to come as commits)
+
+Fetching `PrecipFlag`, the pairing rule (from M4b and M4c), encoding the type layer, coarsening with both layers, the cap ladder and its sabotage, `&fmt=2`, and the Worker. **Nothing is deployed from this PR.**
+
+### 5.2 The consumer (Weatherscope): predictions for `WxCrop.h` v2
+
+Frozen here before the decoder code:
+
+| | check | predicted |
+|---|---|---|
+| **V1** | v1 unchanged | Every v1 fixture in `test/fixtures/wx/MANIFEST.json` gives the same runs and the same status under the v2 decoder. `test_wx_crop.cpp`'s v1 cases pass **unmodified**. |
+| **V2** | a v1 decoder against v2 crops | Today's `WxCrop.h`, pinned by blob sha in the test, gives exactly the statuses in the 2.4 table on the v2 fixtures and their three mislabelled variants. Its callback is never called on a refused crop. |
+| **V3** | v2 strictness | Each row of the 2.3 table has a case that gives its status, with zero callbacks. **Each has a sabotage in the decoder that turns that case red.** That gives at least one sabotage per new status, in `sabotage_wx_crop.py`. |
+| **V4** | the cap, from the consumer side | A typed crop one byte over 32,768 is `TooLong`. The same crop untyped, under the cap, decodes. |
+| **V5** | cross-checked fixtures | Every v2 fixture is written by the producer's encoder from real `PrecipFlag` and radar files. `WxCrop.h` v2 and an independent Python decoder agree on it cell for cell (codes and types), as v1's fixtures are checked against `crop.ts` and `a3_check.py`. |
+| **V6** | the renderer | Snow cells are drawn from the snow ramp and rain cells from the rain ramp of the ruled palette (`WxPalette.h`). Pixel-identical to an extended `render_ref.py` on one typed fixture. **CONTROL:** the same fixture decoded untyped renders all rain. |
+
+## 6. Order
+
+1. **This skeleton, then blipscope-5c's review.**
+2. **Measurement 4:** the instrument committed on its own branch, run, and its results recorded here.
+3. **Daniel's rulings on Q1 and Q2,** with M4f's number attached to Q2.
+4. **The producer's sections and the consumer's V-predictions finalised,** then each side's code on its own branch. Fixtures come from the producer's encoder.
+5. **Flipping the endpoint's default to v2:** a ruling, not a step.
+
+**Outside every step's predictions: stop and decide.**
