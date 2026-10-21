@@ -295,3 +295,26 @@ Every standalone two-digit string `"00"`-`"59"` (NUL on both sides) is counted i
 | **(a)** the counts differ only in strings that are suffixes of one image's own time strings and not of the other's (e.g. `"00"` absorbed by the rebuild's `17:00:00`) | the 16 B is the fixed `SOURCE_DATE_EPOCH`, by tail merge. C2's and C2b's size gap is explained without the recipe; C2c becomes unnecessary for that question |
 | **(b)** the counts are identical | the time-string alternative doesn't account for the 16 B; C2c stands |
 | **(c)** anything else | stop |
+
+#### C2-diag result: by its frozen measure, (b), counts identical. The meaning attached to (b) is CONTRADICTED by the same read. Recorded, not re-graded
+
+**By the measure as frozen:** both images hold **3** standalone two-digit strings, and **no count differs**. That is outcome (b), whose stated meaning is "the time-string alternative doesn't account for the 16 B".
+
+**The same read contradicts that meaning.** The measure looked at the wrong strings: two-digit ones, where the mechanism here works on a whole time string. Every `HH:MM:SS` occurrence, and whether it is standalone (NUL on both sides):
+
+| | asset (1,928,192 B) | rebuild (1,928,176 B) |
+|---|---|---|
+| `0x000070` | `11:17:54`, standalone (the prebuilt libs' own) | the same |
+| `0x00306c` | `17:17:32`, **inside** `Oct 20 2026 17:17:32` | `17:00:00`, inside `Oct 20 2025 17:00:00` |
+| `0x00ffac` | **`17:17:58`, standalone** (WiFiManager's "Software Info" `__TIME__`) | **absent** |
+| next | `19:04:10` at **`0x088f27`** | `19:04:10` at **`0x088f17`**, **16 B earlier** |
+
+**What this shows:**
+- With `SOURCE_DATE_EPOCH` fixed, both `__TIME__` uses become `17:00:00`. The second is then a suffix of the date-time string, and **the linker tail-merges it away.** A standalone `17:17:58\0` (9 B) disappears, and with section alignment every later string moves by **exactly 16 B**. The difference is accounted for, with nothing left over.
+- **So the 16 B gap in both C2 and C2b came from my fixed `SOURCE_DATE_EPOCH`, not from the patches or the gate recipe.** This is the mechanism A5.8 recorded, at the scale of a whole time string rather than a two-digit one.
+
+**Not concluded here (the reviewer rules):** whether C2 may close as "patched" on this.
+
+**The separator that would close it, proposed and not run (C2d):** C2b's runner rebuild **without** `SOURCE_DATE_EPOCH`, on the real clock.
+- **Predicted:** the two `__TIME__` strings differ, nothing merges, and the image is **1,928,192 B**, with every differing byte in R1-R4.
+- **If so,** C2 closes as patched. **If not,** stop.
