@@ -183,4 +183,4 @@ L1 and L2, after Daniel's deploy, are unchanged. **The deploy is unblocked on th
 | **B12** | `snapshot.length === 0`. Called with Portland (45.52, -122.68), it returns the downtown `centre` and `radius_km` 48.28, and the namespace was asked only for `"bend"` | **S-B12** (a `snapshot(lat, lon)` that recentres): red |
 | **B13** | `attribution_url` is `https://adsb.fi` for adsb.fi and `https://adsb.lol` for adsb.lol | **S-B13** (field removed): red |
 
-The full proxy suite passes (45 files, 587 tests), and `tsc` is clean. The README section now carries the permission, its Bend-only scope, and the linked credit.
+The full proxy suite passes (44 files, 587 tests), and `tsc` is clean. The README section now carries the permission, its Bend-only scope, and the linked credit.
