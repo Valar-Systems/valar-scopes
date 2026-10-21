@@ -14,10 +14,11 @@ import os
 
 Import("env")  # noqa: F821  (provided by PlatformIO's SCons environment)
 
-HEADER = os.path.join(
-    env.subst("$PROJECT_LIBDEPS_DIR"), env["PIOENV"],  # noqa: F821
-    "ESPAsyncWebServer", "src", "WebResponseImpl.h",
-)
+import sys
+sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "scripts"))  # noqa: F821
+import prebuild_patch  # noqa: E402  (the one rule for a missing file: docs/prebuild-patches.md)
+
+HEADER = prebuild_patch.target(env, "[patch_async_buff]", "ESPAsyncWebServer", "src", "WebResponseImpl.h")  # noqa: F821
 
 GUARD = "#ifndef ASYNC_RESPONCE_BUFF_SIZE"
 ORIGINAL = "#define ASYNC_RESPONCE_BUFF_SIZE CONFIG_LWIP_TCP_MSS * 2"
@@ -27,14 +28,11 @@ REPLACEMENT = (
     "#endif"
 )
 
-try:
+if HEADER is not None:
     with open(HEADER, "r", encoding="utf-8") as fh:
         text = fh.read()
-except FileNotFoundError:
-    print("[patch_async_buff] %s not found yet; skipping" % HEADER)
-else:
     if GUARD in text:
-        pass  # already guarded
+        print("[patch_async_buff] ASYNC_RESPONCE_BUFF_SIZE already guarded; nothing to do")
     elif ORIGINAL in text:
         with open(HEADER, "w", encoding="utf-8") as fh:
             fh.write(text.replace(ORIGINAL, REPLACEMENT, 1))

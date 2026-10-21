@@ -33,10 +33,9 @@ import os
 
 Import("env")  # noqa: F821  (provided by PlatformIO's SCons environment)
 
-HEADER = os.path.join(
-    env.subst("$PROJECT_LIBDEPS_DIR"), env["PIOENV"],  # noqa: F821
-    "WiFiManager", "wm_strings_en.h",
-)
+import sys
+sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "scripts"))  # noqa: F821
+import prebuild_patch  # noqa: E402  (the one rule for a missing file: docs/prebuild-patches.md)
 
 # (what to find, what to replace it with, why)
 PATCHES = [
@@ -64,8 +63,8 @@ PATCHES = [
 
 
 def apply_patches():
-    if not os.path.isfile(HEADER):
-        print("patch_wm_copy: %s not found; skipping" % HEADER)
+    HEADER = prebuild_patch.target(env, "patch_wm_copy:", "WiFiManager", "wm_strings_en.h")  # noqa: F821
+    if HEADER is None:
         return
 
     with open(HEADER, "r", encoding="utf-8", errors="replace") as fh:
@@ -86,11 +85,15 @@ def apply_patches():
             fh.write(text)
 
     print("patch_wm_copy: %d applied, %d already patched" % (applied, already))
-    # LOUD, not silent. A string that no longer matches means the library moved
-    # and this fix has stopped reaching the customer -- which is exactly the
-    # class of failure nobody notices, because the portal is not re-read.
+    # FATAL, not a warning (ruled 2026-10-21: a patch that cannot apply fails the build).
+    # A string that no longer matches means the library moved and this fix has stopped
+    # reaching the customer -- exactly the failure nobody notices, because the portal is
+    # not re-read, and a warning in a green build is read by nobody either.
     for m in missing:
-        print("patch_wm_copy: WARNING -- pattern NOT FOUND, copy fix not applied: %r" % m)
+        print("patch_wm_copy: FATAL -- pattern NOT FOUND, copy fix cannot apply: %r. "
+              "WiFiManager changed shape; update this patch." % m)
+    if missing:
+        env.Exit(1)  # noqa: F821
 
 
 apply_patches()
