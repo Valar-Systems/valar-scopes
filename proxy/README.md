@@ -459,11 +459,13 @@ entrypoint = "BendFeed"
 
 **The response:**
 ```json
-{ "available": true, "v": 1, "centre": {"lat": 44.058, "lon": -121.315}, "radius_km": 48.28,
+{ "available": true, "v": 2, "centre": {"lat": 44.058, "lon": -121.315}, "radius_km": 48.28,
   "t": 1761080000, "age_s": 23, "stale": false, "source": "adsb.fi", "attribution": "aircraft data: adsb.fi", "attribution_url": "https://adsb.fi",
   "aircraft": [{"hex": "a1b2c3", "cs": "ASA123", "lat": 44.1, "lon": -121.2, "alt_ft": 31000, "gs_kt": 452,
-                "track_deg": 271, "vrate_fpm": 0, "category": 3, "seen_s": 2}] }
+                "track_deg": 271, "vrate_fpm": 0, "category": 3, "seen_s": 2,
+                "t": "B738", "desc": "BOEING 737-800", "dbFlags": 0}] }
 ```
+- **`t`, `desc`, `dbFlags` (v2)** are passed through from the upstream exactly as received, under its own names: the type code, the type name, and the readsb bitfield (military 1, interesting 2, PIA 4, LADD 8). A value of the wrong type is `null`, never coerced. Registration and operator are not included. **LADD and PIA aircraft are flagged, not removed:** whether the site shows them is the site's decision.
 - **When there's nothing to serve,** the answer is `{ "available": false, "reason": "empty" }`, or `"disabled"` when the switch is off.
 - **Past 120 s of age,** `stale` is `true` and `aircraft` is `[]`. The cutoff is applied here, not left to the site.
 - **Attribution:** show `attribution` with the planes, **linked to `attribution_url`**. adsb.lol's ODbL requires the credit; for adsb.fi it is a condition of the permission below.

@@ -18,7 +18,7 @@
 //   BendFeed.snapshot()     -> colo cache (10 s) -> DO GET -> no planes past 120 s
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import type { NormalizedAircraft } from "../schema";
-import { upstreamDistNm } from "../schema";
+import { normalizeReadsbAc, upstreamDistNm } from "../schema";
 import type { Env } from "../types";
 
 /** Downtown Bend, Oregon (Daniel, 2026-10-21). The snapshot's centre, always -- never a device's tile. */
@@ -89,13 +89,22 @@ export interface SiteAircraft {
   vrate_fpm: number | null;
   category: number;
   seen_s: number | null;
+  // v2 (Daniel, 2026-10-21): passed through from the upstream AS RECEIVED, under the upstream's own names.
+  // A value of the wrong type is refused (null), never coerced. Registration and operator are NOT passed.
+  t: string | null;       // readsb type code, e.g. "B738"
+  desc: string | null;    // readsb type name, e.g. "BOEING 737-800"
+  dbFlags: number | null; // readsb bitfield: military 1, interesting 2, PIA 4, LADD 8 -- unchanged
 }
+
+/** A stored aircraft. The v2 pass-through fields are OPTIONAL here because rows written by v1 code lack them;
+ *  the reader serves them as null ("not received"). Served aircraft (SiteAircraft) always carry all three. */
+export type StoredAircraft = Omit<SiteAircraft, "t" | "desc" | "dbFlags"> & Partial<Pick<SiteAircraft, "t" | "desc" | "dbFlags">>;
 
 /** What is stored: the upstream's time, its operator, the planes. Nothing from the request. */
 export interface Snapshot {
   t: number;
   source: string;
-  aircraft: SiteAircraft[];
+  aircraft: StoredAircraft[];
 }
 
 interface Stored extends Snapshot {
@@ -124,7 +133,30 @@ export function extract(all: NormalizedAircraft[]): SiteAircraft[] {
       vrate_fpm: a.vrateFpm,
       category: a.category,
       seen_s: a.ageS,
+      t: null,
+      desc: null,
+      dbFlags: null,
     }));
+}
+
+/** The pass-through fields of one raw upstream record: right type or null. */
+function passThrough(raw: unknown): Pick<SiteAircraft, "t" | "desc" | "dbFlags"> {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  const flags = typeof r.dbFlags === "number" && Number.isInteger(r.dbFlags) && r.dbFlags >= 0 ? r.dbFlags : null;
+  return { t: str(r.t), desc: str(r.desc), dbFlags: flags };
+}
+
+/** The planes inside the downtown circle, from the upstream's RAW records: normalised for position exactly as
+ *  blips.ts does, plus the three pass-through fields (which normalisation drops). */
+export function extractRaw(raw: unknown[]): SiteAircraft[] {
+  const out: SiteAircraft[] = [];
+  for (const r of raw) {
+    const a = normalizeReadsbAc(r);
+    if (!a || haversineKm(a.lat, a.lon, BEND.lat, BEND.lon) > RADIUS_KM) continue;
+    out.push({ ...extract([a])[0]!, ...passThrough(r) });
+  }
+  return out;
 }
 
 function count(env: Env, event: string): void {
@@ -146,7 +178,7 @@ export function __resetSiteFeedForTests(): void {
   lastSkipCountMs = 0;
 }
 
-export type OnFetched = (all: NormalizedAircraft[], upstreamId: string, upstreamNowMs: number) => void;
+export type OnFetched = (raw: unknown[], upstreamId: string, upstreamNowMs: number) => void;
 
 /**
  * The device-path hook, or undefined when the feed is off (then the device path does nothing at all).
@@ -154,7 +186,7 @@ export type OnFetched = (all: NormalizedAircraft[], upstreamId: string, upstream
  */
 export function bendWriter(env: Env, ctx: ExecutionContext, latQ: string, lonQ: string, bucketKm: number): OnFetched | undefined {
   if (!enabled(env)) return undefined;
-  return (all, upstreamId, upstreamNowMs) => {
+  return (raw, upstreamId, upstreamNowMs) => {
     try {
       const tileLat = parseFloat(latQ);
       const tileLon = parseFloat(lonQ);
@@ -170,7 +202,7 @@ export function bendWriter(env: Env, ctx: ExecutionContext, latQ: string, lonQ: 
       if (!source) return;
       if (now - lastSendMs < WRITE_MIN_INTERVAL_MS) return;
       lastSendMs = now;
-      const snap: Snapshot = { t: Math.floor(upstreamNowMs / 1000), source, aircraft: extract(all) };
+      const snap: Snapshot = { t: Math.floor(upstreamNowMs / 1000), source, aircraft: extractRaw(raw) };
       const stub = env.BEND_SNAPSHOT!.get(env.BEND_SNAPSHOT!.idFromName(DO_NAME));
       ctx.waitUntil(
         Promise.resolve()
@@ -247,7 +279,7 @@ export type SiteFeedResponse =
   | { available: false; reason: "disabled" | "empty" }
   | {
       available: true;
-      v: 1;
+      v: 2;
       centre: { lat: number; lon: number };
       radius_km: number;
       t: number;
@@ -291,7 +323,7 @@ export async function readSnapshot(env: Env, nowMs: number = Date.now(), cache: 
   const stale = age_s > MAX_SHOW_AGE_S;
   return {
     available: true,
-    v: 1,
+    v: 2,
     centre: { lat: BEND.lat, lon: BEND.lon },
     radius_km: RADIUS_KM,
     t: snap.t,
@@ -300,7 +332,8 @@ export async function readSnapshot(env: Env, nowMs: number = Date.now(), cache: 
     source: snap.source,
     attribution: ATTRIBUTION[snap.source] ?? "",
     attribution_url: ATTRIBUTION_URL[snap.source] ?? "",
-    aircraft: stale ? [] : snap.aircraft,
+    // A row stored by v1 code has no pass-through fields: they read null ("not received"), never invented.
+    aircraft: stale ? [] : snap.aircraft.map((a) => ({ ...a, t: a.t ?? null, desc: a.desc ?? null, dbFlags: a.dbFlags ?? null })),
   };
 }
 
