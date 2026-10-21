@@ -118,25 +118,34 @@ export function sourceName(upstreamId: string): string | null {
   return null;
 }
 
-/** The planes inside the downtown circle, from the FULL upstream list. */
+/** THE circle test -- the only one. Both extract() and extractRaw() go through it, so they cannot disagree
+ *  about membership (addendum 4: two copies of one rule once let an aircraft out with no hex or position). */
+export function inCircle(a: NormalizedAircraft): boolean {
+  return haversineKm(a.lat, a.lon, BEND.lat, BEND.lon) <= RADIUS_KM;
+}
+
+/** THE conversion -- the only one. Pass-through fields start null; extractRaw fills them from the raw record. */
+function toSite(a: NormalizedAircraft): SiteAircraft {
+  return {
+    hex: a.hex,
+    cs: a.cs,
+    lat: a.lat,
+    lon: a.lon,
+    alt_ft: a.altFt,
+    gs_kt: a.gsKt,
+    track_deg: a.trackDeg,
+    vrate_fpm: a.vrateFpm,
+    category: a.category,
+    seen_s: a.ageS,
+    t: null,
+    desc: null,
+    dbFlags: null,
+  };
+}
+
+/** The planes inside the downtown circle, from the FULL normalised list. */
 export function extract(all: NormalizedAircraft[]): SiteAircraft[] {
-  return all
-    .filter((a) => haversineKm(a.lat, a.lon, BEND.lat, BEND.lon) <= RADIUS_KM)
-    .map((a) => ({
-      hex: a.hex,
-      cs: a.cs,
-      lat: a.lat,
-      lon: a.lon,
-      alt_ft: a.altFt,
-      gs_kt: a.gsKt,
-      track_deg: a.trackDeg,
-      vrate_fpm: a.vrateFpm,
-      category: a.category,
-      seen_s: a.ageS,
-      t: null,
-      desc: null,
-      dbFlags: null,
-    }));
+  return all.filter(inCircle).map(toSite);
 }
 
 /** The pass-through fields of one raw upstream record: right type or null. */
@@ -153,8 +162,8 @@ export function extractRaw(raw: unknown[]): SiteAircraft[] {
   const out: SiteAircraft[] = [];
   for (const r of raw) {
     const a = normalizeReadsbAc(r);
-    if (!a || haversineKm(a.lat, a.lon, BEND.lat, BEND.lon) > RADIUS_KM) continue;
-    out.push({ ...extract([a])[0]!, ...passThrough(r) });
+    if (!a || !inCircle(a)) continue;
+    out.push({ ...toSite(a), ...passThrough(r) });
   }
   return out;
 }

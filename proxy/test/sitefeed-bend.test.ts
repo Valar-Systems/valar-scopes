@@ -1,7 +1,7 @@
 // The Bend site feed (docs/bend-site-feed.md): B1-B9. Each check has a sabotage in the doc that turns it red.
 import { env, fetchMock } from "cloudflare:test";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { SCHEMA_V } from "../src/schema";
+import { SCHEMA_V, normalizeReadsbAc } from "../src/schema";
 import {
   BEND,
   BendFeed,
@@ -10,6 +10,7 @@ import {
   __resetSiteFeedForTests,
   covers,
   extract,
+  extractRaw,
   fetchedKm,
   haversineKm,
   readSnapshot,
@@ -321,5 +322,23 @@ describe("B14-B17 v2: t / desc / dbFlags passed through as received (Daniel, 202
     const r = await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns }, Date.now(), fakeCache());
     expect(r).toMatchObject({ available: true, v: 2 });
     if (r.available) expect(r.aircraft[0]).toMatchObject({ t: null, desc: null, dbFlags: null });
+  });
+});
+
+describe("B19 one circle test (addendum 4)", () => {
+  it("extractRaw emits only complete aircraft, and agrees with extract on membership at the boundary", () => {
+    const at = (km: number, hex: string) => {
+      const p = northOf(km);
+      return makeAc({ hex, lat: p.lat, lon: p.lon });
+    };
+    const raw = [at(RADIUS_KM - 0.001, "b19001"), at(RADIUS_KM - 0.00001, "b19002"), at(RADIUS_KM + 0.001, "b19003")];
+    const viaRaw = extractRaw(raw);
+    for (const a of viaRaw) {
+      expect(typeof a.hex).toBe("string");
+      expect(Number.isFinite(a.lat) && Number.isFinite(a.lon)).toBe(true);
+    }
+    const norm = raw.map(normalizeReadsbAc).filter((a): a is NonNullable<typeof a> => a !== null);
+    expect(viaRaw.map((a) => a.hex)).toEqual(extract(norm).map((a) => a.hex));
+    expect(viaRaw.map((a) => a.hex)).toEqual(["b19001", "b19002"]);
   });
 });
