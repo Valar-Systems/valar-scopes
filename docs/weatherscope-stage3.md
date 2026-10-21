@@ -2,6 +2,8 @@
 
 **Status: a plan for review. No code is written until it is approved.** Ruled by Daniel on 2026-10-20: Weatherscope moves from the Stage 1 bench harness to a full edition. Stage 2's 2.2 (the past-hour loop) and 2.3 (the screen logic) fold into this plan.
 
+**Approved 2026-10-21 (Daniel) at `35903dd`, and merged as `69e81c1` (#449).** The rulings given with the approval are in Addendum 4.
+
 **Reviewers:**
 - Daniel's reviewer chat, which rules;
 - blipscope-5c, focusing on **OTA separation** and **the shared code Blipscope relies on**.
@@ -137,6 +139,7 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
 - **No board is flashed except `907069326E64`.**
 - **No deploys.** No Worker change happens in Stage 3.
 - **Added 2026-10-21 (Addendum 2, A2.2):** once Weatherscope has a slug, a failing Weatherscope leg withholds `version.txt` for **every** SKU. The slug decision is made knowing that.
+- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2): one exception to "no board is flashed except `907069326E64`", for O11 only.** O11 runs on E2:08, operated by blipscope-5c. Every other Stage 3 step keeps the rule.
 
 ## 5. Screens and screen logic (2.2 and 2.3 fold in here)
 
@@ -333,6 +336,7 @@ A1.2 replaces `httpUpdate.update()`, so all three are rewritten. **What the new 
 - It repeats until a correctly labelled image is published.
 - A1.4 says a mislabelled publish "costs a head read, not a brick". An "Update failed" on every boot across the fleet would also make it cost a visible fault.
 - The record and the serial line still carry the refusal.
+- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.1): accepted.** A refused update shows nothing on screen. Its fleet reporting is later work.
 
 **One consequence:** the first draw of the bar moves to after acceptance, so a refused head never flashes a 0 % bar.
 
@@ -399,6 +403,7 @@ The refusal and accepted cases are observed in O11; the failure case in O6, at t
   - Either way, A needs a bench-only override of the `version.txt` and image URLs. Hosting B on GitHub keeps the production host and redirect path.
   - The override's marker string must be absent from every shipping ELF (the O9 grep).
   - How A's difference from R's candidate, the override alone, is bounded is frozen with O11's addendum before it runs.
+- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2):** the board is E2:08, operated by blipscope-5c. B is hosted as a GitHub prerelease asset clearly named as a bench test, and deleted after O11.
 
 ## Addendum 3, 2026-10-21: blipscope-5c's re-read at `9e9c6a9` (frozen before any Stage 3 code)
 
@@ -452,3 +457,28 @@ blipscope-5c re-read Addendum 2 and found points 2-4 and O11 taken correctly. It
 ### A3.5 For Daniel's O11 ruling
 
 blipscope-5c is content with either board. If it is E2:08, O11 waits until #450's SC6 and the Part B soak are off that board.
+
+## Addendum 4, 2026-10-21: Daniel's rulings with the approval (recorded after the merge)
+
+The plan was approved at `35903dd` and merged as `69e81c1`. These rulings came with the approval. They are recorded here, in a follow-up PR, so that nothing was pushed to #449 after it was approved at that SHA.
+
+### A4.1 What a refused update shows (A2.1)
+
+**A refused update shows nothing on screen, as proposed.** The refusal is carried in the OTA record (`refused-<reason>`) and on serial.
+
+**Added to the later fleet work:** `refused-<reason>` **must be reported in fleet telemetry,** so that a mislabelled publish gets noticed.
+- **What covers part of this:** A3.1's reader (`reconcile-fleet.py`, the devices behind `version.txt` broken down by last OTA result), which blipscope-5c will write. It reaches radar devices on the cloud feed.
+- **The gap that stays:** A3.2's blind spot remains. Radar devices off the cloud feed, and every non-radar edition, Weatherscope included, send no OTA record. Closing it is part of the same later work. It is not a Stage 3 change.
+
+### A4.2 O11: the board, image B, and what is frozen before it runs (A2.4)
+
+- **The board: E2:08, operated by blipscope-5c.** This is a **one-test exception** to section 4's "no board is flashed except `907069326E64`" rule, for O11 only.
+- **Image B:** a **GitHub prerelease asset, clearly named as a bench test,** deleted after O11.
+- **Timing:** the release candidate's timing is coordinated between this session and blipscope-5c.
+- **Frozen in O11's own addendum, before it runs:**
+  - how A's difference from R's candidate, the URL override alone, is bounded (A2.4);
+  - **what `firmware.yml`'s release-event jobs (`version`, `promote`, `ship-alert`) do on a PRERELEASE publish.** O11 needs it established that they build or upload nothing that reaches `releases/latest`. blipscope-5c raised this, and it is checked together before any prerelease is created.
+
+### A4.3 Stage 3 code may start
+
+"No Stage 3 code until #449 is approved at its new head" is met. Step 3.1 starts with its predictions frozen first (section 8).
