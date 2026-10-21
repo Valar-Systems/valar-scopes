@@ -5,9 +5,14 @@
 // (test/fixtures/wx/legend_check.py, addendum 7) compares the board's actual pixels with the palette table.
 //
 //   Light rain                  rain 1-4      Moderate     rain 5-7     Heavy    rain 8-10
-//   Very heavy / possible hail  rain 11-13    Snow, light -> heavy  snow 1-6 (7-13 hold code 6's colour)
+//   Hail possible               rain 11-13    Snow, light -> heavy  snow 1-6 (7-13 hold code 6's colour)
 //   No radar coverage           14            No data      15, hatched  Dry: no label (ruled)
 // dBZ in small text is optional and left out of the bench version.
+//
+// ROUND-SCREEN LAYOUT (Daniel's look, addendum 8): every label box (6 px x chars, 8 px) and every swatch lies within
+// kInnerRadius of the centre; the block is centred vertically (y 48..192 about 120); every row's swatches start at the
+// same x; every swatch, "No data" included, is kSize x kSize. test/host/test_wx_legend.cpp holds all four (G1-G4).
+// "Very heavy / possible hail" is 156 px and does not fit left of the swatch column, so the row reads "Hail possible".
 
 #include <stdint.h>
 
@@ -18,13 +23,16 @@ enum class Kind : uint8_t { Rain, Snow, NoCoverage, NoData };
 struct Row { const char* label; int16_t y; };
 struct Swatch { uint8_t row; Kind kind; uint8_t code; int16_t x, y, w, h; };
 
-constexpr int kLabelX = 34;     // inside the round panel's chord at every row
-constexpr int kSwatchX0 = 140;  // swatches start right of the longest label
+constexpr int kLabelX = 36;       // inside kInnerRadius at every row
+constexpr int kSwatchX0 = 144;    // every row's swatches start here, right of the longest label (102 px)
+constexpr int kInnerRadius = 112; // 8 px inside the 120 px panel edge (frozen, addendum 8)
+constexpr int kCharW = 6, kCharH = 8;  // LovyanGFX's default font at text size 1
 constexpr int kPitch = 14;
 constexpr int kSize = 12;
 
-constexpr Row kRows[7] = {{"Light rain", 40},      {"Moderate", 62},          {"Heavy", 84}, {"Very heavy/hail", 106},
-                          {"Snow light>heavy", 128}, {"No radar coverage", 150}, {"No data", 172}};
+// Label y; each row's swatches sit 2 px higher. Rows at a 22 px pitch: swatches y 48..192, centred on 120.
+constexpr Row kRows[7] = {{"Light rain", 50},      {"Moderate", 72},          {"Heavy", 94}, {"Hail possible", 116},
+                          {"Snow light>heavy", 138}, {"No radar coverage", 160}, {"No data", 182}};
 
 constexpr Swatch S(uint8_t row, Kind kind, uint8_t code, int i)
 {

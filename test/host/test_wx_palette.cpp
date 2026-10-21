@@ -1,5 +1,5 @@
 // Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties:
-// C3 (a)-(i), docs/weatherscope-stage2.md addenda 2, 4 and 5. The table is READ FROM THE COMMITTED FILE here, so the
+// C3 (a)-(j), docs/weatherscope-stage2.md addenda 2, 4, 5 and 8. The table is READ FROM THE COMMITTED FILE here, so the
 // header and the pin cannot drift apart unnoticed.
 //
 //   test_wx_palette.exe <fixtures-dir>        exit 0 all pass, 1 a check failed, 2 the rig (file unreadable)
@@ -198,6 +198,15 @@ int main(int argc, char** argv)
     std::snprintf(t13, sizeof t13, "snow 13 %s vs rain 13 %s: dE*ab %.1f (>= 20)", S(wxpalette::Snow(13)).c_str(),
                   S(wxpalette::Rain(13, 55)).c_str(), dE13);
     check(dE13 >= 20.0, "C3i", t13);
+
+    // (j) rain 12 (violet) against no coverage (14): dE*ab >= 40 -- a CONFIRMATION (addendum 8): they looked alike in a
+    // low-light photo; the palette is final, so a failure is reported, never answered by changing a colour.
+    const Lab v12 = ToLab(wxpalette::Rain(12, wxpalette::kDim55)), nc = ToLab(wxpalette::kNoCoverage);
+    const double dEj = std::sqrt((v12.L - nc.L) * (v12.L - nc.L) + (v12.a - nc.a) * (v12.a - nc.a) + (v12.b - nc.b) * (v12.b - nc.b));
+    char tj[112];
+    std::snprintf(tj, sizeof tj, "rain 12 %s vs no coverage %s: dE*ab %.1f (>= 40)", S(wxpalette::Rain(12, 55)).c_str(),
+                  S(wxpalette::kNoCoverage).c_str(), dEj);
+    check(dEj >= 40.0, "C3j", tj);
 
     // The pin, as a check (#439 review): the file's bytes, CRLF folded to LF, hash to the pinned sha256. An id appended
     // to the table, or any byte changed, fails it -- the guards' pin and this one read the same number.

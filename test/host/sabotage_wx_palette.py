@@ -1,5 +1,5 @@
 """Runs test_wx_palette.cpp against SABOTAGED copies of src/weatherscope/WxPalette.h; each must turn the suite
-red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4 and 5) and nothing else.
+red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4, 5 and 8) and nothing else.
 
     python -I test/host/sabotage_wx_palette.py
 
@@ -13,6 +13,7 @@ real header's sha256 is compared before and after.
   S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
   S-h     the snow ramp started at (165, 205, 245), near its top    -> exactly C3h (it barely steps)
   S-i     the snow top set to (240, 245, 255), near white          -> exactly C3i
+  S-C3j   rain 12 (violet) set to (45, 45, 45), near no coverage    -> exactly C3c and C3j
   S-PIN   the REAL header, run on a fixtures copy whose pinned table has an id appended -> exactly pin
 Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
 """
@@ -43,6 +44,8 @@ SABOTAGES = {
               "constexpr Rgb kSnowTable[6] = {{165, 205, 245}, {166, 206, 246}, {167, 208, 247}, {168, 209, 248}, "
               "{169, 211, 249}, {170, 212, 250}};  // SABOTAGE: starts near the top, barely steps")],
             [r"C3h\b"]),
+    "S-C3j": ([("{255, 0, 255}, {153, 85, 201}};", "{255, 0, 255}, {45, 45, 45}};  // SABOTAGE")],
+              [r"C3c\b", r"C3j\b"]),
     "S-i": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {240, 245, 255}};  // SABOTAGE: near white")],
             [r"C3i\b"]),
 }

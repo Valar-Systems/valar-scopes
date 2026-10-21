@@ -236,6 +236,11 @@ void DumpLegend()
     int i = 0;
     for (const auto& sw : wxlegend::kSwatches)
         Serial.printf("WXL,%d,%s,%u,%d,%d,%d,%d\n", i++, wxlegend::KindName(sw.kind), (unsigned)sw.code, sw.x, sw.y, sw.w, sw.h);
+    // The label boxes too (L5: the background outside swatches and labels must be dry; L6: the inner radius).
+    int r = 0;
+    for (const auto& row : wxlegend::kRows)
+        Serial.printf("WXT,%d,%d,%d,%d,%d\n", r++, wxlegend::kLabelX, (int)row.y, wxlegend::kCharW * (int)strlen(row.label),
+                      wxlegend::kCharH);
     constexpr size_t kRowBytes = (size_t)wxrender::kSize * 2;
     const uint8_t* buf = (const uint8_t*)canvas.getBuffer();
     unsigned char b64[kRowBytes * 4 / 3 + 4];

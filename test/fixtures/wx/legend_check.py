@@ -11,7 +11,10 @@ big-endian RGB565 each, zlib CRC-32). Then:
   L1  every pixel of every swatch equals the colour the FINAL palette gives its code, derived HERE, independently of
       WxPalette.h: rain from the pinned table (code 1 at 55 %, 13 white), snow and the greys from addendum 6's dated
       table, "no data" as the hatch pattern exactly. Expected colours go through LovyanGFX's truncating color565.
-Exit 0 only when L1, L2 and L4 all hold.
+  L5  (addendum 8) the background: outside the swatches and the label boxes (WXT lines) every pixel is dry 0x0000;
+      inside a label box only 0x0000 or 0xFFFF, and no box is empty
+  L6  (addendum 8) the inner radius on the board's own pixels: every non-dry pixel's centre within 112 px of (120, 120)
+Exit 0 only when L1, L2, L4, L5 and L6 all hold.
 """
 import ast, base64, hashlib, os, re, struct, sys, zlib
 
@@ -21,6 +24,8 @@ from capture_stage1 import capture   # the single-open capture, shared
 
 N, ROW_BYTES = 240, 480
 WXS = re.compile(r"^WXS,(\d+),([0-9a-f]{8}),([A-Za-z0-9+/=]*)$")
+WXT = re.compile(r"^WXT,(\d+),(-?\d+),(-?\d+),(\d+),(\d+)$")
+INNER_RADIUS = 112   # addendum 8, frozen
 WXL = re.compile(r"^WXL,(\d+),(rain|snow|nocov|nodata),(\d+),(-?\d+),(-?\d+),(\d+),(\d+)$")
 PIN = "f73f0d6264d420cb55efe79d58415ca056391a0cc607fa0efa061f3331418e2f"
 
@@ -101,9 +106,30 @@ def main(argv):
         if bad_px: fails.append((i, k, c, bad_px, w * h))
     print(f"L1 every swatch equals the palette: {21 - len(fails)}/21 swatches exact" + ("" if not fails else
           " -> MISMATCH: " + "; ".join(f"#{i} {k} {c}: {b}/{n} px" for i, k, c, b, n in fails)))
+    # L5: the background is dry; labels are white on dry and non-empty
+    boxes = [tuple(int(v) for v in m.groups()[1:]) for m in (WXT.match(l) for l in lines) if m]
+    covered = set()
+    for _, _, _, x0, y0, w, h in sw:
+        covered.update((x, y) for y in range(y0, y0 + h) for x in range(x0, x0 + w))
+    labels = set()
+    for x0, y0, w, h in boxes:
+        labels.update((x, y) for y in range(y0, y0 + h) for x in range(x0, x0 + w))
+    px = lambda x, y: sprite[2 * (y * N + x)] << 8 | sprite[2 * (y * N + x) + 1]
+    bg_bad = sum(1 for y in range(N) for x in range(N) if (x, y) not in covered and (x, y) not in labels and px(x, y) != 0)
+    lab_bad = sum(1 for (x, y) in labels if (x, y) not in covered and px(x, y) not in (0x0000, 0xFFFF))
+    empty = sum(1 for x0, y0, w, h in boxes if not any(px(x, y) == 0xFFFF for y in range(y0, y0 + h) for x in range(x0, x0 + w)))
+    l5 = len(boxes) == 7 and bg_bad == 0 and lab_bad == 0 and empty == 0
+    print(f"L5 background: {len(boxes)} label boxes; non-dry pixels outside swatches and labels: {bg_bad}; non-white/dry "
+          f"inside labels: {lab_bad}; empty label boxes: {empty} -> {'dry, as ruled' if l5 else 'NOT as predicted'}")
+    # L6: every non-dry pixel inside the inner radius
+    lit = [(x, y) for y in range(N) for x in range(N) if px(x, y) != 0]
+    far = max(((x + 0.5 - 120) ** 2 + (y + 0.5 - 120) ** 2) ** 0.5 for x, y in lit) if lit else 0.0
+    l6 = far <= INNER_RADIUS
+    print(f"L6 inner radius: {len(lit)} non-dry pixels; the farthest pixel centre is {far:.1f} px from the centre "
+          f"(<= {INNER_RADIUS}) -> {'inside' if l6 else 'OUTSIDE'}")
     if "--png" in argv:
         png(argv[argv.index("--png") + 1], sprite); print(f"   PNG of the board's legend -> {argv[argv.index('--png') + 1]}")
-    return 0 if (l2 and not fails) else 1
+    return 0 if (l2 and not fails and l5 and l6) else 1
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
