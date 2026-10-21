@@ -415,6 +415,69 @@ All of them stay in the scratchpad, never in git.
 
 **Outside all of the above: stop and decide.**
 
+## Addendum 6: the final palette, and the rulings on 2.0 (2026-10-20; frozen before (e) is measured)
+
+**Recorded as received:**
+1. **Rain 15-20 dBZ: 55 %.** Final, as on the board. Close 2.1: record the final palette (the pinned table and its sha256) as a dated ruling, confirm C1 and C2 on the 55 % build, and ask blipscope-5c to review #439.
+2. **The legend readings are confirmed:** the 40 dBZ gold counts as yellow (Moderate either way), and dry gets no label.
+3. **The 2.0 rulings (on `981b2cb`), as written:**
+   - **a. The hook: both.** Add one line to CLAUDE.md's bench/git notes: a fresh clone has `core.hooksPath` unset, so `.githooks/pre-commit` doesn't run until `git config core.hooksPath .githooks`. And set it in my clone. Daniel authorizes the CLAUDE.md edit. Its own small PR; blipscope-5c reviews and merges.
+   - **b. P0: retired as a test.** It is recorded as a **falsified assumption**: at pixel scale, the composite is **not** ≥ SeamlessHSR, whatever the cause. It is not re-graded, and there are no more motion tests. **The decisions (M5) are the test.**
+   - **c. Product: SeamlessHSR.** The basis: M5 agreed on F1, F4 and F5. On F2 (virga), SeamlessHSR was right. On F3 its centre missed light rain, which (d) handles differently.
+   - **d. "Precipitation here now" (1c)** comes from the **NWS latest observation at the nearest station** (its present weather), not from the radar's centre pixel. Radar drives the 15 mi ring and the drawing. Recorded as a change to `docs/weatherscope-screens.md`, dated, in its own commit.
+   - **e. The snow threshold:** before any wire-format change, measure the **15 mi ring** over change 1's 24 hours at **5, 10 and 15 dBZ** on **SeamlessHSR**, with predictions frozen first, and report the share of snowing hours the ring catches at each. The wire format for snow waits for that result and its ruling.
+4. **Order:** close 2.1, then (e), then the legend bench build. The shared parts (the pipeline, alerts and the wire format) stay held for blipscope-5c.
+
+### The final palette (ruled 2026-10-20 by Daniel, after three looks at the board)
+
+**The source:** the code is `src/weatherscope/WxPalette.h` at `10e5012` (#439). Rain comes from **MetPy v1.6.3 `NWSReflectivity`**, pinned unmodified as `test/fixtures/wx/NWSReflectivity-metpy-v1.6.3.tbl`, BSD-3-Clause, **sha256 `f73f0d6264d420cb55efe79d58415ca056391a0cc607fa0efa061f3331418e2f`** (the committed blob, LF).
+
+| code | rain | snow |
+|---|---|---|
+| 1 (15-20 dBZ) | `(0, 0, 135)`: the table's `(0, 0, 246)` at **55 %** | `(0, 110, 210)` |
+| 2 | `(0, 255, 0)` | `(66, 129, 218)` |
+| 3 | `(0, 200, 0)` | `(98, 149, 226)` |
+| 4 | `(0, 144, 0)` | `(124, 169, 234)` |
+| 5 | `(255, 255, 0)` | `(148, 190, 242)` |
+| 6 | `(231, 192, 0)` | `(170, 212, 250)` |
+| 7 | `(255, 144, 0)` | `(170, 212, 250)` (held) |
+| 8 | `(255, 0, 0)` | held |
+| 9 | `(214, 0, 0)` | held |
+| 10 | `(192, 0, 0)` | held |
+| 11 | `(255, 0, 255)` | held |
+| 12 | `(153, 85, 201)` | held |
+| 13 (≥ 75 dBZ) | **`(255, 255, 255)`**, by ruling (the table's entry is black) | held |
+
+| other | colour |
+|---|---|
+| dry (0) | `(0, 0, 0)` |
+| no coverage (14) | `(40, 40, 40)` |
+| missing (15) | hatched: `(72, 72, 72)` where `(x + y) % 4 == 0`, dry elsewhere |
+
+### (e) The snow ring at 5, 10 and 15 dBZ (frozen before measuring)
+
+**The instrument.** `ring.ts`, committed before it runs, decodes each of change 1's 24 SeamlessHSR files. These are the same files run2 used, already downloaded. For each it:
+- runs the census at the −40 floor;
+- takes the **maximum raw value** over the grid cells whose centre lies **within 15 mi of KMSP**, using the device's flat projection (111.0 km per degree, longitude scaled by the cosine of KMSP's latitude). The −99 and −999 sentinels are not values;
+- reports, per hour, that maximum and whether it reaches 5, 10 and 15 dBZ.
+
+**The control,** read before any share is believed: F4's hour, 2024-12-02 06:53Z, is one of the 24. On that file, SeamlessHSR's **screen** ring showed echo at 15 and 20 dBZ and not at 30 (run2's M5). So **its raw ring maximum must be ≥ 20 and < 30 dBZ.** Anything else means the ring geometry or the decode disagrees with the screen: **stop**.
+
+**Predicted:** the share of the 24 snowing hours whose ring maximum reaches each threshold (5 ≥ 10 ≥ 15 holds by construction):
+
+| threshold | predicted share |
+|---|---|
+| ≥ 15 dBZ | **40-75 %** |
+| ≥ 10 dBZ | **60-90 %** |
+| ≥ 5 dBZ | **75-100 %** |
+
+**Basis:**
+- The centre cell reached 15 dBZ in only 1 of 24 hours.
+- But F4's ring reached 20-25 dBZ while its centre read −1.1.
+- A 15 mi ring holds about 1,800 cells, so its maximum sits well above any single cell.
+
+**Outside the predictions:** a census or control failure stops the run. Anything else is reported as measured, and the snow wire format waits for the ruling on it.
+
 ## Bench rules (unchanged from Stage 1)
 
 - **The board** is `907069326E64`, always found by its serial.
