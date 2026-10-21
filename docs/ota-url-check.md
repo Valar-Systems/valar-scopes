@@ -91,3 +91,22 @@ uploaded either way.
   config value. The check refuses any OTA URL string that isn't the default base. An image that builds
   its URL entirely from run-time data would read NO-OTA, and `--require-ota` turns that into a FAIL on
   shipping rows.
+
+## Results: host and local (2026-10-21, before CI)
+
+Graded on `dce27b5`.
+
+| check | reading | verdict |
+|---|---|---|
+| OU1 `--selftest` | all 9 image cases and 4 wiring cases return their planted verdict; the default base is read from `OtaUpdater.cpp` | as predicted |
+| S-OU1, the `/releases/download/` rule removed | the selftest fails (exit 1), on exactly the case only that rule sees ("the defaults plus a bare pinned base": got PASS) | as predicted |
+| OU2, the release image (`3e887fdd…`, `bb5042e`) | **PASS**, with and without `--require-ota` | as predicted |
+| OU2, the base pinned to `…/releases/download/ota-preflight-v6` (a real build) | **FAIL**, naming both pinned URLs | as predicted |
+| OU2, the base on another host, `https://example.invalid/ota` (a real build) | **FAIL**, naming both off-base URLs | as predicted |
+| OU4 `--check-wiring` on this branch | ok | as predicted |
+| S-OU4a, the step moved after `Attach to release` | refused, naming the upload | as predicted |
+| S-OU4b, the step given `if: matrix.slug` | refused, naming the `if:` | as predicted |
+
+Every sabotage asserted its anchor (exactly once) and that the file changed, and each file was restored and verified against `dce27b5`.
+
+**Read before OU5 runs (its prediction is unchanged).** Of the `skus.yml` envs, only `animtest-s3-128` interpolates `${env:blipscope-s3-128.build_flags}`. It has no OTA client, so OU5's define can't change its NO-OTA verdict. `weatherscope-s3-128` extends that env but replaces `build_flags`, and every other row has its own `build_flags`. So OU5 should change the s3-128 leg's verdict only, as frozen.
