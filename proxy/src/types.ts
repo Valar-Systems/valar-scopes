@@ -52,4 +52,8 @@ export interface Env {
                                       // than this is DEGRADED -> try the next feed (chain.ts).
                                       // Must stay >= 2 x the relay CACHE_TTL + 25s.
   ENRICH_SERVE_DEADLINE_MS?: string;  // default 2500 (cold-lookup wait cap; see enrich.ts)
+
+  // The Bend site feed (src/sitefeed/bend.ts, docs/bend-site-feed.md) -- removable; see README "Bend site feed".
+  SITE_FEED_BEND?: string;                  // "on" enables it; anything else = off (no DO call from the device path)
+  BEND_SNAPSHOT?: DurableObjectNamespace;   // the one BendSnapshotDO instance
 }
