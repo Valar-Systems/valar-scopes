@@ -875,3 +875,25 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 9. The board.
 
 **Outside every prediction: stop and decide.**
+
+### A6.3 Corrections and choices made before the code (2026-10-21; for the reviewer)
+
+**A correction: the alert sample A6.1 names doesn't exist as one record.**
+- **What A6.1 says:** `StoredAlertFeed` serves "the event, headline and expiry of the 2026-10-20 sample in `docs/weatherscope-screens.md` §3".
+- **What is there:** read at #425's head `5b0e819` (the doc isn't on main), §3 is a **summary** of which fields about 10 alerts of each type carried, sampled on 2026-10-20. It holds no single alert with an event, a headline and an expiry. Section 2 of this plan carries the same reference.
+- **The replacement, which stays as close to the intent as the API allows:** one alert, fetched once by this session at implementation time from `api.weather.gov/alerts`, the same way A6.1 already has this session fetch the observation. The selection rule is fixed here, before any alert is seen:
+  - the types in 3d's order: Tornado, Snow Squall, Severe Thunderstorm, Flash Flood Warning;
+  - alerts **sent on 2026-10-20 (UTC)**, the sampled day;
+  - **the first type with any such alert, and within it the earliest `sent`.**
+  - If none of the four types has one, stop and ask.
+- **What is kept:** `event`, `headline`, `expires`, and the alert's `sent` for the record. **Not kept:** the polygon, `areaDesc`, zone and SAME codes, ids, URLs and sender addresses. So nothing it stores can hit D2's lowercase hosts.
+- **What depends on it:** nothing graded in A6.2. No 3.2 screen draws an alert. If the reviewer prefers another source, the stored record is swapped. Only the product image changes, and D2 and the budgets are re-read.
+
+**Choices the frozen text left open, written down so they aren't discovered later:**
+- **The env's flags:** `${s3128_hw.build_flags}`, the URL-free board section every s3-128 bench env composes from. That is A6.1's list (`${common.build_flags}`, the s3-128 variant, PSRAM, `ARDUINO_USB_MODE=1`) **plus `ARDUINO_USB_CDC_ON_BOOT=1`**. Claudescope's env and every s3-128 env carry that flag, and without it the banner goes to UART0 instead of the USB port. Then `-DFEATURE_WEATHERSCOPE` and `-DFW_OTA_PREFIX=\"weatherscope-\"`.
+- **The partition table:** `partitions-s3-16mb-bignvs.csv`, the s3-128 SKU's table and the one `907069326E64` carries now. So its NVS, and any stored Wi-Fi credentials, stay where they are. `-DBLIPSCOPE_EXPECT_BIG_NVS` is **not** set: its only reader is `Logbook.cpp`, which the product doesn't compile.
+- **The crop:** `board_build.embed_files = test/fixtures/wx/kdfw-60mi.wxc`, as section 2 says, read through the same `_binary_…` symbols the bench uses.
+- **The stored observation and alert** are compiled constants, generated from the fetched JSON by this session. The device parses no JSON in 3.2; the live parsers come with the proxy path.
+- **The observation:** `KDFW`'s `/observations/latest` at fetch time, keeping `presentWeather` (its raw strings) and `timestamp`. Station coordinates and every other field are dropped.
+- **The interfaces in 3.2:** `WxFeed::Latest()`, `ObsFeed::Latest()`, `AlertFeed::Active()`. The past hour's history is added to `WxFeed` in 3.3, with the 15 frames.
+- **The config page:** location (latitude, longitude) and display (auto-dim, brightness), like Claudescope's location and display blocks. No ntfy and no alert toggles until there are alerts to send.
