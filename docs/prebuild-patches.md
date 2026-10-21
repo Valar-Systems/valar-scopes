@@ -243,3 +243,24 @@ A wrong match can then only ever stop the build with a fix-it message, never ski
 **Outside the set:**
 - **If a rebuild re-installs the renamed or removed library** (PlatformIO repairing it), that sabotage isn't simulating what it claims: stop and redesign it.
 - **If T1 moves `animtest` or `weatherscope-bench`,** the presence rule is reading something unexpected: stop.
+
+### C2b: outcome (iii), the sizes differ. STOPPED, as frozen (run 39683282844, 2026-10-21)
+
+| | read |
+|---|---|
+| the runner, workspace | `ubuntu-latest`, `/home/runner/work/valar-scopes/valar-scopes`, `672eab7`; `platformio-6.2.0` and a pip set identical to the v18 release run's |
+| the patch lines | #1: `guarded …`, `3 applied, 0 already patched`, `made … shared`. #2 and #3: `0 applied, 3 already patched`, `already shared` (as predicted) |
+| the control, #1/#2/#3 | **byte-identical**, all three `4726b898…` |
+| the v18 asset | `5a5f662b…`, 1,928,192 B |
+| **the verdict** | the rebuild is **1,928,176 B**: **(iii), stop** |
+
+**The diagnosis, read after the stop and kept apart from the verdict:**
+- **The Linux runner rebuild and C2's Windows rebuild have exactly the same size,** 1,928,176 B. So the 16 B is **not** a Windows-against-Linux, path or link-order effect. C2's alternative (b) no longer accounts for it.
+- **The tools match.** PlatformIO is 6.2.0 in both runs, the platform is pinned (`55.03.39` zip), and every library is pinned. So a toolchain move overnight is unlikely.
+- **The recipe differs.** The v18 asset isn't the output of one plain `pio run`. In the release leg, the image that gets uploaded is the **adsbdb gate's final rebuild**, after its plant/build/unplant cycle (`scripts/check-adsbdb-out.sh`, which runs after the build step). Both of today's rebuilds were plain builds.
+
+**What would separate the remaining alternatives,** proposed and not run (C2c): replay the release leg's exact steps at `672eab7` on a runner, `pio run -e blipscope-s3-128` and then `bash scripts/check-adsbdb-out.sh blipscope-s3-128`, and compare the resulting image with the v18 asset, stamp regions listed first.
+- If it matches outside the stamps, C2 closes as patched, and the 16 B belongs to the gate's rebuild recipe.
+- If not, an unpatched release remains possible. That would contradict the 1a logs and C1, and it would be a stop.
+
+The scratch branch `scratch/c2b-linux-rebuild` was deleted after the read, as frozen.
