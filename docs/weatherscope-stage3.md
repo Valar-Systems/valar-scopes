@@ -754,3 +754,38 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 | **C1, C2, L1-L6, on the board** | as frozen in A5.2 |
 
 **Outside every prediction: stop and decide.** The first run's records stay as they are.
+
+### A5.7 Step 3.1's results: S1 v2, the board and CI, every row as predicted (2026-10-21)
+
+**S1 v2**, run as A5.6 froze it.
+- **The build:** in one clone, with `SOURCE_DATE_EPOCH=1760000000` on every measured build. The base was `bf7ece6` and the head `0de94ad`.
+- **The rounds:** every warm-up and measured build succeeded. The sabotage and the bench rename were each restored byte-identical, and the clone was clean after each round.
+- **The grade:** `s1.py compare2` printed `S1 v2 rows: ALL AS PREDICTED`.
+
+| row | predicted | measured |
+|---|---|---|
+| **C-S1v2, the calibration** | `blipscope-s3-128` built twice at the base, minutes apart: 0 bytes | **0 differing bytes** (the builds finished 10:40:49 and 10:43:41) |
+| **S1** | identical outside R1/R2 in 14/14 | **14/14 completely byte-identical.** R1 and R2 are unchanged too, with 0 differing bytes in every env. **3.1 changes nothing in any other product's image.** |
+| **S1's sabotage** | outside R1/R2 in the 13 envs that compile `ConfigurationWebServer.cpp`; `animtest-s3-128` at 0 bytes | **13/13 changed** (size differs), and **`animtest-s3-128` is at 0 bytes.** The non-compiling set is exactly `['animtest-s3-128']`. |
+| **the bench, under its old name** | identical outside R1/R2 | **0 bytes outside R1/R2.** R1 and R2 differ (65 bytes in all), as listed: moving the file changes the ELF's debug data. |
+
+**On the board**, `907069326E64`:
+- **The flash:** the head's bench image, with the port resolved from the serial (COM6). esptool read the MAC as `90:70:69:32:6e:64`, and the board's banner reads `env=weatherscope-bench-s3-128`.
+- **An instrument slip before this:** a first capture attempt passed the serial number as the port name. The open failed, and no byte reached the board.
+
+| check | predicted | measured |
+|---|---|---|
+| **C1** (`capture_stage1.py`) | exit 0: 240/240 rows, B9 `344383b4…` = `fb_sha256`, the standing timing checks repeating | **exit 0.**<br>• 240/240 rows good; B9 **IDENTICAL**, 0 of 57,600 pixels differ, consistent with the board's `fb_sha256`.<br>• B3 153,608, B4 0 and B8 25,768 as predicted.<br>• B5-B7, the standing misses, repeat at +0.0 %, −0.1 % and +2.7 %. |
+| **C2** | `WX,sprite_sha256` = `a88c3a99fa5c…` | **`a88c3a99fa5c1bb4d6d2bb77d081b22b8da6e752200ae79cf67acec90c335ed3`**, exact |
+| **L1, L2, L4, L5, L6** (`legend_check.py`) | exit 0 | **exit 0:**<br>• L4 240/240;<br>• L2 exactly the ruled mapping;<br>• L1 21/21 swatches exact;<br>• L5 dry, with 0 stray pixels;<br>• L6 farthest pixel 109.0 px (≤ 112), as in #448. |
+
+**CI on `0de94ad`:** 33 checks, 30 successes and 3 release-only skips.
+- The bench leg's adsbdb gate reads `weatherscope-bench-s3-128  CONTROL found … PASS`.
+- **"found" is the discriminator:** had the narrowed case not matched the renamed env, the control would have been planted in a file the bench doesn't compile.
+
+**Step 3.1 is complete.** The bench harness is `weatherscope-bench-s3-128`, its file moved byte-identical, and no other product's image changed by a single byte.
+
+**On record from the first run (A5.4, A5.5):**
+- S1 v1's three false failures came from the build setup: first-build library patching, and a build-time string tail-merge.
+- The bench prediction missed the compiled-in env name.
+- D2's "no time strings" clause missed.
