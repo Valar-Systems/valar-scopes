@@ -219,3 +219,20 @@ run through the round trip, and **each must give (b′1) violations > 0**.
 
 **Outside the set:** stop and report.
 
+### WD2 (b′) results (2026-10-20): AS PREDICTED
+
+| | result |
+|---|---|
+| control: the classification's float x, y truncate to `Project`'s own pixel | **0** disagreements |
+| **(b′1)** x, y ≥ 0 | **25,086,717** round trips, **0** beyond ⌊0.7071 k + 0.5⌋ |
+| **(b′2)** x or y in (−1, 0) | **11,720** round trips (predicted ≥ 1,740), **0** beyond ⌊1.5811 k + 0.5⌋ |
+| both x and y in (−1, 0) | **0** |
+| sabotage: rotation ignored | (a) 16,845,039 mismatches; **(b′1) 6,920,035** violations |
+| sabotage: rLat/rLon swapped | (a) 13,186,188; **(b′1) 2,987,897** |
+| sabotage: y flipped | **(b′1) 8,606,650** |
+| record: the frozen (b) | 1,740 of 25,098,437 more than one cell off; printed, not asserted |
+
+(b′1) and (b′2) together are the full 25,098,437. The b′2 points number 11,720, more than the 1,740 that
+failed (b): most points that truncate onto pixel 0 still land within one cell, because the view's cells
+per pixel are often well under 1.67.
+

@@ -51,7 +51,8 @@ static void Radii(double lat, double rKm, double zoom, double* rLat, double* rLo
     *rLon = std::fmin(std::fmax(rKm / (111.0 * c), 0.001), 2.0) * zoom;
 }
 
-struct Tally { long px = 0, mismatch = 0, band = 0, rtCells = 0, rtBad = 0, offBad = 0, nocovBad = 0; };
+struct Tally { long px = 0, mismatch = 0, band = 0, rtCells = 0, rtBad = 0, offBad = 0, nocovBad = 0,
+               b1Cells = 0, b1Bad = 0, b2Cells = 0, b2Bad = 0, bothNeg = 0, ctlBad = 0; };
 
 // One view. `layerView` is what the layer is GIVEN (sabotages change it); `truth` is the real view the
 // reference and the planes use.
@@ -99,7 +100,26 @@ static void Grade(const Crop& k, const wxlayer::View& truth, const wxlayer::View
         const size_t i = (size_t)p.second * S + p.first;
         if (off[i]) continue;
         ++t->rtCells;
-        if (std::labs((long)idxR[i] - r) > 1 || std::labs((long)idxC[i] - c) > 1) ++t->rtBad;
+        const long dr = std::labs((long)idxR[i] - r), dc = std::labs((long)idxC[i] - c);
+        if (dr > 1 || dc > 1) ++t->rtBad;                    // the frozen (b), kept as a printed record
+        // (b'): classify by where Project's float x, y fell (its math, recomputed here only to classify;
+        // the CONTROL below requires the recomputation to truncate to exactly what Project returned).
+        const float fLon = lo - truth.homeLon, fLat = la - truth.homeLat;
+        const float nLon = (fLon + truth.rLon) / (2.0f * truth.rLon), nLat = (fLat + truth.rLat) / (2.0f * truth.rLat);
+        float fx = nLon * S, fy = S - (nLat * S);
+        if (truth.rotSin != 0.0f || truth.rotCos != 1.0f) {
+            const float Cc = S / 2.0f, px = fx - Cc, py = fy - Cc;
+            fx = Cc + px * truth.rotCos + py * truth.rotSin;
+            fy = Cc - px * truth.rotSin + py * truth.rotCos;
+        }
+        if ((int)fx != p.first || (int)fy != p.second) ++t->ctlBad;
+        const double kRow = (2.0 * truth.rLat / S) / cLat, kCol = (2.0 * truth.rLon / S) / cLon;
+        const bool negX = fx < 0.0f, negY = fy < 0.0f;
+        if (negX && negY) ++t->bothNeg;
+        const double reach = (negX || negY) ? std::sqrt(2.5) : std::sqrt(0.5);   // 1.5811 px truncated, 0.7071 px not
+        const long bR = (long)std::floor(reach * kRow + 0.5), bC = (long)std::floor(reach * kCol + 0.5);
+        if (negX || negY) { ++t->b2Cells; if (dr > bR || dc > bC) ++t->b2Bad; }
+        else              { ++t->b1Cells; if (dr > bR || dc > bC) ++t->b1Bad; }
     }
 }
 
@@ -145,9 +165,9 @@ int main(int argc, char** argv)
             // the sabotages, on a subset of views (one per crop/rotation/size at zoom 1, +jitter)
             if (z == 1.0 && j > 0) {
                 wxlayer::View noRot = v; noRot.rotCos = 1.0f; noRot.rotSin = 0.0f;
-                if (rot != 0) Grade(k, v, noRot, &sabRot, false);
+                if (rot != 0) Grade(k, v, noRot, &sabRot, true);
                 wxlayer::View swap = v; swap.rLat = v.rLon; swap.rLon = v.rLat;
-                Grade(k, v, swap, &sabSwap, false);
+                Grade(k, v, swap, &sabSwap, true);
                 wxlayer::View flip = v; flip.rLat = -v.rLat;           // a y flip
                 Grade(k, v, flip, &sabFlip, true);
             }
@@ -158,18 +178,27 @@ int main(int argc, char** argv)
     char b[256];
     std::snprintf(b, sizeof b, "%ld views, %ld on-disc pixels: %ld mismatches outside the 1e-4 band (predicted 0), %ld inside it", views, t.px, t.mismatch, t.band);
     line(t.mismatch == 0 && views == 8 * 2 * 3 * 5 * 4, "a", b);
-    std::snprintf(b, sizeof b, "round trip: %ld crop cells on the disc, %ld with |drow| or |dcol| > 1 (predicted 0)", t.rtCells, t.rtBad);
-    line(t.rtBad == 0 && t.rtCells > 0, "b", b);
+    // The frozen (b) -- 0 round trips more than one cell off -- FAILED (1,740) and stays a miss in the record
+    // (docs/wx-device.md); by ruling it is re-registered as (b'1)/(b'2). Its count is printed, not asserted.
+    std::printf("  ----  b    RECORD (frozen 0 missed): %ld of %ld round trips more than one cell off\n", t.rtBad, t.rtCells);
+    std::snprintf(b, sizeof b, "CONTROL: the float x, y recomputed to classify truncate to Project's own pixel: %ld disagreements (any one voids the split)", t.ctlBad);
+    line(t.ctlBad == 0, "b'", b);
+    std::snprintf(b, sizeof b, "x, y >= 0: %ld round trips, %ld beyond floor(0.7071 k + 0.5) (predicted 0)", t.b1Cells, t.b1Bad);
+    line(t.b1Bad == 0 && t.b1Cells > 0, "b'1", b);
+    std::snprintf(b, sizeof b, "x or y in (-1, 0): %ld round trips (predicted >= 1,740), %ld beyond floor(1.5811 k + 0.5) (predicted 0)", t.b2Cells, t.b2Bad);
+    line(t.b2Bad == 0 && t.b2Cells >= 1740, "b'2", b);
+    std::snprintf(b, sizeof b, "both x and y in (-1, 0): %ld (predicted 0: pixel (0,0) is off the disc)", t.bothNeg);
+    line(t.bothNeg == 0, "b'2", b);
     std::snprintf(b, sizeof b, "off-disc disagreements %ld (predicted 0)", t.offBad);
     line(t.offBad == 0, "c", b);
     std::snprintf(b, sizeof b, "outside-the-crop pixels not 14: %ld (predicted 0)", t.nocovBad);
     line(t.nocovBad == 0, "d", b);
-    std::snprintf(b, sizeof b, "SABOTAGE rotation ignored: %ld mismatches (must be > 0)", sabRot.mismatch);
-    line(sabRot.mismatch > 0, "sab", b);
-    std::snprintf(b, sizeof b, "SABOTAGE rLat/rLon swapped: %ld mismatches (must be > 0)", sabSwap.mismatch);
-    line(sabSwap.mismatch > 0, "sab", b);
-    std::snprintf(b, sizeof b, "SABOTAGE y flipped: %ld round-trip violations (must be > 0)", sabFlip.rtBad);
-    line(sabFlip.rtBad > 0, "sab", b);
+    std::snprintf(b, sizeof b, "SABOTAGE rotation ignored: %ld mismatches (a), %ld (b'1) violations (both must be > 0)", sabRot.mismatch, sabRot.b1Bad);
+    line(sabRot.mismatch > 0 && sabRot.b1Bad > 0, "sab", b);
+    std::snprintf(b, sizeof b, "SABOTAGE rLat/rLon swapped: %ld mismatches (a), %ld (b'1) violations (both must be > 0)", sabSwap.mismatch, sabSwap.b1Bad);
+    line(sabSwap.mismatch > 0 && sabSwap.b1Bad > 0, "sab", b);
+    std::snprintf(b, sizeof b, "SABOTAGE y flipped: %ld (b'1) violations (must be > 0)", sabFlip.b1Bad);
+    line(sabFlip.b1Bad > 0, "sab", b);
     std::printf(fails ? "WX LAYER TESTS FAILED\n" : "all WX layer checks passed\n");
     return fails ? 1 : 0;
 }
