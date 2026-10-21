@@ -561,3 +561,64 @@ O11's own predictions are frozen in its addendum before the run, and it waits it
 ### A4.3 Stage 3 code may start
 
 "No Stage 3 code until #449 is approved at its new head" is met. Step 3.1 starts with its predictions frozen first (section 8).
+
+## Addendum 5, 2026-10-21: step 3.1, moving the bench harness (frozen before its code)
+
+**Ruled 2026-10-21 (Daniel):** step 3.1 goes now, with its predictions frozen first, without waiting for measurement 4. Measurement 4 has since completed (`docs/wxc1-v2.md` A7.7).
+
+**The base:** main once #452 is merged. Its tree is `991ac88`'s, and this branch starts from `991ac88`. **The tree equality is checked** (`git diff 991ac88 <merge>` empty) before the base builds are believed.
+
+### A5.1 The complete change list
+
+1. **The move:** `src/weatherscope/stage1_main.cpp` → `src/weatherscope/bench/stage1_main.cpp`, by `git mv`, **byte-identical** (a 100 % rename).
+   - Its includes stay bare names (`"WxPalette.h"` and the rest), so the bench env gains an include path to `src/weatherscope`. The shared headers stay where they are, for the product.
+   - Its header comment still names the old env. That line changes in 3.2, when the product env takes the name, so the file stays byte-identical here.
+2. **`platformio.ini`:** `[env:weatherscope-s3-128]` becomes `[env:weatherscope-bench-s3-128]`.
+   - `build_src_filter = -<*> +<weatherscope/bench/>`.
+   - The include path for `src/weatherscope` is added to its `build_flags`, and its comment is updated.
+   - `extends`, `embed_files` and `lib_deps` are unchanged.
+   - `[filters] editions_off` is unchanged: it drops `weatherscope/`, which still covers `bench/`.
+3. **`skus.yml`:** the row is renamed `weatherscope-bench-s3-128`, still build-only.
+4. **`scripts/check-adsbdb-out.sh`:** the `weatherscope-*` case is narrowed to `weatherscope-bench-*`. Its plant path, in the case and in `PLANT_FILES`, moves to `src/weatherscope/bench/stage1_main.cpp`.
+5. **`tools/weatherscope/s1/`:** Stage 1's stamp accountant (`stampdiff.py`, committed unchanged) and the S1 driver, both committed before S1 runs.
+6. **`RELEASING.md`, and A5.3 here:** the two release rulings relayed on 2026-10-21, beside "Planned, not yet in any release".
+
+**Nothing else changes:** no other env's configuration, and no source any other env compiles.
+
+### A5.2 Predicted
+
+| check | how | predicted |
+|---|---|---|
+| **S1** | **What:** the 14 other envs in `skus.yml`, each built clean at the base and at 3.1's head.<br>**Where:** in **one directory**, so no path compiled into an image differs.<br>**How:** each pair compared with `stampdiff.py`. | **Stamps only, in 14/14.** That means `app_elf_sha256`, the checksum and trailing SHA-256, and WiFiManager's two time strings where WiFiManager is linked. **Any size change or UNEXPLAINED byte: stop.** |
+| **S1's sabotage** | **The edit:** at the head, `if (millis() == 0xFFFFFFFFul) Serial.println("S1 SABOTAGE");` at the top of `ConfigurationWebServer::Initialise()`, outside every edition guard. It is runtime-dependent, so the linker keeps it.<br>**The check:** the edit is asserted applied, then reverted after. | **Two-sided, keyed to the build itself:**<br>• a non-stamp difference in **every env whose build compiled `ConfigurationWebServer.cpp`** (its object file exists). Predicted: 13 of the 14, every one except `animtest-s3-128`;<br>• **stamps only in every env that didn't.** Predicted: `animtest-s3-128` alone. |
+| **the bench image** | `weatherscope-bench-s3-128` at the head against `weatherscope-s3-128` at the base, in the same directory | **Stamps only, with no time strings**, since the bench links no WiFiManager: `app_elf_sha256`, the checksum and the trailing SHA-256. |
+| **C1, on the board** | Flash the head's bench image on `907069326E64` (standing OK; the port found by serial). Then run `capture_stage1.py`. | **Exit 0, as in Stage 2:**<br>• 240/240 rows;<br>• B9 `344383b4…`, equal to the board's `fb_sha256`;<br>• its standing timing checks repeating. |
+| **C2, on the board** | the same capture's `WX,sprite_sha256` | **`a88c3a99fa5c1bb4d6d2bb77d081b22b8da6e752200ae79cf67acec90c335ed3`**: `palette_ref.py`'s sprite for the final 55 % palette, 115,200 bytes, run before this addendum |
+| **L1-L6, on the board** | `legend_check.py` | **Exit 0:** L1, L2, L4, L5 and L6 all hold. The script defines no L3. |
+| **CI** | the matrix, from `skus.yml` | **The bench leg** builds under its new name. Its adsbdb gate reads PASS, with the control seen in `src/weatherscope/bench/stage1_main.cpp`.<br>**The discriminator:** if the narrowed case failed to match the renamed env, the gate would plant at the default site, which the bench doesn't compile, and read `UNTRUSTWORTHY (control blind)`.<br>**Every other leg:** as on main. |
+
+**The order:**
+1. this addendum;
+2. the code commit, then the S1 tooling commit;
+3. S1's base builds, then its head builds, then the sabotage builds;
+4. the bench image;
+5. the flash and the board checks.
+
+**Outside every prediction: stop and decide.**
+
+**Disk:** C: has 26 GB free. Each env's build directory is deleted once its image is copied out, so at most one env's build is on disk at a time.
+
+### A5.3 Two release rulings, relayed by blipscope-5c from the reviewer chat (2026-10-21)
+
+- **The OTA identity check's release:** "The release that adds it needs Daniel's explicit OK at cut time, with those two consequences named in plain words." The two consequences are A1.4's:
+  - no OTA downgrade past that release;
+  - edition and board identities become permanent.
+
+  This is also written into `RELEASING.md`'s "Planned, not yet in any release" note, where the person cutting R reads it.
+- **O11:** "no prerelease gets created, as a bench test or otherwise, until you've brought me what each release job does on a prerelease publish and Daniel has OK'd it."
+  - blipscope-5c's read-only analysis is with the reviewer. A prerelease publish runs the full release pipeline. `promote` pauses on Daniel's required review, and **one approval would make the bench release `latest` for the whole fleet.**
+  - blipscope-5c recommends three things:
+    - a structural guard, so that `promote` never runs for `bench-*` tags;
+    - rejecting the promote deployment, as a second layer;
+    - a distinct asset name for B.
+  - Daniel decides. **No prerelease exists until then.**
