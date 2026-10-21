@@ -194,3 +194,52 @@ CI was counted with `per_page=100` against `total_count`: 33/33, 30 success, 3 r
 **The frozen F4 said** 14 legs would print F1's three lines and `animtest-s3-128` alone would print F3's. **The miss:** the Weatherscope bench env also declares LovyanGFX as its only library, as `platformio.ini`'s own comment on it says ("LovyanGFX only"). So it prints the explicit not-a-dependency lines too. It isn't a skip of a needed patch: the libraries aren't in that build. The prediction undercounted the envs without those libraries.
 
 Nothing is changed for this. Whether F4 may be read as satisfied in substance (no skip, no FATAL, every env that depends on a library patched it) is for the reviewer to rule.
+
+## Rulings of 2026-10-21, and what they set in motion
+
+- **C1:** stays outside its predicted set on the record. **Ruled:** C1 shows `patch_wm_copy` reached the v18 image on the two linked pairs. The third pair is uninformative.
+- **C2 (iii):** stays inconclusive until the separator below runs.
+- **F4:** a miss on the count, recorded and not re-graded. The substance holds: no skip, no FATAL, and every env that uses a patched library patched it.
+- **The tightening:** accepted, as below.
+- **The audit's answer, for the record:** v17 and v18 shipped with all three patches applied.
+
+## C2b: the separator, a warm rebuild on a Linux runner (predictions frozen before it runs)
+
+**The SOURCE_DATE_EPOCH correction:** C2 used `1760979600` and described it as 2026-10-20T17:00:00Z. It is **2025**-10-20T17:00:00Z. C2b uses **`1792515600`, which is 2026-10-20T17:00:00Z**, the day v18 was built. Both values were checked by converting them back.
+
+**The job:**
+- **Where it runs:** a scratch branch `scratch/c2b-linux-rebuild` carrying one workflow, `on: push` to that branch only. No pull request is opened and no release event fires, so `firmware.yml` does not run. The job has `permissions: contents: read` and **uploads nothing**: no artifact, no release asset. The branch is deleted after the read.
+- **The runner:** `ubuntu-latest`, checked out at `/home/runner/work/valar-scopes/valar-scopes` like the release run, building `672eab7`, env `blipscope-s3-128`, with `pip install platformio` as in `firmware.yml`.
+- **The builds:** build #1 (fresh), build #2 (warm), then `pio run -t clean` and build #3, all with the date fixed. The patch lines of #1 and #2 are printed.
+- **The comparison:** the v18 asset is downloaded read-only (`gh release download v18 -p firmware-s3-128.bin`). C2's comparison then runs, the stamp regions listed from the asset first: R1 `app_elf_sha256`, R2 the checksum, R3 the trailing sha256, R4 the date-time strings, R5 the framework paths.
+
+**Predicted:**
+- **The patch lines:** #1 prints `guarded …`, `3 applied, 0 already patched` and `made … shared`. #2 prints the already-patched lines (`672eab7`'s scripts are the old ones, so `patch_async_buff` is silent).
+- **The control:** #2 and #3 are byte-identical.
+- **The comparison:** #2 and the v18 asset have the **same size (1,928,192 B)**, and **every differing byte lies in R1-R4**. R5 has **0** differing bytes, because the paths are identical on the same runner layout.
+
+| outcome | meaning |
+|---|---|
+| **(i) the same size, every difference in R1-R4** (predicted) | identical outside the stamps: **C2 closes as "patched"** |
+| (ii) the same size, with bytes outside R1-R4 | stop: list them |
+| (iii) a different size | stop: inconclusive |
+| (iv) the control fails, or a build fails, or anything else | the instrument: stop |
+
+## The tightening (ruled 2026-10-21; predictions frozen before its code)
+
+**The rule:**
+- **A library counts as declared** when its name appears **anywhere** in a `lib_deps` entry, case-insensitive. That covers `owner/Name @ ver`, a bare `Name`, and git or zip URLs.
+- **Also (the optional part, which is cheap):** a library counts as present when its folder exists under `.pio/libdeps/<env>/`, so a library pulled in by another one can't be skipped.
+
+A wrong match can then only ever stop the build with a fix-it message, never skip a patch.
+
+| | check | predicted |
+|---|---|---|
+| **T1** | F1-F3 rerun on the new code (fresh, warm, `animtest-s3-128`) | the same lines as before; `animtest`'s two "not a dependency" lines are unchanged, because neither library's name is in its `lib_deps` and neither folder exists |
+| **T2** | `lib_declared` as a pure function, on the spec forms (a registry `owner/Name @ v`, a bare `Name`, `https://github.com/tzapu/WiFiManager.git#v2.0.17`, a zip URL, and an unrelated library) | declared for the first four; not declared for the unrelated one |
+| **S-T1** | **a git-URL WiFiManager entry with its header removed**: `[env:blipscope-s3-128]`'s `lib_deps` given `https://github.com/tzapu/WiFiManager.git#v2.0.17` in place of the registry spec, built once, then `wm_strings_en.h` removed and rebuilt | **FATAL**, and the build fails. *Control, the hole it closes:* the **same** setup on the current rule (`4c3f131`) reads `WiFiManager is not a dependency …` and builds **green**, which is a silent skip |
+| **S-T2** | **a fork installed under a different folder name**: on a warm tree, `.pio/libdeps/blipscope-s3-128/ESPAsyncWebServer` renamed to `ESPAsyncWebServer-fork`, then rebuilt | **FATAL** (the library is declared by its name in the spec, and the target path is missing); the build fails |
+
+**Outside the set:**
+- **If a rebuild re-installs the renamed or removed library** (PlatformIO repairing it), that sabotage isn't simulating what it claims: stop and redesign it.
+- **If T1 moves `animtest` or `weatherscope-bench`,** the presence rule is reading something unexpected: stop.
