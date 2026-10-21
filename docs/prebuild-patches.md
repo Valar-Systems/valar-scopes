@@ -76,3 +76,26 @@ C1 covers only `patch_wm_copy`. The other two patches change code, not strings, 
 | (ii) the same size, with bytes differing outside R1-R5 | **stop.** The bytes are listed. An unpatched release is one explanation; another input difference (a package, a flag) is the other. Neither is concluded from this alone |
 | (iii) a different size | **stop.** The equal-length assumption failed (for example, PlatformIO resolved the junction to the real path) or a package differs. Inconclusive, and not evidence about the patches |
 | (iv) the reproducibility control fails, or anything else | the instrument is unreliable at this scale: stop |
+
+## 1c results
+
+### C1: OUTSIDE THE PREDICTED SET (read 2026-10-21). Recorded, not re-graded
+
+The anchor was found, and the control passed: the pristine WiFiManager 2.0.17 `wm_strings_en.h`, from the library's `v2.0.17` tag, contains all three originals.
+
+| pair | patched in the v18 asset | original in the v18 asset |
+|---|---|---|
+| the portal's save message | **1** ("Connecting your Blipscope to the network.") | 0 |
+| the browser tab title | **1** ("Set up Blipscope") | 0 |
+| the info-page SDK row | **0** (`<dt>SDK</dt>`) | **0** (`<dt>ESP-SDK/IDF</dt>`) |
+
+**The predicted outcome was "3 patched, 0 originals".** This is "anything else", so C1 stopped, and per its own rule the instrument or the model was wrong.
+
+**The model was wrong for the third pair. The diagnosis, read after the stop, is kept apart from the verdict:**
+- WiFiManager 2.0.17 defines `HTTP_INFO_aboutsdk` (`wm_strings_en.h:220`) and **never references it.**
+  - The info page asks for `aboutidfver` (`WiFiManager.cpp:2063`), whose branch is commented out (:2295-2299).
+  - The `aboutsdkver` branch uses a different string, `HTTP_INFO_sdkver` (:2301-2302).
+- So the linker drops that string whether or not it was patched, which is why it is in the image in neither form. Its three neighbouring rows (`<dt>WiFiManager</dt>`, `<dt>Arduino</dt>`, `<dt>Build date</dt>`) are present.
+- **For that pair the image can't distinguish patched from unpatched.** For the two pairs that are linked, the image carries the patched text and not the original.
+
+Whether C1 may be read as "`patch_wm_copy` reached the v18 image" on the two linked pairs is for the reviewer to rule. It is not graded here.
