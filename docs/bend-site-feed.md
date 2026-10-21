@@ -129,3 +129,11 @@ The whole footprint, removed in one PR:
 - Whether it covers showing the data on a **public website** isn't recorded.
 - adsb.lol's ODbL requires attribution wherever its data is shown.
 - The response carries `attribution` so the credit can't be dropped by accident. Whether adsb.fi's grant extends to the site is for Daniel to confirm before it goes live.
+
+## Addendum 1, 2026-10-21 (before any code): the configuration check
+
+Cloudflare's docs say named environments **do not inherit** Durable Object bindings, so the binding must be repeated under `env.staging` and `env.production`, beside one top-level `[[migrations]]` entry (`new_sqlite_classes = ["BendSnapshotDO"]`). That asymmetry is invisible in the file, so it is checked on what would ship, not on what was written:
+
+| | check | predicted |
+|---|---|---|
+| **B11** | `npx wrangler deploy --dry-run --env staging` and `--env production`; nothing is deployed | each lists the Durable Object binding `BEND_SNAPSHOT` (class `BendSnapshotDO`) and the var `SITE_FEED_BEND`. *Sabotage S-B11:* with the production binding removed, the production dry-run doesn't list it, and the check goes red |
