@@ -124,3 +124,27 @@ Workers pool, which has no `node:fs`, so it cannot read `README.md`. The test ta
 
 **Still to run:** SC6 on E2:08, with its predictions re-stated in the PR before the flash, and SC7 after
 Daniel's deploy.
+
+## Results: SC6 on E2:08 (2026-10-21), as predicted on every row
+
+**The forced leg** (`-DBENCH_FORCE_STARVE_S=300`, image `a066da1f…`; trace 14:49:37-16:10:07Z, file `e0c49562…`, clean):
+
+| | read |
+|---|---|
+| F0 | the bench marker is in the image (`--expect` passes), and the plain scan refuses it |
+| F1 | `[bench-force-starve]` once, at 15:04:12Z, which is 900 s of uptime on the first-live-health-tick anchor |
+| F2 | one episode: the STARVED edge at 15:05:43Z, then **`RECOVERED after 210s`** at 15:09:13Z |
+| F3 | the first report, `0,0,0,0,0,0,0,0,0`, at about 603 s |
+| **F4** | **the next report, `0,0,0,0,0,0,0,1,210`: the counter is 210, equal to the board's own RECOVERED 210 s (0 s off; the bar was ± 30 s)** |
+| F5 | no reboot |
+
+**The healthy leg** (the release image `3e887fdd…` from `bb5042e`; H0: no bench hook; trace 16:12:24-18:27:54Z, file `9885239b…`, clean):
+
+| | read |
+|---|---|
+| H1 | three reports, `0,0,0,0,0,0,0,0,0`, `1,0,0,0,0,0,0,1,0` and `0,0,0,0,0,0,0,2,0`: **9 fields, the ninth 0, in every one** |
+| H2 | 0 STARVED and 0 RECOVERED lines; no reset; the only boot line is the one buffered at attach |
+
+Noted, not graded: hour 2 records one card open (`cardOpens=1`), from a person or a ghost tap. Nothing in SC6 depends on it.
+
+**Remaining:** SC7, after Daniel's Worker deploy (read-only: `u8` rows keep arriving, read twice at least 10 min apart). **The Worker deploy must come before any firmware release that carries the counter.**
