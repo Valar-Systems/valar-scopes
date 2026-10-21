@@ -250,3 +250,12 @@ Registration and operator are **not** wanted. The rest of the shape is kept, and
 | **S-B17** (the reviewer's, recorded) | the reader's `?? null` fill removed | B17 red. The reviewer ran it at `27e906a`, and it failed exactly B17 |
 
 B1-B18 are unchanged.
+
+### Results for addendum 4 (graded on `570cec0`)
+
+| | read | sabotage |
+|---|---|---|
+| **B19** | at R − 1 m, R − 1 cm and R + 1 m, `extractRaw` emits `b19001` and `b19002`, each with `hex`, `lat` and `lon`. That is the same membership as `extract` | **S-B19** (a second, stricter circle test in `extractRaw` alone): red |
+| **S-B17** | the reader's `?? null` fill removed: B17 red | (reproduces the reviewer's run) |
+
+There is now one circle test (`inCircle`) and one conversion (`toSite`), and the `!` is gone. The full proxy suite passes (44 files, 595 tests); `tsc` is clean.
