@@ -175,3 +175,12 @@ Graded on `5c055b3`. Every check came out as predicted, and every sabotage turne
 | **B13** | the credit carries its link | every `available: true` response carries `attribution_url`: `https://adsb.fi` for adsb.fi, and `https://adsb.lol` for adsb.lol, alongside its ODbL `attribution`. *Sabotage S-B13:* removing the field turns the check red |
 
 L1 and L2, after Daniel's deploy, are unchanged. **The deploy is unblocked on the adsb.fi side.** It still waits for the Weatherscope session's review and the reviewer's approval of #458.
+
+### Results for addendum 2 (graded on `9d378d5`)
+
+| | read | sabotage |
+|---|---|---|
+| **B12** | `snapshot.length === 0`. Called with Portland (45.52, -122.68), it returns the downtown `centre` and `radius_km` 48.28, and the namespace was asked only for `"bend"` | **S-B12** (a `snapshot(lat, lon)` that recentres): red |
+| **B13** | `attribution_url` is `https://adsb.fi` for adsb.fi and `https://adsb.lol` for adsb.lol | **S-B13** (field removed): red |
+
+The full proxy suite passes (45 files, 587 tests), and `tsc` is clean. The README section now carries the permission, its Bend-only scope, and the linked credit.

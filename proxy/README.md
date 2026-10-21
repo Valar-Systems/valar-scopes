@@ -460,13 +460,18 @@ entrypoint = "BendFeed"
 **The response:**
 ```json
 { "available": true, "v": 1, "centre": {"lat": 44.058, "lon": -121.315}, "radius_km": 48.28,
-  "t": 1761080000, "age_s": 23, "stale": false, "source": "adsb.fi", "attribution": "aircraft data: adsb.fi",
+  "t": 1761080000, "age_s": 23, "stale": false, "source": "adsb.fi", "attribution": "aircraft data: adsb.fi", "attribution_url": "https://adsb.fi",
   "aircraft": [{"hex": "a1b2c3", "cs": "ASA123", "lat": 44.1, "lon": -121.2, "alt_ft": 31000, "gs_kt": 452,
                 "track_deg": 271, "vrate_fpm": 0, "category": 3, "seen_s": 2}] }
 ```
 - **When there's nothing to serve,** the answer is `{ "available": false, "reason": "empty" }`, or `"disabled"` when the switch is off.
 - **Past 120 s of age,** `stale` is `true` and `aircraft` is `[]`. The cutoff is applied here, not left to the site.
-- **Attribution:** show `attribution` with the planes. adsb.lol's ODbL requires it.
+- **Attribution:** show `attribution` with the planes, **linked to `attribution_url`**. adsb.lol's ODbL requires the credit; for adsb.fi it is a condition of the permission below.
+
+**Permission and scope:** Samuli (adsb.fi) is OK with valarscopes.com showing live adsb.fi data **for Bend only** (Daniel reported it 2026-10-21).
+- Every page that shows the data credits adsb.fi with a link to adsb.fi.
+- The feed is **Bend only by construction**: one fixed snapshot, and `snapshot()` takes no place (test B12 refuses one).
+- Showing any other location needs Samuli's OK first. It is a licensing change before it is a code change.
 
 **Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s` and `write_error`. They are counts only, with no location.
 
