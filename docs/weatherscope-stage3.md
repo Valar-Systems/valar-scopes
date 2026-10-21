@@ -943,3 +943,10 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
   - blipscope-5c reports that #457 applies the same patches to the same bytes, so no image should change. That is a claim about code this PR doesn't touch, so it is re-measured, not assumed.
   - **Predicted for that re-run:** the same verdicts as the first run.
 - **If main moves for any other reason before the merge,** the same rule applies.
+
+### A6.7 S1's first run stopped, ungraded; the re-run's base is `b7d7233` (2026-10-21, written before the re-run)
+
+- **The first run** (base `6bb61df`, head `1818261`) was stopped after its `head` round and partway through `sabotage`, when #457 merged (main `b7d7233`, 23:35:22Z). **No row of it was graded,** and none will be. A6.6 already said a move of main means a full re-run.
+- **The new base:** main `b7d7233`. Since `6bb61df` it carries #460 (proxy only) and #457 (the pre-build patch scripts). Neither changes `src/`, `include/` or `platformio.ini`. It was **merged in** (`8946254`), not rebased.
+- **The re-run:** every round again, in a fresh output directory, with A6.2's predictions **unchanged**, as A6.6 says.
+- **New with #457:** each build's log prints one line per pre-build patch. Those lines are read and reported as the evidence of which patches ran in each env. A FATAL is a failed round, and the run stops.
