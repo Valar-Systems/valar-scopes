@@ -1009,8 +1009,8 @@ export const supportHtml = `<!DOCTYPE html>
     <p><b>It does report anonymous usage counts</b> — how often features are
        used, so we know what to improve. How many times a detail card was opened,
        how many times each screen was switched to, how many logbook claims, whether
-       Follow is switched on, and how long the device has been running. Newer
-       firmware adds one health number: how many seconds in that hour the device
+       Follow is switched on, and how long the device has been running. From
+       v19 the firmware adds one health number: how many seconds in that hour the device
        couldn't open a secure connection, which describes the device and not you.
        Counts only: numbers, never the aircraft or the callsign or the tail number they
        were about. The report is a short line of digits, sent at most once an hour

@@ -40,7 +40,7 @@ SABOTAGES = [
      [("constexpr size_t FIELD_COUNT = 9;", "constexpr size_t FIELD_COUNT = 10;")],
      "test_usage_report.cpp", "SC4:"),
     ("S-SC5 the sentence removed from support.html", "@support.html",
-     [("running. Newer\n       firmware adds one health number: how many seconds in that hour the device\n"
+     [("running. From\n       v19 the firmware adds one health number: how many seconds in that hour the device\n"
        "       couldn't open a secure connection, which describes the device and not you.\n", "running.\n")],
      "test_usage_report.cpp", "SC5: support.html"),
 ]
