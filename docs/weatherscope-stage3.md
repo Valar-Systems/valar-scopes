@@ -488,7 +488,12 @@ The plan was approved at `35903dd` and merged as `69e81c1`. These rulings came w
 
 The analysis also found that the firmware decides the asset names, so B must be `firmware-s3-128.bin`. blipscope-5c therefore withdrew its suggestion of a distinct asset name, which Addendum 5's A5.3 on #453 still lists as a recommendation.
 
-**The ruling, verbatim as relayed by blipscope-5c** (Daniel's summary in this session says the same):
+**The text below was pasted into blipscope-5c's session by Daniel on 2026-10-21, headed "Reviewer ruling on O11 hosting".**
+- **The reviewer states it is not theirs. Its author is to be confirmed by Daniel.**
+- The reviewer's own ruling is quoted word for word in the continuation below, and that is the ruling.
+- Daniel's summary in this session says the same as the four bullets in substance.
+
+*Corrected 2026-10-21, on the reviewer's note:* `cb32317` labelled this text "the ruling, verbatim" and attributed it to the reviewer. blipscope-5c had relayed it under that heading without its provenance being checked.
 
 > "Reviewer ruling on O11 hosting: accepted, replacing "a new bench-named prerelease, deleted after".
 > - Host image B as an asset on the existing bench prerelease ota-preflight-v6, uploaded directly (gh release upload), never through a tag push or the release workflow.
@@ -507,26 +512,51 @@ The analysis also found that the firmware decides the asset names, so B must be 
   - If it is left at B's version (R+1), any bench unit pinned to that prerelease (such as `blipscope-s3-128-otatest`) would see a newer version with no image behind it, and show "Update failed" on every check.
   - The two answers are: restore it to its pre-O11 value, or leave it and record it.
   - blipscope-5c is bringing this to the reviewer. `RELEASING.md`'s rule of re-clobbering and re-reading before each use protects the next user either way.
-  - **Settled 2026-10-21 by the conditions below (condition 1):** both original files are restored and verified by hash, so `version.txt` goes back to its pre-O11 value.
+  - **Settled 2026-10-21 by the reviewer's condition 1 (below):**
+    - both original files are re-uploaded and verified by hash;
+    - the values restored are **the ones snapshotted at upload time**; "6" was only the 2026-10-21 reading;
+    - re-uploading both originals also puts back the older v6 `firmware-s3-128.bin` that removing B takes away.
 
-#### A4.2's amendment, continued: the reviewer's conditions for O11 (2026-10-21)
+#### A4.2's amendment, continued: the reviewer's ruling on O11 hosting (2026-10-21)
 
-**The ruling, verbatim as relayed by blipscope-5c:**
+**The reviewer's ruling, word for word, as pasted from the reviewer chat into this session:**
 
-> "Approved, as Daniel accepted. The write-up is sound: a direct asset upload fires no "published", so nothing runs and no promote can appear, and shipping images only read releases/latest, which is v18. Conditions, all before or around the run:
-> 1. Snapshot first. Before any clobber, download ota-preflight-v6's current version.txt and firmware-s3-128.bin, and record their sha256 and download counts. After O11: read B's download_count; delete B; re-upload both originals and verify them by hash. That settles your open item: the harness goes back exactly as it was, version.txt "6" included.
-> 2. Close two of your "unsure" items before the upload: confirm that no unit other than E2:08 runs blipscope-s3-128-otatest; read how valar-flasher picks a release, and confirm it can't offer anything from ota-preflight-v6.
-> 3. Add a CI check that refuses OTA_RELEASE_BASE (or any OTA URL override) in every skus.yml env, with a sabotage that turns it red. It closes the one silent path to the fleet you found. It's cheap, and it must be merged before O11's upload.
-> 4. Run the before and after checks exactly as listed in 4.3: isPrerelease is true; latest's tag is unchanged; latest's version.txt is unchanged, read twice a few minutes apart. Any difference is a stop.
-> 5. Record O11's time window and E2:08's rows in it (the fw R+1 KV row and the ota points) as bench-only, so reconcile-fleet.py and any fleet grade exclude them.
-> 6. As you wrote: never approve a promote connected to O11. If one appears, O11 stops.
-> O11's own predictions are frozen in its addendum before the run, and it waits its turn on E2:08 behind the counter's healthy leg and the Part B weather-on soak."
+```text
+Reviewer ruling on O11 hosting (Plan B: ota-preflight-v6), 2026-10-21
+
+Approved, as Daniel accepted. The write-up is sound: a direct asset upload fires no "published", so nothing runs and no promote can appear, and shipping images only read releases/latest, which is v18. Conditions, all before or around the run:
+
+1. Snapshot first. Before any clobber, download ota-preflight-v6's current version.txt and firmware-s3-128.bin, and record their sha256 and download counts.
+   After O11:
+   - read B's download_count;
+   - delete B;
+   - re-upload both originals and verify them by hash.
+   That settles your open item: the harness goes back exactly as it was, version.txt "6" included.
+
+2. Close two of your "unsure" items before the upload:
+   - confirm that no unit other than E2:08 runs blipscope-s3-128-otatest;
+   - read how valar-flasher picks a release, and confirm it can't offer anything from ota-preflight-v6.
+
+3. Add a CI check that refuses OTA_RELEASE_BASE (or any OTA URL override) in every skus.yml env, with a sabotage that turns it red. It closes the one silent path to the fleet you found. It's cheap, and it must be merged before O11's upload.
+
+4. Run the before and after checks exactly as listed in 4.3:
+   - isPrerelease is true;
+   - latest's tag is unchanged;
+   - latest's version.txt is unchanged, read twice a few minutes apart.
+   Any difference is a stop.
+
+5. Record O11's time window and E2:08's rows in it (the fw R+1 KV row and the ota points) as bench-only, so reconcile-fleet.py and any fleet grade exclude them.
+
+6. As you wrote: never approve a promote connected to O11. If one appears, O11 stops.
+
+O11's own predictions are frozen in its addendum before the run, and it waits its turn on E2:08 behind the counter's healthy leg and the Part B weather-on soak.
+```
 
 **Who does what.** Conditions 2, 3 and 5 are blipscope-5c's. Condition 3 is its own PR, with predictions first, and is **merged before O11's upload**. Conditions 1, 4 and 6 belong to O11's run and its addendum.
 
-**For O11's addendum (blipscope-5c's notes on #454):**
-- **The "pre-O11" values come from the snapshot taken at O11 time.** For reference only, the reading on 2026-10-21 was: `ota-preflight-v6` a prerelease, with `version.txt` 6; `releases/latest` v18, with `version.txt` 18.
-- **Removing B's asset also removes the v6 `firmware-s3-128.bin` that was there before B,** since they share the name. Condition 1's re-upload of both originals puts it back.
+**blipscope-5c's two notes on #454 are both answered by condition 1:**
+- **The values restored are the ones snapshotted at upload time.** For reference only, the 2026-10-21 reading was: `ota-preflight-v6` a prerelease, with `version.txt` 6; `releases/latest` v18, with `version.txt` 18.
+- **Removing B's asset also removes the older v6 `firmware-s3-128.bin`,** since they share a name. Re-uploading both originals puts it back.
 
 ### A4.3 Stage 3 code may start
 
