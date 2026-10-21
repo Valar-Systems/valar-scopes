@@ -622,3 +622,38 @@ O11's own predictions are frozen in its addendum before the run, and it waits it
     - rejecting the promote deployment, as a second layer;
     - a distinct asset name for B.
   - Daniel decides. **No prerelease exists until then.**
+
+### A5.4 S1 stopped: the reading, and a diagnosis registered before it runs (2026-10-21; local until ruled)
+
+**The reading** (`tools/weatherscope/s1/s1.py compare`). All three rounds built every env. The sabotage was planted, then removed, with the file restored byte-identical and the clone clean.
+
+| row | predicted | measured |
+|---|---|---|
+| **S1** | stamps only, 14/14 | **11/14: OFF-PREDICTION, STOP.** These three are not stamps-only, at equal sizes:<br>• `blipscope-s3-128`: 143,061 unexplained bytes;<br>• `blipscope-pro-s3-21`: 21,858;<br>• `missileer-photo`: 6, in two 3-byte regions that read as rodata pointers (`0x3C…`). |
+| **S1's sabotage** | two-sided, with the non-compiling set exactly `animtest-s3-128` | **14/14 as predicted.** The 13 envs that compiled `ConfigurationWebServer.cpp` show a non-stamp difference, and `animtest-s3-128` is stamps only. **The instrument sees.** |
+| **the bench image** | stamps only, no time strings | **OFF-PREDICTION: the size differs** (466,528 → 466,544 B). The cause is read off the images: `[common]` compiles `-DBUILD_ENV=\"$PIOENV\"` into every image (`platformio.ini:100`). So the base image holds `weatherscope-s3-128` and the head holds `weatherscope-bench-s3-128`. **Renaming the env must change the image, and A5.2's prediction missed it.** |
+
+**Not run:** the board checks (C1, C2, L1-L6). They follow S1 in A5.2's order. CI's own prediction for #453 is unaffected.
+
+**Three explanations fit the three envs, and the saved images can't separate them:**
+- **H-A, 3.1 changed them.** No changed env name or commit id appears in them (searched for), but nothing yet excludes it.
+- **H-B, a first-build effect in the fresh clone.** The base round was the clone's FIRST build of every env. It installed and patched each env's libraries (`pre:` patch scripts) on the way, and the head round reused them. `blipscope-s3-128` and `blipscope-pro-s3-21` were the first two envs built.
+- **H-C, these envs don't build reproducibly** in this setup at all.
+
+**D1, the control** (to run once this is committed):
+- **What:** rebuild `blipscope-s3-128`, `blipscope-pro-s3-21` and `missileer-photo` at the **base** (`991ac88`), in the same clone, with `s1.py build` (label `base-rebuild`).
+- **The comparisons:** (i) the rebuild against the base round's image, which is the same source; and (ii) the head round's image against the rebuild.
+
+| per env | (i) base-rebuild vs base | (ii) head vs base-rebuild | means |
+|---|---|---|---|
+| **H-A** | stamps only | NOT stamps only | 3.1 changed the image: S1's miss is real |
+| **H-B** | NOT stamps only | stamps only | the base round's images were first-build artifacts: S1's miss is the instrument's |
+| **H-C** | NOT stamps only | NOT stamps only | the env doesn't build reproducibly: S1 can't judge it as designed |
+| anything else | | | the instrument is unreliable at this scale: stop and decide |
+
+**D2, the bench's one difference:**
+- **What:** in the clone at the head, the bench env's header alone is temporarily renamed back to `[env:weatherscope-s3-128]` (asserted applied, restored, and the clone asserted clean). It is built and compared with the base round's bench image.
+- **Predicted: stamps only, with no time strings.** That would make the env name the image's only difference.
+- **Anything else:** stop.
+
+**The fix is not chosen here.** It waits for the ruling, after D1 and D2 are read.
