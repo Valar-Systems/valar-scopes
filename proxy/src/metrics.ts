@@ -390,7 +390,13 @@ export function recordBoot(env: Env, raw: string | null, model: string, fw: stri
 // Device-supplied input, so it is validated to a fixed shape before it reaches
 // storage; anything off-shape is dropped silently rather than allowed to shape a
 // data point.
-export const USAGE_FIELD_COUNT = 8;
+//
+// TWO ARITIES, ON PURPOSE (docs/starved-seconds-counter.md). 8 is every device shipped through firmware 18;
+// 9 appends the starved-seconds delta. Both are accepted, so the fleet's reports keep landing while the new
+// firmware rolls out -- and each row says which arity it was, because Analytics Engine reads a missing double
+// as 0: an 8-field row must never be read as "0 seconds starved" when it means "not measured".
+// The firmware's host test reads this list from this file (SC4): keep it a literal array.
+export const USAGE_FIELD_COUNTS = [8, 9] as const;
 
 export function recordUsage(env: Env, raw: string | null, model: string, fw: string, dev?: string): void {
   if (!raw) return;
@@ -399,14 +405,14 @@ export function recordUsage(env: Env, raw: string | null, model: string, fw: str
     // Digits and commas only. The device cannot emit anything else, so a value
     // containing anything else did not come from a device we ship -- and this is
     // the same assertion the firmware's host test makes, from the other side.
-    if (!/^[0-9]+(,[0-9]+){7}$/.test(raw)) return;
+    if (!/^[0-9]+(,[0-9]+){7,8}$/.test(raw)) return;
     const nums = raw.split(",").map((p) => Number(p));
-    if (nums.length !== USAGE_FIELD_COUNT) return;
+    if (!(USAGE_FIELD_COUNTS as readonly number[]).includes(nums.length)) return;
     // Reject NaN/Infinity/negatives and anything past a u32: every field is a
     // counter delta, a boolean, or an hour count, all small and non-negative.
     if (nums.some((n) => !Number.isFinite(n) || n < 0 || n > 0xffffffff)) return;
-    const [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours] =
-      nums as [number, number, number, number, number, number, number, number];
+    const [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours, starvedSeconds] =
+      nums as [number, number, number, number, number, number, number, number, number | undefined];
     // followEnabled is a flag; anything but 0/1 means a device we do not
     // understand, and a "2" summed into an adoption ratio is worse than a drop.
     if (followEnabled !== 0 && followEnabled !== 1) return;
@@ -419,8 +425,12 @@ export function recordUsage(env: Env, raw: string | null, model: string, fw: str
     // fields fit on one row -- which matters, because splitting them across
     // points would make "devices that opened a card" require a join.
     env.METRICS?.writeDataPoint({
-      blobs: ["usage", model, fw, dev ?? ""],
-      doubles: [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours],
+      // blob5 is the arity, so a reader can select rows that MEASURE starvation ("u9") and never infer a 0
+      // from an older device's "u8" row. Appended last: existing readers' blob positions are unchanged.
+      blobs: ["usage", model, fw, dev ?? "", `u${nums.length}`],
+      doubles: starvedSeconds === undefined
+        ? [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours]
+        : [cardOpens, radar, list, stats, follow, claims, followEnabled, uptimeHours, starvedSeconds],
       indexes: ["usage"], // own index: usage queries separately from per-request points
     });
   } catch {

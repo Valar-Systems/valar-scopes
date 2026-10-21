@@ -438,6 +438,52 @@ per-device key and the leaderboard keying "verified" off it are the follow-ups.
 
 Public, unauthenticated: `{"ok":true,"upstreams":[{id,enabled,state}]}`.
 
+### Bend site feed: the service-binding entrypoint `BendFeed` (not an HTTP route)
+
+Live aircraft over Bend, Oregon, for valarscopes.com. The design and its checks are in [../docs/bend-site-feed.md](../docs/bend-site-feed.md). The code is all in [src/sitefeed/bend.ts](src/sitefeed/bend.ts), behind one switch, `SITE_FEED_BEND = "on"`.
+
+**The binding, in the site Worker's config:**
+```toml
+[[services]]
+binding = "BLIPSCOPE_BEND"
+service = "blipscope-proxy"
+entrypoint = "BendFeed"
+```
+**The call:** `await env.BLIPSCOPE_BEND.snapshot()`.
+
+- **It isn't a route.** No public request can reach it, and it takes no device credentials.
+- **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.058, -121.315).
+- **The snapshot carries nothing of the device:** no tile, no radius bucket, no limit.
+- **Writes:** at most once per 30 s, globally (`BendSnapshotDO`, one instance), in `waitUntil`, so they can never slow or fail a device.
+- **Reads:** cached 10 s per colo.
+
+**The response:**
+```json
+{ "available": true, "v": 1, "centre": {"lat": 44.058, "lon": -121.315}, "radius_km": 48.28,
+  "t": 1761080000, "age_s": 23, "stale": false, "source": "adsb.fi", "attribution": "aircraft data: adsb.fi", "attribution_url": "https://adsb.fi",
+  "aircraft": [{"hex": "a1b2c3", "cs": "ASA123", "lat": 44.1, "lon": -121.2, "alt_ft": 31000, "gs_kt": 452,
+                "track_deg": 271, "vrate_fpm": 0, "category": 3, "seen_s": 2}] }
+```
+- **When there's nothing to serve,** the answer is `{ "available": false, "reason": "empty" }`, or `"disabled"` when the switch is off.
+- **Past 120 s of age,** `stale` is `true` and `aircraft` is `[]`. The cutoff is applied here, not left to the site.
+- **Attribution:** show `attribution` with the planes, **linked to `attribution_url`**. adsb.lol's ODbL requires the credit; for adsb.fi it is a condition of the permission below.
+
+**Permission and scope:** Samuli (adsb.fi) is OK with valarscopes.com showing live adsb.fi data **for Bend only** (Daniel reported it 2026-10-21).
+- Every page that shows the data credits adsb.fi with a link to adsb.fi.
+- The feed is **Bend only by construction**: one fixed snapshot, and `snapshot()` takes no place (test B12 refuses one).
+- Showing any other location needs Samuli's OK first. It is a licensing change before it is a code change.
+
+**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s` and `write_error`. They are counts only, with no location.
+
+**Removing it** (one small PR, once the website moves to the worldwide feed):
+1. Set `SITE_FEED_BEND` to anything but `"on"`. That stops every read and write without a code deploy.
+2. Delete `src/sitefeed/bend.ts` and `test/sitefeed-bend.test.ts`.
+3. Delete the hook in `src/blips.ts` (the `import`, the `siteFeed` line, the `onFetched` parameter and its one call).
+4. Delete the `export { BendFeed, BendSnapshotDO }` line in `src/index.ts`, and the two `Env` fields in `src/types.ts`.
+5. Delete the three `BEND_SNAPSHOT` bindings and the `SITE_FEED_BEND` vars in `wrangler.toml`.
+6. **Keep** the `v1-bend-snapshot` migration, because migrations are append-only, and **add** one after it: `tag = "v2-bend-snapshot-removed"`, `deleted_classes = ["BendSnapshotDO"]`. A Durable Object class is removed by a migration, never by deleting lines.
+7. Delete this section, and remove the site's `[[services]]` binding.
+
 ## Schema evolution rule
 
 **v1 is frozen.** Additive changes append fields to the end of the `a` arrays

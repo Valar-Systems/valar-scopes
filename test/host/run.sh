@@ -810,10 +810,14 @@ if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_usage_report.cpp"      
   cat "$OUT/build.log"
   exit 2
 fi
-"$OUT/test_usage_report.exe"
+# SC4 reads the Worker's accepted arities; SC5 reads the two published disclosures.
+"$OUT/test_usage_report.exe" "$ROOT/proxy/src/metrics.ts" "$ROOT/README.md" "$ROOT/proxy/pages/support.html"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the usage test could not read metrics.ts, README.md or support.html (BLIND)"
   exit 2
 elif [ "$rc" -ne 0 ]; then
   fail=1

@@ -65,6 +65,9 @@ struct Counters {
     uint32_t screenStats   = 0;
     uint32_t screenFollow  = 0;
     uint32_t logbookClaims = 0;
+    // Seconds the starvation watch spent STARVED (StarvationPolicy.h, Accrual): a health number, the time
+    // the device could not open a secure connection. Says nothing about the user (docs/starved-seconds-counter.md).
+    uint32_t starvedSeconds = 0;
 };
 
 /// What one report puts on the wire. The two non-counter fields are separated
@@ -79,10 +82,10 @@ struct Report {
 /// The header value's field count. Server-side validation pins the same number,
 /// and the host test asserts they agree -- a parser that accepts a different
 /// arity than the device emits is the classic silent-drift shape.
-constexpr size_t FIELD_COUNT = 8;
+constexpr size_t FIELD_COUNT = 9;
 
-/// Longest value this can ever produce: 6 u32 counters + a bool + a u32 gauge,
-/// comma-separated. 7 * 10 digits + 1 + 7 commas = 78, rounded up.
+/// Longest value this can ever produce: 6 u32 counters + a bool + a u32 gauge + the u32
+/// starved-seconds delta (appended ninth), comma-separated. 8 * 10 digits + 1 + 8 commas = 89, rounded up.
 constexpr size_t MAX_LEN = 96;
 
 /// b - a, saturating at zero rather than wrapping.
@@ -107,6 +110,7 @@ inline Counters Delta(const Counters& previous, const Counters& current)
     d.screenStats   = Since(previous.screenStats,   current.screenStats);
     d.screenFollow  = Since(previous.screenFollow,  current.screenFollow);
     d.logbookClaims = Since(previous.logbookClaims, current.logbookClaims);
+    d.starvedSeconds = Since(previous.starvedSeconds, current.starvedSeconds);
     return d;
 }
 
@@ -119,7 +123,8 @@ inline Counters Delta(const Counters& previous, const Counters& current)
 inline bool Empty(const Counters& d)
 {
     return d.cardOpens == 0 && d.screenRadar == 0 && d.screenList == 0 &&
-           d.screenStats == 0 && d.screenFollow == 0 && d.logbookClaims == 0;
+           d.screenStats == 0 && d.screenFollow == 0 && d.logbookClaims == 0 &&
+           d.starvedSeconds == 0;
 }
 
 /// Render the header value. Returns the length written, or 0 on a bad buffer.
@@ -133,7 +138,8 @@ inline size_t Format(const Report& r, char* out, size_t n)
         if (out && n) out[0] = '\0';
         return 0;
     }
-    const int written = snprintf(out, n, "%u,%u,%u,%u,%u,%u,%u,%u",
+    // The ninth field is APPENDED, so the first eight keep their positions for the Worker's 8-field rows.
+    const int written = snprintf(out, n, "%u,%u,%u,%u,%u,%u,%u,%u,%u",
                                 (unsigned)r.delta.cardOpens,
                                 (unsigned)r.delta.screenRadar,
                                 (unsigned)r.delta.screenList,
@@ -141,7 +147,8 @@ inline size_t Format(const Report& r, char* out, size_t n)
                                 (unsigned)r.delta.screenFollow,
                                 (unsigned)r.delta.logbookClaims,
                                 (unsigned)(r.followEnabled ? 1u : 0u),
-                                (unsigned)r.uptimeHours);
+                                (unsigned)r.uptimeHours,
+                                (unsigned)r.delta.starvedSeconds);
     if (written < 0 || (size_t)written >= n) { out[0] = '\0'; return 0; }
     return (size_t)written;
 }
