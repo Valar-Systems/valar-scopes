@@ -110,3 +110,23 @@ Graded on `dce27b5`.
 Every sabotage asserted its anchor (exactly once) and that the file changed, and each file was restored and verified against `dce27b5`.
 
 **Read before OU5 runs (its prediction is unchanged).** Of the `skus.yml` envs, only `animtest-s3-128` interpolates `${env:blipscope-s3-128.build_flags}`. It has no OTA client, so OU5's define can't change its NO-OTA verdict. `weatherscope-s3-128` extends that env but replaces `build_flags`, and every other row has its own `build_flags`. So OU5 should change the s3-128 leg's verdict only, as frozen.
+
+## Results: CI (2026-10-21)
+
+**OU3, this PR's run on `ab7b93b`** (https://github.com/Valar-Systems/valar-scopes/actions/runs/39634308493). CI counted with `per_page=100` against `total_count`: 33/33, 30 success and 3 release-only skipped. `host-tests` success.
+
+| env | verdict | predicted |
+|---|---|---|
+| `blipscope-s3-128` (`--require-ota`) | PASS | PASS |
+| `blipscope-pro-s3-21`, `blipscope-s3-146`, `blipscope-pro-s3-175-amoled`, `missileer-s3-146`, `missileer-s3-128`, `orbitscope-s3-146`, `quakescope-s3-146`, `quillscope-s3-146`, `reelscope-s3-146`, `claudescope-s3-146`, `speedscope-s3-146` | PASS | PASS |
+| `animtest-s3-128`, `weatherscope-s3-128` | NO-OTA | NO-OTA |
+| `missileer-photo` | **NO-OTA** (the recorded reading of its pre-registered either-or: the linker drops the URLs when `PHOTO_MODE` skips the only call) | PASS or NO-OTA |
+
+0 FAIL and 0 BLIND: **as predicted.**
+
+**OU5, the throwaway sabotage PR #456 on `31ba941`** (closed unmerged, branch deleted). It added `-DOTA_RELEASE_BASE` (the `ota-preflight-v6` URL) to `[env:blipscope-s3-128]`. https://github.com/Valar-Systems/valar-scopes/actions/runs/39634399310/job/119342004062
+- That leg's step 7, "OTA URL is the fleet's (blipscope-s3-128)", **FAILed** (exit 1), naming both pinned URLs (`…/releases/download/ota-preflight-v6/version.txt` and `…/firmware-`).
+- **Every later step in that leg was skipped,** including `Attach to release`, `Publication receipt` and `Upload publication receipt`. On a release event, a shipping image that fails here can therefore neither publish nor leave a receipt, so `version.txt` would not advance.
+- Every other leg's verdict was identical to OU3's.
+
+**As predicted.**
