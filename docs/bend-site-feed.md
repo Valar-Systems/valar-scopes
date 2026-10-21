@@ -159,3 +159,19 @@ Graded on `5c055b3`. Every check came out as predicted, and every sabotage turne
 **What B11 showed beyond its prediction:** with the production binding removed, the dry-run **still exits 0**. Wrangler would deploy production with the feed silently off (`enabled()` needs the binding). That's the reason the check reads the artifact rather than the file or the exit code. A CI step that runs this dry-run would make it permanent. I'd propose that separately.
 
 **Still to come:** CI on this push. L1 and L2 follow Daniel's deploy.
+
+## Addendum 2, 2026-10-21 (before the code it predicts): the adsb.fi permission, and Bend only by construction
+
+**The permission, as Daniel reported it (2026-10-21):** Samuli (adsb.fi) is OK with valarscopes.com showing live adsb.fi data **for Bend only.**
+- This answers the licensing question in "Not decided here" above, for that scope and nothing wider.
+- Showing any other location needs Samuli's OK first.
+- Every page that shows the data credits adsb.fi **with a link to adsb.fi.**
+
+**So the feed stays Bend-only by design.** There is one fixed downtown-Bend snapshot and **no way to ask for any other place.** That is now checked, not just stated:
+
+| | check | predicted |
+|---|---|---|
+| **B12** | Bend only, by construction | `BendFeed.prototype.snapshot` takes **no** parameters (`length === 0`). Called with a place anyway (`snapshot(45.52, -122.68)`), it returns the downtown-Bend `centre` and `radius_km`, and the Durable Object namespace is asked for the name `"bend"` and nothing else. *Sabotage S-B12:* a `snapshot(lat, lon)` that recentres the answer turns the check red |
+| **B13** | the credit carries its link | every `available: true` response carries `attribution_url`: `https://adsb.fi` for adsb.fi, and `https://adsb.lol` for adsb.lol, alongside its ODbL `attribution`. *Sabotage S-B13:* removing the field turns the check red |
+
+L1 and L2, after Daniel's deploy, are unchanged. **The deploy is unblocked on the adsb.fi side.** It still waits for the Weatherscope session's review and the reviewer's approval of #458.
