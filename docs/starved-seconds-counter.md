@@ -92,3 +92,35 @@ firmware's reports are still accepted, which is the property the order exists fo
 apart.
 
 **Outside the set:** stop and report. Code, tests and bars are not edited to make a reading come true.
+
+## Results: host, Worker and build (2026-10-21, before any bench run)
+
+Graded on `ad88f0b`. Every frozen bar below was met, and every sabotage turned its check red.
+
+| check | reading | verdict |
+|---|---|---|
+| SC1 format | 9 fields, digits and commas; worst case within `MAX_LEN` | as predicted |
+| S-SC1 `s=%u` | the digits-and-commas assertion red (4 FAIL lines) | as predicted |
+| SC2 accrual | healthy hour 0; the 6E:64 shape accrues **150 = RECOVERED 150**; jitter + a `millis()` wrap, 18 episodes, counter exceeds the sum of RECOVERED floors by 8 s (< 1 s per episode) | as predicted |
+| S-SC2a ticks, S-SC2b edge only | SC2 red, each | as predicted |
+| SC3 Worker | 8 → `u8` with 8 doubles, 9 → `u9` with the ninth double; 7 and 10 refused; shape checks unchanged | as predicted |
+| S-SC3a accept only 9 | the 8-field case red | as predicted |
+| S-SC3b no arity marker | the gap-versus-zero assertion red, plus the two cases that also assert the marker (the plant dropped it from both arities) | as predicted |
+| SC4 cross-side | `FIELD_COUNT` 9 is in the Worker's `USAGE_FIELD_COUNTS = [8, 9]`, read from `metrics.ts` | as predicted |
+| S-SC4 `FIELD_COUNT` 10 | SC4 red | as predicted |
+| SC5 disclosure | README says "nine numbers" (derived from `FIELD_COUNT`, previous count absent), and README and `support.html` both carry the same sentence; `embed-pages.mjs --check` current | as predicted |
+| S-SC5 sentence removed from a copy of `support.html` | exactly one FAIL line: the `support.html` check | as predicted |
+
+**Where SC5's check lives.** In the host usage test, beside SC4, not in vitest: the proxy suite runs in the
+Workers pool, which has no `node:fs`, so it cannot read `README.md`. The test takes `README.md` and
+`support.html` as arguments from `run.sh` and reports BLIND (exit 2) if it cannot read them.
+
+**Suites and build.**
+- `test/host/run.sh`: ALL HOST TESTS PASSED (usage report 44 checks, 0 failures).
+- Worker: 43 files, 580 tests passed; `tsc --noEmit` clean.
+- `pio run -e blipscope-s3-128` succeeds.
+- `check-no-bench-hooks.sh` on that image: no bench hook, with `[bench-force-starve]` among the 4 markers checked and the anchor present.
+- `--selftest` passes.
+
+**Still to run:** SC6 on E2:08, with its predictions re-stated in the PR before the flash, and SC7 after
+Daniel's deploy.
