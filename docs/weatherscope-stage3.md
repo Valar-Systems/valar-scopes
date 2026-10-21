@@ -708,3 +708,49 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 - **S1's sabotage:** unchanged: a difference in the 13 envs that compile `ConfigurationWebServer.cpp`, and **0 differing bytes** in `animtest-s3-128`.
 
 **Not proposed, raised for Daniel:** the patch scripts' "not found yet; skipping" path lets a build succeed **unpatched** (blipscope-5c's note). Whether that should be fatal in CI is a separate decision.
+
+### A5.6 Ruled 2026-10-21: S1 v2, its stamp list and its predictions (frozen before any measured build)
+
+**The reviewer's ruling (the single reviewer from this date; the Weatherscope chat is retired):**
+- S1 v2 is accepted, with one correction: predict base against head identical **outside an explicit list of regions that can still differ between commits**. Each region is listed with the reason it can differ, before any measured build. Not "blindly byte-identical".
+- The first run's misses stay on record (A5.4, A5.5).
+- The branch is rebased onto `bf7ece6` and the run repeated.
+- **The patch-skip question is ruled separately:** a patch that can't apply will fail the build. blipscope-5c is doing that work.
+
+**The base and the head.**
+- **Base:** main at `bf7ece6`.
+- **Head:** this branch once S1 v2's tooling is committed. The rebase changed no line of this branch's change (the same numstat and the same added and removed lines as before it).
+
+**The list: regions that can still differ between base and head.**
+
+| region | where | why it can differ | allowed? |
+|---|---|---|---|
+| **R1, `app_elf_sha256`** | image offset `0xB0`, 32 B | a hash of the whole ELF, including debug sections that never reach the image, so it can change when no image byte does | **yes** |
+| **R2, the image checksum and the appended SHA-256** | the last 33 B | computed over the image, R1 included, so they change whenever R1 does | **yes** |
+
+**Checked and NOT on the list** (a difference in any of these is a stop):
+- **`BUILD_ENV`:** the 14 other envs keep their names, so their `$PIOENV` strings can't differ. The bench's name does change, which is why the bench is compared under its old name.
+- **A commit id:** none is embedded.
+  - No build script writes one: `check_config_form_prebuild.py`'s only subprocess runs a checker, and the patch scripts and `fix_boot_app0_offset.py` call no git.
+  - No build flag carries one.
+  - Run 1's images contained neither commit id (searched).
+- **`__DATE__`/`__TIME__` strings** (WiFiManager's two, and the bench's one): fixed by `SOURCE_DATE_EPOCH`. If they differ, it didn't reach the compiler, and the calibration catches that first.
+- **The other `esp_app_desc_t` fields** (project name, version, build date and time): fixed in the prebuilt framework.
+
+**The procedure.** It runs in the same clone, every measured build with `SOURCE_DATE_EPOCH=1760000000` passed in the build's environment:
+1. **Warm-up:** one build of every env at the base, and of `weatherscope-bench-s3-128` at the head, with the images discarded. Every measured build then compiles installed, patched libraries.
+2. **Calibration**, then the base, head and sabotage rounds.
+3. **The bench under its old name**, by the D2 method, now committed in the tooling.
+4. **The board checks**, as frozen in A5.2.
+
+**Predicted:**
+
+| check | predicted |
+|---|---|
+| **C-S1v2, the calibration, first** | two builds of `blipscope-s3-128` at the base, minutes apart: **0 differing bytes, R1 and R2 included** (the same commit gives the same ELF).<br>• A time string differs: `SOURCE_DATE_EPOCH` didn't reach the compiler. Stop.<br>• Anything else differs: something else in the build is time-dependent. Stop. |
+| **S1** | the 14 other envs, base against head: **identical outside R1 and R2, in 14/14.** Whether R1 and R2 differ is reported, not graded. |
+| **S1's sabotage** | a difference outside R1 and R2 in every env whose sabotage build compiled `ConfigurationWebServer.cpp`, predicted to be the 13 envs other than `animtest-s3-128`. **`animtest-s3-128` at 0 differing bytes**, as ruled. |
+| **the bench** | the head's bench built under its old name, against the base's bench: **identical outside R1 and R2.** |
+| **C1, C2, L1-L6, on the board** | as frozen in A5.2 |
+
+**Outside every prediction: stop and decide.** The first run's records stay as they are.
