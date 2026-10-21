@@ -410,6 +410,13 @@ def run(sp):
     for p in g:
         if not Fraction(5, 100) <= g[p] <= Fraction(40, 100):
             print(f"  M4g({p}) outside 5-40 %: for the record; changes nothing ruled (not a stop)")
+    grade_m4h(used)
+    print("M4: every row read.")
+    return 0
+
+
+def grade_m4h(used):
+    """M4h's grading, moved here unchanged (docs/wxc1-v2.md A7.6) so that run() and read-m4h call the same code."""
     for p in ("hsr", "comp"):
         rows = [h["m"]["products"][p] for h in used]
         ok = sum(1 for r in rows if (r["typeBytes"] <= 4 if r["allOneType"] else 4 * r["typeBytes"] <= r["codeBytes"]))
@@ -417,7 +424,34 @@ def run(sp):
         worst = max(Fraction(r["typeBytes"], max(1, r["codeBytes"])) for r in rows)
         print(f"M4h {p}: {ok}/{len(rows)} hours within the prediction (<= 4 B when one type, else <= 25 % of the code "
               f"layer); worst type/code {pct(worst)}; v1 rungs {dict(rungs)}")
-    print("M4: every row read.")
+
+
+def read_m4h(sp):
+    """Ruled 2026-10-21 (A7.6): read M4h as frozen from run 2's per-hour counts, which nothing has read for M4h.
+    Refuses unless the input is provably run 2's: exactly 24 hour files, each older than run2.log, each paired at
+    its SeamlessHSR timestamp (M4b's outcome (a), 0 missing). Prints a sha256 over the 24 files."""
+    import hashlib
+    d = os.path.join(sp, "wxdata2", "m4")
+    hours_dir, log = os.path.join(d, "hours"), os.path.join(d, "run2.log")
+    names = sorted(n for n in os.listdir(hours_dir) if n.endswith(".json"))
+    if len(names) != 24:
+        raise InstrumentFailure(f"read-m4h: {len(names)} hour files, want 24")
+    log_t = os.path.getmtime(log)
+    newer = [n for n in names if os.path.getmtime(os.path.join(hours_dir, n)) >= log_t]
+    if newer:
+        raise InstrumentFailure(f"read-m4h: {len(newer)} hour files are newer than run2.log: not run 2's")
+    stamp = lambda f: re.search(r"_(\d{8}-\d{6})\.grib2\.gz$", f).group(1)
+    sha = hashlib.sha256()
+    used = []
+    for n in names:
+        raw = open(os.path.join(hours_dir, n), "rb").read()
+        sha.update(raw)
+        m = json.loads(raw)
+        if stamp(m["files"]["pf"]) != stamp(m["files"]["hsr"]):
+            raise InstrumentFailure(f"read-m4h: {n} is not paired at its SeamlessHSR timestamp")
+        used.append({"m": m})
+    print(f"read-m4h: 24 hour files from run 2, all older than run2.log, all paired at 0 s; sha256 {sha.hexdigest()}")
+    grade_m4h(used)
     return 0
 
 
@@ -427,11 +461,11 @@ def main(argv):
         return 2
     if argv[2] == "--selftest":
         return selftest()
-    if argv[2] != "run":
+    if argv[2] not in ("run", "read-m4h"):
         print(__doc__)
         return 2
     try:
-        return run(argv[1])
+        return run(argv[1]) if argv[2] == "run" else read_m4h(argv[1])
     except Stop as e:
         print(f"STOP: {e}\n(every later row stays unread)")
         return 1
