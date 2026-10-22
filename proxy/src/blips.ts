@@ -11,6 +11,7 @@ import {
 } from "./schema";
 import { fetchPointChain } from "./upstreams/chain";
 import { errorResponse, intEnv, jsonResponse } from "./util";
+import { bendWriter, type OnFetched } from "./sitefeed/bend"; // Bend site feed -- removable (README)
 
 // Freshness window: a cached tile younger than this is served as-is (HIT).
 // Older entries serve immediately as STALE while one background revalidation
@@ -66,6 +67,7 @@ async function buildFresh(
   bucketKm: number,
   limit: number,
   meta?: RequestMetric,
+  onFetched?: OnFetched,
 ): Promise<BuiltTile | null> {
   const started = Date.now();
   const result = await fetchPointChain(env, latQ, lonQ, upstreamDistNm(bucketKm));
@@ -78,12 +80,13 @@ async function buildFresh(
   // Normalize, then keep the `limit` nearest to the tile centre. Distance is the
   // same cheap planar metric the firmware uses (lon scaled by cos lat); we only
   // need to RANK neighbours, not measure them.
+  const normalized = result.ac.map(normalizeReadsbAc).filter((a): a is NormalizedAircraft => a !== null);
+  // Bend site feed (removable): handed the upstream's FULL raw list, before the `limit` cut. Never throws, never awaited.
+  onFetched?.(result.ac, result.upstream, result.nowMs);
   const latC = parseFloat(latQ);
   const lonC = parseFloat(lonQ);
   const cosLat = Math.cos((latC * Math.PI) / 180);
-  const list = result.ac
-    .map(normalizeReadsbAc)
-    .filter((a): a is NormalizedAircraft => a !== null)
+  const list = normalized
     .map((a) => ({ a, d2: sq((a.lon - lonC) * cosLat) + sq(a.lat - latC) }))
     .sort((x, y) => x.d2 - y.d2)
     .slice(0, limit)
@@ -117,9 +120,10 @@ async function revalidate(
   lonQ: string,
   bucketKm: number,
   limit: number,
+  onFetched?: OnFetched,
 ): Promise<void> {
   try {
-    const built = await buildFresh(env, latQ, lonQ, bucketKm, limit);
+    const built = await buildFresh(env, latQ, lonQ, bucketKm, limit, undefined, onFetched);
     if (built) await caches.default.put(cacheKey, built.stored);
     // On failure the stale entry simply keeps serving until SWR_MAX_AGE_S.
   } finally {
@@ -146,6 +150,7 @@ export async function handleBlips(
   const latQ = quantizeTile(lat);
   const lonQ = quantizeTile(lon);
   const bucketKm = bucketForRadiusKm(r);
+  const siteFeed = bendWriter(env, ctx, latQ, lonQ, bucketKm); // Bend site feed -- undefined when off
 
   // Cache key = quantized tile + radius bucket + limit + schema version, on a
   // synthetic host. Every device in the same tile/bucket shares one entry (and
@@ -175,7 +180,7 @@ export async function handleBlips(
     // stale body and let the already in-flight build finish under waitUntil.
     if (age > staleServeMs && !inflightRevalidations.has(cacheKey.url)) {
       inflightRevalidations.add(cacheKey.url);
-      const buildPromise = buildFresh(env, latQ, lonQ, bucketKm, limit, meta);
+      const buildPromise = buildFresh(env, latQ, lonQ, bucketKm, limit, meta, siteFeed);
       const winner = await Promise.race([
         buildPromise,
         new Promise<"deadline">((resolve) => setTimeout(() => resolve("deadline"), deadlineMs)),
@@ -203,14 +208,14 @@ export async function handleBlips(
     // refresh in the background.
     if (!inflightRevalidations.has(cacheKey.url)) {
       inflightRevalidations.add(cacheKey.url);
-      ctx.waitUntil(revalidate(env, cacheKey, latQ, lonQ, bucketKm, limit));
+      ctx.waitUntil(revalidate(env, cacheKey, latQ, lonQ, bucketKm, limit, siteFeed));
     }
     meta.cache = "STALE";
     return served(body, "STALE", upstream);
   }
 
   meta.cache = "MISS";
-  const buildPromise = buildFresh(env, latQ, lonQ, bucketKm, limit, meta);
+  const buildPromise = buildFresh(env, latQ, lonQ, bucketKm, limit, meta, siteFeed);
   const winner = await Promise.race([
     buildPromise,
     new Promise<"deadline">((resolve) => setTimeout(() => resolve("deadline"), deadlineMs)),

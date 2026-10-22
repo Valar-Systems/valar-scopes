@@ -13,6 +13,35 @@ are versioned and released **together** from a single commit, and each device se
   SKU only ever downloads its own image.
 - The flow lives in [src/OtaUpdater.cpp](src/OtaUpdater.cpp); `FW_VERSION` is in
   [src/OtaUpdater.h](src/OtaUpdater.h).
+- **Planned, not yet in any release: the OTA identity check.** It is specified in
+  [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md), §3 and Addendum 1 (2026-10-21).
+  From the release that adds it:
+  - every image carries an identity record, `<FW_OTA_PREFIX><variant::SLUG>`, at file
+    offset 0x120;
+  - CI refuses to publish an image whose record disagrees with the name it would be
+    published under;
+  - a device reads the record from the first bytes of the download and refuses an image
+    whose record is missing or isn't its own, **before anything is written to flash**.
+
+  What that release makes permanent:
+  - **No OTA downgrade past it.** Images built before it carry no record, so every device
+    running the check refuses them. That includes an old binary re-published under a
+    higher `version.txt`. A rollback must be a new build that carries the record. USB
+    flashing is unaffected.
+  - **Identities are permanent.** A device refuses every later image if its edition
+    prefix or slug is renamed, or if the record's layout changes incompatibly. Each of
+    those needs its own ruling and, first, a transitional release on the fleet that
+    accepts both.
+
+  **Before cutting that release (ruled 2026-10-21):** it needs **Daniel's explicit OK at
+  cut time, with both consequences above named in plain words**: no OTA downgrade past
+  it, and fixed identities. A green CI run is not that OK.
+
+  **No prerelease, bench test or otherwise (ruled 2026-10-21),** until what each release
+  job does on a prerelease publish has been brought to the reviewer and Daniel has OK'd
+  it. The reason: a prerelease runs the full release pipeline, and one approval of
+  `promote` would make it `latest` for the whole fleet. See the Stage 3 plan, Addendum 5
+  (A5.3).
 
 ## Cutting a release
 

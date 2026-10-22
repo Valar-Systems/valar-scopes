@@ -20,8 +20,12 @@ import os
 
 Import("env")  # noqa: F821  (provided by PlatformIO's SCons environment)
 
-SOURCE = os.path.join(
-    env.subst("$PROJECT_LIBDEPS_DIR"), env["PIOENV"],  # noqa: F821
+import sys
+sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "scripts"))  # noqa: F821
+import prebuild_patch  # noqa: E402  (the one rule for a missing file: docs/prebuild-patches.md)
+
+SOURCE = prebuild_patch.target(  # noqa: F821
+    env, "[patch_lgfx_rgb_intr]",  # noqa: F821
     "LovyanGFX", "src", "lgfx", "v1", "platforms", "esp32s3", "Bus_RGB.cpp",
 )
 
@@ -30,12 +34,9 @@ SOURCE = os.path.join(
 ORIGINAL = "#define LGFX_INTR_FLAGS ESP_INTR_FLAG_INTRDISABLED\n"
 REPLACEMENT = "#define LGFX_INTR_FLAGS ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_SHARED\n"
 
-try:
+if SOURCE is not None:
     with open(SOURCE, "r", encoding="utf-8") as fh:
         text = fh.read()
-except FileNotFoundError:
-    print("[patch_lgfx_rgb_intr] %s not found yet; skipping" % SOURCE)
-else:
     if ORIGINAL in text:
         with open(SOURCE, "w", encoding="utf-8") as fh:
             fh.write(text.replace(ORIGINAL, REPLACEMENT, 1))

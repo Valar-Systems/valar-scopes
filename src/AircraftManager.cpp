@@ -2272,10 +2272,28 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         // A refusal here counts toward `rej` like any other gate refusal.
         // Intended rather than tolerated: on a starved board a climbing rej
         // IS the signal, and it costs one malloc/free per health tick.
-        const bool canAlloc = heaphealth::CanAllocate(heaphealth::TLS_HANDSHAKE_BYTES);
+        bool canAlloc = heaphealth::CanAllocate(heaphealth::TLS_HANDSHAKE_BYTES);
+#ifdef BENCH_FORCE_STARVE_S
+        // BENCH ONLY (docs/starved-seconds-counter.md, SC6): refuse for BENCH_FORCE_STARVE_S seconds from
+        // 15 min after boot, so the starved-seconds counter can be checked against the watch's own
+        // RECOVERED line. NEVER SHIPS: scripts/check-no-bench-hooks.sh refuses any image with this marker.
+        {
+            static bool announced = false;
+            const unsigned long upS = millis() / 1000UL;
+            if (upS >= 900UL && upS < 900UL + (unsigned long)(BENCH_FORCE_STARVE_S)) {
+                if (!announced) { Serial.println("[bench-force-starve] refusing CanAllocate"); announced = true; }
+                canAlloc = false;
+            }
+        }
+#endif
         starveRun = starvation::NextRun(starveRun, canAlloc);
         const bool starved = starvation::IsStarved(starveRun, heaphealth::BallastHeld());
         const unsigned long nowMs = millis();
+        // THE STARVED-SECONDS COUNTER: this tick's interval counts when the PREVIOUS tick was starved, so an
+        // episode accrues exactly the span RECOVERED prints. Whole seconds out, the remainder carried.
+        usageStore.AddStarvedSeconds(starveAccrual.Step(prevTickStarved, (uint32_t)lastStarveTickMs, (uint32_t)nowMs));
+        prevTickStarved = starved;
+        lastStarveTickMs = nowMs;
 
         if (!starved) {
             if (starvedSinceMs != 0) {
@@ -2920,6 +2938,8 @@ void AircraftManager::RequestFetch()
         req->otaMem = TakeOtaMemReport(); // "" unless an OTA happened; clears on read
         req->bootReason = TakeBootReasonReport(); // one-shot per boot
         req->usage  = usageStore.Take(millis()); // "" unless an hour has passed
+        // Digits and commas only (UsageReport.h), so it is safe on serial -- and the bench reads SC6 from it.
+        if (req->usage.length()) Serial.printf("[usage] report %s\n", req->usage.c_str());
     } else
 #endif
     if (useLocalSource) {

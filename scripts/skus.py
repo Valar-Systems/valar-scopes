@@ -146,6 +146,10 @@ ALLOWED_MENTIONS = {
     "scripts/check-customer-entry.py",   # reads build's needs + its own job (--check-wiring), not the matrix
     "scripts/check-no-bench-hooks.sh",   # a comment naming the job that runs it; scans an image, never the matrix
     "docs/host-tests-ci.md",             # predictions for the host-tests job; names the workflow, parses nothing
+    "docs/weatherscope-stage3.md",       # the Stage 3 plan; names the workflow and skus.yml, parses nothing
+    "docs/ota-url-check.md",             # predictions for the OTA URL check; names the workflow and skus.yml, parses nothing
+    "scripts/check_ota_url.py",          # reads the build job's step order (--check-wiring), never the matrix
+    "docs/prebuild-patches.md",          # the pre-build patch audit; names the workflow in prose, parses nothing
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")

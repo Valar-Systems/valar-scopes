@@ -810,10 +810,14 @@ if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_usage_report.cpp"      
   cat "$OUT/build.log"
   exit 2
 fi
-"$OUT/test_usage_report.exe"
+# SC4 reads the Worker's accepted arities; SC5 reads the two published disclosures.
+"$OUT/test_usage_report.exe" "$ROOT/proxy/src/metrics.ts" "$ROOT/README.md" "$ROOT/proxy/pages/support.html"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -eq 2 ]; then
+  echo "FAIL: the usage test could not read metrics.ts, README.md or support.html (BLIND)"
   exit 2
 elif [ "$rc" -ne 0 ]; then
   fail=1
@@ -1072,6 +1076,23 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties
+# (docs/weatherscope-stage2.md, addendum 2: C3 a-f). Its sabotages: python -I test/host/sabotage_wx_palette.py
+echo
+echo "== WxPalette =="
+if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_palette.cpp" -o "$OUT/test_wx_palette.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope palette test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_palette.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the palette test did not run or could not read the pinned table (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py
@@ -1124,6 +1145,23 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's legend layout (src/weatherscope/WxLegend.h) against the round-screen rules (addendum 8: G1-G4).
+# Its sabotages: python -I test/host/sabotage_wx_legend.py. The board's pixels: test/fixtures/wx/legend_check.py.
+echo
+echo "== WxLegend =="
+if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_legend.cpp" -o "$OUT/test_wx_legend.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope legend test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_legend.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the legend test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # The weather fetch policy (include/WxPolicy.h; docs/wx-device.md WD3): a table and random sequences, one
 # line per property. Its sabotages: python -I test/host/sabotage_wx_policy.py
 echo
@@ -1140,6 +1178,18 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+
+echo
+echo "== pre-build patches: which libraries count as declared (docs/prebuild-patches.md, T2) =="
+# The rule that decides "FATAL" vs "not a dependency" when a patch target is missing. It errs
+# toward FATAL: a library is declared if its name appears anywhere in a lib_deps entry.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the pre-build patch rule cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/prebuild_patch.py" --selftest
+  [ "$?" -ne 0 ] && fail=1
+fi
 
 echo
 if [ "$fail" -eq 0 ]; then

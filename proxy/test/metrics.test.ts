@@ -5,7 +5,7 @@ import {
   recordUsage,
   routeTemplate,
   setDeviceAttribution,
-  USAGE_FIELD_COUNT,
+  USAGE_FIELD_COUNTS,
   type RequestMetric,
 } from "../src/metrics";
 import type { Env } from "../src/types";
@@ -243,15 +243,37 @@ describe("routeTemplate", () => {
 // because a malformed value that gets stored is a wrong row nobody can spot in
 // an aggregate.
 describe("recordUsage", () => {
-  it("records a well-formed report as one Analytics Engine point", () => {
+  it("records a well-formed 8-field report (firmware <= 18) as one point, marked u8, with 8 doubles", () => {
     const { env, writeDataPoint } = envWithSpy();
     recordUsage(env, "41,7,3,2,11,5,1,137", "s3-128", "8", "0123456789abcdef");
     expect(writeDataPoint).toHaveBeenCalledTimes(1);
     expect(writeDataPoint).toHaveBeenCalledWith({
-      blobs: ["usage", "s3-128", "8", "0123456789abcdef"],
+      blobs: ["usage", "s3-128", "8", "0123456789abcdef", "u8"],
       doubles: [41, 7, 3, 2, 11, 5, 1, 137],
       indexes: ["usage"],
     });
+  });
+
+  // SC3 (docs/starved-seconds-counter.md): the ninth field is the starved-seconds delta.
+  it("records a 9-field report as one point, marked u9, with starvedSeconds as the ninth double", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "41,7,3,2,11,5,1,137,150", "s3-128", "19", "0123456789abcdef");
+    expect(writeDataPoint).toHaveBeenCalledTimes(1);
+    expect(writeDataPoint).toHaveBeenCalledWith({
+      blobs: ["usage", "s3-128", "19", "0123456789abcdef", "u9"],
+      doubles: [41, 7, 3, 2, 11, 5, 1, 137, 150],
+      indexes: ["usage"],
+    });
+  });
+
+  // GAP IS NOT ZERO. Analytics Engine reads a missing double as 0, so an 8-field row must carry no ninth
+  // double AND say it is u8 -- otherwise "this firmware doesn't measure it" reads as "0 seconds starved".
+  it("an 8-field row carries no ninth double and is marked u8, so it can never read as 0 starved", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, "1,0,0,0,0,0,0,1", "s3-128", "18");
+    const pt = writeDataPoint.mock.calls[0]?.[0];
+    expect(pt.doubles).toHaveLength(8);
+    expect(pt.blobs[4]).toBe("u8");
   });
 
   it("keeps the device on the point, because per-device was the ask", () => {
@@ -276,11 +298,20 @@ describe("recordUsage", () => {
   // THE FIELD COUNT IS A CONTRACT WITH THE FIRMWARE. usage::FIELD_COUNT in
   // include/UsageReport.h is the other side of it, and a parser that quietly
   // accepted a different arity is exactly how the two drift apart.
-  it("pins the arity at 8 and rejects anything else", () => {
+  it("accepts exactly the arities 8 and 9, and rejects 7 and 10", () => {
     const { env, writeDataPoint } = envWithSpy();
-    expect(USAGE_FIELD_COUNT).toBe(8);
+    expect([...USAGE_FIELD_COUNTS]).toEqual([8, 9]);
     recordUsage(env, "1,2,3,4,5,6,1", "s3-128", "8"); // seven
-    recordUsage(env, "1,2,3,4,5,6,1,2,3", "s3-128", "8"); // nine
+    recordUsage(env, "1,2,3,4,5,6,1,2,3,4", "s3-128", "8"); // ten
+    expect(writeDataPoint).not.toHaveBeenCalled();
+    recordUsage(env, "1,2,3,4,5,6,1,2", "s3-128", "8"); // eight
+    recordUsage(env, "1,2,3,4,5,6,1,2,3", "s3-128", "19"); // nine
+    expect(writeDataPoint).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a ninth field past a u32", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    recordUsage(env, `1,2,3,4,5,6,1,2,${0x100000000}`, "s3-128", "19");
     expect(writeDataPoint).not.toHaveBeenCalled();
   });
 

@@ -44,12 +44,14 @@ public:
         total.screenStats   = p.getUInt("t_stats", 0);
         total.screenFollow  = p.getUInt("t_follow", 0);
         total.logbookClaims = p.getUInt("t_claim", 0);
+        total.starvedSeconds = p.getUInt("t_starve", 0);
         reported.cardOpens     = p.getUInt("r_card", 0);
         reported.screenRadar   = p.getUInt("r_radar", 0);
         reported.screenList    = p.getUInt("r_list", 0);
         reported.screenStats   = p.getUInt("r_stats", 0);
         reported.screenFollow  = p.getUInt("r_follow", 0);
         reported.logbookClaims = p.getUInt("r_claim", 0);
+        reported.starvedSeconds = p.getUInt("r_starve", 0);
         p.end();
     }
 
@@ -62,6 +64,12 @@ public:
     void ScreenList()    { ++total.screenList; }
     void ScreenStats()   { ++total.screenStats; }
     void ScreenFollow()  { ++total.screenFollow; }
+    /// Seconds spent starved, from the health tick's Accrual (StarvationPolicy.h). RAM only until the next
+    /// report, like every counter here: no new NVS write path. Saturates rather than wrapping.
+    void AddStarvedSeconds(uint32_t s)
+    {
+        total.starvedSeconds = (total.starvedSeconds > 0xFFFFFFFFu - s) ? 0xFFFFFFFFu : total.starvedSeconds + s;
+    }
 
     /// Whether Follow is configured. A BOOLEAN, never the target -- §17.
     void SetFollowEnabled(bool on) { followEnabled = on; }
@@ -106,12 +114,14 @@ private:
         p.putUInt("t_stats",  total.screenStats);
         p.putUInt("t_follow", total.screenFollow);
         p.putUInt("t_claim",  total.logbookClaims);
+        p.putUInt("t_starve", total.starvedSeconds);
         p.putUInt("r_card",   reported.cardOpens);
         p.putUInt("r_radar",  reported.screenRadar);
         p.putUInt("r_list",   reported.screenList);
         p.putUInt("r_stats",  reported.screenStats);
         p.putUInt("r_follow", reported.screenFollow);
         p.putUInt("r_claim",  reported.logbookClaims);
+        p.putUInt("r_starve", reported.starvedSeconds);
         p.end();
     }
 

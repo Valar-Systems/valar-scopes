@@ -60,6 +60,17 @@ bucket_name = "blipscope-wx-dev"
 binding = "METRICS"
 dataset = "blipscope_proxy"
 
+# Bend site feed (src/sitefeed/bend.ts, docs/bend-site-feed.md) -- removable; see README "Bend site feed".
+# Named environments do NOT inherit Durable Object bindings, so this is repeated per env (B11 checks the dry-run).
+[[durable_objects.bindings]]
+name = "BEND_SNAPSHOT"
+class_name = "BendSnapshotDO"
+
+# A Durable Object class is created by a migration, and removed by one (deleted_classes) -- never by deleting lines.
+[[migrations]]
+tag = "v1-bend-snapshot"
+new_sqlite_classes = ["BendSnapshotDO"]
+
 # ===================== staging =====================
 # scopes-staging.valarsystems.com (production will be scopes.valarsystems.com).
 # Bindings are NOT inherited across environments, so everything is redeclared here.
@@ -98,6 +109,7 @@ routes = [
 BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.staging.vars]
+SITE_FEED_BEND = "on"                     # Bend site feed switch (docs/bend-site-feed.md); anything else = off
 # Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
 #
 # A VAR, NOT A SECRET, and the distinction is not cosmetic: the sitekey is
@@ -178,6 +190,12 @@ id = "8b6e92ed802a4192b6b6c1399fdf96aa"
 binding = "METRICS"
 dataset = "blipscope_proxy_staging"
 
+# Bend site feed (src/sitefeed/bend.ts, docs/bend-site-feed.md) -- removable; see README "Bend site feed".
+# Named environments do NOT inherit Durable Object bindings, so this is repeated per env (B11 checks the dry-run).
+[[env.staging.durable_objects.bindings]]
+name = "BEND_SNAPSHOT"
+class_name = "BendSnapshotDO"
+
 # Workers Rate Limiting binding (per-colo token buckets, 60 s period).
 # RL_IP: a household NATs 1-3 devices behind one IP; the fastest tier polls every
 # 2 s (30 rpm) + enrich taps, so 120 rpm covers 3 fast devices with margin.
@@ -238,6 +256,9 @@ routes = [
 BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.production.vars]
+SITE_FEED_BEND = "off"                    # Bend site feed switch (docs/bend-site-feed.md); "on" enables it.
+                                          # OFF for the first production deploy (staged, Daniel's deploy rule step 2);
+                                          # a one-line reviewed change turns it on after the existing service checks out
 # Turnstile sitekey for the device-enrolment page. Public by construction (it is
 # rendered into the page HTML) -- see the staging block above for why this is a
 # var and why the two environments have SEPARATE widgets rather than one.
@@ -351,6 +372,12 @@ id = "733bf90056104f56be9492e62450a0bf"
 [[env.production.analytics_engine_datasets]]
 binding = "METRICS"
 dataset = "blipscope_proxy"
+
+# Bend site feed (src/sitefeed/bend.ts, docs/bend-site-feed.md) -- removable; see README "Bend site feed".
+# Named environments do NOT inherit Durable Object bindings, so this is repeated per env (B11 checks the dry-run).
+[[env.production.durable_objects.bindings]]
+name = "BEND_SNAPSHOT"
+class_name = "BendSnapshotDO"
 
 # Same per-colo reasoning as staging (RL_IP: ~3 fast devices per household IP;
 # RL_KEY: per-colo fleet ceiling). Distinct namespace_ids so prod and staging

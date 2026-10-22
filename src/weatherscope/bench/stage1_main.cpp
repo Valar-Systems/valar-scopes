@@ -6,8 +6,18 @@
 // .inc can go stale), the 60 mi KDFW crop of the 2024-05-21 22:00Z MRMS composite.
 //
 // On boot it decodes the crop (include/WxCrop.h) into a code grid in PSRAM, works out each screen row's
-// and column's cell (src/weatherscope/WxRender.h), paints a 240 x 240 PSRAM sprite in the PROVISIONAL palette
-// (not ruled), pushes it once, and reports its measurements -- WITHOUT the dump (see below).
+// and column's cell (src/weatherscope/WxRender.h), paints a 240 x 240 PSRAM sprite in the RULED palette
+// (src/weatherscope/WxPalette.h, Stage 2 step 2.1), pushes it once, and reports its measurements -- WITHOUT the
+// dump (see below).
+//
+// STAGE 2, STEP 2.1 (docs/weatherscope-stage2.md): the palette, final after Daniel's three looks (addendum 6).
+// SCREEN 7, THE LEGEND (docs/weatherscope-screens.md §7; bench build per addendum 7): after boot the screen alternates
+// every 10 s between the KDFW frame and the legend. A serial 'L' draws the legend and dumps its sprite's own bytes
+// (WXL swatch lines, then tagged WXS rows) so test/fixtures/wx/legend_check.py can compare every swatch pixel with
+// the palette table.
+// The boot report adds WX,sprite_sha256: the sha256 of the
+// frame's 115,200 sprite bytes, computed AFTER the timed path, which test/fixtures/wx/palette_ref.py derives
+// independently on the host (check C2).
 //
 // Serial, for a single-open capture (test/fixtures/wx/capture_stage1.py, never a reattaching recorder):
 //   WX,<key>,<value>            one measurement per line (predictions B3-B8)
@@ -29,6 +39,8 @@
 
 #include "LGFX.h"
 #include "WxCrop.h"
+#include "WxLegend.h"
+#include "WxPalette.h"
 #include "WxRender.h"
 #include "variants/Variant.h"
 
@@ -43,12 +55,11 @@ wxrender::View view;
 wxcrop::Header hdr;
 uint8_t* grid = nullptr;   // decoded codes, rows x cols, in PSRAM
 
-// PROVISIONAL palette (NOT ruled): NWS reflectivity steps for codes 1-13, black for dry, grey for no
-// coverage, dark violet for missing. Same values as render_ref.py's PNG. B9 compares codes, not colours.
-const uint8_t kPalette[16][3] = {
-    {0, 0, 0},       {3, 0, 244},   {2, 253, 2},   {1, 197, 1},   {0, 142, 0},     {253, 248, 2},
-    {229, 188, 0},   {253, 149, 0}, {253, 0, 0},   {212, 0, 0},   {188, 0, 0},     {248, 0, 253},
-    {152, 84, 198},  {253, 253, 253}, {60, 60, 68}, {110, 0, 110}};
+// The RULED palette (src/weatherscope/WxPalette.h). The frame is rain only -- the wire carries no snow field
+// yet -- with code 1 dimmed to 55 % (final: Daniel's second look, addendum 5). Stage 1's provisional palette (dark
+// violet for missing) is retired; it is recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
+constexpr int kFrameDim = wxpalette::kDim55;
+constexpr uint32_t kAlternateMs = 10000;   // frame <-> legend, so the look needs no serial input
 
 struct Report {
     const char* status = "not run";
@@ -56,6 +67,7 @@ struct Report {
     uint32_t decodeUs = 0, indexUs = 0, renderUs = 0, pushUs = 0;
     size_t psramBefore = 0, psramAfter = 0, internalBefore = 0, internalAfter = 0;
     bool sprite = false;
+    char spriteSha[65] = "";   // the frame's sprite bytes, hashed after the timed path (C2)
 } rep;
 
 void Render()
@@ -67,13 +79,75 @@ void Render()
         for (int x = 1; x <= wxrender::kSize; ++x) {
             const uint8_t c = x < wxrender::kSize ? wxrender::CodeAt(hdr, grid, view, x, y) : 0xFE;
             if (c == run) continue;
-            const uint8_t* p = kPalette[run == wxrender::kOffDisc ? 0 : (run & 15)];
-            canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p[0], p[1], p[2]));
+            if (run == 15) {   // missing is hatched (ruled: B): a pattern, drawn pixel by pixel
+                for (int xx = x0; xx < x; ++xx) {
+                    const wxpalette::Rgb m = wxpalette::MissingAt(xx, y);
+                    canvas.writePixel(xx, y, canvas.color565(m.r, m.g, m.b));
+                }
+            } else {
+                const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false, kFrameDim);
+                canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p.r, p.g, p.b));
+            }
             x0 = x;
             run = c;
         }
     }
     canvas.endWrite();
+}
+
+// Drawing helpers for the legend.
+void Swatch(int x, int y, int w, int h, wxpalette::Rgb c) { canvas.fillRect(x, y, w, h, canvas.color565(c.r, c.g, c.b)); }
+
+void HatchSwatch(int x, int y, int w, int h)
+{
+    const uint16_t line = canvas.color565(wxpalette::kMissingHatch.r, wxpalette::kMissingHatch.g, wxpalette::kMissingHatch.b);
+    const uint16_t bg = canvas.color565(wxpalette::kDry.r, wxpalette::kDry.g, wxpalette::kDry.b);
+    for (int yy = y; yy < y + h; ++yy)
+        for (int xx = x; xx < x + w; ++xx) canvas.drawPixel(xx, yy, (xx + yy) % wxpalette::kHatchPeriod == 0 ? line : bg);
+}
+
+void Label(int x, int y, const char* text)
+{
+    canvas.setCursor(x, y);
+    canvas.print(text);
+}
+
+// Screen 7, the legend (docs/weatherscope-screens.md §7): plain-word rows from WxLegend.h, every swatch drawn from
+// the final palette. Dry has no swatch (ruled).
+wxpalette::Rgb LegendColour(const wxlegend::Swatch& sw)
+{
+    switch (sw.kind) {
+    case wxlegend::Kind::Rain: return wxpalette::Rain(sw.code, kFrameDim);
+    case wxlegend::Kind::Snow: return wxpalette::Snow(sw.code);
+    case wxlegend::Kind::NoCoverage: return wxpalette::kNoCoverage;
+    default: return wxpalette::kMissingHatch;
+    }
+}
+
+void DrawLegend()
+{
+    canvas.fillSprite(TFT_BLACK);
+    canvas.setTextColor(TFT_WHITE);
+    canvas.setTextSize(1);
+    for (const auto& row : wxlegend::kRows) Label(wxlegend::kLabelX, row.y, row.label);
+    for (const auto& sw : wxlegend::kSwatches) {
+        if (sw.kind == wxlegend::Kind::NoData) {
+            HatchSwatch(sw.x, sw.y, sw.w, sw.h);
+            continue;
+        }
+        const wxpalette::Rgb c = LegendColour(sw);
+        Swatch(sw.x, sw.y, sw.w, sw.h, c);
+    }
+}
+
+void ShowFrame() { Render(); canvas.pushSprite(&tft, 0, 0); }
+void ShowLegend() { DrawLegend(); canvas.pushSprite(&tft, 0, 0); }
+
+void SpriteSha(char out[65])
+{
+    uint8_t d[32];
+    mbedtls_sha256((const unsigned char*)canvas.getBuffer(), (size_t)wxrender::kSize * wxrender::kSize * 2, d, 0);
+    for (int i = 0; i < 32; ++i) snprintf(out + 2 * i, 3, "%02x", d[i]);
 }
 
 // zlib's CRC-32 (reflected 0xEDB88320, init and final ~0), bit by bit: no table, so no static RAM.
@@ -116,6 +190,7 @@ void PrintReport(bool withDump, bool lossy)
     Serial.printf("WX,index_us,%lu\n", (unsigned long)rep.indexUs);
     Serial.printf("WX,render_us,%lu\n", (unsigned long)rep.renderUs);
     Serial.printf("WX,push_us,%lu\n", (unsigned long)rep.pushUs);
+    Serial.printf("WX,sprite_sha256,%s\n", rep.spriteSha[0] ? rep.spriteSha : "none");
     if (!grid || !withDump) {
         if (grid) Serial.println("WX,dump,on request (any byte: blocking; D: the drop-on-stall control)");
         Serial.println("WX,end");
@@ -146,6 +221,40 @@ void PrintReport(bool withDump, bool lossy)
     Serial.print("WX,fb_sha256,");
     for (uint8_t b : digest) Serial.printf("%02x", b);
     Serial.println();
+    Serial.println("WX,end");
+    SetTxTimeoutMs(2);
+}
+
+// 'L': draw the legend, then print its swatch list and dump the sprite's OWN bytes (RGB565 as stored, 480 per row),
+// tagged and CRC'd like the B9 dump and written with the same blocking writes, so the host checks the pixels the
+// board actually holds, not the code that meant to draw them (addendum 7).
+void DumpLegend()
+{
+    ShowLegend();
+    SetTxTimeoutMs(2000);
+    Serial.printf("WX,legend,swatches=%d\n", wxlegend::kSwatchCount);
+    int i = 0;
+    for (const auto& sw : wxlegend::kSwatches)
+        Serial.printf("WXL,%d,%s,%u,%d,%d,%d,%d\n", i++, wxlegend::KindName(sw.kind), (unsigned)sw.code, sw.x, sw.y, sw.w, sw.h);
+    // The label boxes too (L5: the background outside swatches and labels must be dry; L6: the inner radius).
+    int r = 0;
+    for (const auto& row : wxlegend::kRows)
+        Serial.printf("WXT,%d,%d,%d,%d,%d\n", r++, wxlegend::kLabelX, (int)row.y, wxlegend::kCharW * (int)strlen(row.label),
+                      wxlegend::kCharH);
+    constexpr size_t kRowBytes = (size_t)wxrender::kSize * 2;
+    const uint8_t* buf = (const uint8_t*)canvas.getBuffer();
+    unsigned char b64[kRowBytes * 4 / 3 + 4];
+    for (int y = 0; y < wxrender::kSize; ++y) {
+        const uint8_t* row = buf + (size_t)y * kRowBytes;
+        size_t n = 0;   // 480 bytes is a multiple of 3, so each row encodes on its own with no padding
+        mbedtls_base64_encode(b64, sizeof b64, &n, row, kRowBytes);
+        Serial.printf("WXS,%d,%08lx,", y, (unsigned long)Crc32(row, kRowBytes));
+        Serial.write(b64, n);
+        Serial.println();
+    }
+    char sha[65];
+    SpriteSha(sha);
+    Serial.printf("WX,legend_sha256,%s\n", sha);
     Serial.println("WX,end");
     SetTxTimeoutMs(2);
 }
@@ -216,15 +325,27 @@ void setup()
     }
     rep.psramAfter = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     rep.internalAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    if (grid && rep.sprite) SpriteSha(rep.spriteSha);   // after the timed path and the memory readings
     PrintReport(false, false);   // measurements only: nobody may be listening yet
 }
 
 void loop()
 {
     if (Serial.available()) {
-        bool lossy = false;   // 'D' anywhere in what arrived: the drop-on-stall control
-        while (Serial.available()) lossy |= Serial.read() == 'D';
-        PrintReport(true, lossy);
+        bool lossy = false, legend = false;   // 'D': the drop-on-stall control; 'L': the legend dump
+        while (Serial.available()) {
+            const int c = Serial.read();
+            lossy |= c == 'D';
+            legend |= c == 'L';
+        }
+        if (legend) DumpLegend(); else PrintReport(true, lossy);
+    }
+    static uint32_t lastSwitch = millis();
+    static bool legendShown = false;
+    if (grid && rep.sprite && millis() - lastSwitch >= kAlternateMs) {
+        lastSwitch = millis();
+        legendShown = !legendShown;
+        if (legendShown) ShowLegend(); else ShowFrame();
     }
     delay(20);
 }
