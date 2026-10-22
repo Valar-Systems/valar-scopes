@@ -1157,6 +1157,31 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+# Weatherscope's screen logic (src/weatherscope/WxLogic.h) against its frozen truth tables, docs/weatherscope-stage3.md
+# A8.2 and A8.8: 118 named cases, plus RK on the real KDFW crop against ring_ref.py's independent value. Its 24
+# sabotages: python -I test/host/sabotage_wx_logic.py
+echo
+echo "== WxLogic =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_logic.cpp" -o "$OUT/test_wx_logic.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope logic test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_logic.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the logic test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; RK's reference (ring_ref.py --check) cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/fixtures/wx/ring_ref.py" --check
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
