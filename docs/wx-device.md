@@ -397,3 +397,35 @@ through the same logic (CLAUDE.md, "when you add a second path"). So the layer g
 All of them are allocated once, at the first enable, with `MALLOC_CAP_SPIRAM`. **A failed allocation leaves the
 layer off** and logs which buffer failed. It never falls back to the internal heap. WD5d's check is unchanged:
 `psram_free` falls by the printed total ± 1,024 B.
+
+## WD4 addendum 2, 2026-10-22: R1 and R2 ruled (frozen before any WD4 code)
+
+**The rulings, as received (reviewer rulings of 2026-10-22, pasted by Daniel):**
+- **R1, Daniel's decision:** draw code 13 (75+ dBZ) as white at 40 %, matching Weatherscope's "75+ white". Not black:
+  the strongest cores mustn't vanish.
+- **R2:** don't decide it blind. Put both versions on the bench, 40 % with the black outline and 25 %, and Daniel
+  picks on the real screen during his look.
+
+**The two looks**, both from one table (`WxPalette.h`) through one rounding (`wxpalette::Dim`):
+
+| | look **A** | look **B** |
+|---|---|---|
+| codes 1-12 | `Dim(kRainTable[code − 1], 40)` | `Dim(kRainTable[code − 1], 25)` |
+| code 13 | `Dim(kRain75, 40)` = `(102, 102, 102)` (R1) | `Dim(kRain75, 25)` = `(64, 64, 64)` |
+| 14 and 15 | the addendum's dithers, unchanged | the same |
+| the plane outline (WD5) | **on** | **off**: B separates by brightness, below the 0.30 fade floor |
+
+R2 names the outline only for A. If Daniel wants B with the outline too, that is a one-line change after his look.
+
+**Until he picks, the shipping image draws look A**, the frozen S2. The switch exists **only in a bench env**,
+`blipscope-s3-128-wxlook`, which restates the shipping env's flags and adds `-DWX_LOOK_AB`. There:
+- the radar config form gains a select, "Weather look (bench): A 40 % + outline / B 25 %", NVS key `wx-look`;
+- absent means A.
+
+| | check | predicted |
+|---|---|---|
+| **WD4a-c** | as frozen, for **both** looks | as frozen. WD4b reads A's codes 1-12 at 40 % and B's at 25 %, and code 13 is `Dim(kRain75, pct)` in both |
+| **WD4d** | every code 1-15 against the unfaded plane colours, RGB565, **both** looks | **0 equal in both** (measured beforehand: 0 at 40 %, 0 at 25 %) |
+| **WD4f** (reported, not graded) | each look against the sweep-faded planes, f = 0.30-1.0 | **A:** codes 2, 3, 5 and 13. **B:** code 13 against the NoData grey only |
+| **WD4e** (CI, the artifact) | the select's label `Weather look (bench)` | **absent** from the shipping `blipscope-s3-128` ELF; **present** in `blipscope-s3-128-wxlook`'s ELF (the positive control) |
+| *sabotages* | B drawn at A's factor; code 13 drawn as the table's black; 14 drawn as 0 | WD4b(B) red; WD4b red at code 13; WD4c red |
