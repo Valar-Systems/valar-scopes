@@ -236,3 +236,72 @@ run through the round trip, and **each must give (b′1) violations > 0**.
 failed (b): most points that truncate onto pixel 0 still land within one cell, because the view's cells
 per pixel are often well under 1.67.
 
+
+## WD4 addendum, 2026-10-22 (before any WD4 code): what #439's table and the planes' colours turned out to be
+
+#439 has merged (main `44caba9`), so WD4 can be written. Reading the pinned table and the radar's drawing code
+against WD4's frozen text turned up **two places where the frozen text cannot be met as written**, and some
+details it left open. The open details are frozen here. The two contradictions are **for a ruling**, and
+**no WD4 code is written until they are ruled**.
+
+**Facts, read from source** (main `b7d7233`):
+- `src/weatherscope/WxPalette.h` is pure C++11 (`stdint.h` only). Its `kRainTable[12]` holds the pinned MetPy
+  table's 15-70 dBZ entries (codes 1-12, sha256 `f73f0d6264d4…`), and `Dim(v, pct) = (v·pct + 50) / 100`.
+  The table's own 75 dBZ entry is **black**: Weatherscope's ruling replaced it with white (`kRain75`).
+- **The planes have no type palette.** `AircraftManager.cpp:3618-3623`: the base colour is live green
+  `(0, 255, 0)`, or `altitudeColor()` (green, lime `(170, 255, 0)`, yellow, cyan, white by altitude band), or
+  the NoData grey `(90, 90, 90)`. With the sweep on, it is then **faded**, `scaleColor(base, f)`, truncating,
+  for any f from **0.30** (`PaintBrightness`'s floor) to 1.0.
+
+### Frozen now (consistent with the frozen text)
+
+- **One table, not two.** `include/WxS2.h` includes `src/weatherscope/WxPalette.h` and reads `kRainTable`; it
+  holds no colour values of its own except the two dither patterns. The rounding is `wxpalette::Dim`, the same
+  function on host and device.
+- **Codes 1-12** are `Dim(kRainTable[code − 1], 40)`. That is the frozen "× 0.40", and it does **not** take
+  Weatherscope's 55 % dimming of code 1, which is a Weatherscope look, not the table.
+- **14 and 15 are S2's own dithers**, because Weatherscope's hatch `(x + y) % 4 == 0` fails the frozen
+  property: **16 of the 64** 2 × 2 windows over an 8 × 8 patch have no lit pixel (measured).
+  - **14 (no coverage):** a checkerboard, lit where `(x + y) % 2 == 0`, in `kNoCoverage` `(40, 40, 40)`.
+  - **15 (no data):** a grid, lit where x and y are both even, in `kMissingHatch` `(72, 72, 72)`.
+  - Both measured: **0 of 64** windows empty. The two lit sets differ, and their colours differ.
+- **Code 0** is exactly the background, `(0, 0, 0)`: the layer writes the background there.
+
+| | check (host) | predicted |
+|---|---|---|
+| **WD4a** | code 0 | equals the background exactly, at every pixel |
+| **WD4b** | codes 1-12 | each equals `Dim(kRainTable[code − 1], 40)`, read from `WxPalette.h`, not transcribed. *Sabotage:* × 0.4 dropped: red |
+| **WD4c** | 14 and 15, every 2 × 2 window over a 16 × 16 patch at every offset | no window all background, for both; the two patterns differ at some pixel. *Sabotage:* 14 drawn as 0: red |
+| **WD4d** | every code 1-15 against the **unfaded** plane colours (the five altitude colours, live green, the NoData grey), compared in RGB565 as the panel draws them | **0 equal** |
+
+### For a ruling (the frozen text cannot be met as written)
+
+**R1. Code 13.** The frozen text says codes 1-13 are "the pinned NWS table's colours × 0.40". The table's 13th
+entry (75 dBZ) is black, so code 13 would equal the background: **the strongest echoes would draw as nothing.**
+- **Proposed:** code 13 = `Dim(kRain75, 40)` = `(102, 102, 102)`, Weatherscope's ruled white at 40 %, read
+  from the same header. Rain 75+ then reads as a light grey.
+- **The alternative:** keep the table literally, and accept that 75+ dBZ is invisible.
+
+**R2. "No S2 colour equals a plane colour" is false whenever the sweep fades the planes.** Measured over
+f = 0.30 to 1.0 in 10⁻⁵ steps, with the device's float truncation, in both RGB888 and RGB565:
+
+| S2 at 40 % | equals |
+|---|---|
+| code 2 `(0, 102, 0)` | live green faded to f = 0.40 |
+| code 3 `(0, 80, 0)` | live green faded to about f = 0.31-0.32 |
+| code 5 `(102, 102, 0)` | the yellow altitude colour faded to 0.40 |
+| code 13 `(102, 102, 102)` (if R1's proposal) | the white altitude colour faded to 0.40 |
+
+This is structural, not bad luck: S2 is "the standard colours at 40 %", the planes' colours are standard
+colours too, and the fade covers 40 %. **No 40 % scheme can meet the frozen property against faded planes.**
+Unfaded, 0 of 15 collide (WD4d above). The options:
+- **(a) Grade it against the unfaded colours (WD4d), and rely on WD5's black plane outline** to separate a
+  faded plane from weather. WD5 then carries a check that the outline is drawn whenever the layer is on.
+  *(Recommended: the factor is provisional and is Daniel's look at the bench, and the outline is already in
+  the design for exactly this.)*
+- **(b) Put S2 below the fade floor.** At 25 %, every rain code is darker than any faded plane of the same
+  hue. One collision remains: code 13 `(64, 64, 64)` equals the NoData grey faded to about 0.71, and only in
+  the NoData state.
+- **(c) Change the fade floor.** That is a change to the radar's own look, outside this work.
+
+**What happens until the ruling:** WD5's predictions are written next. WD4's code is not.
