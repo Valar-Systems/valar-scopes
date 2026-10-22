@@ -381,8 +381,12 @@ int main(int argc, char** argv)
         w.maxHailSize = "1.00";   // even with a field present, Snow Squall's first line is empty (3e)
         check("B7", Is(LineA(w), {}), Join(LineA(w)));
         char b[32];
-        check("B8a", HailText("0.75", b, sizeof(b)) && strcmp(b, "HAIL 0.75 IN") == 0, S(b));
-        check("B8b", HailText("1.50", b, sizeof(b)) && strcmp(b, "HAIL 1.5 IN") == 0, S(b));
+        // Each call is made BEFORE check(): a function's arguments are evaluated in an unspecified order (GCC goes
+        // right to left), so a detail read from the buffer in the same call printed the PREVIOUS value at 25bd7fa.
+        bool r = HailText("0.75", b, sizeof(b));
+        check("B8a", r && strcmp(b, "HAIL 0.75 IN") == 0, S(b));
+        r = HailText("1.50", b, sizeof(b));
+        check("B8b", r && strcmp(b, "HAIL 1.5 IN") == 0, S(b));
     }
 
     std::printf("== HL: headlines (Q5) ==\n");
@@ -408,10 +412,14 @@ int main(int argc, char** argv)
     {
         char b[32];
         auto U = [&](const char* iso) { b[0] = '\0'; return UntilText(iso, b, sizeof(b)); };
-        check("X1", U("2026-10-20T18:15:00-06:00") && strcmp(b, "UNTIL 6:15 PM") == 0, S(b));
-        check("X2", U("2026-10-20T00:05:00-05:00") && strcmp(b, "UNTIL 12:05 AM") == 0, S(b));
-        check("X3", U("2026-10-20T12:00:00-05:00") && strcmp(b, "UNTIL 12:00 PM") == 0, S(b));
-        check("X4", U("2026-10-20T18:15:00Z") && strcmp(b, "UNTIL 6:15 PM") == 0, S(b));
+        bool r = U("2026-10-20T18:15:00-06:00");   // called before check(), as in B8
+        check("X1", r && strcmp(b, "UNTIL 6:15 PM") == 0, S(b));
+        r = U("2026-10-20T00:05:00-05:00");
+        check("X2", r && strcmp(b, "UNTIL 12:05 AM") == 0, S(b));
+        r = U("2026-10-20T12:00:00-05:00");
+        check("X3", r && strcmp(b, "UNTIL 12:00 PM") == 0, S(b));
+        r = U("2026-10-20T18:15:00Z");
+        check("X4", r && strcmp(b, "UNTIL 6:15 PM") == 0, S(b));
         check("X5", !U("2026-10-20 18:15"), "malformed");
     }
 
