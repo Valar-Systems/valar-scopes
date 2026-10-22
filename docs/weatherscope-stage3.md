@@ -1321,3 +1321,16 @@ The script classified the run itself, from its frozen table:
 9. The results addendum.
 
 **Outside every prediction: stop and decide.**
+
+### A8.7 Ruled 2026-10-22: the frame dump (one of A8.1's two shared-file questions)
+
+**The ruling (the reviewer, 2026-10-22, pasted by Daniel):**
+
+> "Frame dump for 3.3: give Weatherscope's config server the same /diag/fb the Blipscope radar builds already ship, using the same code path and the same access rules, so there's one design and no serial capture. Whether /diag/fb should require authentication on both products is a separate question; raise it later as its own item."
+
+**What follows for 3.3d:**
+- B1-B3 read the frame layer over the network, from `/diag/fb`. There is no serial dump and no bench variant env.
+- The change to `ConfigurationWebServer.cpp`, a shared file that #445 also changes, is **only** the guard that already serves `/diag/fb`, widened to include Weatherscope. The code path and access rules stay the same.
+- **Still open:** `/diag/fb` authentication, on both products. It is to be raised later as its own item, not in 3.3.
+
+**Still held** (the reviewer, the same batch): "Step 3.3 stays held until I've ruled on the two shared-file questions and Q1-Q7." The run.sh question and Q1-Q7 are open.
