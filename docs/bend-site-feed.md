@@ -289,3 +289,15 @@ and checked the existing service. Then it merges and deploys, and these are read
 - **`sitefeed` events** appear in production: `written` > 0 within the first 10 min (L1's first half, early).
 
 **Outside the set:** stop. In production, roll back to the S2 version, which has the switch off.
+
+### Results for addendum 5 (graded on the code commit; local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **B20** | the Bend file passes **16/16**. The LADD (`c20001`, `dbFlags` 8) and LADD + PIA (`c20002`, 12) aircraft are stored and served with 8 and 12 | **as predicted** |
+| **S-B20** | a LADD filter planted in `extractRaw`: **B20 red**. **B16 also red,** because its one fixture aircraft carries `dbFlags: 8`, so the filter drops it and B16 finds no aircraft. `bend.ts` was restored byte-identical | **as predicted** (B20 red). B16's red is that same filter acting on a LADD fixture |
+| **B21** | the dry-runs: production `env.SITE_FEED_BEND ("on")`, staging `("on")`; both `env.BEND_SNAPSHOT (BendSnapshotDO)` | **as predicted** |
+| **B1-B19** | the full proxy suite: **48 files, 637 tests**, all pass; `tsc` clean | **as predicted** |
+
+**Not yet deployed.** It deploys after #461's S2. L1, L2, the fleet traffic, SC7 and the early `written` count are
+read then.
