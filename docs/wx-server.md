@@ -402,3 +402,20 @@ This deploy also carries #450, #458 and #460. The Bend site feed is off in produ
 
 S3's predictions (the binding, `/wx` serving crops, smoke's `/wx` passing as "wired") are frozen in S3's own PR,
 before it is reviewed.
+
+### S3: the `WX` binding, so `/wx` serves crops (frozen before the binding is written)
+
+**The change:** a `[[env.staging.r2_buckets]]` and a `[[env.production.r2_buckets]]` block, each binding `WX` to
+`blipscope-wx`, with `wrangler.toml`'s top-level comment updated to match. Nothing else changes. It deploys to
+staging and then production **only after S2 has passed**, and only once this PR is approved and merged.
+**Rollback:** `wrangler rollback` to the S2 version, which leaves `/wx` at 503 `not_configured` again.
+
+| | check | predicted |
+|---|---|---|
+| **W1** | the dry-runs, before merge | `env.WX (blipscope-wx)` listed in **both** staging and production; every binding S2 listed is still there |
+| **W2** | `/healthz`, after each deploy | `wx.cref.frameAgeS` **≤ 600**. Read twice at least 3 min apart, it is ≤ 600 both times, and the record moved on between the reads (the frame advanced) |
+| **W3** | `smoke-prod.sh`'s `/wx` check, production | **PASS, "wired"**: HTTP 200, magic `WXC1`, an ETag |
+| **W4** | revalidation | the same query sent again at once with `If-None-Match: <that ETag>` gets **304**, unless the frame advanced in between, which means **200 with a different ETag**. Anything else is a FAIL |
+| **W5** | the fleet's own traffic, the same windows and rules as P5 | unchanged from S2's verdict. Also, **0 `/wx` requests from fleet devices**: no shipped firmware has the layer, and E2:08's and the smoke's own requests are excluded |
+| **W6** | `/wx` answers in the smoke runs and W4 | **no 5xx** |
+| **escape** | anything else | **stop.** In production, roll back to the S2 version first |
