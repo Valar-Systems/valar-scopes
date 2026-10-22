@@ -429,7 +429,9 @@ staging and then production **only after S2 has passed**, and only once this PR 
 | **I3** | first seen 00:19:35Z (deployed 00:16:21Z; the 00:17 and 00:18 ticks never ran, which is cron propagation). Read A, epoch 00:18:37Z; read B at 00:23:39Z, epoch 00:20:39Z. **The advance is 122 s.** The frame was about 58 s and 180 s old at the two reads | **MISS on one clause: "a non-zero multiple of 120 s".** The rest is as predicted (exists within 10 min, advances, ≤ 600 s old) |
 | **I4** | `wx/cref/frames/1792628317.wxg`: **12,845,120 B**, magic `WXG1`, product `cref` | **as predicted** |
 | **I6** | the tail, deploy + 20 min: **18 invocations** (00:19:26Z-00:36:05Z), every one `ok`, 0 exceptions; **36 `wx_ingest` lines**; **0 `wx_ingest_error`**; statuses `stored` 9 and `already-stored` 27; `pruned` 0, since no frame is an hour old yet; `lagS` 57-154 s | **as predicted** |
-| I5, I7 | still being read. I5's planned counter is unusable: `wrangler r2 bucket info` said `object_count: 0` at 00:24:53Z while frames existed, and R2's storage analytics had no rows for the bucket yet. So I5 is graded on R2's analytics count if it has caught up by 01:32Z, and is otherwise **BLIND**, not passed. A direct probe (the first frame gone after its hour, a 30-min-old frame present) is reported beside it, not as its grade. The probe was first shown to tell a present key from an absent one | — |
+| **I5** | **read 1 (01:32Z):** R2's storage analytics' newest row (00:40Z) said `objectCount 0` while frames existed. **Read 2 (01:42Z):** 31 objects, 385,353,781 B (analytics and `bucket info` agree), but the newest bucket starts at 01:10Z, so it describes about 55-65 min after the deploy, not 75 or more. **The two reads disagree.** **Beside it, not as its grade:** a direct probe at 01:33Z found the first frame (00:18:37Z, 4,464 s old) gone and a frame 1,830 s old present at 12,845,120 B. The probe had first been shown to tell a present key from an absent one. The writer's own log (both tails, de-duplicated): 46 frames stored, 16 pruned, so 30 present. Pruning began at the 01:19:05Z check, when the first frame turned 3,600 s, and removes one frame per new frame | **BLIND**, by the reviewer's ruling (not passed, and not re-read until one passes) |
+| **I5′** | frozen at `e636e79` (a direct listing, 31 objects and a byte band, read twice) | **not yet read: no instrument runs.** `wrangler` (4.35 and 4.151.3) has no object listing, and `wrangler dev --remote` failed (the account's `edge-preview` call answered 400) |
+| **I7** | `workersInvocationsAdaptive`, `blipscope-wx-ingest`, 00:16-02:17Z: **114 invocations**, 0 errors, CPU total 61,880 ms, **mean 543 ms**. Quantiles: p25 8, p50 576, p75 1,006, p90 1,338, **p99 2,172 ms** | **MISS: p99 2,172 ms > 1,500.** No CPU-limit errors (`cpu_ms = 5000`). Recorded, not re-graded |
 | **P3 (before)** | `smoke-prod.sh` against production `2460deb`, E2:08's credential: **PASS 31, FAIL 2, SKIPPED 1**. FAILs: `/wx` (404, as predicted) and "enroll POST, unsolved token" (403 `fake_device_id` against an expected `"unverified"`; not predicted) | **MISS. S2 stopped before deploying, for a ruling** (#461) |
 
 **I3's miss, and why it is recorded rather than re-graded.** MRMS frame times are not on an exact 120 s grid. The two frames here are 00:18:37 and 00:20:39. The figure I3 leaned on was M4a's "mode 120 s", which describes the most common step, not a fixed one. So I3 was frozen with a criterion tighter than anything measured. The frame does advance, which is what I3 was for. The clause stays a miss.
@@ -467,3 +469,17 @@ see the record it is checked against is not believed.
 | **(a) as predicted** | pruning holds the bucket at one hour of frames |
 | **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | a read landing in the seconds between a frame's put and its prune (the same check does both), or cadence jitter fitting 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
 | **(c)** anything else: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing | pruning or the instrument is wrong. **Stop and decide** |
+
+**I7's miss, and what it changes.** Invocations that build nothing cost about 8 ms (p25). Those that build a frame cost about
+1-2 s, roughly twice WS8's 0.45-0.67 s, which was measured in Node, not in workerd. The bar was frozen from the Node figure.
+**The cost statement's CPU row was an estimate, and the measurement replaces it:** 543 ms × 43,200 invocations is about
+**23.4M CPU-ms a month** from the ingest. With the proxy's 2.33M that makes about **25.8M of the 30M included (86 %)**, not
+the 12-17M estimated. **The expected cost is still $0,** but CPU now sits beside R2 Class A (about 88 %) as a thin margin.
+Anything that adds CPU, a second product above all, crosses it.
+
+**Outside any graded row (the second tail, 00:26-01:50Z, 86 invocations, all `ok`, 0 `wx_ingest_error`):** one `lost-race`
+at 00:49:40Z. An extra invocation started at 00:49:34Z, off the minute boundary. Its `:30` check followed its `:00` check with no
+wait, which is consistent with a second delivery of the 00:49 trigger. It stored frame `1792630119` 0.26 s after the earlier
+invocation's `:30` check began building the same frame, and that check lost the conditional put. Exactly one write landed and
+`latest` advanced once: the overlap the idempotent ingest was built for. **I6's status set left `lost-race` out.** I6 was graded
+on the first 20 minutes, where none occurred, so its verdict stands.
