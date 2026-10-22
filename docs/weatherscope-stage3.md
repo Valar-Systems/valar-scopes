@@ -1006,3 +1006,44 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 - **The recovery:** `esptool read_mac` (no writes, then a hard reset) brought the app back at 02:47:19Z, and the page then read as predicted.
 - **The test against (b):** at 02:52:54Z, untouched, the board still answered (TCP up, `GET /` 200). That fits (a) and argues against (b) recurring on a timer. It does **not** exclude a one-off (b).
 - **What would settle it, proposed and not run:** open and close a trace with the board's network watched, and see whether it drops.
+
+## Addendum 7, 2026-10-22: the trace-close test (frozen before it runs)
+
+**The ruling (the reviewer, 2026-10-22, pasted by Daniel):** "Trace-close test: yes, run it now. Write down what each outcome would mean before running it, then let 3.3 use whichever capture method it shows to be safe."
+
+**The question it answers (A6.8):** after a `bench-trace.ps1` run ended normally on 2026-10-21, the board was off the network. Two explanations were left open:
+- **(a)** the trace's close dropped DTR/RTS in an order that put the board into ROM download mode;
+- **(b)** the app left the network on its own.
+
+### A7.1 The method
+
+**The board and the image:** `907069326E64`, running step 3.2's product image (`eb90e9a`). Its port is resolved from the serial before every USB step. The script is `tools/weatherscope/trace-close/run.ps1`, committed with this addendum.
+
+**The watcher:** one TCP connect to the board's port 80 every 2 s, with a 1.5 s timeout, timestamped. It runs for the whole test.
+- The address comes from mDNS once, at the start, and is pinned for the run.
+- The watcher never touches USB.
+- **A drop** is 3 or more consecutive failed polls, so at least 6 s unreachable.
+
+**The phases, in this order:**
+1. **The precondition (read twice):** `GET /` returns 200 twice, 30 s apart. Otherwise stop: this is the instrument, not a result.
+2. **C, the control for (b):** three windows of 180 s each, with the board untouched.
+3. **T, the trials for (a):** three trials. Each runs `bench-trace.ps1 -Minutes 1`, which is one open that ends normally, followed by 120 s watched after the close.
+4. **On any drop:**
+   - **The discriminator:** `esptool --before no_reset --after no_reset read_mac`. If it **connects**, the ROM loader is answering, so the board is in download mode: an app cannot speak the loader's protocol, and `no_reset` resets nothing.
+   - **The recovery:** a plain `esptool read_mac` (no writes, then a hard reset), and then a wait of up to 90 s for the board to be reachable again.
+5. **D, the discriminator's own control, last:** run while the board answers, the same `no_reset` read must **fail to connect**. The board is then watched for 120 s, in case esptool's own close drops it.
+
+### A7.2 What each outcome means, and what 3.3 does
+
+| outcome | meaning | 3.3's board steps |
+|---|---|---|
+| **(i)** 1 or more drops in T, each starting within 120 s of a trace's close; **0** in C; on each drop the discriminator **connects**; D fails to connect | **(a) confirmed:** a trace's normal close can put this board into download mode | **Never let a trace close before a network-facing check.** Either hold one trace open across the whole board step, or follow every close with the reachability proof and, on a drop, a `read_mac` recovery. Network checks run only on a board shown to be up |
+| **(ii)** **0** drops in T and **0** in C; D fails to connect | **Not reproduced in 3 closes.** This bounds the rate only loosely: 0 of 3 is consistent with a per-close chance of up to about 60 %. The 10-21 event stays open | **The standing rule** (memory and A6.8): prove the board reachable after every trace, before any network check. Nothing else changes |
+| **(iii)** a drop in C, with no trace | **(b) is real:** the app leaves the network on its own. A firmware finding: **stop** | none until ruled |
+| **(iv)** a drop in T whose discriminator **fails** to connect | off the network after a close, but not in the ROM loader: neither (a) as stated nor shown to be (b). **Stop and decide** | none until ruled |
+| **(v)** anything else: D connects; the precondition fails; a trace can't open; the watcher stops; a drop while a trace is open | **the instrument**, or a case not foreseen. **Stop and decide** | none until ruled |
+
+**Recorded, not graded:** if D's own close drops the board, that says esptool's close does the same thing as a trace's.
+
+**The classifier is tested before the run.** `tools/weatherscope/trace-close/selftest.py` builds one synthetic run per outcome (both kinds of (v) included) and requires `run.ps1 -AnalyseOnly` to return that outcome.
+- **Result: 6/6, after one correction to a case.** The first (i) case put its drop inside trial 3's open trace, and the classifier rightly read it as (v). The case was corrected, not the classifier.
