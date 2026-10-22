@@ -1,6 +1,6 @@
 # Weatherscope: the planned screens
 
-**Status: ruled.** Daniel's rulings of 2026-10-20, including the final rulings the same day, are recorded below. No point is left undecided; one check is pending (see [Open items](#open-items)). This is a docs-only change.
+**Status: ruled.** Daniel's rulings of 2026-10-20, including the final rulings the same day, and one of 2026-10-21 (mockup 2's motion line, raised in review) are recorded below. No point is left undecided: one check is pending (3e), and one question is parked by ruling (the first-boot legend). See [Open items](#open-items). This is a docs-only change.
 
 Weatherscope is a planned scope of its own: a desk weather radar on the same 1.28-inch round 240 × 240 screen as Blipscope, with a 60-mile range, US only. It is **not** the weather layer under the planes on the Blipscope; that is the Stage 1 spike in [PR #422](https://github.com/Valar-Systems/valar-scopes/pull/422) (`docs/wx-spike-2026-10.md` on `spike/wx-overlay`).
 
@@ -32,6 +32,7 @@ Each of these appears in a mockup, and neither MRMS nor the NWS supplies it.
 | "MIX" in the legend | 5 | MRMS `PrecipFlag` has no wintry-mix class | **Snow and rain only** ([§4](#4-mix-in-mockup-5)) |
 | "MT BACHELOR" label | 1–5 | Not a Census place: the 2025 Gazetteer Places file has no record for it | **Left out.** Non-places are not labelled, so MT BACHELOR is dropped ([5c](#5-town-labels); final ruling, changed from a hand-made list) |
 | The bottom lines of the warning screen, for a Flash Flood Warning | 3 (drawn for a Severe Thunderstorm Warning) | Flash Flood Warnings carry no hail, wind or storm-motion fields. 10 of 10 sampled carried only `flashFloodDetection`, or nothing | **Show the `flashFloodDetection` text** ([3b](#3-which-warnings-use-the-warning-screen)) |
+| "MOVING E 25 MPH" on the rain-on-the-way screen | 2 (and 1, which shows screen 2) | Screen 2 carries no warning, and storm motion (`eventMotionDescription`) comes only with a warning ([§3](#3-which-warnings-use-the-warning-screen)). MRMS publishes no motion product: its 244 CONUS product folders (listed 2026-10-21, blipscope-5c's review) include none, and the only names with motion-like words are the `RotationTrack*` rotation tracks. Deriving motion by tracking echoes across frames would be an extrapolation, like the countdown | **Dropped** (Daniel, 2026-10-21). Motion appears only on the warning screen, from the warning itself |
 
 ## Mockups that now need re-exporting
 
@@ -39,8 +40,8 @@ Following the rulings above:
 
 | Mockup | Change |
 |---|---|
-| 1, on the desk | headline without minutes (it shows screen 2's "RAIN IN 18 MIN"); no MT BACHELOR |
-| 2, rain on the way | headline without minutes; no MT BACHELOR |
+| 1, on the desk | headline without minutes (it shows screen 2's "RAIN IN 18 MIN"); no "MOVING E 25 MPH"; no MT BACHELOR |
+| 2, rain on the way | headline without minutes; no "MOVING E 25 MPH"; no MT BACHELOR |
 | 3, severe warning | no MT BACHELOR |
 | 4, past-hour loop | no dashed "+30" on the timeline; no MT BACHELOR |
 | 5, snow on the way | headline without minutes; no MIX in the legend; the pink mix area shown as snow or rain; no MT BACHELOR |
@@ -65,11 +66,11 @@ The mockups show five screens and no rule for choosing between them.
 **Changed later on 2026-10-20 (Daniel, on Weatherscope Stage 2's radar product check): where "now" comes from.**
 - **"Precipitation here now" (1c) comes from the NWS latest observation at the nearest station, using its present weather. It no longer comes from the radar's centre pixel.**
 - **Radar still drives the 15 mi ring (1b) and the drawing.**
-- **Why:** in the product check, SeamlessHSR's centre cell read 12.4 dBZ at an airport whose observation reported light rain (`docs/weatherscope-stage2.md`, F3). Most snowing hours at KMSP also read below 15 dBZ at the airport's cell (change 1). A single radar cell under-samples what a station reports.
+- **Why:** in the product check, SeamlessHSR's centre cell read 12.4 dBZ at an airport whose observation reported light rain (`docs/weatherscope-stage2.md` ([PR #437](https://github.com/Valar-Systems/valar-scopes/pull/437), at `82bef6c`; not on main yet), F3). Most snowing hours at KMSP also read below 15 dBZ at the airport's cell (change 1). A single radar cell under-samples what a station reports.
 - **What 1c's ruling (a) still means:** the rain or snow screen with a "now" headline. Only the source of "now" changed.
 - **Not decided here:** how observations reach the device. That is part of the shared data path held with the Blipscope weather layer, as with NWS alerts through the proxy.
 
-**Ruled 2026-10-20 (Daniel): the ring's threshold is 15 dBZ (code ≥ 1), for rain and snow alike.** It is the same as the lowest drawn band, so **any colour inside the 15 mi ring counts as approaching**. This settles 1b's open threshold. Weatherscope Stage 2's product check had reported 15, 20 and 30 dBZ for the ruling (`docs/weatherscope-stage2.md`).
+**Ruled 2026-10-20 (Daniel): the ring's threshold is 15 dBZ (code ≥ 1), for rain and snow alike.** It is the same as the lowest drawn band, so **any colour inside the 15 mi ring counts as approaching**. This settles 1b's open threshold. Weatherscope Stage 2's product check had reported 15, 20 and 30 dBZ for the ruling (`docs/weatherscope-stage2.md` ([PR #437](https://github.com/Valar-Systems/valar-scopes/pull/437), at `82bef6c`; not on main yet)).
 
 ## 2. The past-hour loop
 
@@ -127,7 +128,7 @@ None of them is freezing rain, sleet or a wintry mix. The other options were our
 - Every other precipitation code (1, 6, 7, 10, 91, 96) counts as rain. That includes code 7, rain mixed with hail.
 
 **Ruled 2026-10-20 (Daniel): snow on the wire keeps the 15 dBZ floor.** No sub-15 dBZ snow is carried.
-- **The basis** is Weatherscope Stage 2's snow-ring measurement over 24 snowing hours at KMSP (`docs/weatherscope-stage2.md`, (e)). The 15 mi ring caught **70.8 %** of those hours at 15 dBZ, and going down to 5 dBZ would add at most **3 of 24**. **4 hours show no echo at any threshold**, and the NWS "here now" observation (1c) covers those.
+- **The basis** is Weatherscope Stage 2's snow-ring measurement over 24 snowing hours at KMSP (`docs/weatherscope-stage2.md` ([PR #437](https://github.com/Valar-Systems/valar-scopes/pull/437), at `82bef6c`; not on main yet), (e)). The 15 mi ring caught **70.8 %** of those hours at 15 dBZ, and going down to 5 dBZ would add at most **3 of 24**. **4 hours show no echo at any threshold**, and the NWS "here now" observation (1c) covers those.
 - **The remaining format change is a rain/snow TYPE per cell, from `PrecipFlag` only:** snow is code 3, and every other precipitation code is rain, as above.
 - **It is planned with blipscope-5c as shared work.** The WXC1 format is shared with the Blipscope weather layer (`include/WxCrop.h`), so nothing about it is decided here.
 
@@ -171,7 +172,7 @@ The inputs come in other units, and the device converts them:
   - No data (hatched).
 
   dBZ in small text is optional.
-- **It uses the final palette exactly:** the same table and the same sha256. That is the palette in `docs/weatherscope-stage2.md`, with rain from MetPy's `NWSReflectivity` v1.6.3, pinned at sha256 `f73f0d6264d4…`.
+- **It uses the final palette exactly:** the same table and the same sha256. That is the palette in `docs/weatherscope-stage2.md` ([PR #437](https://github.com/Valar-Systems/valar-scopes/pull/437), at `82bef6c`; not on main yet), with rain from MetPy's `NWSReflectivity` v1.6.3, pinned at sha256 `f73f0d6264d4…`.
 - **Open question for Daniel, later:** show the legend once at first boot? **Noted, not built.**
 
 **Which codes each group covers.** This is read from the colours the ruling names; the wire codes are WXC1's 5 dBZ bands:
@@ -196,17 +197,16 @@ The inputs come in other units, and the device converts them:
   - one shared left edge for the swatches;
   - every swatch 12 × 12, "No data" included.
 
-  The colours are final and unchanged. See `docs/weatherscope-stage2.md`, addendum 8.
+  The colours are final and unchanged. See `docs/weatherscope-stage2.md` ([PR #437](https://github.com/Valar-Systems/valar-scopes/pull/437), at `82bef6c`; not on main yet), addendum 8.
 
 **The bench version is built after 2.1 closes**, on the board, alongside the KDFW frame. It comes with a host check that **every swatch on the legend equals the palette table**. Its predictions are frozen before its code, as with every step so far.
 
 ## Open items
 
-**No point is undecided** (final rulings, 2026-10-20). One check is pending:
+**No point is undecided** (final rulings, 2026-10-20). One check is pending, and one question is parked by ruling:
 
 - **3e:** confirm a Snow Squall Warning's bottom-line fields against the first live sample. None was available on 2026-10-20.
-- **7, first boot:** should the legend show once at first boot? An open question for Daniel (ruled 2026-10-20 to note it and not build it).
-  - **Parked until the screens are built** (ruled 2026-10-20).
+- **7, first boot:** whether the legend shows once at first boot. **Parked by ruling** (2026-10-20): noted, not built, and decided when the screens are built.
 
 ## Sources
 
