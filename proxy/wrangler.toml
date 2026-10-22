@@ -256,9 +256,9 @@ routes = [
 BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.production.vars]
-SITE_FEED_BEND = "off"                    # Bend site feed switch (docs/bend-site-feed.md); "on" enables it.
-                                          # OFF for the first production deploy (staged, Daniel's deploy rule step 2);
-                                          # a one-line reviewed change turns it on after the existing service checks out
+SITE_FEED_BEND = "on"                     # Bend site feed switch (docs/bend-site-feed.md); anything else = off.
+                                          # ON from addendum 5, deployed after #461's S2 shipped the code with it OFF
+                                          # and the existing service checked out (Daniel's deploy rule, step 2).
 # Turnstile sitekey for the device-enrolment page. Public by construction (it is
 # rendered into the page HTML) -- see the staging block above for why this is a
 # var and why the two environments have SEPARATE widgets rather than one.
