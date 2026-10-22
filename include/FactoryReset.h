@@ -82,7 +82,7 @@ namespace factoryreset
 #elif defined(FEATURE_SPACE)
         return "sp-log";
 #elif defined(FEATURE_SEISMIC) || defined(FEATURE_BIRDING) || defined(FEATURE_CLAUDESCOPE) \
-    || defined(FEATURE_SPEED)
+    || defined(FEATURE_SPEED) || defined(FEATURE_WEATHERSCOPE)
         return nullptr;  // these editions persist no logbook
 #else
         return "logbook";  // radar

@@ -482,6 +482,12 @@ slug prefixed to match so a Speedscope device never pulls another edition's imag
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
+## Weatherscope builds — a channel reserved, nothing published yet
+
+The `weatherscope-s3-128` env builds a ninth **product** (the Weatherscope edition, `-DFEATURE_WEATHERSCOPE`; see [CLAUDE.md](CLAUDE.md) and [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md)) on the 1.28" Kit S3. It sets `-DFW_OTA_PREFIX="weatherscope-"`, so its channel would be `firmware-weatherscope-s3-128.bin`, but its `skus.yml` row is **build-only with no slug**: CI compiles it on every run and publishes nothing. A Weatherscope device asking for its asset gets a 404 and flashes nothing.
+
+It gets a slug only after the OTA identity check ("How OTA works" above) is on the fleet, and knowing that a slug-ful leg that fails withholds `version.txt` for every SKU.
+
 ## Legacy note: the retired C3
 
 The original ESP32-C3 Kit is retired — Blipscope is S3-only going forward. The workflow no

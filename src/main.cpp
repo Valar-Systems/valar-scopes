@@ -45,7 +45,8 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
 // sightings radar, the FEATURE_FISHING (Reelscope) console, the FEATURE_CLAUDESCOPE usage gauge,
-// or the FEATURE_SPEED (Speedscope) speed-radar. All expose the same
+// the FEATURE_SPEED (Speedscope) speed-radar, or the FEATURE_WEATHERSCOPE (Weatherscope) weather
+// radar. All expose the same
 // Initialise()/Update()/Draw() surface, so loop() drives `appManager` without knowing which it is.
 // The radar's sweep/models headers are radar-only.
 #if defined(FEATURE_EAM)
@@ -62,6 +63,8 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 #include "claudescope/ClaudescopeManager.h"
 #elif defined(FEATURE_SPEED)
 #include "speed/SpeedManager.h"
+#elif defined(FEATURE_WEATHERSCOPE)
+#include "weatherscope/WeatherscopeManager.h"
 #else
 #include "AircraftManager.h"
 #include "DrawHelpers.h"
@@ -110,6 +113,8 @@ FishingManager appManager(configServer, authHandler, http, tft);
 ClaudescopeManager appManager(configServer, authHandler, http, tft);
 #elif defined(FEATURE_SPEED)
 SpeedManager appManager(configServer, authHandler, http, tft);
+#elif defined(FEATURE_WEATHERSCOPE)
+WeatherscopeManager appManager(configServer, authHandler, http, tft);
 #else
 AircraftManager appManager(configServer, authHandler, http, tft);
 // The Aviation radar is the #else fallthrough, so "which edition is this?" has no
@@ -662,7 +667,7 @@ void setup()
 
 void loop()
 {
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   // Frame-time instrumentation (radar builds): the whole pass -- update, draw,
   // flush -- is one sample; AircraftManager logs avg/p95 + heap every 30 s and
   // shouts when a budget breaks. u32 micros() wrap-around subtracts correctly.
@@ -677,7 +682,7 @@ void loop()
   // the first would leave the other's request latched to fire on the next pass,
   // which after a reboot means a second, unrequested reset.
   factoryreset::Tier tier = configServer.ConsumeResetTier();
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   tier = factoryreset::Larger(tier, appManager.ConsumeResetTier());
 #endif
   if (tier != factoryreset::Tier::None) {
@@ -798,7 +803,7 @@ void loop()
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   // Somebody opened the Collection page. Flush a dirty logbook HERE, on the loop
   // task that owns it, so the next read is current -- the page is served from
   // NVS and would otherwise lag the live book by up to the persist debounce.
@@ -828,7 +833,7 @@ void loop()
   // backbuffer, each shifted into place by a BandCanvas, then pushed to its screen
   // rows. The scene is drawn once per band; the app advances per-frame state (animation
   // tick, trail sampling) only on the first pass so the bands stay in sync.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView()
                         && !appManager.NightClockActive()  // no beam under the night clock face
                         && !appManager.SweepSuppressed();  // and none over data too old to be live
@@ -845,7 +850,7 @@ void loop()
 
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     if (drawScan)
       DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
 #endif
@@ -862,7 +867,7 @@ void loop()
   // still being assembled.
   framebuf::FrameDone();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   appManager.RecordFrameUs(micros() - frameStartUs);
 
 #ifdef FEATURE_CLOUD_FEED
