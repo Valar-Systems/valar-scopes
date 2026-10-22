@@ -1515,3 +1515,26 @@ The M table gains four rows:
 There are **24 sabotages**, each with the exact failing set named above or in A8.2: S-R1, S-R2, S-P, S-C, S-W, S-W3, S-E, S-M, S-M2, S-M3, S-M4, S-U, S-L, S-H1 to S-H5, S-T, S-B, S-HL, S-LP and S-LP2. RK comes on top.
 
 **Now unblocked:** 3.3a (the logic) and 3.3b's host references. **Still held:** the town data (Q6(b)).
+
+### A8.9 3.3a's results: the logic, as predicted (2026-10-22)
+
+**The code:** `src/weatherscope/WxLogic.h`, with its host test `test/host/test_wx_logic.cpp`, the sabotage harness `test/host/sabotage_wx_logic.py`, and RK's independent reference `test/fixtures/wx/ring_ref.py`, committed at `25bd7fa`. One commit, `3c9082a`, then changed only how the test prints its details (see below). `run.sh` gained its block, as ruled.
+
+| row | predicted | measured |
+|---|---|---|
+| the host test | 118 named cases and RK pass | **119 checks, 0 failures** (exit 0), at `25bd7fa` and again at `3c9082a`, with identical verdict lines |
+| RK | `NearestEchoMi` at the KDFW centre equals `ring_ref.py`'s to within 0.01 mi | **17.9395 mi against 17.9395 mi.** Before its value was believed, `ring_ref.py`'s own control decoded the crop to `MANIFEST.json`'s `codesSha256` |
+| the 24 sabotages | each fails **exactly** its frozen set | **24 of 24 as predicted.** The control (the real header) gives 0 failures, and the real header is unchanged afterwards (`54a649929af4`) |
+
+**Recorded, not graded: RK also fails under S-R1.**
+- **Why it isn't graded:** A8.2 predicted RK only under S-R2. The harness's method, fixed before the run, prints RK under every other sabotage without grading it.
+- **The cause, checked rather than assumed:** the nearest echo to the KDFW centre is a **code-1 cell at 17.94 mi**, and the nearest of code 2 or above is at 19.45 mi. So "an echo becomes code ≥ 2" has to move RK.
+
+**A defect in the test's printout, found and fixed. The verdicts were unaffected.**
+- **What happened:** at `25bd7fa`, the details printed for B8a, B8b and X1-X4 were each one assertion stale. C++ evaluates a function's arguments in an unspecified order, and GCC evaluated the detail, read from the buffer, before the call that writes it.
+- **Why the verdicts stand:** each condition was a complete expression that wrote and compared its own buffer.
+- **The fix:** `3c9082a` makes each call before `check()`. The rerun's verdict lines are identical to the first run's, and the details now show each value checked.
+
+**For 3.3c, from RK's own number:** at the 22:00Z frame, the KDFW centre has **no echo within 15 mi** (the nearest is 17.94 mi). That frame alone can't be the "approaching" scenario; the scenario's frame is chosen in 3.3c, with its predictions frozen before its data.
+
+**Still held:** the town data (Q6(b), the coordinate-check question).
