@@ -1058,7 +1058,7 @@ The script classified the run itself, from its frozen table:
 |---|---|
 | the precondition | `GET /` 200 twice, 30 s apart |
 | **C** (3 × 180 s, untouched) | **0 drops** in 270 polls |
-| **T** (3 normally-ending traces, 60 s each) | **3 drops in 3 closes.** Each began 1.7-2.0 s after the close (22:59:46Z, 23:03:09Z, 23:06:25Z) and lasted 67-70 polls, until the recovery |
+| **T** (3 normally-ending traces, 60 s each) | **3 drops in 3 closes.**<br>• **The onset is bounded by the polls, not timed.** Around each close, the last poll before it answered (−1.8, −1.5 and −1.2 s) and the first poll after it did not (+1.7, +2.0 and +2.3 s).<br>• Each drop lasted 67-70 polls, until the recovery.<br>• Worded at blipscope-5c's review: the first text said "began 1.7-2.0 s after the close", which overstated the timing and misquoted the third value |
 | the discriminator on each drop (`--before no-reset --after no-reset read-mac`) | **connects, 3 of 3.** The ROM loader was answering, so the board was in download mode |
 | the recovery (`read-mac`) | 3 of 3; back on the network in 15-21 s |
 | **D** (the discriminator while the app runs) | **fails to connect** (rc 2), as required. **Its own close dropped nothing:** no drop in the 120 s after it |
