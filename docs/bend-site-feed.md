@@ -259,3 +259,33 @@ B1-B18 are unchanged.
 | **S-B17** | the reader's `?? null` fill removed: B17 red | (reproduces the reviewer's run) |
 
 There is now one circle test (`inCircle`) and one conversion (`toSite`), and the `!` is gone. The full proxy suite passes (44 files, 595 tests); `tsc` is clean.
+
+## Addendum 5, 2026-10-22 (before its code): the switch on, with LADD aircraft shown (Daniel's decision)
+
+**The reviewer asked (2026-10-22):** settle LADD before the feed goes on. The recommendation was to drop
+LADD-flagged aircraft on the server. The answer was to be frozen as a prediction with a sabotage, and Daniel's
+answer recorded in this PR.
+
+**Daniel's decision, 2026-10-21, as he gave it:** "LADD, Daniel's decision, 2026-10-21: the public feed shows all
+aircraft, LADD-listed ones included. Record it as Daniel's decision in the PR that switches the feed on. No LADD
+filter is needed."
+
+**So this PR adds no filter, and it makes the decision structural rather than remembered.** A test asserts that a
+LADD-flagged aircraft **is** served with its flags. If someone later adds a filter without a new decision, that
+test fails. The readsb `dbFlags` bits are 1 military, 2 interesting, 4 PIA, 8 LADD.
+
+| | check | predicted |
+|---|---|---|
+| **B20** | a LADD aircraft (`dbFlags` 8) and a LADD + PIA one (`dbFlags` 12), both inside the circle, through the device path and then the reader | **both stored and both served**, with `dbFlags` **8** and **12** unchanged. *Sabotage S-B20:* a LADD filter in `extractRaw` (drop if `(dbFlags & 8) !== 0`) turns B20 red |
+| **B21** | the dry-runs | production lists `env.SITE_FEED_BEND ("on")` (it was `"off"`); staging lists `("on")`; both list `BEND_SNAPSHOT (BendSnapshotDO)` |
+| **B1-B19** | unchanged | pass. The full proxy suite passes, and `tsc` is clean |
+
+**The order.** This PR deploys **only after #461's S2** has put the Bend code into production with the switch off
+and checked the existing service. Then it merges and deploys, and these are read:
+- **L1 and L2,** as frozen above.
+- **The fleet's own traffic,** with #461's P5 rules and instrument. A = 5-65 min after this deploy, B = the 60 min
+  before it. Fleet 5xx and 4xx in A: 0. Devices in B but not A: 0. The `/blips` count A/B: 0.4-2.5.
+- **SC7:** usage rows keep arriving, from at least 4 devices in A, every one arity `u8`.
+- **`sitefeed` events** appear in production: `written` > 0 within the first 10 min (L1's first half, early).
+
+**Outside the set:** stop. In production, roll back to the S2 version, which has the switch off.
