@@ -1072,3 +1072,252 @@ The script classified the run itself, from its frozen table:
 **The run's wrapper exited 2.** That is `$LASTEXITCODE` from D's deliberate `no-reset` read, which must fail, and not an error in the run. The watcher CSV and the event log are committed in `tools/weatherscope/trace-close/run-2026-10-22/`, with the board's LAN address redacted, so `run.ps1 -AnalyseOnly` re-derives the verdict from them. The serial traces are not committed: they carry the Wi-Fi network's name.
 
 **For 3.3 (A8.4):** row (i)'s capture method applies.
+
+## Addendum 8, 2026-10-22: step 3.3, the screens and their logic (frozen before its code)
+
+**The ruling (the reviewer, 2026-10-22, pasted by Daniel):**
+- "start step 3.3 (the screens and the logic) while the trace-close test runs";
+- "Write 3.3's addendum first and freeze it before any code: the predictions for each screen's logic, and the size ranges re-derived from 3.2's measured build (as ruled), with the basis for each addition stated";
+- "Leave the capture method for 3.3's board checks open until the trace-close result is in";
+- "Host-testable logic first (the 15 dBZ ring, the warning order, units, labels, the legend), then the board";
+- "Don't touch include/WxCrop.h, or anything else the Blipscope weather work (#445) is changing. If 3.3 needs a shared file, say so first."
+
+### A8.1 Scope, order, and what 3.3 touches
+
+**Four parts, in this order. Each part's rows are graded before the next one starts:**
+1. **3.3a, the logic.** Pure C++11 in a new `src/weatherscope/WxLogic.h`, with no Arduino. It is held to the truth tables of A8.2 by a new host test, `test/host/test_wx_logic.cpp`.
+2. **3.3b, the screens on the host.** Each screen's frame layer is rendered by the device code compiled for the host, and compared with an independent Python reference.
+3. **3.3c, the stored data.**
+   - **The loop's 15 frames:** SeamlessHSR, 2024-05-21, every other frame of the hour to 22:00Z, KDFW at 60 mi. They are encoded by the shared encoder on main (`proxy/src/wx/crop.ts`, run, not changed). The raw GRIB files stay out of git.
+   - **Four scenarios:** dry, approaching, here now, and a warning covering the location (plan §5.3).
+4. **3.3d, the board.** Its capture method was left open until Addendum 7's verdict. That verdict, (i), was in before this addendum was frozen, so the method is filled in (A8.4).
+
+**The stored scenarios carry their own place and clock.**
+- **The place:** the device is at the crop's centre (KDFW), whatever location is configured, because the data is KDFW's.
+- **The clock:** "now" is the scenario's frame time, so a warning is active or ended by that clock, not the wall clock. Live place and time come with the proxy path.
+- **The warning scenario's alert is synthetic, and labelled so** in the data and in its comment. Its polygon is placed to cover KDFW. The real 2026-10-20 alert from A6.3 is kept as the "a warning elsewhere" case.
+
+**Shared files:**
+- **`test/host/run.sh`, which #445 also changes.** The two new host tests need one appended block each, as 3.2's WxFeeds block was. **This is raised here and not touched until the reviewer says yes.** Until then the tests run through a tool script, as `s32.py d1host` did.
+- **A frame dump for 3.3d.** Reading the frame layer off the board needs either a serial dump in a bench variant of the product env (`platformio.ini`) or `/diag/fb` enabled for Weatherscope (`ConfigurationWebServer.cpp`, which #445 also changes). **Both are shared, so the choice is raised here** and made before 3.3d, with the reviewer.
+- **Nothing else.** `include/WxCrop.h` is used as it is (WXC1 v1), and no file in #445's list is changed. The wire carries no rain/snow type yet (WXC1 v2, #451), so the map draws rain only (plan §7).
+
+### A8.2 The logic: rules, truth tables and sabotages (3.3a)
+
+**The convention for every table:** each function's cases are named and counted. Each sabotage names the **exact set** of cases it must fail; any other set is off-prediction. Coordinates in the cases are synthetic, not anyone's location.
+
+**R, "approaching" (1b, ruled final):** an echo of code 1-13 (15 dBZ and up, rain or snow alike) whose cell centre lies within 15 mi of the location.
+- **The metric** is the map's own: planar, 111 km per degree, with longitude scaled by the cosine of the home latitude (`WxRender.h`). So an echo drawn inside the ring is inside the ring.
+- **API:** `NearestEchoMi(header, codes, lat, lon)` returns -1 when there is no echo; `EchoWithin(…)` is that distance ≤ 15 mi.
+
+| case | input | expected |
+|---|---|---|
+| R1 | every cell dry (0) | false |
+| R2 | one code-1 cell 14.9 mi north | true |
+| R3 | one code-13 cell 15.1 mi north | false |
+| R4 | one code-1 cell at the centre | true |
+| R5 | only code-14 (no coverage) cells within 15 mi | false |
+| R6 | only code-15 (missing) cells within 15 mi | false |
+| R7 | at latitude 45°, one code-5 cell 14.9 mi east | true |
+| R8 | at latitude 45°, one code-5 cell 15.1 mi east | false |
+
+**8 cases.**
+- **S-R1:** an echo becomes code ≥ 2. It fails exactly **{R2, R4}**.
+- **S-R2:** the cosine is dropped. It fails exactly **{R7}**.
+- **RK, on real data:** on `kdfw-60mi.wxc` at its centre, `NearestEchoMi` equals an independent Python reference (written with the test, from the WXC1 bytes) to within 0.01 mi. **Under S-R2 it differs.**
+
+**P, which screen (1a, ruled):** a covering, active warning first; then precipitation here now or approaching; otherwise dry. "Here now" comes from the observation alone (1c, changed). `Choose(warning, hereNow, approaching)` returns Warning / PrecipNow(type) / PrecipApproaching / Dry.
+
+| case | covering active warning | here now | echo within 15 mi | expected |
+|---|---|---|---|---|
+| P1 | yes | Rain | yes | Warning |
+| P2 | no | Rain | yes | PrecipNow(Rain) |
+| P3 | no | None | yes | PrecipApproaching |
+| P4 | no | None | no | Dry |
+| P5 | covering, but ended | None | yes | PrecipApproaching |
+| P6 | active, but not covering | None | no | Dry |
+| P7 | no | Snow | no | PrecipNow(Snow) |
+| P8 | no | Rain | no | PrecipNow(Rain) |
+
+**8 cases.**
+- **S-P:** the ring is tested before here now. It fails exactly **{P2}**.
+
+**C, a warning covers the location (1d, ruled):** the location lies inside the warning's polygon, **or on its boundary**. A GeoJSON ring's repeated closing vertex is accepted. Fewer than 3 distinct vertices means it doesn't cover.
+
+| case | expected |
+|---|---|
+| C1, inside a square | true |
+| C2, outside it | false |
+| C3, in a concave polygon's notch | false |
+| C4, in its body | true |
+| C5, no polygon | false |
+| C6, two vertices | false |
+| C7, on the square's right edge | true |
+| C8, C1 with the closing vertex repeated | true |
+
+**8 cases.**
+- **S-C:** the explicit boundary test is dropped, leaving the plain ray cast. It fails exactly **{C7}**.
+
+**W, which warnings, and their order (3a and 3d, ruled):**
+- `WarningRank(event)` is Tornado 0, Snow Squall 1, Severe Thunderstorm 2, Flash Flood 3; anything else is -1, with watches and advisories never shown.
+- It matches the **whole** event name.
+
+| case | expected |
+|---|---|
+| W1-W4, the four warnings | 0, 1, 2, 3 |
+| W5, "Tornado Watch" | -1 |
+| W6, "Winter Storm Warning" | -1 |
+| W7, "Extreme Wind Warning" | -1 |
+| W8, "Special Weather Statement" | -1 |
+| W9, an empty event | -1 |
+| W10, sorting [Flash Flood, Severe Thunderstorm, Tornado, Snow Squall] | [Tornado, Snow Squall, Severe Thunderstorm, Flash Flood] |
+
+**10 cases.**
+- **S-W:** matching by the prefix "Tornado". It fails exactly **{W5}**.
+
+**E, when a warning ends (3c, ruled):** at `expires` (that instant counts as ended), or when the message is a Cancel. The alert gains `messageType`, in the edition's own `WxFeeds.h`, which is not a shared file.
+
+| case | expected |
+|---|---|
+| E1, now before expires | active |
+| E2, now equal to expires | ended |
+| E3, now after expires | ended |
+| E4, a Cancel before expires | ended |
+| E5, an Update before expires | active |
+
+**5 cases.**
+- **S-E:** `>` instead of `>=`. It fails exactly **{E2}**.
+
+**M, storm motion (§3, and the bottom lines of 3b and 3e):**
+- **`ParseMotion`** reads `<time>...storm...<deg>DEG...<kt>KT...<lat>,<lon>`.
+- **The direction of travel** is `deg + 180`, on an 8-point compass.
+- **Distance and bearing** run from the location to the storm, in the map's metric.
+
+| case | expected |
+|---|---|
+| M1, "…211DEG…37KT…" with a position | parsed as 211°, 37 kt, the position |
+| M2, travel from 211° | NE |
+| M3, travel from 0° | S |
+| M4, travel from 90° | W |
+| M5, the KT field missing | invalid |
+| M6, an empty string | invalid |
+| M7, a storm 0.1° south and 0.1° west at latitude 0 | bearing SW, 9.75 mi (±0.01; the map's metric gives √2 × 11.1 km) |
+
+**7 cases.**
+- **S-M:** the +180 is dropped. It fails exactly **{M2, M3, M4}**.
+- **A malformed motion yields no motion line, never a guess.**
+
+**U, units (6a, ruled: imperial only):**
+- **Rounding:** half away from zero (`lround`), pinned because ports differ (CLAUDE.md).
+- **The knot factor** is 1.150779448.
+- `Compass8(deg)` is the sector `floor((deg + 22.5) / 45) mod 8`.
+
+| case | expected |
+|---|---|
+| U1, 37 kt | 43 mph |
+| U2, 0 kt | 0 |
+| U3, 10 kt | 12 |
+| U4, 13 kt | 15 |
+| U5, 24.140 km | 15.00 mi (±0.01) |
+| U6, `Compass8` at 0, 22.4, 22.5, 67.5, 359.9 | N, N, NE, E, N |
+
+**10 assertions** (U6 counts five).
+- **S-U:** truncation instead of rounding. It fails exactly **{U1, U3, U4}**.
+
+**L, label text (5d, ruled):** a trailing " city" is dropped, once, and the rest is upper-cased. Only `LSAD` 25 places are labelled (5b).
+
+| case | expected |
+|---|---|
+| L1, "Bend city" | "BEND" |
+| L2, "La Pine city" | "LA PINE" |
+| L3, "Winston-Salem city" | "WINSTON-SALEM" |
+| L4, "Oklahoma City city" | "OKLAHOMA CITY" |
+
+**4 cases.**
+- **S-L:** every "city" is stripped, **in any case**. It fails exactly **{L4}**. (A case-sensitive " city" would not touch "Oklahoma City", so it couldn't bite.)
+
+**H, "here now" (1c, ruled for the source; the token mapping is A8.3's Q1).** The cases below follow from the rulings as they stand: precipitation is snow or rain, and snow is snow.
+
+| case | expected |
+|---|---|
+| H1, an invalid observation | None |
+| H2, no entries | None |
+| H3, "-RA" | Rain |
+| H4, "SN" | Snow |
+| H5, "BR" | None |
+| H6, "+TSRA" | Rain |
+| H7, "-SHSN" | Snow |
+| H8, the entries ["BR", "-DZ"] | Rain |
+
+**8 cases.**
+- **S-H1:** only the first entry is read. It fails exactly **{H8}**.
+- **S-H2:** SN is read as rain. It fails exactly **{H4, H7}**.
+- **Mixed and other tokens wait for Q1.**
+
+**G, the legend (screen 7, ruled; `WxLegend.h` already passes its own host test):** 3.3 only adds the screen that draws it.
+- **Its prediction** is in A8.4: the board's legend pixels equal `legend_check.py`'s reference.
+- **Its interaction:** a swipe reaches screen 7, and a tap returns to the map. That is checked on the board.
+
+**In all: 68 named cases and assertions in `test_wx_logic.cpp`** (8 + 8 + 8 + 10 + 5 + 7 + 10 + 4 + 8), **plus RK.**
+
+### A8.3 Questions for the reviewer and Daniel. The code for each waits for its answer
+
+| # | the question | proposal |
+|---|---|---|
+| Q1 | "here now" for mixed and other METAR tokens: RASN, PL, IC, GR, GS, UP, a bare TS, a VC (vicinity) prefix, and how old an observation may be | By analogy with §4 and the WXC1 v2 rulings: **any SN or SG means snow** (snow wins, as in Q1 of #451); **any other precipitation token** (DZ, RA, PL, GR, GS, UP, IC) **means rain**; **TS alone, and VC-prefixed tokens, mean None** ("in the vicinity" is not here). **No staleness cutoff** until ruled |
+| Q2 | two warnings of the same type that both cover the location | the later `expires` first |
+| Q3 | the Tornado Warning's first bottom line (3b and 3e rule Flash Flood and Snow Squall; Tornado isn't ruled) | the fields present, as for Severe Thunderstorm ("HAIL x IN"; wind is absent 10 of 10). `tornadoDetection` is left out until ruled |
+| Q4 | storm motion at 0 kt; a storm at the location; several storm positions (a line) | 0 kt prints "0 MPH" as received; the nearest position is used; a storm under 0.5 mi away prints its distance as "0 MI" |
+| Q5 | the headline wording without minutes (1b and 1c); and the type to name for an approaching echo while the wire carries none | "RAIN NOW" / "SNOW NOW" for here now; **"PRECIP WITHIN 15 MI"** for approaching, because naming rain would be wrong in snow until WXC1 v2 |
+| Q6 | town labels: (a) 5b's incorporated cities can crowd a metro area (KDFW's 60 mi holds many) and nothing rules which to drop when labels overlap; (b) the stored subset carries public Census coordinates of places in the repo, and this project's standing rule is to commit no coordinates | (a) draw in order of distance from the centre, skipping a label that would overlap one already drawn; (b) **ask**: Census place coordinates are not a person's location, but the rule is the rule |
+| Q7 | the warning's "UNTIL 4:45 PM": in which time zone (Weatherscope has no time-zone setting) | the alert's own offset, as NWS states it in `expires` |
+
+**Until answered:** H's tokens beyond its 8 cases, the same-type order, the Tornado line, the 0-kt and nearest-position cases, the headline text, the town labels and the "UNTIL" line are **not coded**. The 68 cases above don't depend on them.
+
+### A8.4 The screens and the board (3.3b-3.3d)
+
+| row | how | predicted |
+|---|---|---|
+| **K1, the map layer on the host** | the device's render path, compiled for the host, against `render_ref.py`, for the 22:00Z frame and each loop frame | **identical code dumps**: 57,600 of 57,600 pixels per frame |
+| **K2, the loop's frames** | the 15 encoded crops | each **decodes to its manifest's `codesSha256`**, and each frame's code dump equals `render_ref.py`'s |
+| **K3, the four scenarios, through `Choose`** | dry, approaching, here now, warning covering | **Dry, PrecipApproaching, PrecipNow(Rain), Warning** respectively |
+| **B1, on the board: the scenario screens** | each scenario, run on the board; the frame layer dumped | each shows its ruled screen, and its frame-layer dump **equals the host reference** (plan §5.3) |
+| **B2, the loop on the board** | a tap opens it; it plays once and ends (2a, 2d) | 15 frames shown once, then back. Per-frame code dumps equal K2's. **Pacing:** max − min of the frame interval ≤ 10 ms (plan §5.1) |
+| **B3, the legend on the board** | a swipe reaches screen 7, a tap returns | `legend_check.py`: L1-L6 exit 0, as at 3.1 |
+
+**The capture method for B1-B3, filled in from Addendum 7's verdict (i) (A7.3).** The verdict was in before this addendum was frozen, and so before any board run:
+- **No trace closes before a network-facing check.** A normal close puts this board into download mode, 3 of 3 (A7.3).
+- **Each board step (B1, B2, B3) holds one trace open across the step.** The step's network checks run while it is open.
+- **After the close,** the board is proven on the network with A7's TCP test before anything else. On a drop it is recovered with `read_mac` (no writes), and the recovery is recorded.
+- **esptool `no-reset` reads may be used freely:** A7's D showed their close drops nothing.
+
+### A8.5 Sizes and timing
+
+**Flash and static RAM are re-derived from `4df1065`'s measured sizes** (flash 1,518,635 B, RAM 54,600 B), as ruled. Each addition, with its basis:
+
+| addition | estimate | basis |
+|---|---|---|
+| screen and loop code: five screens, the loop, the logic | +15 to +40 KB | the bench's whole drawing translation unit (decode, map render, palette, legend, serial protocol) measures **12,918 B** (`stage1_main.cpp.o`: 10,855 B code plus 2,063 B constants, built at `0217da1`), and 3.2's edition objects measure about 6 KB. 3.3 is between one and three bench-sized units |
+| the loop's 15 crops | +45 to +180 KB | the one measured 60 mi KDFW crop is **4,033 B** (22:00Z), so 15 frames are about 60 KB, taken at ×0.75 to ×3 because a convective hour's frames vary. The present single crop stays, which is within the noise |
+| scenarios, town labels | +0 to +8 KB | trimmed observations and alerts with one polygon (under 2 KB); the town subset (under 6 KB), only if Q6 allows it |
+
+- **Flash: 1.58-1.75 MB**, that is 1,518,635 B plus 60 to 228 KB. 3.3's builds are graded against this band.
+- **Static RAM: 54.6-57.0 KB.** The frame path allocates at run time in PSRAM (the bench's B3), not statically. The logic's tables are constants in flash, and screen and loop state is a few hundred bytes.
+- **Run-time budgets, from section 6, unchanged:**
+  - PSRAM **150-170 KB** for the frame path and the loop (the loop decodes each frame from flash, so it adds **≤ 8 KB**);
+  - **≤ 70 ms** per frame;
+  - **≥ 14 fps** for the loop.
+
+### A8.6 Order
+
+1. This addendum.
+2. The reviewer's answers to the shared-file asks (A8.1) and Q1-Q7.
+3. 3.3a: the code, then the host test, then the sabotages.
+4. 3.3c's data, frozen with its manifest.
+5. 3.3b: K1-K3.
+6. The capture method (already filled in, in A8.4).
+7. 3.3d: B1-B3.
+8. The sizes.
+9. The results addendum.
+
+**Outside every prediction: stop and decide.**
