@@ -419,3 +419,18 @@ staging and then production **only after S2 has passed**, and only once this PR 
 | **W5** | the fleet's own traffic, the same windows and rules as P5 | unchanged from S2's verdict. Also, **0 `/wx` requests from fleet devices**: no shipped firmware has the layer, and E2:08's and the smoke's own requests are excluded |
 | **W6** | `/wx` answers in the smoke runs and W4 | **no 5xx** |
 | **escape** | anything else | **stop.** In production, roll back to the S2 version first |
+
+### Results so far (S1 deployed 2026-10-22T00:16Z; S2 not deployed)
+
+| | read | verdict |
+|---|---|---|
+| **I1** | `blipscope-wx` created 00:15:58Z, WNAM; lifecycle `expire-1d` ("Expire objects after 1 days"), beside the default 7-day multipart-abort rule | **as predicted** |
+| **I2** | deploy exit 0; `schedule: * * * * *`; version `47ad5010-19b5-4ca9-b186-ead1180527fd`, and `deployments list` shows it as the newest (00:16:20Z) | **as predicted** |
+| **I3** | first seen 00:19:35Z (deployed 00:16:21Z; the 00:17 and 00:18 ticks never ran, which is cron propagation). Read A, epoch 00:18:37Z; read B at 00:23:39Z, epoch 00:20:39Z. **The advance is 122 s.** The frame was about 58 s and 180 s old at the two reads | **MISS on one clause: "a non-zero multiple of 120 s".** The rest is as predicted (exists within 10 min, advances, ≤ 600 s old) |
+| **I4** | `wx/cref/frames/1792628317.wxg`: **12,845,120 B**, magic `WXG1`, product `cref` | **as predicted** |
+| I5, I6, I7 | still being read | — |
+| **P3 (before)** | `smoke-prod.sh` against production `2460deb`, E2:08's credential: **PASS 31, FAIL 2, SKIPPED 1**. FAILs: `/wx` (404, as predicted) and "enroll POST, unsolved token" (403 `fake_device_id` against an expected `"unverified"`; not predicted) | **MISS. S2 stopped before deploying, for a ruling** (#461) |
+
+**I3's miss, and why it is recorded rather than re-graded.** MRMS frame times are not on an exact 120 s grid. The two frames here are 00:18:37 and 00:20:39. The figure I3 leaned on was M4a's "mode 120 s", which describes the most common step, not a fixed one. So I3 was frozen with a criterion tighter than anything measured. The frame does advance, which is what I3 was for. The clause stays a miss.
+
+**P3's miss.** The second FAIL is pre-existing. Since `e4c768a` (2026-09-23), production refuses fake device ids before the token gate, and that check's fixture id `a1b2c3d4e5f6a7b8` is on the fake allowlist. The identical FAIL is in that day's 16:08 production baseline, taken with the old credential. Staging passes the check. The options are on #461.
