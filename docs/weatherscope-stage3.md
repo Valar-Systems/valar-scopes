@@ -1334,3 +1334,184 @@ The script classified the run itself, from its frozen table:
 - **Still open:** `/diag/fb` authentication, on both products. It is to be raised later as its own item, not in 3.3.
 
 **Still held** (the reviewer, the same batch): "Step 3.3 stays held until I've ruled on the two shared-file questions and Q1-Q7." The run.sh question and Q1-Q7 are open.
+
+### A8.8 Ruled 2026-10-22: run.sh and Q1-Q7. Each answer's predictions, frozen before its code
+
+**The rulings were pasted by Daniel, headed "Rulings for Weatherscope 3.3 (Addendum 8, at 738037c), 2026-10-22".** "Product items Q1-Q7 are Daniel's decisions via the reviewer chat; the shared-file item is a reviewer ruling." Each is quoted where it is used. Addendum 8's frozen commit is `738037c`; after the rebase onto main it is `e33b898`, with the same content.
+
+**Two notes on the rulings, before the tables:**
+1. **Q6(b)'s premise does not hold in the repo. This is raised back, not decided here.** The ruling says to exempt the town file "from the coordinate check, pinned by path and content hash, as the device-id guard pins its vendored table".
+   - **What is there:** no coordinate check exists in the tree. `scripts/check_device_ids.py` and `.githooks/pre-commit` scan for 16-hex-digit device ids only. "Commit no coordinates" has been a session rule, not a check that runs.
+   - **The question back:** should 3.3 **(i)** add a coordinate guard, with the town file pinned the way the device-id pin file pins its table? That is a new CI check. The tree already holds legitimate decimal coordinates it would have to allow, such as the Bend site feed's centre and the config page's paste example. **Or (ii)** record the source, vintage, filter and content hash in the town file's own header, with no guard?
+   - **Until answered:** the town subset's **data** is not committed. Q6(a)'s placement logic (the LP rows) uses synthetic boxes and proceeds.
+2. **Two readings, written down so they can be corrected before code:**
+   - **Q3:** "TORNADO EMERGENCY" takes the detection token's place, since a Tornado Emergency is by definition a confirmed tornado, and hail follows.
+   - **Q4:** "<1 MI" replaces only the distance token; the bearing stays, as in "STORM <1 MI SW".
+
+**run.sh (the reviewer):** "Yes, append one self-contained block per new host test, as 3.2 did. #445 also appends to it. Whichever merges second rebases and keeps both blocks." So `test_wx_logic.cpp` and the screen-reference test each get one block, after WxFeeds.
+
+**Q1, here now.** The ruling:
+- "SN, SG, PL and IC are snow."
+- "DZ, RA (including FZ), GR, GS and UP are rain."
+- "Snow wins if any snow token is present."
+- "TS alone, or anything with a VC prefix, is none."
+- "Add a staleness cutoff: an observation older than 2 h gives no 'here now'."
+
+**The H table, replacing A8.2's:**
+
+| case | input | expected |
+|---|---|---|
+| H1 | an invalid observation | None |
+| H2 | no entries | None |
+| H3 | "-RA" | Rain |
+| H4 | "SN" | Snow |
+| H5 | "BR" | None |
+| H6 | "+TSRA" | Rain |
+| H7 | "-SHSN" | Snow |
+| H8 | the entries ["BR", "-DZ"] | Rain |
+| H9 | "RASN" | Snow |
+| H10 | "PL" | Snow |
+| H11 | "IC" | Snow |
+| H12 | "-SG" | Snow |
+| H13 | "FZRA" | Rain |
+| H14 | "GR" | Rain |
+| H15 | "GS" | Rain |
+| H16 | "UP" | Rain |
+| H17 | "TS" | None |
+| H18 | "VCSH" | None |
+| H19 | "VCSN" | None |
+| H20 | the entries ["-RA", "SN"] | Snow |
+| H21 | "-RA", observed 2 h and 1 s before now | None |
+| H22 | "-RA", observed exactly 2 h before now | Rain |
+
+**22 cases. Sabotages, each with the exact set it must fail:**
+- **S-H1**, only the first entry read: **{H8, H20}**.
+- **S-H2**, SN read as rain: **{H4, H7, H9, H20}**.
+- **S-H3**, the first precipitation token decides (no snow-wins): **{H9, H20}**.
+- **S-H4**, `>=` for the cutoff: **{H22}**.
+- **S-H5**, the VC prefix ignored: **{H19}**. H18 stays None either way, because SH carries no precipitation.
+
+"Now" is the scenario clock for the stored scenarios (A8.1).
+
+**Q2, same-type order.** The ruling: "show the one whose storm is nearest first, using the eventMotionDescription positions. If either lacks a position, show the later expires first." The W table gains four rows:
+
+| case | input | expected |
+|---|---|---|
+| W11 | two covering Severe Thunderstorm Warnings: A's storm 5 mi away, expiring at 20:00; B's 12 mi away, expiring at 21:00 | A first |
+| W12 | as W11, with A lacking a position | B first |
+| W13 | both lacking positions | B first |
+| W14 | a Tornado Warning whose storm is 40 mi away and a Severe Thunderstorm Warning 2 mi away, both covering | the Tornado Warning first (type before distance) |
+
+- **W now has 14 cases.**
+- **S-W3**, same-type order by the later expiry alone: **{W11}**.
+- A8.2's **S-W** (prefix matching) still fails exactly **{W5}**.
+
+**Q3, the Tornado Warning's first bottom line.** The ruling: "show tornadoDetection now, as 'OBSERVED' or 'RADAR INDICATED', on the first bottom line. When tornadoDamageThreat is CATASTROPHIC, show 'TORNADO EMERGENCY'. The other fields present (hail size) follow." It is tested as a list of tokens; the screen joins them.
+
+| case | input | expected tokens |
+|---|---|---|
+| T1 | RADAR INDICATED, hail "1.00" | ["RADAR INDICATED", "HAIL 1 IN"] |
+| T2 | OBSERVED, no hail | ["OBSERVED"] |
+| T3 | CATASTROPHIC, OBSERVED, hail "2.75" | ["TORNADO EMERGENCY", "HAIL 2.75 IN"] |
+| T4 | no detection, hail "1.75" | ["HAIL 1.75 IN"] |
+| T5 | detection "POSSIBLE", which is neither ruled value, and no hail | [] (omitted, never shown as received) |
+| T6 | CONSIDERABLE, RADAR INDICATED | ["RADAR INDICATED"] |
+
+- **6 cases.**
+- **S-T**, the damage threat ignored: **{T3}**.
+
+**The first bottom line for the other types (3b, 3e; units, 6a):**
+- Hail is printed with its trailing zeros dropped.
+- Wind is the gust's leading integer.
+- A field that doesn't parse is omitted.
+
+| case | input | expected tokens |
+|---|---|---|
+| B1 | Severe Thunderstorm, hail "1.00", wind "60 MPH" | ["HAIL 1 IN", "WIND 60 MPH"] |
+| B2 | Severe Thunderstorm, hail "1.75" only | ["HAIL 1.75 IN"] |
+| B3 | Severe Thunderstorm, wind "70 MPH" only | ["WIND 70 MPH"] |
+| B4 | Severe Thunderstorm, neither | [] |
+| B5 | Flash Flood, `flashFloodDetection` "RADAR INDICATED" | ["RADAR INDICATED"] |
+| B6 | Flash Flood, without it | [] |
+| B7 | Snow Squall | [] (motion goes on the second line, if present) |
+| B8a | hail "0.75" | "HAIL 0.75 IN" |
+| B8b | hail "1.50" | "HAIL 1.5 IN" |
+
+- **9 assertions.**
+- **S-B**, trailing zeros kept: **{B1, B8b, T1}**. T1 is included because the Tornado line uses the same formatter.
+
+**Q4, motion edge cases.** The ruling:
+- "0 kt prints 'STATIONARY' if it fits the line, otherwise '0 MPH'. Freeze which one in the addendum."
+- "A line of storms uses the nearest position."
+- "Under 0.5 mi prints '<1 MI'."
+
+**Frozen: "STATIONARY".** It replaces the travel text, and is never longer than the text it replaces: 10 characters, against up to 17 for "MOVING NW 120 MPH". So wherever the moving line fits, STATIONARY fits too.
+
+The M table gains four rows:
+
+| case | input | expected |
+|---|---|---|
+| M8 | 0 kt | travel token "STATIONARY" |
+| M9 | a storm 0.3 mi away | distance token "<1 MI" |
+| M10 | a storm 0.5 mi away | "1 MI" (`lround`) |
+| M11 | a line of three positions, 30, 9 and 20 mi away | the 9 mi position is used, for both distance and bearing |
+
+- **M now has 11 cases.**
+- **S-M2**, the first position used: **{M11}**.
+- **S-M3**, 0 kt printed as "0 MPH": **{M8}**.
+- **S-M4**, under 0.5 mi printed as "0 MI": **{M9}**.
+- A8.2's **S-M** still fails exactly **{M2, M3, M4}**.
+
+**Q5, headlines.** The ruling: "accepted: 'RAIN NOW' / 'SNOW NOW', and 'PRECIP WITHIN 15 MI' for approaching. Switch to typed wording when WXC1 v2 carries the rain/snow type."
+
+| case | input | expected |
+|---|---|---|
+| HL1 | PrecipNow(Rain) | "RAIN NOW" |
+| HL2 | PrecipNow(Snow) | "SNOW NOW" |
+| HL3 | PrecipApproaching | "PRECIP WITHIN 15 MI" |
+| HL4 | Warning, or Dry | no precipitation headline |
+
+- **4 cases.**
+- **S-HL**, approaching printed as "RAIN WITHIN 15 MI": **{HL3}**.
+- The typed wording waits for WXC1 v2.
+
+**Q6(a), label placement.** The ruling: "nearest-to-centre first, and skip any label that overlaps one already drawn."
+- A label's box is its text at 6 × 8 px per character, plus its dot.
+- **A box that would leave the screen's 112 px circle is skipped.** This is the legend's round-screen margin, reused, and it is my layout rule, not a ruling.
+
+| case | input | expected |
+|---|---|---|
+| LP1 | two labels far apart | both drawn |
+| LP2 | two that overlap | the nearer drawn, the farther skipped |
+| LP3 | A nearest; B overlaps A; C overlaps B but not A | A and C drawn |
+| LP4 | a box that would leave the 112 px circle | skipped |
+
+- **4 cases.**
+- **S-LP**, overlap tested against every candidate rather than only the labels drawn: **{LP3}**.
+- **S-LP2**, the farthest drawn first: **{LP2}**.
+
+**Q6(b), the town data: held**, per note 1 above.
+
+**Q7, "UNTIL".** The ruling: "accepted: 'UNTIL h:mm AM/PM' in the alert's own UTC offset. Record the known limit: near a time-zone border it can be an hour off. The later fix is the proxy supplying the location's own time zone from NWS /points."
+
+| case | `expires` | expected |
+|---|---|---|
+| X1 | 2026-10-20T18:15:00-06:00 | "UNTIL 6:15 PM" |
+| X2 | 2026-10-20T00:05:00-05:00 | "UNTIL 12:05 AM" |
+| X3 | 2026-10-20T12:00:00-05:00 | "UNTIL 12:00 PM" |
+| X4 | 2026-10-20T18:15:00Z | "UNTIL 6:15 PM" |
+| X5 | malformed | no UNTIL line |
+
+- **5 cases.**
+- **S-X**, the offset ignored (UTC shown): **{X1, X2, X3}**.
+- **The known limit, recorded:** near a time-zone border, the alert's offset can differ from the location's by an hour. The fix is the proxy supplying the location's time zone from NWS `/points`, later.
+
+**The totals.** `test_wx_logic.cpp` now holds **118** named cases and assertions:
+
+| R | P | C | W | E | M | U | L | H | T | B | HL | LP | X |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | 8 | 8 | 14 | 5 | 11 | 10 | 4 | 22 | 6 | 9 | 4 | 4 | 5 |
+
+There are **24 sabotages**, each with the exact failing set named above or in A8.2: S-R1, S-R2, S-P, S-C, S-W, S-W3, S-E, S-M, S-M2, S-M3, S-M4, S-U, S-L, S-H1 to S-H5, S-T, S-B, S-HL, S-LP and S-LP2. RK comes on top.
+
+**Now unblocked:** 3.3a (the logic) and 3.3b's host references. **Still held:** the town data (Q6(b)).
