@@ -342,3 +342,63 @@ rounding approaches its full cell from below, at the same corner where the wire 
 The overshoot then equals the bound to 10⁻¹³. That is what the ruling asked for: a bound built from the
 real terms that real cases reach, not a constant like 4.3 that is loose almost everywhere.
 
+
+## Deploy, 2026-10-22: what it creates, what it costs, and the predictions (frozen before the bucket exists)
+
+Daniel's instruction of 2026-10-21: deploy #443 under the standing rule. Say first what it creates and what it
+is expected to cost each month, and ask him if that is more than $0.
+
+**What it creates:**
+- **The R2 bucket `blipscope-wx`,** with a lifecycle backstop that expires objects after 1 day. The ingest prunes
+  anything older than `RETAIN_S` = 3600 s itself; the lifecycle rule only bounds a pruning failure.
+- **The Worker `blipscope-wx-ingest`,** deployed from `proxy/wx-ingest.wrangler.toml` at main `0116e13`: cron
+  `* * * * *` (two checks a minute, `:00` and `:30`), `cpu_ms = 5000`, observability on, **no route**.
+- **Later, in its own reviewed change (S3):** a `WX` binding to `blipscope-wx` in the proxy's staging and
+  production envs. Until then `/wx` answers 503 `not_configured`.
+
+**Expected monthly cost: $0.** These are 30-day account figures, measured 2026-10-21 from the GraphQL Analytics API
+and `wrangler r2 bucket info`, against what the Workers Paid plan and R2 include:
+
+| | now | the weather server adds | included |
+|---|---|---|---|
+| R2 storage | 258 MB (`missileer-clips`) + 0.5 MB | about 0.4 GB (31 frames × 12,845,120 B). Even with pruning broken, about 9.25 GB under the lifecycle rule | 10 GB |
+| R2 Class A | about 751k/month (25,049/day over the last 7 days, almost all `missileer-live` puts) | **about 130k/month:** 6 per frame (3 on the check that stores it, a `list` on each of the other 3) × 720 frames/day | 1M |
+| R2 Class B | about 312k/month | about 432k/month from the ingest (5 per check), plus about 216k/month for each device with the layer on | 10M |
+| Workers CPU | 2.33M ms/month (all scripts) | about 10-15M ms/month (WS8: 0.45-0.67 s per frame × 720/day) | 30M |
+| Workers requests | 663k/month | 43,200 cron runs | 10M |
+
+**The margin that is thin:** R2 Class A rises to about **88 %** of the free 1M. A second product, such as
+Weatherscope's, or more Missileer writes would cross it, at $4.50 per million over. That crossing will be put to
+Daniel before it happens. It isn't now.
+
+### S1: the bucket and the ingest (nothing reads them yet)
+
+| | check | predicted |
+|---|---|---|
+| **I1** | the bucket | `wrangler r2 bucket info blipscope-wx` shows it, and its lifecycle list shows a 1-day expiry |
+| **I2** | the ingest deploy | exit 0; the deploy output lists the cron `* * * * *`; the newest entry in `deployments list` is the version it printed |
+| **I3** | frames land | within 10 min, `wx/cref/latest` exists. Read twice at least 4 min apart: its epoch advances by a **non-zero multiple of 120 s**, and at each read the frame is **≤ 600 s** old |
+| **I4** | one frame object | exactly **12,845,120 B**, starting `WXG1` |
+| **I5** | pruning | at 75 min or later: **29-33** frame objects under `wx/cref/frames/`. Read twice 10 min apart, and both counts are in the band |
+| **I6** | the ingest's own log (`wrangler tail`, first 20 min) | **≥ 30** `wx_ingest` lines and **0** `wx_ingest_error`. Statuses only `stored`, `already-stored` or `no-frame` |
+| **I7** | CPU, first 2 h (GraphQL, `scriptName` `blipscope-wx-ingest`) | per-invocation `cpuTimeP99` **≤ 1,500 ms**; no CPU-limit errors |
+| **escape** | anything else | **stop and report.** The ingest has no route and nothing reads it, so this is not an emergency. Removing it is Daniel's, because it deletes a resource |
+
+### S2: the proxy at main `0116e13`, staging then production, with no `WX` binding (the off stage)
+
+This deploy also carries #450, #458 and #460. The Bend site feed is off in production (`SITE_FEED_BEND` "off").
+**Rollback target:** production version `7224e0dc-1832-46c3-8089-0126352da8b4` (commit `2460deb`).
+
+| | check | predicted |
+|---|---|---|
+| **P1** | `/healthz` | `commit` **0116e13** on both envs; `wx` **"not_configured"** |
+| **P2** | the deploy output's bindings | production: `BEND_SNAPSHOT (BendSnapshotDO)`, `SITE_FEED_BEND ("off")`, **no `WX`**; staging: the same with `("on")` |
+| **P3** | `smoke-prod.sh` on production, E2:08's own credential (Daniel's consent, 2026-10-21) | **before, on `2460deb`: exactly 1 FAIL, the `/wx` check (404: that build has no route); every other check passes.** **After: 0 FAIL**, with `/wx` passing as "not wired yet" |
+| **P4** | `smoke-prod.sh` on staging | reported, **not graded**: staging may hold a different device-key secret, so E2:08's credential may be refused there by design |
+| **P5** | the fleet's own traffic (Analytics Engine; per-request points with a device id, **E2:08's id excluded**, since the smoke runs use it). B = the 60 min before the production deploy, A = 5-65 min after | fleet **5xx in A: 0**; fleet **4xx in A: 0**; **devices in B but not A: 0**; `/blips` count A/B **0.4-2.5**; usage rows in A from **≥ 4 devices**, every one arity **`u8`**, **0 `(none)`**; production `sitefeed` events in A: **0** |
+| **P6** | fail fast, `[T, T + 15 min)` | any fleet 5xx, or any fleet 401/403, means **roll back at once** |
+| **controls** (run before believing P5) | can each detector see what it looks for? | `sitefeed` events on staging (`blipscope_proxy_staging`) since its 23:06Z deploy: **> 0**. Unfiltered 4xx over all production points in 24 h: **> 0**. The device-set difference between 2026-10-21 21:00 and 22:00 (4 devices, then 6): **2** |
+| **escape** | anything else, or two reads of A that disagree | **stop and decide.** Production misbehaving means roll back first |
+
+S3's predictions (the binding, `/wx` serving crops, smoke's `/wx` passing as "wired") are frozen in S3's own PR,
+before it is reviewed.
