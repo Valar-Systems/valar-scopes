@@ -15,7 +15,7 @@
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
 #endif
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #include "FrameBuffer.h"
 #include <esp_heap_caps.h>
@@ -412,7 +412,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
 // The radar serves /diag/fb to everyone; of the editions, only the Missileer PHOTO_MODE
 // build (env:missileer-photo) serves it, for product screenshots of the real glass.
-#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE))
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE))
 // The viewer page for /diag/fb. Its own literal rather than part of CONFIG_HTML:
 // it takes no %PLACEHOLDER% substitution, so it is served with send_P and the
 // percent sign is an ordinary character here.
@@ -569,7 +569,7 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
 )";
 #endif
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -2452,6 +2452,74 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_WEATHERSCOPE)
+// FEATURE_WEATHERSCOPE (Weatherscope) config page: location (required -- the radar is centred on it)
+// and display. Stage 3 serves stored weather data, so there is no feed setting, no alert setting and
+// no secret yet (docs/weatherscope-stage3.md). Shares the page chrome / JS pattern with the other editions.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Weatherscope</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(8,16,28)'/><circle cx='8' cy='8' r='5.5' fill='none' stroke='rgb(90,200,255)' stroke-width='1.2'/><circle cx='9.6' cy='6.6' r='2.1' fill='rgb(60,200,90)'/></svg>">
+        <style>:root{--ink:#bae6fd;--line:#38bdf8;--dim:#0284c7;--btn:#38bdf8;--text:#e6edea}</style>
+)" CONFIG_SHELL_CSS R"(
+    </head>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Weatherscope</legend>
+
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Weatherscope)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
+            </div>
+
+            <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
+
+                <div class="row">
+                    <label class="field">
+                        <span>Latitude:</span>
+                        <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                    </label>
+                    <label class="field">
+                        <span>Longitude:</span>
+                        <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                    </label>
+                </div>
+                <span class="hint">Required. The radar is centred on this point, and the night auto-dim uses it too. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
+
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="field">
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                    </div>
+                    <label class="field mt">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
+                    </label>
+                </fieldset>
+
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
+                </div>
+            </form>
+
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
+            </div>
+        </fieldset>
+)" CONFIG_SHELL_JS R"(
+    </body>
+</html>
+)";
 #endif
 
 // Escape a user-sourced value before it is echoed into the config page. Without
@@ -2610,7 +2678,7 @@ void ConfigurationWebServer::Initialise() {
         // read all values up front so the processor lambda can capture by value
         Preferences prefs;
         prefs.begin("config", true);
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
         const String latitude = HtmlEscape(prefs.getString("latitude", ""));
         const String longitude = HtmlEscape(prefs.getString("longitude", ""));
         // Saved location profiles (home / work / trip); the config-page JS loads
@@ -3061,10 +3129,17 @@ void ConfigurationWebServer::Initialise() {
         const String ntfyTopic = prefs.getString("ntfy-topic", "");
         const String autoDimEnabled = prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true";
         const String brightness = prefs.getString("brightness", "255");
+#elif defined(FEATURE_WEATHERSCOPE)
+        // FEATURE_WEATHERSCOPE: load the Weatherscope config fields -- location and display only, no
+        // masked secret (Stage 3 has no feed setting).
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
 #endif
         prefs.end();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
@@ -3081,7 +3156,7 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -3438,6 +3513,26 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_WEATHERSCOPE)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness]
+            (const String& var) -> String {
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -3582,7 +3677,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
         TrySaveCoord("latitude", true);
         TrySaveCoord("longitude", false);
         // Saved location profiles (home / work / trip).
@@ -3891,6 +3986,14 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("sc-a-record");
         SaveToggle("sc-a-offline");
         SaveToggle("autodim");
+#elif defined(FEATURE_WEATHERSCOPE)
+        // FEATURE_WEATHERSCOPE: persist the Weatherscope config fields. No secret to guard.
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
+        TrySaveParam("brightness");
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        SaveToggle("autodim");
 #endif
         // Read the STORED location back before closing, so the warning below
         // reflects what the device will actually run with -- not merely what this
@@ -3973,7 +4076,7 @@ void ConfigurationWebServer::Initialise() {
 
     // Forget WiFi credentials and reboot into the WiFiManager setup portal. The
     // response is sent first; the restart is deferred a moment so it can flush.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     /* -----------------------------------------------------------------------
      * ENROLLMENT KEY LANDING — the only path that may write "cloud-key-fac".
      *
@@ -4084,7 +4187,7 @@ void ConfigurationWebServer::Initialise() {
         }
     );
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     // Spotting-logbook export (radar edition). Serves the persisted lifelist straight
     // from NVS as JSON -- read-only, so it's safe from the async task alongside the
     // loop-task logbook writer (at most one debounce interval stale).

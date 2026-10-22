@@ -224,6 +224,7 @@ Each env is named for its product; the `FEATURE_*` build flags (and the OTA chan
 - **Reelscope** = `FEATURE_FISHING` = `reelscope-s3-146`
 - **Claudescope** = `FEATURE_CLAUDESCOPE` = `claudescope-s3-146`
 - **Speedscope** = `FEATURE_SPEED` = `speedscope-s3-146`
+- **Weatherscope** = `FEATURE_WEATHERSCOPE` = `weatherscope-s3-128` *(in development: stored data, no OTA channel published yet)*
 
 Each non-default edition reuses the same boards, Wi-Fi setup, web config, and OTA, but compiles a different app and ships on its own OTA channel (`firmware-<edition>-<slug>.bin`), so a device only ever flashes the edition it was built for. Developer notes — including how to add a new edition or SKU — are in [CLAUDE.md](CLAUDE.md) and [RELEASING.md](RELEASING.md).
 

@@ -64,6 +64,9 @@ skus:
   - { env: reelscope-s3-146, status: build-only }
   - { env: claudescope-s3-146, status: build-only }
   - { env: speedscope-s3-146, status: build-only }
+  # weatherscope-s3-128: the Weatherscope edition (docs/weatherscope-stage3.md). No slug until the OTA
+  # identity check is on the fleet (Stage 3, section 3), so CI publishes nothing for it.
+  - { env: weatherscope-s3-128, status: build-only }
 
   # Bring-up and harness envs. Never had slugs; listed so the matrix has one
   # source rather than this file plus a remainder hidden in the workflow.

@@ -813,3 +813,196 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 - **D1's graded outcomes**, as read (H-B for `pro-s3-21` and `missileer-photo`: the base round's images were the odd ones out). Only the mechanism recorded beside them changes.
 - **S1 v2's results (A5.7).** S1 v2 added warm-up builds AND fixed `SOURCE_DATE_EPOCH`. On the corrected cause, fixing the time strings is what removed the false failures. The warm-ups were harmless, but S1 v2's pass can't say which of the two mattered.
 - **#457 and the reviewer's ruling 2** ("a patch that can't apply fails the build"). They stand on their own: the skip path was a hazard whether or not it fired here.
+
+## Addendum 6, 2026-10-21: step 3.2, the edition scaffolding (frozen before its code)
+
+**The reviewer's ruling (2026-10-21):** "Step 3.2: go ahead, with predictions frozen before any code, as the plan says. Include S1 for every shared file it touches, and show in CI that the product env's adsbdb gate finds its control at the default site."
+
+**The base:** main at `75d62c4`. If main moves before the merge, S1 is measured against the PR's actual merge parent, and that parent is recorded.
+
+### A6.1 What 3.2 builds, and what it leaves to 3.3
+
+**The edition's own code** lives in `src/weatherscope/`, outside `bench/`, and is compiled only by the product env:
+- **`WeatherscopeManager`:** the shared `Initialise()`/`Update()`/`Draw()` surface. **3.2 draws only a splash, then a status face**: the device name, Wi-Fi state, the config-page URL and the UTC time. **No weather screen is drawn in 3.2**; screens and their logic are 3.3.
+- **The three feed interfaces** (`WxFeed`, `ObsFeed`, `AlertFeed`) **and their stored implementations:**
+  - `StoredWxFeed` serves the KDFW crop already in the repo (`test/fixtures/wx/kdfw-60mi.wxc`), embedded.
+  - `StoredObsFeed` serves one NWS observation for KDFW. It is fetched once by this session at implementation time, never by the device, and trimmed to the fields the device reads (present weather and time). **No coordinates are kept.**
+  - `StoredAlertFeed` serves the event, headline and expiry of the 2026-10-20 sample in `docs/weatherscope-screens.md` §3. The warning polygon waits for the screen that draws it (3.3).
+- **One factory file** chooses the implementations (D1).
+
+**Shared files.** Each change is a new `#elif` branch, a name added to an edition list, or `&& !defined(FEATURE_WEATHERSCOPE)` appended to a guard. The counts were taken at `75d62c4`:
+
+| file | change |
+|---|---|
+| `platformio.ini` | the product env `[env:weatherscope-s3-128]`, on the s3-128 board, with `${common.build_flags}`, the s3-128 variant, `-DFEATURE_WEATHERSCOPE`, `-DFW_OTA_PREFIX=\"weatherscope-\"`, PSRAM and `ARDUINO_USB_MODE=1`. Its filter is `+<*> ${filters.radar_off} ${filters.editions_off} ${filters.hwtest_off} ${filters.gametest_off} ${filters.anim_off} +<weatherscope/> -<weatherscope/bench/>`. No other env changes. |
+| `src/main.cpp` | **2** `#elif` branches (include `:63`, instance `:111`), and the guard term on **6** radar-only guards (`:665`, `:680`, `:801`, `:831`, `:848`, `:865`) |
+| `src/ConfigurationWebServer.cpp` | **4** `#elif` branches (page `:2334`, load `:3040`, template `:3395`, save `:3859`), and the guard term on **9** radar-default guards (`:18`, `:415`, `:572`, `:2612`, `:3064`, `:3081`, `:3574`, `:3964`, `:4075`). **Not** on the no-geography list at `:3920`: Weatherscope needs a location. |
+| `include/BuildIdentity.h` | 2 (its edition `#ifdef` and `#elif`, as Speedscope's at `:67` and `:99`) |
+| `include/DeviceIdentity.h` | 1 (`DEVICE_PRODUCT_NAME` = "Weatherscope") |
+| `include/FactoryReset.h` | 1 (on the "persist no logbook" list at `:84`) |
+| `src/SoakHarness.h` | 1 (on the edition list at `:25`) |
+| `scripts/check_release_envs.mjs` | `FEATURE_WEATHERSCOPE` added to `EDITION_FLAGS` |
+| `skus.yml` | the product row `{ env: weatherscope-s3-128, status: build-only }`, with no slug |
+| docs | `CLAUDE.md`'s edition section (authorized, A1.5); an edition line in `README.md`; `RELEASING.md`'s edition OTA channel section, saying there is no slug yet |
+
+`FW_VERSION` doesn't change, and nothing is released.
+
+**Graded later, in 3.3, because 3.2 has no frame path:** the PSRAM, frame-time and loop-rate budgets of section 6.
+
+### A6.2 Predicted
+
+| check | how | predicted |
+|---|---|---|
+| **S1, every other env** | S1 v2's method (A5.6): warm-ups, `SOURCE_DATE_EPOCH`, and the R1/R2 list. All **15** other envs, the bench included, base against head. | **identical outside R1 and R2, in 15/15** |
+| **S1, every compiled shared file** (the ruling) | **The covering sabotage:** one per shared file that the other envs compile (`main.cpp`, `ConfigurationWebServer.cpp`, `BuildIdentity.h`, `DeviceIdentity.h`, `FactoryReset.h`, `SoakHarness.h`). Each is an UNGATED change to a value that file already contributes to every image, built in `blipscope-s3-128`. The site in each file is named in the tooling commit, before any measured build.<br>**Plus the full-matrix sabotage from 3.1** (`ConfigurationWebServer::Initialise`). | **The per-file sabotages:** `blipscope-s3-128` differs outside R1/R2 in **6/6**.<br>**The full-matrix sabotage:** every env that compiles the file differs, and **`animtest-s3-128` and `weatherscope-bench-s3-128` are at 0 bytes.**<br>**If a file has no ungated runtime site,** it is reported as such, and its S1 coverage rests on the full-image comparison alone. |
+| **S1, the shared files no build reads** (`skus.yml`, `check_release_envs.mjs`, docs) | their own checks | `skus.py --selftest/--validate/--check-readers` and `check_release_envs` exit 0 |
+| **S2, a guard term left off** (A2.3) | grep the product image for the radar-only strings **`local-url`, `radius-unit`, `data-source`, `/api/v1/blipscope/blips`** | **0 hits.**<br>**The positive control:** all four are present in `blipscope-s3-128`'s image at the base. They read 3, 3, 4 and 1 in S1 v2's `base2` image, and **0** in Claudescope's, Speedscope's and Missileer's, so they are radar-only in fact, not only by guard.<br>**The anchor:** a control build of the product with one planted, reachable copy of `local-url` must be found.<br>**The sabotage:** the guard term removed from the guard around the radar form makes S2 find its strings, and name them. |
+| **D1** | `grep` of `src/`, and a host test | exactly **one** file names the `Stored*` implementations, besides their own definitions. The host test builds all three interfaces against fakes. |
+| **D2** | grep the product image, **case-sensitive, lowercase**, as hostnames are written, for `weather.gov`, `noaa`, `ncep`, `mrms`, `amazonaws` | **0 hits.**<br>**The control:** a control build with one planted, reachable hostname string must be found.<br>*Recorded now so it isn't discovered later:* the bench image carries one uppercase `MRMS`, a text string, and no host fragment. |
+| **CI** | the matrix on the PR head | **The product leg builds.**<br>**Its adsbdb gate:** `CONTROL found` at the **default site, `ConfigMigration.cpp`** (3.1 narrowed the bench case), and PASS.<br>**The OTA URL check (#455):** **PASS** (the edition has an OTA client on the default base).<br>**Every other leg:** as on main. |
+| **Budgets** (graded now) | the product build's `pio` size summary | **flash 1.60-1.85 MB; static RAM 55-70 KB** (section 6) |
+| **The board** | flash `weatherscope-s3-128` on `907069326E64` (standing OK; port from the serial) | **The banner:** `[build] env=weatherscope-s3-128`.<br>**The mDNS name:** `Weatherscope-XXXXXX`.<br>**Wi-Fi:**<br>• it joins with the stored credentials;<br>• *if none survive the flash,* the portal appears, and that is a stop to ask Daniel, not a build fault.<br>**`GET http://<name>.local/`:** **200**, with the Weatherscope form, and **none** of S2's strings in the body. |
+
+**Order:**
+1. This addendum.
+2. The code commit.
+3. The tooling commit, with the per-file sabotage sites named.
+4. S1.
+5. S2 and D2.
+6. D1.
+7. CI.
+8. The budgets.
+9. The board.
+
+**Outside every prediction: stop and decide.**
+
+### A6.3 Corrections and choices made before the code (2026-10-21; for the reviewer)
+
+**A correction: the alert sample A6.1 names doesn't exist as one record.**
+- **What A6.1 says:** `StoredAlertFeed` serves "the event, headline and expiry of the 2026-10-20 sample in `docs/weatherscope-screens.md` §3".
+- **What is there:** read at #425's head `5b0e819` (the doc isn't on main), §3 is a **summary** of which fields about 10 alerts of each type carried, sampled on 2026-10-20. It holds no single alert with an event, a headline and an expiry. Section 2 of this plan carries the same reference.
+- **The replacement, which stays as close to the intent as the API allows:** one alert, fetched once by this session at implementation time from `api.weather.gov/alerts`, the same way A6.1 already has this session fetch the observation. The selection rule is fixed here, before any alert is seen:
+  - the types in 3d's order: Tornado, Snow Squall, Severe Thunderstorm, Flash Flood Warning;
+  - alerts **sent on 2026-10-20 (UTC)**, the sampled day;
+  - **the first type with any such alert, and within it the earliest `sent`.**
+  - If none of the four types has one, stop and ask.
+- **What is kept:** `event`, `headline`, `expires`, and the alert's `sent` for the record. **Not kept:** the polygon, `areaDesc`, zone and SAME codes, ids, URLs and sender addresses. So nothing it stores can hit D2's lowercase hosts.
+- **What depends on it:** nothing graded in A6.2. No 3.2 screen draws an alert. If the reviewer prefers another source, the stored record is swapped. Only the product image changes, and D2 and the budgets are re-read.
+
+**Choices the frozen text left open, written down so they aren't discovered later:**
+- **The env's flags:** `${s3128_hw.build_flags}`, the URL-free board section every s3-128 bench env composes from. That is A6.1's list (`${common.build_flags}`, the s3-128 variant, PSRAM, `ARDUINO_USB_MODE=1`) **plus `ARDUINO_USB_CDC_ON_BOOT=1`**. Claudescope's env and every s3-128 env carry that flag, and without it the banner goes to UART0 instead of the USB port. Then `-DFEATURE_WEATHERSCOPE` and `-DFW_OTA_PREFIX=\"weatherscope-\"`.
+- **The partition table:** `partitions-s3-16mb-bignvs.csv`, the s3-128 SKU's table and the one `907069326E64` carries now. So its NVS, and any stored Wi-Fi credentials, stay where they are. `-DBLIPSCOPE_EXPECT_BIG_NVS` is **not** set: its only reader is `Logbook.cpp`, which the product doesn't compile.
+- **The crop:** `board_build.embed_files = test/fixtures/wx/kdfw-60mi.wxc`, as section 2 says, read through the same `_binary_…` symbols the bench uses.
+- **The stored observation and alert** are compiled constants, generated from the fetched JSON by this session. The device parses no JSON in 3.2; the live parsers come with the proxy path.
+- **The observation:** `KDFW`'s `/observations/latest` at fetch time, keeping `presentWeather` (its raw strings) and `timestamp`. Station coordinates and every other field are dropped.
+- **The interfaces in 3.2:** `WxFeed::Latest()`, `ObsFeed::Latest()`, `AlertFeed::Active()`. The past hour's history is added to `WxFeed` in 3.3, with the 15 frames.
+- **The config page:** location (latitude, longitude) and display (auto-dim, brightness), like Claudescope's location and display blocks. No ntfy and no alert toggles until there are alerts to send.
+
+### A6.4 STOPPED: the budgets read below their bands (2026-10-21; local until ruled)
+
+**How it was seen, ahead of the frozen order.** The code had to be compiled before it could be committed. That compile of the tree that became `4df1065` printed PlatformIO's size summary, so the budgets row (step 8) was read **before** S1. Nothing was changed after it: `4df1065` is that tree.
+
+| | read | frozen band (A6.2) | |
+|---|---|---|---|
+| flash | **1,518,635 B** | 1.60-1.85 MB | **below**, in decimal or binary units |
+| static RAM | **54,600 B** | 55-70 KB | **below**, in decimal or binary units |
+
+**The verdict:** a miss on both, recorded on the frozen bands and **not re-graded**. Per the standing rule, no measured row (S1, S2, D2, D1, CI, the board) runs until the reviewer rules. The tooling commit, which measures nothing, may be prepared locally.
+
+**Kept apart from the verdict: what the bands assumed, and candidate causes. None of them is tested.**
+- **What the bands assumed:** section 6 built them from Claudescope (1,575,195 B flash, 54,992 B RAM) and Speedscope, both on the **s3-146**, plus about 20 KB of Weatherscope code and up to 150 KB of stored data. So they assumed Weatherscope would be **at least Claudescope's size**.
+- **(a) Less code than the basis.** Step 3.2's edition has no feed client, no HTTP or JSON parsing and no ntfy, all of which Claudescope carries. The RAM lands 392 B under Claudescope, which this fits.
+- **(b) A different board.** The basis envs are s3-146 builds (an SPD2010 QSPI panel and its touch driver). This env is the s3-128 (GC9A01, CST816), so the variant's driver code differs.
+- **What would separate (a) from (b),** proposed and not run: build `claudescope-s3-146`'s source with the s3-128 variant flags, and compare its size with both.
+
+**Asked of the reviewer:**
+1. Is the miss recorded as above, with its cause left open, like M4g?
+2. May the remaining rows (S1, S2/D2, D1, CI, the board) proceed as frozen? Their predictions don't depend on the budgets.
+3. Should 3.3's flash and RAM bands be re-derived from this build, `4df1065`, rather than from the s3-146 envs? Any new bands would be frozen in 3.3's addendum, before its code.
+
+### A6.5 Ruled 2026-10-21: A6.3 and A6.4
+
+These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to me":
+
+> 1. A6.4: recorded as a miss, cause left open, as with M4g. Both sizes are under their bands; the model (Claudescope on s3-146 as a floor) was wrong.
+> 2. The other checks (S1, S2/D2, D1, CI, the board) go ahead as frozen. None depends on the sizes.
+> 3. 3.3's size ranges are re-derived from 4df1065's measured sizes, with the basis for each addition stated, and frozen in 3.3's addendum before any 3.3 code.
+> 4. A6.3 is accepted. The selection rule was written before fetching, and one real alert is fine. The USB-serial flag and the large-NVS partition table are accepted too.
+> 5. Push the four local commits now.
+
+**Done:**
+- the four commits were pushed (`b348623`);
+- **the budgets row reads as a miss** (A6.4), with its cause open.
+
+**The base moves.** Main is now `882d49e` (#450, which changes radar firmware). So, as A6 provides, S1 is measured against the PR's actual merge parent. The branch is rebased before S1, and the parent is recorded with S1's result.
+
+### A6.6 S1's base, and what a later move of main means (2026-10-21, written before S1 runs)
+
+- **The base:** main at `6bb61df` (#450 and #458), merged into this branch rather than rebased, so `4df1065` stays the commit the rulings name. S1's base is `6bb61df`, and its head is this branch's tip after the merge.
+- **If #457 merges before this PR does,** main moves again and the merge parent changes. **S1 then re-runs in full against the new parent:** the calibration, base, head, both sabotages and the per-file rounds.
+  - blipscope-5c reports that #457 applies the same patches to the same bytes, so no image should change. That is a claim about code this PR doesn't touch, so it is re-measured, not assumed.
+  - **Predicted for that re-run:** the same verdicts as the first run.
+- **If main moves for any other reason before the merge,** the same rule applies.
+
+### A6.7 S1's first run stopped, ungraded; the re-run's base is `b7d7233` (2026-10-21, written before the re-run)
+
+- **The first run** (base `6bb61df`, head `1818261`) was stopped after its `head` round and partway through `sabotage`, when #457 merged (main `b7d7233`, 23:35:22Z). **No row of it was graded,** and none will be. A6.6 already said a move of main means a full re-run.
+- **The new base:** main `b7d7233`. Since `6bb61df` it carries #460 (proxy only) and #457 (the pre-build patch scripts). Neither changes `src/`, `include/` or `platformio.ini`. It was **merged in** (`8946254`), not rebased.
+- **The re-run:** every round again, in a fresh output directory, with A6.2's predictions **unchanged**, as A6.6 says.
+- **New with #457:** each build's log prints one line per pre-build patch. Those lines are read and reported as the evidence of which patches ran in each env. A FATAL is a failed round, and the run stops.
+
+### A6.8 Step 3.2's results: every measured row as predicted, apart from the ruled budgets miss (2026-10-21)
+
+**The pair measured.**
+- **Base:** main `b7d7233`.
+- **Head:** `eb90e9a`, this branch with main merged in (A6.7).
+- **Method:** one clone, `SOURCE_DATE_EPOCH=1760000000`, R1/R2 as in A5.6.
+- **The tooling:** `tools/weatherscope/s32/s32.py` (committed in `b348623`, before any measured build), run round by round from a separate clone, so the tool never sat on the tree being checked out.
+
+| row (A6.2) | predicted | measured |
+|---|---|---|
+| **S1**, the calibration | 0 differing bytes | **0** |
+| **S1**, 15 other envs | identical outside R1/R2, 15/15 | **15/15.**<br>• R1/R2 differ by 64-65 B in the 13 envs that compile the edited shared files: their debug info moves, and so does the ELF hash.<br>• `animtest-s3-128` and `weatherscope-bench-s3-128` compile none of those files, and read **0 bytes total** |
+| **S1**, the full-matrix sabotage | a change wherever `ConfigurationWebServer.cpp` compiles; `animtest` and the bench at 0 bytes | **15/15.**<br>• All 13 compiling envs changed size.<br>• The non-compiling set is exactly `['animtest-s3-128', 'weatherscope-bench-s3-128']`, both at 0 bytes |
+| **S1**, the per-file sabotages | 6/6, or a file reported as having no site | **5/5 differ outside R1/R2:**<br>• `main.cpp` 5 B;<br>• `ConfigurationWebServer.cpp` 7 B;<br>• `BuildIdentity.h` 3 B;<br>• `DeviceIdentity.h` 5 B;<br>• `FactoryReset.h` 1,198,906 B (the changed literal moved the layout).<br>**`SoakHarness.h` reported as having no ungated site.** `s32.py sites` checked all three conditions, with a control |
+| **S1**, files no build reads | all exit 0 | `skus.py --selftest`, `--validate`, `--check-readers` and `check_release_envs`: **all exit 0** |
+| **S2** | 0 hits; the positive control, the anchor and the sabotage as written | **0 hits in the product.**<br>• Positive control: present in the radar (3/4/5/1), absent from Claudescope, Speedscope and Missileer.<br>• Anchor: the plant found (`local-url` ×1).<br>• Sabotage: finds and names `local-url` ×1, `radius-unit` ×3, `data-source` ×4 |
+| **D2** | 0 hits; the anchor found | **0 hits;** the anchor found `weather.gov` ×1. The bench image reads 0 lowercase and one `MRMS`, as recorded beforehand |
+| **D1** | exactly one naming file; the host test with fakes; both sabotages red on their target | **`WxFeedFactory.cpp` alone.**<br>• The sabotage reports `WeatherscopeManager.cpp` as a second namer.<br>• The host test passes 7/7, and its sabotage fails exactly "the alerts: both served, in order" |
+| **CI** (#462 at `eb90e9a`) | the product leg builds; the adsbdb CONTROL found at `ConfigMigration.cpp`, PASS; the OTA URL check PASS; every other leg as on main | **34 checks: 31 success, 3 skipped** (`promote`, `ship-alert`, `version`, which run only on releases).<br>• Product leg: `CONTROL found`, `PASS`. The site is the default, `src/ConfigMigration.cpp`, found by running the gate's own `plant_target` (the bench resolves to its own file as the control).<br>• `check_ota_url.py`: selftest, wiring and the image all PASS |
+| **Budgets** | flash 1.60-1.85 MB, RAM 55-70 KB | **the miss of A6.4,** ruled in A6.5. The head's sizes are **unchanged** from `4df1065`'s: flash 1,518,635 B, RAM 54,600 B |
+
+**The pre-build patch lines (#457), read from all 31 base and head logs:**
+- **The two LovyanGFX-only envs** print "not a dependency" for ESPAsyncWebServer and WiFiManager, and the LCD_CAM patch already in place.
+- **The other 29,** the product included, print all three patches in place.
+- **No FATAL** anywhere.
+
+**A correction to A6.2's text, not a regrade.**
+- **The error:** its quoted positive-control counts, "3, 3, 4 and 1 in S1 v2's `base2` image", were wrong when written.
+- **The evidence:** that image, rescanned today, reads **3, 4, 5 and 1**, the same as this base. The source counts are identical at `bf7ece6` and `b7d7233`.
+- **The alternative excluded:** a change in the image or the source between then and now. The rescan of the same file rules it out.
+- **The most likely cause:** I counted lines containing each string rather than occurrences. This is not re-established.
+- **What stands:** the graded criterion is presence, and it holds.
+
+**The board, `907069326E64`.** Its port was resolved from the serial (COM6). It ran the head's product image.
+
+| check | predicted | measured |
+|---|---|---|
+| the flash | (a precondition) | `pio run -t upload` exit 0. esptool read MAC `90:70:69:32:6e:64`. `boot_app0` was written to 0x1E000, the big-NVS table's otadata (A6.3) |
+| the banner | `[build] env=weatherscope-s3-128` | **`[build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope`** |
+| the mDNS name | `Weatherscope-XXXXXX` | **`hostname=Weatherscope-326E64`**; the config server announces `http://Weatherscope-326E64.local` |
+| Wi-Fi | joins with the stored credentials; the portal would be a stop | **joined with the stored credentials** (fast join, 5.8 s); no portal |
+| `GET http://<name>.local/` | 200, the Weatherscope form, none of S2's strings | **200 by the mDNS name**, measured after the reset described below. <br>• The title is "Configure Weatherscope".<br>• The named controls are exactly `latitude`, `longitude`, `autodim`, `brightness`, plus the `cfg-form` marker.<br>• S2's four strings appear **0** times.<br>• No placeholder is left unsubstituted.<br>• The build id reads `weatherscope-s3-128 · v18 · no-cloud+weatherscope` |
+
+**Seen on the board, not graded:**
+- `[wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning`. So the factory path answers on the device.
+- `[ota] channel=weatherscope-s3-128 current=18 latest=18`. The device read `version.txt` and fetched nothing: **O6's first half, observed, not forced.** The 404 half waits for the next real version bump, as section 3 says.
+
+**An instrument event, recorded and not graded.**
+- **What happened:** the first `GET` timed out. ARP for the board was `Incomplete` while the router answered, so the board was off the network. This came after the single `bench-trace.ps1` run had ended normally at 02:43:39Z (not killed), its verdict clean.
+- **Two explanations:**
+  - **(a)** the trace's close dropped DTR/RTS in an order the USB-Serial-JTAG reads as "reset into download mode". That is the effect already known from a *killed* trace on E2:08.
+  - **(b)** the app left the network on its own after 02:43:39Z.
+- **The recovery:** `esptool read_mac` (no writes, then a hard reset) brought the app back at 02:47:19Z, and the page then read as predicted.
+- **The test against (b):** at 02:52:54Z, untouched, the board still answered (TCP up, `GET /` 200). That fits (a) and argues against (b) recurring on a timer. It does **not** exclude a one-off (b).
+- **What would settle it, proposed and not run:** open and close a trace with the board's network watched, and see whether it drops.
