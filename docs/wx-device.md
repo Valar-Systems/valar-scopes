@@ -342,3 +342,34 @@ Unfaded, 0 of 15 collide (WD4d above). The options:
 
 **Outside the set, for any row:** stop and report, and don't re-run for a better number. WD5c-f need the server
 live (#443's deploy) and the colours (WD4, after R1 and R2 are ruled).
+
+### WD5 addendum: the transport (frozen before any WD5 code)
+
+**The finding.** WD5's design says the crop is fetched "on the existing fetch task". But `HttpRequestManager`
+has no binary-safe GET:
+- `Get()` returns the body as a `String`, and a WXC1 crop holds zero bytes;
+- the response headers it collects are `X-Cache`, `X-Upstream` and `Cache-Control`, with no `ETag`.
+
+So WD5 needs one new method on the shared client.
+
+**The design:** `HttpRequestManager::GetBytes(url, params, headers, uint8_t* buf, size_t cap, size_t& len, String& etag)`.
+- **Same client:** the same `http` object and keep-alive connection as the other kinds, on the fetch task only.
+- **The cap is enforced:**
+  - A `Content-Length` over `cap` is refused **before anything is read**, and the connection is closed, since
+    a half-read body would poison the keep-alive socket.
+  - A chunked body is read through the existing `ChunkedSocketStream` (`HttpRequestManager.cpp:83`), which
+    yields, so it can't starve the Task-WDT (the EAM boot loop). Reading stops at `cap + 1` bytes, and that
+    means refused.
+- **Reported:** `statusCode`, `len`, and `etag` (from a collected `ETag` header). A 304 carries no body and
+  `len = 0`. No `String` holds the body at any point.
+
+| | check | predicted |
+|---|---|---|
+| **WD5t1** (bench) | binary safety | for one query, the device's received crop and the server's are byte-identical. The device logs `len` and the first 6 bytes of sha256 for each 200; smoke's `/wx` fetch of the same query at the same frame gives the same pair |
+| **WD5t2** (bench) | 304 | a revalidation after an unchanged frame gives status 304, `len` 0, and WD3's held crop is kept (`Outcome::NotModified`) |
+| **WD5t3** (bench, the `[health]` line) | the shared client survives | over the 30 min on-arm of WD5c, the feed's own polls keep their success rate: `fetchHardFailures` grows by **no more** than in the off-arm |
+| **WD5t4** (CI, the artifact) | no `String` body on this path | `GetBytes` contains no `getString(` and no `String` assigned from the stream (a source check in `run.sh`). *Sabotage:* a `getString()` call added to it turns the check red |
+
+**Not checkable on the bench, and so not claimed:** a real over-cap body. The proxy caps every crop at
+32,768 B (WD3(b) and the server's `CAP_BYTES`), so the device never sees one. The refusal is exercised only
+by WD3's host table (`200 oversize`), which tests the policy's reaction, not this transport's.
