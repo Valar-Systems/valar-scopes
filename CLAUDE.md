@@ -414,6 +414,7 @@ So there are two rigs, and picking the wrong one is what costs a measurement:
   is expected to reboot, or whenever the measurement is about the board's own
   timing. A gap in the trace is a fact about the board; a reattach is an
   intervention in it.
+- **Ending a trace puts an S3 board into ROM download mode** (black screen, no network; 3 of 3 normal `bench-trace.ps1` closes on an s3-128, [#465](https://github.com/Valar-Systems/valar-scopes/pull/465); treat every S3 board as exposed): never end a trace on a board that must keep running, and power-cycle to recover (`esptool read-mac`, which writes nothing, also recovers it).
 
 **A port list is never a board-present signal.** `SerialPort.GetPortNames()` --
 the host's SERIALCOMM registry list -- kept listing COM18 for **more than 15 s
