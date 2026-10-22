@@ -373,3 +373,27 @@ So WD5 needs one new method on the shared client.
 **Not checkable on the bench, and so not claimed:** a real over-cap body. The proxy caps every crop at
 32,768 B (WD3(b) and the server's `CAP_BYTES`), so the device never sees one. The refusal is exercised only
 by WD3's host table (`200 oversize`), which tests the policy's reaction, not this transport's.
+
+### WD5 addendum 2: the buffers the pipeline actually needs (frozen before any WD5 code)
+
+**The finding.** WD5's design lists two PSRAM buffers, the crop bytes and the layer sprite. The pipeline
+WD1-WD3 built needs five:
+- **WD3** keeps the held crop when a new 200 is refused, so the bytes that land can't overwrite it;
+- `wxcrop::DecodeInto` expands a crop into a cells grid;
+- `wxlayer::Build`, the function WD2 graded, writes **one code per screen pixel** into its own buffer.
+
+Mapping colours straight out of `ForEachPixel` would skip that buffer, but it would make a second, ungraded path
+through the same logic (CLAUDE.md, "when you add a second path"). So the layer goes through `Build`, unchanged.
+
+| buffer | owner | bytes (s3-128 / 1.46" / 2.1") |
+|---|---|---|
+| landing (the response body) | the fetch task, while a weather request is in flight. **One in flight at most**, so the loop never reads it during a write | 32,768 |
+| held crop (WD3's) | the loop task; replaced only on `Outcome::Replaced` | 32,768 |
+| cells (`DecodeInto`'s output) | the loop task, at rebuild. **406 × 406**, P1's largest box with its float-rounding cell (#451 §5.1.1); `DecodeInto` refuses a crop that wouldn't fit (`BufferTooSmall`) rather than overrun | 164,836 |
+| pixel codes (`Build`'s output) | the loop task, at rebuild | S² = 57,600 / 169,744 / 230,400 |
+| the layer, RGB565 | the loop task; read by the band loop | 2 S² = 115,200 / 339,488 / 460,800 |
+| **total** | | **403,172 / 709,580 / 919,004** |
+
+All of them are allocated once, at the first enable, with `MALLOC_CAP_SPIRAM`. **A failed allocation leaves the
+layer off** and logs which buffer failed. It never falls back to the internal heap. WD5d's check is unchanged:
+`psram_free` falls by the printed total ± 1,024 B.
