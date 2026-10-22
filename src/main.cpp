@@ -848,6 +848,11 @@ void loop()
     BandCanvas canvas(backbuffer, bandY);
     const bool firstPass = (bandY == 0);
 
+#if defined(FEATURE_CLOUD_FEED) && !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+    // Weather under the planes (docs/wx-device.md, WD5): on the radar scope, with a crop WxPolicy allows, the cached
+    // layer replaces the clear, then the sweep and the planes draw over it. Everywhere else: cleared as before.
+    if (!appManager.DrawWeatherUnder(canvas))
+#endif
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)

@@ -19,7 +19,7 @@ class BandCanvas {
 public:
     BandCanvas(LGFX_Sprite& sprite, int offsetY) : s_(sprite), oy_(offsetY) {}
 
-    // Escape hatches for the one site that blits another sprite onto the band.
+    // Escape hatches for the sites that blit another sprite onto the band (the photo card, and the weather layer).
     LGFX_Sprite& sprite() const { return s_; }
     int offsetY() const { return oy_; }
 

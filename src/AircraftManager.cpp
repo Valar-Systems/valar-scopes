@@ -24,6 +24,7 @@
 #include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
 #include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
+#include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
 // Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
@@ -905,6 +906,11 @@ void AircraftManager::Initialise()
     // that were never saved"). test/host/check_wx_wiring.py reads this line and the config page's default.
     wxLayerEnabled = configServer.GetStoredString("wx-layer") == "true";
     if (wxLayerEnabled) AllocateWeatherBuffers();
+#ifdef WX_LOOK_AB
+    // The bench env only (docs/wx-device.md, WD4 addendum 2): Daniel compares look A and look B on the glass.
+    wxLook = configServer.GetStoredString("wx-look") == "B" ? wxs2::Look::B : wxs2::Look::A;
+#endif
+    wxSpriteReady = false;   // a save can change the look, the home or the range: rebuild on the next shown frame
 #endif
 
     // paint-and-fade blips: unset (or "true") = on. Only takes effect with the sweep on.
@@ -3119,6 +3125,7 @@ bool AircraftManager::AllocateWeatherBuffers()
         }
         total += b.bytes;
     }
+    wxSprite.setBuffer(wxLayer565, SCREEN_SIZE, SCREEN_SIZE, 16);   // no allocation: the PSRAM buffer above
     wxBuffersOk = true;
     // WD5d reads this line: psram_free must fall by `total` within 1,024 B.
     Serial.printf("[wx] buffers: total %u B; psram_free %u -> %u\n", (unsigned)total, (unsigned)before,
@@ -3183,6 +3190,66 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
     Serial.printf("[wx] status=%d len=%u claimed=%u sha=%s outcome=%s frame=%lu next=%lus\n", status, (unsigned)len,
                   (unsigned)claimed, sha, kOutcome[(int)o], (unsigned long)wxState.frameEpoch,
                   (unsigned long)(wxState.intervalMs / 1000));
+}
+
+// Rebuilt only when its inputs change -- a new crop, the home, the zoom's view radii, the rotation, the look (WD2's
+// inputs) -- so a steady frame is one sprite copy instead of a fill (Part B, B1).
+bool AircraftManager::RebuildWeatherLayer()
+{
+    wxcrop::Header h;
+    if (wxcrop::DecodeInto(wxHeld, wxHeldLen, wxCells, kWxCellsMax, &h) != wxcrop::Status::Ok) {
+        Serial.println("[wx] rebuild: the held crop did not decode; the layer stays off");
+        return false;
+    }
+    const unsigned long t0 = millis();
+    // ProjectAt's inputs, exactly: the planes and the weather are one projection (WD1, WD2).
+    wxlayer::View v;
+    v.homeLat = lat;
+    v.homeLon = lon;
+    v.rLat = viewRadLat;
+    v.rLon = viewRadLon;
+    v.rotSin = rotSin;
+    v.rotCos = rotCos;
+    v.size = SCREEN_SIZE;
+    wxlayer::Build(h, wxCells, v, wxPixels);
+    wxSprite.fillScreen(0);
+    for (int y = 0; y < SCREEN_SIZE; ++y)
+        for (int x = 0; x < SCREEN_SIZE; ++x) {
+            const uint32_t c = wxs2::Pixel888(wxPixels[(size_t)y * SCREEN_SIZE + x], x, y, wxLook);
+            if (c != 0) wxSprite.drawPixel(x, y, c);   // RGB888 in; the sprite stores its own 16-bit format
+        }
+    wxBuiltLat = lat;
+    wxBuiltLon = lon;
+    wxBuiltRadLat = viewRadLat;
+    wxBuiltRadLon = viewRadLon;
+    wxBuiltRotSin = rotSin;
+    wxBuiltRotCos = rotCos;
+    wxBuiltLook = wxLook;
+    wxSpriteReady = true;
+    wxNeedsRebuild = false;
+    // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
+    Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
+    return true;
+}
+
+bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
+{
+    wxShowing = wxpolicy::Show::Nothing;
+    // Only the radar scope itself: not the List, Stats or Follow faces, not under a card, not the no-location or
+    // night-clock faces, which own their whole screen.
+    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) return false;
+    const time_t now = time(nullptr);
+    wxShowing = wxpolicy::WhatToShow(wxState, true, now > 1600000000, (uint32_t)now);
+    if (wxShowing != wxpolicy::Show::Crop) return false;
+    const bool stale = wxNeedsRebuild || !wxSpriteReady || wxBuiltLat != lat || wxBuiltLon != lon ||
+                       wxBuiltRadLat != viewRadLat || wxBuiltRadLon != viewRadLon || wxBuiltRotSin != rotSin ||
+                       wxBuiltRotCos != rotCos || wxBuiltLook != wxLook;
+    if (stale && !RebuildWeatherLayer()) {
+        wxShowing = wxpolicy::Show::Nothing;
+        return false;
+    }
+    wxSprite.pushSprite(&canvas.sprite(), 0, -canvas.offsetY());
+    return true;
 }
 #endif
 
@@ -3656,6 +3723,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     }
     DrawRadarCircles(backbuffer);
     DrawStaleIndicator(backbuffer); // escalating banner: STALE -> STALE <age> -> NO DATA <age>
+    DrawWeatherNote(backbuffer);    // weather outside coverage: a note, not an empty overlay (WD3 f)
 
     // Hoisted out of the per-aircraft loop below: one cheap age comparison per
     // frame instead of one per contact (up to MAX_AIRCRAFT of them), so the ladder
@@ -3788,10 +3856,19 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                                           : lgfx::color888(0, 255, 0));
             const uint32_t markerColor = scaleColor(baseColor, blip);
 
-            if (displayTriangles)
+            // Over weather, look A outlines each plane in black, 1 px out (WD5; WD4 addendum 2), so a faded plane
+            // is never the same colour as the cell under it (WD4f). With no layer shown, nothing here changes.
+            const bool outline = WxOutlineNow();
+            if (displayTriangles) {
+                if (outline)
+                    for (int oy = -1; oy <= 1; ++oy)
+                        for (int ox = -1; ox <= 1; ++ox)
+                            if (ox != 0 || oy != 0) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
                 DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
-            else
+            } else {
+                if (outline) backbuffer.fillCircle(x, y, 4, 0u);
                 backbuffer.fillCircle(x, y, 3, markerColor);
+            }
         }
 
         // special contact (military / special callsign / helicopter): a coloured
@@ -4913,6 +4990,28 @@ std::pair<int, int> AircraftManager::ProjectAt(float predLat, float predLon, dou
     // The projection lives in include/RadarProjection.h, ONCE: the weather layer inverts the same function
     // (docs/wx-device.md, WD1; held bit-identical to this function's old body by test_radar_projection.cpp).
     return radarproj::Project(predLat, predLon, lat, lon, rLat, rLon, rotSin, rotCos, SCREEN_SIZE);
+}
+
+bool AircraftManager::WxOutlineNow() const
+{
+#ifdef FEATURE_CLOUD_FEED
+    return wxShowing == wxpolicy::Show::Crop && wxs2::Outline(wxLook);
+#else
+    return false;
+#endif
+}
+
+void AircraftManager::DrawWeatherNote(BandCanvas& backbuffer) const
+{
+#ifdef FEATURE_CLOUD_FEED
+    if (wxShowing != wxpolicy::Show::OutsideCoverage) return;
+    static const char kNote[] = "No weather coverage";   // WD3 (f): said, never shown as an empty (dry) overlay
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(140, 140, 140));
+    backbuffer.drawString(kNote, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(kNote) / 2, SCREEN_SIZE - 44);
+#else
+    (void)backbuffer;
+#endif
 }
 
 bool AircraftManager::ZoomCulled(int x, int y) const

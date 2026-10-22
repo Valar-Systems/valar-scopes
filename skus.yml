@@ -39,6 +39,9 @@ skus:
   # ---- SHIPPING ------------------------------------------------------------
   # A customer can buy this today and a device in the field runs it.
   - { env: blipscope-s3-128, status: shipping, slug: s3-128 }
+  # blipscope-s3-128-wxlook: the shipping env + -DWX_LOOK_AB, the weather look A/B bench (docs/wx-device.md, WD4
+  # addendum 2). BUILD-ONLY, never a slug: CI builds it so its bench marker's --expect has a real image.
+  - { env: blipscope-s3-128-wxlook, status: build-only }
 
   # ---- BUILD-ONLY ----------------------------------------------------------
   # Compiled so the tree does not rot. No slug, no asset, no fleet, no veto.
