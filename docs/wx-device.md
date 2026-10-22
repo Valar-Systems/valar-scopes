@@ -305,3 +305,40 @@ Unfaded, 0 of 15 collide (WD4d above). The options:
 - **(c) Change the fade floor.** That is a change to the radar's own look, outside this work.
 
 **What happens until the ruling:** WD5's predictions are written next. WD4's code is not.
+
+## WD5, 2026-10-22: the wiring's design and predictions (frozen before any WD5 code)
+
+**The design**, at the places it touches (main `b7d7233` + this branch):
+- **The switch:** NVS key `wx-layer` (the name is provisional), `"true"` / `"false"`, read the way `triangle` is
+  (`AircraftManager.cpp:869`). **Absent means off.** The radar config form gets one checkbox, saved with
+  `SaveToggle("wx-layer")`. It is a new key with an off default, so it needs no `ConfigMigration` entry. A later
+  ruling to make it default **on** would need one (CLAUDE.md, "a default only reaches keys that were never saved").
+- **The fetch:** `FetchKind::Weather` joins `{ Feed, CloudConfig, Airports }` (`AircraftManager.cpp:372`) on the
+  existing fetch task, so there is still one request in flight across every kind. **Weather is queued behind the
+  feed and never preempts it.** The loop task asks `WxPolicy` (WD3) whether a request is due, and builds
+  `GET <cloud-url>/api/v1/blipscope/wx/cref?lat=<2 dp>&lon=<2 dp>&r=<lround km>` with the feed's device headers,
+  and `If-None-Match` as WD3(d) allows. The result is handed back to the loop task, as the other kinds are.
+- **The buffers, all PSRAM** (`heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`), allocated the first time the layer is
+  enabled and **never freed to make room for anything** (CLAUDE.md: a PSRAM buffer costs the internal heap
+  nothing):
+  - the crop bytes, 32,768 B (WD3(b)'s cap);
+  - the layer, one RGB565 S × S sprite (115,200 B on the s3-128), rebuilt only on a new crop, a zoom or range
+    step, a rotation change or a home change (WD2's inputs).
+- **The draw order.** In `main.cpp`'s band loop (`main.cpp:846`), **on the radar screen with a crop that WD3(c)
+  allows to be shown**, the layer's band is pushed **instead of** `fillScreen(black)`; otherwise the fill runs as
+  today. Then the sweep, then `appManager.Draw` (rings, planes, labels) as today. So the order is
+  **weather → sweep → rings → planes → labels**, and every other screen is untouched.
+- **The black outline:** while the layer is shown, each plane marker (triangle or dot) is drawn over a black
+  copy 1 px larger. While it isn't shown, nothing changes.
+
+| | check | predicted |
+|---|---|---|
+| **WD5a** (CI, the artifact) | the string `/api/v1/blipscope/wx/` in each built ELF | **present** in every radar SKU's ELF (the anchor: the grep can see it); **absent** from every non-radar edition's ELF |
+| **WD5b** (host, read from source) | the switch's default in both of its readers: `AircraftManager`'s read, and the config page's `prefs.getString("wx-layer", …)` | **off in both**. *Sabotage:* a `"true"` default in either one turns it red |
+| **WD5c** (bench, the server's record of what the device sent: Analytics Engine, E2:08's id) | three 30-minute arms: factory default (off), then on, then off again (the first 2 min after each change left out) | **off: 0 `/wx` requests. On: 27-33, every one 200 or 304. Off again: 0.** The on arm is the control that shows the instrument can see a `/wx` request |
+| **WD5d** (bench, the `[health]` line) | across the first layer build | `psram_free` falls by **the buffers' total ± 1,024 B** (the firmware prints each allocation's size). The internal heap's `largest` stays **within 2 KB** of its value before enabling |
+| **WD5e** (bench, `/diag/fb`, layer on, echo on the screen; each capture fetched 3× because mid-draw frames happen) | rings over weather, outlines | (1) every ring pixel has the ring's colour: **0 exceptions**; (2) every plane marker has a fully black 1 px border: **0 markers without one**. The analysis script is committed before the captures |
+| **WD5f** (bench, the off state is today's radar) | `/diag/fb` with the layer off, against the same scene drawn by the image without WD5 | **0 markers with a black border**, and frame p95 within **±1 ms** of the old image (same board, same hour band) |
+
+**Outside the set, for any row:** stop and report, and don't re-run for a better number. WD5c-f need the server
+live (#443's deploy) and the colours (WD4, after R1 and R2 are ruled).
