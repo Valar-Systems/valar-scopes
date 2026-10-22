@@ -435,3 +435,35 @@ staging and then production **only after S2 has passed**, and only once this PR 
 **I3's miss, and why it is recorded rather than re-graded.** MRMS frame times are not on an exact 120 s grid. The two frames here are 00:18:37 and 00:20:39. The figure I3 leaned on was M4a's "mode 120 s", which describes the most common step, not a fixed one. So I3 was frozen with a criterion tighter than anything measured. The frame does advance, which is what I3 was for. The clause stays a miss.
 
 **P3's miss.** The second FAIL is pre-existing. Since `e4c768a` (2026-09-23), production refuses fake device ids before the token gate, and that check's fixture id `a1b2c3d4e5f6a7b8` is on the fake allowlist. The identical FAIL is in that day's 16:08 production baseline, taken with the old credential. Staging passes the check. The options are on #461.
+
+### I5′ (the reviewer's ruling of 2026-10-22, pasted by Daniel; frozen before any new read)
+
+**The ruling, as received:** I5 is recorded **BLIND**, not passed, and it is not re-read until one passes.
+I5′ is accepted:
+- **Primary instrument:** a direct listing of the bucket (object count and total bytes), not the analytics.
+- **Reads:** twice, at least 10 minutes apart, both at 75 minutes or more after the deploy.
+- **Predicted:** 31 objects in both reads (30 frames plus `latest`), with total bytes inside a stated band, and the
+  two reads agree.
+- **The analytics** are reported beside it, as data, not graded.
+- **The 01:42Z reads don't count,** because they were taken before the ruling.
+
+**The instrument.** `wrangler` 4.35 has no object listing, so the listing is a throwaway Worker run with
+`wrangler dev --remote`: a preview session bound to `blipscope-wx`, deploying nothing. It pages
+`bucket.list()` to the end and returns, for every object:
+- the count and the summed `size`;
+- the frame count and the oldest and newest frame epochs;
+- the keys that aren't frames.
+
+**Its control, run before either read:** the listing must contain `wx/cref/latest`, and the epoch in that
+record (fetched with `r2 object get`) must equal the newest frame epoch the listing reports. A listing that can't
+see the record it is checked against is not believed.
+
+| | measured | predicted |
+|---|---|---|
+| **I5′** | two direct listings of `blipscope-wx`, at least 10 min apart, both after 01:31:21Z (deploy 00:16:21Z + 75 min) | **31 objects in both**: 30 under `wx/cref/frames/` plus `wx/cref/latest`, and no other key. **Total bytes in [385,353,750, 385,353,850]** in both: 30 × 12,845,120 = 385,353,600, plus the `latest` record at 150-250 B. The two reads agree on the count |
+
+| outcome | meaning |
+|---|---|
+| **(a) as predicted** | pruning holds the bucket at one hour of frames |
+| **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | a read landing in the seconds between a frame's put and its prune (the same check does both), or cadence jitter fitting 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
+| **(c)** anything else: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing | pruning or the instrument is wrong. **Stop and decide** |
