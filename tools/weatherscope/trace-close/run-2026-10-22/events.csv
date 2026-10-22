@@ -1,0 +1,31 @@
+utc,event,detail
+2026-10-22T22:49:13.685Z,address,weatherscope-326e64.local -> <lan address redacted>
+2026-10-22T22:49:13.891Z,watcher,started job 1
+2026-10-22T22:49:14.052Z,precondition,GET / #1 = 200
+2026-10-22T22:49:44.160Z,precondition,GET / #2 = 200
+2026-10-22T22:49:44.165Z,C-start,window 1
+2026-10-22T22:52:44.193Z,C-end,window 1
+2026-10-22T22:52:44.222Z,C-start,window 2
+2026-10-22T22:55:44.238Z,C-end,window 2
+2026-10-22T22:55:44.257Z,C-start,window 3
+2026-10-22T22:58:44.270Z,C-end,window 3
+2026-10-22T22:58:44.414Z,T-trace-open,trial 1 port=COM6
+2026-10-22T22:59:44.623Z,T-trace-closed,trial 1
+2026-10-22T23:01:44.636Z,T-end,trial 1
+2026-10-22T23:01:45.063Z,discriminator,T1 connects=True rc=0
+2026-10-22T23:01:45.875Z,recovery,T1 read-mac rc=0
+2026-10-22T23:02:06.991Z,recovered,T1 up=True
+2026-10-22T23:02:07.068Z,T-trace-open,trial 2 port=COM6
+2026-10-22T23:03:07.171Z,T-trace-closed,trial 2
+2026-10-22T23:05:07.184Z,T-end,trial 2
+2026-10-22T23:05:07.587Z,discriminator,T2 connects=True rc=0
+2026-10-22T23:05:08.384Z,recovery,T2 read-mac rc=0
+2026-10-22T23:05:23.502Z,recovered,T2 up=True
+2026-10-22T23:05:23.580Z,T-trace-open,trial 3 port=COM6
+2026-10-22T23:06:23.690Z,T-trace-closed,trial 3
+2026-10-22T23:08:23.706Z,T-end,trial 3
+2026-10-22T23:08:24.114Z,discriminator,T3 connects=True rc=0
+2026-10-22T23:08:24.912Z,recovery,T3 read-mac rc=0
+2026-10-22T23:08:39.035Z,recovered,T3 up=True
+2026-10-22T23:08:44.873Z,D,connects=False rc=2
+2026-10-22T23:10:44.894Z,D-end,

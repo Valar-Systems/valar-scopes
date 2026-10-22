@@ -1047,3 +1047,28 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 
 **The classifier is tested before the run.** `tools/weatherscope/trace-close/selftest.py` builds one synthetic run per outcome (both kinds of (v) included) and requires `run.ps1 -AnalyseOnly` to return that outcome.
 - **Result: 6/6, after one correction to a case.** The first (i) case put its drop inside trial 3's open trace, and the classifier rightly read it as (v). The case was corrected, not the classifier.
+
+### A7.3 The result: (i), (a) confirmed (2026-10-22, run 22:49-23:11Z)
+
+The script classified the run itself, from its frozen table:
+
+> `VERDICT (A7.2): (i) (a) confirmed: a normal trace close can put this board into download mode.`
+
+| | measured |
+|---|---|
+| the precondition | `GET /` 200 twice, 30 s apart |
+| **C** (3 × 180 s, untouched) | **0 drops** in 270 polls |
+| **T** (3 normally-ending traces, 60 s each) | **3 drops in 3 closes.** Each began 1.7-2.0 s after the close (22:59:46Z, 23:03:09Z, 23:06:25Z) and lasted 67-70 polls, until the recovery |
+| the discriminator on each drop (`--before no-reset --after no-reset read-mac`) | **connects, 3 of 3.** The ROM loader was answering, so the board was in download mode |
+| the recovery (`read-mac`) | 3 of 3; back on the network in 15-21 s |
+| **D** (the discriminator while the app runs) | **fails to connect** (rc 2), as required. **Its own close dropped nothing:** no drop in the 120 s after it |
+| drops while a trace was open | 0 |
+
+**What it settles:**
+- The 2026-10-21 event (A6.8) was the trace's close, not the app.
+- Every normal end of `bench-trace.ps1` on this board puts it into download mode (3 of 3 here).
+- An esptool `no-reset` open and close does not.
+
+**The run's wrapper exited 2.** That is `$LASTEXITCODE` from D's deliberate `no-reset` read, which must fail, and not an error in the run. The watcher CSV and the event log are committed in `tools/weatherscope/trace-close/run-2026-10-22/`, with the board's LAN address redacted, so `run.ps1 -AnalyseOnly` re-derives the verdict from them. The serial traces are not committed: they carry the Wi-Fi network's name.
+
+**For 3.3 (A8.4):** row (i)'s capture method applies.
