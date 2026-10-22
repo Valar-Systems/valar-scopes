@@ -23,6 +23,8 @@
 #include "SpecialAircraft.h"
 #include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
 #include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
+#include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
+#include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
 // Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
 // (10 min, RadarZoom.h) with no touch. RADAR_ZOOM_IDLE_MS is a BENCH-ONLY override --
@@ -369,7 +371,7 @@ static constexpr size_t MAX_AIRCRAFT = 60;
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
 // The same task also serves the cloud feed and its /api/v1/blipscope/config fetch (kind), so all
 // blocking cloud I/O shares the one TLS client + keep-alive connection.
-enum class FetchKind : uint8_t { Feed, CloudConfig, Airports };
+enum class FetchKind : uint8_t { Feed, CloudConfig, Airports, Weather };
 
 struct FetchRequest {
     FetchKind kind = FetchKind::Feed;
@@ -392,6 +394,10 @@ struct FetchRequest {
                                      // Same rule and the same reason as otaMem: taken on
                                      // the LOOP task at request build time, because the
                                      // take writes NVS and commits the delta.
+    uint8_t* wxBuf = nullptr;        // Weather: the loop's landing buffer (PSRAM). Written only while this
+                                     // request is in flight -- one in flight at most, behind fetchInFlight.
+    String wxIfNoneMatch;            // Weather: WxPolicy's If-None-Match, "" for none
+    wxpolicy::Query wxAsked;         // Weather: the query this request carries
 #endif
 };
 struct FetchResult {
@@ -404,6 +410,11 @@ struct FetchResult {
     long dataEpoch = 0;              // cloud blips snapshot time t (0 = not cloud)
     CloudFeed::Config config;        // CloudConfig kind only
     std::vector<CloudFeed::CloudAirport> airports; // Airports kind only
+    int wxStatus = 0;                // Weather: HTTP status (<= 0 = network failure)
+    size_t wxLen = 0;                // Weather: bytes landed (0 unless a whole body fit)
+    size_t wxClaimed = 0;            // Weather: the length the server claimed (> cap = refused for size)
+    String wxEtag;                   // Weather: the reply's ETag
+    wxpolicy::Query wxAsked;         // Weather: the query this answers
 #endif
     // Measurement carried back to the loop task, which owns the counters (this
     // struct crosses a queue; the fetch task must not touch loop state).
@@ -887,6 +898,14 @@ void AircraftManager::Initialise()
     // sweep beam: unset (or "true") = on, matching the radar's drawScan gate in main.cpp
     const String renderSweep = configServer.GetStoredString("scanline");
     displaySweep = renderSweep.isEmpty() || renderSweep == "true";
+
+#ifdef FEATURE_CLOUD_FEED
+    // Weather under the planes (docs/wx-device.md, WD5): ABSENT MEANS OFF. A new key with an off default needs
+    // no ConfigMigration entry; making the default ON later would (CLAUDE.md, "a default only reaches keys
+    // that were never saved"). test/host/check_wx_wiring.py reads this line and the config page's default.
+    wxLayerEnabled = configServer.GetStoredString("wx-layer") == "true";
+    if (wxLayerEnabled) AllocateWeatherBuffers();
+#endif
 
     // paint-and-fade blips: unset (or "true") = on. Only takes effect with the sweep on.
     const String renderFade = configServer.GetStoredString("fade");
@@ -1755,6 +1774,13 @@ void AircraftManager::Update()
             lastFetch = now;
             RequestFetch();
         }
+#ifdef FEATURE_CLOUD_FEED
+        // Weather (docs/wx-device.md, WD5) is queued BEHIND the feed: only on a pass where the feed is not due,
+        // so it never preempts a poll. Off -- the default -- means WxPolicy answers no, ever (WD3 (a)).
+        else if (wxpolicy::ShouldFetch(wxState, WxEnabled(), (uint32_t)now)) {
+            RequestWeather();
+        }
+#endif
     }
 }
 
@@ -2695,6 +2721,33 @@ void AircraftManager::RunFetchTask()
             continue;
         }
 
+        // Weather crop (docs/wx-device.md, WD5): a binary GET into the loop's landing buffer, on this same
+        // task and keep-alive connection. One in flight at most, so the loop never reads the buffer mid-write.
+        if (req->kind == FetchKind::Weather) {
+            std::vector<std::pair<String, String>> hdrs = CloudFeed::Headers(req->cloudKey);
+            if (!req->wxIfNoneMatch.isEmpty()) hdrs.push_back({ "If-None-Match", req->wxIfNoneMatch });
+            size_t len = 0;
+            String etag;
+            const HttpResult r = http.GetBytes(
+                CloudFeed::WeatherUrl(req->cloudBase, "cref"),
+                { { "lat", wireloc::Center(req->lat) },   // 2 dp on the wire, as WxQuery() assumes
+                  { "lon", wireloc::Center(req->lon) },
+                  { "r", String((int)lround(req->rangeKm)) } },
+                hdrs, req->wxBuf, wxcrop::kMaxBytes, len, etag);
+            res->ok = r.success;
+            res->wxStatus = r.statusCode;
+            res->wxLen = len;
+            res->wxClaimed = r.bodyBytes;
+            res->wxEtag = etag;
+            res->wxAsked = req->wxAsked;
+            if (!r.success && r.statusCode <= 0)
+                fetchHardFailures++;
+            delete req;
+            if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
+                delete res;
+            continue;
+        }
+
         // Airport-overlay fetch (/api/v1/blipscope/airports): same one-off GET pattern as the
         // config fetch above. The reply is server-capped (<= 60 rows, ~2 KB),
         // so the streaming decode stays trivial on the C3-class heap.
@@ -3023,6 +3076,114 @@ bool AircraftManager::RequestCloudAirports()
     delete req;
     return false;
 }
+
+// ---- Weather under the planes (docs/wx-device.md, WD5) -------------------------------------------------
+
+bool AircraftManager::WxEnabled() const
+{
+    return wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty();
+}
+
+// The query exactly as the request carries it: lat/lon through the wire's own rounding (wireloc::Center ==
+// Fmt2(Round2(v))) and r as lround of the CONFIGURED range, like the airports fetch -- one crop serves every
+// zoom level (WD2 graded the layer at zoom x1, x0.6 and x0.3 of the crop's own r).
+wxpolicy::Query AircraftManager::WxQuery() const
+{
+    wxpolicy::Query q;
+    q.lat100 = (int32_t)lround(wireloc::Round2(lat) * 100.0);
+    q.lon100 = (int32_t)lround(wireloc::Round2(lon) * 100.0);
+    q.rKm = (int32_t)lround(rangeKmCfg);
+    return q;
+}
+
+bool AircraftManager::AllocateWeatherBuffers()
+{
+    if (wxBuffersOk) return true;
+    if (wxAllocTried) return false;   // a failed allocation leaves the layer off; not retried on every save
+    wxAllocTried = true;
+    const size_t px = (size_t)SCREEN_SIZE * (size_t)SCREEN_SIZE;
+    struct Buf { const char* name; size_t bytes; uint8_t** p; };
+    Buf bufs[] = { { "landing", wxcrop::kMaxBytes, &wxLanding }, { "held", wxcrop::kMaxBytes, &wxHeld },
+                   { "cells", kWxCellsMax, &wxCells }, { "pixels", px, &wxPixels },
+                   { "layer565", 2 * px, &wxLayer565 } };
+    const uint32_t before = ESP.getFreePsram();
+    size_t total = 0;
+    for (Buf& b : bufs) {
+        // PSRAM only: never a fallback to the internal heap, which the TLS handshake needs (CLAUDE.md).
+        *b.p = (uint8_t*)heap_caps_malloc(b.bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        Serial.printf("[wx] alloc %s %u B: %s\n", b.name, (unsigned)b.bytes, *b.p ? "ok" : "FAILED");
+        if (*b.p == nullptr) {
+            for (Buf& f : bufs) { if (*f.p) { heap_caps_free(*f.p); *f.p = nullptr; } }   // all or none
+            Serial.println("[wx] buffers FAILED: the layer stays off");
+            return false;
+        }
+        total += b.bytes;
+    }
+    wxBuffersOk = true;
+    // WD5d reads this line: psram_free must fall by `total` within 1,024 B.
+    Serial.printf("[wx] buffers: total %u B; psram_free %u -> %u\n", (unsigned)total, (unsigned)before,
+                  (unsigned)ESP.getFreePsram());
+    return true;
+}
+
+bool AircraftManager::RequestWeather()
+{
+    if (!WxEnabled()) return false;
+    const wxpolicy::Query q = WxQuery();
+    wxpolicy::OnQuery(wxState, q);    // (d) a location or range change drops the held crop and its ETag
+    FetchRequest* req = new FetchRequest();
+    req->kind = FetchKind::Weather;
+    req->cloudBase = cloudUrl;
+    req->cloudKey = cloudKey;
+    req->lat = lat;
+    req->lon = lon;
+    req->rangeKm = rangeKmCfg;
+    req->wxBuf = wxLanding;
+    req->wxAsked = q;
+    if (const char* inm = wxpolicy::IfNoneMatch(wxState, q)) req->wxIfNoneMatch = inm;
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
+        fetchInFlight = true;
+        return true;
+    }
+    Serial.println("[wx] request DROPPED: fetch queue full");
+    delete req;
+    return false;
+}
+
+void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, const String& etag,
+                                     const wxpolicy::Query& asked)
+{
+    // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
+    // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
+    wxcrop::Header h;
+    const bool whole = status == 200 && len > 0 && len == claimed;
+    const bool valid = whole && wxcrop::Validate(wxLanding, len, &h) == wxcrop::Status::Ok;
+    bool all14 = valid;
+    if (valid)
+        wxcrop::ForEachRun(wxLanding, len, [&](uint16_t, uint16_t, uint32_t, uint8_t code) {
+            if (code != wxcrop::kCodeNoCoverage) all14 = false;
+        });
+    const uint32_t bytes = (uint32_t)(claimed > len ? claimed : len);
+    const wxpolicy::Outcome o = wxpolicy::OnResponse(wxState, asked, status, bytes, valid, valid ? h.frameEpoch : 0,
+                                                     all14, etag.isEmpty() ? nullptr : etag.c_str(), (uint32_t)millis());
+    if (o == wxpolicy::Outcome::Replaced) {
+        memcpy(wxHeld, wxLanding, len);
+        wxHeldLen = len;
+        wxNeedsRebuild = true;
+    }
+    // WD5t1: every 200's length and the first 6 bytes of its sha256, to match against the server's bytes for
+    // the same query and frame.
+    char sha[13] = "-";
+    if (status == 200 && len > 0) {
+        uint8_t d[32];
+        mbedtls_sha256(wxLanding, len, d, 0);
+        for (int i = 0; i < 6; ++i) snprintf(sha + i * 2, 3, "%02x", d[i]);
+    }
+    static const char* kOutcome[] = { "replaced", "not-modified", "kept", "error" };
+    Serial.printf("[wx] status=%d len=%u claimed=%u sha=%s outcome=%s frame=%lu next=%lus\n", status, (unsigned)len,
+                  (unsigned)claimed, sha, kOutcome[(int)o], (unsigned long)wxState.frameEpoch,
+                  (unsigned long)(wxState.intervalMs / 1000));
+}
 #endif
 
 void AircraftManager::ConsumeFetchResult()
@@ -3047,6 +3208,11 @@ void AircraftManager::ConsumeFetchResult()
     AckBootReasonReport(res->ok);
 
 #ifdef FEATURE_CLOUD_FEED
+    if (res->kind == FetchKind::Weather) {
+        ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxAsked);
+        delete res;
+        return;
+    }
     if (res->kind == FetchKind::CloudConfig) {
         if (res->ok) {
             cloudCfg = res->config;

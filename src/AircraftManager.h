@@ -27,6 +27,7 @@
 #include "FollowRouting.h" // which face, and whether a swipe can produce one
 #include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
+#include "WxPolicy.h" // weather under the planes: when to fetch, what to keep (pure; WD3)
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
@@ -629,6 +630,23 @@ private:
     // every loop pass.
     unsigned long cloudAirportsRetryMs = 0;
 
+    // Weather under the planes (docs/wx-device.md, WD5). OFF unless "wx-layer" is "true". The five buffers are
+    // PSRAM, allocated once at the first enable and never freed (WD5 addendum 2); a failed allocation leaves the
+    // layer off. wxLanding is written by the FETCH task while a weather request is in flight (one at most, behind
+    // fetchInFlight); everything else here is the loop task's.
+    bool wxLayerEnabled = false;
+    bool wxBuffersOk = false;
+    bool wxAllocTried = false;
+    wxpolicy::State wxState;
+    uint8_t* wxLanding = nullptr;     // the response body lands here
+    uint8_t* wxHeld = nullptr;        // WD3's held crop, replaced only on Outcome::Replaced
+    size_t wxHeldLen = 0;
+    uint8_t* wxCells = nullptr;       // wxcrop::DecodeInto's output, kWxCellsMax
+    uint8_t* wxPixels = nullptr;      // wxlayer::Build's output, one code per screen pixel
+    uint8_t* wxLayer565 = nullptr;    // the layer, RGB565, two bytes per screen pixel
+    bool wxNeedsRebuild = false;      // a new crop (or view) has not been built into the layer yet
+    static constexpr size_t kWxCellsMax = 406u * 406u;   // #451 P1: the largest box, with its rounding cell
+
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.
     bool lbEnabled = false;
@@ -1126,6 +1144,11 @@ private:
     // because the retry condition is then already satisfied-away. See #129.
     bool RequestCloudConfig();                  // loop: queue a /api/v1/blipscope/config fetch on the fetch task
     bool RequestCloudAirports();                // loop: queue a /api/v1/blipscope/airports fetch on the fetch task
+    bool RequestWeather();                      // loop: queue a /api/v1/blipscope/wx/cref fetch (WD5), behind the feed
+    void ConsumeWeather(int status, size_t len, size_t claimed, const String& etag, const wxpolicy::Query& asked);
+    bool AllocateWeatherBuffers();              // the five PSRAM buffers, once (WD5 addendum 2)
+    bool WxEnabled() const;                     // switch on, buffers allocated, cloud source configured
+    wxpolicy::Query WxQuery() const;            // the query the request carries, from the wire's own rounding
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
     // loop: queue a /api/v1/blipscope/enrich lookup.

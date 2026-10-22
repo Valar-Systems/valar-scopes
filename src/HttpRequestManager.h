@@ -87,6 +87,16 @@ public:
     // aircraft with many fields each) -- keeps the parsed document small on a tight heap.
     [[nodiscard]] HttpResult GetJson(const String& url, JsonDocument& doc, const JsonDocument& filter, const std::vector<std::pair<String, String>>& params = {}, const std::vector<std::pair<String, String>>& headers = {});
 
+    // Binary-safe, bounded GET: the weather crop (docs/wx-device.md, WD5 transport addendum). The body goes into
+    // `buf`, never a String, because a WXC1 crop holds zero bytes. `cap` is enforced BEFORE reading when the reply has a
+    // Content-Length, and at cap + 1 when it is chunked; a close-delimited reply is refused, since nothing bounds it
+    // in advance. A 304 has no body (len = 0). result.bodyBytes is the length the server claimed (cap + 1 for an
+    // over-cap chunked body), so a caller can tell "too big" from "empty". On any refusal or error status the
+    // socket is closed: a half-read body would poison the keep-alive connection for the next request.
+    [[nodiscard]] HttpResult GetBytes(const String& url, const std::vector<std::pair<String, String>>& params,
+                                      const std::vector<std::pair<String, String>>& headers,
+                                      uint8_t* buf, size_t cap, size_t& len, String& etag);
+
     // GET over https validated against a PINNED root chain, on the SAME shared client.
     //
     // Every other request here goes through HTTPClient::begin(url). For an https URL that

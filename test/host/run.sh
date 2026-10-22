@@ -1180,6 +1180,20 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4) =="
+# Read from the source: "wx-layer" is OFF by default in both of its readers, and GetBytes holds no String body.
+# The selftest plants one break per check in a copy and requires exactly that check to go red.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the weather wiring cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/check_wx_wiring.py" "$ROOT"
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/test/host/check_wx_wiring.py" "$ROOT" --selftest
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+echo
 echo "== pre-build patches: which libraries count as declared (docs/prebuild-patches.md, T2) =="
 # The rule that decides "FATAL" vs "not a dependency" when a patch target is missing. It errs
 # toward FATAL: a library is declared if its name appears anywhere in a lib_deps entry.
