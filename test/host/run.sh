@@ -1179,6 +1179,30 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# S2, the weather layer's colours (include/WxS2.h; WD4 and its addenda), for BOTH bench looks (A 40 %, B 25 %). The
+# planes' colours are read from src/AircraftManager.cpp. Its sabotages: test/host/sabotage_wx_s2.py, run below.
+echo
+echo "== WxS2 =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_s2.cpp" -o "$OUT/test_wx_s2.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the S2 colour test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_s2.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the S2 test did not run or could not read the planes' colours (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the S2 sabotages cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/sabotage_wx_s2.py" "$ROOT" "$CXX"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 echo
 echo "== WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4) =="
 # Read from the source: "wx-layer" is OFF by default in both of its readers, and GetBytes holds no String body.
