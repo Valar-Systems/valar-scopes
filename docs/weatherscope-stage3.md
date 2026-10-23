@@ -1668,3 +1668,34 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 - **What graded the original band:** nothing. No 3.3 image had been built when this was written. The change is forward, made before the measurement, as ruled.
 
 **3.3c continues as frozen:** D1-D4, then the scenario choices, D6, and K3.
+
+### A8.13 D1-D4: the checks and their sabotages, frozen before either is run (2026-10-23)
+
+**The checks.**
+- **D1** is `make_loop.mts --check`, run from `rv460/proxy` (main at `2484bda`) against the committed `test/fixtures/wx/loop/`. It regenerates the crops in memory and compares every byte.
+- **D2-D4** are a new host test, `test/host/test_wx_loop.cpp`, with its own `run.sh` block (ruled for 3.3's host tests in A8.8). It reads `MANIFEST.json` and grades each crop with the **device's** decoder, `include/WxCrop.h`, which is read and not changed.
+  - **D2** grades exactly A8.10's three criteria: `Validate` Ok; the decoded cells hash to the manifest's `codesSha256`; ≤ 32,768 B. It prints the manifest's byte count beside the file's, without grading it.
+  - **D3** compares each frame with the first.
+  - **D4** grades the 14 consecutive gaps. Each gap is labelled with the later frame of its pair.
+  - **D5** is printed and not graded (ruled a miss, A8.12).
+
+**The predictions for the real data:**
+- **D1:** all 15 crops and `MANIFEST.json` print "identical"; exit 0.
+- **D2-D4:** 44 checks (15 + 15 + 14), 0 failures; exit 0. Every gap is 240 s.
+
+**The sabotages.** Each runs on a **copy** of the loop directory. Each asserts that its plant changed the copy and that the committed fixture's hashes are unchanged afterwards. The unmodified copy runs first as the control: 0 failures. Frames are named by their file's time, never by position:
+
+| sabotage | the plant | predicted failing set, exactly |
+|---|---|---|
+| S-D1 | `212400`'s byte 40 XOR 0x01, then `--check` against the copy | `212400` "DIFFERS", the other 14 and the manifest "identical", exit 1 |
+| S-D2a | `212400`'s byte 32 (its first run byte) XOR 0x10: the code changes, the run length does not | {D2:212400} |
+| S-D2b | `211200`'s manifest `codesSha256` replaced with `211600`'s | {D2:211200} |
+| S-D2c | the test's 32,768 B bound lowered to 3,000 in a copy of the test | D2 for the 11 frames over 3,000 B by the manifest: {212000, 212400, 212800, 213200, 213600, 214000, 214400, 214800, 215200, 215600, 220000} |
+| S-D3 | `214000`'s `latNwMicro` (bytes 12-15) + 1 | {D3:214000} |
+| S-D4a | `213200`'s `frameEpoch` (bytes 8-11) + 100 s | {D4:213200, D4:213600}: the gaps 340 s and 140 s |
+| S-D4b | the manifest's `214800` and `215200` entries swapped | {D4:215200, D4:214800, D4:215600}: the gaps 480, −240 and 480 s |
+
+**Notes:**
+- **S-D2a** tests a code change, not a length change, so `Validate` may still pass and only the cell hash can catch it. Whether `Validate` passes is printed, not graded.
+- **S-D2c** proves the bound is live in the test. It cannot isolate the bound from `Validate`: `WxCrop.h`'s own `kMaxBytes` is the same 32,768, and a real crop that large would fail both.
+- **If any sabotage fails a set other than its own, the control fails, or the real data misses its prediction:** stop, record it, and wait for a ruling.
