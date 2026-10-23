@@ -860,3 +860,30 @@ Also ruled: W5's miss and the rollback were handled exactly as frozen.
 **The optional colo question cannot be answered from the analytics.** `RequestMetric` has a `colo` field, but the
 per-request data point writes only `route, cache, upstream, model, dev, fw` (`proxy/src/metrics.ts:217`). So whether
 the five 503s came from another colo is not recorded anywhere.
+
+### S3′'s results so far (deployed 2026-10-23)
+
+- **What deployed:** main `28ab5ec`. Since `26510c0` it carries under `proxy/` #461 (the `WX` binding), #470 (a test)
+  and #472 (the ingest's own files).
+- **Read from the artifact:** the production dry-run bundle holds **no** ingest code (0 matches for `noaaRequest`,
+  `NOAA_BUCKET`, `pruneOld`). It does hold the wx handler (`not_configured` ×4), which shows the grep can see code. So
+  the proxy differs from `806775e9` only by the binding.
+- **The start condition,** read before each deploy: `latest` was 18:32:37Z (153 s old) and 18:36:41Z (137 s old).
+- **Staging:** 18:35:16-18:35:26Z, version `1820a40d-fbf4-4b08-bf74-51a942ae98e6`, `/healthz` `28ab5ec`. Its bindings
+  are identical to S3's staging list.
+- **Production:** 18:38:58-18:39:07Z, version **`9fec1c7c-0591-4556-bd39-011a8ec2123d`**, `/healthz` `28ab5ec`.
+  - The rollback target, read just before: **`806775e9`**.
+  - Its bindings against `806775e9`'s: **only `env.WX (blipscope-wx)` added**.
+
+| | read | verdict |
+|---|---|---|
+| **W2, staging** | 18:35:36Z `frameAgeS` **180**; 18:38:47Z **127**, 191 s later. The same frame would read 371 | **as predicted** |
+| **W2, production** | 18:39:22Z **162**; 18:42:31Z **115**, 189 s later. The same frame would read 351 | **as predicted** |
+| **W3** | `smoke-prod.sh`: **PASS 34, FAIL 0, SKIPPED 0**. `/wx`: HTTP 200, 36 B, `WXC1`, ETag `"wx1-cref-1792780601-..."`, "wired" | **as predicted** |
+| **W4** | 18:39:40Z: 200, `WXC1`, ETag `"wx1-cref-1792780717-..."`; then at once with `If-None-Match`: **304** | **as predicted** |
+| **W6** | every `/wx` answer so far: 200, 200, 304 | **no 5xx: as predicted** |
+| **W5** | A = `[18:44:07, 19:44:07)`, B = `[17:39:07, 18:39:07)`, with S3′'s re-registered 5xx clause | read at 19:50 and 19:55Z |
+
+**W5's classifier, checked before its read:** run on S3's own W5 windows, it finds exactly the 5 known `/blips` 503s
+with no upstream (0.379 % of 1,321), no other 5xx, and reports the classification readable. So it can see what it is
+meant to catch.
