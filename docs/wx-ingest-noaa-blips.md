@@ -71,3 +71,29 @@ injected, so the tests take milliseconds.**
 | **I5″** | as frozen | its 70-minute window restarts on the new code, and its predictions are unchanged |
 
 **Outside the set:** stop and report. In production, roll the ingest back to its current version, `47ad5010`, first.
+
+## Results (host, Windows, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **N1** | 522, then OK: `stored`, `attempts {list: 2, get: 1}`. *Sabotage* (1 attempt): throws "NOAA list 522 (1 attempt)" | **as predicted** |
+| **N2** | a hung first attempt is aborted at its 60 ms test timeout; `stored`, `attempts.list` 2, well inside the bound. *Sabotage* (signal not honoured): still hung at 400 ms | **as predicted** |
+| **N3** | 525 three times: one `NoaaError`, `attempts` 3, "NOAA list 525 (3 attempts)" | **as predicted** |
+| **N4** | 403: `attempts` 1 | **as predicted** |
+| **N5** | F1 and F3 stored, F2 missing: `backfilled` F2, `latest` stays at F3; the next check `already-stored`. *Sabotage* (newest-only selection, planted in `ingest.ts`): N5 red | **as predicted**. The plant also turned **WS5 (a) and N6** red. Both depend on backfill, and the doc named only N5 |
+| **N6** | empty bucket, 5 listed: check 1 builds the newest (1 download), check 2 the next newest (1 download) | **as predicted** |
+| **N7** | download 522, then OK: `stored`, `attempts {list: 1, get: 2}` | **as predicted** |
+| **logging** | through the worker's `checkAll`: a retried success logs `wx_ingest` with `attempts.list` 2, and an exhausted one logs `wx_ingest_error` with `attempts` 3 | **as predicted** |
+| **N8** | the proxy suite: **48 files, 671 tests** (660 + 11 new), all pass; `tsc` clean | **as predicted on the result. A MISS on one clause:** N8 named **two** tests to change, (a) and (b). **Only (a)** needed it: (b)'s assertions are about `latest`, not the second run's status, and it passes unmodified |
+
+**Found while writing the code, and fixed in it:** the worker handed `ingestOnce` the fetch `(u) => fetch(u)`, which
+**drops the abort signal**. Every timeout would have done nothing in production, and the host tests could not see it,
+because they call `ingestOnce` directly. The worker now passes `init` through, and `checkAll` takes an injectable
+fetch, log sink and options. A new test replaces `globalThis.fetch` and asserts that **the worker's default fetch
+passes an `AbortSignal` on every request.** *Sabotage* (the old `(u) => fetch(u)`, planted in the worker): that test
+red, and only it. Every plant was restored byte-identical (sha256).
+
+**Also run before the push:** `skus.py --check-readers` OK and `check_device_ids.py` OK. Running only my own checker is
+how #469 missed `sku-readers`.
+
+**Live rows NL1-NL3** follow review, merge and the ingest's deploy.
