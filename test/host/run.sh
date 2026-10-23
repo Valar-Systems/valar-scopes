@@ -1234,7 +1234,10 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
-if [ -n "$PY" ]; then
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; K3's reference (scenarios.py --check) cannot be checked."
+  fail=1
+else
   "$PY" "$ROOT/tools/weatherscope/loop/scenarios.py" --check
   [ "$?" -ne 0 ] && fail=1
 fi
