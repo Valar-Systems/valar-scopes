@@ -1758,3 +1758,52 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 | S-D6a | in a copy of `WxTowns.h`, the **first** town's name gains "é" (UTF-8, two bytes) before " city" | D6(b) fails exactly {the first town}; every other town passes |
 | S-D6b | in a copy, the **last** town's first coordinate's final digit is changed | `--check` against the copy: DIFFERS, exit 1 |
 | control | an unmodified copy | D6(b): 0 failures; `--check`: identical, exit 0 |
+
+### A8.15 D6: results; K3 made concrete before its code (2026-10-23)
+
+**D6: as frozen in A8.14.**
+- **The source:** the 2025 file was present, `2025_Gaz_place_national.zip`, 1,214,053 B, sha256 `49644173a453469d9bd77fb7a493b027f87567e209edaf2078aac7543ac2ee29`. It has the columns `USPS|GEOID|GEOIDFQ|ANSICODE|NAME|LSAD|FUNCSTAT|ALAND|AWATER|ALAND_SQMI|AWATER_SQMI|INTPTLAT|INTPTLONG`, so no stop condition applied.
+- **The count:** the file holds 10,232 LSAD-25 rows, and **171** lie within 60 mi. `src/weatherscope/WxTowns.h` is 9,443 B of source; its content sha256 is `6a811126d105f325bbf0fae86cf123d676812b4f214fc273b06423ee702ecfd6`.
+- **D6(a):** `--check` reads "identical".
+- **D6(b):** 171 checks, 0 failures. Three names that carry "City" keep it: "Haltom City", "Mobile City" and "Royse City" each lose only the trailing " city" (L4's rule).
+- **The sabotages:** the control failed nothing; S-D6a failed exactly {D6:1}; S-D6b read DIFFERS with exit 1. The real file hashed the same before and after.
+- **Found while building D6(b): `WxLogic.h` is not self-contained.** It calls `strtod` but includes only `<math.h>`, `<stdio.h>` and `<string.h>`. `test_wx_logic.cpp` compiles only because `<string>` and `<vector>` pull in `<cstdlib>` indirectly, and the firmware would through `Arduino.h`.
+  - `test_wx_towns.cpp` includes `<cstdlib>` first, with a comment saying why.
+  - The one-line fix, `#include <stdlib.h>` in `WxLogic.h`, is **not made here**: 3.3a accepted that header as it stands. It is proposed for its next touch (3.3b).
+
+**K3, made concrete.** A8.10 fixed the predictions. These are the details it left open.
+
+- **The scenarios are built at run time from a loop frame** by a new header, `src/weatherscope/WxScenarios.h`, which the board's 3.3d build will use too. **No coordinate is stored.**
+  - The location is the crop's centre, from its header.
+  - The warning's square is the centre ±0.25°, closed (5 vertices).
+  - The storm position is the centre of the nearest echo cell, found by the same row-major scan as `NearestEchoMi` (first minimum wins). It is written into the motion string at **6 decimals**, so it parses back exactly to the cell centre.
+  - The motion string follows NWS's form: `<expires-local ISO>...storm...240DEG...30KT...<lat>,<lon>`.
+  - `expiresIso` is the frame clock + 2,700 s, written on the −05:00 clock with a `-05:00` suffix; `expiresUtc` is the same instant.
+  - "Approaching" is `EchoWithin` on the frame, computed, not asserted.
+  - The here-now observation is `"-RA"`, valid, at the frame clock − 300 s.
+- **The test:** `test/host/test_wx_scenarios.cpp`, with its own `run.sh` block. It reads the frames named in `scenarios.ref.json` and that file's reference values. The text checks are computed from the built warning directly, so a wrong screen fails only the `choose` check.
+
+| check | expected (A8.10) | graded as |
+|---|---|---|
+| K3.dry.choose / K3.dry.headline | Dry / "" | equality |
+| K3.app.choose / K3.app.headline | PrecipApproaching / "PRECIP WITHIN 15 MI" | equality |
+| K3.here.choose / K3.here.headline | PrecipNow, Rain / "RAIN NOW" | equality |
+| K3.warn.choose | Warning, index 0 | equality |
+| K3.warn.lineA | ["HAIL 1 IN", "WIND 60 MPH"] | equality, n = 2 |
+| K3.warn.travel | "MOVING NE 35 MPH" | equality |
+| K3.warn.distance | the reference's 14.328384 mi; the text "14 MI" | \|Δ\| ≤ 5e-7 (half the reference's last digit), **and** the text equal |
+| K3.warn.bearing | the reference's 108.2334°; "E" | \|Δ\| ≤ 5e-5, **and** the compass point equal |
+| K3.warn.until | "UNTIL 5:09 PM" (the reference) | equality |
+
+**13 checks.** The predicted result: 13 of 13, 0 failures.
+
+| sabotage (a plant in a copy of `WxScenarios.h`) | predicted failing set, exactly |
+|---|---|
+| S-K3a: the observation 7,201 s old, not 300 s | {K3.here.choose, K3.here.headline} |
+| S-K3b: the square shifted +0.5° in latitude, so it no longer covers the centre | {K3.warn.choose} |
+| S-K3c: the storm position is the crop's NW cell, not the nearest echo | {K3.warn.distance, K3.warn.bearing} |
+| S-K3d: `expiresIso` written on the UTC clock with a `Z` suffix | {K3.warn.until} |
+| S-K3e: the motion from 60° rather than 240° | {K3.warn.travel} |
+| control: the real header | nothing |
+
+**If anything is off-prediction:** stop, record it, and wait for a ruling.
