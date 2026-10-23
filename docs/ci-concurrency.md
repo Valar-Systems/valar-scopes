@@ -48,3 +48,20 @@ the PR's whole diff, and both heads carry all six workflow files, so all six run
 **Outside the set:** stop and report.
 
 **C2's second head.** This line is the commit that supersedes the first, for C2 (pushed less than 60 s after it).
+
+## The `sku-readers` miss on `42dce6c`, and its fix (frozen before the fix; committed locally, not pushed)
+
+**The miss.** `firmware` / `sku-readers` failed on head B. `scripts/skus.py --check-readers` refuses any unreviewed
+file that mentions `firmware.yml`, and `check_workflow_concurrency.py` named it as one selftest plant's target. The
+checker does not parse the build matrix, but the sweep matches the text, which is its job. **It was outside the
+set:** no C row predicted it. The checker was run before the push, the repo-wide sweep was not. The `print-cards` push
+run is a second miss, ruled 2026-10-23 and recorded on #469 with its cause.
+
+**The fix.** The "block removed" plant moves from `firmware.yml` to `no-traffic-captures.yml`, so the checker no
+longer names that file, and `skus.py`'s reviewed list does not widen.
+
+| | check | predicted |
+|---|---|---|
+| **F1** | `python3 scripts/skus.py --check-readers` on the tree | passes (it failed on `42dce6c`, naming the one file) |
+| **F2** | C1's checker and its selftest | the checker passes. Selftest: the block removed, red on **`no-traffic-captures.yml`** only; `cancel-in-progress: true`, red on `workers.yml` only; no `run_id` fallback, red on `device-ids.yml` only |
+| **F3** | CI at the new head, once pushed after a ruling | **0 failures**, every check counted |
