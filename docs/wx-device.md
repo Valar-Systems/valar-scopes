@@ -429,3 +429,33 @@ R2 names the outline only for A. If Daniel wants B with the outline too, that is
 | **WD4f** (reported, not graded) | each look against the sweep-faded planes, f = 0.30-1.0 | **A:** codes 2, 3, 5 and 13. **B:** code 13 against the NoData grey only |
 | **WD4e** (CI, the artifact) | the select's label `Weather look (bench)` | **absent** from the shipping `blipscope-s3-128` ELF; **present** in `blipscope-s3-128-wxlook`'s ELF (the positive control) |
 | *sabotages* | B drawn at A's factor; code 13 drawn as the table's black; 14 drawn as 0 | WD4b(B) red; WD4b red at code 13; WD4c red |
+
+### WD5 addendum 3, 2026-10-23: the dot outline has gaps, found on the host before any bench run (frozen before the fix)
+
+**What was found.** WD5's design says each plane marker "is drawn over a black copy 1 px larger". The triangle does
+that by construction: 8 copies of itself, one per 1 px offset. The **dot** does it with one black disc of radius 4
+under the radius-3 dot. LovyanGFX's `fillCircle` (`LGFXBase.cpp:302-339`, the copy in this env's `.pio/libdeps`),
+ported line for line, shows that disc misses **8 of the dot's 32** 8-neighbours: (±4, ±2) and (±2, ±4). So every
+dot marker over weather would have 8 gaps in its outline, with the cell showing through beside the plane.
+
+**Why the bench would not have caught it.** WD5e grades the outline on glass, but markers are triangles by default
+(`prefs.getString("triangle", "true")`). A bench at defaults never draws a dot.
+
+**The fix.** The dot is outlined the same way as the triangle: 8 copies of the dot, one per 1 px offset, in black,
+then the dot. One loop serves both marker kinds. Nothing changes while the layer is not shown.
+
+| | check | predicted |
+|---|---|---|
+| **WD5o** (host, `test/host/test_wx_outline.cpp`, reading the marker block from `src/AircraftManager.cpp`) | the dot's outline, under the ported `fillCircle` | the outline is drawn as offset copies of the dot at the dot's own radius, and it covers **every** 8-neighbour of the dot: **0 gaps**. *Control, in the same test:* the old construction (one disc 1 px larger) gives **8 gaps**, so the test can see a gap. *Sabotage:* putting back `fillCircle(x, y, 4, 0u)` turns WD5o red |
+| **WD5e** | unchanged | it grades the triangles on glass. The dot path is graded only by WD5o |
+| **WD5f** | unchanged | the outline is drawn only while the layer is shown, so the off state does not move |
+
+**Reported, not graded: the rings and the green rain codes.** The range rings are (0,200,0), (0,64,0) and
+(0,32,0) (`AircraftManager.cpp:4901-4903`). WD4 compared the weather colours with the planes' colours, never the
+rings'. In RGB565:
+- **Look B:** code 2 is (0,64,0), **exactly** the middle ring, so the ring vanishes where light rain sits under it.
+  Code 4 is (0,36,0), 4 levels off the inner ring.
+- **Look A:** code 4 is (0,58,0), 6 levels off the middle ring. No code equals a ring.
+
+The rings are drawn over the weather, so WD5e(1) passes either way: it cannot see this. It is an input to
+Daniel's A/B choice on the bench, not a defect, and nothing is changed for it here.
