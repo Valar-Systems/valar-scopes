@@ -1199,6 +1199,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's town subset (src/weatherscope/WxTowns.h) through LabelText, docs/weatherscope-stage3.md A8.14: D6(b).
+# D6(a), regeneration, needs the Census zip: tools/weatherscope/towns/make_towns.py <zip> --check. Its sabotages:
+# python -I test/host/sabotage_wx_towns.py <zip>
+echo
+echo "== WxTowns =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_towns.cpp" -o "$OUT/test_wx_towns.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope towns test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_towns.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the towns test did not run (exit $rc). This is the RIG, not the data."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
