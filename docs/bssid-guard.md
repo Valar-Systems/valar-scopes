@@ -69,3 +69,21 @@ time, and the vectors use `{MAC1}` / `{MAC2}` tokens that `check_redaction_vecto
 file of this PR holds a literal MAC after `bssid`.**
 
 **Outside the set:** stop and report.
+
+## Results (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **B1** | `check_bssid.py` on the branch, with its own new files tracked: **985 tracked files, exactly the 13 allowed by name; OK** | **as predicted** |
+| **B2** | selftest: (a) the fast-join form, red on `bench-logs/plant-a.log` only; (b) the other case and separator, red on `docs/plant-b.md` only; (c) the jdiag form, red on `bench-logs/plant-c.log` only; (d) one of the 13 with its MAC removed: **stale** | **as predicted** |
+| **B3** | 10 vectors through `pwsh` (`redact-line.ps1`) and `python` (`redact_line.py`): **identical, and equal to the expected column**. *Sabotage:* the BSSID rule removed from the pwsh side turns 3 vectors red, and from the python side turns 3 red | **as predicted** |
+| **B4, from the artifacts** | `blipscope-s3-128`'s ELF holds the fast-join string `bssid=..:..:..:..:%02X:%02X` and **not** the old 6-byte one. `blipscope-s3-128-joindiag`'s ELF holds the two-byte jdiag string `bss ..:..:..:..:%02X:%02X` and not the old one, plus the two-byte fast-join string. CI builds the rest | **as predicted** |
+| **B5** | `check_device_ids.py` OK; `skus.py --check-readers` OK. `redact-line.ps1`, `bench-capture.ps1` and `bench-trace.ps1` parse with 0 errors, and `Protect-Line` loads. `fresh-boot-capture.py` parses | **as predicted** |
+
+**Found while checking B4, reported and not changed:** the jdiag line lives only in `blipscope-s3-128-joindiag`, a bench
+env that is **not in `skus.yml`, so CI never builds it**. The default SKU's ELF holds neither jdiag form, which is why
+B4's jdiag clause was read from a local build of that env.
+
+**One expectation corrected before the first run.** The password vector's expected output is what `Protect-Line`
+already produced: `Using Password: <redacted> by bench-capture>`. The second rule rewrites the first word of the
+first rule's text. That behaviour is pre-existing, and the vectors pin it rather than change it.
