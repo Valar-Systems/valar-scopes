@@ -941,3 +941,49 @@ identical in every field.**
 **W5: as predicted.** **S3′ is complete, with every row as predicted:** the binding check at each deploy, W2 in both
 envs, W3, W4, W5 and W6. Production serves `/wx` crops from `9fec1c7c` (`28ab5ec`). S3's W5 miss stays in the record
 above.
+
+### I5‴: the pruning rule itself, frozen 2026-10-23 before any I5‴ read
+
+**The ruling (reviewer chat, pasted by Daniel), verbatim:** "I5″ stays a miss, outcome (c), as recorded. A count band
+such as 29-31 frames still depends on where a read falls against NOAA's cadence, the ingest's lag and the prune's
+timing, so it is not adopted. I5‴ tests the pruning rule itself instead, derived from the code and frozen now, before
+any I5‴ read.
+
+Two reads, at least 10 minutes apart. Each read is taken only if both of these hold:
+(i) the ground-truth gate passes as ruled;
+(ii) the bucket's newest frame was written (its LastModified, W) between T - 150 s and T - 15 s, so the check that
+wrote it has finished its prune.
+Otherwise the read is 'not taken' and is retried at least 10 minutes later. If no pair of reads qualifies within 24 h,
+that is outcome (d).
+
+In each read:
+(1) every frame's epoch is a NOAA epoch;
+(2) no frame's epoch is older than W - 3,720 s. The writing check started no earlier than W - 90 s and pruned at its
+start - 3,600 s; that leaves 30 s of slack;
+(3) there is no key other than wx/cref/frames/<epoch>.wxg and wx/cref/latest;
+(4) the bytes equal frames x 12,845,120 plus latest's size, and latest's epoch equals the newest listed frame.
+Counts and ages are printed, not graded.
+
+Before the reads, sabotage the evaluator:
+- a frame added at W - 3,800 s turns (2) red;
+- a stray key turns (3) red;
+- one byte off turns (4) red.
+
+Both reads meeting (1)-(4) is outcome (a): pruning holds the bucket at one hour. Anything else: stop."
+
+**How it is read.** At read time T, one listing feeds everything:
+- **The bucket:** R2's S3 API, `ListObjectsV2` over the whole bucket, with each key's `Size` and `LastModified`, plus a
+  `GetObject` of `wx/cref/latest` for its epoch.
+- **NOAA:** its own listing, for the UTC day or days that cover the gate's span and every frame in the bucket.
+- **(i):** every NOAA epoch in `[T - 3,600, T - 240]` is a bucket frame.
+- **(ii):** `W` is the `LastModified` of the frame with the greatest epoch, and `T - 150 <= W <= T - 15`.
+- **(1)-(4)** are graded as quoted. Counts and ages are printed, not graded.
+
+**The evaluator's sabotages, run on copies of a real listing** (never on the bucket). Each must turn **exactly** its row
+red:
+- **(2):** a frame added at the NOAA epoch nearest `W - 3,800 s` that is at most `W - 3,720 s`. Using a real NOAA epoch
+  keeps (1) green. It is given 12,845,120 B, and the total is raised to match, which keeps (4) green. **Only (2) red.**
+- **(3):** a stray key, `wx/cref/frames/stray.part`, of 0 B. **Only (3) red.**
+- **(4):** one frame's size changed by one byte. **Only (4) red.**
+
+The sabotages' results are recorded before the first read.
