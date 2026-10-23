@@ -211,8 +211,9 @@ namespace WiFiManagerHelpers
         if (esp_wifi_get_config(WIFI_IF_STA, &conf) != ESP_OK) return false;
         if (conf.sta.ssid[0] == '\0') return false; // never provisioned -> portal path
 
-        Serial.printf("[WiFi] fast join: ch=%u bssid=%02X:%02X:%02X:%02X:%02X:%02X\n",
-                      (unsigned)ch, bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+        // Only the BSSID's last two bytes: a full access-point MAC is what Wi-Fi positioning databases key
+        // on, and customers' logs can carry this line (docs/bssid-guard.md; the 2026-10-23 ruling).
+        Serial.printf("[WiFi] fast join: ch=%u bssid=..:..:..:..:%02X:%02X\n", (unsigned)ch, bssid[4], bssid[5]);
         WiFi.begin(reinterpret_cast<const char*>(conf.sta.ssid),
                    reinterpret_cast<const char*>(conf.sta.password), ch, bssid);
 

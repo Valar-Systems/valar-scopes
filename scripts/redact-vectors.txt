@@ -1,0 +1,14 @@
+# Redaction vectors: <input> TAB <expected>. scripts/check_redaction_vectors.py runs every input through BOTH
+# scripts/redact-line.ps1 (PowerShell) and scripts/redact_line.py (Python), and requires both to equal <expected>.
+# {MAC1} and {MAC2} are filled in by the checker with placeholders (never a real access point): no literal MAC is
+# committed here, because scripts/check_bssid.py would refuse this file. docs/bssid-guard.md.
+13:18:49 [WiFi] fast join: ch=1 bssid={MAC1}	13:18:49 [WiFi] fast join: ch=1 bssid=<bssid redacted>
+[WiFi] fast join: ch=6 BSSID: {MAC2}	[WiFi] fast join: ch=6 BSSID: <bssid redacted>
+[jdiag]   bss {MAC1} ch=11 band=2.4 rssi=-60 enc=wpa2	[jdiag]   bss <bssid redacted> ch=11 band=2.4 rssi=-60 enc=wpa2
+[WiFi] fast join: ch=1 bssid=..:..:..:..:EE:F1	[WiFi] fast join: ch=1 bssid=..:..:..:..:EE:F1
+[  3389][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND	[  3389][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
+*wm:[4] Using Password: hunter2-placeholder	*wm:[4] Using Password: <redacted> by bench-capture>
+*wm:[3] AP:  -51 Placeholder-SSID	*wm:[3] AP:  -51 <ssid redacted>
+*wm:[3] DUP AP: Placeholder-SSID	*wm:[3] DUP AP: <ssid redacted>
+*wm:[4] <div><a href='#p' data-ssid='Placeholder'>Placeholder</a></div>	*wm:[4] <scan entry redacted>
+[health] heap 123456 psram 456789 frames 120	[health] heap 123456 psram 456789 frames 120
