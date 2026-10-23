@@ -459,3 +459,14 @@ rings'. In RGB565:
 
 The rings are drawn over the weather, so WD5e(1) passes either way: it cannot see this. It is an input to
 Daniel's A/B choice on the bench, not a defect, and nothing is changed for it here.
+
+### Results for WD5 addendum 3 (host, Windows MinGW, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **WD5o**, on the code before the fix | "one centred disc at radius 4": **8 gaps**, WD5o red; the control 8; the order check passes | the test sees the defect it was written for |
+| **WD5o**, on the fix | "8 offset copies at radius 3": **0 gaps**; the control 8; the order check passes | **as predicted** |
+| **sabotages** | the old disc put back: **WD5o** red, and only it. The outline drawn after the dot: **WD5o order** red, and only it | **as predicted** |
+| **the host suite** | `run.sh`: **ALL HOST TESTS PASSED** | |
+
+WD5e and WD5f are bench rows and are not read yet.
