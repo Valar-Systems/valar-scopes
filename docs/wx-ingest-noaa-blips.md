@@ -155,3 +155,13 @@ Two frames were `backfilled`.
     record are not.
 - **So it looks like lost event batches,** not anything about how a run went. Separating that further needs a source
   outside Workers Logs: a Tail Worker, Logpush, or Cloudflare.
+
+### NL1b and NL3 (read 2026-10-23)
+
+| | read | verdict |
+|---|---|---|
+| **NL1b** | read at **18:53:00Z**, inside its window (18:52:49-19:12:49Z). NOAA holds **15 frames** in `[18:17:49, 18:47:49]`, and **all 15 are in the bucket** | **as predicted** |
+| **NL1, both halves** | 30 of 30 NOAA frames from deploy + 5 to deploy + 65 min are in the bucket | **as predicted** |
+| **NL3** | `workersInvocationsAdaptive`, 17:42:49-19:42:49Z: **115 invocations, 0 errors**, all `success`. `cpuTimeP50` 797 ms, **`cpuTimeP99` 2,489 ms** (< 5,000); `wallTimeP99` 96,063 ms | **as predicted** |
+
+**So NL1-NL3 are all as predicted.** The NL1 restatement was accepted as a re-registration made before any read.
