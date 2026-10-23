@@ -541,3 +541,90 @@ control once, and the race is recorded. **A second mismatch is outcome (c).**
 
 **Unchanged:** the two reads at least 10 min apart, the 31 objects, the byte band
 [385,353,750, 385,353,850], outcomes (a)-(c), and the analytics reported beside them as data, not graded.
+
+### S2's results (deployed 2026-10-23; main `4752767`)
+
+**Staging** 14:48Z, version `8d935932`. **Production** 14:49:21-14:49:38Z, version
+`e31772f4-7b27-45dd-9132-238ed2f085e1`. The rollback target was `7224e0dc` (`2460deb`).
+
+| | read | verdict |
+|---|---|---|
+| **P1** | production `/healthz`: `commit` **4752767**, `wx` **"not_configured"**; staging the same | **as predicted** (as restated) |
+| **P2** (the hard gate) | production's deploy output: `BEND_SNAPSHOT (BendSnapshotDO)`, **`SITE_FEED_BEND ("off")`**, no `WX`; staging the same with `("on")` | **as predicted** |
+| **P3 after** | `smoke-prod.sh`, production, E2:08's credential: **PASS 34, FAIL 0, SKIPPED 0**; `/wx` HTTP 503 `not_configured`, "not wired yet" | **as predicted** |
+| **P4** | staging: PASS 21, FAIL 10, SKIPPED 3. Every FAIL is a **401**: staging holds a different device-key secret | reported, not graded |
+| **P6** | fleet `[14:49:38, 15:04:38)`, read at 15:08:30 and 15:10:33Z, identical: **446 requests, 5 devices, every one 200** | **as predicted** |
+| **P5** | A = `[14:54:38, 15:54:38)`, read at 16:00:05 and 16:02:54Z, **identical in every field**; B = `[13:49:38, 14:49:38)`. Fleet 5xx in A **0**, 4xx in A **0**. Devices in B but not A **0** (B 5, A 6). `/blips` A/B 1,392 / 1,092 = **1.27**. Usage rows in A from **6 devices, all `u8`, 0 `(none)`**. B's 5 rows were all `(none)`, since arity was recorded only once #450 deployed | **as predicted** on every graded row |
+| **P5, `sitefeed`** | `{}` in A | **unreadable, not passed** (control (a) BLIND; Daniel's decision) |
+| **W1** (S3's dry-runs, read 2026-10-23 on `443d579`) | both envs list exactly S2's bindings **plus `env.WX (blipscope-wx)`**: none removed. Staging 16 → 17, production 17 → 18 | **as predicted** |
+
+### I5′'s result (2026-10-23): a MISS, recorded as registered
+
+**The read, verbatim:** `{"at": "15:27:36Z", "pages": 1, "objects": 30, "bytes": 372508661, "frames": 29, "other_keys":
+["wx/cref/latest"], "oldest_frame_age_s": 3902, "newest_frame_age_s": 423, "newest_frame_epoch": 1792768833, "control":
+{"latest_epoch": 1792768833, "equals_newest_listed": true}}`
+
+| | read | verdict |
+|---|---|---|
+| **control** | `latest`'s epoch equals the newest listed frame (1792768833, 15:20:33Z) | **passed** |
+| **I5′** | **29 frames** + `latest` = 30 objects; **oldest frame 3,902 s**; 372,508,661 B, which is exactly 29 × 12,845,120 + a 181 B `latest` | **MISS: outcome (c)**, on two clauses (under 30 frames; a frame older than 3,720 s). **Stopped there:** no second read was taken |
+
+**It stays a miss.** The reviewer ruled (2026-10-23, pasted by Daniel) that it is recorded verbatim, with no re-grading.
+
+**The cause is not yet established.** It counts only once both numbers are reconciled with the ingest's logs: each run's
+outcome from 15:20 to 15:34Z, and whether the delete step ran. **What is established so far:**
+- **The ingest's NOAA calls were failing.** A tail from 15:32:27Z saw the runs scheduled 15:29-15:33Z. Their checks gave
+  `NOAA list 522`, `525`, `520` and "Network connection lost", each after 39-177 s. Then `stored` at the 15:34 run (frame
+  15:32:38).
+- **NOAA itself was publishing.** Its listing at 15:28:23Z holds 15:22:38, 15:24:37 and 15:26:40, none of which the bucket had.
+- **The code: when the delete runs.** `pruneOld` runs at the end of every check that gets past the NOAA listing (`stored`,
+  `already-stored`, `lost-race`). A failed listing throws before it. Its cutoff is `t0 − 3,600 s`, where `t0` is
+  `Date.now()` at the start of the check (`ingest-worker.ts:15`), not when it prunes.
+- **So the 3,902 s frame (epoch 14:22:34Z) survives only if** no check that started after 15:22:34Z reached the delete before
+  15:27:36Z.
+- **R2's operation analytics for the bucket**, per minute, as data:
+  - `ListObjects`, which only `pruneOld` issues in the ingest, appears at 15:24 and 15:29.
+  - `PutObject` appears at the same minutes.
+  - `DeleteObjects` appears at 15:21, then not until 15:32.
+  - The 15:27 row (`GetObject` 1, `ListObjects` 1) is this read.
+  - A put that failed partway, and a delete cut off by a start-time cutoff, are both consistent with this. **Only the
+    logs separate them.**
+- **The logs exist but are not yet read.** Workers Logs is on (`head_sampling_rate = 1`). The analytics token is refused
+  by the telemetry API (403), so the runs from 15:20 to 15:29Z need a read token or the dashboard.
+
+**Did anything request `/wx` while the newest frame was over 600 s old (15:30:33 to about 15:34Z)?** **No.**
+- `/wx` is not in `KNOWN_ROUTES`, so its requests are recorded under `/other`. In that window `/other` has **0 points**
+  in production and in staging.
+- **The control:** the smoke runs' own `/wx` requests appear as production `/other` 503 at 14:49 and 16:03Z, and as
+  staging 401 at 14:48Z.
+- **What such a request would have got:** 503 `not_configured`. Neither env binds `WX` yet, so the designed `wx_stale`
+  answer is unreachable until S3.
+
+### I5″ (frozen 2026-10-23, before any read)
+
+**The ruling (reviewer chat, pasted by Daniel):** register I5″ with I5′'s predicted set, frozen before reading, and
+read it only after **at least 70 minutes with no ingest errors**. I5′'s miss stays in the record.
+
+**The instrument:** as I5′'s, restated above: the S3-API listing and its `latest` control. That includes the
+registered race, re-run once.
+
+**The error-free window, observed, not assumed:**
+- **The source:** a continuous `wrangler tail` of `blipscope-wx-ingest` (pretty format), recorded to a file.
+- **The window:** 70 minutes or more in which the tail holds **0 `wx_ingest_error` lines**.
+- **The tail's own control:** it prints its connection banner, and it records **at least one `wx_ingest` or
+  `wx_ingest_error` line in every 5-minute span** of the window. A 5-minute span with no line means the tail cannot
+  see the runs. Then the window does not count: it restarts with a new tail.
+- **Any error resets it:** a `wx_ingest_error` restarts the 70 minutes.
+
+**The reads:** two, at least 10 min apart, both inside or at the end of an error-free window of 70 minutes or more.
+
+| | predicted |
+|---|---|
+| **I5″** | **31 objects in both reads:** 30 under `wx/cref/frames/` plus `wx/cref/latest`, and no other key. **Total bytes in [385,353,750, 385,353,850]** in both. The two reads agree on the count |
+
+| outcome | meaning |
+|---|---|
+| **(a)** as predicted | pruning holds the bucket at one hour of frames |
+| **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | the read landed between a frame's put and its prune, or cadence jitter fitted 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
+| **(c)** anything else | **stop and decide**. That covers: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing |
+| **(d)** no error-free 70 minutes within 24 h of this freeze | I5″ is not read. **The NOAA failures become their own finding** |
