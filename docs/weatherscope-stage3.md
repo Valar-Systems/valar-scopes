@@ -1809,3 +1809,42 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 **If anything is off-prediction:** stop, record it, and wait for a ruling.
 
 **A8.15's count corrected, add-only, before any K3 code exists (2026-10-23).** A8.15 says "13 checks". Its own table lists **12**: two each for dry, approaching and here-now, plus six for the warning. The table defines the checks, and the "13" was an arithmetic error. **The prediction is 12 of 12, 0 failures.** The sabotage sets are unchanged.
+
+### A8.16 3.3c complete: K3's results; 3.3b's K1/K2 made concrete before any of it runs (2026-10-23)
+
+**K3: as predicted** (A8.15, corrected to 12 checks).
+- **12 of 12, 0 failures.**
+  - dry → Dry, with no headline;
+  - approaching → PrecipApproaching, "PRECIP WITHIN 15 MI";
+  - here now → PrecipNow(Rain), "RAIN NOW";
+  - warning → Warning (index 0), with ["HAIL 1 IN", "WIND 60 MPH"], "MOVING NE 35 MPH", 14.3283836 mi (|Δ| 3.8e-7 from the reference's 6-decimal 14.328384), "14 MI", 108.23342° "E" (|Δ| 2.0e-5), and "UNTIL 5:09 PM".
+- **The five sabotages:** each failed exactly its set, and the control failed nothing. `WxScenarios.h` hashed the same before and after (`4310770e7871`).
+
+**The whole Wx section, through `run.sh`'s own text**, at `706717d`, in a full-tree worktree (the sparse `wt33` cannot run it):
+- **The run:** `run.sh`'s preamble (lines 1-66), its python detection (lines 880-891), and its Wx blocks from line 1044 to the end, run verbatim, ending "ALL HOST TESTS PASSED", exit 0.
+  - WxCrop, WxRender (57,600 of 57,600), WxPalette, the server crops, WxLegend and WxFeeds all pass.
+  - WxLogic 119/0 (with RK), WxLoop 44/0, WxTowns 171/0, WxScenarios 12/0.
+  - ring_ref and scenarios.ref.json both re-check as identical.
+- **Why not the whole suite:** it stops earlier, at the Wi-Fi QR block, BLIND without LovyanGFX under `.pio/libdeps`. That limit belongs to the rig, not the code. CI on #467 is the evidence for the whole suite. Its runs at `c4c3448` and `cfa4672` were still **queued** when this was written, so that evidence is still to come.
+- **A defect found and fixed:** a skipped guard in my own WxScenarios block (`706717d`). It skipped `scenarios.py --check` when python was missing, where the ring_ref block fails. Now it fails too. Both branches were seen firing: with python it read "matches"; with `PY=""` it printed the new FAIL and exited 1.
+
+**3.3c is complete:** D1-D4, the scenario choices, D6 and K3 as predicted. D5 is a miss, ruled in A8.12.
+
+**3.3b, K1/K2, made concrete before any of it runs.** A8.4 froze "identical code dumps, 57,600 of 57,600 pixels per frame" against `render_ref.py`, for the 22:00Z frame and each loop frame. The details it left open:
+- **The 22:00Z frame** (`kdfw-60mi.wxc`) is the existing WxRender block (Stage 1's B9 value, `344383b4…`). It **already passes**, above, and is not re-run as a separate result.
+- **The reference for the 15 loop frames.** A new driver, `tools/weatherscope/loop/screens_ref.py <spike-checkout> [--check]`, imports `render_ref.py`'s own `render()` from its file and writes `test/fixtures/wx/loop/screens.ref.json`.
+  - **Its decoder:** the spike's independent Python decoder, `tools/wx/a3_check.py`, at `spike/wx-overlay` `a5db67830230196d701126a87aae43e9ba2e7862`. That file's sha256 is `6528919b…`, and its last change was `9147fd9`.
+  - **What the file holds,** per frame: the sha256 of the 57,600-byte buffer, and the sha256 of its `--flip-ns` render (the sabotage's predicted set, computed by the reference and not guessed). It also records the spike commit and `a3_check.py`'s sha256.
+  - **The anchor, before any loop frame is believed:** the driver re-renders `kdfw-60mi.wxc` and must get B9's `344383b4…`.
+- **The test:** `test/host/test_wx_loop_render.cpp`, with its own `run.sh` block. For each of the 15 frames it decodes with `WxCrop.h`, maps all 240 × 240 pixels with `WxRender.h` (`BuildView`, `CodeAt`, as the board does), and compares the sha256 of the buffer with the reference.
+  - Checks are named `K2:<HHMMSS>`. They are the second half of K2; the first half, the decode to `codesSha256`, is D2, which has passed.
+  - **The prediction: 15 of 15 equal, 0 failures.**
+  - Equal hashes mean 57,600 of 57,600 pixels equal. **On any mismatch:** stop, write that frame's two buffers, and count the differing pixels before deciding anything.
+
+| sabotage | the plant | predicted failing set, exactly |
+|---|---|---|
+| S-K2a | in a copy of `WxRender.h`, Stage 1's flip: `v->homeLat + 1.0 * (kCentre` → `-1.0` | every frame whose reference sha differs from its `--flip-ns` sha in `screens.ref.json` |
+| S-K2b | in a copy of `screens.ref.json`, `213600`'s sha replaced with `214000`'s | {K2:213600} |
+| control | the real header and the real reference | nothing |
+
+- **If the reference anchor fails, or the flip sha equals the normal one for every frame** (S-K2a would then be empty and could not fail): stop and decide.
