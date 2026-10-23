@@ -659,3 +659,58 @@ Each log line is classified by its `evt`: `wx_ingest` or `wx_ingest_error`.
 
 **The NOAA-resilience change** (ruled the same day) restarts I5″'s 70-minute window on the new code once it is
 deployed. Its predictions stay unchanged.
+
+### I5′'s reconciliation, from Workers Logs (read 2026-10-23, 16:45-16:50Z)
+
+**The token works.** A read-only Workers Observability token (`observability-read`) answered the telemetry query for
+`blipscope-wx-ingest`. Every check's start below is the log time minus its `ms`, so it is `t0`, the time the check's
+prune cutoff comes from.
+
+**The 3,902 s frame, reconciled.** Its epoch is 15:27:36 − 3,902 s = **14:22:34Z**.
+- **The only logged success that reached the delete step before the read** was the check that started **15:22:11**. It
+  finished at 15:24:56, stored frame 15:20:33 (the newest in the listing), and logged **`pruned 0`**.
+- **Its cutoff was 15:22:11 − 3,600 s = 14:22:11,** 23 s before the frame's epoch, so the frame was rightly kept.
+- **Every logged check that started after 15:22:34 and ended before 15:27:36 failed at the NOAA listing**, so its
+  delete never ran. They started at 15:23:56 (`522`), 15:24:06 (`522`), 15:24:53 (`525`), 15:24:56 (`525`),
+  15:26:46 (`525`) and 15:27:04 (`525`).
+- **The next success started 15:28:14** and pruned 3, after the read.
+- **Independently of the logs:** the listing at 15:27:36 still held the 14:22:34 frame, so no delete with a later cutoff
+  ran before it. R2's analytics show no `DeleteObjects` from 15:22 to 15:31.
+
+**The 29 frames: partly reconciled.**
+- **What is established:** NOAA's own listing (read 15:28:23Z) holds **30 frames** from 14:22:34 to 15:20:33, with no
+  step over 150 s. The bucket held **29** of them, so **exactly one NOAA frame was never stored.**
+- **Not established:** which frame it was, and why. The ingest stores only the newest NOAA frame on each successful
+  check, so a frame is lost when no check succeeds while it is the newest. **Workers Logs can't name it:** it shows
+  `stored` for only 22 of the 30, while the bucket proves 29 were stored. See the next section.
+
+**The new instrument's control, as frozen: passed.** Workers Logs over 15:20-15:40Z returns every error the tail saw
+then, matching to the millisecond:
+- `NOAA list 522`: 49,570, 39,201 and 49,058 ms;
+- `NOAA list 525`: 137,571 and 56,857 ms;
+- `NOAA list 520`: 72,656 ms;
+- "Network connection lost": 176,749 ms.
+
+In all, that window holds **25 `wx_ingest_error` and 19 `wx_ingest`** lines.
+
+### Workers Logs drops ingest events: I5″'s window instrument fails a ground-truth check (outside the set)
+
+**A diagnostic listing,** at 16:48:55Z and **not an I5″ read**, was taken to check the instrument against the bucket:
+- **The bucket:** 24 frames, 15:48:40 to 16:46:39.
+- **Workers Logs has a `stored` line for 20 of them.** None for 15:52:40, 15:54:36, 16:22:29 or 16:36:38.
+- **Tail 1 recorded `stored` for both 16:22:29 and 16:36:38**, along with the `already-stored` checks after each.
+  Over 16:09-16:39 it recorded 28 invocations, and Workers Logs holds 26.
+- **The same holds earlier:** 22 `stored` lines for the 29 frames the bucket proves were stored between 14:22:34 and
+  15:20:33. That is 48 invocations logged in 70 minutes of a once-a-minute cron.
+- **Not the query:** re-querying two 10-minute slices on their own returned exactly the counts the 70-minute query gave
+  for them (20 and 12 events).
+
+**So Workers Logs is not complete for this Worker,** despite `head_sampling_rate = 1`. One cause consistent with this is
+the account's daily Workers Logs limit. The proxy also logs every request at 100 %, and logs past the limit are
+sampled. **Not established.**
+
+**What it means for I5″.** The ruled control (the 15:20-15:40Z errors) **passed**, but the instrument drops events. A
+70-minute span with 0 `wx_ingest_error` in Workers Logs can't tell "no errors" from "errors not kept". That is the
+escape hatch: **the instrument is unreliable for this question. Stop and decide.**
+- **No I5″ window is counted** on Workers Logs until this is ruled.
+- **Tail 2** (connected 16:40:40Z) keeps running as the cross-check the ruling allowed.
