@@ -1848,3 +1848,20 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 | control | the real header and the real reference | nothing |
 
 - **If the reference anchor fails, or the flip sha equals the normal one for every frame** (S-K2a would then be empty and could not fail): stop and decide.
+
+### A8.17 3.3b's host rows: K1/K2 as predicted (2026-10-23)
+
+- **The reference:** `screens_ref.py` against the spike at `a5db678`. `a3_check.py` hashes, LF-normalised, to `6528919b…`, as A8.16 recorded. The anchor re-rendered `kdfw-60mi.wxc` to B9's `344383b4…`, and all 15 frames' flips differ from their normal render, so S-K2a could fail. `--check` re-reads `screens.ref.json` as identical.
+  - **One rig note:** a non-git directory, `scratchpad/spike-a5db678`, already held an older copy of `tools/`. Its `a3_check.py` is the same file in CRLF form: `ad79f974…` raw, `6528919b…` when LF-normalised. It was **not used**. The reference ran from a fresh worktree of `rv460` at `a5db678`, so `git rev-parse` names the commit.
+- **K1, the 22:00Z frame:** the WxRender block, 57,600 of 57,600, unchanged.
+- **K2:** 15 of 15 frames' device-path dumps equal the reference, with 45,244 disc pixels each.
+- **The sabotages:** the control failed nothing; S-K2a failed exactly the 15 frames the reference's flips predicted; S-K2b failed exactly {K2:213600}. `WxRender.h` and the reference hashed the same before and after.
+- **The Wx section through `run.sh`'s own text, at `36f0de0`:** "ALL HOST TESTS PASSED", exit 0. WxLoopRender read 15/0.
+
+**3.3b's host rows are complete:** K1, K2, and K3 (in A8.16).
+
+**A data finding that limits B2, recorded now so B2's checks are written with it in view.** The 21:40 and 21:44 frames render **identical** screens (`c1df4bc4a3e3`), although their cells differ (D2: `602c499c…` against `0fa8515c…`).
+- **Where the cells differ:** in **59** cells, **all beyond 60 mi** of the centre (the crop's corners), and **none inside the disc**.
+- **The alternative, ruled out:** that the sampler skipped a change inside the disc. Sampling runs at 0.725 cells per pixel in latitude and 0.863 in longitude, so every in-disc cell is sampled, and no in-disc cell differs.
+- **What is left:** within 60 mi, SeamlessHSR's 21:44 mosaic is the same as 21:40's. Whether the radar input over the area simply did not update between them, the data cannot say, and it does not matter here.
+- **What it means for B2:** a per-frame code-dump check **cannot tell frame 10 from frame 11**. A board that showed 21:40 twice would pass at both positions. So B2 needs a frame identity that the dump does not carry (the frame clock it draws, or the index it reports), and B2's predictions must be written with that in mind.
