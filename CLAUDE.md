@@ -396,7 +396,8 @@ count is no longer stated, for the reason the second-paths entry gives.)
 | 2026-10-08, COM18 | timed its reopen from `GetPortNames()`, which kept listing COM18 for more than 15 s while the board was unplugged | both power cuts of the v17 fresh-boot acceptance were reset by the reopen (`rst:0x15`); the Worker's boot rows show only the `USB` boot each time, never the `POWERON` |
 
 **The mechanism is narrower than "recorders disturb boards", and naming it
-correctly is what made a fix possible.** DTR/RTS is not the culprit: both
+correctly is what made a fix possible.** DTR/RTS is not the culprit of these
+reopen resets (ending a trace is a different hazard, in the bench-trace line below): both
 asserted does not reset a running board, and dtr/rts false is safe throughout.
 **The REOPEN is.** A board that reboots drops its native-USB CDC, the read
 throws, an auto-reattaching recorder reopens, and an `open()` landing inside the
