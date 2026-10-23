@@ -101,3 +101,12 @@ The rule a checker should follow when it cannot read its input: refuse, never pa
 | **R3** | CI on this PR | **0 failures**. `skus.py --check-readers` stays OK: the checker still names the matrix workflow in a plant, so its allowance stays current |
 
 **Outside the set:** stop and report.
+
+### Results for R1-R3 (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **the blind spot, on main's code** | a copy of the workflows plus an inline `on: [push, pull_request]` workflow with no block: `problems()` = `{}`, so it **passes** | shown, as described |
+| **R1** | the checker on the branch's workflows: **OK, exit 0** | **as predicted** |
+| **R2** | selftest: the inline list, the scalar and "no `on` key" are each **RIG naming `plant-on.yml`**; the three existing plants are red on exactly their file. **The CLI end to end:** a temporary inline-`on` workflow in the tree makes it print `RIG zz-plant-inline.yml: inline on: ...` and **exit 2**. The plant was removed afterwards | **as predicted** |
+| **R3, local** | `skus.py --check-readers` OK (15 reviewed mentions; the allowance stays current); `check_device_ids.py` OK. CI follows | so far as predicted |
