@@ -139,3 +139,19 @@ NL1b between 18:52:49Z and 19:12:49Z. A half not read inside its window is unrea
 
 **What it shows:** six NOAA failures in that half hour, of the kind that left holes before, and **no hole**.
 Two frames were `backfilled`.
+
+### Why Workers Logs drops this Worker's events: not explained (low priority; nothing rests on it)
+
+- **Not the account limit.** Workers Logs allows 5 billion events per account per day before it falls to 1 % sampling
+  (developers.cloudflare.com/workers/observability/logs/workers-logs, "Limits"). This account logs tens of thousands.
+- **The reviewer's lead, outcome and wall time, does not separate the dropped runs from the kept ones.** Runs were
+  matched by scheduled minute, tail 1 against Workers Logs, from 16:09 to 16:38Z:
+  - 26 runs; 22 in Workers Logs; **4 dropped**, at 16:12, 16:20, 16:23 and 16:37.
+  - **All 4 had outcome `Ok`** in the tail. Their checks took 13.9 s + 23.6 s, 2.3 s + 2.1 s, 2.5 s + 9.4 s and
+    3.1 s + 11.2 s.
+  - **The kept runs:** outcome `ok`, `wallTimeMs` from 4,300 to 238,518, median 36,223. The dropped runs' implied wall
+    times (about 32-54 s) sit inside that range, and one of them (16:20) was entirely ordinary.
+  - **The drop can be partial:** the 16:23 run's `:00` line is in Workers Logs, and its `:30` line and its invocation
+    record are not.
+- **So it looks like lost event batches,** not anything about how a run went. Separating that further needs a source
+  outside Workers Logs: a Tail Worker, Logpush, or Cloudflare.
