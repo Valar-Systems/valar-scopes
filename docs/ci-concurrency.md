@@ -46,3 +46,5 @@ is grouped by `run_id` and is never cancelled.
 the PR's whole diff, and both heads carry all six workflow files, so all six run on both heads.
 
 **Outside the set:** stop and report.
+
+**C2's second head.** This line is the commit that supersedes the first, for C2 (pushed less than 60 s after it).
