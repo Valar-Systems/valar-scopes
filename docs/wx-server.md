@@ -520,3 +520,24 @@ with sitefeed events appearing within a stated number of minutes of switching th
 - **P5's "production `sitefeed` events in A: 0" row is unreadable,** whatever it reads.
 - **P2 is a hard gate:** production's deploy output must list `env.SITE_FEED_BEND ("off")`, or roll back at once.
 - **The instrument is proved at #464,** with a positive control frozen there before its deploy.
+
+### I5′'s instrument, restated before any read (2026-10-23)
+
+**Why it moved.** The frozen instrument, a throwaway Worker under `wrangler dev --remote`, never ran: the account's
+`edge-preview` call answered 400. Daniel chose the replacement (2026-10-22): **a read-only R2 token**, bucket-scoped to
+`blipscope-wx` with the "Object Read only" permission. He created it on 2026-10-23. It is held in the token file, never
+printed.
+
+**The instrument now.** A direct listing through R2's S3-compatible API: `ListObjectsV2` over the whole bucket, no
+prefix, paged by continuation token to the end, signed with SigV4. It reports:
+- the object count and the summed `Size`;
+- the frame count and the oldest and newest frame ages;
+- every key that is not `wx/cref/frames/<epoch>.wxg`.
+
+**The control, before either read:** `GetObject` on `wx/cref/latest`, whose `epoch` must equal the newest frame epoch
+in the listing. The same rule as frozen, through the same API. **One registered race:** the fetch follows the listing
+by under a second. If a frame lands in between, `latest` is newer than the listing's newest. That case re-runs the
+control once, and the race is recorded. **A second mismatch is outcome (c).**
+
+**Unchanged:** the two reads at least 10 min apart, the 31 objects, the byte band
+[385,353,750, 385,353,850], outcomes (a)-(c), and the analytics reported beside them as data, not graded.
