@@ -128,3 +128,14 @@ set:** stop and report.
 as a re-registration made before any NL1 read, so it is not a miss. The frozen text and the defect stay in the record. One
 addition: each half must be read before its oldest frame is 55 minutes old, so NL1a between 18:22:49Z and 18:42:49Z, and
 NL1b between 18:52:49Z and 19:12:49Z. A half not read inside its window is unreadable, and unreadable is a FAIL."
+
+### NL1a and NL2 (read 2026-10-23)
+
+| | read | verdict |
+|---|---|---|
+| **NL1a** | read at **18:23:00Z**, inside its window (18:22:49-18:42:49Z). NOAA's own listing holds **15 frames** in `[17:47:49, 18:17:49]`, and **all 15 are in the bucket**; none missing | **as predicted** |
+| **NL2, the tail** (17:43 to 18:20:39Z; it then exited by itself) | **all 54** ingest lines carry `attempts`: 48 `wx_ingest`, 6 `wx_ingest_error`. Every error is at the maximum: three `NOAA get ... aborted due to timeout (2 attempts)`, `attempts` 2; three `NOAA list ... aborted due to timeout (3 attempts)`, `attempts` 3. **Five checks succeeded only after a retry** (`attempts.list` 2 or 3) | **as predicted** |
+| **NL2, Workers Logs** (since the deploy; never used alone) | 43 `wx_ingest` and 6 `wx_ingest_error` (all at the maximum). **One line has no `attempts`:** 17:42:57Z, logged by version **`47ad5010`**, from a run that began before the deploy. Every line from `582612da` carries it | **as predicted** |
+
+**What it shows:** six NOAA failures in that half hour, of the kind that left holes before, and **no hole**.
+Two frames were `backfilled`.
