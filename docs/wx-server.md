@@ -743,3 +743,20 @@ escape hatch: **the instrument is unreliable for this question. Stop and decide.
   and staging's `91554c8`.
 - **Staging's own reads:** deployed 16:53:56-16:54:06Z, version `1894509a-c9a8-4e69-9e20-f6082c9ad599`.
   `/healthz` `91554c8`; the deploy listed `env.WX (blipscope-wx)`. W2 read 1 (16:54:14Z): `frameAgeS` 216.
+
+### S3's results so far (deployed 2026-10-23)
+
+- **Staging:** 16:53:56-16:54:06Z, version `1894509a-c9a8-4e69-9e20-f6082c9ad599`, `/healthz` `91554c8`.
+- **Production:** 16:58:29-16:58:39Z, version `2bb15f91-f7ea-4caa-9b8f-b21108cfdd4a`, `/healthz` `1b724bc`.
+  - Its bindings against #468's production list: **only `env.WX (blipscope-wx)` added**, none removed.
+  - The start condition, read just before: `latest` was 16:56:35Z, 114 s old.
+
+| | read | verdict |
+|---|---|---|
+| **W1** (before merge, on `443d579`) | S2's bindings plus `env.WX (blipscope-wx)`, in both envs | **as predicted** (recorded earlier) |
+| **W2, staging** | 16:54:14Z `frameAgeS` **216**; 16:57:39Z **186**, 205 s later. The same frame would read 421, so it advanced | **as predicted** |
+| **W2, production** | 16:58:50Z **136**; 17:02:05Z **87**, 195 s later. The same frame would read 331, so it advanced | **as predicted** |
+| **W3** | `smoke-prod.sh` on production: **PASS 34, FAIL 0, SKIPPED 0**. `/wx`: HTTP **200**, 36 B, magic **`WXC1`**, ETag `"wx1-cref-1792774595-44.06_-121.32_160"`, "wired" | **as predicted** |
+| **W4** | the same query at 16:59:36Z: 200, `WXC1`, that ETag; then **at once** with `If-None-Match`: **304** | **as predicted** |
+| **W6** | every `/wx` answer so far: 200 (smoke), 200 and 304 (W4) | **no 5xx: as predicted** |
+| **W5** | A = `[17:03:39, 18:03:39)`, B = `[15:58:39, 16:58:39)` | **not yet read** (after 18:03:39Z plus the lag) |
