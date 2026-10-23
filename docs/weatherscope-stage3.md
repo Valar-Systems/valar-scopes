@@ -2402,3 +2402,203 @@ So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor 
   - **flash 1,602,135 B**: +92 B on 3.3d's 1,602,043, inside A8.23's predicted 1 %, and inside A8.12's band;
   - **static RAM 54,840 B**: unchanged.
 - **3.3's results stand** (the ruling): no string 3.3 draws reaches the clamp.
+
+## Addendum 9, 2026-10-23: step 3.5 ruled; 3.5a's plan, for review before any code
+
+### A9.1 The rulings, verbatim (source: reviewer chat, pasted by Daniel; Daniel's choices are recorded as "Daniel")
+
+> Daniel has looked at 3.3's screens on the glass and chosen a second pass on the UI. This is step 3.5, after #467 merges and before 3.4. Same doctrine as every step: plan and predictions frozen before code, sabotages that go red, stop on anything off-prediction.
+>
+> The reference: C:\Github\_weatherscope-mockups\reviewer-2026-10-23\ (outside any repo). weatherscope-ui-mockups.png shows the board's screens beside the proposed ones; bend-geography-mockups.png shows Bend with geography; screen-*.png are the proposed screens at 240 x 240; wxmock.py and bendmock.py generated them, and every layout rule below is a number in those files. Read them before the plan. They are a spec, not device code, and their POP table is hand-typed.
+
+**A. Daniel's decisions (2026-10-23)**, source "Daniel":
+
+> 1. The layout in the mockups, in full.
+> 2. Geography B (lakes, rivers, highways, peaks) by default; terrain shading (C) as a setting, off by default.
+> 3. Three more swipe screens: forecast, conditions, alerts.
+> 4. Three map additions: a storm-heading arrow on the warning screen; a stale-radar indicator; the temperature in the dry band.
+> 5. Zoom: Blipscope's swipe-to-zoom, with a 15/30/60 mi ladder. The range stays 60 mi; a 30/120 range setting is a later item, not this step.
+
+**B to F**, source "reviewer chat":
+
+> B. The layout rules (3.5a), as in wxmock.py
+> - Top strip y < 24: "N" at (117, 3); the frame time, size 1, dim (120,120,120), centred at y = 13. When zoomed, "ZOOM 30 MI" in white after it.
+> - Bottom band y >= 194, black: the state line, size 2, centred, text top at y = 198. The warning screen puts two size-1 lines there instead, at y = 197 and 207.
+> - The map sits between, clipped to the disc. Labels never enter the strip or the band.
+> - Rings, dotted every other pixel in (64,64,64), at 5, 15 and 30 mi when the ring is between 15 % and 85 % of the view radius. Their numbers, size 1 in (96,96,96) with a halo, are placed after every label, at the first free angle of 45, 135, 315, 225, 90, 270, 0, 180 degrees.
+> - Home marker: a 7 px ring with a centre dot, white. No label for the home town.
+> - Town labels: size 1, (176,176,176), a 1 px black halo, no box, title case ("Fort Worth"), a 3 x 3 dot. Ranked by population. Skipped when the anchor is inside 17 % of the radius, when the box would touch that inner circle, when it leaves the 116 px circle, or when it overlaps a fixed overlay or a placed label (4 px of air). The text goes on the side away from the centre; the other side is the fallback. Cap 8 at 60 mi, 6 at 30, 5 at 15.
+> - Peaks (3.5b): top 4 by elevation, a 5 px triangle glyph, same rules, placed before towns.
+> - The state line: "RAIN 14 MI E" / "SNOW 14 MI NW": the nearest echo's distance and 8-point direction, white within 15 mi, dim beyond; "RAIN NOW" / "SNOW NOW" from the observation; with no echo in view, "54° · NO RAIN" (the degree glyph is 0xF8, the middle dot 0xFA), or "NO RAIN 60 MI" without an observation. The 1a priority order is unchanged; only the wording and placement change.
+> - The warning screen: "SEVERE T-STORM" size 2 orange (255,140,0) with a halo, text top y = 36; "WARNING · UNTIL 5:09 PM" size 1 orange at y = 54; the band carries "HAIL 1 IN · WIND 60 MPH" and "STORM 14 MI E · NE 35 MPH". Flash flood and snow squall keep their ruled texts in the same places. The polygon is an orange outline, no fill; labels never cross its edges. The arrow: 12 px from the storm's position toward its heading, orange.
+> - Stale radar: the frame time turns orange when the frame is over 10 min old; over 30 min the band shows "RADAR STALE" in dim in place of the state line. The logic underneath is unchanged.
+> - The loop and the legend keep their rulings (2a-2d, section 7); the loop's timeline goes in the band.
+>
+> C. Zoom (3.5a)
+> Reuse include/RadarZoom.h and include/LongPressPolicy.h as they are, with a ladder of {15, 30, 60}: swipe steps it, long press toggles 60 and 15, the 10-minute idle return, the tag. A view scale only: the crop stays 60 mi, the state line always reads the full 60 mi data, nearest-neighbour at every zoom (cells show as blocks at 15 mi; that's accepted).
+>
+> D. Geography (3.5b)
+> - Layers: TIGER 2024 AREAWATER polygons of 1.5 km² or more, filled (10,34,72); TIGER LINEARWATER rivers named "… Riv", the longest within the view, 1 px (26,70,128); TIGER PRISECROADS S1100 and S1200 without business routes, 1 px (62,62,62); USGS GNIS summits (feature_class Summit), elevation sampled from the terrain data; towns from the Gazetteer as now, population joined from Census SUB-EST2024 (www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv) with the same provenance header as WxTowns.h.
+> - Terrain (the setting): AWS Terrain Tiles, Terrarium z9 (registry.opendata.aws/terrain-tiles), hillshade from 315° at 45° with 2x exaggeration, averaged to about 0.9 km before sampling, grey 10 to 46 with blue +2, as bendmock.py does. With terrain on, no-coverage is drawn as the hatch, not solid grey.
+> - Delivery: the server prepares a package per location, as it crops the radar. Write the package format as a doc (screen-space polylines quantised to 16 bits for the 60 mi view, the peaks and towns with their ranks, and with terrain on, three 240 x 240 8-bit rasters), size-budgeted (about 20 KB for B; terrain adds about 58 KB per zoom level). blipscope-5c builds the ingest and the Worker route from that doc; you build the device side. Until the route exists, a stored Bend package built by a host tool, kept the way the loop frames are, so the bench can run. With no package, the screen falls back to towns only.
+>
+> E. The swipe screens (3.5c)
+> Map, forecast, conditions, alerts, legend; a tap on any returns to the map. Sources, all free: api.weather.gov /points, /gridpoints forecast and hourly, /stations observations, /alerts?point=. Forecast: the next 24 h as a strip (temperature and chance of precipitation per hour) with the week below, headline "NEXT RAIN TUE NIGHT". Conditions: temperature, wind, humidity, the day's high and low. Alerts: the watches and advisories that don't trigger the warning screen, with their start and end. Same type sizes and colours as the map. Propose each layout as a host-rendered reference first; Daniel judges them on the glass.
+>
+> F. Order and checks
+> 3.5a (layout, labels, state line, zoom, stale, arrow, temperature), then 3.4 (OTA identity, frozen as planned), then 3.5b, then 3.5c. Each sub-step frozen before its code. The K/B harness regrades against new references; add host tests with sabotages for label ranking, the inner circle, the overlap rule and the side rule; the zoom tests come with the reused modules. Board runs as A8.4, with the runner's 1 s rule. Keep the four B1 images of every board run for Daniel's look on the glass.
+>
+> Bring the 3.5a plan for review before any code.
+
+**Where this addendum lives.** It sits on branch `weatherscope/stage3-5a-plan`, cut from #467's head (`b202ff3`) and pushed **without a PR**. `firmware.yml` runs only on pushes to main and on pull requests, so #467's queued run stays the only one. After #467 merges, this branch is rebased onto main and opened as 3.5a's PR. **Nothing below is code, and no code is written until the plan is ruled.**
+
+### A9.2 The spec, as read from `wxmock.py` (and `bendmock.py` where they share it)
+
+Every number below is in the generator. Where the ruling's prose and the code say different things, the code is listed, and the difference is a question in A9.8.
+
+| element | the generator's rule |
+|---|---|
+| bands | the map is drawn inside the disc, then two black fills: **y < 24** and **y ≥ 194**. The map is visible only in 24 ≤ y < 194. |
+| text | the 5 × 7 GLCD font (LovyanGFX's default) in a 6 × 8 cell. Width is `6·n·s − s`, so a string carries no trailing column. **Halo:** every lit glyph cell's s × s block, dilated by 1 px, painted black first, then the glyph. |
+| top strip | "N" at (117, 3), dim. The frame time at x = `int(120 − w/2)`, y = 13, dim (120, 120, 120). **Zoomed:** the time and "ZOOM R MI" share one centred run: `x0 = int(120 − w(time + "  " + tag)/2)`, with the tag starting at `x0 + w(time + "  ") + 1`, in white. |
+| rings | for 5, 15 and 30 mi, drawn when `0.15·R ≤ mi ≤ 0.85·R`. **The ring is dotted:** `n = int(2π·r)`, a dot at every even k, at angle `a = 2πk/n`, at `(round(120 + r·sin a), round(120 − r·cos a))`, drawn only inside the map area, in (64, 64, 64). |
+| ring labels | placed **after** the town labels. **Each one tries the angles in order:** 45, 135, 315, 225, 90, 270, 0, 180, and takes the first that works:<br>– position: `tx = int(120 + r·sin) + (2 if ang < 180 else −w − 2)` and `ty = int(120 − r·cos) − (9 if ang ∈ {45, 315, 0}; 1 if ang ∈ {135, 225, 180}; else −4)`;<br>– box: (tx − 1, ty − 1, tx + w + 1, ty + 8), which must stay inside 25..193 in y and inside the 116 px circle, and clear every obstacle by 2 px;<br>– drawing: (96, 96, 96), with a halo. |
+| home marker | an 8 × 8 ring from x and y 116 to 123, with a 2 × 2 centre at 119-120 (read off the lossless `screen-proposed-dry.png`). **Frozen as a bitmap**, not as an algorithm. |
+| town labels | **Ranking:** by population, descending; a town with no figure ranks as 1,000, and ties keep the file order. The cap counts *placed* labels. **The inner circle** is `0.17·R·ppm + 4` = **24.4 px at every zoom**, because R·ppm is always 120.<br>**Skipped outright** when the float anchor is inside the inner circle.<br>**The two sides**, with `ix, iy = int(x), int(y)`:<br>– right: (ix − 1, iy − 4, ix + 4 + w, iy + 4), text at ix + 4;<br>– left: (ix − 5 − w, iy − 4, ix + 2, iy + 4), text at ix − 4 − w;<br>– right is tried first, reversed when x < 120 (the side away from the centre first).<br>**A side is rejected** when y0 < 26 or y1 > 192, when a corner is beyond 116 px, when the box's nearest point is within 24.4 px of the centre, or when it overlaps a fixed overlay or a placed label with **4 px of air** (inclusive boxes).<br>**Drawing:** a 3 × 3 dot at (ix ± 1, iy ± 1), and the text at (tx, iy − 3) in (176, 176, 176), with a halo. |
+| fixed overlays | the two bands. **On the warning screen also:** each polygon edge's bounding box, the title's box (tx − 2, 34, tx + w + 2, 52) and the subtitle's (sx − 2, 52, sx + w + 2, 64). |
+| state line | size 2, centred, y 198. White within 15 mi, dim beyond. |
+| warning | the title at y 36, size 2, orange (255, 140, 0), with a halo; "WARNING · UNTIL …" at y 54, size 1, orange, with a halo. **The polygon:** each edge a DDA, `n = int(max(|dx|, |dy|)) + 1`, points k = 0..n rounded, clipped to the map area. **The band:** two size-1 white lines at y 197 and 207. |
+| draw order | map → bands → rings → top strip → polygon and title → town labels → ring labels → home marker → band text |
+
+### A9.3 What 3.5a builds
+
+- **`src/weatherscope/WxRaster.h`** (new, pure C++11): the only drawing code for the map screens.
+  - **What it holds:** a pixel sink; the 5 × 7 font table, vendored (below); glyphs with and without the halo; the dotted ring; the DDA line; the marker bitmap.
+  - **The same code** draws into a host buffer for the K checks and through LovyanGFX's `writePixel` on the board, so **no LovyanGFX text or circle routine draws a map screen**.
+- **`src/weatherscope/WxScreens.h`**, reworked: A9.2's layout, the state line, the warning lines, the arrow, the stale rules, and the zoom ladder.
+  - **Unchanged:** 3.3's cycle (CY), the clock, and the union helper.
+- **`WeatherscopeManager`** gains:
+  - zoom: vertical swipes, as on Blipscope (up zooms in, down zooms out);
+  - the long press, through `LongPressPolicy.h` unchanged;
+  - the 10-minute idle return;
+  - the ZOOM tag;
+  - the loop's timeline in the band.
+  - **The map is drawn once per scenario and zoom** into the cached sprite.
+- **Zoom reuses the shared modules unchanged:**
+  - **The ladder** is built as a literal `radarzoom::Ladder` {15, 30, 60}, because `BuildLadder` would give {5, 10, 25, 50, 60}.
+  - **Reused as they are:** `Step` and `IdleExpired` from `RadarZoom.h`; `OnPress`, `OnHeld`, `OnRelease`, `OnIdle` and `ToggleTarget` from `LongPressPolicy.h`.
+  - **No edit to `include/`.**
+- **`WxFeeds.h`'s `Observation`** gains a temperature, for "54° · NO RAIN".
+- **`render_ref.py`** gains a radius argument, so the independent map reference covers 30 and 15 mi.
+- **A new independent reference renderer,** `tools/weatherscope/screens/ref35.py`, written from A9.2's rules in Python, with its own geometry and font reading.
+- **Not touched:** `main.cpp`, `platformio.ini`, `ConfigurationWebServer.cpp`, `include/`. 3.5b (geography) and 3.5c (the swipe screens) are not in 3.5a.
+
+### A9.4 The comparison method: full-frame equality, not masks
+
+3.3's masked compare cannot carry this layout:
+- rings are dotted circles;
+- text has halos;
+- the polygon is an outline;
+- the arrow is diagonal.
+
+None of these is a rectangle. **Recommended instead:** every graded screen is compared at **all 57,600 pixels** against `ref35.py`'s rendering of the same inputs.
+- **The map pixels** come from `render_ref.py`'s codes, checked against `screens.ref.json` first, as in 3.3.
+- **The palette** is legend_check's pinned derivation.
+- **The overlays** come from A9.2's rules, re-implemented in Python.
+
+**For that to be exact, three things are pinned:**
+- **Rounding:** every pixel rounding is `floor(v + 0.5)`. The mockups used Python's `round()`, which rounds half to even. That is CLAUDE.md's cross-language rounding trap, so it is pinned in both implementations.
+- **The font:** Adafruit-GFX `glcdfont.c` (BSD), the table LovyanGFX's default font is, vendored under `test/fixtures/wx/` with its licence and a pinned sha256. A host check compares it with LovyanGFX's own copy whenever `.pio/libdeps` holds one. Vendored, so CI's host tests never go BLIND for want of a `pio run`.
+- **The marker:** frozen as a bitmap.
+
+**R0, the control on the reference itself** (before any device code is graded against it):
+- fed `wxmock.py`'s own hand-typed POP table, `ref35.py` must reproduce the four `screen-proposed-*.png` and the three `screen-zoom-*.png` pixel for pixel, **or** account for every differing pixel by name: the half-to-even pixels, and anything else, which would be a finding about the spec;
+- this proves `ref35.py` is the spec before anything is graded against it.
+
+### A9.5 The checks, by family
+
+Each family gets a truth table of named cases with a count, and sabotages with exact failing sets. **Those tables are frozen after this plan is ruled, before any code**, because several depend on the answers in A9.8.
+
+- **The host families** (the reviewer's four first):
+  - **LB, label ranking:** population order, the 1,000 default, ties in file order, and the caps 8/6/5 by zoom;
+  - **IC, the inner circle:** the anchor inside, the box touching, the box exactly at 24.4 px;
+  - **OV, overlap:** 3 px of air rejected and 4 px accepted; the bands; the polygon's edges;
+  - **SD, the side rule:** away first, the fallback, both sides blocked;
+  - **CI**, the 116 px circle;
+  - **RG and RL:** which rings appear at 60, 30 and 15; the ring labels' first free angle;
+  - **ST, the state line:** distance rounding; the 15 mi threshold (≤ 15 white); NOW; snow; no echo with and without a temperature; "in view"; RADAR STALE;
+  - **TM:** the frame time orange above 10 min;
+  - **WN:** the four warning types' top and band lines; STATIONARY;
+  - **AR:** the arrow;
+  - **ZM:** the {15, 30, 60} ladder through the reused `Step`, both edges, the long-press targets, the idle return, the tag.
+- **The sabotages, at least one per family,** each with an exact failing set:
+  - S-RANK: file order;
+  - S-IC: no inner circle;
+  - S-OV: air 0;
+  - S-SIDE: always right;
+  - S-CAP;
+  - S-RING: the 15-85 % rule widened;
+  - S-ST15: < for ≤;
+  - S-STALE: ≥ for >;
+  - S-INVIEW: the 60 mi bound dropped;
+  - S-ARROW: the heading from `fromDeg`, not + 180;
+  - S-LADDER: `BuildLadder` used.
+- **K rows, host, full frame:**
+  - the host-built `WxRaster`/`WxScreens` output must equal `ref35.py`'s at **57,600 of 57,600 pixels** for the four scenarios at 60 mi;
+  - the approaching frame at 30 and 15 mi;
+  - the variants of A9.8's Q15;
+  - the loop frames at 60 mi.
+- **B rows, the board** (run as A8.4, one held open, with the runner's 1 s rule):
+  - **B1:** the four scenarios at 60 mi, each `/diag/fb` snapshot (pair rule, untorn) equal to the reference at **57,600 pixels**. The board also prints its placed labels and their sides, for diagnosis.
+  - **BZ:** on one scenario, `U`, `U`, `U` (30, 15, then the Max edge), `D`, `D`, then a long press `H` (15) and `H` (60). Each screen must equal its reference.
+  - **B2:** the loop: the 15 code hashes as in 3.3 (the 60 mi map layer), the pacing rows as A8.20, and the screen it returns to equal to its reference.
+  - **B3:** the legend, unchanged (`legend_check --fb`), and the screen it returns to equal to its reference.
+  - **The four B1 images are kept for Daniel** (F).
+  - **The recorded-data sabotages:** a snapshot graded against another scenario's reference; one board-reported label moved by 1 px; and B2's three, as in 3.3d.
+- **Sizes, re-registered forward from 3.3's measured build** (1,602,043 B flash, 54,840 B RAM, 168,120 B PSRAM):
+  - **flash 1,605,000-1,635,000 B:** `WxRaster` and the layout code at +3 to 25 KB; the font at +1,280 B; populations at about +700 B; the zoom and gesture code at +1 to 6 KB;
+  - **static RAM 54.8-57.0 KB:** zoom and long-press state, a few hundred bytes;
+  - **PSRAM 160-175 KB:** the same buffers, with the layout structure resized. The map is re-drawn per zoom into the same sprite.
+
+### A9.6 Not 3.5a
+
+- **Geography** (3.5b) and **the swipe screens** (3.5c).
+- **WXC1 v2's rain/snow type:** until it lands, an echo's state line reads "RAIN", and "SNOW" comes only from the observation ("SNOW NOW").
+- **The 30/120 range setting** (A5, a later item).
+
+### A9.7 Order inside 3.5a, once ruled
+
+1. The truth tables, sabotage sets and R0, frozen.
+2. `ref35.py` and R0.
+3. `WxRaster.h`, `WxScreens.h` and the host tests plus sabotages.
+4. The K rows.
+5. The firmware.
+6. The build and the sizes.
+7. The flash, onto `907069326E64`.
+8. The board run, then the grading and the recorded-data sabotages.
+9. The results addendum.
+
+### A9.8 Questions for review, each with a recommendation
+
+- **Q12, population in 3.5a.** B ranks labels by population, but D places the SUB-EST2024 join in 3.5b. **Recommended:** join SUB-EST2024 into `WxTowns.h` now, with the same provenance header and a regeneration check, because 3.5a's label rule needs it. 3.5b keeps the geography package. *(The alternative, ranking by distance until 3.5b, would grade 3.5a against a rule it doesn't implement.)*
+- **Q13, label case.** Title case ("Fort Worth") supersedes 5d's upper case. **Recommended:** yes, under A1 ("the layout in full"). `LabelText` drops a trailing " city" and keeps the Gazetteer's case. L1-L4 and S-L are re-registered.
+- **Q14, the method.** A9.4's full-frame equality, against an independent Python reference, with the font vendored and the device drawing glyphs from that table through `WxRaster`. **Recommended:** yes.
+- **Q15, states the stored data cannot show.** Stored scenarios never go stale (the clock is the frame's), and every loop frame has an echo within 24 mi, so "RADAR STALE", the orange time and "54° · NO RAIN" never reach the glass. **Recommended:**
+  - add a fifth stored scenario, **stale**: the approaching frame with its clock at +31 min, which shows "RADAR STALE" and the orange time. It needs no new data, and is labelled synthetic;
+  - keep "54° · NO RAIN" host-only. A sixth would need a synthetic all-dry crop and a synthetic temperature.
+- **Q16, "in view".** `wxmock.py`'s nearest echo also counts the crop's corners, beyond 60 mi. **Recommended:** an echo counts only within **60.0 mi** of the location (the full 60 mi data, whatever the zoom). Beyond that is "no echo in view".
+- **Q17, the arrow's shape** (it is not in the mockups). **Recommended:**
+  - a 12 px DDA shaft from the storm's projected position, along the direction of travel (`fromDeg + 180`);
+  - a head of two 4 px strokes at ±150° from that direction, at the tip;
+  - orange, clipped to the map area;
+  - its bounding box a fixed overlay, so no label crosses it.
+- **Q18, stale on the warning screen.** **Recommended:** the time turns orange, and the band keeps the warning's lines, because the alert's text is not radar. "RADAR STALE" replaces only the state line.
+- **Q19, zoom and the loop.** **Recommended:** the loop plays at the current zoom and returns to it. B2 runs at 60 mi, so 3.3's references hold, and the zoomed loop is host-tested.
+- **Q20, the colour of the no-rain lines.** **Recommended:** dim (120, 120, 120) for both "54° · NO RAIN" and "NO RAIN 60 MI", as `bendmock.py` draws the latter.
+- **Q21, bench gestures.** **Recommended:** `U` and `D` for vertical swipes and `H` for a fired long press, alongside `T` and `S`; stored mode only, under the same release gate.
+- **Q22, `wxmock.py`'s other small readings**, taken from the code, not the prose:
+  - the inner circle is 17 % **plus 4 px**;
+  - labels avoid the polygon's edge boxes, so a label may sit inside the square if it clears every edge by 4 px. The sheet's note says "no label inside it", but the code allows one;
+  - ring labels clear obstacles by 2 px, not 4.
+
+  **Recommended:** follow the code in each case.
