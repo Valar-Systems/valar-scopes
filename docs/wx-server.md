@@ -821,3 +821,123 @@ roll back first."
   code, not a measured exclusion, so it is **reported, not used to re-grade.**
 
 **Whether S3 is redeployed is for a ruling.** W1-W4 and W6 stand as read above.
+
+### S3′: S3 goes back out, restated and frozen before it deploys (2026-10-23)
+
+**The ruling (reviewer chat, pasted by Daniel), verbatim:** "S3 goes back out as S3′, restated and frozen before it
+deploys: the same change (main's WX binding), W1-W4 and W6 as before, and the rollback target is the version it
+replaces. W5's miss stays in the record. For S3′ only, W5's error clause is re-registered: every fleet 5xx in A is
+classified from the proxy's own analytics. Any 5xx that isn't a /blips 503 with no upstream answering is a FAIL at any
+count. /blips 503s with no upstream answering are a FAIL if they exceed 1% of A's fleet /blips requests. If the
+classification can't be read, that is a FAIL. The rest of W5 is unchanged. The escape is unchanged: roll production
+back first."
+
+Also ruled: W5's miss and the rollback were handled exactly as frozen.
+
+**What deploys:** main's head at deploy time. It carries the `WX` binding (#461), which `806775e9` (`26510c0`) lacks.
+- The carried commits, and the diff of deployed files from `26510c0`, are listed at deploy time, and only to staging
+  and production.
+- **Rollback target:** the version S3′ replaces, read from `deployments list` just before the deploy and recorded.
+  Expected: `806775e9-7de3-4617-9501-ddaad8ab1a75`, production's version since the rollback.
+- **Start condition (as S3):** the ingest's latest runs storing, read from the bucket's `latest`.
+
+**The rows:**
+- **W1** is not re-read: the binding is unchanged since its dry-runs. Instead, each deploy's binding list must equal
+  `806775e9`'s **plus `env.WX (blipscope-wx)`**, or that is an escape.
+- **W2, W3, W4 and W6:** as frozen and read for S3.
+- **W5:** A = 5-65 min after production's deploy, B = the 60 min before it, with P5's rules **except the 5xx clause**,
+  which is re-registered for S3′ only. **How the classification is read:**
+  - **The source:** `blipscope_proxy`'s per-request points, fleet only, with E2:08 excluded.
+  - **A "/blips 503 with no upstream answering"** is `index1 = '/api/v1/blipscope/blips'`, `double1 = 503`, and
+    `blob3` (the upstream) empty.
+  - **Any other fleet 5xx in A:** a FAIL, at any count.
+  - **Those `/blips` 503s:** a FAIL when they exceed **1 %** of A's fleet `/blips` requests (sample-weighted, as P5
+    counts).
+  - **If the query fails, or returns no fleet `/blips` requests for A:** "can't be read", a FAIL.
+  - **Read twice,** after the window closes, and the two reads must agree.
+- **The escape:** anything else means stop, and roll production back first.
+
+**The optional colo question cannot be answered from the analytics.** `RequestMetric` has a `colo` field, but the
+per-request data point writes only `route, cache, upstream, model, dev, fw` (`proxy/src/metrics.ts:217`). So whether
+the five 503s came from another colo is not recorded anywhere.
+
+### S3′'s results so far (deployed 2026-10-23)
+
+- **What deployed:** main `28ab5ec`. Since `26510c0` it carries under `proxy/` #461 (the `WX` binding), #470 (a test)
+  and #472 (the ingest's own files).
+- **Read from the artifact:** the production dry-run bundle holds **no** ingest code (0 matches for `noaaRequest`,
+  `NOAA_BUCKET`, `pruneOld`). It does hold the wx handler (`not_configured` ×4), which shows the grep can see code. So
+  the proxy differs from `806775e9` only by the binding.
+- **The start condition,** read before each deploy: `latest` was 18:32:37Z (153 s old) and 18:36:41Z (137 s old).
+- **Staging:** 18:35:16-18:35:26Z, version `1820a40d-fbf4-4b08-bf74-51a942ae98e6`, `/healthz` `28ab5ec`. Its bindings
+  are identical to S3's staging list.
+- **Production:** 18:38:58-18:39:07Z, version **`9fec1c7c-0591-4556-bd39-011a8ec2123d`**, `/healthz` `28ab5ec`.
+  - The rollback target, read just before: **`806775e9`**.
+  - Its bindings against `806775e9`'s: **only `env.WX (blipscope-wx)` added**.
+
+| | read | verdict |
+|---|---|---|
+| **W2, staging** | 18:35:36Z `frameAgeS` **180**; 18:38:47Z **127**, 191 s later. The same frame would read 371 | **as predicted** |
+| **W2, production** | 18:39:22Z **162**; 18:42:31Z **115**, 189 s later. The same frame would read 351 | **as predicted** |
+| **W3** | `smoke-prod.sh`: **PASS 34, FAIL 0, SKIPPED 0**. `/wx`: HTTP 200, 36 B, `WXC1`, ETag `"wx1-cref-1792780601-..."`, "wired" | **as predicted** |
+| **W4** | 18:39:40Z: 200, `WXC1`, ETag `"wx1-cref-1792780717-..."`; then at once with `If-None-Match`: **304** | **as predicted** |
+| **W6** | every `/wx` answer so far: 200, 200, 304 | **no 5xx: as predicted** |
+| **W5** | A = `[18:44:07, 19:44:07)`, B = `[17:39:07, 18:39:07)`, with S3′'s re-registered 5xx clause | read at 19:50 and 19:55Z |
+
+**W5's classifier, checked before its read:** run on S3's own W5 windows, it finds exactly the 5 known `/blips` 503s
+with no upstream (0.379 % of 1,321), no other 5xx, and reports the classification readable. So it can see what it is
+meant to catch.
+
+### I5″'s result (2026-10-23): outcome (c), recorded as registered
+
+**Both reads passed the ground-truth gate,** read on #472's code, more than 70 min after the ingest deploy (17:42:49Z).
+
+| | read 1 | read 2 |
+|---|---|---|
+| at | 18:53:01Z | 19:03:07Z (10 min 6 s later) |
+| the gate: NOAA frames in `[T-3600, T-240]`, and in the bucket | 28 and 28: **PASS** | 28 and 28: **PASS** |
+| objects | **31** | **30** |
+| frames + other keys | 30 + `wx/cref/latest` | 29 + `wx/cref/latest` |
+| bytes | 385,353,781 (in the band) | 372,508,661 (29 x 12,845,120 + 181) |
+| oldest frame | **3,741 s** | 3,510 s |
+| newest frame | 264 s | 154 s |
+| control (`latest` = newest listed) | passes | passes |
+
+**Verbatim:**
+- read 1: `{"at": "18:53:01Z", "pages": 1, "objects": 31, "bytes": 385353781, "frames": 30, "other_keys":
+  ["wx/cref/latest"], "oldest_frame_age_s": 3741, "newest_frame_age_s": 264, "control": {"latest_epoch": 1792781318,
+  "equals_newest_listed": true}}`
+- read 2: `{"at": "19:03:07Z", "pages": 1, "objects": 30, "bytes": 372508661, "frames": 29, "other_keys":
+  ["wx/cref/latest"], "oldest_frame_age_s": 3510, "newest_frame_age_s": 154, "control": {"latest_epoch": 1792782033,
+  "equals_newest_listed": true}}`
+
+**Verdict: outcome (c),** on three of its clauses: under 30 frames (read 2), a frame older than 3,720 s (read 1), and
+reads that disagree on the count. **(c) means: stop and decide.** Nothing is re-graded.
+
+**What NOAA's own listing shows at each read** (data beside the verdict):
+- **Read 1:** NOAA's hour `(T-3600, T]` holds 30 frames. Two of them, 18:50:33 and 18:52:41, were published 148 s and
+  20 s before the read and were not stored yet: the ingest's lag. The bucket also still held one frame older than
+  NOAA's hour, 3,741 s old. That fits the prune's cutoff being taken from each check's start (`t0 - 3,600`), with no
+  successful prune in the ~140 s before the read.
+- **Read 2:** NOAA's hour holds 30 frames. The bucket held all but the newest, 19:02:37, published 30 s before the read.
+- **So:** the gate shows no hole, and the count varies with where the read falls between NOAA's ~120 s cadence, the
+  ingest's lag and the prune's timing. **"31 objects in both reads"** assumed a phase that is not guaranteed. That is a
+  defect in the frozen set, found here, and **for a ruling.** I5″ is not re-read until it is ruled.
+
+### S3′'s W5, and S3′ complete (2026-10-23)
+
+A = `[18:44:07, 19:44:07)`, B = `[17:39:07, 18:39:07)`. Read at 19:50:00Z and at 19:55:15Z; **the two reads are
+identical in every field.**
+
+| | read | rule | verdict |
+|---|---|---|---|
+| fleet 5xx in A, classified (re-registered for S3′) | **0**: 0 `/blips` 503s with no upstream (0 % of 1,191 fleet `/blips`), and no other 5xx. **The classification is readable** | other 5xx: 0; no-upstream 503s ≤ 1 %; readable | **PASS** |
+| fleet 4xx in A | 0 | 0 | PASS |
+| devices in B but not A | 0 (B 5, A 5) | 0 | PASS |
+| `/blips` A/B | 1,191 / 1,251 = **0.95** | 0.4-2.5 | PASS |
+| usage rows in A | 5 devices, all `u8`, 0 `(none)` | as P5 | PASS |
+| fleet `/other` points in A | **0**, so 0 fleet `/wx` requests | 0 | PASS |
+
+**W5: as predicted.** **S3′ is complete, with every row as predicted:** the binding check at each deploy, W2 in both
+envs, W3, W4, W5 and W6. Production serves `/wx` crops from `9fec1c7c` (`28ab5ec`). S3's W5 miss stays in the record
+above.
