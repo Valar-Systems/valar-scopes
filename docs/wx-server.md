@@ -996,3 +996,29 @@ touched). **The real listing meets (1)-(4).**
 | a frame at the NOAA epoch nearest `W - 3,800 s` (epoch 1792790674, `W - 3,787 s`), 12,845,120 B, total raised to match | **(2) only** | **as predicted** |
 | a stray key, `wx/cref/frames/stray.part`, 0 B | **(3) only** | **as predicted** |
 | one frame's size changed by one byte | **(4) only** | **as predicted** |
+
+### I5‴'s result (2026-10-23): outcome (a), pruning holds the bucket at one hour
+
+Two reads, 10 min 7 s apart. Each passed both gates.
+
+| | read 1 | read 2 |
+|---|---|---|
+| T | 22:28:43Z | 22:38:50Z |
+| (i) the ground-truth gate | NOAA 28 in `[T-3600, T-240]`, missing 0: **PASS** | 28, missing 0: **PASS** |
+| (ii) W's age (`T - W`) | **63 s**: PASS | **71 s**: PASS |
+| **(1)** every frame's epoch is a NOAA epoch | **yes** | **yes** |
+| **(2)** no frame older than `W - 3,720 s` | **yes** (oldest is `W - 3,540 s`) | **yes** (`W - 3,540 s`) |
+| **(3)** no key but frames and `latest` | **yes** | **yes** |
+| **(4)** bytes = frames x 12,845,120 + `latest`'s size, and `latest` = the newest frame | **yes** (385,353,781 B; epoch 1792794402) | **yes** (385,353,781 B; epoch 1792794998) |
+| printed, not graded | 30 frames, 31 objects | 30 frames, 31 objects |
+
+**Verbatim:**
+- read 1: `{"at": "22:28:43Z", "rows": {"(1)": true, "(2)": true, "(3)": true, "(4)": true}, "frames": 30, "objects": 31,
+  "bytes": 385353781, "W_age_s": 63, "oldest_vs_W_s": 3540, "newest_epoch": 1792794402, "latest_epoch": 1792794402,
+  "not_noaa": [], "stray": []}`
+- read 2: `{"at": "22:38:50Z", "rows": {"(1)": true, "(2)": true, "(3)": true, "(4)": true}, "frames": 30, "objects": 31,
+  "bytes": 385353781, "W_age_s": 71, "oldest_vs_W_s": 3540, "newest_epoch": 1792794998, "latest_epoch": 1792794998,
+  "not_noaa": [], "stray": []}`
+
+**Verdict: outcome (a).** Both reads meet (1)-(4): pruning holds the bucket at one hour. I5′ (a MISS) and I5″ (outcome
+(c)) stay in the record as they were.
