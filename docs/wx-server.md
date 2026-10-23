@@ -628,3 +628,34 @@ registered race, re-run once.
 | **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | the read landed between a frame's put and its prune, or cadence jitter fitted 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
 | **(c)** anything else | **stop and decide**. That covers: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing |
 | **(d)** no error-free 70 minutes within 24 h of this freeze | I5″ is not read. **The NOAA failures become their own finding** |
+
+### Rulings of 2026-10-23 (reviewer chat, pasted by Daniel), recorded before any I5″ read
+
+**S3 (#461), as given:** "approved to merge at 426a02b5a219098479c37a5f7da1f52d0b365f65". Conditions: the CI total on
+that exact head with no failures; a clean squash; no --admin. "Put any further results in a follow-up docs PR, not on
+this branch, so the approved head stays the head. Then deploy S3 as frozen: staging, then production; W1-W6; on an
+escape, roll production back first. Start each deploy when the ingest tail shows the latest runs storing. If W2 still
+misses because of a NOAA gap, it's a miss: roll back, record it and report it, with no re-grading."
+
+**Merged** as `91554c8`: 37/37 checks counted on `426a02b`, 0 failures. The squash's tree equals `git merge-tree`'s
+(`966740601c47`), and its patch-id equals the PR's.
+
+**I5″'s window instrument, verbatim:** "I5″'s window instrument moves from wrangler tail to Workers Logs, frozen now,
+before any I5″ read. A wrangler tail can't be relied on to stay connected for 70 minutes, and Workers Logs keeps every
+run (head_sampling_rate = 1). The window is any 70 minutes in which Workers Logs holds 0 wx_ingest_error events for
+blipscope-wx-ingest and at least one wx_ingest or wx_ingest_error event in every 5-minute span. The control: the same
+query over 15:20-15:40Z must return the errors the tail saw then (NOAA list 520/522/525 and 'Network connection lost').
+If it doesn't, the instrument is blind and no window counts. The reads, their spacing and the predicted set are
+unchanged. The tail may keep running as a cross-check, and both tails' history is recorded as it happened."
+
+**The query.** Workers Observability telemetry, `view: events`, filtered to `$metadata.service = blipscope-wx-ingest`.
+Each log line is classified by its `evt`: `wx_ingest` or `wx_ingest_error`.
+
+**The tails' history, as it happened:**
+- **Tail 1:** connected 16:09:04Z and exited by itself at 16:39:39Z, exit 0, with nothing on stderr. It recorded 28
+  invocations, 51 `wx_ingest` and 5 `wx_ingest_error`. The errors came from the runs at 16:07, 16:08, 16:09 and
+  16:13Z (wrangler prints run times in local time, UTC-7).
+- **Tail 2:** connected 16:40:40Z, and is still running as a cross-check.
+
+**The NOAA-resilience change** (ruled the same day) restarts I5″'s 70-minute window on the new code once it is
+deployed. Its predictions stay unchanged.
