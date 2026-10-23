@@ -73,3 +73,31 @@ unchanged, so its plant still names the file and the entry is not stale.
 | **F1′** | `python3 scripts/skus.py --check-readers` | passes |
 | **F2′** | C1's checker and its selftest | unchanged: the checker passes, and the three plants are red on the matrix workflow, `workers.yml` and `device-ids.yml` respectively |
 | **F3′** | CI at this head | **0 failures**, every check counted |
+
+## An `on:` line the checker cannot read is a RIG (#469's follow-up; predictions first)
+
+**The blind spot (the reviewer's check of #469):** `triggers()` reads only the block form,
+
+```yaml
+on:
+  pull_request:
+```
+
+so a workflow written inline, such as `on: [push, pull_request]` with no concurrency block, has no triggers as far as
+the checker knows. It passes C1 while running on every PR and cancelling nothing.
+
+**The change.** For every workflow, the checker finds its top-level `on` key (`on:`, `"on":` or `'on':`). It refuses
+to judge, with **exit 2 (RIG)** naming the file, when:
+- the key carries a value on its own line (any inline form: a list, a scalar or a map);
+- or there is no `on` key at all;
+- or the block form yields no trigger.
+
+The rule a checker should follow when it cannot read its input: refuse, never pass.
+
+| | check | predicted |
+|---|---|---|
+| **R1** | the checker on main's workflows | **OK, exit 0**: all nine use the block form |
+| **R2** | selftest: one plant each, in a copy of the workflows | **(a)** a new workflow with `on: [push, pull_request]` and no block: **RIG, exit 2, naming it**. On main's code the same plant passes, which is the blind spot shown. **(b)** `on: pull_request`, a scalar: RIG. **(c)** no `on` key: RIG. The three existing plants: red on exactly their file, as before |
+| **R3** | CI on this PR | **0 failures**. `skus.py --check-readers` stays OK: the checker still names the matrix workflow in a plant, so its allowance stays current |
+
+**Outside the set:** stop and report.
