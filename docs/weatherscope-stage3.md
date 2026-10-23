@@ -1865,3 +1865,46 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 - **The alternative, ruled out:** that the sampler skipped a change inside the disc. Sampling runs at 0.725 cells per pixel in latitude and 0.863 in longitude, so every in-disc cell is sampled, and no in-disc cell differs.
 - **What is left:** within 60 mi, SeamlessHSR's 21:44 mosaic is the same as 21:40's. Whether the radar input over the area simply did not update between them, the data cannot say, and it does not matter here.
 - **What it means for B2:** a per-frame code-dump check **cannot tell frame 10 from frame 11**. A board that showed 21:40 twice would pass at both positions. So B2 needs a frame identity that the dump does not carry (the frame clock it draws, or the index it reports), and B2's predictions must be written with that in mind.
+
+### A8.18 3.3d: four questions raised before any of its code; 3.3d held until they are ruled (2026-10-23)
+
+3.3a, 3.3c and 3.3b's host rows are complete. **3.3d, the board, is not started.** Reading the ruled instrument for B1-B3 (`/diag/fb`, A8.7) against A8.4's rows shows four points that the frozen text doesn't settle. Each is raised here with a recommendation. **Nothing in 3.3d is built until they are ruled.**
+
+**What `/diag/fb` is, read from the code** (`ConfigurationWebServer.cpp`, the radar's route):
+- **What it returns:** the whole 240 × 240 backbuffer, 115,200 B of **RGB565BE**, copied in a single snapshot. The headers carry width, height, format, `Torn` and `Seq`.
+- **No codes:** it carries no per-pixel code. Stage 1's B9 compared a **code** buffer, read over serial.
+- **The map is not alone on it:** headlines, the bottom lines, labels and the loop's timeline are drawn over the map in the same buffer.
+- **A colour does not identify a code:** code 13's (253, 253, 253) packs to `0xFFFF`, the same as white text. So no pixel's code can be recovered from its colour alone.
+
+**Q8. B1: what "the frame layer's dump equals the host reference" is compared on.**
+- **(a) Recommended. Exact, plus visible.** On the trace that A8.4 already holds open across each board step, the device prints the sha256 of the **code** buffer it drew from (the render path's own per-pixel codes, before colour and overlays), as Stage 1's board `fb_sha256` did. That hash is compared **exactly** with K1/K2's references.
+  - `/diag/fb` then does what it does well: the image that shows **which screen** is on the glass (kept with the results).
+  - It also gives a second, independent check: every pixel **outside** the overlay rectangles that the screen code reports must equal the palette colour of the reference code, in RGB565. That rests on a host check that the palette's 16 colours are distinct in RGB565.
+- **(b) `/diag/fb` only:** the masked RGB565 comparison alone. It is weaker: the mask decides what is checked, so it answers a narrower question than its name.
+
+**Q9. B2: the loop's per-frame dumps and pacing.** A frame lasts about 70 ms at ≥ 14 fps. A 115 KB `/diag/fb` fetch takes longer than that over Wi-Fi, and its snapshots can land mid-draw. **It cannot catch each frame.** A8.17 also showed frames 10 and 11 have identical dumps, so B2 needs a frame identity that the dump does not carry.
+- **Recommended:** as each loop frame is drawn, the device prints `index, frameEpoch, code sha256, draw time (ms)` on the held trace.
+  - B2 grades the **15** hashes against `screens.ref.json` by index.
+  - The epochs must be strictly ascending, which tells 21:40 from 21:44.
+  - Pacing is max − min of the logged intervals, ≤ 10 ms.
+  - One `/diag/fb` fetch after the loop ends shows the screen it returned to.
+  - The hash uses the S3's hardware SHA. Its cost is printed, and a frame-time miss is reported as a miss, not absorbed.
+
+**Q10. How the board is put into each of the four scenarios** (B1 needs all four on the glass).
+- **(a) Recommended. No shared file.** Stored mode cycles **dry → approaching → here now → warning**, holding each for 30 s. Each hold logs the scenario and `Choose`'s screen on the trace.
+  - This rotates the **data**, not the screens: within a hold, the screen is whatever 1a's fixed priority picks for that data.
+  - It exists only while the feeds are the stored ones. The live path (proxy, later) never cycles.
+- **(b)** A scenario selector on Weatherscope's config form. That is Weatherscope's own `#elif` branch, but inside `ConfigurationWebServer.cpp`, which #445 also changes. So it is a shared-file change, and it is asked here rather than assumed.
+
+**Q11. What the screens look like.** The website's re-exported mockups are not in yet (`docs/weatherscope-screens.md`).
+- **Recommended:** build from the current mockups (`C:\Github\_weatherscope-mockups`), with every ruled removal applied: no countdown, no "MOVING" on screen 2, no MT BACHELOR, no "+30" and no MIX.
+- **What B1's "shows its ruled screen" grades:** the screen `Choose` picked and the text lines from `WxLogic` (K3's values), read off the trace and seen in the `/diag/fb` image. **It does not grade a pixel match to a mockup.**
+- **The look itself** stays with Daniel, on the glass.
+
+**Unchanged:**
+- the only shared-file edit 3.3d makes is the ruled one (A8.7): the `/diag/fb` guard widened to include Weatherscope;
+- the flash band (A8.12) and the static-RAM band;
+- the capture rules (A8.4: one trace held across each step; reachability proved after the close; recovery with `read_mac` only);
+- the board is `907069326E64`, found by its serial.
+
+**CI on #467:** every head pushed today, from `c4c3448` to `cbb0f51`, showed **all 15 checks queued and none started** when last read. The whole-suite evidence is therefore still pending. The Wx section's evidence is the local run through `run.sh`'s own text (A8.16, A8.17).
