@@ -150,6 +150,7 @@ ALLOWED_MENTIONS = {
     "docs/ota-url-check.md",             # predictions for the OTA URL check; names the workflow and skus.yml, parses nothing
     "scripts/check_ota_url.py",          # reads the build job's step order (--check-wiring), never the matrix
     "docs/prebuild-patches.md",          # the pre-build patch audit; names the workflow in prose, parses nothing
+    "scripts/check_workflow_concurrency.py",  # reads every workflow's on: and concurrency blocks, never the matrix
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")

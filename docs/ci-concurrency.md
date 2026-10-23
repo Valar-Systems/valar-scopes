@@ -48,3 +48,28 @@ the PR's whole diff, and both heads carry all six workflow files, so all six run
 **Outside the set:** stop and report.
 
 **C2's second head.** This line is the commit that supersedes the first, for C2 (pushed less than 60 s after it).
+
+## The `sku-readers` miss on `42dce6c`, and the ruling
+
+**The miss.** On `42dce6c`, `firmware` / `sku-readers` failed. The only file the sweep flagged was
+`scripts/check_workflow_concurrency.py`: one selftest plant names the matrix workflow's file. **Outside the set:** no
+C row predicted it. The checker had been run before the push; the repo-wide sweep had not. (The `print-cards` push run
+is a second miss, ruled and recorded on #469 with its cause.)
+
+**The ruling (reviewer chat, pasted by Daniel, 2026-10-23), verbatim:** "(a), worded truthfully. The only file the sweep
+flags on 42dce6c is scripts/check_workflow_concurrency.py (I ran it). Add it to ALLOWED_MENTIONS with the note 'reads
+every workflow's on: and concurrency blocks, never the matrix'. It's a reviewed non-matrix reader, like
+check-tag-workflow.sh, not prose. Push that as #469's next head and bring the head back for approval."
+
+**This head does exactly that.** `skus.py`'s `ALLOWED_MENTIONS` gains the checker, with that note. The checker is
+unchanged, so its plant still names the file and the entry is not stale.
+
+- **Not used:** the local alternative (moving the plant, and allowlisting this doc as prose) was set aside by the
+  ruling. It is kept on the branch `backup/469-local-f1-2026-10-23`.
+- **This section avoids the matrix workflow's literal file name,** because this doc is not on the list.
+
+| | check | predicted |
+|---|---|---|
+| **F1′** | `python3 scripts/skus.py --check-readers` | passes |
+| **F2′** | C1's checker and its selftest | unchanged: the checker passes, and the three plants are red on the matrix workflow, `workers.yml` and `device-ids.yml` respectively |
+| **F3′** | CI at this head | **0 failures**, every check counted |
