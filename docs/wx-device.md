@@ -470,3 +470,33 @@ Daniel's A/B choice on the bench, not a defect, and nothing is changed for it he
 | **the host suite** | `run.sh`: **ALL HOST TESTS PASSED** | |
 
 WD5e and WD5f are bench rows and are not read yet.
+
+### WD5 addendum 4, 2026-10-23: WD5e's analysis, committed before any capture, and three wordings for a ruling
+
+**The script:** `scripts/wx-fb-check.py`. It grades `/diag/fb` frames: the raw body, RGB565 big-endian, 240 × 240.
+Every colour and the ring geometry are **read from the source**: the rain table and `Dim` from `WxPalette.h`, the
+looks' percentages from `WxS2.h`, the planes' colours and the three rings from `AircraftManager.cpp`. The rings are
+rasterised with LovyanGFX's own `drawCircle`, ported line for line. Its verdicts are PASS, FAIL, UNTRUSTWORTHY,
+BLIND and rig, with distinct exit codes.
+
+- **UNTRUSTWORTHY** when fewer than 80 % of a ring's pixels have the ring's colour. That means the frame is torn,
+  mid-draw, or the geometry is wrong, so nothing in it is graded.
+- **BLIND** when no frame puts a ring or a marker over weather.
+
+Its selftest runs in `run.sh`, with eight synthetic frames drawn in the device's order, one verdict each:
+- PASS: as drawn; a 1 px trail in the marker's colour; look B with no outline.
+- FAIL: weather drawn over the rings; no outline; the old r=4 disc.
+- UNTRUSTWORTHY: no rings.
+- BLIND: no weather.
+
+All eight are as predicted.
+
+**For a ruling: three frozen wordings that cannot be met as written.** The proposal is what the script grades.
+
+| | frozen | why it cannot hold | proposed |
+|---|---|---|---|
+| **R3, WD5e(1)** | "every ring pixel has the ring's colour: **0 exceptions**" | planes, trails, labels and airports are drawn **after** the rings and sit on them legitimately | an exception is a ring pixel whose colour is a **weather** colour of the look, not the ring's, inside a 3 × 3 block of that colour: weather drawn over the ring. A 1 px trail or text stroke never fills 3 × 3. **0 exceptions**, and BLIND unless some ring pixel has weather 2 px either side |
+| **R4, WD5e(2)** | "every plane marker has a **fully black** 1 px border" | labels and reticles are drawn after the markers and may cover a border pixel legitimately | a marker fails when **any** 8-neighbour has a **weather** colour of the look, which is what the outline is for. **0 failures** in look A, and BLIND unless some marker sits over weather. Plane colours that are also weather colours of the look (WD4f) are left out and counted as ambiguous |
+| **R5, WD5f** | "**0 markers with a black border**" with the layer off | with the layer off the background is black, so every marker's border is black **with or without** an outline. Glass cannot see it | drop the marker clause from the bench. The off state's outline holds by construction: `WxOutlineNow()` requires `wxShowing == Crop`, which only `DrawWeatherUnder` sets, after it pushes the layer. **WD5f keeps its frame-p95 clause** |
+
+Until these are ruled, no WD5e or WD5f capture is graded.

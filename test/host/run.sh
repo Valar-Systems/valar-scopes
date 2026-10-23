@@ -1242,6 +1242,18 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+# WD5e's bench analysis (scripts/wx-fb-check.py; docs/wx-device.md, WD5 addendum 4) is graded here on synthetic
+# frames, one verdict each, so it is known to fail, refuse and go blind before it ever reads a real capture.
+echo
+echo "== WX frame check (WD5e's analysis, selftest) =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the frame check's selftest cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/wx-fb-check.py" --selftest
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # Weatherscope's feed interfaces (src/weatherscope/WxFeeds.h) against fakes, with no Arduino core and no stored
 # implementation (docs/weatherscope-stage3.md A6.2, D1). Its sabotage: python -I tools/weatherscope/s32/s32.py d1host --sabotage
 echo
