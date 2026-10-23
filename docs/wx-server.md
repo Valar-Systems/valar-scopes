@@ -714,3 +714,21 @@ sampled. **Not established.**
 escape hatch: **the instrument is unreliable for this question. Stop and decide.**
 - **No I5″ window is counted** on Workers Logs until this is ruled.
 - **Tail 2** (connected 16:40:40Z) keeps running as the cross-check the ruling allowed.
+
+### S3, restated before it deploys (2026-10-23, ~16:55Z)
+
+- **What deploys:** main `91554c8`. Since production's `26510c0` it carries only #461 (the `WX` binding in
+  `wrangler.toml`, and docs).
+- **The rollback target is the version this deploy replaces,** not the literal "S2 version". Production moved after
+  S2, to `806775e9-7de3-4617-9501-ddaad8ab1a75` (`26510c0`, #468's label fix). Rolling back to S2's `e31772f4` would
+  also undo #468.
+  - production: `806775e9`;
+  - staging: `24757e6a-88d4-42af-bf78-57964e747431`.
+- **The start condition (the ruling):** the ingest's latest runs storing. Read at 16:53:12Z: the bucket's
+  `wx/cref/latest` is 16:50:39Z, NOAA's newest frame, 153 s old.
+  - **Both log sources lagged this:** Workers Logs and the tail showed nothing after 16:47:46Z. So the condition is read
+    from the bucket's own record.
+- **W5's windows:** B = the 60 min before production's deploy, A = 5-65 min after, with P5's rules.
+  - `/wx` is recorded under `/other`, so "0 `/wx` requests from fleet devices" is read as **0 `/other` points carrying
+    a fleet device id**: an upper bound on `/wx`.
+- **Every W row is otherwise as frozen.**
