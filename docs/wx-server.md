@@ -821,3 +821,42 @@ roll back first."
   code, not a measured exclusion, so it is **reported, not used to re-grade.**
 
 **Whether S3 is redeployed is for a ruling.** W1-W4 and W6 stand as read above.
+
+### S3′: S3 goes back out, restated and frozen before it deploys (2026-10-23)
+
+**The ruling (reviewer chat, pasted by Daniel), verbatim:** "S3 goes back out as S3′, restated and frozen before it
+deploys: the same change (main's WX binding), W1-W4 and W6 as before, and the rollback target is the version it
+replaces. W5's miss stays in the record. For S3′ only, W5's error clause is re-registered: every fleet 5xx in A is
+classified from the proxy's own analytics. Any 5xx that isn't a /blips 503 with no upstream answering is a FAIL at any
+count. /blips 503s with no upstream answering are a FAIL if they exceed 1% of A's fleet /blips requests. If the
+classification can't be read, that is a FAIL. The rest of W5 is unchanged. The escape is unchanged: roll production
+back first."
+
+Also ruled: W5's miss and the rollback were handled exactly as frozen.
+
+**What deploys:** main's head at deploy time. It carries the `WX` binding (#461), which `806775e9` (`26510c0`) lacks.
+- The carried commits, and the diff of deployed files from `26510c0`, are listed at deploy time, and only to staging
+  and production.
+- **Rollback target:** the version S3′ replaces, read from `deployments list` just before the deploy and recorded.
+  Expected: `806775e9-7de3-4617-9501-ddaad8ab1a75`, production's version since the rollback.
+- **Start condition (as S3):** the ingest's latest runs storing, read from the bucket's `latest`.
+
+**The rows:**
+- **W1** is not re-read: the binding is unchanged since its dry-runs. Instead, each deploy's binding list must equal
+  `806775e9`'s **plus `env.WX (blipscope-wx)`**, or that is an escape.
+- **W2, W3, W4 and W6:** as frozen and read for S3.
+- **W5:** A = 5-65 min after production's deploy, B = the 60 min before it, with P5's rules **except the 5xx clause**,
+  which is re-registered for S3′ only. **How the classification is read:**
+  - **The source:** `blipscope_proxy`'s per-request points, fleet only, with E2:08 excluded.
+  - **A "/blips 503 with no upstream answering"** is `index1 = '/api/v1/blipscope/blips'`, `double1 = 503`, and
+    `blob3` (the upstream) empty.
+  - **Any other fleet 5xx in A:** a FAIL, at any count.
+  - **Those `/blips` 503s:** a FAIL when they exceed **1 %** of A's fleet `/blips` requests (sample-weighted, as P5
+    counts).
+  - **If the query fails, or returns no fleet `/blips` requests for A:** "can't be read", a FAIL.
+  - **Read twice,** after the window closes, and the two reads must agree.
+- **The escape:** anything else means stop, and roll production back first.
+
+**The optional colo question cannot be answered from the analytics.** `RequestMetric` has a `colo` field, but the
+per-request data point writes only `route, cache, upstream, model, dev, fw` (`proxy/src/metrics.ts:217`). So whether
+the five 503s came from another colo is not recorded anywhere.
