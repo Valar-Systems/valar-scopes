@@ -1943,3 +1943,173 @@ Pasted by Daniel himself, headed "For Weatherscope Code (blipscope-30), from the
 - **Open, watched (item 2):** the 21:28Z cell at 17.94 mi, 138.57°. If it keeps lighting up while its neighbours are dry, it is raised: a fixed return inside 15 mi would cause a false PRECIP WITHIN 15 MI.
 - **Pending (item 7):** the whole-suite grading of every #467 head until CI has run on it.
 - 3.3d's predictions, with item 3's and item 4's additions, are frozen in the next addendum, before any of its code.
+
+### A8.20 3.3d: the design, the rules and the predictions, frozen before any of its code (2026-10-23)
+
+This applies A8.19's rulings. **The numbers that only the layout code can give** (each screen's overlay rectangles, and its compared-pixel count) are produced by the host build of that code once its host test passes. They are frozen in **A8.21, before the board is flashed**, and nothing here changes after it.
+
+**What changes, and where:**
+- **`src/weatherscope/WxScreens.h`** (new, pure C++11, host-tested), with:
+  - the scenario cycle;
+  - the warning's title lines;
+  - the clock text;
+  - the headline's line wrap;
+  - text and label boxes;
+  - the town-label placement on top of Q6(a);
+  - the union pixel count.
+- **`src/weatherscope/WxLoopFrames.S`** (new): the 15 committed loop crops, embedded with `.incbin`.
+  - **Why not `embed_files`:** `platformio.ini` is a file #445 changes, so this keeps 3.3d out of it.
+  - **The known trap:** SCons does not track an `.incbin` dependency. The loop crops are fixed and D1-checked, and the **ELF is checked** for each crop's bytes, once each (below).
+- **`WxFeeds.h`:**
+  - `WxFeed` gains `History()`, the loop's frames, oldest first;
+  - `Feeds` gains `stored`, set only by `WxFeedFactory.cpp` (D1 keeps that file the only one that names an implementation).
+- **`StoredFeeds.cpp`** serves the 15 frames.
+- **`WeatherscopeManager`** gains:
+  - the screens, drawn from a cached map sprite;
+  - the cycle;
+  - the loop, with its records;
+  - the legend;
+  - touch;
+  - in stored mode only, gesture injection on USB serial;
+  - the trace lines.
+- **`ConfigurationWebServer.cpp`**, the ruled change only (A8.7). The radar-only `#if` around `/diag/fb` and `/diag/fb.html` is split, so those two routes get their own guard, "radar **or** Weatherscope". The viewer page's guard and the `FrameBuffer.h` include are widened the same way.
+  - The route code is not copied, edited or reordered.
+  - #445's hunks in this file sit elsewhere (its nine hunks lie between lines 870 and 3,779, at `2d89084`).
+- **Nothing else that is shared:** not `main.cpp`, not `platformio.ini`, not `include/`.
+
+**The screens** (Q11): built from the current mockups with every ruled removal applied.
+- **Text:** the panel font (LovyanGFX's default, 6 × 8 px per character per size step).
+  - Each text item is centred on x = 120 and drawn over a black box that is exactly its rectangle: x = 120 − w/2, w = 6 · n · size, h = 8 · size.
+  - The middle dot of the mockups is drawn as " - ". That is part of the look, which is Daniel's call on the glass.
+- **No range rings and no rim ring.** Neither can be masked with rectangles, and with them the compared map would shrink to almost nothing. Also a look item for Daniel.
+
+| screen | fixed overlays (size: text, y) |
+|---|---|
+| Dry | "N" (1, y 4); the clock (2, y 20); the home marker, a 10 × 10 box at (115, 115) |
+| PrecipApproaching | Dry's, plus the headline wrapped at 13 characters (2): "PRECIP WITHIN" at y 184, "15 MI" at y 202 |
+| PrecipNow | Dry's, plus "RAIN NOW" (2, y 184) |
+| Warning | "N"; the title in orange (2): "SEVERE T-STORM" at y 38, "WARNING" at y 56; `UntilText` (1, y 76); `LineA` joined by " - " (1, y 168); "STORM " + distance + " " + bearing (1, y 180); travel (1, y 192); the home marker; the polygon as 4 one-pixel edge rectangles in orange. **No clock** (mockup 3 has none). |
+
+- **The clock** is the scenario's own (A8.1): the frame epoch on the −05:00 clock, "h:mm AM/PM".
+- **Town labels**, Q6(a) extended, by one rule:
+  - **The dot:** at the town's projected pixel, `floor(120 + dLon/rLon·120)` and `floor(120 − dLat/rLat·120)`, with `View`'s home and radii.
+  - **Its box:** x − 1, y − 4, width 5 + 6n, height 8. The dot is 3 × 3 and the text starts at x + 4.
+  - **Candidates:** all 171 towns, less any whose box overlaps a fixed overlay. The 64 nearest go to `PlaceLabels`; 64 is its cap.
+  - **What is drawn:** what `PlaceLabels` places. An unplaced town gets no dot.
+
+**The scenario cycle** (Q10 (a)): Dry → Approaching → Here now → Warning → Dry, holding each for 30,000 ms.
+- **It never advances unless `feeds.stored`.**
+- **It is paused while the loop or the legend is open,** and resumes with the hold time it had left.
+- **The frames are picked by the device:** it applies A8.10's rule to `History()` with `EchoWithin`, and prints its pick.
+- **At each scenario start the board prints:**
+  - `[wx] pick`;
+  - `[wx] scn` (name, frame, `Choose`'s screen and type, and the text lines);
+  - `[wx] codes`, the full sha256 of the 57,600-byte code buffer the map was drawn from, streamed row by row, so no extra buffer;
+  - `[wx] rects`, every overlay rectangle in draw order.
+
+**The loop** (B2): a tap opens it. It plays the 15 frames once, oldest first, and returns to the screen it was opened from.
+- **Pacing:** each frame starts at a deadline 70,000 µs after the last (14.29 fps). The loop task waits for the deadline in `Update`, so the drawing starts on time.
+- **The record per frame, kept in RAM:** index, frameEpoch, the full code sha256, start µs (`esp_timer`), draw ms (decode to overlays done, push excluded) and hash µs. **All 15 are printed after the loop ends,** as A8.19 rules.
+
+**The legend** (B3): a left swipe opens screen 7 and a tap returns.
+- **On open it prints** the bench's `WXL` swatch lines and `WXT` label boxes. They are the same lines, and they are metadata, not a frame.
+- `legend_check.py` gains a `/diag/fb` input mode. **L1, L2, L5 and L6** run on the snapshot. **L4**, the serial dump's integrity, is replaced by the snapshot rules below.
+
+**Gestures:**
+- **Physical touch** works as on every edition.
+- **On the bench,** a `T` (tap) or `S` (left swipe) byte on USB serial feeds the **same** handlers. It is honoured only when `feeds.stored`.
+- **RELEASE GATE, added to A8.19's:** the injection, like stored mode and its cycle, must be unreachable on a customer unit before any Weatherscope ships.
+
+**The instrument** (A8.19 item 3, plus one rule of mine, frozen here before any run):
+- **One serial open** across B1, B2 and B3, never reopened, which is A8.4's rule at its strictest.
+  - The tool is a new single-open runner, `tools/weatherscope/board/run_b.py`. It uses the PlatformIO penv's `pyserial`, with DTR and RTS false before the open.
+  - It logs every line with a host timestamp. It sends the gesture bytes and fetches `/diag/fb` over HTTP while the port is open.
+- **After the close:** the board is proven on the network with A7's TCP test. On a drop it is recovered with `read_mac` (no writes), and the recovery is recorded (A7.3: a close leaves this board in ROM download mode).
+- **The snapshot rules:**
+  - Only `Torn: false` snapshots are graded.
+  - A torn one is recorded and refetched. **Three torn on one screen is a FAIL.**
+  - **The graded snapshot** is the first untorn one that is **byte-identical to the next untorn one.**
+    - **Why I added this:** the main loop redraws every frame, and a copy that lands mid-draw can still read `Torn: false` (seen on Blipscope; the `/diag/fb` partial-frames note).
+    - **Why it can work:** these screens are static within a hold, so two finished snapshots agree, and a partial one disagrees with its neighbour.
+  - **At most 6 fetches per screen.** No agreeing pair within them is a FAIL of the instrument: stop and decide.
+- **The expected colours** are derived on the host **independently of `WxPalette.h`:** `legend_check.py`'s pinned-table method (rain code 1 at 55 %, 13 white, no coverage (40, 40, 40), the hatch pattern for 15), through LovyanGFX's truncating `color565`. Off the disc is 0x0000.
+  - A host check first: codes 0-14 give **15 distinct** RGB565 values.
+
+**Predicted, B1** (each of the four scenarios):
+
+| check | predicted |
+|---|---|
+| pick | approaching `212400`, dry `220000` (= `scenarios.ref.json`) |
+| screen and text | Dry with no headline; PrecipApproaching "PRECIP WITHIN 15 MI"; PrecipNow(Rain) "RAIN NOW"; Warning with ["HAIL 1 IN", "WIND 60 MPH"], "MOVING NE 35 MPH", "14 MI", "E", "UNTIL 5:09 PM" (K3) |
+| code sha256 | its frame's `screenSha256` in `screens.ref.json`: dry → `3dc9114b93b2…`; the other three → `fc1ab7ab3513…` |
+| rects | **exactly** A8.21's table, in order |
+| pixels | every compared pixel (outside the rects) equals the expected colour. The compared count equals A8.21's figure for that screen |
+| image | the graded snapshot is kept, for Daniel's call on the look |
+
+**Predicted, B2:**
+- **15 records,** indices 0-14.
+  - Each epoch equals the manifest's, so they are strictly ascending.
+  - Each sha equals `screens.ref.json`'s for that index.
+- **Pacing:** max − min of the 14 start-to-start intervals ≤ 10,000 µs. Each interval is 70,000 ± 5,000 µs, and 14 frames over (t14 − t0) give ≥ 14 fps.
+- **Time per frame:** each draw ms + push stays inside the interval. Draw ms ≤ 45 for every frame: the bench measured decode 2.87 + index 3.58 + render 22.6 ms, plus overlays and the hash. **Hash µs ≤ 5,000.**
+- **Afterwards:** the snapshot after the loop shows the scenario screen it was opened from, graded as in B1.
+
+**Predicted, B3:**
+- after `S`, the board prints `[wx] screen=legend` and the `WXL`/`WXT` lines; `legend_check.py --fb` exits 0 (L1, L2, L5 and L6);
+- after `T`, the scenario screen returns, graded as in B1.
+
+**Predicted, sizes** (read as A6.4 read them: PlatformIO's size summary):
+- **flash** within A8.12's band, 1,588,040-1,624,280 B;
+- **static RAM** within 54.6-57.0 KB;
+- **PSRAM:** the edition's own allocations, printed once at first `Initialise` as the drop in free SPIRAM, within 150-170 KB. That is the cached map sprite (115,200 B) plus the code grid (38,520 B, the 180 × 214 crops) plus records and label state;
+- **the ELF** contains each of the 15 crops' bytes, once each.
+
+**The host test for 3.3d's logic,** `test/host/test_wx_screens.cpp`, with its own `run.sh` block:
+
+| case | input | expected |
+|---|---|---|
+| CY1 | stored, 30,000 ms held | advances, Dry → Approaching |
+| CY2 | stored, 29,999 ms | holds |
+| CY3 | **live** (`stored` false), 600,000 ms | **never advances** |
+| CY4 | stored, paused, 60,000 ms | holds |
+| CY5 | 10,000 ms, paused 50,000, resumed, 20,000 ms more | advances at exactly 30,000 ms of unpaused time |
+| CY6 | stored, at Warning, 30,000 ms | wraps to Dry |
+| WT1-WT5 | Tornado / Snow Squall / Severe Thunderstorm / Flash Flood / another event | "TORNADO" / "SNOW SQUALL" / "SEVERE T-STORM" / "FLASH FLOOD", each with "WARNING"; another event gets no title |
+| CK1-CK3 | 21:24Z, 05:05Z, 17:00Z on −05:00 | "4:24 PM", "12:05 AM", "12:00 PM" |
+| HW1-HW2 | "PRECIP WITHIN 15 MI", "RAIN NOW" at 13 chars | ["PRECIP WITHIN", "15 MI"], ["RAIN NOW"] |
+| TB1 | "RAIN NOW", size 2, y 184 | (72, 184, 96, 16) |
+| LF1 | a label box crossing a fixed overlay, and one clear of it | the first dropped, the second kept |
+| UN1 | two 10 × 10 boxes sharing a 5 × 5 corner | union 175 px |
+
+**19 cases** (6 + 5 + 3 + 2 + 1 + 1 + 1).
+
+| sabotage | the plant | predicted failing set |
+|---|---|---|
+| **S-CY** (A8.19's) | the `stored` test removed from the cycle | {CY3} |
+| S-CY2 | the pause ignored | {CY4, CY5} |
+| S-WT | Snow Squall's title dropped | {WT2} |
+| S-CK | the 12-hour mapping `h % 12 == 0 ? 12 : h % 12` replaced by `h % 12` (so 0 and 12 both print "0") | {CK2, CK3} |
+| S-LF | the fixed-overlay filter removed | {LF1} |
+| S-UN | the union counted as a plain sum | {UN1} |
+
+**The recorded-data sabotages** (A8.19), run by the grader on the B run's own capture:
+
+| sabotage | predicted |
+|---|---|
+| S-B1a: the approaching snapshot graded against `220000`'s reference | the hash check **and** the pixel check red |
+| S-B1b: one board-reported rect widened by 1 px | the rect check red |
+| S-B2a: record 3 graded against reference 4 (they differ; 10 and 11 are identical, so not those) | red |
+| S-B2b: the epochs of records 2 and 3 swapped | red (not strictly ascending) |
+| S-B2c: 11,000 µs added to one interval (start times 8-14 shifted) | red (max − min > 10,000 µs) |
+
+**Order:**
+1. `WxScreens.h` and its host test plus sabotages.
+2. A8.21: the rectangle tables and compared counts from the host build, frozen.
+3. The firmware.
+4. The build, with the sizes and the ELF check.
+5. The flash, onto `907069326E64`, the port found by its serial.
+6. B1-B3 in one held trace.
+7. Grading, and the recorded-data sabotages.
+8. The results addendum.
+
+**Outside every prediction:** stop, record, and wait for a ruling.
