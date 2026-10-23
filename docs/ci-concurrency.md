@@ -42,4 +42,7 @@ is grouped by `run_id` and is never cancelled.
 | **C2** (live, on this PR) | two pushes to this branch less than 60 s apart, both carrying the block, read through the runs API by `head_sha` | every PR workflow's run for the **first** head ends **`cancelled`**. Every run for the **second** head completes. *Control:* today's #467 heads before this change: 7 superseded `firmware` runs are queued or in progress, **none cancelled**. So the instrument can see "not cancelled" |
 | **C3** (after merge) | the merge's own push run on main | **not cancelled**, and every PR workflow completes on it |
 
+**C2 and path filters.** `print-cards`, `provisioner` and `workers` filter by path. For `pull_request`, GitHub evaluates paths against
+the PR's whole diff, and both heads carry all six workflow files, so all six run on both heads.
+
 **Outside the set:** stop and report.

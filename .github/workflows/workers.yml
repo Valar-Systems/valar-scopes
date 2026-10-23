@@ -17,6 +17,11 @@ on:
   pull_request:
     paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
 
+# A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # The published photo manifest and the repo's manifest.json must name the same
   # photos. On 2026-09-16 they did not: the repo said 237, production said 238,
