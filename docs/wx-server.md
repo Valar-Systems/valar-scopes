@@ -887,3 +887,39 @@ the five 503s came from another colo is not recorded anywhere.
 **W5's classifier, checked before its read:** run on S3's own W5 windows, it finds exactly the 5 known `/blips` 503s
 with no upstream (0.379 % of 1,321), no other 5xx, and reports the classification readable. So it can see what it is
 meant to catch.
+
+### I5″'s result (2026-10-23): outcome (c), recorded as registered
+
+**Both reads passed the ground-truth gate,** read on #472's code, more than 70 min after the ingest deploy (17:42:49Z).
+
+| | read 1 | read 2 |
+|---|---|---|
+| at | 18:53:01Z | 19:03:07Z (10 min 6 s later) |
+| the gate: NOAA frames in `[T-3600, T-240]`, and in the bucket | 28 and 28: **PASS** | 28 and 28: **PASS** |
+| objects | **31** | **30** |
+| frames + other keys | 30 + `wx/cref/latest` | 29 + `wx/cref/latest` |
+| bytes | 385,353,781 (in the band) | 372,508,661 (29 x 12,845,120 + 181) |
+| oldest frame | **3,741 s** | 3,510 s |
+| newest frame | 264 s | 154 s |
+| control (`latest` = newest listed) | passes | passes |
+
+**Verbatim:**
+- read 1: `{"at": "18:53:01Z", "pages": 1, "objects": 31, "bytes": 385353781, "frames": 30, "other_keys":
+  ["wx/cref/latest"], "oldest_frame_age_s": 3741, "newest_frame_age_s": 264, "control": {"latest_epoch": 1792781318,
+  "equals_newest_listed": true}}`
+- read 2: `{"at": "19:03:07Z", "pages": 1, "objects": 30, "bytes": 372508661, "frames": 29, "other_keys":
+  ["wx/cref/latest"], "oldest_frame_age_s": 3510, "newest_frame_age_s": 154, "control": {"latest_epoch": 1792782033,
+  "equals_newest_listed": true}}`
+
+**Verdict: outcome (c),** on three of its clauses: under 30 frames (read 2), a frame older than 3,720 s (read 1), and
+reads that disagree on the count. **(c) means: stop and decide.** Nothing is re-graded.
+
+**What NOAA's own listing shows at each read** (data beside the verdict):
+- **Read 1:** NOAA's hour `(T-3600, T]` holds 30 frames. Two of them, 18:50:33 and 18:52:41, were published 148 s and
+  20 s before the read and were not stored yet: the ingest's lag. The bucket also still held one frame older than
+  NOAA's hour, 3,741 s old. That fits the prune's cutoff being taken from each check's start (`t0 - 3,600`), with no
+  successful prune in the ~140 s before the read.
+- **Read 2:** NOAA's hour holds 30 frames. The bucket held all but the newest, 19:02:37, published 30 s before the read.
+- **So:** the gate shows no hole, and the count varies with where the read falls between NOAA's ~120 s cadence, the
+  ingest's lag and the prune's timing. **"31 objects in both reads"** assumed a phase that is not guaranteed. That is a
+  defect in the frozen set, found here, and **for a ruling.** I5″ is not re-read until it is ruled.
