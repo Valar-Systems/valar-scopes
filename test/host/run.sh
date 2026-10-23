@@ -1261,6 +1261,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope 3.3d's screen layer (src/weatherscope/WxScreens.h): the stored-mode cycle, titles, clock, wrap, boxes,
+# the label filter and the union, docs/weatherscope-stage3.md A8.20: 19 cases. Its sabotages:
+# python -I test/host/sabotage_wx_screens.py
+echo
+echo "== WxScreens =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_screens.cpp" -o "$OUT/test_wx_screens.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope screens test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_screens.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the screens test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
