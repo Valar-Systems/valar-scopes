@@ -483,3 +483,22 @@ wait, which is consistent with a second delivery of the 00:49 trigger. It stored
 invocation's `:30` check began building the same frame, and that check lost the conditional put. Exactly one write landed and
 `latest` advanced once: the overlap the idempotent ingest was built for. **I6's status set left `lost-race` out.** I6 was graded
 on the first 20 minutes, where none occurred, so its verdict stands.
+
+### S2, restated before it runs (2026-10-23): the commit is main `4752767`
+
+**Why it moved.** P3's ruling (2026-10-23) had the smoke check fixed first (#463). #465 and #466 merged as well,
+so main is now `4752767`. `deploy.sh` deploys main's head, and it refuses a tree that is behind main in `proxy/`.
+
+**What did not move.** `git diff 0116e13 4752767` over `proxy/src`, `proxy/wrangler.toml`,
+`proxy/package.json`, `proxy/package-lock.json` and `proxy/tsconfig.json` is **empty**. Under `proxy/`, only
+`scripts/smoke-prod.sh` differs (#463: the probe id, not deployed code). **So the Worker S2 deploys is `0116e13`'s
+code.**
+
+**Carried since production's `2460deb`, all reviewed and merged:** #450 `882d49e`, #458 `6bb61df`, #460 `1990156`,
+#443 `0116e13`, #463 `2484bda` (the script only).
+
+**The changes to S2's rows:**
+- **P1 reads `4752767`** wherever it said `0116e13`;
+- **P3 "after"** uses #463's script: **0 FAIL**, as frozen, with `/wx` passing as "not wired yet". SKIPs are not
+  predicted, because `/v1/photo` depends on the live sky (#463's E1);
+- **every other row is as frozen.**
