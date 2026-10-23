@@ -923,3 +923,21 @@ reads that disagree on the count. **(c) means: stop and decide.** Nothing is re-
 - **So:** the gate shows no hole, and the count varies with where the read falls between NOAA's ~120 s cadence, the
   ingest's lag and the prune's timing. **"31 objects in both reads"** assumed a phase that is not guaranteed. That is a
   defect in the frozen set, found here, and **for a ruling.** I5″ is not re-read until it is ruled.
+
+### S3′'s W5, and S3′ complete (2026-10-23)
+
+A = `[18:44:07, 19:44:07)`, B = `[17:39:07, 18:39:07)`. Read at 19:50:00Z and at 19:55:15Z; **the two reads are
+identical in every field.**
+
+| | read | rule | verdict |
+|---|---|---|---|
+| fleet 5xx in A, classified (re-registered for S3′) | **0**: 0 `/blips` 503s with no upstream (0 % of 1,191 fleet `/blips`), and no other 5xx. **The classification is readable** | other 5xx: 0; no-upstream 503s ≤ 1 %; readable | **PASS** |
+| fleet 4xx in A | 0 | 0 | PASS |
+| devices in B but not A | 0 (B 5, A 5) | 0 | PASS |
+| `/blips` A/B | 1,191 / 1,251 = **0.95** | 0.4-2.5 | PASS |
+| usage rows in A | 5 devices, all `u8`, 0 `(none)` | as P5 | PASS |
+| fleet `/other` points in A | **0**, so 0 fleet `/wx` requests | 0 | PASS |
+
+**W5: as predicted.** **S3′ is complete, with every row as predicted:** the binding check at each deploy, W2 in both
+envs, W3, W4, W5 and W6. Production serves `/wx` crops from `9fec1c7c` (`28ab5ec`). S3's W5 miss stays in the record
+above.
