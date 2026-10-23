@@ -785,3 +785,39 @@ recorded above.
 - **The bucket listing that passes the gate is the I5″ read itself,** graded against the frozen set and outcomes
   (a)-(d).
 - **A failed gate is printed as "not taken: gap"** with the missing epochs, and is retried no sooner than 10 min later.
+
+### W5: a MISS, and the escape executed (2026-10-23)
+
+**Windows:** A = `[17:03:39, 18:03:39)`, B = `[15:58:39, 16:58:39)`, with P5's rules.
+
+| | read 1 (18:10:01Z) | read 2 (18:15:15Z) |
+|---|---|---|
+| fleet 5xx in A | **5** (all 503) | **5** (identical) |
+| fleet 4xx in A | 0 | 0 |
+| devices in B but not A | 0 (B 5, A 5) | 0 (B 5, A 5) |
+| `/blips` A/B | 1,321 / 1,382 = 0.96 | 0.96 |
+| usage rows in A | 5 devices, all `u8` | 5 devices, all `u8` |
+| fleet `/other` points in A (the upper bound on fleet `/wx`) | **0** | **0** |
+
+**The two reads are identical in every field.** **Verdict: MISS.** Fleet 5xx in A is 5, not 0, which is outside the set. **The escape, as frozen:** "stop. In production,
+roll back first."
+- **Production was rolled back at 18:10:57Z,** before the 503s were looked into: `wrangler rollback
+  806775e9-7de3-4617-9501-ddaad8ab1a75 --env production`. That is the version S3 replaced (`26510c0`).
+  `deployments list` shows it at 100 %, and `/healthz` reports `commit` `26510c0`, `wx` `not_configured`.
+- **Staging stays on S3** (`1894509a`, `91554c8`). The escape names production.
+
+**What the 503s were (data beside the verdict, not a re-grade):**
+- **All 5 are `/api/v1/blipscope/blips`, from one fleet device, at 17:59 and 18:00Z.** Cache `MISS`, and no upstream
+  answered (`upstream` empty).
+- **The same minutes, the other 4 fleet devices' `/blips`** were all 200, cache `MISS`, served by `adsb_fi` and
+  `adsb_fi_b`.
+- **Baselines with 0 fleet 5xx:** S3's B, S2's A (14:54:38-15:54:38Z), and 10:00-14:00Z today.
+
+**Two explanations, and neither is excluded by a measurement:**
+- **A transient failure of that one device's upstream fetch** at those two minutes. This is the same day as the
+  ingest's NOAA failures (Cloudflare 52x on subrequests to an origin).
+- **S3's change.** S3 added only the `WX` binding. `git diff 26510c0 1b724bc`: `proxy/src` identical, `wrangler.toml` the
+  binding blocks and their comments, and otherwise only #470's test file. `/blips` never reads `env.WX`. That is an argument about the
+  code, not a measured exclusion, so it is **reported, not used to re-grade.**
+
+**Whether S3 is redeployed is for a ruling.** W1-W4 and W6 stand as read above.
