@@ -30,7 +30,7 @@ const MIL_RANGES: MilRange[] = [
   { lo: 0x3f4000, hi: 0x3fbfff, op: "German military" },
   { lo: 0x400000, hi: 0x40003f, op: "UK military" },
   { lo: 0x43c000, hi: 0x43cfff, op: "UK military" },
-  { lo: 0x444000, hi: 0x446fff, op: "Belgian military" },
+  { lo: 0x444000, hi: 0x446fff, op: "Austrian military" }, // inside Austria's ICAO block 440000-447FFF (Annex 10 Vol III, Table 9-1)
   { lo: 0x44f000, hi: 0x44ffff, op: GENERIC },
   { lo: 0x457000, hi: 0x457fff, op: GENERIC },
   { lo: 0x45f400, hi: 0x45f4ff, op: GENERIC },
