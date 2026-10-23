@@ -58,9 +58,14 @@ committed today.
 | | check | predicted |
 |---|---|---|
 | **B1** | `check_bssid.py` on main's tree | passes, with **exactly the 13 named files** allowed and nothing else found |
-| **B2** | its selftest, one plant at a time in a copy of the tree | each turns it red naming exactly the planted file: **(a)** a new file with `bssid=AA:BB:CC:DD:EE:F1`; **(b)** a new file with `BSSID: aa-bb-cc-dd-ee-f1` (the other case and separator); **(c)** a new file with the jdiag form `bss AA:BB:CC:DD:EE:F1`; **(d)** one of the 13 with its MAC removed (stale) |
+| **B2** | its selftest, one plant at a time in a copy of the tree | each turns it red naming exactly the planted file: **(a)** a new file with the fast-join form (`bssid=` and a placeholder MAC); **(b)** the other case and separator (`BSSID: ` and a dash-separated placeholder); **(c)** the jdiag form (`bss ` and a placeholder); **(d)** one of the 13 with its MAC removed (stale) |
 | **B3** | the redaction vectors, through `pwsh` (`redact-line.ps1`) and `python` (`fresh-boot-capture.py`) | **identical output, equal to the expected column.** The fast-join line becomes `bssid=<bssid redacted>`; the jdiag line `bss <bssid redacted>`; the firmware's new two-byte form is left alone; the password and SSID lines as `Protect-Line` already does. *Sabotage:* removing the BSSID rule from either implementation turns B3 red |
 | **B4** | the firmware | the fast-join and jdiag lines print `..:..:..:..:%02X:%02X`; every firmware env builds in CI |
 | **B5** | the rest | `check_device_ids.py`, `skus.py --check-readers` and the host suite pass. `bench-capture.ps1` still records: its `Protect-Line` now comes from the dot-sourced file, and `pwsh -Command` loads both scripts without error |
+
+**Amended before any code ran (2026-10-23):** B2's plants were first spelled out here as full placeholder MACs,
+which would have tripped B1 on this file itself. They are now described. The selftest builds its MACs at run
+time, and the vectors use `{MAC1}` / `{MAC2}` tokens that `check_redaction_vectors.py` fills in. **No committed
+file of this PR holds a literal MAC after `bssid`.**
 
 **Outside the set:** stop and report.
