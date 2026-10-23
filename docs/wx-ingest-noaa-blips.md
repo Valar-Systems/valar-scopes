@@ -97,3 +97,71 @@ red, and only it. Every plant was restored byte-identical (sha256).
 how #469 missed `sku-readers`.
 
 **Live rows NL1-NL3** follow review, merge and the ingest's deploy.
+
+## Live results (#472 deployed 2026-10-23)
+
+**The deploy.** Main `d1ced73`, `npx wrangler deploy -c wx-ingest.wrangler.toml`. Version
+`582612da-e1b0-4a02-bf9e-de72c5d78157`, created 17:42:49Z. The rollback target is `47ad5010`, confirmed listed, with
+`wrangler whoami` valid. The approval and the merge are recorded on #472.
+
+### NL1, restated before any NL1 read (2026-10-23, ~17:55Z)
+
+**Frozen:** read after deploy + 70 min; NOAA's frames published from deploy + 5 to deploy + 65 min must all be in the
+bucket.
+
+**The defect, found before reading.** The ingest prunes frames older than 3,600 s. At deploy + 70 min (18:52:49Z) every
+frame before about 17:52:49Z is legitimately gone, and that is the first ~5 min of the span. Read as frozen, NL1 would
+report those frames missing: the prune doing its job, scored as a hole.
+
+**The restatement keeps the frozen span exactly** and reads it in two halves, each before any of its frames can be
+pruned and after its newest is past the ingest's lag:
+
+| half | span (NOAA epochs) | read at |
+|---|---|---|
+| NL1a | `[17:47:49, 18:17:49]` | 18:22:49Z or later |
+| NL1b | `[18:17:49, 18:47:49]` | 18:52:49Z or later |
+
+**Predicted:** every NOAA frame in each half is in the bucket. Together the halves are the frozen span. **Outside the
+set:** stop and report.
+
+**The ruling on the restatement (reviewer chat, pasted by Daniel, 2026-10-23), verbatim:** "#475's restatement is accepted
+as a re-registration made before any NL1 read, so it is not a miss. The frozen text and the defect stay in the record. One
+addition: each half must be read before its oldest frame is 55 minutes old, so NL1a between 18:22:49Z and 18:42:49Z, and
+NL1b between 18:52:49Z and 19:12:49Z. A half not read inside its window is unreadable, and unreadable is a FAIL."
+
+### NL1a and NL2 (read 2026-10-23)
+
+| | read | verdict |
+|---|---|---|
+| **NL1a** | read at **18:23:00Z**, inside its window (18:22:49-18:42:49Z). NOAA's own listing holds **15 frames** in `[17:47:49, 18:17:49]`, and **all 15 are in the bucket**; none missing | **as predicted** |
+| **NL2, the tail** (17:43 to 18:20:39Z; it then exited by itself) | **all 54** ingest lines carry `attempts`: 48 `wx_ingest`, 6 `wx_ingest_error`. Every error is at the maximum: three `NOAA get ... aborted due to timeout (2 attempts)`, `attempts` 2; three `NOAA list ... aborted due to timeout (3 attempts)`, `attempts` 3. **Five checks succeeded only after a retry** (`attempts.list` 2 or 3) | **as predicted** |
+| **NL2, Workers Logs** (since the deploy; never used alone) | 43 `wx_ingest` and 6 `wx_ingest_error` (all at the maximum). **One line has no `attempts`:** 17:42:57Z, logged by version **`47ad5010`**, from a run that began before the deploy. Every line from `582612da` carries it | **as predicted** |
+
+**What it shows:** six NOAA failures in that half hour, of the kind that left holes before, and **no hole**.
+Two frames were `backfilled`.
+
+### Why Workers Logs drops this Worker's events: not explained (low priority; nothing rests on it)
+
+- **Not the account limit.** Workers Logs allows 5 billion events per account per day before it falls to 1 % sampling
+  (developers.cloudflare.com/workers/observability/logs/workers-logs, "Limits"). This account logs tens of thousands.
+- **The reviewer's lead, outcome and wall time, does not separate the dropped runs from the kept ones.** Runs were
+  matched by scheduled minute, tail 1 against Workers Logs, from 16:09 to 16:38Z:
+  - 26 runs; 22 in Workers Logs; **4 dropped**, at 16:12, 16:20, 16:23 and 16:37.
+  - **All 4 had outcome `Ok`** in the tail. Their checks took 13.9 s + 23.6 s, 2.3 s + 2.1 s, 2.5 s + 9.4 s and
+    3.1 s + 11.2 s.
+  - **The kept runs:** outcome `ok`, `wallTimeMs` from 4,300 to 238,518, median 36,223. The dropped runs' implied wall
+    times (about 32-54 s) sit inside that range, and one of them (16:20) was entirely ordinary.
+  - **The drop can be partial:** the 16:23 run's `:00` line is in Workers Logs, and its `:30` line and its invocation
+    record are not.
+- **So it looks like lost event batches,** not anything about how a run went. Separating that further needs a source
+  outside Workers Logs: a Tail Worker, Logpush, or Cloudflare.
+
+### NL1b and NL3 (read 2026-10-23)
+
+| | read | verdict |
+|---|---|---|
+| **NL1b** | read at **18:53:00Z**, inside its window (18:52:49-19:12:49Z). NOAA holds **15 frames** in `[18:17:49, 18:47:49]`, and **all 15 are in the bucket** | **as predicted** |
+| **NL1, both halves** | 30 of 30 NOAA frames from deploy + 5 to deploy + 65 min are in the bucket | **as predicted** |
+| **NL3** | `workersInvocationsAdaptive`, 17:42:49-19:42:49Z: **115 invocations, 0 errors**, all `success`. `cpuTimeP50` 797 ms, **`cpuTimeP99` 2,489 ms** (< 5,000); `wallTimeP99` 96,063 ms | **as predicted** |
+
+**So NL1-NL3 are all as predicted.** The NL1 restatement was accepted as a re-registration made before any read.
