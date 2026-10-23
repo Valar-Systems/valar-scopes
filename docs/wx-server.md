@@ -760,3 +760,28 @@ escape hatch: **the instrument is unreliable for this question. Stop and decide.
 | **W4** | the same query at 16:59:36Z: 200, `WXC1`, that ETag; then **at once** with `If-None-Match`: **304** | **as predicted** |
 | **W6** | every `/wx` answer so far: 200 (smoke), 200 and 304 (W4) | **no 5xx: as predicted** |
 | **W5** | A = `[17:03:39, 18:03:39)`, B = `[15:58:39, 16:58:39)` | **not yet read** (after 18:03:39Z plus the lag) |
+
+### I5″'s precondition moves to ground truth (reviewer chat, pasted by Daniel, 2026-10-23), frozen before any I5″ read
+
+**Verbatim:** "I5″'s precondition moves to ground truth, frozen now, before any I5″ read. Workers Logs drops events and
+a tail can't stay connected, so neither gates it any more. I5″ is read on #472's code, at least 70 minutes after the
+ingest deploys. Each read counts only if, at that moment, NOAA's own listing and the bucket agree: every NOAA frame
+with an epoch from (read time - 3,600 s) to (read time - 240 s) is in the bucket. A read that fails this is recorded as
+'not taken: gap'. It is not a miss, and it is retried at least 10 minutes later. The two reads, their spacing and the
+predicted set are unchanged. If no pair of reads qualifies within 24 h of the ingest deploy, outcome (d): the NOAA
+failures become their own finding."
+
+**This supersedes the Workers Logs window ruled earlier the same day.** Workers Logs failed a ground-truth check, as
+recorded above.
+
+**How it is read.**
+- **The ingest deploy:** #472's code, main `d1ced73`, version `582612da-e1b0-4a02-bf9e-de72c5d78157`, created
+  17:42:49Z. So no I5″ read comes before **18:52:49Z**.
+- **At each read time T,** one script:
+  - lists NOAA's own `CONUS/MergedReflectivityQCComposite_00.50` folder for the day, or days, covering
+    `[T − 3,600, T − 240]`;
+  - lists the bucket (the I5′ instrument: `ListObjectsV2` over the whole bucket, plus its `latest` control);
+  - **gates on** "every NOAA epoch in that span is a `wx/cref/frames/<epoch>.wxg`", and prints any epoch it lacks.
+- **The bucket listing that passes the gate is the I5″ read itself,** graded against the frozen set and outcomes
+  (a)-(d).
+- **A failed gate is printed as "not taken: gap"** with the missing epochs, and is retried no sooner than 10 min later.
