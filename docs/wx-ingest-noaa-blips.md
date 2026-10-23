@@ -123,3 +123,8 @@ pruned and after its newest is past the ingest's lag:
 
 **Predicted:** every NOAA frame in each half is in the bucket. Together the halves are the frozen span. **Outside the
 set:** stop and report.
+
+**The ruling on the restatement (reviewer chat, pasted by Daniel, 2026-10-23), verbatim:** "#475's restatement is accepted
+as a re-registration made before any NL1 read, so it is not a miss. The frozen text and the defect stay in the record. One
+addition: each half must be read before its oldest frame is 55 minutes old, so NL1a between 18:22:49Z and 18:42:49Z, and
+NL1b between 18:52:49Z and 19:12:49Z. A half not read inside its window is unreadable, and unreadable is a FAIL."
