@@ -65,3 +65,17 @@ longer names that file, and `skus.py`'s reviewed list does not widen.
 | **F1** | `python3 scripts/skus.py --check-readers` on the tree | passes (it failed on `42dce6c`, naming the one file) |
 | **F2** | C1's checker and its selftest | the checker passes. Selftest: the block removed, red on **`no-traffic-captures.yml`** only; `cancel-in-progress: true`, red on `workers.yml` only; no `run_id` fallback, red on `device-ids.yml` only |
 | **F3** | CI at the new head, once pushed after a ruling | **0 failures**, every check counted |
+
+### F1-F2 read locally (2026-10-23, before any push)
+
+| | read | verdict |
+|---|---|---|
+| **F2** | the checker passes. Selftest: the block removed, red on `no-traffic-captures.yml` only; `cancel-in-progress: true`, red on `workers.yml` only; no `run_id` fallback, red on `device-ids.yml` only | **as predicted** |
+| **F1** | the sweep no longer names the checker. It now names **`docs/ci-concurrency.md`**: the miss section above (committed `2eed974`) names the matrix workflow's file in prose | **MISS, outside the set.** The predictions' own text tripped the check they predicted |
+
+**Not fixed, for a ruling.** The frozen text stays as written. The two remedies:
+- **(a)** list `docs/ci-concurrency.md` in `skus.py`'s `ALLOWED_MENTIONS` as prose. This is the sweep's own remedy for prose, and the recommendation.
+- **(b)** reword the frozen miss section.
+
+Nothing is pushed until it is ruled. Before the next push, the full local set runs: `skus.py --check-readers`,
+`check_device_ids.py`, and the checker and its selftest.
