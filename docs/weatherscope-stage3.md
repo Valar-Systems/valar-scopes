@@ -2236,3 +2236,93 @@ Both are part of the look, for Daniel's call on the glass.
 - it overlaps two nearer labels that were placed first, COCKRELL HILL and SANSOM PARK.
 
 So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor the circle is.
+
+### A8.22 3.3d's results: every board row as predicted; 3.3 complete apart from whole-suite CI (2026-10-23)
+
+**The build** (`7914de5`, step 4):
+
+| row | measured | frozen | |
+|---|---|---|---|
+| flash (PlatformIO's summary) | **1,602,043 B** | 1,588,040-1,624,280 B (A8.12) | within |
+| static RAM | **54,840 B** | 54.6-57.0 KB | within |
+| PSRAM, the frame path (`[wx] psram_used`, measured on the board) | **168,120 B** | 150-170 KB | within |
+| the ELF holds each loop crop once | **15 of 15**, once in the ELF and once in the image | 15 of 15 | as predicted |
+
+- **No warnings from Weatherscope's own sources** in the graded build. The first build's one warning, a possibly truncated `ago[16]`, was fixed before it, by widening the buffer to 32.
+- **The toolchain was installed fresh** by this build: `toolchain-xtensa-esp-elf` 14.2.0+20260121, since the global package store was empty. This is recorded because a size miss would have had to name it as an alternative. None occurred.
+
+**The flash** (step 5):
+- The port was resolved from the serial: `907069326E64` → COM6.
+- The board's MAC read `90:70:69:32:6e:64`.
+- The 1,602,448 B image was written and its hash verified, exit 0.
+- **Before the run**, the board resolved by name and answered TCP :80.
+
+**The board run** (step 6): one serial open, held from 16:29:43Z to 16:31:45Z with `run_b.py` at `7914de5`. **Seven captures were made, all graded**: 22 fetches in all, none torn.
+
+| step | screen and text | code sha256 | rects | pixels (compared / predicted, differing) |
+|---|---|---|---|---|
+| B1 dry | Dry, `5:00 PM`, no headline | `3dc9114b93b2…` = ref | 19 = 19 | 48,892 / 48,892, **0** |
+| B1 approaching | PrecipApproaching, "PRECIP WITHIN 15 MI", `4:24 PM` | `fc1ab7ab3513…` = ref | 21 = 21 | 45,436 / 45,436, **0** |
+| B1 here now | PrecipNow(Rain), "RAIN NOW" | `fc1ab7ab3513…` = ref | 20 = 20 | 47,356 / 47,356, **0** |
+| B1 warning | Warning (0): "SEVERE T-STORM / WARNING", "UNTIL 5:09 PM", "HAIL 1 IN - WIND 60 MPH", "STORM 14 MI E", "MOVING NE 35 MPH" | `fc1ab7ab3513…` = ref | 31 = 31 | 43,192 / 43,192, **0** |
+| B2, after the loop | dry, as before the tap | = ref | 19 = 19 | 48,892, **0** |
+| B3, after the legend | dry | = ref | 19 = 19 | 48,892, **0** |
+
+- **The pick:** every block printed `approaching=212400 dry=220000`, as `scenarios.ref.json` has it.
+- **B2, the loop:**
+  - 15 records, indices 0-14;
+  - **15 of 15 hashes** equal `screens.ref.json`;
+  - the epochs are the manifest's, strictly ascending, so 21:40 and 21:44 are told apart;
+  - **pacing:** intervals of 69,997-70,154 µs, so **max − min = 157 µs** (≤ 10,000), and **14.28 fps**;
+  - **draw** 27,417-29,812 µs (≤ 45,000);
+  - **hash** 4,040-4,193 µs (≤ 5,000).
+- **B3, the legend:** `legend_check.py --fb` exited 0.
+  - L2 found 21 swatches in 7 rows, exactly the ruled mapping.
+  - L1 found 21 of 21 swatches exact.
+  - L5 found the background dry and the 7 label boxes white on dry.
+  - L6 found the farthest lit pixel at 109.0 px (≤ 112).
+- **The controls:**
+  - codes 0-14 give 15 distinct RGB565 values;
+  - `render_ref.py` re-renders both scenario frames to `screens.ref.json`'s hashes before any pixel is believed.
+- **The recorded-data sabotages:** **5 of 5 red**, as predicted.
+  - S-B1a: the hash was red, and 5,095 pixels differed.
+  - S-B1b, S-B2a, S-B2b and S-B2c were each red.
+- **After the close:** TCP :80 was up at once, and again at 16:32:01Z and 16:32:35Z (about 50 s later). **No drop.**
+  - **Recorded, not chased:** A7 recorded 3 of 3 drops into download mode, with `bench-trace.ps1` (.NET `SerialPort`) closing. This close was `pyserial` with DTR and RTS false.
+  - **Two explanations remain open:** (i) the two tools close the port differently; (ii) chance, from one sample.
+  - **What stands:** A7's rule held and was applied: reachability was proven after the close.
+
+**Instrument notes, all from this run:**
+- **The pair rule earned its place.** **6 of the 22 untorn snapshots were not a finished frame**: dry's fetch 0, approaching's fetches 0 and 2, here now's fetch 0, and the legend's fetches 1 and 2. Each disagreed with its neighbour, and `Torn` was false on every one of them. Without the rule, B1 approaching and B3 would have been graded on partial frames.
+- **The runner's first scenario line was buffered output.**
+  - **What happened:** the boot banner and the dry block reached the host in one burst at the open (16:29:43.366). The board had printed them after the flash's reset, before any host was listening.
+  - **This time it was current:** the next live block, approaching at 16:30:05, puts dry's start at about 16:29:35, inside its hold when the dry snapshots were taken (16:29:45-47).
+  - **The data rules out the alternative** (that the snapshot showed another scenario): the dry snapshot matches the dry reference with 0 differing pixels, and the board's printed codes are dry's.
+  - **The weakness stands:** a runner opened later could act on a stale line. **Proposed for the next board run, not changed here:** act only on a scenario line that arrives at least 1 s after the open.
+- **The grader ran under the system python.** PlatformIO's penv has no numpy, which the spike's decoder needs. The script itself was the committed one.
+
+**The evidence** is in `tools/weatherscope/board/run-2026-10-23/`:
+- the trace and the serial lines, **with the access point's BSSID and the board's LAN address redacted** (one and two occurrences per file);
+- `captures.json`, which keeps every fetch's headers and the sha256 of its bytes;
+- `after-close.json`;
+- `grade.txt`;
+- a PNG of every graded snapshot.
+  - The PNGs are lossless: the 5- and 6-bit channels expand to 8 bits one-to-one.
+  - **The four B1 images are kept for Daniel's call on the look** (A8.19 item 6): `b1-dry.png`, `b1-approaching.png`, `b1-herenow.png`, `b1-warning.png`.
+  - **For that call:**
+    - the KDFW metro crowds the labels: 16 placed on dry, 19 on warning;
+    - every text sits on a black box;
+    - there are no range rings and no rim ring;
+    - the middle dot is drawn as " - ";
+    - two labels sit inside the warning square.
+- The raw run, the 115,200 B snapshots included, is outside the repo.
+
+**Where 3.3 stands:**
+- Every row of 3.3a-3.3d came out as predicted, apart from D5, the ruled miss.
+- The sizes are within their bands.
+- **Pending:** whole-suite CI on #467 (A8.19 item 7), which has stayed queued, and the reviewer's acceptance.
+- **Open release gates (A8.19, A8.20):** stored mode, its cycle and the serial gesture bytes must be unreachable on a customer unit before any Weatherscope ships.
+- **Follow-ups at their next touch:**
+  - `WxLogic.h`'s `<stdlib.h>`;
+  - the runner's 1 s rule;
+  - the 21:28Z cell (watched).
