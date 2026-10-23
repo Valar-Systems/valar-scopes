@@ -987,3 +987,12 @@ red:
 - **(4):** one frame's size changed by one byte. **Only (4) red.**
 
 The sabotages' results are recorded before the first read.
+
+**I5‴'s evaluator sabotages, run before any read** (22:28:12Z, on copies of one real listing; the bucket was not
+touched). **The real listing meets (1)-(4).**
+
+| plant | red | verdict |
+|---|---|---|
+| a frame at the NOAA epoch nearest `W - 3,800 s` (epoch 1792790674, `W - 3,787 s`), 12,845,120 B, total raised to match | **(2) only** | **as predicted** |
+| a stray key, `wx/cref/frames/stray.part`, 0 B | **(3) only** | **as predicted** |
+| one frame's size changed by one byte | **(4) only** | **as predicted** |
