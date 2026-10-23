@@ -22,6 +22,11 @@
 #include <memory>
 #include "Logbook.h"              // radar-only; serves the spotting lifelist as /logbook.json
 #endif
+#ifdef FEATURE_WEATHERSCOPE
+#include "FrameBuffer.h"           // the radar's /diag/fb, served by Weatherscope too (A8.7)
+#include <esp_heap_caps.h>
+#include <memory>
+#endif
 
 #ifdef FEATURE_EAM
 #include "eam/EamLogbook.h"        // serves the on-device logbook as a CSV/JSON download
@@ -410,9 +415,10 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // The page is feature-specific: the radar build serves the radar settings form below; the
 // FEATURE_EAM build serves the EAM monitor form; the FEATURE_SPACE build serves the Spacescope
 // form. The ConfigurationWebServer shell (NVS namespace, mDNS, /reset-wifi, save flag) is shared.
-// The radar serves /diag/fb to everyone; of the editions, only the Missileer PHOTO_MODE
-// build (env:missileer-photo) serves it, for product screenshots of the real glass.
-#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE))
+// The radar serves /diag/fb to everyone; of the editions, the Missileer PHOTO_MODE build
+// (env:missileer-photo) serves it, for product screenshots of the real glass, and Weatherscope
+// serves the radar's own route (docs/weatherscope-stage3.md A8.7).
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE)) || defined(FEATURE_WEATHERSCOPE)
 // The viewer page for /diag/fb. Its own literal rather than part of CONFIG_HTML:
 // it takes no %PLACEHOLDER% substitution, so it is served with send_P and the
 // percent sign is an ordinary character here.
@@ -4175,7 +4181,9 @@ void ConfigurationWebServer::Initialise() {
         }
     );
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+// /diag/fb and /diag/fb.html: the radar's, and Weatherscope's too (docs/weatherscope-stage3.md A8.7: the same
+// route, code path and access rules; only this guard is widened). The logbook below stays radar-only.
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || defined(FEATURE_WEATHERSCOPE)
     // Spotting-logbook export (radar edition). Serves the persisted lifelist straight
     // from NVS as JSON -- read-only, so it's safe from the async task alongside the
     // loop-task logbook writer (at most one debounce interval stale).
@@ -4277,7 +4285,9 @@ void ConfigurationWebServer::Initialise() {
     server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send_P(200, "text/html", FB_VIEWER_HTML);
     });
+#endif
 
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
         // Ask the loop task to flush a dirty logbook. It cannot help THIS
         // response -- the stream below is already reading NVS on this task -- but
