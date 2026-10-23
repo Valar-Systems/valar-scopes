@@ -1641,3 +1641,30 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 1. Is D5 recorded as a miss with its cause open, as with A6.4?
 2. May D1-D4 and the rest of 3.3c proceed as frozen? None of them depends on the total size.
 3. Should A8.5's flash band be re-derived now from the measured 44,744 B, before 3.3's image is built and its sizes row graded, with any new band frozen before that build?
+
+### A8.12 Ruled 2026-10-23: D5 a miss; 3.3c continues; the flash band re-registered before 3.3's firmware is built
+
+**The rulings were pasted by Daniel, headed "Reviewer rulings, 2026-10-23. For Weatherscope Code":**
+
+> "3.3c, D5: recorded as a miss with the cause left open, as with A6.4: 44,744 B against the frozen 45-180 KB, just under. Not re-graded. Both candidate causes stay untested in the record. D1-D4 and the rest of 3.3c go ahead as frozen. None depends on the total. A8.5's flash band: re-derive it now from the measured 44,744 B, and freeze it before 3.3's firmware is built. State the basis, and keep A8.5's original band in the record beside it, so the change reads as a forward re-registration made before the measurement. Push d6c9b1a now. Disk: yes, clear your 2.8 GB rebuildable build tree now."
+
+**Done:**
+- `d6c9b1a` was pushed.
+- The S1 clone was deleted, after checking that nothing in it existed only there: its 3.1 commits are in `vs`, and its 35 bench logs are in git history. C: went from 8.6 GB free to 12 GB.
+
+**The flash band, re-registered.** No 3.3 firmware has been built. A8.5's original band stays in the record, unchanged, as the one first frozen:
+
+| term | A8.5 (original, frozen at `e33b898`) | A8.12 (re-registered) | basis |
+|---|---|---|---|
+| the 3.2 image | 1,518,635 B | 1,518,635 B | `4df1065`, measured (ruled the basis in A6.5) |
+| the loop's 15 crops | +45 to +180 KB | **+44,744 B, to +44,984 B** | **measured** as built (A8.11). Up to 16 B of alignment per embedded file, ×15 |
+| `/diag/fb` | not a term (ruled after A8.5) | **+9,661 to +12,661 B** | its viewer page literal (`FB_VIEWER_HTML`) **measures 8,661 B** on main; its two handlers, `/diag/fb` and `/diag/fb.html`, are **estimated** at 1-4 KB |
+| screens, loop and logic code | +15 to +40 KB | +15,000 to +40,000 B | unchanged: the bench's drawing translation unit, 12,918 B, ×1 to ×3 |
+| scenarios, town subset | +0 to +8 KB | +0 to +8,000 B | unchanged: trimmed scenario data under 2 KB; the town subset under 6 KB |
+| **the band** | **1.58-1.75 MB** | **1,588,040-1,624,280 B (1.588-1.624 MB)** | the sum of the terms |
+
+- **Static RAM:** **54.6-57.0 KB**, unchanged. `/diag/fb` serves the frame buffer the shell already registers, so it adds no static buffer.
+- **PSRAM, frame time and loop rate:** unchanged from A8.5.
+- **What graded the original band:** nothing. No 3.3 image had been built when this was written. The change is forward, made before the measurement, as ruled.
+
+**3.3c continues as frozen:** D1-D4, then the scenario choices, D6, and K3.
