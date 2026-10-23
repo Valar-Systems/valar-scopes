@@ -732,3 +732,14 @@ escape hatch: **the instrument is unreliable for this question. Stop and decide.
   - `/wx` is recorded under `/other`, so "0 `/wx` requests from fleet devices" is read as **0 `/other` points carrying
     a fleet device id**: an upper bound on `/wx`.
 - **Every W row is otherwise as frozen.**
+
+**Restated again, before production's deploy (~16:58Z).**
+- **#470 merged mid-S3,** so main is now `1b724bc`. `deploy.sh` refuses a tree behind main in `proxy/`, so
+  **production deploys `1b724bc`.**
+- **Its deployed code is identical to the `91554c8` staging received.** `git diff 91554c8 1b724bc` over `proxy/src`,
+  `proxy/wrangler.toml`, `proxy/package*.json` and `proxy/tsconfig.json` is **empty**. The only `proxy/` difference is
+  `proxy/test/military.test.ts`, which is not in the Worker.
+- **Staging is not redeployed:** it already serves the same code. So production's `/healthz` will report `1b724bc`,
+  and staging's `91554c8`.
+- **Staging's own reads:** deployed 16:53:56-16:54:06Z, version `1894509a-c9a8-4e69-9e20-f6082c9ad599`.
+  `/healthz` `91554c8`; the deploy listed `env.WX (blipscope-wx)`. W2 read 1 (16:54:14Z): `frameAgeS` 216.
