@@ -1538,3 +1538,77 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 **For 3.3c, from RK's own number:** at the 22:00Z frame, the KDFW centre has **no echo within 15 mi** (the nearest is 17.94 mi). That frame alone can't be the "approaching" scenario; the scenario's frame is chosen in 3.3c, with its predictions frozen before its data.
 
 **Still held:** the town data (Q6(b), the coordinate-check question).
+
+### A8.10 Ruled 2026-10-23, and 3.3c's data, frozen before any of it is built
+
+**The rulings were pasted by Daniel, headed "Reviewer rulings, 2026-10-22. For Weatherscope Code, and blipscope-5c, which merges", dated 2026-10-23:**
+
+> "Q6(b), corrected: my earlier ruling named a 'coordinate check' that doesn't exist. I was thinking of the fixture-centre rule (forbidden.py), which is a selection tool, not a guard. Take (ii): no new guard. Store the Census subset at the Gazetteer's own 6 decimals, with its source, vintage, filter and content hash in the file's header. It's public-domain place data, not a private location. If forbidden.py is used again to pick fixture centres, it skips this file by path and hash. Otherwise every town would read as 'too close'. A general coordinate guard is a separate idea; raise it later if it's ever wanted."
+>
+> "3.3a: accepted, as predicted. The RK side effect and the printout fix are recorded correctly. For 3.3c, choose the 'approaching' frame and freeze its predictions before building the data, as you planned."
+
+**Where `forbidden.py` stands.** It lives on `spike/wx-overlay` (#422, `tools/wx/forbidden.py`), not on main. It scans `docs/`, `test/`, `proxy/test/`, `scripts/` and the root `*.md`.
+- The town subset goes in **`src/weatherscope/`**, outside those roots, so today's tool can't see it.
+- Its path and content hash are recorded in its header and in the results addendum, so a reuse can skip it by both, as ruled.
+
+**The method.** It is one driver, `tools/weatherscope/loop/make_loop.ts`, run with `npx tsx` from `proxy/`. It runs main's shared code without changing any of it:
+- `decodeMrms` and `codeOf` (`proxy/src/wx/mrms.ts`);
+- the server's crop path, `cropCellBox` and `encodeBox` (`proxy/src/wx/crop.ts`), with the server's own grid (`grid.ts`).
+
+**The inputs.**
+- **The GRIB2 files** are fetched to a scratch directory outside every repo and never committed. Each file's NOAA key and sha256 is recorded.
+- **The centre** is KDFW's, the public airport that `forbidden.py` cleared for Stage 1. It is read from the existing `kdfw-60mi.wxc` header and printed nowhere.
+- **The radius** is 60 mi.
+
+**The frames, chosen by a rule fixed here:**
+- the objects in `CONUS/SeamlessHSR_00.00/20240521/` whose valid time is at or before 22:00:59Z;
+- the latest of those first, then every second object before it;
+- **15 in all**, played oldest to newest.
+
+**The outputs:**
+- 15 `.wxc` crops in `test/fixtures/wx/loop/`;
+- a `MANIFEST.json` holding each crop's bytes, sha256 and header, and the encoder's own cells hashed as `codesSha256`, so the device decoder is graded against the encoder's cells and not against a decode of the same bytes;
+- the device's copies, embedded the way the 3.2 crop is.
+
+**K2's predictions for the data:**
+
+| row | predicted |
+|---|---|
+| D1, determinism | a second run writes byte-identical crops (15 of 15 sha256 equal) |
+| D2, each crop | `wxcrop::Validate` Ok; it decodes to its manifest `codesSha256`; it is ≤ 32,768 B |
+| D3, one geometry | all 15 share `rows`, `cols`, `latNwMicro` and `lonNwMicro` |
+| D4, the clock | `frameEpoch` strictly ascending, consecutive gaps 200-280 s (two of MRMS's ~2-min frames) |
+| D5, size | the 15 crops total within A8.5's 45-180 KB |
+
+**The four scenarios.** The location is the loop crop's centre. Each scenario's clock is its frame's `frameEpoch`. The selection rules are fixed here, before any frame is read:
+- **Approaching:** the **latest** of the 15 frames whose nearest echo, by `ring_ref.py`'s metric, is **≤ 15 mi**. No observation and no warning.
+- **Dry:** the **latest** of the 15 frames whose nearest echo is **beyond 15 mi**, or that has none. No observation and no warning.
+- **Here now:** the approaching frame, with a **synthetic** observation of "-RA" five minutes before its clock. It is labelled synthetic in the data and its comment.
+- **Warning covering:** the approaching frame, with a **synthetic** Severe Thunderstorm Warning, labelled synthetic:
+  - a square polygon ±0.25° around the centre;
+  - `expires` at the frame's clock + 45 min, written with the −05:00 offset (CDT that day);
+  - hail "1.00" and wind "60 MPH";
+  - motion from 240° at 30 kt;
+  - the storm position at the approaching frame's nearest echo cell.
+- **If a rule finds no frame** (no frame within 15 mi, or none beyond it): **stop and decide.** Nothing is substituted.
+
+**K3's predictions, for the four scenarios through `Choose` and the text functions:**
+
+| scenario | `Choose` | text |
+|---|---|---|
+| dry | Dry | no headline |
+| approaching | PrecipApproaching | "PRECIP WITHIN 15 MI" |
+| here now | PrecipNow(Rain) | "RAIN NOW" |
+| warning | Warning | `LineA` = ["HAIL 1 IN", "WIND 60 MPH"]; travel "MOVING NE 35 MPH" (from 240° is toward 60°; 30 kt is 34.52, so 35); distance and bearing equal an independent Python computation over the same frame (the `ring_ref.py` metric); the `UNTIL` text equals the reference's local clock reading |
+
+**The town subset**, now ruled (ii). It is the 2025 Census Gazetteer Places national file:
+- **The filter:** `LSAD` 25 only, within 60 mi of the loop's centre in the map's metric.
+- **What is stored:** NAME, INTPTLAT and INTPTLONG, at the file's own 6 decimals.
+- **The header:** the source URL, the vintage (2025), the filter, the source file's sha256, and the subset's content hash.
+- **D6:** the subset is regenerated byte-identical by its generator, and every name passes `LabelText`. Its count is reported, not predicted. The screens draw what Q6(a)'s placement allows.
+
+**The order inside 3.3c:**
+1. the frames, D1-D5;
+2. the scenario choices, read off the frames by the rules above;
+3. the towns, D6;
+4. then K3.
