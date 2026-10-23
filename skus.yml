@@ -73,3 +73,5 @@ skus:
   - { env: blipscope-pro-s3-175-amoled, status: build-only }
   - { env: animtest-s3-128, status: build-only }
   - { env: weatherscope-bench-s3-128, status: build-only }
+  # the Wi-Fi join diagnostic bench env: the only build of include/JoinDiagScreen.h (docs/joindiag-ci.md)
+  - { env: blipscope-s3-128-joindiag, status: build-only }
