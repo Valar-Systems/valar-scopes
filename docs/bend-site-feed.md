@@ -259,3 +259,95 @@ B1-B18 are unchanged.
 | **S-B17** | the reader's `?? null` fill removed: B17 red | (reproduces the reviewer's run) |
 
 There is now one circle test (`inCircle`) and one conversion (`toSite`), and the `!` is gone. The full proxy suite passes (44 files, 595 tests); `tsc` is clean.
+
+## Addendum 5, 2026-10-22 (before its code): the switch on, with LADD aircraft shown (Daniel's decision)
+
+**The reviewer asked (2026-10-22):** settle LADD before the feed goes on. The recommendation was to drop
+LADD-flagged aircraft on the server. The answer was to be frozen as a prediction with a sabotage, and Daniel's
+answer recorded in this PR.
+
+**Daniel's decision, 2026-10-21, as he gave it:** "LADD, Daniel's decision, 2026-10-21: the public feed shows all
+aircraft, LADD-listed ones included. Record it as Daniel's decision in the PR that switches the feed on. No LADD
+filter is needed."
+
+**So this PR adds no filter, and it makes the decision structural rather than remembered.** A test asserts that a
+LADD-flagged aircraft **is** served with its flags. If someone later adds a filter without a new decision, that
+test fails. The readsb `dbFlags` bits are 1 military, 2 interesting, 4 PIA, 8 LADD.
+
+| | check | predicted |
+|---|---|---|
+| **B20** | a LADD aircraft (`dbFlags` 8) and a LADD + PIA one (`dbFlags` 12), both inside the circle, through the device path and then the reader | **both stored and both served**, with `dbFlags` **8** and **12** unchanged. *Sabotage S-B20:* a LADD filter in `extractRaw` (drop if `(dbFlags & 8) !== 0`) turns B20 red |
+| **B21** | the dry-runs | production lists `env.SITE_FEED_BEND ("on")` (it was `"off"`); staging lists `("on")`; both list `BEND_SNAPSHOT (BendSnapshotDO)` |
+| **B1-B19** | unchanged | pass. The full proxy suite passes, and `tsc` is clean |
+
+**The order.** This PR deploys **only after #461's S2** has put the Bend code into production with the switch off
+and checked the existing service. Then it merges and deploys, and these are read:
+- **L1 and L2,** as frozen above.
+- **The fleet's own traffic,** with #461's P5 rules and instrument. A = 5-65 min after this deploy, B = the 60 min
+  before it. Fleet 5xx and 4xx in A: 0. Devices in B but not A: 0. The `/blips` count A/B: 0.4-2.5.
+- **SC7:** usage rows keep arriving, from at least 4 devices in A, every one arity `u8`.
+- **`sitefeed` events** appear in production: `written` > 0 within the first 10 min (L1's first half, early).
+
+**Outside the set:** stop. In production, roll back to the S2 version, which has the switch off.
+
+### Results for addendum 5 (graded on the code commit; local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **B20** | the Bend file passes **16/16**. The LADD (`c20001`, `dbFlags` 8) and LADD + PIA (`c20002`, 12) aircraft are stored and served with 8 and 12 | **as predicted** |
+| **S-B20** | a LADD filter planted in `extractRaw`: **B20 red**. **B16 also red,** because its one fixture aircraft carries `dbFlags: 8`, so the filter drops it and B16 finds no aircraft. `bend.ts` was restored byte-identical | **as predicted** (B20 red). B16's red is that same filter acting on a LADD fixture |
+| **B21** | the dry-runs: production `env.SITE_FEED_BEND ("on")`, staging `("on")`; both `env.BEND_SNAPSHOT (BendSnapshotDO)` | **as predicted** |
+| **B1-B19** | the full proxy suite: **48 files, 637 tests**, all pass; `tsc` clean | **as predicted** |
+
+**Not yet deployed.** It deploys after #461's S2. L1, L2, the fleet traffic, SC7 and the early `written` count are
+read then.
+
+## Addendum 6, 2026-10-23 (before the deploy): the `sitefeed` instrument's positive control
+
+**Why it is here.** #461's S2 put this code into production with the switch off (2026-10-23, 14:49:38Z, version
+`e31772f4`). Its control for the `sitefeed` instrument, "events on staging > 0", read **0** and was ruled **BLIND**:
+staging's 14 `/v1/blips` requests since its deploy were all refused 401, so the writer never ran there. Nothing has
+yet shown that the instrument can see an event.
+
+**Daniel's decision (2026-10-23), as given:** "Prove the sitefeed instrument at #464 instead, where the writer runs in
+production: freeze a positive control there, with sitefeed events appearing within a stated number of minutes of
+switching the feed on."
+
+**The instrument.** Analytics Engine, dataset `blipscope_proxy`, the points `count()` in `src/sitefeed/bend.ts` writes:
+
+```sql
+SELECT blob2 AS event, SUM(_sample_interval) AS n FROM blipscope_proxy
+WHERE index1 = 'sitefeed' AND timestamp >= toDateTime('<T1>') AND timestamp < toDateTime('<T1 + 10 min>')
+GROUP BY event
+```
+
+T1 is the moment `deploy.sh` confirms production's `/healthz`. `event` is one of `written`, `refused_30s`,
+`skipped_not_covered` and `write_error`.
+
+**The number: 10 minutes.** A device whose fetched area overlaps the circle produces an event within about 30 s of
+its first fetch: the writer counts `written`, `refused_30s` or `write_error` for each send, or `skipped_not_covered`
+when the area overlaps but does not contain the circle, at most once per isolate per 30 s. A device polls `/blips`
+every 5-15 s by day and every 60 s at night (the defaults in `src/CloudFeed.h`; the fleet config can change them).
+Even at night, ten minutes is ten fetches, which leaves a wide margin.
+
+**Read twice.** The window is read at T1 + 15 min and again at T1 + 20 min, after Analytics Engine's lag. The two reads
+must agree before either is graded.
+
+| read over `[T1, T1 + 10 min)` | what it means | then |
+|---|---|---|
+| **`written` ≥ 1, `write_error` 0** (the prediction) | the instrument sees events, and the writer stores | **control passes.** It is L1's first half, early. Go on to L1, L2, the fleet traffic and SC7 |
+| events ≥ 1, `written` 0, `skipped_not_covered` ≥ 1 | the instrument sees events. The circle does not fit any fetched area (L1's branch) | **stop and tell Daniel,** with no location in the report |
+| `write_error` ≥ 1 | the writer reached the Durable Object and failed (L1 fails) | **roll back** to the version before this deploy, and tell Daniel |
+| 0 of every event, **and** the site shows a fresh snapshot (age ≤ 62 s, as L2 reads it) | the writer works, and the instrument cannot see it | **the instrument is unreliable: stop and decide with Daniel.** The feed stays on, since it is working |
+| 0 of every event, and the site shows no fresh snapshot, or cannot be read | either no device near Bend fetched, or the writer is not wired. Nothing here separates the two | **roll back** to the version before this deploy, and tell Daniel. Retried with his Blipscope confirmed running |
+| the two reads differ | Analytics Engine is still settling | read a third time 5 min later. If it still moves: **BLIND, stop** |
+| anything else | outside the set | **stop, and roll back** to the version before this deploy |
+
+**The other half is already measured.** S2's A window, `[14:54:38Z, 15:54:38Z)` on 2026-10-23, ran this same code
+with the switch off. Its `sitefeed` read is recorded in #461, and cannot be graded on its own. Paired with this
+control, it shows the instrument separating off from on.
+
+**"The version before this deploy"** is S2's `e31772f4`, unless #461's S3 deploys first. Daniel's order puts the
+weather layer first, so S3 is expected to deploy first, and this PR follows it. The version to roll back to is read
+from `wrangler deployments list` at deploy time and recorded on this PR. This deploy's B window starts only after
+S3's A window has closed, so the two fleet comparisons never overlap.

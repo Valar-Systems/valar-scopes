@@ -342,3 +342,29 @@ describe("B19 one circle test (addendum 4)", () => {
     expect(viaRaw.map((a) => a.hex)).toEqual(["b19001", "b19002"]);
   });
 });
+
+describe("B20 LADD aircraft are shown, flags intact (Daniel's decision, 2026-10-21; addendum 5)", () => {
+  it("a LADD (8) and a LADD + PIA (12) aircraft are stored and served with dbFlags unchanged", async () => {
+    fetchMock.get(LOL).intercept({ path: UPSTREAM_PATH }).reply(
+      200,
+      pointBody([
+        makeAc({ hex: "c20001", lat: 44.06, lon: -121.31, dbFlags: 8 }),
+        makeAc({ hex: "c20002", lat: 44.07, lon: -121.32, dbFlags: 12 }),
+      ]),
+    );
+    const { ns, calls } = fakeNs(async () => new Response(null, { status: 204 }));
+    await call(deviceReq(20), { SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns });
+    expect(calls).toHaveLength(1);
+    const stored = (JSON.parse(calls[0]!.body) as Snapshot).aircraft;
+    const storedBy = Object.fromEntries(stored.map((a) => [a.hex, a]));
+    expect(storedBy["c20001"]?.dbFlags).toBe(8);
+    expect(storedBy["c20002"]?.dbFlags).toBe(12);
+
+    const { ns: reader } = fakeNs(async () => Response.json({ t: Math.floor(Date.now() / 1000), source: "adsb.fi", aircraft: stored }));
+    const r = (await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: reader }, Date.now(), fakeCache())) as SiteFeedResponse;
+    expect(r).toMatchObject({ available: true });
+    const servedBy = Object.fromEntries((r as Extract<SiteFeedResponse, { available: true }>).aircraft.map((a) => [a.hex, a]));
+    expect(servedBy["c20001"]?.dbFlags).toBe(8);
+    expect(servedBy["c20002"]?.dbFlags).toBe(12);
+  });
+});
