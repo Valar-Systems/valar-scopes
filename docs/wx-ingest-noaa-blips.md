@@ -97,3 +97,29 @@ red, and only it. Every plant was restored byte-identical (sha256).
 how #469 missed `sku-readers`.
 
 **Live rows NL1-NL3** follow review, merge and the ingest's deploy.
+
+## Live results (#472 deployed 2026-10-23)
+
+**The deploy.** Main `d1ced73`, `npx wrangler deploy -c wx-ingest.wrangler.toml`. Version
+`582612da-e1b0-4a02-bf9e-de72c5d78157`, created 17:42:49Z. The rollback target is `47ad5010`, confirmed listed, with
+`wrangler whoami` valid. The approval and the merge are recorded on #472.
+
+### NL1, restated before any NL1 read (2026-10-23, ~17:55Z)
+
+**Frozen:** read after deploy + 70 min; NOAA's frames published from deploy + 5 to deploy + 65 min must all be in the
+bucket.
+
+**The defect, found before reading.** The ingest prunes frames older than 3,600 s. At deploy + 70 min (18:52:49Z) every
+frame before about 17:52:49Z is legitimately gone, and that is the first ~5 min of the span. Read as frozen, NL1 would
+report those frames missing: the prune doing its job, scored as a hole.
+
+**The restatement keeps the frozen span exactly** and reads it in two halves, each before any of its frames can be
+pruned and after its newest is past the ingest's lag:
+
+| half | span (NOAA epochs) | read at |
+|---|---|---|
+| NL1a | `[17:47:49, 18:17:49]` | 18:22:49Z or later |
+| NL1b | `[18:17:49, 18:47:49]` | 18:52:49Z or later |
+
+**Predicted:** every NOAA frame in each half is in the bucket. Together the halves are the frozen span. **Outside the
+set:** stop and report.
