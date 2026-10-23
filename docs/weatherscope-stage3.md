@@ -2113,3 +2113,119 @@ This applies A8.19's rulings. **The numbers that only the layout code can give**
 8. The results addendum.
 
 **Outside every prediction:** stop, record, and wait for a ruling.
+
+### A8.21 3.3d's overlay rectangles and compared-pixel counts, frozen before any firmware is built or flashed (2026-10-23)
+
+**Where they come from:** the host build of `WxScreens.h` at `d303159` (sha256 `6ad020bbd2f6…`). Its 19 cases passed and its six sabotages each failed exactly their predicted sets. The tables are the output of `test_wx_screens --layout test/fixtures/wx/loop`, from the real frames (`212400`, `220000`) and the 171 towns.
+- **The output is committed as `test/fixtures/wx/loop/layout.ref.txt`** (sha256 `11b3b75dfbd4…`). The grader reads the predicted rectangles from that file, not from the board.
+- **The board must print exactly these rectangles, in this order** (A8.19 item 3).
+- **If the firmware forces a change to `WxScreens.h`:** these tables are re-registered **forward**, in a dated addendum, before the flash, and the changed rows are named. Nothing is re-registered after the board is flashed.
+
+| screen | items | fixed | town labels | union of the rects (px) | **compared pixels (predicted)** |
+|---|---|---|---|---|---|
+| dry | 19 | 3 | 16 | 8,708 | **48,892** |
+| approaching | 21 | 5 | 16 | 12,164 | **45,436** |
+| herenow | 20 | 4 | 16 | 10,244 | **47,356** |
+| warning | 31 | 12 | 19 | 14,408 | **43,192** |
+
+Every rectangle, in draw order (`RECT <screen> <index> x,y,w,h <kind> "<text>"`):
+
+```
+RECT dry 0 117,4,6,8 text "N"
+RECT dry 1 78,20,84,16 text "5:00 PM"
+RECT dry 2 115,115,10,10 marker ""
+RECT dry 3 127,121,41,8 town "IRVING"
+RECT dry 4 124,107,47,8 town "COPPELL"
+RECT dry 5 126,95,65,8 town "LEWISVILLE"
+RECT dry 6 136,138,83,8 town "COCKRELL HILL"
+RECT dry 7 121,146,83,8 town "GRAND PRAIRIE"
+RECT dry 8 120,84,71,8 town "LAKE DALLAS"
+RECT dry 9 150,130,41,8 town "DALLAS"
+RECT dry 10 132,75,65,8 town "LITTLE ELM"
+RECT dry 11 77,129,71,8 town "SANSOM PARK"
+RECT dry 12 128,159,65,8 town "CEDAR HILL"
+RECT dry 13 124,63,71,8 town "KRUGERVILLE"
+RECT dry 14 172,106,41,8 town "SACHSE"
+RECT dry 15 67,100,41,8 town "NEWARK"
+RECT dry 16 61,116,29,8 town "AZLE"
+RECT dry 17 66,91,35,8 town "RHOME"
+RECT dry 18 140,169,53,8 town "OAK LEAF"
+RECT approaching 0 117,4,6,8 text "N"
+RECT approaching 1 78,20,84,16 text "4:24 PM"
+RECT approaching 2 115,115,10,10 marker ""
+RECT approaching 3 42,184,156,16 text "PRECIP WITHIN"
+RECT approaching 4 90,202,60,16 text "15 MI"
+RECT approaching 5 127,121,41,8 town "IRVING"
+RECT approaching 6 124,107,47,8 town "COPPELL"
+RECT approaching 7 126,95,65,8 town "LEWISVILLE"
+RECT approaching 8 136,138,83,8 town "COCKRELL HILL"
+RECT approaching 9 121,146,83,8 town "GRAND PRAIRIE"
+RECT approaching 10 120,84,71,8 town "LAKE DALLAS"
+RECT approaching 11 150,130,41,8 town "DALLAS"
+RECT approaching 12 132,75,65,8 town "LITTLE ELM"
+RECT approaching 13 77,129,71,8 town "SANSOM PARK"
+RECT approaching 14 128,159,65,8 town "CEDAR HILL"
+RECT approaching 15 124,63,71,8 town "KRUGERVILLE"
+RECT approaching 16 172,106,41,8 town "SACHSE"
+RECT approaching 17 67,100,41,8 town "NEWARK"
+RECT approaching 18 61,116,29,8 town "AZLE"
+RECT approaching 19 66,91,35,8 town "RHOME"
+RECT approaching 20 140,169,53,8 town "OAK LEAF"
+RECT herenow 0 117,4,6,8 text "N"
+RECT herenow 1 78,20,84,16 text "4:24 PM"
+RECT herenow 2 115,115,10,10 marker ""
+RECT herenow 3 72,184,96,16 text "RAIN NOW"
+RECT herenow 4 127,121,41,8 town "IRVING"
+RECT herenow 5 124,107,47,8 town "COPPELL"
+RECT herenow 6 126,95,65,8 town "LEWISVILLE"
+RECT herenow 7 136,138,83,8 town "COCKRELL HILL"
+RECT herenow 8 121,146,83,8 town "GRAND PRAIRIE"
+RECT herenow 9 120,84,71,8 town "LAKE DALLAS"
+RECT herenow 10 150,130,41,8 town "DALLAS"
+RECT herenow 11 132,75,65,8 town "LITTLE ELM"
+RECT herenow 12 77,129,71,8 town "SANSOM PARK"
+RECT herenow 13 128,159,65,8 town "CEDAR HILL"
+RECT herenow 14 124,63,71,8 town "KRUGERVILLE"
+RECT herenow 15 172,106,41,8 town "SACHSE"
+RECT herenow 16 67,100,41,8 town "NEWARK"
+RECT herenow 17 61,116,29,8 town "AZLE"
+RECT herenow 18 66,91,35,8 town "RHOME"
+RECT herenow 19 140,169,53,8 town "OAK LEAF"
+RECT warning 0 117,4,6,8 text "N"
+RECT warning 1 36,38,168,16 text "SEVERE T-STORM"
+RECT warning 2 78,56,84,16 text "WARNING"
+RECT warning 3 81,76,78,8 text "UNTIL 5:09 PM"
+RECT warning 4 51,168,138,8 text "HAIL 1 IN - WIND 60 MPH"
+RECT warning 5 81,180,78,8 text "STORM 14 MI E"
+RECT warning 6 72,192,96,8 text "MOVING NE 35 MPH"
+RECT warning 7 115,115,10,10 marker ""
+RECT warning 8 91,85,58,1 edge ""
+RECT warning 9 91,154,58,1 edge ""
+RECT warning 10 91,85,1,70 edge ""
+RECT warning 11 148,85,1,70 edge ""
+RECT warning 12 97,100,47,8 town "ROANOKE"
+RECT warning 13 103,87,41,8 town "ARGYLE"
+RECT warning 14 150,130,41,8 town "DALLAS"
+RECT warning 15 152,95,35,8 town "PLANO"
+RECT warning 16 157,106,65,8 town "RICHARDSON"
+RECT warning 17 128,159,65,8 town "CEDAR HILL"
+RECT warning 18 166,114,47,8 town "GARLAND"
+RECT warning 19 161,87,35,8 town "ALLEN"
+RECT warning 20 157,151,53,8 town "HUTCHINS"
+RECT warning 21 61,116,29,8 town "AZLE"
+RECT warning 22 162,74,53,8 town "MCKINNEY"
+RECT warning 23 185,122,35,8 town "HEATH"
+RECT warning 24 53,143,35,8 town "ALEDO"
+RECT warning 25 189,98,35,8 town "LAVON"
+RECT warning 26 162,56,41,8 town "WESTON"
+RECT warning 27 102,203,59,8 town "GRANDVIEW"
+RECT warning 28 93,215,59,8 town "COVINGTON"
+RECT warning 29 31,61,35,8 town "CHICO"
+RECT warning 30 98,13,47,8 town "LINDSAY"
+```
+
+**Two layout facts, recorded and not graded:**
+- On the warning screen, two labels (ROANOKE, ARGYLE) sit **inside** the warning square. They touch none of its edges, so A8.20's filter keeps them.
+- **FORT WORTH is not placed.** Nearer labels take its space, by Q6(a)'s nearest-first rule.
+
+Both are part of the look, for Daniel's call on the glass.
