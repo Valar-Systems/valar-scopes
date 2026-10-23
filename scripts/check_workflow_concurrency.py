@@ -60,7 +60,7 @@ def main(argv):
 
 def selftest(wf):
     plants = [
-        ("the block removed", "firmware.yml", lambda t: t.replace(BLOCK, "")),
+        ("the block removed", "no-traffic-captures.yml", lambda t: t.replace(BLOCK, "")),
         ("cancel-in-progress: true", "workers.yml", lambda t: t.replace(CANCEL, "  cancel-in-progress: true")),
         ("the group without its run_id fallback", "device-ids.yml",
          lambda t: t.replace(" || github.run_id }}", " }}")),
