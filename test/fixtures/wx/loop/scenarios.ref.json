@@ -1,0 +1,37 @@
+{
+ "rule": "A8.10: approaching = latest frame with nearest echo <= 15 mi; dry = latest beyond 15 mi or none",
+ "metric": "ring_ref.py: planar, 111 km/deg, lon x cos(centre lat); centre = the crop's middle cell position",
+ "approaching": {
+  "frame": "shsr-20240521-212400.wxc",
+  "frameEpoch": 1716326640,
+  "nearestEchoMi": 14.328384
+ },
+ "dry": {
+  "frame": "shsr-20240521-220000.wxc",
+  "frameEpoch": 1716328800,
+  "nearestEchoMi": 23.555802
+ },
+ "hereNow": {
+  "frame": "shsr-20240521-212400.wxc",
+  "obsOffsetS": -300,
+  "wx": "-RA",
+  "synthetic": true
+ },
+ "warning": {
+  "frame": "shsr-20240521-212400.wxc",
+  "synthetic": true,
+  "stormDistanceMi": 14.328384,
+  "stormBearingDeg": 108.2334,
+  "stormCompass": "E",
+  "tiedCells": 1,
+  "until": "UNTIL 5:09 PM"
+ },
+ "framesWithin15": [
+  "shsr-20240521-210400.wxc",
+  "shsr-20240521-210800.wxc",
+  "shsr-20240521-211200.wxc",
+  "shsr-20240521-211600.wxc",
+  "shsr-20240521-212000.wxc",
+  "shsr-20240521-212400.wxc"
+ ]
+}

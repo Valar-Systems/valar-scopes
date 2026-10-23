@@ -1699,3 +1699,62 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 - **S-D2a** tests a code change, not a length change, so `Validate` may still pass and only the cell hash can catch it. Whether `Validate` passes is printed, not graded.
 - **S-D2c** proves the bound is live in the test. It cannot isolate the bound from `Validate`: `WxCrop.h`'s own `kMaxBytes` is the same 32,768, and a real crop that large would fail both.
 - **If any sabotage fails a set other than its own, the control fails, or the real data misses its prediction:** stop, record it, and wait for a ruling.
+
+### A8.14 D1-D4 and the scenario choices: results; D6 made concrete before the Census file is fetched (2026-10-23)
+
+**D1-D4: as predicted** (A8.13).
+- **D1:** all 15 crops and `MANIFEST.json` regenerate "identical" from main's encoder at `2484bda`; exit 0.
+- **D2-D4:** 44 checks, 0 failures. All 15 crops `Validate` Ok and decode to their manifest `codesSha256`. All are 180 × 214 with one NW corner. Every gap is 240 s.
+- **D5,** printed and not graded: 44,744 B, as in A8.11.
+- **The seven sabotages:** each failed exactly its predicted set, and the control failed nothing. Under S-D2a, `Validate` passed and only the cell hash caught the change, as anticipated. The committed loop directory hashed the same before and after (`535d0f0beef4`).
+- **The full `run.sh` was not run locally.** The worktree is sparse (no `proxy/src`), so `run.sh` stopped at the UsageReport block with exit 2 (BLIND) **before** reaching the Wx blocks. That is a limit of the rig, not a result. The WxLoop block's evidence is CI on #467, at the pushed head.
+
+**The scenario choices: by A8.10's rules, nothing substituted.** They come from `tools/weatherscope/loop/scenarios.py`. It uses ring_ref.py's own decoder and metric, with two controls before any distance is believed:
+- an anchor: it re-reads `kdfw-60mi.wxc` as 17.939537 mi, equal to `kdfw-60mi.ring.txt`;
+- all 15 frames decode to their manifest `codesSha256`.
+
+| frame (UTC) | nearest echo, mi | bearing |
+|---|---|---|
+| 21:04 | 10.0052 | S |
+| 21:08 | 8.0628 | S |
+| 21:12 | 7.8611 | SE |
+| 21:16 | 10.2411 | SE |
+| 21:20 | 12.4630 | E |
+| **21:24** | **14.3284** | **E (108.23°)** |
+| 21:28 | 17.9395 | SE |
+| 21:32-21:56 | 19.66-23.75 | S/SE |
+| **22:00** | **23.5558** | S |
+
+- **Approaching = here now = warning:** `212400`, the latest of the six frames within 15 mi.
+  - Its nearest echo is one cell (no tie), 14.328384 mi E.
+  - The warning's `UNTIL` reads "UNTIL 5:09 PM" (21:24Z + 45 min, on the −05:00 clock).
+- **Dry:** `220000`, the latest frame beyond 15 mi (23.555802 mi).
+- **Recorded in `test/fixtures/wx/loop/scenarios.ref.json`**, which holds no coordinate. It is K3's Python reference, and `scenarios.py --check` regenerates it identically.
+- **A side note, recorded and not chased.** The echo is receding (12.46 mi at 21:20, 14.33 at 21:24, beyond 15 by 21:28). So the "approaching" frame shows precipitation within 15 mi, as the rule defines, not precipitation moving closer. The frozen rule is about range, not motion, so this changes nothing.
+- **An observation with two explanations still open.** The 21:28 frame's nearest echo lies at **exactly** the same offset as the 3.2 fixture's RK value: 17.939536941 mi at 138.5659°.
+  - **It is not the same data:** the fixture is `cref` at 22:00:42Z, a 174 × 208 grid with codesSha256 `5d31301044fc`.
+  - **Two explanations remain:** (i) a fixed-location weak return that both products see; (ii) two independent echoes landing on the same 0.01° cell.
+  - **The data do not separate them.** The same cell is not echo in any SeamlessHSR frame from 21:32 to 22:00, which (i) does not require and (ii) does not forbid. Neither choice above depends on it.
+
+**D6, made concrete before the Census file is fetched.** A8.10 says "every name passes `LabelText`" but not what a pass is. Fixed here:
+- **The source:** `https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_place_national.zip`. It is fetched to an empty directory outside every repo and never committed; its sha256 goes into the subset's header.
+- **The generator:** `tools/weatherscope/towns/make_towns.py <zip> [--check]`.
+  - **What it keeps:** rows whose `LSAD` is `25`, within 60.0 mi inclusive of the loop's centre, in the map's metric. The centre is read from a loop crop's header (D3: all 15 share it).
+  - **What it stores:** `NAME`, and `INTPTLAT`/`INTPTLONG` as the file's own text, never re-formatted through a float. Rows stay in the file's order.
+  - **The output:** `src/weatherscope/WxTowns.h`, with a header giving the source URL, the vintage (2025), the filter, the zip's sha256, and the content hash (sha256 of the array's body lines).
+  - **What it prints:** the count and the names, never a coordinate.
+- **Stop, and wait for a ruling, if:** the 2025 file is absent; it has no `LSAD` column; it has no `INTPTLAT` or `INTPTLONG` column; or the filter keeps zero rows. Nothing is substituted: no other vintage, and no other LSAD.
+- **D6(a), regeneration:** `make_towns.py --check` rebuilds the header in memory and exits 0 only if every byte equals the committed file.
+- **D6(b), each name passes `LabelText`**, checked by a new host test, `test/host/test_wx_towns.cpp` (its own `run.sh` block). For each town, `LabelText(name, buf, 32)` must give:
+  - a non-empty result;
+  - every byte printable ASCII, 0x20-0x7E;
+  - no lowercase letter;
+  - **exactly** `strlen(name) − 5` bytes. That length means the " city" suffix was dropped and nothing was truncated.
+- **A name that fails is never coerced, trimmed or dropped.** It fails, and 3.3c stops for a ruling.
+- **The count** is reported, not predicted.
+
+| sabotage | the plant | predicted |
+|---|---|---|
+| S-D6a | in a copy of `WxTowns.h`, the **first** town's name gains "é" (UTF-8, two bytes) before " city" | D6(b) fails exactly {the first town}; every other town passes |
+| S-D6b | in a copy, the **last** town's first coordinate's final digit is changed | `--check` against the copy: DIFFERS, exit 1 |
+| control | an unmodified copy | D6(b): 0 failures; `--check`: identical, exit 0 |
