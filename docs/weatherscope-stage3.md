@@ -1807,3 +1807,5 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 | control: the real header | nothing |
 
 **If anything is off-prediction:** stop, record it, and wait for a ruling.
+
+**A8.15's count corrected, add-only, before any K3 code exists (2026-10-23).** A8.15 says "13 checks". Its own table lists **12**: two each for dry, approaching and here-now, plus six for the warning. The table defines the checks, and the "13" was an arithmetic error. **The prediction is 12 of 12, 0 failures.** The sabotage sets are unchanged.
