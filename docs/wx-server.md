@@ -628,3 +628,196 @@ registered race, re-run once.
 | **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | the read landed between a frame's put and its prune, or cadence jitter fitted 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
 | **(c)** anything else | **stop and decide**. That covers: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing |
 | **(d)** no error-free 70 minutes within 24 h of this freeze | I5″ is not read. **The NOAA failures become their own finding** |
+
+### Rulings of 2026-10-23 (reviewer chat, pasted by Daniel), recorded before any I5″ read
+
+**S3 (#461), as given:** "approved to merge at 426a02b5a219098479c37a5f7da1f52d0b365f65". Conditions: the CI total on
+that exact head with no failures; a clean squash; no --admin. "Put any further results in a follow-up docs PR, not on
+this branch, so the approved head stays the head. Then deploy S3 as frozen: staging, then production; W1-W6; on an
+escape, roll production back first. Start each deploy when the ingest tail shows the latest runs storing. If W2 still
+misses because of a NOAA gap, it's a miss: roll back, record it and report it, with no re-grading."
+
+**Merged** as `91554c8`: 37/37 checks counted on `426a02b`, 0 failures. The squash's tree equals `git merge-tree`'s
+(`966740601c47`), and its patch-id equals the PR's.
+
+**I5″'s window instrument, verbatim:** "I5″'s window instrument moves from wrangler tail to Workers Logs, frozen now,
+before any I5″ read. A wrangler tail can't be relied on to stay connected for 70 minutes, and Workers Logs keeps every
+run (head_sampling_rate = 1). The window is any 70 minutes in which Workers Logs holds 0 wx_ingest_error events for
+blipscope-wx-ingest and at least one wx_ingest or wx_ingest_error event in every 5-minute span. The control: the same
+query over 15:20-15:40Z must return the errors the tail saw then (NOAA list 520/522/525 and 'Network connection lost').
+If it doesn't, the instrument is blind and no window counts. The reads, their spacing and the predicted set are
+unchanged. The tail may keep running as a cross-check, and both tails' history is recorded as it happened."
+
+**The query.** Workers Observability telemetry, `view: events`, filtered to `$metadata.service = blipscope-wx-ingest`.
+Each log line is classified by its `evt`: `wx_ingest` or `wx_ingest_error`.
+
+**The tails' history, as it happened:**
+- **Tail 1:** connected 16:09:04Z and exited by itself at 16:39:39Z, exit 0, with nothing on stderr. It recorded 28
+  invocations, 51 `wx_ingest` and 5 `wx_ingest_error`. The errors came from the runs at 16:07, 16:08, 16:09 and
+  16:13Z (wrangler prints run times in local time, UTC-7).
+- **Tail 2:** connected 16:40:40Z, and is still running as a cross-check.
+
+**The NOAA-resilience change** (ruled the same day) restarts I5″'s 70-minute window on the new code once it is
+deployed. Its predictions stay unchanged.
+
+### I5′'s reconciliation, from Workers Logs (read 2026-10-23, 16:45-16:50Z)
+
+**The token works.** A read-only Workers Observability token (`observability-read`) answered the telemetry query for
+`blipscope-wx-ingest`. Every check's start below is the log time minus its `ms`, so it is `t0`, the time the check's
+prune cutoff comes from.
+
+**The 3,902 s frame, reconciled.** Its epoch is 15:27:36 − 3,902 s = **14:22:34Z**.
+- **The only logged success that reached the delete step before the read** was the check that started **15:22:11**. It
+  finished at 15:24:56, stored frame 15:20:33 (the newest in the listing), and logged **`pruned 0`**.
+- **Its cutoff was 15:22:11 − 3,600 s = 14:22:11,** 23 s before the frame's epoch, so the frame was rightly kept.
+- **Every logged check that started after 15:22:34 and ended before 15:27:36 failed at the NOAA listing**, so its
+  delete never ran. They started at 15:23:56 (`522`), 15:24:06 (`522`), 15:24:53 (`525`), 15:24:56 (`525`),
+  15:26:46 (`525`) and 15:27:04 (`525`).
+- **The next success started 15:28:14** and pruned 3, after the read.
+- **Independently of the logs:** the listing at 15:27:36 still held the 14:22:34 frame, so no delete with a later cutoff
+  ran before it. R2's analytics show no `DeleteObjects` from 15:22 to 15:31.
+
+**The 29 frames: partly reconciled.**
+- **What is established:** NOAA's own listing (read 15:28:23Z) holds **30 frames** from 14:22:34 to 15:20:33, with no
+  step over 150 s. The bucket held **29** of them, so **exactly one NOAA frame was never stored.**
+- **Not established:** which frame it was, and why. The ingest stores only the newest NOAA frame on each successful
+  check, so a frame is lost when no check succeeds while it is the newest. **Workers Logs can't name it:** it shows
+  `stored` for only 22 of the 30, while the bucket proves 29 were stored. See the next section.
+
+**The new instrument's control, as frozen: passed.** Workers Logs over 15:20-15:40Z returns every error the tail saw
+then, matching to the millisecond:
+- `NOAA list 522`: 49,570, 39,201 and 49,058 ms;
+- `NOAA list 525`: 137,571 and 56,857 ms;
+- `NOAA list 520`: 72,656 ms;
+- "Network connection lost": 176,749 ms.
+
+In all, that window holds **25 `wx_ingest_error` and 19 `wx_ingest`** lines.
+
+### Workers Logs drops ingest events: I5″'s window instrument fails a ground-truth check (outside the set)
+
+**A diagnostic listing,** at 16:48:55Z and **not an I5″ read**, was taken to check the instrument against the bucket:
+- **The bucket:** 24 frames, 15:48:40 to 16:46:39.
+- **Workers Logs has a `stored` line for 20 of them.** None for 15:52:40, 15:54:36, 16:22:29 or 16:36:38.
+- **Tail 1 recorded `stored` for both 16:22:29 and 16:36:38**, along with the `already-stored` checks after each.
+  Over 16:09-16:39 it recorded 28 invocations, and Workers Logs holds 26.
+- **The same holds earlier:** 22 `stored` lines for the 29 frames the bucket proves were stored between 14:22:34 and
+  15:20:33. That is 48 invocations logged in 70 minutes of a once-a-minute cron.
+- **Not the query:** re-querying two 10-minute slices on their own returned exactly the counts the 70-minute query gave
+  for them (20 and 12 events).
+
+**So Workers Logs is not complete for this Worker,** despite `head_sampling_rate = 1`. One cause consistent with this is
+the account's daily Workers Logs limit. The proxy also logs every request at 100 %, and logs past the limit are
+sampled. **Not established.**
+
+**What it means for I5″.** The ruled control (the 15:20-15:40Z errors) **passed**, but the instrument drops events. A
+70-minute span with 0 `wx_ingest_error` in Workers Logs can't tell "no errors" from "errors not kept". That is the
+escape hatch: **the instrument is unreliable for this question. Stop and decide.**
+- **No I5″ window is counted** on Workers Logs until this is ruled.
+- **Tail 2** (connected 16:40:40Z) keeps running as the cross-check the ruling allowed.
+
+### S3, restated before it deploys (2026-10-23, ~16:55Z)
+
+- **What deploys:** main `91554c8`. Since production's `26510c0` it carries only #461 (the `WX` binding in
+  `wrangler.toml`, and docs).
+- **The rollback target is the version this deploy replaces,** not the literal "S2 version". Production moved after
+  S2, to `806775e9-7de3-4617-9501-ddaad8ab1a75` (`26510c0`, #468's label fix). Rolling back to S2's `e31772f4` would
+  also undo #468.
+  - production: `806775e9`;
+  - staging: `24757e6a-88d4-42af-bf78-57964e747431`.
+- **The start condition (the ruling):** the ingest's latest runs storing. Read at 16:53:12Z: the bucket's
+  `wx/cref/latest` is 16:50:39Z, NOAA's newest frame, 153 s old.
+  - **Both log sources lagged this:** Workers Logs and the tail showed nothing after 16:47:46Z. So the condition is read
+    from the bucket's own record.
+- **W5's windows:** B = the 60 min before production's deploy, A = 5-65 min after, with P5's rules.
+  - `/wx` is recorded under `/other`, so "0 `/wx` requests from fleet devices" is read as **0 `/other` points carrying
+    a fleet device id**: an upper bound on `/wx`.
+- **Every W row is otherwise as frozen.**
+
+**Restated again, before production's deploy (~16:58Z).**
+- **#470 merged mid-S3,** so main is now `1b724bc`. `deploy.sh` refuses a tree behind main in `proxy/`, so
+  **production deploys `1b724bc`.**
+- **Its deployed code is identical to the `91554c8` staging received.** `git diff 91554c8 1b724bc` over `proxy/src`,
+  `proxy/wrangler.toml`, `proxy/package*.json` and `proxy/tsconfig.json` is **empty**. The only `proxy/` difference is
+  `proxy/test/military.test.ts`, which is not in the Worker.
+- **Staging is not redeployed:** it already serves the same code. So production's `/healthz` will report `1b724bc`,
+  and staging's `91554c8`.
+- **Staging's own reads:** deployed 16:53:56-16:54:06Z, version `1894509a-c9a8-4e69-9e20-f6082c9ad599`.
+  `/healthz` `91554c8`; the deploy listed `env.WX (blipscope-wx)`. W2 read 1 (16:54:14Z): `frameAgeS` 216.
+
+### S3's results so far (deployed 2026-10-23)
+
+- **Staging:** 16:53:56-16:54:06Z, version `1894509a-c9a8-4e69-9e20-f6082c9ad599`, `/healthz` `91554c8`.
+- **Production:** 16:58:29-16:58:39Z, version `2bb15f91-f7ea-4caa-9b8f-b21108cfdd4a`, `/healthz` `1b724bc`.
+  - Its bindings against #468's production list: **only `env.WX (blipscope-wx)` added**, none removed.
+  - The start condition, read just before: `latest` was 16:56:35Z, 114 s old.
+
+| | read | verdict |
+|---|---|---|
+| **W1** (before merge, on `443d579`) | S2's bindings plus `env.WX (blipscope-wx)`, in both envs | **as predicted** (recorded earlier) |
+| **W2, staging** | 16:54:14Z `frameAgeS` **216**; 16:57:39Z **186**, 205 s later. The same frame would read 421, so it advanced | **as predicted** |
+| **W2, production** | 16:58:50Z **136**; 17:02:05Z **87**, 195 s later. The same frame would read 331, so it advanced | **as predicted** |
+| **W3** | `smoke-prod.sh` on production: **PASS 34, FAIL 0, SKIPPED 0**. `/wx`: HTTP **200**, 36 B, magic **`WXC1`**, ETag `"wx1-cref-1792774595-44.06_-121.32_160"`, "wired" | **as predicted** |
+| **W4** | the same query at 16:59:36Z: 200, `WXC1`, that ETag; then **at once** with `If-None-Match`: **304** | **as predicted** |
+| **W6** | every `/wx` answer so far: 200 (smoke), 200 and 304 (W4) | **no 5xx: as predicted** |
+| **W5** | A = `[17:03:39, 18:03:39)`, B = `[15:58:39, 16:58:39)` | **not yet read** (after 18:03:39Z plus the lag) |
+
+### I5″'s precondition moves to ground truth (reviewer chat, pasted by Daniel, 2026-10-23), frozen before any I5″ read
+
+**Verbatim:** "I5″'s precondition moves to ground truth, frozen now, before any I5″ read. Workers Logs drops events and
+a tail can't stay connected, so neither gates it any more. I5″ is read on #472's code, at least 70 minutes after the
+ingest deploys. Each read counts only if, at that moment, NOAA's own listing and the bucket agree: every NOAA frame
+with an epoch from (read time - 3,600 s) to (read time - 240 s) is in the bucket. A read that fails this is recorded as
+'not taken: gap'. It is not a miss, and it is retried at least 10 minutes later. The two reads, their spacing and the
+predicted set are unchanged. If no pair of reads qualifies within 24 h of the ingest deploy, outcome (d): the NOAA
+failures become their own finding."
+
+**This supersedes the Workers Logs window ruled earlier the same day.** Workers Logs failed a ground-truth check, as
+recorded above.
+
+**How it is read.**
+- **The ingest deploy:** #472's code, main `d1ced73`, version `582612da-e1b0-4a02-bf9e-de72c5d78157`, created
+  17:42:49Z. So no I5″ read comes before **18:52:49Z**.
+- **At each read time T,** one script:
+  - lists NOAA's own `CONUS/MergedReflectivityQCComposite_00.50` folder for the day, or days, covering
+    `[T − 3,600, T − 240]`;
+  - lists the bucket (the I5′ instrument: `ListObjectsV2` over the whole bucket, plus its `latest` control);
+  - **gates on** "every NOAA epoch in that span is a `wx/cref/frames/<epoch>.wxg`", and prints any epoch it lacks.
+- **The bucket listing that passes the gate is the I5″ read itself,** graded against the frozen set and outcomes
+  (a)-(d).
+- **A failed gate is printed as "not taken: gap"** with the missing epochs, and is retried no sooner than 10 min later.
+
+### W5: a MISS, and the escape executed (2026-10-23)
+
+**Windows:** A = `[17:03:39, 18:03:39)`, B = `[15:58:39, 16:58:39)`, with P5's rules.
+
+| | read 1 (18:10:01Z) | read 2 (18:15:15Z) |
+|---|---|---|
+| fleet 5xx in A | **5** (all 503) | **5** (identical) |
+| fleet 4xx in A | 0 | 0 |
+| devices in B but not A | 0 (B 5, A 5) | 0 (B 5, A 5) |
+| `/blips` A/B | 1,321 / 1,382 = 0.96 | 0.96 |
+| usage rows in A | 5 devices, all `u8` | 5 devices, all `u8` |
+| fleet `/other` points in A (the upper bound on fleet `/wx`) | **0** | **0** |
+
+**The two reads are identical in every field.** **Verdict: MISS.** Fleet 5xx in A is 5, not 0, which is outside the set. **The escape, as frozen:** "stop. In production,
+roll back first."
+- **Production was rolled back at 18:10:57Z,** before the 503s were looked into: `wrangler rollback
+  806775e9-7de3-4617-9501-ddaad8ab1a75 --env production`. That is the version S3 replaced (`26510c0`).
+  `deployments list` shows it at 100 %, and `/healthz` reports `commit` `26510c0`, `wx` `not_configured`.
+- **Staging stays on S3** (`1894509a`, `91554c8`). The escape names production.
+
+**What the 503s were (data beside the verdict, not a re-grade):**
+- **All 5 are `/api/v1/blipscope/blips`, from one fleet device, at 17:59 and 18:00Z.** Cache `MISS`, and no upstream
+  answered (`upstream` empty).
+- **The same minutes, the other 4 fleet devices' `/blips`** were all 200, cache `MISS`, served by `adsb_fi` and
+  `adsb_fi_b`.
+- **Baselines with 0 fleet 5xx:** S3's B, S2's A (14:54:38-15:54:38Z), and 10:00-14:00Z today.
+
+**Two explanations, and neither is excluded by a measurement:**
+- **A transient failure of that one device's upstream fetch** at those two minutes. This is the same day as the
+  ingest's NOAA failures (Cloudflare 52x on subrequests to an origin).
+- **S3's change.** S3 added only the `WX` binding. `git diff 26510c0 1b724bc`: `proxy/src` identical, `wrangler.toml` the
+  binding blocks and their comments, and otherwise only #470's test file. `/blips` never reads `env.WX`. That is an argument about the
+  code, not a measured exclusion, so it is **reported, not used to re-grade.**
+
+**Whether S3 is redeployed is for a ruling.** W1-W4 and W6 stand as read above.
