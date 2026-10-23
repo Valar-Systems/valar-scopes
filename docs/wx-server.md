@@ -342,3 +342,289 @@ rounding approaches its full cell from below, at the same corner where the wire 
 The overshoot then equals the bound to 10⁻¹³. That is what the ruling asked for: a bound built from the
 real terms that real cases reach, not a constant like 4.3 that is loose almost everywhere.
 
+
+## Deploy, 2026-10-22: what it creates, what it costs, and the predictions (frozen before the bucket exists)
+
+Daniel's instruction of 2026-10-21: deploy #443 under the standing rule. Say first what it creates and what it
+is expected to cost each month, and ask him if that is more than $0.
+
+**What it creates:**
+- **The R2 bucket `blipscope-wx`,** with a lifecycle backstop that expires objects after 1 day. The ingest prunes
+  anything older than `RETAIN_S` = 3600 s itself; the lifecycle rule only bounds a pruning failure.
+- **The Worker `blipscope-wx-ingest`,** deployed from `proxy/wx-ingest.wrangler.toml` at main `0116e13`: cron
+  `* * * * *` (two checks a minute, `:00` and `:30`), `cpu_ms = 5000`, observability on, **no route**.
+- **Later, in its own reviewed change (S3):** a `WX` binding to `blipscope-wx` in the proxy's staging and
+  production envs. Until then `/wx` answers 503 `not_configured`.
+
+**Expected monthly cost: $0.** These are 30-day account figures, measured 2026-10-21 from the GraphQL Analytics API
+and `wrangler r2 bucket info`, against what the Workers Paid plan and R2 include:
+
+| | now | the weather server adds | included |
+|---|---|---|---|
+| R2 storage | 258 MB (`missileer-clips`) + 0.5 MB | about 0.4 GB (31 frames × 12,845,120 B). Even with pruning broken, about 9.25 GB under the lifecycle rule | 10 GB |
+| R2 Class A | about 751k/month (25,049/day over the last 7 days, almost all `missileer-live` puts) | **about 130k/month:** 6 per frame (3 on the check that stores it, a `list` on each of the other 3) × 720 frames/day | 1M |
+| R2 Class B | about 312k/month | about 432k/month from the ingest (5 per check), plus about 216k/month for each device with the layer on | 10M |
+| Workers CPU | 2.33M ms/month (all scripts) | about 10-15M ms/month (WS8: 0.45-0.67 s per frame × 720/day) | 30M |
+| Workers requests | 663k/month | 43,200 cron runs | 10M |
+
+**The margin that is thin:** R2 Class A rises to about **88 %** of the free 1M. A second product, such as
+Weatherscope's, or more Missileer writes would cross it, at $4.50 per million over. That crossing will be put to
+Daniel before it happens. It isn't now.
+
+### S1: the bucket and the ingest (nothing reads them yet)
+
+| | check | predicted |
+|---|---|---|
+| **I1** | the bucket | `wrangler r2 bucket info blipscope-wx` shows it, and its lifecycle list shows a 1-day expiry |
+| **I2** | the ingest deploy | exit 0; the deploy output lists the cron `* * * * *`; the newest entry in `deployments list` is the version it printed |
+| **I3** | frames land | within 10 min, `wx/cref/latest` exists. Read twice at least 4 min apart: its epoch advances by a **non-zero multiple of 120 s**, and at each read the frame is **≤ 600 s** old |
+| **I4** | one frame object | exactly **12,845,120 B**, starting `WXG1` |
+| **I5** | pruning | at 75 min or later: **29-33** frame objects under `wx/cref/frames/`. Read twice 10 min apart, and both counts are in the band |
+| **I6** | the ingest's own log (`wrangler tail`, first 20 min) | **≥ 30** `wx_ingest` lines and **0** `wx_ingest_error`. Statuses only `stored`, `already-stored` or `no-frame` |
+| **I7** | CPU, first 2 h (GraphQL, `scriptName` `blipscope-wx-ingest`) | per-invocation `cpuTimeP99` **≤ 1,500 ms**; no CPU-limit errors |
+| **escape** | anything else | **stop and report.** The ingest has no route and nothing reads it, so this is not an emergency. Removing it is Daniel's, because it deletes a resource |
+
+### S2: the proxy at main `0116e13`, staging then production, with no `WX` binding (the off stage)
+
+This deploy also carries #450, #458 and #460. The Bend site feed is off in production (`SITE_FEED_BEND` "off").
+**Rollback target:** production version `7224e0dc-1832-46c3-8089-0126352da8b4` (commit `2460deb`).
+
+| | check | predicted |
+|---|---|---|
+| **P1** | `/healthz` | `commit` **0116e13** on both envs; `wx` **"not_configured"** |
+| **P2** | the deploy output's bindings | production: `BEND_SNAPSHOT (BendSnapshotDO)`, `SITE_FEED_BEND ("off")`, **no `WX`**; staging: the same with `("on")` |
+| **P3** | `smoke-prod.sh` on production, E2:08's own credential (Daniel's consent, 2026-10-21) | **before, on `2460deb`: exactly 1 FAIL, the `/wx` check (404: that build has no route); every other check passes.** **After: 0 FAIL**, with `/wx` passing as "not wired yet" |
+| **P4** | `smoke-prod.sh` on staging | reported, **not graded**: staging may hold a different device-key secret, so E2:08's credential may be refused there by design |
+| **P5** | the fleet's own traffic (Analytics Engine; per-request points with a device id, **E2:08's id excluded**, since the smoke runs use it). B = the 60 min before the production deploy, A = 5-65 min after | fleet **5xx in A: 0**; fleet **4xx in A: 0**; **devices in B but not A: 0**; `/blips` count A/B **0.4-2.5**; usage rows in A from **≥ 4 devices**, every one arity **`u8`**, **0 `(none)`**; production `sitefeed` events in A: **0** |
+| **P6** | fail fast, `[T, T + 15 min)` | any fleet 5xx, or any fleet 401/403, means **roll back at once** |
+| **controls** (run before believing P5) | can each detector see what it looks for? | `sitefeed` events on staging (`blipscope_proxy_staging`) since its 23:06Z deploy: **> 0**. Unfiltered 4xx over all production points in 24 h: **> 0**. The device-set difference between 2026-10-21 21:00 and 22:00 (4 devices, then 6): **2** |
+| **escape** | anything else, or two reads of A that disagree | **stop and decide.** Production misbehaving means roll back first |
+
+S3's predictions (the binding, `/wx` serving crops, smoke's `/wx` passing as "wired") are frozen in S3's own PR,
+before it is reviewed.
+
+### S3: the `WX` binding, so `/wx` serves crops (frozen before the binding is written)
+
+**The change:** a `[[env.staging.r2_buckets]]` and a `[[env.production.r2_buckets]]` block, each binding `WX` to
+`blipscope-wx`, with `wrangler.toml`'s top-level comment updated to match. Nothing else changes. It deploys to
+staging and then production **only after S2 has passed**, and only once this PR is approved and merged.
+**Rollback:** `wrangler rollback` to the S2 version, which leaves `/wx` at 503 `not_configured` again.
+
+| | check | predicted |
+|---|---|---|
+| **W1** | the dry-runs, before merge | `env.WX (blipscope-wx)` listed in **both** staging and production; every binding S2 listed is still there |
+| **W2** | `/healthz`, after each deploy | `wx.cref.frameAgeS` **≤ 600**. Read twice at least 3 min apart, it is ≤ 600 both times, and the record moved on between the reads (the frame advanced) |
+| **W3** | `smoke-prod.sh`'s `/wx` check, production | **PASS, "wired"**: HTTP 200, magic `WXC1`, an ETag |
+| **W4** | revalidation | the same query sent again at once with `If-None-Match: <that ETag>` gets **304**, unless the frame advanced in between, which means **200 with a different ETag**. Anything else is a FAIL |
+| **W5** | the fleet's own traffic, the same windows and rules as P5 | unchanged from S2's verdict. Also, **0 `/wx` requests from fleet devices**: no shipped firmware has the layer, and E2:08's and the smoke's own requests are excluded |
+| **W6** | `/wx` answers in the smoke runs and W4 | **no 5xx** |
+| **escape** | anything else | **stop.** In production, roll back to the S2 version first |
+
+### Results so far (S1 deployed 2026-10-22T00:16Z; S2 not deployed)
+
+| | read | verdict |
+|---|---|---|
+| **I1** | `blipscope-wx` created 00:15:58Z, WNAM; lifecycle `expire-1d` ("Expire objects after 1 days"), beside the default 7-day multipart-abort rule | **as predicted** |
+| **I2** | deploy exit 0; `schedule: * * * * *`; version `47ad5010-19b5-4ca9-b186-ead1180527fd`, and `deployments list` shows it as the newest (00:16:20Z) | **as predicted** |
+| **I3** | first seen 00:19:35Z (deployed 00:16:21Z; the 00:17 and 00:18 ticks never ran, which is cron propagation). Read A, epoch 00:18:37Z; read B at 00:23:39Z, epoch 00:20:39Z. **The advance is 122 s.** The frame was about 58 s and 180 s old at the two reads | **MISS on one clause: "a non-zero multiple of 120 s".** The rest is as predicted (exists within 10 min, advances, ≤ 600 s old) |
+| **I4** | `wx/cref/frames/1792628317.wxg`: **12,845,120 B**, magic `WXG1`, product `cref` | **as predicted** |
+| **I6** | the tail, deploy + 20 min: **18 invocations** (00:19:26Z-00:36:05Z), every one `ok`, 0 exceptions; **36 `wx_ingest` lines**; **0 `wx_ingest_error`**; statuses `stored` 9 and `already-stored` 27; `pruned` 0, since no frame is an hour old yet; `lagS` 57-154 s | **as predicted** |
+| **I5** | **read 1 (01:32Z):** R2's storage analytics' newest row (00:40Z) said `objectCount 0` while frames existed. **Read 2 (01:42Z):** 31 objects, 385,353,781 B (analytics and `bucket info` agree), but the newest bucket starts at 01:10Z, so it describes about 55-65 min after the deploy, not 75 or more. **The two reads disagree.** **Beside it, not as its grade:** a direct probe at 01:33Z found the first frame (00:18:37Z, 4,464 s old) gone and a frame 1,830 s old present at 12,845,120 B. The probe had first been shown to tell a present key from an absent one. The writer's own log (both tails, de-duplicated): 46 frames stored, 16 pruned, so 30 present. Pruning began at the 01:19:05Z check, when the first frame turned 3,600 s, and removes one frame per new frame | **BLIND**, by the reviewer's ruling (not passed, and not re-read until one passes) |
+| **I5′** | frozen at `e636e79` (a direct listing, 31 objects and a byte band, read twice) | **not yet read: no instrument runs.** `wrangler` (4.35 and 4.151.3) has no object listing, and `wrangler dev --remote` failed (the account's `edge-preview` call answered 400) |
+| **I7** | `workersInvocationsAdaptive`, `blipscope-wx-ingest`, 00:16-02:17Z: **114 invocations**, 0 errors, CPU total 61,880 ms, **mean 543 ms**. Quantiles: p25 8, p50 576, p75 1,006, p90 1,338, **p99 2,172 ms** | **MISS: p99 2,172 ms > 1,500.** No CPU-limit errors (`cpu_ms = 5000`). Recorded, not re-graded |
+| **P3 (before)** | `smoke-prod.sh` against production `2460deb`, E2:08's credential: **PASS 31, FAIL 2, SKIPPED 1**. FAILs: `/wx` (404, as predicted) and "enroll POST, unsolved token" (403 `fake_device_id` against an expected `"unverified"`; not predicted) | **MISS. S2 stopped before deploying, for a ruling** (#461) |
+
+**I3's miss, and why it is recorded rather than re-graded.** MRMS frame times are not on an exact 120 s grid. The two frames here are 00:18:37 and 00:20:39. The figure I3 leaned on was M4a's "mode 120 s", which describes the most common step, not a fixed one. So I3 was frozen with a criterion tighter than anything measured. The frame does advance, which is what I3 was for. The clause stays a miss.
+
+**P3's miss.** The second FAIL is pre-existing. Since `e4c768a` (2026-09-23), production refuses fake device ids before the token gate, and that check's fixture id `a1b2c3d4e5f6a7b8` is on the fake allowlist. The identical FAIL is in that day's 16:08 production baseline, taken with the old credential. Staging passes the check. The options are on #461.
+
+### I5′ (the reviewer's ruling of 2026-10-22, pasted by Daniel; frozen before any new read)
+
+**The ruling, as received:** I5 is recorded **BLIND**, not passed, and it is not re-read until one passes.
+I5′ is accepted:
+- **Primary instrument:** a direct listing of the bucket (object count and total bytes), not the analytics.
+- **Reads:** twice, at least 10 minutes apart, both at 75 minutes or more after the deploy.
+- **Predicted:** 31 objects in both reads (30 frames plus `latest`), with total bytes inside a stated band, and the
+  two reads agree.
+- **The analytics** are reported beside it, as data, not graded.
+- **The 01:42Z reads don't count,** because they were taken before the ruling.
+
+**The instrument.** `wrangler` 4.35 has no object listing, so the listing is a throwaway Worker run with
+`wrangler dev --remote`: a preview session bound to `blipscope-wx`, deploying nothing. It pages
+`bucket.list()` to the end and returns, for every object:
+- the count and the summed `size`;
+- the frame count and the oldest and newest frame epochs;
+- the keys that aren't frames.
+
+**Its control, run before either read:** the listing must contain `wx/cref/latest`, and the epoch in that
+record (fetched with `r2 object get`) must equal the newest frame epoch the listing reports. A listing that can't
+see the record it is checked against is not believed.
+
+| | measured | predicted |
+|---|---|---|
+| **I5′** | two direct listings of `blipscope-wx`, at least 10 min apart, both after 01:31:21Z (deploy 00:16:21Z + 75 min) | **31 objects in both**: 30 under `wx/cref/frames/` plus `wx/cref/latest`, and no other key. **Total bytes in [385,353,750, 385,353,850]** in both: 30 × 12,845,120 = 385,353,600, plus the `latest` record at 150-250 B. The two reads agree on the count |
+
+| outcome | meaning |
+|---|---|
+| **(a) as predicted** | pruning holds the bucket at one hour of frames |
+| **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | a read landing in the seconds between a frame's put and its prune (the same check does both), or cadence jitter fitting 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
+| **(c)** anything else: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing | pruning or the instrument is wrong. **Stop and decide** |
+
+**I7's miss, and what it changes.** Invocations that build nothing cost about 8 ms (p25). Those that build a frame cost about
+1-2 s, roughly twice WS8's 0.45-0.67 s, which was measured in Node, not in workerd. The bar was frozen from the Node figure.
+**The cost statement's CPU row was an estimate, and the measurement replaces it:** 543 ms × 43,200 invocations is about
+**23.4M CPU-ms a month** from the ingest. With the proxy's 2.33M that makes about **25.8M of the 30M included (86 %)**, not
+the 12-17M estimated. **The expected cost is still $0,** but CPU now sits beside R2 Class A (about 88 %) as a thin margin.
+Anything that adds CPU, a second product above all, crosses it.
+
+**Outside any graded row (the second tail, 00:26-01:50Z, 86 invocations, all `ok`, 0 `wx_ingest_error`):** one `lost-race`
+at 00:49:40Z. An extra invocation started at 00:49:34Z, off the minute boundary. Its `:30` check followed its `:00` check with no
+wait, which is consistent with a second delivery of the 00:49 trigger. It stored frame `1792630119` 0.26 s after the earlier
+invocation's `:30` check began building the same frame, and that check lost the conditional put. Exactly one write landed and
+`latest` advanced once: the overlap the idempotent ingest was built for. **I6's status set left `lost-race` out.** I6 was graded
+on the first 20 minutes, where none occurred, so its verdict stands.
+
+### S2, restated before it runs (2026-10-23): the commit is main `4752767`
+
+**Why it moved.** P3's ruling (2026-10-23) had the smoke check fixed first (#463). #465 and #466 merged as well,
+so main is now `4752767`. `deploy.sh` deploys main's head, and it refuses a tree that is behind main in `proxy/`.
+
+**What did not move.** `git diff 0116e13 4752767` over `proxy/src`, `proxy/wrangler.toml`,
+`proxy/package.json`, `proxy/package-lock.json` and `proxy/tsconfig.json` is **empty**. Under `proxy/`, only
+`scripts/smoke-prod.sh` differs (#463: the probe id, not deployed code). **So the Worker S2 deploys is `0116e13`'s
+code.**
+
+**Carried since production's `2460deb`, all reviewed and merged:** #450 `882d49e`, #458 `6bb61df`, #460 `1990156`,
+#443 `0116e13`, #463 `2484bda` (the script only).
+
+**The changes to S2's rows:**
+- **P1 reads `4752767`** wherever it said `0116e13`;
+- **P3 "after"** uses #463's script: **0 FAIL**, as frozen, with `/wx` passing as "not wired yet". SKIPs are not
+  predicted, because `/v1/photo` depends on the live sky (#463's E1);
+- **every other row is as frozen.**
+
+### S2's controls, read before the deploy (2026-10-23), and Daniel's decision
+
+| control | predicted | read | verdict |
+|---|---|---|---|
+| (a) `sitefeed` events on staging since its 2026-10-21 23:06Z deploy | > 0 | **0** | **BLIND, not failed.** Since that deploy, staging received 14 `/v1/blips` requests, and **every one was refused 401**. Staging holds a different device-key secret, so no successful aircraft fetch ran, and the Bend writer never ran. The instrument is unexercised, not shown broken |
+| (b) unfiltered production 4xx, last 24 h | > 0 | **158** | as predicted: the 4xx detector can see a 4xx |
+| (c) the device-set difference, 2026-10-21 22:00 against 21:00 | 2 | **2** (6 against 4) | as predicted: the set comparison can see a difference |
+
+**Daniel's decision (2026-10-23), as given:** "Proceed, row BLIND. Record control (a) as BLIND and P5's sitefeed row as
+unreadable, not passed. P2 is a hard gate: if the deploy output doesn't list SITE_FEED_BEND "off", stop and roll back.
+Prove the sitefeed instrument at #464 instead, where the writer runs in production: freeze a positive control there,
+with sitefeed events appearing within a stated number of minutes of switching the feed on."
+
+**So:**
+- **P5's "production `sitefeed` events in A: 0" row is unreadable,** whatever it reads.
+- **P2 is a hard gate:** production's deploy output must list `env.SITE_FEED_BEND ("off")`, or roll back at once.
+- **The instrument is proved at #464,** with a positive control frozen there before its deploy.
+
+### I5′'s instrument, restated before any read (2026-10-23)
+
+**Why it moved.** The frozen instrument, a throwaway Worker under `wrangler dev --remote`, never ran: the account's
+`edge-preview` call answered 400. Daniel chose the replacement (2026-10-22): **a read-only R2 token**, bucket-scoped to
+`blipscope-wx` with the "Object Read only" permission. He created it on 2026-10-23. It is held in the token file, never
+printed.
+
+**The instrument now.** A direct listing through R2's S3-compatible API: `ListObjectsV2` over the whole bucket, no
+prefix, paged by continuation token to the end, signed with SigV4. It reports:
+- the object count and the summed `Size`;
+- the frame count and the oldest and newest frame ages;
+- every key that is not `wx/cref/frames/<epoch>.wxg`.
+
+**The control, before either read:** `GetObject` on `wx/cref/latest`, whose `epoch` must equal the newest frame epoch
+in the listing. The same rule as frozen, through the same API. **One registered race:** the fetch follows the listing
+by under a second. If a frame lands in between, `latest` is newer than the listing's newest. That case re-runs the
+control once, and the race is recorded. **A second mismatch is outcome (c).**
+
+**Unchanged:** the two reads at least 10 min apart, the 31 objects, the byte band
+[385,353,750, 385,353,850], outcomes (a)-(c), and the analytics reported beside them as data, not graded.
+
+### S2's results (deployed 2026-10-23; main `4752767`)
+
+**Staging** 14:48Z, version `8d935932`. **Production** 14:49:21-14:49:38Z, version
+`e31772f4-7b27-45dd-9132-238ed2f085e1`. The rollback target was `7224e0dc` (`2460deb`).
+
+| | read | verdict |
+|---|---|---|
+| **P1** | production `/healthz`: `commit` **4752767**, `wx` **"not_configured"**; staging the same | **as predicted** (as restated) |
+| **P2** (the hard gate) | production's deploy output: `BEND_SNAPSHOT (BendSnapshotDO)`, **`SITE_FEED_BEND ("off")`**, no `WX`; staging the same with `("on")` | **as predicted** |
+| **P3 after** | `smoke-prod.sh`, production, E2:08's credential: **PASS 34, FAIL 0, SKIPPED 0**; `/wx` HTTP 503 `not_configured`, "not wired yet" | **as predicted** |
+| **P4** | staging: PASS 21, FAIL 10, SKIPPED 3. Every FAIL is a **401**: staging holds a different device-key secret | reported, not graded |
+| **P6** | fleet `[14:49:38, 15:04:38)`, read at 15:08:30 and 15:10:33Z, identical: **446 requests, 5 devices, every one 200** | **as predicted** |
+| **P5** | A = `[14:54:38, 15:54:38)`, read at 16:00:05 and 16:02:54Z, **identical in every field**; B = `[13:49:38, 14:49:38)`. Fleet 5xx in A **0**, 4xx in A **0**. Devices in B but not A **0** (B 5, A 6). `/blips` A/B 1,392 / 1,092 = **1.27**. Usage rows in A from **6 devices, all `u8`, 0 `(none)`**. B's 5 rows were all `(none)`, since arity was recorded only once #450 deployed | **as predicted** on every graded row |
+| **P5, `sitefeed`** | `{}` in A | **unreadable, not passed** (control (a) BLIND; Daniel's decision) |
+| **W1** (S3's dry-runs, read 2026-10-23 on `443d579`) | both envs list exactly S2's bindings **plus `env.WX (blipscope-wx)`**: none removed. Staging 16 → 17, production 17 → 18 | **as predicted** |
+
+### I5′'s result (2026-10-23): a MISS, recorded as registered
+
+**The read, verbatim:** `{"at": "15:27:36Z", "pages": 1, "objects": 30, "bytes": 372508661, "frames": 29, "other_keys":
+["wx/cref/latest"], "oldest_frame_age_s": 3902, "newest_frame_age_s": 423, "newest_frame_epoch": 1792768833, "control":
+{"latest_epoch": 1792768833, "equals_newest_listed": true}}`
+
+| | read | verdict |
+|---|---|---|
+| **control** | `latest`'s epoch equals the newest listed frame (1792768833, 15:20:33Z) | **passed** |
+| **I5′** | **29 frames** + `latest` = 30 objects; **oldest frame 3,902 s**; 372,508,661 B, which is exactly 29 × 12,845,120 + a 181 B `latest` | **MISS: outcome (c)**, on two clauses (under 30 frames; a frame older than 3,720 s). **Stopped there:** no second read was taken |
+
+**It stays a miss.** The reviewer ruled (2026-10-23, pasted by Daniel) that it is recorded verbatim, with no re-grading.
+
+**The cause is not yet established.** It counts only once both numbers are reconciled with the ingest's logs: each run's
+outcome from 15:20 to 15:34Z, and whether the delete step ran. **What is established so far:**
+- **The ingest's NOAA calls were failing.** A tail from 15:32:27Z saw the runs scheduled 15:29-15:33Z. Their checks gave
+  `NOAA list 522`, `525`, `520` and "Network connection lost", each after 39-177 s. Then `stored` at the 15:34 run (frame
+  15:32:38).
+- **NOAA itself was publishing.** Its listing at 15:28:23Z holds 15:22:38, 15:24:37 and 15:26:40, none of which the bucket had.
+- **The code: when the delete runs.** `pruneOld` runs at the end of every check that gets past the NOAA listing (`stored`,
+  `already-stored`, `lost-race`). A failed listing throws before it. Its cutoff is `t0 − 3,600 s`, where `t0` is
+  `Date.now()` at the start of the check (`ingest-worker.ts:15`), not when it prunes.
+- **So the 3,902 s frame (epoch 14:22:34Z) survives only if** no check that started after 15:22:34Z reached the delete before
+  15:27:36Z.
+- **R2's operation analytics for the bucket**, per minute, as data:
+  - `ListObjects`, which only `pruneOld` issues in the ingest, appears at 15:24 and 15:29.
+  - `PutObject` appears at the same minutes.
+  - `DeleteObjects` appears at 15:21, then not until 15:32.
+  - The 15:27 row (`GetObject` 1, `ListObjects` 1) is this read.
+  - A put that failed partway, and a delete cut off by a start-time cutoff, are both consistent with this. **Only the
+    logs separate them.**
+- **The logs exist but are not yet read.** Workers Logs is on (`head_sampling_rate = 1`). The analytics token is refused
+  by the telemetry API (403), so the runs from 15:20 to 15:29Z need a read token or the dashboard.
+
+**Did anything request `/wx` while the newest frame was over 600 s old (15:30:33 to about 15:34Z)?** **No.**
+- `/wx` is not in `KNOWN_ROUTES`, so its requests are recorded under `/other`. In that window `/other` has **0 points**
+  in production and in staging.
+- **The control:** the smoke runs' own `/wx` requests appear as production `/other` 503 at 14:49 and 16:03Z, and as
+  staging 401 at 14:48Z.
+- **What such a request would have got:** 503 `not_configured`. Neither env binds `WX` yet, so the designed `wx_stale`
+  answer is unreachable until S3.
+
+### I5″ (frozen 2026-10-23, before any read)
+
+**The ruling (reviewer chat, pasted by Daniel):** register I5″ with I5′'s predicted set, frozen before reading, and
+read it only after **at least 70 minutes with no ingest errors**. I5′'s miss stays in the record.
+
+**The instrument:** as I5′'s, restated above: the S3-API listing and its `latest` control. That includes the
+registered race, re-run once.
+
+**The error-free window, observed, not assumed:**
+- **The source:** a continuous `wrangler tail` of `blipscope-wx-ingest` (pretty format), recorded to a file.
+- **The window:** 70 minutes or more in which the tail holds **0 `wx_ingest_error` lines**.
+- **The tail's own control:** it prints its connection banner, and it records **at least one `wx_ingest` or
+  `wx_ingest_error` line in every 5-minute span** of the window. A 5-minute span with no line means the tail cannot
+  see the runs. Then the window does not count: it restarts with a new tail.
+- **Any error resets it:** a `wx_ingest_error` restarts the 70 minutes.
+
+**The reads:** two, at least 10 min apart, both inside or at the end of an error-free window of 70 minutes or more.
+
+| | predicted |
+|---|---|
+| **I5″** | **31 objects in both reads:** 30 under `wx/cref/frames/` plus `wx/cref/latest`, and no other key. **Total bytes in [385,353,750, 385,353,850]** in both. The two reads agree on the count |
+
+| outcome | meaning |
+|---|---|
+| **(a)** as predicted | pruning holds the bucket at one hour of frames |
+| **(b)** 32 objects (31 frames + `latest`), every frame younger than 3,600 + 120 s | the read landed between a frame's put and its prune, or cadence jitter fitted 31 frames into the hour. **Not a pass:** reported, and the next step is decided then |
+| **(c)** anything else | **stop and decide**. That covers: under 30 frames, over 32 objects, a frame older than 3,720 s, a key that is neither a frame nor `latest`, bytes outside the band for the frame count, reads that disagree, or the control failing |
+| **(d)** no error-free 70 minutes within 24 h of this freeze | I5″ is not read. **The NOAA failures become their own finding** |

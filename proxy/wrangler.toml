@@ -49,9 +49,10 @@ ROUTE_ADSBDB_ENABLED = "true"             # route fallback; "false" once adsb.lo
 binding = "ENRICH_KV"
 id = "0000000000000000000000000000dev0" # placeholder: tests/dev run in-memory; real ids live per-env
 
-# Weather frames (docs/wx-server.md). DEV/TEST ONLY: tests get an in-memory bucket, and bindings are not
-# inherited, so staging and production have NO WX binding until Daniel creates the bucket and adds one per
-# env. Without it /wx answers 503 not_configured and /healthz says "not_configured" -- nothing breaks.
+# Weather frames (docs/wx-server.md). DEV/TEST ONLY: tests get an in-memory bucket. Bindings are not
+# inherited, so staging and production each bind the real bucket, blipscope-wx, in their own block below.
+# One bucket and one ingest (blipscope-wx-ingest) serve both envs. Without a WX binding, /wx answers 503
+# not_configured and /healthz says "not_configured".
 [[r2_buckets]]
 binding = "WX"
 bucket_name = "blipscope-wx-dev"
@@ -195,6 +196,11 @@ dataset = "blipscope_proxy_staging"
 [[env.staging.durable_objects.bindings]]
 name = "BEND_SNAPSHOT"
 class_name = "BendSnapshotDO"
+
+# Weather frames (docs/wx-server.md, S3): written by blipscope-wx-ingest, only read here.
+[[env.staging.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
 
 # Workers Rate Limiting binding (per-colo token buckets, 60 s period).
 # RL_IP: a household NATs 1-3 devices behind one IP; the fastest tier polls every
@@ -378,6 +384,11 @@ dataset = "blipscope_proxy"
 [[env.production.durable_objects.bindings]]
 name = "BEND_SNAPSHOT"
 class_name = "BendSnapshotDO"
+
+# Weather frames (docs/wx-server.md, S3): written by blipscope-wx-ingest, only read here.
+[[env.production.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
 
 # Same per-colo reasoning as staging (RL_IP: ~3 fast devices per household IP;
 # RL_KEY: per-colo fleet ceiling). Distinct namespace_ids so prod and staging
