@@ -502,3 +502,21 @@ code.**
 - **P3 "after"** uses #463's script: **0 FAIL**, as frozen, with `/wx` passing as "not wired yet". SKIPs are not
   predicted, because `/v1/photo` depends on the live sky (#463's E1);
 - **every other row is as frozen.**
+
+### S2's controls, read before the deploy (2026-10-23), and Daniel's decision
+
+| control | predicted | read | verdict |
+|---|---|---|---|
+| (a) `sitefeed` events on staging since its 2026-10-21 23:06Z deploy | > 0 | **0** | **BLIND, not failed.** Since that deploy, staging received 14 `/v1/blips` requests, and **every one was refused 401**. Staging holds a different device-key secret, so no successful aircraft fetch ran, and the Bend writer never ran. The instrument is unexercised, not shown broken |
+| (b) unfiltered production 4xx, last 24 h | > 0 | **158** | as predicted: the 4xx detector can see a 4xx |
+| (c) the device-set difference, 2026-10-21 22:00 against 21:00 | 2 | **2** (6 against 4) | as predicted: the set comparison can see a difference |
+
+**Daniel's decision (2026-10-23), as given:** "Proceed, row BLIND. Record control (a) as BLIND and P5's sitefeed row as
+unreadable, not passed. P2 is a hard gate: if the deploy output doesn't list SITE_FEED_BEND "off", stop and roll back.
+Prove the sitefeed instrument at #464 instead, where the writer runs in production: freeze a positive control there,
+with sitefeed events appearing within a stated number of minutes of switching the feed on."
+
+**So:**
+- **P5's "production `sitefeed` events in A: 0" row is unreadable,** whatever it reads.
+- **P2 is a hard gate:** production's deploy output must list `env.SITE_FEED_BEND ("off")`, or roll back at once.
+- **The instrument is proved at #464,** with a positive control frozen there before its deploy.
