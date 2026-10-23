@@ -109,32 +109,9 @@ function Write-Mark($sw, $text) {
     $sw.WriteLine("=== [capture] $text $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') pid=$PID ===")
 }
 
-# REDACT SECRETS AT WRITE TIME -- the control that would have prevented all of this.
-#
-# Shipping firmware ran WiFiManager at DEV level, which printed the Wi-Fi password
-# in the clear ("*wm:[4] Using Password: ..."). This recorder faithfully wrote it to
-# a ledger, and two of those ledgers were committed to a PUBLIC repo, where they sat
-# for weeks. The firmware no longer emits it -- but a capture script must not depend
-# on the device being well-behaved, because the whole job of this file is to record
-# whatever the device says, including from OLD images and sibling-edition builds that
-# still carry the old level.
-#
-# Redacts rather than drops, so the ledger still shows the line occurred. Also covers
-# the scan list, which is level 3 and geolocating: a set of co-visible SSIDs is what
-# Wi-Fi positioning databases index, and those SSIDs belong to the neighbours, who
-# did not consent to being in a public repo.
-function Protect-Line([string]$line) {
-    $line = $line -replace '(Using Password:\s*).*',        '${1}<redacted by bench-capture>'
-    $line = $line -replace '(password["'':=\s]+)\S+',       '${1}<redacted>'
-    # Three forms carry the neighbour list, and missing any one of them leaks the set:
-    #   *wm:[3] AP:  -51 <ssid>
-    #   *wm:[3] DUP AP: <ssid>
-    #   *wm:[4] <div>...data-ssid='<ssid>'><ssid></a>...   (the rendered picker row)
-    $line = $line -replace '(\*wm:\[\d\]\s+AP:\s+-?\d+\s+).*',  '${1}<ssid redacted>'
-    $line = $line -replace '(\*wm:\[\d\]\s+DUP AP:\s*).*',      '${1}<ssid redacted>'
-    $line = $line -replace '(\*wm:\[\d\]\s+)<div>.*',           '${1}<scan entry redacted>'
-    return $line
-}
+# REDACT SECRETS AT WRITE TIME: Protect-Line lives in redact-line.ps1, shared with bench-trace.ps1
+# (and mirrored by redact_line.py for the Python recorders; docs/bssid-guard.md).
+. (Join-Path $PSScriptRoot 'redact-line.ps1')
 
 $sw = New-Object System.IO.StreamWriter($log, $true)
 $sw.AutoFlush = $true          # the whole point: never buffer the evidence

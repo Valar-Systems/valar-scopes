@@ -22,6 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # No committed file carries a BSSID beyond the 13 named logs (docs/bssid-guard.md), and the
+      # recorders' two redaction implementations agree. pwsh is on the ubuntu image.
+      - run: python3 scripts/check_bssid.py
+      - run: python3 scripts/check_bssid.py --selftest
+      - run: python3 scripts/check_redaction_vectors.py
+      - run: python3 scripts/check_redaction_vectors.py --selftest
       # Full history is NOT needed and is not wanted: this scans the tree at
       # HEAD. Two commits pushed on 2026-08-31 carry a real id and were
       # deliberately left alone rather than rewritten -- a history-wide scan
