@@ -1612,3 +1612,32 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 2. the scenario choices, read off the frames by the rules above;
 3. the towns, D6;
 4. then K3.
+
+### A8.11 STOPPED: D5, the loop's total size, reads below its band (2026-10-23; local until ruled)
+
+**How the frames were made.** `tools/weatherscope/loop/fetch_loop.py` applied A8.10's rule: 661 objects at or before 22:00:59Z, the latest 22:00:00Z, and 15 picked at 4-minute steps from 21:04:00Z. `tools/weatherscope/loop/make_loop.mts` then ran main's shared decode and crop path at `2484bda`, unchanged.
+- **The output:** 15 crops in `test/fixtures/wx/loop/`, each 180 × 214 at coarsen 1, with `MANIFEST.json`.
+- **The radius:** the server quantises it to whole kilometres, so 97 km.
+- **Two incidents, neither a reading:**
+  - The first two fetches failed. Drive C: was full (0 bytes free; blipscope-5c traced it and freed its own space).
+  - The first driver run failed in the toolchain: `tsx` compiled it as CommonJS, so it was renamed `.mts`.
+- **No crop was made from a partial input:** each GRIB2's sha256 is checked against `fetched.json` before use.
+
+| row | predicted | measured |
+|---|---|---|
+| **D5, size** | the 15 crops total within A8.5's 45-180 KB | **44,744 B: below the band**, in decimal or binary units |
+
+**The verdict:** a miss, recorded on the frozen band and **not re-graded**. Per the standing rule, D1-D4, the scenario choices, D6 and K3 are **not run** until the reviewer rules.
+
+**Kept apart from the verdict: candidate causes, none tested:**
+- **(a) The product.** A8.5's basis was the composite's 22:00:42Z KDFW crop, 4,033 B. The SeamlessHSR crop at 22:00:00Z is 3,040 B, about 75 % of it. That fits Stage 2's finding that SeamlessHSR carries less echo than the composite.
+- **(b) The hour.** The early frames carry less echo: 1,971 B at 21:04, rising to about 3,300 B from 21:36. The band's ×0.75 floor assumed every frame was near the 22:00 one.
+
+**Observed, not graded.** Three consecutive crops (21:20, 21:24 and 21:28) are each exactly 3,024 B. All 15 encoder-cell hashes (`codesSha256`) are distinct, so they are three different frames that encode to the same length, not one frame written three times.
+
+**Raised now, so it isn't discovered later.** A8.5's flash band, 1.58-1.75 MB, used the same 45-180 KB data term. With the measured 44.7 KB and the low end of the code estimate, the 3.3 image would come to about 1,578,000 B, at or just under the band's floor.
+
+**Asked of the reviewer:**
+1. Is D5 recorded as a miss with its cause open, as with A6.4?
+2. May D1-D4 and the rest of 3.3c proceed as frozen? None of them depends on the total size.
+3. Should A8.5's flash band be re-derived now from the measured 44,744 B, before 3.3's image is built and its sizes row graded, with any new band frozen before that build?
