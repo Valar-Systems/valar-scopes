@@ -2229,3 +2229,10 @@ RECT warning 30 98,13,47,8 town "LINDSAY"
 - **FORT WORTH is not placed.** Nearer labels take its space, by Q6(a)'s nearest-first rule.
 
 Both are part of the look, for Daniel's call on the glass.
+
+**A8.21's FORT WORTH line, with its evidence (added the same day; the line itself is unchanged).** The line was appended before this check was attached to it. A scratch probe (not committed) confirms it and rules out the alternatives:
+- the label's box, (83, 132, 65, 8), is clear of every fixed overlay and inside the 112 px circle;
+- it ranks 23rd of 154 clear candidates, well inside the cap of 64;
+- it overlaps two nearer labels that were placed first, COCKRELL HILL and SANSOM PARK.
+
+So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor the circle is.
