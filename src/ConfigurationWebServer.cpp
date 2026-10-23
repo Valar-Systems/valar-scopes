@@ -870,6 +870,7 @@ R"(
                         <label class="check"><input name="fade" type="checkbox" %FADE%><span>Sweep fade</span></label>
                         <label class="check"><input name="triangle" type="checkbox" %TRIANGLE%><span>Directional aircraft</span></label>
                         <label class="check"><input name="airports" type="checkbox" %AIRPORTS%><span>Airports</span></label>
+                        %WXLAYERROW%
                         <label class="check"><input name="trail" type="checkbox" %TRAIL%><span>Flight trails</span></label>
                         <label class="check"><input name="altcolor" type="checkbox" %ALTCOLOR%><span>Altitude colors</span></label>
                         <label class="check"><input name="highlight" type="checkbox" %HIGHLIGHT%><span>Highlights</span></label>
@@ -2737,6 +2738,14 @@ void ConfigurationWebServer::Initialise() {
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
         const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
+        // Weather under the planes (WD5): absent means OFF, the same default AircraftManager reads.
+        const String wxLayerEnabled = HtmlEscape(prefs.getString("wx-layer", "false"));
+#ifdef WX_LOOK_AB
+        // The bench env only (docs/wx-device.md, WD4 addendum 2): which look is on the glass; absent means A.
+        const String wxLookBench = prefs.getString("wx-look", "A") == "B" ? "B" : "A";
+#else
+        const String wxLookBench = "A";
+#endif
         const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
         const String airportsMin = HtmlEscape(prefs.isKey("airports-min") ? prefs.getString("airports-min", "all") : "all");
         const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
@@ -3157,7 +3166,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, wxLayerEnabled, wxLookBench, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -3195,6 +3204,21 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
+#ifdef FEATURE_CLOUD_FEED
+                // Only a cloud build can fetch weather, so only a cloud build shows the box.
+                if (var == "WXLAYERROW")
+                    return String("<label class=\"check\"><input name=\"wx-layer\" type=\"checkbox\" ")
+                         + (wxLayerEnabled == "true" ? "checked" : "") + "><span>Weather radar (beta)</span></label>"
+#ifdef WX_LOOK_AB
+                         // The label is check-no-bench-hooks.sh's marker: absent from every slug-ful image.
+                         + "<label>Weather look (bench) <select name=\"wx-look\"><option value=\"A\""
+                         + (wxLookBench == "A" ? " selected" : "") + ">A: 40 % + outline</option><option value=\"B\""
+                         + (wxLookBench == "B" ? " selected" : "") + ">B: 25 %</option></select></label>"
+#endif
+                         ;
+#else
+                if (var == "WXLAYERROW")     return "";
+#endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
                 if (var == "ALTCOLOR")       return altColorEnabled == "true" ? "checked" : "";
@@ -3754,6 +3778,10 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("fade");
         SaveToggle("triangle");
         SaveToggle("airports");
+        SaveToggle("wx-layer");
+#ifdef WX_LOOK_AB
+        TrySaveParam("wx-look");
+#endif
         TrySaveParam("airports-min");
         SaveToggle("trail");
         SaveToggle("altcolor");

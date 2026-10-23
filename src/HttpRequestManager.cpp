@@ -612,3 +612,101 @@ HttpResult HttpRequestManager::Post(const String& url, const String& body, const
     xSemaphoreGive(mutex);
     return result;
 }
+
+HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std::pair<String, String>>& params,
+                                        const std::vector<std::pair<String, String>>& headers,
+                                        uint8_t* buf, size_t cap, size_t& len, String& etag)
+{
+    HttpResult result{ false, 0, "", "" };
+    len = 0;
+    etag = "";
+    const String fullUrl = url + BuildQueryString(params);
+#ifdef ALERT_BENCH
+    BenchFetchLine(fullUrl);
+#endif
+
+    xSemaphoreTake(mutex, portMAX_DELAY); // exclusive access to the shared HTTPClient
+    HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
+
+    // The same single retry on a stale keep-alive socket as Get() and GetJson() (see Get() for why).
+    // Transfer-Encoding tells a chunked reply from a close-delimited one; ETag is what WxPolicy revalidates with.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding", "ETag", "X-Cache", "X-Upstream" };
+    const unsigned long reqStartMs = millis();
+    int responseCode = 0;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        http.begin(fullUrl);
+        result.reusedConnection = http.connected();
+        if (attempt == 0) NoteTls(fullUrl, result.reusedConnection);
+        http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.setConnectTimeout(5000);
+        http.setTimeout(5000);
+        http.collectHeaders(kCollectHeaders, 4);
+        for (const auto& header : headers)
+            http.addHeader(header.first, header.second);
+        responseCode = http.GET();
+        if (responseCode > 0 || !result.reusedConnection)
+            break;
+        Serial.printf("[GET] stale keep-alive (%d) on reused socket; retrying fresh\n", responseCode);
+        http.end();
+    }
+    result.statusCode = responseCode;
+    netwatch::RecordOutcome(responseCode > 0); // reachability evidence, as in Get()
+
+    bool closeSocket = false;
+    if (responseCode <= 0) {
+        result.errorMessage = http.errorToString(responseCode);
+        Serial.printf("[GET] HTTP Error (%d): %s\n", responseCode, result.errorMessage.c_str());
+    } else {
+        result.cacheState = http.header("X-Cache");
+        result.upstream = http.header("X-Upstream");
+        etag = http.header("ETag");
+        const int bodyLen = http.getSize(); // Content-Length, or -1 when chunked/unknown
+        if (responseCode == 304) {
+            result.success = true;           // no body, by definition
+        } else if (responseCode != 200) {
+            // An error answer (4xx/5xx) carries a small JSON body nobody reads here. Close rather than leave
+            // unread bytes on a socket the next request would reuse; the caller reads statusCode.
+            closeSocket = true;
+            result.success = true;
+        } else if (bodyLen >= 0) {
+            result.bodyBytes = (size_t)bodyLen;
+            if ((size_t)bodyLen > cap) {
+                result.errorMessage = "body over cap";   // refused BEFORE reading a byte
+                closeSocket = true;
+            } else {
+                // Bulk + yielding reads, stall-bounded (see BufferedSocketStream); stops at the first -1.
+                BufferedSocketStream body(http.getStream(), (size_t)bodyLen, 15000);
+                size_t n = 0;
+                for (int c; n < (size_t)bodyLen && (c = body.read()) >= 0;)
+                    buf[n++] = (uint8_t)c;
+                if (n == (size_t)bodyLen) { len = n; result.success = true; }
+                else { result.errorMessage = "short body"; closeSocket = true; }
+            }
+        } else if (http.header("Transfer-Encoding").indexOf("chunked") >= 0) {
+            // De-chunked with the yielding reader that ended the EAM boot loop; stops at the terminator chunk.
+            ChunkedSocketStream body(http.getStream(), 15000);
+            size_t n = 0;
+            bool over = false;
+            for (int c; (c = body.read()) >= 0;) {
+                if (n == cap) { over = true; break; }   // byte cap + 1: refused
+                buf[n++] = (uint8_t)c;
+            }
+            result.bodyBytes = over ? cap + 1 : n;
+            if (over) { result.errorMessage = "body over cap"; closeSocket = true; }
+            else if (body.timedOut()) { result.errorMessage = "stalled"; closeSocket = true; }
+            else { len = n; result.success = true; }
+        } else {
+            result.errorMessage = "close-delimited body refused";   // nothing bounds it in advance
+            closeSocket = true;
+        }
+        if (!result.errorMessage.isEmpty())
+            Serial.printf("[GET] bytes refused (%d): %s\n", responseCode, result.errorMessage.c_str());
+    }
+    if (closeSocket) {
+        if (auto* s = http.getStreamPtr()) s->stop();
+    }
+    http.end();
+    xSemaphoreGive(mutex);
+    result.requestMs = millis() - reqStartMs;
+    return result;
+}

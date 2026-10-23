@@ -1111,6 +1111,40 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The radar's projection, extracted once (include/RadarProjection.h; docs/wx-device.md WD1), held
+# bit-identical to ProjectAt's body at 788ad44 (test/host/ref_project_at.h, cut verbatim).
+echo
+echo "== RadarProjection =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/test/host" "$ROOT/test/host/test_radar_projection.cpp" -o "$OUT/test_radar_projection.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the radar projection test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_radar_projection.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# The weather layer (include/WxLayer.h; WD2) against an independent inverse and the planes' projection,
+# over the server-made crops.
+echo
+echo "== WxLayer =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_layer.cpp" -o "$OUT/test_wx_layer.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather layer test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_layer.exe" "$ROOT/test/fixtures/wx/server"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the weather layer test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # Weatherscope's legend layout (src/weatherscope/WxLegend.h) against the round-screen rules (addendum 8: G1-G4).
 # Its sabotages: python -I test/host/sabotage_wx_legend.py. The board's pixels: test/fixtures/wx/legend_check.py.
 echo
@@ -1127,6 +1161,98 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+
+# The weather fetch policy (include/WxPolicy.h; docs/wx-device.md WD3): a table and random sequences, one
+# line per property. Its sabotages: python -I test/host/sabotage_wx_policy.py
+echo
+echo "== WxPolicy =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_policy.cpp" -o "$OUT/test_wx_policy.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather policy test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_policy.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# S2, the weather layer's colours (include/WxS2.h; WD4 and its addenda), for BOTH bench looks (A 40 %, B 25 %). The
+# planes' colours are read from src/AircraftManager.cpp. Its sabotages: test/host/sabotage_wx_s2.py, run below.
+echo
+echo "== WxS2 =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_s2.cpp" -o "$OUT/test_wx_s2.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the S2 colour test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_s2.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the S2 test did not run or could not read the planes' colours (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the S2 sabotages cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/sabotage_wx_s2.py" "$ROOT" "$CXX"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+# WD5o, the dot marker's black outline (docs/wx-device.md, WD5 addendum 3): the construction is read from
+# src/AircraftManager.cpp and rasterised with LovyanGFX's fillCircle, ported. The bench cannot grade it, since
+# markers are triangles by default. Its sabotages: test/host/sabotage_wx_outline.py, run below.
+echo
+echo "== WX outline =="
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_wx_outline.cpp" -o "$OUT/test_wx_outline.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the outline test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_outline.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the outline test did not run or could not read the marker block (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the outline sabotages cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/sabotage_wx_outline.py" "$ROOT" "$CXX"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+echo
+echo "== WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4) =="
+# Read from the source: "wx-layer" is OFF by default in both of its readers, and GetBytes holds no String body.
+# The selftest plants one break per check in a copy and requires exactly that check to go red.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the weather wiring cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/check_wx_wiring.py" "$ROOT"
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/test/host/check_wx_wiring.py" "$ROOT" --selftest
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+# WD5e's bench analysis (scripts/wx-fb-check.py; docs/wx-device.md, WD5 addendum 4) is graded here on synthetic
+# frames, one verdict each, so it is known to fail, refuse and go blind before it ever reads a real capture.
+echo
+echo "== WX frame check (WD5e's analysis, selftest) =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the frame check's selftest cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/wx-fb-check.py" --selftest
+  [ "$?" -ne 0 ] && fail=1
+fi
 
 # Weatherscope's feed interfaces (src/weatherscope/WxFeeds.h) against fakes, with no Arduino core and no stored
 # implementation (docs/weatherscope-stage3.md A6.2, D1). Its sabotage: python -I tools/weatherscope/s32/s32.py d1host --sabotage
