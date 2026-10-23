@@ -1217,6 +1217,28 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's four scenarios (src/weatherscope/WxScenarios.h) through Choose and the text functions, against
+# scenarios.py's reference, docs/weatherscope-stage3.md A8.15: K3. Its sabotages:
+# python -I test/host/sabotage_wx_scenarios.py
+echo
+echo "== WxScenarios =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_scenarios.cpp" -o "$OUT/test_wx_scenarios.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope scenarios test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_scenarios.exe" "$ROOT/test/fixtures/wx/loop"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the scenarios test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -n "$PY" ]; then
+  "$PY" "$ROOT/tools/weatherscope/loop/scenarios.py" --check
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
