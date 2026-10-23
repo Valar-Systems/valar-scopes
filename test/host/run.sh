@@ -1203,6 +1203,31 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+# WD5o, the dot marker's black outline (docs/wx-device.md, WD5 addendum 3): the construction is read from
+# src/AircraftManager.cpp and rasterised with LovyanGFX's fillCircle, ported. The bench cannot grade it, since
+# markers are triangles by default. Its sabotages: test/host/sabotage_wx_outline.py, run below.
+echo
+echo "== WX outline =="
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_wx_outline.cpp" -o "$OUT/test_wx_outline.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the outline test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_outline.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the outline test did not run or could not read the marker block (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the outline sabotages cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/sabotage_wx_outline.py" "$ROOT" "$CXX"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 echo
 echo "== WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4) =="
 # Read from the source: "wx-layer" is OFF by default in both of its readers, and GetBytes holds no String body.

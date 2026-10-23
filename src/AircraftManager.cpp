@@ -3858,17 +3858,18 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 
             // Over weather, look A outlines each plane in black, 1 px out (WD5; WD4 addendum 2), so a faded plane
             // is never the same colour as the cell under it (WD4f). With no layer shown, nothing here changes.
+            // The outline is 8 black copies of the marker, one per 1 px offset, for BOTH kinds: a disc 1 px larger
+            // misses 8 of the dot's 32 neighbours under LovyanGFX's raster (WD5 addendum 3; test_wx_outline.cpp).
             const bool outline = WxOutlineNow();
-            if (displayTriangles) {
-                if (outline)
-                    for (int oy = -1; oy <= 1; ++oy)
-                        for (int ox = -1; ox <= 1; ++ox)
-                            if (ox != 0 || oy != 0) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
-                DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
-            } else {
-                if (outline) backbuffer.fillCircle(x, y, 4, 0u);
-                backbuffer.fillCircle(x, y, 3, markerColor);
-            }
+            if (outline)
+                for (int oy = -1; oy <= 1; ++oy)
+                    for (int ox = -1; ox <= 1; ++ox) {
+                        if (ox == 0 && oy == 0) continue;
+                        if (displayTriangles) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
+                        else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
+                    }
+            if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
+            else backbuffer.fillCircle(x, y, 3, markerColor);
         }
 
         // special contact (military / special callsign / helicopter): a coloured
