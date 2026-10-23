@@ -4,7 +4,8 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import type { LatestRecord } from "../src/wx/handler";
 import { readLatest } from "../src/wx/handler";
-import { type Fetch, advanceLatest, epochOfKey, ingestOnce } from "../src/wx/ingest";
+import { type Fetch, type IngestOpts, NoaaError, advanceLatest, epochOfKey, ingestOnce } from "../src/wx/ingest";
+import { checkAll } from "../src/wx/ingest-worker";
 import { PRODUCTS, frameKey, framesPrefix, latestKey } from "../src/wx/products";
 import { synthGribGz } from "./wx-grib";
 
@@ -71,16 +72,19 @@ describe("WS5 controls: the emulator honours the conditions (else WS5 is BLIND)"
 });
 
 describe("WS5: idempotent ingest", () => {
-  it("(a) the same frame twice is written once; the second run reports already-stored", async () => {
+  // Changed by #472 (docs/wx-ingest-noaa-blips.md N8, named before the code): T1 is listed beside T2, so the second
+  // run now BACKFILLS T1 where it reported already-stored. The claim is unchanged: each frame is written once.
+  it("(a) each frame is written once: the newest, then the hole, then nothing", async () => {
     const gz = await synthGribGz({ ...GRID, values });
     const noaa = fakeNoaa(() => [T1, T2], gz);
     const c = counted(env.WX!);
     const r1 = await ingestOnce(c.bucket, cref, NOW, noaa.doFetch);
     const r2 = await ingestOnce(c.bucket, cref, NOW, noaa.doFetch);
-    console.log(`WS5a ${r1.status} then ${r2.status}; frame writes ${c.frameWrites()}; NOAA GETs ${noaa.gets()}`);
-    expect([r1.status, r2.status]).toEqual(["stored", "already-stored"]);
-    expect(c.frameWrites()).toBe(1);
-    expect(noaa.gets()).toBe(1);
+    const r3 = await ingestOnce(c.bucket, cref, NOW, noaa.doFetch);
+    console.log(`WS5a ${r1.status}, ${r2.status}, ${r3.status}; frame writes ${c.frameWrites()}; NOAA GETs ${noaa.gets()}`);
+    expect([r1.status, r2.status, r3.status]).toEqual(["stored", "backfilled", "already-stored"]);
+    expect(c.frameWrites()).toBe(2);
+    expect(noaa.gets()).toBe(2);
     expect((await readLatest(env.WX!, cref))!.epoch).toBe(e2);
   });
 
@@ -134,5 +138,142 @@ describe("WS5: idempotent ingest", () => {
     console.log(`WS5d pruned ${r.pruned}; left ${left.length}`);
     expect(r.pruned).toBe(2);
     expect(left).toEqual([frameKey(cref, young), frameKey(cref, e2)].sort());
+  });
+});
+
+// #472 (docs/wx-ingest-noaa-blips.md): the ingest rides out NOAA blips. Short timeouts are injected so these run in ms.
+const FAST: IngestOpts = { list: { timeoutMs: 60, attempts: 3, waitsMs: [5, 5] }, get: { timeoutMs: 60, attempts: 2, waitsMs: [5] } };
+const T3 = keyAt("201436"), T4 = keyAt("201636"), T5 = keyAt("201836");
+const NOW5 = (epochOfKey(cref, T5)! + 50) * 1000;
+
+type Step = "ok" | "hang" | number;                    // a number is an HTTP status
+/** NOAA scripted per request kind: each list / get request takes the next step (the last one repeats). A "hang"
+ *  never answers, but honours the abort signal, as a real fetch does (unless honourSignal is false). */
+function scripted(visible: string[], gz: Uint8Array, list: Step[], get: Step[] = ["ok"], honourSignal = true) {
+  const n = { list: 0, get: 0 };
+  const doFetch: Fetch = (u, init) => {
+    const kind = u.includes("list-type=2") ? "list" : "get";
+    const plan = kind === "list" ? list : get;
+    const step = plan[Math.min(n[kind], plan.length - 1)]!;
+    n[kind]++;
+    if (step === "hang") {
+      return new Promise<Response>((_, reject) => {
+        if (honourSignal) init?.signal?.addEventListener("abort", () => reject(new Error("The operation was aborted due to timeout")));
+        setTimeout(() => reject(new Error("hang released by the test")), 1500);   // never leak past the test
+      });
+    }
+    if (typeof step === "number") return Promise.resolve(new Response("", { status: step }));
+    if (kind === "list") {
+      const xml = `<ListBucketResult>${visible.map((k) => `<Contents><Key>${k}</Key></Contents>`).join("")}</ListBucketResult>`;
+      return Promise.resolve(new Response(xml));
+    }
+    return Promise.resolve(new Response(gz));
+  };
+  return { doFetch, n };
+}
+
+describe("#472: the ingest rides out NOAA blips", () => {
+  it("N1 a listing that answers 522, then succeeds: stored, after 2 attempts", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const r = await ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, [522, "ok"]).doFetch, FAST);
+    expect(r.status).toBe("stored");
+    expect(r.attempts).toEqual({ list: 2, get: 1 });
+  });
+
+  it("SABOTAGE N1: with one attempt, the same blip is fatal", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const one = { ...FAST, list: { ...FAST.list, attempts: 1 } };
+    await expect(ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, [522, "ok"]).doFetch, one)).rejects.toThrow("NOAA list 522 (1 attempt)");
+  });
+
+  it("N2 a listing attempt that never answers is aborted at its timeout, and the next one succeeds", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const t = Date.now();
+    const r = await ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, ["hang", "ok"]).doFetch, FAST);
+    const ms = Date.now() - t;
+    console.log(`N2 ${r.status} after ${ms} ms, attempts ${JSON.stringify(r.attempts)}`);
+    expect(r.status).toBe("stored");
+    expect(r.attempts!.list).toBe(2);
+    expect(ms).toBeLessThan(FAST.list.timeoutMs + 5 + 1000);
+  });
+
+  it("SABOTAGE N2: without the abort signal, a hung attempt is never cut short", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const run = ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, ["hang", "ok"], ["ok"], false).doFetch, FAST);
+    const raced = await Promise.race([run.then(() => "finished", () => "finished"), new Promise((d) => setTimeout(() => d("still hung"), 400))]);
+    expect(raced).toBe("still hung");
+    await run.catch(() => undefined);                  // let the released hang settle before the next test
+  });
+
+  it("N3 every attempt fails: one NoaaError, saying 3 attempts", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const err = await ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, [525]).doFetch, FAST).catch((e) => e);
+    expect(err).toBeInstanceOf(NoaaError);
+    expect((err as NoaaError).attempts).toBe(3);
+    expect(String(err)).toContain("NOAA list 525 (3 attempts)");
+  });
+
+  it("N4 a 4xx is final: 1 attempt", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const err = await ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, [403, "ok"]).doFetch, FAST).catch((e) => e);
+    expect((err as NoaaError).attempts).toBe(1);
+  });
+
+  it("N5 a hole between two stored frames is backfilled; latest stays at the newest", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const all = [T1, T2, T3];
+    await ingestOnce(env.WX!, cref, NOW5, scripted([T1], gz, ["ok"]).doFetch, FAST);
+    await ingestOnce(env.WX!, cref, NOW5, scripted([T1, T3], gz, ["ok"]).doFetch, FAST);
+    const r = await ingestOnce(env.WX!, cref, NOW5, scripted(all, gz, ["ok"]).doFetch, FAST);
+    expect(r.status).toBe("backfilled");
+    expect(r.epoch).toBe(epochOfKey(cref, T2));
+    expect(await env.WX!.head(frameKey(cref, epochOfKey(cref, T2)!))).not.toBeNull();
+    expect((await readLatest(env.WX!, cref))!.epoch).toBe(epochOfKey(cref, T3));
+    const again = await ingestOnce(env.WX!, cref, NOW5, scripted(all, gz, ["ok"]).doFetch, FAST);
+    expect(again.status).toBe("already-stored");
+  });
+
+  it("N6 one build per check: an empty bucket and 5 listed frames take one download per check, newest first", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const all = [T1, T2, T3, T4, T5];
+    const a = scripted(all, gz, ["ok"]);
+    const r1 = await ingestOnce(env.WX!, cref, NOW5, a.doFetch, FAST);
+    expect([r1.status, r1.epoch, a.n.get]).toEqual(["stored", epochOfKey(cref, T5), 1]);
+    const b = scripted(all, gz, ["ok"]);
+    const r2 = await ingestOnce(env.WX!, cref, NOW5, b.doFetch, FAST);
+    expect([r2.status, r2.epoch, b.n.get]).toEqual(["backfilled", epochOfKey(cref, T4), 1]);
+  });
+
+  it("N7 a download that answers 522, then succeeds: stored, after 2 get attempts", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const r = await ingestOnce(env.WX!, cref, NOW, scripted([T2], gz, ["ok"], [522, "ok"]).doFetch, FAST);
+    expect(r.status).toBe("stored");
+    expect(r.attempts).toEqual({ list: 1, get: 2 });
+  });
+
+  it("logging: a retried success logs wx_ingest with attempts; wx_ingest_error carries attempts = the maximum", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const lines: string[] = [];
+    await checkAll({ WX: env.WX! }, ":00", scripted([T2], gz, [520, "ok"]).doFetch, (l) => lines.push(l), FAST);
+    await checkAll({ WX: env.WX! }, ":30", scripted([T2], gz, [525]).doFetch, (l) => lines.push(l), FAST);
+    const [ok, bad] = lines.map((l) => JSON.parse(l));
+    expect([ok.evt, ok.attempts.list]).toEqual(["wx_ingest", 2]);
+    expect([bad.evt, bad.attempts]).toEqual(["wx_ingest_error", 3]);
+  });
+
+  it("the worker's default fetch passes each attempt's abort signal (the production path)", async () => {
+    const seen: (AbortSignal | undefined)[] = [];
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+      seen.push(init?.signal ?? undefined);
+      return new Response("", { status: 404 });          // final, so one request is enough
+    }) as typeof fetch;
+    try {
+      await checkAll({ WX: env.WX! }, ":00", undefined, () => undefined);
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((s) => s instanceof AbortSignal)).toBe(true);
   });
 });
