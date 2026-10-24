@@ -2947,3 +2947,14 @@ Item 2, source "Daniel":
 **FT1's pinned value, documented as ruled:** `bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02` is the sha256 of the **LF-normalised** bytes of Adafruit-GFX-Library `glcdfont.c` at `6abf693`. It is also the raw hash of the upstream file, which is LF.
 
 **Next:** the device code and the K rows (A9.7, steps 3-4), in the frozen order.
+
+### A9.13 A gap in A9.10, closed forward before any 3.5a code (2026-10-24)
+
+**D6(b), re-registered under Q13.** A9.10 re-registered L1-L4 and S-L for title case, but missed **D6(b)** (A8.14), which applies the same label rule to all 171 towns.
+- **The old criterion:** "no lowercase letter". Under Q13 every label fails it ("Fort Worth").
+- **The new criterion, a direct consequence of the ruled Q13 and written down before the code changes:** each town's `LabelText` must be **byte-equal to its NAME with the trailing " city" removed**. It must also be non-empty and printable ASCII, and not truncated, as before.
+- **S-D6a stays as frozen:** a non-ASCII byte planted in the first town's name must still fail exactly {D6:1}.
+
+**The population input** (Q12, PJ):
+- **The file:** `sub-est2024.csv`, fetched 2026-10-24 from `https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv`. 7,087,080 bytes, sha256 `af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9`, 81,334 rows.
+- **Where it is kept:** outside every repo, like the Gazetteer zip. Its sha256 goes into `WxTowns.h`'s header.
