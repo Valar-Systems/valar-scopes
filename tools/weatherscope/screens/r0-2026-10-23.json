@@ -1,0 +1,109 @@
+{
+ "results": [
+  {
+   "check": "R0a",
+   "screen": "screen-proposed-dry.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0a",
+   "screen": "screen-proposed-approaching.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0a",
+   "screen": "screen-proposed-herenow.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0a",
+   "screen": "screen-proposed-warning.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0a",
+   "screen": "screen-zoom-60.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0a",
+   "screen": "screen-zoom-30.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0a",
+   "screen": "screen-zoom-15.png",
+   "differing": 0,
+   "sample": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-proposed-dry.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-proposed-approaching.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-proposed-herenow.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-proposed-warning.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-zoom-60.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-zoom-30.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  },
+  {
+   "check": "R0b",
+   "screen": "screen-zoom-15.png",
+   "differing": 0,
+   "named": 0,
+   "unnamed": [],
+   "pixels": [],
+   "log": []
+  }
+ ]
+}

@@ -2867,3 +2867,49 @@ Item 2, source "Daniel":
   - S-B2a, S-B2b and S-B2c, as in 3.3d.
 
 **Outside every prediction:** stop, record, and wait for a ruling.
+
+### A9.11 R0 passes; one off-prediction in R0's own self-test, the instrument fixed to A9.10's text (2026-10-23; local until ruled)
+
+**The font.**
+- **The file:** Adafruit-GFX-Library `glcdfont.c` at commit `6abf6930565018657600aca8a5995bb8a4068339` (2019-12-27; the newest commit touching it), sha256 `bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02`. Vendored byte for byte as `test/fixtures/wx/glcdfont.c`, with the repo's `license.txt` (BSD) as `glcdfont.LICENSE.txt`.
+- **FT1:** `ref35.py` refuses any other hash.
+- **FT2:** 1,280 bytes; 0xF8 is `[6, 15, 9, 15, 6]` and 0xFA is `[0, 0, 16, 16, 0]`, both non-empty.
+- **FT3 (reported only):** **identical** to LovyanGFX 1.2.21's `src/lgfx/Fonts/glcdfont.h`, 0 of 1,280 bytes differing.
+
+**R0** (`tools/weatherscope/screens/ref35.py --r0 <reviewer dir>`):
+
+| screen | R0a: G against the PNG (RGB888) | R0b: P against G |
+|---|---|---|
+| screen-proposed-dry | 57,600 / 57,600 | 0 pixels differ |
+| screen-proposed-approaching | 57,600 / 57,600 | 0 |
+| screen-proposed-herenow | 57,600 / 57,600 | 0 |
+| screen-proposed-warning | 57,600 / 57,600 | 0 |
+| screen-zoom-60 | 57,600 / 57,600 | 0 |
+| screen-zoom-30 | 57,600 / 57,600 | 0 |
+| screen-zoom-15 | 57,600 / 57,600 | 0 |
+
+- **R0 passes.** `ref35.py` reproduces the reviewer's seven screens exactly.
+- **No pixel needed naming.** No rounding-site argument in these inputs is exactly k + 0.5, so the pinned rounding and the generator's agree everywhere.
+- **The inputs used** were A9.10's: the b202ff3 towns, `wxmock.py`'s POP table (R0 only), and the three frames.
+
+**R0's own sabotages: not frozen in A9.10, written and predicted here before they ran, as a check that R0 can fail.**
+- **(a)** The label grey changed to (175, 176, 176). **Predicted:** R0a fails on all 7. **Result:** as predicted; between 481 and 846 pixels per screen were unexplained.
+- **(b)** The pinned rounding changed to `floor(v)`. **Predicted:** R0b fails, the differing pixels unnamed. **Result: OFF-PREDICTION. R0b stayed green.**
+
+**The cause of (b).**
+- **What the code did:** `Rounder.point` logged every point where the two modes' pixels **differed**, instead of every call whose **argument** was exactly k + 0.5, which is what A9.10 freezes.
+- **What that meant:** with the pinned rounding broken, its own wrong pixels went into the log and "named" themselves. So R0b could never have detected a broken pinned mode.
+- **The real verdict is unaffected,** and the data shows why: the real run had **0** differing pixels, so nothing needed naming. The flaw was in what R0b could detect, not in what it reported.
+
+**The instrument, fixed to A9.10's own text** (no prediction changed): an entry is logged only when the argument is exactly k + 0.5, judged from the argument.
+
+**After the fix:**
+- the real R0 still passes;
+- sabotage (a) still fails all 7 in R0a;
+- **sabotage (b) now fails all 7 in R0b.** For example, dry has 363 pixels differing and 0 named; warning has 581 and 0.
+
+**Per the standing rule, this is committed locally and not pushed** until the reviewer rules on the instrument fix. **Nothing downstream has started:** no device code, no K rows. Those wait for that ruling.
+
+**Also found by reading, before any failure: FT1 and line endings.** Git warned that the vendored `glcdfont.c` would be checked out with CRLF in this autocrlf worktree. FT1 hashed the raw bytes, so a correct file would have failed it on the next checkout.
+- **The fix:** FT1 now hashes with CRLF normalised to LF, as `screens_ref.py` does for `a3_check.py`, so the pinned hash is the blob's on any checkout.
+- **Proved on a CRLF copy:** 143 CRLFs in place, and R0 still passed. The LF file was then restored, and hashes `bd6d60ecb9cc…` again.
