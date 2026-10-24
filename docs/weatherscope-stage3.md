@@ -3019,3 +3019,54 @@ Written after `test_wx_layout.cpp` and `sabotage_wx_layout.py` compiled, and **b
   - a probe (not committed) that instantiates `Compose` and every other function.
 - **What 11.4 found that 5.1 missed:** one `-Wformat-truncation`, `"ZOOM %d MI"` into a 16-byte tag (an int prints up to 11 characters).
 - **The fix, before any run:** the tag buffer widened to 24, and the ring number's from 4 to 12 for the same reason. That is a compile fix with no result attached, so it is not an off-prediction.
+
+### A9.15 Step 3's results: 73/0 and 15/0; 14 of the 15 sabotages as frozen; S-IC off A9.10, as A9.14 registered it before the run (2026-10-24; local, stopped for a ruling)
+
+**What was run, and in what order.**
+- **A9.14 was committed first,** as `454379f`. The code was committed next, compiled and not yet run, as `9323794`. Every result below is from `9323794`.
+- **Both compilers were used:** MinGW `g++ 5.1.0` and WSL `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0`, each with CI's flags.
+
+**The controls:**
+- **`test_wx_layout`:** 73 checks, 0 failures under both compilers. The 73-case guard held.
+- **`test_wx_screens`:** 15 checks, 0 failures under both.
+
+**The sabotages:**
+
+| script | result |
+|---|---|
+| `sabotage_wx_screens.py` | 4 of 4 as predicted: S-CY {CY3}, S-CY2 {CY4, CY5}, S-WT {WT2}, S-CK {CK2, CK3} |
+| `sabotage_wx_layout.py` | 10 of 11 as A9.10 froze them; **S-IC failing {IC1, IC4}** |
+| `sabotage_wx_logic.py` | 24 of 24 (`WxLogic.h` changed by one comment) |
+
+- **The layout script's ten matching sets:** S-RANK, S-OV, S-SIDE, S-CAP (at the use site), S-RING, S-ST15, S-STALE, S-INVIEW, S-ARROW and S-LADDER.
+- **The real header was unchanged** throughout (`547368ebd1a7`).
+- **S-IC:**
+  - it is **off A9.10's frozen {IC1, IC3, IC4}**;
+  - it is **equal to the set A9.14 registered before the run**, for the reason given there: IC3's left box is within 4 px of its own fixed overlay.
+  - **The script reports it as OFF, and this is the stop.** IC3's input and S-IC's set stay as frozen until the reviewer rules on A9.14's (a) or (b).
+
+**The rest of the Weatherscope host suite, so the change is seen against everything it touches:**
+
+| test | MinGW 5.1.0 | WSL 11.4.0 |
+|---|---|---|
+| `test_wx_crop` | exit 0 | **does not compile** (below) |
+| `test_wx_render`, `_palette`, `_server_crops`, `_legend` | exit 0 | exit 0 |
+| `test_wx_feeds` | 7/0 | 7/0 |
+| `test_wx_logic` | 121/0 | 121/0 |
+| `test_wx_loop` | 44/0 | 44/0 |
+| `test_wx_towns` | 172/0 | 172/0 |
+| `test_wx_scenarios` | 12/0 | 12/0 |
+| `test_wx_loop_render` | 15/0 | 15/0 |
+
+- **`test_wx_crop` under 11.4:** the failure is `-Wmismatched-new-delete` at `test_wx_crop.cpp:47`, the test's own counting `operator delete`. The file is **byte-identical to `origin/main`**, so this predates 3.5a. It is **reported, not fixed:** it is outside 3.5a, and CI's g++ 13.3 is the authority.
+- **Why the tests were run one by one:** `run.sh` as a whole cannot run in this scratch clone. `proxy/` is sparse, so the UsageReport block is BLIND and exits 2 before it reaches the Weatherscope tests. A9.12 ran them the same way.
+
+**Still open in step 3, and in what follows:**
+- **AR1's second half,** the drawn set against ref35.py's, comes with the K harness (step 4), as A9.14 says.
+- **The firmware does not build** until step 5 (A9.14 item 5).
+- **Nothing is pushed:** S-IC waits for its ruling, and this head does not build the firmware.
+- **The local commits:** `c127377` (A9.13), `3312743` (the population join), `454379f` (A9.14), `9323794` (step 3) and this record.
+
+**For review:**
+1. **S-IC:** (a) re-register it as {IC1, IC4}, or (b) move IC3's overlay to (153, 110, 200, 130). (b) is recommended, because it makes IC3 test the inner circle it names.
+2. **Steps 4 and 5 (ref35.py's K mode, the K harness, the firmware) while S-IC waits.** None of them depends on IC3. The recommendation is that they continue locally, with no push until S-IC is ruled.
