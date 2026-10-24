@@ -42,3 +42,19 @@ twice. The dashboard test's list of rejected families gains `err5xx`, so this st
 | **K6** | after review, merge and deploy (standing rule) | `/healthz` reports the merge, and smoke-prod has 0 FAIL. **The live positive control is passive:** the first real fleet 5xx after the deploy must produce an `err5xx` point with a non-empty colo, and **0 `err5xx` points may carry a 16-hex value in any blob.** A 5xx cannot be forced in production without harm, so this is read when one occurs and reported as "not yet exercised" until then |
 
 **Outside the set:** stop and report.
+
+## Results (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **K1** | a 503: **two** points. The request point equals `{blobs: ["/v1/blips","MISS","","s3-128",<dev>,"19"], doubles: [503,12,0,1], indexes: ["/v1/blips"]}`, as before the change. The `err5xx` point equals exactly `{blobs: ["err5xx","/v1/blips","","SEA"], doubles: [503], indexes: ["err5xx"]}`, and no blob is the device id or the firmware | **as predicted** |
+| **K2** | 200, 304 and 404: **one** point each, equal to the request point as before, with no `"SEA"` blob | **as predicted** |
+| **K3** | the device id planted on the `err5xx` point in `metrics.ts`: **K1 red, and only K1** (1 failed, 44 passed) | **as predicted** |
+| **K4** | the dashboard suite: 9 files, **101 tests** pass. `REQUEST_POINTS` rejects `err5xx` along with `usage`, `boot`, `ota` and `enrich_gap` | **as predicted** |
+| **K5** | `embed-pages.mjs --check`: current (4 pages). Proxy suite: **48 files, 675 tests** (671 + 4 new). `tsc` clean. `check_device_ids`, `skus.py --check-readers` and `check_bssid` OK | **as predicted** |
+| **K6** | after review, merge and deploy | not yet |
+
+**Corrected during K3, recorded rather than smoothed over.** The first restore after the plant used
+`git checkout -- src/metrics.ts`. That restored the **committed** file, from before the uncommitted change, not the
+pre-plant one. **The sha256 check refused it ("NOT restored").** The change was then re-applied by the same exact-once
+edit; its diff is only the `err5xx` block, and the suite passes on it.
