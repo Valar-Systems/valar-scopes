@@ -54,7 +54,8 @@ describe("request queries read request points only", () => {
     for (const route of ["/api/v1/blipscope/photo", "/v1/enrich", "/other", "/blipscope/leaderboard/:id"]) {
       expect(like(route), route).toBe(true);
     }
-    for (const family of ["usage", "boot", "ota", "enrich_gap"]) expect(like(family), family).toBe(false);
+    // err5xx (docs/colo-on-errors.md) is a family too: a 5xx must not be counted twice.
+    for (const family of ["usage", "boot", "ota", "enrich_gap", "err5xx"]) expect(like(family), family).toBe(false);
   });
 });
 

@@ -876,7 +876,10 @@ Workers Logs for `"evt":"enrich_gap"` works for a live spot-check on one device.
   upstream, model, dev, fw]`, doubles `[status, ms, upstreamMs, weight]`, index
   `route`. Successful HIT/STALE points are sampled 1:10 with `weight = 10`
   (bill control); everything else is 1:1 with `weight = 1` — **always
-  `SUM(double4)`, never `COUNT(*)`**. Example, cache hit rate over 24 h:
+  `SUM(double4)`, never `COUNT(*)`**. A failed request (5xx) also writes an
+  `err5xx` point: blobs `["err5xx", route, upstream, colo]`, double `[status]`,
+  index `err5xx`, with no device id, firmware or key (docs/colo-on-errors.md).
+  Example, cache hit rate over 24 h:
 
 ```sql
 SELECT blob2 AS cache, SUM(double4) AS requests

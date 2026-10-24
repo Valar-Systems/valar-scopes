@@ -218,6 +218,17 @@ export function record(env: Env, m: RequestMetric): void {
       doubles: [m.status, m.ms, m.upstreamMs ?? 0, sampled ? 1 / HIT_SAMPLE_RATE : 1],
       indexes: [route],
     });
+    // A FAILED request (5xx) also records the Cloudflare data centre that served it -- on a point of its own, the
+    // err5xx family, carrying the route, the upstream, the colo and the status, and NOTHING that identifies the
+    // device: no device id, no firmware, no key (docs/colo-on-errors.md; ruled 2026-10-23). Below 500 nothing changes,
+    // and the request point above still carries no colo, so a colo is never stored beside a device id.
+    if (m.status >= 500) {
+      env.METRICS?.writeDataPoint({
+        blobs: ["err5xx", route, m.upstream ?? "", m.colo ?? ""],
+        doubles: [m.status],
+        indexes: ["err5xx"],
+      });
+    }
   } catch {
     // never let telemetry break serving
   }
