@@ -2602,3 +2602,268 @@ Each family gets a truth table of named cases with a count, and sabotages with e
   - ring labels clear obstacles by 2 px, not 4.
 
   **Recommended:** follow the code in each case.
+
+### A9.9 Ruled 2026-10-23 (source: reviewer chat, pasted by Daniel): the plan accepted; Q12-Q22
+
+> 1. Addendum 9's plan (0641856) is accepted: the design (A9.3), the method (A9.4), the families and sabotages (A9.5), the order (A9.7), and the sizes re-registered forward. Freeze the truth tables, sabotage sets and R0 before any code. Rebase onto main and open the PR once #467 has merged.
+
+Item 2, source "Daniel":
+
+> 2. Daniel (2026-10-23): the geography layers will also be a Blipscope setting later. So the basemap package (3.5b) is designed product-neutral from the start: the radius is a parameter of the package, and the format carries nothing Weatherscope-specific. Weatherscope builds it first; the Blipscope adopts it after v19.
+
+> 3. Q12-Q22, rulings verbatim:
+> "Q12: yes. Join SUB-EST2024 into WxTowns.h in 3.5a, with the same provenance header, the join keyed on GEOID, and a regeneration check. A place with no figure ranks as 1,000, as the generator does.
+> Q13: yes. Title case supersedes 5d. LabelText drops the Gazetteer's LSAD suffix and keeps its case, so McKinney, DeSoto and La Pine stay as written. L1-L4 and S-L are re-registered.
+> Q14: yes, with two additions. R0's differences from the generator are accounted for, not matched: where the generator's rounding is the inconsistent one, ref35.py keeps floor(v + 0.5) and the record names the pixels. And R0 passes only when every differing pixel is named; an unexplained pixel is a finding about the spec, and stops. The vendored font's sha256 is pinned against Adafruit-GFX glcdfont.c.
+> Q15: the stale scenario, yes, as recommended. And a sixth, clear: a synthetic all-dry crop (every cell code 0, the loop's header) with a synthetic observation at 54 °F, labelled synthetic, so '54° · NO RAIN' is seen on the glass once. Both are stored-mode only, under the release gate.
+> Q16: yes. An echo counts only within 60.0 mi of the location, at every zoom. The generator's corner counting was a defect in the mockup code, not the rule.
+> Q17: yes, as recommended, plus: no arrow when the storm's position is outside the 60 mi view, and the arrow is drawn after the polygon and before the labels.
+> Q18: yes, plus: on the warning screen, past 30 minutes the frame time reads '4:24 PM · STALE' in orange, because the band can't carry 'RADAR STALE' there.
+> Q19: yes.
+> Q20: yes.
+> Q21: yes.
+> Q22: follow the code in each case. The sheet's note was wrong about labels inside the square; the code's rule is the ruling."
+>
+> 4. The reference files stay where they are; the generator's hand-typed POP table is for R0 only, never a data source.
+
+**Recorded alongside:** #467's whole-suite CI failed on its head before this freeze was written. That is A8.23, committed locally on #467's branch and awaiting a ruling. The rebase this ruling names waits on #467's merge, so it waits on that ruling too.
+
+### A9.10 3.5a's truth tables, sabotage sets and R0, frozen before any code (2026-10-23)
+
+**Conventions, used by every table below:**
+- Boxes are **inclusive** (x0, y0, x1, y1).
+- `w(s) = 6·len(s) − 1` at size 1.
+- The inner circle is **24.4 px** (`0.17 · 120 + 4`, the same at every zoom).
+- **Every pixel rounding** is `floor(v + 0.5)`.
+- **Truncations** stay as the generator's `int()`: every argument here is positive, so `floor`.
+- **The band rule, as the code has it (Q22).** A label side is rejected if `y0 < 26` or `y1 > 192`, **and** if it overlaps a band rectangle ((0, 0, 239, 23), (0, 194, 239, 239)) with 4 px of air.
+  - Together they mean a label box can sit only in **28 ≤ y0** and **y1 ≤ 189**. That is tighter than the prose's 24/194, and it is the rule.
+
+**The new test, `test/host/test_wx_layout.cpp`**, covers 3.5's `WxScreens.h` and `WxRaster.h`:
+- **73 cases.**
+- The label cases go through one function, `PlaceTown(label, x, y, fixed, placed)`, which returns the side, the box, and the text origin (`tx`, `iy − 3`).
+
+**IC, the inner circle** (5):
+
+| case | input | expected |
+|---|---|---|
+| IC1 | "A" at (144.0, 120.0): the anchor is 24.0 px from the centre | skipped (the anchor is inside 24.4) |
+| IC2 | "A" at (150.0, 120.0) | right; box (149, 116, 159, 124); text at (154, 117) |
+| IC3 | "ABCDEF" at (146.0, 120.0), fixed (150, 110, 200, 130) | skipped: right blocked by the fixed overlay, left crosses the centre |
+| IC4 | "A" at (145.5, 120.0): the anchor at 25.5 px, but the right box's nearest point at 24 px | skipped (the box touches the inner circle; left is worse) |
+| IC5 | "A" at (146.0, 120.0): the nearest point at 25 px | right; box (145, 116, 155, 124) |
+
+**OV, overlap with 4 px of air** (10):
+
+| case | input | expected |
+|---|---|---|
+| OV1 | `Overlaps((100,60,130,68), (135,60,150,68))`: 4 px of air | false |
+| OV2 | `Overlaps((100,60,130,68), (134,60,150,68))`: 3 px | true |
+| OV3 | `Overlaps((100,60,130,68), (100,73,130,81))`: 4 px, vertical | false |
+| OV4 | `Overlaps((100,60,130,68), (100,72,130,80))`: 3 px, vertical | true |
+| OV5a | "A" at (170.0, 185.0): y1 = 189 | right; box (169, 181, 179, 189) |
+| OV5b | "A" at (170.0, 186.0): y1 = 190 | skipped |
+| OV5c | "A" at (170.0, 32.0): y0 = 28 | right; box (169, 28, 179, 36) |
+| OV5d | "A" at (170.0, 31.0): y0 = 27 | skipped |
+| OV6a | "A" at (100.0, 75.0), polygon edge (91, 85, 148, 85) | left; box (90, 71, 102, 79) |
+| OV6b | "A" at (100.0, 77.0), the same edge | skipped (both sides within 4 px of the edge) |
+
+**SD, the side rule** (5):
+
+| case | input | expected |
+|---|---|---|
+| SD1 | "A" at (170.0, 80.0) | right (away from the centre); box (169, 76, 179, 84); tx 174 |
+| SD2 | "A" at (70.0, 80.0) | left; box (60, 76, 72, 84); tx 61 |
+| SD3 | "A" at (170.0, 80.0), fixed (180, 70, 230, 90) | left, the fallback; box (160, 76, 172, 84); tx 161 |
+| SD4 | "A" at (170.0, 80.0), fixed (150, 70, 200, 90) | skipped (both sides blocked) |
+| SD5 | "A" at (120.0, 60.0): x = 120 exactly, so not left of the centre | right; box (119, 56, 129, 64) |
+
+**CI, the 116 px circle** (2):
+
+| case | input | expected |
+|---|---|---|
+| CI1 | "ABCDEF" at (200.0, 120.0) | left: the right box's corner is at 119.1 px; box (160, 116, 202, 124); tx 161 |
+| CI2 | "ABCDEF" at (236.0, 120.0) | skipped |
+
+**LB, ranking and caps** (6). The function under test is `RankOrder(pop[], n)`; a population of 0 means no figure, and ranks as 1,000.
+
+| case | input | expected |
+|---|---|---|
+| LB1 | in file order [5,000, 50,000, 500,000] | order [2, 1, 0] |
+| LB2a | [999, 0] | [1, 0] (no figure ranks as 1,000, above 999) |
+| LB2b | [1,000, 0] | [0, 1] (a tie keeps the file order) |
+| LB3 | towns "A".."J" at 60 px from the centre, 36° apart starting at north, populations 10,000 × (index + 1), so the file order is ascending; R = 60 | placed, in order, J I H G F E D C (8) |
+| LB4 | the same at R = 30 | J I H G F E (6) |
+| LB5 | the same at R = 15 | J I H G F (5) |
+
+- **Why the cap is what decides LB3-LB5:** uncapped, all ten place, so the caps alone decide.
+
+**RG, RD and RL, the rings** (7):
+
+| case | input | expected |
+|---|---|---|
+| RG1 | R = 60 | rings {15, 30} |
+| RG2 | R = 30 | {5, 15} |
+| RG3 | R = 15 | {5} |
+| RD1 | the 30 mi ring at R = 60 (r = 60 px) | n = 376, so **188** dots, all in the map area, starting (120, 60), (122, 60) |
+| RD2 | the 15 mi ring at R = 60 (r = 30) | n = 188, so **94** dots |
+| RL1 | the label "30" on r = 60, no obstacles | 45°: text at (164, 68); box (163, 67, 176, 76) |
+| RL2 | the same with an obstacle (160, 60, 180, 80) | 135°: text at (164, 161); box (163, 160, 176, 169) |
+
+**ST, the state line** (14). The text and the ink come from `StateLine(...)`, except ST11, which goes through `NearestEchoInView(crop, here, 60.0)` on a synthetic crop.
+
+| case | input | expected |
+|---|---|---|
+| ST1 | an echo at 14.328384 mi, 108.2334° | "RAIN 14 MI E", white |
+| ST2 | 23.555802 mi, 162.1° | "RAIN 24 MI S", dim |
+| ST3 | 15.0 mi, 90° | "RAIN 15 MI E", **white** (≤ 15) |
+| ST4 | 15.01 mi, 90° | "RAIN 15 MI E", **dim** |
+| ST5 | 14.5 mi, 0° | "RAIN 15 MI N", white |
+| ST6 | here now: rain | "RAIN NOW", white |
+| ST7 | here now: snow | "SNOW NOW", white |
+| ST8 | no echo; observation at 54.6 °F | "55" 0xF8 " " 0xFA " NO RAIN", dim |
+| ST9 | no echo; −3.5 °F | "-3" 0xF8 " " 0xFA " NO RAIN", dim |
+| ST10 | no echo; no temperature | "NO RAIN 60 MI", dim |
+| ST11a | a crop whose only echo cell is 60.4 mi out | no echo in view |
+| ST11b | the only echo cell is 59.6 mi out | found, 59.6 mi (±0.1) |
+| ST12 | frame age 1,801 s, not the warning screen | "RADAR STALE", dim |
+| ST13 | age 1,800 s | the ordinary line (not stale) |
+
+**TM, the frame time** (5):
+
+| case | input | expected |
+|---|---|---|
+| TM1 | age 600 s | "4:24 PM", dim |
+| TM2 | age 601 s | "4:24 PM", orange |
+| TM3 | the warning screen, age 1,801 s | "4:24 PM " 0xFA " STALE", orange |
+| TM4 | the warning screen, age 1,800 s | "4:24 PM", orange |
+| TM5 | not the warning screen, age 1,801 s | "4:24 PM", orange (and ST12 in the band) |
+
+**WN, the warning texts** (6):
+
+| case | input | expected (top 1, top 2, band 1, band 2) |
+|---|---|---|
+| WN1 | the SVR scenario (A8.10) | "SEVERE T-STORM"; "WARNING · UNTIL 5:09 PM"; "HAIL 1 IN · WIND 60 MPH"; "STORM 14 MI E · NE 35 MPH" |
+| WN2 | a Tornado Warning: RADAR INDICATED, hail 1.50, motion from 225° at 25 kt, the storm 3 mi SW | "TORNADO"; …; "RADAR INDICATED · HAIL 1.5 IN"; "STORM 3 MI SW · NE 29 MPH" |
+| WN3 | a Flash Flood Warning, `flashFloodDetection` "RADAR INDICATED", no motion | "FLASH FLOOD"; …; "RADAR INDICATED"; "" |
+| WN4 | a Snow Squall Warning, motion from 270° at 20 kt, the storm 8 mi W | "SNOW SQUALL"; …; ""; "STORM 8 MI W · E 23 MPH" |
+| WN5 | WN1 at 0 kt | band 2 "STORM 14 MI E · STATIONARY" |
+| WN6 | a Tornado Warning, CATASTROPHIC, hail 1.00 | band 1 "TORNADO EMERGENCY · HAIL 1 IN" |
+
+("·" is 0xFA throughout.)
+
+**AR, the arrow** (5):
+
+| case | input | expected |
+|---|---|---|
+| AR1 | the storm at (150.0, 100.0), from 240°, so travelling 60° | shaft (150, 100) → tip (160, 94); head strokes end at (158, 97) and (156, 94); **its pixel set equals `ref35.py`'s** |
+| AR2a | the storm 60.5 mi from the location | no arrow |
+| AR2b | 59.5 mi | an arrow |
+| AR3 | the storm at (150.0, 190.0), from 0°, so travelling 180° | only the shaft points with y ≤ 193 are drawn |
+| AR4 | "A" anchored on the storm's position | that label is skipped: the arrow's box is a fixed overlay |
+
+**ZM, zoom**, through the reused `radarzoom::Step` / `IdleExpired` and `longpress::ToggleTarget`, with expectations stated as **miles** (8):
+
+| case | input | expected |
+|---|---|---|
+| ZM1 | the ladder | {15, 30, 60}, starting at 60 |
+| ZM2 | in from 60, three times | 30, 15, 15 (Edge::Max) |
+| ZM3 | out from 15, three times | 30, 60, 60 (Edge::Min) |
+| ZM4 | a long press at 60, at 30 and at 15 | 15, 15, 60 |
+| ZM5 | idle 600,000 ms, and 599,999 ms | back to 60; unchanged |
+| ZM6 | the tag at 30, 15 and 60 | "ZOOM 30 MI"; "ZOOM 15 MI"; none |
+| ZM7 | the label cap at 60, 30 and 15 | 8, 6, 5 |
+| ZM8 | the top strip at 4:24 PM: unzoomed, and zoomed to 30 | unzoomed: the time at x 99; zoomed: the run at x 63, the tag at x 117 |
+
+**Re-registered in the 3.3 tests:**
+- **`test_wx_logic.cpp`, L (Q13):**
+  - L1 "Bend city" → "Bend"; L2 "La Pine city" → "La Pine"; L3 "Winston-Salem city" → "Winston-Salem"; L4 "Oklahoma City city" → "Oklahoma City".
+  - New: L5 "McKinney city" → "McKinney"; L6 "DeSoto city" → "DeSoto".
+  - The suite becomes **120 cases**, plus RK.
+- **`test_wx_screens.cpp`:**
+  - CY6 now wraps from **clear** (index 5) to dry. New: **CY7**, warning → stale.
+  - WT1-WT5 and CK1-CK3 are kept.
+  - **HW, TB, LF and UN are retired**, and S-LF and S-UN with them. They belonged to the rectangle masks, which A9.4 retired.
+  - The suite becomes **15 cases**.
+
+**PJ, the population join** (Q12), checked in `make_towns.py --check` and by `test_wx_towns.cpp` (4):
+- **PJ1:** the regenerated `WxTowns.h` is byte-identical.
+- **PJ2:** among the 171, **Dallas ranks first and Fort Worth second**.
+- **PJ3:** every stored figure equals `POPESTIMATE2024` from SUB-EST2024's **SUMLEV 162** row whose `STATE` + `PLACE` equals the town's GEOID, re-derived independently in the check.
+- **PJ4:** the count with no figure is **reported, not predicted**.
+
+**FT, the font** (3):
+- **FT1:** the vendored table's sha256 equals Adafruit-GFX-Library's `glcdfont.c` at the commit recorded in its header.
+- **FT2:** the table is 256 × 5 bytes, and glyphs 0xF8 and 0xFA are non-empty.
+- **FT3, reported only:** whether it equals LovyanGFX's default font table, when one is present.
+
+**SC, the synthetic clear crop** (Q15) (2):
+- **SC1:** `test/fixtures/wx/loop/synthetic-clear.wxc` decodes, through both `WxCrop.h` and `ring_ref.py`'s decoder, to **38,520 cells, all code 0**.
+- **SC2:** its header equals `shsr-20240521-220000.wxc`'s, byte for byte.
+
+**The sabotages, each with its exact failing set.** Each set was checked across every family, not only the one it targets:
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-RANK | rank in file order | {LB1, LB2a, LB3, LB4, LB5} |
+| S-IC | no inner circle (neither the anchor test nor the box test) | {IC1, IC3, IC4} |
+| S-OV | air 0 instead of 4, everywhere | {OV2, OV4, OV5b, OV5d, OV6b, SD3} |
+| S-SIDE | always try the right side first | {SD2, OV6a} |
+| S-CAP | the cap is 8 at every zoom | {LB4, LB5} |
+| S-RING | rings at 0-100 % instead of 15-85 % | {RG1, RG2, RG3} |
+| S-ST15 | `<` 15 instead of `≤` 15 for white | {ST3} |
+| S-STALE | `≥` instead of `>` at both thresholds | {TM1, TM4, ST13} |
+| S-INVIEW | the echo search's 60.0 mi bound dropped | {ST11a} |
+| S-ARROW | the arrow points along `fromDeg`, not + 180 | {AR1, AR3} |
+| S-LADDER | the ladder from `BuildLadder(60)` | {ZM1, ZM2, ZM3, ZM4} |
+| S-L (re-registered) | every "city" stripped, case-insensitive | {L4} |
+| S-PJ | `POPESTIMATE2023` joined | {PJ3} |
+| S-FT | one byte of a copy of the vendored table flipped | {FT1} |
+| S-CY, S-CY2, S-WT, S-CK | as 3.3d | {CY3}, {CY4, CY5}, {WT2}, {CK2, CK3} |
+
+**R0, the control on the reference** (Q14 with its additions):
+- **The inputs are exactly the generator's:**
+  - the frames `220000`, `212400` and `210800`;
+  - the 171 towns as `WxTowns.h` held them at `b202ff3`;
+  - the POP table parsed from `wxmock.py` itself, used for R0 only (ruling 4);
+  - the clocks "5:00 PM", "4:24 PM" and "4:08 PM";
+  - the warning dictionary;
+  - the caps 8/6/5.
+- **The screens:** the 7 PNGs, `screen-proposed-{dry,approaching,herenow,warning}.png` and `screen-zoom-{60,30,15}.png`.
+- **`ref35.py` renders each one twice:**
+  - **G, the generator's mode:** Python's `round()` at the generator's two rounding sites (the ring dots and the polygon's DDA points); its corner-counting nearest echo; no arrow (the mockups have none);
+  - **P, the pinned mode:** `floor(v + 0.5)` at those sites; the 60.0 mi echo bound; still no arrow.
+- **R0a:** G equals the PNG at all **57,600** pixels, compared in RGB888, which is the PNGs' own space.
+  - **Any pixel G does not reproduce is unexplained,** and R0 **stops** there, as a finding about the spec or my reading of it.
+- **R0b:** every pixel where P differs from G must appear in `ref35.py`'s **rounding log**: each rounding-site call whose argument was exactly k + 0.5, with its site (ring r, dot k; or edge i, point k), its argument, and the pixel in each mode.
+  - **R0 passes only when every differing pixel is named.**
+  - **The named pixels go into the results**, as the ruling asks.
+
+**K, host, full frame** (25 rows): the host build of the device's `WxRaster`/`WxScreens` output must equal `ref35.py` P, in RGB565 (both truncated through `color565`), at **57,600 of 57,600** pixels. Real SUB-EST2024 populations throughout:
+- the six scenarios at 60 mi: dry, approaching, here now, warning, stale, clear;
+- approaching at 30 and 15;
+- dry at 30 and 15;
+- the loop's 15 frames at 60 mi, with **the loop's band, my layout for Daniel's look:**
+  - the age, "56 MIN AGO" or "NOW", at size 1, dim, centred, y 198;
+  - a track 120 × 2 at (60, 212) in (96, 96, 96);
+  - a white knob 4 × 6 at x = 60 + floor(i · 116 / 14), y 210.
+
+**B, the board** (run as A8.4: one held open; the runner acts only on a scenario line that arrives **at least 1 s after the open**):
+- **B1:** the six scenarios at 60 mi.
+  - Each graded `/diag/fb` snapshot (the pair rule, untorn) must equal `ref35.py` P at **57,600** pixels.
+  - The board prints its state line, its band lines and its placed labels (name, side, box), and each must equal `ref35.py`'s.
+  - **All six graded images are kept for Daniel.**
+- **BZ, on dry, starting within its hold:** `U`, `U`, `U`, `D`, `D`, `H`, `H`. The expected radii are 30, 15, 15 (the edge), 30, 60, 15, 60, and each screen must equal its reference.
+- **B2:** the loop at 60 mi.
+  - The 15 code hashes equal `screens.ref.json`; the epochs are the manifest's.
+  - **Pacing:** max − min ≤ 10,000 µs, each interval 70,000 ± 5,000 µs, ≥ 14 fps.
+  - **Draw ≤ 45,000 µs and hash ≤ 5,000 µs.**
+  - The screen it returns to equals its reference.
+- **B3:** the legend (`legend_check --fb` exits 0), and the screen it returns to equals its reference.
+- **Sizes:** as A9.5.
+- **The recorded-data sabotages:**
+  - S-B1a′: dry's snapshot graded against approaching's reference, so the pixel check goes red;
+  - S-B1b′: one board-printed label moved by 1 px, so the label check goes red;
+  - S-B2a, S-B2b and S-B2c, as in 3.3d.
+
+**Outside every prediction:** stop, record, and wait for a ruling.
