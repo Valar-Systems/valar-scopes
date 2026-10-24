@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "WxCrop.h"
 #include "WxLogic.h"
@@ -74,13 +75,21 @@ inline void IsoOnClock(int64_t utc, int offMin, char* out, size_t cap)
     const unsigned d = doy - (153 * mp + 2) / 5 + 1, m = mp < 10 ? mp + 3 : mp - 9;
     const long y = (long)(yoe + era * 400 + (m <= 2));
     const int hh = (int)(sec / 3600), mm = (int)(sec / 60 % 60), ss = (int)(sec % 60);
+    // Formatted into a local the compiler can bound (A8.23: g++ 13's -Wformat-truncation sees up to 60 bytes from
+    // these int64-derived fields), then copied at most cap - 1 bytes. Every real date is 25 characters.
+    char buf[64];
     if (offMin == 0) {
-        snprintf(out, cap, "%04ld-%02u-%02uT%02d:%02d:%02dZ", y, m, d, hh, mm, ss);
+        snprintf(buf, sizeof buf, "%04ld-%02u-%02uT%02d:%02d:%02dZ", y, m, d, hh, mm, ss);
     } else {
         const int a = offMin < 0 ? -offMin : offMin;
-        snprintf(out, cap, "%04ld-%02u-%02uT%02d:%02d:%02d%c%02d:%02d", y, m, d, hh, mm, ss, offMin < 0 ? '-' : '+',
-                 a / 60, a % 60);
+        snprintf(buf, sizeof buf, "%04ld-%02u-%02uT%02d:%02d:%02d%c%02d:%02d", y, m, d, hh, mm, ss,
+                 offMin < 0 ? '-' : '+', a / 60, a % 60);
     }
+    if (cap == 0) return;
+    size_t n = strlen(buf);
+    if (n > cap - 1) n = cap - 1;
+    memcpy(out, buf, n);
+    out[n] = '\0';
 }
 
 // One scenario. The warning points into this object's own buffers, so it is built in place and never copied.

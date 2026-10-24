@@ -206,12 +206,17 @@ inline void AddText(Layout& L, const char* s, int size, int y, Ink ink)
 {
     if (!s || !*s || L.n >= kMaxItems) return;
     Item& it = L.items[L.n++];
-    it.r = TextBox(strlen(s), size, y);
+    // ONE length for the box and the copy (A8.23): a string longer than the item holds is clamped in both, so the
+    // box can never be wider than the text drawn in it.
+    size_t n = strlen(s);
+    if (n > (size_t)kMaxLine - 1) n = (size_t)kMaxLine - 1;
+    it.r = TextBox(n, size, y);
     it.kind = ItemKind::Text;
     it.size = (uint8_t)size;
     it.ink = ink;
     it.dotX = it.dotY = 0;
-    snprintf(it.text, sizeof(it.text), "%s", s);
+    memcpy(it.text, s, n);
+    it.text[n] = '\0';
 }
 inline void AddRect(Layout& L, Rect r, ItemKind kind, Ink ink)
 {
